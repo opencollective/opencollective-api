@@ -363,8 +363,8 @@ module.exports = function(app) {
               paymentType: 'SERVICE'
             },
             {
-              email: "xdamman+opencollective@gmail.com",
-              amount: "0.00",
+              email: 'xdamman+opencollective@gmail.com',
+              amount: '0.00',
               primary: false
             }
           ]
