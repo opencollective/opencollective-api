@@ -349,7 +349,7 @@ module.exports = function(app) {
         },
         actionType: 'PAY',
         currencyCode: data.transaction.currency.toUpperCase() || 'USD',
-        feesPayer: 'SENDER',
+        feesPayer: 'SECONDARYONLY',
         memo: 'Reimbursement transaction ' + data.transaction.id + ': ' + data.transaction.description,
         trackingId: [uuid.v1().substr(0, 8), data.transaction.id].join(':'),
         preapprovalKey: data.cardToken,
@@ -361,6 +361,11 @@ module.exports = function(app) {
               email: data.beneficiary.paypalEmail || data.beneficiary.email,
               amount: amount,
               paymentType: 'SERVICE'
+            },
+            {
+              email: 'xdamman+opencollective@gmail.com',
+              amount: '0.00',
+              primary: false
             }
           ]
         }
