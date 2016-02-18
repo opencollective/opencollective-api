@@ -281,23 +281,18 @@ module.exports = function(app) {
         addUserToGroup: ['createTransaction', function(cb, results) {
           user = results.getOrCreateUser;
 
-          models.UserGroup.findOne({
-            where: {
-              GroupId: group.id,
-              UserId: user.id,
-              role: roles.BACKER
-            }
-          })
-          .then(function(userGroup) {
-            if (!userGroup)
-              group
-                .addUserWithRole(user, roles.BACKER)
-                .done(cb);
-            else {
-              return cb();
-            }
-          })
-          .catch(cb);
+          group
+            .hasUser(user)
+            .then(function(isMember) {
+              if (isMember)
+                return cb();
+              else {
+                group
+                  .addUser(user, {role: roles.BACKER})
+                  .done(cb);
+              }
+            })
+            .catch(cb);
         }]
 
       }, function(e) {

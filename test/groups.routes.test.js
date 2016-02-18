@@ -219,6 +219,7 @@ describe('groups.routes.test.js', function() {
             done();
           });
         });
+
     });
 
   });
@@ -446,7 +447,7 @@ describe('groups.routes.test.js', function() {
           expect(e).to.not.exist;
           group2 = g;
           group2
-            .addUserWithRole(user, roles.HOST)
+            .addUser(user, {role: roles.HOST})
             .done(done);
         });
       });
@@ -630,7 +631,7 @@ describe('groups.routes.test.js', function() {
         expect(e).to.not.exist;
         user3 = u;
         group
-          .addUserWithRole(user3, roles.BACKER)
+          .addUser(user3, {role: roles.BACKER})
           .done(done);
       });
     });
@@ -641,7 +642,7 @@ describe('groups.routes.test.js', function() {
         expect(e).to.not.exist;
         user4 = u;
         group
-          .addUserWithRole(user4, roles.MEMBER)
+          .addUser(user4, {role: roles.MEMBER})
           .done(done);
       });
     });
@@ -744,27 +745,6 @@ describe('groups.routes.test.js', function() {
         })
         .expect(200)
         .end(done);
-    });
-
-    it('successfully create a group with HOST and assign same person to be a MEMBER and a BACKER', function(done) {
-      /* TODO: this works but we'll need to do a lot refactoring.
-       * Need to find a way to call this with one line: like group.addUser()
-       */
-      models.UserGroup.create({
-        UserId: user3.id,
-        GroupId: group.id,
-        role: roles.MEMBER
-      })
-      .done(function(e) {
-        expect(e).to.not.exist;
-        models.UserGroup
-            .findAll()
-            .then(function(rows) {
-              expect(rows.length).to.equal(4);
-              done();
-            })
-            .catch(done);
-      });
     });
 
   });

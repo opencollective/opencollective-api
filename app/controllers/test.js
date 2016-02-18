@@ -86,7 +86,7 @@ module.exports = function(app) {
           isPublic: true
         })
         .then(group => {
-          return group.addUserWithRole(results.createTestUser, roles.HOST)
+          return group.addUser(results.createTestUser, {role: roles.HOST})
         })
         .then(() => cb())
         .catch(cb);

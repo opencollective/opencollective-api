@@ -100,14 +100,14 @@ describe('transactions.routes.test.js', function() {
   // Add user to the group.
   beforeEach(function(done) {
     group
-      .addUserWithRole(user, roles.HOST)
+      .addUser(user, {role: roles.HOST})
       .done(done);
   });
 
   // Add user3 to the group.
   beforeEach(function(done) {
     group
-      .addUserWithRole(user3, roles.MEMBER)
+      .addUser(user3, {role: roles.MEMBER})
       .done(done);
   });
 
@@ -115,14 +115,14 @@ describe('transactions.routes.test.js', function() {
   // Add user to the group2.
   beforeEach(function(done) {
     group2
-      .addUserWithRole(user, roles.HOST)
+      .addUser(user, {role: roles.HOST})
       .done(done);
   });
 
   // Add user to the publicGroup.
   beforeEach(function(done) {
     publicGroup
-      .addUserWithRole(user, roles.HOST)
+      .addUser(user, {role: roles.HOST})
       .done(done);
   });
 
@@ -995,7 +995,7 @@ describe('transactions.routes.test.js', function() {
         },
         addUserDGroupA: ['createUserD', function(cb, results) {
           group
-            .addUserWithRole(results.createUserD, roles.BACKER)
+            .addUser(results.createUserD, {role: roles.BACKER})
             .done(cb);
         }]
       }, function(e, results) {
