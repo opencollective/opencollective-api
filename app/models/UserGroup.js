@@ -3,11 +3,6 @@ var roles = require('../constants/roles');
 module.exports = function(Sequelize, DataTypes) {
 
   var UserGroup = Sequelize.define('UserGroup', {
-    id: {
-      type: DataTypes.INTEGER,
-      primaryKey: true,
-      autoIncrement: true
-    },
     // Role.
     role: {
       type: DataTypes.STRING,
@@ -32,14 +27,6 @@ module.exports = function(Sequelize, DataTypes) {
     }
   }, {
     paranoid: true,
-    indexes: [
-       {
-          unique: true,
-          fields: ['UserId', 'GroupId', 'role'],
-          name: 'UserGroups_3way',
-          constraints: true
-      }
-    ],
 
     getterMethods: {
       // Info.

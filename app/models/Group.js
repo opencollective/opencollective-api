@@ -152,14 +152,6 @@ module.exports = function(Sequelize, DataTypes) {
           .catch(cb);
       },
 
-      addUserWithRole(user, role) {
-        return Sequelize.models.UserGroup.create({
-          role,
-          UserId: user.id,
-          GroupId: this.id
-        });
-      },
-
       getStripeAccount: function(cb) {
         Sequelize.models.UserGroup.find({
           where: {
