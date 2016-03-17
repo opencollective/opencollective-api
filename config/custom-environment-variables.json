@@ -43,5 +43,9 @@
     "api": "API_URL",
     "webapp": "WEBAPP_URL",
     "website": "WEBSITE_URL"
+  },
+  "clearbit": "CLEARBIT_KEY",
+  "slack": {
+    "hookUrl": "SLACK_HOOK_URL"
   }
 }

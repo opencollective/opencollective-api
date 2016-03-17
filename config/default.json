@@ -11,6 +11,7 @@
   },
   "keys": {
     "opencollective": {
+      // TODO: This needs to be changed.
       "resetPasswordSecret": "O4ExDVzM7OviRzQBhRSV0Z2P1w4impwH"
     }
   },
@@ -28,11 +29,11 @@
   },
   "paypal": {
     "classic": {
-      "email": "xdamman+opencollective-facilitator@gmail.com",
-      "appId": "APP-80W284485P519543T",
-      "userId": "xdamman+opencollective-facilitator_api1.gmail.com",
-      "password": "UYRFFTDG3TYML68L",
-      "signature": "AknyGVnC4ahUBjab.T2H-YVkWGCqAW-ZI2s7gMVZKRdZpFO7kWEOorjv"
+      "email": "",
+      "appId": "",
+      "userId": "",
+      "password": "",
+      "signature": ""
     },
     "rest": {
       "mode": "sandbox"
@@ -42,9 +43,9 @@
   "stripe": {
     "redirectUri": "http://localhost:3060/stripe/oauth/callback"
   },
-  "clearbit": "93890266fd5110a2f35ea61d31f484f7",
+  "clearbit": "",
   "slack": {
-    "hookUrl": "https://hooks.slack.com/services/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",
+    "hookUrl": "",
     "activityChannel": "#activity_test"
   }
 }
