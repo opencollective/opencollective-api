@@ -1,4 +1,4 @@
-var roles = require('../constants/roles');
+var roles = require('../constants/roles').collectiveRoles;
 
 module.exports = function(Sequelize, DataTypes) {
 
@@ -8,7 +8,6 @@ module.exports = function(Sequelize, DataTypes) {
       primaryKey: true,
       autoIncrement: true
     },
-
     // Role.
     role: {
       type: DataTypes.STRING,

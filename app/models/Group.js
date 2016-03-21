@@ -5,7 +5,7 @@ const _ = require('lodash');
 const Joi = require('joi');
 const config = require('config');
 
-const roles = require('../constants/roles');
+const roles = require('../constants/roles').collectiveRoles;
 
 const tier = Joi.object().keys({
   name: Joi.string().required(), // lowercase, act as a slug. E.g. "donors", "sponsors", "backers", "members", ...

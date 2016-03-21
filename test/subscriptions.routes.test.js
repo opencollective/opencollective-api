@@ -3,7 +3,6 @@
  */
 const cheerio = require('cheerio');
 const nock = require('nock');
-const _ = require('lodash');
 const app = require('../index');
 const async = require('async');
 const sinon = require('sinon');
@@ -21,7 +20,7 @@ const stripeMock = require('./mocks/stripe');
 const STRIPE_URL = 'https://api.stripe.com:443';
 var models = app.set('models');
 var transactionsData = utils.data('transactions1').transactions;
-var roles = require('../app/constants/roles');
+var roles = require('../app/constants/roles').collectiveRoles;
 
 /**
  * Tests.
@@ -30,7 +29,7 @@ describe('subscriptions.routes.test.js', () => {
   var group;
   var user;
   var application;
-  var card;
+  var paymentMethod;
   var sandbox = sinon.sandbox.create();
 
   beforeEach((done) => {
@@ -82,11 +81,11 @@ describe('subscriptions.routes.test.js', () => {
     .catch(done);
   });
 
-  // Create a card.
+  // Create a paymentMethod.
   beforeEach((done) => {
-    models.Card.create(utils.data('card2')).done((e, c) => {
+    models.PaymentMethod.create(utils.data('paymentMethod2')).done((e, c) => {
       expect(e).to.not.exist;
-      card = c;
+      paymentMethod = c;
       done();
     });
   });
@@ -217,7 +216,6 @@ describe('subscriptions.routes.test.js', () => {
         issuer: config.host.api,
         audience: application.id
       });
-
       app.mailgun.sendMail = (options) => {
         const $ = cheerio.load(options.html);
         const token = $('a').attr('href').replace('http://localhost:3000/subscriptions/', '');
@@ -305,7 +303,7 @@ describe('subscriptions.routes.test.js', () => {
         user,
         group,
         subscription,
-        card
+        paymentMethod
       }, (err, t) => {
         transaction = t;
         done(err);
@@ -314,7 +312,7 @@ describe('subscriptions.routes.test.js', () => {
 
     beforeEach(() => {
       nocks['subscriptions.delete'] = nock(STRIPE_URL)
-        .delete(`/v1/customers/${card.serviceId}/subscriptions/${subscription.stripeSubscriptionId}`)
+        .delete(`/v1/customers/${paymentMethod.serviceId}/subscriptions/${subscription.stripeSubscriptionId}`)
         .reply(200, stripeMock.subscriptions.create);
     });
 

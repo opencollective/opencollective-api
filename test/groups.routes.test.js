@@ -9,7 +9,7 @@ var expect = require('chai').expect;
 var request = require('supertest');
 var chance = require('chance').Chance();
 var utils = require('../test/utils.js')();
-var roles = require('../app/constants/roles');
+var roles = require('../app/constants/roles').collectiveRoles;
 var sinon = require('sinon');
 
 /**

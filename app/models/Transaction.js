@@ -1,12 +1,14 @@
 const _ = require('lodash');
+const Temporal = require('sequelize-temporal');
 
 module.exports = function(Sequelize, DataTypes) {
 
   var Transaction = Sequelize.define('Transaction', {
-    type: DataTypes.STRING,
-    description: DataTypes.STRING,
-    amount: DataTypes.FLOAT,
-    vat: DataTypes.FLOAT,
+    type: DataTypes.STRING, // Expense or Donation
+    description: DataTypes.STRING, // delete #postmigration
+    amount: DataTypes.FLOAT, // delete #postmigration
+    amountInteger: DataTypes.INTEGER,
+    vat: DataTypes.FLOAT, // delete #postmigration
     currency: {
       type: DataTypes.STRING,
       defaultValue: 'USD',
@@ -16,14 +18,14 @@ module.exports = function(Sequelize, DataTypes) {
         }
       }
     },
-    vendor: DataTypes.STRING,
-    paidby: DataTypes.STRING,
+    vendor: DataTypes.STRING, // delete #postmigration
+    paidby: DataTypes.STRING, // delete #postmigration
     tags: DataTypes.ARRAY(DataTypes.STRING),
-    status: DataTypes.STRING,
-    comment: DataTypes.STRING,
-    link: DataTypes.STRING,
+    status: DataTypes.STRING, // delete #postmigration
+    comment: DataTypes.STRING, // delete #postmigration
+    link: DataTypes.STRING, // delete #postmigration
 
-    paymentMethod: {
+    payoutMethod: {
       type: DataTypes.STRING,
       validate: {
         isIn: {
@@ -31,25 +33,42 @@ module.exports = function(Sequelize, DataTypes) {
           msg: 'Must be paypal, manual or other'
         }
       }
-    },
+    }, // delete #postmigration
 
-    stripeSubscriptionId: DataTypes.STRING, // to keep until migration is done so we don't lose data
+    platformFee: DataTypes.INTEGER,
+    hostFee: DataTypes.INTEGER,
+    stripeFee: DataTypes.INTEGER,
+    paypalFee: DataTypes.INTEGER,
+    stripeSubscriptionId: DataTypes.STRING, // // delete #postmigration
+
+    OrganizationId: {
+      type: DataTypes.INTEGER,
+      references: 'Organizations',
+      referencesKey: 'id',
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE'
+    },
 
     interval: {
       type: DataTypes.STRING
-    },
+    }, // delete #postmigration
 
     approved: {
       type: DataTypes.BOOLEAN,
       defaultValue: false
-    },
+    }, // delete #postmigration
 
     createdAt: {
       type: DataTypes.DATE,
       defaultValue: Sequelize.NOW
     },
-    approvedAt: DataTypes.DATE,
-    reimbursedAt: DataTypes.DATE
+
+    deletedAt: {
+      type: DataTypes.DATE
+    },
+
+    approvedAt: DataTypes.DATE, // delete #postmigration
+    reimbursedAt: DataTypes.DATE // delete #postmigration
   }, {
     paranoid: true,
 
@@ -84,7 +103,7 @@ module.exports = function(Sequelize, DataTypes) {
       },
 
       isManual() {
-        return this.paymentMethod === 'manual';
+        return this.payoutMethod === 'manual';
       },
 
       isReimbursed() {
@@ -112,17 +131,22 @@ module.exports = function(Sequelize, DataTypes) {
           reimbursedAt: this.reimbursedAt,
           UserId: this.UserId,
           GroupId: this.GroupId,
-          paymentMethod: this.paymentMethod,
+          OrganizationId: this.OrganizationId,
+          payoutMethod: this.payoutMethod,
           isExpense: this.isExpense,
           isRejected: this.isRejected,
           isDonation: this.isDonation,
           isManual: this.isManual,
           isReimbursed: this.isReimbursed,
-          interval: this.interval
+          interval: this.interval,
+          platformFee: this.platformFee,
+          hostFee: this.hostFee,
+          stripeFee: this.stripeFee,
+          paypalFee: this.paypalFee
         };
       }
     }
   });
 
-  return Transaction;
+  return Temporal(Transaction, Sequelize);
 };

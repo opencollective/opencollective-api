@@ -31,16 +31,19 @@ function setupModels(client) {
   [
     'Activity',
     'Application',
-    'Card',
-    'Group',
-    'Paykey',
     'ConnectedAccount',
-    'StripeAccount',
+    'Donation',
+    'Expense',
+    'Group',
     'Notification',
+    'Organization',
+    'PaymentMethod',
+    'StripeAccount',
     'Subscription',
     'Transaction',
     'User',
-    'UserGroup'
+    'UserGroup',
+    'UserOrganization'
   ].forEach((model) => {
     m[model] = client.import(__dirname + '/' + model);
   });
@@ -49,13 +52,12 @@ function setupModels(client) {
    * Relationships
    */
 
-  // Card.
-  m.Card.belongsTo(m.User);
-  m.Card.belongsTo(m.Group); // Not currently used
+  // PaymentMethod.
+  m.PaymentMethod.belongsTo(m.User);
 
   // Group.
   m.Group.belongsToMany(m.User, {through: {model: m.UserGroup, unique:false}, as: 'users'});
-  m.User.belongsToMany(m.Group, {through: {model: m.UserGroup, unique: false}, as: 'groups'});
+  m.User.belongsToMany(m.Group, {through: {model: m.UserGroup, unique:false}, as: 'groups'});
 
   // StripeAccount
   m.User.belongsTo(m.StripeAccount); // Add a StripeAccountId to User
@@ -89,20 +91,20 @@ function setupModels(client) {
   m.Group.hasMany(m.Transaction);
   m.Transaction.belongsTo(m.User);
   m.User.hasMany(m.Transaction);
-  m.Transaction.belongsTo(m.Card);
-  m.Card.hasMany(m.Transaction);
+  m.Transaction.belongsTo(m.PaymentMethod);
+  m.PaymentMethod.hasMany(m.Transaction);
 
   // Application.
   m.Application.belongsToMany(m.Group, {through: 'ApplicationGroup'});
   m.Group.belongsToMany(m.Application, {through: 'ApplicationGroup'});
 
-  // Paypal Pay key.
-  m.Paykey.belongsTo(m.Transaction);
-  m.Transaction.hasMany(m.Paykey);
-
   // Subscription
   m.Transaction.belongsTo(m.Subscription);
   m.Subscription.hasMany(m.Transaction);
+
+  // Organization
+  m.Organization.belongsToMany(m.User, {through: {model: m.UserOrganization, unique:false}, as: 'users'});
+  m.User.belongsToMany(m.Organization, {through: {model: m.UserOrganization, unique:false}, as: 'organizations'});
 
   return m;
 };

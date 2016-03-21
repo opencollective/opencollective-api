@@ -1,6 +1,6 @@
 var _ = require('lodash');
 var serverStatus = require('express-server-status');
-var roles = require('../constants/roles');
+var roles = require('../constants/roles').collectiveRoles;
 var jwt = require('../middlewares/jwt');
 
 module.exports = function(app) {
@@ -22,7 +22,7 @@ module.exports = function(app) {
   var payments = Controllers.payments;
   var paypal = Controllers.paypal;
   var images = Controllers.images;
-  var cards = Controllers.cards;
+  var paymentMethods = Controllers.paymentmethods;
   var webhooks = Controllers.webhooks;
   var stripe = Controllers.stripe;
   var test = Controllers.test;
@@ -42,7 +42,6 @@ module.exports = function(app) {
   app.param('groupid', params.groupid);
   app.param('transactionid', params.transactionid);
   app.param('paranoidtransactionid', params.paranoidtransactionid);
-  app.param('paykey', params.paykey);
 
   /**
    * User reset password flow (no jwt verification)
@@ -90,14 +89,14 @@ module.exports = function(app) {
   app.post('/authenticate/reset', NotImplemented); // Reset the refresh_token.
 
   /**
-   * Credit card.
+   * Payment methods.
    *
-   *  Let's assume for now a card is linked to a user.
+   *  Let's assume for now a payment method is linked to a user.
    */
-  app.get('/users/:userid/cards', aZ.authorizeUserToAccessUser(), cards.getCards); // Get a user's cards.
-  app.post('/users/:userid/cards', NotImplemented); // Create a user's card.
-  app.put('/users/:userid/cards/:cardid', NotImplemented); // Update a user's card.
-  app.delete('/users/:userid/cards/:cardid', NotImplemented); // Delete a user's card.
+  app.get('/users/:userid/paymentmethods', aZ.authorizeUserToAccessUser(), paymentMethods.getPaymentMethods); // Get a user's payment methods.
+  app.post('/users/:userid/paymentmethod', NotImplemented); // Create a user's payment method.
+  app.put('/users/:userid/paymentmethods/:paymentmethodid', NotImplemented); // Update a user's payment method.
+  app.delete('/users/:userid/paymentmethods/:paymentmethodid', NotImplemented); // Delete a user's payment method.
 
   /**
    * Paypal Preapproval.
@@ -152,8 +151,6 @@ module.exports = function(app) {
 
   app.post('/groups/:groupid/transactions/:transactionid/approve', mw.authorizeAuthUserOrApp, mw.authorizeGroup, mw.authorizeTransaction, mw.required('approved'), transactions.approve); // Approve a transaction.
   app.post('/groups/:groupid/transactions/:transactionid/pay', mw.authorizeAuthUser, mw.authorizeGroup, mw.authorizeGroupRoles([roles.HOST, roles.MEMBER]), mw.authorizeTransaction, mw.required('service'), transactions.pay); // Pay a transaction.
-  app.get('/groups/:groupid/transactions/:transactionid/paykey', mw.authorizeAuthUserOrApp, mw.authorizeGroup, mw.authorizeGroupRoles([roles.HOST, roles.MEMBER]), mw.authorizeTransaction, transactions.getPayKey); // Get a transaction's pay key.
-  app.post('/groups/:groupid/transactions/:transactionid/paykey/:paykey', mw.authorizeAuthUserOrApp, mw.authorizeGroup, mw.authorizeGroupRoles([roles.HOST, roles.MEMBER]), mw.authorizeTransaction, transactions.confirmPayment); // Confirm a transaction's payment.
   app.post('/groups/:groupid/transactions/:transactionid/attribution/:userid', mw.authorizeAuthUserOrApp, mw.authorizeGroup, mw.authorizeTransaction, mw.authorizeGroupRoles([roles.HOST, roles.MEMBER]), transactions.attributeUser); // Attribute a transaction to a user.
   app.get('/groups/:groupid/transactions/:paranoidtransactionid/callback', payments.paypalCallback); // Callback after a payment
 

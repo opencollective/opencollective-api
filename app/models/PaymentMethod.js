@@ -1,6 +1,11 @@
 module.exports = function(Sequelize, DataTypes) {
 
-  var Card = Sequelize.define('Card', {
+  var PaymentMethod = Sequelize.define('PaymentMethod', {
+    id: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true
+    },
     number: DataTypes.STRING,
     token: DataTypes.STRING,
     serviceId: DataTypes.STRING,
@@ -19,7 +24,14 @@ module.exports = function(Sequelize, DataTypes) {
     },
     confirmedAt: {
       type: DataTypes.DATE
-    }
+    },
+    UserId: {
+      type: DataTypes.INTEGER,
+      references: 'Users',
+      referencesKey: 'id',
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE'
+    },
   }, {
     paranoid: true,
 
@@ -28,7 +40,6 @@ module.exports = function(Sequelize, DataTypes) {
       info: function() {
         return {
           id: this.id,
-          number: this.number,
           token: this.token,
           service: this.service,
           createdAt: this.createdAt,
@@ -39,5 +50,5 @@ module.exports = function(Sequelize, DataTypes) {
     }
   });
 
-  return Card;
+  return PaymentMethod;
 };

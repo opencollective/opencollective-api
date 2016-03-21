@@ -2,7 +2,7 @@
  * Dependencies.
  */
 const utils = require('../lib/utils');
-const roles = require('../constants/roles');
+const roles = require('../constants/roles').collectiveRoles;
 const _ = require('lodash');
 const config = require('config');
 const async = require('async');
@@ -95,25 +95,25 @@ module.exports = function(app) {
         });
       },
 
-      getExistingCard: ['getGroupStripeAccount', function(cb) {
-        models.Card
+      getExistingPaymentMethod: ['getGroupStripeAccount', function(cb) {
+        models.PaymentMethod
           .findOne({
             where: {
               token: payment.stripeToken,
               service: 'stripe'
             }
           })
-          .then(function(card) {
-            cb(null, card);
+          .then(function(paymentMethod) {
+            cb(null, paymentMethod);
           })
           .catch(cb);
       }],
 
-      createCustomer: ['getGroupStripeAccount', 'getExistingCard', function(cb, results) {
+      createCustomer: ['getGroupStripeAccount', 'getExistingPaymentMethod', function(cb, results) {
         var stripe = results.getGroupStripeAccount;
 
-        if (results.getExistingCard) {
-          return cb(null, results.getExistingCard);
+        if (results.getExistingPaymentMethod) {
+          return cb(null, results.getExistingPaymentMethod);
         }
 
         stripe.customers
@@ -124,18 +124,17 @@ module.exports = function(app) {
           }, cb);
       }],
 
-      createCard: ['createCustomer', 'getExistingCard', function(cb, results) {
-        if (results.getExistingCard) {
-          return cb(null, results.getExistingCard);
+      createPaymentMethod: ['createCustomer', 'getExistingPaymentMethod', function(cb, results) {
+        if (results.getExistingPaymentMethod) {
+          return cb(null, results.getExistingPaymentMethod);
         }
 
-        models.Card
+        models.PaymentMethod
           .create({
             token: payment.stripeToken,
             serviceId: results.createCustomer.id,
             service: 'stripe',
-            UserId: user && user.id,
-            GroupId: group.id
+            UserId: user && user.id
           })
           .done(cb);
       }],
@@ -144,9 +143,9 @@ module.exports = function(app) {
        * For one-time donation
        */
 
-      createCharge: ['getGroupStripeAccount', 'createCard', function(cb, results) {
+      createCharge: ['getGroupStripeAccount', 'createPaymentMethod', function(cb, results) {
         var stripe = results.getGroupStripeAccount;
-        var card = results.createCard;
+        var paymentMethod = results.createPaymentMethod;
         var amount = payment.amount * 100;
         var currency = payment.currency || group.currency;
 
@@ -174,13 +173,13 @@ module.exports = function(app) {
             if (err) return cb(err);
 
             stripe.customers
-              .createSubscription(card.serviceId, {
+              .createSubscription(paymentMethod.serviceId, {
                 plan: plan.id,
                 application_fee_percent: OC_FEE_PERCENT,
                 metadata: {
                   groupId: group.id,
                   groupName: group.name,
-                  cardId: card.id
+                  paymentMethodId: paymentMethod.id
                 }
               }, cb);
           });
@@ -194,29 +193,29 @@ module.exports = function(app) {
             .create({
               amount: amount,
               currency: currency,
-              customer: card.serviceId,
+              customer: paymentMethod.serviceId,
               description: 'One time donation to ' + group.name,
               metadata: {
                 groupId: group.id,
                 groupName: group.name,
                 customerEmail: email,
-                cardId: card.id
+                paymentMethodId: paymentMethod.id
               }
             }, cb);
         }
       }],
 
-      createTransaction: ['createCard', 'createCharge', function(cb, results) {
+      createTransaction: ['createPaymentMethod', 'createCharge', function(cb, results) {
         const user = req.user;
         const charge = results.createCharge;
-        const card = results.createCard;
+        const paymentMethod = results.createPaymentMethod;
         const currency = charge.currency || charge.plan.currency;
         const amount = payment.amount;
 
         var payload = {
           user,
           group,
-          card
+          paymentMethod
         };
 
         payload.transaction = {

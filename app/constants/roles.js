@@ -1,5 +1,11 @@
 module.exports = {
-  HOST: 'HOST',
-  MEMBER: 'MEMBER',
-  BACKER: 'BACKER'
+  collectiveRoles: {
+    HOST: 'HOST',
+    MEMBER: 'MEMBER',
+    BACKER: 'BACKER'
+  },
+  organizationRoles: {
+    ADMIN: 'ADMIN',
+    MEMBER: 'MEMBER'
+  }
 };

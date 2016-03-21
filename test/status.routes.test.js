@@ -1,7 +1,6 @@
 var app = require('../index');
 var expect = require('chai').expect;
 var request = require('supertest');
-var utils = require('../test/utils.js')();
 
 describe('status.routes.test.js', function() {
 

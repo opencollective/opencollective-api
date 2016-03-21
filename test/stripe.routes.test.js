@@ -14,7 +14,7 @@ var sinon = require('sinon');
 var app = require('../index');
 var utils = require('../test/utils.js')();
 var models = app.set('models');
-var roles = require('../app/constants/roles');
+var roles = require('../app/constants/roles').collectiveRoles;
 
 /**
  * Mock data
@@ -28,7 +28,6 @@ describe('stripe.routes.test.js', function() {
 
   var user;
   var user2;
-  var card;
   var group;
   var application;
   var sandbox = sinon.sandbox.create();

@@ -9,7 +9,7 @@ var expect = require('chai').expect;
 var sinon = require('sinon');
 var request = require('supertest');
 var utils = require('../test/utils.js')();
-var roles = require('../app/constants/roles');
+var roles = require('../app/constants/roles').collectiveRoles;
 
 /**
  * Variables.
@@ -382,7 +382,6 @@ describe('usergroup.routes.test.js', function() {
     });
 
     it('successfully update a user-group relation', function(done) {
-      var role = 'member';
       request(app)
         .del('/groups/' + group.id + '/users/' + user3.id)
         .set('Authorization', 'Bearer ' + user.jwt(application))
