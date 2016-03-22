@@ -32,7 +32,7 @@ module.exports = function(app) {
     const models = setupModels(sequelize);
 
     const apiKey = '0ac43519edcf4421d80342403fb5985d';
-    const roles = require('../constants/roles');
+    const roles = require('../constants/roles').collectiveRoles;
 
     const testUser = {
       email: 'testuser@opencollective.com',
@@ -103,8 +103,8 @@ module.exports = function(app) {
           .catch(cb)
       }],
 
-      createPaypalCard: ['createTestUser', (cb, results) => {
-        models.Card.create({ service: 'paypal', UserId: results.createTestUser.id})
+      createPaypalPaymentMethod: ['createTestUser', (cb, results) => {
+        models.PaymentMethod.create({ service: 'paypal', UserId: results.createTestUser.id})
         .then(() => cb())
         .catch(cb);
       }],

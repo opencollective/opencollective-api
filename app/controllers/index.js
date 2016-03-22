@@ -6,7 +6,6 @@ module.exports = function(app) {
   var cs = {};
   var controllers = [
     'activities',
-    'cards',
     'groups',
     'images',
     'middlewares',
@@ -17,6 +16,7 @@ module.exports = function(app) {
     'stripe',
     'subscriptions',
     'transactions',
+    'paymentmethods',
     'users',
     'webhooks',
     'test'

@@ -7,7 +7,7 @@ var axios = require('axios');
 var qs = require('querystring');
 var config = require('config');
 
-var roles = require('../constants/roles');
+var roles = require('../constants/roles').collectiveRoles;
 
 /**
  * Controller.

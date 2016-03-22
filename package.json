@@ -45,6 +45,7 @@
     "querystring": "^0.2.0",
     "sequelize": "2.0.4",
     "sequelize-cli": "^1.7.0",
+    "sequelize-temporal": "^1.0.3",
     "slug": "^0.9.1",
     "stripe": "^3.3.4"
   },

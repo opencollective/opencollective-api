@@ -14,7 +14,7 @@ var userData3 = utils.data('user3');
 var mock = require('./mocks/clearbit.json');
 
 describe("userlib", () => {
-  
+
   var sandbox, stub;
   beforeEach(() => {
     userlib.memory = {};

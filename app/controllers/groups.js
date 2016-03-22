@@ -21,7 +21,7 @@ module.exports = function(app) {
   var Group = models.Group;
   var Transaction = models.Transaction;
   var transactions = require('../controllers/transactions')(app);
-  var roles = require('../constants/roles');
+  var roles = require('../constants/roles').collectiveRoles;
   var activities = require('../constants/activities');
 
   /**
@@ -173,7 +173,7 @@ module.exports = function(app) {
       'amount',
       'tags',
       'createdAt',
-      'paymentMethod',
+      'payoutMethod',
       'comment',
       'vat'
     ];
