@@ -11,6 +11,7 @@
     }
   },
   "host": {
+    // TODO: Does this need to be changed?
     "api": "https://opencollective-staging-api.herokuapp.com"
   },
   "stripe": {
