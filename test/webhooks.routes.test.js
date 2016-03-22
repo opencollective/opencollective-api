@@ -10,7 +10,7 @@ const chance = require('chance').Chance();
 const sinon = require('sinon');
 
 const app = require('../index');
-const roles = require('../app/constants/roles').collectiveRoles;
+const roles = require('../app/constants/roles').collective;
 const activities = require('../app/constants/activities');
 const utils = require('../test/utils.js')();
 const generatePlanId = require('../app/lib/utils.js').planId;

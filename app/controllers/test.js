@@ -32,7 +32,7 @@ module.exports = function(app) {
     const models = setupModels(sequelize);
 
     const apiKey = '0ac43519edcf4421d80342403fb5985d';
-    const roles = require('../constants/roles').collectiveRoles;
+    const roles = require('../constants/roles').collective;
 
     const testUser = {
       email: 'testuser@opencollective.com',

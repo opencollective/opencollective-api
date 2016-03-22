@@ -1,10 +1,10 @@
 module.exports = {
-  collectiveRoles: {
+  collective: {
     HOST: 'HOST',
     MEMBER: 'MEMBER',
     BACKER: 'BACKER'
   },
-  organizationRoles: {
+  organization: {
     ADMIN: 'ADMIN',
     MEMBER: 'MEMBER'
   }

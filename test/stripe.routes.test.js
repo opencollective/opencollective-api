@@ -14,7 +14,7 @@ var sinon = require('sinon');
 var app = require('../index');
 var utils = require('../test/utils.js')();
 var models = app.set('models');
-var roles = require('../app/constants/roles').collectiveRoles;
+var roles = require('../app/constants/roles').collective;
 
 /**
  * Mock data

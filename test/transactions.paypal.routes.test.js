@@ -10,7 +10,7 @@ var request = require('supertest');
 var utils = require('../test/utils.js')();
 var sinon = require('sinon');
 var nock = require('nock');
-var roles = require('../app/constants/roles').collectiveRoles;
+var roles = require('../app/constants/roles').collective;
 var activities = require('../app/constants/activities');
 
 /**

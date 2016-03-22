@@ -11,7 +11,7 @@ const chance = require('chance').Chance();
 
 const utils = require('../test/utils.js')();
 const generatePlanId = require('../app/lib/utils.js').planId;
-const roles = require('../app/constants/roles').collectiveRoles;
+const roles = require('../app/constants/roles').collective;
 
 /**
  * Variables.

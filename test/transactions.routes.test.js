@@ -19,7 +19,7 @@ var publicGroupData = utils.data('group1');
 var privateGroupData = utils.data('group2');
 var models = app.set('models');
 var transactionsData = utils.data('transactions1').transactions;
-var roles = require('../app/constants/roles').collectiveRoles;
+var roles = require('../app/constants/roles').collective;
 var paypalMock = require('./mocks/paypal');
 
 /**

@@ -13,7 +13,7 @@ module.exports = function(app) {
    */
   var models = app.set('models');
   var Activity = models.Activity;
-  var roles = require('../constants/roles').organizationRoles;
+  var roles = require('../constants/roles').organization;
 
   const addUserToOrganization = (group, user, options, callback) => {
     async.auto({

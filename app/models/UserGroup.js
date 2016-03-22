@@ -1,4 +1,4 @@
-var roles = require('../constants/roles').collectiveRoles;
+var roles = require('../constants/roles').collective;
 
 module.exports = function(Sequelize, DataTypes) {
 

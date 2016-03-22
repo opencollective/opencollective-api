@@ -1,5 +1,5 @@
 const Temporal = require('sequelize-temporal');
-var roles = require('../constants/roles').organizationRoles;
+var roles = require('../constants/roles').organization;
 
 module.exports = function(Sequelize, DataTypes) {
 

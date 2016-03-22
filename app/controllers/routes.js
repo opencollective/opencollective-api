@@ -1,6 +1,6 @@
 var _ = require('lodash');
 var serverStatus = require('express-server-status');
-var roles = require('../constants/roles').collectiveRoles;
+var roles = require('../constants/roles').collective;
 var jwt = require('../middlewares/jwt');
 
 module.exports = function(app) {

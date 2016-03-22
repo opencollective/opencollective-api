@@ -20,7 +20,7 @@ const stripeMock = require('./mocks/stripe');
 const STRIPE_URL = 'https://api.stripe.com:443';
 var models = app.set('models');
 var transactionsData = utils.data('transactions1').transactions;
-var roles = require('../app/constants/roles').collectiveRoles;
+var roles = require('../app/constants/roles').collective;
 
 /**
  * Tests.

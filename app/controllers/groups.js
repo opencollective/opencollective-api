@@ -21,7 +21,7 @@ module.exports = function(app) {
   var Group = models.Group;
   var Transaction = models.Transaction;
   var transactions = require('../controllers/transactions')(app);
-  var roles = require('../constants/roles').collectiveRoles;
+  var roles = require('../constants/roles').collective;
   var activities = require('../constants/activities');
 
   /**

@@ -2,7 +2,7 @@
  * Dependencies.
  */
 const utils = require('../lib/utils');
-const roles = require('../constants/roles').collectiveRoles;
+const roles = require('../constants/roles').collective;
 const _ = require('lodash');
 const config = require('config');
 const async = require('async');
