@@ -1,3 +1,10 @@
+
+/*
+ * Donation model
+ * - this represents a commitment by a user to pay amount to a collective over a time period
+ * - Note that there will only be one entry per subscription
+ */
+
 module.exports = function(Sequelize, DataTypes) {
 
   var Donation = Sequelize.define('Donation', {
@@ -58,7 +65,23 @@ module.exports = function(Sequelize, DataTypes) {
       type: DataTypes.DATE
     }
   }, {
-    paranoid: true
+    paranoid: true,
+    getterMethods: {
+      // Info
+      info() {
+        return {
+          id: this.id,
+          UserId: this.UserId,
+          CollectiveId: this.CollectiveId,
+          currency: this.currency,
+          amount: this.amount,
+          amountFloat: this.amount / 100,
+          title: this.title,
+          SubscriptionId: this.SubscriptionId,
+          createdAt: this.createdAt
+        }
+      }
+    }
   });
 
   return Donation;

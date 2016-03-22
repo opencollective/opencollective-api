@@ -28,6 +28,7 @@ module.exports = (app) => {
   const Group = models.Group;
 
   const transactions = require('./transactions')(app);
+  const constants = require('../constants/transactions');
 
   const stripe = (req, res, next) => {
     const body = req.body;
@@ -40,8 +41,8 @@ module.exports = (app) => {
     }
 
     async.auto({
-      fetchEvent: (cb) => {
 
+      fetchEvent: (cb) => {
         /**
          * We check the event on stripe to be sure we don't get a fake event from
          * someone else
@@ -92,18 +93,17 @@ module.exports = (app) => {
         .done(cb);
       }],
 
-      fetchTransaction: ['createActivity', (cb, results) => {
+      fetchDonation: ['createActivity', (cb, results) => {
         const stripeSubscriptionId = results.fetchEvent.stripeSubscription.id;
 
-        Transaction.findOne({
+        Donation.findOne({
           include: [
             { model: Group },
             { model: User },
-            { model: PaymentMethod },
             { model: Subscription, where: { stripeSubscriptionId } }
           ]
         })
-        .then((transaction) => {
+        .then((donation) => {
           /**
            * Stripe doesn't make a difference between development, test, staging
            * environments. If we get a webhook from another env,
@@ -113,29 +113,49 @@ module.exports = (app) => {
            * For non-production environments, we will simply return 200 to avoid
            * the retry on Stripe side (and the email from Stripe support).
            */
-          if (!transaction && !isProduction) {
+          if (!donation && !isProduction) {
             return res.sendStatus(200);
           }
 
-          if (!transaction) {
-            return cb(new errors.BadRequest('Transaction not found: unknown subscription id'));
+          if (!donation) {
+            return cb(new errors.BadRequest('Donation not found: unknown subscription id'));
           }
 
-          return cb(null, transaction);
+          return cb(null, donation);
         })
         .catch(cb)
       }],
 
-      createOrUpdateTransaction: ['fetchTransaction', (cb, results) => {
-        const transaction = results.fetchTransaction;
-        const subscription = transaction.Subscription;
-        const stripeSubscription = results.fetchEvent.stripeSubscription;
-        const user = transaction.User || {};
-        const group = transaction.Group || {};
-        const paymentMethod = transaction.PaymentMethod || {};
+      fetchPaymentMethod: ['fetchDonation', (cb, results) => {
+        const user = results.fetchDonation.user;
+        const customer = results.fetchEvent.event.data.object.customer;
 
-        // If the subscription is not active, we will just update the already existing one
-        // We only use pending subscriptions for the first subscription invoice
+
+        PaymentMethod.findOne({
+          where: {
+            serviceId: customer,
+            userId: user.id
+          }
+        })
+        .then((paymentMethod) => {
+          if (!paymentMethod) {
+            return cb(new errors.BadRequest('PaymentMethod not found: unknown customer'));
+          }
+          return cb(null, paymentMethod);
+        })
+        .catch(cb)
+      }],
+
+      createTransaction: ['fetchDonation', 'fetchPaymentMethod', (cb, results) => {
+        const donation = results.fetchDonation;
+        const subscription = donation.Subscription;
+        const stripeSubscription = results.fetchEvent.stripeSubscription;
+        const user = donation.User || {};
+        const group = donation.Collective || {};
+        const paymentMethod = results.fetchPaymentMethod;
+        const applicationFee = results.fetchEvent.event.data.object.applicatin_fee || 0.05*stripeSubscription.amount;
+
+        // If the subscription is not active, we will activate it
         if (!subscription.isActive) {
           return subscription.activate()
             .then(subscription => {
@@ -143,9 +163,9 @@ module.exports = (app) => {
                 type: activities.SUBSCRIPTION_CONFIRMED,
                 data: {
                   event: results.fetchEvent.event,
-                  group: results.fetchTransaction.Group,
-                  user: results.fetchTransaction.User,
-                  transaction: results.fetchTransaction,
+                  group: group,
+                  user: user,
+                  donation: donation,
                   subscription
                 }
               });
@@ -154,23 +174,20 @@ module.exports = (app) => {
             .catch(cb);
         }
 
-
+        // Now we record a new transaction
         const newTransaction = {
-          type: 'payment',
-          amount: stripeSubscription.amount / 100,
+          type: constants.DONATION,
+          DonationId: donation.id,
+          amountInteger: stripeSubscription.amount,
           currency: stripeSubscription.currency,
-          paidby: user && user.id,
-          description: 'Recurring subscription',
-          tags: ['Donation'],
-          approved: true,
-          interval: transaction.interval,
-          SubscriptionId: subscription.id
+          platformFee: applicationFee,
+          stripeFee: 0, // TODO: Need to make a separate call for this
+          data: results.fetchEvent.event
         };
 
         transactions._create({
           transaction: newTransaction,
           user,
-          group,
           paymentMethod
         }, cb);
       }]

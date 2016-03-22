@@ -1,6 +1,11 @@
 const _ = require('lodash');
 const Temporal = require('sequelize-temporal');
 
+/*
+ * Transaction model
+ * - this indicates that money was moved in the system
+ */
+
 module.exports = function(Sequelize, DataTypes) {
 
   var Transaction = Sequelize.define('Transaction', {
@@ -52,6 +57,8 @@ module.exports = function(Sequelize, DataTypes) {
     interval: {
       type: DataTypes.STRING
     }, // delete #postmigration
+
+    data: DataTypes.JSON,
 
     approved: {
       type: DataTypes.BOOLEAN,

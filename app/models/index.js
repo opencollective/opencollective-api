@@ -77,8 +77,6 @@ function setupModels(client) {
   m.Activity.belongsTo(m.User);
   m.User.hasMany(m.Activity);
 
-  m.Activity.belongsTo(m.Transaction);
-
   // Notification.
   m.User.hasMany(m.Notification);
   m.Notification.belongsTo(m.User);
@@ -98,9 +96,10 @@ function setupModels(client) {
   m.Application.belongsToMany(m.Group, {through: 'ApplicationGroup'});
   m.Group.belongsToMany(m.Application, {through: 'ApplicationGroup'});
 
-  // Subscription
-  m.Transaction.belongsTo(m.Subscription);
-  m.Subscription.hasMany(m.Transaction);
+  // Donation
+  m.Donation.belongsTo(m.user);
+  m.Group.hasMany(m.Donation);
+  m.Subscription.hasMany(m.Donation);
 
   // Organization
   m.Organization.belongsToMany(m.User, {through: {model: m.UserOrganization, unique:false}, as: 'users'});
