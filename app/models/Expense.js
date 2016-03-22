@@ -52,6 +52,8 @@ module.exports = function(Sequelize, DataTypes) {
 
     status: DataTypes.STRING,
 
+    incurredAt: DataTypes.Date, // date when the expense was incurred
+
     createdAt: {
       type: DataTypes.DATE,
       defaultValue: Sequelize.NOW

@@ -53,6 +53,8 @@ module.exports = {
 
         status: Sequelize.STRING,
 
+        incurredAt: DataTypes.Date,
+
         createdAt: {
           type: Sequelize.DATE,
           defaultValue: Sequelize.NOW
