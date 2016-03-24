@@ -5,7 +5,6 @@ const roles = require('../constants/roles');
 const _ = require('lodash');
 const config = require('config');
 const async = require('async');
-const gateways = require('../gateways');
 
 const OC_FEE_PERCENT = 5;
 
@@ -22,6 +21,7 @@ module.exports = function(app) {
   var transactions = require('../controllers/transactions')(app);
   var users = require('../controllers/users')(app);
   var emailLib = require('../lib/email')(app);
+  const gateways = require('../gateways')(app);
 
   const getOrCreateUser = (attributes, cb) => {
      return models.User.findOne({
