@@ -1,7 +1,8 @@
 const paypal = require('./paypal');
-const stripe = require('./stripe');
 
-module.exports = {
-  paypal,
-  stripe
+module.exports = (app) => {
+  return {
+    paypal: paypal,
+    stripe: app.stripe
+  }
 };
