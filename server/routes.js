@@ -38,6 +38,7 @@ module.exports = (app) => {
   const test = Controllers.test;
   const subscriptions = Controllers.subscriptions;
   const connectedAccounts = Controllers.connectedAccounts;
+  const expenses = Controllers.expenses;
 
   const HOST = roles.HOST;
   const MEMBER = roles.MEMBER;
@@ -159,6 +160,14 @@ module.exports = (app) => {
   app.post('/groups/:groupid/transactions/:transactionid/pay', aZ.authorizeAccessToGroup({userRoles: [HOST, MEMBER]}), aZ.authorizeGroupAccessToTransaction(), required('service'), transactions.pay); // Pay a transaction.
   app.post('/groups/:groupid/transactions/:transactionid/attribution/:userid', aZ.authorizeAccessToGroup({userRoles: [HOST, MEMBER], bypassUserRolesCheckIfAuthenticatedAsAppAndNotUser: true}), aZ.authorizeGroupAccessToTransaction(), transactions.attributeUser); // Attribute a transaction to a user.
   app.get('/groups/:groupid/transactions/:paranoidtransactionid/callback', donations.paypalCallback); // Callback after a payment
+
+  /**
+   * Expenses
+   */
+
+  // TODO: add the isPublic logic
+  app.post('/groups/:groupid/expenses', required('expense'), expenses.create); // Create a new expense for a group.
+
 
   /**
    * Activities.
