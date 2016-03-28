@@ -2,7 +2,7 @@
  * Constants for the expense status
  *
  * pending -> approved -> paid
- * prending -> rejected
+ * pending -> rejected
  */
 
 module.exports = {

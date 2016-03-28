@@ -13,6 +13,7 @@ const roles = require('../app/constants/roles');
 const cleanAllDb = utils.cleanAllDb;
 
 const models = app.set('models');
+const Expense = models.Expense;
 
 /**
  * Tests.
@@ -85,7 +86,55 @@ describe('expenses.routes.test.js', function() {
           done();
         })
         .catch(done);
-    })
+    });
+
+  });
+
+  describe('#approve', () => {
+
+    describe('reject an expense', () => {
+      var expense;
+
+      beforeEach((done) => {
+        request(app)
+          .post(`/groups/${group.id}/expenses`)
+          .set('Authorization', `Bearer ${user.jwt(application)}`)
+          .send({
+            expense: utils.data('expense1')
+          })
+          .end((err, res) => {
+            expect(err).to.not.exist;
+            console.log('lalallalalalalala', res.body.id);
+            expense = res.body;
+            done();
+          });
+      });
+
+      beforeEach((done) => {
+        request(app)
+          .post(`/groups/${group.id}/expenses/${expense.id}`)
+          .set('Authorization', `Bearer ${user.jwt(application)}`)
+          .send({ approved: false })
+          .end((err, res) => {
+            expect(err).to.not.exist;
+            // console.log('lalal', res.body)
+            done();
+          });
+      });
+
+      it.only('sets the status to REJECTED', (done) => {
+        Expense.findAndCountAll()
+          .then(res => {
+            expect(res.count).to.be.equal(1);
+            const expense = res.rows[0];
+
+            console.log('expense', expense);
+
+            done();
+          })
+          .catch(done);
+      });
+    });
 
   });
 

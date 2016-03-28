@@ -47,7 +47,7 @@ module.exports = (app) => {
     const attributes = req.required.expense;
     const group = req.group;
     const user = req.remoteUser || req.user || {};
-
+    console.log('user', user);
     Expense.create(attributes)
       .tap(expense => expense.setUser(user))
       .tap(expense => expense.setGroup(group))
