@@ -55,6 +55,7 @@ module.exports = (app) => {
   app.param('groupid', params.groupid);
   app.param('transactionid', params.transactionid);
   app.param('paranoidtransactionid', params.paranoidtransactionid);
+  app.param('expenseid', params.expenseid);
 
   /**
    * User reset password flow (no jwt verification)
@@ -165,8 +166,9 @@ module.exports = (app) => {
    * Expenses
    */
 
-  // TODO: add the isPublic logic
+  // TODO: add the isPublic logic and all the auth
   app.post('/groups/:groupid/expenses', required('expense'), expenses.create); // Create a new expense for a group.
+  app.post('/groups/:groupid/expenses/:expenseid/approve', required('approved'), expenses.approve); // Approve an expense.
 
 
   /**

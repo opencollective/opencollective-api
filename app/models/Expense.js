@@ -1,5 +1,7 @@
 // const Temporal = require('sequelize-temporal');
 
+const status = require('../constants/expense_status');
+
 module.exports = function (Sequelize, DataTypes) {
 
   const Expense = Sequelize.define('Expense', {
@@ -28,7 +30,7 @@ module.exports = function (Sequelize, DataTypes) {
     currency: {
       type: DataTypes.STRING,
       defaultValue: 'USD',
-      set: function(val) {
+      set(val) {
         if (val && val.toUpperCase) {
           this.setDataValue('currency', val.toUpperCase());
         }
@@ -50,7 +52,16 @@ module.exports = function (Sequelize, DataTypes) {
       onUpdate: 'CASCADE'
     },
 
-    status: DataTypes.STRING,
+    status: {
+      type: DataTypes.STRING,
+      defaultValue: status.PENDING,
+      validate: {
+        isIn: {
+          args: [[status.PENDING, status.APPROVED, status.REJECTED, status.PAID]],
+          msg: 'Must be PENDING, APPROVED, REJECTED or PAID'
+        }
+      }
+    },
 
     incurredAt: DataTypes.DATE, // date when the expense was incurred
 
@@ -71,6 +82,23 @@ module.exports = function (Sequelize, DataTypes) {
     paranoid: true,
 
     getterMethods: {
+
+      isRejected() {
+        return this.status === status.REJECTED;
+      },
+
+      isApproved() {
+        return this.status === status.APPROVED;
+      },
+
+      isPaid() {
+        return this.status === status.PAID;
+      },
+
+      isPending() {
+        return this.status === status.PENDING;
+      },
+
       info() {
         return {
           id: this.id,
@@ -85,10 +113,26 @@ module.exports = function (Sequelize, DataTypes) {
           vat: this.vat,
           lastEditedById: this.lastEditedById,
           status: this.status,
+          isPending: this.isPending,
+          isRejected: this.isRejected,
+          isApproved: this.isApproved,
+          isPaid: this.isPaid,
           incurredAt: this.incurredAt,
           createdAt: this.createdAt,
           updatedAt: this.updatedAt
         }
+      }
+    },
+
+    instanceMethods: {
+      reject() {
+        this.status = status.REJECTED;
+        return this.save();
+      },
+
+      approve() {
+        this.status = status.APPROVED;
+        return this.save();
       }
     }
   });
