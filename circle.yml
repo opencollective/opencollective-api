@@ -16,6 +16,9 @@ test:
   override:
     - npm run circleci
 deployment:
+  override:
+    - npm run circleci:master:web
+    - npm run circleci:master:app
   staging:
     branch: staging
     heroku:
