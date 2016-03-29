@@ -15,10 +15,10 @@ machine:
 test:
   override:
     - npm run circleci
-deployment:
-  override:
+  post:
     - npm run circleci:master:web
     - npm run circleci:master:app
+deployment:
   staging:
     branch: staging
     heroku:
