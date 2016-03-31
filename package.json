@@ -87,7 +87,9 @@
     "deploy:production": "bash -x scripts/deploy.sh production",
     "report:tx": "node scripts/report_transactions",
     "checktransactions": "node scripts/check_transactions_on_stripe",
-    "script": "node scripts/execute"
+    "script": "node scripts/execute",
+    "circleci:master:web": "if [ \"$CIRCLE_BRANCH\" = 'master' ]; then curl -X POST https://circleci.com/api/v1/project/OpenCollective/website/tree/master?circle-token=$CIRCLE_TOKEN ; fi",
+    "circleci:master:app": "if [ \"$CIRCLE_BRANCH\" = 'master' ]; then curl -X POST https://circleci.com/api/v1/project/OpenCollective/app/tree/master?circle-token=$CIRCLE_TOKEN ; fi"
   },
   "license": "Copyright (c) 2016 OpenCollective, Inc."
 }
