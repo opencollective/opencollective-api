@@ -173,16 +173,16 @@ describe('groups.routes.test.js', () => {
           expect(e).to.not.exist;
           expect(res.body).to.have.property('id');
           expect(res.body).to.have.property('name');
+          expect(res.body).to.have.property('mission');
           expect(res.body).to.have.property('description');
-          expect(res.body).to.have.property('budget', privateGroupData.budget);
-          expect(res.body).to.have.property('currency', privateGroupData.currency);
           expect(res.body).to.have.property('longDescription');
+          expect(res.body).to.have.property('budget', privateGroupData.budget);
+          expect(res.body).to.have.property('burnrate');
+          expect(res.body).to.have.property('currency', privateGroupData.currency);
           expect(res.body).to.have.property('logo');
           expect(res.body).to.have.property('video');
           expect(res.body).to.have.property('image');
           expect(res.body).to.have.property('expensePolicy');
-          expect(res.body).to.have.property('membershipType');
-          expect(res.body).to.have.property('membershipfee');
           expect(res.body).to.have.property('createdAt');
           expect(res.body).to.have.property('updatedAt');
           expect(res.body).to.have.property('twitterHandle');
@@ -212,14 +212,13 @@ describe('groups.routes.test.js', () => {
           expect(e).to.not.exist;
           expect(res.body).to.have.property('id');
           expect(res.body).to.have.property('name');
+          expect(res.body).to.have.property('mission');
           expect(res.body).to.have.property('description');
           expect(res.body).to.have.property('longDescription');
           expect(res.body).to.have.property('logo');
           expect(res.body).to.have.property('video');
           expect(res.body).to.have.property('image');
           expect(res.body).to.have.property('expensePolicy');
-          expect(res.body).to.have.property('membershipType');
-          expect(res.body).to.have.property('membershipfee');
           expect(res.body).to.have.property('createdAt');
           expect(res.body).to.have.property('updatedAt');
           expect(res.body).to.have.property('twitterHandle');
@@ -597,12 +596,11 @@ describe('groups.routes.test.js', () => {
     var user3;
     var application2;
     var groupNew = {
-      name: 'newname',
-      description: 'newdesc',
-      budget: 11111.99,
-      membershipType: 'donation',
-      membershipfee: 11,
+      name: 'new name',
+      mission: 'new mission',
+      description: 'new desc',
       longDescription: 'long description',
+      budget: 1111100,
       logo: 'http://opencollective.com/assets/icon.svg',
       video: 'http://opencollective.com/assets/icon.svg',
       image: 'http://opencollective.com/assets/icon.svg',
