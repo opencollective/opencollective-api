@@ -600,7 +600,8 @@ describe('groups.routes.test.js', () => {
       mission: 'new mission',
       description: 'new desc',
       longDescription: 'long description',
-      budget: 1111100,
+      budget: 1000000,
+      burnrate: 10000,
       logo: 'http://opencollective.com/assets/icon.svg',
       video: 'http://opencollective.com/assets/icon.svg',
       image: 'http://opencollective.com/assets/icon.svg',
@@ -734,11 +735,11 @@ describe('groups.routes.test.js', () => {
           expect(e).to.not.exist;
           expect(res.body).to.have.property('id', group.id);
           expect(res.body).to.have.property('name', groupNew.name);
+          expect(res.body).to.have.property('mission', groupNew.mission);
           expect(res.body).to.have.property('description', groupNew.description);
-          expect(res.body).to.have.property('budget', groupNew.budget);
-          expect(res.body).to.have.property('membershipType', groupNew.membershipType);
-          expect(res.body).to.have.property('membershipfee', groupNew.membershipfee);
           expect(res.body).to.have.property('longDescription', groupNew.longDescription);
+          expect(res.body).to.have.property('budget', groupNew.budget);
+          expect(res.body).to.have.property('burnrate', groupNew.burnrate);
           expect(res.body).to.have.property('logo', groupNew.logo);
           expect(res.body).to.have.property('video', groupNew.video);
           expect(res.body).to.have.property('image', groupNew.image);
