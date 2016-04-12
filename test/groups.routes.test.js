@@ -4,12 +4,11 @@
 var _ = require('lodash');
 var app = require('../index');
 var async = require('async');
-var config = require('config');
 var expect = require('chai').expect;
 var request = require('supertest');
 var chance = require('chance').Chance();
 var utils = require('../test/utils.js')();
-var roles = require('../app/constants/roles');
+var roles = require('../server/constants/roles');
 var sinon = require('sinon');
 
 /**

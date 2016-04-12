@@ -1,26 +1,17 @@
 /**
  * Dependencies.
  */
-
 var expect = require('chai').expect;
 var request = require('supertest');
 var async = require('async');
 var nock = require('nock');
 var config = require('config');
-var _ = require('lodash');
-var chance = require('chance').Chance();
 var sinon = require('sinon');
 
 var app = require('../index');
 var utils = require('../test/utils.js')();
 var models = app.set('models');
-var roles = require('../app/constants/roles');
-
-/**
- * Mock data
- */
-
-var stripeMock = require('./mocks/stripe');
+var roles = require('../server/constants/roles');
 
 describe('stripe.routes.test.js', () => {
 
