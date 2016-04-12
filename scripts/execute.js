@@ -1,4 +1,4 @@
-const slack = require('../app/lib/slack');
+const slack = require('../server/lib/slack');
 
 /**
  * Executes a script by name
@@ -11,7 +11,7 @@ const name = process.argv[2];
 
 if (!moduleExists(name)) {
   console.log(`Script ${name} not found`);
-  return;
+  process.exit(0);
 }
 
 const script = require(`./${name}`);

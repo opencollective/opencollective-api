@@ -2,7 +2,7 @@ const async = require('async');
 const axios = require('axios');
 const config = require('config');
 var Sequelize = require('sequelize');
-const setupModels = require('../app/models').setupModels;
+const setupModels = require('../server/models').setupModels;
 
 // Hard code to avoid resetting the production db by mistake    
 const databaseName = config.env === 'test_server' 
@@ -17,12 +17,12 @@ var sequelize = new Sequelize(
 );
 
 /**
- * Copy app/models/index.js logic to get the sequelize models;
+ * Copy server/models/index.js logic to get the sequelize models;
  */
 const models = setupModels(sequelize);
 
 const apiKey = '0ac43519edcf4421d80342403fb5985d';
-const roles = require('../app/constants/roles');
+const roles = require('../server/constants/roles');
 
 const testUser = {
   email: 'testuser@opencollective.com',
@@ -31,7 +31,7 @@ const testUser = {
 
 if (config.env !== 'test_server' && config.env !== 'circleci_test_server') {
   console.log('wrong env', config.env);
-  return;
+  process.exit(0);
 }
 
 async.auto({

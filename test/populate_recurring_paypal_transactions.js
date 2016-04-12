@@ -1,6 +1,4 @@
 const _ = require('lodash');
-const async = require('async');
-const config = require('config');
 const expect = require('chai').expect;
 
 const script = require('../scripts/populate_recurring_paypal_transactions');
@@ -8,8 +6,8 @@ const app = require('../index');
 const models = app.set('models');
 const utils = require('../test/utils.js')();
 const data = utils.data;
-const roles = require('../app/constants/roles');
-const createTransaction = require('../app/controllers/transactions')(app)._create;
+const roles = require('../server/constants/roles');
+const createTransaction = require('../server/controllers/transactions')(app)._create;
 
 const paypalTransaction = {
   created: {

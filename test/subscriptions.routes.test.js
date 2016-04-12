@@ -3,7 +3,6 @@
  */
 const cheerio = require('cheerio');
 const nock = require('nock');
-const _ = require('lodash');
 const app = require('../index');
 const async = require('async');
 const sinon = require('sinon');
@@ -12,7 +11,7 @@ const expect = require('chai').expect;
 const request = require('supertest');
 const config = require('config');
 const utils = require('../test/utils.js')();
-const createTransaction = require('../app/controllers/transactions')(app)._create;
+const createTransaction = require('../server/controllers/transactions')(app)._create;
 const stripeMock = require('./mocks/stripe');
 
 /**
@@ -21,7 +20,7 @@ const stripeMock = require('./mocks/stripe');
 const STRIPE_URL = 'https://api.stripe.com:443';
 var models = app.set('models');
 var transactionsData = utils.data('transactions1').transactions;
-var roles = require('../app/constants/roles');
+var roles = require('../server/constants/roles');
 
 /**
  * Tests.

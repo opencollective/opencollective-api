@@ -1,20 +1,17 @@
 /**
  * Dependencies.
  */
-var _ = require('lodash');
 var app = require('../index');
 var async = require('async');
-var config = require('config');
 var expect = require('chai').expect;
 var sinon = require('sinon');
 var request = require('supertest');
 var utils = require('../test/utils.js')();
-var roles = require('../app/constants/roles');
+var roles = require('../server/constants/roles');
 
 /**
  * Variables.
  */
-var userData = utils.data('user1');
 var groupData = utils.data('group1');
 var models = app.set('models');
 
