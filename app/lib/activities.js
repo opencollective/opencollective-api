@@ -13,6 +13,7 @@ module.exports = {
     var groupName = '';
     var publicUrl = '';
     var amount = null;
+    var interval = '';
     var recurringAmount = null;
     var currency = '';
     var tags = [];
@@ -51,14 +52,14 @@ module.exports = {
 
     // get subscription data
     if (activity.data.subscription) {
-      const interval = activity.data.subscription.interval;
+      interval = activity.data.subscription.interval;
       recurringAmount = amount + (interval ? `/${interval}` : '');
     }
 
     // get transaction data
     if (activity.data.transaction) {
       amount = activity.data.transaction.amount;
-      const interval = activity.data.transaction.interval;
+      interval = activity.data.transaction.interval;
       recurringAmount = amount + (interval ? `/${interval}` : '');
       currency = activity.data.transaction.currency;
       tags = JSON.stringify(activity.data.transaction.tags);
@@ -84,7 +85,7 @@ module.exports = {
 
         if (activity.data.transaction.isDonation) {
           // Ex: Aseem gave 1 USD/month to WWCode-Seattle
-          return `New Donation: ${userString} gave ${currency} to ${group}!`;
+          return `New Donation: ${userString} gave ${currency} ${amount} to ${group}!`;
         } else if (activity.data.transaction.isExpense) {
           // Ex: Aseem submitted a Foods & Beverage expense to WWCode-Seattle: USD 12.57 for 'pizza'
           return `New Expense: ${userString} submitted a ${tags} expense to ${group}: ${currency} ${amount} for ${description}!`
