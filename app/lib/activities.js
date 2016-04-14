@@ -77,6 +77,8 @@ module.exports = {
         } else if (activity.data.transaction.isExpense) {
           // Ex: Aseem submitted a Foods & Beverage expense to WWCode-Seattle: USD 12.57 for 'pizza'
           return `Hurray! ${userString} submitted a ${tags} expense to ${group}: ${currency} ${amount} for ${description}!`
+        } else {
+          return `Hmm found a group.transaction.created that's neither donation or expense. Activity id: ${activity.id}`;
         }
         break;
 
