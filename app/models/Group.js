@@ -73,6 +73,13 @@ module.exports = function(Sequelize, DataTypes) {
       defaultValue: constants.HOST_FEE_PERCENT
     },
 
+    // When set to true, we'll add fees on top of the donation,
+    // instead of taking anything from the donation
+    feesOnTop: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false
+    },
+
     createdAt: {
       type: DataTypes.DATE,
       defaultValue: Sequelize.NOW
@@ -143,7 +150,8 @@ module.exports = function(Sequelize, DataTypes) {
           website: this.website,
           twitterHandle: this.twitterHandle,
           publicUrl: this.publicUrl,
-          hostFeePercent: this.hostFeePercent
+          hostFeePercent: this.hostFeePercent,
+          feesOnTop: this.feesOnTop
         };
       }
     },
