@@ -76,7 +76,8 @@
       "range": [50, 10000],
       "interval": "monthly",
       "button": "Become a member"
-    }]
+    }],
+    "hostFeePercent": 10
   },
 
   "group2": {
@@ -102,7 +103,8 @@
       "range": [0, 100],
       "interval": "monthly",
       "button": "Become a member"
-    }]
+    }],
+    "hostFeePercent": 0
   },
 
   "group3": {
@@ -391,6 +393,7 @@
       "logo": "http://photos4.meetupstatic.com/photos/event/9/a/f/a/highres_18399674.jpeg",
       "video": null,
       "image": null,
+      "backgroundImage": null,
       "expensePolicy": null,
       "createdAt": "2016-01-30T07:31:37.802Z",
       "updatedAt": "2016-01-30T07:31:37.802Z",

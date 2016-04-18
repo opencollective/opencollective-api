@@ -287,10 +287,11 @@ describe('webhooks.routes.test.js', () => {
           expect(transaction.type).to.be.equal(constants.type.DONATION);
           expect(res.rows[0]).to.have.property('amountInTxnCurrency', 1400); // taken from stripe mocks
           expect(res.rows[0]).to.have.property('txnCurrency', 'USD');
-          expect(res.rows[0]).to.have.property('hostFeeInTxnCurrency', 70);
+          expect(res.rows[0]).to.have.property('hostFeeInTxnCurrency', 140);
           expect(res.rows[0]).to.have.property('platformFeeInTxnCurrency', 70);
           expect(res.rows[0]).to.have.property('paymentProcessorFeeInTxnCurrency', 155);
           expect(res.rows[0]).to.have.property('txnCurrencyFxRate', 0.25);
+          expect(res.rows[0]).to.have.property('netAmountInGroupCurrency', 259)
           expect(transaction.amount).to.be.equal(webhookSubscription.amount / 100);
           expect(transaction.Subscription.stripeSubscriptionId).to.be.equal(webhookSubscription.id);
           expect(transaction.Subscription.isActive).to.be.equal(true);
@@ -359,10 +360,11 @@ describe('webhooks.routes.test.js', () => {
 
               expect(res.rows[0]).to.have.property('amountInTxnCurrency', 1400); // taken from stripe mocks
               expect(res.rows[0]).to.have.property('txnCurrency', 'USD');
-              expect(res.rows[0]).to.have.property('hostFeeInTxnCurrency', 70);
+              expect(res.rows[0]).to.have.property('hostFeeInTxnCurrency', 140);
               expect(res.rows[0]).to.have.property('platformFeeInTxnCurrency', 70);
               expect(res.rows[0]).to.have.property('paymentProcessorFeeInTxnCurrency', 155);
               expect(res.rows[0]).to.have.property('txnCurrencyFxRate', 0.25);
+              expect(res.rows[0]).to.have.property('netAmountInGroupCurrency', 259);
               expect(transaction.Subscription.stripeSubscriptionId).to.be.equal(webhookSubscription.id);
               expect(transaction.Subscription.isActive).to.be.equal(true);
               expect(transaction.Subscription).to.have.property('activatedAt');

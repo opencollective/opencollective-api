@@ -237,6 +237,7 @@ module.exports = (app) => {
         const paymentMethod = results.getOrCreatePaymentMethod;
         const balanceTransaction = results.retrieveBalanceTransaction
         const fees = gateways.stripe.extractFees(balanceTransaction);
+        const hostFeePercent = group.hostFeePercent;
         var payload = {
           user,
           group,
@@ -251,7 +252,7 @@ module.exports = (app) => {
           txnCurrency: balanceTransaction.currency,
           amountInTxnCurrency: balanceTransaction.amount,
           txnCurrencyFxRate: amountInt/balanceTransaction.amount,
-          hostFeeInTxnCurrency: parseInt(balanceTransaction.amount*0.05, 10), // TODO: find a better way than hardcoding
+          hostFeeInTxnCurrency: parseInt(balanceTransaction.amount*hostFeePercent/100, 10),
           platformFeeInTxnCurrency: fees.applicationFee,
           paymentProcessorFeeInTxnCurrency: fees.stripeFee,
           data: {charge, balanceTransaction},
