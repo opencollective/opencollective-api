@@ -5,31 +5,31 @@ main() {
   set -e
 
   # cleanup upon exit or termination
-  trap "finish 2" INT
-  trap "finish 15" TERM
-  trap 'finish $?' EXIT
+  trap 'echo "Received INT signal"; finish 2' INT
+  trap 'echo "Received TERM signal"; finish 15' TERM
+  trap 'echo "Received EXIT signal"; finish $?' EXIT
 
-  # check script parameters
-  for STEP in $@; do
-    parseStep
-  done
-
-  # set variables
-  LOCAL_DIR=$PWD
-  LOCAL_NAME=$(basename ${LOCAL_DIR})
-  [ -f "${LOCAL_DIR}/.env" ] && source ${LOCAL_DIR}/.env
+  checkParameters $@
+  setCommonEnvironment
+  cleanup
 
   for STEP in $@; do
-    if [ ${STEP} != "cleanup" ]; then
-      # parse script parameters
+    echo "Running step $STEP"
+    if [ ${STEP} = "cleanup" ]; then
+      cleanup
+    else
       parseStep
-      # set repository location
       setRepoDir
+
+      if [ "$REPO_NAME" = "api" ]; then
+        setPgDatabase
+      fi
+      # TODO for some reason can't get tests passing when modifying ports
+      #setPort
+
       if [ "$PHASE" = "install" ]; then
         install
       elif [ "$PHASE" = "run" ]; then
-        setArtifactsDir
-        [ "$REPO_NAME" = "api" ] && setPgDatabase
         run
       elif [ "$PHASE" = "testE2E" ]; then
         testE2E
@@ -39,6 +39,7 @@ main() {
 }
 
 cleanup() {
+  echo "Cleaning up leftover node processes"
   #pkill -f node selenium chromedriver Chrome
   pkill node || true
 }
@@ -46,18 +47,25 @@ cleanup() {
 finish() {
   # can't rely on $? because of the sleep command running in parallel with spawned jobs
   EXIT_CODE=$1
-  if [ ${EXIT_CODE} -ne 0 ]; then
-    trap '' EXIT TERM
+  trap '' INT TERM EXIT
+  #if [ ${EXIT_CODE} -ne 0 ]; then
     cleanup
-  fi
+  #fi
   echo "Finished with exit code $EXIT_CODE."
   exit ${EXIT_CODE}
 }
 
+checkParameters() {
+  if [ $# -eq 0 ]; then
+    usage
+  fi
+  for STEP in $@; do
+    parseStep
+  done
+}
+
 parseStep() {
-  if [ "${STEP}" = "cleanup" ]; then
-    cleanup
-  else
+  if [ "${STEP}" != "cleanup" ]; then
     REPO_NAME=$(echo ${STEP} | sed 's/:.*//')
     PHASE=$(echo ${STEP} | sed 's/.*://')
     if ( [ "$REPO_NAME" != "api" ] && [ "$REPO_NAME" != "website" ] && [ "$REPO_NAME" != "app" ] ) ||
@@ -70,6 +78,29 @@ parseStep() {
   fi
 }
 
+setOutputDir() {
+  if [ "$NODE_ENV" = "circleci" ]; then
+    OUTPUT_DIR="${CIRCLE_ARTIFACTS}/e2e"
+  else
+    OUTPUT_DIR="${LOCAL_DIR}/test/output/e2e"
+  fi
+  #OUTPUT_DIR=${OUTPUT_DIR}/$(date "+%Y%m%d_%H%M%S")
+  mkdir -p ${OUTPUT_DIR}
+  echo "Output directory set to $OUTPUT_DIR"
+}
+
+setCommonEnvironment() {
+  LOCAL_DIR=$PWD
+  LOCAL_NAME=$(basename ${LOCAL_DIR})
+  if [ -f "${LOCAL_DIR}/.env" ]; then
+    source ${LOCAL_DIR}/.env
+  fi
+  if [ -z "${NODE_ENV}" ]; then
+    NODE_ENV=development
+  fi
+  setOutputDir
+}
+
 usage() {
   CMD=test_e2e.sh
   echo " "
@@ -78,10 +109,7 @@ usage() {
   echo "  <repo>:  api, website or app"
   echo "  <phase>: install, run or testE2E. testE2E not applicable to api."
   echo " "
-  echo "E.g : $CMD website:install"
-  echo "      $CMD website:run"
-  echo " "
-  echo "      $CMD cleanup"
+  echo "E.g : $CMD cleanup api:run website:install website:run"
   echo " "
   exit $1;
 }
@@ -100,24 +128,6 @@ setRepoDir() {
     else
       REPO_DIR="$HOME/$REPO_NAME"
     fi
-  fi
-}
-
-setArtifactsDir() {
-  if [ "$NODE_ENV" = "development" ]; then
-    ARTIFACTS_DIR="${LOCAL_DIR}/test/e2e/output"
-  else
-    ARTIFACTS_DIR="${CIRCLE_ARTIFACTS}/e2e"
-  fi
-  mkdir -p ${ARTIFACTS_DIR}
-  echo "Artifacts directory set to $ARTIFACTS_DIR"
-}
-
-setPgDatabase() {
-  if [ "$NODE_ENV" = "development" ]; then
-    # don't override developer's database
-    echo "setting PG_DATABASE=opencollective_e2e"
-    export PG_DATABASE=opencollective_e2e
   fi
 }
 
@@ -148,24 +158,50 @@ linkRepoNmToCache() {
   ln -s ${REPO_NM} ${REPO_NM_CACHE}
 }
 
+setPgDatabase() {
+  if [ "$NODE_ENV" = "development" ]; then
+    # don't screw up developer's opencollective_localhost
+    echo "setting PG_DATABASE=opencollective_test"
+    export PG_DATABASE=opencollective_test
+  fi
+}
+
+setPort() {
+  API_PORT=3060
+  WEBSITE_PORT=3001
+  APP_PORT=3002
+  # exports necessary for both api and website/app
+  export WEBSITE_URL="http://localhost:$WEBSITE_PORT"
+  export APP_URL="http://localhost:$APP_PORT"
+
+  if [ "${REPO_NAME}" = "api" ]; then
+    export PORT=${API_PORT}
+  elif [ "${REPO_NAME}" = "website" ]; then
+    export PORT=${WEBSITE_PORT}
+  elif [ ${REPO_NAME} = "app" ]; then
+    export PORT=${APP_PORT}
+  fi
+  echo "Setting $REPO_NAME port to $PORT"
+}
+
 runProcess() {
-  NAME=$1
-  cd $2
-  COMMAND=$3
-  LOG_FILE="$ARTIFACTS_DIR/$NAME.log"
+  cd ${REPO_DIR}
+  LOG_FILE="$OUTPUT_DIR/$REPO_NAME.log"
   PARENT=$$
   # in case spawned process exits unexpectedly, kill parent process and its sub-processes (via the trap)
-  sh -c "$COMMAND | tee $LOG_FILE 2>&1;
+  sh -c "npm start &> $LOG_FILE;
          kill $PARENT 2>/dev/null" &
-  echo "Started $NAME with PID $! and saved output to $LOG_FILE"
-  # Wait for startup. Break down sleep into pieces to allow prospective kill signals to get trapped.
+  echo "Started $REPO_NAME with PID $! and saving output to $LOG_FILE"
+  # TODO should somehow detect when process is ready instead of fragile hard-coded delay
   if [ "$NODE_ENV" = "development" ]; then
     DELAY=5
   else
     DELAY=40
   fi
+  echo "Waiting for $REPO_NAME startup during $DELAY seconds"
+  # Wait for startup. Break down sleep into pieces to allow prospective kill signals to get trapped.
   for i in $(seq ${DELAY}); do sleep 1; done
-  echo "Waited for $NAME startup during $DELAY seconds"
+  echo "Waited for $REPO_NAME startup during $DELAY seconds"
 }
 
 run() {
@@ -173,7 +209,7 @@ run() {
     echo "${REPO_NAME} not installed in ${REPO_DIR}, exiting."
     exit 1;
   else
-    runProcess ${REPO_NAME} ${REPO_DIR} 'npm start'
+    runProcess
   fi
 }
 
