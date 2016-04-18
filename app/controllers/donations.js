@@ -141,7 +141,7 @@ module.exports = (app) => {
               };
 
               if (process.env.NODE_ENV === 'production') {
-                charge.application_fee_percent = constants.OC_FEE_PERCENT;
+                subscription.application_fee_percent = constants.OC_FEE_PERCENT;
               }
 
               return gateways.stripe.createSubscription(
