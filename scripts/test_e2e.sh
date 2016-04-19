@@ -9,11 +9,12 @@ main() {
   trap 'echo "Received TERM signal"; finish 15' TERM
   trap 'echo "Received EXIT signal"; finish $?' EXIT
 
-  checkParameters $@
+  scanFileParameter $@
+  parseSteps
   setCommonEnvironment
   cleanup
 
-  for STEP in $@; do
+  for STEP in ${STEPS}; do
     echo "Running step $STEP"
     parseStep
     setRepoDir
@@ -47,12 +48,46 @@ finish() {
   exit ${EXIT_CODE}
 }
 
-checkParameters() {
+get_abs_filename() {
+  echo "$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
+}
+
+scanFileParameter() {
   if [ $# -eq 0 ]; then
     usage
   fi
-  for STEP in $@; do
+  for PARAM in $@; do
+    if [[ "$PARAM" =~ e2e\/.*\.js$ ]]; then
+      setTestFile ${PARAM}
+    else
+      PARAMS="$PARAMS $PARAM"
+    fi
+  done
+}
+
+setTestFile() {
+  ABS_FILE=$(get_abs_filename $1)
+  if [[ "$ABS_FILE" =~ \/website\/ ]]; then
+    WEBSITE_TEST_FILE=$1
+    echo "Setting website E2E test file to $WEBSITE_TEST_FILE"
+  elif [[ "$ABS_FILE" =~ \/app\/ ]]; then
+    APP_TEST_FILE=$1
+    echo "Setting app E2E test file to $APP_TEST_FILE"
+  else
+    echo "Provided file is neither for website nor for app"
+    usage 1;
+  fi
+}
+
+parseSteps() {
+  for STEP in ${PARAMS}; do
     parseStep
+    if ( [ "$REPO_NAME" = "website" ] && [ ! -z "$APP_TEST_FILE" ] ) ||
+       ( [ "$REPO_NAME" = "app" ] && [ ! -z "$WEBSITE_TEST_FILE" ] ); then
+      echo "Skipping $STEP"
+      continue
+    fi
+    STEPS="$STEPS $STEP"
   done
 }
 
@@ -92,12 +127,22 @@ setCommonEnvironment() {
 usage() {
   CMD=test_e2e.sh
   echo " "
-  echo "Usage: $CMD <repo>:<phase> [<repo>:<phase> ... <repo>:<phase>]"
+  echo "Usage: $CMD <repo>:<phase> [<repo>:<phase> ... <repo>:<phase>] [path/to/e2e/test.js]"
   echo " "
   echo "  <repo>:  api, website or app"
   echo "  <phase>: install, run or testE2E. testE2E not applicable to api."
   echo " "
-  echo "E.g : $CMD api:run website:install website:run"
+  echo "E.g : Install website and app:"
+  echo "      $CMD website:install app:install"
+  echo " "
+  echo "      Run all website tests (api and website already installed):"
+  echo "      $CMD api:run website:run website:testE2E"
+  echo " "
+  echo "      Run all website and app tests:"
+  echo "      $CMD api:run website:run website:testE2E app:run app:testE2E"
+  echo " "
+  echo "      Run single website test file:"
+  echo "      $CMD api:run website:run website:testE2E ../website/test/e2e/expenses_page.js"
   echo " "
   exit $1;
 }
@@ -184,9 +229,17 @@ run() {
 }
 
 testE2E() {
-  echo "Starting ${REPO_NAME} E2E tests"
   cd ${REPO_DIR}
-  npm run nightwatch
+  if [ "$REPO_NAME" = "website" ] && [ ! -z "$WEBSITE_TEST_FILE" ]; then
+    echo "Starting ${REPO_NAME} E2E with test file $WEBSITE_TEST_FILE"
+    npm run nightwatch -- --test ${WEBSITE_TEST_FILE}
+  elif [ "$REPO_NAME" = "app" ] && [ ! -z "$APP_TEST_FILE" ]; then
+    echo "Starting ${REPO_NAME} E2E with test file $APP_TEST_FILE"
+    npm run nightwatch -- --test ${APP_TEST_FILE}
+  else
+    echo "Starting ${REPO_NAME} E2E tests"
+    npm run nightwatch
+  fi
   echo "Finished ${REPO_NAME} E2E tests"
 }
 
