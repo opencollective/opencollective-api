@@ -166,7 +166,7 @@ runProcess() {
   if [ "$NODE_ENV" = "development" ]; then
     DELAY=5
   else
-    DELAY=40
+    DELAY=20
   fi
   echo "Waiting for $REPO_NAME startup during $DELAY seconds"
   # Wait for startup. Break down sleep into pieces to allow prospective kill signals to get trapped.
