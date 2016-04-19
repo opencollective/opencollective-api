@@ -140,6 +140,10 @@ module.exports = (app) => {
                 }
               };
 
+              if (process.env.NODE_ENV === 'production') {
+                subscription.application_fee_percent = constants.OC_FEE_PERCENT;
+              }
+
               return gateways.stripe.createSubscription(
                 results.getGroupStripeAccount,
                 paymentMethod.customerId,
@@ -159,7 +163,6 @@ module.exports = (app) => {
             currency,
             customer: paymentMethod.customerId,
             description: `One time donation to ${group.name}`,
-            application_fee: parseInt(amountInt*constants.OC_FEE_PERCENT/100, 10),
             metadata: {
               groupId: group.id,
               groupName: group.name,
@@ -167,6 +170,10 @@ module.exports = (app) => {
               paymentMethodId: paymentMethod.id
             }
           };
+
+          if (process.env.NODE_ENV === 'production') {
+            charge.application_fee = parseInt(amountInt*constants.OC_FEE_PERCENT/100, 10);
+          }
 
           gateways.stripe.createCharge(results.getGroupStripeAccount, charge)
             .then(charge => cb(null, charge))
