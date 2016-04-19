@@ -24,8 +24,6 @@ main() {
       if [ "$REPO_NAME" = "api" ]; then
         setPgDatabase
       fi
-      # TODO for some reason can't get tests passing when modifying ports
-      #setPort
 
       if [ "$PHASE" = "install" ]; then
         install
@@ -166,30 +164,13 @@ setPgDatabase() {
   fi
 }
 
-setPort() {
-  API_PORT=3060
-  WEBSITE_PORT=3001
-  APP_PORT=3002
-  # exports necessary for both api and website/app
-  export WEBSITE_URL="http://localhost:$WEBSITE_PORT"
-  export APP_URL="http://localhost:$APP_PORT"
-
-  if [ "${REPO_NAME}" = "api" ]; then
-    export PORT=${API_PORT}
-  elif [ "${REPO_NAME}" = "website" ]; then
-    export PORT=${WEBSITE_PORT}
-  elif [ ${REPO_NAME} = "app" ]; then
-    export PORT=${APP_PORT}
-  fi
-  echo "Setting $REPO_NAME port to $PORT"
-}
-
 runProcess() {
+  COMMAND="npm start"
   cd ${REPO_DIR}
   LOG_FILE="$OUTPUT_DIR/$REPO_NAME.log"
   PARENT=$$
   # in case spawned process exits unexpectedly, kill parent process and its sub-processes (via the trap)
-  sh -c "npm start &> $LOG_FILE;
+  sh -c "$COMMAND | tee $LOG_FILE 2>&1;
          kill $PARENT 2>/dev/null" &
   echo "Started $REPO_NAME with PID $! and saving output to $LOG_FILE"
   # TODO should somehow detect when process is ready instead of fragile hard-coded delay
