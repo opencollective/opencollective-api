@@ -102,13 +102,7 @@ parseStep() {
 }
 
 setOutputDir() {
-  if [ "$NODE_ENV" = "circleci" ]; then
-    OUTPUT_DIR="${CIRCLE_ARTIFACTS}/e2e"
-  else
-    OUTPUT_DIR="${LOCAL_DIR}/test/output/e2e"
-  fi
-  #OUTPUT_DIR=${OUTPUT_DIR}/$(date "+%Y%m%d_%H%M%S")
-  mkdir -p ${OUTPUT_DIR}
+  OUTPUT_DIR=$(bash scripts/test_output_dir.sh e2e)
   echo "Output directory set to $OUTPUT_DIR"
 }
 
