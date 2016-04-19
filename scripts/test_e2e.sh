@@ -43,7 +43,9 @@ finish() {
   # can't rely on $? because of the sleep command running in parallel with spawned jobs
   EXIT_CODE=$1
   trap '' INT TERM EXIT
-  cleanup
+  if [ "$NODE_ENV" = "development" ]; then
+    cleanup
+  fi
   echo "Finished with exit code $EXIT_CODE."
   exit ${EXIT_CODE}
 }
@@ -198,7 +200,7 @@ runProcess() {
   LOG_FILE="$OUTPUT_DIR/$REPO_NAME.log"
   PARENT=$$
   # in case spawned process exits unexpectedly, kill parent process and its sub-processes (via the trap)
-  sh -c "npm start | tee $LOG_FILE 2>&1;
+  sh -c "npm start > $LOG_FILE;
          kill $PARENT 2>/dev/null" &
   echo "Started $REPO_NAME with PID $! and saving output to $LOG_FILE"
   # TODO should somehow detect when process is ready instead of fragile hard-coded delay
