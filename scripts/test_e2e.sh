@@ -4,7 +4,7 @@ main() {
   # exit script if any error occurs
   set -e
 
-  # cleanup upon exit or termination
+  # cleanup upon interruption, termination or exit
   trap 'echo "Received INT signal"; finish 2' INT
   trap 'echo "Received TERM signal"; finish 15' TERM
   trap 'echo "Received EXIT signal"; finish $?' EXIT
@@ -15,29 +15,25 @@ main() {
 
   for STEP in $@; do
     echo "Running step $STEP"
-    if [ ${STEP} = "cleanup" ]; then
-      cleanup
-    else
-      parseStep
-      setRepoDir
+    parseStep
+    setRepoDir
 
-      if [ "$REPO_NAME" = "api" ]; then
-        setPgDatabase
-      fi
+    if [ "$REPO_NAME" = "api" ]; then
+      setPgDatabase
+    fi
 
-      if [ "$PHASE" = "install" ]; then
-        install
-      elif [ "$PHASE" = "run" ]; then
-        run
-      elif [ "$PHASE" = "testE2E" ]; then
-        testE2E
-      fi
+    if [ "$PHASE" = "install" ]; then
+      install
+    elif [ "$PHASE" = "run" ]; then
+      run
+    elif [ "$PHASE" = "testE2E" ]; then
+      testE2E
     fi
   done
 }
 
 cleanup() {
-  echo "Cleaning up leftover node processes"
+  echo "Cleaning up node processes"
   #pkill -f node selenium chromedriver Chrome
   pkill node || true
 }
@@ -46,9 +42,7 @@ finish() {
   # can't rely on $? because of the sleep command running in parallel with spawned jobs
   EXIT_CODE=$1
   trap '' INT TERM EXIT
-  #if [ ${EXIT_CODE} -ne 0 ]; then
-    cleanup
-  #fi
+  cleanup
   echo "Finished with exit code $EXIT_CODE."
   exit ${EXIT_CODE}
 }
@@ -63,16 +57,12 @@ checkParameters() {
 }
 
 parseStep() {
-  if [ "${STEP}" != "cleanup" ]; then
-    REPO_NAME=$(echo ${STEP} | sed 's/:.*//')
-    PHASE=$(echo ${STEP} | sed 's/.*://')
-    if ( [ "$REPO_NAME" != "api" ] && [ "$REPO_NAME" != "website" ] && [ "$REPO_NAME" != "app" ] ) ||
-       ( [ "$PHASE" != "install" ] && [ "$PHASE" != "run" ] && [ "$PHASE" != "testE2E" ] ) ||
-       ( [ "$REPO_NAME" = "api" ] && [ "$PHASE" = "testE2E" ] ); then
-
-      echo "Unrecognized step $STEP"
-      usage 1;
-    fi
+  REPO_NAME=$(echo ${STEP} | sed 's/:.*//')
+  PHASE=$(echo ${STEP} | sed 's/.*://')
+  if ( [ "$REPO_NAME" != "api" ] && [ "$REPO_NAME" != "website" ] && [ "$REPO_NAME" != "app" ] ) ||
+     ( [ "$PHASE" != "install" ] && [ "$PHASE" != "run" ] && [ "$PHASE" != "testE2E" ] ) ||
+     ( [ "$REPO_NAME" = "api" ] && [ "$PHASE" = "testE2E" ] ); then    echo "Unrecognized step $STEP"
+    usage 1;
   fi
 }
 
@@ -102,12 +92,12 @@ setCommonEnvironment() {
 usage() {
   CMD=test_e2e.sh
   echo " "
-  echo "Usage: $CMD [<repo>:<phase> <repo>:<phase> ... <repo>:<phase>] [cleanup]"
+  echo "Usage: $CMD <repo>:<phase> [<repo>:<phase> ... <repo>:<phase>]"
   echo " "
   echo "  <repo>:  api, website or app"
   echo "  <phase>: install, run or testE2E. testE2E not applicable to api."
   echo " "
-  echo "E.g : $CMD cleanup api:run website:install website:run"
+  echo "E.g : $CMD api:run website:install website:run"
   echo " "
   exit $1;
 }
@@ -165,12 +155,11 @@ setPgDatabase() {
 }
 
 runProcess() {
-  COMMAND="npm start"
   cd ${REPO_DIR}
   LOG_FILE="$OUTPUT_DIR/$REPO_NAME.log"
   PARENT=$$
   # in case spawned process exits unexpectedly, kill parent process and its sub-processes (via the trap)
-  sh -c "$COMMAND | tee $LOG_FILE 2>&1;
+  sh -c "npm start | tee $LOG_FILE 2>&1;
          kill $PARENT 2>/dev/null" &
   echo "Started $REPO_NAME with PID $! and saving output to $LOG_FILE"
   # TODO should somehow detect when process is ready instead of fragile hard-coded delay
