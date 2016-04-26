@@ -413,6 +413,7 @@
   "expense1": {
     "description": "Lunch with Jenn",
     "amount": 120.00,
-    "currency": "USD"
+    "currency": "USD",
+    "paypalEmail": "userpaypal@gmail.com"
   }
 }

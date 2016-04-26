@@ -1,40 +1,27 @@
-/**
- * Dependencies.
- */
-
 const Bluebird = require('bluebird');
-const _ = require('lodash');
 const app = require('../index');
 const expect = require('chai').expect;
-const request = require('supertest');
-const utils = require('../test/utils.js')();
-const roles = require('../app/constants/roles');
-
-const cleanAllDb = utils.cleanAllDb;
+const request = require('supertest-as-promised');
+const sinon = require('sinon');
+const utils = require('./utils')();
+const roles = require('../server/constants/roles');
 
 const models = app.set('models');
 const Expense = models.Expense;
 
-/**
- * Tests.
- */
-describe('expenses.routes.test.js', function() {
-  var application;
-  var user;
-  var group;
-  var expense;
+describe.only('expenses.routes.test.js: GIVEN an application, group, and host user', () => {
+  var application, user, group;
 
-  beforeEach((done) => {
-    cleanAllDb((e, app) => {
+  beforeEach(done => {
+    utils.cleanAllDb((e, app) => {
       application = app;
       done();
     });
   });
 
-  beforeEach((done) => {
-    Bluebird.props({
+  beforeEach(done => Bluebird.props({
       user: models.User.create(utils.data('user1')),
-      group: models.Group.create(utils.data('group1')),
+      group: models.Group.create(utils.data('group1'))
     })
     .then(props => {
       user = props.user;
@@ -42,100 +29,132 @@ describe('expenses.routes.test.js', function() {
 
       return group.addUserWithRole(user, roles.HOST);
     })
-    .then(() => done())
-    .catch(done);
+    .then(() => done()));
+
+  describe('WHEN no expense exists', () => {
+
+    describe('WHEN calling approve route', () => {
+      var req;
+
+      beforeEach(done => {
+        req = request(app)
+          .post('/groups/' + group.id + '/expenses/123/approve')
+          .set('Authorization', `Bearer ${user.jwt(application)}`);
+        done();
+      });
+
+      it('THEN returns 404', done => req.expect(404).end(done));
+    });
   });
 
-  describe('#create', () => {
-    var expense;
+  describe('WHEN calling expense route', () => {
+    var expenseReq;
 
-    beforeEach((done) => {
-      request(app)
-        .post(`/groups/${group.id}/expenses`)
-        .set('Authorization', `Bearer ${user.jwt(application)}`)
-        .send({
-          expense: utils.data('expense1')
-        })
-        .end((err, res) => {
-          expect(err).to.not.exist;
-          expense = res.body;
-          done();
+    beforeEach(() => {
+      expenseReq = request(app).post(`/groups/${group.id}/expenses`);
+    });
+
+    describe('WHEN not authenticated but providing an expense', () => {
+      beforeEach(() => {
+        expenseReq = expenseReq.send({expense: utils.data('expense1')});
+      });
+
+      it('THEN returns 200', done => expenseReq.expect(200).end(done));
+    });
+
+    // authenticate even though not required, so that we can make assertions on the userId
+    describe('WHEN authenticated', () => {
+      beforeEach(() => {
+        expenseReq = expenseReq.set('Authorization', `Bearer ${user.jwt(application)}`);
+      });
+
+      describe('WHEN not providing expense', () =>
+        it('THEN returns 400 bad request', done => expenseReq.expect(400).end(done)));
+
+      describe('WHEN providing expense', () => {
+        beforeEach(() => {
+          expenseReq = expenseReq.send({expense: utils.data('expense1')});
         });
-    });
 
-    it('belongs to the group', () => {
-      expect(expense.GroupId).to.be.equal(group.id);
-    });
+        describe('THEN returns 200 and expense', () => {
+          var expense;
 
-    it('belongs to the user', () => {
-      expect(expense.UserId).to.be.equal(user.id);
-    });
+          beforeEach(done => expenseReq
+            .expect(200)
+            .then(res => expense = res.body)
+            .then(() => done()));
 
-    it('creates an activity', (done) => {
-      models.Activity.findAndCountAll()
-        .then(res => {
-          expect(res.count).to.be.equal(1);
-          const activity = res.rows[0];
+          it('THEN expense belongs to the group', () => expect(expense.GroupId).to.be.equal(group.id));
 
-          expect(activity.UserId).to.be.equal(user.id);
-          expect(activity.GroupId).to.be.equal(group.id);
-          expect(activity.ExpenseId).to.be.equal(expense.id);
-          expect(activity.data.user.id).to.be.equal(user.id);
-          expect(activity.data.group.id).to.be.equal(group.id);
-          expect(activity.data.expense.id).to.be.equal(expense.id);
-          done();
-        })
-        .catch(done);
-    });
+          it('THEN expense belongs to the user', () => expect(expense.UserId).to.be.equal(user.id));
 
-  });
+          it('THEN a group.expense.created activity is created', done => {
+            models.Activity.findAndCountAll()
+              .then(res => {
+                expect(res.count).to.be.equal(1);
+                const activity = res.rows[0];
 
-  describe('#approve', () => {
-
-    describe('reject an expense', () => {
-      var expense;
-
-      beforeEach((done) => {
-        request(app)
-          .post(`/groups/${group.id}/expenses`)
-          .set('Authorization', `Bearer ${user.jwt(application)}`)
-          .send({
-            expense: utils.data('expense1')
-          })
-          .end((err, res) => {
-            expect(err).to.not.exist;
-            console.log('lalallalalalalala', res.body.id);
-            expense = res.body;
-            done();
+                expect(activity.type).to.be.equal('group.expense.created');
+                expect(activity.UserId).to.be.equal(user.id);
+                expect(activity.GroupId).to.be.equal(group.id);
+                expect(activity.data.user.id).to.be.equal(user.id);
+                expect(activity.data.group.id).to.be.equal(group.id);
+                expect(activity.data.expense.id).to.be.equal(expense.id);
+              })
+              .then(() => done())
+              .catch(done);
           });
-      });
 
-      beforeEach((done) => {
-        request(app)
-          .post(`/groups/${group.id}/expenses/${expense.id}`)
-          .set('Authorization', `Bearer ${user.jwt(application)}`)
-          .send({ approved: false })
-          .end((err, res) => {
-            expect(err).to.not.exist;
-            // console.log('lalal', res.body)
-            done();
+          describe('WHEN calling approve route', () => {
+            var approveReq;
+
+            beforeEach(() => {
+              approveReq = request(app).post(`/groups/${group.id}/expenses/${expense.id}/approve`);
+            });
+
+            describe('WHEN not authenticated', () =>
+              it('THEN returns 401 unauthorized', done => approveReq.expect(401).end(done)));
+
+            describe('WHEN authenticated as host user', () => {
+
+              beforeEach(() => {
+                approveReq = approveReq.set('Authorization', `Bearer ${user.jwt(application)}`);
+              });
+
+              describe('WHEN sending approved: false', () => {
+                beforeEach(done => setExpenseApproval(false).end(done));
+
+                it('THEN returns status: REJECTED', done => expectApprovalStatus('REJECTED', done));
+              });
+
+              describe('WHEN sending approved: true', () => {
+                // TODO set up test data
+
+                beforeEach(done => setExpenseApproval(true).end(done));
+
+                xit('THEN returns status: APPROVED', done => expectApprovalStatus('APPROVED', done));
+              });
+
+              function setExpenseApproval(approved) {
+                return approveReq
+                  .send({approved})
+                  .expect(200);
+              }
+
+              function expectApprovalStatus(approvalStatus, done) {
+                Expense.findAndCountAll()
+                  .then(expenses => {
+                    expect(expenses.count).to.be.equal(1);
+                    const expense = expenses.rows[0];
+                    expect(expense.status).to.be.equal(approvalStatus);
+                  })
+                  .then(() => done())
+                  .catch(done);
+              }
+            });
           });
-      });
-
-      it.only('sets the status to REJECTED', (done) => {
-        Expense.findAndCountAll()
-          .then(res => {
-            expect(res.count).to.be.equal(1);
-            const expense = res.rows[0];
-
-            console.log('expense', expense);
-
-            done();
-          })
-          .catch(done);
+        });
       });
     });
-
   });
-
 });

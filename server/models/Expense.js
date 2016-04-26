@@ -138,5 +138,6 @@ module.exports = function (Sequelize, DataTypes) {
   });
 
   return Expense;
+  // TODO: enable Temporal
   // return Temporal(Expense, Sequelize);
-}
+};

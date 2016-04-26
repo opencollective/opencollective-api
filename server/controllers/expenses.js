@@ -27,7 +27,6 @@ module.exports = (app) => {
     .then(expense => {
       return models.Activity.create({
         type: constants.activities.GROUP_EXPENSE_CREATED,
-        ExpenseId: expense.id,
         UserId: expense.User.id,
         GroupId: expense.Group.id,
         data: {
@@ -47,7 +46,6 @@ module.exports = (app) => {
     const attributes = req.required.expense;
     const group = req.group;
     const user = req.remoteUser || req.user || {};
-    console.log('user', user);
     Expense.create(attributes)
       .tap(expense => expense.setUser(user))
       .tap(expense => expense.setGroup(group))
@@ -57,10 +55,10 @@ module.exports = (app) => {
   };
 
   /**
-   * Approve an expense
+   * Set the approval status of an expense
    */
 
-  const approve = (req, res, next) => {
+  const setApprovalStatus = (req, res, next) => {
     const expense = req.expense;
 
     if (req.required.approved === false) {
@@ -122,7 +120,7 @@ module.exports = (app) => {
 
   return {
     create,
-    approve
+    setApprovalStatus
   };
 
 };
