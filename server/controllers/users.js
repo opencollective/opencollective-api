@@ -6,6 +6,7 @@ var Bluebird = require('bluebird');
 var async = require('async');
 var userlib = require('../lib/userlib');
 var generateURLSafeToken = require('../lib/utils').generateURLSafeToken;
+var imageUrlToAmazonUrl = require('../lib/imageUrlToAmazonUrl');
 var constants = require('../constants/activities');
 
 /**
@@ -115,7 +116,18 @@ module.exports = function(app) {
           }
         });
 
-        cb(null, req.user);
+        var avatar = req.user.avatar;
+        if (avatar && avatar.indexOf('/static') !== 0 && avatar.indexOf(app.knox.bucket) === -1)
+        {
+          imageUrlToAmazonUrl(app.knox, avatar, (error, aws_src) => {
+            req.user.avatar = error ? '' : aws_src;
+            cb(null, req.user);
+          });
+        }
+        else
+        {
+          cb(null, req.user);
+        }
       },
 
       fetchUserAvatar: ['updateFields', (cb, results) => {
