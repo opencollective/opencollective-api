@@ -6,16 +6,11 @@ general:
       - production
 machine:
   node:
-    version: 5.1.0
+    version: 5.11.0
   environment:
     NODE_ENV: circleci
   services:
     - postgresql
-dependencies:
-  cache_directories:
-    - "~/cache"
-  pre:
-    - npm run install:debs
 deployment:
   staging:
     branch: staging
