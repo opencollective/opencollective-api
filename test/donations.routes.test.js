@@ -914,7 +914,8 @@ describe('donations.routes.test.js', () => {
               models.Transaction.findAndCountAll({
                 include: [
                   { model: models.Subscription },
-                  { model: models.User }
+                  { model: models.User },
+                  { model: models.Donation }
                 ]
               })
               .then((res) => {
@@ -922,6 +923,7 @@ describe('donations.routes.test.js', () => {
                 const transaction = res.rows[0];
                 const subscription = transaction.Subscription;
                 const user = transaction.User;
+                const donation = transaction.Donation;
 
                 expect(subscription).to.have.property('data');
                 expect(subscription.data).to.have.property('billingAgreementId');
@@ -932,6 +934,12 @@ describe('donations.routes.test.js', () => {
                 expect(text).to.contain(`userid=${user.id}`)
                 expect(text).to.contain('has_full_account=false')
                 expect(text).to.contain('status=payment_success')
+
+                expect(donation).to.have.property('UserId', user.id);
+                expect(donation).to.have.property('GroupId', group.id);
+                expect(donation).to.have.property('currency', 'USD');
+                expect(donation).to.have.property('amount', 1000);
+                expect(donation).to.have.property('title', `Donation to ${group.name}`);
 
                 return group.getUsers();
               })
@@ -1025,19 +1033,27 @@ describe('donations.routes.test.js', () => {
               models.Transaction.findAndCountAll({
                 include: [
                   { model: models.Subscription },
-                  { model: models.User }
+                  { model: models.User },
+                  { model: models.Donation }
                 ]
               })
               .then((res) => {
                 expect(res.count).to.equal(1);
                 const transaction = res.rows[0];
                 const user = transaction.User;
+                const donation = transaction.Donation;
 
                 expect(user).to.have.property('email', email);
 
                 expect(text).to.contain(`userid=${user.id}`)
                 expect(text).to.contain('has_full_account=false')
                 expect(text).to.contain('status=payment_success')
+
+                expect(donation).to.have.property('UserId', user.id);
+                expect(donation).to.have.property('GroupId', group.id);
+                expect(donation).to.have.property('currency', 'USD');
+                expect(donation).to.have.property('amount', 1000);
+                expect(donation).to.have.property('title', `Donation to ${group.name}`);
 
                 return group.getUsers();
               })
