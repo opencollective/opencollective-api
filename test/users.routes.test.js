@@ -608,8 +608,7 @@ describe('users.routes.test.js', () => {
               expect(res.body).to.have.property('name', newUser.name);
               expect(res.body).to.have.property('twitterHandle', newUser.twitterHandle);
               expect(res.body).to.have.property('website', newUser.website);
-              expect(res.body).to.have.property('avatar').to.contain('.amazonaws.com/');
-              expect(res.body).to.have.property('avatar').to.contain(config.aws.s3.bucket);
+              expect(res.body).to.have.property('avatar').to.contain('cloudfront');
               done();
             });
         });
