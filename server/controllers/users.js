@@ -116,23 +116,23 @@ module.exports = function(app) {
           }
         });
 
-        var avatar = req.user.avatar;
-        if (avatar && avatar.indexOf('/static') !== 0 && avatar.indexOf(app.knox.bucket) === -1)
-        {
-          imageUrlToAmazonUrl(app.knox, avatar, (error, aws_src) => {
-            req.user.avatar = error ? '' : aws_src;
-            cb(null, req.user);
-          });
-        }
-        else
-        {
-          cb(null, req.user);
-        }
+        cb(null, req.user);
       },
 
       fetchUserAvatar: ['updateFields', (cb, results) => {
         userlib.fetchAvatar(results.updateFields, (err, user) => {
-          cb(null, user);
+          var avatar = user.avatar;
+          if (avatar && avatar.indexOf('/static') !== 0 && avatar.indexOf(app.knox.bucket) === -1)
+          {
+            imageUrlToAmazonUrl(app.knox, avatar, (error, aws_src) => {
+              user.avatar = error ? user.avatar : aws_src;
+              cb(null, user);
+            });
+          }
+          else
+          {
+            cb(null, user);
+          }
         });
       }],
 
