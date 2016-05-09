@@ -17,16 +17,23 @@ const expense = { where: { amount: { $lt: 0 } } };
 const approved = { where: { approved: true } };
 const unapproved = { where: { approved: false } };
 
-const excludeOcTeam = { where: { UserId: { $notIn: [
-  1,  // arnaudbenard
-  2,  // xdamman
-  7,  // maru
-  8,  // aseem
-  30, // pmancini
-  40, // opencollective
-  41, // asood123
-  80  // Maru Lango
-] } } };
+const excludeOcTeam = { where: {
+  UserId: {
+    $notIn: [
+      1,  // arnaudbenard
+      2,  // xdamman
+      7,  // maru
+      8,  // aseem
+      30, // pmancini
+      40, // opencollective
+      41, // asood123
+      80  // Maru Lango
+    ]
+  },
+  GroupId: {
+    $not: 1 // OpenCollective group
+  }
+} };
 
 const lastWeekDonations = _.merge({}, createdLastWeek, donation, excludeOcTeam);
 const lastWeekExpenses = _.merge({}, createdLastWeek, expense, excludeOcTeam);
