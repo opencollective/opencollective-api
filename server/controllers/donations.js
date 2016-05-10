@@ -519,6 +519,7 @@ module.exports = (app) => {
       updateTransaction: ['addUserToGroup', (cb, results) => {
         transaction.restore() // removes the deletedAt field http://docs.sequelizejs.com/en/latest/api/instance/#restoreoptions-promiseundefined
           .then(() => transaction.setUser(results.getOrCreateUser))
+          .then(() => transactions.createGroupTransactionCreatedActivity(transaction.id))
           .then(() => cb())
           .catch(cb);
       }]
