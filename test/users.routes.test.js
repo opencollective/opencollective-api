@@ -542,6 +542,22 @@ describe('users.routes.test.js', () => {
       website: 'opencollective.com'
     };
 
+    before(() => {
+      sinon.stub(app.knox, 'put', () => {
+        var s = new require('stream').Readable();
+        s.write = function(){}
+        s.end = function(){
+          s.url = `https://${config.aws.s3.bucket}.s3-us-west-1.amazonaws.com/31654v3_2ba16cc0-124d-11e6-b36a-2d79eed36137.png`
+          s.emit('response', {statusCode: 200, statusMessage: 'OK'})
+        }
+        return s
+      });
+    });
+
+    after(() => {
+      app.knox.put.restore()
+    })
+
     beforeEach((done) => {
       models.User.create({
         email: 'withpassword@example.com',
