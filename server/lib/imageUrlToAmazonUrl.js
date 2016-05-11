@@ -52,15 +52,3 @@ function imageUrlToAmazonUrl(knox_client, src, callback)
 		}
 	});
 }
-
-// @example
-// 
-// imageUrlToAmazonUrl(
-//	app.knox,
-// 	'http://avatars0.githubusercontent.com/u/13403593?v=3&s=200',
-// 	function(error, aws_src)
-// 	{
-// 		if (error) throw error
-// 		console.log('s3 src', aws_src);
-// 	}
-// )
