@@ -196,7 +196,7 @@ module.exports = (app) => {
   /**
    * ConnectedAccounts
    */
-  app.post('/groups/:slug/connected-accounts/:service', aN.authenticateAppByApiKey, required('accessToken'), connectedAccounts.post);
+  app.post('/connected-accounts/:service', aN.authenticateAppByApiKey, required('accessToken'), connectedAccounts.post);
 
   /**
    * Reset test-api database
