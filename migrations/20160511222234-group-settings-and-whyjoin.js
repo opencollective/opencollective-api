@@ -3,7 +3,7 @@
 module.exports = {
   up: function (queryInterface, DataTypes) {
     return queryInterface.addColumn('Groups', 'settings', DataTypes.JSON)
-      .then(() => query.queryInterface.addColumn('Groups','whyJoin', DataTypes.TEXT('long')));
+      .then(() => queryInterface.addColumn('Groups','whyJoin', DataTypes.TEXT('long')));
   },
 
   down: function (queryInterface) {
