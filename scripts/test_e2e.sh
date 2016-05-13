@@ -21,6 +21,8 @@ main() {
 
     if [ "$REPO_NAME" = "api" ]; then
       setPgDatabase
+      setPort
+      setUrl
     fi
 
     if [ "$PHASE" = "install" ]; then
@@ -193,6 +195,22 @@ setPgDatabase() {
     echo "setting PG_DATABASE=opencollective_test"
     export PG_DATABASE=opencollective_test
   fi
+}
+
+setPort() {
+  [[ ${NODE_ENV} = development ]] && {
+    local DEV_API_PORT="${API_PORT:-3061}"
+    echo "setting API_PORT=${DEV_API_PORT}"
+    export API_PORT="${DEV_API_PORT}"
+  }
+}
+
+setUrl() {
+  [[ ${NODE_ENV} = development ]] && {
+    local DEV_API_URL="http://localhost:${API_PORT:-3061}"
+    echo "setting API_URL=${DEV_API_URL}"
+    export API_URL="${DEV_API_URL}"
+  }
 }
 
 runProcess() {
