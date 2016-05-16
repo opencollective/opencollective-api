@@ -197,7 +197,7 @@ module.exports = (app) => {
    * ConnectedAccounts
    */
   app.post('/connected-accounts/:service', aN.authenticateAppByApiKey, required('accessToken'), connectedAccounts.post);
-
+  app.get('/connected-accounts/:service/verify', aN.authenticateAppByApiKey, aN.parseJwtNoExpiryCheck, connectedAccounts.get);
   /**
    * Reset test-api database
    */
