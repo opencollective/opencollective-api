@@ -11,11 +11,6 @@ machine:
     NODE_ENV: circleci
   services:
     - postgresql
-dependencies:
-  cache_directories:
-    - "~/cache"
-  pre:
-    - npm run install:debs
 deployment:
   staging:
     branch: staging
