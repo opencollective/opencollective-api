@@ -9,6 +9,10 @@ const models = app.set('models');
 const data  = require('./mocks/data.json');
 const userlib = require('../server/lib/userlib');
 
+Promise.config({
+  warnings: false
+});
+
 /**
  * Private methods.
  */
