@@ -40,12 +40,7 @@ describe(require('path').basename(__filename), () => {
   var group2;
   var sandbox = sinon.sandbox.create();
 
-  beforeEach((done) => {
-    utils.cleanAllDb((e, app) => {
-      application = app;
-      done();
-    });
-  });
+  beforeEach(() => utils.cleanAllDb().tap(a => application = a));
 
   // Create a stub for clearbit
   beforeEach((done) => {

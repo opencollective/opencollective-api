@@ -4,7 +4,7 @@
 const _ = require('lodash');
 const app = require('../index');
 const expect = require('chai').expect;
-const request = require('supertest');
+const request = require('supertest-as-promised');
 const sinon = require('sinon');
 const nock = require('nock');
 const chance = require('chance').Chance();
@@ -52,27 +52,13 @@ describe('donations.routes.test.js', () => {
 
   var mailgunStub = sinon.stub(app.mailgun, 'sendMail');
 
-  beforeEach((done) => {
-    utils.cleanAllDb((e, app) => {
-      application = app;
-      done();
-    });
-  });
+  beforeEach(() => utils.cleanAllDb().tap(a => application = a));
 
   // Create a stub for clearbit
-  beforeEach((done) => {
-    utils.clearbitStubBeforeEach(sandbox);
-    done();
-  });
+  beforeEach(() => utils.clearbitStubBeforeEach(sandbox));
 
   // Create a user.
-  beforeEach((done) => {
-    models.User.create(userData).done((e, u) => {
-      expect(e).to.not.exist;
-      user = u;
-      done();
-    });
-  });
+  beforeEach(() => models.User.create(userData).tap(u => user = u));
 
   // Nock for customers.create.
   beforeEach(() => {
@@ -88,12 +74,10 @@ describe('donations.routes.test.js', () => {
       .reply(200, stripeMock.balance);
   });
 
-  beforeEach(() => {
-    stubStripe();
-  });
+  beforeEach(() => stubStripe());
 
   // Create a group.
-  beforeEach((done) => {
+  beforeEach(() =>
     request(app)
       .post('/groups')
       .set('Authorization', 'Bearer ' + user.jwt(application))
@@ -102,17 +86,8 @@ describe('donations.routes.test.js', () => {
         role: roles.HOST
       })
       .expect(200)
-      .end((e, res) => {
-        expect(e).to.not.exist;
-        models.Group
-          .find(parseInt(res.body.id))
-          .then((g) => {
-            group = g;
-            done();
-          })
-          .catch(done);
-      });
-  });
+      .then(res => models.Group.find(parseInt(res.body.id)))
+      .tap(g => group = g));
 
   beforeEach(() => {
     app.stripe.accounts.create.restore();
@@ -120,7 +95,7 @@ describe('donations.routes.test.js', () => {
   });
 
   // Create a second group.
-  beforeEach((done) => {
+  beforeEach(() =>
     request(app)
       .post('/groups')
       .set('Authorization', 'Bearer ' + user.jwt(application))
@@ -129,51 +104,28 @@ describe('donations.routes.test.js', () => {
         role: roles.HOST
       })
       .expect(200)
-      .end((e, res) => {
-        expect(e).to.not.exist;
-        models.Group
-          .find(parseInt(res.body.id))
-          .then((g) => {
-            group2 = g;
-            done();
-          })
-          .catch(done);
-      });
-  });
+      .then(res => models.Group.find(parseInt(res.body.id)))
+      .tap(g => group2 = g));
 
-  beforeEach(() => {
-    app.stripe.accounts.create.restore();
-  });
+  beforeEach(() => app.stripe.accounts.create.restore());
 
-  beforeEach((done) => {
-    models.StripeAccount.create({
-      accessToken: 'abc'
-    })
-    .then((account) => user.setStripeAccount(account))
-    .then(() => done())
-    .catch(done);
-  });
+  beforeEach(() =>
+    models.StripeAccount.create({ accessToken: 'abc' })
+    .then(account => user.setStripeAccount(account)));
 
-  beforeEach((done) => {
+  beforeEach(() =>
     models.ConnectedAccount.create({
       provider: 'paypal',
       // Sandbox api keys
       clientId: 'AZaQpRstiyI1ymEOGUXXuLUzjwm3jJzt0qrI__txWlVM29f0pTIVFk5wM9hLY98w5pKCE7Rik9QYvdYA',
       secret: 'EILQQAMVCuCTyNDDOWTGtS7xBQmfzdMcgSVZJrCaPzRbpGjQFdd8sylTGE-8dutpcV0gJkGnfDE0PmD8'
     })
-    .then((account) => account.setUser(user))
-    .then(() => done())
-    .catch(done);
-  });
+    .then(account => account.setUser(user)));
 
   // Create an application which has only access to `group`
-  beforeEach((done) => {
-    models.Application.create(utils.data('application2')).done((e, a) => {
-      expect(e).to.not.exist;
-      application2 = a;
-      application2.addGroup(group2).done(done);
-    });
-  });
+  beforeEach(() => models.Application.create(utils.data('application2'))
+    .tap(a => application2 = a)
+    .then(() => application2.addGroup(group2)));
 
   // Nock for charges.create.
   beforeEach(() => {
@@ -194,13 +146,9 @@ describe('donations.routes.test.js', () => {
       .reply(200, stripeMock.charges.create);
   });
 
-  afterEach(() => {
-    nock.cleanAll();
-  });
+  afterEach(() => nock.cleanAll());
 
-  afterEach(() => {
-    utils.clearbitStubAfterEach(sandbox);
-  });
+  afterEach(() => utils.clearbitStubAfterEach(sandbox));
 
   /**
    * Post a payment.
@@ -209,7 +157,7 @@ describe('donations.routes.test.js', () => {
 
     describe('Payment success by a group\'s user', () => {
 
-      beforeEach((done) => {
+      beforeEach(() =>
         request(app)
           .post('/groups/' + group.id + '/payments')
           .set('Authorization', 'Bearer ' + user.jwt(application))
@@ -221,27 +169,22 @@ describe('donations.routes.test.js', () => {
               email: user.email
             }
           })
-          .expect(200)
-          .end(done);
-      });
+          .expect(200));
 
       it('successfully creates a Stripe customer', () => {
         expect(nocks['customers.create'].isDone()).to.be.true;
       });
 
-      it('successfully creates a paymentMethod with the UserId', (done) => {
+      it('successfully creates a paymentMethod with the UserId', () =>
         models.PaymentMethod
           .findAndCountAll({})
-          .then((res) => {
+          .tap(res => {
             expect(res.count).to.equal(1);
             expect(res.rows[0]).to.have.property('UserId', user.id);
             expect(res.rows[0]).to.have.property('token', STRIPE_TOKEN);
             expect(res.rows[0]).to.have.property('service', 'stripe');
             expect(res.rows[0]).to.have.property('customerId', stripeMock.customers.create.id);
-            done();
-          })
-          .catch(done);
-      });
+          }));
 
       it('successfully makes a Stripe charge', () => {
         expect(nocks['charges.create'].isDone()).to.be.true;
@@ -251,26 +194,22 @@ describe('donations.routes.test.js', () => {
         expect(nocks['balance.retrieveTransaction'].isDone()).to.be.true;
       });
 
-      it('successfully creates a donation in the database', (done) => {
+      it('successfully creates a donation in the database', () =>
         models.Donation
           .findAndCountAll({})
-          .then((res) => {
+          .tap((res) => {
             expect(res.count).to.equal(1);
             expect(res.rows[0]).to.have.property('UserId', user.id);
             expect(res.rows[0]).to.have.property('GroupId', group.id);
             expect(res.rows[0]).to.have.property('currency', CURRENCY);
             expect(res.rows[0]).to.have.property('amount', CHARGE*100);
-            expect(res.rows[0]).to.have.property('title',
-              `Donation to ${group.name}`);
-            done();
-          })
-          .catch(done);
-      });
+            expect(res.rows[0]).to.have.property('title', `Donation to ${group.name}`);
+          }));
 
-      it('successfully creates a transaction in the database', (done) => {
+      it('successfully creates a transaction in the database', () =>
         models.Transaction
           .findAndCountAll({})
-          .then((res) => {
+          .tap((res) => {
             expect(res.count).to.equal(1);
             expect(res.rows[0]).to.have.property('UserId', user.id);
             expect(res.rows[0]).to.have.property('PaymentMethodId', 1);
@@ -287,12 +226,8 @@ describe('donations.routes.test.js', () => {
             expect(res.rows[0]).to.have.property('paidby', user.id.toString());
             expect(res.rows[0]).to.have.property('approved', true);
             expect(res.rows[0].tags[0]).to.be.equal('Donation');
-            expect(res.rows[0]).to.have.property('description',
-              'Donation to ' + group.name);
-            done();
-          })
-          .catch(done);
-      });
+            expect(res.rows[0]).to.have.property('description', 'Donation to ' + group.name);
+          }));
 
     });
 
@@ -465,15 +400,10 @@ describe('donations.routes.test.js', () => {
     describe('Payment success by a user who is a MEMBER of the group and should become BACKER', () => {
 
       // Add a user as a MEMBER
-      beforeEach((done) => {
-        models.User.create(utils.data('user4')).done((e, u) => {
-          expect(e).to.not.exist;
-          user4 = u;
-          group2
-            .addUserWithRole(user4, roles.MEMBER)
-            .done(done);
-        });
-      });
+      beforeEach(() =>
+        models.User.create(utils.data('user4'))
+          .tap(u => user4 = u)
+          .then(() => group2.addUserWithRole(user4, roles.MEMBER)));
 
       // Nock for charges.create.
       beforeEach(() => {
@@ -494,7 +424,7 @@ describe('donations.routes.test.js', () => {
           .reply(200, stripeMock.charges.create);
       });
 
-      beforeEach((done) => {
+      beforeEach(() =>
         request(app)
           .post('/groups/' + group2.id + '/payments')
           .set('Authorization', 'Bearer ' + user4.jwt(application2))
@@ -506,20 +436,16 @@ describe('donations.routes.test.js', () => {
               email: user4.email
             }
           })
-          .expect(200)
-          .end(done);
-      });
+          .expect(200));
 
-      it('successfully adds the user to the group as a backer', (done) => {
+      it('successfully adds the user to the group as a backer', () => {
         group2
           .getUsers()
-          .then((users) => {
+          .tap(users => {
             expect(users).to.have.length(3);
             var backer = _.find(users, {email: user4.email});
             expect(backer.UserGroup.role).to.equal(roles.BACKER);
-            done();
-          })
-          .catch(done);
+          });
       });
 
     });
@@ -559,78 +485,62 @@ describe('donations.routes.test.js', () => {
           .reply(200, stripeMock.charges.create);
       });
 
-      beforeEach('successfully makes a anonymous payment', (done) => {
+      beforeEach('successfully makes a anonymous payment', () =>
         request(app)
           .post('/groups/' + group2.id + '/payments')
           .send({
             api_key: application2.api_key,
             payment: data
           })
-          .expect(200)
-          .end((e) => {
-            expect(e).to.not.exist;
-            done();
-          });
-      });
+          .expect(200));
 
       it('successfully creates a Stripe customer', () => {
         expect(nocks['customers.create'].isDone()).to.be.true;
       });
 
-      it('successfully creates a paymentMethod', (done) => {
+      it('successfully creates a paymentMethod', () =>
         models.PaymentMethod
           .findAndCountAll({})
-          .then((res) => {
+          .tap((res) => {
             expect(res.count).to.equal(1);
             expect(res.rows[0]).to.have.property('UserId', 1);
-            done();
-          })
-          .catch(done);
-      });
+          }));
 
       it('successfully makes a Stripe charge', () => {
         expect(nocks['charges.create'].isDone()).to.be.true;
       });
 
-      it('successfully creates a user', (done) => {
-
+      it('successfully creates a user', () =>
         models.User.findAndCountAll({
           where: {
               email: userData.email
             }
         })
-        .then((res) => {
+        .tap((res) => {
           expect(res.count).to.equal(1);
           expect(res.rows[0]).to.have.property('email', userData.email);
-          done();
-        })
-        .catch(done)
-      })
+        }));
 
-      it('successfully creates a donation in the database', (done) => {
+      it('successfully creates a donation in the database', () =>
         models.Donation
           .findAndCountAll({})
-          .then((res) => {
+          .tap((res) => {
             expect(res.count).to.equal(1);
             expect(res.rows[0]).to.have.property('UserId', user.id);
             expect(res.rows[0]).to.have.property('GroupId', group2.id);
             expect(res.rows[0]).to.have.property('currency', CURRENCY);
             expect(res.rows[0]).to.have.property('amount', CHARGE*100);
-            expect(res.rows[0]).to.have.property('title',
-              'Donation to ' + group2.name);
-            done();
-          })
-          .catch(done);
-      });
+            expect(res.rows[0]).to.have.property('title', 'Donation to ' + group2.name);
+          }));
 
       it('successfully gets a Stripe balance', () => {
         expect(nocks['balance.retrieveTransaction'].isDone()).to.be.true;
       });
 
-      it('successfully creates a transaction in the database', (done) => {
+      it('successfully creates a transaction in the database', () =>
         models.Transaction
           .findAndCountAll({})
-          .then((res) => {
+          .tap((res) => {
             expect(res.count).to.equal(1);
             expect(res.rows[0]).to.have.property('GroupId', group2.id);
             expect(res.rows[0]).to.have.property('UserId', user.id);
@@ -640,14 +550,10 @@ describe('donations.routes.test.js', () => {
             expect(res.rows[0]).to.have.property('payoutMethod', null);
             expect(res.rows[0]).to.have.property('amount', data.amount);
             expect(res.rows[0]).to.have.property('paidby', String(user.id));
-            done();
-          })
-          .catch(done);
-      });
+          }));
 
-      it('successfully send a thank you email', (done) => {
+      it('successfully send a thank you email', () => {
         expect(mailgunStub.lastCall.args[0].to).to.equal(userData.email);
-        done();
       });
 
     });
@@ -701,7 +607,7 @@ describe('donations.routes.test.js', () => {
       });
 
       describe('plan does not exist', () => {
-        beforeEach((done) => {
+        beforeEach(() => {
 
           nocks['plans.retrieve'] = nock(STRIPE_URL)
             .get('/v1/plans/' + planId)
@@ -709,17 +615,13 @@ describe('donations.routes.test.js', () => {
               error: stripeMock.plans.create_not_found
             });
 
-          request(app)
+          return request(app)
             .post('/groups/' + group2.id + '/payments')
             .send({
               api_key: application2.api_key,
               payment: data
             })
-            .expect(200)
-            .end((e, res) => {
-              expect(e).to.not.exist;
-              done();
-            });
+            .expect(200);
         });
 
         it('creates a plan if it doesn\'t exist', () => {
@@ -731,23 +633,19 @@ describe('donations.routes.test.js', () => {
 
       describe('plan exists', () => {
 
-        beforeEach((done) => {
+        beforeEach(() => {
 
           nocks['plans.retrieve'] = nock(STRIPE_URL)
             .get('/v1/plans/' + planId)
             .reply(200, plan);
 
-          request(app)
+          return request(app)
             .post('/groups/' + group2.id + '/payments')
             .send({
               api_key: application2.api_key,
               payment: data
             })
-            .expect(200)
-            .end((e, res) => {
-              expect(e).to.not.exist;
-              done();
-            });
+            .expect(200);
         });
 
         it('uses the existing plan', () => {
@@ -759,40 +657,30 @@ describe('donations.routes.test.js', () => {
           expect(nocks['subscriptions.create'].isDone()).to.be.true;
         });
 
-        it('successfully creates a donation in the database', (done) => {
+        it('successfully creates a donation in the database', () =>
           models.Donation
             .findAndCountAll({})
-            .then((res) => {
+            .tap((res) => {
               expect(res.count).to.equal(1);
               expect(res.rows[0]).to.have.property('UserId', 2);
               expect(res.rows[0]).to.have.property('GroupId', group2.id);
               expect(res.rows[0]).to.have.property('currency', CURRENCY);
               expect(res.rows[0]).to.have.property('amount', data.amount*100);
               expect(res.rows[0]).to.have.property('SubscriptionId');
-              expect(res.rows[0]).to.have.property('title',
-                `Donation to ${group2.name}`);
-              done();
-            })
-            .catch(done);
-        });
+              expect(res.rows[0]).to.have.property('title', `Donation to ${group2.name}`);
+            }));
 
-        it('does not create a transaction', (done) => {
+        it('does not create a transaction', () =>
           models.Transaction
             .findAndCountAll({})
-            .then((res) => {
-              expect(res.count).to.equal(0);
-              done();
-            })
-            .catch(done);
-        });
+            .tap(res => expect(res.count).to.equal(0)));
 
 
-        it('creates a Subscription model', (done) => {
+        it('creates a Subscription model', () =>
           models.Subscription
             .findAndCountAll({})
-            .then((res) => {
+            .tap(res => {
               const subscription = res.rows[0];
-
               expect(res.count).to.equal(1);
               expect(subscription).to.have.property('amount', data.amount);
               expect(subscription).to.have.property('interval', plan.interval);
@@ -800,13 +688,9 @@ describe('donations.routes.test.js', () => {
               expect(subscription).to.have.property('data');
               expect(subscription).to.have.property('isActive', false);
               expect(subscription).to.have.property('currency', CURRENCY);
-              done();
-            })
-            .catch(done);
-        });
+            }));
 
-        it('fails if the interval is not month or year', (done) => {
-
+        it('fails if the interval is not month or year', () =>
           request(app)
             .post('/groups/' + group2.id + '/payments')
             .send({
@@ -819,9 +703,7 @@ describe('donations.routes.test.js', () => {
                 type: 'bad_request',
                 message: 'Interval should be month or year.'
               }
-            })
-            .end(done);
-        });
+            }));
       });
     });
 
@@ -830,7 +712,7 @@ describe('donations.routes.test.js', () => {
         var links;
         const token = 'EC-123';
 
-        beforeEach((done) => {
+        beforeEach(() =>
           request(app)
             .post(`/groups/${group.id}/payments/paypal`)
             .send({
@@ -841,14 +723,10 @@ describe('donations.routes.test.js', () => {
               },
               api_key: application2.api_key
             })
-            .end((err, res) => {
-              expect(err).to.not.exist;
-              links = res.body.links;
-              done();
-            });
-        });
+            .toPromise()
+            .tap(res => links = res.body.links));
 
-        it('creates a transaction and returns the links', (done) => {
+        it('creates a transaction and returns the links', () => {
           expect(links[0]).to.have.property('method', 'REDIRECT');
           expect(links[0]).to.have.property('rel', 'approval_url');
           expect(links[0]).to.have.property('href');
@@ -857,13 +735,13 @@ describe('donations.routes.test.js', () => {
           expect(links[1]).to.have.property('rel', 'execute');
           expect(links[1]).to.have.property('href');
 
-          models.Transaction.findAndCountAll({
+          return models.Transaction.findAndCountAll({
             include: [{
               model: models.Subscription
             }],
             paranoid: false
           })
-          .then((res) => {
+          .tap(res => {
             expect(res.count).to.equal(1);
             const transaction = res.rows[0];
             const subscription = transaction.Subscription;
@@ -877,13 +755,10 @@ describe('donations.routes.test.js', () => {
             expect(subscription).to.have.property('data');
             expect(subscription).to.have.property('interval', 'month');
             expect(subscription).to.have.property('amount', 10);
-
-            done();
-          })
-          .catch(done);
+          });
         });
 
-        it('executes the billing agreement', (done) => {
+        it('executes the billing agreement', () => {
           const email = 'testemail@test.com';
 
           // Taken from https://github.com/paypal/PayPal-node-SDK/blob/71dcd3a5e2e288e2990b75a54673fb67c1d6855d/test/mocks/generate_token.js
@@ -904,51 +779,49 @@ describe('donations.routes.test.js', () => {
               }
             });
 
-          request(app)
-            .get(`/groups/${group.id}/transactions/1/callback?token=${token}`) // hardcode transaction id
-            .end((err, res) => {
-              expect(err).to.not.exist;
+          var text;
+          return request(app)
+            .get(`/groups/${group.id}/transactions/1/callback?token=${token}`) // hard-code transaction id
+            .then(res => {
               expect(executeRequest.isDone()).to.be.true;
-              const text = res.text;
+              text = res.text;
 
-              models.Transaction.findAndCountAll({
+              return models.Transaction.findAndCountAll({
                 include: [
-                  { model: models.Subscription },
-                  { model: models.User },
-                  { model: models.Donation }
+                  {model: models.Subscription},
+                  {model: models.User},
+                  {model: models.Donation}
                 ]
-              })
-              .then((res) => {
-                expect(res.count).to.equal(1);
-                const transaction = res.rows[0];
-                const subscription = transaction.Subscription;
-                const user = transaction.User;
-                const donation = transaction.Donation;
+              });
+            })
+            .then(res => {
+              expect(res.count).to.equal(1);
+              const transaction = res.rows[0];
+              const subscription = transaction.Subscription;
+              const user = transaction.User;
+              const donation = transaction.Donation;
 
-                expect(subscription).to.have.property('data');
-                expect(subscription.data).to.have.property('billingAgreementId');
-                expect(subscription.data).to.have.property('plan');
+              expect(subscription).to.have.property('data');
+              expect(subscription.data).to.have.property('billingAgreementId');
+              expect(subscription.data).to.have.property('plan');
 
-                expect(user).to.have.property('email', email);
+              expect(user).to.have.property('email', email);
 
-                expect(text).to.contain(`userid=${user.id}`)
-                expect(text).to.contain('has_full_account=false')
-                expect(text).to.contain('status=payment_success')
+              expect(text).to.contain(`userid=${user.id}`);
+              expect(text).to.contain('has_full_account=false');
+              expect(text).to.contain('status=payment_success');
 
-                expect(donation).to.have.property('UserId', user.id);
-                expect(donation).to.have.property('GroupId', group.id);
-                expect(donation).to.have.property('currency', 'USD');
-                expect(donation).to.have.property('amount', 1000);
-                expect(donation).to.have.property('title', `Donation to ${group.name}`);
+              expect(donation).to.have.property('UserId', user.id);
+              expect(donation).to.have.property('GroupId', group.id);
+              expect(donation).to.have.property('currency', 'USD');
+              expect(donation).to.have.property('amount', 1000);
+              expect(donation).to.have.property('title', `Donation to ${group.name}`);
 
-                return group.getUsers();
-              })
-              .then((users) => {
-                const backer = _.find(users, {email: email});
-                expect(backer.UserGroup.role).to.equal(roles.BACKER);
-                done();
-              })
-              .catch(done);
+              return group.getUsers();
+            })
+            .tap(users => {
+              const backer = _.find(users, {email: email});
+              expect(backer.UserGroup.role).to.equal(roles.BACKER);
             });
         });
       });
@@ -961,7 +834,7 @@ describe('donations.routes.test.js', () => {
         const paymentId = 'PAY-123';
         const PayerID = 'ABC123';
 
-        beforeEach((done) => {
+        beforeEach(() =>
           request(app)
             .post(`/groups/${group.id}/payments/paypal`)
             .send({
@@ -971,22 +844,18 @@ describe('donations.routes.test.js', () => {
               },
               api_key: application2.api_key
             })
-            .end((err, res) => {
-              expect(err).to.not.exist;
-              links = res.body.links;
-              done();
-            });
-        });
+            .toPromise()
+            .tap(res => links = res.body.links));
 
-        it('creates a transaction and returns the links', (done) => {
+        it('creates a transaction and returns the links', () => {
           const redirect = _.find(links, { method: 'REDIRECT' });
 
           expect(redirect).to.have.property('method', 'REDIRECT');
           expect(redirect).to.have.property('rel', 'approval_url');
           expect(redirect).to.have.property('href');
 
-          models.Transaction.findAndCountAll({ paranoid: false })
-          .then((res) => {
+          return models.Transaction.findAndCountAll({ paranoid: false })
+          .tap(res => {
             expect(res.count).to.equal(1);
             const transaction = res.rows[0];
 
@@ -996,13 +865,10 @@ describe('donations.routes.test.js', () => {
             expect(transaction).to.have.property('interval', null);
             expect(transaction).to.have.property('SubscriptionId', null);
             expect(transaction).to.have.property('amount', 10);
-
-            done();
-          })
-          .catch(done);
+          });
         });
 
-        it('executes the billing agreement', (done) => {
+        it('executes the billing agreement', () => {
           const email = 'testemail@test.com';
           var transaction;
 
@@ -1024,63 +890,61 @@ describe('donations.routes.test.js', () => {
               }
             });
 
-          request(app)
+          var text;
+          return request(app)
             .get(`/groups/${group.id}/transactions/1/callback?token=${token}&paymentId=${paymentId}&PayerID=${PayerID}`) // hardcode transaction id
-            .end((err, res) => {
-              expect(err).to.not.exist;
+            .then(res => {
               expect(executeRequest.isDone()).to.be.true;
-              const text = res.text;
+              text = res.text;
 
-              models.Transaction.findAndCountAll({
+              return models.Transaction.findAndCountAll({
                 include: [
-                  { model: models.Subscription },
-                  { model: models.User },
-                  { model: models.Donation }
+                  {model: models.Subscription},
+                  {model: models.User},
+                  {model: models.Donation}
                 ]
-              })
-              .then((res) => {
-                expect(res.count).to.equal(1);
-                transaction = res.rows[0];
-                const user = transaction.User;
-                const donation = transaction.Donation;
+              });
+            })
+            .then(res => {
+              expect(res.count).to.equal(1);
+              transaction = res.rows[0];
+              const user = transaction.User;
+              const donation = transaction.Donation;
 
-                expect(user).to.have.property('email', email);
+              expect(user).to.have.property('email', email);
 
-                expect(text).to.contain(`userid=${user.id}`)
-                expect(text).to.contain('has_full_account=false')
-                expect(text).to.contain('status=payment_success')
+              expect(text).to.contain(`userid=${user.id}`)
+              expect(text).to.contain('has_full_account=false')
+              expect(text).to.contain('status=payment_success')
 
-                expect(donation).to.have.property('UserId', user.id);
-                expect(donation).to.have.property('GroupId', group.id);
-                expect(donation).to.have.property('currency', 'USD');
-                expect(donation).to.have.property('amount', 1000);
-                expect(donation).to.have.property('title', `Donation to ${group.name}`);
+              expect(donation).to.have.property('UserId', user.id);
+              expect(donation).to.have.property('GroupId', group.id);
+              expect(donation).to.have.property('currency', 'USD');
+              expect(donation).to.have.property('amount', 1000);
+              expect(donation).to.have.property('title', `Donation to ${group.name}`);
 
-                return group.getUsers();
-              })
-              .then((users) => {
-                const backer = _.find(users, {email: email});
-                expect(backer.UserGroup.role).to.equal(roles.BACKER);
-              })
-              .then(() => models.Activity.findAndCountAll({ where: { type: "group.transaction.created" } }))
-              .then(res => {
-                expect(res.count).to.equal(1);
-                const activity = res.rows[0].get();
-                expect(activity).to.have.property('GroupId', group.id);
-                expect(activity).to.have.property('UserId', transaction.UserId);
-                expect(activity).to.have.property('TransactionId', transaction.id);
-                expect(activity.data.transaction).to.have.property('id', transaction.id);
-                expect(activity.data.group).to.have.property('id', group.id);
-                expect(activity.data.user).to.have.property('id', transaction.UserId);
-              })
-              .then(() => done())
-              .catch(done);
+              return group.getUsers();
+            })
+            .tap(users => {
+              const backer = _.find(users, {email: email});
+              expect(backer.UserGroup.role).to.equal(roles.BACKER);
+            })
+            .then(() => models.Activity.findAndCountAll({ where: { type: "group.transaction.created" } }))
+            .tap(res => {
+              expect(res.count).to.equal(1);
+              const activity = res.rows[0].get();
+              expect(activity).to.have.property('GroupId', group.id);
+              expect(activity).to.have.property('UserId', transaction.UserId);
+              expect(activity).to.have.property('TransactionId', transaction.id);
+              expect(activity.data.transaction).to.have.property('id', transaction.id);
+              expect(activity.data.group).to.have.property('id', group.id);
+              expect(activity.data.user).to.have.property('id', transaction.UserId);
             });
         });
       });
 
       describe('errors', () => {
-        it('fails if the interval is wrong', (done) => {
+        it('fails if the interval is wrong', () =>
           request(app)
             .post(`/groups/${group.id}/payments/paypal`)
             .send({
@@ -1097,11 +961,9 @@ describe('donations.routes.test.js', () => {
                 type: 'bad_request',
                 message: 'Interval should be month or year.'
               }
-            })
-            .end(done);
-        });
+            }));
 
-        it('fails if it has no amount', (done) => {
+        it('fails if it has no amount', () =>
           request(app)
             .post(`/groups/${group.id}/payments/paypal`)
             .send({
@@ -1117,9 +979,7 @@ describe('donations.routes.test.js', () => {
                 type: 'bad_request',
                 message: 'Payment Amount missing.'
               }
-            })
-            .end(done);
-        });
+            }));
       });
     });
 
@@ -1132,16 +992,16 @@ describe('donations.routes.test.js', () => {
           .replyWithError(stripeMock.customers.createError);
       });
 
-      it('fails if the accessToken contains live', (done) => {
+      it('fails if the accessToken contains live', () => {
         const payment = {
           stripeToken: STRIPE_TOKEN,
           amount: CHARGE,
           currency: CURRENCY
         };
 
-        models.StripeAccount.create({ accessToken: 'sk_live_abc'})
+        return models.StripeAccount.create({ accessToken: 'sk_live_abc'})
         .then((account) => user.setStripeAccount(account))
-        .then(() => {
+        .then(() =>
           request(app)
             .post('/groups/' + group.id + '/payments')
             .set('Authorization', 'Bearer ' + user.jwt(application))
@@ -1152,13 +1012,10 @@ describe('donations.routes.test.js', () => {
                 type: 'bad_request',
                 message: `You can't use a Stripe live key on ${process.env.NODE_ENV}`
               }
-            })
-            .end(done);
-        })
-
+            }));
       });
 
-      it('fails paying because of a paymentMethod declined', (done) => {
+      it('fails paying because of a paymentMethod declined', () =>
         request(app)
           .post('/groups/' + group.id + '/payments')
           .set('Authorization', 'Bearer ' + user.jwt(application))
@@ -1170,15 +1027,13 @@ describe('donations.routes.test.js', () => {
             }
           })
           .expect(400)
-          .then(res => {
+          .toPromise()
+          .tap(res => {
             const error = res.body.error;
             expect(error.message).to.equal('Your paymentMethod was declined');
             expect(error.type).to.equal('StripePaymentMethodError');
             expect(error.code).to.equal(400);
-            done();
-          });
-      });
-
+          }));
     });
 
   });

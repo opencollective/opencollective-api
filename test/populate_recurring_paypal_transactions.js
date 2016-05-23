@@ -38,14 +38,13 @@ const paypalTransaction = {
 describe('scripts/populate_recurring_paypal_transactions', () => {
   const billingAgreementId = 'billingAgreementId-abc';
 
-  var application;
   var user;
   var group;
   var transaction;
   var subscription;
   var runScript;
 
-  beforeEach((done) => utils.cleanAllDb(done));
+  beforeEach(() => utils.cleanAllDb());
 
   beforeEach((done) => {
     models.User.create(data('user1')).done((e, u) => {

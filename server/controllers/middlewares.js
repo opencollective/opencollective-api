@@ -56,7 +56,7 @@ module.exports = function(app) {
       const cb = (err, user) => {
         if(user) req.user = user;
         return next();
-      }
+      };
 
       models.User.findOne({
         where: {

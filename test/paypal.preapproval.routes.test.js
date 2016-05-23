@@ -40,7 +40,9 @@ describe('paypal.preapproval.routes.test.js', () => {
   beforeEach((done) => {
     async.auto({
       cleanAndCreateApplication: (cb) => {
-        utils.cleanAllDb(cb);
+        utils.cleanAllDb()
+          .then(() => cb())
+          .catch(cb);
       },
       createUserA: ['cleanAndCreateApplication', (cb) => {
         models.User.create(utils.data('user1')).done(cb);

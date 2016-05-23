@@ -32,12 +32,11 @@ module.exports = function(app) {
         role: roles.HOST
       }
     })
-    .done((err, userGroup) => {
-      if (err) return cb(err)
-      if (!userGroup) return cb(new errors.BadRequest(`User is not a host ${UserId}`));
-
-      return cb();
-    });
+      .then(userGroup => {
+        if (!userGroup) return new errors.BadRequest(`User is not a host ${UserId}`);
+        cb();
+      })
+      .catch(cb);
   };
 
   /**
@@ -82,7 +81,8 @@ module.exports = function(app) {
 
       findHost: ['checkIfUserIsHost', function(cb) {
         models.User.find(UserId)
-          .done(cb);
+          .then(() => cb())
+          .catch(cb);
       }],
 
       getToken: ['findHost', function(cb) {
@@ -108,7 +108,8 @@ module.exports = function(app) {
           stripeUserId: data.stripe_user_id,
           scope: data.scope
         })
-        .done(cb);
+          .then(() => cb())
+          .catch(cb);
       }],
 
       linkStripeAccountToGroup: ['findHost', 'createStripeAccount', function(cb, results) {

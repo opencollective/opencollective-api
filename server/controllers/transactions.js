@@ -69,7 +69,8 @@ module.exports = function(app) {
         if (user) {
           user
             .addTransaction(transaction)
-            .done(cb);
+            .then(() => cb())
+            .catch(cb);
         } else {
           cb();
         }
@@ -80,7 +81,8 @@ module.exports = function(app) {
 
         group
           .addTransaction(transaction)
-          .done(cb);
+          .then(() => cb())
+          .catch(cb);
       }],
 
       addTransactionToPaymentMethod: ['createTransaction', (cb, results) => {
@@ -89,7 +91,8 @@ module.exports = function(app) {
         if (paymentMethod) {
           paymentMethod
             .addTransaction(transaction)
-            .done(cb);
+            .then(() => cb())
+            .catch(cb);
         } else {
           cb();
         }
@@ -197,7 +200,8 @@ var payServices = {
             },
             order: [['confirmedAt', 'DESC']]
           })
-          .done(cb);
+          .then(() => cb())
+          .catch(cb);
       }],
 
       checkPaymentMethod: ['getPaymentMethod', function(cb, results) {
@@ -254,7 +258,9 @@ var payServices = {
         if (isManual) {
           transaction.status = 'REIMBURSED';
           transaction.reimbursedAt = new Date();
-          return transaction.save().done(cb);
+          return transaction.save()
+            .then(() => cb())
+            .catch(cb);
         }
 
         switch(results.callService.paymentExecStatus) {
@@ -262,7 +268,9 @@ var payServices = {
             transaction.PaymentMethodId = results.checkPaymentMethod.id;
             transaction.status = 'REIMBURSED';
             transaction.reimbursedAt = new Date();
-            return transaction.save().done(cb);
+            return transaction.save()
+              .then(() => cb())
+              .catch(cb);
             break;
           case 'CREATED':
             /*
@@ -290,7 +298,9 @@ var payServices = {
             user: user.info,
             pay: results.callService
           }
-        }).done(cb);
+        })
+          .then(() => cb())
+          .catch(cb);
       }]
 
     }, (err, results) => {
@@ -308,7 +318,7 @@ var payServices = {
 
   };
 
-  const createGroupTransactionCreatedActivity = function (transactionId) {
+  const createGroupTransactionCreatedActivity = transactionId => {
     var activity;
 
     return Transaction.findOne({
@@ -388,7 +398,8 @@ var payServices = {
             UserId: req.remoteUser.id
           }
         })
-        .done(cb);
+          .then(() => cb())
+          .catch(cb);
       },
 
       getPreapprovalDetails: ['fetchPaymentMethods', (cb, results) => {

@@ -9,7 +9,7 @@
 
 module.exports = function(Sequelize, DataTypes) {
 
-  var Notification = Sequelize.define('Notification', {
+  return Sequelize.define('Notification', {
 
     channel: { defaultValue: 'email', type: DataTypes.STRING }, // in the future: Slack, iPhone, Android, etc.
 
@@ -36,8 +36,6 @@ module.exports = function(Sequelize, DataTypes) {
     }]
 
   });
-
-  return Notification;
 };
 
 /*

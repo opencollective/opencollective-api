@@ -7,7 +7,7 @@ const config = require('config');
 sendErrorByEmail = (req, err) => {
   var errorHTML = 'To reproduce this error, run this CURL command:<br />\n<br />\n';
 
-  if(req.body.password) 
+  if(req.body.password)
     req.body.password = '***********';
 
   errorHTML += curlify(req, req.body);

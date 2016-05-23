@@ -12,12 +12,7 @@ const Expense = models.Expense;
 describe('expenses.routes.test.js: GIVEN an application, group, and host user', () => {
   var application, user, group;
 
-  beforeEach(done => {
-    utils.cleanAllDb((e, app) => {
-      application = app;
-      done();
-    });
-  });
+  beforeEach(() => utils.cleanAllDb().tap(a => application = a));
 
   beforeEach(done => Bluebird.props({
       user: models.User.create(utils.data('user1')),

@@ -81,6 +81,7 @@ module.exports = (app) => {
           .catch(cb);
       },
 
+      // TODO return promise
       getOrCreatePaymentMethod: ['getGroupStripeAccount', (cb) => {
         models.PaymentMethod.getOrCreate({
           token: payment.stripeToken,
@@ -266,7 +267,7 @@ module.exports = (app) => {
           group: group.info,
           interval: interval,
           subscriptionsLink: user.generateSubscriptionsLink(req.application)
-        }
+        };
 
         emailLib.send('thankyou', user.email, data);
         cb();
@@ -281,15 +282,8 @@ module.exports = (app) => {
             role: roles.BACKER
           }
         })
-        .then((userGroup) => {
-          if (!userGroup)
-            group
-              .addUserWithRole(user, roles.BACKER)
-              .done(cb);
-          else {
-            return cb();
-          }
-        })
+        .then(userGroup => userGroup || group.addUserWithRole(user, roles.BACKER))
+        .then(() => cb())
         .catch(cb);
       }]
 
@@ -504,15 +498,8 @@ module.exports = (app) => {
             role: roles.BACKER
           }
         })
-        .then((userGroup) => {
-          if (!userGroup)
-            group
-              .addUserWithRole(user, roles.BACKER)
-              .done(cb);
-          else {
-            return cb();
-          }
-        })
+        .then(userGroup => userGroup || group.addUserWithRole(user, roles.BACKER))
+        .then(() => cb())
         .catch(cb);
       }],
 

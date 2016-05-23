@@ -7,7 +7,7 @@ var async = require('async');
 var config = require('config');
 var expect = require('chai').expect;
 var jwt = require('jsonwebtoken');
-var request = require('supertest');
+var request = require('supertest-as-promised');
 var utils = require('../test/utils.js')();
 
 /**
@@ -23,34 +23,22 @@ describe('auth.routes.test.js', () => {
 
   var application;
 
-  beforeEach((done) => {
-    utils.cleanAllDb((e, app) => {
-      application = app;
-      done();
-    });
-  });
+  beforeEach(() => utils.cleanAllDb().tap(a => application = a));
 
-  beforeEach((done) => {
-    models.User.create(userData).done(done);
-  });
+  beforeEach(() => models.User.create(userData));
 
   describe('#authenticate', () => {
 
-    it('fails authenticate if no password', (done) => {
+    it('fails authenticate if no password', () =>
       request(app)
         .post('/authenticate')
         .send({
           api_key: application.api_key,
           username: userData.username
         })
-        .expect(400)
-        .end((e, res) => {
-          expect(e).to.not.exist;
-          done();
-        });
-    });
+        .expect(400));
 
-    it('fails authenticate if bad application', (done) => {
+    it('fails authenticate if bad application', () =>
       request(app)
         .post('/authenticate')
         .send({
@@ -58,14 +46,9 @@ describe('auth.routes.test.js', () => {
           username: userData.username,
           password: userData.password
         })
-        .expect(401)
-        .end((e, res) => {
-          expect(e).to.not.exist;
-          done();
-        });
-    });
+        .expect(401));
 
-    it('fails authenticate if bad password', (done) => {
+    it('fails authenticate if bad password', () =>
       request(app)
         .post('/authenticate')
         .send({
@@ -73,14 +56,9 @@ describe('auth.routes.test.js', () => {
           username: userData.username,
           password: 'bad'
         })
-        .expect(400)
-        .end((e, res) => {
-          expect(e).to.not.exist;
-          done();
-        });
-    });
+        .expect(400));
 
-    it('successfully authenticate with username', (done) => {
+    it('successfully authenticates with username', () =>
       request(app)
         .post('/authenticate')
         .send({
@@ -89,8 +67,8 @@ describe('auth.routes.test.js', () => {
           password: userData.password
         })
         .expect(200)
-        .end((e, res) => {
-          expect(e).to.not.exist;
+        .toPromise()
+        .tap(res => {
           expect(res.body).to.have.property('access_token');
           expect(res.body).to.have.property('refresh_token');
           var data = jwt.decode(res.body.access_token);
@@ -99,11 +77,9 @@ describe('auth.routes.test.js', () => {
           expect(data).to.have.property('aud');
           expect(data).to.have.property('iss');
           expect(data).to.have.property('sub');
-          done();
-        });
-    });
+        }));
 
-    it('successfully authenticate with email (case insensitive)', (done) => {
+    it('successfully authenticate with email (case insensitive)', () =>
       request(app)
         .post('/authenticate')
         .send({
@@ -112,14 +88,10 @@ describe('auth.routes.test.js', () => {
           password: userData.password
         })
         .expect(200)
-        .end((e, res) => {
-          expect(e).to.not.exist;
+        .toPromise()
+        .tap(res => {
           expect(res.body).to.have.property('access_token');
           expect(res.body).to.have.property('refresh_token');
-          done();
-        });
-    });
-
+        }));
   });
-
 });

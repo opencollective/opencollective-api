@@ -23,19 +23,13 @@ describe('authorization.middleware.test.js', () => {
 
   var user, req;
 
-  beforeEach(done => {
-    utils.cleanAllDb(done);
-  });
+  beforeEach(() => utils.cleanAllDb());
 
-  beforeEach((done) => {
-    models.User.create(userData)
-      .then(u => {
+  beforeEach(() => models.User.create(userData)
+      .tap(u => {
         user = u;
         req = {user: {id: user.id}};
-      })
-      .then(() => done())
-      .catch(done);
-  });
+      }));
 
   describe('authorizeAccessToUserWithRecentDonation', () => {
 
