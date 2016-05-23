@@ -197,7 +197,7 @@ module.exports = function (app) {
     authorizeGroupAccessToTransaction(options) {
       return this.authorizeGroupAccessTo('transaction', options);
     },
-    
+
     authorizeAccessToUserWithRecentDonation: (req, res, next) => {
       models.Donation.findOne({
         where: {

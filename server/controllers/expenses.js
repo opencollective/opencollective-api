@@ -76,7 +76,8 @@ module.exports = (app) => {
             UserId: req.remoteUser.id
           }
         })
-        .done(cb);
+          .then(() => cb())
+          .catch(cb);
       },
 
       getPreapprovalDetails: ['fetchPaymentMethods', (cb, results) => {

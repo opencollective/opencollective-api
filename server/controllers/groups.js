@@ -67,7 +67,7 @@ module.exports = function(app) {
       GroupId: group.id,
       type: activities.GROUP_TRANSACTION_CREATED
     });
-  }
+  };
 
   const _addUserToGroup = (group, user, options, callback) => {
     async.auto({
@@ -90,7 +90,8 @@ module.exports = function(app) {
 
       addUserToGroup: ['checkIfGroupHasHost', (cb) => {
         group.addUserWithRole(user, options.role)
-          .done(cb);
+          .then(() => cb())
+          .catch(cb);
       }],
 
       createActivity: ['addUserToGroup', (cb) => {
@@ -103,7 +104,9 @@ module.exports = function(app) {
             target: user.info,
             role: options.role
           }
-        }).done(cb);
+        })
+          .then(() => cb())
+          .catch(cb);
 
       }]
     }, (err) => {
@@ -279,7 +282,8 @@ module.exports = function(app) {
        deleteTransaction: (cb) => {
          transaction
            .destroy()
-           .done(cb);
+           .then(() => cb())
+           .catch(cb);
        },
 
        createActivity: ['deleteTransaction', (cb) => {
@@ -292,7 +296,9 @@ module.exports = function(app) {
              transaction: transaction,
              user: user.info
            }
-         }).done(cb);
+         })
+           .then(() => cb())
+           .catch(cb);
        }]
 
      }, (e) => {
@@ -383,7 +389,9 @@ module.exports = function(app) {
                 group: group.info,
                 user: req.remoteUser.info
               }
-            }).done(cb);
+            })
+              .then(() => cb())
+              .catch(cb);
           },
 
           addUser: (cb) => {
@@ -445,7 +453,9 @@ module.exports = function(app) {
                   group: group.info,
                   user: creator.info
                 }
-              }).done(cb);
+              })
+                .then(() => cb())
+                .catch(cb);
             },
 
             addCreator: ['createActivity', (cb) => {
@@ -479,7 +489,7 @@ module.exports = function(app) {
                     .then(user => user.addConnectedAccount(connectedAccount))
                     .then(ca => ca.getUser())
                     .then(user => _addUserToGroup(group, user, options, callback))
-                    .done();
+                    .catch(callback);
                 } else {
                   callback();
                 }

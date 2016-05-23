@@ -3,7 +3,7 @@ const notify = require('../lib/notifications');
 
 module.exports = function(Sequelize, DataTypes) {
 
-  var Activity = Sequelize.define('Activity', {
+  return Sequelize.define('Activity', {
     type: DataTypes.STRING,
 
     data: DataTypes.JSON,
@@ -24,8 +24,6 @@ module.exports = function(Sequelize, DataTypes) {
       }
     }
   });
-
-  return Activity;
 };
 
 

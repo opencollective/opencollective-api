@@ -1,6 +1,6 @@
 const app = require('../index');
 const config = require('config');
-const request = require('supertest');
+const request = require('supertest-as-promised');
 const utils = require('./utils')();
 const expect = require('chai').expect;
 const jwt = require('jsonwebtoken');
@@ -11,24 +11,18 @@ const clientId = config.github.clientID;
 describe('connectedAccounts.routes.test.js: GIVEN an application and group', () => {
 
   var application, req;
-  beforeEach(done => {
-    utils.cleanAllDb((e, app) => {
-      application = app;
-      done();
-    });
-  });
+  beforeEach(() => utils.cleanAllDb().tap(a => application = a));
 
   describe('WHEN calling /connected-accounts/github', () => {
 
     beforeEach(done => {
-      req = request(app)
-        .get('/connected-accounts/github');
+      req = request(app).get('/connected-accounts/github');
       done();
     });
 
     describe('WHEN calling without API key', () => {
 
-      it('THEN returns 400', done => req.expect(400).end(done));
+      it('THEN returns 400', () => req.expect(400));
     });
 
     describe('WHEN calling /connected-accounts/github with API key', () => {
@@ -40,19 +34,17 @@ describe('connectedAccounts.routes.test.js: GIVEN an application and group', () 
         done();
       });
 
-      it('THEN returns 302 with location', done => {
+      it('THEN returns 302 with location', () =>
         req.expect(302)
-          .end((err, res) => {
-            expect(err).not.to.exist;
+          .toPromise()
+          .tap(res => {
             const baseUrl = 'https://github.com/login/oauth/authorize';
             const apiKeyEnc = '.*';
             const redirectUri = encodeURIComponent(`${config.host.api}/connected-accounts/github/callback?api_key_enc=${apiKeyEnc}`);
             const scope = encodeURIComponent('user:email');
             const location = `^${baseUrl}\\?response_type=code&redirect_uri=${redirectUri}&scope=${scope}&client_id=${clientId}$`;
             expect(res.headers.location).to.match(new RegExp(location));
-            done();
-          });
-      });
+          }));
     });
   });
 
@@ -66,7 +58,7 @@ describe('connectedAccounts.routes.test.js: GIVEN an application and group', () 
 
     describe('WHEN calling without API key', () => {
 
-      it('THEN returns 400', done => req.expect(400).end(done));
+      it('THEN returns 400', () => req.expect(400));
     });
 
     describe('WHEN calling with invalid API key', () => {
@@ -75,7 +67,7 @@ describe('connectedAccounts.routes.test.js: GIVEN an application and group', () 
         done();
       });
 
-      it('THEN returns 400', done => req.expect(400).end(done));
+      it('THEN returns 400', () => req.expect(400));
     });
 
     describe('WHEN calling with valid API key', () => {
@@ -85,27 +77,19 @@ describe('connectedAccounts.routes.test.js: GIVEN an application and group', () 
         done();
       });
 
-      it('THEN returns 302 with location', done => {
+      it('THEN returns 302 with location', () =>
         req.expect(302)
-          .end((err, res) => {
-            expect(err).not.to.exist;
-            expect(res.headers.location).to.be.equal(`https://github.com/login/oauth/authorize?response_type=code&client_id=${clientId}`);
-            done();
-          });
-      });
+          .toPromise()
+          .tap(res =>
+            expect(res.headers.location)
+              .to.be.equal(`https://github.com/login/oauth/authorize?response_type=code&client_id=${clientId}`)));
     });
   });
 
   describe('WHEN calling /connected-accounts/github/verify', () => {
 
     // Create user.
-    beforeEach((done) => {
-      models.User.create(utils.data('user1')).done((e, u) => {
-        expect(e).to.not.exist;
-        user = u;
-        done();
-      });
-    });
+    beforeEach(() => models.User.create(utils.data('user1')).tap(u => user = u));
 
     beforeEach(done => {
       req = request(app)
@@ -117,11 +101,11 @@ describe('connectedAccounts.routes.test.js: GIVEN an application and group', () 
       beforeEach(done => {
         req = req.set('Authorization', 'Bearer ' + user.jwt(application, {
           scope: ''
-        }))
+        }));
         done();
       });
 
-      it('THEN returns 400', done => req.expect(400).end(done));
+      it('THEN returns 400', () => req.expect(400));
     });
 
     describe('WHEN providing API key but no token', () => {
@@ -130,7 +114,7 @@ describe('connectedAccounts.routes.test.js: GIVEN an application and group', () 
         done();
       });
 
-      it('THEN returns 401 Unauthorized', done => req.expect(401).end(done));
+      it('THEN returns 401 Unauthorized', () => req.expect(401));
     });
 
     describe('WHEN providing API key and token but no username', () => {
@@ -141,7 +125,7 @@ describe('connectedAccounts.routes.test.js: GIVEN an application and group', () 
         done();
       });
 
-      it('THEN returns 400', done => req.expect(400).end(done));
+      it('THEN returns 400', () => req.expect(400));
     });
 
     describe('WHEN providing API key, token and scope', () => {
@@ -152,14 +136,13 @@ describe('connectedAccounts.routes.test.js: GIVEN an application and group', () 
         done();
       });
 
-      it('THEN returns 200 OK', done => {
+      it('THEN returns 200 OK', () => {
         req.expect(200)
-          .end((err, res) => {
-            expect(err).to.not.exist;
+          .toPromise()
+          .tap(res => {
             expect(res.body.provider).to.be.equal('github');
             expect(res.body.username).to.be.equal('asood123');
             expect(res.body.connectedAccountId).to.be.equal(1);
-            done();
         });
       });
     });

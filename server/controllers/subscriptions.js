@@ -67,7 +67,7 @@ module.exports = function(app) {
           },
           include: [{ model: models.Group },
                     { model: models.User }]
-        },
+        }
       ]
     })
     .then((subscriptions) => res.send(subscriptions))
@@ -91,7 +91,7 @@ module.exports = function(app) {
               where: {
                 id: subscriptionid
               }
-            },
+            }
             ]
         })
         .then(t => {
@@ -131,8 +131,9 @@ module.exports = function(app) {
         subscription.deactivatedAt = new Date();
 
         subscription.save()
-          .done(cb);
-      }],
+          .then(() => cb())
+          .catch(cb);
+      }]
     }, (err) => {
       if (err) return next(err);
 

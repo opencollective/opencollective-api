@@ -33,13 +33,7 @@ describe('subscriptions.routes.test.js', () => {
   var paymentMethod;
   var sandbox = sinon.sandbox.create();
 
-  beforeEach((done) => {
-    utils.cleanAllDb((e, app) => {
-      expect(e).to.not.exist;
-      application = app;
-      done();
-    });
-  });
+  beforeEach(() => utils.cleanAllDb().tap(a => application = a));
 
   // Create a stub for clearbit
   beforeEach((done) => {

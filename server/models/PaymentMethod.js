@@ -31,7 +31,7 @@ module.exports = function(Sequelize, DataTypes) {
       referencesKey: 'id',
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE'
-    },
+    }
   }, {
     paranoid: true,
 
