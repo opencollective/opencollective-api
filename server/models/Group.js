@@ -26,7 +26,7 @@ const tiers = Joi.array().items(tier);
  */
 module.exports = function(Sequelize, DataTypes) {
 
-  var Group = Sequelize.define('Group', {
+  return Sequelize.define('Group', {
     name: {
       type: DataTypes.STRING,
       allowNull: false
@@ -243,6 +243,4 @@ module.exports = function(Sequelize, DataTypes) {
 
     }
   });
-
-  return Group;
 };

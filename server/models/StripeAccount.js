@@ -4,7 +4,7 @@
 
 module.exports = function(Sequelize, DataTypes) {
 
-  var StripeAccount = Sequelize.define('StripeAccount', {
+  return Sequelize.define('StripeAccount', {
     accessToken: DataTypes.STRING, // 'sk_xxx'
     refreshToken: DataTypes.STRING, // 'rt_xxx'
     tokenType: DataTypes.STRING, // 'bearer'
@@ -24,6 +24,4 @@ module.exports = function(Sequelize, DataTypes) {
   }, {
     paranoid: true
   });
-
-  return StripeAccount;
 };

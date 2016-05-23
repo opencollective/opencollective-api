@@ -4,7 +4,7 @@
 
 var app = require('../index');
 var expect = require('chai').expect;
-var request = require('supertest');
+var request = require('supertest-as-promised');
 var utils = require('../test/utils.js')();
 
 /**
@@ -18,51 +18,32 @@ describe('images.routes.test.js', () => {
   var application;
   var user;
 
-  beforeEach((done) => {
-    utils.cleanAllDb((e, app) => {
-      application = app;
-      done();
-    });
-  });
+  beforeEach(() => utils.cleanAllDb().tap(a => application = a));
 
   /**
    * Create user
    */
 
-  beforeEach((done) => {
-    models.User.create(userData)
-    .done((e, u) => {
-      expect(e).to.not.exist;
-      user = u;
-      done();
-    });
-  });
+  beforeEach(() => models.User.create(userData).tap(u => user = u));
 
-  it('should upload an image to S3', (done) => {
+  it('should upload an image to S3', () =>
     request(app)
     .post('/images/')
     .attach('file', 'test/mocks/images/camera.png')
     .set('Authorization', 'Bearer ' + user.jwt(application))
     .expect(200)
-    .end((err, res) => {
-      expect(res.body.url).to.contain('.png');
-      done();
-    });
-  });
+    .toPromise()
+    .tap(res => expect(res.body.url).to.contain('.png')));
 
-  it('should throw an error if no file field is sent', (done) => {
+  it('should throw an error if no file field is sent', () =>
     request(app)
     .post('/images/')
     .set('Authorization', 'Bearer ' + user.jwt(application))
-    .expect(400)
-    .end(done);
-  });
+    .expect(400));
 
-  it('should upload if the user is not logged in', (done) => {
+  it('should upload if the user is not logged in', () =>
     request(app)
     .post('/images/')
     .attach('file', 'test/mocks/images/camera.png')
-    .expect(200)
-    .end(done);
-  });
+    .expect(200));
 });

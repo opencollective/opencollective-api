@@ -28,76 +28,29 @@ describe('activities.routes.test.js', () => {
   var group;
   var sandbox = sinon.sandbox.create();
 
-
-  beforeEach((done) => {
-    utils.cleanAllDb((e, app) => {
-      application = app;
-      done();
-    });
-  });
+  beforeEach(() => utils.cleanAllDb().tap(a => application = a));
 
   // Create a stub for clearbit
-  beforeEach((done) => {
-    utils.clearbitStubBeforeEach(sandbox);
-    done();
-  });
+  beforeEach(() => utils.clearbitStubBeforeEach(sandbox));
 
   // Create users.
-  beforeEach((done) => {
-    models.User.create(utils.data('user1')).done((e, u) => {
-      expect(e).to.not.exist;
-      user = u;
-      done();
-    });
-  });
-  beforeEach((done) => {
-    models.User.create(utils.data('user2')).done((e, u) => {
-      expect(e).to.not.exist;
-      user2 = u;
-      done();
-    });
-  });
-  beforeEach((done) => {
-    models.User.create(utils.data('user3')).done((e, u) => {
-      expect(e).to.not.exist;
-      user3 = u;
-      done();
-    });
-  });
+  beforeEach(() => models.User.create(utils.data('user1')).tap(u => user = u));
+  beforeEach(() => models.User.create(utils.data('user2')).tap(u => user2 = u));
+  beforeEach(() => models.User.create(utils.data('user3')).tap(u => user3 = u));
 
   // Create group.
-  beforeEach((done) => {
-    models.Group.create(groupData).done((e, g) => {
-      expect(e).to.not.exist;
-      group = g;
-      done();
-    });
-  });
+  beforeEach(() => models.Group.create(groupData).tap(g => group = g));
 
-  // Add an host to the group.
-  beforeEach((done) => {
-    group
-      .addUserWithRole(user, roles.HOST)
-      .done(done);
-  });
+  // Add a host to the group.
+  beforeEach(() => group.addUserWithRole(user, roles.HOST));
 
   // Add an backer to the group.
-  beforeEach((done) => {
-    group
-      .addUserWithRole(user3, roles.BACKER)
-      .done(done);
-  });
+  beforeEach(() => group.addUserWithRole(user3, roles.BACKER));
 
   // Create activities.
-  beforeEach((done) => {
-    async.eachSeries(activitiesData, (a, cb) => {
-      models.Activity.create(a).done(cb);
-    }, done);
-  });
+  beforeEach(() => Promise.all(activitiesData.map(a => models.Activity.create(a))));
 
-  afterEach(() => {
-    utils.clearbitStubAfterEach(sandbox);
-  });
+  afterEach(() => utils.clearbitStubAfterEach(sandbox));
 
   /**
    * Get group's activities.

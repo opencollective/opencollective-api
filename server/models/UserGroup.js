@@ -2,7 +2,7 @@ var roles = require('../constants/roles');
 
 module.exports = function(Sequelize, DataTypes) {
 
-  var UserGroup = Sequelize.define('UserGroup', {
+  return Sequelize.define('UserGroup', {
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
@@ -56,6 +56,4 @@ module.exports = function(Sequelize, DataTypes) {
       }
     }
   });
-
-  return UserGroup;
 };

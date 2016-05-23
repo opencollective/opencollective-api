@@ -42,7 +42,9 @@ describe('transactions.paypal.routes.test.js', () => {
     async.auto({
 
       cleanAndCreateApplication: (cb) => {
-        utils.cleanAllDb(cb);
+        utils.cleanAllDb()
+          .then(() => cb())
+          .catch(cb);
       },
       createUserB: ['cleanAndCreateApplication', (cb) => {
         models.User.create(utils.data('user2')).done(cb);

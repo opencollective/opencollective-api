@@ -39,6 +39,7 @@ module.exports = function (app) {
 
     authorizeUserToAccessUser() {
       return (req, res, next) => {
+        console.log("authorizeUserToAccessUser");
         aN.authenticateUserByJwt()(req, res, (e) => {
           if (e) {
             return next(e);
@@ -197,7 +198,7 @@ module.exports = function (app) {
     authorizeGroupAccessToTransaction(options) {
       return this.authorizeGroupAccessTo('transaction', options);
     },
-    
+
     authorizeAccessToUserWithRecentDonation: (req, res, next) => {
       models.Donation.findOne({
         where: {

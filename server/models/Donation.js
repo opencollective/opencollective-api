@@ -1,6 +1,6 @@
 module.exports = function(Sequelize, DataTypes) {
 
-  var Donation = Sequelize.define('Donation', {
+  return Sequelize.define('Donation', {
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
@@ -85,6 +85,4 @@ module.exports = function(Sequelize, DataTypes) {
       }
     }
   });
-
-  return Donation;
-}
+};

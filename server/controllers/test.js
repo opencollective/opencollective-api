@@ -45,7 +45,8 @@ module.exports = function(app) {
     async.auto({
       resetDb: (cb) => {
         sequelize.sync({force: true})
-          .done(cb);
+          .then(() => cb())
+          .catch(cb);
       },
 
       createApplication: ['resetDb', (cb) => {
@@ -54,12 +55,14 @@ module.exports = function(app) {
           api_key: apiKey,
           _access: 1
         })
-        .done(cb);
+          .then(() => cb())
+          .catch(cb);
       }],
 
       createTestUser: ['createApplication', (cb) => {
         models.User.create(testUser)
-        .done(cb);
+          .then(() => cb())
+          .catch(cb);
       }],
 
       createStripeAccount: ['createTestUser', (cb, results) => {
@@ -73,7 +76,8 @@ module.exports = function(app) {
         .then(stripeAccount => {
           return results.createTestUser.setStripeAccount(stripeAccount);
         })
-        .done(cb);
+          .then(() => cb())
+          .catch(cb);
       }],
 
       createConnectedAccount: ['createTestUser', (cb, results) => {
@@ -96,7 +100,8 @@ module.exports = function(app) {
           currency: 'EUR',
           isPublic: true
         })
-        .done(cb);
+          .then(() => cb())
+          .catch(cb);
       }],
 
       addUserToGroup: ['createGroup', (cb, results) => {
@@ -174,7 +179,7 @@ module.exports = function(app) {
         });
       }
     });
-  }
+  };
 
   var generateTestEmail = function(req, res) {
     var emailLib = require('../lib/email')(app);
@@ -183,7 +188,7 @@ module.exports = function(app) {
     const html = emailLib.templates[req.params.template](data);
     res.send(html);
     emailLib.reload();
-  }
+  };
 
   /**
    * Public methods.

@@ -12,14 +12,9 @@ const Expense = models.Expense;
 describe('expenses.routes.test.js: GIVEN an application, group, and host user', () => {
   var application, user, group;
 
-  beforeEach(done => {
-    utils.cleanAllDb((e, app) => {
-      application = app;
-      done();
-    });
-  });
+  beforeEach(() => utils.cleanAllDb().tap(a => application = a));
 
-  beforeEach(done => Bluebird.props({
+  beforeEach(() => Bluebird.props({
       user: models.User.create(utils.data('user1')),
       group: models.Group.create(utils.data('group1'))
     })
@@ -28,8 +23,7 @@ describe('expenses.routes.test.js: GIVEN an application, group, and host user', 
       group = props.group;
 
       return group.addUserWithRole(user, roles.HOST);
-    })
-    .then(() => done()));
+    }));
 
   describe('WHEN no expense exists', () => {
 
@@ -43,33 +37,36 @@ describe('expenses.routes.test.js: GIVEN an application, group, and host user', 
         done();
       });
 
-      it('THEN returns 404', done => req.expect(404).end(done));
+      it('THEN returns 404', () => req.expect(404));
     });
   });
 
   describe('WHEN calling expense route', () => {
     var expenseReq;
 
-    beforeEach(() => {
+    beforeEach(done => {
       expenseReq = request(app).post(`/groups/${group.id}/expenses`);
+      done();
     });
 
     describe('WHEN not authenticated but providing an expense', () => {
-      beforeEach(() => {
+      beforeEach(done => {
         expenseReq = expenseReq.send({expense: utils.data('expense1')});
+        done();
       });
 
-      it('THEN returns 200', done => expenseReq.expect(200).end(done));
+      it('THEN returns 200', () => expenseReq.expect(200));
     });
 
     // authenticate even though not required, so that we can make assertions on the userId
     describe('WHEN authenticated', () => {
-      beforeEach(() => {
+      beforeEach(done => {
         expenseReq = expenseReq.set('Authorization', `Bearer ${user.jwt(application)}`);
+        done();
       });
 
       describe('WHEN not providing expense', () =>
-        it('THEN returns 400 bad request', done => expenseReq.expect(400).end(done)));
+        it('THEN returns 400 bad request', () => expenseReq.expect(400)));
 
       describe('WHEN providing expense', () => {
         beforeEach(() => {
@@ -79,18 +76,18 @@ describe('expenses.routes.test.js: GIVEN an application, group, and host user', 
         describe('THEN returns 200 and expense', () => {
           var expense;
 
-          beforeEach(done => expenseReq
+          beforeEach(() => expenseReq
             .expect(200)
-            .then(res => expense = res.body)
-            .then(() => done()));
+            .toPromise()
+            .tap(res => expense = res.body));
 
           it('THEN expense belongs to the group', () => expect(expense.GroupId).to.be.equal(group.id));
 
           it('THEN expense belongs to the user', () => expect(expense.UserId).to.be.equal(user.id));
 
-          it('THEN a group.expense.created activity is created', done => {
+          it('THEN a group.expense.created activity is created', () => {
             models.Activity.findAndCountAll()
-              .then(res => {
+              .tap(res => {
                 expect(res.count).to.be.equal(1);
                 const activity = res.rows[0];
 
@@ -100,20 +97,19 @@ describe('expenses.routes.test.js: GIVEN an application, group, and host user', 
                 expect(activity.data.user.id).to.be.equal(user.id);
                 expect(activity.data.group.id).to.be.equal(group.id);
                 expect(activity.data.expense.id).to.be.equal(expense.id);
-              })
-              .then(() => done())
-              .catch(done);
+              });
           });
 
           describe('WHEN calling approve route', () => {
             var approveReq;
 
-            beforeEach(() => {
+            beforeEach(done => {
               approveReq = request(app).post(`/groups/${group.id}/expenses/${expense.id}/approve`);
+              done();
             });
 
             describe('WHEN not authenticated', () =>
-              it('THEN returns 401 unauthorized', done => approveReq.expect(401).end(done)));
+              it('THEN returns 401 unauthorized', () => approveReq.expect(401)));
 
             describe('WHEN authenticated as host user', () => {
 
@@ -122,35 +118,28 @@ describe('expenses.routes.test.js: GIVEN an application, group, and host user', 
               });
 
               describe('WHEN sending approved: false', () => {
-                beforeEach(done => setExpenseApproval(false).end(done));
+                beforeEach(() => setExpenseApproval(false));
 
-                it('THEN returns status: REJECTED', done => expectApprovalStatus('REJECTED', done));
+                it('THEN returns status: REJECTED', () => expectApprovalStatus('REJECTED'));
               });
 
               describe('WHEN sending approved: true', () => {
                 // TODO set up test data
 
-                beforeEach(done => setExpenseApproval(true).end(done));
+                beforeEach(() => setExpenseApproval(true));
 
-                xit('THEN returns status: APPROVED', done => expectApprovalStatus('APPROVED', done));
+                xit('THEN returns status: APPROVED', () => expectApprovalStatus('APPROVED'));
               });
 
-              function setExpenseApproval(approved) {
-                return approveReq
-                  .send({approved})
-                  .expect(200);
-              }
+              const setExpenseApproval = approved => approveReq.send({approved}).expect(200);
 
-              function expectApprovalStatus(approvalStatus, done) {
+              const expectApprovalStatus = approvalStatus =>
                 Expense.findAndCountAll()
-                  .then(expenses => {
+                  .tap(expenses => {
                     expect(expenses.count).to.be.equal(1);
                     const expense = expenses.rows[0];
                     expect(expense.status).to.be.equal(approvalStatus);
-                  })
-                  .then(() => done())
-                  .catch(done);
-              }
+                  });
             });
           });
         });

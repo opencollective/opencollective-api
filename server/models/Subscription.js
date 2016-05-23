@@ -1,6 +1,6 @@
 module.exports = (Sequelize, DataTypes) => {
 
-  const Subscription = Sequelize.define('Subscription', {
+  return Sequelize.define('Subscription', {
 
     amount: {
       type: DataTypes.FLOAT,
@@ -53,8 +53,6 @@ module.exports = (Sequelize, DataTypes) => {
       }
     }
   });
-
-  return Subscription;
 };
 
 
