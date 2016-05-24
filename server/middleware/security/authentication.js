@@ -233,7 +233,7 @@ module.exports = function (app) {
       const service = req.params.service;
       passport.authenticate(service, {
         callbackURL: `${config.host.api}/connected-accounts/${service}/callback?api_key_enc=${apiKeyEnc}`,
-        scope: [ 'user:email public_repo' ]
+        scope: [ 'user:email', 'public_repo' ]
       })(req, res, next);
     },
 
