@@ -162,7 +162,7 @@ module.exports = function(app) {
       async.parallel([
         function(cb) {
           User
-            .find(req.jwtPayload.sub)
+            .findById(req.jwtPayload.sub)
             .then((user) => {
               req.remoteUser = user;
               cb();
@@ -174,7 +174,7 @@ module.exports = function(app) {
 
           // Check the validity of the application in the token.
           Application
-            .find(appId)
+            .findById(appId)
             .then((application) => {
               if (!application || application.disabled)
                 return cb(new errors.Unauthorized('Invalid API key.'));
