@@ -80,7 +80,7 @@ module.exports = function (app) {
       const appId = parseInt(req.jwtPayload.aud);
 
       Application
-        .find(appId)
+        .findById(appId)
         .then(application => {
           if (application.disabled) {
             throw new Unauthorized();
@@ -179,7 +179,7 @@ module.exports = function (app) {
 
     _authenticateUserByJwt: (req, res, next) => {
       User
-        .find(req.jwtPayload.sub)
+        .findById(req.jwtPayload.sub)
         .then(user => {
           req.remoteUser = user;
           next();

@@ -395,7 +395,7 @@ describe('groups.routes.test.js', () => {
         .end((e, res) => {
           expect(e).to.not.exist;
           models.Group
-            .find(parseInt(res.body.id))
+            .findById(parseInt(res.body.id))
             .then((g) => {
               privateGroup = g;
               done();
@@ -422,7 +422,7 @@ describe('groups.routes.test.js', () => {
         .end((e, res) => {
           expect(e).to.not.exist;
           models.Group
-            .find(parseInt(res.body.id))
+            .findById(parseInt(res.body.id))
             .then((g) => {
               publicGroup = g;
               done();
@@ -739,7 +739,7 @@ describe('groups.routes.test.js', () => {
         .end((e, res) => {
           expect(e).to.not.exist;
           models.Group
-            .find(parseInt(res.body.id))
+            .findById(parseInt(res.body.id))
             .then((g) => {
               group = g;
               done();

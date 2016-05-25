@@ -454,7 +454,7 @@ describe('transactions.routes.test.js', () => {
 
           async.parallel([
             (cb) => {
-              models.Transaction.find(transactions[0].id).then((t) => {
+              models.Transaction.findById(transactions[0].id).then((t) => {
                 expect(t).to.not.exist;
                 cb();
               });
@@ -818,7 +818,7 @@ describe('transactions.routes.test.js', () => {
         .end((e, res) => {
           expect(e).to.not.exist;
           models.Transaction
-            .find(parseInt(res.body.id))
+            .findById(parseInt(res.body.id))
             .then((t) => {
               transaction = t;
               done();
@@ -839,7 +839,7 @@ describe('transactions.routes.test.js', () => {
         .end((e, res) => {
           expect(e).to.not.exist;
           models.Transaction
-            .find(parseInt(res.body.id))
+            .findById(parseInt(res.body.id))
             .then((t) => {
               transaction2 = t;
               done();
@@ -937,7 +937,7 @@ describe('transactions.routes.test.js', () => {
           expect(e).to.not.exist;
           expect(res.body).to.have.property('success', true);
           models.Transaction
-            .find(parseInt(transaction.id))
+            .findById(parseInt(transaction.id))
             .then((t) => {
               expect(t.approved).to.be.true;
               expect(t.approvedAt).not.to.be.null;
@@ -959,7 +959,7 @@ describe('transactions.routes.test.js', () => {
           expect(e).to.not.exist;
           expect(res.body).to.have.property('success', true);
           models.Transaction
-            .find(parseInt(transaction.id))
+            .findById(parseInt(transaction.id))
             .then((t) => {
               expect(t.approved).to.be.false;
               expect(t.approvedAt).not.to.be.null;
@@ -992,7 +992,7 @@ describe('transactions.routes.test.js', () => {
             .end((e, res) => {
               expect(e).to.not.exist;
               models.Transaction
-                .find(parseInt(res.body.id))
+                .findById(parseInt(res.body.id))
                 .then(t => cb(null, t))
                 .catch(cb);
             });
@@ -1008,7 +1008,7 @@ describe('transactions.routes.test.js', () => {
             .end((e, res) => {
               expect(e).to.not.exist;
               models.Transaction
-                .find(parseInt(res.body.id))
+                .findById(parseInt(res.body.id))
                 .then(t => cb(null, t))
                 .catch(cb);
             });
@@ -1082,7 +1082,7 @@ describe('transactions.routes.test.js', () => {
           expect(e).to.not.exist;
           expect(res.body).to.have.property('success', true);
           models.Transaction
-            .find(parseInt(transaction.id))
+            .findById(parseInt(transaction.id))
             .then((t) => {
               expect(t.UserId).to.equal(user4.id);
               done();
@@ -1102,7 +1102,7 @@ describe('transactions.routes.test.js', () => {
           expect(e).to.not.exist;
           expect(res.body).to.have.property('success', true);
           models.Transaction
-            .find(parseInt(transaction.id))
+            .findById(parseInt(transaction.id))
             .then((t) => {
               expect(t.UserId).to.equal(user4.id);
               done();

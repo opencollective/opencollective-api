@@ -265,7 +265,7 @@ module.exports = (app) => {
 
     async.auto({
       getUser: cb => {
-        User.find(id)
+        User.findById(id)
         .then(user => {
           if (!user) {
             return next(new errors.BadRequest(`User with id ${id} not found`));

@@ -162,7 +162,7 @@ describe('users.routes.test.js', () => {
           expect(res.body).to.not.have.property('password');
           expect(res.body).to.not.have.property('password_hash');
           models.User
-            .find(parseInt(res.body.id))
+            .findById(parseInt(res.body.id))
             .then((user) => {
               expect(user).to.have.property('ApplicationId', application.id);
               done();
@@ -181,7 +181,7 @@ describe('users.routes.test.js', () => {
         .end((e, res) => {
           expect(e).to.not.exist;
           models.User
-            .find(parseInt(res.body.id))
+            .findById(parseInt(res.body.id))
             .then((user) => {
               expect(user.name).to.equal("Xavier Damman");
               expect(user.twitterHandle).to.equal("xdamman");
@@ -203,7 +203,7 @@ describe('users.routes.test.js', () => {
           .end((e, res) => {
             expect(e).to.not.exist;
             models.User
-              .find(parseInt(res.body.id))
+              .findById(parseInt(res.body.id))
               .then((user) => {
                 expect(user.name).to.equal("Xavier Damman");
                 expect(user.twitterHandle).to.equal("xdamman");
@@ -225,7 +225,7 @@ describe('users.routes.test.js', () => {
         .end((e, res) => {
           expect(e).to.not.exist;
           models.User
-            .find(parseInt(res.body.id))
+            .findById(parseInt(res.body.id))
             .then((user) => {
               expect(user).to.have.property('ApplicationId', application3.id);
               done();
@@ -634,7 +634,7 @@ describe('users.routes.test.js', () => {
         .end(e => {
           expect(e).to.not.exist;
 
-          models.User.find(user.id)
+          models.User.findById(user.id)
           .then(u => {
             const today = (new Date()).toString().substring(0, 15);
 
@@ -787,7 +787,7 @@ describe('users.routes.test.js', () => {
           models.User.auth(user.email, password, (err) => {
             expect(err).to.not.exist;
 
-            models.User.find(user.id)
+            models.User.findById(user.id)
             .then(u => {
               expect(u.resetPasswordTokenHash).to.be.equal(null);
               expect(u.resetPasswordSentAt).to.be.equal(null);
