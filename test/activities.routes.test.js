@@ -5,7 +5,6 @@ var _ = require('lodash');
 var app = require('../index');
 var async = require('async');
 var expect = require('chai').expect;
-var sinon = require('sinon');
 var request = require('supertest');
 var utils = require('../test/utils.js')();
 var roles = require('../server/constants/roles');
@@ -26,7 +25,6 @@ describe('activities.routes.test.js', () => {
   var user;
   var user2;
   var group;
-  var sandbox = sinon.sandbox.create();
 
 
   beforeEach((done) => {
@@ -34,12 +32,6 @@ describe('activities.routes.test.js', () => {
       application = app;
       done();
     });
-  });
-
-  // Create a stub for clearbit
-  beforeEach((done) => {
-    utils.clearbitStubBeforeEach(sandbox);
-    done();
   });
 
   // Create users.
@@ -60,8 +52,6 @@ describe('activities.routes.test.js', () => {
 
   // Create activities.
   beforeEach(() => Promise.all(activitiesData.map(a => models.Activity.create(a))));
-
-  afterEach(() => utils.clearbitStubAfterEach(sandbox));
 
   /**
    * Get group's activities.
