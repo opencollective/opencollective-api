@@ -1,6 +1,7 @@
 var config = require('config');
 var clearbit = require('clearbit')(config.clearbit);
 var url = require('url');
+const Promise = require('bluebird');
 
 module.exports = {
 
@@ -8,51 +9,46 @@ module.exports = {
 
   clearbit,
 
-  fetchInfo(user, cb) {
-    this.getUserData(user.email, (err, userData) => {
-      if(userData) {
-        user.name = user.name || userData.name.fullName;
-        user.avatar = user.avatar || userData.avatar;
-        user.twitterHandle = user.twitterHandle || userData.twitter.handle;
-        user.website = user.website || userData.site;
-      }
-      cb(err, user);
-    });
-  },
-
-  fetchAvatar(user, cb) {
-    if(user.avatar) return cb(null, user);
-
-    this.getUserData(user.email, (err, userData) => {
-      if(userData) {
-        user.avatar = userData.avatar;
-      }
-      cb(err, user);
-    });
-  },
-
-  getUserData(email, cb) {
-    if(!email || !email.match(/.+@.+\..+/)) {
-      return cb(new Error("Invalid email"));
-    }
-
-    if(this.memory[email] !== undefined) {
-      return cb(null, this.memory[email]);
-    }
-
-    this.clearbit.Enrichment.find({email: email, stream: true})
-      .tap((res) => {
-        this.memory[email] = res.person;
-        cb(null, res.person);
-      })
-      .catch(clearbit.Enrichment.NotFoundError, () => {
-        this.memory[email] = null;
-        cb(new clearbit.Enrichment.NotFoundError());
-      })
-      .catch((err) => {
-        console.error('Clearbit error', err);
-        cb(err);
+  fetchInfo(user) {
+    return this.getUserData(user.email)
+      .then(userData => {
+        if (userData) {
+          user.name = user.name || userData.name.fullName;
+          user.avatar = user.avatar || userData.avatar;
+          user.twitterHandle = user.twitterHandle || userData.twitter.handle;
+          user.website = user.website || userData.site;
+        }
+        return user;
       });
+  },
+
+  fetchAvatar(user) {
+    if(user.avatar) {
+      return Promise.resolve(user);
+    }
+    return this.getUserData(user.email)
+      .tap(userData => user.avatar = userData && userData.avatar)
+      .then(() => user);
+  },
+
+  getUserData(email) {
+    // TODO possible to simplify promise syntax?
+    return new Promise(resolve => {
+      if(!email || !email.match(/.+@.+\..+/)) {
+        return resolve();
+      }
+
+      if(this.memory[email] !== undefined) {
+        return resolve(this.memory[email]);
+      }
+
+      this.clearbit.Enrichment.find({email: email, stream: true})
+        .tap(res => this.memory[email] = res.person)
+        .then(res => res.person)
+        .catch(clearbit.Enrichment.NotFoundError, () => this.memory[email] = null)
+        .catch(err => console.error('Clearbit error', err))
+        .tap(obj => resolve(obj));
+    });
   },
 
   resolveUserAvatars(userData, cb) {
