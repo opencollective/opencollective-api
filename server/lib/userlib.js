@@ -32,23 +32,19 @@ module.exports = {
   },
 
   getUserData(email) {
-    // TODO possible to simplify promise syntax?
-    return new Promise(resolve => {
-      if(!email || !email.match(/.+@.+\..+/)) {
-        return resolve();
-      }
+    if(!email || !email.match(/.+@.+\..+/)) {
+      return Promise.resolve();
+    }
 
-      if(this.memory[email] !== undefined) {
-        return resolve(this.memory[email]);
-      }
+    if(this.memory[email] !== undefined) {
+      return Promise.resolve(this.memory[email]);
+    }
 
-      this.clearbit.Enrichment.find({email: email, stream: true})
-        .tap(res => this.memory[email] = res.person)
-        .then(res => res.person)
-        .catch(clearbit.Enrichment.NotFoundError, () => this.memory[email] = null)
-        .catch(err => console.error('Clearbit error', err))
-        .tap(obj => resolve(obj));
-    });
+    return this.clearbit.Enrichment.find({email: email, stream: true})
+      .tap(res => this.memory[email] = res.person)
+      .then(res => res.person)
+      .catch(clearbit.Enrichment.NotFoundError, () => this.memory[email] = null)
+      .catch(err => console.error('Clearbit error', err));
   },
 
   resolveUserAvatars(userData, cb) {

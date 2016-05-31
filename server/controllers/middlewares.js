@@ -53,6 +53,10 @@ module.exports = function(app) {
         return this.authenticate(req, res, next);
       }
 
+      const userData = {
+        email: email || paypalEmail,
+        paypalEmail
+      };
       models.User.findOne({
         where: {
           $or: {
@@ -61,21 +65,10 @@ module.exports = function(app) {
           }
         }
       })
-      .then(user => {
-        if (user) {
-          return user;
-        } else {
-          const userData = {
-            email: email || paypalEmail,
-            paypalEmail
-          };
-          return users._create(userData);
-        }
-      })
+      .then(user => user || users._create(userData))
       .tap(user => req.user = user)
       .tap(() => next())
-      // why was error ignored in previous version of this code? TODO try to return it
-      .catch(() => next());
+      .catch(next);
 
     },
 
