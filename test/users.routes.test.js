@@ -312,6 +312,7 @@ describe('users.routes.test.js', () => {
           var u = res.body;
           expect(u.username).to.equal(utils.data('user1').username);
           expect(u.groups[0].name).to.equal(utils.data('group1').name);
+          expect(u.groups[0].role).to.equal('MEMBER');
           expect(u.groups[0].members).to.equal(2);
           done();
         });

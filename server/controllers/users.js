@@ -339,7 +339,10 @@ module.exports = (app) => {
         var groups;
         req.user
         .getGroups()
-        .tap(results => { groups = results.map(g => g.minimal) })
+        .then(results => {
+          groups = results.map(g => _.extend(g.minimal, { role: g.UserGroup.role })); 
+          return groups;
+        })
         .then(groups => UserGroup.findAll({
           where: { GroupId: { $in: groups.map(g => g.id) } }, 
           attributes: ['GroupId', [ sequelize.fn('count', sequelize.col('GroupId')), 'members' ]],
