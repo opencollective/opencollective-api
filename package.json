@@ -37,6 +37,7 @@
     "node-slack": "0.0.7",
     "node-uuid": "1.4.7",
     "nodemailer": "1.11.0",
+    "opencollective-jobs": "github:opencollective/opencollective-jobs#be6d0a2014e36cdd073a5dda2b1f81d71ce07a7d",
     "passport": "0.3.2",
     "passport-github": "1.1.0",
     "paypal-adaptive": "0.4.2",
