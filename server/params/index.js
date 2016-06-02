@@ -34,17 +34,31 @@ module.exports = (app) => {
      * Userid.
      */
     userid: (req, res, next, userid) => {
-      parseId(userid)
-        .then(id => User.findById(id))
-        .then((user) => {
-          if (!user) {
-            return next(new errors.NotFound(`User '${userid}' not found`));
-          } else {
-            req.user = user;
-            next();
-          }
-        })
-        .catch(next)
+
+      const callback = (user) => {
+        if (!user) {
+          return next(new errors.NotFound(`User '${userid}' not found`));
+        } else {
+          req.user = user;
+          next();
+        }
+      }
+
+      if (isNaN(userid)) { // username
+        User
+          .find({
+            where: {
+              username: userid.toLowerCase()
+            }
+          })
+          .tap(callback)
+          .catch(next)
+      } else {
+        User
+          .findById(userid)
+          .tap(callback)
+          .catch(next);
+      }
     },
 
     /**
