@@ -67,7 +67,7 @@
     "mocha": "2.4.5",
     "mocha-circleci-reporter": "0.0.1",
     "nock": "2.18.2",
-    "nsp": "^2.4.0",
+    "nsp": "2.4.0",
     "sinon": "1.10.3",
     "supertest": "1.2.0",
     "supertest-as-promised": "3.1.0"
