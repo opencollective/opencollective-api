@@ -325,14 +325,13 @@ module.exports = (app) => {
      * Show.
      */
     show: (req, res, next) => {
-  
+
       var userData = req.user.show;
 
-      if (req.remoteUser && remoteUser.id === req.user.id) {
+      if (req.remoteUser && req.remoteUser.id === req.user.id) {
         req.user.getStripeAccount()
           .then((account) => {
             var response = _.extend(userData, req.user.info, { stripeAccount: account });
-
             res.send(response);
           })
           .catch(next);

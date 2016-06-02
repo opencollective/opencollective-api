@@ -293,8 +293,7 @@ describe('users.routes.test.js', () => {
 
     it('successfully get a user\'s information', (done) => {
       request(app)
-        .get('/users/' + user.id)
-        .set('Authorization', 'Bearer ' + user2.jwt(application))
+        .get(`/users/${user.id}?api_key=${application.api_key}`)
         .end((e, res) => {
           expect(e).to.not.exist;
           var u = res.body;
@@ -320,7 +319,7 @@ describe('users.routes.test.js', () => {
 
     it('successfully get a user\'s information when he is authenticated', (done) => {
       request(app)
-        .get('/users/' + user.id)
+        .get(`/users/${user.id}`)
         .set('Authorization', 'Bearer ' + user.jwt(application))
         .end((e, res) => {
           expect(e).to.not.exist;
