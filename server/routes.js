@@ -17,7 +17,7 @@ module.exports = (app) => {
   const aZ = require('./middleware/security/authorization')(app);
   const errorHandler = require('./middleware/error_handler');
   const cache = require('./middleware/cache');
-  const params = require('./params')(app);
+  const params = require('./middleware/params')(app);
 
   /**
    * Controllers

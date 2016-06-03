@@ -331,7 +331,7 @@ module.exports = (app) => {
       if (req.remoteUser && req.remoteUser.id === req.user.id) {
         req.user.getStripeAccount()
           .then((account) => {
-            var response = _.extend(userData, req.user.info, { stripeAccount: account });
+            var response = Object.assign(userData, req.user.info, { stripeAccount: account });
             res.send(response);
           })
           .catch(next);
@@ -340,7 +340,7 @@ module.exports = (app) => {
         req.user
         .getGroups()
         .then(results => {
-          groups = results.map(g => _.extend(g.minimal, { role: g.UserGroup.role })); 
+          groups = results.map(g => Object.assign(g.minimal, { role: g.UserGroup.role }));
           return groups;
         })
         .then(groups => UserGroup.findAll({
@@ -348,10 +348,10 @@ module.exports = (app) => {
           attributes: ['GroupId', [ sequelize.fn('count', sequelize.col('GroupId')), 'members' ]],
           group: ['GroupId']
         }))
-        .then(counts => {
+        .tap(counts => {
           const membersByGroupId = {};
           counts.map(g => { membersByGroupId[parseInt(g.GroupId,10)] = parseInt(g.dataValues.members, 10); } );
-          userData.groups = groups.map(g => _.extend(g, { members: membersByGroupId[parseInt(g.id, 10)] }));
+          userData.groups = groups.map(g => Object.assign(g, { members: membersByGroupId[parseInt(g.id, 10)] }));
           res.send(userData);
         })
         .catch(next);
