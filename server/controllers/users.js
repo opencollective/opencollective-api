@@ -340,7 +340,7 @@ module.exports = (app) => {
         req.user
         .getGroups()
         .then(results => {
-          groups = results.map(g => Object.assign(g.minimal, { role: g.UserGroup.role }));
+          groups = results.map(g => Object.assign(g.minimal, { role: g.UserGroup.role, createdAt: g.UserGroup.createdAt }));
           return groups;
         })
         .then(groups => UserGroup.findAll({
