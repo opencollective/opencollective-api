@@ -4,6 +4,8 @@ const status = require('../constants/expense_status');
 
 module.exports = function (Sequelize, DataTypes) {
 
+  const allowedCurrencies = ['USD', 'EUR', 'GBP', 'SEK', 'UYU', 'INR'];
+
   const Expense = Sequelize.define('Expense', {
     id: {
       type: DataTypes.INTEGER,
@@ -31,13 +33,13 @@ module.exports = function (Sequelize, DataTypes) {
 
     currency: {
       type: DataTypes.STRING,
-      defaultValue: 'USD',
-      allowNull: false,
-      set(val) {
-        if (val && val.toUpperCase) {
-          this.setDataValue('currency', val.toUpperCase());
+      validate: {
+        isIn: {
+          args: [allowedCurrencies],
+          msg: `Must be in ${allowedCurrencies}`
         }
-      }
+      },
+      allowNull: false
     },
 
     amount: {
