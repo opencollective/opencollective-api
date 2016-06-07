@@ -1,4 +1,5 @@
 const config = require('config');
+const request = require('request')
 
 module.exports = (app) => {
   const errors = app.errors;
@@ -47,7 +48,25 @@ module.exports = (app) => {
       } else {
         return next(new errors.BadRequest('Github authorization failed'));
       }
-    }
+    },
 
+    fetchAllRepositories: (req, res, next) => {
+      const payload = req.jwtPayload;
+      ConnectedAccount
+      .findOne({where: {provider: 'github', id: payload.connectedAccountId}})
+      .then(ca => {
+        const options = {
+          url: `https://api.github.com/user/repos?per_page=1000&sort=stars&access_token=${ca.secret}&type=all`,
+          headers: {
+            'User-Agent': 'OpenCollective'
+          },
+          json: true
+        };
+        request(options, (error, response, body) => {
+          if (error) return next(error)
+          res.json(body)
+        });
+      })
+    }
   };
 };
