@@ -229,7 +229,7 @@ module.exports = (app) => {
   /**
    * Github API - fetch all repositories using the user's access_token
    */
-  app.get('/fetch-github-repositories', aN.authenticateAppByApiKey, aN.parseJwtNoExpiryCheck, aN.checkJwtExpiry, connectedAccounts.fetchAllRepositories);
+  app.get('/github-repositories', aN.authenticateUserByJwt(), connectedAccounts.fetchAllRepositories);
 
   /**
    * Reset test-api database
