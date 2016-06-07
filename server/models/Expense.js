@@ -1,10 +1,9 @@
 const Temporal = require('sequelize-temporal');
 
 const status = require('../constants/expense_status');
+const allowedCurrencies = Object.keys(require('../constants/currencies'));
 
 module.exports = function (Sequelize, DataTypes) {
-
-  const allowedCurrencies = ['USD', 'EUR', 'GBP', 'SEK', 'UYU', 'INR'];
 
   const Expense = Sequelize.define('Expense', {
     id: {
