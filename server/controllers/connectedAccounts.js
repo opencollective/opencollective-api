@@ -53,7 +53,7 @@ module.exports = (app) => {
     fetchAllRepositories: (req, res, next) => {
       const payload = req.jwtPayload;
       ConnectedAccount
-      .findOne({where: {provider: 'github', id: payload.connectedAccountId}})
+      .findOne({where: {id: payload.connectedAccountId}})
       .then(ca => {
         const options = {
           url: `https://api.github.com/user/repos?per_page=1000&sort=stars&access_token=${ca.secret}&type=all`,

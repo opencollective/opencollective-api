@@ -442,10 +442,12 @@ module.exports = function(app) {
           remoteUser: creator
         };
       })
-      .then(() => {
-        creator.website = githubUser.blog;
-        creator.name = githubUser.name;
-        return creator.save();
+      .tap(() => {
+        if (githubUser) {
+          creator.website = githubUser.blog;
+          creator.name = githubUser.name;
+          return creator.save();
+        }
       })
       .then(() => Group.findOne({where: {slug: group.slug.toLowerCase()}}))
       .then(existingGroup => {
@@ -455,7 +457,7 @@ module.exports = function(app) {
         return Group.create(group)
       })
       .tap(g => dbGroup = g)
-      .then(() => Activity.create({
+      .tap(() => Activity.create({
         type: activities.GROUP_CREATED,
           UserId: creator.id,
           GroupId: dbGroup.id,
