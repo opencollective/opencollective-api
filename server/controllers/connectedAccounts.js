@@ -1,5 +1,6 @@
 const config = require('config');
-const request = require('request')
+const request = require('request');
+const Promise = require('bluebird');
 
 module.exports = (app) => {
   const errors = app.errors;
@@ -62,11 +63,10 @@ module.exports = (app) => {
           },
           json: true
         };
-        request(options, (error, response, body) => {
-          if (error) return next(error)
-          res.json(body)
-        });
+        return Promise.promisify(request, {multiArgs: true})(options).then(args => args[1]);
       })
+      .then(body => res.json(body))
+      .catch(next)
     }
   };
 };

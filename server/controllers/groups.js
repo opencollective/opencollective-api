@@ -489,14 +489,12 @@ module.exports = function(app) {
                 }
               })
               .then(user => user || User.create(userAttr))
-              .then(user => {
-                return githubLib.fetchUser(contributor)
-                .then(json => {
-                  user.name = json.name;
-                  user.website = json.blog;
-                  user.email = json.email;
-                  return user.save();
-                });
+              .then(() => githubLib.fetchUser(contributor))
+              .then(json => {
+                user.name = json.name;
+                user.website = json.blog;
+                user.email = json.email;
+                return user.save();
               })
               .tap(user => user.addConnectedAccount(connectedAccount))
               .then(user => _addUserToGroup(dbGroup, user, options));
