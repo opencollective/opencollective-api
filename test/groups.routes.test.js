@@ -4,7 +4,6 @@
 var _ = require('lodash');
 var app = require('../index');
 var async = require('async');
-var config = require('config');
 var expect = require('chai').expect;
 var request = require('supertest-as-promised');
 var chance = require('chance').Chance();
@@ -36,7 +35,6 @@ describe('groups.routes.test.js', () => {
   beforeEach(() => models.User.create(userData).tap(u => user = u));
 
   // Stripe stub.
-  var stub;
   beforeEach(() => {
     var stub = sinon.stub(app.stripe.accounts, 'create');
     stub.yields(null, stripeMock.accounts.create);
@@ -589,34 +587,6 @@ describe('groups.routes.test.js', () => {
             expect(g).to.have.property('balance', Math.round((totDonations + totTransactions)*100)/100);
             expect(g).to.have.property('yearlyIncome', (totDonations + transactionsData[7].amount * 12)*100);
             expect(g).to.not.have.property('activities');
-            done();
-          });
-      });
-
-      it('successfully get a group with activities', (done) => {
-        request(app)
-          .get('/groups/' + publicGroup.id)
-          .send({
-            api_key: application2.api_key,
-            activities: true
-          })
-          .expect(200)
-          .end((e, res) => {
-            expect(e).to.not.exist;
-            var group = res.body;
-            expect(group).to.have.property('activities');
-            expect(group.activities).to.have.length(transactionsData.length + 1 + 1 + 1); // + subscription + group.created + group.user.added
-
-            // Check data content.
-            group.activities.forEach((a) => {
-              if (a.GroupId)
-                expect(a.data).to.have.property('group');
-              if (a.UserId)
-                expect(a.data).to.have.property('user');
-              if (a.TransactionId)
-                expect(a.data).to.have.property('transaction');
-            });
-
             done();
           });
       });
