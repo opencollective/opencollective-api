@@ -1,5 +1,6 @@
 const activities = require('../constants/activities');
 const flatten = require('flat');
+const currencies = require('../constants/currencies');
 
 module.exports = {
 
@@ -29,7 +30,7 @@ module.exports = {
     // get group data
     if (activity.data.group) {
       groupName = activity.data.group.name;
-      publicUrl = activity.data.group.publicUrl;
+      publicUrl = `https://opencollective.com/${activity.data.group.slug}`;
     }
 
     // get donation data
@@ -125,16 +126,21 @@ module.exports = {
     var currency = '';
     var tags = [];
     var description = '';
+    var userTwitter = '';
+    var groupTwitter = '';
+    var tweet = '';
 
     // get user data
     if (activity.data.user) {
       userString = getUserString(activity.data.user, linkify);
+      userTwitter = activity.data.user.twitterHandle;
     }
 
     // get group data
     if (activity.data.group) {
       groupName = activity.data.group.name;
-      publicUrl = activity.data.group.publicUrl;
+      publicUrl = `https://opencollective.com/${activity.data.group.slug}`;
+      groupTwitter = activity.data.group.twitterHandle;
     }
 
     // get donation data
@@ -159,20 +165,25 @@ module.exports = {
       description = activity.data.transaction.description;
     }
 
+    var tweetLink, tweetThis = '';
     var group;
     if (linkify) {
       group = linkifyForSlack(publicUrl, groupName);
     } else {
       group = groupName;
     }
-
     switch (activity.type) {
 
       // Currently used for both new donation and expense
       case activities.GROUP_TRANSACTION_CREATED:
 
         if (activity.data.transaction.isDonation) {
-          return `New Donation: ${userString} gave ${currency} ${amount} to ${group}!`;
+          if(userTwitter) {
+            tweet = encodeURIComponent(`@${userTwitter} thanks for your ${currencies[currency](recurringAmount)} donation to ${groupTwitter ? `@${groupTwitter}` : groupName} 👍 ${publicUrl}`);
+            tweetLink = linkifyForSlack(`https://twitter.com/intent/tweet?status=${tweet}`,"Thank that person on Twitter");
+            tweetThis = ` [${tweetLink}]`;
+          }
+          return `New Donation: ${userString} gave ${currency} ${amount} to ${group}!${tweetThis}`;
         } else if (activity.data.transaction.isExpense) {
           return `New Expense: ${userString} submitted a ${tags} expense to ${group}: ${currency} ${amount} for ${description}!`
         }
@@ -183,7 +194,12 @@ module.exports = {
         break;
 
       case activities.SUBSCRIPTION_CONFIRMED:
-        return `New subscription confirmed: ${currency} ${recurringAmount} from ${userString} to ${group}!`;
+        if(userTwitter) {
+          tweet = encodeURIComponent(`@${userTwitter} thanks for your ${currencies[currency](recurringAmount)} donation to ${groupTwitter ? `@${groupTwitter}` : groupName} 👍 ${publicUrl}`);
+          tweetLink = linkifyForSlack(`https://twitter.com/intent/tweet?status=${tweet}`,"Thank that person on Twitter");
+          tweetThis = ` [${tweetLink}]`;
+        }
+        return `New subscription confirmed: ${currency} ${recurringAmount} from ${userString} to ${group}!${tweetThis}`;
         break;
 
       case activities.GROUP_CREATED:
@@ -223,7 +239,7 @@ const linkifyForSlack = (link, text) => {
  */
 const getUserString = (user, linkify, includeEmail) => {
   const userString = user.name || user.twitterHandle || 'someone';
-  const link = user.twitterHandle ? `http://www.twitter.com/${user.twitterHandle}` : user.website;
+  const link = user.twitterHandle ? `https://twitter.com/${user.twitterHandle}` : user.website;
 
   var returnVal;
   if (linkify && link) {

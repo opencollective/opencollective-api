@@ -151,6 +151,7 @@
             },
           "group": {
             "name": "Pub quiz",
+            "slug": "pubquiz",
             "publicUrl": "pubquiz.com"
           }
         }
@@ -170,7 +171,8 @@
             "description": "pizza"
             },
           "group": {
-            "name": "Pub quiz"
+            "name": "Pub quiz",
+            "slug": "pubquiz"
           }
         }
       },
@@ -189,7 +191,8 @@
             "description": "pizza"
             },
           "group": {
-            "name": "Pub quiz"
+            "name": "Pub quiz",
+            "slug": "pubquiz"
           }
         }
       },
@@ -213,6 +216,7 @@
           },
           "group": {
             "name": "Blah",
+            "slug": "blah",
             "publicUrl": "blah.com"
           }
         }
@@ -221,7 +225,8 @@
         "type": "subscription.confirmed",
         "data": {
           "user": {
-            "email":"jussi@kuohujoki.fi"
+            "email":"jussi@kuohujoki.fi",
+            "twitterHandle": "xdamman"
           },
           "transaction": {
             "amount": 12.34,
@@ -229,8 +234,10 @@
             "interval": "month"
           },
           "group": {
-            "name": "Blah",
-            "publicUrl": "blah.com"
+            "name": "Yeoman",
+            "slug": "yeoman",
+            "twitterHandle": "yeoman",
+            "publicUrl": "yeoman.io"
           }
         }
       },
@@ -242,6 +249,7 @@
           },
           "group": {
             "name": "Blah",
+            "slug": "blah",
             "publicUrl": "blah.com"
           }
         }
@@ -255,6 +263,7 @@
           },
           "group": {
             "name": "Blah",
+            "slug": "blah",
             "publicUrl": "blah.com"
           }
         }
