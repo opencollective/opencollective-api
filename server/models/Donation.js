@@ -1,4 +1,4 @@
-const type = require('../constants/transactions').type.EXPENSE;
+const type = require('../constants/transactions').type.DONATION;
 
 module.exports = function(Sequelize, DataTypes) {
 
