@@ -9,7 +9,8 @@ const currencies = require('../constants/currencies');
 
 const templatesNames = [
   'github.signup',
-  'group.transaction.created',
+  'group.expense.created',
+  'group.donation.created',
   'thankyou',
   'thankyou.wwcode',
   'thankyou.ispcwa',
@@ -108,6 +109,10 @@ const EmailLib = (app) => {
             break;
         }
       }
+    }
+
+    if(template === 'group.transaction.created') {
+      template = (data.transaction.amount > 0) ? 'group.donation.created' : 'group.expense.created';
     }
 
     if(!templates[template]) return Promise.reject(new Error("Invalid email template"));
