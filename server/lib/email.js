@@ -113,6 +113,14 @@ const EmailLib = (app) => {
 
     if(template === 'group.transaction.created') {
       template = (data.transaction.amount > 0) ? 'group.donation.created' : 'group.expense.created';
+      if(data.user && data.user.twitterHandle) {
+        const groupMention = (data.group.twitterHandle) ? `@${data.group.twitterHandle}` : data.group.name;
+        const text = `@${data.user.twitterHandle} thanks for your donations to ${groupMention} https://opencollective.com/${data.group.slug}`;
+        data.tweet = {
+          text,
+          encoded: encodeURIComponent(text)
+        };
+      }
     }
 
     if(!templates[template]) return Promise.reject(new Error("Invalid email template"));

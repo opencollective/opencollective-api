@@ -5,9 +5,12 @@ Subject: {{group.name}}: {{{currency transaction.amount currency=transaction.cur
 <center>
   <h1>{{{currency transaction.amount currency=transaction.currency}}}</h1>
   <div>{{transaction.description}}</div>
-  <p><font color="#999">{{transaction.comment}}</font></p>
 
   <br /><br />
+  {{#if tweet}}
+    {{tweet.text}}<br />
+    <a href="https://twitter.com/intent/tweet?status={{tweet.encoded}}">Tweet this!</a>
+  {{/if}}
 
 </center>
 
