@@ -30,7 +30,7 @@ module.exports = {
     // get group data
     if (activity.data.group) {
       groupName = activity.data.group.name;
-      publicUrl = `https://opencollective.com/${activity.data.group.slug}`;
+      publicUrl = activity.data.group.publicUrl;
     }
 
     // get donation data
@@ -139,7 +139,7 @@ module.exports = {
     // get group data
     if (activity.data.group) {
       groupName = activity.data.group.name;
-      publicUrl = `https://opencollective.com/${activity.data.group.slug}`;
+      publicUrl = activity.data.group.publicUrl;
       groupTwitter = activity.data.group.twitterHandle;
     }
 
