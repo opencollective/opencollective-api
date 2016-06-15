@@ -31,7 +31,7 @@ module.exports = function(app) {
             return controllers.users.show(req, res, next);
             }
             else {
-              return next(new errors.NotFound());
+              return next(new errors.NotFound("There is no collective or user with this slug"));
             }
           })
         }
