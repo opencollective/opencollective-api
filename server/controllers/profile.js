@@ -1,9 +1,4 @@
 /**
- * Dependencies.
- */
-const _ = require('lodash');
-
-/**
  * Controller.
  */
 module.exports = function(app) {
