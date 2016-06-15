@@ -1,6 +1,6 @@
 {
   "name": "opencollective-api",
-  "version": "0.0.88",
+  "version": "0.0.91",
   "description": "OpenCollective API",
   "author": "@philmod @arnaudbenard @xdamman",
   "main": "index.js",
@@ -25,6 +25,7 @@
     "form-data": "0.2.0",
     "handlebars": "4.0.5",
     "joi": "7.3.0",
+    "json2csv": "^3.4.2",
     "jsonwebtoken": "5.7.0",
     "knox": "github:automattic/knox#278337d7673341658efcc81e631c3f63fa53d374",
     "lodash": "3.10.1",
@@ -37,7 +38,7 @@
     "node-slack": "0.0.7",
     "node-uuid": "1.4.7",
     "nodemailer": "1.11.0",
-    "opencollective-jobs": "github:opencollective/opencollective-jobs#v0.1.0",
+    "opencollective-jobs": "github:opencollective/opencollective-jobs#v0.2.0",
     "passport": "0.3.2",
     "passport-github": "1.1.0",
     "paypal-adaptive": "0.4.2",
@@ -50,7 +51,6 @@
     "request-promise": "3.0.0",
     "sequelize": "3.23.3",
     "sequelize-cli": "1.9.2",
-    "sequelize-temporal": "1.0.3",
     "slug": "0.9.1",
     "stripe": "3.9.0"
   },

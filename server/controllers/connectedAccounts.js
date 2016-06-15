@@ -1,4 +1,6 @@
 const config = require('config');
+const request = require('request');
+const Promise = require('bluebird');
 
 module.exports = (app) => {
   const errors = app.errors;
@@ -12,13 +14,15 @@ module.exports = (app) => {
       var caId, user;
       const attrs = { provider: req.params.service };
       var avatar;
+      const utmSource = req.query.utm_source;
+
       if (req.params.service === 'github'){
         avatar = `http://avatars.githubusercontent.com/${profile.username}`;
       }
 
       // TODO should simplify using findOrCreate but need to upgrade Sequelize to have this fix:
       // https://github.com/sequelize/sequelize/issues/4631
-      User.findOne({ where: { email: { $in: emails.map(email => email.toLowerCase()) }}})
+      return User.findOne({ where: { email: { $in: emails.map(email => email.toLowerCase()) }}})
         .then(u => u || User.create({
           name: profile.displayName,
           avatar: avatar || profile.avatar_url,
@@ -34,7 +38,7 @@ module.exports = (app) => {
         })
         .then(() => {
           const token = user.generateConnectedAccountVerifiedToken(req.application, caId, profile.username);
-          res.redirect(`${config.host.website}/github/apply/${token}`);
+          res.redirect(`${config.host.website}/github/apply/${token}?utm_source=${utmSource}`);
         })
         .catch(next);
     },
@@ -47,7 +51,24 @@ module.exports = (app) => {
       } else {
         return next(new errors.BadRequest('Github authorization failed'));
       }
-    }
+    },
 
+    fetchAllRepositories: (req, res, next) => {
+      const payload = req.jwtPayload;
+      ConnectedAccount
+      .findOne({where: {id: payload.connectedAccountId}})
+      .then(ca => {
+        const options = {
+          url: `https://api.github.com/user/repos?per_page=1000&sort=stars&access_token=${ca.secret}&type=all`,
+          headers: {
+            'User-Agent': 'OpenCollective'
+          },
+          json: true
+        };
+        return Promise.promisify(request, {multiArgs: true})(options).then(args => args[1]);
+      })
+      .then(body => res.json(body))
+      .catch(next)
+    }
   };
 };

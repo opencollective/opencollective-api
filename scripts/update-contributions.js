@@ -2,23 +2,33 @@
 
 'use strict';
 
+require('bluebird')
+  .longStackTraces();
+
 const app = require('../index');
 const GitHubClient = require('opencollective-jobs').GitHubClient;
 const Group = app.set('models').Group;
 const _ = require('lodash');
 
 const client = GitHubClient({logLevel: 'verbose'});
+const log = client.log; // repurpose the logger
 
 Group.findAll({
   attributes: [
     'id',
     'name',
-    'slug',
     'settings'
   ]
 })
+  .tap(groups => {
+    log.verbose('groups', `Found ${groups.length} group(s) to inspect`);
+  })
   .each(group => {
-    const org = _.get(group, 'settings.githubOrg', group.slug);
+    const org = _.get(group, 'settings.githubOrg');
+    if (!org) {
+      log.warn(group.name, `GitHub org not associated`);
+      return;
+    }
     return client.contributorsInOrg({orgs: [org]})
       .get(org)
       .then(perRepo => {
@@ -41,12 +51,14 @@ Group.findAll({
         return group.save();
       })
       .then(() => {
-        console.log(`Successfully updated contribution data for group "${group.name}"`);
+        log.info(group.name,
+          `Successfully updated contribution data`);
       })
       .catch(err => {
-        console.log(`WARNING: ${err.message}`);
-      })
+        log.error(group.name, err.stack);
+      });
   })
   .finally(() => {
+    log.verbose('groups', 'Done.');
     process.exit();
   });

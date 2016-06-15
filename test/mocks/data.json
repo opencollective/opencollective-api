@@ -19,37 +19,37 @@
   "user1": {
     "name": "Phil Mod",
     "username": "philmod",
-    "email": "user1@email.com",
-    "paypalEmail": "user1+paypal@email.com",
+    "email": "User1@email.com",
+    "paypalEmail": "User1+paypal@email.com",
     "password": "passpass",
-    "twitterHandle": "blahblah"
+    "twitterHandle": "philmod"
   },
 
   "user2": {
     "name": "Anish Bas",
     "username": "abas",
-    "email": "xdam@email.com",
+    "email": "Xdam@email.com",
     "password": "ssapssap"
   },
 
   "user3": {
     "name": "Xavier Damman",
     "username": "xdamman",
-    "email": "user3@email.com",
+    "email": "User3@email.com",
     "password": "passssap"
   },
 
   "user4": {
     "name": "Bo Ki",
     "username": "boki",
-    "email": "user4@email.com",
+    "email": "User4@email.com",
     "password": "passssas"
   },
 
   "user5": {
     "name": "Bo Ki",
     "username": "boki",
-    "email": "user5@email.com"
+    "email": "uSer5@email.com"
   },
 
   "group1": {
@@ -156,7 +156,8 @@
             },
           "group": {
             "name": "Pub quiz",
-            "publicUrl": "pubquiz.com"
+            "slug": "pubquiz",
+            "publicUrl": "https://opencollective.com/pubquiz"
           }
         }
       },
@@ -175,7 +176,9 @@
             "description": "pizza"
             },
           "group": {
-            "name": "Pub quiz"
+            "name": "Pub quiz",
+            "slug": "pubquiz",
+            "publicUrl": "https://opencollective.com/pubquiz"
           }
         }
       },
@@ -194,7 +197,9 @@
             "description": "pizza"
             },
           "group": {
-            "name": "Pub quiz"
+            "name": "Pub quiz",
+            "slug": "pubquiz",
+            "publicUrl": "https://opencollective.com/pubquiz"
           }
         }
       },
@@ -218,7 +223,8 @@
           },
           "group": {
             "name": "Blah",
-            "publicUrl": "blah.com"
+            "slug": "blah",
+            "publicUrl": "https://opencollective.com/blah"
           }
         }
       },
@@ -226,7 +232,8 @@
         "type": "subscription.confirmed",
         "data": {
           "user": {
-            "email":"jussi@kuohujoki.fi"
+            "email":"jussi@kuohujoki.fi",
+            "twitterHandle": "xdamman"
           },
           "transaction": {
             "amount": 12.34,
@@ -234,8 +241,10 @@
             "interval": "month"
           },
           "group": {
-            "name": "Blah",
-            "publicUrl": "blah.com"
+            "name": "Yeoman",
+            "slug": "yeoman",
+            "twitterHandle": "yeoman",
+            "publicUrl": "https://opencollective.com/yeoman"
           }
         }
       },
@@ -247,7 +256,8 @@
           },
           "group": {
             "name": "Blah",
-            "publicUrl": "blah.com"
+            "slug": "blah",
+            "publicUrl": "https://opencollective.com/blah"
           }
         }
       },
@@ -260,7 +270,64 @@
           },
           "group": {
             "name": "Blah",
+            "slug": "blah",
+            "publicUrl": "https://opencollective.com/blah"
+          }
+        }
+      },
+      {
+        "type": "group.expense.created",
+        "data": {
+          "user": {
+            "avatar": "http://avatar.githubusercontent.com/asood123",
+            "id": 2
+          },
+          "group": {
+            "name": "Blah",
             "publicUrl": "blah.com"
+          },
+          "expense": {
+            "amount": 12.34,
+            "currency": "EUR",
+            "title": "for pizza"
+          }
+        }
+      },
+      {
+        "type": "group.expense.rejected",
+        "data": {
+          "user": {
+            "avatar": "http://avatar.githubusercontent.com/asood123",
+            "id": 2
+          },
+          "group": {
+            "name": "Blah",
+            "publicUrl": "blah.com"
+          },
+          "expense": {
+            "amount": 12.34,
+            "currency": "EUR",
+            "title": "for pizza",
+            "lastEditedById": 2
+          }
+        }
+      },
+      {
+        "type": "group.expense.approved",
+        "data": {
+          "user": {
+            "avatar": "http://avatar.githubusercontent.com/asood123",
+            "id": 2
+          },
+          "group": {
+            "name": "Blah",
+            "publicUrl": "blah.com"
+          },
+          "expense": {
+            "amount": 12.34,
+            "currency": "EUR",
+            "title": "for pizza",
+            "lastEditedById": 2
           }
         }
       }
@@ -404,7 +471,7 @@
       "username":"philmod",
       "email":"philmod@email.com",
       "avatar":null,
-      "twitterHandle":"blahblah",
+      "twitterHandle":"philmod",
       "website":"http://startupmanifesto.be",
       "createdAt":"2016-01-30T07:31:37.747Z",
       "updatedAt":"2016-01-30T07:31:37.889Z",
@@ -444,9 +511,20 @@
     "title": "Lunch with Jenn",
     "notes": "Some very long and super interesting extra notes for the whole world to see",
     "category": "Engineering",
-    "amount": 120.00,
+    "amount": 12000,
     "currency": "USD",
-    "paypalEmail": "userpaypal@gmail.com",
-    "incurredAt": "2016-03-06 UTC+0300"
+    "paypalEmail": "uSerpaypal@gmail.com",
+    "incurredAt": "2016-03-06 UTC+0300",
+    "payoutMethod": "paypal"
+  },
+  "expense2": {
+    "title": "tshirts",
+    "notes": "longgggg note",
+    "category": "Engineering",
+    "amount": 3737,
+    "currency": "USD",
+    "paypalEmail": "Userpaypal2@gmail.com",
+    "incurredAt": "2016-03-09 UTC+0300",
+    "payoutMethod": "manual"
   }
 }

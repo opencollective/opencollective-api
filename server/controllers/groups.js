@@ -27,6 +27,7 @@ module.exports = function(app) {
   const roles = require('../constants/roles');
   const activities = require('../constants/activities');
   const emailLib = require('../lib/email')(app);
+  const githubLib = require('../lib/github');
 
   /**
    * Returns all the users of a group with their `totalDonations` and `role` (HOST/MEMBER/BACKER)
@@ -54,6 +55,7 @@ module.exports = function(app) {
       LEFT JOIN "Users" u ON u.id = ug."UserId"
       LEFT JOIN total_donations td ON td."UserId" = ug."UserId"
       WHERE ug."GroupId" = :GroupId
+      AND ug."deletedAt" IS NULL
       ORDER BY "totalDonations" DESC, ug."createdAt" ASC
     `, {
       replacements: { GroupId },
@@ -312,7 +314,6 @@ module.exports = function(app) {
 
     // Caller.
     var user = req.remoteUser || req.user || transaction.user || {};
-
     transactions._create({
       transaction,
       group,
@@ -411,37 +412,45 @@ module.exports = function(app) {
    */
   const createFromGithub = (req, res, next) => {
 
-      var payload = req.required.payload;
-      const connectedAccountId = req.jwtPayload.connectedAccountId;
+    var payload = req.required.payload;
+    const connectedAccountId = req.jwtPayload.connectedAccountId;
 
-      var creator, options;
-      const group = payload.group;
-      const contributors = payload.users;
-      const creatorGithubUsername = payload.github_username;
-      var dbGroup;
+    var creator, options;
+    const group = payload.group;
+    const githubUser = payload.user;
+    const contributors = payload.users;
+    const creatorGithubUsername = payload.github_username;
+    var dbGroup;
 
-      ConnectedAccount
-        .findOne({
-          where: { id: connectedAccountId },
-          include: { model: User }
-        })
-        .tap(ca => {
-          creator = ca.User;
-          options = {
-            role: roles.MEMBER,
-            remoteUser: creator
-          };
-        })
-        .then(() => Group.findOne({where: {slug: group.slug.toLowerCase()}}))
-        .then(existingGroup => {
-          if (existingGroup) {
-            group.slug = `${group.slug}+${Math.floor((Math.random() * 1000) + 1)}`;
-          }
-          return Group.create(group)
-        })
-        .tap(g => dbGroup = g)
-        .then(() => Activity.create({
-          type: activities.GROUP_CREATED,
+    ConnectedAccount
+      .findOne({
+        where: { id: connectedAccountId },
+        include: { model: User }
+      })
+      .tap(ca => {
+        creator = ca.User;
+        options = {
+          role: roles.MEMBER,
+          remoteUser: creator
+        };
+      })
+      .tap(() => {
+        if (githubUser) {
+          creator.website = githubUser.blog;
+          creator.name = githubUser.name;
+          return creator.save();
+        }
+      })
+      .then(() => Group.findOne({where: {slug: group.slug.toLowerCase()}}))
+      .then(existingGroup => {
+        if (existingGroup) {
+          group.slug = `${group.slug}+${Math.floor((Math.random() * 1000) + 1)}`;
+        }
+        return Group.create(group)
+      })
+      .tap(g => dbGroup = g)
+      .tap(() => Activity.create({
+        type: activities.GROUP_CREATED,
           UserId: creator.id,
           GroupId: dbGroup.id,
           data: {
@@ -472,6 +481,13 @@ module.exports = function(app) {
                 }
               })
               .then(user => user || User.create(userAttr))
+              .then(() => githubLib.fetchUser(contributor))
+              .then(json => {
+                user.name = json.name;
+                user.website = json.blog;
+                user.email = json.email;
+                return user.save();
+              })
               .tap(user => user.addConnectedAccount(connectedAccount))
               .then(user => _addUserToGroup(dbGroup, user, options));
           } else {
@@ -487,7 +503,7 @@ module.exports = function(app) {
         })
         .tap(() => res.send(dbGroup.info))
         .catch(next);
-    }
+  };
 
   /**
    * Update.

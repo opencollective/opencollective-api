@@ -1,11 +1,10 @@
-const Temporal = require('sequelize-temporal');
-
 const status = require('../constants/expense_status');
+const type = require('../constants/transactions').type.EXPENSE;
 const allowedCurrencies = Object.keys(require('../constants/currencies'));
 
 module.exports = function (Sequelize, DataTypes) {
 
-  const Expense = Sequelize.define('Expense', {
+  return Sequelize.define('Expense', {
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
@@ -47,7 +46,7 @@ module.exports = function (Sequelize, DataTypes) {
 
     amount: {
       type: DataTypes.INTEGER,
-      validate: { min: 0 },
+      validate: { min: 1 },
       allowNull: false
     },
 
@@ -55,6 +54,19 @@ module.exports = function (Sequelize, DataTypes) {
       type: DataTypes.STRING,
       allowNull: false
     },
+
+    payoutMethod: {
+      type: DataTypes.STRING,
+      validate: {
+        isIn: {
+          args: [['paypal', 'manual', 'other']],
+          msg: 'Must be paypal, manual or other'
+        }
+      },
+      allowNull: false,
+      defaultValue: 'manual'
+    },
+
     notes: DataTypes.TEXT,
     attachment: DataTypes.STRING,
     category: DataTypes.STRING,
@@ -67,7 +79,8 @@ module.exports = function (Sequelize, DataTypes) {
         key: 'id'
       },
       onDelete: 'SET NULL',
-      onUpdate: 'CASCADE'
+      onUpdate: 'CASCADE',
+      allowNull: false
     },
 
     status: {
@@ -76,13 +89,12 @@ module.exports = function (Sequelize, DataTypes) {
       allowNull: false,
       validate: {
         isIn: {
-          args: [[status.PENDING, status.APPROVED, status.REJECTED, status.PAID]],
-          msg: 'Must be PENDING, APPROVED, REJECTED or PAID'
+          args: [Object.keys(status)],
+          msg: `Must be in ${Object.keys(status)}`
         }
       }
     },
 
-    // date when the expense was incurred
     incurredAt: {
       type: DataTypes.DATE,
       allowNull: false
@@ -109,6 +121,7 @@ module.exports = function (Sequelize, DataTypes) {
     getterMethods: {
       info() {
         return {
+          type,
           id: this.id,
           UserId: this.UserId,
           GroupId: this.GroupId,
@@ -117,13 +130,11 @@ module.exports = function (Sequelize, DataTypes) {
           title: this.title,
           attachment: this.attachment,
           category: this.category,
+          payoutMethod: this.payoutMethod,
           vat: this.vat,
+          notes: this.notes,
           lastEditedById: this.lastEditedById,
           status: this.status,
-          isPending: this.isPending,
-          isRejected: this.isRejected,
-          isApproved: this.isApproved,
-          isPaid: this.isPaid,
           incurredAt: this.incurredAt,
           createdAt: this.createdAt,
           updatedAt: this.updatedAt
@@ -148,6 +159,4 @@ module.exports = function (Sequelize, DataTypes) {
       }
     }
   });
-
-  return Temporal(Expense, Sequelize);
 };
