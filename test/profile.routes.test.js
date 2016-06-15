@@ -16,7 +16,7 @@ var models = app.set('models');
 /**
  * Tests.
  */
-describe('groups.routes.test.js', () => {
+describe('profile.routes.test.js', () => {
 
   var application;
   var user, group;
