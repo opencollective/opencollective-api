@@ -28,6 +28,7 @@ module.exports = function(app) {
   const activities = require('../constants/activities');
   const emailLib = require('../lib/email')(app);
   const githubLib = require('../lib/github');
+  const getGroupBalance = require('../lib/groups')(app).getBalance;
 
   /**
    * Returns all the users of a group with their `totalDonations` and `role` (HOST/MEMBER/BACKER)
@@ -103,21 +104,6 @@ module.exports = function(app) {
     return checkIfGroupHasHost()
       .then(addUserToGroup)
       .then(createActivity);
-  };
-
-  const getBalance = (id) => {
-    return Transaction
-      .find({
-        attributes: [
-          [sequelize.fn('SUM', sequelize.col('netAmountInGroupCurrency')), 'total']
-        ],
-        where: {
-          GroupId: id,
-            approved: true
-          }
-        })
-        // #TODO: API should always return amounts in cents
-        .then(result => Promise.resolve(result.toJSON().total/100));
   };
 
   const getYearlyIncome = (GroupId) => {
@@ -550,7 +536,7 @@ module.exports = function(app) {
       .tap(account => group.stripeAccount = account && _.pick(account, 'stripePublishableKey'))
       .then(() => req.group.getConnectedAccount())
       .tap(account => group.hasPaypal = account && account.provider === 'paypal')
-      .then(() => getBalance(group.id))
+      .then(() => getGroupBalance(group.id))
       .tap(balance => group.balance = balance)
       .then(() => getYearlyIncome(group.id))
       .tap(yearlyIncome => group.yearlyIncome = yearlyIncome)
@@ -674,7 +660,6 @@ module.exports = function(app) {
     deleteTransaction,
     getTransaction,
     getTransactions,
-    getBalance,
     getUsers,
     updateTransaction,
     getLeaderboard

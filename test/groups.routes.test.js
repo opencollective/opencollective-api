@@ -334,8 +334,6 @@ describe('groups.routes.test.js', () => {
     var group;
     var publicGroup;
     var user2;
-    var application2;
-    var application3;
     var stripeEmail;
 
     var stubStripe = () => {
@@ -419,14 +417,6 @@ describe('groups.routes.test.js', () => {
     // Create another user.
     beforeEach(() => models.User.create(utils.data('user2')).tap(u => user2 = u));
 
-    // Create an application which has only access to `privateGroup`
-    beforeEach(() => models.Application.create(utils.data('application2'))
-      .tap(a => application2 = a)
-      .then(() => application2.addGroup(privateGroup)));
-
-    // Create an application which doesn't have access to any group
-    beforeEach(() => models.Application.create(utils.data('application3')).tap(a => application3 = a));
-
     it('fails getting a group if not authenticated', (done) => {
       request(app)
         .get('/groups/' + privateGroup.id)
@@ -496,26 +486,6 @@ describe('groups.routes.test.js', () => {
         });
     });
 
-    it('fails getting a group if the application authenticated has no access', (done) => {
-      request(app)
-        .get('/groups/' + privateGroup.id)
-        .send({
-          api_key: application3.api_key
-        })
-        .expect(403)
-        .end(done);
-    });
-
-    it('successfully get a group if authenticated as a group', (done) => {
-      request(app)
-        .get('/groups/' + privateGroup.id)
-        .send({
-          api_key: application2.api_key
-        })
-        .expect(200)
-        .end(done);
-    });
-
     describe('Transactions/Activities/Budget', () => {
 
       var group2;
@@ -578,13 +548,13 @@ describe('groups.routes.test.js', () => {
         request(app)
           .get('/groups/' + publicGroup.id)
           .send({
-            api_key: application2.api_key
+            api_key: application.api_key
           })
           .expect(200)
           .end((e, res) => {
             expect(e).to.not.exist;
             var g = res.body;
-            expect(g).to.have.property('balance', Math.round((totDonations + totTransactions)*100)/100);
+            expect(g).to.have.property('balance', (totDonations*100 + totTransactions*100 + transactionsData[7].amount*100).toFixed(0));
             expect(g).to.have.property('yearlyIncome', (totDonations + transactionsData[7].amount * 12)*100);
             expect(g).to.not.have.property('activities');
             done();
@@ -595,7 +565,7 @@ describe('groups.routes.test.js', () => {
         request(app)
           .get('/groups/' + publicGroup.id + '/users')
           .send({
-            api_key: application2.api_key
+            api_key: application.api_key
           })
           .expect(200)
           .end((e, res) => {
@@ -630,7 +600,7 @@ describe('groups.routes.test.js', () => {
         request(app)
           .get('/leaderboard')
           .send({
-            api_key: application2.api_key,
+            api_key: application.api_key,
           })
           .expect(200)
           .end(done);
