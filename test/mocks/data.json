@@ -172,7 +172,8 @@
             },
           "group": {
             "name": "Pub quiz",
-            "slug": "pubquiz"
+            "slug": "pubquiz",
+            "publicUrl": "https://opencollective.com/pubquiz"
           }
         }
       },
@@ -192,7 +193,8 @@
             },
           "group": {
             "name": "Pub quiz",
-            "slug": "pubquiz"
+            "slug": "pubquiz",
+            "publicUrl": "https://opencollective.com/pubquiz"
           }
         }
       },
@@ -237,7 +239,7 @@
             "name": "Yeoman",
             "slug": "yeoman",
             "twitterHandle": "yeoman",
-            "publicUrl": "yeoman.io"
+            "publicUrl": "https://opencollective.com/yeoman"
           }
         }
       },
