@@ -152,7 +152,7 @@
           "group": {
             "name": "Pub quiz",
             "slug": "pubquiz",
-            "publicUrl": "pubquiz.com"
+            "publicUrl": "https://opencollective.com/pubquiz"
           }
         }
       },
@@ -217,7 +217,7 @@
           "group": {
             "name": "Blah",
             "slug": "blah",
-            "publicUrl": "blah.com"
+            "publicUrl": "https://opencollective.com/blah"
           }
         }
       },
@@ -250,7 +250,7 @@
           "group": {
             "name": "Blah",
             "slug": "blah",
-            "publicUrl": "blah.com"
+            "publicUrl": "https://opencollective.com/blah"
           }
         }
       },
@@ -264,7 +264,7 @@
           "group": {
             "name": "Blah",
             "slug": "blah",
-            "publicUrl": "blah.com"
+            "publicUrl": "https://opencollective.com/blah"
           }
         }
       }
