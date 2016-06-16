@@ -28,6 +28,7 @@ module.exports = function(app) {
   const activities = require('../constants/activities');
   const emailLib = require('../lib/email')(app);
   const githubLib = require('../lib/github');
+  const getGroupBalance = require('../lib/groups')(app).getBalance;
 
   /**
    * Returns all the users of a group with their `totalDonations` and `role` (HOST/MEMBER/BACKER)
@@ -105,25 +106,8 @@ module.exports = function(app) {
       .then(createActivity);
   };
 
-  const getBalance = (id, cb) => {
-    Transaction
-      .find({
-        attributes: [
-          [sequelize.fn('SUM', sequelize.col('netAmountInGroupCurrency')), 'total']
-        ],
-        where: {
-          GroupId: id,
-            approved: true
-          }
-        })
-        .then((result) => {
-          return cb(null, result.toJSON().total/100);
-        })
-        .catch(cb);
-  };
-
-  const getYearlyIncome = (GroupId, cb) => {
-    sequelize.query(`
+  const getYearlyIncome = (GroupId) => {
+    return sequelize.query(`
       SELECT
         (SELECT
           COALESCE(SUM(t."netAmountInGroupCurrency"*12),0)
@@ -146,16 +130,11 @@ module.exports = function(app) {
     `, {
       replacements: { GroupId },
       type: sequelize.QueryTypes.SELECT
-    }).then((result) => {
-      return cb(null, parseInt(result[0].yearlyIncome,10));
-    }).catch(e => {
-      console.error("Error computing yearlyIncome", e);
-      cb(e);
-    });
+    }).then(result => Promise.resolve(parseInt(result[0].yearlyIncome,10)));
   };
 
-  const getPublicPageInfo = (id, cb) => {
-    Transaction
+  const getPublicPageInfo = (id) => {
+    return Transaction
       .find({
         attributes: [
           [sequelize.fn('SUM', sequelize.col('amount')), 'donationTotal'],
@@ -172,12 +151,11 @@ module.exports = function(app) {
       .then((result) => {
         const json = result.toJSON();
 
-        cb(null, {
+        return Promise.resolve({
           donationTotal: Number(json.donationTotal),
           backersCount: Number(json.backersCount)
         });
       })
-      .catch(cb);
   };
 
   const getUsers = (req, res, next) => {
@@ -552,70 +530,22 @@ module.exports = function(app) {
    * Get group content.
    */
   const getOne = (req, res, next) => {
-    async.auto({
+    const group = req.group.info;
 
-      getBalance: getBalance.bind(this, req.group.id),
-      getYearlyIncome: getYearlyIncome.bind(this, req.group.id),
-      getPublicPageInfo: getPublicPageInfo.bind(this, req.group.id),
-
-      getActivities: (cb) => {
-        if (!req.query.activities && !req.body.activities) {
-          return cb();
-        }
-
-        const query = {
-          where: {
-            GroupId: req.group.id
-          },
-          order: [['createdAt', 'DESC']],
-          offset: 0,
-          limit: 20 // [TODO] I need to put this default value
-          // as a global parameter. Using mw.paginate?
-        };
-
-        Activity
-          .findAndCountAll(query)
-          .then((activities) => cb(null, activities.rows))
-          .catch(cb);
-      },
-
-      getStripeAccount: (cb) =>  {
-        req.group.getStripeAccount()
-          .then((account) => cb(null, account))
-          .catch(cb);
-      },
-
-      getConnectedAccount: (cb) => {
-        req.group.getConnectedAccount()
-          .then((account) => cb(null, account))
-          .catch(cb);
-      }
-
-    }, (e, results) => {
-      if (e) return next(e);
-
-      const group = _.extend({}, req.group.info, {
-        balance: results.getBalance,
-        yearlyIncome: results.getYearlyIncome,
-        backersCount: results.getPublicPageInfo.backersCount,
-        donationTotal: results.getPublicPageInfo.donationTotal
-      });
-
-      if (results.getActivities) {
-        group.activities = results.getActivities;
-      }
-
-      if (results.getStripeAccount) {
-        group.stripeAccount = _.pick(results.getStripeAccount, 'stripePublishableKey');
-      }
-
-      if (_.get(results, 'getConnectedAccount.provider') === 'paypal') {
-        group.hasPaypal = true; // hack for the prototype, to refactor
-      }
-
-      res.send(group);
-    });
-
+    req.group.getStripeAccount()
+      .tap(account => group.stripeAccount = account && _.pick(account, 'stripePublishableKey'))
+      .then(() => req.group.getConnectedAccount())
+      .tap(account => group.hasPaypal = account && account.provider === 'paypal')
+      .then(() => getGroupBalance(group.id))
+      .tap(balance => group.balance = balance)
+      .then(() => getYearlyIncome(group.id))
+      .tap(yearlyIncome => group.yearlyIncome = yearlyIncome)
+      .then(() => getPublicPageInfo(group.id))
+      .tap(publicPageInfo => Object.assign(group,
+        {backersCount: publicPageInfo.backersCount},
+        {donationTotal: publicPageInfo.donationTotal}))
+      .tap(() => res.send(group))
+      .catch(next);
   };
 
   /**
@@ -730,7 +660,6 @@ module.exports = function(app) {
     deleteTransaction,
     getTransaction,
     getTransactions,
-    getBalance,
     getUsers,
     updateTransaction,
     getLeaderboard

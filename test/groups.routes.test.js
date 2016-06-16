@@ -4,7 +4,6 @@
 var _ = require('lodash');
 var app = require('../index');
 var async = require('async');
-var config = require('config');
 var expect = require('chai').expect;
 var request = require('supertest-as-promised');
 var chance = require('chance').Chance();
@@ -36,7 +35,6 @@ describe('groups.routes.test.js', () => {
   beforeEach(() => models.User.create(userData).tap(u => user = u));
 
   // Stripe stub.
-  var stub;
   beforeEach(() => {
     var stub = sinon.stub(app.stripe.accounts, 'create');
     stub.yields(null, stripeMock.accounts.create);
@@ -161,6 +159,8 @@ describe('groups.routes.test.js', () => {
           expect(res.body).to.have.property('twitterHandle');
           expect(res.body).to.have.property('website');
           expect(res.body).to.have.property('isPublic', false);
+          expect(res.body.tags).to.eql(privateGroupData.tags);
+          expect(res.body).to.have.property('supercollective', false);
 
           user.getGroups().then((groups) => {
             expect(groups).to.have.length(0);
@@ -336,8 +336,6 @@ describe('groups.routes.test.js', () => {
     var group;
     var publicGroup;
     var user2;
-    var application2;
-    var application3;
     var stripeEmail;
 
     var stubStripe = () => {
@@ -421,14 +419,6 @@ describe('groups.routes.test.js', () => {
     // Create another user.
     beforeEach(() => models.User.create(utils.data('user2')).tap(u => user2 = u));
 
-    // Create an application which has only access to `privateGroup`
-    beforeEach(() => models.Application.create(utils.data('application2'))
-      .tap(a => application2 = a)
-      .then(() => application2.addGroup(privateGroup)));
-
-    // Create an application which doesn't have access to any group
-    beforeEach(() => models.Application.create(utils.data('application3')).tap(a => application3 = a));
-
     it('fails getting a group if not authenticated', (done) => {
       request(app)
         .get('/groups/' + privateGroup.id)
@@ -464,6 +454,8 @@ describe('groups.routes.test.js', () => {
           expect(res.body).to.have.property('description', privateGroup.description);
           expect(res.body).to.have.property('stripeAccount');
           expect(res.body.stripeAccount).to.have.property('stripePublishableKey', stripeMock.accounts.create.keys.publishable);
+          expect(res.body.tags).to.eql(privateGroupData.tags);
+          expect(res.body).to.have.property('supercollective', false);
           done();
         });
     });
@@ -478,6 +470,8 @@ describe('groups.routes.test.js', () => {
           expect(res.body).to.have.property('name', publicGroup.name);
           expect(res.body).to.have.property('isPublic', publicGroup.isPublic);
           expect(res.body).to.have.property('stripeAccount');
+          expect(res.body.tags).to.eql(publicGroup.tags);
+          expect(res.body).to.have.property('supercollective', false);
           expect(res.body.stripeAccount).to.have.property('stripePublishableKey', stripeMock.accounts.create.keys.publishable);
           done();
         });
@@ -496,26 +490,6 @@ describe('groups.routes.test.js', () => {
           expect(res.body.stripeAccount).to.have.property('stripePublishableKey', stripeMock.accounts.create.keys.publishable);
           done();
         });
-    });
-
-    it('fails getting a group if the application authenticated has no access', (done) => {
-      request(app)
-        .get('/groups/' + privateGroup.id)
-        .send({
-          api_key: application3.api_key
-        })
-        .expect(403)
-        .end(done);
-    });
-
-    it('successfully get a group if authenticated as a group', (done) => {
-      request(app)
-        .get('/groups/' + privateGroup.id)
-        .send({
-          api_key: application2.api_key
-        })
-        .expect(200)
-        .end(done);
     });
 
     describe('Transactions/Activities/Budget', () => {
@@ -580,43 +554,15 @@ describe('groups.routes.test.js', () => {
         request(app)
           .get('/groups/' + publicGroup.id)
           .send({
-            api_key: application2.api_key
+            api_key: application.api_key
           })
           .expect(200)
           .end((e, res) => {
             expect(e).to.not.exist;
             var g = res.body;
-            expect(g).to.have.property('balance', Math.round((totDonations + totTransactions)*100)/100);
+            expect(g).to.have.property('balance', (totDonations*100 + totTransactions*100 + transactionsData[7].amount*100).toFixed(0));
             expect(g).to.have.property('yearlyIncome', (totDonations + transactionsData[7].amount * 12)*100);
             expect(g).to.not.have.property('activities');
-            done();
-          });
-      });
-
-      it('successfully get a group with activities', (done) => {
-        request(app)
-          .get('/groups/' + publicGroup.id)
-          .send({
-            api_key: application2.api_key,
-            activities: true
-          })
-          .expect(200)
-          .end((e, res) => {
-            expect(e).to.not.exist;
-            var group = res.body;
-            expect(group).to.have.property('activities');
-            expect(group.activities).to.have.length(transactionsData.length + 1 + 1 + 1); // + subscription + group.created + group.user.added
-
-            // Check data content.
-            group.activities.forEach((a) => {
-              if (a.GroupId)
-                expect(a.data).to.have.property('group');
-              if (a.UserId)
-                expect(a.data).to.have.property('user');
-              if (a.TransactionId)
-                expect(a.data).to.have.property('transaction');
-            });
-
             done();
           });
       });
@@ -625,7 +571,7 @@ describe('groups.routes.test.js', () => {
         request(app)
           .get('/groups/' + publicGroup.id + '/users')
           .send({
-            api_key: application2.api_key
+            api_key: application.api_key
           })
           .expect(200)
           .end((e, res) => {
@@ -660,7 +606,7 @@ describe('groups.routes.test.js', () => {
         request(app)
           .get('/leaderboard')
           .send({
-            api_key: application2.api_key,
+            api_key: application.api_key,
           })
           .expect(200)
           .end(done);
