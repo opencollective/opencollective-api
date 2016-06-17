@@ -11,23 +11,36 @@ module.exports = (app) => {
 
   return {
     createOrUpdate: (req, res, next, accessToken, profile, emails) => {
-      var caId, user;
-      const attrs = { provider: req.params.service };
-      var avatar;
+      var caId, userPromise, user;
+      const provider = req.params.service;
+      const attrs = { provider };
       const utmSource = req.query.utm_source;
 
-      if (req.params.service === 'github'){
-        avatar = `http://avatars.githubusercontent.com/${profile.username}`;
+      switch (provider) {
+        case 'github':
+          const avatar = `http://avatars.githubusercontent.com/${profile.username}`;
+          // TODO should simplify using findOrCreate but need to upgrade Sequelize to have this fix:
+          // https://github.com/sequelize/sequelize/issues/4631
+          userPromise = User.findOne({ where: { email: { $in: emails.map(email => email.toLowerCase()) }}})
+            .then(u => u || User.create({
+              name: profile.displayName,
+              avatar,
+              email: emails[0]
+            }));
+          break;
+
+        case 'twitter':
+          if (!req.remoteUser) {
+            return next(new errors.BadRequest(`Need user to link ${profile.username} Twitter account`));
+          }
+          userPromise = Promise.resolve(req.remoteUser);
+          break;
+
+        default:
+          return next(new errors.BadRequest(`unsupported provider ${provider}`));
       }
 
-      // TODO should simplify using findOrCreate but need to upgrade Sequelize to have this fix:
-      // https://github.com/sequelize/sequelize/issues/4631
-      return User.findOne({ where: { email: { $in: emails.map(email => email.toLowerCase()) }}})
-        .then(u => u || User.create({
-          name: profile.displayName,
-          avatar: avatar || profile.avatar_url,
-          email: emails[0]
-        }))
+      return userPromise
         .tap(u => user = u)
         .tap(user => attrs.UserId = user.id)
         .then(() => ConnectedAccount.findOne({ where: attrs }))
@@ -38,7 +51,13 @@ module.exports = (app) => {
         })
         .then(() => {
           const token = user.generateConnectedAccountVerifiedToken(req.application, caId, profile.username);
-          res.redirect(`${config.host.website}/github/apply/${token}?utm_source=${utmSource}`);
+          var redirectUrl;
+          if (provider === 'github') {
+            redirectUrl = `${config.host.website}/github/apply/${token}?utm_source=${utmSource}`;
+          } else {
+            redirectUrl = `${config.host.website}/${user.username}`;
+          }
+          res.redirect(redirectUrl);
         })
         .catch(next);
     },
