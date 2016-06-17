@@ -41,8 +41,8 @@ describe('connectedAccounts.routes.test.js: GIVEN an application and group', () 
           .end((err, res) => {
             expect(err).not.to.exist;
             const baseUrl = 'https://github.com/login/oauth/authorize';
-            const apiKeyEnc = '.*';
-            const redirectUri = encodeURIComponent(`${config.host.api}/connected-accounts/github/callback?api_key_enc=${apiKeyEnc}&utm_source=mm`);
+            const credEnc = '.*';
+            const redirectUri = encodeURIComponent(`${config.host.api}/connected-accounts/github/callback?cred_enc=${credEnc}&utm_source=mm`);
             const scope = encodeURIComponent('user:email,public_repo');
             const location = `^${baseUrl}\\?response_type=code&redirect_uri=${redirectUri}&scope=${scope}&client_id=${clientId}$`;
             expect(res.headers.location).to.match(new RegExp(location));
@@ -67,7 +67,7 @@ describe('connectedAccounts.routes.test.js: GIVEN an application and group', () 
 
     describe('WHEN calling with invalid API key', () => {
       beforeEach(done => {
-        req = req.send({ api_key_enc: 'bla' });
+        req = req.send({ cred_enc: 'bla' });
         done();
       });
 
@@ -76,8 +76,8 @@ describe('connectedAccounts.routes.test.js: GIVEN an application and group', () 
 
     describe('WHEN calling with valid API key', () => {
       beforeEach(done => {
-        const api_key_enc = jwt.sign({ apiKey: application.api_key }, config.keys.opencollective.secret);
-        req = req.send({ api_key_enc });
+        const cred_enc = jwt.sign({ apiKey: application.api_key }, config.keys.opencollective.secret);
+        req = req.send({ cred_enc });
         done();
       });
 

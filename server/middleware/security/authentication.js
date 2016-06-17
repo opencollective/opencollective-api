@@ -246,8 +246,11 @@ module.exports = function (app) {
     },
 
     authenticateService: (req, res, next) => {
-      const apiKey = req.application.api_key;
-      const cred_enc = jwt.sign({apiKey, userId: req.remoteUser.id}, secret, { expiresIn: '1min' });
+      const payload = { apiKey: req.application.api_key };
+      if (req.remoteUser) {
+        payload.userId = req.remoteUser.id;
+      }
+      const cred_enc = jwt.sign(payload, secret, { expiresIn: '1min' });
       const service = req.params.service;
       const utm_source = req.query.utm_source;
 
@@ -255,7 +258,7 @@ module.exports = function (app) {
       const opts = {
         callbackURL: `${config.host.api}/connected-accounts/${service}/callback?${params}`
       };
-      
+
       if (service === 'github') {
         opts.scope = [ 'user:email', 'public_repo' ];
       }
