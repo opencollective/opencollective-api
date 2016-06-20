@@ -59,9 +59,6 @@ module.exports = function(Sequelize, DataTypes) {
       }
     },
 
-    description: DataTypes.STRING,
-    isOrganization: DataTypes.BOOLEAN, // e.g. DigitalOcean, PubNub, ...
-
     twitterHandle: {
       type: DataTypes.STRING, // without the @ symbol. Ex: 'asood123'
       validate: {
@@ -161,8 +158,6 @@ module.exports = function(Sequelize, DataTypes) {
           name: this.name,
           username: this.username,
           email: this.email,
-          description: this.description,
-          isOrganization: this.isOrganization,
           avatar: this.avatar,
           twitterHandle: this.twitterHandle,
           website: this.website,
@@ -182,8 +177,6 @@ module.exports = function(Sequelize, DataTypes) {
           avatar: this.avatar,
           twitterHandle: this.twitterHandle,
           website: this.website,
-          description: this.description,
-          isOrganization: this.isOrganization,
           createdAt: this.createdAt,
           updatedAt: this.updatedAt
         };
@@ -207,8 +200,6 @@ module.exports = function(Sequelize, DataTypes) {
           avatar: this.avatar,
           name: this.name,
           website: this.website,
-          description: this.description,
-          isOrganization: this.isOrganization,
           twitterHandle: this.twitterHandle
         };
       }

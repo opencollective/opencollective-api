@@ -1,5 +1,4 @@
 const app = require('../index');
-const config = require('config');
 const Promise = require('bluebird');
 const models = app.set('models');
 const moment = require('moment-timezone');
