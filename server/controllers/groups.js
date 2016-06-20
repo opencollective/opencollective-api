@@ -190,8 +190,20 @@ module.exports = function(app) {
       return backers;
     }
 
+    const appendContributors = (group) => (backers) => {
+      if(group.data && group.data.githubContributors) {
+        const contributors = group.data.githubContributors;
+        const contributorsArray = [];
+        for(var i in contributors) {
+          contributorsArray.push({ name: i, totalContributions: contributors[i], tier: 'contributor' });
+        }
+      }
+      return _.union(backers, contributorsArray);
+    }
+
     return getUsersQuery(req.group.id)
       .then(appendTier)
+      .then(appendContributors(req.group))
       .then(backers => res.send(backers))
       .catch(next);
   };
