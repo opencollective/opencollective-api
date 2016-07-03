@@ -223,22 +223,16 @@ module.exports = function (app) {
       };
     },
 
-    authenticateUserOrAppByEncryptedCredentials: (req, res, next) => {
-      required('cred_enc')(req, res, (e) => {
+    authenticateAppByEncryptedApiKey: (req, res, next) => {
+      required('api_key_enc')(req, res, (e) => {
         if (e) return next(e);
-        const encryptedCred = req.required.cred_enc;
-        jwt.verify(encryptedCred, secret, (err, decoded) => {
+        const apiKeyEnc = req.required.api_key_enc;
+        jwt.verify(apiKeyEnc, secret, (err, decoded) => {
           if (err) {
             return next(new Unauthorized(err.message));
           }
           findApplicationByKey(decoded.apiKey)
             .tap(application => req.application = application)
-            .then(() => {
-              if (decoded.userId) {
-                return findUserById(decoded.userId)
-                  .then(user => req.remoteUser = user);
-              }
-            })
             .then(() => next())
             .catch(next);
         });
@@ -246,15 +240,13 @@ module.exports = function (app) {
     },
 
     authenticateService: (req, res, next) => {
-      const payload = { apiKey: req.application.api_key };
-      if (req.remoteUser) {
-        payload.userId = req.remoteUser.id;
-      }
-      const cred_enc = jwt.sign(payload, secret, { expiresIn: '1min' });
+      const apiKey = req.required.api_key;
+      const api_key_enc = jwt.sign({apiKey}, secret, { expiresIn: '1min' });
       const service = req.params.service;
       const utm_source = req.query.utm_source;
+      const slug = req.query.slug;
 
-      const params = qs.stringify({ cred_enc, utm_source });
+      const params = qs.stringify({ api_key_enc, utm_source, slug });
       const opts = {
         callbackURL: `${config.host.api}/connected-accounts/${service}/callback?${params}`
       };
@@ -300,15 +292,6 @@ module.exports = function (app) {
         }
         if (application.disabled) {
           throw new Forbidden('Application disabled');
-        }
-      });
-  }
-
-  function findUserById(userId) {
-    return User.findById(userId)
-      .tap(user => {
-        if (!user) {
-          throw new Unauthorized(`Invalid user ID: ${userId}`);
         }
       });
   }

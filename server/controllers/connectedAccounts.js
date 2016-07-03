@@ -11,55 +11,50 @@ module.exports = (app) => {
 
   return {
     createOrUpdate: (req, res, next, accessToken, profile, emails) => {
-      var caId, userPromise, user;
       const provider = req.params.service;
       const attrs = { provider };
-      const utmSource = req.query.utm_source;
 
       switch (provider) {
         case 'github':
+          var caId, user;
+          const utmSource = req.query.utm_source;
           const avatar = `http://avatars.githubusercontent.com/${profile.username}`;
           // TODO should simplify using findOrCreate but need to upgrade Sequelize to have this fix:
           // https://github.com/sequelize/sequelize/issues/4631
-          userPromise = User.findOne({ where: { email: { $in: emails.map(email => email.toLowerCase()) }}})
+          return User.findOne({ where: { email: { $in: emails.map(email => email.toLowerCase()) }}})
             .then(u => u || User.create({
               name: profile.displayName,
               avatar,
               email: emails[0]
-            }));
+            }))
+            .tap(u => user = u)
+            .tap(user => attrs.UserId = user.id)
+            .then(() => ConnectedAccount.findOne({ where: attrs }))
+            .then(ca => ca || ConnectedAccount.create(attrs))
+            .then(ca => {
+              caId = ca.id;
+              return ca.update({ username: profile.username, secret: accessToken });
+            })
+            .then(() => {
+              const token = user.generateConnectedAccountVerifiedToken(req.application, caId, profile.username);
+              res.redirect(`${config.host.website}/github/apply/${token}?utm_source=${utmSource}`);
+            })
+            .catch(next);
           break;
 
         case 'twitter':
-          if (!req.remoteUser) {
-            return next(new errors.BadRequest(`Need user to link ${profile.username} Twitter account`));
-          }
-          userPromise = Promise.resolve(req.remoteUser);
+          models.Group.findOne({where: { slug: req.query.slug }})
+            .tap(group => attrs.GroupId = group.id)
+            .then(() => ConnectedAccount.findOne({ where: attrs }))
+            .then(ca => ca || ConnectedAccount.create(attrs))
+            .then(ca => ca.update({ username: profile.username, secret: accessToken }))
+            .then(() => res.redirect(`${config.host.website}/${req.query.slug}`))
+            .catch(next);
           break;
 
         default:
           return next(new errors.BadRequest(`unsupported provider ${provider}`));
       }
-
-      return userPromise
-        .tap(u => user = u)
-        .tap(user => attrs.UserId = user.id)
-        .then(() => ConnectedAccount.findOne({ where: attrs }))
-        .then(ca => ca || ConnectedAccount.create(attrs))
-        .then(ca => {
-          caId = ca.id;
-          return ca.update({ username: profile.username, secret: accessToken });
-        })
-        .then(() => {
-          const token = user.generateConnectedAccountVerifiedToken(req.application, caId, profile.username);
-          var redirectUrl;
-          if (provider === 'github') {
-            redirectUrl = `${config.host.website}/github/apply/${token}?utm_source=${utmSource}`;
-          } else {
-            redirectUrl = `${config.host.website}/${user.username}`;
-          }
-          res.redirect(redirectUrl);
-        })
-        .catch(next);
     },
 
     get: (req, res, next) => {

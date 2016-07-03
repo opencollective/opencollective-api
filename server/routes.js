@@ -231,9 +231,8 @@ module.exports = (app) => {
   /**
    * Generic OAuth2 (ConnectedAccounts)
    */
-  app.get('/connected-accounts/:service(twitter)', aN.authenticateUserAndAppByJwt(), aN.authenticateService);
-  app.get('/connected-accounts/:service(github)', aN.authenticateAppByApiKey, aN.authenticateService);
-  app.get('/connected-accounts/:service/callback', aN.authenticateUserOrAppByEncryptedCredentials, aN.authenticateServiceCallback);
+  app.get('/connected-accounts/:service(github|twitter)', aN.authenticateAppByApiKey, aN.authenticateService);
+  app.get('/connected-accounts/:service/callback', aN.authenticateAppByEncryptedApiKey, aN.authenticateServiceCallback);
   app.get('/connected-accounts/:service/verify', aN.authenticateAppByApiKey, aN.parseJwtNoExpiryCheck, connectedAccounts.get);
 
   /**
