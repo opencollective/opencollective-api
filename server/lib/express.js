@@ -29,10 +29,10 @@ module.exports = function(app) {
   // Authentication
 
   passport.use(new GitHubStrategy(config.github,
-    (accessToken, refreshToken, profile, done) => done(null, accessToken, profile)));
+    (accessToken, refreshToken, profile, done) => done(null, accessToken, { profile })));
 
   passport.use(new TwitterStrategy(Object.assign({}, config.twitter, {session: false}),
-    (accessToken, tokenSecret, profile, done) => done(null, accessToken, profile)));
+    (accessToken, tokenSecret, profile, done) => done(null, accessToken, { tokenSecret, profile })));
 
   // TODO if prod load ramps up, configure 'store' (default: MemoryStore)
   app.use(session({ secret: 'my_precious', resave: true }));

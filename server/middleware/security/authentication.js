@@ -260,7 +260,7 @@ module.exports = function (app) {
 
     authenticateServiceCallback: (req, res, next) => {
       const service = req.params.service;
-      passport.authenticate(service, (err, accessToken, profile) => {
+      passport.authenticate(service, (err, accessToken, data) => {
         if (err) {
           return next(err);
         }
@@ -275,10 +275,10 @@ module.exports = function (app) {
             json: true
           })
             .then(json => json.map(entry => entry.email))
-            .then(emails => connectedAccounts.createOrUpdate(req, res, next, accessToken, profile, emails))
+            .then(emails => connectedAccounts.createOrUpdate(req, res, next, accessToken, data, emails))
             .catch(next);
         } else {
-          connectedAccounts.createOrUpdate(req, res, next, accessToken, profile);
+          connectedAccounts.createOrUpdate(req, res, next, accessToken, data);
         }
       })(req, res, next);
     }

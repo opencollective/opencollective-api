@@ -10,7 +10,7 @@ module.exports = (app) => {
 
 
   return {
-    createOrUpdate: (req, res, next, accessToken, profile, emails) => {
+    createOrUpdate: (req, res, next, accessToken, data, emails) => {
       const provider = req.params.service;
       const attrs = { provider };
 
@@ -18,12 +18,12 @@ module.exports = (app) => {
         case 'github':
           var caId, user;
           const utmSource = req.query.utm_source;
-          const avatar = `http://avatars.githubusercontent.com/${profile.username}`;
+          const avatar = `http://avatars.githubusercontent.com/${data.profile.username}`;
           // TODO should simplify using findOrCreate but need to upgrade Sequelize to have this fix:
           // https://github.com/sequelize/sequelize/issues/4631
           return User.findOne({ where: { email: { $in: emails.map(email => email.toLowerCase()) }}})
             .then(u => u || User.create({
-              name: profile.displayName,
+              name: data.profile.displayName,
               avatar,
               email: emails[0]
             }))
@@ -33,10 +33,10 @@ module.exports = (app) => {
             .then(ca => ca || ConnectedAccount.create(attrs))
             .then(ca => {
               caId = ca.id;
-              return ca.update({ username: profile.username, secret: accessToken });
+              return ca.update({ username: data.profile.username, secret: accessToken });
             })
             .then(() => {
-              const token = user.generateConnectedAccountVerifiedToken(req.application, caId, profile.username);
+              const token = user.generateConnectedAccountVerifiedToken(req.application, caId, data.profile.username);
               res.redirect(`${config.host.website}/github/apply/${token}?utm_source=${utmSource}`);
             })
             .catch(next);
@@ -47,7 +47,11 @@ module.exports = (app) => {
             .tap(group => attrs.GroupId = group.id)
             .then(() => ConnectedAccount.findOne({ where: attrs }))
             .then(ca => ca || ConnectedAccount.create(attrs))
-            .then(ca => ca.update({ username: profile.username, secret: accessToken }))
+            .then(ca => ca.update({
+              username: data.profile.username,
+              clientId: accessToken,
+              secret: data.tokenSecret
+            }))
             .then(() => res.redirect(`${config.host.website}/${req.query.slug}`))
             .catch(next);
           break;
