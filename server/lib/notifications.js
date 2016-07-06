@@ -27,9 +27,7 @@ module.exports = (Sequelize, activity) => {
             activity.type
           ],
           GroupId: activity.GroupId,
-          // for now, only handle gitter and slack webhooks in this lib
-          // TODO sdubois: move email + internal slack channels to this lib
-          channel: ['gitter', 'slack'],
+          channel: ['gitter', 'slack', 'twitter'],
           active: true
         }
       })
@@ -40,11 +38,12 @@ module.exports = (Sequelize, activity) => {
           return publishToGitter(activity, notifConfig);
         } else if (notifConfig.channel === 'slack') {
           return publishToSlack(activity, notifConfig.webhookUrl, {});
+        } else if (notifConfig.channel === 'twitter') {
+          return twitter.tweetActivity(Sequelize, activity);
         } else {
           return Promise.resolve();
         }
       }))
-    .then(() => twitter.tweetActivity(activity, Sequelize.models))
     .catch(err => {
       console.error(`Error while publishing activity type ${activity.type} for group ${activity.GroupId}`, err);
     });

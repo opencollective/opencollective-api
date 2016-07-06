@@ -2,17 +2,23 @@ const app = require('../index');
 const models = app.set('models');
 const _ = require('lodash');
 const roles = require('../server/constants/roles');
+const activityType = require('../server/constants/activities');
 const twitter = require('../server/lib/twitter');
 onlyExecuteInProdOn1stDayOfTheMonth();
 
 
-models.Group.findAll().map(group => getBackers(group)
-  .then(backers => {
-    if (backers.length > 0) {
-      const status = getStatus(backers);
-      if (status) {
-        return twitter.tweetStatus(models.ConnectedAccount, group.id, status);
-      }
+models.Group.findAll().map(group => getNotifConfig(group.id)
+  .then(notify => {
+    if (notify) {
+      return getBackers(group)
+        .then(backers => {
+          if (backers.length > 0) {
+            const status = getStatus(backers);
+            if (status) {
+              return twitter.tweetStatus(models.sequelize, group.id, status);
+            }
+          }
+        });
     }
   }))
 .then(() => {
@@ -29,6 +35,20 @@ function onlyExecuteInProdOn1stDayOfTheMonth() {
     console.log('NODE_ENV is production and it is not first day of the month, script aborted!');
     process.exit();
   }
+}
+
+function getNotifConfig(GroupId) {
+  return models.Notification.findOne({
+    where: {
+      type: [
+        activityType.ACTIVITY_ALL,
+        activityType.GROUP_MONTHLY
+      ],
+      GroupId,
+      channel: 'twitter',
+      active: true
+    }
+  });
 }
 
 function getBackers(group) {

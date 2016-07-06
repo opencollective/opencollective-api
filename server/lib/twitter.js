@@ -3,20 +3,20 @@ const Promise = require('bluebird');
 const Twitter = require('twitter');
 const activityType = require('../constants/activities');
 
-function tweetActivity(activity, models) {
+function tweetActivity(Sequelize, activity) {
   if (activity.type === activityType.GROUP_TRANSACTION_CREATED
     && activity.data.transaction.amount > 0
     // users without twitterHandle are ignored
     && activity.data.user.twitterHandle) {
       const status = `@${activity.data.user.twitterHandle} thanks for backing us!`;
-      return tweetStatus(models.ConnectedAccount, activity.GroupId, status);
+      return tweetStatus(Sequelize, activity.GroupId, status);
   } else {
     return Promise.resolve();
   }
 }
 
-function tweetStatus(ConnectedAccount, GroupId, status) {
-  return ConnectedAccount.findOne({
+function tweetStatus(Sequelize, GroupId, status) {
+  return Sequelize.models.ConnectedAccount.findOne({
     where: {
       GroupId,
       provider: 'twitter'
