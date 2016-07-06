@@ -4,7 +4,7 @@ const Promise = require('bluebird');
 
 const activitiesLib = require('../lib/activities');
 const slackLib = require('./slack');
-const tweet = require('./twitter');
+const twitter = require('./twitter');
 const activityType = require('../constants/activities');
 
 module.exports = (Sequelize, activity) => {
@@ -44,7 +44,7 @@ module.exports = (Sequelize, activity) => {
           return Promise.resolve();
         }
       }))
-    .then(() => tweet(activity, Sequelize.models))
+    .then(() => twitter.tweetActivity(activity, Sequelize.models))
     .catch(err => {
       console.error(`Error while publishing activity type ${activity.type} for group ${activity.GroupId}`, err);
     });
