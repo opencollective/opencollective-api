@@ -5,7 +5,8 @@ const _ = require('lodash');
 const groupBy = require('lodash/collection/groupBy');
 const async = require('async');
 const userlib = require('../lib/userlib');
-const generateURLSafeToken = require('../lib/utils').generateURLSafeToken;
+const utils = require('../lib/utils');
+const generateURLSafeToken = utils.generateURLSafeToken;
 const imageUrlToAmazonUrl = require('../lib/imageUrlToAmazonUrl');
 const constants = require('../constants/activities');
 const roles = require('../constants/roles');
@@ -25,7 +26,6 @@ module.exports = (app) => {
   const UserGroup = models.UserGroup;
   const sendEmail = require('../lib/email')(app).send;
   const errors = app.errors;
-  const groupsController = require('./groups')(app);
 
   /**
    *
@@ -319,15 +319,24 @@ module.exports = (app) => {
             return Promise.all([
               group.getYearlyIncome(),
               new Promise((resolve, reject) => {
-                groupsController.getUsers({group: group}, {send: resolve}, reject);
+                const appendTier = (backers) => {
+                  backers = backers.map((backer) => {
+                    backer.tier = utils.getTier(backer, group.tiers);
+                    return backer;
+                  });
+                  return backers;
+                }
+
+                User.getAllBelongingToGroupById(group.id)
+                  .then(appendTier)
+                  .then(resolve)
+                  .catch(reject);
               })
             ])
             .then(values => {
               var groupInfo = group.info;
               groupInfo.yearlyIncome = values[0];
               var usersByRole = groupBy(values[1], 'role');
-              groupInfo.hosts = usersByRole[roles.HOST] || [];
-              groupInfo.members = usersByRole[roles.MEMBER] || [];
               groupInfo.backers = usersByRole[roles.BACKER] || [];
               groupInfo = Object.assign(groupInfo, { role: group.UserGroup.role, createdAt: group.UserGroup.createdAt });
               groupInfoArray.push(groupInfo);
@@ -336,11 +345,10 @@ module.exports = (app) => {
           }))
         })
         .then(groups => UserGroup.findAll({
-            where: { GroupId: { $in: groups.map(g => g.id) } },
-            attributes: ['GroupId', [ sequelize.fn('count', sequelize.col('GroupId')), 'members' ]],
-            group: ['GroupId']
-          })
-        )
+          where: { GroupId: { $in: groups.map(g => g.id) } },
+          attributes: ['GroupId', [ sequelize.fn('count', sequelize.col('GroupId')), 'members' ]],
+          group: ['GroupId']
+        }))
         .tap(counts => {
           const membersByGroupId = {};
           counts.map(g => { membersByGroupId[parseInt(g.GroupId,10)] = parseInt(g.dataValues.members, 10); } );

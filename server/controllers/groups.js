@@ -16,6 +16,7 @@ module.exports = function(app) {
    */
   const errors = app.errors;
   const models = app.set('models');
+  const sequelize = models.sequelize;
   const Activity = models.Activity;
   const Notification = models.Notification;
   const Group = models.Group;
@@ -547,7 +548,28 @@ module.exports = function(app) {
    * Get leaderboard of collectives
    */
   const getLeaderboard = (req, res, next) => {
-    queries.getLeaderboard()
+
+    return sequelize.query(`
+      SELECT
+        MAX(g.name) as name,
+        COUNT(t.id) as "donationsCount",
+        SUM(amount) as "totalAmount",
+        MAX(g.currency) as currency,
+        to_char(MAX(t."createdAt"), 'Month DD') as "latestDonation",
+        MAX(g.slug) as slug,
+        MAX(g.logo) as logo,
+        ${utils.generateFXConversionSQL()}
+      FROM "Transactions" t
+      LEFT JOIN "Groups" g ON g.id = t."GroupId"
+      WHERE t."createdAt" > current_date - INTERVAL '30' day
+        AND t.amount > 0
+        AND t."UserId"
+        NOT IN (10,39,40,43,45,46)
+      GROUP BY t."GroupId"
+      ORDER BY "amountInUSD" DESC`,
+    {
+      type: sequelize.QueryTypes.SELECT
+    })
     .then(groups => res.send(groups))
     .catch(next);
   };
