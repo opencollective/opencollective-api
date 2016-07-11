@@ -26,6 +26,7 @@ module.exports = (app) => {
   const UserGroup = models.UserGroup;
   const sendEmail = require('../lib/email')(app).send;
   const errors = app.errors;
+  const queries = require('../lib/queries')(app);
 
   /**
    *
@@ -327,7 +328,7 @@ module.exports = (app) => {
                   return backers;
                 }
 
-                User.getAllBelongingToGroupById(group.id)
+                queries.getUsersFromGroupWithTotalDonations(group.id)
                   .then(appendTier)
                   .then(resolve)
                   .catch(reject);
