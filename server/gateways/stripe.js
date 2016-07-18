@@ -49,7 +49,6 @@ const getSubscriptionsList = (stripeAccount, limit) => {
   if (!limit) {
     limit = 10;
   }
-  console.log("reached subscription list");
   return client(stripeAccount).subscriptions.list({ limit });
 }
 
