@@ -12,58 +12,61 @@ const done = (err) => {
 var message = [];
 
 // replace with real values
-const OLD_STRIPE_ACCOUNT_ID = 3; // from StripeAccounts table
+const OLD_STRIPE_ACCOUNT_ID = 4; // from StripeAccounts table
 const NEW_STRIPE_ACCOUNT_ID = 2; // from StripeAccounts table
 
 var oldStripeAccount = null;
 var newStripeAccount = null;
+var currentOCSubscription;
 
 return models.StripeAccount.findById(OLD_STRIPE_ACCOUNT_ID)
-.tap(stripeAccount => oldStripeAccount = stripeAccount) // store old stripe account
+.tap(oldStripeAccount => oldStripeAccount = oldStripeAccount) // store old stripe account
 .then(() => models.StripeAccount.findById(NEW_STRIPE_ACCOUNT_ID))
-.tap(stripeAccount => newStripeAccount = stripeAccount) // store new stripe account
+.tap(newStripeAccount => newStripeAccount = newStripeAccount) // store new stripe account
+
 // fetch all active subscriptions for this account
-.then(() => stripeGateway.getSubscriptionsList(oldStripeAccount, 10)) // get one at a time for now
-.tap(stripeSubscriptionList => {
-  console.log("Subscriptions fetched: ", stripeSubscriptionList.data.length);
+.then(() => stripeGateway.getSubscriptionsList(oldStripeAccount, 1)) // get one at a time for now
+.then(oldStripeSubscriptionList => {
+  console.log("Subscriptions fetched: ", oldStripeSubscriptionList.data.length);
+  return oldStripeSubscriptionList.data;
 })
-.each(stripeSubscription => {
+.each(oldStripeSubscription => {
   console.log("---OLD SUBSCRIPTION----");
-  console.log(stripeSubscription);
-  console.log("---END OLD SUBSCRIPTION---");
+  console.log(oldStripeSubscription);
+  console.log("---END OLD SUBSCRIPTION---\n");
 
   // create or get a plan
   const plan = {
-    interval: stripeSubscription.plan.interval,
-    amount: stripeSubscription.plan.amount,
-    currency: stripeSubscription.plan.currency
+    interval: oldStripeSubscription.plan.interval,
+    amount: oldStripeSubscription.plan.amount,
+    currency: oldStripeSubscription.plan.currency
   }
 
   // make sure that this subscription id is in our database
-  return models.Subscription.find({stripeSubscriptionId: stripeSubscription.id})
+  return models.Subscription.find({where: {stripeSubscriptionId: oldStripeSubscription.id}})
     .then(ocSubscription => {
       if (ocSubscription && ocSubscription.isActive) {
         console.log("Subscription found in our DB: ", ocSubscription.id);
+        currentOCSubscription = ocSubscription;
       } else {
-        throw new Error("Subscription not found in our DB: ", stripeSubscription);
+        throw new Error("Subscription not found in our DB: ", oldStripeSubscription);
       }
     })
-    // make sure the new customer is on the new account
-    .then(() => stripeGateway.retrieveCustomer(newStripeAccount, stripeSubscription.customer))
+
+    // make sure this customer is on the new stripe account
+    .then(() => stripeGateway.retrieveCustomer(newStripeAccount, oldStripeSubscription.customer))
     .then(customer => {
       if (customer) {
         console.log("Customer found: ", customer.id);
       } else {
         throw new Error("Customer not found in new account");
       }
-      if (customer.default_source) {
-        console.log("Payment Method found: ", customer.default_source);
-      } else {
-        throw new Error("No payment method for this customer");
-      }
     })
+
     // start setting up the new subscription
     .then(() => stripeGateway.getOrCreatePlan(newStripeAccount, plan))
+
+    // add a new subscription
     .then(plan => {
       const subscription = {
         // carryover fields
@@ -81,10 +84,19 @@ return models.StripeAccount.findById(OLD_STRIPE_ACCOUNT_ID)
     })
     .tap(console.log)
 
-    // delete the old subscription
-    .then(() => stripeGateway.cancelSubscription(oldStripeAccount, stripeSubscription.id))
+    // store the new stripeSubscription info in our table
+    .then(newStripeSubscription => {
+      const oldData = currentOCSubscription.data;
+
+      return currentOCSubscription.updateAttributes({
+        data: Object.assign({}, newStripeSubscription, { oldData }),
+        stripeSubscriptionId: newStripeSubscription.id
+      });
+    })
+    // delete the old subscription from stripe
+    .then(() => stripeGateway.cancelSubscription(oldStripeAccount, oldStripeSubscription.id))
     .catch(err => {
-      console.log("ERROR: ", err, stripeSubscription)
+      console.log("ERROR: ", err, oldStripeSubscription)
       return;
     });
 })
@@ -128,28 +140,4 @@ models.sequelize.query(`
 
   order by d."GroupId""
 `)
-*/
-
-/*
-.each(ocSubscription => {
-  return stripeGateway.retrieveSubscription(
-      oldStripeAccount.accessToken,
-      ocSubscription.customerId,
-      ocSubscription.stripeSubscriptionId)
-    .then(stripeSubscription) => {
-      console.log(stripeSubscription.id)
-      subscriptionsList.push(stripeSubscription);
-    }
-    .catch(err => {
-      console.log("ERROR: ", err, subscription)
-      return;
-    });
-*/
-/*  return stripeClient.customers.retrieveSubscription(
-      subscription.customerId,
-      subscription.stripeSubscriptionId)
-    .then(stripeSubscription => {
-      console.log(stripeSubscription.id)
-      subscriptionsList.push(stripeSubscription);
-    })
 */

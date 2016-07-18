@@ -20,7 +20,7 @@ const getOrCreatePlan = (stripeAccount, plan) => {
 
   return stripeClient.plans.retrieve(plan.id)
     .catch((err) => {
-      if (err.type === 'StripeInvalidRequest' && _.contains(err.message, 'No such plan')) {
+      if (err.type === 'StripeInvalidRequestError' && _.contains(err.message, 'No such plan')) {
         return stripeClient.plans.create(plan);
       }
 
