@@ -36,6 +36,31 @@ const createSubscription = (stripeAccount, customerId, subscription) => {
 };
 
 /**
+ * Retrieve stripe subscription
+ */
+const retrieveSubscription = (stripeAccount, customerId, stripeSubsriptionId) => {
+  return client(stripeAccount).customers.retreiveSubscription(customerId, stripeSubsriptionId);
+}
+
+/**
+ * Get all subscriptions
+ */
+const getSubscriptionsList = (stripeAccount, limit) => {
+  if (!limit) {
+    limit = 10;
+  }
+  console.log("reached subscription list");
+  return client(stripeAccount).subscriptions.list({ limit });
+}
+
+/**
+ * Delete a subscription
+ */
+const cancelSubscription = (stripeAccount, stripeSubscriptionId) => {
+  return client(stripeAccount).subscriptions.del(stripeSubscriptionId);
+}
+
+/**
  * Create stripe customer
  */
 const createCustomer = (stripeAccount, token, options) => {
@@ -48,6 +73,13 @@ const createCustomer = (stripeAccount, token, options) => {
     email
   });
 };
+
+/**
+ * Fetch customer
+ */
+const retrieveCustomer = (stripeAccount, customerId) => {
+  return client(stripeAccount).customers.retrieve(customerId);
+}
 
 /**
  * Create charge
@@ -86,8 +118,12 @@ const extractFees = (balance) => {
 module.exports = {
   getOrCreatePlan,
   createSubscription,
+  retrieveSubscription,
+  getSubscriptionsList,
+  cancelSubscription,
   createCharge,
   createCustomer,
+  retrieveCustomer,
   retrieveBalanceTransaction,
   extractFees
 };
