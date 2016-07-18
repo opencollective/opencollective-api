@@ -12,17 +12,17 @@ const done = (err) => {
 var message = [];
 
 // replace with real values
-const OLD_STRIPE_ACCOUNT_ID = 4; // from StripeAccounts table
-const NEW_STRIPE_ACCOUNT_ID = 2; // from StripeAccounts table
+const OLD_STRIPE_ACCOUNT_ID = 5; // from StripeAccounts table
+const NEW_STRIPE_ACCOUNT_ID = 23; // from StripeAccounts table
 
 var oldStripeAccount = null;
 var newStripeAccount = null;
 var currentOCSubscription;
 
 return models.StripeAccount.findById(OLD_STRIPE_ACCOUNT_ID)
-.tap(oldStripeAccount => oldStripeAccount = oldStripeAccount) // store old stripe account
+.tap(stripeAccount => oldStripeAccount = stripeAccount) // store old stripe account
 .then(() => models.StripeAccount.findById(NEW_STRIPE_ACCOUNT_ID))
-.tap(newStripeAccount => newStripeAccount = newStripeAccount) // store new stripe account
+.tap(stripeAccount => newStripeAccount = stripeAccount) // store new stripe account
 
 // fetch all active subscriptions for this account
 .then(() => stripeGateway.getSubscriptionsList(oldStripeAccount, 1)) // get one at a time for now
