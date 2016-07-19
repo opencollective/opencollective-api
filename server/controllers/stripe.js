@@ -1,11 +1,11 @@
 /**
  * Dependencies.
  */
-var axios = require('axios');
-var qs = require('querystring');
-var config = require('config');
+const axios = require('axios');
+const qs = require('querystring');
+const config = require('config');
 
-var roles = require('../constants/roles');
+const roles = require('../constants/roles');
 
 /**
  * Controller.
@@ -57,7 +57,7 @@ module.exports = function(app) {
   const authorize = (req, res, next) => {
     checkIfUserIsHost(req.remoteUser.id)
       .then(() => {
-        var params = qs.stringify({
+        const params = qs.stringify({
           response_type: 'code',
           scope: 'read_write',
           client_id: config.stripe.clientId,
@@ -76,13 +76,13 @@ module.exports = function(app) {
    * Callback for the stripe OAuth
    */
   const callback = (req, res, next) => {
-    var UserId = req.query.state;
+    const UserId = req.query.state;
 
     if (!UserId) {
       return next(new errors.BadRequest('No state in the callback'));
     }
 
-    var host;
+    let host;
     checkIfUserIsHost(UserId)
       .then(() => models.User.findById(UserId))
       .tap(h => host = h)

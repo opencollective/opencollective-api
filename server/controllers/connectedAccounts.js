@@ -16,7 +16,7 @@ module.exports = (app) => {
 
       switch (provider) {
         case 'github':
-          var caId, user;
+          let caId, user;
           const utmSource = req.query.utm_source;
           const avatar = `http://avatars.githubusercontent.com/${data.profile.username}`;
           // TODO should simplify using findOrCreate but need to upgrade Sequelize to have this fix:
