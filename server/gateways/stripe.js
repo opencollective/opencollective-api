@@ -24,6 +24,7 @@ const getOrCreatePlan = (stripeAccount, plan) => {
         return stripeClient.plans.create(plan);
       }
 
+      console.log(err);
       return Promise.reject(err);
     });
 }
@@ -39,7 +40,7 @@ const createSubscription = (stripeAccount, customerId, subscription) => {
  * Retrieve stripe subscription
  */
 const retrieveSubscription = (stripeAccount, customerId, stripeSubsriptionId) => {
-  return client(stripeAccount).customers.retreiveSubscription(customerId, stripeSubsriptionId);
+  return client(stripeAccount).customers.retrieveSubscription(customerId, stripeSubsriptionId);
 }
 
 /**
