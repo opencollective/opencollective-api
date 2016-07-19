@@ -107,8 +107,7 @@ module.exports = (app) => {
               user.avatar = error ? user.avatar : aws_src;
               cb(null, user);
             });
-          }
-          else {
+          } else {
             cb(null, user);
           }
         })
@@ -314,7 +313,7 @@ module.exports = (app) => {
           })
           .catch(next);
       } else if (req.query.profile) {
-        var groupInfoArray = []
+        const groupInfoArray = []
         req.user.getGroups()
         .then(groups => {
           return Promise.all(groups.map(group => {
@@ -336,9 +335,9 @@ module.exports = (app) => {
               })
             ])
             .then(values => {
-              var groupInfo = group.info;
+              let groupInfo = group.info;
               groupInfo.yearlyIncome = values[0];
-              var usersByRole = groupBy(values[1], 'role');
+              const usersByRole = groupBy(values[1], 'role');
               groupInfo.backers = usersByRole[roles.BACKER] || [];
               groupInfo = Object.assign(groupInfo, { role: group.UserGroup.role, createdAt: group.UserGroup.createdAt });
               groupInfoArray.push(groupInfo);
@@ -353,13 +352,14 @@ module.exports = (app) => {
         }))
         .tap(counts => {
           const membersByGroupId = {};
-          counts.map(g => { membersByGroupId[parseInt(g.GroupId,10)] = parseInt(g.dataValues.members, 10); } );
+          counts.map(g => {
+            membersByGroupId[parseInt(g.GroupId,10)] = parseInt(g.dataValues.members, 10);
+          });
           userData.groups = groupInfoArray.map(g => Object.assign(g, { members: membersByGroupId[parseInt(g.id, 10)] }));
           res.send(userData);
         })
         .catch(next);
-      }
-      else {
+      } else {
         res.send(userData);
       }
     },
@@ -375,8 +375,8 @@ module.exports = (app) => {
         include: []
       };
 
-      var groupObjects; // stores sequelize objects
-      var groupData = []; // stores data to return
+      let groupObjects; // stores sequelize objects
+      const groupData = []; // stores data to return
 
       return getGroupsFromUser(req, options)
       .tap(groups => groupObjects = groups)
@@ -410,7 +410,7 @@ module.exports = (app) => {
         return next(new Unauthorized('Invalid payload'));
       }
 
-      var redirect;
+      let redirect;
       if (req.body.redirect) {
         redirect = req.body.redirect;
       } else {
@@ -432,7 +432,7 @@ module.exports = (app) => {
       if (!req.application || !req.required.email) {
         return next(new Unauthorized('Unauthorized'))
       }
-      var redirect;
+      let redirect;
       if (req.body.redirect) {
         redirect = req.body.redirect;
       } else {

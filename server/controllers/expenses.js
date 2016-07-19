@@ -52,7 +52,7 @@ module.exports = (app) => {
    */
   const list = (req, res, next) => {
 
-    var query = Object.assign({
+    const query = Object.assign({
       where: { GroupId: req.group.id },
       order: [[req.sorting.key, req.sorting.dir]]
     }, req.pagination);
@@ -119,7 +119,7 @@ module.exports = (app) => {
 
   const setApprovalStatus = (req, res, next) => {
     const expense = req.expense;
-    var preapprovalDetails;
+    let preapprovalDetails;
 
     assertExpenseStatus(expense, status.PENDING)
       .then(() => {
@@ -133,8 +133,7 @@ module.exports = (app) => {
             .then(checkIfEnoughFunds(expense))
             .then(() => expense.setApproved())
             .tap(expense => createActivity(expense, activities.GROUP_EXPENSE_APPROVED))
-        }
-        else {
+        } else {
            return models.UserGroup.findOne({
             where: {
               GroupId: expense.GroupId,
@@ -204,7 +203,7 @@ module.exports = (app) => {
     const expense = req.expense;
     const payoutMethod = req.expense.payoutMethod;
     const isManual = !includes(models.PaymentMethod.payoutMethods, payoutMethod);
-    var paymentMethod, email, paymentResponse;
+    let paymentMethod, email, paymentResponse;
 
     assertExpenseStatus(expense, status.APPROVED)
       .then(() => isManual ? null : getPaymentMethod())
@@ -285,7 +284,7 @@ module.exports = (app) => {
     if (paypalResponse) {
       console.error('PayPal error', JSON.stringify(paypalResponse));
       if (paypalResponse.error instanceof Array) {
-        var message = paypalResponse.error[0].message;
+        const message = paypalResponse.error[0].message;
         return new errors.BadRequest(message);
       }
     }

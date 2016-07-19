@@ -7,10 +7,10 @@ module.exports = function(app) {
   * Hacky way to do currency conversion on Leaderboard
   */
   const generateFXConversionSQL = (aggregate) => {
-    var currencyColumn = "currency";
-    var amountColumn = "amount";
+    let currencyColumn = "currency";
+    let amountColumn = "amount";
     
-    if(aggregate) {
+    if (aggregate) {
       currencyColumn = 'MAX(g.currency)';
       amountColumn = 'SUM("amount")';
     }
@@ -27,7 +27,7 @@ module.exports = function(app) {
       ['CAD', 1.3]
     ];
 
-    var sql = 'CASE ';
+    let sql = 'CASE ';
     sql += fxConversion.map(currency => `WHEN ${currencyColumn} = '${currency[0]}' THEN ${amountColumn} / ${currency[1]}`).join('\n');
     sql += 'ELSE 0 END';
 

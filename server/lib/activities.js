@@ -9,19 +9,19 @@ module.exports = {
    */
   formatMessageForPrivateChannel: (activity, format) => {
 
-    var userString = '';
-    var userId;
-    var groupName = '';
-    var publicUrl = '';
-    var amount = null;
-    var interval = '';
-    var recurringAmount = null;
-    var currency = '';
-    var description = '';
-    var eventType = '';
-    var provider = '';
-    var connectedAccountUsername = '';
-    var connectedAccountLink = '';
+    let userString = '';
+    let userId;
+    let groupName = '';
+    let publicUrl = '';
+    let amount = null;
+    let interval = '';
+    let recurringAmount = null;
+    let currency = '';
+    let description = '';
+    let eventType = '';
+    let provider = '';
+    let connectedAccountUsername = '';
+    const connectedAccountLink = '';
 
 
     // get user data
@@ -81,7 +81,7 @@ module.exports = {
       eventType = activity.data.event.type;
     }
 
-    var group = linkify(format, publicUrl, groupName);
+    const group = linkify(format, publicUrl, groupName);
 
     switch (activity.type) {
 
@@ -134,18 +134,18 @@ module.exports = {
    */
   formatMessageForPublicChannel: (activity, format) => {
 
-    var userString = '';
-    var groupName = '';
-    var publicUrl = '';
-    var amount = null;
-    var interval = '';
-    var recurringAmount = null;
-    var currency = '';
-    var tags = [];
-    var description = '';
-    var userTwitter = '';
-    var groupTwitter = '';
-    var tweet = '';
+    let userString = '';
+    let groupName = '';
+    let publicUrl = '';
+    let amount = null;
+    let interval = '';
+    let recurringAmount = null;
+    let currency = '';
+    let tags = [];
+    let description = '';
+    let userTwitter = '';
+    let groupTwitter = '';
+    let tweet = '';
 
     // get user data
     if (activity.data.user) {
@@ -182,7 +182,7 @@ module.exports = {
       description = activity.data.transaction.description;
     }
 
-    var tweetLink, tweetThis = '';
+    let tweetLink, tweetThis = '';
 
     // get expense data
     if (activity.data.expense) {
@@ -192,7 +192,7 @@ module.exports = {
       title = activity.data.expense.title;
     }
 
-    var group;
+    let group;
     if (linkify) {
       group = linkify(format, publicUrl, groupName);
     } else {
@@ -204,7 +204,7 @@ module.exports = {
       case activities.GROUP_TRANSACTION_CREATED:
 
         if (activity.data.transaction.isDonation) {
-          if(userTwitter) {
+          if (userTwitter) {
             tweet = encodeURIComponent(`@${userTwitter} thanks for your ${currencies[currency](recurringAmount)} donation to ${groupTwitter ? `@${groupTwitter}` : groupName} 👍 ${publicUrl}`);
             tweetLink = linkify(format, `https://twitter.com/intent/tweet?status=${tweet}`,"Thank that person on Twitter");
             tweetThis = ` [${tweetLink}]`;
@@ -228,7 +228,7 @@ module.exports = {
         return `Expense paid on ${group}: ${currency} ${amount} for '${description}'`;
 
       case activities.SUBSCRIPTION_CONFIRMED:
-        if(userTwitter) {
+        if (userTwitter) {
           tweet = encodeURIComponent(`@${userTwitter} thanks for your ${currencies[currency](recurringAmount)} donation to ${groupTwitter ? `@${groupTwitter}` : groupName} 👍 ${publicUrl}`);
           tweetLink = linkify(format, `https://twitter.com/intent/tweet?status=${tweet}`,"Thank that person on Twitter");
           tweetThis = ` [${tweetLink}]`;
@@ -256,7 +256,7 @@ module.exports = {
  * Generates a url for Slack
  */
 const linkify = (format, link, text) => {
-  switch(format) {
+  switch (format) {
     case 'slack':
       if (link && !text) {
         text = link;
@@ -280,7 +280,7 @@ const getUserString = (format, user, includeEmail) => {
   const userString = user.name || user.twitterHandle || 'someone';
   const link = user.twitterHandle ? `https://twitter.com/${user.twitterHandle}` : user.website;
 
-  var returnVal;
+  let returnVal;
   if (link) {
     returnVal = linkify(format, link, userString);
   } else {

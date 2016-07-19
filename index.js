@@ -4,7 +4,7 @@
 
 const express = require('express');
 
-var NODE_ENV = process.env.NODE_ENV;
+let NODE_ENV = process.env.NODE_ENV;
 const app = express();
 
 if (!NODE_ENV) {
