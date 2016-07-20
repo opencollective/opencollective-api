@@ -19,16 +19,15 @@ module.exports = function(app) {
           tags: { $contains: [tag] }
         },
         order: [['updatedAt', 'DESC']],
-        limit: 6
+        limit: 3
       })
     };
 
     const getGroupsByTagForCollectiveCard = (tags) => {
       return new Promise((resolve, reject) => {
-        getGroupsByTag(tags)
+        queries.getTopGroups(tags)
         .then(groups => {
           return Promise.all(groups.map(group => {
-
             const appendTier = backers => {
               backers = backers.map(backer => {
                 backer.tier = utils.getTier(backer, group.tiers);
