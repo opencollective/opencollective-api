@@ -55,7 +55,7 @@ module.exports = function(app) {
       )
       SELECT g.id, g.name, g.slug, g.mission, g.logo, t."totalDonations", t.currency, t.collectives
       FROM "totalDonations" t LEFT JOIN "Groups" g ON t."GroupId" = g.id
-      WHERE t."totalDonations" > 100 AND g.tags @> $tag
+      WHERE t."totalDonations" > 100 AND g.tags @> $tag AND g."deletedAt" IS NULL
       ORDER BY "totalDonations" DESC LIMIT 3
     `, {
       bind: { tag: [tag] },
