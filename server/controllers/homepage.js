@@ -12,17 +12,6 @@ module.exports = function(app) {
 
   return (req, res, next) => {
 
-    const getGroupsByTag = (tag) => {
-      return models.Group.findAll({
-        where: {
-          isPublic: true,
-          tags: { $contains: [tag] }
-        },
-        order: [['updatedAt', 'DESC']],
-        limit: 3
-      })
-    };
-
     const getGroupsByTagForCollectiveCard = (tags) => {
       return new Promise((resolve, reject) => {
         queries.getTopGroups(tags)
