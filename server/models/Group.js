@@ -379,9 +379,9 @@ module.exports = function(Sequelize, DataTypes) {
         return settings.twitter;
       },
 
-      getRelatedGroups(number) {
-        number = number || 3
-        return Group.getGroupsSummaryByTag(this.tags, number, [this.id]);
+      getRelatedGroups(limit) {
+        limit = limit || 3
+        return Group.getGroupsSummaryByTag(this.tags, limit, [this.id]);
       },
 
       hasHost() {
