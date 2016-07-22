@@ -342,7 +342,7 @@ module.exports = (app) => {
               const usersByRole = groupBy(results[1], 'role');
               const backers = usersByRole[roles.BACKER] || [];
               groupInfo.backersAndSponsorsCount = backers.length;
-              groupInfo.sponsorsCount = backers && filter(values(backers), {tier: 'sponsor'}).length;
+              groupInfo.sponsorsCount = filter(values(backers), {tier: 'sponsor'}).length;
               groupInfo.backersCount = groupInfo.backersAndSponsorsCount - groupInfo.sponsorsCount;
               groupInfo = Object.assign(groupInfo, { role: group.UserGroup.role, createdAt: group.UserGroup.createdAt });
               groupInfoArray.push(groupInfo);

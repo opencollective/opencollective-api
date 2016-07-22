@@ -424,8 +424,8 @@ module.exports = function(Sequelize, DataTypes) {
                   const usersByRole = groupBy(results[1], 'role');
                   const backers = usersByRole[roles.BACKER] || [];
                   groupInfo.backersAndSponsorsCount = backers.length;
-                  groupInfo.membersCount = (usersByRole[roles.MEMBER]).length || 0;
-                  groupInfo.sponsorsCount = backers && filter(values(backers), {tier: 'sponsor'}).length;
+                  groupInfo.membersCount = (usersByRole[roles.MEMBER] || []).length;
+                  groupInfo.sponsorsCount = filter(values(backers), {tier: 'sponsor'}).length;
                   groupInfo.backersCount = groupInfo.backersAndSponsorsCount - groupInfo.sponsorsCount;
                   return groupInfo;
                 });
