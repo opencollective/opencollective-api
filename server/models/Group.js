@@ -383,7 +383,7 @@ module.exports = function(Sequelize, DataTypes) {
 
       getRelatedGroups(limit) {
         limit = limit || 3
-        return Group.getGroupsSummaryByTag(this.tags, limit, [this.id])
+        return Group.getGroupsSummaryByTag(this.tags, limit, [this.id]);
       },
 
       hasHost() {
