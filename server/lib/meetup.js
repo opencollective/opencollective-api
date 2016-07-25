@@ -1,9 +1,7 @@
-const request = require('request');
 const filter = require('lodash/collection/filter');
 const values = require('lodash/object/values');
 const errors = require('../lib/errors');
-const Promise = require('bluebird');
-const requestPromise = Promise.promisify(request, {multiArgs: true});
+const requestPromise = require('request-promise');
 
 class Meetup {
 
@@ -44,17 +42,14 @@ class Meetup {
     const descriptionHeader = this.makeHeadersForTier('sponsor');
 
     const promises = [];
-    return requestPromise(reqopt).then(result => {
-      const meetups = result[1];
+    return requestPromise(reqopt).then(meetups => {
       for (var i=0;i<meetups.length;i++) {
         var meetup = meetups[i];
         if (!meetup.description.match(new RegExp(`^${descriptionHeader.substr(0, 50)}`))) {
           promises.push(this.updateMeetupDescription(meetup.id, `${descriptionHeader}\n ${meetup.description}`));
         }
       }
-      return Promise.all(promises).then(results => {
-        return results.map((r) => r[1]);
-      });
+      return Promise.all(promises);
     });
 
 
