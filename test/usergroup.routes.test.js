@@ -383,10 +383,11 @@ describe('usergroup.routes.test.js', () => {
         .expect(200)
         .expect((res) => {
           const users = res.body;
+          users.sort((a,b) => a.id - b.id);
           expect(users[0].tier).to.equal('host');
           expect(users[1].tier).to.equal('contributor');
-          expect(users[2].tier).to.equal('sponsor');
-          expect(users[3].tier).to.equal('backer');
+          expect(users[2].tier).to.equal('backer');
+          expect(users[3].tier).to.equal('sponsor');
         })
         .end(done);
     });
@@ -398,10 +399,11 @@ describe('usergroup.routes.test.js', () => {
         .expect((res) => {
           const users = res.text.split('\n').slice(1);
           expect(users.length).to.equal(4);
+          users.sort((a,b) => parseInt(a.substr(0,1),10) - parseInt(b.substr(0,1),10));
           expect(users[0].split(",")[8]).to.equal('"host"');
           expect(users[1].split(",")[8]).to.equal('"contributor"');
-          expect(users[2].split(",")[8]).to.equal('"sponsor"');
-          expect(users[3].split(",")[8]).to.equal('"backer"');
+          expect(users[2].split(",")[8]).to.equal('"backer"');
+          expect(users[3].split(",")[8]).to.equal('"sponsor"');
         })
         .end(done);
     });
