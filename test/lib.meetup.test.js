@@ -2,8 +2,6 @@ const Meetup = require('../server/lib/meetup');
 const expect = require('chai').expect;
 const nock = require('nock');
 
-require('./mocks/meetup.nock.js');
-
 // nock.recorder.rec();
 
 const group = {
@@ -28,6 +26,14 @@ const group = {
 };
 
 describe('meetup lib', () => {
+
+  before(() => {
+    require('./mocks/meetup.nock.js');
+  });
+
+  after(() => {
+    nock.cleanAll();
+  });
 
   it("syncCollective fails if no api key set", () => {
     const meetup = new Meetup({settings: {}});
