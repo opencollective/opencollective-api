@@ -37,8 +37,8 @@ describe('meetup lib', () => {
   });
 
   it("syncCollective fails if no api key set", () => {
-    const meetup = new Meetup({settings: {}});
-    meetup.syncCollective().catch(e => {
+    const meetup = new Meetup();
+    meetup.catch(e => {
       expect(e).to.exist;
       expect(e.code).to.equal(400);
     });
