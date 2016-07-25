@@ -5,9 +5,15 @@ const requestPromise = require('request-promise');
 
 class Meetup {
 
-  constructor(group) {
+  constructor(meetupAccount, group) {
+    if (!meetupAccount || !meetupAccount.secret)
+      return Promise.reject(new errors.ValidationFailed("url or api_key for meetup.com missing in the group's settings"));
+
     this.group = group;
-    this.settings = group.settings.meetup || {};
+    this.settings = {
+      api_key: meetupAccount.secret,
+      slug: meetupAccount.username
+    };
   }
 
   makeHeadersForTier(tiername) {
@@ -29,10 +35,10 @@ class Meetup {
 
   syncCollective() {
 
-    if (!this.settings.url || !this.settings.api_key)
+    if (!this.settings.api_key)
       return Promise.reject(new errors.ValidationFailed("url or api_key for meetup.com missing in the group's settings"));
 
-    const urlname = this.settings.url.match(/\.com\/([^\/]+)/)[1];
+    const urlname = this.settings.slug;
 
     const reqopt = {
       url: `http://api.meetup.com/${urlname}/events?key=${this.settings.api_key}`,
@@ -42,16 +48,20 @@ class Meetup {
     const descriptionHeader = this.makeHeadersForTier('sponsor');
 
     const promises = [];
-    return requestPromise(reqopt).then(meetups => {
-      for (var i=0;i<meetups.length;i++) {
-        var meetup = meetups[i];
-        if (!meetup.description.match(new RegExp(`^${descriptionHeader.substr(0, 50)}`))) {
-          promises.push(this.updateMeetupDescription(meetup.id, `${descriptionHeader}\n ${meetup.description}`));
+    return requestPromise(reqopt)
+      .then(meetups => {
+        for (var i=0;i<meetups.length;i++) {
+          var meetup = meetups[i];
+          if (!meetup.description.match(new RegExp(`^${descriptionHeader.substr(0, 50)}`))) {
+            promises.push(this.updateMeetupDescription(meetup.id, `${descriptionHeader}\n ${meetup.description}`));
+          }
         }
-      }
-      return Promise.all(promises);
-    });
-
+        return Promise.all(promises);
+      })
+      .catch(e => {
+        const error = (e.error && e.error.errors && e.error.errors.length > 0) ? e.error.errors[0].message : e;
+        return Promise.reject(new errors.ValidationFailed(error));
+      });
 
   };
 
