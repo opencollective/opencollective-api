@@ -33,7 +33,8 @@ class MailingList {
 
       this.mailgun.lists().create({
         address: `${listname}@${this.domain}`,
-        description: `Mailing list for all the ${listname} of ${this.group.name}`
+        description: `Mailing list for all the ${listname} of ${this.group.name}`,
+        access_level: 'members'
       }, (err, res) => {
         if (err) {
           if (err.message === 'Duplicate object') return resolve(result);
