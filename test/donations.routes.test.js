@@ -7,12 +7,10 @@ const expect = require('chai').expect;
 const request = require('supertest');
 const sinon = require('sinon');
 const nock = require('nock');
-const chance = require('chance').Chance();
 
 const utils = require('../test/utils.js')();
 const generatePlanId = require('../server/lib/utils.js').planId;
 const roles = require('../server/constants/roles');
-const constants = require('../server/constants/transactions');
 
 /**
  * Variables.
@@ -30,7 +28,7 @@ const stripeMock = require('./mocks/stripe');
 /**
  * Tests.
  */
-describe('donations.routes.test.js', () => {
+describe.only('donations.routes.test.js', () => {
 
   var application;
   var application2;
@@ -38,17 +36,7 @@ describe('donations.routes.test.js', () => {
   var group;
   var group2;
   var nocks = {};
-  var stripeEmail;
   var sandbox = sinon.sandbox.create();
-
-  var stubStripe = () => {
-    var mock = stripeMock.accounts.create;
-    mock.email = chance.email();
-    stripeEmail = mock.email;
-
-    var stub = sinon.stub(app.stripe.accounts, 'create');
-    stub.yields(null, mock);
-  };
 
   beforeEach(() => utils.cleanAllDb().tap(a => application = a));
 
@@ -60,24 +48,6 @@ describe('donations.routes.test.js', () => {
 
   // Create a user.
   beforeEach(() => models.User.create(userData).tap(u => user = u));
-
-  // Nock for customers.create.
-  beforeEach(() => {
-    nocks['customers.create'] = nock(STRIPE_URL)
-      .post('/v1/customers')
-      .reply(200, stripeMock.customers.create);
-  });
-
-  // Nock for retrieving balance transaction
-  beforeEach(() => {
-    nocks['balance.retrieveTransaction'] = nock(STRIPE_URL)
-      .get('/v1/balance/history/txn_165j8oIqnMN1wWwOKlPn1D4y')
-      .reply(200, stripeMock.balance);
-  });
-
-  beforeEach(() => {
-    stubStripe();
-  });
 
   // Create a group.
   beforeEach((done) => {
@@ -99,11 +69,6 @@ describe('donations.routes.test.js', () => {
           })
           .catch(done);
       });
-  });
-
-  beforeEach(() => {
-    app.stripe.accounts.create.restore();
-    stubStripe();
   });
 
   // Create a second group.
@@ -158,29 +123,6 @@ describe('donations.routes.test.js', () => {
     .tap(a => application2 = a)
     .then(() => application2.addGroup(group2)));
 
-  // Nock for charges.create.
-  beforeEach(() => {
-    var params = [
-      'amount=' + CHARGE * 100,
-      'currency=' + CURRENCY,
-      'customer=' + stripeMock.customers.create.id,
-      'description=' + encodeURIComponent(`OpenCollective: ${group.slug}`),
-      'application_fee=54',
-      encodeURIComponent('metadata[groupId]') + '=' + group.id,
-      encodeURIComponent('metadata[groupName]') + '=' + encodeURIComponent(groupData.name),
-      encodeURIComponent('metadata[customerEmail]') + '=' + encodeURIComponent(user.email),
-      encodeURIComponent('metadata[paymentMethodId]') + '=1'
-    ].join('&');
-
-    nocks['charges.create'] = nock(STRIPE_URL)
-      .post('/v1/charges', params)
-      .reply(200, stripeMock.charges.create);
-  });
-
-  afterEach(() => {
-    nock.cleanAll();
-  });
-
   afterEach(() => {
     utils.clearbitStubAfterEach(sandbox);
   });
@@ -208,10 +150,6 @@ describe('donations.routes.test.js', () => {
           .end(done);
       });
 
-      it('successfully creates a Stripe customer', () => {
-        expect(nocks['customers.create'].isDone()).to.be.true;
-      });
-
       it('successfully creates a paymentMethod with the UserId', (done) => {
         models.PaymentMethod
           .findAndCountAll({})
@@ -226,14 +164,6 @@ describe('donations.routes.test.js', () => {
           .catch(done);
       });
 
-      it('successfully makes a Stripe charge', () => {
-        expect(nocks['charges.create'].isDone()).to.be.true;
-      });
-
-      it('successfully gets a Stripe balance', () => {
-        expect(nocks['balance.retrieveTransaction'].isDone()).to.be.true;
-      });
-
       it('successfully creates a donation in the database', (done) => {
         models.Donation
           .findAndCountAll({})
@@ -245,33 +175,7 @@ describe('donations.routes.test.js', () => {
             expect(res.rows[0]).to.have.property('amount', CHARGE*100);
             expect(res.rows[0]).to.have.property('title',
               `Donation to ${group.name}`);
-            done();
-          })
-          .catch(done);
-      });
-
-      it('successfully creates a transaction in the database', (done) => {
-        models.Transaction
-          .findAndCountAll({})
-          .then((res) => {
-            expect(res.count).to.equal(1);
-            expect(res.rows[0]).to.have.property('UserId', user.id);
             expect(res.rows[0]).to.have.property('PaymentMethodId', 1);
-            expect(res.rows[0]).to.have.property('currency', CURRENCY);
-            expect(res.rows[0]).to.have.property('type', constants.type.DONATION);
-            expect(res.rows[0]).to.have.property('amount', CHARGE);
-            expect(res.rows[0]).to.have.property('amountInTxnCurrency', 1400); // taken from stripe mocks
-            expect(res.rows[0]).to.have.property('txnCurrency', 'USD');
-            expect(res.rows[0]).to.have.property('hostFeeInTxnCurrency', 0);
-            expect(res.rows[0]).to.have.property('platformFeeInTxnCurrency', 70);
-            expect(res.rows[0]).to.have.property('paymentProcessorFeeInTxnCurrency', 155);
-            expect(res.rows[0]).to.have.property('txnCurrencyFxRate', 0.785);
-            expect(res.rows[0]).to.have.property('netAmountInGroupCurrency', 922)
-            expect(res.rows[0]).to.have.property('paidby', user.id.toString());
-            expect(res.rows[0]).to.have.property('approved', true);
-            expect(res.rows[0].tags[0]).to.be.equal('Donation');
-            expect(res.rows[0]).to.have.property('description',
-              'Donation to ' + group.name);
             done();
           })
           .catch(done);
@@ -812,7 +716,8 @@ describe('donations.routes.test.js', () => {
               payment: {
                 amount: 10,
                 currency: 'USD',
-                interval: 'month'
+                interval: 'month',
+                email: 'testemail@test.com'
               },
               api_key: application2.api_key
             })
@@ -942,7 +847,8 @@ describe('donations.routes.test.js', () => {
             .send({
               payment: {
                 amount: 10,
-                currency: 'USD'
+                currency: 'USD',
+                email: 'testemail@test.com'
               },
               api_key: application2.api_key
             })

@@ -1,4 +1,5 @@
 const type = require('../constants/transactions').type.DONATION;
+const processDonation = require('../lib/processDonation');
 
 module.exports = function(Sequelize, DataTypes) {
 
@@ -65,6 +66,16 @@ module.exports = function(Sequelize, DataTypes) {
       onUpdate: 'CASCADE'
     },
 
+    PaymentMethodId: {
+      type: DataTypes.INTEGER,
+      references: {
+        model: 'PaymentMethods',
+        key: 'id'
+      },
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE'
+    },
+
     createdAt: {
       type: DataTypes.DATE,
       defaultValue: Sequelize.NOW
@@ -96,6 +107,12 @@ module.exports = function(Sequelize, DataTypes) {
           createdAt: this.createdAt,
           updatedAt: this.updatedAt
         }
+      }
+    },
+
+    hooks: {
+      afterCreate: function(donation) {
+        return processDonation(Sequelize, donation);
       }
     }
   });

@@ -26,47 +26,6 @@ module.exports = function(app) {
   const emailLib = require('../lib/email')(app);
   const paypal = require('./paypal')(app);
 
-  /**
-   * Create a transaction and add it to a group/user/paymentMethod.
-   */
-  const create = (args, callback) => {
-    const transaction = args.transaction;
-    const subscription = args.subscription;
-    const user = args.user;
-    const group = args.group;
-    const paymentMethod = args.paymentMethod;
-
-    if (transaction.amount > 0 && transaction.txnCurrencyFxRate) {
-      // populate netAmountInGroupCurrency for donations
-        transaction.netAmountInGroupCurrency =
-          Math.round((transaction.amountInTxnCurrency
-            - transaction.platformFeeInTxnCurrency
-            - transaction.hostFeeInTxnCurrency
-            - transaction.paymentProcessorFeeInTxnCurrency)
-          *transaction.txnCurrencyFxRate);
-    } else {
-      // populate netAmountInGroupCurrency for "Add Funds" and Expenses
-      transaction.netAmountInGroupCurrency = transaction.amount*100;
-    }
-
-    Transaction
-      .create(transaction)
-      .then(t => t.setGroup(group))
-      .then(t => user ? t.setUser(user) : t)
-      .then(t => paymentMethod ? t.setPaymentMethod(paymentMethod) : t)
-      .then(t => subscription ? t.createSubscription(subscription) : t)
-      .then(t => {
-        // if the transaction hasn't been temporarily flagged as inactive (PayPal donation flow)
-        if (!t.deletedAt) {
-          return createGroupTransactionCreatedActivity(t.id).then(() => t);
-        } else {
-          return t;
-        }
-      })
-      .tap(t => callback(null, t))
-      .catch(callback);
-  };
-
 const payServices = {
   paypal: (data, callback) => {
     const uri = `/groups/${data.group.id}/transactions/${data.transaction.id}/paykey/`;
@@ -412,7 +371,6 @@ const payServices = {
    */
   return {
     setApprovedState,
-    _create: create,
     pay,
     attributeUser,
     getSubscriptions,
