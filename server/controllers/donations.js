@@ -142,9 +142,23 @@ module.exports = (app) => {
           .catch(cb);
       },
 
+      createSubscription: ['getConnectedAccount', (cb) => {
+        if (isSubscription) {
+          models.Subscription.create({
+            amount: amountFloat,
+            currency,
+            interval
+          })
+          .tap(subscription => cb(null, subscription))
+          .catch(cb)
+        } else {
+          cb();
+        }
+      }],
+
       // We create the transaction beforehand to have the id in the return url when
       // the user logs on the PayPal website
-      createTransaction: ['getConnectedAccount', (cb) => {
+      createTransaction: ['createSubscription', (cb, results) => {
         const payload = {
           group,
           transaction: {
@@ -164,11 +178,7 @@ module.exports = (app) => {
 
        if (isSubscription) {
           payload.transaction.interval = interval;
-          payload.subscription = {
-            amount: amountFloat,
-            currency,
-            interval
-          };
+          payload.subscription = results.createSubscription;
         }
 
         models.Transaction.createFromPayload(payload)

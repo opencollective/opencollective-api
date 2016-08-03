@@ -12,6 +12,8 @@ const utils = require('../test/utils.js')();
 const generatePlanId = require('../server/lib/utils.js').planId;
 const roles = require('../server/constants/roles');
 
+// nock.recorder.rec();
+
 /**
  * Variables.
  */
@@ -37,6 +39,8 @@ describe.only('donations.routes.test.js', () => {
   var group2;
   var nocks = {};
   var sandbox = sinon.sandbox.create();
+  var afterCreateStub;
+  var afterCreateSpy = sinon.spy();
 
   beforeEach(() => utils.cleanAllDb().tap(a => application = a));
 
@@ -93,10 +97,6 @@ describe.only('donations.routes.test.js', () => {
       });
   });
 
-  beforeEach(() => {
-    app.stripe.accounts.create.restore();
-  });
-
   beforeEach((done) => {
     models.StripeAccount.create({
       accessToken: 'abc'
@@ -118,10 +118,30 @@ describe.only('donations.routes.test.js', () => {
     .catch(done);
   });
 
-  // Create an application which has only access to `group`
+  // Create a stub for afterCreate hook on Donations model
+  beforeEach(() => {
+    afterCreateStub = sinon.stub(models.Donation, 'afterCreate', () => {
+      return Promise.resolve();
+    });
+  });
+
   beforeEach(() => models.Application.create(utils.data('application2'))
-    .tap(a => application2 = a)
-    .then(() => application2.addGroup(group2)));
+  .tap(a => application2 = a)
+  .then(() => application2.addGroup(group2)));
+
+  // create a spy for afterCreate hook on Donations model
+  beforeEach(() => {
+    afterCreateSpy = sinon.spy();
+    models.Donation.afterCreate(afterCreateSpy);
+  });
+
+  afterEach(() => {
+    models.Donation.afterCreate.restore();
+  });
+
+  afterEach(() => {
+    afterCreateStub.restore();
+  });
 
   afterEach(() => {
     utils.clearbitStubAfterEach(sandbox);
@@ -158,7 +178,6 @@ describe.only('donations.routes.test.js', () => {
             expect(res.rows[0]).to.have.property('UserId', user.id);
             expect(res.rows[0]).to.have.property('token', STRIPE_TOKEN);
             expect(res.rows[0]).to.have.property('service', 'stripe');
-            expect(res.rows[0]).to.have.property('customerId', stripeMock.customers.create.id);
             done();
           })
           .catch(done);
@@ -179,6 +198,11 @@ describe.only('donations.routes.test.js', () => {
             done();
           })
           .catch(done);
+      });
+
+      it('successfully calls afterCreate hook', (done) => {
+        expect(afterCreateSpy).to.have.been.calledOnce;
+        done();
       });
 
     });
@@ -203,39 +227,6 @@ describe.only('donations.routes.test.js', () => {
           .end(done);
       });
 
-      // New nock for customers.create.
-      beforeEach(() => {
-        nocks['customers.create2'] = nock(STRIPE_URL)
-          .post('/v1/customers')
-          .reply(200, stripeMock.customers.create);
-      });
-
-      // Nock for charges.create.
-      beforeEach(() => {
-        var params = [
-          'amount=' + CHARGE2 * 100,
-          'currency=' + CURRENCY,
-          'customer=' + stripeMock.customers.create.id,
-          'description=' + encodeURIComponent(`OpenCollective: ${group.slug}`),
-          'application_fee=9',
-          encodeURIComponent('metadata[groupId]') + '=' + group.id,
-          encodeURIComponent('metadata[groupName]') + '=' + encodeURIComponent(group.name),
-          encodeURIComponent('metadata[customerEmail]') + '=' + encodeURIComponent(user.email),
-          encodeURIComponent('metadata[paymentMethodId]') + '=1'
-        ].join('&');
-
-        nocks['charges.create2'] = nock(STRIPE_URL)
-          .post('/v1/charges', params)
-          .reply(200, stripeMock.charges.create);
-      });
-
-      // Nock for retrieving balance transaction
-      beforeEach(() => {
-        nocks['balance.retrieveTransaction'] = nock(STRIPE_URL)
-          .get('/v1/balance/history/txn_165j8oIqnMN1wWwOKlPn1D4y')
-          .reply(200, stripeMock.balance);
-      });
-
       beforeEach((done) => {
         request(app)
           .post('/groups/' + group.id + '/payments')
@@ -252,10 +243,6 @@ describe.only('donations.routes.test.js', () => {
           .end(done);
       });
 
-      it('does not re-create a Stripe Customer with a same token', () => {
-        expect(nocks['customers.create2'].isDone()).to.be.false;
-      });
-
       it('does not re-create a paymentMethod', (done) => {
         models.PaymentMethod
           .findAndCountAll({})
@@ -266,138 +253,12 @@ describe.only('donations.routes.test.js', () => {
           .catch(done);
       });
 
-      it('successfully makes a new Stripe charge', () => {
-        expect(nocks['charges.create2'].isDone()).to.be.true;
-      });
-
       it('successfully creates a donation in the database', (done) => {
         models.Donation
           .findAndCountAll({})
           .then((res) => {
             expect(res.count).to.equal(2);
             expect(res.rows[1]).to.have.property('amount', CHARGE2*100);
-            done();
-          })
-          .catch(done);
-      });
-
-      it('successfully gets a Stripe balance', () => {
-        expect(nocks['balance.retrieveTransaction'].isDone()).to.be.true;
-      });
-
-      it('successfully creates a new transaction', (done) => {
-        models.Transaction
-          .findAndCountAll({order: 'id'})
-          .then((res) => {
-            expect(res.count).to.equal(2);
-            expect(res.rows[1]).to.have.property('amount', CHARGE2);
-            done();
-          })
-          .catch(done);
-      });
-
-    });
-
-    describe('Payment success by a user that is not part of the group yet', () => {
-
-      // Nock for charges.create.
-      beforeEach(() => {
-        var params = [
-          'amount=' + CHARGE * 100,
-          'currency=' + CURRENCY,
-          'customer=' + stripeMock.customers.create.id,
-          'description=' + encodeURIComponent(`OpenCollective: ${group2.slug}`),
-          'application_fee=54',
-          encodeURIComponent('metadata[groupId]') + '=' + group2.id,
-          encodeURIComponent('metadata[groupName]') + '=' + encodeURIComponent(group2.name),
-          encodeURIComponent('metadata[customerEmail]') + '=' + encodeURIComponent(EMAIL),
-          encodeURIComponent('metadata[paymentMethodId]') + '=1'
-        ].join('&');
-
-        nocks['charges.create'] = nock(STRIPE_URL)
-          .post('/v1/charges', params)
-          .reply(200, stripeMock.charges.create);
-      });
-
-      beforeEach((done) => {
-        request(app)
-          .post('/groups/' + group2.id + '/payments')
-          .send({
-            api_key: application.api_key,
-            payment: {
-              stripeToken: STRIPE_TOKEN,
-              amount: CHARGE,
-              currency: CURRENCY,
-              email: EMAIL
-            }
-          })
-          .expect(200)
-          .end(done);
-      });
-
-      it('successfully adds the user to the group as a backer', (done) => {
-        group2
-          .getUsers()
-          .then((users) => {
-            expect(users).to.have.length(2);
-            var backer = _.find(users, {email: EMAIL});
-            expect(backer.UserGroup.role).to.equal(roles.BACKER);
-            done();
-          })
-          .catch(done);
-      });
-
-    });
-
-    describe('Payment success by a user who is a MEMBER of the group and should become BACKER', () => {
-
-      // Add a user as a MEMBER
-      beforeEach(() => models.User.create(utils.data('user4'))
-        .tap(u => user4 = u)
-        .then(() => group2.addUserWithRole(user4, roles.MEMBER)));
-
-      // Nock for charges.create.
-      beforeEach(() => {
-        var params = [
-          'amount=' + CHARGE * 100,
-          'currency=' + CURRENCY,
-          'customer=' + stripeMock.customers.create.id,
-          'description=' + encodeURIComponent(`OpenCollective: ${group2.slug}`),
-          'application_fee=54',
-          encodeURIComponent('metadata[groupId]') + '=' + group2.id,
-          encodeURIComponent('metadata[groupName]') + '=' + encodeURIComponent(group2.name),
-          encodeURIComponent('metadata[customerEmail]') + '=' + encodeURIComponent(user4.email),
-          encodeURIComponent('metadata[paymentMethodId]') + '=1'
-        ].join('&');
-
-        nocks['charges.create'] = nock(STRIPE_URL)
-          .post('/v1/charges', params)
-          .reply(200, stripeMock.charges.create);
-      });
-
-      beforeEach((done) => {
-        request(app)
-          .post('/groups/' + group2.id + '/payments')
-          .set('Authorization', 'Bearer ' + user4.jwt(application2))
-          .send({
-            payment: {
-              stripeToken: STRIPE_TOKEN,
-              amount: CHARGE,
-              currency: CURRENCY,
-              email: user4.email
-            }
-          })
-          .expect(200)
-          .end(done);
-      });
-
-      it('successfully adds the user to the group as a backer', (done) => {
-        group2
-          .getUsers()
-          .then((users) => {
-            expect(users).to.have.length(3);
-            var backer = _.find(users, {email: user4.email});
-            expect(backer.UserGroup.role).to.equal(roles.BACKER);
             done();
           })
           .catch(done);
@@ -421,30 +282,11 @@ describe.only('donations.routes.test.js', () => {
         email: userData.email
       };
 
-      // Nock for charges.create.
-      beforeEach(() => {
-        var params = [
-          'amount=' + CHARGE * 100,
-          'currency=' + CURRENCY,
-          'customer=' + stripeMock.customers.create.id,
-          'description=' + encodeURIComponent(`OpenCollective: ${group2.slug}`),
-          'application_fee=54',
-          encodeURIComponent('metadata[groupId]') + '=' + group2.id,
-          encodeURIComponent('metadata[groupName]') + '=' + encodeURIComponent(group2.name),
-          encodeURIComponent('metadata[customerEmail]') + '=' + encodeURIComponent(userData.email),
-          encodeURIComponent('metadata[paymentMethodId]') + '=1'
-        ].join('&');
-
-        nocks['charges.create'] = nock(STRIPE_URL)
-          .post('/v1/charges', params)
-          .reply(200, stripeMock.charges.create);
-      });
-
       beforeEach('successfully makes a anonymous payment', (done) => {
         request(app)
           .post('/groups/' + group2.id + '/payments')
           .send({
-            api_key: application2.api_key,
+            api_key: application.api_key,
             payment: data
           })
           .expect(200)
@@ -452,10 +294,6 @@ describe.only('donations.routes.test.js', () => {
             expect(e).to.not.exist;
             done();
           });
-      });
-
-      it('successfully creates a Stripe customer', () => {
-        expect(nocks['customers.create'].isDone()).to.be.true;
       });
 
       it('successfully creates a paymentMethod', (done) => {
@@ -467,10 +305,6 @@ describe.only('donations.routes.test.js', () => {
             done();
           })
           .catch(done);
-      });
-
-      it('successfully makes a Stripe charge', () => {
-        expect(nocks['charges.create'].isDone()).to.be.true;
       });
 
       it('successfully creates a user', (done) => {
@@ -499,28 +333,6 @@ describe.only('donations.routes.test.js', () => {
             expect(res.rows[0]).to.have.property('amount', CHARGE*100);
             expect(res.rows[0]).to.have.property('title',
               'Donation to ' + group2.name);
-            done();
-          })
-          .catch(done);
-      });
-
-      it('successfully gets a Stripe balance', () => {
-        expect(nocks['balance.retrieveTransaction'].isDone()).to.be.true;
-      });
-
-      it('successfully creates a transaction in the database', (done) => {
-        models.Transaction
-          .findAndCountAll({})
-          .then((res) => {
-            expect(res.count).to.equal(1);
-            expect(res.rows[0]).to.have.property('GroupId', group2.id);
-            expect(res.rows[0]).to.have.property('UserId', user.id);
-            expect(res.rows[0]).to.have.property('PaymentMethodId', 1);
-            expect(res.rows[0]).to.have.property('currency', CURRENCY);
-            expect(res.rows[0]).to.have.property('tags');
-            expect(res.rows[0]).to.have.property('payoutMethod', null);
-            expect(res.rows[0]).to.have.property('amount', data.amount);
-            expect(res.rows[0]).to.have.property('paidby', String(user.id));
             done();
           })
           .catch(done);
@@ -561,56 +373,7 @@ describe.only('donations.routes.test.js', () => {
         id: planId
       });
 
-      beforeEach(() => {
-        nocks['plans.create'] = nock(STRIPE_URL)
-          .post('/v1/plans')
-          .reply(200, plan);
-        var params = [
-          `plan=${planId}`,
-          'application_fee_percent=5',
-          encodeURIComponent('metadata[groupId]') + '=' + group2.id,
-          encodeURIComponent('metadata[groupName]') + '=' + encodeURIComponent(group2.name),
-          encodeURIComponent('metadata[paymentMethodId]') + '=1',
-          encodeURIComponent('metadata[description]') + '=' + encodeURIComponent(`OpenCollective: ${group2.slug}`)
-        ].join('&');
-
-      nocks['subscriptions.create'] = nock(STRIPE_URL)
-        .post(`/v1/customers/${customerId}/subscriptions`, params)
-        .reply(200, stripeMock.subscriptions.create);
-      });
-
-      describe('plan does not exist', () => {
-        beforeEach((done) => {
-
-          nocks['plans.retrieve'] = nock(STRIPE_URL)
-            .get('/v1/plans/' + planId)
-            .reply(200, {
-              error: stripeMock.plans.create_not_found
-            });
-
-          request(app)
-            .post('/groups/' + group2.id + '/payments')
-            .send({
-              api_key: application2.api_key,
-              payment: data
-            })
-            .expect(200)
-            .end((e, res) => {
-              expect(e).to.not.exist;
-              done();
-            });
-        });
-
-        it('creates a plan if it doesn\'t exist', () => {
-          expect(nocks['plans.retrieve'].isDone()).to.be.true;
-          expect(nocks['plans.create'].isDone()).to.be.true;
-        });
-
-      });
-
-      describe('plan exists', () => {
-
-        beforeEach((done) => {
+      beforeEach((done) => {
 
           nocks['plans.retrieve'] = nock(STRIPE_URL)
             .get('/v1/plans/' + planId)
@@ -619,7 +382,7 @@ describe.only('donations.routes.test.js', () => {
           request(app)
             .post('/groups/' + group2.id + '/payments')
             .send({
-              api_key: application2.api_key,
+              api_key: application.api_key,
               payment: data
             })
             .expect(200)
@@ -627,15 +390,6 @@ describe.only('donations.routes.test.js', () => {
               expect(e).to.not.exist;
               done();
             });
-        });
-
-        it('uses the existing plan', () => {
-          expect(nocks['plans.create'].isDone()).to.be.false;
-          expect(nocks['plans.retrieve'].isDone()).to.be.true;
-        });
-
-        it('creates a subscription', () => {
-          expect(nocks['subscriptions.create'].isDone()).to.be.true;
         });
 
         it('successfully creates a donation in the database', (done) => {
@@ -665,7 +419,6 @@ describe.only('donations.routes.test.js', () => {
             .catch(done);
         });
 
-
         it('creates a Subscription model', (done) => {
           models.Subscription
             .findAndCountAll({})
@@ -675,7 +428,6 @@ describe.only('donations.routes.test.js', () => {
               expect(res.count).to.equal(1);
               expect(subscription).to.have.property('amount', data.amount);
               expect(subscription).to.have.property('interval', plan.interval);
-              expect(subscription).to.have.property('stripeSubscriptionId', stripeMock.subscriptions.create.id);
               expect(subscription).to.have.property('data');
               expect(subscription).to.have.property('isActive', false);
               expect(subscription).to.have.property('currency', CURRENCY);
@@ -689,7 +441,7 @@ describe.only('donations.routes.test.js', () => {
           request(app)
             .post('/groups/' + group2.id + '/payments')
             .send({
-              api_key: application2.api_key,
+              api_key: application.api_key,
               payment: _.extend({}, data, {interval: 'something'})
             })
             .expect(400, {
@@ -701,10 +453,13 @@ describe.only('donations.routes.test.js', () => {
             })
             .end(done);
         });
-      });
     });
 
     describe('Paypal recurring donation', () => {
+
+      /*beforeEach(() => {
+        require('./mocks/paypal.nock.js');
+      })*/
       describe('success', () => {
         var links;
         const token = 'EC-123';
@@ -719,7 +474,7 @@ describe.only('donations.routes.test.js', () => {
                 interval: 'month',
                 email: 'testemail@test.com'
               },
-              api_key: application2.api_key
+              api_key: application.api_key
             })
             .end((err, res) => {
               expect(err).to.not.exist;
@@ -862,6 +617,8 @@ describe.only('donations.routes.test.js', () => {
         it('creates a transaction and returns the links', (done) => {
           const redirect = _.find(links, { method: 'REDIRECT' });
 
+          console.log("READIRECT: ", links);
+
           expect(redirect).to.have.property('method', 'REDIRECT');
           expect(redirect).to.have.property('rel', 'approval_url');
           expect(redirect).to.have.property('href');
@@ -970,7 +727,7 @@ describe.only('donations.routes.test.js', () => {
                 currency: 'USD',
                 interval: 'abc'
               },
-              api_key: application2.api_key
+              api_key: application.api_key
             })
             .expect(400, {
               error: {
@@ -990,7 +747,7 @@ describe.only('donations.routes.test.js', () => {
                 currency: 'USD',
                 interval: 'month'
               },
-              api_key: application2.api_key
+              api_key: application.api_key
             })
             .expect(400, {
               error: {
@@ -1037,27 +794,6 @@ describe.only('donations.routes.test.js', () => {
             .end(done);
         })
 
-      });
-
-      it('fails paying because of a paymentMethod declined', (done) => {
-        request(app)
-          .post('/groups/' + group.id + '/payments')
-          .set('Authorization', 'Bearer ' + user.jwt(application))
-          .send({
-            payment: {
-              stripeToken: STRIPE_TOKEN,
-              amount: CHARGE,
-              currency: CURRENCY
-            }
-          })
-          .expect(400)
-          .then(res => {
-            const error = res.body.error;
-            expect(error.message).to.equal('Your paymentMethod was declined');
-            expect(error.type).to.equal('StripePaymentMethodError');
-            expect(error.code).to.equal(400);
-            done();
-          });
       });
 
     });

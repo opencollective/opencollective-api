@@ -19,8 +19,8 @@ module.exports = (Sequelize, donation) => {
         // get or create a customer
         .then(() => paymentMethod.customerId || gateways.stripe.createCustomer(
           groupStripeAccount,
-          payment.stripeToken, {
-            email,
+          paymentMethod.token, {
+            email: user.email,
             group
           }))
         .tap(customer => paymentMethod.customerId ? null : paymentMethod.update({customerId: customer.id}))

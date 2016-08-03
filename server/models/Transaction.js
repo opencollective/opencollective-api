@@ -189,6 +189,9 @@ module.exports = function(Sequelize, DataTypes) {
 
     hooks: {
       afterCreate: (transaction) => {
+        if (transaction.deletedAt) {
+          return Promise.resolve();
+        }
         return Transaction.findById(transaction.id, {
           include: [
             { model: Sequelize.models.Group },
@@ -198,6 +201,7 @@ module.exports = function(Sequelize, DataTypes) {
         })
         // Create activity.
         .then(transaction => {
+
           const activityPayload = {
             type: activities.GROUP_TRANSACTION_CREATED,
             TransactionId: transaction.id,
@@ -218,7 +222,7 @@ module.exports = function(Sequelize, DataTypes) {
           return Sequelize.models.Activity.create(activityPayload)
         })
         .catch(err => console.error(`Error creating activity of type ${activities.GROUP_TRANSACTION_CREATED} for transaction ID ${transaction.id}`, err))
-        // notify subscribers. TODO: refactor. Notifications should be going out from notifications library
+        // notify subscribers. TODO: bring this back once we refactor emailLib.
         /*.then(() => Sequelize.Notification.findAll({
           include: {
             model: User,
