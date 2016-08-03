@@ -28,7 +28,6 @@ module.exports = (app) => {
   const Subscription = models.Subscription;
   const Group = models.Group;
 
-  const transactions = require('./transactions')(app);
   const constants = require('../constants/transactions');
 
   const stripe = (req, res, next) => {
@@ -238,12 +237,14 @@ module.exports = (app) => {
           SubscriptionId: subscription.id, // remove #postmigration
         };
 
-        transactions._create({
+        models.Transaction.create({
           transaction: newTransaction,
           user, // remove #postmigration
           group, // remove #postmigration
           paymentMethod
-        }, cb);
+        })
+        .then(t => cb(null, t))
+        .catch(cb)
       }]
 
     }, (err) => {
