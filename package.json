@@ -11,6 +11,7 @@
   "dependencies": {
     "async": "0.9.2",
     "axios": "0.7.0",
+    "babel-cli": "^6.11.4",
     "base64url": "1.0.6",
     "bcrypt": "0.8.7",
     "bluebird": "3.4.0",
@@ -84,7 +85,7 @@
     "nsp": "nsp check",
     "pretest": "npm run hint && npm run nsp",
     "test": "npm run test:unit",
-    "test:unit": "mocha --reporter-options mochaFile=$(bash scripts/test_output_dir.sh junit)/junit.xml test",
+    "test:unit": "mocha --reporter-options mochaFile=$(bash scripts/test_output_dir.sh junit)/junit.xml test --require babel-core/register",
     "test:cover": "istanbul cover _mocha -- -R spec test",
     "test:e2e": "npm run test:e2e:exec api:run website:run website:testE2E app:run app:testE2E",
     "test:e2e:exec": "bash scripts/test_e2e.sh",
@@ -106,7 +107,9 @@
     "report:monthly": "node scripts/report_monthly",
     "check:transactions": "node scripts/check_transactions_on_stripe",
     "script": "node scripts/execute",
-    "install:debs": "bash scripts/install_apt_get_debs.sh"
+    "install:debs": "bash scripts/install_apt_get_debs.sh",
+    "cron:daily": "node cron/daily/update-contributions.js",
+    "cron:monthly": "node cron/monthly/send-monthly-report.js"
   },
   "license": "MIT",
   "repository": {

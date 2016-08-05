@@ -5,7 +5,7 @@ const _ = require('lodash');
  * - this indicates that money was moved in the system
  */
 
-module.exports = function(Sequelize, DataTypes) {
+module.exports = (Sequelize, DataTypes) => {
 
   const Transaction = Sequelize.define('Transaction', {
     type: DataTypes.STRING, // Expense or Donation
@@ -85,6 +85,22 @@ module.exports = function(Sequelize, DataTypes) {
     reimbursedAt: DataTypes.DATE // delete #postmigration
   }, {
     paranoid: true,
+
+    classMethods: {
+      createMany: (transactions, defaultValues) => {
+        const promises = [];
+        for (var i=0; i < transactions.length; i++) {
+          const t = transactions[i];
+          for (var attr in defaultValues) {
+            t[attr] = defaultValues[attr];
+          }
+          promises.push(Transaction.create(t).catch(e => {
+            console.error("Error in creating transaction", t, e, e.stack);
+          }));
+        }
+        return Promise.all(promises).catch(console.error);
+      }
+    },
 
     getterMethods: {
 

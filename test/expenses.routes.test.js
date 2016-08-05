@@ -428,6 +428,8 @@ describe('expenses.routes.test.js', () => {
 
             describe('WHEN authenticated as a MEMBER', () => {
 
+              var user2;
+
               beforeEach(() => models.User.create(utils.data('user2')).tap(u => user2 = u));
 
               beforeEach(() => group.addUserWithRole(user2, roles.MEMBER));
@@ -628,6 +630,8 @@ describe('expenses.routes.test.js', () => {
 
             describe('WHEN authenticated as a MEMBER', () => {
 
+              var user2;
+
               beforeEach(() => models.User.create(utils.data('user2')).tap(u => user2 = u));
 
               beforeEach(() => group.addUserWithRole(user2, roles.MEMBER));
@@ -751,6 +755,8 @@ describe('expenses.routes.test.js', () => {
             });
 
             describe('WHEN authenticated as a MEMBER', () => {
+
+              var user2;
 
               beforeEach(() => models.User.create(utils.data('user2')).tap(u => user2 = u));
 
