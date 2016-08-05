@@ -220,8 +220,8 @@ module.exports = function(Sequelize, DataTypes) {
           return Sequelize.models.Activity.create(activityPayload);
         })
         .catch(err => console.error(`Error creating activity of type ${activities.GROUP_TRANSACTION_CREATED} for transaction ID ${transaction.id}`, err))
-        // notify subscribers. TODO: bring this back once we refactor emailLib.
-        // Won't work as is because emailLib requires 'app' to be activated
+        // notify subscribers. TODO: #EmailLibRefactor bring this back once we refactor emailLib.
+        // Won't work as is because emailLib requires 'app' to be passed in, which is weird to do from a model
         /*.then(() => Sequelize.Notification.findAll({
           include: {
             model: User,
