@@ -1,4 +1,5 @@
 const _ = require('lodash');
+const activities = require('../constants/activities');
 
 /*
  * Transaction model
@@ -157,6 +158,89 @@ module.exports = function(Sequelize, DataTypes) {
           paymentProcessorFee: this.paymentProcessorFee,
           netAmountInGroupCurrency: this.netAmountInGroupCurrency
         };
+      }
+    },
+
+    classMethods: {
+      createFromPayload(payload) {
+        const transaction = payload.transaction;
+
+        // attach other objects manually. Needed for afterCreate hook to work properly
+        transaction.UserId = payload.user && payload.user.id;
+        transaction.GroupId = payload.group && payload.group.id;
+        transaction.PaymentMethodId = transaction.PaymentMethodId || (payload.paymentMethod ? payload.paymentMethod.id : null);
+        transaction.SubscriptionId = payload.subscription ? payload.subscription.id : null;
+
+        if (transaction.amount > 0 && transaction.txnCurrencyFxRate) {
+          // populate netAmountInGroupCurrency for donations
+            transaction.netAmountInGroupCurrency =
+              Math.round((transaction.amountInTxnCurrency
+                - transaction.platformFeeInTxnCurrency
+                - transaction.hostFeeInTxnCurrency
+                - transaction.paymentProcessorFeeInTxnCurrency)
+              *transaction.txnCurrencyFxRate);
+        } else {
+          // populate netAmountInGroupCurrency for "Add Funds" and Expenses
+          transaction.netAmountInGroupCurrency = transaction.amount*100;
+        }
+        return Transaction.create(transaction);
+      },
+
+      createActivity(transaction) {
+        if (transaction.deletedAt) {
+          return Promise.resolve();
+        }
+        return Transaction.findById(transaction.id, {
+          include: [
+            { model: Sequelize.models.Group },
+            { model: Sequelize.models.User },
+            { model: Sequelize.models.PaymentMethod }
+          ]
+        })
+        // Create activity.
+        .then(transaction => {
+
+          const activityPayload = {
+            type: activities.GROUP_TRANSACTION_CREATED,
+            TransactionId: transaction.id,
+            GroupId: transaction.GroupId,
+            UserId: transaction.UserId,
+            data: {
+              transaction: transaction.get(),
+              user: transaction.User && transaction.User.info,
+              group: transaction.Group && transaction.Group.info
+            }
+          };
+          if (transaction.User) {
+            activityPayload.data.user = transaction.User.info;
+          }
+          if (transaction.PaymentMethod) {
+            activityPayload.data.paymentMethod = transaction.PaymentMethod.info;
+          }
+          return Sequelize.models.Activity.create(activityPayload);
+        })
+        .catch(err => console.error(`Error creating activity of type ${activities.GROUP_TRANSACTION_CREATED} for transaction ID ${transaction.id}`, err))
+        // notify subscribers. TODO: bring this back once we refactor emailLib.
+        // Won't work as is because emailLib requires 'app' to be activated
+        /*.then(() => Sequelize.Notification.findAll({
+          include: {
+            model: User,
+            attributes: ['email']
+          },
+          where: {
+            type: activity.type,
+            GroupId: activity.GroupId
+          }
+        }))
+        .then(notifications => notifications.map(notif => emailLib.send(activity.type, notif.User.email, activity.data)))
+        .catch(err => console.error(`Unable to fetch subscribers of ${activity.type} for group ${activity.GroupId}`, err));
+        */
+      }
+    },
+
+    hooks: {
+      afterCreate: (transaction) => {
+        Transaction.createActivity(transaction);
       }
     }
   });

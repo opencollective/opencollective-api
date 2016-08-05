@@ -18,88 +18,45 @@ module.exports = function(app) {
   const models = app.set('models');
   const Transaction = models.Transaction;
   const Activity = models.Activity;
-  const Notification = models.Notification;
   const User = models.User;
   const Group = models.Group;
   const PaymentMethod = models.PaymentMethod;
   const errors = app.errors;
-  const emailLib = require('../lib/email')(app);
   const paypal = require('./paypal')(app);
 
-  /**
-   * Create a transaction and add it to a group/user/paymentMethod.
-   */
-  const create = (args, callback) => {
-    const transaction = args.transaction;
-    const subscription = args.subscription;
-    const user = args.user;
-    const group = args.group;
-    const paymentMethod = args.paymentMethod;
+  const payServices = {
+    paypal: (data, callback) => {
+      const uri = `/groups/${data.group.id}/transactions/${data.transaction.id}/paykey/`;
+      const baseUrl = config.host.webapp + uri;
+      const amount = data.transaction.amount;
+      const payload = {
+        requestEnvelope: {
+          errorLanguage: 'en_US',
+          detailLevel: 'ReturnAll'
+        },
+        actionType: 'PAY',
+        currencyCode: data.transaction.currency.toUpperCase() || 'USD',
+        feesPayer: 'SENDER',
+        memo: `Reimbursement transaction ${data.transaction.id}: ${data.transaction.description}`,
+        trackingId: [uuid.v1().substr(0, 8), data.transaction.id].join(':'),
+        preapprovalKey: data.paymentMethod.token,
+        returnUrl: `${baseUrl}/success`,
+        cancelUrl: `${baseUrl}/cancel`,
+        receiverList: {
+          receiver: [
+            {
+              email: data.beneficiary.paypalEmail || data.beneficiary.email,
+              amount: amount,
+              paymentType: 'SERVICE'
+            }
+          ]
+        }
+      };
 
-    if (transaction.amount > 0 && transaction.txnCurrencyFxRate) {
-      // populate netAmountInGroupCurrency for donations
-        transaction.netAmountInGroupCurrency =
-          Math.round((transaction.amountInTxnCurrency
-            - transaction.platformFeeInTxnCurrency
-            - transaction.hostFeeInTxnCurrency
-            - transaction.paymentProcessorFeeInTxnCurrency)
-          *transaction.txnCurrencyFxRate);
-    } else {
-      // populate netAmountInGroupCurrency for "Add Funds" and Expenses
-      transaction.netAmountInGroupCurrency = transaction.amount*100;
+      app.paypalAdaptive.pay(payload, callback);
     }
 
-    Transaction
-      .create(transaction)
-      .then(t => t.setGroup(group))
-      .then(t => user ? t.setUser(user) : t)
-      .then(t => paymentMethod ? t.setPaymentMethod(paymentMethod) : t)
-      .then(t => subscription ? t.createSubscription(subscription) : t)
-      .then(t => {
-        // if the transaction hasn't been temporarily flagged as inactive (PayPal donation flow)
-        if (!t.deletedAt) {
-          return createGroupTransactionCreatedActivity(t.id).then(() => t);
-        } else {
-          return t;
-        }
-      })
-      .tap(t => callback(null, t))
-      .catch(callback);
   };
-
-const payServices = {
-  paypal: (data, callback) => {
-    const uri = `/groups/${data.group.id}/transactions/${data.transaction.id}/paykey/`;
-    const baseUrl = config.host.webapp + uri;
-    const amount = data.transaction.amount;
-    const payload = {
-      requestEnvelope: {
-        errorLanguage: 'en_US',
-        detailLevel: 'ReturnAll'
-      },
-      actionType: 'PAY',
-      currencyCode: data.transaction.currency.toUpperCase() || 'USD',
-      feesPayer: 'SENDER',
-      memo: `Reimbursement transaction ${data.transaction.id}: ${data.transaction.description}`,
-      trackingId: [uuid.v1().substr(0, 8), data.transaction.id].join(':'),
-      preapprovalKey: data.paymentMethod.token,
-      returnUrl: `${baseUrl}/success`,
-      cancelUrl: `${baseUrl}/cancel`,
-      receiverList: {
-        receiver: [
-          {
-            email: data.beneficiary.paypalEmail || data.beneficiary.email,
-            amount: amount,
-            paymentType: 'SERVICE'
-          }
-        ]
-      }
-    };
-
-    app.paypalAdaptive.pay(payload, callback);
-  }
-
-};
 
   /**
    * Pay a transaction.
@@ -265,56 +222,6 @@ const payServices = {
 
   };
 
-  const createGroupTransactionCreatedActivity = function (transactionId) {
-    var activity;
-
-    return Transaction.findOne({
-      where: { id: transactionId },
-      include: [
-        { model: Group },
-        { model: User },
-        { model: PaymentMethod }
-      ]
-    })
-      // Create activity.
-      .then(transaction => {
-        const activityPayload = {
-          type: activities.GROUP_TRANSACTION_CREATED,
-          TransactionId: transaction.id,
-          GroupId: transaction.GroupId,
-          UserId: transaction.UserId,
-          data: {
-            transaction: transaction.get(),
-            user: transaction.User.get('info'),
-            group: transaction.Group.get('info')
-          }
-        };
-        if (transaction.User) {
-          activityPayload.data.user = transaction.User.get('info');
-        }
-        if (transaction.PaymentMethod) {
-          activityPayload.data.paymentMethod = transaction.PaymentMethod.get('info');
-        }
-        return Activity
-          .create(activityPayload)
-          .tap(a => activity = a);
-      })
-      .catch(err => console.error(`Error creating activity of type ${activities.GROUP_TRANSACTION_CREATED} for transaction ID ${transactionId}`, err))
-      // notify subscribers
-      .then(() => Notification.findAll({
-        include: {
-          model: User,
-          attributes: ['email']
-        },
-        where: {
-          type: activity.type,
-          GroupId: activity.GroupId
-        }
-      }))
-      .then(notifications => notifications.map(notif => emailLib.send(activity.type, notif.User.email, activity.data)))
-      .catch(err => console.error(`Unable to fetch subscribers of ${activity.type} for group ${activity.GroupId}`, err));
-  };
-
   /**
    * Attribute a transaction to a user.
    */
@@ -412,10 +319,8 @@ const payServices = {
    */
   return {
     setApprovedState,
-    _create: create,
     pay,
     attributeUser,
-    getSubscriptions,
-    createGroupTransactionCreatedActivity
+    getSubscriptions
   }
 };

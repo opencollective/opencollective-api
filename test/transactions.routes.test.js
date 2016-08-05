@@ -164,20 +164,7 @@ describe('transactions.routes.test.js', () => {
           expect(t).to.have.property('GroupId', privateGroup.id);
           expect(t).to.have.property('UserId', user.id); // ...
           expect(t).to.have.property('payoutMethod', transactionsData[0].payoutMethod);
-
-          models.Activity.findAndCountAll({}).then(res => {
-            expect(res.count).to.equal(1);
-            const activity = res.rows[0].get();
-            expect(activity).to.have.property('type', 'group.transaction.created');
-            expect(activity).to.have.property('GroupId', privateGroup.id);
-            expect(activity).to.have.property('UserId', user.id);
-            expect(activity).to.have.property('TransactionId', t.id);
-            expect(activity.data.transaction).to.have.property('id', t.id);
-            expect(activity.data.group).to.have.property('id', privateGroup.id);
-            expect(activity.data.user).to.have.property('id', user.id);
-            done();
-          });
-
+          done();
         });
     });
 
@@ -194,12 +181,7 @@ describe('transactions.routes.test.js', () => {
           expect(res.body).to.have.property('vat', transactionsData[0].vat);
           expect(res.body).to.have.property('GroupId', privateGroup.id);
           expect(res.body).to.have.property('UserId', user.id); // ...
-
-          models.Activity.findAndCountAll({}).then((res) => {
-            expect(res.count).to.equal(1);
-            done();
-          });
-
+          done();
         });
     });
 
@@ -215,12 +197,7 @@ describe('transactions.routes.test.js', () => {
           expect(e).to.not.exist;
           expect(res.body.UserId > 0).to.be.true;
           expect(res.body).to.have.property('GroupId', publicGroup.id);
-
-          models.Activity.findAndCountAll({}).then((res) => {
-            // 2 activities: `user.created` and `group.transaction.created`
-            expect(res.count).to.equal(2);
-            done();
-          });
+          done();
         });
     });
 
@@ -240,12 +217,7 @@ describe('transactions.routes.test.js', () => {
           expect(e).to.not.exist;
           expect(res.body.UserId).to.equal(user.id);
           expect(res.body).to.have.property('GroupId', publicGroup.id);
-
-          models.Activity.findAndCountAll({}).then((res) => {
-            // 1 activity: `group.transaction.created`
-            expect(res.count).to.equal(1);
-            done();
-          });
+          done();
         });
     });
 
@@ -265,12 +237,7 @@ describe('transactions.routes.test.js', () => {
           expect(e).to.not.exist;
           expect(res.body.UserId).to.equal(user.id);
           expect(res.body).to.have.property('GroupId', publicGroup.id);
-
-          models.Activity.findAndCountAll({}).then((res) => {
-            // 1 activity: `group.transaction.created`
-            expect(res.count).to.equal(1);
-            done();
-          });
+          done();
         });
     });
 
