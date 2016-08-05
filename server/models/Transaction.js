@@ -1,3 +1,4 @@
+const Promise = require('bluebird');
 const _ = require('lodash');
 
 /*
@@ -88,17 +89,12 @@ module.exports = (Sequelize, DataTypes) => {
 
     classMethods: {
       createMany: (transactions, defaultValues) => {
-        const promises = [];
-        for (var i=0; i < transactions.length; i++) {
-          const t = transactions[i];
+        return Promise.map(transactions, transaction => {
           for (var attr in defaultValues) {
-            t[attr] = defaultValues[attr];
+            transaction[attr] = defaultValues[attr];
           }
-          promises.push(Transaction.create(t).catch(e => {
-            console.error("Error in creating transaction", t, e, e.stack);
-          }));
-        }
-        return Promise.all(promises).catch(console.error);
+          return Transaction.create(transaction);
+        }).catch(console.error);
       }
     },
 

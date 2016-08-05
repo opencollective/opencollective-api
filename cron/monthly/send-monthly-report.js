@@ -6,6 +6,7 @@ import _ from 'lodash';
 import app  from '../../index';
 import moment from 'moment';
 import config from 'config';
+import Promise from 'bluebird';
 
 const emailLib = require('../../server/lib/email')(app);
 const debug = require('debug')('monthlyreport');
@@ -15,11 +16,7 @@ const User = app.set('models').User;
 const Notification = app.set('models').Notification;
 
 const processGroups = (groups) => {
-    const promises = [];
-    groups.map(g => {
-        promises.push(processGroup(g));
-    })
-    return Promise.all(promises);
+    return Promise.map(groups, processGroup);
 };
 
 const d = new Date;
