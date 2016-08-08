@@ -162,14 +162,13 @@ module.exports = function(Sequelize, DataTypes) {
     },
 
     classMethods: {
-      createFromPayload(payload) {
-        const transaction = payload.transaction;
+      createFromPayload({ transaction, user, group, subscription, paymentMethod }) {
 
         // attach other objects manually. Needed for afterCreate hook to work properly
-        transaction.UserId = payload.user && payload.user.id;
-        transaction.GroupId = payload.group && payload.group.id;
-        transaction.PaymentMethodId = transaction.PaymentMethodId || (payload.paymentMethod ? payload.paymentMethod.id : null);
-        transaction.SubscriptionId = payload.subscription ? payload.subscription.id : null;
+        transaction.UserId = user && user.id;
+        transaction.GroupId = group && group.id;
+        transaction.PaymentMethodId = transaction.PaymentMethodId || (paymentMethod ? paymentMethod.id : null);
+        transaction.SubscriptionId = subscription ? subscription.id : null;
 
         if (transaction.amount > 0 && transaction.txnCurrencyFxRate) {
           // populate netAmountInGroupCurrency for donations
