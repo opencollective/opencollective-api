@@ -193,7 +193,7 @@ module.exports = function(app) {
     try {
       const data = JSON.parse(req.query.data);
       console.log(`Generating ${template} with data`, data);
-      const html = emailLib.templates[template](data);
+      const html = emailLib.getHTML(template, data);
       res.send(html);
       emailLib.reload();
     } catch (e) {

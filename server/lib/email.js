@@ -4,6 +4,7 @@ const config = require('config');
 const moment = require('moment');
 const _ = require('lodash');
 const Promise = require('bluebird');
+const juice = require('juice');
 
 const debug = require('debug')('email');
 const currencies = require('../constants/currencies');
@@ -35,12 +36,21 @@ const getSubject = str => {
   subj += str.split('\n')[0].replace(/^Subject: ?/i, '');
   return subj;
 }
-const getBody = str => str.split('\n').slice(2).join('\n');
+
+const getBody = (str) => {
+  const html = str.split('\n').slice(2).join('\n');
+  return html; // inlining css
+}
+
 const render = (name, data, config) => {
   data.config = config;
   data.logoNotSvg = data.group && data.group.logo && !data.group.logo.endsWith('.svg');
   return templates[name](data);
 };
+
+const getHTML = (template, data) => {
+  return juice(render(template, data, config));
+}
 
 /***
  * Loading Handlebars templates for the HTML emails
@@ -78,7 +88,10 @@ function loadTemplates() {
     const currency = props.hash.currency;
     value = value/100; // converting cents
     if (currencies[currency]) {
-      return currencies[currency](value);
+      let str = currencies[currency](value);
+      if (str.indexOf('-') !== -1) // we move the minus sign to the beginning: $-10 -> -$10
+        str = `-${str.replace('-','')}`;
+      return str;
     }
     console.error(`Unexpected currency ${currency}`);
     return `${value} ${currency}`;
@@ -140,22 +153,25 @@ const EmailLib = (app) => {
 
     if (!templates[template]) return Promise.reject(new Error("Invalid email template"));
 
-    const templateString = render(template, data, config);
+    const templateString = getHTML(template, data);
+    const subject = getSubject(templateString);
 
-    debug("email body", templateString);
+    debug(`sending email to ${recipient} with subject "${subject}"`);
 
     return app.mailgun.sendMail({
       from: config.email.from,
       to: recipient,
       bcc: 'ops@opencollective.com',
-      subject: getSubject(templateString),
+      subject,
       html: getBody(templateString)
+    }).catch(e => {
+      console.error("Error in sending email", e, e.stack);
     });
   };
 
   return {
     send,
-    templates,
+    getHTML,
     getBody,
     getSubject,
     reload: loadTemplates
