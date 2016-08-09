@@ -117,7 +117,8 @@
     "script": "node scripts/execute",
     "install:debs": "bash scripts/install_apt_get_debs.sh",
     "cron:daily": "node cron/daily/update-contributions.js",
-    "cron:monthly": "babel-node cron/monthly/send-monthly-report.js"
+    "cron:weekly": "node cron/weekly/weekly-report.js",
+    "cron:monthly": "babel-node cron/monthly/monthly-email-report.js && node cron/monthly/monthly-slack-report.js"
   },
   "license": "MIT",
   "repository": {
