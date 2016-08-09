@@ -113,7 +113,7 @@ const generateEmailFromTemplate = (template, recipient, data) => {
   if (!templates[template]) {
     return Promise.reject(new Error("Invalid email template"));
   }
-  return Promise.resolve(render(template, data, config));
+  return Promise.resolve(juice(render(template, data, config)));
 };
 
 /*
