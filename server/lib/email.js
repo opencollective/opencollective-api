@@ -158,6 +158,8 @@ const EmailLib = (app) => {
 
     debug(`sending email to ${recipient} with subject "${subject}"`);
 
+    debug("email body", templateString);
+
     return app.mailgun.sendMail({
       from: config.email.from,
       to: recipient,
