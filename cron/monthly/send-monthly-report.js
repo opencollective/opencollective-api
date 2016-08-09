@@ -32,10 +32,7 @@ const init = () => {
           'name',
           'currency',
           'tags'
-      ],
-      where: {
-        slug: { $in: ['railsgirlsatl','gulpjs','freeridetovote','laprimaire','lesbarbares','mochajs'] } // for testing
-      }
+      ]
   };
 
   Group.findAll(query)
