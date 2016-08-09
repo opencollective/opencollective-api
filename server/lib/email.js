@@ -1,184 +1,137 @@
-const fs = require('fs');
-const handlebars = require('handlebars');
 const config = require('config');
-const moment = require('moment');
 const _ = require('lodash');
 const Promise = require('bluebird');
 const juice = require('juice');
+const nodemailer = require('nodemailer');
 
 const debug = require('debug')('email');
-const currencies = require('../constants/currencies');
+const templates = require('./loadEmailTemplates')();
 
-const templatesNames = [
-  'github.signup',
-  'group.expense.created',
-  'group.donation.created',
-  'group.monthlyreport',
-  'thankyou',
-  'thankyou.wwcode',
-  'thankyou.ispcwa',
-  'thankyou.fr',
-  'thankyou.laprimaire',
-  'user.forgot.password',
-  'user.new.token'
-];
-
-/**
- * Helpers
- */
-const getSubject = str => {
-  var subj = '';
-  if (process.env.NODE_ENV === 'staging') {
-    subj += '[STAGING] ';
-  } else if (process.env.NODE_ENV !== 'production'){
-    subj += '[TESTING] ';
-  }
-  subj += str.split('\n')[0].replace(/^Subject: ?/i, '');
-  return subj;
-}
-
-const getBody = (str) => {
-  const html = str.split('\n').slice(2).join('\n');
-  return html; // inlining css
-}
 
 const render = (name, data, config) => {
-  data.config = config;
-  data.logoNotSvg = data.group && data.group.logo && !data.group.logo.endsWith('.svg');
-  return templates[name](data);
+    data.config = config;
+    data.logoNotSvg = data.group && data.group.logo && !data.group.logo.endsWith('.svg');
+    return templates[name](data);
 };
 
-const getHTML = (template, data) => {
-  return juice(render(template, data, config));
-}
-
-/***
- * Loading Handlebars templates for the HTML emails
+/*
+ * Gets the body from a string (usually a template)
  */
-const templates = {};
-function loadTemplates() {
-  const templatesPath = `${__dirname}/../../templates`;
+const getBody = str => str.split('\n').slice(2).join('\n');
 
-  // Register partials
-  const header = fs.readFileSync(`${templatesPath}/partials/header.hbs`, 'utf8');
-  const footer = fs.readFileSync(`${templatesPath}/partials/footer.hbs`, 'utf8');
-  const subscriptions = fs.readFileSync(`${templatesPath}/partials/subscriptions.hbs`, 'utf8');
-
-  handlebars.registerPartial('header', header);
-  handlebars.registerPartial('footer', footer);
-  handlebars.registerPartial('subscriptions', subscriptions);
-
-  handlebars.registerHelper('sign', (value) => {
-    if (value >= 0) return '+';
-    else return '';
-  });
-
-  handlebars.registerHelper('toLowerCase', (str) => {
-    return str.toLowerCase();
-  });
-
-  handlebars.registerHelper('moment', (value, props) => {
-    if (props && props.hash.format)
-      return moment(value).format(props.hash.format);
-    else
-      return moment(value).format('MMMM Do YYYY');
-  });
-
-  handlebars.registerHelper('currency', (value, props) => {
-    const currency = props.hash.currency;
-    value = value/100; // converting cents
-    if (currencies[currency]) {
-      let str = currencies[currency](value);
-      if (str.indexOf('-') !== -1) // we move the minus sign to the beginning: $-10 -> -$10
-        str = `-${str.replace('-','')}`;
-      return str;
+/*
+ * Appends appropriate prefix and cleans up subject
+ */
+const getSubject = str => {
+    var subj = '';
+    if (process.env.NODE_ENV === 'staging') {
+      subj += '[STAGING] ';
+    } else if (process.env.NODE_ENV !== 'production'){
+      subj += '[TESTING] ';
     }
-    console.error(`Unexpected currency ${currency}`);
-    return `${value} ${currency}`;
-  });
-
-  handlebars.registerHelper('encodeURIComponent', (str) => {
-    return encodeURIComponent(str);
-  });
-
-  templatesNames.forEach((template) => {
-    const source = fs.readFileSync(`${templatesPath}/emails/${template}.hbs`, 'utf8');
-    templates[template] = handlebars.compile(source);
-  });
+    subj += str.split('\n')[0].replace(/^Subject: ?/i, '');
+    return subj;
 };
 
-loadTemplates();
-
-/**
- * Mailgun wrapper
+/*
+ * sends an email message to a recipient with given subject and body
  */
-const EmailLib = (app) => {
+const sendMessage = (recipient, subject, html) => {
+  debug("email: ", recipient, subject, html);
 
-  const send = (template, recipient, data) => {
-
-    if (template === 'thankyou') {
-      if (data.group.name.match(/WWCode/i))
-        template += '.wwcode';
-      if (data.group.name.match(/ispcwa/i))
-        template += '.ispcwa';
-      if (_.contains(['lesbarbares', 'nuitdebout', 'laprimaire'], data.group.slug)) {
-        template += '.fr';
-
-        if (data.group.slug === 'laprimaire')
-          template = 'thankyou.laprimaire';
-
-        // xdamman: hack
-        switch (data.interval) {
-          case 'month':
-            data.interval = 'mois';
-            break;
-          case 'year':
-            data.interval = 'an';
-            break;
-        }
+  if (config.mailgun.user) {
+    const mailgun = nodemailer.createTransport({
+      service: 'Mailgun',
+      auth: {
+        user: config.mailgun.user,
+        pass: config.mailgun.password
       }
-    }
-
-    if (template === 'group.transaction.created') {
-      template = (data.transaction.amount > 0) ? 'group.donation.created' : 'group.expense.created';
-      if (data.user && data.user.twitterHandle) {
-        const groupMention = (data.group.twitterHandle) ? `@${data.group.twitterHandle}` : data.group.name;
-        const text = `Hi @${data.user.twitterHandle} thanks for your donation to ${groupMention} https://opencollective.com/${data.group.slug} 🎉😊`;
-        data.tweet = {
-          text,
-          encoded: encodeURIComponent(text)
-        };
-      }
-    }
-
-    if (!templates[template]) return Promise.reject(new Error("Invalid email template"));
-
-    const templateString = getHTML(template, data);
-    const subject = getSubject(templateString);
-
-    debug(`sending email to ${recipient} with subject "${subject}"`);
-
-    debug("email body", templateString);
-
-    return app.mailgun.sendMail({
-      from: config.email.from,
-      to: recipient,
-      bcc: 'ops@opencollective.com',
-      subject,
-      html: getBody(templateString)
-    }).catch(e => {
-      console.error("Error in sending email", e, e.stack);
     });
-  };
 
-  return {
-    send,
-    getHTML,
-    getBody,
-    getSubject,
-    reload: loadTemplates
-  };
+    return new Promise((resolve, reject) => {
+      mailgun.sendMail({
+        from: config.email.from,
+        to: recipient,
+        bcc: 'ops@opencollective.com',
+        subject,
+        html
+      }, (err, info) => {
+        if (err) {
+          return reject(err);
+        } else {
+          return resolve(info);
+        }
+      })
+    });
+  } else {
+    console.warn("Warning: No mail sent - Mailgun is not configured");
+    return Promise.resolve();
+  }
+};
 
-}
+/*
+ * Given a template, recipient and data, generates email.
+ */
 
-module.exports = EmailLib;
+const generateEmailFromTemplate = (template, recipient, data) => {
+
+  if (template === 'thankyou') {
+    if (data.group.name.match(/WWCode/i))
+      template += '.wwcode';
+    if (data.group.name.match(/ispcwa/i))
+      template += '.ispcwa';
+    if (_.contains(['lesbarbares', 'nuitdebout', 'laprimaire'], data.group.slug)) {
+      template += '.fr';
+
+      if (data.group.slug === 'laprimaire')
+        template = 'thankyou.laprimaire';
+
+      // xdamman: hack
+      switch (data.interval) {
+        case 'month':
+          data.interval = 'mois';
+          break;
+        case 'year':
+          data.interval = 'an';
+          break;
+      }
+    }
+  }
+
+  if (template === 'group.transaction.created') {
+    template = (data.transaction.amount > 0) ? 'group.donation.created' : 'group.expense.created';
+    if (data.user && data.user.twitterHandle) {
+      const groupMention = (data.group.twitterHandle) ? `@${data.group.twitterHandle}` : data.group.name;
+      const text = `Hi @${data.user.twitterHandle} thanks for your donation to ${groupMention} https://opencollective.com/${data.group.slug} 🎉😊`;
+      data.tweet = {
+        text,
+        encoded: encodeURIComponent(text)
+      };
+    }
+  }
+
+  if (!templates[template]) {
+    return Promise.reject(new Error("Invalid email template"));
+  }
+  return Promise.resolve(render(template, data, config));
+};
+
+/*
+ * Given a template, recipient and data, generates email and sends it.
+ * Deprecated. Should use sendMessageFromActivity() for sending new emails.
+ */
+
+const generateEmailFromTemplateAndSend = (template, recipient, data) => {
+
+  return generateEmailFromTemplate(template, recipient, data)
+    .then(templateString => sendMessage(recipient, getSubject(templateString), getBody(templateString)));
+};
+
+module.exports = {
+
+  getBody,
+  getSubject,
+  sendMessage,
+  generateEmailFromTemplate,
+  send: generateEmailFromTemplateAndSend
+};
