@@ -61,7 +61,8 @@ module.exports = () => {
         str = `-${str.replace('-','')}`;
       }
       return str;
-    });
+    }
+  });
 
   handlebars.registerHelper('encodeURIComponent', (str) => {
     return encodeURIComponent(str);
