@@ -182,14 +182,14 @@ function reportString(results) {
 }
 
 function displayTotals(totals) {
-  if(totals.length > 0) {
+  if (totals.length > 0) {
     return ` totaling:\n    * ${totals.join('\n    * ').trim()}`;
   }
   return "";
 }
 
 function displayCollectives(collectives) {
-  if(collectives.length > 0) {
+  if (collectives.length > 0) {
     return `:\n    * ${collectives.join('\n    * ').trim()}`;
   }
   return "";
