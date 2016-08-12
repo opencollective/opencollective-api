@@ -22,10 +22,9 @@ module.exports = function(app) {
   const Transaction = models.Transaction;
   const ConnectedAccount = models.ConnectedAccount;
   const User = models.User;
-  const transactions = require('../controllers/transactions')(app);
   const roles = require('../constants/roles');
   const activities = require('../constants/activities');
-  const emailLib = require('../lib/email')(app);
+  const emailLib = require('../lib/email');
   const githubLib = require('../lib/github');
   const queries = require('../lib/queries')(models.sequelize);
 
@@ -215,15 +214,13 @@ module.exports = function(app) {
 
     // Caller.
     const user = req.remoteUser || req.user || transaction.user || {};
-    transactions._create({
-      transaction,
-      group,
-      user
-    }, (e, transactionCreated) => {
-      if (e) return next(e);
-      res.send(transactionCreated);
-    });
-
+    return models.Transaction.createFromPayload({
+        transaction,
+        group,
+        user
+      })
+      .then(t => res.send(t))
+      .catch(next);
   };
 
   /**

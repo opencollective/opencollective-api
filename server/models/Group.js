@@ -268,16 +268,31 @@ module.exports = function(Sequelize, DataTypes) {
         });
       },
 
-      getBalance() {
+      getExpenses(status, startDate, endDate) {
+        endDate = endDate || new Date;
+        const where = {
+          amount: { $lt: 0 },
+          createdAt: { $lte: endDate },
+          GroupId: this.id
+        };
+        if (status) where.status = status;
+        if (startDate) where.createdAt.$gte = startDate;
+
+        return models.Transaction.findAll({ where, order: [['createdAt','DESC']] });
+      },
+
+      getBalance(until) {
+        until = until || new Date();
         return models.Transaction.find({
           attributes: [
-            [Sequelize.fn('SUM', Sequelize.col('netAmountInGroupCurrency')), 'total']
+            [Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('netAmountInGroupCurrency')), 0), 'total']
           ],
           where: {
-            GroupId: this.id
-            }
-          })
-        .then(result => Promise.resolve(result.toJSON().total));
+            GroupId: this.id,
+            createdAt: { $lt: until }
+          }
+        })
+        .then(result => Promise.resolve(parseInt(result.toJSON().total, 10)));
       },
 
       getYearlyIncome() {
@@ -318,10 +333,11 @@ module.exports = function(Sequelize, DataTypes) {
                 AND t."deletedAt" IS NULL
                 AND s.interval = 'month' AND s."isActive" IS FALSE AND s."deletedAt" IS NULL)
             "yearlyIncome"
-        `, {
-          replacements: { GroupId: this.id },
-          type: Sequelize.QueryTypes.SELECT
-        }).then(result => Promise.resolve(parseInt(result[0].yearlyIncome,10)));
+          `.replace(/\n/g, ' '), // this is to remove the new lines and save log space.
+          {
+            replacements: { GroupId: this.id },
+            type: Sequelize.QueryTypes.SELECT
+          }).then(result => Promise.resolve(parseInt(result[0].yearlyIncome,10)));
       },
 
       getTotalDonations() {
@@ -343,17 +359,19 @@ module.exports = function(Sequelize, DataTypes) {
           })
       },
 
-      getBackersCount() {
+      getBackersCount(until) {
+        until = until || new Date;
         return models.Transaction
           .find({
             attributes: [
-              [Sequelize.fn('COUNT', Sequelize.col('UserId')), 'backersCount']
+              [Sequelize.fn('COUNT', Sequelize.fn('DISTINCT', Sequelize.col('UserId'))), 'backersCount']
             ],
             where: {
               GroupId: this.id,
               amount: {
                 $gt: 0
-              }
+              },
+              createdAt: { $lt: until }
             }
           })
           .then((result) => {
@@ -414,7 +432,6 @@ module.exports = function(Sequelize, DataTypes) {
       getGroupsSummaryByTag: (tags, limit, excludeList, minTotalDonation, randomOrder) => {
         limit = limit || 3;
         excludeList = excludeList || [];
-
         return queries.getGroupsByTag(tags, limit, excludeList, minTotalDonation, randomOrder)
           .then(groups => {
             return Promise.all(groups.map(group => {
