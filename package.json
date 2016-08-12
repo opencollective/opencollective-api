@@ -88,8 +88,8 @@
     "supertest-as-promised": "3.1.0"
   },
   "scripts": {
-    "start": "node .",
-    "dev": "nodemon -e js,hbs -w server",
+    "start": "babel-node .",
+    "dev": "nodemon -x babel-node . -e js,hbs",
     "hint": "eslint '**/*.js' --quiet",
     "nsp": "nsp check",
     "pretest": "npm run hint && npm run nsp",

@@ -141,7 +141,7 @@ module.exports = (app) => {
   app.post('/groups/:groupid/payments/paypal', aN.authenticateUserOrApp(), required('payment'), donations.paypal); // Make a payment/donation.
 
   app.get('/groups/:groupid/services/meetup/sync', mw.fetchUsers, controllers.services.meetup.sync);
-  app.get('/groups/:groupid/services/mailgun/sync', mw.fetchUsers, controllers.services.mailgun.sync);
+  app.get('/groups/:groupid/services/mailgun/sync', mw.fetchUsers, controllers.services.mailgun.syncMailingListWithUsersGroup);
 
   /**
    * UserGroup.
@@ -219,6 +219,7 @@ module.exports = (app) => {
    * Webhook for stripe when it gets a new subscription invoice
    */
   app.post('/webhooks/stripe', webhooks.stripe);
+  app.post('/webhooks/mailgun', controllers.services.mailgun.webhook);
 
   /**
    * Stripe oAuth
