@@ -138,7 +138,9 @@ module.exports = (app) => {
   app.get('/groups/tags', groups.getGroupTags); // List all unique tags on all groups
   app.get('/groups/:groupid', aZ.authorizeAccessToGroup({authIfPublic: true}), groups.getOne);
   app.get('/groups/:groupid/users', aZ.authorizeAccessToGroup({authIfPublic: true}), cache(60), groups.getUsers); // Get group users
+  app.get('/groups/:groupid/active_users', aZ.authorizeAccessToGroup({authIfPublic: true}), cache(60), groups.getActiveUsers); // Get group users
   app.get('/groups/:groupid/users.csv', aZ.authorizeAccessToGroup({authIfPublic: true}), cache(60), mw.format('csv'), groups.getUsers); // Get group users
+  app.get('/groups/:groupid/active_users.csv', aZ.authorizeAccessToGroup({authIfPublic: true}), cache(60), mw.format('csv'), groups.getActiveUsers); // Get group users
   app.put('/groups/:groupid', aZ.authorizeAccessToGroup({userRoles: [HOST, MEMBER], bypassUserRolesCheckIfAuthenticatedAsAppAndNotUser: true}), required('group'), groups.update); // Update a group.
   app.delete('/groups/:groupid', NotImplemented); // Delete a group.
 

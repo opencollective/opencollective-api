@@ -5,6 +5,7 @@ const _ = require('lodash');
 const async = require('async');
 const utils = require('../lib/utils');
 const Promise = require('bluebird');
+const moment = require('moment');
 
 /**
  * Controller.
@@ -71,9 +72,21 @@ module.exports = function(app) {
       .then(createActivity);
   };
 
+  const getUserData = (groupId, tiers) => {
+    return queries.getUsersFromGroupWithTotalDonations(groupId)
+      .then(backers => utils.appendTier(backers, tiers))
+  };
+
   const getUsers = (req, res, next) => {
-    return queries.getUsersFromGroupWithTotalDonations(req.group.id)
-      .then(backers => utils.appendTier(backers, req.group.tiers))
+    return getUserData(req.group.id, req.group.tiers)
+      .then(backers => res.send(backers))
+      .catch(next);
+  };
+
+  const getActiveUsers = (req, res, next) => {
+    const now = moment();
+    return getUserData(req.group.id, req.group.tiers)
+      .filter(backer => now.diff(moment(backer.lastDonation), 'days') <= 90)
       .then(backers => res.send(backers))
       .catch(next);
   };
@@ -574,7 +587,8 @@ module.exports = function(app) {
     getTransactions,
     getUsers,
     updateTransaction,
-    getLeaderboard
+    getLeaderboard,
+    getActiveUsers
   };
 
 };
