@@ -16,6 +16,8 @@ module.exports = function(properties) {
         value = req.headers[prop];
       if (!value && value !== false)
         value = req.body[prop];
+      if (!value && value !== false)
+        value = req.session[prop];
 
       if ((!value || value === 'null') && value !== false) {
         missing[prop] = `Required field ${prop} missing`;
