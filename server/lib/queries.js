@@ -130,8 +130,8 @@ module.exports = function(sequelize) {
         SELECT
           max("UserId") as "UserId",
           max("updatedAt") as "updatedAt"
-        FROM "Donations" d
-        WHERE d."GroupId" = :GroupId AND d.amount >= 0
+        FROM "Transactions" t
+        WHERE t."GroupId" = :GroupId AND t.amount >= 0
         GROUP BY "UserId"
       )
       SELECT
