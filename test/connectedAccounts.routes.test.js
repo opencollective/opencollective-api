@@ -55,18 +55,36 @@ describe('connectedAccounts.routes.test.js: GIVEN an application and group', () 
 
     beforeEach(done => {
       req = request(app)
-        .get('/connected-accounts/github/callback')
-        .send();
+        .get('/connected-accounts/github/callback');
       done();
     });
+    describe('WHEN calling without API key', () => {
+      it('THEN returns 400', done => req.expect(400).end(done));
+    });
 
-    it('THEN returns 302 with location', done => {
-      req.expect(302)
-        .end((err, res) => {
-          expect(err).not.to.exist;
-          expect(res.headers.location).to.be.equal(`https://github.com/login/oauth/authorize?response_type=code&redirect_uri=http%3A%2F%2Flocalhost%3A3060%2Fconnected-accounts%2Fgithub%2Fcallback%3Futm_source%3D%26slug%3D&client_id=${clientId}`);
-          done();
-        });
+    describe('WHEN calling with invalid API key', () => {
+      beforeEach(done => {
+        req = req.send({ api_key: 'bla' });
+        done();
+      });
+
+      it('THEN returns 401', done => req.expect(401).end(done));
+    });
+
+    describe('WHEN calling with valid API key', () => {
+      beforeEach(done => {
+        req = req.send({api_key: application.api_key});
+        done();
+      });
+
+      it('THEN returns 302 with location', done => {
+        req.expect(302)
+          .end((err, res) => {
+            expect(err).not.to.exist;
+            expect(res.headers.location).to.be.equal(`https://github.com/login/oauth/authorize?response_type=code&redirect_uri=http%3A%2F%2Flocalhost%3A3060%2Fconnected-accounts%2Fgithub%2Fcallback%3Futm_source%3D%26slug%3D&client_id=${clientId}`);
+            done();
+          });
+      });
     });
   });
 

@@ -241,7 +241,7 @@ module.exports = (Sequelize, DataTypes) => {
           subject: this.id, // user
           issuer: config.host.api,
           audience: application.id
-        });
+      });
       },
 
       hasPassword() {
