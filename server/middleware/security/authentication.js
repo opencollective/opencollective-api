@@ -222,22 +222,6 @@ module.exports = function (app) {
       };
     },
 
-    authenticateAppByEncryptedApiKey: (req, res, next) => {
-      required('api_key_enc')(req, res, (e) => {
-        if (e) return next(e);
-        const apiKeyEnc = req.required.api_key_enc;
-        jwt.verify(apiKeyEnc, secret, (err, decoded) => {
-          if (err) {
-            return next(new Unauthorized(err.message));
-          }
-          findApplicationByKey(decoded.apiKey)
-            .tap(application => req.application = application)
-            .then(() => next())
-            .catch(next);
-        });
-      });
-    },
-
     authenticateService: (req, res, next) => {
       const opts = { callbackURL: getOAuthCallbackUrl(req) };
 
@@ -300,6 +284,6 @@ module.exports = function (app) {
     const slug = req.query.slug;
     const params = qs.stringify({ utm_source, slug });
     const service = req.params.service;
-    return `${config.host.api}/connected-accounts/${service}/callback?${params}`;
+    return `${config.host.website}/api/connected-accounts/${service}/callback?${params}`;
   }
 };
