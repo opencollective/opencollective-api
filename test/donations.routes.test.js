@@ -269,8 +269,6 @@ describe('donations.routes.test.js', () => {
             expect(res.rows[0]).to.have.property('paymentProcessorFeeInTxnCurrency', 155);
             expect(res.rows[0]).to.have.property('txnCurrencyFxRate', 0.785);
             expect(res.rows[0]).to.have.property('netAmountInGroupCurrency', 922)
-            expect(res.rows[0]).to.have.property('paidby', user.id.toString());
-            expect(res.rows[0]).to.have.property('approved', true);
             expect(res.rows[0].tags[0]).to.be.equal('Donation');
             expect(res.rows[0]).to.have.property('description',
               'Donation to ' + group.name);
@@ -511,7 +509,6 @@ describe('donations.routes.test.js', () => {
         currency: CURRENCY,
         description: 'super description',
         vendor: '@vendor',
-        paidby: '@paidby',
         tags: ['tag1', 'tag2'],
         status: 'super status',
         link: 'www.opencollective.com',
@@ -623,7 +620,6 @@ describe('donations.routes.test.js', () => {
             expect(res.rows[0]).to.have.property('tags');
             expect(res.rows[0]).to.have.property('payoutMethod', null);
             expect(res.rows[0]).to.have.property('amount', data.amount);
-            expect(res.rows[0]).to.have.property('paidby', String(user.id));
             done();
           })
           .catch(done);
@@ -643,7 +639,6 @@ describe('donations.routes.test.js', () => {
         interval: 'month',
         description: 'super description',
         vendor: '@vendor',
-        paidby: '@paidby',
         tags: ['tag1', 'tag2'],
         status: 'super status',
         link: 'www.opencollective.com',

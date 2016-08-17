@@ -1,6 +1,7 @@
 const gateways = require('../gateways');
 const constants = require('../constants/transactions');
 const roles = require('../constants/roles');
+const emailLib = require('./email');
 
 module.exports = (Sequelize, donation) => {
 
@@ -107,7 +108,7 @@ module.exports = (Sequelize, donation) => {
             donation: donation.info,
             user,
             group,
-            interval
+            interval: subscription && subscription.interval
             // TODO: bring this back. Figure out how to pass the application link
             // subscriptionsLink: user.generateLoginLink(req.application, '/subscriptions')
           }))

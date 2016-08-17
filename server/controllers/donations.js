@@ -20,7 +20,6 @@ module.exports = (app) => {
   const models = app.set('models');
   const errors = app.errors;
   const users = require('../controllers/users')(app);
-  const emailLib = require('../lib/email');
 
   const getOrCreateUser = (attributes, cb) => {
      return models.User.findOne({
