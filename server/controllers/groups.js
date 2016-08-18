@@ -78,17 +78,14 @@ module.exports = function(app) {
   };
 
   const getUsers = (req, res, next) => {
-    return getUserData(req.group.id, req.group.tiers)
-      .then(backers => res.send(backers))
-      .catch(next);
-  };
-
-  const getActiveUsers = (req, res, next) => {
-    const now = moment();
-    return getUserData(req.group.id, req.group.tiers)
-      .filter(backer => now.diff(moment(backer.lastDonation), 'days') <= 90)
-      .then(backers => res.send(backers))
-      .catch(next);
+    var promise = getUserData(req.group.id, req.group.tiers);
+    if (req.query.filter && req.query.filter === 'active') {
+      const now = moment();
+      promise = promise.filter(backer => now.diff(moment(backer.lastDonation), 'days') <= 90);
+    }
+    return promise
+    .then(backers => res.send(backers))
+    .catch(next)
   };
 
   const updateTransaction = (req, res, next) => {
@@ -587,8 +584,7 @@ module.exports = function(app) {
     getTransactions,
     getUsers,
     updateTransaction,
-    getLeaderboard,
-    getActiveUsers
+    getLeaderboard
   };
 
 };
