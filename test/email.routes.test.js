@@ -112,8 +112,9 @@ describe("controllers.services.email", () => {
       .send(webhookBody)
       .then(() => {
         expect(spy.args[0][1]).to.equal('members@testcollective.opencollective.com');
-        expect(spy.args[0][3].bcc).to.equal(usersData[0].email);
-        expect(spy.args[1][3].bcc).to.equal(usersData[1].email);
+        const emailSentTo = [spy.args[0][3].bcc,spy.args[1][3].bcc];
+        expect(emailSentTo.indexOf(usersData[0].email) !== -1).to.be.true;
+        expect(emailSentTo.indexOf(usersData[1].email) !== -1).to.be.true;
         spy.restore();
         done();
       });

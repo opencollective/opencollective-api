@@ -96,10 +96,6 @@ module.exports = (app) => {
       .then(json => {
         email = json; return email;
       })
-      .catch(e => { 
-        if (e.statusCode === 404) return next(new errors.NotFound(`Message ${messageId} not found`));
-        else return next(e); 
-      })
       .then(fetchSenderAndApprover)
       .then(() => {
         const emailData = {
@@ -115,7 +111,10 @@ module.exports = (app) => {
         return sendEmailToList(email.To, emailData);
       })
       .then(() => res.send(`Email from ${email.sender} with subject "${email.Subject}" approved for the ${email.To} mailing list`))
-      .catch(next);
+      .catch(e => {
+        if (e.statusCode === 404) return next(new errors.NotFound(`Message ${messageId} not found`));
+        else return next(e);
+      })
   };
   
   const webhook = (req, res, next) => {

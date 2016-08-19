@@ -9,7 +9,6 @@ const templates = require('./loadEmailTemplates')();
 const activities = require('../constants/activities');
 const utils = require('./utils');
 
-
 const render = (name, data, config) => {
     data.config = config;
     data.logoNotSvg = data.group && data.group.logo && !data.group.logo.endsWith('.svg');
@@ -39,7 +38,8 @@ const getSubject = str => {
  * sends an email message to a recipient with given subject and body
  */
 const sendMessage = (recipient, subject, html, options) => {
-  debug("email: ", recipient, subject, html);
+  options = options || {};
+  debug("email: ", recipient, subject, html, options);
 
   // if not in production, only send out emails to bcc'd opencollective address
   if (process.env.NODE_ENV !== 'production' && !utils.isEmailInternal(recipient)) {
