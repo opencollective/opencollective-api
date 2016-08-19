@@ -40,13 +40,16 @@ module.exports = function(app) {
   };
 
   const subscribeUserToMailingList = (user, group, role) => {
-    const ml = new MailingList(group);
-    switch (role) {
-      case roles.BACKER:
-        return ml.addMember(user, 'backers');
-      case roles.MEMBER:
-        return ml.addMember(user, 'members');
-    }
+    const lists = {};
+    lists[roles.BACKER] = 'backers';
+    lists[roles.MEMBER] = 'members';
+
+    return Notification.create({
+      UserId: user.id,
+      GroupId: group.id,
+      type: `mailinglist.${lists[role]}`
+    });
+
   };
 
   const _addUserToGroup = (group, user, options) => {

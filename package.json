@@ -105,7 +105,7 @@
     "db:copy:prod": "./scripts/db_copy_to_localhost.sh prod && PG_DATABASE=opencollective_prod_snapshot npm run db:sanitize",
     "db:copy:staging": "./scripts/db_copy_to_localhost.sh staging",
     "db:copy:prod:staging": "./scripts/db_copy_prod_to_staging.sh && heroku run npm run db:sanitize --app opencollective-staging-api",
-    "db:sanitize": "node scripts/replace_stripe_accounts",
+    "db:sanitize": "babel-node scripts/replace_stripe_accounts",
     "db:reset": "node scripts/reset",
     "migration:create": "sequelize migration:create --config config/sequelize_cli.json",
     "postinstall": "sh ./scripts/postinstall.sh",

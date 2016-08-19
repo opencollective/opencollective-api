@@ -36,7 +36,7 @@ const getSubject = str => {
 /*
  * sends an email message to a recipient with given subject and body
  */
-const sendMessage = (recipient, subject, html) => {
+const sendMessage = (recipient, subject, html, options) => {
   debug("email: ", recipient, subject, html);
 
   if (config.mailgun.user) {
@@ -50,9 +50,9 @@ const sendMessage = (recipient, subject, html) => {
 
     return new Promise((resolve, reject) => {
       mailgun.sendMail({
-        from: config.email.from,
+        from: options.from || config.email.from,
         to: recipient,
-        bcc: 'ops@opencollective.com',
+        bcc: `ops@opencollective.com,${options.bcc}`,
         subject,
         html
       }, (err, info) => {
@@ -121,10 +121,10 @@ const generateEmailFromTemplate = (template, recipient, data) => {
  * Deprecated. Should use sendMessageFromActivity() for sending new emails.
  */
 
-const generateEmailFromTemplateAndSend = (template, recipient, data) => {
+const generateEmailFromTemplateAndSend = (template, recipient, data, options) => {
 
   return generateEmailFromTemplate(template, recipient, data)
-    .then(templateString => sendMessage(recipient, getSubject(templateString), getBody(templateString)));
+    .then(templateString => sendMessage(recipient, getSubject(templateString), getBody(templateString), options));
 };
 
 module.exports = {

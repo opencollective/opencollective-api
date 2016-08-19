@@ -25,7 +25,7 @@ module.exports = function(app) {
   ];
 
   const services = [
-    'mailgun',
+    'email',
     'meetup'
   ]
 

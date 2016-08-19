@@ -141,7 +141,7 @@ module.exports = (app) => {
   app.post('/groups/:groupid/payments/paypal', aN.authenticateUserOrApp(), required('payment'), donations.paypal); // Make a payment/donation.
 
   app.get('/groups/:groupid/services/meetup/sync', mw.fetchUsers, controllers.services.meetup.sync);
-  app.get('/groups/:groupid/services/mailgun/sync', mw.fetchUsers, controllers.services.mailgun.syncMailingListWithUsersGroup);
+  app.get('/groups/:groupid/services/email/sync', mw.fetchUsers, controllers.services.email.syncMailingListWithUsersGroup);
 
   /**
    * UserGroup.
@@ -219,7 +219,7 @@ module.exports = (app) => {
    * Webhook for stripe when it gets a new subscription invoice
    */
   app.post('/webhooks/stripe', webhooks.stripe);
-  app.post('/webhooks/mailgun', controllers.services.mailgun.webhook);
+  app.post('/webhooks/mailgun', controllers.services.email.webhook);
 
   /**
    * Stripe oAuth
@@ -235,6 +235,12 @@ module.exports = (app) => {
   app.get('/connected-accounts/:service(github|twitter)', aN.authenticateAppByApiKey, aN.authenticateService);
   app.get('/connected-accounts/:service/callback', aN.authenticateAppByEncryptedApiKey, aN.authenticateServiceCallback);
   app.get('/connected-accounts/:service/verify', aN.authenticateAppByApiKey, aN.parseJwtNoExpiryCheck, connectedAccounts.get);
+
+  /**
+   * External services
+   * TODO: we need to consolidate all 3rd party services within the /services/* routes
+   */
+  app.get('/services/email/approve', controllers.services.email.approve);
 
   /**
    * Github API - fetch all repositories using the user's access_token
