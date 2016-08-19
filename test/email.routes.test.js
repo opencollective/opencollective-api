@@ -53,9 +53,20 @@ let group;
 
 describe("controllers.services.email", () => {
 
+  let sandbox;
+
   before((done) => utils.cleanAllDb().tap(a => done()));
 
   after(() => nock.cleanAll());
+
+  beforeEach(() => {
+    sandbox = sinon.sandbox.create();
+  })
+
+  afterEach(() => {
+    nock.cleanAll()
+    sandbox.restore();
+  });
 
   before((done) => {
 
@@ -85,7 +96,7 @@ describe("controllers.services.email", () => {
 
   it("forwards emails sent to info@:slug.opencollective.com", (done) => {
 
-    const spy = sinon.spy(emailLib, 'sendMessage', (recipient, subject, body, opts) => {
+    const spy = sandbox.spy(emailLib, 'sendMessage', (recipient, subject, body, opts) => {
       return Promise.resolve();
     });
 
@@ -96,14 +107,13 @@ describe("controllers.services.email", () => {
         expect(spy.args[0][0]).to.equal('info@testcollective.opencollective.com');
         expect(spy.args[0][1]).to.equal(webhookBody.subject);
         expect(spy.args[0][3].bcc).to.equal(usersData[0].email);
-        spy.restore();
         done();
       });
   });
   
   it("forwards the email for approval to the core members", (done) => {
 
-    const spy = sinon.spy(emailLib, 'send', (template, recipient, data) => {
+    const spy = sandbox.spy(emailLib, 'send', (template, recipient, data) => {
       return Promise.resolve();
     });
 
@@ -115,14 +125,13 @@ describe("controllers.services.email", () => {
         const emailSentTo = [spy.args[0][3].bcc,spy.args[1][3].bcc];
         expect(emailSentTo.indexOf(usersData[0].email) !== -1).to.be.true;
         expect(emailSentTo.indexOf(usersData[1].email) !== -1).to.be.true;
-        spy.restore();
         done();
       });
   });
 
   it("approves the email", (done) => {
 
-    const spy = sinon.spy(emailLib, 'send', (template, recipient, data) => {
+    const spy = sandbox.spy(emailLib, 'send', (template, recipient, data) => {
       console.log("emailLib.sendMessage called with ", template, recipient);
       return Promise.resolve();
     });
@@ -134,7 +143,6 @@ describe("controllers.services.email", () => {
         expect(spy.args[0][2].subject).to.equal('test collective members');
         expect(spy.args[0][3].bcc).to.equal(usersData[0].email);
         expect(spy.args[0][3].from).to.equal('testcollective collective <info@testcollective.opencollective.com>');
-        spy.restore();
         done();
       });
   });
