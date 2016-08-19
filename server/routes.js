@@ -147,7 +147,6 @@ module.exports = (app) => {
   app.post('/groups/:groupid/payments/paypal', aN.authenticateUserOrApp(), required('payment'), donations.paypal); // Make a payment/donation.
 
   app.get('/groups/:groupid/services/meetup/sync', mw.fetchUsers, controllers.services.meetup.sync);
-  app.get('/groups/:groupid/services/email/sync', mw.fetchUsers, controllers.services.email.syncMailingListWithUsersGroup);
 
   /**
    * UserGroup.

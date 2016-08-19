@@ -1,7 +1,6 @@
 /**
  * Dependencies.
  */
-const MailingList = require('../../lib/mailinglist');
 const emailLib = require('../../lib/email');
 const Promise = require('bluebird');
 const config = require('config');
@@ -15,15 +14,6 @@ module.exports = (app) => {
 
   const models = app.set('models');
   const errors = app.errors;
-
-  const syncMailingListWithUsersGroup = (req, res, next) => {
-    req.group.users = req.users;
-    const ml = new MailingList(req.group);
-    ml.syncCollective().then(() => {
-        res.send(ml.lists);
-    })
-    .catch(next);
-  };
 
   // TODO: move to emailLib.js
   const sendEmailToList = (to, email) => {
@@ -180,6 +170,6 @@ module.exports = (app) => {
       .catch(next);
   };
 
-  return { syncMailingListWithUsersGroup, webhook, approve };
+  return { webhook, approve };
 
 };
