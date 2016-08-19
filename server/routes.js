@@ -84,6 +84,11 @@ module.exports = (app) => {
   app.get('/profile/:slug', controllers.profile);
 
   /**
+   * Discover
+   */
+  app.get('/discover', controllers.discover);
+
+  /**
    * Users.
    */
   app.post('/users', aN.authenticateAppByApiKey, aZ.appAccess(0.5), required('user'), users.create); // Create a user.
@@ -130,6 +135,7 @@ module.exports = (app) => {
    */
   app.post('/groups', ifParam('flow', 'github'), aN.authenticateAppByApiKey, aN.parseJwtNoExpiryCheck, aN.checkJwtExpiry, required('payload'), groups.createFromGithub); // Create a group from a github repo
   app.post('/groups', aN.authenticateUserByJwt(), required('group'), groups.create); // Create a group. Option `role` to assign the caller directly (default to null).
+  app.get('/groups/tags', groups.getGroupTags); // List all unique tags on all groups
   app.get('/groups/:groupid', aZ.authorizeAccessToGroup({authIfPublic: true}), groups.getOne);
   app.get('/groups/:groupid/users', aZ.authorizeAccessToGroup({authIfPublic: true}), cache(60), groups.getUsers); // Get group users
   app.get('/groups/:groupid/users.csv', aZ.authorizeAccessToGroup({authIfPublic: true}), cache(60), mw.format('csv'), groups.getUsers); // Get group users
@@ -232,8 +238,8 @@ module.exports = (app) => {
    * Generic OAuth (ConnectedAccounts)
    */
   app.get('/:slug/connected-accounts', aN.authenticateUserAndAppByJwt(), connectedAccounts.list);
-  app.get('/connected-accounts/:service(github|twitter)', aN.authenticateAppByApiKey, aN.authenticateService);
-  app.get('/connected-accounts/:service/callback', aN.authenticateAppByEncryptedApiKey, aN.authenticateServiceCallback);
+  app.get('/connected-accounts/:service(github|twitter|meetup)', aN.authenticateAppByApiKey, aN.authenticateService);
+  app.get('/connected-accounts/:service/callback', aN.authenticateAppByApiKey, aN.authenticateServiceCallback);
   app.get('/connected-accounts/:service/verify', aN.authenticateAppByApiKey, aN.parseJwtNoExpiryCheck, connectedAccounts.get);
 
   /**
