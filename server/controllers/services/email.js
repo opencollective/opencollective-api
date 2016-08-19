@@ -3,7 +3,6 @@
  */
 const MailingList = require('../../lib/mailinglist');
 const emailLib = require('../../lib/email');
-const MailgunJS = require('mailgun-js');
 const Promise = require('bluebird');
 const config = require('config');
 const request = require('request-promise');
@@ -51,14 +50,15 @@ module.exports = (app) => {
       if (email.template) {
         console.log(`preview: http://localhost:3060/templates/email/${email.template}?data=${encodeURIComponent(JSON.stringify(email))}`);
         return emailLib.send(email.template, to, email, { from: email.from, bcc: recipients.join(',') });
-      } 
-      else {
+      } else {
         console.log("Subject: ", email.subject);
         email.body += '\n<!-- OpenCollective.com -->\n'; // watermark to identify if email has already been processed
         return emailLib.sendMessage(to, email.subject, email.body, { from: email.from, bcc: recipients.join(',') });
       }
     })
-    .catch(e => { console.error("error in sendEmailToList", e); });
+    .catch(e => {
+      console.error("error in sendEmailToList", e);
+    });
   };
 
   const approve = (req, res, next) => {
@@ -78,7 +78,9 @@ module.exports = (app) => {
                     if (email.sender == user.email) sender = user;
                   })
                 })
-                .catch(e => { console.error("err: ", e); });
+                .catch(e => {
+                  console.error("err: ", e);
+                });
       };
 
       const requestOptions = {
@@ -91,7 +93,9 @@ module.exports = (app) => {
 
       request
       .get(`https://so.api.mailgun.net/v3/domains/opencollective.com/messages/${messageId}`, requestOptions)
-      .then(json => { email = json; return email; })
+      .then(json => {
+        email = json; return email;
+      })
       .catch(e => { 
         if (e.statusCode === 404) return next(new errors.NotFound(`Message ${messageId} not found`));
         else return next(e); 
@@ -111,14 +115,12 @@ module.exports = (app) => {
         return sendEmailToList(email.To, emailData);
       })
       .then(() => res.send(`Email from ${email.sender} with subject "${email.Subject}" approved for the ${email.To} mailing list`))
-      .catch(e => next);
+      .catch(next);
   };
   
   const webhook = (req, res, next) => {
     const email = req.body;
     const recipient = email.recipient;
-
-    console.log("webhook:", JSON.stringify(email));
 
     const tokens = recipient.match(/(.+)@(.+)\.opencollective\.com/i);
     const list = tokens[1];
@@ -148,7 +150,6 @@ module.exports = (app) => {
       });
     }
 
-    console.log("Fetching group", slug);
     models.Group.find({ where: { slug } })
       .then(g => {
         if (!g) throw new errors.NotFound(`There is no group with slug ${slug}`);
@@ -176,8 +177,8 @@ module.exports = (app) => {
         console.log("Preview", `http://localhost:3060/templates/email/email.approve?data=${encodeURIComponent(JSON.stringify(getData(users[0])))}`);
         return Promise.map(users, (user) => emailLib.send('email.approve', `members@${slug}.opencollective.com`, getData(user), {bcc:user.email}));
       })
-      .then(() => res.send('ok'))
-      .catch(e => { console.error("Error: ", e); next(e); });
+      .then(() => res.send('Mailgun webhook processed successfully'))
+      .catch(next);
   };
 
   return { syncMailingListWithUsersGroup, webhook, approve };
