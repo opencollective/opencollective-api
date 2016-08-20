@@ -8,7 +8,7 @@ import _ from 'lodash';
 import webhookBody from './mocks/mailgun.webhook.payload.json';
 
 import nock from 'nock';
-import './mocks/mailgun.nock.js';
+const MailgunNock = require('./mocks/mailgun.nock.js');
 
 const utils = require('../test/utils.js')();
 const models = app.set('models');
@@ -51,7 +51,7 @@ const groupData = {
 
 let group;
 
-describe("controllers.services.email", () => {
+describe("email.routes.test", () => {
 
   let sandbox;
 
@@ -61,6 +61,7 @@ describe("controllers.services.email", () => {
 
   beforeEach(() => {
     sandbox = sinon.sandbox.create();
+    MailgunNock();
   })
 
   afterEach(() => {
