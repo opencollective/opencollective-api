@@ -6,7 +6,8 @@ const Promise = require('bluebird');
 const config = require('config');
 const request = require('request-promise');
 const _ = require('lodash');
-
+const crypto = require('crypto');
+const debug = require('debug');
 /**
  * Controller.
  */
@@ -15,18 +16,53 @@ module.exports = (app) => {
   const models = app.set('models');
   const errors = app.errors;
 
+  const unsubscribe = (req, res, next) => {
+
+    const type = req.params.type;
+    const email = req.params.email;
+    const slug = req.params.slug;
+
+    const identifier = `${email}.${slug}.${type}.${config.keys.opencollective.resetPasswordSecret}`;
+    const token = crypto.createHash('md5').update(identifier).digest("hex");
+
+    console.log("Unsubscribe ", email, slug, type, token);
+
+    if (token !== req.params.token) {
+      return next(new errors.BadRequest('Invalid token'));
+    }
+
+    models.Notification.findOne({
+      where: {
+        type
+      },
+      include: [
+        { model: models.User, where: { email }},
+        { model: models.Group, where: { slug }}
+      ]
+    })
+    .then(notification => {
+      if (!notification) throw new errors.BadRequest('No notification found for this user, group and type');
+      return notification.update({ active: false })
+    })
+    .then(() => res.send({"response": "ok"}))
+    .catch(next);
+
+  };
+
   // TODO: move to emailLib.js
   const sendEmailToList = (to, email) => {
     const tokens = to.match(/(.+)@(.+)\.opencollective\.com/i);
     const list = tokens[1];
     const slug = tokens[2];
+    const type = `mailinglist.${list}`;
     email.from = email.from || `${slug} collective <info@${slug}.opencollective.com>`;
+    email.slug = slug; // used for the unsubscribe url
 
     return models.Notification.findAll(
       { 
         where: { 
           channel: 'email',
-          type: `mailinglist.${list}`
+          type
         },
         include: [{model: models.User }, {model: models.Group, where: { slug } }] 
       }
@@ -36,15 +72,17 @@ module.exports = (app) => {
     })
     .then(results => results.map(r => r.User.email))
     .then(recipients => {
-      console.log(`Sending email from ${email.from} to ${to} (${recipients.length} recipients)`);
-      if (email.template) {
-        console.log(`preview: http://localhost:3060/templates/email/${email.template}?data=${encodeURIComponent(JSON.stringify(email))}`);
-        return emailLib.send(email.template, to, email, { from: email.from, bcc: recipients.join(',') });
-      } else {
-        console.log("Subject: ", email.subject);
-        email.body += '\n<!-- OpenCollective.com -->\n'; // watermark to identify if email has already been processed
-        return emailLib.sendMessage(to, email.subject, email.body, { from: email.from, bcc: recipients.join(',') });
-      }
+      console.log(`Sending email from ${email.from} to ${to} (${recipients.length} recipient(s))`);
+      return Promise.map(recipients, (recipient) => {
+        if (email.template) {
+          debug('preview')(`preview: http://localhost:3060/templates/email/${email.template}?data=${encodeURIComponent(JSON.stringify(email))}`);
+          return emailLib.send(email.template, to, email, { from: email.from, bcc: recipient, type });
+        } else {
+          debug('preview')("Subject: ", email.subject);
+          email.body += '\n<!-- OpenCollective.com -->\n'; // watermark to identify if email has already been processed
+          return emailLib.sendMessage(to, email.subject, email.body, { from: email.from, bcc: recipient, type });
+        }
+      });
     })
     .catch(e => {
       console.error("error in sendEmailToList", e);
@@ -170,6 +208,6 @@ module.exports = (app) => {
       .catch(next);
   };
 
-  return { webhook, approve };
+  return { webhook, approve, unsubscribe };
 
 };
