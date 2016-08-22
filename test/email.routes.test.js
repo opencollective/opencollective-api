@@ -98,9 +98,7 @@ describe("email.routes.test", () => {
 
   it("forwards emails sent to info@:slug.opencollective.com", (done) => {
 
-    const spy = sandbox.spy(emailLib, 'sendMessage', (recipient, subject, body, opts) => {
-      return Promise.resolve();
-    });
+    const spy = sandbox.spy(emailLib, 'sendMessage');
 
     request(app)
       .post('/webhooks/mailgun')
@@ -115,9 +113,7 @@ describe("email.routes.test", () => {
   
   it("forwards the email for approval to the core members", (done) => {
 
-    const spy = sandbox.spy(emailLib, 'send', (template, recipient, data) => {
-      return Promise.resolve();
-    });
+    const spy = sandbox.spy(emailLib, 'send');
 
     request(app)
       .post('/webhooks/mailgun')
@@ -133,10 +129,7 @@ describe("email.routes.test", () => {
 
   it("approves the email", (done) => {
 
-    const spy = sandbox.spy(emailLib, 'send', (template, recipient, data) => {
-      console.log("emailLib.send called with ", template, recipient);
-      return Promise.resolve();
-    });
+    const spy = sandbox.spy(emailLib, 'send');
 
     request(app)
       .get(`/services/email/approve?messageId=eyJwIjpmYWxzZSwiayI6Ijc3NjFlZTBjLTc1NGQtNGIwZi05ZDlkLWU1NTgxODJkMTlkOSIsInMiOiI2NDhjZDg1ZTE1IiwiYyI6InNhb3JkIn0=&approver=${encodeURIComponent(usersData[1].email)}`)

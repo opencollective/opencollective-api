@@ -125,7 +125,8 @@ const generateEmailFromTemplate = (template, recipient, data, options) => {
     }
   }
 
-  data.unsubscribeUrl = `${config.host.website}/api/services/email/unsubscribe/${encodeURIComponent(options.bcc || recipient)}/${options.slug || data.slug}/${options.type || template}/${generateUnsubscribeToken(options.bcc || recipient, options.slug || data.slug, options.type)}`;
+  const slug = (data.group && data.group.slug) ? data.group.slug : 'undefined';
+  data.unsubscribeUrl = `${config.host.website}/api/services/email/unsubscribe/${encodeURIComponent(options.bcc || recipient)}/${slug}/${options.type || template}/${generateUnsubscribeToken(options.bcc || recipient, slug, options.type)}`;
 
   if (!templates[template]) {
     return Promise.reject(new Error("Invalid email template"));

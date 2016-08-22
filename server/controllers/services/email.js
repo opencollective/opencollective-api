@@ -56,7 +56,7 @@ module.exports = (app) => {
     const slug = tokens[2];
     const type = `mailinglist.${list}`;
     email.from = email.from || `${slug} collective <info@${slug}.opencollective.com>`;
-    email.slug = slug; // used for the unsubscribe url
+    email.group = email.group || { slug }; // used for the unsubscribe url
 
     return models.Notification.findAll(
       { 
