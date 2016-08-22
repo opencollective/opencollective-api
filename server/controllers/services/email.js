@@ -64,8 +64,8 @@ module.exports = (app) => {
         return models.User.findAll({ where })
                 .then(users => { 
                   users.map(user => {
-                    if (approverEmail == user.email) approver = user; 
-                    if (email.sender == user.email) sender = user;
+                    if (approverEmail === user.email) approver = user; 
+                    if (email.sender === user.email) sender = user;
                   })
                 })
                 .catch(e => {
@@ -84,7 +84,8 @@ module.exports = (app) => {
       request
       .get(`https://so.api.mailgun.net/v3/domains/opencollective.com/messages/${messageId}`, requestOptions)
       .then(json => {
-        email = json; return email;
+        email = json;
+        return email;
       })
       .then(fetchSenderAndApprover)
       .then(() => {
@@ -95,7 +96,7 @@ module.exports = (app) => {
           to: email.To,
           sender: _.pick(sender, ['email', 'name', 'avatar'])
         }
-        if ( approver && approver.email != sender.email )
+        if ( approver && approver.email !== sender.email )
           emailData.approver = _.pick(approver, ['email', 'name', 'avatar']);
         
         return sendEmailToList(email.To, emailData);
