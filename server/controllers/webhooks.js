@@ -36,6 +36,9 @@ module.exports = (app) => {
 
     // Stripe send test events to production as well
     // don't do anything if the event is not livemode
+    if (!body.hasOwnProperty("livemode")) {
+      console.error("Assertion error: expected a body.livemode property!");
+    }
     if (isProduction && !body.livemode) {
       return res.sendStatus(200);
     }
