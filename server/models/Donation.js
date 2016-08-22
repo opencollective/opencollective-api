@@ -42,7 +42,7 @@ module.exports = function(Sequelize, DataTypes) {
     },
 
     amount: {
-      type:DataTypes.INTEGER, // In cents
+      type: DataTypes.INTEGER, // In cents
       min: 0
     },
 
@@ -67,6 +67,13 @@ module.exports = function(Sequelize, DataTypes) {
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE'
     },
+
+    isProcessed: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false
+    },
+
+    processedAt: DataTypes.DATE,
 
     createdAt: {
       type: DataTypes.DATE,
