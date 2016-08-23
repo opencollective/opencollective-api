@@ -26,8 +26,6 @@ module.exports = (app) => {
     const identifier = `${email}.${slug}.${type}.${config.keys.opencollective.resetPasswordSecret}`;
     const token = crypto.createHash('md5').update(identifier).digest("hex");
 
-    console.log("Unsubscribe ", email, slug, type, token);
-
     if (token !== req.params.token) {
       return next(new errors.BadRequest('Invalid token'));
     }
@@ -203,7 +201,7 @@ module.exports = (app) => {
             approve_url: `${config.host.website}/api/services/email/approve?messageId=${messageId}&approver=${encodeURIComponent(user.email)}`
           };
         };
-        console.log("Preview", `http://localhost:3060/templates/email/email.approve?data=${encodeURIComponent(JSON.stringify(getData(users[0])))}`);
+        debug('preview')("Preview", `http://localhost:3060/templates/email/email.approve?data=${encodeURIComponent(JSON.stringify(getData(users[0])))}`);
         return Promise.map(users, (user) => emailLib.send('email.approve', `members@${slug}.opencollective.com`, getData(user), {bcc:user.email}));
       })
       .then(() => res.send('Mailgun webhook processed successfully'))
