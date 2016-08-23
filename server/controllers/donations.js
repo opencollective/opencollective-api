@@ -68,7 +68,7 @@ module.exports = (app) => {
     .then(results => {
       const stripeAccount = results[0];
       if (!stripeAccount || !stripeAccount.accessToken) {
-        return Promise.reject(new errors.BadRequest(`The host for the collective id ${req.group.id} has no Stripe account set up`));
+        return Promise.reject(new errors.BadRequest(`The host for the collective slug ${req.group.slug} has no Stripe account set up`));
       } else if (process.env.NODE_ENV !== 'production' && _.contains(stripeAccount.accessToken, 'live')) {
         return Promise.reject(new errors.BadRequest(`You can't use a Stripe live key on ${process.env.NODE_ENV}`));
       } else {

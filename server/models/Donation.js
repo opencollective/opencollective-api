@@ -1,5 +1,5 @@
 const type = require('../constants/transactions').type.DONATION;
-const processDonation = require('../lib/processDonation');
+const donationLib = require('../lib/donation');
 
 module.exports = function(Sequelize, DataTypes) {
 
@@ -110,7 +110,7 @@ module.exports = function(Sequelize, DataTypes) {
 
     hooks: {
       afterCreate: function(donation) {
-        return processDonation(Sequelize, donation);
+        return donationLib.processDonation(Sequelize, donation);
       }
     }
   });

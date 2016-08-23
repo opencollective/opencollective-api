@@ -111,7 +111,7 @@ describe("email.routes.test", () => {
         done();
       });
   });
-  
+
   it("forwards the email for approval to the core members", (done) => {
 
     const spy = sandbox.spy(emailLib, 'send', (template, recipient, data) => {
