@@ -27,11 +27,12 @@ const userData = utils.data('user3');
 const groupData = utils.data('group2');
 const models = app.set('models');
 const stripeMock = require('./mocks/stripe');
+const paypalNock = require('./mocks/paypal.nock');
 
 /**
  * Tests.
  */
-describe('donations.routes.test.js', () => {
+describe.only('donations.routes.test.js', () => {
 
   var application;
   var application2;
@@ -413,6 +414,11 @@ describe('donations.routes.test.js', () => {
     });
 
     describe('Paypal recurring donation', () => {
+
+      beforeEach(() => {
+        paypalNock();
+      })
+
       describe('success', () => {
         var links;
         const token = 'EC-123';
@@ -436,6 +442,7 @@ describe('donations.routes.test.js', () => {
         });
 
         it('creates a transaction and returns the links', (done) => {
+          console.log("\n\n\n", nock.pendingMocks());
           expect(links[0]).to.have.property('method', 'REDIRECT');
           expect(links[0]).to.have.property('rel', 'approval_url');
           expect(links[0]).to.have.property('href');
@@ -472,11 +479,6 @@ describe('donations.routes.test.js', () => {
 
         it('executes the billing agreement', (done) => {
           const email = 'testemail@test.com';
-
-          // Taken from https://github.com/paypal/PayPal-node-SDK/blob/71dcd3a5e2e288e2990b75a54673fb67c1d6855d/test/mocks/generate_token.js
-          nock('https://api.sandbox.paypal.com:443')
-            .post('/v1/oauth2/token', "grant_type=client_credentials")
-            .reply(200, "{\"scope\":\"https://uri.paypal.com/services/invoicing openid https://api.paypal.com/v1/developer/.* https://api.paypal.com/v1/payments/.* https://api.paypal.com/v1/vault/credit-paymentMethod/.* https://api.paypal.com/v1/vault/credit-paymentMethod\",\"access_token\":\"IUIkXAOcYVNHe5zcQajcNGwVWfoUcesp7-YURMLohPI\",\"token_type\":\"Bearer\",\"app_id\":\"APP-2EJ531395M785864S\",\"expires_in\":28800}");
 
           const executeRequest = nock('https://api.sandbox.paypal.com:443')
             .post(`/v1/payments/billing-agreements/${token}/agreement-execute`)
@@ -548,6 +550,10 @@ describe('donations.routes.test.js', () => {
         const paymentId = 'PAY-123';
         const PayerID = 'ABC123';
 
+        beforeEach(() => {
+          paypalNock();
+        })
+
         beforeEach((done) => {
           request(app)
             .post(`/groups/${group.id}/payments/paypal`)
@@ -561,13 +567,14 @@ describe('donations.routes.test.js', () => {
             .end((err, res) => {
               expect(err).to.not.exist;
               links = res.body.links;
+              console.log('links: ', links)
               done();
             });
         });
 
         it('creates a transaction and returns the links', (done) => {
           const redirect = _.find(links, { method: 'REDIRECT' });
-
+          console.log(redirect);
           expect(redirect).to.have.property('method', 'REDIRECT');
           expect(redirect).to.have.property('rel', 'approval_url');
           expect(redirect).to.have.property('href');
