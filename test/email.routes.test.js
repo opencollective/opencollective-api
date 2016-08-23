@@ -137,7 +137,6 @@ describe("email.routes.test", () => {
         expect(spy.args[0][1]).to.equal('members@testcollective.opencollective.com');
         expect(spy.args[0][2].subject).to.equal('test collective members');
         expect(spy.args[0][3].bcc).to.equal(usersData[0].email);
-      console.log("message:", )
         expect(spy.args[0][3].from).to.equal('testcollective collective <info@testcollective.opencollective.com>');
         done();
       });
@@ -153,7 +152,6 @@ describe("email.routes.test", () => {
         done();
       });
   });
-
 
   describe("unsubscribe", () => {
 
