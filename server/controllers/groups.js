@@ -448,7 +448,11 @@ module.exports = function(app) {
 
     whitelist.forEach((prop) => {
       if (req.required.group[prop]) {
-        req.group[prop] = req.required.group[prop];
+        if (typeof req.group[prop] === 'object') {
+          req.group[prop] = _.defaults(req.required.group[prop], req.group[prop]);
+        } else {
+          req.group[prop] = req.required.group[prop];
+        }
       }
     });
 
