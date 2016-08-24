@@ -45,7 +45,7 @@ const getSubject = str => {
  */
 const sendMessage = (recipient, subject, html, options) => {
   options = options || {};
-  debug("email: ", recipient, subject, html, options);
+  debug("Sending email ", recipient, subject, html, options);
 
   // if not in production, only send out emails to bcc'd opencollective address
   if (process.env.NODE_ENV !== 'production' && !utils.isEmailInternal(recipient)) {
@@ -114,7 +114,7 @@ const generateEmailFromTemplate = (template, recipient, data, options) => {
   }
 
   if (template === 'group.transaction.created') {
-    template = (data.transaction.amount > 0) ? 'group.donation.created' : 'group.expense.created';
+    template = (data.transaction.amount > 0) ? activities.GROUP_DONATION_CREATED : activities.GROUP_EXPENSE_CREATED;
     if (data.user && data.user.twitterHandle) {
       const groupMention = (data.group.twitterHandle) ? `@${data.group.twitterHandle}` : data.group.name;
       const text = `Hi @${data.user.twitterHandle} thanks for your donation to ${groupMention} https://opencollective.com/${data.group.slug} 🎉😊`;
@@ -131,6 +131,9 @@ const generateEmailFromTemplate = (template, recipient, data, options) => {
   if (!templates[template]) {
     return Promise.reject(new Error("Invalid email template"));
   }
+
+  debug(`Preview email: http://localhost:3060/templates/email/${template}?data=${encodeURIComponent(JSON.stringify(data))}`);
+
   return Promise.resolve(juice(render(template, data, config)));
 };
 
@@ -147,10 +150,12 @@ const generateEmailFromTemplateAndSend = (template, recipient, data, options) =>
  * Given an activity, it sends out an email to the right people and right template
  */
 const sendMessageFromActivity = (activity, notification) => {
-  if (activity.type === activities.GROUP_TRANSACTION_CREATED) {
-    return generateEmailFromTemplateAndSend('group.transaction.created', notification.User.email, activity.data);
-  } else {
-    return Promise.resolve();
+  switch (activity.type) {
+    case activities.GROUP_EXPENSE_CREATED:
+    case activities.GROUP_DONATION_CREATED:
+      return generateEmailFromTemplateAndSend(activity.type, notification.User.email, activity.data);
+    default:
+      return Promise.resolve();
   }
 }
 

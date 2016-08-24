@@ -1,18 +1,52 @@
-Subject: {{group.name}}: {{{currency transaction.amountInTxnCurrency currency=transaction.txnCurrency}}} for {{transaction.description}} by {{user.username}}
+Subject: {{group.name}}: {{{currency expense.amount currency=expense.currency}}} for {{expense.description}} by {{user.username}}
 
 {{> header}}
 
-<center>
-  <h1>{{{currency transaction.amountInTxnCurrency currency=transaction.txnCurrency}}}</h1>
-  <div>{{transaction.description}}</div>
-  <p><font color="#999">{{transaction.comment}}</font></p>
+<style>
+.btn {
+  background: #dde1e4;
+  background-color: #80d823;
+  border: 1px solid transparent;
+  border-radius: 28px;
+  display: inline-block;
+  padding: .75rem 1rem;
+  text-transform: uppercase;
+  text-align: center;
+  font-weight: 700;
+  min-width: 150px;
+  box-sizing: border-box;
+  vertical-align: middle;
+}
 
-  <a href="{{config.host.webapp}}/groups/{{group.id}}/transactions/{{transaction.id}}" style="color:#7fadf2">
-    <img src="{{transaction.preview.src}}" width="{{transaction.preview.width}}" />
+a .btn {
+  color: #fff;
+  text-decoration: none;
+}
+
+.btn.red {
+  background-color: #666;
+}
+
+a .btn.red {
+  color: white;
+}
+
+</style>
+
+<center>
+  <h1>{{{currency expense.amount currency=expense.currency}}}</h1>
+  <div>{{expense.description}}</div>
+  <p><font color="#999">{{expense.comment}}</font></p>
+
+  <a href="{{config.host.webapp}}/groups/{{group.id}}/expenses/{{expense.id}}" style="color:#7fadf2">
+    <img src="{{expense.preview.src}}" width="{{expense.preview.width}}" />
   </a>
 
   <br /><br />
-  <a href="{{config.host.webapp}}/groups/{{group.id}}/transactions/{{transaction.id}}" style="color:#7fadf2;text-decoration:none;">View this expense on OpenCollective to approve or reject it</a>
+  <a href="{{expense.approveUrl}}"><div class="btn green">Approve</div></a>
+  <a href="{{expense.rejectUrl}}"><div class="btn red">Reject</div></a>
+  <br /><br />
+  <a href="{{config.host.webapp}}/groups/{{group.id}}/expenses/{{expense.id}}" style="color:#7fadf2;text-decoration:none;">View this expense on OpenCollective to approve or reject it</a>
 
 </center>
 

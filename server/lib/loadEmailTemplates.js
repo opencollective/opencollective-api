@@ -58,7 +58,7 @@ export default () => {
 
 	  return value.toLocaleString(currency, {
       style: 'currency',
-      currency,
+      currency: currency || 'USD',
       minimumFractionDigits : 2,
       maximumFractionDigits : 2
     });

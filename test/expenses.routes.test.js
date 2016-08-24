@@ -11,6 +11,7 @@ const paypalMock = require('./mocks/paypal');
 const payMock = paypalMock.adaptive.payCompleted;
 const preapprovalDetailsMock = Object.assign({}, paypalMock.adaptive.preapprovalDetails.completed);
 
+const emailLib = require('../server/lib/email');
 const models = app.get('models');
 const expense = utils.data('expense1');
 const expense2 = utils.data('expense2');
@@ -88,7 +89,9 @@ describe('expenses.routes.test.js', () => {
 
     describe('WHEN not authenticated but providing an expense', () => {
       beforeEach(() => {
-        createReq = createReq.send({ expense });
+        createReq = createReq
+          .set('Authorization', `Bearer ${host.jwt(application)}`)
+          .send({ expense });
       });
 
       it('THEN returns 200 with expense', () =>
@@ -104,6 +107,31 @@ describe('expenses.routes.test.js', () => {
             expect(res.body.currency).to.be.equal(expense.currency);
             expect(res.body.payoutMethod).to.be.equal(expense.payoutMethod);
           }));
+
+      it('sends an email notification to the members of the collective', (done) => {
+        const spy = sinon.spy(emailLib, 'sendMessage');
+
+        models.Notification.create({
+          channel: 'email',
+          type: 'group.expense.created',
+          GroupId: group.id,
+          UserId: member.id
+        })
+        .then((n) => {
+          createReq
+            .expect(200)
+            .then(res => {
+              setTimeout(() => {
+                const emailBody = spy.args[0][2];
+                const group = res.body.Group;
+                const expense = res.body;
+                expect(emailBody).to.contain(`/${group.slug}/expenses/${expense.id}/approve`);
+                spy.restore();
+                done();
+              }, 1000);
+            })
+        });
+      });
     });
 
     describe('WHEN submitting expense with negative amount', () => {

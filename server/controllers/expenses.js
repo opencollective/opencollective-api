@@ -31,6 +31,7 @@ module.exports = (app) => {
   const create = (req, res, next) => {
     const user = req.remoteUser || req.user;
     const group = req.group;
+
     const attributes = Object.assign({}, req.required.expense, {
       UserId: user.id,
       GroupId: group.id,
@@ -39,7 +40,11 @@ module.exports = (app) => {
     // TODO make sure that the payoutMethod is also properly stored in DB, then propagated to Transaction when paying
     models.Expense.create(attributes)
       .then(expense => models.Expense.findById(expense.id, { include: [ models.Group, models.User ]}))
-      .tap(expense => createActivity(expense, activities.GROUP_EXPENSE_CREATED))
+      .tap(expense => {
+        expense.approveUrl = user.generateLoginLink(req.application, `/${group.slug}/expenses/${expense.id}/approve`);
+        expense.rejectUrl = user.generateLoginLink(req.application, `/${group.slug}/expenses/${expense.id}/reject`);
+        createActivity(expense, activities.GROUP_EXPENSE_CREATED)
+      })
       .tap(expense => res.send(expense))
       .catch(next);
   };
@@ -277,7 +282,7 @@ module.exports = (app) => {
       data: {
         group: expense.Group.info,
         user: expense.User.info,
-        expense: expense.info
+        expense: _.defaults(expense.info, { approveUrl: expense.approveUrl, rejectUrl: expense.rejectUrl })
       }
     });
   }
