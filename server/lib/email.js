@@ -1,19 +1,25 @@
-const config = require('config');
-const _ = require('lodash');
-const Promise = require('bluebird');
-const juice = require('juice');
-const nodemailer = require('nodemailer');
+import config from 'config';
+import _ from 'lodash';
+import Promise from 'bluebird';
+import juice from 'juice';
+import nodemailer from 'nodemailer';
 
 const debug = require('debug')('email');
 const templates = require('./loadEmailTemplates')();
-const activities = require('../constants/activities');
-const utils = require('./utils');
+import activities from '../constants/activities';
+import utils from './utils';
+import crypto from 'crypto';
 
 const render = (name, data, config) => {
     data.config = config;
     data.logoNotSvg = data.group && data.group.logo && !data.group.logo.endsWith('.svg');
     return templates[name](data);
 };
+
+const generateUnsubscribeToken = (email, groupSlug, type) => {
+  const uid = `${email}.${groupSlug}.${type}.${config.keys.opencollective.resetPasswordSecret}`;
+  return crypto.createHash('md5').update(uid).digest("hex");
+}
 
 /*
  * Gets the body from a string (usually a template)
@@ -24,7 +30,7 @@ const getBody = str => str.split('\n').slice(2).join('\n');
  * Appends appropriate prefix and cleans up subject
  */
 const getSubject = str => {
-    var subj = '';
+    let subj = '';
     if (process.env.NODE_ENV === 'staging') {
       subj += '[STAGING] ';
     } else if (process.env.NODE_ENV !== 'production'){
@@ -76,11 +82,26 @@ const sendMessage = (recipient, subject, html, options) => {
   }
 };
 
+const getNotificationLabel = (template, recipient) => {
+
+  const notificationTypeLabels = {
+    'group.monthlyreport': 'monthly reports',
+    'group.transaction.created': 'notifications of new transactions for this collective',
+    'email.approve': 'notifications of new emails pending approval',
+    'email.message': recipient
+  }
+
+  return notificationTypeLabels[template];
+
+};
+
 /*
  * Given a template, recipient and data, generates email.
  */
 
-const generateEmailFromTemplate = (template, recipient, data) => {
+const generateEmailFromTemplate = (template, recipient, data, options) => {
+
+  options = options || {};
 
   if (template === 'thankyou') {
     if (data.group.name.match(/WWCode/i))
@@ -117,6 +138,10 @@ const generateEmailFromTemplate = (template, recipient, data) => {
     }
   }
 
+  const slug = (data.group && data.group.slug) ? data.group.slug : 'undefined';
+  data.unsubscribeUrl = `${config.host.website}/api/services/email/unsubscribe/${encodeURIComponent(options.bcc || recipient)}/${slug}/${options.type || template}/${generateUnsubscribeToken(options.bcc || recipient, slug, options.type)}`;
+  data.notificationTypeLabel = getNotificationLabel(template, recipient);
+
   if (!templates[template]) {
     return Promise.reject(new Error("Invalid email template"));
   }
@@ -128,8 +153,8 @@ const generateEmailFromTemplate = (template, recipient, data) => {
  * Deprecated. Should use sendMessageFromActivity() for sending new emails.
  */
 const generateEmailFromTemplateAndSend = (template, recipient, data, options) => {
-  return generateEmailFromTemplate(template, recipient, data)
-    .then(templateString => sendMessage(recipient, getSubject(templateString), getBody(templateString), options));
+  return generateEmailFromTemplate(template, recipient, data, options)
+    .then(templateString => emailLib.sendMessage(recipient, getSubject(templateString), getBody(templateString), options));
 };
 
 /*
@@ -143,8 +168,7 @@ const sendMessageFromActivity = (activity, notification) => {
   }
 }
 
-module.exports = {
-
+const emailLib = {
   getBody,
   getSubject,
   sendMessage,
@@ -152,3 +176,5 @@ module.exports = {
   send: generateEmailFromTemplateAndSend,
   sendMessageFromActivity
 };
+
+export default emailLib;

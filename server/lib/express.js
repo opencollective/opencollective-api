@@ -1,20 +1,20 @@
-const bodyParser = require('body-parser');
-const config = require('config');
-const cookieParser = require('cookie-parser');
-const cors = require('cors');
-const morgan = require('morgan');
-const multer = require('multer');
-const passport = require('passport');
-const session = require('express-session');
-const GitHubStrategy = require('passport-github').Strategy;
-const TwitterStrategy = require('passport-twitter').Strategy;
-const MeetupStrategy = require('passport-meetup-oauth2').Strategy;
+import bodyParser from 'body-parser';
+import config from 'config';
+import cookieParser from 'cookie-parser';
+import cors from 'cors';
+import morgan from 'morgan';
+import multer from 'multer';
+import passport from 'passport';
+import connectSessionSequelize from 'connect-session-sequelize';
+import session from 'express-session';
+import { Strategy as GitHubStrategy } from 'passport-github';
+import { Strategy as TwitterStrategy } from 'passport-twitter';
+import { Strategy as MeetupStrategy } from 'passport-meetup-oauth2';
+import { sequelize as db } from '../models';
 
-const SequelizeStore = require('connect-session-sequelize')(session.Store);
+const SequelizeStore = connectSessionSequelize(session.Store);
 
-module.exports = function(app) {
-
-  const Sequelize = app.get('models').sequelize;
+export default function(app) {
 
   // Body parser.
   app.use(bodyParser.json());
@@ -48,7 +48,7 @@ module.exports = function(app) {
     resave: false,
     cookie: { maxAge: 1000 * 60 * 5 },
     saveUninitialized: false,
-    store: new SequelizeStore({ db: Sequelize }),
+    store: new SequelizeStore({ db }),
     proxy: true
   }));
   app.use(passport.initialize());

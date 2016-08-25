@@ -1,10 +1,10 @@
-const constants = require('../constants');
+import * as constants from '../constants';
 
 const expenseType = require('../constants/transactions').type.EXPENSE;
 
-module.exports = app => {
+export default app => {
 
-  const errors = app.errors;
+  const { errors } = app;
   const models = app.set('models');
 
   function createFromPaidExpense(payoutMethod, paymentMethod, expense, paymentResponse, preapprovalDetails, UserId) {
