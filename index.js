@@ -1,8 +1,7 @@
 /**
  * Dependencies.
  */
-import './server/env'
-
+import './server/env' // important to load first for environment config
 import express from 'express';
 import models from './server/models';
 import controllers from './server/controllers';
