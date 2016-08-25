@@ -1,8 +1,8 @@
 /**
  * Dependencies.
  */
-const Sequelize = require('sequelize');
-const config = require('config').database;
+import Sequelize from 'sequelize';
+import { database as config } from 'config';
 
 /**
  * Database connection.
@@ -130,6 +130,6 @@ function setupModels(client) {
 /**
  * Exports.
  */
-module.exports = models;
-module.exports.sequelize = sequelize;
-module.exports.setupModels = setupModels;
+export default models;
+export { sequelize };
+export { setupModels };
