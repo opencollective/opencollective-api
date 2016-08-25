@@ -28,7 +28,7 @@ const STRIPE_TOKEN = 'superStripeToken';
 /*
  * Tests
  */
-describe.only('lib.donation.test.js', () => {
+describe('lib.donation.test.js', () => {
 
   var sandbox = sinon.sandbox.create();
   var processDonationSpy, emailSendMessageSpy, emailSendSpy;

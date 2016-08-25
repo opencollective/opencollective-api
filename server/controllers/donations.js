@@ -9,7 +9,6 @@ import config from 'config';
 import async from 'async';
 import gateways from '../gateways';
 import activities from '../constants/activities';
-import constants from '../constants/transactions';
 import usersController from '../controllers/users';
 
 /**
@@ -39,7 +38,6 @@ export default (app) => {
 
     const { payment } = req.required;
     const { user } = req;
-    const { email } = payment;
     const { group } = req;
     const { interval } = payment;
 
