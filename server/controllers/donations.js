@@ -58,22 +58,22 @@ module.exports = (app) => {
     var paymentMethod;
 
     // fetch Stripe Account and get or create Payment Method
-    return Promise.all([
-      req.group.getStripeAccount(),
-      models.PaymentMethod.getOrCreate({
+    return Promise.props({
+      stripeAccount: req.group.getStripeAccount(),
+      paymentMethod: models.PaymentMethod.getOrCreate({
         token: payment.stripeToken,
         service: 'stripe',
         UserId: user.id })
-      ])
+      })
     .then(results => {
-      const stripeAccount = results[0];
+      const stripeAccount = results.stripeAccount;
       if (!stripeAccount || !stripeAccount.accessToken) {
-        return Promise.reject(new errors.BadRequest(`The host for the collective slug ${req.group.slug} has no Stripe account set up`));
+        return new errors.BadRequest(`The host for the collective slug ${req.group.slug} has no Stripe account set up`);
       } else if (process.env.NODE_ENV !== 'production' && _.contains(stripeAccount.accessToken, 'live')) {
-        return Promise.reject(new errors.BadRequest(`You can't use a Stripe live key on ${process.env.NODE_ENV}`));
+        return new errors.BadRequest(`You can't use a Stripe live key on ${process.env.NODE_ENV}`);
       } else {
-        paymentMethod = results[1];
-        return Promise.resolve();
+        paymentMethod = results.paymentMethod;
+        return null;
       }
     })
     // create a new subscription

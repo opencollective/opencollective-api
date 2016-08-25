@@ -13,7 +13,7 @@ const generatePlanId = require('../server/lib/utils.js').planId;
 const roles = require('../server/constants/roles');
 const constants = require('../server/constants/transactions');
 const emailLib = require('../server/lib/email');
-const donationLib = require('../server/lib/donation');
+const donationsLib = require('../server/lib/donations');
 
 /**
  * Variables.
@@ -32,7 +32,7 @@ const paypalNock = require('./mocks/paypal.nock');
 /**
  * Tests.
  */
-describe.only('donations.routes.test.js', () => {
+describe('donations.routes.test.js', () => {
 
   var application;
   var application2;
@@ -44,7 +44,7 @@ describe.only('donations.routes.test.js', () => {
   var sandbox = sinon.sandbox.create();
 
   beforeEach(() => {
-    sandbox.stub(donationLib, 'processDonation');
+    sandbox.stub(donationsLib, 'processDonation');
   })
 
   beforeEach(() => utils.cleanAllDb().tap(a => application = a));
@@ -335,8 +335,7 @@ describe.only('donations.routes.test.js', () => {
       };
 
 
-      beforeEach((done) => {
-
+      beforeEach(() => {
         request(app)
           .post('/groups/' + group2.id + '/payments')
           .send({
@@ -346,12 +345,11 @@ describe.only('donations.routes.test.js', () => {
           .expect(200)
           .end((e, res) => {
             expect(e).to.not.exist;
-            done();
           });
       });
 
-      it('successfully creates a donation in the database', (done) => {
-        models.Donation
+      it('successfully creates a donation in the database', () => {
+        return models.Donation
           .findAndCountAll({})
           .then((res) => {
             expect(res.count).to.equal(1);
@@ -362,14 +360,13 @@ describe.only('donations.routes.test.js', () => {
             expect(res.rows[0]).to.have.property('SubscriptionId');
             expect(res.rows[0]).to.have.property('title',
               `Donation to ${group2.name}`);
-            done();
           })
-          .catch(done);
+          .catch(err)
       });
 
       it('does not create a transaction', (done) => {
         models.Transaction
-          .findAndCountAll({})
+          .count({})
           .then((res) => {
             expect(res.count).to.equal(0);
             done();
@@ -442,7 +439,6 @@ describe.only('donations.routes.test.js', () => {
         });
 
         it('creates a transaction and returns the links', (done) => {
-          console.log("\n\n\n", nock.pendingMocks());
           expect(links[0]).to.have.property('method', 'REDIRECT');
           expect(links[0]).to.have.property('rel', 'approval_url');
           expect(links[0]).to.have.property('href');
@@ -567,14 +563,12 @@ describe.only('donations.routes.test.js', () => {
             .end((err, res) => {
               expect(err).to.not.exist;
               links = res.body.links;
-              console.log('links: ', links)
               done();
             });
         });
 
         it('creates a transaction and returns the links', (done) => {
           const redirect = _.find(links, { method: 'REDIRECT' });
-          console.log(redirect);
           expect(redirect).to.have.property('method', 'REDIRECT');
           expect(redirect).to.have.property('rel', 'approval_url');
           expect(redirect).to.have.property('href');

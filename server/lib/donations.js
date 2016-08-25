@@ -1,5 +1,5 @@
 const gateways = require('../gateways');
-const constants = require('../constants/transactions');
+const transactions = require('../constants/transactions');
 const roles = require('../constants/roles');
 const emailLib = require('./email');
 
@@ -25,7 +25,7 @@ const processDonation = (Sequelize, donation) => {
               groupStripeAccount,
               paymentMethod.customerId,
               { plan: plan.id,
-                application_fee_percent: constants.OC_FEE_PERCENT,
+                application_fee_percent: transactions.OC_FEE_PERCENT,
                 metadata: {
                   groupId: group.id,
                   groupName: group.name,
@@ -44,7 +44,7 @@ const processDonation = (Sequelize, donation) => {
               currency: donation.currency,
               customer: paymentMethod.customerId,
               description: `OpenCollective: ${group.slug}`,
-              application_fee: parseInt(donation.amount*constants.OC_FEE_PERCENT/100, 10),
+              application_fee: parseInt(donation.amount*transactions.OC_FEE_PERCENT/100, 10),
               metadata: {
                 groupId: group.id,
                 groupName: group.name,
@@ -66,7 +66,7 @@ const processDonation = (Sequelize, donation) => {
               paymentMethod
             }
             payload.transaction = {
-              type: constants.type.DONATION,
+              type: transactions.type.DONATION,
               DonationId: donation.id,
               amount: donation.amount / 100, // in Float
               currency: donation.currency,
@@ -134,7 +134,7 @@ const processDonation = (Sequelize, donation) => {
               { model: Sequelize.models.Subscription }]
     })
     .then(donation => {
-      if (!donation.PaymentMethod || (donation.PaymentMethod && donation.PaymentMethod.service === 'paypal')) {
+      if (!donation.PaymentMethod || donation.PaymentMethod.service === 'paypal') {
         // for manual add funds and paypal, which isn't processed this way yet
         return donation.update({isProcessed: true, processedAt: new Date()});
       } else {

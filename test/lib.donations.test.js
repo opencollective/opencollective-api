@@ -10,7 +10,7 @@ const request = require('supertest');
 
 const app = require('../index');
 const utils = require('../test/utils.js')();
-const donationLib = require('../server/lib/donation.js');
+const donationsLib = require('../server/lib/donations.js');
 const generatePlanId = require('../server/lib/utils.js').planId;
 const constants = require('../server/constants/transactions');
 const emailLib = require('../server/lib/email');
@@ -35,7 +35,7 @@ describe('lib.donation.test.js', () => {
   var application;
 
   before(() => {
-    processDonationSpy = sinon.spy(donationLib, 'processDonation');
+    processDonationSpy = sinon.spy(donationsLib, 'processDonation');
   });
 
   beforeEach(() => utils.cleanAllDb().tap(a => application = a));
