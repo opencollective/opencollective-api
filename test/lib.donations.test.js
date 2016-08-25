@@ -28,14 +28,24 @@ const STRIPE_TOKEN = 'superStripeToken';
 /*
  * Tests
  */
-describe('lib.donation.test.js', () => {
+describe.only('lib.donation.test.js', () => {
 
   var sandbox = sinon.sandbox.create();
-  var processDonationSpy;
+  var processDonationSpy, emailSendMessageSpy, emailSendSpy;
   var application;
 
   before(() => {
     processDonationSpy = sinon.spy(donationsLib, 'processDonation');
+  });
+
+  beforeEach(() => {
+    emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage', (recipient, subject, body, opts) => {
+      return Promise.resolve();
+    });
+  });
+
+  beforeEach(() => {
+    emailSendSpy = sandbox.spy(emailLib, 'send');
   });
 
   beforeEach(() => utils.cleanAllDb().tap(a => application = a));
@@ -278,6 +288,11 @@ describe('lib.donation.test.js', () => {
           .catch(done);
       });
 
+      it('successfully sends out an email to donor', () => {
+        expect(emailSendSpy.lastCall.args[0]).to.equal('thankyou');
+        expect(emailSendSpy.lastCall.args[1]).to.equal(user.email);
+      })
+
     });
 
     describe('Recurring donation', () => {
@@ -419,12 +434,16 @@ describe('lib.donation.test.js', () => {
             })
             .catch(done);
         });
+
+        it('successfully sends out an email to donor', () => {
+          expect(emailSendSpy.lastCall.args[0]).to.equal('thankyou');
+          expect(emailSendSpy.lastCall.args[1]).to.equal(user.email);
+        })
       })
 
     });
 
     describe('Payment errors', () => {
-      var emailSpy;
 
       beforeEach(() => {
         nock.cleanAll();
@@ -453,12 +472,6 @@ describe('lib.donation.test.js', () => {
       });
 
       beforeEach(() => {
-        emailSpy = sandbox.spy(emailLib, 'sendMessage', (recipient, subject, body, opts) => {
-          return Promise.resolve();
-        });
-      });
-
-      beforeEach(() => {
         return models.PaymentMethod.create({
           number: 'blah',
           token: STRIPE_TOKEN,
@@ -475,8 +488,8 @@ describe('lib.donation.test.js', () => {
       });
 
       it('fails paying because of a paymentMethod declined', (done) => {
-        expect(emailSpy.lastCall.args[0]).to.equal('server-errors@opencollective.com');
-        expect(emailSpy.lastCall.args[1]).to.contain('Failed to process donation');
+        expect(emailSendMessageSpy.lastCall.args[0]).to.equal('server-errors@opencollective.com');
+        expect(emailSendMessageSpy.lastCall.args[1]).to.contain('Failed to process donation');
         done();
       });
 
