@@ -72,12 +72,12 @@ export default (app) => {
     .then(results => {
       const stripeAccount = results.stripeAccount;
       if (!stripeAccount || !stripeAccount.accessToken) {
-        return new errors.BadRequest(`The host for the collective slug ${req.group.slug} has no Stripe account set up`);
+        return Promise.reject(new errors.BadRequest(`The host for the collective slug ${req.group.slug} has no Stripe account set up`));
       } else if (process.env.NODE_ENV !== 'production' && _.contains(stripeAccount.accessToken, 'live')) {
-        return new errors.BadRequest(`You can't use a Stripe live key on ${process.env.NODE_ENV}`);
+        return Promise.reject(new errors.BadRequest(`You can't use a Stripe live key on ${process.env.NODE_ENV}`));
       } else {
         paymentMethod = results.paymentMethod;
-        return null;
+        return Promise.resolve();
       }
     })
     // create a new subscription
@@ -90,7 +90,7 @@ export default (app) => {
           interval
         })
       } else {
-        return null;
+        return Promise.resolve();
       }
     })
     // create a new donation

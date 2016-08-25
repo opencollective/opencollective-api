@@ -9,16 +9,12 @@ const sinon = require('sinon');
 const nock = require('nock');
 
 const utils = require('../test/utils.js')();
-const generatePlanId = require('../server/lib/utils.js').planId;
 const roles = require('../server/constants/roles');
-const constants = require('../server/constants/transactions');
-const emailLib = require('../server/lib/email');
 const donationsLib = require('../server/lib/donations');
 
 /**
  * Variables.
  */
-const STRIPE_URL = 'https://api.stripe.com:443';
 const CHARGE = 10.99;
 const CURRENCY = 'EUR';
 const STRIPE_TOKEN = 'superStripeToken';
@@ -26,7 +22,6 @@ const EMAIL = 'paypal@email.com';
 const userData = utils.data('user3');
 const groupData = utils.data('group2');
 const models = app.set('models');
-const stripeMock = require('./mocks/stripe');
 const paypalNock = require('./mocks/paypal.nock');
 
 /**
@@ -37,10 +32,8 @@ describe('donations.routes.test.js', () => {
   var application;
   var application2;
   var user;
-  var user4;
   var group;
   var group2;
-  var nocks = {};
   var sandbox = sinon.sandbox.create();
 
   beforeEach(() => {
@@ -325,17 +318,12 @@ describe('donations.routes.test.js', () => {
         amount: 10,
         currency: CURRENCY,
         interval: 'month',
-        description: 'super description',
-        vendor: '@vendor',
-        tags: ['tag1', 'tag2'],
-        status: 'super status',
         link: 'www.opencollective.com',
-        comment: 'super comment',
         email: EMAIL
       };
 
 
-      beforeEach(() => {
+      beforeEach((done) => {
         request(app)
           .post('/groups/' + group2.id + '/payments')
           .send({
@@ -345,11 +333,23 @@ describe('donations.routes.test.js', () => {
           .expect(200)
           .end((e, res) => {
             expect(e).to.not.exist;
+            done();
           });
       });
 
-      it('successfully creates a donation in the database', () => {
-        return models.Donation
+      it('successfully creates a paymentMethod', (done) => {
+        models.PaymentMethod
+          .findAndCountAll({})
+          .then((res) => {
+            expect(res.count).to.equal(1);
+            expect(res.rows[0]).to.have.property('UserId', 2);
+            done();
+          })
+          .catch(done);
+      });
+
+      it('successfully creates a donation in the database', (done) => {
+        models.Donation
           .findAndCountAll({})
           .then((res) => {
             expect(res.count).to.equal(1);
@@ -360,15 +360,16 @@ describe('donations.routes.test.js', () => {
             expect(res.rows[0]).to.have.property('SubscriptionId');
             expect(res.rows[0]).to.have.property('title',
               `Donation to ${group2.name}`);
+            done();
           })
-          .catch(err)
+          .catch(done)
       });
 
       it('does not create a transaction', (done) => {
         models.Transaction
           .count({})
           .then((res) => {
-            expect(res.count).to.equal(0);
+            expect(res).to.equal(0);
             done();
           })
           .catch(done);
