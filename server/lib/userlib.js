@@ -1,5 +1,5 @@
 import config from 'config';
-const clearbit = require('clearbit')(config.clearbit);
+import clearbit from 'clearbit';
 import url from 'url';
 import Promise from 'bluebird';
 
@@ -7,7 +7,7 @@ export default {
 
   memory: {},
 
-  clearbit,
+  clearbit: clearbit(config.clearbit),
 
   fetchInfo(user) {
     return this.getUserData(user.email)
