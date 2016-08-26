@@ -1,9 +1,13 @@
 import moment from 'moment-timezone';
 import errors from '../../lib/errors';
+import models from '../../models';
+import authentication from './authentication';
 
-const { Forbidden } = errors;
-const { NotFound } = errors;
-const { Unauthorized } = errors;
+const {
+  Forbidden,
+  NotFound,
+  Unauthorized
+} = errors;
 
 /**
  * Middleware related to authorization.
@@ -12,8 +16,7 @@ const { Unauthorized } = errors;
  */
 export default function (app) {
 
-  const aN = require('./authentication')(app);
-  const models = app.set('models');
+  const aN = authentication(app);
 
   return {
 

@@ -4,11 +4,23 @@ import passport from 'passport';
 import request from 'request-promise';
 import qs from 'querystring';
 
+import models from '../../models';
 import errors from '../../lib/errors';
 import required from '../required_param';
 
-const { Forbidden } = errors;
-const { Unauthorized } = errors;
+const {
+  Application,
+  User
+} = models;
+
+const {
+  BadRequest,
+  CustomError,
+  Forbidden,
+  ServerError,
+  Unauthorized
+} = errors;
+
 const { secret } = config.keys.opencollective;
 
 /**
@@ -27,11 +39,8 @@ const { secret } = config.keys.opencollective;
  */
 export default function (app) {
 
-  const models = app.get('models');
   const controllers = app.get('controllers');
   const { connectedAccounts } = controllers;
-  const { Application } = models;
-  const { User } = models;
 
   return {
 
@@ -76,7 +85,7 @@ export default function (app) {
 
     checkJwtExpiry: (req, res, next) => {
       if (req.jwtExpired) {
-        return next(new errors.CustomError(401, 'jwt_expired', 'jwt expired'));
+        return next(new CustomError(401, 'jwt_expired', 'jwt expired'));
       }
 
       return next();
@@ -167,14 +176,14 @@ export default function (app) {
 
             if (e) {
               if (e.code === 400) {
-                return next(new errors.BadRequest(errorMsg));
+                return next(new BadRequest(errorMsg));
               } else {
-                return next(new errors.ServerError(e.message));
+                return next(new ServerError(e.message));
               }
             }
 
             if (!user) {
-              return next(new errors.BadRequest(errorMsg));
+              return next(new BadRequest(errorMsg));
             }
 
             req.remoteUser = user;
