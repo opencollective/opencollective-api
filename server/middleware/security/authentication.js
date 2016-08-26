@@ -1,15 +1,15 @@
-const config = require('config');
-const jwt = require('jsonwebtoken');
-const passport = require('passport');
-const request = require('request-promise');
-const qs = require('querystring');
+import config from 'config';
+import jwt from 'jsonwebtoken';
+import passport from 'passport';
+import request from 'request-promise';
+import qs from 'querystring';
 
-const errors = require('../../lib/errors');
-const required = require('../required_param');
+import errors from '../../lib/errors';
+import required from '../required_param';
 
-const Forbidden = errors.Forbidden;
-const Unauthorized = errors.Unauthorized;
-const secret = config.keys.opencollective.secret;
+const { Forbidden } = errors;
+const { Unauthorized } = errors;
+const { secret } = config.keys.opencollective;
 
 /**
  * Middleware related to authentication.
@@ -25,13 +25,13 @@ const secret = config.keys.opencollective.secret;
  * - an application is identified with either an api_key or a JWT
  * - a user is identified with a JWT
  */
-module.exports = function (app) {
+export default function (app) {
 
   const models = app.get('models');
   const controllers = app.get('controllers');
-  const connectedAccounts = controllers.connectedAccounts;
-  const Application = models.Application;
-  const User = models.User;
+  const { connectedAccounts } = controllers;
+  const { Application } = models;
+  const { User } = models;
 
   return {
 
@@ -42,7 +42,7 @@ module.exports = function (app) {
      * decodes the token (expected behaviour).
      */
     parseJwtNoExpiryCheck: (req, res, next) => {
-      var token;
+      let token;
       if (req.param('access_token')) {
         token = req.param('access_token');
       } else {
@@ -225,7 +225,7 @@ module.exports = function (app) {
     authenticateService: (req, res, next) => {
       const opts = { callbackURL: getOAuthCallbackUrl(req) };
 
-      const service = req.params.service;
+      const { service } = req.params;
       switch (service) {
         case 'github':
           opts.scope = [ 'user:email', 'public_repo' ];
@@ -240,7 +240,7 @@ module.exports = function (app) {
     },
 
     authenticateServiceCallback: (req, res, next) => {
-      const service = req.params.service;
+      const { service } = req.params;
       const opts = { callbackURL: getOAuthCallbackUrl(req) };
       console.log("authenticateServiceCallback calling Passport with options", opts);
       passport.authenticate(service, opts, (err, accessToken, data) => {
@@ -280,10 +280,10 @@ module.exports = function (app) {
   }
 
   function getOAuthCallbackUrl(req) {
-    const utm_source = req.query.utm_source;
-    const slug = req.query.slug;
+    const { utm_source } = req.query;
+    const { slug } = req.query;
     const params = qs.stringify({ utm_source, slug });
-    const service = req.params.service;
+    const { service } = req.params;
     return `${config.host.website}/api/connected-accounts/${service}/callback?${params}`;
   }
 };

@@ -1,16 +1,16 @@
-const moment = require('moment-timezone');
-const errors = require('../../lib/errors');
+import moment from 'moment-timezone';
+import errors from '../../lib/errors';
 
-const Forbidden = errors.Forbidden;
-const NotFound = errors.NotFound;
-const Unauthorized = errors.Unauthorized;
+const { Forbidden } = errors;
+const { NotFound } = errors;
+const { Unauthorized } = errors;
 
 /**
  * Middleware related to authorization.
  *
  * NB: first performs authentication.
  */
-module.exports = function (app) {
+export default function (app) {
 
   const aN = require('./authentication')(app);
   const models = app.set('models');
@@ -20,7 +20,7 @@ module.exports = function (app) {
     /**
      * Authorize applications with level.
      */
-    appAccess: function (level) {
+    appAccess (level) {
 
       return function (req, res, next) {
         if (req.application._access < level) {
@@ -121,7 +121,7 @@ module.exports = function (app) {
     /**
      * Authorize only users with the specified roles.
      */
-    _authorizeUserRoles: function (options) {
+    _authorizeUserRoles (options) {
       return (req, res, next) => {
         if (!options.userRoles) {
           return next();
