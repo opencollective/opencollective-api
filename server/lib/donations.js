@@ -37,7 +37,7 @@ const processDonation = (Sequelize, donation) => {
       };
 
       const createChargeAndTransaction = (groupStripeAccount) => {
-        var charge;
+        let charge;
         return gateways.stripe.createCharge(
             groupStripeAccount,
             { amount: donation.amount,
@@ -82,7 +82,7 @@ const processDonation = (Sequelize, donation) => {
           })
       };
 
-      var groupStripeAccount;
+      let groupStripeAccount;
 
       return group.getStripeAccount()
         .then(stripeAccount => groupStripeAccount = stripeAccount)

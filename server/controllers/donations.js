@@ -59,7 +59,7 @@ export default (app) => {
       return next(new errors.BadRequest('Payment Amount missing.'));
     }
 
-    var paymentMethod;
+    let paymentMethod;
 
     // fetch Stripe Account and get or create Payment Method
     return Promise.props({
