@@ -7,9 +7,9 @@ import roles from '../constants/roles';
 import _ from 'lodash';
 import config from 'config';
 import async from 'async';
-import gateways from '../gateways';
-import activities from '../constants/activities';
 import usersController from '../controllers/users';
+import {paypal} from '../gateways';
+import activities from '../constants/activities';
 
 /**
  * Controller.
@@ -181,13 +181,13 @@ export default (app) => {
         const transaction = results.createTransaction;
 
         if (isSubscription) {
-          gateways.paypal.createSubscription(
+          paypal.createSubscription(
             connectedAccount,
             group,
             transaction
           , cb);
         } else {
-          gateways.paypal.createPayment(
+          paypal.createPayment(
             connectedAccount,
             group,
             transaction
@@ -251,7 +251,7 @@ export default (app) => {
       },
 
       execute: ['getConnectedAccount', (cb, results) => {
-        gateways.paypal.execute(
+        paypal.execute(
           results.getConnectedAccount,
           req.query.token,
           req.query.paymentId,
