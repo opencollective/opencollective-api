@@ -95,7 +95,7 @@
     "start": "node ./dist/index.js",
     "dev": "nodemon server/index.js -x babel-node . -e js,hbs",
     "clean": "rm -rf dist && mkdir dist",
-    "build-server": "babel server -d ./dist",
+    "build-server": "babel-cli server -d ./dist",
     "build": "npm run clean && npm run build-server",
     "hint": "eslint '**/*.js' --quiet",
     "nsp": "nsp check",
