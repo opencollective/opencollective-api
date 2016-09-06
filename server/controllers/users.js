@@ -1,5 +1,5 @@
 import _ from 'lodash';
-import groupBy from 'lodash/collection/groupBy';
+import groupBy from 'lodash/groupBy';
 import async from 'async';
 import userlib from '../lib/userlib';
 import { generateURLSafeToken, getTier } from '../lib/utils';
@@ -7,8 +7,8 @@ import imageUrlToAmazonUrl from '../lib/imageUrlToAmazonUrl';
 import constants from '../constants/activities';
 import roles from '../constants/roles';
 import sequelize from 'sequelize';
-import filter from 'lodash/collection/filter';
-import values from 'lodash/object/values';
+import filter from 'lodash/filter';
+import values from 'lodash/values';
 import emailLib from '../lib/email';
 import queries from '../lib/queries';
 import models from '../models';

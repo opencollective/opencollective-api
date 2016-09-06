@@ -1,7 +1,7 @@
 import _ from 'lodash';
 import Promise from 'bluebird';
 import activities from '../constants/activities';
-import includes from 'lodash/collection/includes';
+import includes from 'lodash/includes';
 import status from '../constants/expense_status';
 import {getLinkHeader, getRequestedUrl} from '../lib/utils';
 import roles from '../constants/roles';
