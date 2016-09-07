@@ -38,7 +38,9 @@ const init = () => {
           'name',
           'currency',
           'tags'
-      ]
+      ],
+      include: [ { model: models.Transaction, required: true }],
+      limit: 2
   };
 
   Group.findAll(query)
@@ -53,6 +55,40 @@ const init = () => {
   });
 }
 
+const topBackersCache = {};
+const getTopBackers = (startDate, endDate, tags) => {
+  tags = tags || [];
+  const cacheKey = `${startDate.getTime()}${endDate.getTime()}${tags.join(',')}`;
+  debug("getting top backers with key ", cacheKey);
+  if (topBackersCache[cacheKey]) return Promise.resolve(topBackersCache[cacheKey]);
+  else {
+    return User.getTopBackers(startDate, endDate, tags)
+      .then(backers => {
+        if (!backers) return []; 
+        backers.map(backer => getDonationsString(backer, startDate, endDate, tags))
+      })
+      .then(backers => {
+      topBackersCache[cacheKey] = backers;
+      return backers;
+    });
+  }
+};
+
+const getDonationsString = (backer, startDate, endDate, tags) => {
+  debug("getting latest donations for ", backer.name, tags);
+  return backer.getLatestDonations(startDate, endDate, tags)
+    .then(donations => {
+      const donationsArray = []
+      donations.map(donation => {
+        // console.log("donation: ", donation.dataValues);
+        donationsArray.push(`${donation.amount} ${donation.currency} to <a href="https://opencollective.com/${donation.Group.slug}">${donation.Group.name}</a>`);
+      });
+      backer.donationsString = donationsArray.join(', ');
+      backer.donationsString = backer.donationsString.replace(/,([^,]*)$/,' and$1');
+      return backer;
+    })
+}
+
 const processGroup = (group) => {
   const d = new Date;
   const startDate = new Date(d.getFullYear(), d.getMonth() -1, 1);
@@ -64,7 +100,8 @@ const processGroup = (group) => {
     group.getBackersCount(endDate),
     group.getBackersCount(startDate),
     group.getExpenses(null, startDate, endDate),
-    group.getRelatedGroups(3)
+    group.getRelatedGroups(3),
+    getTopBackers(startDate, endDate, group.tags)
   ];
 
   let emailData = {};
@@ -80,6 +117,7 @@ const processGroup = (group) => {
             data.group.backersCountDelta = results[2] - results[3];
             data.group.expenses = results[4].map(e => _.pick(e.dataValues, ['id', 'description', 'status', 'createdAt','netAmountInGroupCurrency','currency']));
             data.group.related = results[5];
+            data.topBackers = results[6];
             emailData = data;
             return group;
           })

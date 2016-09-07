@@ -81,10 +81,13 @@ We hope it's useful. Don't hesitate to send us your feedback by replying to this
 {{/each}}
 </table>
 
-<h2>Newest sponsors on OpenCollective</h2>
+<h2>Latest sponsors in {{tags}} on OpenCollective</h2>
 <ul>
-<li><a href="https://opencollective.com/iDoneThis">iDoneThis</a>: they are committing $500/month to open source collectives</li>
-<li><a href="https://opencollective.com/auth0">Auth0</a>: they are sponsoring open source projects related to authentication</li>
+{{#each topBackers}}
+  <li><a href="https://opencollective.com/{{username}}">{{name}}</a> {{donationsString}}</li>
+{{else}}
+  No backer yet in this category.
+{{/each}}
 </ul>
 
 {{#if group.related}}
