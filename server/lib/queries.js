@@ -54,7 +54,7 @@ const getTopBackers = (since, until, tags) => {
   const tagsClause = (tags) ? `AND g.tags && $tags` : ''; // && operator means "overlaps"
 
   return sequelize.query(`
-    SELECT MAX(u.id) as id, MAX(u.name) as "name", MAX(u.website) as "website", MAX(u."twitterHandle") as "twitterHandle", MAX(u.avatar) as "avatar", SUM("amount") as "totalDonations", MAX(t.currency) as "currency"
+    SELECT MAX(u.id) as id, MAX(u.name) as "name", MAX(u.username) as username, MAX(u.website) as "website", MAX(u."twitterHandle") as "twitterHandle", MAX(u.avatar) as "avatar", SUM("amount") as "totalDonations", MAX(t.currency) as "currency"
     FROM "Transactions" t
     LEFT JOIN "Users" u ON u.id = t."UserId"
     LEFT JOIN "Groups" g ON g.id = t."GroupId"

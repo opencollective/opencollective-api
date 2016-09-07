@@ -65,29 +65,50 @@ const getTopBackers = (startDate, endDate, tags) => {
     return User.getTopBackers(startDate, endDate, tags)
       .then(backers => {
         if (!backers) return []; 
-        backers.map(backer => getDonationsString(backer, startDate, endDate, tags))
+        return Promise.map(backers, backer => processBacker(backer, startDate, endDate, tags))
       })
       .then(backers => {
       topBackersCache[cacheKey] = backers;
+      debug("top backers", backers);
       return backers;
     });
   }
 };
 
-const getDonationsString = (backer, startDate, endDate, tags) => {
-  debug("getting latest donations for ", backer.name, tags);
+const formatCurrency =  (amount, currency) => {
+  return amount.toLocaleString(currency, {
+    style: 'currency',
+    currency,
+    minimumFractionDigits : 0,
+    maximumFractionDigits : 2
+  })
+}
+
+const generateDonationsString = (backer, donations) => {
+  if (!backer.name || !backer.username) {
+    debug(`Skipping ${backer.name} because it doesn't have a username (${backer.username})`);
+    return;
+  }
+  const donationsArray = [];
+  let donationsString;
+  donations.map(donation => {
+    donationsArray.push(`${formatCurrency(donation.amount,donation.currency)} to <a href="https://opencollective.com/${donation.Group.slug}">${donation.Group.name}</a>`);
+  });
+  donationsString = donationsArray.join(', ');
+  donationsString = donationsString.replace(/,([^, ]*)$/,' and $1');
+  return donationsString;
+};
+
+const processBacker = (backer, startDate, endDate, tags) => {
   return backer.getLatestDonations(startDate, endDate, tags)
-    .then(donations => {
-      const donationsArray = []
-      donations.map(donation => {
-        // console.log("donation: ", donation.dataValues);
-        donationsArray.push(`${donation.amount} ${donation.currency} to <a href="https://opencollective.com/${donation.Group.slug}">${donation.Group.name}</a>`);
-      });
-      backer.donationsString = donationsArray.join(', ');
-      backer.donationsString = backer.donationsString.replace(/,([^,]*)$/,' and$1');
+    .then((donations) => generateDonationsString(backer, donations))
+    .then(donationsString => {
+      backer = _.pick(backer, ['name','username','avatar'])
+      backer.donationsString = donationsString;
+      console.log("backer: ", backer);
       return backer;
     })
-}
+};
 
 const processGroup = (group) => {
   const d = new Date;
