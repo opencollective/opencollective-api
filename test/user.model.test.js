@@ -99,7 +99,7 @@ describe('user.models.test.js', () => {
     const transactions = [{
       createdAt: new Date('2016-06-14'),
       amount: 100,
-      netAmountInGroupCurrency: 1000,
+      netAmountInGroupCurrency: 10000,
       currency: 'USD',
       type: 'donation',
       UserId: 1,
@@ -159,6 +159,7 @@ describe('user.models.test.js', () => {
 
     it('gets the top backers in open source', () => {
       return User.getTopBackers(new Date('2016-06-01'), new Date('2016-07-01'), ['open source'])
+        .tap(console.log)
         .then(backers => {
           backers = backers.map(g => g.dataValues);
           expect(backers.length).to.equal(1);
@@ -174,7 +175,7 @@ describe('user.models.test.js', () => {
           })
       });
     });
-    
+
     it('gets the latest donations of a user to open source', () => {
       return User.findOne().then(user => {
         return user.getLatestDonations(new Date('2016-06-01'), new Date('2016-08-01'), ['open source'])
@@ -186,7 +187,7 @@ describe('user.models.test.js', () => {
             expect(donations[0].Group).to.have.property("name");
           })
       });
-    });    
+    });
 
   });
 
