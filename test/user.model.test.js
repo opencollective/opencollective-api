@@ -159,7 +159,6 @@ describe('user.models.test.js', () => {
 
     it('gets the top backers in open source', () => {
       return User.getTopBackers(new Date('2016-06-01'), new Date('2016-07-01'), ['open source'])
-        .tap(console.log)
         .then(backers => {
           backers = backers.map(g => g.dataValues);
           expect(backers.length).to.equal(1);
