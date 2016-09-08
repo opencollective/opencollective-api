@@ -352,7 +352,7 @@ export default (Sequelize, DataTypes) => {
       },
 
       getTopBackers(since, until, tags, limit) {
-        return queries.getTopBackers(since || 0, until || new Date, tags, limit);
+        return queries.getTopBackers(since || 0, until || new Date, tags, limit || 5);
       }
     }
 
