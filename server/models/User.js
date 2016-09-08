@@ -351,8 +351,8 @@ export default (Sequelize, DataTypes) => {
         return decrypt(encrypted);
       },
 
-      getTopBackers(since, until, tags) {
-        return queries.getTopBackers(since || 0, until || new Date, tags);
+      getTopBackers(since, until, tags, limit) {
+        return queries.getTopBackers(since || 0, until || new Date, tags, limit);
       }
     }
 

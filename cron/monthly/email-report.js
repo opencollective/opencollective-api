@@ -39,8 +39,7 @@ const init = () => {
           'currency',
           'tags'
       ],
-      include: [ { model: models.Transaction, required: true }],
-      limit: 2
+      include: [ { model: models.Transaction, required: true }]
   };
 
   Group.findAll(query)
@@ -59,18 +58,17 @@ const topBackersCache = {};
 const getTopBackers = (startDate, endDate, tags) => {
   tags = tags || [];
   const cacheKey = `${startDate.getTime()}${endDate.getTime()}${tags.join(',')}`;
-  debug("getting top backers with key ", cacheKey);
   if (topBackersCache[cacheKey]) return Promise.resolve(topBackersCache[cacheKey]);
   else {
-    return User.getTopBackers(startDate, endDate, tags)
+    return User.getTopBackers(startDate, endDate, tags, 5)
       .then(backers => {
         if (!backers) return []; 
         return Promise.map(backers, backer => processBacker(backer, startDate, endDate, tags))
       })
       .then(backers => {
-      topBackersCache[cacheKey] = backers;
-      debug("top backers", backers);
-      return backers;
+        backers = _.without(backers, null)
+        topBackersCache[cacheKey] = backers;
+        return backers;
     });
   }
 };
@@ -85,8 +83,8 @@ const formatCurrency =  (amount, currency) => {
 }
 
 const generateDonationsString = (backer, donations) => {
-  if (!backer.name || !backer.username) {
-    debug(`Skipping ${backer.name} because it doesn't have a username (${backer.username})`);
+  if (!backer.name) {
+    debug(`Skipping ${backer.name} because it doesn't have a name (${backer.username})`);
     return;
   }
   const donationsArray = [];
@@ -103,9 +101,10 @@ const processBacker = (backer, startDate, endDate, tags) => {
   return backer.getLatestDonations(startDate, endDate, tags)
     .then((donations) => generateDonationsString(backer, donations))
     .then(donationsString => {
-      backer = _.pick(backer, ['name','username','avatar'])
+      backer.website = (backer.username) ? `https://opencollective.com/${backer.username}` : backer.website || backer.twitterHandle;
+      if (!donationsString || !backer.website) return null;
+      backer = _.pick(backer, ['name','username','avatar','website']);
       backer.donationsString = donationsString;
-      console.log("backer: ", backer);
       return backer;
     })
 };
@@ -138,7 +137,7 @@ const processGroup = (group) => {
             data.group.backersCountDelta = results[2] - results[3];
             data.group.expenses = results[4].map(e => _.pick(e.dataValues, ['id', 'description', 'status', 'createdAt','netAmountInGroupCurrency','currency']));
             data.group.related = results[5];
-            data.topBackers = results[6];
+            data.topBackers = _.filter(results[6], (backer) => (backer.donationsString.indexOf(group.slug) === -1)); // we omit own backers
             emailData = data;
             return group;
           })

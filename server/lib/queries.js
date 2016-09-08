@@ -47,7 +47,7 @@ const getTotalDonations = () => {
  * Returns the top backers in a given time range in given tags
  * E.g. top backers in open source collectives last June
  */
-const getTopBackers = (since, until, tags) => {
+const getTopBackers = (since, until, tags, limit) => {
 
   const sinceClause = (since) ? `AND t."createdAt" >= '${since.toISOString()}'`: '';
   const untilClause = (until) ? `AND t."createdAt" < '${until.toISOString()}'` : '';
@@ -65,6 +65,7 @@ const getTopBackers = (since, until, tags) => {
       ${tagsClause}      
     GROUP BY "UserId" 
     ORDER BY "totalDonations" DESC
+    LIMIT ${limit}
     `.replace(/\n/g, ' '), // this is to remove the new lines and save log space.
     {
       bind: { tags: tags || [] },
