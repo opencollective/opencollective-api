@@ -79,7 +79,8 @@ export default (Sequelize, DataTypes) => {
     website: {
       type: DataTypes.STRING,
       get() {
-        return this.getDataValue('website') || (this.getDataValue('twitterHandle')) ? `https://twitter.com/${this.getDataValue('twitterHandle')}` : null;
+        if (this.getDataValue('website')) return this.getDataValue('website');
+        return (this.getDataValue('twitterHandle')) ? `https://twitter.com/${this.getDataValue('twitterHandle')}` : null;
       }
     },
 

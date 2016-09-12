@@ -536,7 +536,7 @@ describe('users.routes.test.js', () => {
 
     const newUser = {
       name: 'newname',
-      twitterHandle: 'twitter.com/asood123',
+      twitterHandle: 'asood123',
       description: "engineer",
       isOrganization: false,
       website: 'opencollective.com'
