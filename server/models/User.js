@@ -76,7 +76,12 @@ export default (Sequelize, DataTypes) => {
       }
     },
 
-    website: DataTypes.STRING,
+    website: {
+      type: DataTypes.STRING,
+      get() {
+        return this.getDataValue('website') || (this.getDataValue('twitterHandle')) ? `https://twitter.com/${this.getDataValue('twitterHandle')}` : null;
+      }
+    },
 
     paypalEmail: {
       type: DataTypes.STRING,
