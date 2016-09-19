@@ -104,9 +104,7 @@ export const getUsers = (req, res, next) => {
     });
   })
   .then(backers => res.send(backers))
-  .catch(e => {
-    console.log("Error in getUsers", e); next(e); 
-  })
+  .catch(next)
 };
 
 export const getUsersWithEmail = (req, res, next) => {
