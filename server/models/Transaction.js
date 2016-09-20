@@ -27,16 +27,6 @@ export default (Sequelize, DataTypes) => {
     comment: DataTypes.STRING, // delete #postmigration
     link: DataTypes.STRING, // delete #postmigration
 
-    payoutMethod: {
-      type: DataTypes.STRING,
-      validate: {
-        isIn: {
-          args: [['paypal', 'manual', 'other']],
-          msg: 'Must be paypal, manual or other'
-        }
-      }
-    }, // delete #postmigration
-
     // stores the currency that the transaction happened in (currency of the host)
     txnCurrency: {
       type: DataTypes.STRING,
@@ -101,10 +91,6 @@ export default (Sequelize, DataTypes) => {
         return this.amount < 0;
       },
 
-      isManual() {
-        return this.payoutMethod === 'manual';
-      },
-
       isReimbursed() {
         return !!this.reimbursedAt;
       },
@@ -127,10 +113,8 @@ export default (Sequelize, DataTypes) => {
           reimbursedAt: this.reimbursedAt,
           UserId: this.UserId,
           GroupId: this.GroupId,
-          payoutMethod: this.payoutMethod,
           isExpense: this.isExpense,
           isDonation: this.isDonation,
-          isManual: this.isManual,
           isReimbursed: this.isReimbursed,
           platformFee: this.platformFee,
           hostFee: this.hostFee,

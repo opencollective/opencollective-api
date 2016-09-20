@@ -124,6 +124,21 @@ describe('expenses.routes.test.js', () => {
       }));
     });
 
+    describe('WHEN submitting wrong payoutMethod', () => {
+      beforeEach(() => {
+        createReq = createReq.send({ expense: Object.assign({}, expense, { payoutMethod: 'lalala' }) });
+      });
+
+      it('THEN returns 400', () => createReq.expect(400, {
+        error: {
+          code: 400,
+          type: 'validation_failed',
+          message: 'Validation error: Must be paypal, manual or other',
+          fields: [ 'payoutMethod' ]
+        }
+      }));
+    });
+
     // authenticate even though not required, so that we can make assertions on the userId
     describe('WHEN authenticated', () => {
 
@@ -612,7 +627,6 @@ describe('expenses.routes.test.js', () => {
                 expect(transaction.reimbursedAt).to.be.ok;
                 expect(transaction).to.have.property('UserId', host.id);
                 expect(transaction).to.have.property('GroupId', expense.GroupId);
-                expect(transaction).to.have.property('payoutMethod', expense.payoutMethod);
                 // end TODO remove #postmigration
               }
 
@@ -732,7 +746,6 @@ describe('expenses.routes.test.js', () => {
                 expect(transaction.reimbursedAt).to.be.ok;
                 expect(transaction).to.have.property('UserId', expense.UserId);
                 expect(transaction).to.have.property('GroupId', expense.GroupId);
-                expect(transaction).to.have.property('payoutMethod', expense.payoutMethod);
                 // end TODO remove #postmigration
               }
 
