@@ -34,7 +34,6 @@ export function createFromPaidExpense(paymentMethod, expense, paymentResponse, p
     currency: expense.currency,
     description: expense.title,
     status: 'REIMBURSED',
-    reimbursedAt: new Date(),
     UserId,
     GroupId: expense.GroupId,
     // end TODO remove #postmigration

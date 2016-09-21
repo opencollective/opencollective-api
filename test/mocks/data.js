@@ -476,13 +476,10 @@ export default {
       "comment":null,
       "link": null,
       "createdAt": "2016-01-30T07:31:37.965Z",
-      "approvedAt": null,
-      "reimbursedAt": null,
       "UserId": 1,
       "GroupId": 1,
       "isExpense": false,
-      "isDonation": true,
-      "isReimbursed": false
+      "isDonation": true
     },
 
     "user": {

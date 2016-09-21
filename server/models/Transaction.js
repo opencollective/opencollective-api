@@ -58,10 +58,7 @@ export default (Sequelize, DataTypes) => {
 
     deletedAt: {
       type: DataTypes.DATE
-    },
-
-    approvedAt: DataTypes.DATE, // delete #postmigration
-    reimbursedAt: DataTypes.DATE // delete #postmigration
+    }
   }, {
     paranoid: true,
 
@@ -91,10 +88,6 @@ export default (Sequelize, DataTypes) => {
         return this.amount < 0;
       },
 
-      isReimbursed() {
-        return !!this.reimbursedAt;
-      },
-
       // Info.
       info() {
         return {
@@ -109,13 +102,10 @@ export default (Sequelize, DataTypes) => {
           comment: this.comment,
           link: this.link,
           createdAt: this.createdAt,
-          approvedAt: this.approvedAt,
-          reimbursedAt: this.reimbursedAt,
           UserId: this.UserId,
           GroupId: this.GroupId,
           isExpense: this.isExpense,
           isDonation: this.isDonation,
-          isReimbursed: this.isReimbursed,
           platformFee: this.platformFee,
           hostFee: this.hostFee,
           paymentProcessorFee: this.paymentProcessorFee,
