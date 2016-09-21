@@ -116,11 +116,6 @@ export default (Sequelize, DataTypes) => {
           comment: this.comment,
           link: this.link,
           createdAt: this.createdAt,
-<<<<<<< HEAD
-          reimbursedAt: this.reimbursedAt,
-=======
-          approvedAt: this.approvedAt,
->>>>>>> master
           UserId: this.UserId,
           GroupId: this.GroupId,
           payoutMethod: this.payoutMethod,
