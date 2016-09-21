@@ -17,19 +17,19 @@ describe('user.models.test.js', () => {
 
     it('succeeds without email', () =>
       User
-        .create({ name: userData.name})
-        .tap(user => expect(user).to.have.property('name', userData.name)));
+        .create({ firstName: userData.firstName})
+        .tap(user => expect(user).to.have.property('firstName', userData.firstName)));
 
     it('fails if invalid email', () =>
       User
-        .create({ name: userData.name, email: 'johndoe'})
+        .create({ firstName: userData.firstName, email: 'johndoe'})
         .catch(err => expect(err).to.exist));
 
     it('successfully creates a user and lowercase email', () =>
       User
-        .create({ name: userData.name, email: userData.email})
+        .create({ firstName: userData.firstName, email: userData.email})
         .tap(user => {
-          expect(user).to.have.property('name', userData.name);
+          expect(user).to.have.property('firstName', userData.firstName);
           expect(user).to.have.property('email', userData.email.toLowerCase());
           expect(user).to.have.property('createdAt');
           expect(user).to.have.property('updatedAt');
@@ -97,7 +97,6 @@ describe('user.models.test.js', () => {
   describe('class methods', () => {
 
     const users = [ utils.data('user1'), utils.data('user2') ];
-    const groups = [ utils.data('group1'), utils.data('group2') ];
     const transactions = [{
       createdAt: new Date('2016-06-14'),
       amount: 100,
@@ -134,7 +133,8 @@ describe('user.models.test.js', () => {
 
     beforeEach(() => utils.cleanAllDb());
     beforeEach(() => User.createMany(users));
-    beforeEach(() => Group.createMany(groups));
+    beforeEach(() => Group.create(utils.data('group1')));
+    beforeEach(() => Group.create(utils.data('group2')));
     beforeEach(() => Transaction.createMany(transactions));
 
     it('gets the top backers', () => {
@@ -143,7 +143,7 @@ describe('user.models.test.js', () => {
           backers = backers.map(g => g.dataValues);
           expect(backers.length).to.equal(2);
           expect(backers[0].totalDonations).to.equal(750);
-          expect(backers[0]).to.have.property('name');
+          expect(backers[0]).to.have.property('firstName');
           expect(backers[0]).to.have.property('avatar');
           expect(backers[0]).to.have.property('website');
           expect(backers[0]).to.have.property('twitterHandle');

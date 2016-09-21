@@ -1,8 +1,9 @@
 import { expect } from 'chai';
 import * as utils from '../test/utils';
-const activitiesData = utils.data('activities1').activities;
 import constants from '../server/constants/activities';
 import activitiesLib from '../server/lib/activities';
+
+const activitiesData = utils.data('activities1').activities;
 
 describe('lib.activities.test.js', () => {
 
@@ -20,7 +21,7 @@ describe('lib.activities.test.js', () => {
 
     it (`${constants.USER_CREATED} all fields present`, () => {
       const actual = activitiesLib.formatMessageForPrivateChannel(activitiesData[0], 'slack');
-      expect(actual).to.equal('New user joined: <https://twitter.com/johndoe|john doe> (john@doe.com)');
+      expect(actual).to.equal('New user joined: <https://twitter.com/johndoe|John Doe> (john@doe.com)');
     });
 
     it (`${constants.USER_CREATED} only email present`, () => {
@@ -128,6 +129,6 @@ describe('lib.activities.test.js', () => {
 
   });
 
-})
+});
 
 

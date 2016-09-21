@@ -28,7 +28,8 @@ export default (Sequelize, DataTypes) => {
       defaultValue: 0
     },
 
-    name: DataTypes.STRING,
+    firstName: DataTypes.STRING,
+    lastName: DataTypes.STRING,
 
     username: {
       type: DataTypes.STRING,
@@ -164,11 +165,17 @@ export default (Sequelize, DataTypes) => {
 
     getterMethods: {
 
+      name() {
+        return `${this.firstName} ${this.lastName}`;
+      },
+
       // Info (private).
       info() {
         return {
           id: this.id,
-          name: this.name,
+          firstName: this.firstName,
+          lastName: this.lastName,
+          name: `${this.firstName} ${this.lastName}`,
           username: this.username,
           email: this.email,
           mission: this.mission,
@@ -189,7 +196,9 @@ export default (Sequelize, DataTypes) => {
       show() {
         return {
           id: this.id,
-          name: this.name,
+          firstName: this.firstName,
+          lastName: this.lastName,
+          name: `${this.firstName} ${this.lastName}`,
           username: this.username,
           avatar: this.avatar,
           twitterHandle: this.twitterHandle,
@@ -209,7 +218,9 @@ export default (Sequelize, DataTypes) => {
           id: this.id,
           username: this.username,
           avatar: this.avatar,
-          name: this.name,
+          firstName: this.firstName,
+          lastName: this.lastName,
+          name: `${this.firstName} ${this.lastName}`,
           email: this.email
         };
       },
@@ -219,7 +230,9 @@ export default (Sequelize, DataTypes) => {
         return {
           id: this.id,
           avatar: this.avatar,
-          name: this.name,
+          firstName: this.firstName,
+          lastName: this.lastName,
+          name: `${this.firstName} ${this.lastName}`,
           website: this.website,
           mission: this.mission,
           description: this.description,
@@ -308,24 +321,22 @@ export default (Sequelize, DataTypes) => {
           order: [ ['amount','DESC'] ],
           include: [ { model: Sequelize.models.Group, where: { tags: { $contains: tags } } } ]
         });
+      },
+
+      getRoles() {
+        return Sequelize.models.UserGroup.findAll({
+          where: {
+            UserId: this.id
+          }
+        });
       }
 
     },
 
     classMethods: {
 
-      createMany: (users, defaultValues) => {
-        const promises = [];
-        for (let i=0; i < users.length; i++) {
-          const u = users[i];
-          for (const attr in defaultValues) {
-            u[attr] = defaultValues[attr];
-          }
-          promises.push(User.create(u).catch(e => {
-            console.error("Error in creating user", u, e, e.stack);
-          }));
-        }
-        return Promise.all(promises).catch(console.error);
+      createMany: (users, defaultValues = {}) => {
+        return Promise.map(users, u => User.create(_.defaults({},u,defaultValues)), {concurrency: 1});
       },
 
       auth(usernameOrEmail, password, cb) {

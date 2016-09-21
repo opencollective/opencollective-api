@@ -58,18 +58,8 @@ export default (Sequelize, DataTypes) => {
     hostFeeInTxnCurrency: DataTypes.INTEGER,
     paymentProcessorFeeInTxnCurrency: DataTypes.INTEGER,
     netAmountInGroupCurrency: DataTypes.INTEGER, // stores the net amount received by the group
-    stripeSubscriptionId: DataTypes.STRING, // delete #postmigration
-
-    interval: {
-      type: DataTypes.STRING
-    }, // delete #postmigration
 
     data: DataTypes.JSON,
-
-    approved: {
-      type: DataTypes.BOOLEAN,
-      defaultValue: false
-    }, // delete #postmigration
 
     createdAt: {
       type: DataTypes.DATE,
@@ -78,10 +68,7 @@ export default (Sequelize, DataTypes) => {
 
     deletedAt: {
       type: DataTypes.DATE
-    },
-
-    approvedAt: DataTypes.DATE, // delete #postmigration
-    reimbursedAt: DataTypes.DATE // delete #postmigration
+    }
   }, {
     paranoid: true,
 
@@ -103,10 +90,6 @@ export default (Sequelize, DataTypes) => {
         }
       },
 
-      isRejected() {
-        return !!this.approvedAt && !this.approved;
-      },
-
       isDonation() {
         return this.amount > 0;
       },
@@ -117,10 +100,6 @@ export default (Sequelize, DataTypes) => {
 
       isManual() {
         return this.payoutMethod === 'manual';
-      },
-
-      isReimbursed() {
-        return !!this.reimbursedAt;
       },
 
       // Info.
@@ -136,19 +115,13 @@ export default (Sequelize, DataTypes) => {
           status: this.status,
           comment: this.comment,
           link: this.link,
-          approved: this.approved,
           createdAt: this.createdAt,
-          approvedAt: this.approvedAt,
-          reimbursedAt: this.reimbursedAt,
           UserId: this.UserId,
           GroupId: this.GroupId,
           payoutMethod: this.payoutMethod,
           isExpense: this.isExpense,
-          isRejected: this.isRejected,
           isDonation: this.isDonation,
           isManual: this.isManual,
-          isReimbursed: this.isReimbursed,
-          interval: this.interval,
           platformFee: this.platformFee,
           hostFee: this.hostFee,
           paymentProcessorFee: this.paymentProcessorFee,

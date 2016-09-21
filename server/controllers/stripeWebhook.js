@@ -55,6 +55,13 @@ export default function stripeWebhook(req, res, next) {
           return res.sendStatus(200);
         }
 
+        /*
+         * In case we get $0 donation, return 200. Otherwise, Stripe will keep pinging us.
+         */
+        if (event.data.object.amount_due === 0) {
+          return res.sendStatus(200);
+        }
+
         cb(null, {
           event,
           stripeSubscription
@@ -213,8 +220,6 @@ export default function stripeWebhook(req, res, next) {
         data: {charge, balanceTransaction},
         description: 'Recurring subscription', // remove #postmigration
         tags: ['Donation'], // remove #postmigration
-        approved: true, // remove #postmigration
-        interval: subscription.interval, // remove #postmigration
       };
 
       models.Transaction.createFromPayload({

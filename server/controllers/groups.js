@@ -87,6 +87,28 @@ const getUserData = (groupId, tiers) => {
 
 export const getUsers = (req, res, next) => {
   let promise = getUserData(req.group.id, req.group.tiers);
+
+  if (req.query.filter && req.query.filter === 'active') {
+    const now = moment();
+    promise = promise.filter(backer => now.diff(moment(backer.lastDonation), 'days') <= 90);
+  }
+
+  const isHostOrMember = !!(req.remoteUser && req.remoteUser.rolesByGroupId && _.intersection(req.remoteUser.rolesByGroupId[req.group.id], ['HOST', 'MEMBER']).length > 0);
+
+  return promise
+  .then(backers => {
+    if (isHostOrMember) return backers;
+    else return backers.map(b => {
+      delete b.email;
+      return b;
+    });
+  })
+  .then(backers => res.send(backers))
+  .catch(next)
+};
+
+export const getUsersWithEmail = (req, res, next) => {
+  let promise = getUserData(req.group.id, req.group.tiers);
   if (req.query.filter && req.query.filter === 'active') {
     const now = moment();
     promise = promise.filter(backer => now.diff(moment(backer.lastDonation), 'days') <= 90);
@@ -131,7 +153,7 @@ export const getTransaction = (req, res) => res.json(req.transaction.info);
  * Get group's transactions.
  */
 export const getTransactions = (req, res, next) => {
-  let where = {
+  const where = {
     GroupId: req.group.id
   };
 
@@ -143,12 +165,6 @@ export const getTransactions = (req, res, next) => {
     where.amount = {
       $lt: 0
     };
-  } else if (req.query.pending) {
-    where = _.extend({}, where, {
-      amount: { $lt: 0 },
-      approved: false,
-      approvedAt: null
-    });
   }
 
   if (req.query.exclude) {
@@ -358,8 +374,12 @@ export const createFromGithub = (req, res, next) => {
     })
     .tap(() => {
       if (githubUser) {
+        if (githubUser.name) {
+          const nameTokens = githubUser.name.split(' ');
+          creator.firstName = nameTokens.shift();
+          creator.lastName = nameTokens.join(' ');
+        }
         creator.website = githubUser.blog;
-        creator.name = githubUser.name;
         return creator.save();
       }
     })
@@ -414,7 +434,11 @@ export const createFromGithub = (req, res, next) => {
             .then(user => contributorUser = user)
             .then(() => fetchGithubUser(contributor))
             .tap(json => {
-              contributorUser.name = json.name;
+              if (json.name) {
+                const nameTokens = json.name.split(' ');
+                contributorUser.firstName = nameTokens.shift();
+                contributorUser.lastName = nameTokens.join(' ');
+              }
               contributorUser.website = json.blog;
               contributorUser.email = json.email;
               return contributorUser.save();
@@ -427,7 +451,8 @@ export const createFromGithub = (req, res, next) => {
       }))
       .then(() => {
         const data = {
-          name: creator.name,
+          firstName: creator.firstName,
+          lastName: creator.lastName,
           group: dbGroup.info
         };
         return emailLib.send('github.signup', creator.email, data);
