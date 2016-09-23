@@ -1,4 +1,3 @@
-import moment from 'moment-timezone';
 import errors from '../../lib/errors';
 import models from '../../models';
 import * as aN from './authentication';
@@ -196,21 +195,3 @@ export function authorizeGroupAccessTo(attributeName, options = {}) {
 export function authorizeGroupAccessToTransaction(options) {
   return this.authorizeGroupAccessTo('transaction', options);
 }
-
-export const authorizeAccessToUserWithRecentDonation = (req, res, next) => {
-  models.Donation.findOne({
-    where: {
-      UserId: req.user.id,
-      updatedAt: {
-        $gt: moment().add(-10, 'minutes').format()
-      }
-    }
-  })
-    .tap(donation => {
-      if (!donation) {
-        return next(new Unauthorized("Can only modify user who had donation in last 10 min"));
-      }
-      next();
-    })
-    .catch(next);
-};

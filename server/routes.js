@@ -93,7 +93,7 @@ export default (app) => {
    */
   app.post('/users', aN.authenticateAppByApiKey, aZ.appAccess(0.5), required('user'), users.create); // Create a user.
   app.get('/users/:userid', aN.authenticateUserOrApp(), users.show); // Get a user.
-  app.put('/users/:userid', aN.authenticateAppByApiKey, required('user'), aZ.authorizeAccessToUserWithRecentDonation, users.updateUserWithoutLoggedIn); // Update a user.
+  app.put('/users/:userid', aN.authenticateUserAndAppByJwt(), required('user'), users.updateUser); // Update a user.
   app.put('/users/:userid/avatars', aN.authenticateAppByApiKey, required('userData'), users.getSocialMediaAvatars); // Return possible avatars for a user.
   app.put('/users/:userid/password', aZ.authorizeUserToAccessUser(), required('password', 'passwordConfirmation'), users.updatePassword); // Update a user password.
   app.put('/users/:userid/paypalemail', required('paypalEmail'), aZ.authorizeUserToAccessUser(), users.updatePaypalEmail); // Update a user paypal email.
