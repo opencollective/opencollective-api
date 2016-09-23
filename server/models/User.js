@@ -335,6 +335,21 @@ export default (Sequelize, DataTypes) => {
 
     classMethods: {
 
+      suggestUsername: (user) => {
+        let username = user.username || user.twitterHandle || user.name.replace(/ /g,'').toLowerCase();
+        if (!username && user.email)
+          username = user.email.substr(0,user.email.indexOf('@'));
+
+        if (!username) return Promise.resolve();
+
+        const where = { username: { $like: `${username.toLowerCase()}%`} };
+        if (user.id) where.id = { $ne: user.id };
+
+        return User.count({ where }).then(count => {
+          return (count === 0) ? username : `${username}${count}`;
+        });
+      },
+
       createMany: (users, defaultValues = {}) => {
         return Promise.map(users, u => User.create(_.defaults({},u,defaultValues)), {concurrency: 1});
       },
@@ -371,8 +386,15 @@ export default (Sequelize, DataTypes) => {
       getTopBackers(since, until, tags, limit) {
         return queries.getTopBackers(since || 0, until || new Date, tags, limit || 5);
       }
-    }
+    },
 
+    hooks: {
+      beforeCreate: (instance) => {
+        return User.suggestUsername(instance).then(username => {
+          return instance.setDataValue('username', username);
+        });
+      }
+    }
   });
 
   return User;
