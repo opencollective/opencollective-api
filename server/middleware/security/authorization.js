@@ -89,6 +89,7 @@ export const _authorizeAppAccessToGroup = (req, res, next) => {
  * @POST: req.remoteUser is set
  */
 export const _authorizeUserAccessToGroup = (req, res, next) => {
+  if (!req.remoteUser) return next(new Unauthorized("User is not authenticated"));
   req.group
     // can't use hasUser() because we removed the unique index of groupid, userid
     // and replaced it with a unique index of groupid, userid, and role and

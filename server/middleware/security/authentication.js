@@ -247,7 +247,7 @@ export function authenticateInternalUserByJwt() {
 }
 
 export const _authenticateInternalUserById = (req, res, next) => {
-  if (_.contains([1,2,4,5,6,7,8,30,40,212,772], req.jwtPayload.sub)) {
+  if (req.jwtPayload && _.contains([1,2,4,5,6,7,8,30,40,212,772], req.jwtPayload.sub)) {
     next();
   } else {
     throw new Unauthorized();
