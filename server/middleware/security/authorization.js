@@ -1,5 +1,4 @@
 import errors from '../../lib/errors';
-import models from '../../models';
 import * as aN from './authentication';
 
 const {
