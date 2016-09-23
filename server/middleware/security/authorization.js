@@ -33,6 +33,18 @@ export const _authorizeUserToAccessUser = (req, res, next) => {
   next();
 };
 
+export function authorizeUser() {
+  return (req, res, next) => {
+    aN.authenticateUserByJwt()(req, res, (e) => {
+      if (e) {
+        return next(e);
+      }
+      if (!req.remoteUser) return next(new Unauthorized("User is not authenticated"));
+      return next();
+    });
+  };
+}
+
 export function authorizeUserToAccessUser() {
   return (req, res, next) => {
     aN.authenticateUserByJwt()(req, res, (e) => {

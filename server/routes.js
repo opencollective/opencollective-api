@@ -231,7 +231,7 @@ export default (app) => {
    * Stripe oAuth
    */
 
-  app.get('/stripe/authorize', aN.authenticateUserByJwt(), stripe.authorize);
+  app.get('/stripe/authorize', aZ.authorizeUser(), stripe.authorize);
   app.get('/stripe/oauth/callback', stripe.callback);
 
   /**
@@ -262,8 +262,8 @@ export default (app) => {
   /**
    * Stripe subscriptions (recurring payments)
    */
-  app.get('/subscriptions', aN.authenticateUserByJwt(), subscriptions.getAll);
-  app.post('/subscriptions/:subscriptionid/cancel', aN.authenticateUserByJwt(), subscriptions.cancel);
+  app.get('/subscriptions', aZ.authorizeUser(), subscriptions.getAll);
+  app.post('/subscriptions/:subscriptionid/cancel', aZ.authorizeUser(), subscriptions.cancel);
 
   /**
    * Leaderboard
