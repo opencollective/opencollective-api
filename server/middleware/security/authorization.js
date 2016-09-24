@@ -166,7 +166,7 @@ export function authorizeAccessToGroup(options = {}) {
     };
 
     aN.authenticateUserByJwt()(req, res, (e) => {
-      if (e) {
+      if (e || !req.remoteUser) {
         this._authorizeAppAccessToGroup(req, res, (e) => {
           if (!e) return this._authorizeUserRoles(options)(req, res, handleAuthCallback);
           else return handleAuthCallback(e);
