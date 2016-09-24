@@ -74,7 +74,7 @@ describe('user.models.test.js', () => {
         .tap(user => {
           expect(user.username).to.equal('xdamman')
         })
-        .then(() => User.create({ username: 'xdamman'}))
+        .then(() => User.create({ email: 'xdamman@gmail.com'}))
         .then(user => {
           expect(user.username).to.equal('xdamman1')
         })
