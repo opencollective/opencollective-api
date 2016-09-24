@@ -56,15 +56,15 @@
   },
   "clearbit": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
   "github": {
-    "clientID": "GITHUB_CLIENT_ID",
-    "clientSecret": "GITHUB_CLIENT_SECRET"
+    "clientID": "xxx",
+    "clientSecret": "xxxxx"
   },
   "meetup": {
-    "clientID": "MEETUP_CLIENT_ID",
-    "clientSecret": "MEETUP_CLIENT_SECRET"
+    "clientID": "xxxxx",
+    "clientSecret": "xxxxx"
   },
   "twitter": {
-    "consumerKey": "TWITTER_CONSUMER_KEY",
-    "consumerSecret": "TWITTER_CONSUMER_SECRET"
+    "consumerKey": "xxxx",
+    "consumerSecret": "xxxxx"
   }
 }
