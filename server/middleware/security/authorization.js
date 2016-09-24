@@ -86,7 +86,7 @@ export const _authorizeAppAccessToGroup = (req, res, next) => {
         if (hasApplication) {
           return next();
         }
-        next(new Forbidden(`Application key doesn't have access to this group`));
+        next(new Unauthorized(`Application key doesn't have access to this group`));
       })
       .catch(next);
   });
@@ -166,7 +166,10 @@ export function authorizeAccessToGroup(options = {}) {
     };
 
     aN.authenticateUserByJwt()(req, res, (e) => {
-      if (e || !req.remoteUser) {
+      if (!req.remoteUser)
+        e = new Unauthorized('User is not authenticated');
+
+      if (e) {
         this._authorizeAppAccessToGroup(req, res, (e) => {
           if (!e) return this._authorizeUserRoles(options)(req, res, handleAuthCallback);
           else return handleAuthCallback(e);
