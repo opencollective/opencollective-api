@@ -390,6 +390,9 @@ export default (Sequelize, DataTypes) => {
 
     hooks: {
       beforeCreate: (instance) => {
+        // If we explicitly specify a username before creating a user,
+        // we should rather return an error if it's not available
+        if (instance.getDataValue('username')) return;
         return User.suggestUsername(instance).then(username => {
           return instance.setDataValue('username', username);
         });
