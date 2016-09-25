@@ -80,7 +80,7 @@ describe('groups.routes.test.js', () => {
     });
 
     it('fails if the tier has missing data', (done) => {
-      const g = _.extend({}, publicGroupData);
+      const g = Object.assign({}, publicGroupData, { users: [{email: user.email, role: roles.HOST}]});
       g.tiers = [{ // interval missing
         name: 'Silver',
         description: 'Silver',
@@ -341,13 +341,6 @@ describe('groups.routes.test.js', () => {
           transaction: transactionsData[8]
         })
         .expect(200)
-        .end(done);
-    });
-
-    it('fails getting a group if not authenticated', (done) => {
-      request(app)
-        .get(`/groups/${publicGroup.id}`)
-        .expect(401)
         .end(done);
     });
 

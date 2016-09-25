@@ -85,7 +85,7 @@ export function authorizeUserToAccessScope(scope) {
  */
 export const authorizeAppByApiKey = (req, res, next) => {
   required('api_key')(req, res, (e) => {
-    if (e) throw new Unauthorized("Invalid api_key");
+    if (e) return next(new Unauthorized("Invalid api_key"));
     models.Application.findOne({ where: { api_key: req.required.api_key }})
       .then(application => {
         if (!application) throw new Unauthorized("Invalid api_key");
@@ -179,7 +179,6 @@ export function _authorizeUserRoles (options) {
 // @TODO is there no way to wrap the middlewares into promises to avoid this callback cascade?
 export function authorizeAccessToGroup(options = {}) {
   return (req, res, next) => {
-
     const handleAuthCallback = (e, res) => {
       if (e && req.group.isPublic && options.allowNonAuthenticatedAccessIfGroupIsPublic) return next();
       else return next(e, res);
