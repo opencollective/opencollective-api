@@ -522,8 +522,8 @@ describe('groups.routes.test.js', () => {
           .end(() => done());
       })
 
-      it('successfully get a supercollective with data', (done) => {
-        request(app)
+      it('successfully get a supercollective with data', () => {
+        return request(app)
           .get(`/groups/${supercollective.slug.toUpperCase()}?api_key=${application.api_key}`)
           .expect(200)
           .end((e, res) => {
@@ -534,7 +534,6 @@ describe('groups.routes.test.js', () => {
             expect(res.body).to.have.property('superCollectiveData')
             expect(res.body.superCollectiveData.length).to.eql(1);
             expect(res.body.superCollectiveData[0].publicUrl).to.contain('wwcode-austin');
-            done();
         });
       });
 
