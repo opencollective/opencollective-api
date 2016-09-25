@@ -3,7 +3,7 @@
  */
 import _ from 'lodash';
 import async from 'async';
-import {appendTier, defaultHostId, demoHostId, getLinkHeader, getRequestedUrl} from '../lib/utils';
+import {appendTier, defaultHostId, getLinkHeader, getRequestedUrl} from '../lib/utils';
 import Promise from 'bluebird';
 import moment from 'moment';
 import roles from '../constants/roles';
