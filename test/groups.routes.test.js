@@ -45,18 +45,14 @@ describe('groups.routes.test.js', () => {
     beforeEach(() => models.User.create(userData2).tap(u => user2 = u));
     beforeEach(() => models.User.create(userData3).tap(u => user3 = u));
 
-    it('fails creating a group if no api_key', (done) => {
+    it('fails creating a group if no api_key', () =>
       request(app)
         .post('/groups')
         .send({
           group: publicGroupData
         })
         .expect(401)
-        .end(e => {
-          expect(e).to.not.exist;
-          done();
-        });
-    });
+    );
 
     it('fails creating a group without name', (done) => {
       const group = _.omit(publicGroupData, 'name');
@@ -79,7 +75,7 @@ describe('groups.routes.test.js', () => {
         });
     });
 
-    it('fails if the tier has missing data', (done) => {
+    it('fails if the tier has missing data', () => {
       const g = Object.assign({}, publicGroupData, { users: [{email: user.email, role: roles.HOST}]});
       g.tiers = [{ // interval missing
         name: 'Silver',
@@ -87,7 +83,7 @@ describe('groups.routes.test.js', () => {
         range: [100, 200]
       }];
 
-      request(app)
+      return request(app)
         .post('/groups')
         .send({
           api_key: application.api_key,
@@ -101,7 +97,6 @@ describe('groups.routes.test.js', () => {
             fields: ['tiers']
           }
         })
-        .end(done);
     });
 
     it('successfully create a group, while assigning the users as members', (done) => {
@@ -158,33 +153,25 @@ describe('groups.routes.test.js', () => {
    */
   describe('#createFromGithub', () => {
 
-    it('fails creating a group if param value is not github', (done) => {
+    it('fails creating a group if param value is not github', () =>
       request(app)
         .post('/groups?flow=blah')
         .send({
           payload: publicGroupData
         })
         .expect(400)
-        .end(() => {
-          done();
-        });
-    });
+    );
 
-    it('fails creating a group if no api key', (done) => {
+    it('fails creating a group if no api key', () =>
       request(app)
         .post('/groups?flow=github')
         .send({
           payload: publicGroupData
         })
         .expect(401)
-        .end(e => {
-          expect(e).to.not.exist;
-          done();
-        });
-    });
+    );
 
-
-    it('fails creating a group without payload', (done) => {
+    it('fails creating a group without payload', () =>
       request(app)
         .post('/groups?flow=github')
         .send({
@@ -192,12 +179,7 @@ describe('groups.routes.test.js', () => {
           api_key: application.api_key
         })
         .expect(400)
-        .end(e => {
-          expect(e).to.not.exist;
-          done();
-        });
-    });
-
+    );
 
     describe('Successfully create a group and ', () => {
 
@@ -333,7 +315,7 @@ describe('groups.routes.test.js', () => {
     beforeEach(() => models.PaymentMethod.create({UserId: user.id}))
 
     // Create a transaction for group1.
-    beforeEach((done) => {
+    beforeEach('create a transaction for group 1', () =>
       request(app)
         .post(`/groups/${publicGroup.id}/transactions`)
         .set('Authorization', `Bearer ${user.jwt(application)}`)
@@ -341,15 +323,13 @@ describe('groups.routes.test.js', () => {
           transaction: transactionsData[8]
         })
         .expect(200)
-        .end(done);
-    });
+    );
 
-    it('fails getting an undefined group', (done) => {
+    it('fails getting an undefined group', () =>
       request(app)
         .get('/groups/undefined')
         .expect(404)
-        .end(done);
-    });
+    );
 
     it('successfully get a group if it is public', (done) => {
       request(app)
@@ -394,13 +374,13 @@ describe('groups.routes.test.js', () => {
       let totDonations = 0;
 
       // Create group2.
-      beforeEach(() =>
+      beforeEach('create group 2', () =>
         models.Group.create(_.omit(utils.data('group2'),['slug']))
           .tap(g => group2 = g)
           .then(() => group2.addUserWithRole(user, roles.HOST)));
 
       // Create transactions for publicGroup.
-      beforeEach((done) => {
+      beforeEach('create transactions for public group', (done) => {
         async.each(transactionsData, (transaction, cb) => {
           if (transaction.amount < 0)
             totTransactions += transaction.amount;
@@ -467,22 +447,20 @@ describe('groups.routes.test.js', () => {
 
     describe('Leaderboard', () => {
 
-      it('fails if the app is not authorized', done => {
+      it('fails if the app is not authorized', () =>
         request(app)
           .get('/leaderboard')
           .expect(401)
-          .end(done);
-      });
+      );
 
-      it('returns the leaderboard', done => {
+      it('returns the leaderboard', () =>
         request(app)
           .get('/leaderboard')
           .send({
             api_key: application.api_key,
           })
           .expect(200)
-          .end(done);
-      });
+      );
 
     });
 
@@ -492,7 +470,7 @@ describe('groups.routes.test.js', () => {
       let supercollective;
 
       // Create supercollective
-      beforeEach((done) => {
+      beforeEach('create supercollective', (done) => {
         request(app)
           .post('/groups')
           .send({
@@ -512,18 +490,17 @@ describe('groups.routes.test.js', () => {
           });
       });
 
-      beforeEach((done) => {
-        return request(app).post('/groups')
+      beforeEach('create a second group', () =>
+        request(app).post('/groups')
           .send({
             api_key: application.api_key,
             group: Object.assign({}, utils.data('group2'), { users: [{email:userData3.email, role: roles.MEMBER}]})
           })
           .expect(200)
-          .end(() => done());
-      })
+      );
 
-      it('successfully get a supercollective with data', () => {
-        return request(app)
+      it('successfully get a supercollective with data', (done) => {
+        request(app)
           .get(`/groups/${supercollective.slug.toUpperCase()}?api_key=${application.api_key}`)
           .expect(200)
           .end((e, res) => {
@@ -534,11 +511,10 @@ describe('groups.routes.test.js', () => {
             expect(res.body).to.have.property('superCollectiveData')
             expect(res.body.superCollectiveData.length).to.eql(1);
             expect(res.body.superCollectiveData[0].publicUrl).to.contain('wwcode-austin');
-        });
+            done();
+          })
       });
-
-    })
-
+    });
   });
 
   /**
