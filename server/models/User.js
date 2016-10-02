@@ -340,7 +340,11 @@ export default (Sequelize, DataTypes) => {
         let username = user.username || user.twitterHandle || user.name.replace(/ /g,'').toLowerCase();
         if (!username && user.email) {
           username = user.email.substr(0,user.email.indexOf('@'));
-          username = username.substr(0,username.indexOf('+'));
+        }
+        
+        const plusIndex = username.indexOf('+');
+        if (plusIndex !== -1) {
+          username = username.substr(0,plusIndex);
         }
 
         if (!username) return Promise.resolve();
