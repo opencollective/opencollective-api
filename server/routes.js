@@ -44,8 +44,11 @@ export default (app) => {
   app.use('/status', serverStatus(app));
 
   /**
-   * Routes without expiration validation
+   * User reset password or new token flow (no jwt verification)
    */
+  app.post('/users/password/forgot', required('email'), users.forgotPassword); // Send forgot password email
+  app.post('/users/password/reset/:userid_enc/:reset_token', required('password', 'passwordConfirmation'), users.resetPassword); // Reset password`
+  app.post('/users/new_login_token', required('email'), users.sendNewTokenByEmail);
   app.post('/users/refresh_login_token', aN.authenticateUserByJwtNoExpiry(), users.refreshTokenByEmail);
 
   /**
@@ -68,14 +71,6 @@ export default (app) => {
   app.param('transactionid', params.transactionid);
   app.param('paranoidtransactionid', params.paranoidtransactionid);
   app.param('expenseid', params.expenseid);
-
-  /**
-   * User reset password flow (no jwt verification)
-   */
-  app.post('/users/password/forgot', required('email'), users.forgotPassword); // Send forgot password email
-  app.post('/users/password/reset/:userid_enc/:reset_token', required('password', 'passwordConfirmation'), users.resetPassword); // Reset password
-
-  app.post('/users/new_login_token', required('email'), users.sendNewTokenByEmail);
 
   /**
    * Homepage
