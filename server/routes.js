@@ -43,6 +43,8 @@ export default (app) => {
    */
   app.use('/status', serverStatus(app));
 
+  app.use('*', auth.authorizeApiKey);
+
   /**
    * User reset password or new token flow (no jwt verification)
    */
@@ -55,7 +57,6 @@ export default (app) => {
    * Moving forward, all requests will try to authenticate the user if there is a JWT token provided
    * (an error will be returned if the JWT token is invalid, if not present it will simply continue)
    */
-  app.use('*', auth.authorizeApiKey);
   app.use('*', aN.authenticateUser); // populate req.remoteUser if JWT token provided in the request
 
   /**
