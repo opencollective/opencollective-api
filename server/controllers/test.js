@@ -41,6 +41,11 @@ export const resetTestDatabase = function(req, res, next) {
     firstName: 'Xavier',
     lastName: 'Damman'
   }
+  const backer = {
+    email: 'backer@opencollective.com',
+    firstName: 'Aseem',
+    lastName: 'Sood'
+  }
 
   async.auto({
     resetDb: (cb) => {
@@ -55,9 +60,16 @@ export const resetTestDatabase = function(req, res, next) {
         .catch(cb);
     }],
 
-    createBacker: ['createGroup', (cb, results) => {
+    createMember: ['createGroup', (cb, results) => {
       models.User.create(member)
         .tap(u => results.createGroup.addUserWithRole(u, 'MEMBER'))
+        .then(u => cb(null, u))
+        .catch(cb);
+    }],
+
+    createBacker: ['createGroup', (cb, results) => {
+      models.User.create(backer)
+        .tap(u => results.createGroup.addUserWithRole(u, 'BACKER'))
         .then(u => cb(null, u))
         .catch(cb);
     }],
