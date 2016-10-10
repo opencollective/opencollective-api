@@ -361,6 +361,12 @@ export const createFromGithub = (req, res, next) => {
   const creatorGithubUsername = payload.github_username;
   let dbGroup;
 
+  // Default tiers
+  group.tiers = group.tiers || [
+    {"name":"backer","range":[2,100000],"presets":[2,10,25],"interval":"monthly"},
+    {"name":"sponsor","range":[100,500000],"presets":[100,250,500],"interval":"monthly"}
+  ];
+
   ConnectedAccount
     .findOne({
       where: { id: connectedAccountId },
