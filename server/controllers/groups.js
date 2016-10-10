@@ -306,6 +306,12 @@ export const create = (req, res, next) => {
     emailLib.send('group.created', user.email, data);
   };
 
+  // Default tiers
+  group.tiers = group.tiers || [
+    {"name":"backer","range":[2,100000],"presets":[2,10,25],"interval":"monthly"},
+    {"name":"sponsor","range":[100,500000],"presets":[100,250,500],"interval":"monthly"}
+  ];
+
   return Group
     .create(group)
     .tap(g => createdGroup = g)
