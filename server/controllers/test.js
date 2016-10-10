@@ -36,6 +36,11 @@ export const resetTestDatabase = function(req, res, next) {
     email: 'testuser@opencollective.com',
     password: 'password'
   };
+  const member = {
+    email: 'member@opencollective.com',
+    firstName: 'Xavier',
+    lastName: 'Damman'
+  }
 
   async.auto({
     resetDb: (cb) => {
@@ -46,6 +51,13 @@ export const resetTestDatabase = function(req, res, next) {
 
     createTestUser: ['resetDb', (cb) => {
       models.User.create(testUser)
+        .then(u => cb(null, u))
+        .catch(cb);
+    }],
+
+    createBacker: ['createGroup', (cb, results) => {
+      models.User.create(member)
+        .tap(u => results.createGroup.addUserWithRole(u, 'MEMBER'))
         .then(u => cb(null, u))
         .catch(cb);
     }],
