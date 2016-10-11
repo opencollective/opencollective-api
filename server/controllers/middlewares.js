@@ -81,6 +81,9 @@ export const getOrCreateUser = (req, res, next) => {
     ({ email } = req.body.expense);
     ({ paypalEmail } = req.body.expense);
     ({ name } = req.body.expense);
+  } else if (req.body.user) {
+    ({ name } = req.body.user);
+    ({ email } = req.body.user);
   } else if (req.body.payment) {
     // TODO remove #postmigration
     ({ email } = req.body.payment);

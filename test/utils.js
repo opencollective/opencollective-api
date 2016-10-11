@@ -3,10 +3,14 @@ import {sequelize} from '../server/models';
 import jsonData from './mocks/data';
 import userlib from '../server/lib/userlib';
 import config from 'config';
+import { isArray, values } from 'lodash';
 
 jsonData.application = { name: 'client', api_key: config.keys.opencollective.api_key };
 
-export const data = (item) => Object.assign({}, jsonData[item]); // to avoid changing these data
+export const data = (item) => {
+  const copy = Object.assign({}, jsonData[item]); // to avoid changing these data
+  return (isArray(jsonData[item])) ? values(copy) : copy;
+}
 
 export const clearbitStubBeforeEach = sandbox => {
   sandbox.stub(userlib.clearbit.Enrichment, 'find', () => {
