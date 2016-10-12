@@ -7,7 +7,6 @@ import roles from '../../constants/roles';
 import {authenticateUser} from './authentication';
 
 const {
-  NotFound,
   Forbidden, // I know who you are, but you permanently don't have access to this resource
   Unauthorized // You are not authorized, try to authenticate again
 } = errors;

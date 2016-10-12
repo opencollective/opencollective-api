@@ -1,10 +1,8 @@
 import app from '../server/index';
 import { expect } from 'chai';
-import Promise from 'bluebird';
 import request from 'supertest-as-promised';
 import * as utils from '../test/utils';
 import roles from '../server/constants/roles';
-import { badRequest, missingRequired } from './lib/expectHelpers';
 import models from '../server/models';
 import activities from '../server/constants/activities';
 

@@ -1,11 +1,7 @@
 import _ from 'lodash';
-import Promise from 'bluebird';
 import activities from '../constants/activities';
 import {getLinkHeader, getRequestedUrl} from '../lib/utils';
-import roles from '../constants/roles';
-import errors from '../lib/errors';
 import models from '../models';
-import * as auth from '../middleware/security/auth';
 
 function createActivity(comment, type) {
   return models.Activity.create({
