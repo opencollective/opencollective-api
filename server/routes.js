@@ -185,7 +185,7 @@ export default (app) => {
    */
   app.get('/groups/:groupid/comments', mw.paginate(), mw.sorting({key: 'createdAt', dir: 'DESC'}), comments.list); // Get latest comments for a collective
   app.get('/groups/:groupid/expenses/:expenseid/comments', mw.paginate(), mw.sorting({key: 'createdAt', dir: 'DESC'}), comments.list); // Get latest comments for an expense
-  app.post('/groups/:groupid/expenses/:expenseid/comments', required('comment'), mw.getOrCreateUser, comments.create); // Create a comment as a new user
+  app.post('/groups/:groupid/expenses/:expenseid/comments', required('comment'), mw.authOrCreateUser, comments.create); // Create a comment as a new user
   app.delete('/groups/:groupid/expenses/:expenseid/comments/:commentid', auth.canEditComment, comments.deleteComment); // Delete a comment
 
   /**

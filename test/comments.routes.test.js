@@ -55,6 +55,13 @@ describe('comments.routes.test.js', () => {
     });
   });
 
+  it('fails to create a new comment and a new user if email already exists', () => {
+    return request(app)
+      .post(`/groups/${group.id}/expenses/${expense.id}/comments?api_key=${application.api_key}`)
+      .send({comment: utils.data('comments')[1], user: utils.data('user2') })
+      .expect(401);
+  });
+
   describe('#delete', () => {
     let comment;
     beforeEach(() => models.Comment.create(Object.assign({}, utils.data('comments')[0], { UserId: member.id, GroupId: group.id, ExpenseId: expense.id })).tap(c => comment = c))

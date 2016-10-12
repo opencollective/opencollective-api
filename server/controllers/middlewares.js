@@ -6,6 +6,7 @@ import * as users from '../controllers/users';
 import queries from '../lib/queries';
 import models from '../models';
 import errors from '../lib/errors';
+import required from '../middleware/required_param';
 
 const {
   User
@@ -57,6 +58,36 @@ export const format = (format) => {
   }
 
 };
+
+/**
+ * Use the logged in user or create a new user
+ * Returns an error if not logged in and a user already exists for the email address provided
+ * Used for creating a comment
+ */
+export const authOrCreateUser = (req, res, next) => {
+  // If already logged in, proceed
+  if (req.remoteUser) {
+    req.user = req.remoteUser;
+    return next();
+  }
+  required('user')(req, res, (e) => {
+    if (e) return next(e);
+    console.log("Lookign for ", req.required.user.email);
+    User.findOne({
+      where: {
+        email: req.required.user.email.toLowerCase()
+      }
+    })
+    .then(user => {
+      console.log("Found: ", user);
+      if (user) throw new errors.Unauthorized("A user already exists with that email address. Please login first");
+      else return users._create(req.body.user);
+    })
+    .tap(user => req.user = user)
+    .tap(() => next())
+    .catch(next);
+  });
+}
 
 /**
  * Get the user based on its email or paypalEmail. If not found, creates one.
