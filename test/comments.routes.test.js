@@ -5,13 +5,23 @@ import * as utils from '../test/utils';
 import roles from '../server/constants/roles';
 import models from '../server/models';
 import activities from '../server/constants/activities';
+import sinon from 'sinon';
+import emailLib from '../server/lib/email';
 
 const application = utils.data('application');
 
 describe('comments.routes.test.js', () => {
-  let host, member, user, group, expense;
+  let host, member, user, group, expense, sandbox;
 
   beforeEach(() => utils.resetTestDB());
+
+  beforeEach(() => {
+    sandbox = sinon.sandbox.create();
+  });
+
+  afterEach(() => {
+    sandbox.restore();
+  });
 
   beforeEach('create host', () => models.User.create(utils.data('user1')).tap(u => host = u));
   beforeEach('create member', () => models.User.create(utils.data('user2')).tap(u => member = u));
@@ -34,12 +44,14 @@ describe('comments.routes.test.js', () => {
         .then(res => {
           const result = res.body.data;
           expect(result.comment.text).to.equal(utils.data('comments')[0].text);
+          expect(result.comment.approvedAt).to.exist;
           expect(result.group.name).to.equal(utils.data('group1').name);
           expect(result.expense.title).to.equal(utils.data('expense1').title);
         });
     });
 
-    it('creates a new comment and a new user', () => {
+    it('creates a new comment and a new user, sends a confirmation email', () => {
+      const spy = sandbox.spy(emailLib, 'send');
       return request(app)
         .post(`/groups/${group.id}/expenses/${expense.id}/comments?api_key=${application.api_key}`)
         .send({comment: utils.data('comments')[1], user: utils.data('user4') })
@@ -49,15 +61,17 @@ describe('comments.routes.test.js', () => {
           expect(result.comment.text).to.equal(utils.data('comments')[1].text);
           expect(result.user.email).to.equal(utils.data('user4').email);
           expect(result.expense.title).to.equal(utils.data('expense1').title);
+          expect(spy.args[0][0]).to.equal('comment.approve');
+          expect(spy.args[0][1]).to.equal(result.user.email);
         });
     });
   });
 
-  it('fails to create a new comment and a new user if email already exists', () => {
+  it('fails to create a new comment if not logged in and no email provided', () => {
     return request(app)
       .post(`/groups/${group.id}/expenses/${expense.id}/comments?api_key=${application.api_key}`)
-      .send({comment: utils.data('comments')[1], user: utils.data('user2') })
-      .expect(401);
+      .send({comment: utils.data('comments')[1], user: {} })
+      .expect(400);
   });
 
   describe('#delete', () => {
@@ -100,9 +114,10 @@ describe('comments.routes.test.js', () => {
   });
 
   describe('#list', () => {
-    beforeEach('create many comments', () => models.Comment.createMany(utils.data('comments'), { UserId: member.id, GroupId: group.id, ExpenseId: expense.id }));
+    beforeEach('create many comments', () => models.Comment.createMany(utils.data('comments'), { UserId: member.id, GroupId: group.id, ExpenseId: expense.id, approvedAt: new Date }));
+    beforeEach('create one non approved comment', () => models.Comment.create({ UserId: user.id, GroupId: group.id, ExpenseId: expense.id, text: 'spam' }));
 
-    it('gets the list of comments for a given expense', () => {
+    it('gets the list of approved comments for a given expense', () => {
       return request(app)
         .get(`/groups/${group.id}/expenses/${expense.id}/comments?api_key=${application.api_key}`)
         .expect(200)

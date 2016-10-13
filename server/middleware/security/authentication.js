@@ -132,6 +132,7 @@ export const _authenticateUserByJwt = (req, res, next) => {
   User
     .findById(req.jwtPayload.sub)
     .tap(user => {
+      user.update({seenAt: new Date()});
       req.remoteUser = user;
       next();
     })

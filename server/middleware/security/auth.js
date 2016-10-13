@@ -109,11 +109,11 @@ export function mustBePartOfTheGroup(req, res, next) {
 export function canEditObject(object) {
   return (req, res, next) => {
     required_valid('remoteUser', object)(req, res, (e) => {
-      if (e) return next(e);
-      if (req[object].UserId === req.remoteUser.id) return next();
+      if (e) return next(e, false);
+      if (req[object].UserId === req.remoteUser.id) return next(null, true);
       mustHaveRole([HOST, MEMBER])(req, res, (err) => {
-        if (err) return next(new Forbidden(`Logged in user must be the author of the ${object} or the host or an admin of this group`));
-        return next();
+        if (err) return next(new Forbidden(`Logged in user must be the author of the ${object} or the host or an admin of this group`), false);
+        return next(null, true);
       });
     });
   }

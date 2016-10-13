@@ -2,6 +2,8 @@ import _ from 'lodash';
 import activities from '../constants/activities';
 import {getLinkHeader, getRequestedUrl} from '../lib/utils';
 import models from '../models';
+import emailLib from '../lib/email';
+import config from 'config';
 
 function createActivity(comment, type) {
   return models.Activity.create({
@@ -24,15 +26,40 @@ function createActivity(comment, type) {
 export const create = (req, res, next) => {
   const user = req.remoteUser || req.user;
   const { group, expense } = req;
+  const approvedAt = (req.remoteUser) ? new Date() : null;
   const attributes = Object.assign({}, req.required.comment, {
     UserId: user.id,
     GroupId: group.id,
-    ExpenseId: expense.id
+    ExpenseId: expense.id,
+    approvedAt
   });
+
+  // If the user is not logged in, we send an email to confirm
+  const sendEmailForApproval = (activity) => {
+    if (!approvedAt) {
+      const data = Object.assign({}, activity.data);
+      data.login_url = user.generateLoginLink(`${config.host.website}/${group.slug}/expenses/${expense.id}`);
+      data.approve_url = user.generateLoginLink(`${config.host.website}/${group.slug}/expenses/${expense.id}/approve`);
+      emailLib.send('comment.approve', user.email, data);
+    }
+  }
+
   models.Comment.create(attributes)
     .then(comment => models.Comment.findById(comment.id, { include: [ models.Group, models.User, models.Expense ]}))
     .then(comment => createActivity(comment, activities.GROUP_COMMENT_CREATED))
+    .tap(sendEmailForApproval)
     .then(activity => res.send(activity))
+    .catch(next);
+};
+
+/**
+ * Approve a comment
+ */
+export const approve = (req, res, next) => {
+  req.comment.update({approvedAt: new Date()})
+    .then(() => {
+      res.send(`Comment on expense "${req.expense.title}" approved. [<a href="${config.host.website}/${req.group.slug}/expenses/${req.expense.id}">view the expense</a>]`);
+    })
     .catch(next);
 };
 
@@ -48,7 +75,7 @@ export const getOne = (req, res) => {
  */
 export const list = (req, res, next) => {
 
-  const where = { GroupId: req.group.id };
+  const where = { GroupId: req.group.id, approvedAt: { $ne: null } };
 
   if (req.expense)
     where.ExpenseId = req.expense.id;

@@ -53,6 +53,11 @@ export default function (Sequelize, DataTypes) {
       allowNull: false
     },
 
+    approvedAt: {
+      type: DataTypes.DATE,
+      allowNull: true
+    },
+
     updatedAt: {
       type: DataTypes.DATE,
       defaultValue: Sequelize.NOW,
@@ -74,7 +79,8 @@ export default function (Sequelize, DataTypes) {
           ExpenseId: this.ExpenseId,
           text: this.text,
           createdAt: this.createdAt,
-          updatedAt: this.updatedAt
+          updatedAt: this.updatedAt,
+          approvedAt: this.approvedAt
         }
       }
     },

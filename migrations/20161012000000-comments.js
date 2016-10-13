@@ -14,6 +14,10 @@ module.exports = {
         type: DataTypes.DATE,
         defaultValue: DataTypes.NOW
       },
+      approvedAt: {
+        type: DataTypes.DATE,
+        allowNull: true
+      },
       updatedAt: {
         type: DataTypes.DATE,
         defaultValue: DataTypes.NOW
