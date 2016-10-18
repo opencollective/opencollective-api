@@ -338,7 +338,8 @@ export default (Sequelize, DataTypes) => {
       suggestUsername: (user) => {
         let username = user.username || user.twitterHandle || user.name.replace(/ /g,'');
         if (!username && user.email) {
-          username = user.email.substr(0,user.email.indexOf('@'));
+          const tokens = user.email.split(/@|\+/);
+          username = tokens[0];
         }
         
         username = slug(username).toLowerCase();
