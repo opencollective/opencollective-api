@@ -86,6 +86,10 @@ describe('user.models.test.js', () => {
         .then(user => {
           expect(user.username).to.equal('xavierdamman')
         })
+        .then(() => User.create({'username': 'hélène & les g.arçons'}))
+        .then(user => {
+          expect(user.username).to.equal('helene-and-les-garcons');
+        })
     })
 
     it('creates a valid username from an email', () => {
