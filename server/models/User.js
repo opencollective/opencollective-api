@@ -70,10 +70,9 @@ export default (Sequelize, DataTypes) => {
 
     twitterHandle: {
       type: DataTypes.STRING, // without the @ symbol. Ex: 'asood123'
-      validate: {
-        notContains: {
-          args: '@',
-          msg: 'twitterHandle must be without @ symbol'
+      set(val) {
+        if (typeof val === 'string') {
+          this.setDataValue('twitterHandle', val.replace(/^@/,''));
         }
       }
     },
