@@ -52,7 +52,7 @@
     "multer": "0.1.8",
     "newrelic": "1.25.5",
     "node-slack": "0.0.7",
-    "node-slug": "^0.0.2",
+    "node-slug": "0.0.2",
     "node-uuid": "1.4.7",
     "nodemailer": "1.11.0",
     "opencollective-jobs": "github:opencollective/opencollective-jobs#v0.3.1",
