@@ -7,8 +7,6 @@ import Temporal from 'sequelize-temporal';
 import config from 'config';
 import queries from '../lib/queries';
 import groupBy from 'lodash/collection/groupBy';
-import filter from 'lodash/collection/filter';
-import values from 'lodash/object/values';
 import roles from '../constants/roles';
 import {HOST_FEE_PERCENT} from '../constants/transactions';
 import {getTier} from '../lib/utils';
