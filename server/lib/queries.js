@@ -4,24 +4,24 @@ import models, {sequelize} from '../models';
 * Hacky way to do currency conversion on Leaderboard
 */
 const generateFXConversionSQL = (aggregate) => {
-  let currencyColumn = "currency";
-  let amountColumn = "amount";
+  let currencyColumn = "t.currency";
+  let amountColumn = "t.\"netAmountInGroupCurrency\"";
 
   if (aggregate) {
-    currencyColumn = 'MAX(g.currency)';
-    amountColumn = 'SUM("amount")';
+    currencyColumn = 'MAX(t.currency)';
+    amountColumn = 'SUM("t.\"netAmountInGroupCurrency\"")';
   }
 
   // FXRate as of 6/27/2016
   const fxConversion = [
     ['USD', 1.0],
-    ['EUR', 0.90],
-    ['GBP', 0.73],
-    ['MXN', 18.92],
-    ['SEK', 8.48],
-    ['AUD', 1.34],
-    ['INR', 67.89],
-    ['CAD', 1.3]
+    ['EUR', 0.92],
+    ['GBP', 0.82],
+    ['MXN', 18.49],
+    ['SEK', 8.93],
+    ['AUD', 1.31],
+    ['INR', 66.78],
+    ['CAD', 1.33]
   ];
 
   let sql = 'CASE ';
@@ -29,6 +29,41 @@ const generateFXConversionSQL = (aggregate) => {
   sql += 'ELSE 0 END';
 
   return sql;
+};
+
+const getTotalAnnualBudget = () => {
+  return sequelize.query(`
+  SELECT
+    (SELECT
+      COALESCE(SUM(${generateFXConversionSQL()} * 12),0)
+      FROM "Subscriptions" s
+      LEFT JOIN "Transactions" t
+      ON (s.id = t."SubscriptionId"
+        AND t.id = (SELECT MAX(id) from "Transactions" t where t."SubscriptionId" = s.id))
+      WHERE t.amount > 0 AND t."GroupId" != 1
+        AND t."deletedAt" IS NULL
+        AND s.interval = 'month'
+        AND s."isActive" IS TRUE
+        AND s."deletedAt" IS NULL)
+    +
+    (SELECT
+      COALESCE(SUM(${generateFXConversionSQL()}),0) FROM "Transactions" t
+      LEFT JOIN "Subscriptions" s ON t."SubscriptionId" = s.id
+      WHERE t.amount > 0 AND t."GroupId" != 1
+        AND t."deletedAt" IS NULL
+        AND ((s.interval = 'year' AND s."isActive" IS TRUE AND s."deletedAt" IS NULL) OR s.interval IS NULL))
+    +
+    (SELECT
+      COALESCE(SUM(${generateFXConversionSQL()}),0) FROM "Transactions" t
+      LEFT JOIN "Subscriptions" s ON t."SubscriptionId" = s.id
+      WHERE t.amount > 0 AND t."GroupId" != 1
+        AND t."deletedAt" IS NULL
+        AND s.interval = 'month' AND s."isActive" IS FALSE AND s."deletedAt" IS NULL)
+    "yearlyIncome"
+  `, {
+    type: sequelize.QueryTypes.SELECT
+  })
+  .then(res => Math.round(parseInt(res[0].yearlyIncome, 10)));
 };
 
 const getTotalDonations = () => {
@@ -102,7 +137,7 @@ const getGroupsByTag = (tag, limit, excludeList, minTotalDonation, randomOrder, 
 
   return sequelize.query(`
     WITH "totalDonations" AS (
-      SELECT "GroupId", SUM(amount) as "totalDonations", MAX(currency) as currency, COUNT(DISTINCT "GroupId") as collectives FROM "Transactions" WHERE amount > 0 AND currency='USD' AND "PaymentMethodId" IS NOT NULL GROUP BY "GroupId"
+      SELECT "GroupId", SUM(amount*100) as "totalDonations", MAX(currency) as currency, COUNT(DISTINCT "GroupId") as collectives FROM "Transactions" WHERE amount > 0 AND currency='USD' AND "PaymentMethodId" IS NOT NULL GROUP BY "GroupId"
     )
     SELECT g.id, g.name, g.slug, g.mission, g.logo, g."backgroundImage", g.settings, g.data, t."totalDonations", t.currency, t.collectives
     FROM "Groups" g LEFT JOIN "totalDonations" t ON t."GroupId" = g.id
@@ -129,9 +164,9 @@ const getUniqueGroupTags = () => {
 const getTopSponsors = () => {
   return sequelize.query(`
     WITH "totalDonations" AS (
-      SELECT "UserId", SUM(amount) as "totalDonations", MAX(currency) as currency, COUNT(DISTINCT "GroupId") as collectives FROM "Transactions" WHERE amount > 0 AND currency='USD' AND "PaymentMethodId" IS NOT NULL GROUP BY "UserId"
+      SELECT "UserId", SUM(amount*100) as "totalDonations", MAX(currency) as currency, COUNT(DISTINCT "GroupId") as collectives FROM "Transactions" WHERE amount > 0 AND currency='USD' AND "PaymentMethodId" IS NOT NULL GROUP BY "UserId"
     )
-    SELECT u.id, u."firstName", u."lastName", u.username, u.mission, u.avatar as logo, t."totalDonations", t.currency, t.collectives
+    SELECT u.id, u."firstName", u."lastName", u.username, u.mission, u.description, u.avatar as logo, t."totalDonations", t.currency, t.collectives
     FROM "totalDonations" t LEFT JOIN "Users" u ON t."UserId" = u.id
     WHERE t."totalDonations" > 100 AND u."isOrganization" IS TRUE
     ORDER BY t.collectives DESC, "totalDonations" DESC LIMIT :limit
@@ -151,7 +186,7 @@ const getUsersFromGroupWithTotalDonations = (GroupIds) => {
     WITH total_donations AS (
       SELECT
         max("UserId") as "UserId",
-        SUM(amount/100) as amount
+        SUM(amount) as amount
       FROM "Donations" d
       WHERE d."GroupId" IN (:groupids) AND d.amount >= 0
       GROUP BY "UserId"
@@ -196,7 +231,7 @@ return sequelize.query(`
     SELECT
       MAX(g.name) as name,
       COUNT(t.id) as "donationsCount",
-      SUM(amount) as "totalAmount",
+      SUM(amount*100) as "totalAmount",
       MAX(g.currency) as currency,
       to_char(MAX(t."createdAt"), 'Month DD') as "latestDonation",
       MAX(g.slug) as slug,
@@ -217,6 +252,7 @@ return sequelize.query(`
 
 export default {
   getTotalDonations,
+  getTotalAnnualBudget,
   getUsersFromGroupWithTotalDonations,
   getLeaderboard,
   getTopSponsors,
