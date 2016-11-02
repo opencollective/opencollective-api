@@ -1,7 +1,7 @@
 import models, {sequelize} from '../models';
 
 /*
-* Hacky way to do currency conversion on Leaderboard
+* Hacky way to do currency conversion
 */
 const generateFXConversionSQL = (aggregate) => {
   let currencyColumn = "t.currency";
@@ -226,35 +226,10 @@ const getUsersFromGroupWithTotalDonations = (GroupIds) => {
   });
 };
 
-const getLeaderboard = () => {
-return sequelize.query(`
-    SELECT
-      MAX(g.name) as name,
-      COUNT(t.id) as "donationsCount",
-      SUM(amount*100) as "totalAmount",
-      MAX(g.currency) as currency,
-      to_char(MAX(t."createdAt"), 'Month DD') as "latestDonation",
-      MAX(g.slug) as slug,
-      MAX(g.logo) as logo,
-      ${generateFXConversionSQL(true)} AS "amountInUSD"
-    FROM "Transactions" t
-    LEFT JOIN "Groups" g ON g.id = t."GroupId"
-    WHERE t."createdAt" > current_date - INTERVAL '30' day
-      AND t.amount > 0
-      AND t."UserId"
-      NOT IN (10,39,40,43,45,46)
-    GROUP BY t."GroupId"
-    ORDER BY "amountInUSD" DESC`,
-  {
-    type: sequelize.QueryTypes.SELECT
-  });
-};
-
 export default {
   getTotalDonations,
   getTotalAnnualBudget,
   getUsersFromGroupWithTotalDonations,
-  getLeaderboard,
   getTopSponsors,
   getTopBackers,
   getGroupsByTag,
