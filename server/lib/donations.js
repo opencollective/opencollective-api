@@ -2,7 +2,6 @@ import * as stripe from '../gateways/stripe';
 import * as transactions from '../constants/transactions';
 import roles from '../constants/roles';
 import emailLib from './email';
-import config from 'config';
 
 export const processDonation = (Sequelize, donation) => {
 
