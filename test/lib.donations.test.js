@@ -252,12 +252,12 @@ describe('lib.donation.test.js', () => {
             expect(res.rows[0]).to.have.property('currency', CURRENCY);
             expect(res.rows[0]).to.have.property('type', constants.type.DONATION);
             expect(res.rows[0]).to.have.property('amount', CHARGE);
-            expect(res.rows[0]).to.have.property('amountInTxnCurrency', 1400); // taken from stripe mocks
+            expect(res.rows[0]).to.have.property('amountInTxnCurrency', 140000); // taken from stripe mocks
             expect(res.rows[0]).to.have.property('txnCurrency', 'USD');
             expect(res.rows[0]).to.have.property('hostFeeInTxnCurrency', 0);
-            expect(res.rows[0]).to.have.property('platformFeeInTxnCurrency', 70);
-            expect(res.rows[0]).to.have.property('paymentProcessorFeeInTxnCurrency', 155);
-            expect(res.rows[0]).to.have.property('txnCurrencyFxRate', 0.785);
+            expect(res.rows[0]).to.have.property('platformFeeInTxnCurrency', 7000);
+            expect(res.rows[0]).to.have.property('paymentProcessorFeeInTxnCurrency', 15500);
+            expect(res.rows[0]).to.have.property('txnCurrencyFxRate', 0.00785);
             expect(res.rows[0]).to.have.property('netAmountInGroupCurrency', 922)
             done();
           })
@@ -277,9 +277,9 @@ describe('lib.donation.test.js', () => {
       });
 
       it('successfully sends out an email to donor', () => {
-        expect(emailSendSpy.lastCall.args[2].relatedGroups).to.have.length(3);
-        expect(emailSendSpy.lastCall.args[0]).to.equal('thankyou');
-        expect(emailSendSpy.lastCall.args[1]).to.equal(user.email);
+        expect(emailSendSpy.args[1][0]).to.equal('thankyou');
+        expect(emailSendSpy.args[1][1]).to.equal(user.email);
+        expect(emailSendSpy.args[1][2].relatedGroups).to.have.length(3);
       });
 
     });

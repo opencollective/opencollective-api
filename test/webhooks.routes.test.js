@@ -255,13 +255,13 @@ describe('webhooks.routes.test.js', () => {
           expect(transaction.PaymentMethodId).to.be.equal(paymentMethod.id);
           expect(transaction.currency).to.be.equal(CURRENCY);
           expect(transaction.type).to.be.equal(type.DONATION);
-          expect(res.rows[0]).to.have.property('amountInTxnCurrency', 1400); // taken from stripe mocks
+          expect(res.rows[0]).to.have.property('amountInTxnCurrency', 140000); // taken from stripe mocks
           expect(res.rows[0]).to.have.property('txnCurrency', 'USD');
-          expect(res.rows[0]).to.have.property('hostFeeInTxnCurrency', 140);
-          expect(res.rows[0]).to.have.property('platformFeeInTxnCurrency', 70);
-          expect(res.rows[0]).to.have.property('paymentProcessorFeeInTxnCurrency', 155);
+          expect(res.rows[0]).to.have.property('hostFeeInTxnCurrency', 14000);
+          expect(res.rows[0]).to.have.property('platformFeeInTxnCurrency', 7000);
+          expect(res.rows[0]).to.have.property('paymentProcessorFeeInTxnCurrency', 15500);
           expect(res.rows[0]).to.have.property('txnCurrencyFxRate', 0.25);
-          expect(res.rows[0]).to.have.property('netAmountInGroupCurrency', 259)
+          expect(res.rows[0]).to.have.property('netAmountInGroupCurrency', 25875)
           expect(transaction.amount).to.be.equal(webhookSubscription.amount / 100);
           expect(transaction.Subscription.isActive).to.be.equal(true);
           expect(transaction.Subscription).to.have.property('activatedAt');
@@ -325,13 +325,13 @@ describe('webhooks.routes.test.js', () => {
               expect(transaction.type).to.be.equal(type.DONATION);
               expect(transaction.amount).to.be.equal(webhookSubscription.amount / 100);
 
-              expect(res.rows[0]).to.have.property('amountInTxnCurrency', 1400); // taken from stripe mocks
+              expect(res.rows[0]).to.have.property('amountInTxnCurrency', 140000); // taken from stripe mocks
               expect(res.rows[0]).to.have.property('txnCurrency', 'USD');
-              expect(res.rows[0]).to.have.property('hostFeeInTxnCurrency', 140);
-              expect(res.rows[0]).to.have.property('platformFeeInTxnCurrency', 70);
-              expect(res.rows[0]).to.have.property('paymentProcessorFeeInTxnCurrency', 155);
+              expect(res.rows[0]).to.have.property('hostFeeInTxnCurrency', 14000);
+              expect(res.rows[0]).to.have.property('platformFeeInTxnCurrency', 7000);
+              expect(res.rows[0]).to.have.property('paymentProcessorFeeInTxnCurrency', 15500);
               expect(res.rows[0]).to.have.property('txnCurrencyFxRate', 0.25);
-              expect(res.rows[0]).to.have.property('netAmountInGroupCurrency', 259);
+              expect(res.rows[0]).to.have.property('netAmountInGroupCurrency', 25875);
               expect(transaction.Subscription.isActive).to.be.equal(true);
               expect(transaction.Subscription).to.have.property('activatedAt');
               expect(transaction.Subscription.interval).to.be.equal('month');
