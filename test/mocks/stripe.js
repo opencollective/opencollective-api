@@ -256,7 +256,7 @@ export default {
             {
               "id": "sub_7ZdqElVkS7b8Ep",
               "object": "line_item",
-              "amount": 350,
+              "amount": 5000,
               "currency": "usd",
               "description": null,
               "discountable": true,

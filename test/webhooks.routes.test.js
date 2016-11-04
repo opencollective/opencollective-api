@@ -13,6 +13,7 @@ import {planId as generatePlanId} from '../server/lib/utils';
 import models from '../server/models';
 import {appStripe} from '../server/gateways/stripe';
 import stripeMock from './mocks/stripe';
+import emailLib from '../server/lib/email';
 
 const chance = chanceLib.Chance();
 
@@ -46,11 +47,12 @@ const stubStripe = () => {
 
 describe('webhooks.routes.test.js', () => {
   const nocks = {};
-  let user;
-  let paymentMethod;
-  let group;
-  let donation;
   const sandbox = sinon.sandbox.create();
+  let user, paymentMethod, group, donation, emailSendSpy;
+
+  beforeEach(() => {
+    emailSendSpy = sandbox.spy(emailLib, 'send');
+  });
 
   beforeEach(() => utils.resetTestDB());
 
@@ -341,6 +343,15 @@ describe('webhooks.routes.test.js', () => {
 
         });
     });
+
+    it('successfully sends out an invoice by email to donor', () => {
+      expect(emailSendSpy.callCount).to.equal(3);
+      expect(emailSendSpy.secondCall.args[0])
+      expect(emailSendSpy.secondCall.args[0]).to.equal('thankyou');
+      expect(emailSendSpy.secondCall.args[2].firstPayment).to.be.true;
+      expect(emailSendSpy.thirdCall.args[2].firstPayment).to.be.false;
+      expect(emailSendSpy.thirdCall.args[1]).to.equal(stripeEmail);
+    })
   });
 
   it('returns 200 if the event is not livemode in production', (done) => {
