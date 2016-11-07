@@ -17,7 +17,7 @@ import {appStripe} from '../server/gateways/stripe';
 const chance = chanceLib.Chance();
 const application = utils.data('application');
 const userData = utils.data('user3');
-const groupData = utils.data('group2');
+const groupData = utils.data('group5');
 import stripeMock from './mocks/stripe';
 const STRIPE_URL = 'https://api.stripe.com:443';
 const CHARGE = 10.99;
@@ -194,9 +194,7 @@ describe('lib.donation.test.js', () => {
     });
 
     describe('One-time donation', () => {
-      const relatedGroups = utils.data('relatedGroups');
-
-      beforeEach('create related groups', () => models.Group.createMany(relatedGroups, { tags: ['#brusselstogether'] }));
+      beforeEach('create related groups', () => models.Group.createMany(utils.data('relatedGroups')));
 
       beforeEach('create a payment method and a donation', () => {
         return models.PaymentMethod.create({
@@ -280,8 +278,9 @@ describe('lib.donation.test.js', () => {
         expect(emailSendSpy.args[1][0]).to.equal('thankyou');
         expect(emailSendSpy.args[1][1]).to.equal(user.email);
         expect(emailSendSpy.args[1][2].relatedGroups).to.have.length(3);
+        expect(emailSendSpy.args[1][2].relatedGroups[0]).to.have.property('settings');
+        console.log(emailSendSpy.args[1][2].relatedGroups[0].slug, emailSendSpy.args[1][2].relatedGroups[0].settings.style);
       });
-
     });
 
     describe('Recurring donation', () => {
