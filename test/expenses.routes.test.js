@@ -9,6 +9,7 @@ import { badRequest, missingRequired } from './lib/expectHelpers';
 import paypalMock from './mocks/paypal';
 import paypalAdaptive from '../server/gateways/paypalAdaptive';
 import models from '../server/models';
+import emailLib from '../server/lib/email';
 
 const payMock = paypalMock.adaptive.payCompleted;
 const preapprovalDetailsMock = Object.assign({}, paypalMock.adaptive.preapprovalDetails.completed);
@@ -24,7 +25,13 @@ const {
 } = models;
 
 describe('expenses.routes.test.js', () => {
-  let host, member, otherUser, group;
+  let host, member, otherUser, group, emailSendMessageSpy;
+  const sandbox = sinon.sandbox.create();
+
+
+  beforeEach(() => {
+    emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage');
+  });
 
   beforeEach(() => utils.resetTestDB());
 
@@ -180,6 +187,12 @@ describe('expenses.routes.test.js', () => {
 
           it('THEN a group.expense.created activity is created', () =>
             expectExpenseActivity('group.expense.created', actualExpense.id));
+
+          it('THEN an email notification is sent', (done) => {
+            expect(emailSendMessageSpy.firstCall.args[1]).to.contain(actualExpense.title);
+            expect(emailSendMessageSpy.firstCall.args[2]).to.contain(actualExpense.attachment);
+            done();
+          });
 
           describe('#getOne', () => {
             it('THEN returns the expense without the attachment if not logged in', () => request(app)
