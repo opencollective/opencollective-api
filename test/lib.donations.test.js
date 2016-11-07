@@ -277,7 +277,7 @@ describe('lib.donation.test.js', () => {
       it('successfully sends out an email to donor', () => {
         expect(emailSendSpy.args[1][0]).to.equal('thankyou');
         expect(emailSendSpy.args[1][1]).to.equal(user.email);
-        expect(emailSendSpy.args[1][2].relatedGroups).to.have.length(3);
+        expect(emailSendSpy.args[1][2].relatedGroups).to.have.length(2);
         expect(emailSendSpy.args[1][2].relatedGroups[0]).to.have.property('settings');
         console.log(emailSendSpy.args[1][2].relatedGroups[0].slug, emailSendSpy.args[1][2].relatedGroups[0].settings.style);
       });

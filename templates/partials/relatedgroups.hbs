@@ -1,19 +1,18 @@
 <style>
 .CollectiveCards {
   overflow: hidden;
-  margin: 20px 0px;
 }  
 .CollectiveCard {
   vertical-align: top;
   position: relative;
   box-sizing: border-box;
   display: inline-block;
-  width: 185px;
+  width: 170px;
   height: 265px;
   border-radius: 5px;
   background-color: #ffffff;
   box-shadow: 0 1px 3px 0 rgba(45, 77, 97, 0.2);
-  margin: 5px;
+  margin: 0px 6px 8px 2px;
   float: left;
   overflow: hidden;
   text-decoration: none !important;
@@ -71,16 +70,35 @@
   color: #303233;
 }
 .CollectiveCard-metric-label {
-  font-size: 9px;
+  font-size: 8.5px;
   text-align: center;
   margin: 1px;
   color: #a8afb3;
   text-transform: uppercase;
 }
+
+.tdline {
+  border-bottom: 1px solid #7A7B82;
+  width: 40%;
+  height: 20px;
+}
+
+th {
+  padding: 10px;
+  font-weight: normal;
+  font-size: 14px;
+  color: #7A7B82;
+  vertical-align: top;
+}
 </style>
 
 {{#if relatedGroups.length}}
-<h2>Related collectives</h2>
+<table width="100%" height=30>
+  <tr>
+    <td class="tdline"></td><th rowspan=2 nowrap>Related collectives</th><td class="tdline"></td>
+  </tr>
+  <tr><td>&nbsp;</td><td>&nbsp;</td></tr>
+</table>
 
 <div class="CollectiveCards">
   {{#each relatedGroups}}

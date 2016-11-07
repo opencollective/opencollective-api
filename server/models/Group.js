@@ -9,7 +9,7 @@ import queries from '../lib/queries';
 import groupBy from 'lodash/collection/groupBy';
 import roles from '../constants/roles';
 import {HOST_FEE_PERCENT} from '../constants/transactions';
-import {getTier, resizeImage } from '../lib/utils';
+import {getTier } from '../lib/utils';
 import activities from '../constants/activities';
 import Promise from 'bluebird';
 
