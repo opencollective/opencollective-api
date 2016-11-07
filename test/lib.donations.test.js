@@ -252,11 +252,11 @@ describe('lib.donation.test.js', () => {
             expect(res.rows[0]).to.have.property('amount', CHARGE);
             expect(res.rows[0]).to.have.property('amountInTxnCurrency', 140000); // taken from stripe mocks
             expect(res.rows[0]).to.have.property('txnCurrency', 'USD');
-            expect(res.rows[0]).to.have.property('hostFeeInTxnCurrency', 0);
+            expect(res.rows[0]).to.have.property('hostFeeInTxnCurrency', 7000);
             expect(res.rows[0]).to.have.property('platformFeeInTxnCurrency', 7000);
             expect(res.rows[0]).to.have.property('paymentProcessorFeeInTxnCurrency', 15500);
             expect(res.rows[0]).to.have.property('txnCurrencyFxRate', 0.00785);
-            expect(res.rows[0]).to.have.property('netAmountInGroupCurrency', 922)
+            expect(res.rows[0]).to.have.property('netAmountInGroupCurrency', 867)
             done();
           })
           .catch(done);

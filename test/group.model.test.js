@@ -155,7 +155,7 @@ describe('Group model', () => {
     .then(() => group.getRelatedGroups(3, 0))
     .then(relatedGroups => {
       expect(relatedGroups).to.have.length(3);
-      expect(relatedGroups[0].style.hero).to.have.property('cover');
+      expect(relatedGroups[0].settings.style.hero).to.have.property('cover');
       done();
     })
   });
