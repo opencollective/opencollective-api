@@ -25,9 +25,13 @@ const {
 } = models;
 
 describe('expenses.routes.test.js', () => {
-  let host, member, otherUser, group, emailSendMessageSpy;
-  const sandbox = sinon.sandbox.create();
+  let sandbox, host, member, otherUser, group, emailSendMessageSpy;
 
+  before(() => {
+    sandbox = sinon.sandbox.create();
+  });
+
+  after(() => sandbox.restore());
 
   beforeEach(() => {
     emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage');
