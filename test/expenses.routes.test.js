@@ -29,13 +29,10 @@ describe('expenses.routes.test.js', () => {
 
   before(() => {
     sandbox = sinon.sandbox.create();
+    emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage');
   });
 
   after(() => sandbox.restore());
-
-  beforeEach(() => {
-    emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage');
-  });
 
   beforeEach(() => utils.resetTestDB());
 
