@@ -176,6 +176,21 @@ describe('transactions.routes.test.js', () => {
         });
     });
 
+    it('successfully get a user\'s transactions', (done) => {
+      request(app)
+        .get(`/users/${user.id}/transactions?api_key=${application.api_key}`)
+        .expect(200)
+        .end((e, res) => {
+          expect(e).to.not.exist;
+          const transactions = res.body;
+          expect(transactions).to.have.length(18);
+          transactions.forEach((t) => {
+            expect(t.UserId).to.equal(user.id);
+          });
+          done();
+        });
+    });
+
     describe('Pagination', () => {
 
       const perPage = 3;

@@ -204,6 +204,7 @@ export default (app) => {
    */
   app.get('/groups/:groupid/activities', auth.mustBePartOfTheGroup, mw.paginate(), mw.sorting({key: 'createdAt', dir: 'DESC'}), activities.group); // Get a group's activities.
   app.get('/users/:userid/activities', mw.paginate(), mw.sorting({key: 'createdAt', dir: 'DESC'}), activities.user); // Get a user's activities.
+  app.get('/users/:userid/transactions', mw.paginate(), mw.sorting({key: 'createdAt', dir: 'DESC'}), users.getTransactions); // Get a user's transactions.
 
   /**
    * Notifications.
