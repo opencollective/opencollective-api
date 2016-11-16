@@ -471,13 +471,19 @@ export const sendNewTokenByEmail = (req, res, next) => {
   .catch(next);
 };
 
-
 /**
  * Get user's transactions.
  */
 export const getTransactions = (req, res, next) => {
+  const { year, month } = req.params;
+  const from = new Date(`${year}-${month}`);
+  const until = (month === 12) ? new Date(`${parseInt(year, 10)+1}-01`) : new Date(`${year}-${parseInt(month, 10) + 1}`);
   const where = {
-    UserId: req.user.id
+    UserId: req.user.id,
+    createdAt: {
+      $gte: from,
+      $lt: until
+    }
   };
 
   if (req.query.donation) {
