@@ -2,7 +2,8 @@ import _ from 'lodash';
 import groupBy from 'lodash/collection/groupBy';
 import async from 'async';
 import userlib from '../lib/userlib';
-import { generateURLSafeToken, getTier } from '../lib/utils';
+import { generateURLSafeToken, getTier, getLinkHeader, getRequestedUrl } from '../lib/utils';
+
 import imageUrlToAmazonUrl from '../lib/imageUrlToAmazonUrl';
 import constants from '../constants/activities';
 import roles from '../constants/roles';
@@ -18,6 +19,8 @@ import moment from 'moment-timezone';
 
 const {
   User,
+  Donation,
+  Transaction,
   Activity,
   UserGroup
 } = models;
@@ -29,7 +32,6 @@ const { Unauthorized } = errors;
  * Private methods.
  *
  */
-
 const getUserGroups = (UserId) => {
   return UserGroup.findAll({
     where: {
@@ -143,7 +145,7 @@ export const updateUser = (req, res, next) => {
     return next(new errors.BadRequest('Can\'t update user with password from this route'));
   }
 
-  models.Donation.findOne({
+  Donation.findOne({
     where: {
       UserId: req.user.id,
       updatedAt: {
@@ -467,4 +469,54 @@ export const sendNewTokenByEmail = (req, res, next) => {
   })
   .then(() => res.send({ success: true }))
   .catch(next);
+};
+
+/**
+ * Get user's transactions.
+ */
+export const getTransactions = (req, res, next) => {
+  const { year, month } = req.params;
+  const from = new Date(`${year}-${month}`);
+  const until = (month === 12) ? new Date(`${parseInt(year, 10)+1}-01`) : new Date(`${year}-${parseInt(month, 10) + 1}`);
+  const where = {
+    UserId: req.user.id,
+    createdAt: {
+      $gte: from,
+      $lt: until
+    }
+  };
+
+  if (req.query.donation) {
+    where.amount = {
+      $gt: 0
+    };
+  } else if (req.query.expense) {
+    where.amount = {
+      $lt: 0
+    };
+  }
+
+  if (req.query.exclude) {
+    where.$or = [ { type: { $ne: req.query.exclude } }, { type: { $eq: null } } ];
+  }
+
+  const query = _.merge({
+    where,
+    include: { model: Donation },
+    order: [[req.sorting.key, req.sorting.dir]]
+  }, req.pagination);
+
+  Transaction
+    .findAndCountAll(query)
+    .then((transactions) => {
+
+      // Set headers for pagination.
+      req.pagination.total = transactions.count;
+      res.set({
+        Link: getLinkHeader(getRequestedUrl(req), req.pagination)
+      });
+
+      res.send(transactions.rows.map(transaction => Object.assign({}, transaction.info, {'description': (transaction.Donation && transaction.Donation.title) || transaction.description })));
+    })
+    .catch(next);
 };

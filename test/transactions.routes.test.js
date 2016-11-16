@@ -176,6 +176,22 @@ describe('transactions.routes.test.js', () => {
         });
     });
 
+    it('successfully get a user\'s transactions for a given month', (done) => {
+      request(app)
+        .get(`/users/${user.id}/transactions/2015/04?api_key=${application.api_key}`)
+        .expect(200)
+        .end((e, res) => {
+          expect(e).to.not.exist;
+          const transactions = res.body;
+          expect(transactions).to.have.length(8);
+          transactions.forEach((t) => {
+            expect(t.UserId).to.equal(user.id);
+            expect((new Date(t.createdAt)).getMonth()).to.equal(3);
+          });
+          done();
+        });
+    });
+
     describe('Pagination', () => {
 
       const perPage = 3;
