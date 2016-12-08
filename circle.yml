@@ -7,7 +7,6 @@ general:
 machine:
   pre:
     - mkdir ~/.yarn-cache
-    - mkdir -p ~/cache/bin
   node:
     version: 6.2.2
   environment:
@@ -19,7 +18,7 @@ dependencies:
     - curl -o- -L https://yarnpkg.com/install.sh | bash
   cache_directories:
     - ~/.yarn-cache
-    - ~/cache/bin
+    - ~/cache
   override:
     - yarn install
 test:
