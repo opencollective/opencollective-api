@@ -8,12 +8,15 @@ import errorHandler from 'errorhandler';
 import passport from 'passport';
 import connectSessionSequelize from 'connect-session-sequelize';
 import session from 'express-session';
+import GraphHTTP from 'express-graphql'
 import { Strategy as GitHubStrategy } from 'passport-github';
 import { Strategy as TwitterStrategy } from 'passport-twitter';
 import { Strategy as MeetupStrategy } from 'passport-meetup-oauth2';
-import { sequelize as db } from '../models';
+import { sequelize as db, Event } from '../models';
+import Schema from '../Schema';
 
 const SequelizeStore = connectSessionSequelize(session.Store);
+
 
 export default function(app) {
 
@@ -54,4 +57,11 @@ export default function(app) {
   }));
   app.use(passport.initialize());
   app.use(passport.session());
+
+  // graphql
+  app.use('/graphql', GraphHTTP({
+    schema: Schema,
+    pretty: true,
+    graphiql: true
+  }));
 }
