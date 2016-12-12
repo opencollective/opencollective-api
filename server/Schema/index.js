@@ -1,10 +1,10 @@
 import {
-  GraphQLBoolean
+  GraphQLBoolean,
   GraphQLInt,
   GraphQLList,
   GraphQLObjectType,
   GraphQLSchema,
-  GraphQLString,
+  GraphQLString
 } from 'graphql';
 
 import models from '../models';
@@ -238,8 +238,8 @@ const Event = new GraphQLObjectType({
       },
       responses: {
         type: new GraphQLList(Response),
-        resolve(tier) {
-          return tier.getResponses();
+        resolve(event) {
+          return event.getResponses();
         }
       }
 
@@ -405,6 +405,17 @@ const Query = new GraphQLObjectType({
               where: { slug: groupSlug }
             }]
           })
+        }
+      },
+      group: {
+        type: Group,
+        args: {
+          slug: {
+            type: GraphQLString
+          }
+        },
+        resolve(_, args) {
+          return models.Group.findOne({where: args});
         }
       }
     }

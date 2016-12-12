@@ -147,8 +147,6 @@ export function setupModels(client) {
   m.PaymentMethod.hasMany(m.Donation);
 
   // Event
-  m.Event.belongsTo(m.User, as 'creatorId');
-  m.User.hasMany(m.Event);
   m.Event.belongsTo(m.Group);
   m.Group.hasMany(m.Event);
 
