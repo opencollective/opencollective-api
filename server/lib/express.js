@@ -59,9 +59,11 @@ export default function(app) {
   app.use(passport.session());
 
   // graphql
-  app.use('/graphql', GraphHTTP({
-    schema: Schema,
-    pretty: true,
-    graphiql: true
-  }));
+  if (process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'staging') {
+    app.use('/graphql', GraphHTTP({
+      schema: Schema,
+      pretty: true,
+      graphiql: true
+    }));
+  }
 }

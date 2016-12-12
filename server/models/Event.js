@@ -56,12 +56,11 @@ export default function(Sequelize, DataTypes) {
 
     startsAt: {
       type: DataTypes.DATE,
-      defaultValue: Sequelize.NOW
+      allowNull: false
     },
 
     endsAt: {
       type: DataTypes.DATE,
-      defaultValue: Sequelize.NOW
     },
 
     createdAt: {
