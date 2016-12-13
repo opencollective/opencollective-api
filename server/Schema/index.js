@@ -1,18 +1,21 @@
 import {
   GraphQLObjectType,
   GraphQLSchema,
+  GraphQLList
 } from 'graphql';
 
 import models from '../models';
 import queries from './query';
 import mutations from './mutation';
 
+import {EventType} from './types';
+
 const Query = new GraphQLObjectType({
   name: 'Query',
   description: 'This is a root query',
   fields: () => {
     return {
-      getEvent: queries.getEvent
+      getEvent: queries.getEvent,
     }
   }
 });
@@ -22,10 +25,11 @@ const Mutation = new GraphQLObjectType({
   description: 'Functions to write stuff',
   fields: () => {
     return {
-      addEvent: mutations.addEvent
+      addOrUpdateEvent: mutations.addOrUpdateEvent,
+      addOrUpdateResponse: mutations.addOrUpdateResponse
     }
   }
-})
+});
 
 const Schema = new GraphQLSchema({
   query: Query,

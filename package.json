@@ -42,7 +42,6 @@
     "form-data": "0.2.0",
     "graphiql": "0.8.0",
     "graphql": "0.8.2",
-    "graphql-custom-datetype": "0.3.0",
     "handlebars": "4.0.5",
     "joi": "7.3.0",
     "json2csv": "3.4.2",

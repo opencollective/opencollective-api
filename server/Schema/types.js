@@ -7,7 +7,6 @@ import {
   GraphQLSchema,
   GraphQLString
 } from 'graphql';
-import CustomGraphQLDateType from 'graphql-custom-datetype';
 
 import models from '../models';
 
@@ -187,7 +186,7 @@ export const EventType = new GraphQLObjectType({
       createdBy: {
         type: UserType,
         resolve(event) {
-          return models.User.findOne(event.creatorId)
+          return models.User.findById(event.creatorId)
         }
       },
       group: {
@@ -209,13 +208,13 @@ export const EventType = new GraphQLObjectType({
         }
       },
       startsAt: {
-        type: CustomGraphQLDateType,
+        type: GraphQLString,
         resolve(event) {
           return event.startsAt
         }
       },
       endsAt: {
-        type: CustomGraphQLDateType,
+        type: GraphQLString,
         resolve(event) {
           return event.startsAt
         }
@@ -297,13 +296,13 @@ export const TierType = new GraphQLObjectType({
         }
       },
       startsAt: {
-        type: CustomGraphQLDateType,
+        type: GraphQLString,
         resolve(tier) {
           return tier.startsAt
         }
       },
       endsAt: {
-        type: CustomGraphQLDateType,
+        type: GraphQLString,
         resolve(tier) {
           return tier.startsAt
         }
@@ -366,7 +365,7 @@ export const ResponseType = new GraphQLObjectType({
         }
       },
       confirmedAt: {
-        type: CustomGraphQLDateType,
+        type: GraphQLString,
         resolve(response) {
           return response.confirmedAt;
         }

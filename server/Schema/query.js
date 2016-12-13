@@ -25,7 +25,7 @@ const queries = {
         type: GraphQLString
       }
     },
-    resolve(root, {slug, groupSlug}) {
+    resolve(_, {slug, groupSlug}, context) {
       return models.Event.findAll({
         where: {
           slug: slug

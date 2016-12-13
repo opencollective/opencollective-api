@@ -4,15 +4,16 @@ import {
   GraphQLInt
 } from 'graphql';
 
-import CustomGraphQLDateType from 'graphql-custom-datetype';
-
 import models from '../models';
 import {
   EventType
 } from './types';
 
+import { hasRole } from '../middleware/security/auth';
+import {HOST, MEMBER} from '../constants/roles';
+
 const mutations = {
-  addEvent: {
+  addOrUpdateEvent: {
     type: EventType,
     args: {
       name: {
@@ -28,10 +29,10 @@ const mutations = {
         type: GraphQLString,
       },
       startsAt: {
-        type: new GraphQLNonNull(CustomGraphQLDateType),
+        type: new GraphQLNonNull(GraphQLString),
       },
       endsAt: {
-        type: CustomGraphQLDateType,
+        type: GraphQLString,
       },
       maxAmount: {
         type: GraphQLInt,
@@ -40,26 +41,37 @@ const mutations = {
         type: GraphQLString,
       }
     },
-    resolve(_, args) {
-      return models.Group.findOne({slug: args.groupSlug})
-      .then(group => {
-        if (!group) {
-          return new Error(`Can't find collective with slug '${groupSlug}'`)
+    resolve(_, args, context) {
+      let group;
+      return models.Group.findOne({where: {slug: args.groupSlug}})
+      .then(result => {
+        if (!result) {
+          throw new Error(`No collective with slug '${args.groupSlug}'`);
         } else {
-          // TODO: add createdBy after authentication
-          args.GroupId = group.id;
-          args.slug = args.name.replace(/ /g,'-');
-          return models.Event.count({
-            where: {
-              GroupId: group.id,
-              slug: { $like: `${args.slug}%`}
-            }
-          })
-          .then(numEventsWithSlug => {
-            args.slug = (numEventsWithSlug === 0) ? args.slug : `${args.slug}-${numEventsWithSlug}`;
-          })
-          .then(() => models.Event.create(args))
+          group = result;
         }
+      })
+      .then(() => hasRole(context.remoteUser.id, group.id, [HOST, MEMBER]))
+      .then(hasRole => {
+        if (!hasRole) {
+          throw new Error('You must be a HOST or MEMBER to create an event');
+        }
+        Promise.resolve();
+      })
+      .then(() => {
+        args.createdBy = context.remoteUser.id;
+        args.GroupId = group.id;
+        args.slug = args.name.replace(/ /g,'-');
+        return models.Event.count({
+          where: {
+            GroupId: group.id,
+            slug: { $like: `${args.slug}%`}
+          }
+        })
+        .then(numEventsWithSlug => {
+          args.slug = (numEventsWithSlug === 0) ? args.slug : `${args.slug}-${numEventsWithSlug}`;
+        })
+        .then(() => models.Event.create(args))
       })
     }
   }

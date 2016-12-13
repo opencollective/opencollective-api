@@ -50,8 +50,6 @@ const getTemplateAttributes = (str) => {
     }
   } while (tokens);
 
-  console.log("attributes", attributes);
-
   attributes.body = lines.slice(index).join('\n').trim();
   return attributes;
 };
@@ -116,6 +114,7 @@ const sendMessage = (recipients, subject, html, options = {}) => {
       })
     });
   } else {
+    console.log(html);
     console.warn("Warning: No mail sent - Mailgun is not configured");
     return Promise.resolve();
   }
