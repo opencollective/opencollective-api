@@ -12,6 +12,10 @@ import {
   EventType
 } from './types';
 
+import {
+  EventInputType
+} from './inputTypes';
+
 import models from '../models';
 
 const queries = {
@@ -25,16 +29,27 @@ const queries = {
         type: GraphQLString
       }
     },
-    resolve(_, {slug, groupSlug}, context) {
+    resolve(_, args) {
       return models.Event.findAll({
         where: {
-          slug: slug
+          slug: args.slug
         },
         include: [{
           model: models.Group,
-          where: { slug: groupSlug }
+          where: { slug: args.groupSlug }
         }]
       })
+    }
+  },
+  getAnyEvent: {
+    type: new GraphQLList(EventType),
+    args: {
+      event: {
+        type: EventInputType
+      }
+    },
+    resolve(_, args) {
+      return models.Event.findAll({where: args})
     }
   }
 }

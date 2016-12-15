@@ -1,5 +1,6 @@
 import {
   GraphQLBoolean,
+  GraphQLEnumType,
   GraphQLInt,
   GraphQLList,
   GraphQLNonNull,
@@ -9,6 +10,16 @@ import {
 } from 'graphql';
 
 import models from '../models';
+
+export const ResponseStatusType = new GraphQLEnumType({
+  name: 'Responses',
+  values: {
+    PENDING: { value: 'PENDING' },
+    INTERESTED: { value: 'INTERESTED' },
+    YES: { value: 'YES' },
+    NO: { value: 'NO' }
+  }
+});
 
 export const UserType = new GraphQLObjectType({
   name: 'User',
@@ -371,7 +382,7 @@ export const ResponseType = new GraphQLObjectType({
         }
       },
       status: {
-        type: GraphQLString,
+        type: ResponseStatusType,
         resolve(response) {
           return response.status;
         }

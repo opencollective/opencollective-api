@@ -84,7 +84,7 @@ export default (app) => {
   app.use('/graphql', GraphHTTP({
     schema: schema,
     rootValue: { remoteUser: (args, request) => request.remoteUser },
-    pretty: true,
+    pretty: process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'staging',
     graphiql: process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'staging'
   }));
 

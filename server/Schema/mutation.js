@@ -6,8 +6,20 @@ import {
 
 import models from '../models';
 import {
-  EventType
+  UserType,
+  GroupType,
+  EventType,
+  TierType,
+  ResponseType
 } from './types';
+
+import {
+  UserInputType,
+  GroupInputType,
+  EventInputType,
+  TierInputType,
+  ResponseInputType
+} from './inputTypes';
 
 import { hasRole } from '../middleware/security/auth';
 import {HOST, MEMBER} from '../constants/roles';
@@ -72,6 +84,54 @@ const mutations = {
           args.slug = (numEventsWithSlug === 0) ? args.slug : `${args.slug}-${numEventsWithSlug}`;
         })
         .then(() => models.Event.create(args))
+      })
+    }
+  },
+  addOrUpdateResponse: {
+    type: ResponseType,
+    args: {
+      user: {
+        type: new GraphQLNonNull(UserInputType)
+      },
+      group: {
+        type: new GraphQLNonNull(GroupInputType)
+      },
+      tier: {
+        type: new GraphQLNonNull(TierInputType)
+      },
+      event: {
+        type: new GraphQLNonNull(EventInputType)
+      },
+      quantity: {
+        type: new GraphQLNonNull(GraphQLInt)
+      },
+      confirmedAt: {
+        type: GraphQLString
+      },
+      status: {
+        // TODO: switch to enum type
+        type: new GraphQLNonNull(GraphQLString)
+      }
+    },
+    resolve(_, args, context) {
+      let group;
+      return models.Group.findOne({where: {slug: args.groupSlug}})
+      .then(result => {
+        if (!result) {
+          throw new Error(`No collective with slug '${args.groupSlug}'`);
+        } else {
+          group = result;
+        }
+      })
+      .then(() => hasRole(context.remoteUser.id, group.id, [HOST, MEMBER]))
+      .then(hasRole => {
+        if (!hasRole) {
+          throw new Error('You must be a HOST or MEMBER to create an event');
+        }
+        Promise.resolve();
+      })
+      .then(() => {
+        Promise.resolve();
       })
     }
   }
