@@ -13,20 +13,39 @@ import fs from 'fs';
 const debug = debugLib('email');
 
 const render = (template, data) => {
-    data.logoNotSvg = data.group && data.group.logo && !data.group.logo.endsWith('.svg');
-    data = _.merge({}, data);
-    delete data.config;
-    data.config = { host: config.host };
-    const html = juice(templates[template](data));
 
-    // When in preview mode, we export an HTML version of the email in `/tmp/:template.:slug.html`
-    if (process.env.DEBUG && process.env.DEBUG.match(/preview/)) {
-      const filepath = `/tmp/${template}.${data.group && data.group.slug}.html`;
-      const script = `<script>data=${JSON.stringify(data)};</script>`;
-      fs.writeFileSync(filepath, `${html}\n\n${script}`);
+  let text, filepath;
+  data.logoNotSvg = data.group && data.group.logo && !data.group.logo.endsWith('.svg');
+  data = _.merge({}, data);
+  delete data.config;
+  data.config = { host: config.host };
+
+  if (templates[`${template}.text`]) {
+    text = templates[`${template}.text`](data);
+  }
+  const html = juice(templates[template](data));
+  const slug = data.group && data.group.slug || data.recipient && data.recipient.username;
+
+  // When in preview mode, we export an HTML version of the email in `/tmp/:template.:slug.html`
+  if (process.env.DEBUG && process.env.DEBUG.match(/preview/)) {
+    filepath = `/tmp/${template}.${slug}.html`;
+    const script = `<script>data=${JSON.stringify(data)};</script>`;
+    fs.writeFileSync(filepath, `${html}\n\n${script}`);
+    console.log(`Preview email template: file://${filepath}`);
+    if (text) {
+      filepath = `/tmp/${template}.${slug}.txt`;
+      fs.writeFileSync(filepath, text);
       console.log(`Preview email template: file://${filepath}`);
     }
-    return html;
+  }
+
+  // When in development mode, we log the data used to compile the template
+  // (useful to get login token without sending an email)
+  if (process.env.NODE_ENV === 'development' && process.env.DEBUG && process.env.DEBUG.match(/email/)) {
+    console.log(`Rendering ${template} with data`, data);
+  }
+
+  return {text, html};
 };
 
 const generateUnsubscribeToken = (email, groupSlug, type) => {
@@ -82,6 +101,11 @@ const sendMessage = (recipients, subject, html, options = {}) => {
     subject = `[TESTING] ${subject}`;
   }
 
+  if (process.env.ONLY) {
+    debug("Only sending email to ", process.env.ONLY);
+    recipients = [process.env.ONLY];
+  }
+
   debug(`sending email to ${recipients.join(', ')}`);
   if (recipients.length === 0) {
     debug("No recipient to send to, only sending to bcc", options.bcc);
@@ -121,9 +145,13 @@ const sendMessage = (recipients, subject, html, options = {}) => {
 
 const getNotificationLabel = (template, recipient) => {
 
+  template = template.replace('.text', '');
+
   const notificationTypeLabels = {
     'group.monthlyreport': 'monthly reports',
+    'user.yearlyreport': 'yearly reports',
     'group.transaction.created': 'notifications of new transactions for this collective',
+    'group.expense.created': 'notifications of new expenses submitted to this collective',
     'email.approve': 'notifications of new emails pending approval',
     'email.message': recipient
   }
@@ -162,7 +190,7 @@ const generateEmailFromTemplate = (template, recipient, data, options = {}) => {
   }
 
   if (template === 'group.transaction.created') {
-    template = (data.transaction.amount > 0) ? 'group.donation.created' : 'group.expense.created';
+    template = (data.transaction.amount > 0) ? 'group.donation.created' : 'group.expense.paid';
     if (data.user && data.user.twitterHandle) {
       const groupMention = (data.group.twitterHandle) ? `@${data.group.twitterHandle}` : data.group.name;
       const text = `Hi @${data.user.twitterHandle} thanks for your donation to ${groupMention} https://opencollective.com/${data.group.slug} 🎉😊`;
@@ -178,6 +206,7 @@ const generateEmailFromTemplate = (template, recipient, data, options = {}) => {
   data.unsubscribeUrl = `${config.host.website}/api/services/email/unsubscribe/${encodeURIComponent(options.bcc || recipient)}/${slug}/${options.type || template}/${generateUnsubscribeToken(options.bcc || recipient, slug, options.type || template)}`;
   data.notificationTypeLabel = getNotificationLabel(template, recipient);
   data.config = config;
+  data.utm = `utm_source=opencollective&utm_campaign=${template}&utm_medium=email`;
 
   if (!templates[template]) {
     return Promise.reject(new Error("Invalid email template"));
@@ -191,9 +220,9 @@ const generateEmailFromTemplate = (template, recipient, data, options = {}) => {
  */
 const generateEmailFromTemplateAndSend = (template, recipient, data, options = {}) => {
   return generateEmailFromTemplate(template, recipient, data, options)
-    .then(templateString => {
-      const attributes = getTemplateAttributes(templateString);
-      options.text = attributes.text;
+    .then(renderedTemplate => {
+      const attributes = getTemplateAttributes(renderedTemplate.html);
+      options.text = renderedTemplate.text;
       return emailLib.sendMessage(recipient, attributes.subject, attributes.body, options)
     });
 };
@@ -202,11 +231,21 @@ const generateEmailFromTemplateAndSend = (template, recipient, data, options = {
  * Given an activity, it sends out an email to the right people and right template
  */
 const sendMessageFromActivity = (activity, notification) => {
+  const data = activity.data;
   switch (activity.type) {
     case activities.GROUP_TRANSACTION_CREATED:
-      return generateEmailFromTemplateAndSend('group.transaction.created', notification.User.email, activity.data);
+      return generateEmailFromTemplateAndSend('group.transaction.created', notification.User.email, data);
     case activities.GROUP_EXPENSE_CREATED:
-      return generateEmailFromTemplateAndSend('group.expense.created', notification.User.email, activity.data);
+      data.actions = {
+        approve: notification.User.generateLoginLink(`/${data.group.slug}/expenses/${data.expense.id}/approve`),
+        reject: notification.User.generateLoginLink(`/${data.group.slug}/expenses/${data.expense.id}/reject`)
+      };
+      return generateEmailFromTemplateAndSend('group.expense.created', notification.User.email, data);
+    case activities.GROUP_EXPENSE_APPROVED:
+      data.actions = {
+        viewExpenseUrl: notification.User.generateLoginLink(`/${data.group.slug}/transactions/expenses#exp${data.expense.id}`)
+      }
+      return generateEmailFromTemplateAndSend('group.expense.approved.for.host', notification.User.email, data);
     default:
       return Promise.resolve();
   }

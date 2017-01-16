@@ -100,11 +100,11 @@ describe('groups.routes.test.js', () => {
     it('successfully create a group, while assigning the users as members', (done) => {
 
       const users = [
-            _.assign(_.omit(userData, 'password'), {role: roles.HOST}),
             _.assign(_.omit(userData2, 'password'), {role: roles.MEMBER}),
             _.assign(_.omit(userData3, 'password'), {role: roles.MEMBER})];
 
-      const g = Object.assign(publicGroupData, {users})
+      const g = Object.assign({}, publicGroupData, {users})
+      g.HostId = user.id;
 
       request(app)
         .post('/groups')
@@ -129,8 +129,9 @@ describe('groups.routes.test.js', () => {
           expect(res.body).to.have.property('updatedAt');
           expect(res.body).to.have.property('twitterHandle');
           expect(res.body).to.have.property('website');
+          expect(res.body).to.have.property('isActive', false);
 
-          Promise.all([
+          return Promise.all([
             models.UserGroup.findOne({where: { UserId: user.id, role: roles.HOST }}),
             models.UserGroup.count({where: { role: roles.MEMBER }}),
             models.Group.find({where: { slug: g.slug }})
@@ -138,9 +139,10 @@ describe('groups.routes.test.js', () => {
           .then(results => {
             expect(results[0].GroupId).to.equal(1);
             expect(results[1]).to.equal(2);
-            expect(results[2].lastEditedByUserId).to.equal(1);
+            expect(results[2].lastEditedByUserId).to.equal(2);
             done();
           })
+          .catch(done);
         });
     });
 
@@ -232,7 +234,7 @@ describe('groups.routes.test.js', () => {
           expect(res.body).to.have.property('description');
           expect(res.body).to.have.property('longDescription');
           expect(res.body).to.have.property('expensePolicy', 'expense policy');
-          expect(res.body).to.have.property('isPublic', true);
+          expect(res.body).to.have.property('isActive', false);
           expect(emailLib.send.lastCall.args[1]).to.equal('githubuser@gmail.com');
         })
         .then(() => ConnectedAccount.findOne({where: {username: 'asood123'}}))
@@ -284,12 +286,12 @@ describe('groups.routes.test.js', () => {
     });
 
     // Create the public group with user.
-    beforeEach((done) => {
+    beforeEach('create public group with host', (done) => {
       request(app)
         .post('/groups')
         .send({
           api_key: application.api_key,
-          group: Object.assign(publicGroupData, { slug: 'another', users: [ Object.assign({}, userData, { role: roles.HOST} )]})
+          group: Object.assign({}, publicGroupData, { isActive: true, slug: 'another', users: [ Object.assign({}, userData, { role: roles.HOST} )]})
         })
         .expect(200)
         .end((e, res) => {
@@ -330,7 +332,7 @@ describe('groups.routes.test.js', () => {
         .expect(404)
     );
 
-    it('successfully get a group if it is public', (done) => {
+    it('successfully get a group', (done) => {
       request(app)
         .get(`/groups/${publicGroup.id}?api_key=${application.api_key}`)
         .expect(200)
@@ -338,7 +340,7 @@ describe('groups.routes.test.js', () => {
           expect(e).to.not.exist;
           expect(res.body).to.have.property('id', publicGroup.id);
           expect(res.body).to.have.property('name', publicGroup.name);
-          expect(res.body).to.have.property('isPublic', true);
+          expect(res.body).to.have.property('isActive', true);
           expect(res.body).to.have.property('stripeAccount');
           expect(res.body).to.have.property('yearlyIncome');
           expect(res.body).to.have.property('backersCount');
@@ -358,7 +360,7 @@ describe('groups.routes.test.js', () => {
           expect(e).to.not.exist;
           expect(res.body).to.have.property('id', publicGroup.id);
           expect(res.body).to.have.property('name', publicGroup.name);
-          expect(res.body).to.have.property('isPublic', true);
+          expect(res.body).to.have.property('isActive', true);
           expect(res.body).to.have.property('stripeAccount');
           expect(res.body.stripeAccount).to.have.property('stripePublishableKey', stripeMock.accounts.create.keys.publishable);
           done();
@@ -538,18 +540,18 @@ describe('groups.routes.test.js', () => {
       image: 'http://opencollective.com/assets/image.jpg',
       backgroundImage: 'http://opencollective.com/assets/backgroundImage.png',
       expensePolicy: 'expense policy',
-      isPublic: true,
+      isActive: true,
       settings: { lang: 'fr' },
       otherprop: 'value'
     };
 
     // Create the group with user.
-    beforeEach((done) => {
+    beforeEach('create public group with host', (done) => {
       request(app)
         .post('/groups')
         .send({
           api_key: application.api_key,
-          group: publicGroupData
+          group: Object.assign({}, publicGroupData, { slug: 'another', users: [ Object.assign({}, userData, { role: roles.HOST} )]})
         })
         .expect(200)
         .end((e, res) => {
@@ -657,7 +659,7 @@ describe('groups.routes.test.js', () => {
           expect(res.body).to.have.property('image', groupNew.image);
           expect(res.body).to.have.property('backgroundImage', groupNew.backgroundImage);
           expect(res.body).to.have.property('expensePolicy', groupNew.expensePolicy);
-          expect(res.body).to.have.property('isPublic', groupNew.isPublic);
+          expect(res.body).to.have.property('isActive', groupNew.isActive);
           expect(res.body).to.not.have.property('otherprop');
           expect(new Date(res.body.createdAt).getTime()).to.equal(new Date(group.createdAt).getTime());
           expect(new Date(res.body.updatedAt).getTime()).to.not.equal(new Date(group.updatedAt).getTime());

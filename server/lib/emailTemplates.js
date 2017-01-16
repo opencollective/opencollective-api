@@ -1,7 +1,7 @@
 import fs from 'fs';
 import moment from 'moment';
 import handlebars from 'handlebars';
-import { resizeImage, capitalize } from './utils';
+import { resizeImage, capitalize, formatCurrencyObject, pluralize } from './utils';
 
 /*
 * Loads all the email templates
@@ -15,9 +15,12 @@ const templateNames = [
   'email.message',
   'github.signup',
   'group.created',
+  'group.expense.approved.for.host',
   'group.expense.created',
+  'group.expense.paid',
   'group.donation.created',
   'group.monthlyreport',
+  'group.monthlyreport.text',
   'thankyou',
   'thankyou.wwcode',
   'thankyou.brusselstogether',
@@ -25,7 +28,9 @@ const templateNames = [
   'thankyou.fr',
   'thankyou.laprimaire',
   'user.forgot.password',
-  'user.new.token'
+  'user.new.token',
+  'user.yearlyreport',
+  'user.yearlyreport.text'
 ];
 
 const templatesPath = `${__dirname}/../../templates`;
@@ -33,14 +38,18 @@ const templatesPath = `${__dirname}/../../templates`;
 // Register partials
 const header = fs.readFileSync(`${templatesPath}/partials/header.hbs`, 'utf8');
 const footer = fs.readFileSync(`${templatesPath}/partials/footer.hbs`, 'utf8');
+const footertxt = fs.readFileSync(`${templatesPath}/partials/footer.text.hbs`, 'utf8');
 const subscriptions = fs.readFileSync(`${templatesPath}/partials/subscriptions.hbs`, 'utf8');
 const toplogo = fs.readFileSync(`${templatesPath}/partials/toplogo.hbs`, 'utf8');
 const relatedgroups = fs.readFileSync(`${templatesPath}/partials/relatedgroups.hbs`, 'utf8');
+const collectivecard = fs.readFileSync(`${templatesPath}/partials/collectivecard.hbs`, 'utf8');
 
 handlebars.registerPartial('header', header);
 handlebars.registerPartial('footer', footer);
+handlebars.registerPartial('footer.text', footertxt);
 handlebars.registerPartial('subscriptions', subscriptions);
 handlebars.registerPartial('toplogo', toplogo);
+handlebars.registerPartial('collectivecard', collectivecard);
 handlebars.registerPartial('relatedgroups', relatedgroups);
 
 handlebars.registerHelper('sign', (value) => {
@@ -75,10 +84,13 @@ handlebars.registerHelper('currency', (value, props) => {
 
 handlebars.registerHelper('resizeImage', (imageUrl, props) => resizeImage(imageUrl, props.hash));
 handlebars.registerHelper('capitalize', (str) => capitalize(str));
+handlebars.registerHelper('pluralize', (str, props) => pluralize(str, props.hash.n || props.hash.count));
 
 handlebars.registerHelper('encodeURIComponent', (str) => {
   return encodeURIComponent(str);
 });
+
+handlebars.registerHelper('formatCurrencyObject', (obj, props) => formatCurrencyObject(obj, props.hash));
 
 handlebars.registerHelper('debug', console.log);
 

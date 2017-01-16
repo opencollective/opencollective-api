@@ -9,7 +9,7 @@ export default {
    */
   formatMessageForPrivateChannel: (activity, format) => {
 
-    let userString = '';
+    let userString = '', hostString = '';
     let userId;
     let groupName = '';
     let publicUrl = '';
@@ -36,6 +36,11 @@ export default {
     if (activity.data.group) {
       groupName = activity.data.group.name;
       ({ publicUrl } = activity.data.group);
+    }
+
+    // get host data
+    if (activity.data.host) {
+      hostString = `on ${getUserString(format, activity.data.host, true)}`;
     }
 
     // get donation data
@@ -103,7 +108,7 @@ export default {
       case activities.CONNECTED_ACCOUNT_CREATED:
         return `New Connected Account created by ${connectedAccountUsername} on ${provider}. ${connectedAccountLink}`;
 
-      case activities.GROUP_TRANSACTION_PAID: {
+      case activities.GROUP_EXPENSE_PAID: {
         const details = activity.data.preapprovalDetails;
         let remainingClause = '';
         if (details && details.maxTotalAmountOfAllPayments && details.curPaymentsAmount) {
@@ -128,7 +133,7 @@ export default {
         return `Subscription ${activity.data.subscription.id} canceled: ${currency} ${recurringAmount} from ${userString} to ${group}`;
 
       case activities.GROUP_CREATED:
-        return `New group created: ${group} by ${userString}`;
+        return `New collective created by ${userString}: ${group} ${hostString}`.trim();
 
       case activities.GROUP_USER_ADDED:
         return `New user: ${userString} (UserId: ${userId}) added to group: ${group}`;
@@ -145,7 +150,7 @@ export default {
    */
   formatMessageForPublicChannel: (activity, format) => {
 
-    let userString = '';
+    let userString = '', hostString  = '';
     let groupName = '';
     let publicUrl = '';
     let amount = null;
@@ -169,6 +174,11 @@ export default {
       groupName = activity.data.group.name;
       ({ publicUrl } = activity.data.group);
       groupTwitter = activity.data.group.twitterHandle;
+    }
+
+    // get host data
+    if (activity.data.host) {
+      hostString = `on ${getUserString(format, activity.data.host)}`;
     }
 
     // get donation data
@@ -232,7 +242,7 @@ export default {
       case activities.GROUP_EXPENSE_APPROVED:
         return `Expense approved: ${currency} ${amount} for ${title} in ${group}!`
 
-      case activities.GROUP_TRANSACTION_PAID:
+      case activities.GROUP_EXPENSE_PAID:
         return `Expense paid on ${group}: ${currency} ${amount} for '${description}'`;
 
       case activities.SUBSCRIPTION_CONFIRMED:
@@ -244,7 +254,7 @@ export default {
         return `New subscription confirmed: ${currency} ${recurringAmount} from ${userString} to ${group}!${tweetThis}`;
 
       case activities.GROUP_CREATED:
-        return `New group created: ${group} by ${userString}`;
+        return `New collective created by ${userString}: ${group} ${hostString}`.trim();
 
       default:
         return '';

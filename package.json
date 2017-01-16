@@ -1,6 +1,6 @@
 {
   "name": "opencollective-api",
-  "version": "0.0.198",
+  "version": "0.0.216",
   "description": "OpenCollective API",
   "author": "@philmod @arnaudbenard @xdamman @asood123",
   "main": "server/index.js",
@@ -72,7 +72,8 @@
     "querystring": "0.2.0",
     "request-as-curl": "0.1.0",
     "request-promise": "4.1.1",
-    "sequelize": "3.24.2",
+    "sequelize": "3.28.0",
+    "sequelize-cli": "2.5.1",
     "sequelize-temporal": "1.0.3",
     "slug": "0.9.1",
     "stripe": "4.8.0",
@@ -133,7 +134,8 @@
     "install:debs": "bash scripts/install_apt_get_debs.sh",
     "cron:daily": "PG_MAX_CONNECTIONS=1 babel-node cron/daily/update-contributions.js",
     "cron:weekly": "PG_MAX_CONNECTIONS=1 babel-node cron/weekly/slack-report.js",
-    "cron:monthly": "PG_MAX_CONNECTIONS=1 babel-node cron/monthly/email-report.js && babel-node cron/monthly/slack-report.js"
+    "cron:monthly": "PG_MAX_CONNECTIONS=1 babel-node cron/monthly/email-report.js && babel-node cron/monthly/slack-report.js",
+    "cron:yearly": "PG_MAX_CONNECTIONS=1 babel-node cron/yearly/email-report.js"
   },
   "license": "MIT",
   "repository": {

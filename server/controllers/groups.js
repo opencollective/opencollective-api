@@ -127,11 +127,11 @@ export const getTransactions = (req, res, next) => {
     GroupId: req.group.id
   };
 
-  if (req.query.donation) {
+  if (req.query.donation || req.query.type === 'donations') {
     where.amount = {
       $gt: 0
     };
-  } else if (req.query.expense) {
+  } else if (req.query.expense || req.query.type === 'expenses') {
     where.amount = {
       $lt: 0
     };
@@ -270,7 +270,7 @@ export const deleteUser = (req, res, next) => {
 export const create = (req, res, next) => {
   const { group } = req.required;
   const { users = [] } = group;
-  let createdGroup, creator;
+  let createdGroup, creator, host;
 
   if (users.length < 1) throw new errors.ValidationFailed('Need at least one user to create a group');
 
@@ -292,7 +292,7 @@ export const create = (req, res, next) => {
     .create(group)
     .tap(g => createdGroup = g)
     .tap(g => {
-      return Promise.map(users, user => {
+      return Promise.each(users, user => {
         if (user.email) {
           return User.findOne({where: { email: user.email.toLowerCase() }})
           .then(u => u || User.create(user))
@@ -308,16 +308,26 @@ export const create = (req, res, next) => {
         }
       })
     })
-    .tap(g => Activity.create({
+    .tap(g => {
+      // if there is a host id provided, we add the collective to the host
+      if (group.HostId) {
+        return User.findOne({ where: { id: group.HostId }}).tap(h => {
+          host = h;
+          _addUserToGroup(g, host, {role: roles.HOST, remoteUser: creator})
+        })
+      }
+    })
+    .then(() => Activity.create({
       type: activities.GROUP_CREATED,
       UserId: creator.id,
-      GroupId: g.id,
+      GroupId: createdGroup.id,
       data: {
-        group: g.info,
+        group: createdGroup.info,
+        host: host && host.info,
         user: creator.info
       }
     }))
-    .then((group) => sendConfirmationEmail(creator, group))
+    .then(() => sendConfirmationEmail(creator, createdGroup))
     .then(() => res.send(createdGroup.info))
     .catch(next);
 };
@@ -372,7 +382,7 @@ export const createFromGithub = (req, res, next) => {
       if (existingGroup) {
         group.slug = `${group.slug}+${Math.floor((Math.random() * 1000) + 1)}`;
       }
-      return Group.create(Object.assign({}, group, {deletedAt: new Date(), isPublic: true, lastEditedByUserId: creator.id}));
+      return Group.create(Object.assign({}, group, {lastEditedByUserId: creator.id}));
     })
     .tap(g => dbGroup = g)
     .tap(() => Activity.create({
@@ -414,7 +424,7 @@ export const createFromGithub = (req, res, next) => {
                 return ca.getUser();
               }
             })
-            .then(user => user || User.create(userAttr))
+            .then(user => user || User.create(Object.assign(userAttr)))
             .then(user => contributorUser = user)
             .then(() => fetchGithubUser(contributor))
             .tap(json => {
@@ -461,7 +471,7 @@ export const update = (req, res, next) => {
     'image',
     'backgroundImage',
     'expensePolicy',
-    'isPublic'
+    'isActive'
   ];
 
   const updatedGroupAttrs = _.pick(req.required.group, whitelist);

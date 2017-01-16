@@ -57,7 +57,12 @@ export default function(Sequelize, DataTypes) {
       allowNull: false
     },
 
-    mission: DataTypes.STRING(100),
+    mission: {
+      type: DataTypes.STRING(100),
+      get() {
+        return (this.getDataValue('mission') || '').trim();
+      }
+    },
 
     description: DataTypes.STRING, // max 95 characters
 
@@ -131,9 +136,9 @@ export default function(Sequelize, DataTypes) {
       defaultValue: Sequelize.NOW
     },
 
-    isPublic: {
+    isActive: {
       type: DataTypes.BOOLEAN,
-      defaultValue: true
+      defaultValue: false
     },
 
     slug: {
@@ -207,7 +212,7 @@ export default function(Sequelize, DataTypes) {
           expensePolicy: this.expensePolicy,
           createdAt: this.createdAt,
           updatedAt: this.updatedAt,
-          isPublic: this.isPublic,
+          isActive: this.isActive,
           slug: this.slug,
           tiers: this.tiers,
           settings: this.settings,
@@ -224,6 +229,7 @@ export default function(Sequelize, DataTypes) {
           id: this.id,
           createdAt: this.createdAt,
           name: this.name,
+          slug: this.slug,
           logo: this.logo,
           backgroundImage: this.backgroundImage,
           publicUrl: this.publicUrl,
@@ -320,6 +326,7 @@ export default function(Sequelize, DataTypes) {
             notifications.push({type:activities.GROUP_EXPENSE_CREATED});
             break;
           case roles.MEMBER:
+            notifications.push({type:activities.GROUP_EXPENSE_CREATED});
             notifications.push({type:'group.monthlyreport'});
             break;
         }
@@ -543,8 +550,8 @@ export default function(Sequelize, DataTypes) {
           });
       },
 
-      getRelatedGroups(limit=3, minTotalDonation=100) {
-        return Group.getGroupsSummaryByTag(this.tags, limit, [this.id], minTotalDonation, true);
+      getRelatedGroups(limit=3, minTotalDonationInCents=10000) {
+        return Group.getGroupsSummaryByTag(this.tags, limit, [this.id], minTotalDonationInCents, true);
       },
 
       hasHost() {
@@ -572,10 +579,8 @@ export default function(Sequelize, DataTypes) {
         return Promise.map(groups, u => Group.create(_.defaults({},u,defaultValues)), {concurrency: 1}).catch(console.error);
       },
 
-      getGroupsSummaryByTag: (tags, limit, excludeList, minTotalDonation, randomOrder, orderBy, orderDir, offset) => {
-        limit = limit || 3;
-        excludeList = excludeList || [];
-        return queries.getGroupsByTag(tags, limit, excludeList, minTotalDonation, randomOrder, orderBy, orderDir, offset)
+      getGroupsSummaryByTag: (tags, limit=3, excludeList=[], minTotalDonationInCents, randomOrder, orderBy, orderDir, offset) => {
+        return queries.getGroupsByTag(tags, limit, excludeList, minTotalDonationInCents, randomOrder, orderBy, orderDir, offset)
           .then(groups => {
             return Promise.all(groups.map(group => {
               const appendTier = backers => {

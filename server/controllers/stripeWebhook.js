@@ -1,3 +1,4 @@
+
 import async from 'async';
 import _ from 'lodash';
 import activities from '../constants/activities';
@@ -127,7 +128,8 @@ export default function stripeWebhook(req, res, next) {
         SELECT * FROM "Transactions"
         WHERE 
           "DonationId" = ${donationId} AND
-          CAST(data->'charge'->'id' AS TEXT) like '%${chargeId}%'
+          CAST(data->'charge'->'id' AS TEXT) like '%${chargeId}%' AND
+          "deletedAt" IS NULL
         `.replace(/\s\s+/g, ' '),
         {
           model: Transaction
@@ -217,7 +219,18 @@ export default function stripeWebhook(req, res, next) {
       .catch(cb);
     }],
 
-    createTransaction: ['retrieveBalance', (cb, results) => {
+    countTransactions: ['retrieveCharge', (cb, results) => {
+      const donation = results.fetchDonation;
+      Transaction.count({
+        where: {
+          DonationId: donation.id
+        }
+      })
+      .then(numTransactions => cb(null, numTransactions))
+      .catch(cb) 
+    }],
+
+    createTransaction: ['retrieveBalance', 'countTransactions', (cb, results) => {
       const donation = results.fetchDonation;
       const subscription = donation.Subscription;
       const { stripeSubscription } = results.fetchEvent;
@@ -257,17 +270,8 @@ export default function stripeWebhook(req, res, next) {
       .catch(cb);
     }],
 
-    countTransactions: ['createTransaction', (cb, results) => {
-      const donation = results.fetchDonation;
-      Transaction.count({
-        DonationId: donation.id
-      })
-      .then(numTransactions => cb(null, numTransactions))
-      .catch(cb) 
-    }],
-
-    sendInvoice: ['countTransactions', (cb, results) => {
-      if (results.countTransactions === 1) {
+    sendInvoice: ['createTransaction', (cb, results) => {
+      if (results.countTransactions === 0) {
         return cb();
       }
       const donation = results.fetchDonation;

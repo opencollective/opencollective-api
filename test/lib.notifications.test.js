@@ -86,7 +86,7 @@ describe('lib.notifications.test.js', () => {
 
     emailLib.generateEmailFromTemplate('group.expense.created', user.email, templateData)
       .then(template => {
-        emailAttributes = emailLib.getTemplateAttributes(template);
+        emailAttributes = emailLib.getTemplateAttributes(template.html);
       })
       .then(() => request(app)
         .post(`/groups/${group.id}/expenses`)
@@ -113,7 +113,9 @@ describe('lib.notifications.test.js', () => {
           const options = nm.sendMail.lastCall.args[0];
           expect(options.to).to.equal(user.email);
           expect(options.subject).to.equal(`[TESTING] ${emailAttributes.subject}`);
-          expect(options.html).to.equal(emailAttributes.body);
+          expect(options.html).to.contain(expense.title);
+          expect(options.html).to.contain("APPROVE");
+          expect(options.html).to.contain("REJECT");
           done();
         }, 1000);
       });

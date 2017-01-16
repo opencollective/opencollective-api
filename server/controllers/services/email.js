@@ -18,14 +18,15 @@ export const unsubscribe = (req, res, next) => {
     return next(new errors.BadRequest('Invalid token'));
   }
 
+  const include = [{ model: models.User, where: { email }}];
+
+  if (slug !== 'undefined') {
+    include.push({ model: models.Group, where: { slug }});
+  }
+
   models.Notification.findOne({
-    where: {
-      type
-    },
-    include: [
-      { model: models.User, where: { email }},
-      { model: models.Group, where: { slug }}
-    ]
+    where: { type },
+    include
   })
   .then(notification => {
     if (!notification) throw new errors.BadRequest('No notification found for this user, group and type');
@@ -161,6 +162,17 @@ export const webhook = (req, res, next) => {
   if (body.indexOf('<!-- OpenCollective.com -->') !== -1 ) {
     console.log(`Email from ${email.from} with subject ${email.subject} already processed, skipping`);
     return res.send('Email already processed, skipping');
+  }
+
+  // If an email is sent to expense@:slug.opencollective.com
+  // we forward it to ops+expense@opencollective.com
+  if (list.match(/^expenses?$/i)) {
+   return emailLib.sendMessage('ops+expense@opencollective.com', email.subject, body, { from: email.from })
+    .then(() => res.send('ok'))
+    .catch(e => {
+      console.error("Error: ", e);
+      next(e);
+    });
   }
 
   // If an email is sent to info@:slug.opencollective.com,
