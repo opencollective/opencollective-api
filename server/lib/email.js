@@ -114,7 +114,6 @@ const sendMessage = (recipients, subject, html, options = {}) => {
       })
     });
   } else {
-    console.log(html);
     console.warn("Warning: No mail sent - Mailgun is not configured");
     return Promise.resolve();
   }

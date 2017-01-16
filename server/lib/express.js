@@ -15,7 +15,6 @@ import { sequelize as db } from '../models';
 
 const SequelizeStore = connectSessionSequelize(session.Store);
 
-
 export default function(app) {
 
   // Body parser.
@@ -55,5 +54,4 @@ export default function(app) {
   }));
   app.use(passport.initialize());
   app.use(passport.session());
-
 }
