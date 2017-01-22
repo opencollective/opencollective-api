@@ -21,12 +21,12 @@ describe('Group model', () => {
       { 
         name: 'backer',
         range: [2, 100],
-        interval: 'monthly'
+        interval: 'month'
       },
       { 
         name: 'sponsor',
         range: [100, 100000],
-        interval: 'yearly'
+        interval: 'year'
       }
     ]
   };

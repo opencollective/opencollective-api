@@ -70,8 +70,8 @@ export const resetTestDatabase = function(req, res, next) {
         mission: 'our awesome mission',
         tags: ['open source'],
         tiers: [
-          {"name":"backer","range":[2,100000],"presets":[2,10,25],"interval":"monthly"},
-          {"name":"sponsor","range":[100,500000],"presets":[100,250,500],"interval":"monthly"}
+          {"name":"backer","range":[2,100000],"presets":[2,10,25],"interval":"month"},
+          {"name":"sponsor","range":[100,500000],"presets":[100,250,500],"interval":"month"}
         ],
         currency: 'EUR',
         isActive: true

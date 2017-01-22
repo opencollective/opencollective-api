@@ -191,7 +191,7 @@ export const appendTier = (backers, tiers) => {
 export const isBackerActive = (backer, tiers, until) => {
   tiers = _.groupBy(tiers, 'name'); // this makes a copy
   const now = moment(until);
-  if (tiers[backer.tier] && tiers[backer.tier][0].interval === 'monthly' && now.diff(moment(backer.lastDonation), 'days') > 31)
+  if (tiers[backer.tier] && tiers[backer.tier][0].interval === 'month' && now.diff(moment(backer.lastDonation), 'days') > 31)
     return false
   else
     return true;
