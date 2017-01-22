@@ -38,7 +38,7 @@ const tier = Joi.object().keys({
   button: Joi.string(), // Call To Action, e.g. "Become a sponsor"
   range: Joi.array().items(Joi.number().integer()).length(2).required(), // e.g. [100, 10000000]: Need to donate at least $100/interval to be a sponsor
   presets: Joi.array().items(Joi.number().integer()), // e.g. [1, 5, 20] for presets of $1, $5 and $20
-  interval: Joi.string().valid(['month', 'year', null]).required(),
+  interval: Joi.string().valid(['month', 'year']).optional(),
   amount: Joi.number()
 }).unknown(); // this keeps unknown fields in the returned objects
 
