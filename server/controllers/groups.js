@@ -309,13 +309,11 @@ export const create = (req, res, next) => {
       })
     })
     .tap(g => {
-      // if there is a host id provided, we add the collective to the host
-      if (group.HostId) {
-        return User.findOne({ where: { id: group.HostId }}).tap(h => {
-          host = h;
-          _addUserToGroup(g, host, {role: roles.HOST, remoteUser: creator})
-        })
-      }
+      const HostId = group.HostId || defaultHostId();
+      return User.findOne({ where: { id: HostId }}).tap(h => {
+        host = h;
+        _addUserToGroup(g, host, {role: roles.HOST, remoteUser: creator})
+      })
     })
     .then(() => Activity.create({
       type: activities.GROUP_CREATED,
