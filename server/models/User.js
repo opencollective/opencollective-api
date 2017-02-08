@@ -438,8 +438,9 @@ export default (Sequelize, DataTypes) => {
 
       },
       afterCreate: (instance) => {
-        return Sequelize.models.Notification.create({ channel: 'email', type: 'user.yearlyreport', UserId: instance.id })
-          .then(() => userLib.updateUserInfoFromClearbit(instance));
+        return Sequelize.models.Notification.create({ channel: 'email', type: 'user.yearlyreport', UserId: instance.id });
+          // TODO: reenable after investigating why clearbit is still blocking
+          //.then(() => userLib.updateUserInfoFromClearbit(instance));
       }
     }
   });
