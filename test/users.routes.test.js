@@ -170,7 +170,7 @@ describe('users.routes.test.js', () => {
           done();
         });
     });
-
+    /* Bring back when reenable clearbit
     it('successfully create a user with just an email and auto prefills firstName, lastName, twitter, avatar', (done) => {
       request(app)
         .post('/users')
@@ -191,6 +191,7 @@ describe('users.routes.test.js', () => {
             .catch(done);
         });
     });
+    */
 
     it('successfully creates a user with a referrer', (done) => {
       models.User.create(utils.data('user2'))
