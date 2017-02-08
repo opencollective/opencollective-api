@@ -108,6 +108,7 @@ describe('groups.routes.test.js', () => {
               _.assign(_.omit(userData2, 'password'), {role: roles.MEMBER}),
               _.assign(_.omit(userData3, 'password'), {role: roles.MEMBER})];
 
+
         group = Object.assign({}, publicGroupData, {users})
         group.HostId = user.id;
 
