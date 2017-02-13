@@ -71,10 +71,19 @@ describe('lib.donation.test.js', () => {
     });
 
     it('isProcessed and processedAt should not be false and null', done => {
+      let d;
       models.Donation.findById(1)
+        .tap(donation => d = donation)
         .then(donation => {
           expect(donation.isProcessed).to.equal(true);
           expect(donation.processedAt).to.not.equal(null);
+        })
+        .then(() => models.Transaction.find({
+          DonationId: 1
+        }))
+        .then(transaction => {
+          expect(transaction.amount).to.equal(d.amount);
+          expect(transaction.currency).to.equal(d.currency);
           done();
         })
     })

@@ -156,8 +156,33 @@ export const processDonation = (Sequelize, donation) => {
             firstPayment: true,
             subscriptionsLink: user.generateLoginLink('/subscriptions')
           }));
+    },
+
+    manual: (donation) => {
+      const group = donation.Group;
+      const user = donation.User;
+
+      const payload = {
+        user,
+        group,
+        transaction: {
+          type: transactions.type.DONATION,
+          DonationId: donation.id,
+          amount: donation.amount,
+          currency: donation.currency,
+          txnCurrency: donation.currency,
+          amountInTxnCurrency: donation.amount,
+          txnCurrencyFxRate: 1,
+          hostFeeInTxnCurrency: 0,
+          platformFeeInTxnCurrency: 0,
+          paymentProcessorFeeInTxnCurrency: 0,
+        }        
       }
-    };
+
+      return Sequelize.models.Transaction.createFromPayload(payload)
+      .then(() => donation.update({isProcessed: true, processedAt: new Date()}))
+    }
+  };
 
   return Sequelize.models.Donation.findById(donation.id, {
     include: [{ model: Sequelize.models.User },
@@ -166,8 +191,11 @@ export const processDonation = (Sequelize, donation) => {
               { model: Sequelize.models.Subscription }]
     })
     .then(donation => {
-      if (!donation.PaymentMethod || donation.PaymentMethod.service === 'paypal') {
-        // for manual add funds and paypal, which isn't processed this way yet
+      if (!donation.PaymentMethod) {
+        // manually added funds
+        return services.manual(donation);
+      } else if (donation.PaymentMethod.service === 'paypal') {
+        // for paypal, which isn't processed this way yet
         return donation.update({isProcessed: true, processedAt: new Date()});
       } else {
         return services[donation.PaymentMethod.service](donation)
