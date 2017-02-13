@@ -171,14 +171,17 @@ export const pay = (req, res, next) => {
     .then(() => models.Group.findById(expense.GroupId))
     .then(group => group.getBalance())
     .then(balance => checkIfEnoughFundsInGroup(expense, balance))
+
+    // check that there is enough money in PayPal preapproval
     .then(() => isManual ? null : getPaymentMethod())
     .tap(m => paymentMethod = m)
+    .then(paymentMethod => getPreapprovalDetails(paymentMethod.token))
+    .then(d => preapprovalDetails = d)
+    .then(preapprovalDetails => checkIfEnoughFundsInPaypalPreapproval(expense, preapprovalDetails))
     .then(getBeneficiaryEmail)
     .tap(e => email = e)
     .then(() => isManual ? null : pay())
     .tap(r => paymentResponse = r)
-    .then(() => isManual ? null : getPreapprovalDetails(paymentMethod.token))
-    .tap(d => preapprovalDetails = d)
     .then(() => createTransaction(paymentMethod, expense, paymentResponse, preapprovalDetails, expense.UserId))
     .tap(() => expense.setPaid(user.id))
     .tap(() => res.json(expense))
@@ -190,6 +193,15 @@ export const pay = (req, res, next) => {
     } else {
       return Promise.reject(new errors.BadRequest(`Not enough funds in this collective to pay this request. Please add funds first.`));
     }
+  }
+
+  function checkIfEnoughFundsInPaypalPreapproval(expense, preapprovalDetails) {
+    const maxAmount = Number(details.maxTotalAmountOfAllPayments) - Number(details.curPaymentsAmount);
+    const currency = details.currencyCode;
+    if (Math.abs(expense.amount/100) > maxAmount) {   
+      return Promise.reject(new errors.BadRequest(`Not enough funds (${maxAmount} ${currency} left) to approve expense. Please reapprove from PayPal.`));
+    }
+    return Promise.resolve();
   }
 
   function getPaymentMethod() {
