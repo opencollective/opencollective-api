@@ -167,6 +167,7 @@ export const pay = (req, res, next) => {
   let paymentMethod, email, paymentResponse, preapprovalDetails;
 
   assertExpenseStatus(expense, status.APPROVED)
+
     // check that a group's balance is greater than the expense
     .then(() => models.Group.findById(expense.GroupId))
     .then(group => group.getBalance())
@@ -178,10 +179,14 @@ export const pay = (req, res, next) => {
     .then(paymentMethod => getPreapprovalDetails(paymentMethod.token))
     .then(d => preapprovalDetails = d)
     .then(preapprovalDetails => checkIfEnoughFundsInPaypalPreapproval(expense, preapprovalDetails))
+
+    // get beneficiary email and pay
     .then(getBeneficiaryEmail)
     .tap(e => email = e)
     .then(() => isManual ? null : pay())
     .tap(r => paymentResponse = r)
+
+    // create transaction and update expense
     .then(() => createTransaction(paymentMethod, expense, paymentResponse, preapprovalDetails, expense.UserId))
     .tap(() => expense.setPaid(user.id))
     .tap(() => res.json(expense))
