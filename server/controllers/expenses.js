@@ -176,7 +176,7 @@ export const pay = (req, res, next) => {
     // check that there is enough money in PayPal preapproval
     .then(() => isManual ? null : getPaymentMethod())
     .tap(m => paymentMethod = m)
-    .then(paymentMethod => getPreapprovalDetails(paymentMethod.token))
+    .then(paymentMethod => paymentMethod ? getPreapprovalDetails(paymentMethod.token) : Promise.resolve())
     .then(d => preapprovalDetails = d)
     .then(preapprovalDetails => checkIfEnoughFundsInPaypalPreapproval(expense, preapprovalDetails))
 
@@ -201,6 +201,9 @@ export const pay = (req, res, next) => {
   }
 
   function checkIfEnoughFundsInPaypalPreapproval(expense, preapprovalDetails) {
+    if (!preapprovalDetails) {
+      return Promise.resolve();
+    }
     const maxAmount = Number(preapprovalDetails.maxTotalAmountOfAllPayments) - Number(preapprovalDetails.curPaymentsAmount);
     const currency = preapprovalDetails.currencyCode;
     if (Math.abs(expense.amount/100) > maxAmount) {   
