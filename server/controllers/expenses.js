@@ -196,8 +196,8 @@ export const pay = (req, res, next) => {
   }
 
   function checkIfEnoughFundsInPaypalPreapproval(expense, preapprovalDetails) {
-    const maxAmount = Number(details.maxTotalAmountOfAllPayments) - Number(details.curPaymentsAmount);
-    const currency = details.currencyCode;
+    const maxAmount = Number(preapprovalDetails.maxTotalAmountOfAllPayments) - Number(preapprovalDetails.curPaymentsAmount);
+    const currency = preapprovalDetails.currencyCode;
     if (Math.abs(expense.amount/100) > maxAmount) {   
       return Promise.reject(new errors.BadRequest(`Not enough funds (${maxAmount} ${currency} left) to approve expense. Please reapprove from PayPal.`));
     }
