@@ -167,18 +167,26 @@ export const pay = (req, res, next) => {
   let paymentMethod, email, paymentResponse, preapprovalDetails;
 
   assertExpenseStatus(expense, status.APPROVED)
+
     // check that a group's balance is greater than the expense
     .then(() => models.Group.findById(expense.GroupId))
     .then(group => group.getBalance())
     .then(balance => checkIfEnoughFundsInGroup(expense, balance))
+
+    // check that there is enough money in PayPal preapproval
     .then(() => isManual ? null : getPaymentMethod())
     .tap(m => paymentMethod = m)
+    .then(paymentMethod => paymentMethod ? getPreapprovalDetails(paymentMethod.token) : Promise.resolve())
+    .then(d => preapprovalDetails = d)
+    .then(preapprovalDetails => checkIfEnoughFundsInPaypalPreapproval(expense, preapprovalDetails))
+
+    // get beneficiary email and pay
     .then(getBeneficiaryEmail)
     .tap(e => email = e)
     .then(() => isManual ? null : pay())
     .tap(r => paymentResponse = r)
-    .then(() => isManual ? null : getPreapprovalDetails(paymentMethod.token))
-    .tap(d => preapprovalDetails = d)
+
+    // create transaction and update expense
     .then(() => createTransaction(paymentMethod, expense, paymentResponse, preapprovalDetails, expense.UserId))
     .tap(() => expense.setPaid(user.id))
     .tap(() => res.json(expense))
@@ -190,6 +198,18 @@ export const pay = (req, res, next) => {
     } else {
       return Promise.reject(new errors.BadRequest(`Not enough funds in this collective to pay this request. Please add funds first.`));
     }
+  }
+
+  function checkIfEnoughFundsInPaypalPreapproval(expense, preapprovalDetails) {
+    if (!preapprovalDetails) {
+      return Promise.resolve();
+    }
+    const maxAmount = Number(preapprovalDetails.maxTotalAmountOfAllPayments) - Number(preapprovalDetails.curPaymentsAmount);
+    const currency = preapprovalDetails.currencyCode;
+    if (Math.abs(expense.amount/100) > maxAmount) {   
+      return Promise.reject(new errors.BadRequest(`Not enough funds (${maxAmount} ${currency} left) to approve expense. Please reapprove from PayPal.`));
+    }
+    return Promise.resolve();
   }
 
   function getPaymentMethod() {
