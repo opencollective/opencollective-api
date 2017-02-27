@@ -118,12 +118,6 @@ export default function(Sequelize, DataTypes) {
           updatedAt: this.updatedAt
         }
       }
-    },
-
-    hooks: {
-      afterCreate: function(donation) {
-        return processPayment(Sequelize, donation);
-      }
     }
   });
 

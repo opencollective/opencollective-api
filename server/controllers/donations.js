@@ -46,7 +46,7 @@ const stripeDonation = (req, res, next) => {
       interval
     }
   })
-  .then(() => res.send({success: true, user: req.user.info }))
+  .then((transaction) => res.send({success: true, user: req.user.info, transaction }))
   .catch(err => next(new errors.BadRequest(err.message)))
 };
 export {stripeDonation as stripe};
