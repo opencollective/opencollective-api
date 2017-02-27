@@ -13,7 +13,7 @@ const user2Data = utils.data('user2');
 const groupData = utils.data('group1');
 const group2Data = utils.data('group2');
 const group3Data = utils.data('group3');
-const notificationData = { type: constants.GROUP_TRANSACTION_CREATED };
+const notificationData = { type: constants.GROUP_DONATION_CREATED };
 
 const {
   User,
@@ -124,12 +124,12 @@ describe("notification.model.test.js", () => {
         }}))
       .tap(res => expect(res.count).to.equal(0)));
 
-  it('automatically subscribe new members to `group.transaction.created`, `group.expense.created` and `group.monthlyreport` events', () =>
+  it('automatically subscribe new members to `group.donation.created`, `group.expense.created` and `group.monthlyreport` events', () =>
     request(app)
       .post('/groups')
       .send({
         api_key: application.api_key,
-        group: Object.assign(group3Data, { users: [{ email: user2.email, role: roles.HOST},{ email: utils.data("user3").email, role: roles.MEMBER}]})
+        group: Object.assign(group3Data, { users: [{ email: user2.email, role: roles.HOST}, { email: utils.data("user3").email, role: roles.MEMBER}]})
       })
       .expect(200)
       .then(res => Notification.findAndCountAll({where: {
@@ -138,7 +138,7 @@ describe("notification.model.test.js", () => {
       .tap(res => {
         const notifications = res.rows;
         const types = _.map(notifications, 'type').sort();
-        expect(types).to.deep.equal([ 'group.expense.created', 'group.expense.created', 'group.monthlyreport', 'group.transaction.created', 'mailinglist.host', 'mailinglist.members' ]);
+        expect(types).to.deep.equal([ 'group.donation.created', 'group.donation.created', 'group.expense.created', 'group.expense.created', 'group.monthlyreport', 'mailinglist.host', 'mailinglist.members' ]);
       })
-      .tap(res => expect(res.count).to.equal(6)));
+      .tap(res => expect(res.count).to.equal(7)));
 });
