@@ -1,0 +1,107 @@
+<style>
+  .CollectiveCard {
+    width: 180px;
+    border-radius: 6px;
+    background-color: #ffffff;
+    box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.07);
+    border: solid 1px rgba(0, 0, 0, 0.1);
+    float: left;
+    overflow: hidden;
+    margin: 0;
+  }
+  .CollectiveCard .Top {
+    height: 110px;
+    box-sizing: border-box;
+    padding-top: 21px;
+    background-size: cover;
+    background-position: 50%;
+  }
+  .CollectiveCard .Top .Logo {
+    width: 68px;
+    height: 68px;
+    background-size: contain;
+    background-position: center;
+    margin: 0 auto;
+  }
+  .CollectiveCard .Middle {
+    height: 164px;
+    border-top: 3px solid #46b0ed;
+    border-bottom: solid 1px #e6e9eb;
+    padding: 24px 14px;
+    box-sizing: border-box;
+    text-align: center;
+  }
+  .CollectiveCard .Middle h2 {
+    font-family: Helvetica;
+    font-size: 16px;
+    font-weight: bold;
+    line-height: 1.38;
+    text-align: center;
+    color: #494b4d;
+    margin-bottom: 16px;
+  }
+  .CollectiveCard .Middle p {
+    font-family: Helvetica;
+    font-size: 12px;
+    line-height: 1.67;
+    color: #6d7073;
+    max-height: 82px;
+    overflow: hidden;
+  }
+  .CollectiveCard .Bottom {
+    height: 68px;
+    clear: both;
+    padding: 16px;
+    box-sizing: border-box;
+  }
+  .CollectiveCard .Metric {
+    float: left;
+    box-sizing: border-box;
+  }
+  .CollectiveCard .Metric .Amount {
+    font-family: Helvetica;
+    font-size: 16px;
+    line-height: 1.38;
+    text-align: center;
+    color: #6d7073;
+    margin-bottom: 1px;
+  }
+  .CollectiveCard .Metric .Label {
+    font-family: Helvetica;
+    font-size: 9px;
+    font-weight: bold;
+    text-align: center;
+    color: #919599;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .CollectiveCard .Bottom .AnnualBudget {
+    width: 50%;
+    float: right;
+  }
+</style>
+
+<a href='//opencollective.com/{{slug}}?{{@root.utm}}'>
+  <div class='CollectiveCard'>
+    <div class='Top' style='background-image: url({{backgroundImage}})'>
+      <div class='Logo' style='background-image: url({{logo}})'></div>
+    </div>
+    <div class='Middle'>
+      <h2>{{name}}</h2>
+      <p>{{mission}}</p>
+    </div>
+    {{#if yearlyIncome}}
+    <div class='Bottom'>
+      <div class='Metric BackerCount'>
+        <div class='Amount'>{{totalDonations}}</div>
+        <div class='Label'>{{tier}}</div>
+      </div>
+      <div class='Metric AnnualBudget'>
+        <div class='Amount'>{{{currency yearlyIncome currency=currency}}}</div>
+        <div class='Label'>annual budget</div>
+      </div>
+    </div>
+    {{/if}}
+  </div>
+</a>
