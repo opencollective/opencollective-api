@@ -203,8 +203,7 @@ const generateEmailFromTemplate = (template, recipient, data, options = {}) => {
     }
   }
 
-  if (template === 'group.transaction.created') {
-    template = (data.transaction.amount > 0) ? 'group.donation.created' : 'group.expense.paid';
+  if (template === 'group.donation.created') {
     if (data.user && data.user.twitterHandle) {
       const groupMention = (data.group.twitterHandle) ? `@${data.group.twitterHandle}` : data.group.name;
       const text = `Hi @${data.user.twitterHandle} thanks for your donation to ${groupMention} https://opencollective.com/${data.group.slug} 🎉😊`;
@@ -249,9 +248,6 @@ const sendMessageFromActivity = (activity, notification) => {
   const userEmail = notification && notification.User ? notification.User.email : activity.data.user.email;
 
   switch (activity.type) {
-    case activities.GROUP_TRANSACTION_CREATED:
-      return generateEmailFromTemplateAndSend('group.transaction.created', userEmail, data);
-
     case activities.GROUP_EXPENSE_CREATED:
       data.actions = {
         approve: notification.User.generateLoginLink(`/${data.group.slug}/expenses/${data.expense.id}/approve`),
