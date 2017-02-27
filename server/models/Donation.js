@@ -1,4 +1,3 @@
-import { processPayment } from '../lib/payments';
 import { type } from '../constants/transactions';
 
 const donationType = type.DONATION;
