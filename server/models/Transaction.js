@@ -154,7 +154,7 @@ export default (Sequelize, DataTypes) => {
             GroupId: transaction.GroupId,
             UserId: transaction.UserId,
             data: {
-              transaction: transaction.get(),
+              transaction: transaction.info,
               user: transaction.User && transaction.User.minimal,
               group: transaction.Group && transaction.Group.minimal
             }
