@@ -11,7 +11,7 @@ import paypalAdaptive from '../server/gateways/paypalAdaptive';
 
 const application = utils.data('application');
 
-describe.only('paypal.preapproval.routes.test.js', () => {
+describe('paypal.preapproval.routes.test.js', () => {
 
   let user, user2, sandbox;
 
