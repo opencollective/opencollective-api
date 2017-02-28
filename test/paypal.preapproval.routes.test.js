@@ -1,4 +1,3 @@
-import _ from 'lodash';
 import Promise from 'bluebird';
 import app from '../server/index';
 import async from 'async';

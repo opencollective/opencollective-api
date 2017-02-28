@@ -1,4 +1,3 @@
-import async from 'async';
 import config from 'config';
 import moment from 'moment';
 import models from '../models';
