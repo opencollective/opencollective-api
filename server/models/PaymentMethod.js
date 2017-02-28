@@ -33,6 +33,12 @@ export default function(Sequelize, DataTypes) {
     confirmedAt: {
       type: DataTypes.DATE
     },
+    startDate: {
+      type: DataTypes.DATE
+    },
+    endDate: {
+      type: DataTypes.DATE
+    },
     UserId: {
       type: DataTypes.INTEGER,
       references: {
@@ -55,8 +61,8 @@ export default function(Sequelize, DataTypes) {
           createdAt: this.createdAt,
           updatedAt: this.updatedAt,
           confirmedAt: this.confirmedAt,
-          amountRemaining: this.data && this.data.amountRemaining,
-          amountUsed: this.data && this.data.amountUsed
+          startDate: this.startDate,
+          endDate: this.endDate
         };
       }
     },

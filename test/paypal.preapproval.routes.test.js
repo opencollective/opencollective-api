@@ -11,7 +11,7 @@ import paypalAdaptive from '../server/gateways/paypalAdaptive';
 
 const application = utils.data('application');
 
-describe('paypal.preapproval.routes.test.js', () => {
+describe.only('paypal.preapproval.routes.test.js', () => {
 
   let user, user2, sandbox;
 
@@ -159,9 +159,7 @@ describe('paypal.preapproval.routes.test.js', () => {
               expect(res.rows[0].service).to.equal('paypal');
               expect(res.rows[0].number).to.equal(mock.completed.senderEmail);
               expect(res.rows[0].UserId).to.equal(user.id);
-              expect(res.rows[0].data.maxTotalAmountOfAllPayments).to.equal(200000);
               expect(res.rows[0].data.amountUsed).to.equal(0);
-              expect(res.rows[0].data.amountRemaining).to.equal(200000);
             })
             .then(() => models.Activity.findAndCountAll({where: {type: 'user.paymentMethod.created'} }))
             .then(res => {

@@ -24,24 +24,24 @@ export const getDetails = function(req, res, next) {
  * Get a preapproval key for a user.
  */
 export const getPreapprovalKey = function(req, res, next) {
-  // TODO: The cancel URL doesn't work - no routes right now.
+
   const uri = `/users/${req.remoteUser.id}/paypal/preapproval/`;
   const baseUrl = config.host.website + uri;
+  // TODO: The cancel URL doesn't work - no routes right now.
   const cancelUrl = req.query.cancelUrl || (`${baseUrl}/cancel`);
   const returnUrl = req.query.returnUrl || (`${baseUrl}/success`);
-  const endingDate = (req.query.endingDate && (new Date(req.query.endingDate)).toISOString()) || moment().add(1, 'years').toISOString();
+  const startDate = new Date();
+  const endDate = (req.query.endingDate && (new Date(req.query.endingDate))) || moment().add(1, 'years');
   
-  const maxTotalAmountOfAllPayments = req.query.maxTotalAmountOfAllPayments || 2000; // 2000 is the maximum: https://developer.paypal.com/docs/classic/api/adaptive-payments/Preapproval_API_Operation/
-
   const payload = {
     currencyCode: 'USD', // TODO: figure out if there is a reliable way to specify correct currency for a HOST.
-    startingDate: new Date().toISOString(),
-    endingDate,
+    startingDate: startDate.toISOString(),
+    endingDate: endDate.toISOString(),
     returnUrl,
     cancelUrl,
-    displayMaxTotalAmount: true,
+    displayMaxTotalAmount: false,
     feesPayer: 'SENDER',
-    maxTotalAmountOfAllPayments,
+    maxAmountPerPayment: 2500.00, 
     clientDetails: req.remoteUser.id
   };
 
@@ -52,7 +52,9 @@ export const getPreapprovalKey = function(req, res, next) {
   .then(response => PaymentMethod.create({
     service: 'paypal',
     UserId: req.remoteUser.id,
-    token: response.preapprovalKey
+    token: response.preapprovalKey,
+    startDate,
+    endDate
   }))
   .then(() => res.json(response))
   .catch(next);
@@ -73,7 +75,9 @@ export const confirmPreapproval = function(req, res, next) {
     }
   })
   .tap(pm => paymentMethod = pm)
-  .then(pm => pm ? Promise.resolve() : Promise.reject(new errors.NotFound('This preapprovalKey does not exist.')))
+  .then(pm => pm ? 
+    Promise.resolve() : 
+    Promise.reject(new errors.NotFound('This preapprovalKey does not exist.')))
 
   .then(() => getPreapprovalDetailsAndUpdatePaymentMethod(req.params.preapprovalkey, req.remoteUser.id, paymentMethod))
 
@@ -94,6 +98,7 @@ export const confirmPreapproval = function(req, res, next) {
       token: {$ne: req.params.preapprovalkey}
     }
   }))
+  // TODO: Call paypal to cancel preapproval keys before marking as deleted.
   .then(oldPMs => oldPMs && oldPMs.map(pm => pm.destroy()))
 
   .then(() => res.send(paymentMethod.info))
@@ -119,21 +124,12 @@ const getPreapprovalDetailsAndUpdatePaymentMethod = function(preapprovalKey, use
           token: preapprovalKey
         }
       }))
-    .then(paymentMethod => {
-      const maxTotalAmountOfAllPayments = preapprovalDetailsResponse.maxTotalAmountOfAllPayments * 100;
-      const amountUsed = preapprovalDetailsResponse.curPaymentsAmount * 100;
-      const amountRemaining = maxTotalAmountOfAllPayments - preapprovalDetailsResponse.curPaymentsAmount;
-
-      return paymentMethod.update({
+    .then(paymentMethod => paymentMethod.update({
         confirmedAt: new Date(),
         number: preapprovalDetailsResponse.senderEmail,
         data: {
-          preapprovalDetailsResponse,
-          maxTotalAmountOfAllPayments,
-          amountUsed,
-          amountRemaining
+          response: preapprovalDetailsResponse,
         }
-      })
-    })
+      }))
     .then(() => preapprovalDetailsResponse);
 }
