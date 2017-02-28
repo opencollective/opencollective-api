@@ -14,8 +14,19 @@ const application = utils.data('application');
 
 describe('paypal.preapproval.routes.test.js', () => {
 
-  let user;
-  let user2;
+  let user, user2, sandbox;
+
+  before(() => {
+    sandbox = sinon.sandbox.create();
+  });
+
+  after(() => sandbox.restore());
+
+  // Create a stub for clearbit
+  beforeEach((done) => {
+    utils.clearbitStubBeforeEach(sandbox);
+    done();
+  });
 
   beforeEach(() => {
     sinon.stub(paypalAdaptive, 'preapproval', 
@@ -24,6 +35,10 @@ describe('paypal.preapproval.routes.test.js', () => {
 
   afterEach(() => {
     paypalAdaptive.preapproval.restore();
+  });
+
+  afterEach(() => {
+    utils.clearbitStubAfterEach(sandbox);
   });
 
   beforeEach((done) => {
@@ -128,7 +143,7 @@ describe('paypal.preapproval.routes.test.js', () => {
           .end(done);
       });
 
-      it.only('should confirm the payment of a transaction', (done) => {
+      it('should confirm the payment of a transaction', (done) => {
         const mock = paypalMock.adaptive.preapprovalDetails;
         request(app)
           .post(`/users/${user.id}/paypal/preapproval/${preapprovalkey}?api_key=${application.api_key}`)
@@ -203,7 +218,7 @@ describe('paypal.preapproval.routes.test.js', () => {
     describe('Preapproval details', () => {
       beforeEach(() => {
         sinon.stub(paypalAdaptive, 'preapprovalDetails',
-          () => Promise.resolve(paypalMock.adaptive.preapprovalDetails.created));
+          () => Promise.resolve(paypalMock.adaptive.preapprovalDetails.completed));
       });
 
       afterEach(() => {
@@ -236,6 +251,15 @@ describe('paypal.preapproval.routes.test.js', () => {
           UserId: user.id,
           token: 'blah'
         })
+      });
+
+      beforeEach(() => {
+        sinon.stub(paypalAdaptive, 'preapprovalDetails',
+          () => Promise.resolve(paypalMock.adaptive.preapprovalDetails.completed));
+      });
+
+      afterEach(() => {
+        paypalAdaptive.preapprovalDetails.restore();
       });
 
       it('should delete all other paymentMethods entries in the database to clean up', (done) => {

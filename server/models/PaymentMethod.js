@@ -54,7 +54,9 @@ export default function(Sequelize, DataTypes) {
           service: this.service,
           createdAt: this.createdAt,
           updatedAt: this.updatedAt,
-          confirmedAt: this.confirmedAt
+          confirmedAt: this.confirmedAt,
+          amountRemaining: this.data && this.data.amountRemaining,
+          amountUsed: this.data && this.data.amountUsed
         };
       }
     },
