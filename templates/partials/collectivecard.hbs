@@ -13,6 +13,7 @@
   margin: 0px 6px 8px 2px;
   overflow: hidden;
   text-decoration: none !important;
+  font-family: Helvetica, sans-serif;
 }
 .CollectiveCard-head {
   position: relative;
@@ -113,10 +114,10 @@
         <div class='CollectiveCard-description'>{{mission}}</div>
       </div>
       {{#if totalDonations}}
-        <div class='SponsoredCard-footer'>
-          <div class='SponsoredCard-type'>{{tier}}</div>
-          <div class='SponsoredCard-amount'>{{{currency totalDonations currency=currency}}}</div>
-        </div>
+      <div class='SponsoredCard-footer'>
+        <div class='SponsoredCard-type'>{{tier}}</div>
+        <div class='SponsoredCard-amount'>{{{currency totalDonations currency=currency}}}</div>
+      </div>
       {{/if}}
       {{#if yearlyIncome}}
       <div class='CollectiveCard-footer'>

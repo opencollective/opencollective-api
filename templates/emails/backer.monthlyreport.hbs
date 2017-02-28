@@ -128,21 +128,31 @@
   }
   .Section.Interest .Cards {
     padding-top: 32px;
+    padding-bottom: 32px;
     height: 348px;
+    min-height: 300px;
   }
   .Section.Interest .Cards .CollectiveCard {
-    margin: 0 7px;
+    margin: 0 6px;
+    width: 180px !important;
+    height: auto;
+  }
+  .Section.Interest .Cards .CollectiveCard .CollectiveCard-head { height: 110px;  }
+  .Section.Interest .Cards .CollectiveCard .CollectiveCard-body { height: 164px;  }
+  .Section.Interest .Cards .CollectiveCard .CollectiveCard-name { margin-bottom: 16px;  }
+  .Section.Interest .CollectiveCard:last-child {
+    margin-right: 0 !important;
   }
   .Section.Interest .Cards.CardsCount-2  .CollectiveCard {
-    width: 230px;
+    width: 230px !important;
   }
-  .Section.Interest .Cards.CardsCount-2 a:nth-child(2) .CollectiveCard {
+  .Section.Interest .Cards.CardsCount-2 .CollectiveCard:nth-child(2) {
     float: right;
   }
-  .Section.Interest .Cards.CardsCount-1 a {
+  .Section.Interest .Cards.CardsCount-1 .CollectiveCard {
       margin: 0 auto;
       display: block;
-      width: 230px;
+      width: 230px !important;
   }
   .Section.Interest .Cards.CardsCount-1 .CollectiveCard .Metric {
     width: 50%;
@@ -216,9 +226,11 @@
       height: auto !important;
     }
     .Section.Interest .CollectiveCard {
+      display: block !important;
       float: none !important;
       margin: 0 auto !important;
       margin-bottom: 24px !important;
+      width: 200px !important;
     }
     .Section.Interest a:last-child .CollectiveCard {
       margin-bottom: 0 !important;
@@ -243,7 +255,9 @@
       padding-top: 24px !important;
     }
     .ShowCasedCard {
-      margin: 0 auto !important;
+      display: block !important;
+      margin-left: auto !important;
+      margin-right: auto !important;
     }
   }
 </style>
@@ -272,7 +286,7 @@
         <h3>Collectives that might interest you:</h3>
         <div class='Cards CardsCount-{{relatedGroups.length}}'>
           {{#each relatedGroups}}
-          {{>mr-collectivecard}}
+            {{> collectivecard}}
           {{/each}}
         </div>
       </div>

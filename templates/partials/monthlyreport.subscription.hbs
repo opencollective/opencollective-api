@@ -107,8 +107,8 @@
     box-sizing: border-box;
   }
   .Subscriptions .ShowCasedCard  .Top .Logo {
-    width: 68px;
     height: 68px;
+    background-repeat: no-repeat;
     background-size: contain;
     background-position: center;
     margin: 0 auto;
@@ -163,7 +163,7 @@
   <div class='RightSide'>
     <a href='//opencollective.com/{{slug}}?{{@root.utm}}'>
       <div class='ShowCasedCard'>
-        <div class='Top' style='background-image: {{group.settings.style.hero.cover.backgroundImage}};'>
+        <div class='Top' style="background-image:url('{{resizeImage group.backgroundImage width=320}}');{{#if group.settings.style.hero.cover.background}}background-color:{{group.settings.style.hero.cover.background}};{{/if}}">
           <div class='Logo' style='background-image: url({{group.logo}})'></div>
         </div>
         <div class='Bottom'>

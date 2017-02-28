@@ -17,7 +17,8 @@
     background-position: 50%;
   }
   .CollectiveCard .Top .Logo {
-    width: 68px;
+    background-repeat: no-repeat;
+    width: auto;
     height: 68px;
     background-size: contain;
     background-position: center;
@@ -65,6 +66,7 @@
     text-align: center;
     color: #6d7073;
     margin-bottom: 1px;
+    min-height: 22px;
   }
   .CollectiveCard .Metric .Label {
     font-family: Helvetica;
@@ -88,7 +90,9 @@
       <div class='Logo' style='background-image: url({{logo}})'></div>
     </div>
     <div class='Middle'>
+      {{#if name}}
       <h2>{{name}}</h2>
+      {{/if}}
       <p>{{mission}}</p>
     </div>
     {{#if yearlyIncome}}
