@@ -52,7 +52,6 @@ const toplogo = fs.readFileSync(`${templatesPath}/partials/toplogo.hbs`, 'utf8')
 const relatedgroups = fs.readFileSync(`${templatesPath}/partials/relatedgroups.hbs`, 'utf8');
 const collectivecard = fs.readFileSync(`${templatesPath}/partials/collectivecard.hbs`, 'utf8');
 const chargeDateNotice = fs.readFileSync(`${templatesPath}/partials/charge_date_notice.hbs`, 'utf8');
-const mthReportCollectiveCard = fs.readFileSync(`${templatesPath}/partials/monthlyreport.collectivecard.hbs`, 'utf8');
 const mthReportFooter = fs.readFileSync(`${templatesPath}/partials/monthlyreport.footer.hbs`, 'utf8');
 const mthReportSubscription= fs.readFileSync(`${templatesPath}/partials/monthlyreport.subscription.hbs`, 'utf8');
 
@@ -64,7 +63,6 @@ handlebars.registerPartial('toplogo', toplogo);
 handlebars.registerPartial('collectivecard', collectivecard);
 handlebars.registerPartial('relatedgroups', relatedgroups);
 handlebars.registerPartial('charge_date_notice', chargeDateNotice);
-handlebars.registerPartial('mr-collectivecard', mthReportCollectiveCard);
 handlebars.registerPartial('mr-footer', mthReportFooter);
 handlebars.registerPartial('mr-subscription', mthReportSubscription);
 
