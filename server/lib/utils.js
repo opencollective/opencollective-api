@@ -343,8 +343,7 @@ export function resizeImage(imageUrl, { width, height, query, defaultImage }) {
   if (!imageUrl) {
     if (defaultImage) {
       imageUrl = (defaultImage.substr(0,1) === '/') ? `${config.host.website}${defaultImage}` : defaultImage;
-    }
-    else {
+    } else {
       return null;
     }
   }
