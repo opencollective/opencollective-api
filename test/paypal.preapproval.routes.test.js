@@ -159,7 +159,6 @@ describe('paypal.preapproval.routes.test.js', () => {
               expect(res.rows[0].service).to.equal('paypal');
               expect(res.rows[0].number).to.equal(mock.completed.senderEmail);
               expect(res.rows[0].UserId).to.equal(user.id);
-              expect(res.rows[0].data.amountUsed).to.equal(0);
             })
             .then(() => models.Activity.findAndCountAll({where: {type: 'user.paymentMethod.created'} }))
             .then(res => {
