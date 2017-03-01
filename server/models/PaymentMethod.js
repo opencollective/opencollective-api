@@ -62,7 +62,8 @@ export default function(Sequelize, DataTypes) {
           updatedAt: this.updatedAt,
           confirmedAt: this.confirmedAt,
           startDate: this.startDate,
-          endDate: this.endDate
+          endDate: this.endDate,
+          number: this.number
         };
       }
     },
