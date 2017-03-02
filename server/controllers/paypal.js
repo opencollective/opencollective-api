@@ -16,7 +16,7 @@ export const getDetails = function(req, res, next) {
   const preapprovalKey = req.params.preapprovalkey;
 
   return getPreapprovalDetailsAndUpdatePaymentMethod(preapprovalKey, req.remoteUser.id)
-    .then(res.json)
+    .then(response => res.json(response))
     .catch(next);
 };
 
@@ -109,7 +109,6 @@ export const confirmPreapproval = function(req, res, next) {
 const getPreapprovalDetailsAndUpdatePaymentMethod = function(preapprovalKey, userId, paymentMethod = null) {
 
   let preapprovalDetailsResponse;
-
   return paypalAdaptive.preapprovalDetails(preapprovalKey)
     .tap(response => preapprovalDetailsResponse = response)
     .then(response => response.approved === 'false' ? 
