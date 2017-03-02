@@ -16,7 +16,7 @@ export const getDetails = function(req, res, next) {
   const preapprovalKey = req.params.preapprovalkey;
 
   return getPreapprovalDetailsAndUpdatePaymentMethod(preapprovalKey, req.remoteUser.id)
-    .then(response => res.json(response))
+    .then(res.json)
     .catch(next);
 };
 
@@ -30,13 +30,12 @@ export const getPreapprovalKey = function(req, res, next) {
   // TODO: The cancel URL doesn't work - no routes right now.
   const cancelUrl = req.query.cancelUrl || (`${baseUrl}/cancel`);
   const returnUrl = req.query.returnUrl || (`${baseUrl}/success`);
-  const startDate = new Date();
-  const endDate = (req.query.endingDate && (new Date(req.query.endingDate))) || moment().add(1, 'years');
+  const expiryDate = (req.query.endingDate && (new Date(req.query.endingDate))) || moment().add(1, 'years');
   
   const payload = {
     currencyCode: 'USD', // TODO: figure out if there is a reliable way to specify correct currency for a HOST.
-    startingDate: startDate.toISOString(),
-    endingDate: endDate.toISOString(),
+    startingDate: new Date().toISOString(),
+    endingDate: expiryDate.toISOString(),
     returnUrl,
     cancelUrl,
     displayMaxTotalAmount: false,
@@ -53,8 +52,7 @@ export const getPreapprovalKey = function(req, res, next) {
     service: 'paypal',
     UserId: req.remoteUser.id,
     token: response.preapprovalKey,
-    startDate,
-    endDate
+    expiryDate
   }))
   .then(() => res.json(response))
   .catch(next);
@@ -86,7 +84,7 @@ export const confirmPreapproval = function(req, res, next) {
     UserId: req.remoteUser.id,
     data: {
       user: req.remoteUser.minimal,
-      paymentMethod
+      paymentMethod: paymentMethod.minimal()
     }
   }))
   

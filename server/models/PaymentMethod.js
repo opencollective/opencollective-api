@@ -33,10 +33,7 @@ export default function(Sequelize, DataTypes) {
     confirmedAt: {
       type: DataTypes.DATE
     },
-    startDate: {
-      type: DataTypes.DATE
-    },
-    endDate: {
+    expiryDate: {
       type: DataTypes.DATE
     },
     UserId: {
@@ -61,8 +58,19 @@ export default function(Sequelize, DataTypes) {
           createdAt: this.createdAt,
           updatedAt: this.updatedAt,
           confirmedAt: this.confirmedAt,
-          startDate: this.startDate,
-          endDate: this.endDate,
+          expiryDate: this.expiryDate,
+          number: this.number
+        };
+      },
+
+      minimal() {
+        return {
+          id: this.id,
+          service: this.service,
+          createdAt: this.createdAt,
+          updatedAt: this.updatedAt,
+          confirmedAt: this.confirmedAt,
+          expiryDate: this.expiryDate,
           number: this.number
         };
       }
