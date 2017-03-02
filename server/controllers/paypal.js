@@ -84,7 +84,7 @@ export const confirmPreapproval = function(req, res, next) {
     UserId: req.remoteUser.id,
     data: {
       user: req.remoteUser.minimal,
-      paymentMethod: paymentMethod.minimal()
+      paymentMethod: paymentMethod.minimal
     }
   }))
   
