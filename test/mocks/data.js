@@ -168,13 +168,17 @@ export default {
 
   "paymentMethod1": {
     "token": "PA-1B0110758V169653C",
-    "service": "paypal"
+    "service": "paypal",
+    "startDate": "2017-01-30T07:31:37.747Z",
+    "endDate": "2018-01-30T07:31:37.747Z",
+    "confirmedAt": "2017-01-30T07:31:37.747Z"
   },
 
   "paymentMethod2": {
     "token": "stripetoken123",
     "service": "stripe",
-    "customerId": "cus_123"
+    "customerId": "cus_123",
+    "confirmedAt": "2017-01-30T07:31:37.747Z"
   },
 
   "activities1": {
@@ -200,7 +204,7 @@ export default {
             "email":"john@doe.com"
             },
           "transaction": {
-            "isDonation": true,
+            "type": "DONATION",
             "amount":1042,
             "currency": "USD"
             },
@@ -220,7 +224,7 @@ export default {
             "email":"john@doe.com"
             },
           "transaction": {
-            "isExpense": true,
+            "type": "EXPENSE",
             "amount":-1298,
             "currency": "USD",
             "description": "pizza"
@@ -241,7 +245,7 @@ export default {
             "email":"john@doe.com"
             },
           "transaction": {
-            "isExpense": true,
+            "type": "EXPENSE",
             "amount":-1298,
             "currency": "USD",
             "description": "pizza"
@@ -272,6 +276,7 @@ export default {
             "email":"jussi@kuohujoki.fi"
           },
           "transaction": {
+            "type": "DONATION",
             "amount": 1234,
             "currency": "EUR"
           },
@@ -516,7 +521,7 @@ export default {
   "emailData": {
     "transaction": {
       "id": 1,
-      "type": "payment",
+      "type": "DONATION",
       "description": "Donation to Scouts d'Arlon",
       "amount": 10.99,
       "vat": null,
@@ -527,9 +532,7 @@ export default {
       "link": null,
       "createdAt": "2016-01-30T07:31:37.965Z",
       "UserId": 1,
-      "GroupId": 1,
-      "isExpense": false,
-      "isDonation": true
+      "GroupId": 1
     },
 
     "user": {

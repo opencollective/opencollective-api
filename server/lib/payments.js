@@ -235,8 +235,7 @@ export const processPayment = (donation) => {
             return emailLib.send(
               'ticket.confirmed',
               user.email,
-              {
-                donation: donation.info,
+              { donation: donation.info,
                 user: user.info,
                 group: group.info,
                 response: eventResponse.info,
@@ -246,21 +245,20 @@ export const processPayment = (donation) => {
           } else {
             // normal donation
             return group.getRelatedGroups(2, 0)
-              .then((relatedGroups) => emailLib.send(
-                'thankyou',
-                user.email,
-                {
-                  donation: donation.info,
-                  user: user.info,
-                  group: group.info,
-                  relatedGroups,
-                  interval: subscription && subscription.interval,
-                  firstPayment: true,
-                  subscriptionsLink: user.generateLoginLink('/subscriptions')
-                }));
+            .then((relatedGroups) => emailLib.send(
+              'thankyou',
+              user.email,
+              { donation: donation.info,
+                user: user.info,
+                group: group.info,
+                relatedGroups,
+                interval: subscription && subscription.interval,
+                monthlyInterval: subscription && subscription.interval && (subscription.interval.indexOf('month') !== -1),
+                firstPayment: true,
+                subscriptionsLink: user.generateLoginLink('/subscriptions')
+              }));
           }
-        })
-
+      })
     }
   };
 

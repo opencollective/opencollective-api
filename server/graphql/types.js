@@ -176,7 +176,7 @@ export const CollectiveType = new GraphQLObjectType({
         type: GraphQLString,
         resolve(collective) {
           return collective.getStripeAccount()
-          .then(stripeAccount => stripeAccount && stripeAccount.stripePublishablekey)
+          .then(stripeAccount => stripeAccount && stripeAccount.stripePublishableKey)
         }
       }
     }
@@ -265,7 +265,7 @@ export const EventType = new GraphQLObjectType({
       endsAt: {
         type: GraphQLString,
         resolve(event) {
-          return event.startsAt
+          return event.endsAt
         }
       },
       maxAmount: {
