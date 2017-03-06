@@ -9,11 +9,10 @@ import activities from '../constants/activities';
 import * as transactions from '../constants/transactions';
 import * as stripe from '../gateways/stripe';
 
-/*
+/**
  * Creates payment - records the intent to pay in our system 
  */
-
-export const createPayment = (payload) => {
+const createPayment = (payload) => {
   const {
     user,
     group,
@@ -32,7 +31,7 @@ export const createPayment = (payload) => {
   const isSubscription = _.includes(['month', 'year'], interval);
   let paymentMethod, title;
 
-
+debugger;
   if (interval && !isSubscription) {
     return Promise.reject(new Error('Interval should be month or year.'));
   }
@@ -51,13 +50,13 @@ export const createPayment = (payload) => {
 
   // fetch Stripe Account and get or create Payment Method
   return Promise.props({
-    stripeAccount: group.getStripeAccount(),
-    paymentMethod: models.PaymentMethod.getOrCreate({
-      token: token,
-      service: 'stripe',
-      UserId: user.id
+      stripeAccount: group.getStripeAccount(),
+      paymentMethod: models.PaymentMethod.getOrCreate({
+        token: token,
+        service: 'stripe',
+        UserId: user.id
+      })
     })
-  })
     .then(results => {
       const stripeAccount = results.stripeAccount;
       if (!stripeAccount || !stripeAccount.accessToken) {
@@ -96,7 +95,7 @@ export const createPayment = (payload) => {
       SubscriptionId: subscription && subscription.id,
       ResponseId: response && response.id
     }))
-    .then(processPayment);
+    .then(paymentsLib.processPayment);
 }
 
 /*
@@ -105,7 +104,7 @@ export const createPayment = (payload) => {
  * runs immediatelys after createPayment()
  * Returns a Promise with the transaction created
  */
-export const processPayment = (donation) => {
+const processPayment = (donation) => {
   const services = {
     stripe: (donation) => {
 
@@ -263,16 +262,17 @@ export const processPayment = (donation) => {
   };
 
   return models.Donation.findById(donation.id, {
-    include: [{ model: models.User },
-    { model: models.Group },
-    { model: models.PaymentMethod },
-    { model: models.Subscription },
-    { model: models.Response,
-      include: [{ model: models.Event },
-                { model: models.Tier }]
-    }]
-  })
+      include: [{ model: models.User },
+      { model: models.Group },
+      { model: models.PaymentMethod },
+      { model: models.Subscription },
+      { model: models.Response,
+        include: [{ model: models.Event },
+                  { model: models.Tier }]
+      }]
+    })
     .then(donation => {
+      debugger;
       if (!donation.PaymentMethod || donation.PaymentMethod.service === 'paypal') {
         // for manual add funds and paypal, which isn't processed this way yet
         return donation.update({ isProcessed: true, processedAt: new Date() });
@@ -298,3 +298,10 @@ const getSubscriptionTrialEndDate = (originalDate, interval) => {
     return null;
   }
 }
+
+const paymentsLib = {
+  createPayment,
+  processPayment
+}
+
+export default paymentsLib;
