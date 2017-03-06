@@ -244,10 +244,7 @@ describe('donations.routes.test.js', () => {
             }
           })
           .expect(200)
-          .then((res) => {
-            console.log("res.body", res.body);
-            done();
-          });
+          .end(done);
       });
 
       it('successfully creates a paymentMethod with the UserId', (done) => {
