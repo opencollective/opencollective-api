@@ -31,7 +31,6 @@ const createPayment = (payload) => {
   const isSubscription = _.includes(['month', 'year'], interval);
   let paymentMethod, title;
 
-debugger;
   if (interval && !isSubscription) {
     return Promise.reject(new Error('Interval should be month or year.'));
   }
@@ -272,7 +271,6 @@ const processPayment = (donation) => {
       }]
     })
     .then(donation => {
-      debugger;
       if (!donation.PaymentMethod || donation.PaymentMethod.service === 'paypal') {
         // for manual add funds and paypal, which isn't processed this way yet
         return donation.update({ isProcessed: true, processedAt: new Date() });
