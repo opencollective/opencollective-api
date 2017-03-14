@@ -184,7 +184,7 @@ describe('webhooks.routes.test.js', () => {
       };
 
       request(app)
-        .post(`/groups/${group.id}/payments`)
+        .post(`/groups/${group.id}/donations/stripe`)
         .send({
           api_key: application.api_key,
           payment

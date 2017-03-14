@@ -157,10 +157,6 @@ export default (app) => {
   app.put('/groups/:groupid/settings', auth.canEditGroup, required('group'), groups.updateSettings); // Update group settings
   app.delete('/groups/:groupid', NotImplemented); // Delete a group.
 
-  // TODO: Remove #postmigration after frontend migrates to POST /groups/:groupid/donations/*
-  app.post('/groups/:groupid/payments', required('payment'), mw.getOrCreateUser, donations.post); // Make a payment/donation.
-  // app.post('/groups/:groupid/payments/paypal', required('payment'), donations.paypal); // Make a payment/donation.
-
   app.get('/groups/:groupid/services/meetup/sync', mw.fetchUsers, syncMeetup);
 
   /**
@@ -209,7 +205,8 @@ export default (app) => {
    * Donations
    */
   app.get('/groups/:groupid/donations', mw.paginate(), mw.sorting({key: 'processedAt', dir: 'DESC'}), donations.list); // Callback after a payment
-  app.post('/groups/:groupid/donations', required('payment'), mw.getOrCreateUser, donations.post); // Make a stripe donation.
+  app.post('/groups/:groupid/donations/stripe', required('donation'), mw.getOrCreateUser, donations.stripe); // Make a stripe donation.
+  app.post('/groups/:groupid/donations/manual', required('donation'), auth.mustHaveRole(roles.HOST), donations.manual); // Create a manual donation.
   // app.post('/groups/:groupid/donations/paypal', required('payment'), donations.paypal); // Make a paypal donation.
   // app.get('/groups/:groupid/transactions/:paranoidtransactionid/callback', donations.paypalCallback); // Callback after a payment
 
