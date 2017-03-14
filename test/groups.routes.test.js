@@ -409,10 +409,13 @@ describe('groups.routes.test.js', () => {
       // Create transactions for publicGroup.
       beforeEach('create transactions for public group', (done) => {
         async.each(transactionsData, (transaction, cb) => {
-          if (transaction.amount < 0)
+          if (transaction.amount < 0) {
             totTransactions += transaction.amount;
-          else
+            transaction.netAmountInGroupCurrency = transaction.amount * -1;
+          } else {
             totDonations += transaction.amount;
+            transaction.netAmountInGroupCurrency = transaction.amount;
+          }
 
           request(app)
             .post(`/groups/${publicGroup.id}/transactions`)
@@ -441,7 +444,7 @@ describe('groups.routes.test.js', () => {
           SubscriptionId: subscription.id
         }))
         .then(donation => models.Transaction.createFromPayload({
-            transaction: Object.assign({}, transactionsData[7], { DonationId: donation.id}),
+            transaction: Object.assign({}, transactionsData[7], { netAmountInGroupCurrency: 999, DonationId: donation.id}),
             user,
             group: publicGroup,
           })));

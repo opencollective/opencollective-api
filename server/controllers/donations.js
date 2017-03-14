@@ -38,7 +38,7 @@ export const stripe = (req, res, next) => {
     user,
     group,
     donation: {
-      token: stripeToken,
+      stripeToken,
       amount,
       currency,
       description,

@@ -107,7 +107,7 @@ describe('lib.payments.createPayment.test.js', () => {
         return paymentsLib.createPayment({ 
           user, 
           group, 
-          payment: {
+          donation: {
             amount: AMOUNT, 
             currency: CURRENCY,
           }})
@@ -118,10 +118,10 @@ describe('lib.payments.createPayment.test.js', () => {
         return paymentsLib.createPayment({ 
           user, 
           group, 
-          payment: {
+          donation: {
             amount: AMOUNT, 
             currency: CURRENCY,
-            token: STRIPE_TOKEN,
+            stripeToken: STRIPE_TOKEN,
             interval: 'something'
           }})
         .catch(err => expect(err.message).to.equal('Interval should be month or year.'));
@@ -131,9 +131,9 @@ describe('lib.payments.createPayment.test.js', () => {
         return paymentsLib.createPayment({ 
           user, 
           group, 
-          payment: {
+          donation: {
             currency: CURRENCY,
-            token: STRIPE_TOKEN,
+            stripeToken: STRIPE_TOKEN,
           }})
         .catch(err => expect(err.message).to.equal('Payment amount missing'));
       });
@@ -142,9 +142,9 @@ describe('lib.payments.createPayment.test.js', () => {
         return paymentsLib.createPayment({ 
           user, 
           group, 
-          payment: {
+          donation: {
             currency: CURRENCY,
-            token: STRIPE_TOKEN,
+            stripeToken: STRIPE_TOKEN,
             amount: 35
           }})
         .catch(err => expect(err.message).to.equal('Payment amount must be at least $0.50'));
@@ -160,8 +160,8 @@ describe('lib.payments.createPayment.test.js', () => {
           .then(() => paymentsLib.createPayment({
             user,
             group,
-            payment: {
-              token: STRIPE_TOKEN,
+            donation: {
+              stripeToken: STRIPE_TOKEN,
               amount: AMOUNT,
               currency: CURRENCY
             }
@@ -176,8 +176,8 @@ describe('lib.payments.createPayment.test.js', () => {
           .then(() => paymentsLib.createPayment({
             user,
             group,
-            payment: {
-              token: STRIPE_TOKEN,
+            donation: {
+              stripeToken: STRIPE_TOKEN,
               amount: AMOUNT,
               currency: CURRENCY
             }
@@ -195,8 +195,8 @@ describe('lib.payments.createPayment.test.js', () => {
             beforeEach(() => paymentsLib.createPayment({
               user,
               group,
-              payment: {
-                token: STRIPE_TOKEN,
+              donation: {
+                stripeToken: STRIPE_TOKEN,
                 amount: AMOUNT,
                 currency: CURRENCY,
               }
@@ -237,8 +237,8 @@ describe('lib.payments.createPayment.test.js', () => {
             beforeEach(() => paymentsLib.createPayment({
               user,
               group,
-              payment: {
-                token: STRIPE_TOKEN,
+              donation: {
+                stripeToken: STRIPE_TOKEN,
                 amount: AMOUNT,
                 currency: CURRENCY,
               }
@@ -248,8 +248,8 @@ describe('lib.payments.createPayment.test.js', () => {
               return paymentsLib.createPayment({
                 user,
                 group,
-                payment: {
-                  token: STRIPE_TOKEN,
+                donation: {
+                  stripeToken: STRIPE_TOKEN,
                   amount: AMOUNT2,
                   currency: CURRENCY,
                 }
@@ -286,8 +286,8 @@ describe('lib.payments.createPayment.test.js', () => {
             return paymentsLib.createPayment({
               user: user2,
               group: group2,
-              payment: {
-                token: STRIPE_TOKEN,
+              donation: {
+                stripeToken: STRIPE_TOKEN,
                 amount: AMOUNT2,
                 currency: CURRENCY,
                 interval: 'month'

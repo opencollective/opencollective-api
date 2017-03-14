@@ -28,7 +28,7 @@ const {
   User
 } = models;
 
-describe.only('expenses.routes.test.js', () => {
+describe('expenses.routes.test.js', () => {
   let sandbox, host, member, otherUser, expenseFiler, group, emailSendMessageSpy;
 
   before(() => {
@@ -39,7 +39,7 @@ describe.only('expenses.routes.test.js', () => {
   after(() => sandbox.restore());
 
   // Create a stub for clearbit
-  beforeEach(() => utils.clearbitStubBeforeEach(sandbox));
+  before(() => utils.clearbitStubBeforeEach(sandbox));
 
   beforeEach(() => utils.resetTestDB());
 
@@ -56,8 +56,6 @@ describe.only('expenses.routes.test.js', () => {
   beforeEach(() => group.addUserWithRole(host, roles.HOST));
 
   beforeEach(() => group.addUserWithRole(member, roles.MEMBER));
-
-  afterEach(() => utils.clearbitStubAfterEach(sandbox));
 
   describe('WHEN expense does not exist', () => {
     let req;
@@ -208,7 +206,7 @@ describe.only('expenses.routes.test.js', () => {
           it('THEN a group.expense.created activity is created', () =>
             expectExpenseActivity('group.expense.created', actualExpense.id));
 
-          it.only('THEN an email notification is sent', (done) => {
+          it('THEN an email notification is sent', (done) => {
             expect(emailSendMessageSpy.firstCall.args[1]).to.contain(actualExpense.title);
             expect(emailSendMessageSpy.firstCall.args[2]).to.contain(actualExpense.attachment);
             done();

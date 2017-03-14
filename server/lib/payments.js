@@ -21,7 +21,7 @@ const createPayment = (payload) => {
   } = payload;
 
   const {
-    token,
+    stripeToken,
     amount,
     currency,
     description,
@@ -35,7 +35,7 @@ const createPayment = (payload) => {
     return Promise.reject(new Error('Interval should be month or year.'));
   }
 
-  if (!token) {
+  if (!stripeToken) {
     return Promise.reject(new Error('Stripe Token missing.'));
   }
 
@@ -51,7 +51,7 @@ const createPayment = (payload) => {
   return Promise.props({
       stripeAccount: group.getStripeAccount(),
       paymentMethod: models.PaymentMethod.getOrCreate({
-        token: token,
+        token: stripeToken,
         service: 'stripe',
         UserId: user.id
       })
