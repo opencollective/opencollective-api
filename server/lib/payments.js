@@ -17,7 +17,7 @@ const createPayment = (payload) => {
     user,
     group,
     response,
-    payment
+    donation
   } = payload;
 
   const {
@@ -26,7 +26,7 @@ const createPayment = (payload) => {
     currency,
     description,
     interval
-  } = payment;
+  } = donation;
 
   const isSubscription = _.includes(['month', 'year'], interval);
   let paymentMethod, title;

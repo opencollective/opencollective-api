@@ -28,7 +28,7 @@ const STRIPE_TOKEN = 'superStripeToken';
 /*
  * Tests
  */
-describe('lib.donation.test.js', () => {
+describe('lib.payments.processPayment.test.js', () => {
   let user, user2, group, sandbox, processPaymentSpy, emailSendSpy;
 
   before(() => {
@@ -340,7 +340,7 @@ describe('lib.donation.test.js', () => {
         group
           .getUsers()
           .then((users) => {
-            expect(users).to.have.length(2);
+            expect(users).to.have.length(3);
             const backer = _.find(users, {email: user.email});
             expect(backer.UserGroup.role).to.equal(roles.BACKER);
             done();
@@ -480,7 +480,7 @@ describe('lib.donation.test.js', () => {
             group
               .getUsers()
               .then((users) => {
-                expect(users).to.have.length(2);
+                expect(users).to.have.length(3);
                 const backer = _.find(users, {email: user.email});
                 expect(backer.UserGroup.role).to.equal(roles.BACKER);
                 done();
@@ -545,7 +545,7 @@ describe('lib.donation.test.js', () => {
             group
               .getUsers()
               .then((users) => {
-                expect(users).to.have.length(2);
+                expect(users).to.have.length(3);
                 const backer = _.find(users, {email: user.email});
                 expect(backer.UserGroup.role).to.equal(roles.BACKER);
                 done();
@@ -655,7 +655,7 @@ describe('lib.donation.test.js', () => {
             group
               .getUsers()
               .then((users) => {
-                expect(users).to.have.length(2);
+                expect(users).to.have.length(3);
                 const backer = _.find(users, {email: user.email});
                 expect(backer.UserGroup.role).to.equal(roles.BACKER);
                 done();
@@ -720,7 +720,7 @@ describe('lib.donation.test.js', () => {
             group
               .getUsers()
               .then((users) => {
-                expect(users).to.have.length(2);
+                expect(users).to.have.length(3);
                 const backer = _.find(users, {email: user.email});
                 expect(backer.UserGroup.role).to.equal(roles.BACKER);
                 done();

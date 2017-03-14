@@ -17,7 +17,7 @@ const application = utils.data('application');
 const userData = utils.data('user3');
 const groupData = utils.data('group2');
 
-describe('lib.createPayment.test.js', () => {
+describe('lib.payments.createPayment.test.js', () => {
   let user, user2, group, group2, sandbox;
 
   before(() => {
