@@ -58,9 +58,7 @@ describe('donations.routes.test.js', () => {
       });
   });
 
-  afterEach(() => {
-    utils.clearbitStubAfterEach(sandbox);
-  });
+  afterEach(() => utils.clearbitStubAfterEach(sandbox));
 
 
   describe('#list', () => {

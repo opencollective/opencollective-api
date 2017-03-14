@@ -28,7 +28,7 @@ const {
   User
 } = models;
 
-describe('expenses.routes.test.js', () => {
+describe.only('expenses.routes.test.js', () => {
   let sandbox, host, member, otherUser, expenseFiler, group, emailSendMessageSpy;
 
   before(() => {
@@ -37,6 +37,9 @@ describe('expenses.routes.test.js', () => {
   });
 
   after(() => sandbox.restore());
+
+  // Create a stub for clearbit
+  beforeEach(() => utils.clearbitStubBeforeEach(sandbox));
 
   beforeEach(() => utils.resetTestDB());
 
@@ -53,6 +56,8 @@ describe('expenses.routes.test.js', () => {
   beforeEach(() => group.addUserWithRole(host, roles.HOST));
 
   beforeEach(() => group.addUserWithRole(member, roles.MEMBER));
+
+  afterEach(() => utils.clearbitStubAfterEach(sandbox));
 
   describe('WHEN expense does not exist', () => {
     let req;
@@ -203,7 +208,7 @@ describe('expenses.routes.test.js', () => {
           it('THEN a group.expense.created activity is created', () =>
             expectExpenseActivity('group.expense.created', actualExpense.id));
 
-          it('THEN an email notification is sent', (done) => {
+          it.only('THEN an email notification is sent', (done) => {
             expect(emailSendMessageSpy.firstCall.args[1]).to.contain(actualExpense.title);
             expect(emailSendMessageSpy.firstCall.args[2]).to.contain(actualExpense.attachment);
             done();
@@ -596,7 +601,7 @@ describe('expenses.routes.test.js', () => {
                   return request(app)
                     .post(`/groups/${group.id}/transactions`)
                     .set('Authorization', `Bearer ${host.jwt()}`)
-                    .send({ api_key: application.api_key, transaction: {amount: 12000}})
+                    .send({ api_key: application.api_key, transaction: {netAmountInGroupCurrency: 12000}})
                     .expect(200);
                 })
 
@@ -616,7 +621,7 @@ describe('expenses.routes.test.js', () => {
                   return request(app)
                     .post(`/groups/${group.id}/transactions`)
                     .set('Authorization', `Bearer ${host.jwt()}`)
-                    .send({ api_key: application.api_key, transaction: {amount: 12500}})
+                    .send({ api_key: application.api_key, transaction: {netAmountInGroupCurrency: 12500}})
                     .expect(200);
                 })
 
@@ -782,7 +787,7 @@ describe('expenses.routes.test.js', () => {
                   return request(app)
                     .post(`/groups/${group.id}/transactions`)
                     .set('Authorization', `Bearer ${host.jwt()}`)
-                    .send({ api_key: application.api_key, transaction: {amount: 10000}})
+                    .send({ api_key: application.api_key, transaction: {netAmountInGroupCurrency: 10000}})
                     .expect(200);
                 })
 
