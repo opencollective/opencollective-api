@@ -116,7 +116,6 @@ describe('Query Tests', () => {
               id,
               name,
               description,
-              startsAt,
               timezone
             }
           }
@@ -128,7 +127,6 @@ describe('Query Tests', () => {
               description: "January monthly meetup",
               id: 1,
               name: "January meetup",
-              startsAt: "Thu Jan 05 2017 16:00:00 GMT-0500 (EST)",
               timezone: "America/New_York"
             }            
           }
