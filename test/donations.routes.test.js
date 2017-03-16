@@ -177,7 +177,7 @@ describe('donations.routes.test.js', () => {
 
   describe('#createDonation', () => {
 
-    const donation = {
+    const payment = {
       stripeToken: STRIPE_TOKEN,
       amount: AMOUNT,
       currency: CURRENCY,
@@ -190,7 +190,7 @@ describe('donations.routes.test.js', () => {
         .post(`/groups/${group.id}/donations/stripe`)
         .send({
           api_key: application.api_key,
-          donation: Object.assign({}, donation, {email: user.email})
+          payment: Object.assign({}, payment, {email: user.email})
         })
         .expect(200)
         .toPromise()
@@ -198,8 +198,8 @@ describe('donations.routes.test.js', () => {
           expect(createPaymentStub.callCount).to.equal(1);
           expect(createPaymentStub.firstCall.args[0].user.email).to.equal(user.email);
           expect(createPaymentStub.firstCall.args[0].group.slug).to.equal(group.slug);
-          expect(createPaymentStub.firstCall.args[0].donation).to.deep.equal(
-            Object.assign({}, donation, {
+          expect(createPaymentStub.firstCall.args[0].payment).to.deep.equal(
+            Object.assign({}, payment, {
               description: undefined,
               interval: undefined,
               notes: undefined}));
@@ -212,15 +212,15 @@ describe('donations.routes.test.js', () => {
         .post(`/groups/${group.id}/donations/stripe`)
         .send({
           api_key: application.api_key,
-          donation: Object.assign({}, donation, {email: 'anonymous@anon.com'})
+          payment: Object.assign({}, payment, {email: 'anonymous@anon.com'})
         })
         .expect(200)
         .then(() => {
           expect(createPaymentStub.callCount).to.equal(1);
           expect(createPaymentStub.firstCall.args[0].user.email).to.equal('anonymous@anon.com');
           expect(createPaymentStub.firstCall.args[0].group.slug).to.equal(group.slug);
-          expect(createPaymentStub.firstCall.args[0].donation).to.deep.equal(
-            Object.assign({}, donation, {
+          expect(createPaymentStub.firstCall.args[0].payment).to.deep.equal(
+            Object.assign({}, payment, {
               description: undefined,
               interval: undefined,
               notes: undefined}));
@@ -233,15 +233,15 @@ describe('donations.routes.test.js', () => {
         .post(`/groups/${group.id}/donations/stripe`)
         .send({
           api_key: application.api_key,
-          donation: Object.assign({}, donation, {email: user2.email})
+          payment: Object.assign({}, payment, {email: user2.email})
         })
         .expect(200)
         .then(() => {
           expect(createPaymentStub.callCount).to.equal(1);
           expect(createPaymentStub.firstCall.args[0].user.email).to.equal(user2.email);
           expect(createPaymentStub.firstCall.args[0].group.slug).to.equal(group.slug);
-          expect(createPaymentStub.firstCall.args[0].donation).to.deep.equal(
-            Object.assign({}, donation, {
+          expect(createPaymentStub.firstCall.args[0].payment).to.deep.equal(
+            Object.assign({}, payment, {
               description: undefined,
               interval: undefined,
               notes: undefined}));
@@ -254,7 +254,7 @@ describe('donations.routes.test.js', () => {
         .post(`/groups/${group.id}/donations/stripe`)
         .send({
           api_key: application.api_key,
-          donation: Object.assign({}, donation, {
+          payment: Object.assign({}, payment, {
             email: user.email,
             interval: 'month',
             description: 'desc',
@@ -266,8 +266,8 @@ describe('donations.routes.test.js', () => {
           expect(createPaymentStub.callCount).to.equal(1);
           expect(createPaymentStub.firstCall.args[0].user.email).to.equal(user.email);
           expect(createPaymentStub.firstCall.args[0].group.slug).to.equal(group.slug);
-          expect(createPaymentStub.firstCall.args[0].donation).to.deep.equal(
-            Object.assign({}, donation, {
+          expect(createPaymentStub.firstCall.args[0].payment).to.deep.equal(
+            Object.assign({}, payment, {
               description: 'desc',
               interval: 'month',
               notes: 'long notes'}));
@@ -292,7 +292,7 @@ describe('donations.routes.test.js', () => {
             .set('Authorization', `Bearer ${user2.jwt()}`)
             .send({
               api_key: application.api_key,
-              donation: Object.assign({}, donation, {
+              donation: Object.assign({}, payment, {
                 email: user2.email,
               })
             })
@@ -306,7 +306,7 @@ describe('donations.routes.test.js', () => {
             .set('Authorization', `Bearer ${user2.jwt()}`)
             .send({
               api_key: application.api_key,
-              donation: Object.assign({}, donation, {
+              donation: Object.assign({}, payment, {
                 email: user2.email,
               })
             })
@@ -323,7 +323,7 @@ describe('donations.routes.test.js', () => {
               .set('Authorization', `Bearer ${user.jwt()}`)
               .send({
                 api_key: application.api_key,
-                donation: Object.assign({}, donation, {
+                donation: Object.assign({}, payment, {
                   email: user.email,
                   amount: null
                 })
@@ -337,7 +337,7 @@ describe('donations.routes.test.js', () => {
               .set('Authorization', `Bearer ${user.jwt()}`)
               .send({
                 api_key: application.api_key,
-                donation: Object.assign({}, donation, {
+                donation: Object.assign({}, payment, {
                   email: user.email,
                   amount: 0
                 })
@@ -354,7 +354,7 @@ describe('donations.routes.test.js', () => {
               .set('Authorization', `Bearer ${user.jwt()}`)
               .send({
                 api_key: application.api_key,
-                donation: Object.assign({}, donation, {
+                donation: Object.assign({}, payment, {
                   email: user.email,
                   description: 'desc',
                   notes: 'long notes'
@@ -381,7 +381,7 @@ describe('donations.routes.test.js', () => {
               .set('Authorization', `Bearer ${user.jwt()}`)
               .send({
                 api_key: application.api_key,
-                donation: Object.assign({}, donation, {
+                donation: Object.assign({}, payment, {
                   email: 'newuser@sponsor.com'
                 })
               })
@@ -409,7 +409,7 @@ describe('donations.routes.test.js', () => {
               .set('Authorization', `Bearer ${user.jwt()}`)
               .send({
                 api_key: application.api_key,
-                donation: Object.assign({}, donation, {
+                donation: Object.assign({}, payment, {
                   email: user2.email,
                 })
               })

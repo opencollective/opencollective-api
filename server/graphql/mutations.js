@@ -139,7 +139,7 @@ const mutations = {
               user,
               group: event.Group,
               response: responseModel,
-              donation: {
+              payment: {
                 stripeToken: response.user.card.token,
                 amount: tier.amount * responseModel.quantity,
                 currency: tier.currency,

@@ -27,17 +27,17 @@ export const list = (req, res, next) => {
 
 export const stripe = (req, res, next) => {
 
-  const { donation } = req.required;
+  const { payment } = req.required;
   const { user } = req;
   const { group } = req;
-  const { amount, interval, stripeToken, description, notes } = donation;
+  const { amount, interval, stripeToken, description, notes } = payment;
 
-  const currency = donation.currency || group.currency;
+  const currency = payment.currency || group.currency;
 
   return paymentsLib.createPayment({
     user,
     group,
-    donation: {
+    payment: {
       stripeToken,
       amount,
       currency,

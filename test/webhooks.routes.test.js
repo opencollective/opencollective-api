@@ -175,7 +175,7 @@ describe('webhooks.routes.test.js', () => {
 
     // Now we make the donation using above beforeEach calls
     beforeEach('Make the donation', (done) => {
-      const donation = {
+      const payment = {
         stripeToken: STRIPE_TOKEN,
         amount: webhookSubscription.amount,
         currency: CURRENCY,
@@ -187,7 +187,7 @@ describe('webhooks.routes.test.js', () => {
         .post(`/groups/${group.id}/donations/stripe`)
         .send({
           api_key: application.api_key,
-          donation
+          payment
         })
         .expect(200)
         .end((err, res) => {

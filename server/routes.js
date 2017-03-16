@@ -205,7 +205,7 @@ export default (app) => {
    * Donations
    */
   app.get('/groups/:groupid/donations', mw.paginate(), mw.sorting({key: 'processedAt', dir: 'DESC'}), donations.list); // Callback after a payment
-  app.post('/groups/:groupid/donations/stripe', required('donation'), mw.getOrCreateUser, donations.stripe); // Make a stripe donation.
+  app.post('/groups/:groupid/donations/stripe', required('payment'), mw.getOrCreateUser, donations.stripe); // Make a stripe donation.
   app.post('/groups/:groupid/donations/manual', required('donation'), auth.mustHaveRole(roles.HOST), donations.manual); // Create a manual donation.
   // app.post('/groups/:groupid/donations/paypal', required('payment'), donations.paypal); // Make a paypal donation.
   // app.get('/groups/:groupid/transactions/:paranoidtransactionid/callback', donations.paypalCallback); // Callback after a payment

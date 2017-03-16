@@ -116,8 +116,8 @@ export const getOrCreateUser = (req, res, next) => {
   } else if (req.body.user) {
     ({ name } = req.body.user);
     ({ email } = req.body.user);
-  } else if (req.body.donation) {
-    ({ email } = req.body.donation);
+  } else if (req.body.payment) {
+    ({ email } = req.body.payment);
   } else if (req.body.email) {
     email = req.body.email; // used by /new_login_token
   }
