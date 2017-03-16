@@ -356,7 +356,7 @@ describe('donations.routes.test.js', () => {
                 api_key: application.api_key,
                 donation: Object.assign({}, payment, {
                   email: user.email,
-                  description: 'desc',
+                  title: 'desc',
                   notes: 'long notes'
                 })
               })

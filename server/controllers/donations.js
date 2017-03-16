@@ -58,7 +58,7 @@ export const manual = (req, res, next) => {
   const { donation } = req.required;
   const { remoteUser } = req;
   const { group } = req;
-  const { amount, description, notes } = donation;
+  const { amount, title, notes } = donation;
 
   if (!amount || amount < 0) {
     return Promise.reject(new Error('Amount must be greater than 0'));
@@ -78,7 +78,7 @@ export const manual = (req, res, next) => {
       GroupId: group.id,
       currency: group.currency,
       amount,
-      title: description,
+      title,
       notes
     }))
   .then(paymentsLib.processPayment)
