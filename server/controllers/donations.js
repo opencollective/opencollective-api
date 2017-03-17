@@ -68,7 +68,7 @@ export const manual = (req, res, next) => {
   let promise = Promise.resolve();
 
   // if donation is on someone else's behalf, find or create that user
-  if (donation.email !== remoteUser.email) {
+  if (donation.email && donation.email !== remoteUser.email) {
     promise = models.User.findOrCreateByEmail(donation.email, models.User.splitName(donation.name))
     .tap(u => user = u)
   }

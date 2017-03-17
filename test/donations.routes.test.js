@@ -375,6 +375,32 @@ describe('donations.routes.test.js', () => {
               .catch();
           });
 
+          it('calls processPayment successfully when no email is sent with the donation', () => {
+            request(app)
+              .post(`/groups/${group.id}/donations/manual`)
+              .set('Authorization', `Bearer ${user.jwt()}`)
+              .send({
+                api_key: application.api_key,
+                donation: Object.assign({}, payment, {
+                  title: 'desc',
+                  notes: 'long notes'
+                })
+              })
+              .expect(200)
+              .then(() => {
+                expect(processPaymentStub.callCount).to.equal(1);
+                expect(processPaymentStub.firstCall.args[0]).to.contain({
+                  UserId: user.id,
+                  GroupId: group.id,
+                  currency: group.currency,
+                  amount: AMOUNT,
+                  title: 'desc',
+                  notes: 'long notes',
+                });
+              })
+              .catch();
+          });
+
           it('calls processPayment successfully when manual donation is from a new user but submitted by host', () => {
             return request(app)
               .post(`/groups/${group.id}/donations/manual`)
