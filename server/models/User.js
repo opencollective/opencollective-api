@@ -452,7 +452,7 @@ export default (Sequelize, DataTypes) => {
         if (name) {
           const tokens = name.split(' ');
           firstName = tokens[0];
-          lastName = tokens.length > 1 ? tokens.slice(1) : null;
+          lastName = tokens.length > 1 ? tokens.slice(1).join(' ') : null;
         }
         return { firstName, lastName };
       }

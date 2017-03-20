@@ -265,9 +265,10 @@ export default (app) => {
   app.get('/github-repositories', connectedAccounts.fetchAllRepositories);
 
   /**
-   * Reset test-api database
+   * test-api routes
    */
   app.get('/database/reset', test.resetTestDatabase);
+  app.get('/test/loginlink', test.getTestUserLoginUrl);
 
   /**
    * Stripe subscriptions (recurring payments)
