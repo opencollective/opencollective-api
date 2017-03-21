@@ -163,20 +163,13 @@ export const getTransactions = (req, res, next) => {
 
       res.send(transactions.rows.map(transaction => {
 
-        const title = (transaction.Donation && transaction.Donation.title) || 
-                      (transaction.Expense && transaction.Expense.title) || 
-                      transaction.description;
-        // only show the rest if user has permission
+        // only show these if user has permission
         const notes = canEditGroup && 
                       ((transaction.Donation && transaction.Donation.notes) || 
                         (transaction.Expense && transaction.Expense.notes));
         const attachment = canEditGroup && transaction.Expense && transaction.Expense.attachment;
         
         return Object.assign({}, transaction.info, {
-          expenseCategory: transaction.Expense && transaction.Expense.category,
-          description: title, // #deprecated
-          title,
-          expenseIncurredAt: transaction.Expense && transaction.Expense.incurredAt,
           notes,
           attachment
         });

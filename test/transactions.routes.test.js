@@ -131,7 +131,7 @@ describe('transactions.routes.test.js', () => {
         request(app)
           .post(`/groups/${publicGroup.id}/transactions?api_key=${application.api_key}`)
           .set('Authorization', `Bearer ${user3.jwt()}`)
-          .send({ Object.assign({}, t, { } })
+          .send({ transaction: t })
           .expect(200)
           .end((e, res) => {
             expect(e).to.not.exist;

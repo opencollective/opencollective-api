@@ -266,7 +266,7 @@ export const sorting = (options) => {
 export const populateEditPermissions = (req, res, next) => {
   if (req.remoteUser && req.group) {
     return req.group.hasUserWithRole(req.remoteUser.id, [roles.HOST, roles.MEMBER])
-    .then(canEditGroup => req.remoteUser.canEditGroup = true)
+    .then(canEditGroup => req.remoteUser.canEditGroup = canEditGroup)
     .then(() => next()); // for some reason, .then(next) doesn't work here.
   } else {
     next();
