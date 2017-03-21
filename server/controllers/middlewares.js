@@ -7,6 +7,7 @@ import queries from '../lib/queries';
 import models from '../models';
 import errors from '../lib/errors';
 import required from '../middleware/required_param';
+import roles from '../constants/roles';
 
 const {
   User
@@ -257,4 +258,17 @@ export const sorting = (options) => {
 
     next();
   };
+};
+
+/**
+ * Populate req with info on whether this user can edit colletive
+ */
+export const populateEditPermissions = (req, res, next) => {
+  if (req.remoteUser && req.group) {
+    return req.group.hasUserWithRole(req.remoteUser.id, [roles.HOST, roles.MEMBER])
+    .then(canEditGroup => req.remoteUser.canEditGroup = true)
+    .then(() => next()); // for some reason, .then(next) doesn't work here.
+  } else {
+    next();
+  }
 };

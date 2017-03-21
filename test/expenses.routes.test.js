@@ -679,7 +679,6 @@ describe('expenses.routes.test.js', () => {
                   expect(transaction).to.have.property('ExpenseId', expense.id);
                   expect(transaction).to.have.property('amount', -12000);
                   expect(transaction).to.have.property('currency', expense.currency);
-                  expect(transaction).to.have.property('description', expense.title);
                   expect(transaction).to.have.property('UserId', expense.UserId);
                   expect(transaction).to.have.property('GroupId', expense.GroupId);
                 }
@@ -818,7 +817,6 @@ describe('expenses.routes.test.js', () => {
                   expect(transaction).to.have.property('ExpenseId', expense.id);
                   expect(transaction).to.have.property('amount', -expense.amount);
                   expect(transaction).to.have.property('currency', expense.currency);
-                  expect(transaction).to.have.property('description', expense.title);
                   expect(transaction).to.have.property('UserId', expense.UserId);
                   expect(transaction).to.have.property('GroupId', expense.GroupId);
                 }

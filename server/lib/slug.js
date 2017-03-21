@@ -8,7 +8,7 @@ export function getUserOrGroupFromSlug(slug, userId) {
     .findOne({where: {slug}})
     .then(group => {
       if (group) {
-        return Promise.promisify(group.hasUserWithRole)(userId, roles.HOST)
+        return group.hasUserWithRole(userId, roles.HOST)
           .then(isHost => {
             if (!isHost) {
               return Promise.reject(new errors.Forbidden(`You do not have access to this resource`));

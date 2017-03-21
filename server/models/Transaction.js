@@ -15,7 +15,7 @@ export default (Sequelize, DataTypes) => {
   const Transaction = Sequelize.define('Transaction', {
     uuid: DataTypes.STRING(36),
     type: DataTypes.STRING, // Expense or Donation
-    description: DataTypes.STRING,
+    description: DataTypes.STRING, // #deprecated
     amount: DataTypes.INTEGER,
     currency: {
       type: DataTypes.STRING,
