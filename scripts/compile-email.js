@@ -22,6 +22,7 @@ data['ticket.confirmed'] = {
     name: "SustainOSS"
   }
 };
+data['ticket.confirmed.sustainoss'] = data['ticket.confirmed'];
 data['backer.monthlyreport'] = {
   recipient: { firstName: 'Xavier' },
   month: 'march', year: '2017',
