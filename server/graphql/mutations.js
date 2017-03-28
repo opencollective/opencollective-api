@@ -4,17 +4,38 @@ import emailLib from '../lib/email';
 import responseStatus from '../constants/response_status';
 
 import {
+  GraphQLNonNull,
+  GraphQLString
+} from 'graphql';
+
+import {
   ResponseType,
+  TierType
 } from './types';
 
 import {
-  ResponseInputType
+  ResponseInputType,
+  TierInputType
 } from './inputTypes';
 
 // import { hasRole } from '../middleware/security/auth';
 // import {HOST, MEMBER} from '../constants/roles';
 
 const mutations = {
+  createTier: {
+    type: TierType,
+    args: {
+      groupSlug: { type: new GraphQLNonNull(GraphQLString) },
+      eventSlug: { type: new GraphQLNonNull(GraphQLString) },
+      tier: { type: TierInputType }
+    },
+    resolve(_, args, req) {
+      const tier = args.tier;
+      console.log(">>> _", _, "args", args, "req", req)
+      return models.Event.getBySlug(args.groupSlug, args.eventSlug)
+      .then(() => models.Tier.create(tier))
+    }
+  },
   createResponse: {
     type: ResponseType,
     args: {
@@ -29,24 +50,7 @@ const mutations = {
       response.user.email = response.user.email.toLowerCase();
 
       const recordInterested = () => {
-        return models.Event.findOne({
-          where: {
-            slug: response.event.slug
-          },
-          include: [{
-            model: models.Group,
-            where: {
-              slug: response.group.slug
-            }
-          }]
-        })
-        .then(ev => {
-          if (!ev) {
-            throw new Error(`No event found with slug: ${response.event.slug} in collective: ${response.group.slug}`)
-          }
-          event = ev;
-        })
-
+        return models.Event.getBySlug(response.group.slug, response.event.slug)
         // find or create user
         .then(() => models.User.findOne({
           where: {
