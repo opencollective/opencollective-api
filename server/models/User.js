@@ -14,7 +14,7 @@ import errors from '../lib/errors';
 import queries from '../lib/queries';
 import userLib from '../lib/userlib';
 import knox from '../gateways/knox';
-import imageUrlToAmazonUrl from '../lib/imageUrlToAmazonUrl';
+import imageUrlLib from '../lib/imageUrlToAmazonUrl';
 
 import { hasRole } from '../lib/auth';
 
@@ -382,7 +382,7 @@ export default (Sequelize, DataTypes) => {
         .then(() => this.avatar || userLib.fetchAvatar(this.email))
         .then(avatar => {
           if (avatar && avatar.indexOf('/public') !== 0 && avatar.indexOf(knox.bucket) === -1) {
-            return Promise.promisify(imageUrlToAmazonUrl)(knox, avatar)
+            return Promise.promisify(imageUrlLib.imageUrlToAmazonUrl, { context: imageUrlLib })(knox, avatar)
               .then((aws_src, error) => {
                 this.avatar = error ? this.avatar : aws_src;
                 update = true;
@@ -439,6 +439,28 @@ export default (Sequelize, DataTypes) => {
 
       getTopBackers(since, until, tags, limit) {
         return queries.getTopBackers(since || 0, until || new Date, tags, limit || 5);
+      },
+
+      findOrCreateByEmail(email, otherAttributes) {
+        return User.findOne({
+          where: {
+            $or: {
+              email,
+              paypalEmail: email
+            }
+          }
+        })
+        .then(user => user || Sequelize.models.User.create(Object.assign({}, { email }, otherAttributes)))
+      },
+
+      splitName(name) {
+        let firstName = null, lastName = null;
+        if (name) {
+          const tokens = name.split(' ');
+          firstName = tokens[0];
+          lastName = tokens.length > 1 ? tokens.slice(1).join(' ') : null;
+        }
+        return { firstName, lastName };
       }
     },
 
@@ -447,10 +469,13 @@ export default (Sequelize, DataTypes) => {
         if (!instance.username) {
           return userLib.suggestUsername(instance)
             .then(username => {
+              if (!username) {
+                return Promise.reject(new Error('A user must have a username'));
+              }
               instance.username = username;
               return Promise.resolve();
-            })
-        } 
+            });
+        }
         return Promise.resolve();
 
       },

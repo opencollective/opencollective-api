@@ -172,6 +172,12 @@ export const CollectiveType = new GraphQLObjectType({
           return collective.getUsersForViewer(req.remoteUser);
         }
       },
+      twitterHandle: {
+        type: GraphQLString,
+        resolve(collective) {
+          return collective.twitterHandle;
+        }
+      },
       events: {
         type: new GraphQLList(EventType),
         resolve(collective) {
@@ -274,6 +280,12 @@ export const EventType = new GraphQLObjectType({
           return event.endsAt
         }
       },
+      timezone: {
+        type: GraphQLString,
+        resolve(event) {
+          return event.timezone
+        }
+      },
       maxAmount: {
         type: GraphQLInt,
         resolve(event) {
@@ -295,7 +307,7 @@ export const EventType = new GraphQLObjectType({
       tiers: {
         type: new GraphQLList(TierType),
         resolve(event) {
-          return event.getTiers();
+          return event.getTiers({ order: [['amount', 'ASC']] });
         }
       },
       responses: {
@@ -304,7 +316,10 @@ export const EventType = new GraphQLObjectType({
           return event.getResponses({
             where: { 
               confirmedAt: { $ne: null } 
-            }
+            },
+            order: [
+              ['createdAt', 'DESC']
+            ]
           });
         }
       }
@@ -445,6 +460,12 @@ export const ResponseType = new GraphQLObjectType({
         type: EventType,
         resolve(response) {
           return response.getEvent();
+        }
+      },
+      createdAt: {
+        type: GraphQLString,
+        resolve(response) {
+          return response.createdAt;
         }
       },
       confirmedAt: {

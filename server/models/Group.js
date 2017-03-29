@@ -153,10 +153,8 @@ export default function(Sequelize, DataTypes) {
 
     twitterHandle: {
       type: DataTypes.STRING, // without the @ symbol. Ex: 'asood123'
-      set(username) {
-        if (username.substr(0,1) === '@') {
-          this.setDataValue('twitterHandle', username.substr(1));
-        }
+      set(twitterHandle) {
+        this.setDataValue('twitterHandle', twitterHandle.replace(/^@/,''));
       }
     },
 
@@ -568,13 +566,17 @@ export default function(Sequelize, DataTypes) {
         return Group.getGroupsSummaryByTag(this.tags, limit, [this.id], minTotalDonationInCents, true, orderBy, orderDir);
       },
 
-      hasHost() {
+      getHost() {
         return Sequelize.models.UserGroup.find({
           where: {
             GroupId: this.id,
             role: roles.HOST
           }
-        })
+        });
+      },
+
+      hasHost() {
+        return this.getHost()
         .then(userGroup => Promise.resolve(!!userGroup));
       },
 
