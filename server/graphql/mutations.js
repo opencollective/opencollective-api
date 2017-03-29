@@ -5,15 +5,18 @@ import responseStatus from '../constants/response_status';
 
 import {
   GraphQLNonNull,
-  GraphQLString
+  GraphQLString,
+  GraphQLInt,
 } from 'graphql';
 
 import {
+  EventType,
   ResponseType,
   TierType
 } from './types';
 
 import {
+  EventInputType,
   ResponseInputType,
   TierInputType
 } from './inputTypes';
@@ -22,6 +25,35 @@ import {
 // import {HOST, MEMBER} from '../constants/roles';
 
 const mutations = {
+  createEvent: {
+    type: EventType,
+    args: {
+      groupSlug: { type: new GraphQLNonNull(GraphQLString) },
+      event: { type: EventInputType }
+    },
+    resolve(_, args) {
+      const event = args.event;
+      return models.Group.findOne({where: { slug: args.groupSlug })
+      .then((group) => models.Event.create({
+        ...event,
+        GroupId: group.id
+      }))
+    }
+  },
+  updateEvent: {
+    type: EventType,
+    args: {
+      event: { type: EventInputType }
+    },
+    resolve(_, args) {
+      return models.Event.findById(args.event.id)
+      .then(event => {
+        if (!event) throw new Error(`Event with id ${args.event.id} not found`);
+        return Event;
+      })
+      .then(event => event.update(args.event))
+    }
+  },
   createTier: {
     type: TierType,
     args: {
@@ -29,11 +61,29 @@ const mutations = {
       eventSlug: { type: new GraphQLNonNull(GraphQLString) },
       tier: { type: TierInputType }
     },
-    resolve(_, args, req) {
+    resolve(_, args) {
+      let event;
       const tier = args.tier;
-      console.log(">>> _", _, "args", args, "req", req)
       return models.Event.getBySlug(args.groupSlug, args.eventSlug)
-      .then(() => models.Tier.create(tier))
+      .then(e => event = e)
+      .then(() => models.Tier.create({
+        ...tier,
+        EventId: event.id
+      }))
+    }
+  },
+  updateTier: {
+    type: TierType,
+    args: {
+      tier: { type: TierInputType }
+    },
+    resolve(_, args) {
+      return models.Tier.findById(args.tier.id)
+      .then(tier => {
+        if (!tier) throw new Error(`Tier with id ${args.tier.id} not found`);
+        return tier;
+      })
+      .then(tier => tier.update(args.tier))
     }
   },
   createResponse: {
@@ -51,6 +101,7 @@ const mutations = {
 
       const recordInterested = () => {
         return models.Event.getBySlug(response.group.slug, response.event.slug)
+        .then(e => event = e)
         // find or create user
         .then(() => models.User.findOne({
           where: {

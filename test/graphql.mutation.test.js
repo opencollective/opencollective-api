@@ -30,7 +30,7 @@ describe('Mutation Tests', () => {
   after(() => sandbox.restore());
 
   beforeEach(() => {
-    createPaymentStub = sandbox.stub(paymentsLib, 'createPayment', 
+    createPaymentStub = sandbox.stub(paymentsLib, 'createPayment',
       () => {
         // assumes payment goes through and marks Response as confirmedAt
         return models.Response.findAll()
@@ -83,6 +83,92 @@ describe('Mutation Tests', () => {
     utils.clearbitStubAfterEach(sandbox);
   });
 
+  describe('createTier tests', () => {
+    beforeEach(() => models.Event.create(
+      Object.assign(utils.data('event1'), { createdByUserId: user1.id, GroupId: group1.id }))
+      .tap(e => event1 = e));
+
+    describe('throws an error', () => {
+
+      it('when missing all required fields', async () => {
+        const query = `
+          mutation createTier {
+            createTier(tier: {}) {
+              id,
+              name
+            }
+          }
+        `;
+        const result = await graphql(schema, query);
+        expect(result.errors.length).to.equal(2);
+        expect(result.errors[0].message).to.contain('groupSlug');
+      });
+
+      describe('when collective/event/tier doesn\'t exist', () => {
+
+        it('when collective doesn\'t exist', async () => {
+          const query = `
+            mutation createTier {
+              createTier(groupSlug: "doesNotExist" , eventSlug: "${event1.slug}") {
+                id,
+                name
+              }
+            }
+          `;
+          const result = await graphql(schema, query)
+          expect(result.errors.length).to.equal(1);
+          expect(result.errors[0].message).to.equal(`No event found with slug: ${event1.slug} in collective: doesNotExist`);
+        });
+
+        it('when event doesn\'t exist', async () => {
+          const query = `
+            mutation createTier {
+              createTier(groupSlug: "${group1.slug}", eventSlug: "doesNotExist", tier: { id:1, name: "free tier" } ) {
+                id,
+                name,
+              }
+            }
+          `;
+          const result = await graphql(schema, query);
+          expect(result.errors.length).to.equal(1);
+          expect(result.errors[0].message).to.equal('No event found with slug: doesNotExist in collective: scouts');
+        });
+
+      });
+    });
+
+    describe('creates a tier', () => {
+
+      beforeEach(() => models.Event.create(
+        Object.assign(utils.data('event1'), { createdByUserId: user1.id, GroupId: group1.id }))
+        .tap(e => event1 = e));
+
+      it('and updates it', async () => {
+        const query = `
+        mutation createTier {
+          createTier(groupSlug: "${group1.slug}", eventSlug: "${event1.slug}", tier: { name: "free ticket" }) {
+            id,
+            name
+          }
+        }
+        `;
+        const result = await graphql(schema, query);
+        expect(result.data.createTier.name).to.equal("free ticket");
+
+        const updateQuery = `
+        mutation updateTier {
+          updateTier(tier: { id: 1, name: "sponsor" }) {
+            id,
+            name
+          }
+        }
+        `;
+        const result2 = await graphql(schema, updateQuery);
+        expect(result2.data.updateTier.name).to.equal("sponsor");
+      })
+    })
+  })
+
   describe('createResponse tests', () => {
 
     beforeEach(() => models.Event.create(
@@ -124,7 +210,7 @@ describe('Mutation Tests', () => {
       });
 
       describe('when collective/event/tier doesn\'t exist', () => {
-        
+
         it('when collective doesn\'t exist', async () => {
           const query = `
             mutation createResponse {
@@ -246,10 +332,10 @@ describe('Mutation Tests', () => {
         it('from an existing user', async () => {
           const query = `
             mutation createResponse {
-              createResponse(response: { 
-                user: { email: "${user2.email}" }, 
-                group: { slug: "${group1.slug}" }, 
-                event: { slug: "${event1.slug}" }, 
+              createResponse(response: {
+                user: { email: "${user2.email}" },
+                group: { slug: "${group1.slug}" },
+                event: { slug: "${event1.slug}" },
                 status:"INTERESTED"
               }) {
                 id,
@@ -293,7 +379,7 @@ describe('Mutation Tests', () => {
                   "id": 1,
                   "slug": "scouts"
                 }
-              }            
+              }
             }
           });
         });
@@ -354,7 +440,7 @@ describe('Mutation Tests', () => {
                     "id": 1,
                     "slug": "scouts"
                   }
-                }            
+                }
               }
             });
           });
@@ -410,10 +496,10 @@ describe('Mutation Tests', () => {
                     "id": 1,
                     "slug": "scouts"
                   }
-                }            
+                }
               }
             });
-          });        
+          });
         });
 
         describe('in a paid tier', () => {
@@ -421,8 +507,8 @@ describe('Mutation Tests', () => {
           it('from an existing user', async () => {
             const query = `
               mutation createResponse {
-                createResponse(response: { 
-                  user: { 
+                createResponse(response: {
+                  user: {
                     email: "${user2.email}",
                     card: {
                       token: "tok_stripe",
@@ -430,10 +516,10 @@ describe('Mutation Tests', () => {
                       expYear: 2020,
                       number: 4242
                     }
-                  }, 
-                  group: { slug: "${group1.slug}" }, 
-                  event: { slug: "${event1.slug}" }, 
-                  tier: { id: 2 }, status:"YES", quantity:2 
+                  },
+                  group: { slug: "${group1.slug}" },
+                  event: { slug: "${event1.slug}" },
+                  tier: { id: 2 }, status:"YES", quantity:2
                 }) {
                   id,
                   status,
@@ -482,7 +568,7 @@ describe('Mutation Tests', () => {
                     "id": 1,
                     "slug": "scouts"
                   }
-                }            
+                }
               }
             });
             expect(createPaymentStub.callCount).to.equal(1);
@@ -500,8 +586,8 @@ describe('Mutation Tests', () => {
           it('from an existing user', async () => {
             const query = `
               mutation createResponse {
-                createResponse(response: { 
-                  user: { 
+                createResponse(response: {
+                  user: {
                     email: "newuser@email.com",
                     card: {
                       token: "tok_stripe",
@@ -509,10 +595,10 @@ describe('Mutation Tests', () => {
                       expYear: 2020,
                       number: 4242
                     }
-                  }, 
-                  group: { slug: "${group1.slug}" }, 
-                  event: { slug: "${event1.slug}" }, 
-                  tier: { id: 2 }, status:"YES", quantity:2 
+                  },
+                  group: { slug: "${group1.slug}" },
+                  event: { slug: "${event1.slug}" },
+                  tier: { id: 2 }, status:"YES", quantity:2
                 }) {
                   id,
                   status,
@@ -561,7 +647,7 @@ describe('Mutation Tests', () => {
                     "id": 1,
                     "slug": "scouts"
                   }
-                }            
+                }
               }
             });
             expect(createPaymentStub.callCount).to.equal(1);
@@ -578,6 +664,6 @@ describe('Mutation Tests', () => {
         });
       });
 
-    }); 
+    });
   });
 });
