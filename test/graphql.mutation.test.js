@@ -115,7 +115,8 @@ describe('Mutation Tests', () => {
             }
           }
         `;
-        const result = await graphql(schema, query);
+        const context = { remoteUser: null };
+        const result = await graphql(schema, query, null, context)
         expect(result.errors.length).to.equal(1);
         expect(result.errors[0].message).to.contain('group');
         expect(result.errors[0].message).to.contain('event');
@@ -142,7 +143,8 @@ describe('Mutation Tests', () => {
               }
             }
           `;
-          const result = await graphql(schema, query)
+          const context = { remoteUser: null };
+          const result = await graphql(schema, query, null, context)
           expect(result.errors.length).to.equal(1);
           expect(result.errors[0].message).to.equal('No tier found with tier id: 1 for event slug:jan-meetup in collective slug:doesNotExist');
         });
@@ -164,7 +166,8 @@ describe('Mutation Tests', () => {
               }
             }
           `;
-          const result = await graphql(schema, query);
+          const context = { remoteUser: null };
+          const result = await graphql(schema, query, null, context)
           expect(result.errors.length).to.equal(1);
           expect(result.errors[0].message).to.equal('No tier found with tier id: 1 for event slug:doesNotExist in collective slug:scouts');
         });
@@ -186,7 +189,8 @@ describe('Mutation Tests', () => {
               }
             }
           `;
-          const result = await graphql(schema, query);
+          const context = { remoteUser: null };
+          const result = await graphql(schema, query, null, context)
           expect(result.errors.length).to.equal(1);
           expect(result.errors[0].message).to.equal(`No tier found with tier id: 1002 for event slug:${event1.slug} in collective slug:${group1.slug}`);
         });
@@ -210,7 +214,8 @@ describe('Mutation Tests', () => {
               }
             }
           `;
-          const result = await graphql(schema, query);
+          const context = { remoteUser: null };
+          const result = await graphql(schema, query, null, context)
           expect(result.errors[0].message).to.equal(`No more tickets left for ${tier1.name}`);
         });
       });
@@ -233,7 +238,8 @@ describe('Mutation Tests', () => {
               }
             }
           `;
-          const result = await graphql(schema, query);
+          const context = { remoteUser: null };
+          const result = await graphql(schema, query, null, context)
           expect(result.errors[0].message).to.equal('This tier requires a payment method');
         });
       });
@@ -275,7 +281,8 @@ describe('Mutation Tests', () => {
               }
             }
           `;
-          const result = await graphql(schema, query);
+          const context = { remoteUser: null };
+          const result = await graphql(schema, query, null, context)
           expect(result).to.deep.equal({
             data: {
               "createResponse": {
@@ -286,7 +293,7 @@ describe('Mutation Tests', () => {
                 "status": "INTERESTED",
                 "tier": null,
                 "user": {
-                  "email": "xdam@opencollective.com",
+                  "email": null, // note: since the logged in user cannot edit the group, it cannot get back the email address of a response
                   "id": 2
                 },
                 "collective": {
@@ -330,7 +337,8 @@ describe('Mutation Tests', () => {
                 }
               }
             `;
-            const result = await graphql(schema, query);
+            const context = { remoteUser: null };
+            const result = await graphql(schema, query, null, context)
             expect(result).to.deep.equal({
               data: {
                 "createResponse": {
@@ -347,7 +355,7 @@ describe('Mutation Tests', () => {
                     "name": "Free tier"
                   },
                   "user": {
-                    "email": "xdam@opencollective.com",
+                    "email": null,
                     "id": 2
                   },
                   "collective": {
@@ -386,7 +394,8 @@ describe('Mutation Tests', () => {
                 }
               }
             `;
-            const result = await graphql(schema, query);
+          const context = { remoteUser: null };
+          const result = await graphql(schema, query, null, context)
             expect(result).to.deep.equal({
               data: {
                  "createResponse": {
@@ -403,7 +412,7 @@ describe('Mutation Tests', () => {
                     "name": "Free tier"
                   },
                   "user": {
-                    "email": "newuser@email.com",
+                    "email": null,
                     "id": 3
                   },
                   "collective": {
@@ -458,7 +467,8 @@ describe('Mutation Tests', () => {
                 }
               }
             `;
-            const result = await graphql(schema, query);
+            const context = { remoteUser: null };
+            const result = await graphql(schema, query, null, context);
             expect(result).to.deep.equal({
               data: {
                 "createResponse": {
@@ -475,7 +485,7 @@ describe('Mutation Tests', () => {
                     "name": "paid tier"
                   },
                   "user": {
-                    "email": "xdam@opencollective.com",
+                    "email": null,
                     "id": 2
                   },
                   "collective": {
@@ -537,7 +547,8 @@ describe('Mutation Tests', () => {
                 }
               }
             `;
-            const result = await graphql(schema, query);
+          const context = { remoteUser: null };
+          const result = await graphql(schema, query, null, context)
             expect(result).to.deep.equal({
               data: {
                 "createResponse": {
@@ -554,7 +565,7 @@ describe('Mutation Tests', () => {
                     "name": "paid tier"
                   },
                   "user": {
-                    "email": "newuser@email.com",
+                    "email": null,
                     "id": 3
                   },
                   "collective": {
