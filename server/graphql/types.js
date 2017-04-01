@@ -166,6 +166,12 @@ export const CollectiveType = new GraphQLObjectType({
           return collective.slug;
         }
       },
+      users: {
+        type: new GraphQLList(UserType),
+        resolve(collective, args, req) {
+          return collective.getUsersForViewer(req.remoteUser);
+        }
+      },
       twitterHandle: {
         type: GraphQLString,
         resolve(collective) {
@@ -428,8 +434,8 @@ export const ResponseType = new GraphQLObjectType({
       },
       user: {
         type: UserType,
-        resolve(response) {
-          return response.getUser();
+        resolve(response, args, req) {
+          return response.getUserForViewer(req.remoteUser);
         }
       },
       description: {
