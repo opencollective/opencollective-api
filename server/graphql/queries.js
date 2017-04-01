@@ -37,7 +37,6 @@ const queries = {
       }
     },
     resolve(_, args, req) {
-      console.log("Remote user: ", req.remoteUser.username);
       return models.Group.findOne({ where: { slug: args.collectiveSlug.toLowerCase() } })
         .then(group => group.getUsersForViewer(req.remoteUser));
     }
