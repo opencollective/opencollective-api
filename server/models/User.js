@@ -351,7 +351,8 @@ export default (Sequelize, DataTypes) => {
 
         let update = false;
         const allowedFields = 
-          [ 'firstName',
+          [ 'username',
+            'firstName',
             'lastName',
             'description',
             'longDescription',
