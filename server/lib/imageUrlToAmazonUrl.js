@@ -15,8 +15,8 @@ import MultiPartUpload from 'knox-mpu-alt';
 *     @param aws_src {String}
 */
 function imageUrlToAmazonUrl(knox_client, src, callback) {
-  // we skip this in development environment since we don't have the AWS credentials
-  if (!process.env.NODE_ENV || process.env.NODE_ENV === 'development') {
+  // we skip this if we don't have the AWS knox client initialized
+  if (!knox_client) {
     return callback(null, src);
   }
   request.head(src, (error, response) => {
