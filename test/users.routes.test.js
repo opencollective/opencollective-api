@@ -357,6 +357,25 @@ describe('users.routes.test.js', () => {
           done();
         });
     });
+
+    it('should fail to update username if already taken by a group', (done) => {
+      models.Group.create(utils.data('group1')).then(() => {
+        request(app)
+          .put(`/users/${user.id}?api_key=${application.api_key}`)
+          .set('Authorization', `Bearer ${user.jwt(application)}`)
+          .send({
+            user: {
+              username: "scouts"
+            }
+          })
+          .end((err, res) => {
+            const { body } = res;
+            expect(body.error.code).to.equal(400);
+            expect(body.error.message).to.equal("username scouts is already taken");
+            done();
+          });
+      });
+    });
   });
 
   describe('#update paypal email', () => {
