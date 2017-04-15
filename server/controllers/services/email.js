@@ -44,7 +44,7 @@ const sendEmailToList = (to, email) => {
   const collectiveSlug = tokens[2];
   const type = `mailinglist.${mailinglist}`;
   email.from = email.from || `${collectiveSlug} collective <info@${collectiveSlug}.opencollective.com>`;
-  email.group = email.group || { collectiveSlug }; // used for the unsubscribe url
+  email.group = email.group || { slug: collectiveSlug }; // used for the unsubscribe url
 
   return models.Notification.getSubscribers(collectiveSlug, mailinglist)
   .tap(subscribers => {
@@ -180,7 +180,7 @@ export const webhook = (req, res, next) => {
       if (!g) throw new Error('group_not_found');
       group = g;
     })
-    .then(group => Notification.getSubscribers(group.slug, mailinglist))
+    .then(group => models.Notification.getSubscribers(group.slug, mailinglist))
     .tap(results => {
       if (results.length === 0) throw new Error('no_subscribers');
       subscribers = results.map(s => {
