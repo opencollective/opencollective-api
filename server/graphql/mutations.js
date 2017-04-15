@@ -28,12 +28,12 @@ const mutations = {
   createEvent: {
     type: EventType,
     args: {
-      groupSlug: { type: new GraphQLNonNull(GraphQLString) },
+      collectiveSlug: { type: new GraphQLNonNull(GraphQLString) },
       event: { type: EventInputType }
     },
     resolve(_, args) {
       const event = args.event;
-      return models.Group.findOne({where: { slug: args.groupSlug })
+      return models.Group.findOne({ where: { slug: args.collectiveSlug } })
       .then((group) => models.Event.create({
         ...event,
         GroupId: group.id
@@ -57,14 +57,19 @@ const mutations = {
   createTier: {
     type: TierType,
     args: {
-      groupSlug: { type: new GraphQLNonNull(GraphQLString) },
-      eventSlug: { type: new GraphQLNonNull(GraphQLString) },
+      collectiveSlug: { type: new GraphQLNonNull(GraphQLString) },
+      eventSlug: { type: GraphQLString },
       tier: { type: TierInputType }
     },
     resolve(_, args) {
-      let event;
       const tier = args.tier;
-      return models.Event.getBySlug(args.groupSlug, args.eventSlug)
+
+      if (!args.eventSlug) {
+        return models.Tier.create(tier);
+      }
+
+      let event;
+      return models.Event.getBySlug(args.collectiveSlug, args.eventSlug)
       .then(e => event = e)
       .then(() => models.Tier.create({
         ...tier,

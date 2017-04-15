@@ -100,8 +100,8 @@ describe('Mutation Tests', () => {
           }
         `;
         const result = await graphql(schema, query);
-        expect(result.errors.length).to.equal(2);
-        expect(result.errors[0].message).to.contain('groupSlug');
+        expect(result.errors.length).to.equal(1);
+        expect(result.errors[0].message).to.contain('collectiveSlug');
       });
 
       describe('when collective/event/tier doesn\'t exist', () => {
@@ -109,7 +109,7 @@ describe('Mutation Tests', () => {
         it('when collective doesn\'t exist', async () => {
           const query = `
             mutation createTier {
-              createTier(groupSlug: "doesNotExist" , eventSlug: "${event1.slug}") {
+              createTier(collectiveSlug: "doesNotExist" , eventSlug: "${event1.slug}") {
                 id,
                 name
               }
@@ -123,7 +123,7 @@ describe('Mutation Tests', () => {
         it('when event doesn\'t exist', async () => {
           const query = `
             mutation createTier {
-              createTier(groupSlug: "${group1.slug}", eventSlug: "doesNotExist", tier: { id:1, name: "free tier" } ) {
+              createTier(collectiveSlug: "${group1.slug}", eventSlug: "doesNotExist", tier: { id:1, name: "free tier" } ) {
                 id,
                 name,
               }
@@ -146,7 +146,7 @@ describe('Mutation Tests', () => {
       it('and updates it', async () => {
         const query = `
         mutation createTier {
-          createTier(groupSlug: "${group1.slug}", eventSlug: "${event1.slug}", tier: { name: "free ticket" }) {
+          createTier(collectiveSlug: "${group1.slug}", eventSlug: "${event1.slug}", tier: { name: "free ticket" }) {
             id,
             name
           }
@@ -166,6 +166,22 @@ describe('Mutation Tests', () => {
         const result2 = await graphql(schema, updateQuery);
         expect(result2.data.updateTier.name).to.equal("sponsor");
       })
+
+      it('creates a tier not linked to any event', async () => {
+        const query = `
+        mutation createTier {
+          createTier(collectiveSlug: "${group1.slug}", tier: { name: "Silver Sponsor" }) {
+            id,
+            name,
+            slug
+          }
+        }
+        `;
+        const result = await graphql(schema, query);
+        console.log(">>>result", result);
+        expect(result.data.createTier.name).to.equal("Silver Sponsor");
+        expect(result.data.createTier.slug).to.equal("silver-sponsor");
+      });
     })
   })
 
