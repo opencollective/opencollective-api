@@ -83,6 +83,16 @@ const queries = {
         }]
       })
     }
+  },
+  allEvents: {
+    type: new GraphQLList(EventType),
+    resolve() {
+      return models.Event.findAll({
+        include: [{
+          model: models.Group
+        }]
+      })
+    }
   }
 }
 
