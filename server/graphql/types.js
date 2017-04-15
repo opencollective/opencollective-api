@@ -8,8 +8,11 @@ import {
   GraphQLString,
 } from 'graphql';
 
-import models from '../models';
 import status from '../constants/response_status';
+import models from '../models';
+import dataloaderSequelize from 'dataloader-sequelize';
+dataloaderSequelize(models.Response);
+dataloaderSequelize(models.Event);
 
 export const ResponseStatusType = new GraphQLEnumType({
   name: 'Responses',
@@ -337,6 +340,12 @@ export const TierType = new GraphQLObjectType({
         type: GraphQLInt,
         resolve(tier) {
           return tier.id;
+        }
+      },
+      slug: {
+        type: GraphQLString,
+        resolve(tier) {
+          return tier.slug
         }
       },
       name: {
