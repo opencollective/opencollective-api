@@ -146,7 +146,7 @@ export default function(Sequelize, DataTypes) {
       unique: true,
       set(slug) {
         if (slug && slug.toLowerCase) {
-          this.setDataValue('slug', slug.toLowerCase());
+          this.setDataValue('slug', slug.toLowerCase().replace(/ /g, '-'));
         }
       }
     },
@@ -251,7 +251,7 @@ export default function(Sequelize, DataTypes) {
 
     instanceMethods: {
       getUsersForViewer(viewer) {
-        const promises = [this.getUsers()];
+        const promises = [queries.getUsersFromGroupWithTotalDonations(this.id)];
         if (viewer) {
           promises.push(viewer.canEditGroup(this.id));
         }
