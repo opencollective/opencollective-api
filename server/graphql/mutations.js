@@ -6,7 +6,6 @@ import responseStatus from '../constants/response_status';
 import {
   GraphQLNonNull,
   GraphQLString,
-  GraphQLInt,
 } from 'graphql';
 
 import {
