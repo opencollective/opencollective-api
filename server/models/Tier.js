@@ -34,8 +34,8 @@ export default function(Sequelize, DataTypes) {
       set(name) {
         if (!this.getDataValue('slug')) {
           this.slug = name;
-          this.setDataValue('name', name);
         }
+        this.setDataValue('name', name);
       }
     },
 
