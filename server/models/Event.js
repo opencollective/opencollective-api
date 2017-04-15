@@ -1,5 +1,7 @@
 export default function(Sequelize, DataTypes) {
 
+  const models = Sequelize.models;
+
   const Event = Sequelize.define('Event', {
     id: {
       type: DataTypes.INTEGER,
@@ -123,6 +125,12 @@ export default function(Sequelize, DataTypes) {
           createdAt: this.createdAt,
           updatedAt: this.updatedAt
         }
+      }
+    },
+
+    instanceMethods: {
+      getUsers() {
+        return this.getResponses({ include: [{model: models.User }]}).then(rows => rows.map(r => r.User));
       }
     }
   });

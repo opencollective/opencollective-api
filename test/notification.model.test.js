@@ -6,6 +6,7 @@ import constants from '../server/constants/activities';
 import models from '../server/models';
 import roles from '../server/constants/roles';
 import _ from 'lodash';
+import Promise from 'bluebird';
 
 const application = utils.data('application');
 const userData = utils.data('user1');
@@ -18,7 +19,10 @@ const notificationData = { type: constants.GROUP_TRANSACTION_CREATED };
 const {
   User,
   Group,
-  Notification
+  Notification,
+  Event,
+  Tier,
+  Response
 } = models;
 
 describe("notification.model.test.js", () => {
@@ -141,4 +145,65 @@ describe("notification.model.test.js", () => {
         expect(types).to.deep.equal([ 'group.expense.created', 'group.expense.created', 'group.monthlyreport', 'group.transaction.created', 'mailinglist.host', 'mailinglist.members' ]);
       })
       .tap(res => expect(res.count).to.equal(6)));
+
+  describe('getSubscribers', () => {
+
+    let users;
+    beforeEach(() => User.createMany([utils.data('user3'), utils.data('user4')]).then(result => users = result))
+
+    it('getSubscribers to the backers mailinglist', () => {
+      return Promise.map(users, user => group.addUserWithRole(user, 'BACKER').catch(e => console.error(e)))
+      .then(() => Notification.getSubscribers(group.slug, 'backers').catch(e => console.error(e)))
+      .tap(subscribers => {
+        expect(subscribers.length).to.equal(2);
+      })
+      .tap(subscribers => {
+        return subscribers[0].unsubscribe(group.id, 'mailinglist.backers')
+      })
+      .then(() => Notification.getSubscribers(group.slug, 'backers'))
+      .tap(subscribers => {
+        expect(subscribers.length).to.equal(1);
+      })
+      .catch(e => console.error(e));
+    })
+
+    it('getSubscribers to an event', () => {
+      const eventData = utils.data('event1');
+      const tierData = utils.data('tier1');
+      let event;
+      return Event.create({
+        ...eventData,
+        GroupId: group.id
+      })
+      .then(res => {
+        event = res;
+        return Tier.create({
+          ...tierData,
+          EventId: event.id
+        })
+      })
+      .then((tier) => {
+        return Promise.map(users, (user) => {
+          Response.create({
+            UserId: user.id,
+            GroupId: group.id,
+            EventId: event.id,
+            TierId: tier.id
+          })
+        });
+      })
+      .then(() => Notification.getSubscribers(group.slug, eventData.slug))
+      .then(subscribers => {
+        expect(subscribers.length).to.equal(2);
+      })
+      .then(() => {
+        return users[0].unsubscribe(group.id, `mailinglist.${event.slug}`)
+      })
+      .then(() => Notification.getSubscribers(group.slug, eventData.slug))
+      .then(subscribers => {
+        expect(subscribers.length).to.equal(1);
+      })
+      .catch(console.error)
+    })
+  });
 });
