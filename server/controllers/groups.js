@@ -64,24 +64,22 @@ const _getUsersData = (group) => {
 
 export const getUsers = (req, res, next) => {
 
-  auth.canEditGroup(req, res, (e, canEditGroup) => {
-    let promise = _getUsersData(req.group);
+  let promise = _getUsersData(req.group);
 
-    if (req.query.filter && req.query.filter === 'active') {
-      promise = promise.filter(backer => isBackerActive(backer, req.group.tiers));
-    }
+  if (req.query.filter && req.query.filter === 'active') {
+    promise = promise.filter(backer => isBackerActive(backer, req.group.tiers));
+  }
 
-    return promise
-    .then(backers => {
-      if (canEditGroup) return backers;
-      else return backers.map(b => {
-        delete b.email;
-        return b;
-      });
-    })
-    .then(backers => res.send(backers))
-    .catch(next)
-  });
+  return promise
+  .then(backers => {
+    if (req.canEditGroup) return backers;
+    else return backers.map(b => {
+      delete b.email;
+      return b;
+    });
+  })
+  .then(backers => res.send(backers))
+  .catch(next)
 };
 
 export const getUsersWithEmail = (req, res, next) => {
