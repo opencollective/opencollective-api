@@ -97,24 +97,6 @@ describe("notification.model.test.js", () => {
       })
       .tap(res => expect(res.count).to.equal(1)));
 
-  it('fails to remove notification if it does not exist', () =>
-    request(app)
-      .post(`/groups/${group.id}/activities/group.transaction.approved/unsubscribe`)
-      .set('Authorization', `Bearer ${user.jwt()}`)
-      .send({ api_key: application.api_key })
-      .expect(400)
-      .then(res => {
-        expect(res.body.error.message).to.equal('You were not subscribed to this type of activity');
-        return Notification.findAndCountAll({
-          where: {
-            UserId: user.id,
-            GroupId: group.id,
-            type: notificationData.type
-          }
-        });
-      })
-      .tap((res) => expect(res.count).to.equal(1)));
-
   it('fails to add a notification if not a member of the group', () =>
     request(app)
       .post(`/groups/${group2.id}/activities/group.transaction.approved/subscribe`)
