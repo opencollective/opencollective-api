@@ -12,7 +12,6 @@ import fetchGithubUser from '../lib/github';
 import queries from '../lib/queries';
 import models from '../models';
 import errors from '../lib/errors';
-import * as auth from '../middleware/security/auth';
 
 const {
   Activity,
