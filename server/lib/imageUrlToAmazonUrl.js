@@ -15,6 +15,10 @@ import MultiPartUpload from 'knox-mpu-alt';
 *     @param aws_src {String}
 */
 function imageUrlToAmazonUrl(knox_client, src, callback) {
+  // we skip this if we don't have the AWS knox client initialized
+  if (!knox_client) {
+    return callback(null, src);
+  }
   request.head(src, (error, response) => {
     if (error) {
       return callback(error);
@@ -35,7 +39,7 @@ function imageUrlToAmazonUrl(knox_client, src, callback) {
         }
       }, (err, body) => err ? callback(err) : callback(null, body.Location));
     } else {
-      callback(new Error('Image not found'));
+      callback(new Error(`Image not found: ${src}`));
     }
   });
 }
