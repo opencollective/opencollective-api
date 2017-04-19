@@ -1,6 +1,6 @@
 export default function(Sequelize, DataTypes) {
 
-  const models = Sequelize.models;
+  const { models } = Sequelize;
 
   const Event = Sequelize.define('Event', {
     id: {
@@ -131,6 +131,28 @@ export default function(Sequelize, DataTypes) {
     instanceMethods: {
       getUsers() {
         return this.getResponses({ include: [{model: models.User }]}).then(rows => rows.map(r => r.User));
+      }
+    },
+
+    classMethods: {
+      getBySlug: (groupSlug, eventSlug) => {
+        return Event.findOne({
+          where: {
+            slug: eventSlug
+          },
+          include: [{
+            model: models.Group,
+            where: {
+              slug: groupSlug
+            }
+          }]
+        })
+        .then(ev => {
+          if (!ev) {
+            throw new Error(`No event found with slug: ${eventSlug} in collective: ${groupSlug}`)
+          }
+          return ev;
+        })        
       }
     }
   });

@@ -43,10 +43,8 @@ const { secret } = config.keys.opencollective;
  * decodes the token (expected behaviour).
  */
 export const parseJwtNoExpiryCheck = (req, res, next) => {
-  let token;
-  if (req.params.access_token) {
-    token = req.params.access_token;
-  } else {
+  let token = req.params.access_token || req.query.access_token || req.body.access_token;
+  if (!token) {
     const header = req.headers && req.headers.authorization;
     if (!header) return next();
 
@@ -199,7 +197,9 @@ export const authenticateService = (req, res, next) => {
   const { service } = req.params;
   switch (service) {
     case 'github':
-      opts.scope = [ 'user:email', 'public_repo' ];
+      // 'repo' gives us access to organizational repositories as well
+      // vs. 'public_repo' which requires the org to give separate access to app
+      opts.scope = [ 'user:email', 'repo' ]; 
       break;
     case 'meetup':
       opts.scope = 'ageless';
