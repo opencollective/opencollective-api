@@ -1,13 +1,11 @@
 import { expect } from 'chai';
 import * as utils from '../test/utils';
 import models from '../server/models';
-import Promise from 'bluebird';
-
 
 const { Event, User, Group, Response } = models;
 
 describe('event.model.test.js', () => {
-  let collective, event, users, responses;
+  let collective, event, users;
 
   beforeEach('reset db', () => utils.resetTestDB());
 
@@ -16,18 +14,14 @@ describe('event.model.test.js', () => {
 
   beforeEach('create many users', () => {
     return User.createMany([utils.data('user1'), utils.data('user2'), utils.data('user3'), utils.data('user4')])
-      .then(res => {
-        users = res
-        console.log("Users created", users.length);
-      })
+      .then(res => users = res)
   });
 
   beforeEach('creates many responses', () => {
     const responsesArray = [];
     users.forEach(u => responsesArray.push({ UserId: u.id }));
     return Response.createMany(responsesArray, { GroupId: collective.id, EventId: event.id, status: 'YES' })
-      .catch(e => console.error("error creating response", e))
-      .then(res => responses = res);
+      .catch(e => console.error("error creating response", e));
   });
 
   it('gets the list of users for an event and dedupe them', () => {

@@ -82,8 +82,7 @@ export default function(Sequelize, DataTypes) {
                 active: false,
                 type: `mailinglist.${mailinglist}`
               },
-              include: [{model: models.Group, where: { slug: collectiveSlug } }],
-              paranoid: false
+              include: [{model: models.Group, where: { slug: collectiveSlug } }]
             }
           ).then(subscriptions => subscriptions.map(s => s.UserId ))
           .then(excludeIds => {
