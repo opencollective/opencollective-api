@@ -74,22 +74,18 @@ export default function(Sequelize, DataTypes) {
               if (event) return event.getUsers().then(excludeUnsubscribed)
           })
 
-        const excludeUnsubscribed = (users) => {
-          return models.Notification.findAll(
-            {
-              where: {
-                channel: 'email',
-                active: false,
-                type: `mailinglist.${mailinglist}`
-              },
-              include: [{model: models.Group, where: { slug: collectiveSlug } }]
-            }
-          ).then(subscriptions => subscriptions.map(s => s.UserId ))
+        const excludeUnsubscribed = (users) =>
+          models.Notification.findAll({
+            where: {
+              channel: 'email',
+              active: false,
+              type: `mailinglist.${mailinglist}`
+            },
+            include: [ { model: models.Group, where: { slug: collectiveSlug } } ]
+          }).then(subscriptions => subscriptions.map(s => s.UserId ))
           .then(excludeIds => {
             return users.filter(u => excludeIds.indexOf(u.id) === -1)
           })
-          .catch(console.error)
-        }
 
         return getSubscribersForEvent(mailinglist)
         .then(subscribers => {
