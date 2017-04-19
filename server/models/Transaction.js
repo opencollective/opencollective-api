@@ -1,5 +1,7 @@
 import Promise from 'bluebird';
 import activities from '../constants/activities';
+import uuid from 'uuid';
+import { type } from '../constants/transactions';
 
 /*
  * Transaction model
@@ -11,6 +13,7 @@ export default (Sequelize, DataTypes) => {
   const { models } = Sequelize;
 
   const Transaction = Sequelize.define('Transaction', {
+    uuid: DataTypes.STRING(36),
     type: DataTypes.STRING, // Expense or Donation
     description: DataTypes.STRING,
     amount: DataTypes.INTEGER,
@@ -60,18 +63,11 @@ export default (Sequelize, DataTypes) => {
 
     getterMethods: {
 
-      isDonation() {
-        return this.amount > 0;
-      },
-
-      isExpense() {
-        return this.amount < 0;
-      },
-
       // Info.
       info() {
         return {
           id: this.id,
+          uuid: this.uuid,
           type: this.type,
           description: this.description,
           amount: this.amount,
@@ -79,12 +75,12 @@ export default (Sequelize, DataTypes) => {
           createdAt: this.createdAt,
           UserId: this.UserId,
           GroupId: this.GroupId,
-          isExpense: this.isExpense,
-          isDonation: this.isDonation,
           platformFee: this.platformFee,
           hostFee: this.hostFee,
           paymentProcessorFee: this.paymentProcessorFee,
-          netAmountInGroupCurrency: this.netAmountInGroupCurrency
+          netAmountInGroupCurrency: this.netAmountInGroupCurrency,
+          amountInTxnCurrency: this.amountInTxnCurrency,
+          txnCurrency: this.txnCurrency
         };
       }
     },
@@ -116,6 +112,7 @@ export default (Sequelize, DataTypes) => {
         transaction.UserId = user && user.id;
         transaction.GroupId = group && group.id;
         transaction.PaymentMethodId = transaction.PaymentMethodId || (paymentMethod ? paymentMethod.id : null);
+        transaction.type = (transaction.amount > 0) ? type.DONATION : type.EXPENSE;
 
         if (transaction.amount > 0 && transaction.txnCurrencyFxRate) {
           // populate netAmountInGroupCurrency for donations
@@ -125,11 +122,6 @@ export default (Sequelize, DataTypes) => {
                 - transaction.hostFeeInTxnCurrency
                 - transaction.paymentProcessorFeeInTxnCurrency)
               *transaction.txnCurrencyFxRate);
-        } else {
-          // populate netAmountInGroupCurrency for "Add Funds" and Expenses
-          transaction.netAmountInGroupCurrency = transaction.amount;
-          // set the currency to be group's currency, if not specified
-          transaction.currency = transaction.currency || group.currency;
         }
         return Transaction.create(transaction);
       },
@@ -154,7 +146,7 @@ export default (Sequelize, DataTypes) => {
             GroupId: transaction.GroupId,
             UserId: transaction.UserId,
             data: {
-              transaction: transaction.get(),
+              transaction: transaction.info,
               user: transaction.User && transaction.User.minimal,
               group: transaction.Group && transaction.Group.minimal
             }
@@ -172,6 +164,10 @@ export default (Sequelize, DataTypes) => {
     },
 
     hooks: {
+      beforeCreate: (transaction) => {
+        transaction.uuid = uuid.v4();
+      },
+
       afterCreate: (transaction) => {
         Transaction.createActivity(transaction); // intentionally no return statement, needs to be async
       }

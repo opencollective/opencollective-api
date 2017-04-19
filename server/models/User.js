@@ -14,7 +14,9 @@ import errors from '../lib/errors';
 import queries from '../lib/queries';
 import userLib from '../lib/userlib';
 import knox from '../gateways/knox';
-import imageUrlToAmazonUrl from '../lib/imageUrlToAmazonUrl';
+import imageUrlLib from '../lib/imageUrlToAmazonUrl';
+
+import { hasRole } from '../lib/auth';
 
 /**
  * Constants.
@@ -347,11 +349,16 @@ export default (Sequelize, DataTypes) => {
         });
       },
 
+      canEditGroup(groupid) {
+        return hasRole(this.id, groupid, ['MEMBER', 'HOST']);
+      },
+
       updateWhiteListedAttributes(attributes) {
 
         let update = false;
         const allowedFields = 
-          [ 'firstName',
+          [ 'username',
+            'firstName',
             'lastName',
             'description',
             'longDescription',
@@ -372,11 +379,24 @@ export default (Sequelize, DataTypes) => {
             this[prop] = attributes[prop];
             update = true;
           }
+
+          if (prop === 'username') {
+            return Sequelize.query(`
+              with usernames as (SELECT username FROM "Users" UNION SELECT slug as username FROM "Groups")
+              SELECT COUNT(*) FROM usernames WHERE username='${attributes[prop]}'
+              `, {
+                type: Sequelize.QueryTypes.SELECT
+              })
+            .then(res => {
+              const count = res[0].count;
+              if (count > 0) throw new errors.BadRequest(`username ${attributes[prop]} is already taken`);
+            })
+          }
         })
         .then(() => this.avatar || userLib.fetchAvatar(this.email))
         .then(avatar => {
-          if (avatar && avatar.indexOf('/static') !== 0 && avatar.indexOf(knox.bucket) === -1) {
-            return Promise.promisify(imageUrlToAmazonUrl)(knox, avatar)
+          if (avatar && avatar.indexOf('/public') !== 0 && avatar.indexOf(config.aws.s3.bucket) === -1) {
+            return Promise.promisify(imageUrlLib.imageUrlToAmazonUrl, { context: imageUrlLib })(knox, avatar)
               .then((aws_src, error) => {
                 this.avatar = error ? this.avatar : aws_src;
                 update = true;
@@ -433,6 +453,28 @@ export default (Sequelize, DataTypes) => {
 
       getTopBackers(since, until, tags, limit) {
         return queries.getTopBackers(since || 0, until || new Date, tags, limit || 5);
+      },
+
+      findOrCreateByEmail(email, otherAttributes) {
+        return User.findOne({
+          where: {
+            $or: {
+              email,
+              paypalEmail: email
+            }
+          }
+        })
+        .then(user => user || Sequelize.models.User.create(Object.assign({}, { email }, otherAttributes)))
+      },
+
+      splitName(name) {
+        let firstName = null, lastName = null;
+        if (name) {
+          const tokens = name.split(' ');
+          firstName = tokens[0];
+          lastName = tokens.length > 1 ? tokens.slice(1).join(' ') : null;
+        }
+        return { firstName, lastName };
       }
     },
 
@@ -441,10 +483,13 @@ export default (Sequelize, DataTypes) => {
         if (!instance.username) {
           return userLib.suggestUsername(instance)
             .then(username => {
+              if (!username) {
+                return Promise.reject(new Error('A user must have a username'));
+              }
               instance.username = username;
               return Promise.resolve();
-            })
-        } 
+            });
+        }
         return Promise.resolve();
 
       },

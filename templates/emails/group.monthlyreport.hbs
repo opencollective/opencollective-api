@@ -29,8 +29,9 @@ th {
 
 <div>
 <p>Hi {{recipient.firstName}}!</p>
-<p>We hope you had a great start of the year! We are grateful and humbled by how much support the collectives are getting. ❤️</p>
-<p>As usual, let’s start with your monthly stats:</p>
+<p>This is the last time that we are sending this monthly report manually. Moving forward, we will fully automate this report so that you can have it on the first of the month.</p>
+<p>All the news about the Open Collective Community are now in our monthly newsletter.</p>
+<p>Here are your monthly stats:</p>
 
 <center>
 <table border=0 cellpadding=0 cellspacing=0 width=300 style="margin: 30px 0px">
@@ -88,7 +89,7 @@ th {
 
 </center>
 
-<h2>Expenses</h2>
+<h2>🗒 Expenses</h2>
 <table width="100%" border=0>
 
 {{#each group.expenses}}
@@ -105,7 +106,7 @@ th {
 <p><a href="{{@root.group.publicUrl}}/expenses/new?utm_source=opencollective&utm_campaign=monthlyreport&utm_medium=email">Submit an expense</a></p>
 
 {{#if topBackers}}
-<h2>Recent sponsor activity on Open Collective</h2>
+<h2>💰 Recent sponsor activity on Open Collective</h2>
 <ul>
 {{#each topBackers}}
   <li><a href="{{website}}?utm_source=opencollective&utm_campaign=monthlyreport&utm_medium=email">{{name}}</a> gave {{{donationsString.html}}}</li>
@@ -114,34 +115,11 @@ th {
 {{/if}}
 
 
-<h2>Changelog</h2>
+<h2>💡 Tips for raising more money</h2>
+<p>We wrote this guide "<a href="https://medium.com/open-collective/ten-steps-to-successful-open-source-crowdfunding-fa2b43e82687">Ten Steps to Successful Open Source Crowdfunding</a>" with a bunch of tips to help you raise more money for your collective.</p>
 
-<ul>
-<li><b>Request Money:</b> 
-Sometimes you want to send a backer or a sponsor a specific link for a donation, or you want to do a special subscription deal or sell tickets to a meetup. We released a new feature to generate a specific URL for this and you can find it in your transactions page:
-<center><img style="width:100%;" src="https://cl.ly/2i1o370V3C3S/Screen%20Shot%202017-02-06%20at%2011.21.13%20PM.png" /></center>
-</li> 
-<li><b>We’ve changed the way your backers are charged:</b> 
-We now charge recurring monthly subscriptions on 1st of every month (only for new recurring donations).
-<p>The goal is to help you better manage your budget. You will now start the month with a minimum budget that will get improved with any new donations. This will also enable us in the future to charge a single payment for multiple monthly donations from the same user and reduce transaction fees.</p>
-</li>
-</ul>
-
-<h2>Featured Collectives</h2>
-
-<p>We created a collective <a href="https://opencollective.com/NoMuslimBan?{{utm}}">#NoMuslimBan</a> to raise money to support immigration efforts and shared an email address (expenses@NoMuslimBan.opencollective.com) to reimburse any immigration-related receipts. First use of that money: send 10 pizzas to the lawyers working hard and late into the night at JFK. Kudos to the delivery guy who made it happen amidst the chaos!! You can help us use the money by asking anyone who took part of the protest to file the expenses they had to the collective. A lot of people want to help cover them!
-
-<center><img width="320" src="https://cl.ly/0t2J3n1d3F3Z/IMG_1401.JPG" /></center>
-</p>
-
-
-<h2>Read & Listen</h2>
-
-<p>Read Xavier’s blog post <a href="https://medium.com/open-collective/from-firms-to-collectives-c139ae27a4ee#.5z8py49ic?{{utm}}">From Firms to Collectives</a>. Moving beyond the old model of private firms to create economic value together.</p>
-
-<p>We believe in being open and transparent. That's why we decided to publish our investors updates. Here is the latest one: <a href="https://medium.com/open-collective/january-investors-update-b7fc9c527b0d#.vfv63c5xo">January Investors Update</a>.</p>
-
-<p>We were invited to <a href="https://changelog.com/podcast/234">Changelog</a> and Pia had a long chat about Open Collective and creating a healthy ecosystem to support.<p>  
+<h2>🗣 Feedback</h2>
+As always, feel free to reply to this email to give us your feedback. A human will always be there on the other side!
 
 </div>
 

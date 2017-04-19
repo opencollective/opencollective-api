@@ -8,8 +8,11 @@ import {
   GraphQLString,
 } from 'graphql';
 
-import models from '../models';
 import status from '../constants/response_status';
+import models from '../models';
+import dataloaderSequelize from 'dataloader-sequelize';
+dataloaderSequelize(models.Response);
+dataloaderSequelize(models.Event);
 
 export const ResponseStatusType = new GraphQLEnumType({
   name: 'Responses',
@@ -166,6 +169,18 @@ export const CollectiveType = new GraphQLObjectType({
           return collective.slug;
         }
       },
+      users: {
+        type: new GraphQLList(UserType),
+        resolve(collective, args, req) {
+          return collective.getUsersForViewer(req.remoteUser);
+        }
+      },
+      twitterHandle: {
+        type: GraphQLString,
+        resolve(collective) {
+          return collective.twitterHandle;
+        }
+      },
       events: {
         type: new GraphQLList(EventType),
         resolve(collective) {
@@ -176,7 +191,7 @@ export const CollectiveType = new GraphQLObjectType({
         type: GraphQLString,
         resolve(collective) {
           return collective.getStripeAccount()
-          .then(stripeAccount => stripeAccount && stripeAccount.stripePublishablekey)
+          .then(stripeAccount => stripeAccount && stripeAccount.stripePublishableKey)
         }
       }
     }
@@ -265,7 +280,13 @@ export const EventType = new GraphQLObjectType({
       endsAt: {
         type: GraphQLString,
         resolve(event) {
-          return event.startsAt
+          return event.endsAt
+        }
+      },
+      timezone: {
+        type: GraphQLString,
+        resolve(event) {
+          return event.timezone
         }
       },
       maxAmount: {
@@ -289,7 +310,7 @@ export const EventType = new GraphQLObjectType({
       tiers: {
         type: new GraphQLList(TierType),
         resolve(event) {
-          return event.getTiers();
+          return event.getTiers({ order: [['amount', 'ASC']] });
         }
       },
       responses: {
@@ -298,7 +319,10 @@ export const EventType = new GraphQLObjectType({
           return event.getResponses({
             where: { 
               confirmedAt: { $ne: null } 
-            }
+            },
+            order: [
+              ['createdAt', 'DESC']
+            ]
           });
         }
       }
@@ -316,6 +340,12 @@ export const TierType = new GraphQLObjectType({
         type: GraphQLInt,
         resolve(tier) {
           return tier.id;
+        }
+      },
+      slug: {
+        type: GraphQLString,
+        resolve(tier) {
+          return tier.slug
         }
       },
       name: {
@@ -413,8 +443,8 @@ export const ResponseType = new GraphQLObjectType({
       },
       user: {
         type: UserType,
-        resolve(response) {
-          return response.getUser();
+        resolve(response, args, req) {
+          return response.getUserForViewer(req.remoteUser);
         }
       },
       description: {
@@ -439,6 +469,12 @@ export const ResponseType = new GraphQLObjectType({
         type: EventType,
         resolve(response) {
           return response.getEvent();
+        }
+      },
+      createdAt: {
+        type: GraphQLString,
+        resolve(response) {
+          return response.createdAt;
         }
       },
       confirmedAt: {

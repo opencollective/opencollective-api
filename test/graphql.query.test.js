@@ -62,7 +62,8 @@ describe('Query Tests', () => {
             }
           }
         `;
-        const result = await graphql(schema, query);
+        const context = { remoteUser: null };
+        const result = await graphql(schema, query, null, context);
         expect(result.errors.length).to.equal(1);
         expect(result.errors[0].message).to.equal('Field \"Event\" argument \"collectiveSlug\" of type \"String!\" is required but not provided.');
       })
@@ -80,7 +81,8 @@ describe('Query Tests', () => {
             }
           }
         `;
-        const result = await graphql(schema, query);
+        const context = { remoteUser: null };
+        const result = await graphql(schema, query, null, context);
         expect(result).to.deep.equal({
           data: {
             allEventsForCollective: []
@@ -98,7 +100,8 @@ describe('Query Tests', () => {
             }
           }
         `;
-        const result = await graphql(schema, query);
+        const context = { remoteUser: null };
+        const result = await graphql(schema, query, null, context);
         expect(result).to.deep.equal({
           data: {
             allEventsForCollective: []
@@ -109,23 +112,34 @@ describe('Query Tests', () => {
 
     describe('returns event(s)', () => {
 
-      it('when given an event slug and collectiveSlug', async () => {
+      it('when given an event slug and collectiveSlug (case insensitive)', async () => {
         const query = `
           query getOneEvent {
-            Event(collectiveSlug: "scouts", eventSlug:"jan-meetup") {
+            Event(collectiveSlug: "Scouts", eventSlug:"Jan-Meetup") {
               id,
               name,
-              description
+              description,
+              collective {
+                slug,
+                twitterHandle
+              }
+              timezone
             }
           }
         `;
-        const result = await graphql(schema, query);
+        const context = { remoteUser: null };
+        const result = await graphql(schema, query, null, context);
         expect(result).to.deep.equal({
           data: {
             Event: {
               description: "January monthly meetup",
               id: 1,
               name: "January meetup",
+              timezone: "America/New_York",
+              collective: {
+                slug: 'scouts',
+                twitterHandle: 'scouts'
+              }
             }            
           }
         });
@@ -143,7 +157,8 @@ describe('Query Tests', () => {
               }
             }
           `;
-          const result = await graphql(schema, query);
+          const context = { remoteUser: null };
+          const result = await graphql(schema, query, null, context);
           expect(result).to.deep.equal({
             data: {
               allEventsForCollective: [
@@ -215,6 +230,24 @@ describe('Query Tests', () => {
             confirmedAt: new Date()
           })));
         
+        it('sends response data', async () => {
+          const query = `
+            query getMultipleEvents {
+              Event(collectiveSlug: "${group1.slug}", eventSlug: "${event1.slug}") {
+                responses {
+                  createdAt,
+                  status
+                }
+              }
+            }
+          `;
+          const context = { remoteUser: null };
+          const result = await graphql(schema, query, null, context);
+          const response = result.data.Event.responses[0];
+          expect(response).to.have.property("createdAt");
+          expect(response).to.have.property("status");
+        });
+
         it('when given only a collective slug', async () => {
           const query = `
             query getOneEvent {
@@ -250,7 +283,8 @@ describe('Query Tests', () => {
               }
             }
           `;
-          const result = await graphql(schema, query);
+          const context = { remoteUser: null };
+          const result = await graphql(schema, query, null, context);
           expect(result).to.deep.equal({
             data: {
               allEventsForCollective: [

@@ -339,8 +339,15 @@ export function pluralize(str, count) {
   return `${str}s`.replace(/s+$/,'s');
 }
 
-export function resizeImage(imageUrl, { width, height, query }) {
-  if (!imageUrl) return null;
+export function resizeImage(imageUrl, { width, height, query, defaultImage }) {
+  if (!imageUrl) {
+    if (defaultImage) {
+      imageUrl = (defaultImage.substr(0,1) === '/') ? `${config.host.website}${defaultImage}` : defaultImage;
+    } else {
+      return null;
+    }
+  }
+
   if (imageUrl[0] === '/') imageUrl = `https://opencollective.com${imageUrl}`;
 
   let queryurl = '';
@@ -378,4 +385,8 @@ export function formatCurrencyObject(currencyObj, options = { precision: 0 }) {
     array.push(formatCurrency(currencyObj[currency], currency, options.precision));
   }
   return formatArrayToString(array);
+}
+
+export function isUUID(str) {
+  return (str.length === 36 && str.match(/^[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i));
 }

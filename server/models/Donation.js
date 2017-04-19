@@ -1,4 +1,3 @@
-import { processPayment } from '../lib/payments';
 import { type } from '../constants/transactions';
 
 const donationType = type.DONATION;
@@ -49,6 +48,8 @@ export default function(Sequelize, DataTypes) {
     },
 
     title: DataTypes.STRING,
+
+    notes: DataTypes.TEXT,
 
     SubscriptionId: {
       type: DataTypes.INTEGER,
@@ -117,12 +118,6 @@ export default function(Sequelize, DataTypes) {
           createdAt: this.createdAt,
           updatedAt: this.updatedAt
         }
-      }
-    },
-
-    hooks: {
-      afterCreate: function(donation) {
-        return processPayment(Sequelize, donation);
       }
     }
   });

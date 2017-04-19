@@ -73,7 +73,7 @@ export default (app) => {
    */
   app.param('userid', params.userid);
   app.param('groupid', params.groupid);
-  app.param('transactionid', params.transactionid);
+  app.param('transactionuuid', params.transactionuuid);
   app.param('paranoidtransactionid', params.paranoidtransactionid);
   app.param('expenseid', params.expenseid);
   app.param('commentid', params.commentid);
@@ -83,7 +83,6 @@ export default (app) => {
    */
   app.use('/graphql', GraphHTTP({
     schema: schema,
-    rootValue: { remoteUser: (args, request) => request.remoteUser }, // passes in logged in user
     pretty: process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'staging',
     graphiql: process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'staging'
   }));
@@ -157,10 +156,6 @@ export default (app) => {
   app.put('/groups/:groupid/settings', auth.canEditGroup, required('group'), groups.updateSettings); // Update group settings
   app.delete('/groups/:groupid', NotImplemented); // Delete a group.
 
-  // TODO: Remove #postmigration after frontend migrates to POST /groups/:groupid/donations/*
-  app.post('/groups/:groupid/payments', required('payment'), mw.getOrCreateUser, donations.post); // Make a payment/donation.
-  // app.post('/groups/:groupid/payments/paypal', required('payment'), donations.paypal); // Make a payment/donation.
-
   app.get('/groups/:groupid/services/meetup/sync', mw.fetchUsers, syncMeetup);
 
   /**
@@ -177,9 +172,9 @@ export default (app) => {
    * Transactions (financial).
    */
   app.get('/groups/:groupid/transactions', mw.paginate(), mw.sorting({key: 'createdAt', dir: 'DESC'}), groups.getTransactions); // Get a group's transactions.
-  app.get('/transactions/:transactionid', transactions.getOne); // Get the transaction details
+  app.get('/transactions/:transactionuuid', transactions.getOne); // Get the transaction details
 
-  // TODO remove #postmigration, replaced by POST /groups/:groupid/expenses
+  // TODO remove once app is deprecated, replaced by POST /groups/:groupid/expenses and POST /groups/:groupid/donations/manual
   app.post('/groups/:groupid/transactions', required('transaction'), auth.canEditGroup, groups.createTransaction); // Create a transaction for a group.
 
 
@@ -209,7 +204,8 @@ export default (app) => {
    * Donations
    */
   app.get('/groups/:groupid/donations', mw.paginate(), mw.sorting({key: 'processedAt', dir: 'DESC'}), donations.list); // Callback after a payment
-  app.post('/groups/:groupid/donations', required('payment'), mw.getOrCreateUser, donations.post); // Make a stripe donation.
+  app.post('/groups/:groupid/donations/stripe', required('payment'), mw.getOrCreateUser, donations.stripe); // Make a stripe donation.
+  app.post('/groups/:groupid/donations/manual', required('donation'), auth.mustHaveRole(roles.HOST), donations.manual); // Create a manual donation.
   // app.post('/groups/:groupid/donations/paypal', required('payment'), donations.paypal); // Make a paypal donation.
   // app.get('/groups/:groupid/transactions/:paranoidtransactionid/callback', donations.paypalCallback); // Callback after a payment
 
@@ -268,9 +264,10 @@ export default (app) => {
   app.get('/github-repositories', connectedAccounts.fetchAllRepositories);
 
   /**
-   * Reset test-api database
+   * test-api routes
    */
   app.get('/database/reset', test.resetTestDatabase);
+  app.get('/test/loginlink', test.getTestUserLoginUrl);
 
   /**
    * Stripe subscriptions (recurring payments)

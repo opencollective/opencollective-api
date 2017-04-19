@@ -14,8 +14,8 @@ import {getTier, isBackerActive, capitalize, pluralize } from '../lib/utils';
 import activities from '../constants/activities';
 import Promise from 'bluebird';
 
-const DEFAULT_LOGO = '/static/images/1px.png';
-const DEFAULT_BACKGROUND_IMG = '/static/images/collectives/default-header-bg.jpg';
+const DEFAULT_LOGO = '/public/images/1px.png';
+const DEFAULT_BACKGROUND_IMG = `${config.host.website}/public/images/collectives/default-header-bg.jpg`;
 
 const getDefaultSettings = (group) => {
   return {
@@ -146,17 +146,15 @@ export default function(Sequelize, DataTypes) {
       unique: true,
       set(slug) {
         if (slug && slug.toLowerCase) {
-          this.setDataValue('slug', slug.toLowerCase());
+          this.setDataValue('slug', slug.toLowerCase().replace(/ /g, '-'));
         }
       }
     },
 
     twitterHandle: {
       type: DataTypes.STRING, // without the @ symbol. Ex: 'asood123'
-      set(username) {
-        if (username.substr(0,1) === '@') {
-          this.setDataValue('twitterHandle', username.substr(1));
-        }
+      set(twitterHandle) {
+        this.setDataValue('twitterHandle', twitterHandle.replace(/^@/,''));
       }
     },
 
@@ -252,6 +250,15 @@ export default function(Sequelize, DataTypes) {
     },
 
     instanceMethods: {
+      getUsersForViewer(viewer) {
+        const promises = [queries.getUsersFromGroupWithTotalDonations(this.id)];
+        if (viewer) {
+          promises.push(viewer.canEditGroup(this.id));
+        }
+        return Promise.all(promises)
+        .then(results => results[0].map(user => results[1] ? user.info : user.public))
+      },
+
       getSuperCollectiveGroupsIds() {
         if (!this.isSupercollective) return Promise.resolve([this.id]);
         if (this.superCollectiveGroupsIds) return Promise.resolve(this.superCollectiveGroupsIds);
@@ -289,7 +296,7 @@ export default function(Sequelize, DataTypes) {
             });
             users.map(user => {
               user.tier = getTier(user, tiers);
-              user.avatar = user.avatar || `/static/images/users/avatar-02.svg`;
+              user.avatar = user.avatar || `/public/images/users/avatar-02.svg`;
               if (tierIndex[user.tier] === undefined) {
                 tierIndex[user.tier] = tiers.length;
                 tiers.push({ name: user.tier, title: capitalize(pluralize(user.tier)), users: [], range: [0, Infinity] });
@@ -560,13 +567,17 @@ export default function(Sequelize, DataTypes) {
         return Group.getGroupsSummaryByTag(this.tags, limit, [this.id], minTotalDonationInCents, true, orderBy, orderDir);
       },
 
-      hasHost() {
+      getHost() {
         return Sequelize.models.UserGroup.find({
           where: {
             GroupId: this.id,
             role: roles.HOST
           }
-        })
+        });
+      },
+
+      hasHost() {
+        return this.getHost()
         .then(userGroup => Promise.resolve(!!userGroup));
       },
 

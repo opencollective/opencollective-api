@@ -1,5 +1,7 @@
 export default function(Sequelize, DataTypes) {
 
+  const { models } = Sequelize;
+
   const Event = Sequelize.define('Event', {
     id: {
       type: DataTypes.INTEGER,
@@ -81,6 +83,8 @@ export default function(Sequelize, DataTypes) {
       defaultValue: Sequelize.NOW
     },
 
+    timezone: DataTypes.TEXT,
+
     createdAt: {
       type: DataTypes.DATE,
       defaultValue: Sequelize.NOW
@@ -115,11 +119,34 @@ export default function(Sequelize, DataTypes) {
           slug: this.slug,
           startsAt: this.startsAt,
           endsAt: this.endsAt,
+          timezone: this.timezone,
           status: this.status,
           confirmedAt: this.confirmedAt,
           createdAt: this.createdAt,
           updatedAt: this.updatedAt
         }
+      }
+    },
+
+    classMethods: {
+      getBySlug: (groupSlug, eventSlug) => {
+        return Event.findOne({
+          where: {
+            slug: eventSlug
+          },
+          include: [{
+            model: models.Group,
+            where: {
+              slug: groupSlug
+            }
+          }]
+        })
+        .then(ev => {
+          if (!ev) {
+            throw new Error(`No event found with slug: ${eventSlug} in collective: ${groupSlug}`)
+          }
+          return ev;
+        })        
       }
     }
   });

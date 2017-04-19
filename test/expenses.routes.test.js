@@ -38,6 +38,9 @@ describe('expenses.routes.test.js', () => {
 
   after(() => sandbox.restore());
 
+  // Create a stub for clearbit
+  before(() => utils.clearbitStubBeforeEach(sandbox));
+
   beforeEach(() => utils.resetTestDB());
 
   beforeEach(() => models.User.create(utils.data('user1')).tap(u => host = u));
@@ -233,7 +236,7 @@ describe('expenses.routes.test.js', () => {
             beforeEach('create expense 2', () => createExpense(group, expenseFiler));
             beforeEach('create 1 comment', () => models.Comment.createMany([utils.data('comments')[0]], { UserId: 1, GroupId: group.id, ExpenseId: 1 }));
             beforeEach('create many comments', () => models.Comment.createMany(utils.data('comments'), { UserId: 1, GroupId: group.id, ExpenseId: 2 }));
-            it('ttt THEN returns 200', () => request(app)
+            it('THEN returns all expenses without user.email', () => request(app)
               .get(`/groups/${group.id}/expenses?api_key=${application.api_key}`)
               .expect(200)
               .then(res => {
@@ -242,7 +245,22 @@ describe('expenses.routes.test.js', () => {
                 expect(expenses[0].commentsCount).to.equal(1);
                 expect(expenses[1].commentsCount).to.equal(3);
                 expect(expenses[2].commentsCount).to.equal(0);
+                expect(expenses[1].user.id).to.equal(expenseFiler.id);
+                expect(expenses[0].user.email).to.not.exist;
+                console.log("Expense user", expenses[0].user);
                 expenses.forEach(e => expect(e.GroupId).to.equal(group.id));
+              }));
+
+            it('THEN returns 200 with all expenses with user.email and user.paypalEmail', () => request(app)
+              .get(`/groups/${group.id}/expenses?api_key=${application.api_key}`)
+              .set('Authorization', `Bearer ${host.jwt()}`)
+              .expect(200)
+              .then(res => {
+                const expenses = res.body;
+                expect(expenses).to.have.length(3);
+                expect(expenses[1].user.id).to.equal(expenseFiler.id);
+                expect(expenses[1].user.email).to.equal(expenseFiler.email);
+                expect(expenses[1].user).to.have.property('paypalEmail');
               }));
 
             describe('WHEN specifying per_page', () => {
@@ -596,7 +614,7 @@ describe('expenses.routes.test.js', () => {
                   return request(app)
                     .post(`/groups/${group.id}/transactions`)
                     .set('Authorization', `Bearer ${host.jwt()}`)
-                    .send({ api_key: application.api_key, transaction: {amount: 12000}})
+                    .send({ api_key: application.api_key, transaction: {netAmountInGroupCurrency: 12000}})
                     .expect(200);
                 })
 
@@ -616,7 +634,7 @@ describe('expenses.routes.test.js', () => {
                   return request(app)
                     .post(`/groups/${group.id}/transactions`)
                     .set('Authorization', `Bearer ${host.jwt()}`)
-                    .send({ api_key: application.api_key, transaction: {amount: 12500}})
+                    .send({ api_key: application.api_key, transaction: {netAmountInGroupCurrency: 12500}})
                     .expect(200);
                 })
 
@@ -625,7 +643,7 @@ describe('expenses.routes.test.js', () => {
                     error: {
                       code: 400,
                       type: 'bad_request',
-                      message: 'This user has no confirmed paymentMethod linked with this service.',
+                      message: 'No payment method found',
                     }
                   }));
                 });
@@ -782,7 +800,7 @@ describe('expenses.routes.test.js', () => {
                   return request(app)
                     .post(`/groups/${group.id}/transactions`)
                     .set('Authorization', `Bearer ${host.jwt()}`)
-                    .send({ api_key: application.api_key, transaction: {amount: 10000}})
+                    .send({ api_key: application.api_key, transaction: {netAmountInGroupCurrency: 10000}})
                     .expect(200);
                 })
 
