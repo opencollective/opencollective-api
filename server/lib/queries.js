@@ -32,9 +32,10 @@ const getTotalAnnualBudget = () => {
     (SELECT
       COALESCE(SUM(${generateFXConversionSQL()} * 12),0)
       FROM "Subscriptions" s
+      LEFT JOIN "Donations" d ON s.id = d."SubscriptionId"
       LEFT JOIN "Transactions" t
-      ON (s.id = t."SubscriptionId"
-        AND t.id = (SELECT MAX(id) from "Transactions" t where t."SubscriptionId" = s.id))
+      ON (s.id = d."SubscriptionId"
+        AND t.id = (SELECT MAX(id) from "Transactions" t where t."DonationId" = d.id))
       WHERE t.amount > 0 AND t."GroupId" != 1
         AND t."deletedAt" IS NULL
         AND s.interval = 'month'
@@ -43,16 +44,20 @@ const getTotalAnnualBudget = () => {
     +
     (SELECT
       COALESCE(SUM(${generateFXConversionSQL()}),0) FROM "Transactions" t
-      LEFT JOIN "Subscriptions" s ON t."SubscriptionId" = s.id
+      LEFT JOIN "Donations" d ON t."DonationId" = d.id
+      LEFT JOIN "Subscriptions" s ON d."SubscriptionId" = s.id
       WHERE t.amount > 0 AND t."GroupId" != 1
         AND t."deletedAt" IS NULL
+        AND t."createdAt" > (current_date - INTERVAL '12 months') 
         AND ((s.interval = 'year' AND s."isActive" IS TRUE AND s."deletedAt" IS NULL) OR s.interval IS NULL))
     +
     (SELECT
       COALESCE(SUM(${generateFXConversionSQL()}),0) FROM "Transactions" t
-      LEFT JOIN "Subscriptions" s ON t."SubscriptionId" = s.id
+      LEFT JOIN "Donations" d on t."DonationId" = d.id
+      LEFT JOIN "Subscriptions" s ON d."SubscriptionId" = s.id
       WHERE t.amount > 0 AND t."GroupId" != 1
         AND t."deletedAt" IS NULL
+        AND t."createdAt" > (current_date - INTERVAL '12 months')
         AND s.interval = 'month' AND s."isActive" IS FALSE AND s."deletedAt" IS NULL)
     "yearlyIncome"
   `, {
@@ -132,11 +137,11 @@ const getGroupsByTag = (tag, limit, excludeList, minTotalDonationInCents, random
 
   return sequelize.query(`
     WITH "totalDonations" AS (
-      SELECT "GroupId", SUM(amount*100) as "totalDonations", MAX(currency) as currency, COUNT(DISTINCT "GroupId") as collectives FROM "Transactions" WHERE amount > 0 AND currency='USD' AND "PaymentMethodId" IS NOT NULL GROUP BY "GroupId"
+      SELECT "GroupId", SUM(amount) as "totalDonations", MAX(currency) as currency, COUNT(DISTINCT "GroupId") as collectives FROM "Transactions" WHERE amount > 0 AND currency='USD' AND "PaymentMethodId" IS NOT NULL GROUP BY "GroupId"
     )
     SELECT g.id, g.name, g.slug, g.mission, g.logo, g."backgroundImage", g.currency, g.settings, g.data, t."totalDonations", t.collectives
     FROM "Groups" g LEFT JOIN "totalDonations" t ON t."GroupId" = g.id
-    WHERE ${minTotalDonationInCentsClause} ${tagClause} g."deletedAt" IS NULL ${excludeClause}
+    WHERE ${minTotalDonationInCentsClause} ${tagClause} g."deletedAt" IS NULL ${excludeClause} AND g."isActive" IS TRUE
     ORDER ${orderClause} ${orderDirection} NULLS LAST LIMIT ${limit} OFFSET ${offset || 0}
   `.replace(/\s\s+/g, ' '), // this is to remove the new lines and save log space.
   {
@@ -159,7 +164,7 @@ const getUniqueGroupTags = () => {
 const getTopSponsors = () => {
   return sequelize.query(`
     WITH "totalDonations" AS (
-      SELECT "UserId", SUM(amount*100) as "totalDonations", MAX(currency) as currency, COUNT(DISTINCT "GroupId") as collectives FROM "Transactions" WHERE amount > 0 AND currency='USD' AND "PaymentMethodId" IS NOT NULL GROUP BY "UserId"
+      SELECT "UserId", SUM(amount) as "totalDonations", MAX(currency) as currency, COUNT(DISTINCT "GroupId") as collectives FROM "Transactions" WHERE amount > 0 AND currency='USD' AND "PaymentMethodId" IS NOT NULL GROUP BY "UserId"
     )
     SELECT u.id, u."firstName", u."lastName", u.username, u.mission, u.description, u.avatar as logo, t."totalDonations", t.currency, t.collectives
     FROM "totalDonations" t LEFT JOIN "Users" u ON t."UserId" = u.id

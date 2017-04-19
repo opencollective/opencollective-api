@@ -1,0 +1,37 @@
+Hi {{recipient.firstName}}!
+
+We are starting this new monthly email to keep you posted on the latest activities of the collectives that you are supporting.
+Let us know if you like this and don't hesitate if you have any feedback / ideas. Just reply to this email! :)
+
+
+# Active subscriptions
+
+{{#each subscriptions}}
+
+- {{group.name}}: 
+{{group.publicUrl}}
+Backers: {{group.stats.backers.lastMonth}} (+{{group.stats.backers.new}}{{#if group.stats.backers.lost}}, -{{group.stats.backers.lost}}{{/if}})
+Current balance: {{{currency group.stats.balance currency=currency}}} (+{{{currency group.stats.totalDonations currency=currency}}}{{#if group.stats.totalExpenses}}, {{{currency group.stats.totalExpenses currency=currency}}}{{/if}}) 
+Your contribution: {{currency amount currency=currency}} per {{interval}}
+Member since: {{{moment createdAt}}}
+{{/each}}
+
+If you'd like to cancel any of your subscriptions, you can do so on https://opencollective.com/subscriptions
+
+
+# New Related Collectives
+
+{{#each relatedGroups}}
+{{publicUrl}}
+{{{capitalize mission}}}
+
+{{/each}}
+
+# OpenCollective meetup
+
+If you are in NYC, come join us for a drink 🍻 next Wednesday (March 8th) at 7pm at the Swift Hiberian Lounge. RSVP on our new events page 😊  https://opencollective.com/opencollective/events/meetup-1
+
+
+To manage your subscriptions, follow this url: {{manageSubscriptionsUrl}}
+
+{{>footer.text}}

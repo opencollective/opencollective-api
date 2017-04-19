@@ -79,7 +79,8 @@ export default {
     }],
     "hostFeePercent": 10,
     "tags": ["open source", "test"],
-    "isSupercollective": false
+    "isSupercollective": false,
+    "isActive": true
   },
 
   "group2": {
@@ -107,7 +108,8 @@ export default {
     }],
     "hostFeePercent": 0,
     "tags": ["meetup", "test"],
-    "isSupercollective": false
+    "isSupercollective": false,
+    "isActive": true
   },
 
   "group3": {
@@ -140,7 +142,8 @@ export default {
       logo: 'https://opencollective-production.s3-us-west-1.amazonaws.com/1738fae0-9a20-11e6-8650-f92e594d5de8.png',
       currency: 'EUR',
       settings: { "style": { "hero": { "cover": { "background": "rgb(36,189,213)" } } } },
-      tags: ['#brusselstogether']
+      tags: ['#brusselstogether'],
+      isActive: true
     },
     {
       name: 'Refugees Got Talent',
@@ -148,7 +151,8 @@ export default {
       mission: 'offer a space and artistic material to refugees artists, so they can practice their art again.',
       logo: 'https://cl.ly/0Q3N193Z1e3u/BrusselsTogetherLogo.png',
       currency: 'EUR',
-      tags: ['#brusselstogether']
+      tags: ['#brusselstogether'],
+      isActive: true
     },
     {
       name: 'Brussels Smart City',
@@ -157,19 +161,24 @@ export default {
       logo: 'https://cl.ly/0Q3N193Z1e3u/BrusselsTogetherLogo.png',
       currency: 'EUR',
       tags: ['#brusselstogether'],
-      backgroundImage: 'http://www.hiddendistrict.be/wp-content/uploads/2015/01/Brussels_view-1000x500.jpg'
+      backgroundImage: 'http://www.hiddendistrict.be/wp-content/uploads/2015/01/Brussels_view-1000x500.jpg',
+      isActive: true
     }
   ],
 
   "paymentMethod1": {
     "token": "PA-1B0110758V169653C",
-    "service": "paypal"
+    "service": "paypal",
+    "startDate": "2017-01-30T07:31:37.747Z",
+    "endDate": "2018-01-30T07:31:37.747Z",
+    "confirmedAt": "2017-01-30T07:31:37.747Z"
   },
 
   "paymentMethod2": {
     "token": "stripetoken123",
     "service": "stripe",
-    "customerId": "cus_123"
+    "customerId": "cus_123",
+    "confirmedAt": "2017-01-30T07:31:37.747Z"
   },
 
   "activities1": {
@@ -195,8 +204,8 @@ export default {
             "email":"john@doe.com"
             },
           "transaction": {
-            "isDonation": true,
-            "amount":10.42,
+            "type": "DONATION",
+            "amount":1042,
             "currency": "USD"
             },
           "group": {
@@ -215,8 +224,8 @@ export default {
             "email":"john@doe.com"
             },
           "transaction": {
-            "isExpense": true,
-            "amount":-12.98,
+            "type": "EXPENSE",
+            "amount":-1298,
             "currency": "USD",
             "description": "pizza"
             },
@@ -236,8 +245,8 @@ export default {
             "email":"john@doe.com"
             },
           "transaction": {
-            "isExpense": true,
-            "amount":-12.98,
+            "type": "EXPENSE",
+            "amount":-1298,
             "currency": "USD",
             "description": "pizza"
             },
@@ -267,7 +276,8 @@ export default {
             "email":"jussi@kuohujoki.fi"
           },
           "transaction": {
-            "amount": 12.34,
+            "type": "DONATION",
+            "amount": 1234,
             "currency": "EUR"
           },
           "group": {
@@ -361,7 +371,7 @@ export default {
             "publicUrl": "blah.com"
           },
           "expense": {
-            "amount": 12.34,
+            "amount": 1234,
             "currency": "EUR",
             "title": "for pizza"
           }
@@ -379,7 +389,7 @@ export default {
             "publicUrl": "blah.com"
           },
           "expense": {
-            "amount": 12.34,
+            "amount": 1234,
             "currency": "EUR",
             "title": "for pizza",
             "lastEditedById": 2
@@ -398,7 +408,7 @@ export default {
             "publicUrl": "blah.com"
           },
           "expense": {
-            "amount": 12.34,
+            "amount": 1234,
             "currency": "EUR",
             "title": "for pizza",
             "lastEditedById": 2
@@ -449,94 +459,59 @@ export default {
       {
         "description": "Homepage design",
         "tags": ["consultancy"],
-        "amount": -200.00,
-        "amountInTxnCurrency": -200.00,
+        "amount": -20000,
+        "amountInTxnCurrency": -20000,
         "currency": "USD",
         "txnCurrency": "USD",
-        "vat": 0.20,
-        "status": "paid back on 4/17/15",
-        "comment": "this is the reason why I bought this",
-        "link": "https://opencollective-production.s3-us-west-1.amazonaws.com/Invoice_14417_OpenCollectivepdf_a1b3cfa0-c0ce-11e5-ab37-9d9c8fc41dba.pdf",
         "createdAt": "2015-01-23T08:00:00.000Z",
       },
       {
         "description": "Flight SFO-BRU",
-        "tags": ["travel"],
-        "amount": -918.59,
+        "amount": -91859,
         "currency": "USD",
-        "status": "paid back on 4/17/15",
-        "comment": "",
-        "link": "https://www.dropbox.com/s/2egws2rq0kvreei/2015-04-06%2016.04.50.jpg?dl=0",
         "createdAt": "2015-02-22T08:00:00.000Z"
       },
       {
         "description": "Byword",
-        "tags": ["software"],
-        "amount": -11.99,
+        "amount": -1199,
         "currency": "USD",
-        "status": "paid back on 4/17/15",
-        "comment": "",
-        "link": "http://cl.ly/image/39212o302x2c",
         "createdAt": "2015-03-04T08:00:00.000Z",
       },
       {
         "description": "Tipbox.is domain + dedicated server",
-        "tags": ["hosting"],
-        "amount": -588.61,
+        "amount": -58861,
         "currency": "USD",
-        "status": "paid back on 4/17/15",
-        "comment": "",
-        "link": "http://cl.ly/image/1B25353p221L",
         "createdAt": "2015-04-06T07:00:00.000Z"
       },
       {
         "description": "Working lunch with @mdp",
         "tags": ["food"],
-        "amount": -36.00,
+        "amount": -3600,
         "currency": "USD",
-        "status": "paid back on 4/17/15",
-        "comment": "",
-        "link": "https://www.dropbox.com/s/pxoi887e71923z9/2015-04-07%2012.59.10.jpg?dl=0",
         "createdAt": "2015-04-07T07:00:00.000Z"
       },
       {
         "description": "Homepage design end",
-        "tags": ["consultancy"],
-        "amount": -300.00,
+        "amount": -30000,
         "currency": "USD",
-        "status": "waiting for KF reimbursement",
-        "comment": "",
-        "link": "",
         "createdAt": "2015-04-28T07:00:00.000Z"
       },
       {
         "description": "Homepage frontend code",
-        "tags": ["consultancy"],
-        "amount": -300.00,
+        "amount": -30000,
         "currency": "USD",
-        "status": "waiting for KF reimbursement",
-        "comment": "",
-        "link": "",
         "createdAt": "2015-04-29T07:00:00.000Z"
       },
       {
         "description": "Donation to that great project",
-        "tags": ["donation"],
-        "amount": 9.99,
+        "amount": 999,
         "currency": "USD",
-        "paypalEmail": "userpaypal@gmail.com",
-        "comment": "",
-        "link": "",
-        "createdAt": "2015-05-29T07:00:00.000Z"
       },
       {
         "description": "Donation to that great project",
-        "tags": ["donation"],
-        "amount": 999,
+        "amount": 99900,
         "currency": "USD",
         "paypalEmail": "userpaypal@gmail.com",
-        "comment": "",
-        "link": "",
         "createdAt": "2015-05-29T07:00:00.000Z",
         "PaymentMethodId": 1
       }
@@ -546,7 +521,7 @@ export default {
   "emailData": {
     "transaction": {
       "id": 1,
-      "type": "payment",
+      "type": "DONATION",
       "description": "Donation to Scouts d'Arlon",
       "amount": 10.99,
       "vat": null,
@@ -557,9 +532,7 @@ export default {
       "link": null,
       "createdAt": "2016-01-30T07:31:37.965Z",
       "UserId": 1,
-      "GroupId": 1,
-      "isExpense": false,
-      "isDonation": true
+      "GroupId": 1
     },
 
     "user": {
@@ -600,7 +573,7 @@ export default {
     }
   },
   "subscription1": {
-    "amount": 20,
+    "amount": 2000,
     "currency": "EUR",
     "interval": "month",
     "isActive": true,
@@ -643,6 +616,7 @@ export default {
     slug: "jan-meetup",
     description: "January monthly meetup",
     startsAt: "2017-01-06 UTC+0300",
+    timezone: "America/New_York",
     endsAt: "2017-01-07 UTC+300",
     locationName: "Balanced NYC",
     address: "547 Broadway, NY 10012",
@@ -690,7 +664,7 @@ export default {
   },
 
   "response3": {
-    status: "NO",
+    status: "YES",
     quantity: 2
   }
 }

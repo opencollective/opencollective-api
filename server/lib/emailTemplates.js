@@ -1,5 +1,6 @@
 import fs from 'fs';
-import moment from 'moment';
+import moment from 'moment-timezone';
+
 import handlebars from 'handlebars';
 import { resizeImage, capitalize, formatCurrencyObject, pluralize } from './utils';
 
@@ -10,10 +11,15 @@ import { resizeImage, capitalize, formatCurrencyObject, pluralize } from './util
 const templates = {};
 
 const templateNames = [
+  'announcement',
+  'announcement.text',
+  'backer.monthlyreport',
+  'backer.monthlyreport.text',
   'comment.approve',
   'email.approve',
   'email.message',
   'github.signup',
+  'group.confirm',
   'group.created',
   'group.expense.approved.for.host',
   'group.expense.created',
@@ -21,7 +27,11 @@ const templateNames = [
   'group.donation.created',
   'group.monthlyreport',
   'group.monthlyreport.text',
+  'subscription.canceled',
+  'ticket.confirmed',
+  'ticket.confirmed.sustainoss',
   'thankyou',
+  'thankyou.sustain',
   'thankyou.wwcode',
   'thankyou.brusselstogether',
   'thankyou.ispcwa',
@@ -44,6 +54,8 @@ const toplogo = fs.readFileSync(`${templatesPath}/partials/toplogo.hbs`, 'utf8')
 const relatedgroups = fs.readFileSync(`${templatesPath}/partials/relatedgroups.hbs`, 'utf8');
 const collectivecard = fs.readFileSync(`${templatesPath}/partials/collectivecard.hbs`, 'utf8');
 const chargeDateNotice = fs.readFileSync(`${templatesPath}/partials/charge_date_notice.hbs`, 'utf8');
+const mthReportFooter = fs.readFileSync(`${templatesPath}/partials/monthlyreport.footer.hbs`, 'utf8');
+const mthReportSubscription= fs.readFileSync(`${templatesPath}/partials/monthlyreport.subscription.hbs`, 'utf8');
 
 handlebars.registerPartial('header', header);
 handlebars.registerPartial('footer', footer);
@@ -53,6 +65,8 @@ handlebars.registerPartial('toplogo', toplogo);
 handlebars.registerPartial('collectivecard', collectivecard);
 handlebars.registerPartial('relatedgroups', relatedgroups);
 handlebars.registerPartial('charge_date_notice', chargeDateNotice);
+handlebars.registerPartial('mr-footer', mthReportFooter);
+handlebars.registerPartial('mr-subscription', mthReportSubscription);
 
 handlebars.registerHelper('sign', (value) => {
   if (value >= 0) return '+';
@@ -64,16 +78,22 @@ handlebars.registerHelper('toLowerCase', (str) => {
   return str.toLowerCase();
 });
 
+handlebars.registerHelper('json', (obj) => {
+  if (!obj) return '';
+  return JSON.stringify(obj);
+});
+
 handlebars.registerHelper('moment', (value, props) => {
-  if (props && props.hash.format)
-    return moment(value).format(props.hash.format);
-  else
-    return moment(value).format('MMMM Do YYYY');
+  const format = props && props.hash.format || 'MMMM Do YYYY';
+  const d = moment(value);
+  if (props && props.hash.timezone)
+      d.tz(props.hash.timezone);
+  return d.format(format);
 });
 
 handlebars.registerHelper('currency', (value, props) => {
   const { currency, precision } = props.hash;
-  if (!currency) return value;
+  if (!currency) return value / 100;
   value = value/100; // converting cents
 
   return value.toLocaleString(currency, {

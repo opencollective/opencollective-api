@@ -6,7 +6,7 @@ import chanceLib from 'chance';
 import request from 'supertest';
 import app from '../server/index';
 import * as utils from '../test/utils';
-import * as donationsLib from '../server/lib/donations';
+import paymentsLib from '../server/lib/payments';
 import { planId as generatePlanId } from '../server/lib/utils.js';
 import * as constants from '../server/constants/transactions';
 import emailLib from '../server/lib/email';
@@ -17,6 +17,7 @@ import {appStripe} from '../server/gateways/stripe';
 const chance = chanceLib.Chance();
 const application = utils.data('application');
 const userData = utils.data('user3');
+const userData2 = utils.data('user2');
 const groupData = utils.data('group5');
 import stripeMock from './mocks/stripe';
 const STRIPE_URL = 'https://api.stripe.com:443';
@@ -27,8 +28,8 @@ const STRIPE_TOKEN = 'superStripeToken';
 /*
  * Tests
  */
-describe('lib.donation.test.js', () => {
-  let sandbox, processDonationSpy, emailSendMessageSpy, emailSendSpy;
+describe('lib.payments.processPayment.test.js', () => {
+  let user, user2, group, sandbox, processPaymentSpy, emailSendSpy;
 
   before(() => {
     sandbox = sinon.sandbox.create();
@@ -37,11 +38,7 @@ describe('lib.donation.test.js', () => {
   after(() => sandbox.restore());
 
   before(() => {
-    processDonationSpy = sinon.spy(donationsLib, 'processDonation');
-  });
-
-  beforeEach(() => {
-    emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage', () => Promise.resolve());
+    processPaymentSpy = sinon.spy(paymentsLib, 'processPayment');
   });
 
   beforeEach(() => {
@@ -50,7 +47,7 @@ describe('lib.donation.test.js', () => {
 
   beforeEach(() => utils.resetTestDB());
 
-  beforeEach(() => processDonationSpy.reset());
+  beforeEach(() => processPaymentSpy.reset());
 
   // Create a stub for clearbit
   beforeEach((done) => {
@@ -58,30 +55,138 @@ describe('lib.donation.test.js', () => {
     done();
   });
 
+  // Create a user.
+  beforeEach('create a user', () => models.User.create(userData).tap(u => user = u));
+
+  // Create a user.
+  beforeEach('create a user', () => models.User.create(userData2).tap(u => user2 = u));
+
+  // Create a group.
+  beforeEach('create a group', (done) => {
+    request(app)
+      .post('/groups')
+      .send({
+        api_key: application.api_key,
+        group: Object.assign(groupData, { users: [{ email: 'member@group.com', role: roles.MEMBER}] })
+      })
+      .expect(200)
+      .end((e, res) => {
+        expect(e).to.not.exist;
+        models.Group
+          .findById(parseInt(res.body.id))
+          .then((g) => {
+            group = g;
+            done();
+          })
+          .catch(done);
+      });
+  });
+
   afterEach(() => {
     utils.clearbitStubAfterEach(sandbox);
   });
 
-  after(() => processDonationSpy.restore());
+  after(() => processPaymentSpy.restore());
 
   describe('No payment method', () => {
-    beforeEach('create a donation', () => {
-      return models.Donation.create({
-        amount: 100,
-        currency: 'USD',
-        SubscriptionId: null,
-        PaymentMethodId: null
-      })
-    });
+    let donation;
 
-    it('isProcessed and processedAt should not be false and null', done => {
-      models.Donation.findById(1)
+    describe('Donation given by the host', () => {
+
+      beforeEach(() => {
+        return models.Donation.create({
+          amount: 10000,
+          currency: 'USD',
+          UserId: user.id,
+          GroupId: group.id
+        })
+        .then(d => donation = d)
+        .then(paymentsLib.processPayment)
+        .catch(err => expect(err).to.not.exist);
+      });
+
+      it('creates a transaction', () => {
+        return models.Transaction.findAll()
+        .then(transactions => {
+          expect(transactions.length).to.equal(1);
+          expect(transactions[0]).to.contain({
+            type: constants.type.DONATION,
+            DonationId: donation.id,
+            amount: donation.amount,
+            currency: donation.currency,
+            txnCurrency: donation.currency,
+            amountInTxnCurrency: donation.amount,
+            txnCurrencyFxRate: 1,
+            platformFeeInTxnCurrency: 0,
+            paymentProcessorFeeInTxnCurrency: 0,
+            hostFeeInTxnCurrency: 0
+          })
+        })
+      });
+
+      it('isProcessed and processedAt should not be false and null', () => {
+        return models.Donation.findById(donation.id)
         .then(donation => {
           expect(donation.isProcessed).to.equal(true);
           expect(donation.processedAt).to.not.equal(null);
-          done();
         })
-    })
+      });
+    });
+
+    describe('Donation given by another user', () => {
+      beforeEach(() => {
+        return models.Donation.create({
+          amount: 10000,
+          currency: 'USD',
+          UserId: user2.id,
+          GroupId: group.id
+        })
+        .then(d => donation = d)
+        .then(paymentsLib.processPayment)
+        .catch(err => expect(err).to.not.exist);
+      });
+
+      it('creates a transaction', () => {
+        return models.Transaction.findAll()
+        .then(transactions => {
+          expect(transactions.length).to.equal(1);
+          expect(transactions[0]).to.contain({
+            type: constants.type.DONATION,
+            DonationId: donation.id,
+            amount: donation.amount,
+            currency: donation.currency,
+            txnCurrency: donation.currency,
+            amountInTxnCurrency: donation.amount,
+            txnCurrencyFxRate: 1,
+            platformFeeInTxnCurrency: 0,
+            paymentProcessorFeeInTxnCurrency: 0,
+            hostFeeInTxnCurrency: 500
+          })
+        })
+      });
+
+      it('adds the user as a backer', () => {
+        return models.UserGroup.findOne({
+          where: {
+            UserId: user2.id,
+            GroupId: group.id,
+            role: roles.BACKER
+          }
+        })
+        .then(userGroup => {
+          expect(userGroup).to.exist;
+        });
+      });
+
+      it('isProcessed and processedAt should not be false and null', () => {
+        return models.Donation.findById(donation.id)
+        .then(donation => {
+          expect(donation.isProcessed).to.equal(true);
+          expect(donation.processedAt).to.not.equal(null);
+        });
+      });
+
+    });
   });
 
   describe('Paypal payment method', () => {
@@ -96,7 +201,8 @@ describe('lib.donation.test.js', () => {
         currency: 'USD',
         SubscriptionId: null,
         PaymentMethodId: pm.id
-      }));
+      }))
+      .then(paymentsLib.processPayment);
     });
 
     it('isProcessed and processedAt should not be false and null', done => {
@@ -111,7 +217,6 @@ describe('lib.donation.test.js', () => {
 
   describe('Stripe', () => {
 
-    let user, group;
     const nocks = {};
 
     const stubStripe = () => {
@@ -121,9 +226,6 @@ describe('lib.donation.test.js', () => {
       const stub = sinon.stub(appStripe.accounts, 'create');
       stub.yields(null, mock);
     };
-
-    // Create a user.
-    beforeEach('create a user', () => models.User.create(userData).tap(u => user = u));
 
     // Nock for customers.create.
     beforeEach(() => {
@@ -137,27 +239,6 @@ describe('lib.donation.test.js', () => {
       nocks['balance.retrieveTransaction'] = nock(STRIPE_URL)
         .get('/v1/balance/history/txn_165j8oIqnMN1wWwOKlPn1D4y')
         .reply(200, stripeMock.balance);
-    });
-
-    // Create a group.
-    beforeEach('create a group', (done) => {
-      request(app)
-        .post('/groups')
-        .send({
-          api_key: application.api_key,
-          group: Object.assign(groupData, { users: [{ email: user.email, role: roles.HOST}], tags: ['#brusselstogether'] })
-        })
-        .expect(200)
-        .end((e, res) => {
-          expect(e).to.not.exist;
-          models.Group
-            .findById(parseInt(res.body.id))
-            .then((g) => {
-              group = g;
-              done();
-            })
-            .catch(done);
-        });
     });
 
     beforeEach(() => {
@@ -205,7 +286,7 @@ describe('lib.donation.test.js', () => {
           number: 'blah',
           token: STRIPE_TOKEN,
           service: 'stripe'
-          })
+        })
         .tap(pm => models.Donation.create({
           amount: CHARGE * 100,
           currency: CURRENCY,
@@ -214,22 +295,11 @@ describe('lib.donation.test.js', () => {
           UserId: user.id,
           GroupId: group.id
         }))
-        .tap(pm => models.Donation.create({
-          amount: CHARGE * 100,
-          currency: 'EUR',
-          SubscriptionId: null,
-          PaymentMethodId: pm.id,
-          UserId: user.id,
-          GroupId: 2
-        }))
-        .tap(pm => models.Donation.create({
-          amount: CHARGE * 150,
-          currency: 'EUR',
-          SubscriptionId: null,
-          PaymentMethodId: pm.id,
-          UserId: user.id,
-          GroupId: 3
-        }));
+        .then(paymentsLib.processPayment)
+        .then(transaction => {
+          expect(transaction.type).to.equal(constants.type.DONATION);
+          expect(transaction.currency).to.equal(CURRENCY);
+        });
       });
 
       it('successfully creates a Stripe customer', () => {
@@ -253,7 +323,7 @@ describe('lib.donation.test.js', () => {
             expect(res.rows[0]).to.have.property('PaymentMethodId', 1);
             expect(res.rows[0]).to.have.property('currency', CURRENCY);
             expect(res.rows[0]).to.have.property('type', constants.type.DONATION);
-            expect(res.rows[0]).to.have.property('amount', CHARGE);
+            expect(res.rows[0]).to.have.property('amount', CHARGE*100);
             expect(res.rows[0]).to.have.property('amountInTxnCurrency', 140000); // taken from stripe mocks
             expect(res.rows[0]).to.have.property('txnCurrency', 'USD');
             expect(res.rows[0]).to.have.property('hostFeeInTxnCurrency', 7000);
@@ -270,7 +340,7 @@ describe('lib.donation.test.js', () => {
         group
           .getUsers()
           .then((users) => {
-            expect(users).to.have.length(2);
+            expect(users).to.have.length(3);
             const backer = _.find(users, {email: user.email});
             expect(backer.UserGroup.role).to.equal(roles.BACKER);
             done();
@@ -311,7 +381,8 @@ describe('lib.donation.test.js', () => {
           UserId: user.id,
           GroupId: group.id,
           createdAt: '2017-01-22T15:01:22.827-07:00'
-        }));
+        }))
+        .then(paymentsLib.processPayment);
       };
 
       describe('monthly', () => {
@@ -383,7 +454,7 @@ describe('lib.donation.test.js', () => {
                 expect(res.rows[0]).to.have.property('PaymentMethodId', 1);
                 expect(res.rows[0]).to.have.property('currency', CURRENCY);
                 expect(res.rows[0]).to.have.property('type', constants.type.DONATION);
-                expect(res.rows[0]).to.have.property('amount', CHARGE);
+                expect(res.rows[0]).to.have.property('amount', CHARGE*100);
                 expect(res.rows[0]).to.have.property('amountInTxnCurrency', 140000); // taken from stripe mocks
                 expect(res.rows[0]).to.have.property('txnCurrency', 'USD');
                 expect(res.rows[0]).to.have.property('hostFeeInTxnCurrency', 7000);
@@ -409,7 +480,7 @@ describe('lib.donation.test.js', () => {
             group
               .getUsers()
               .then((users) => {
-                expect(users).to.have.length(2);
+                expect(users).to.have.length(3);
                 const backer = _.find(users, {email: user.email});
                 expect(backer.UserGroup.role).to.equal(roles.BACKER);
                 done();
@@ -448,7 +519,7 @@ describe('lib.donation.test.js', () => {
                 expect(res.rows[0]).to.have.property('PaymentMethodId', 1);
                 expect(res.rows[0]).to.have.property('currency', CURRENCY);
                 expect(res.rows[0]).to.have.property('type', constants.type.DONATION);
-                expect(res.rows[0]).to.have.property('amount', CHARGE);
+                expect(res.rows[0]).to.have.property('amount', CHARGE*100);
                 expect(res.rows[0]).to.have.property('amountInTxnCurrency', 140000); // taken from stripe mocks
                 expect(res.rows[0]).to.have.property('txnCurrency', 'USD');
                 expect(res.rows[0]).to.have.property('hostFeeInTxnCurrency', 7000);
@@ -474,7 +545,7 @@ describe('lib.donation.test.js', () => {
             group
               .getUsers()
               .then((users) => {
-                expect(users).to.have.length(2);
+                expect(users).to.have.length(3);
                 const backer = _.find(users, {email: user.email});
                 expect(backer.UserGroup.role).to.equal(roles.BACKER);
                 done();
@@ -558,7 +629,7 @@ describe('lib.donation.test.js', () => {
                 expect(res.rows[0]).to.have.property('PaymentMethodId', 1);
                 expect(res.rows[0]).to.have.property('currency', CURRENCY);
                 expect(res.rows[0]).to.have.property('type', constants.type.DONATION);
-                expect(res.rows[0]).to.have.property('amount', CHARGE);
+                expect(res.rows[0]).to.have.property('amount', CHARGE*100);
                 expect(res.rows[0]).to.have.property('amountInTxnCurrency', 140000); // taken from stripe mocks
                 expect(res.rows[0]).to.have.property('txnCurrency', 'USD');
                 expect(res.rows[0]).to.have.property('hostFeeInTxnCurrency', 7000);
@@ -584,7 +655,7 @@ describe('lib.donation.test.js', () => {
             group
               .getUsers()
               .then((users) => {
-                expect(users).to.have.length(2);
+                expect(users).to.have.length(3);
                 const backer = _.find(users, {email: user.email});
                 expect(backer.UserGroup.role).to.equal(roles.BACKER);
                 done();
@@ -623,7 +694,7 @@ describe('lib.donation.test.js', () => {
                 expect(res.rows[0]).to.have.property('PaymentMethodId', 1);
                 expect(res.rows[0]).to.have.property('currency', CURRENCY);
                 expect(res.rows[0]).to.have.property('type', constants.type.DONATION);
-                expect(res.rows[0]).to.have.property('amount', CHARGE);
+                expect(res.rows[0]).to.have.property('amount', CHARGE*100);
                 expect(res.rows[0]).to.have.property('amountInTxnCurrency', 140000); // taken from stripe mocks
                 expect(res.rows[0]).to.have.property('txnCurrency', 'USD');
                 expect(res.rows[0]).to.have.property('hostFeeInTxnCurrency', 7000);
@@ -649,7 +720,7 @@ describe('lib.donation.test.js', () => {
             group
               .getUsers()
               .then((users) => {
-                expect(users).to.have.length(2);
+                expect(users).to.have.length(3);
                 const backer = _.find(users, {email: user.email});
                 expect(backer.UserGroup.role).to.equal(roles.BACKER);
                 done();
@@ -664,58 +735,6 @@ describe('lib.donation.test.js', () => {
         });
       });
 
-
-    });
-
-    describe('Payment errors', () => {
-
-      beforeEach(() => {
-        nock.cleanAll();
-        nocks['customers.create'] = nock(STRIPE_URL)
-          .post('/v1/customers')
-          .reply(200, stripeMock.customers.create);
-      });
-
-      // Nock for charges.create.
-      beforeEach(() => {
-        const params = [
-          `amount=${CHARGE * 100}`,
-          `currency=${CURRENCY}`,
-          `customer=${stripeMock.customers.create.id}`,
-          `description=${encodeURIComponent(`OpenCollective: ${group.slug}`)}`,
-          'application_fee=54',
-          `${encodeURIComponent('metadata[groupId]')}=${group.id}`,
-          `${encodeURIComponent('metadata[groupName]')}=${encodeURIComponent(groupData.name)}`,
-          `${encodeURIComponent('metadata[customerEmail]')}=${encodeURIComponent(user.email)}`,
-          `${encodeURIComponent('metadata[paymentMethodId]')}=1`
-        ].join('&');
-
-        nocks['charges.create'] = nock(STRIPE_URL)
-          .post('/v1/charges', params)
-          .replyWithError(stripeMock.charges.createError);
-      });
-
-      beforeEach(() => {
-        return models.PaymentMethod.create({
-          number: 'blah',
-          token: STRIPE_TOKEN,
-          service: 'stripe',
-          })
-        .then(pm => models.Donation.create({
-          amount: CHARGE * 100,
-          currency: CURRENCY,
-          SubscriptionId: null,
-          PaymentMethodId: pm.id,
-          UserId: user.id,
-          GroupId: group.id
-        }));
-      });
-
-      it('fails paying because of a paymentMethod declined', (done) => {
-        expect(emailSendMessageSpy.lastCall.args[0]).to.contain('server-errors@opencollective.com');
-        expect(emailSendMessageSpy.lastCall.args[1]).to.contain('Failed to process donation');
-        done();
-      });
 
     });
 

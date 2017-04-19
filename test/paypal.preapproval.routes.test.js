@@ -1,4 +1,4 @@
-import _ from 'lodash';
+import Promise from 'bluebird';
 import app from '../server/index';
 import async from 'async';
 import { expect } from 'chai';
@@ -13,16 +13,31 @@ const application = utils.data('application');
 
 describe('paypal.preapproval.routes.test.js', () => {
 
-  let user;
-  let user2;
+  let user, user2, sandbox;
+
+  before(() => {
+    sandbox = sinon.sandbox.create();
+  });
+
+  after(() => sandbox.restore());
+
+  // Create a stub for clearbit
+  beforeEach((done) => {
+    utils.clearbitStubBeforeEach(sandbox);
+    done();
+  });
 
   beforeEach(() => {
-    const stub = sinon.stub(paypalAdaptive, 'preapproval');
-    stub.yields(null, paypalMock.adaptive.preapproval);
+    sinon.stub(paypalAdaptive, 'preapproval', 
+      () => Promise.resolve(paypalMock.adaptive.preapproval));
   });
 
   afterEach(() => {
     paypalAdaptive.preapproval.restore();
+  });
+
+  afterEach(() => {
+    utils.clearbitStubAfterEach(sandbox);
   });
 
   beforeEach((done) => {
@@ -35,7 +50,7 @@ describe('paypal.preapproval.routes.test.js', () => {
           .then(user => cb(null, user))
           .catch(cb);
       }],
-      createUserB: ['resetDB', (cb) => {
+      createUserB: ['createUserA', (cb) => {
         models.User.create(utils.data('user2'))
           .then(user => cb(null, user))
           .catch(cb);
@@ -83,74 +98,6 @@ describe('paypal.preapproval.routes.test.js', () => {
             .catch(done);
         });
     });
-
-    describe('Check existing paymentMethods', () => {
-
-      afterEach(() => {
-        paypalAdaptive.preapprovalDetails.restore();
-      });
-
-      const beforePastDate = () => {
-        const date = new Date();
-        date.setDate(date.getDate() - 1); // yesterday
-
-        const { completed } = paypalMock.adaptive.preapprovalDetails;
-        const mock = _.extend(completed, {
-          endingDate: date.toString()
-        });
-
-        const stub = sinon.stub(paypalAdaptive, 'preapprovalDetails');
-        stub.yields(null, mock);
-      };
-
-      it('should delete if the date is past', () => {
-        beforePastDate();
-
-        const token = 'abc';
-        const paymentMethod = {
-          service: 'paypal',
-          UserId: user.id,
-          token
-        };
-
-        return models.PaymentMethod.create(paymentMethod)
-          .tap(res => expect(res.token).to.equal(token))
-          .then(() => request(app)
-            .get(`/users/${user.id}/paypal/preapproval?api_key=${application.api_key}`)
-            .set('Authorization', `Bearer ${user.jwt()}`)
-            .expect(200))
-          .then(() => models.PaymentMethod.findAndCountAll({where: {token} }))
-          .tap(res => expect(res.count).to.equal(0));
-      });
-
-      const beforeNotApproved = () => {
-        const mock = paypalMock.adaptive.preapprovalDetails.created;
-        expect(mock.approved).to.be.equal('false');
-
-        const stub = sinon.stub(paypalAdaptive, 'preapprovalDetails');
-        stub.yields(null, paypalMock.adaptive.preapprovalDetails.created);
-      };
-
-      it('should delete if not approved yet', () => {
-        beforeNotApproved();
-
-        const token = 'def';
-        const paymentMethod = {
-          service: 'paypal',
-          UserId: user.id,
-          token
-        };
-
-        return models.PaymentMethod.create(paymentMethod)
-          .tap(res => expect(res.token).to.equal(token))
-          .then(() => request(app)
-            .get(`/users/${user.id}/paypal/preapproval?api_key=${application.api_key}`)
-            .set('Authorization', `Bearer ${user.jwt()}`)
-            .expect(200))
-          .then(() => models.PaymentMethod.findAndCountAll({where: {token} }))
-          .tap(res => expect(res.count).to.equal(0));
-      });
-    });
   });
 
   /**
@@ -171,8 +118,8 @@ describe('paypal.preapproval.routes.test.js', () => {
     describe('Details from Paypal COMPLETED', () => {
 
       beforeEach(() => {
-        const stub = sinon.stub(paypalAdaptive, 'preapprovalDetails');
-        stub.yields(null, paypalMock.adaptive.preapprovalDetails.completed);
+        sinon.stub(paypalAdaptive, 'preapprovalDetails',
+          () => Promise.resolve(paypalMock.adaptive.preapprovalDetails.completed));
       });
 
       afterEach(() => {
@@ -205,35 +152,28 @@ describe('paypal.preapproval.routes.test.js', () => {
             expect(e).to.not.exist;
             expect(res.body.token).to.equal(preapprovalkey);
 
-            async.auto({
-              checkPaymentMethod: (cb) => {
-                models.PaymentMethod.findAndCountAll({where: {token: preapprovalkey} }).then((res) => {
-                  expect(res.count).to.equal(1);
-                  expect(res.rows[0].confirmedAt).not.to.be.null;
-                  expect(res.rows[0].service).to.equal('paypal');
-                  expect(res.rows[0].number).to.equal(mock.completed.senderEmail);
-                  expect(res.rows[0].UserId).to.equal(user.id);
-                  cb();
-                });
-              },
-              checkActivity: (cb) => {
-                models.Activity.findAndCountAll({where: {type: 'user.paymentMethod.created'} }).then((res) => {
-                  expect(res.count).to.equal(1);
-                  cb();
-                });
-              }
-            }, done);
-
+            models.PaymentMethod.findAndCountAll({where: {token: preapprovalkey} })
+            .then(res => {
+              expect(res.count).to.equal(1);
+              expect(res.rows[0].confirmedAt).not.to.be.null;
+              expect(res.rows[0].service).to.equal('paypal');
+              expect(res.rows[0].number).to.equal(mock.completed.senderEmail);
+              expect(res.rows[0].UserId).to.equal(user.id);
+            })
+            .then(() => models.Activity.findAndCountAll({where: {type: 'user.paymentMethod.created'} }))
+            .then(res => {
+              expect(res.count).to.equal(1);
+              done();
+            });
           });
       });
-
     });
 
     describe('Details from Paypal CREATED', () => {
 
       beforeEach(() => {
-        const stub = sinon.stub(paypalAdaptive, 'preapprovalDetails');
-        stub.yields(null, paypalMock.adaptive.preapprovalDetails.created);
+        sinon.stub(paypalAdaptive, 'preapprovalDetails', 
+          () => Promise.resolve(paypalMock.adaptive.preapprovalDetails.created));
       });
 
       afterEach(() => {
@@ -253,9 +193,8 @@ describe('paypal.preapproval.routes.test.js', () => {
     describe('Details from Paypal ERROR', () => {
 
       beforeEach(() => {
-        const mock = paypalMock.adaptive.preapprovalDetails.error;
-        const stub = sinon.stub(paypalAdaptive, 'preapprovalDetails');
-        stub.yields(mock.error, mock);
+        sinon.stub(paypalAdaptive, 'preapprovalDetails', 
+          () => Promise.reject(paypalMock.adaptive.preapprovalDetails.error));
       });
 
       afterEach(() => {
@@ -274,9 +213,8 @@ describe('paypal.preapproval.routes.test.js', () => {
 
     describe('Preapproval details', () => {
       beforeEach(() => {
-        const mock = paypalMock.adaptive.preapprovalDetails.created;
-        const stub = sinon.stub(paypalAdaptive, 'preapprovalDetails');
-        stub.yields(mock.error, mock);
+        sinon.stub(paypalAdaptive, 'preapprovalDetails',
+          () => Promise.resolve(paypalMock.adaptive.preapprovalDetails.completed));
       });
 
       afterEach(() => {
@@ -301,6 +239,25 @@ describe('paypal.preapproval.routes.test.js', () => {
     });
 
     describe('PaymentMethods clean up', () => {
+
+      // create another dummy payment method for this user
+      beforeEach(() => {
+        return models.PaymentMethod.create({
+          service: 'paypal',
+          UserId: user.id,
+          token: 'blah'
+        })
+      });
+
+      beforeEach(() => {
+        sinon.stub(paypalAdaptive, 'preapprovalDetails',
+          () => Promise.resolve(paypalMock.adaptive.preapprovalDetails.completed));
+      });
+
+      afterEach(() => {
+        paypalAdaptive.preapprovalDetails.restore();
+      });
+
       it('should delete all other paymentMethods entries in the database to clean up', (done) => {
         request(app)
           .post(`/users/${user.id}/paypal/preapproval/${preapprovalkey}?api_key=${application.api_key}`)

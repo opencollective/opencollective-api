@@ -5,18 +5,21 @@ import {
   GraphQLInt,
   GraphQLList,
   GraphQLObjectType,
-  GraphQLString
+  GraphQLString,
 } from 'graphql';
 
+import status from '../constants/response_status';
 import models from '../models';
+import dataloaderSequelize from 'dataloader-sequelize';
+dataloaderSequelize(models.Response);
+dataloaderSequelize(models.Event);
 
 export const ResponseStatusType = new GraphQLEnumType({
   name: 'Responses',
   values: {
-    PENDING: { value: 'PENDING' },
-    INTERESTED: { value: 'INTERESTED' },
-    YES: { value: 'YES' },
-    NO: { value: 'NO' }
+    PENDING: { value: status.PENDING },
+    INTERESTED: { value: status.INTERESTED },
+    YES: { value: status.YES },
   }
 });
 
@@ -46,7 +49,7 @@ export const UserType = new GraphQLObjectType({
       name: {
         type: GraphQLString,
         resolve(user) {
-          return `${user.firstName} ${user.lastName}`;
+          return user.name;
         }
       },
       avatar: {
@@ -166,10 +169,29 @@ export const CollectiveType = new GraphQLObjectType({
           return collective.slug;
         }
       },
+      users: {
+        type: new GraphQLList(UserType),
+        resolve(collective, args, req) {
+          return collective.getUsersForViewer(req.remoteUser);
+        }
+      },
+      twitterHandle: {
+        type: GraphQLString,
+        resolve(collective) {
+          return collective.twitterHandle;
+        }
+      },
       events: {
         type: new GraphQLList(EventType),
         resolve(collective) {
           return collective.getEvents();
+        }
+      },
+      stripePublishableKey: {
+        type: GraphQLString,
+        resolve(collective) {
+          return collective.getStripeAccount()
+          .then(stripeAccount => stripeAccount && stripeAccount.stripePublishableKey)
         }
       }
     }
@@ -258,7 +280,13 @@ export const EventType = new GraphQLObjectType({
       endsAt: {
         type: GraphQLString,
         resolve(event) {
-          return event.startsAt
+          return event.endsAt
+        }
+      },
+      timezone: {
+        type: GraphQLString,
+        resolve(event) {
+          return event.timezone
         }
       },
       maxAmount: {
@@ -282,13 +310,20 @@ export const EventType = new GraphQLObjectType({
       tiers: {
         type: new GraphQLList(TierType),
         resolve(event) {
-          return event.getTiers();
+          return event.getTiers({ order: [['amount', 'ASC']] });
         }
       },
       responses: {
         type: new GraphQLList(ResponseType),
         resolve(event) {
-          return event.getResponses();
+          return event.getResponses({
+            where: { 
+              confirmedAt: { $ne: null } 
+            },
+            order: [
+              ['createdAt', 'DESC']
+            ]
+          });
         }
       }
 
@@ -305,6 +340,12 @@ export const TierType = new GraphQLObjectType({
         type: GraphQLInt,
         resolve(tier) {
           return tier.id;
+        }
+      },
+      slug: {
+        type: GraphQLString,
+        resolve(tier) {
+          return tier.slug
         }
       },
       name: {
@@ -340,12 +381,9 @@ export const TierType = new GraphQLObjectType({
       availableQuantity: {
         type: GraphQLInt,
         resolve(tier) {
-          return models.Response.sum('quantity', { 
-            where: {
-              TierId: tier.id
-            }
-          })
-          .then(usedQuantity => usedQuantity ? tier.maxQuantity - usedQuantity : tier.maxQuantity );
+          return tier.availableQuantity()
+          // graphql doesn't like infinity value
+          .then(availableQuantity => availableQuantity === Infinity ? 10000000 : availableQuantity);
         }
       },
       password: {
@@ -375,7 +413,11 @@ export const TierType = new GraphQLObjectType({
       responses: {
         type: new GraphQLList(ResponseType),
         resolve(tier) {
-          return tier.getResponses();
+          return tier.getResponses({
+            where: { 
+              confirmedAt: { $ne: null } 
+            }
+          });
         }
       }
     }
@@ -401,8 +443,8 @@ export const ResponseType = new GraphQLObjectType({
       },
       user: {
         type: UserType,
-        resolve(response) {
-          return response.getUser();
+        resolve(response, args, req) {
+          return response.getUserForViewer(req.remoteUser);
         }
       },
       description: {
@@ -429,6 +471,12 @@ export const ResponseType = new GraphQLObjectType({
           return response.getEvent();
         }
       },
+      createdAt: {
+        type: GraphQLString,
+        resolve(response) {
+          return response.createdAt;
+        }
+      },
       confirmedAt: {
         type: GraphQLString,
         resolve(response) {
@@ -444,3 +492,4 @@ export const ResponseType = new GraphQLObjectType({
     }
   }
 });
+

@@ -1,3 +1,4 @@
+import sinon from 'sinon';
 import {expect} from 'chai';
 import * as utils from '../test/utils';
 import models from '../server/models';
@@ -7,8 +8,20 @@ const userData = utils.data('user1');
 const { User, Group, Transaction } = models;
 
 describe('user.models.test.js', () => {
+  let sandbox;
+
+  before(() => {
+    sandbox = sinon.sandbox.create();
+  });
+
+  after(() => sandbox.restore());
+
+  // Create a stub for clearbit
+  beforeEach(() => utils.clearbitStubBeforeEach(sandbox));
 
   beforeEach(() => utils.resetTestDB());
+
+  afterEach(() => utils.clearbitStubAfterEach(sandbox));
 
   /**
    * Create a user.
@@ -24,6 +37,12 @@ describe('user.models.test.js', () => {
       User
         .create({ firstName: userData.firstName, email: 'johndoe'})
         .catch(err => expect(err).to.exist));
+
+    it('fails if neither email or username is given', () => {
+      User
+        .create({ firstName: 'blah' })
+        .catch(err => expect(err).to.exist);
+    })
 
     it('successfully creates a user and lowercase email', () =>
       User
@@ -139,12 +158,44 @@ describe('user.models.test.js', () => {
 
   });
 
+  describe('#getName', () => {
+    const userForNameTesting = {email: 'userforNameTesting@email.com' };
+
+    it('returns null when neither firstName or lastName', () => {
+      User.create(Object.assign({}, userForNameTesting))
+      .then(user => {
+        expect(user.name).to.equal(null);
+      })
+    });
+
+    it('returns firstName when only firstName is present and no lastName', () => {
+      User.create(Object.assign({}, userForNameTesting, { firstName: 'aditi' }))
+      .then(user => {
+        expect(user.name).to.equal('aditi');
+      })
+    });
+
+    it('returns lastName when no firstName and only lastName', () => {
+      User.create(Object.assign({}, userForNameTesting, { lastName: 'patel' }))
+      .then(user => {
+        expect(user.name).to.equal('patel');
+      })
+    });
+
+    it('returns full name when both firstName and lastName are present', () => {
+      User.create(Object.assign({}, userForNameTesting, { firstName: 'aditi', lastName: 'patel' }))
+      .then(user => {
+        expect(user.name).to.equal('aditi patel');
+      })
+    }); 
+  })
+
   describe('class methods', () => {
 
     const users = [ utils.data('user1'), utils.data('user2') ];
     const transactions = [{
       createdAt: new Date('2016-06-14'),
-      amount: 100,
+      amount: 10000,
       netAmountInGroupCurrency: 10000,
       currency: 'USD',
       type: 'donation',
@@ -152,7 +203,7 @@ describe('user.models.test.js', () => {
       GroupId: 1
     },{
       createdAt: new Date('2016-06-15'),
-      amount: 150,
+      amount: 15000,
       netAmountInGroupCurrency: 15000,
       currency: 'USD',
       type: 'donation',
@@ -160,7 +211,7 @@ describe('user.models.test.js', () => {
       GroupId: 2
     },{
       createdAt: new Date('2016-07-15'),
-      amount: 250,
+      amount: 25000,
       netAmountInGroupCurrency: 25000,
       currency: 'USD',
       type: 'donation',
@@ -168,7 +219,7 @@ describe('user.models.test.js', () => {
       GroupId: 1
     },{
       createdAt: new Date('2016-07-16'),
-      amount: 500,
+      amount: 50000,
       netAmountInGroupCurrency: 50000,
       currency: 'USD',
       type: 'donation',
@@ -187,7 +238,7 @@ describe('user.models.test.js', () => {
         .then(backers => {
           backers = backers.map(g => g.dataValues);
           expect(backers.length).to.equal(2);
-          expect(backers[0].totalDonations).to.equal(750);
+          expect(backers[0].totalDonations).to.equal(75000);
           expect(backers[0]).to.have.property('firstName');
           expect(backers[0]).to.have.property('avatar');
           expect(backers[0]).to.have.property('website');
@@ -200,7 +251,7 @@ describe('user.models.test.js', () => {
         .then(backers => {
           backers = backers.map(g => g.dataValues);
           expect(backers.length).to.equal(1);
-          expect(backers[0].totalDonations).to.equal(250);
+          expect(backers[0].totalDonations).to.equal(25000);
         });
     });
 
@@ -209,7 +260,7 @@ describe('user.models.test.js', () => {
         .then(backers => {
           backers = backers.map(g => g.dataValues);
           expect(backers.length).to.equal(1);
-          expect(backers[0].totalDonations).to.equal(100);
+          expect(backers[0].totalDonations).to.equal(10000);
         });
     });
 

@@ -1,6 +1,7 @@
 import status from '../constants/response_status';
 
 export default function(Sequelize, DataTypes) {
+
   const Response = Sequelize.define('Response', {
     id: {
       type: DataTypes.INTEGER,
@@ -15,7 +16,8 @@ export default function(Sequelize, DataTypes) {
         key: 'id'
       },
       onDelete: 'SET NULL',
-      onUpdate: 'CASCADE'
+      onUpdate: 'CASCADE',
+      allowNull: false
     },
 
     GroupId: {
@@ -25,7 +27,8 @@ export default function(Sequelize, DataTypes) {
         key: 'id'
       },
       onDelete: 'SET NULL',
-      onUpdate: 'CASCADE'
+      onUpdate: 'CASCADE',
+      allowNull: false
     },
 
     TierId: {
@@ -35,7 +38,7 @@ export default function(Sequelize, DataTypes) {
         key: 'id'
       },
       onDelete: 'SET NULL',
-      onUpdate: 'CASCADE'
+      onUpdate: 'CASCADE',
     },
 
     EventId: {
@@ -45,7 +48,8 @@ export default function(Sequelize, DataTypes) {
         key: 'id'
       },
       onDelete: 'SET NULL',
-      onUpdate: 'CASCADE'
+      onUpdate: 'CASCADE',
+      allowNull: false
     },
 
     confirmedAt: {
@@ -88,6 +92,39 @@ export default function(Sequelize, DataTypes) {
     }
   }, {
     paranoid: true,
+
+    getterMethods: {
+      info() {
+        return {
+          id: this.id,
+          UserId: this.UserId,
+          GroupId: this.GroupId,
+          EventId: this.EventId,
+          TierId: this.TierId,
+          quantity: this.quantity,
+          description: this.description,
+          status: this.status,
+          confirmedAt: this.confirmedAt,
+          createdAt: this.createdAt,
+          updatedAt: this.updatedAt
+        }
+      }
+    },
+
+    instanceMethods: {
+      getUserForViewer(viewer) {
+        const promises = [this.getUser()];
+        if (viewer) {
+          promises.push(viewer.canEditGroup(this.GroupId));
+        }
+        return Promise.all(promises)
+        .then(results => {
+          const user = results[0];
+          const canEditGroup = results[1];
+          return canEditGroup ? user.info : user.public;
+        })
+      }
+    }
   });
 
   return Response;

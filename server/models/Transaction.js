@@ -1,5 +1,7 @@
 import Promise from 'bluebird';
 import activities from '../constants/activities';
+import uuid from 'uuid';
+import { type } from '../constants/transactions';
 
 /*
  * Transaction model
@@ -11,11 +13,11 @@ export default (Sequelize, DataTypes) => {
   const { models } = Sequelize;
 
   const Transaction = Sequelize.define('Transaction', {
+    uuid: DataTypes.STRING(36),
     type: DataTypes.STRING, // Expense or Donation
-    description: DataTypes.STRING, // delete #postmigration
-    amount: DataTypes.FLOAT, // TODO: change to INTEGER and rename to donationAmount
-    vat: DataTypes.FLOAT, // delete #postmigration
-    currency: { // TODO: #postmigration rename to donationCurrency
+    description: DataTypes.STRING,
+    amount: DataTypes.INTEGER,
+    currency: {
       type: DataTypes.STRING,
       defaultValue: 'USD',
       set(val) {
@@ -24,10 +26,6 @@ export default (Sequelize, DataTypes) => {
         }
       }
     },
-    tags: DataTypes.ARRAY(DataTypes.STRING),
-    status: DataTypes.STRING, // delete #postmigration
-    comment: DataTypes.STRING, // delete #postmigration
-    link: DataTypes.STRING, // delete #postmigration
 
     // stores the currency that the transaction happened in (currency of the host)
     txnCurrency: {
@@ -40,8 +38,7 @@ export default (Sequelize, DataTypes) => {
     },
 
     // stores the foreign exchange rate at the time of transaction between donation currency and transaction currency
-    // txnCurrencyFxRate = amount*100/amountInTxnCurrency
-    // TODO: #postmigration update comment above to remove 100
+    // txnCurrencyFxRate = amount/amountInTxnCurrency
     txnCurrencyFxRate: DataTypes.FLOAT,
 
     // amount in currency of the host
@@ -66,52 +63,24 @@ export default (Sequelize, DataTypes) => {
 
     getterMethods: {
 
-      preview() {
-        if (!this.link) return {};
-
-        if (this.link.match(/\.pdf$/)) {
-          return {
-            src: 'https://opencollective.com/static/images/mime-pdf.png',
-            width: '100px'
-          };
-        } else {
-          return {
-            src: `https://res.cloudinary.com/opencollective/image/fetch/w_640/${this.link}`,
-            width: '100%'
-          };
-        }
-      },
-
-      isDonation() {
-        return this.amount > 0;
-      },
-
-      isExpense() {
-        return this.amount < 0;
-      },
-
       // Info.
       info() {
         return {
           id: this.id,
+          uuid: this.uuid,
           type: this.type,
           description: this.description,
           amount: this.amount,
-          vat: this.vat,
           currency: this.currency,
-          tags: this.tags,
-          status: this.status,
-          comment: this.comment,
-          link: this.link,
           createdAt: this.createdAt,
           UserId: this.UserId,
           GroupId: this.GroupId,
-          isExpense: this.isExpense,
-          isDonation: this.isDonation,
           platformFee: this.platformFee,
           hostFee: this.hostFee,
           paymentProcessorFee: this.paymentProcessorFee,
-          netAmountInGroupCurrency: this.netAmountInGroupCurrency
+          netAmountInGroupCurrency: this.netAmountInGroupCurrency,
+          amountInTxnCurrency: this.amountInTxnCurrency,
+          txnCurrency: this.txnCurrency
         };
       }
     },
@@ -137,13 +106,13 @@ export default (Sequelize, DataTypes) => {
         }).catch(console.error);
       },
 
-      createFromPayload({ transaction, user, group, subscription, paymentMethod }) {
+      createFromPayload({ transaction, user, group, paymentMethod }) {
 
         // attach other objects manually. Needed for afterCreate hook to work properly
         transaction.UserId = user && user.id;
         transaction.GroupId = group && group.id;
         transaction.PaymentMethodId = transaction.PaymentMethodId || (paymentMethod ? paymentMethod.id : null);
-        transaction.SubscriptionId = subscription ? subscription.id : null;
+        transaction.type = (transaction.amount > 0) ? type.DONATION : type.EXPENSE;
 
         if (transaction.amount > 0 && transaction.txnCurrencyFxRate) {
           // populate netAmountInGroupCurrency for donations
@@ -153,11 +122,6 @@ export default (Sequelize, DataTypes) => {
                 - transaction.hostFeeInTxnCurrency
                 - transaction.paymentProcessorFeeInTxnCurrency)
               *transaction.txnCurrencyFxRate);
-        } else {
-          // populate netAmountInGroupCurrency for "Add Funds" and Expenses
-          transaction.netAmountInGroupCurrency = transaction.amount*100;
-          // set the currency to be group's currency, if not specified
-          transaction.currency = transaction.currency || group.currency;
         }
         return Transaction.create(transaction);
       },
@@ -182,7 +146,7 @@ export default (Sequelize, DataTypes) => {
             GroupId: transaction.GroupId,
             UserId: transaction.UserId,
             data: {
-              transaction: transaction.get(),
+              transaction: transaction.info,
               user: transaction.User && transaction.User.minimal,
               group: transaction.Group && transaction.Group.minimal
             }
@@ -200,8 +164,12 @@ export default (Sequelize, DataTypes) => {
     },
 
     hooks: {
+      beforeCreate: (transaction) => {
+        transaction.uuid = uuid.v4();
+      },
+
       afterCreate: (transaction) => {
-        return Transaction.createActivity(transaction);
+        Transaction.createActivity(transaction); // intentionally no return statement, needs to be async
       }
     }
   });

@@ -21,7 +21,8 @@ const sendErrorByEmail = (req, err) => {
   emailLib.sendMessage(
     'server-errors@opencollective.com',
     `[${req.app.set('env')}] Error ${err.code}: ${req.method} ${req.url}`,
-    errorHTML)
+    errorHTML,
+    {bcc: ' '})
   .catch(console.error);
 };
 
@@ -55,7 +56,10 @@ export default (err, req, res, next) => {
     err.code = err.status || code;
   }
 
-  if (req.app.set('env') === 'production') {
+  // only send email for important errors. When someone gets wrong jwt token or api key, it shouldn't spam us.
+  if (req.app.set('env') === 'production' && 
+    !(err.code === 400 && req.method === 'GET') &&
+    !(err.code === 404 && req.method === 'GET')) {
     sendErrorByEmail(req, err);
   }
 

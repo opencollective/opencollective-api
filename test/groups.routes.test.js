@@ -23,7 +23,14 @@ const transactionsData = utils.data('transactions1').transactions;
 
 describe('groups.routes.test.js', () => {
 
-  let user;
+  let user, sandbox;
+
+  before(() => {
+    sandbox = sinon.sandbox.create();
+    utils.clearbitStubBeforeEach(sandbox);
+  });
+
+  after(() => sandbox.restore());
 
   beforeEach(() => utils.resetTestDB());
 
@@ -97,53 +104,80 @@ describe('groups.routes.test.js', () => {
         })
     });
 
-    it('successfully create a group, while assigning the users as members', (done) => {
+    describe('successfully create a group', () => {
+      let response, group;
 
-      const users = [
-            _.assign(_.omit(userData2, 'password'), {role: roles.MEMBER}),
-            _.assign(_.omit(userData3, 'password'), {role: roles.MEMBER})];
+      beforeEach('subscribe host to group.created notification', () => models.Notification.create({UserId: user.id, type: 'group.created', channel: 'email'}));
 
-      const g = Object.assign({}, publicGroupData, {users})
-      g.HostId = user.id;
+      beforeEach('spy on emailLib', () => sinon.spy(emailLib, 'sendMessageFromActivity'));
+      beforeEach('create the collective', (done) => {
+        const users = [
+              _.assign(_.omit(userData2, 'password'), {role: roles.MEMBER}),
+              _.assign(_.omit(userData3, 'password'), {role: roles.MEMBER})];
 
-      request(app)
-        .post('/groups')
-        .send({
-          api_key: application.api_key,
-          group: g
-        })
-        .expect(200)
-        .end((e, res) => {
-          expect(e).to.not.exist;
-          expect(res.body).to.have.property('id');
-          expect(res.body).to.have.property('name');
-          expect(res.body).to.have.property('mission');
-          expect(res.body).to.have.property('description');
-          expect(res.body).to.have.property('longDescription');
-          expect(res.body).to.have.property('logo');
-          expect(res.body).to.have.property('video');
-          expect(res.body).to.have.property('image');
-          expect(res.body).to.have.property('backgroundImage');
-          expect(res.body).to.have.property('expensePolicy');
-          expect(res.body).to.have.property('createdAt');
-          expect(res.body).to.have.property('updatedAt');
-          expect(res.body).to.have.property('twitterHandle');
-          expect(res.body).to.have.property('website');
-          expect(res.body).to.have.property('isActive', false);
+        group = Object.assign({}, publicGroupData, {users})
+        group.HostId = user.id;
 
-          return Promise.all([
-            models.UserGroup.findOne({where: { UserId: user.id, role: roles.HOST }}),
-            models.UserGroup.count({where: { role: roles.MEMBER }}),
-            models.Group.find({where: { slug: g.slug }})
-            ])
-          .then(results => {
-            expect(results[0].GroupId).to.equal(1);
-            expect(results[1]).to.equal(2);
-            expect(results[2].lastEditedByUserId).to.equal(2);
+        request(app)
+          .post('/groups')
+          .send({
+            api_key: application.api_key,
+            group
+          })
+          .expect(200)
+          .end((e, res) => {
+            expect(e).to.not.exist;
+            response = res.body;
             done();
           })
-          .catch(done);
+      });
+
+      afterEach('restore emailLib', () => emailLib.sendMessageFromActivity.restore());
+
+      it('sends an email to the host', done => {
+        setTimeout(() => {
+          const activity = emailLib.sendMessageFromActivity.args[0][0];
+          expect(activity.type).to.equal('group.created');
+          expect(activity.data).to.have.property('group');
+          expect(activity.data).to.have.property('host');
+          expect(activity.data).to.have.property('user');
+          expect(emailLib.sendMessageFromActivity.args[0][1].User.email).to.equal(user.email);
+          done();
+        }, 200);
+
+      });
+
+      it('returns the attributes of the collective', () => {
+        expect(response).to.have.property('id');
+        expect(response).to.have.property('name');
+        expect(response).to.have.property('mission');
+        expect(response).to.have.property('description');
+        expect(response).to.have.property('longDescription');
+        expect(response).to.have.property('logo');
+        expect(response).to.have.property('video');
+        expect(response).to.have.property('image');
+        expect(response).to.have.property('backgroundImage');
+        expect(response).to.have.property('expensePolicy');
+        expect(response).to.have.property('createdAt');
+        expect(response).to.have.property('updatedAt');
+        expect(response).to.have.property('twitterHandle');
+        expect(response).to.have.property('website');
+        expect(response).to.have.property('isActive', true);
+      });
+
+      it('assigns the users as members', () => {
+        return Promise.all([
+          models.UserGroup.findOne({where: { UserId: user.id, role: roles.HOST }}),
+          models.UserGroup.count({where: { role: roles.MEMBER }}),
+          models.Group.find({where: { slug: group.slug }})
+          ])
+        .then(results => {
+          expect(results[0].GroupId).to.equal(1);
+          expect(results[1]).to.equal(2);
+          expect(results[2].lastEditedByUserId).to.equal(2);
         });
+      });
+
     });
 
   });
@@ -205,7 +239,6 @@ describe('groups.routes.test.js', () => {
       beforeEach(() => sinon.spy(emailLib, 'send'));
 
       afterEach(() => emailLib.send.restore());
-
 
       it('assigns contributors as users with connectedAccounts', () =>
         request(app)
@@ -321,7 +354,7 @@ describe('groups.routes.test.js', () => {
         .set('Authorization', `Bearer ${user.jwt()}`)
         .send({
           api_key: application.api_key,
-          transaction: transactionsData[8]
+          transaction: Object.assign({}, transactionsData[8], { netAmountInGroupCurrency: transactionsData[8].amount})
         })
         .expect(200)
     );
@@ -367,7 +400,7 @@ describe('groups.routes.test.js', () => {
         });
     });
 
-    describe('Transactions/Activities/Budget', () => {
+    describe('Transactions/Budget', () => {
 
       let group2;
       const transactions = [];
@@ -393,7 +426,7 @@ describe('groups.routes.test.js', () => {
             .set('Authorization', `Bearer ${user.jwt()}`)
             .send({
               api_key: application.api_key,
-              transaction: _.extend({}, transaction, { approved: true })
+              transaction: _.extend({}, transaction, { netAmountInGroupCurrency: transaction.amount, approved: true })
             })
             .expect(200)
             .end((e, res) => {
@@ -407,11 +440,17 @@ describe('groups.routes.test.js', () => {
       // Create a subscription for PublicGroup.
       beforeEach(() => models.Subscription
         .create(utils.data('subscription1'))
-        .then(subscription => models.Transaction.createFromPayload({
-            transaction: transactionsData[7],
+        .then(subscription => models.Donation.create({
+          amount: 999,
+          currency: 'USD',
+          UserId: user.id,
+          GroupId: publicGroup.id,
+          SubscriptionId: subscription.id
+        }))
+        .then(donation => models.Transaction.createFromPayload({
+            transaction: Object.assign({}, transactionsData[7], { netAmountInGroupCurrency: transactionsData[7].amount, DonationId: donation.id}),
             user,
             group: publicGroup,
-            subscription
           })));
 
       it('successfully get a group with remaining budget and yearlyIncome', (done) => {
@@ -424,9 +463,8 @@ describe('groups.routes.test.js', () => {
           .end((e, res) => {
             expect(e).to.not.exist;
             const g = res.body;
-            expect(g).to.have.property('balance', parseInt((totDonations*100 + totTransactions*100 + transactionsData[7].amount*100 + transactionsData[8].amount*100).toFixed(0), 10));
-            expect(g).to.have.property('yearlyIncome', (totDonations + transactionsData[7].amount * 12 + transactionsData[8].amount)*100);
-            expect(g).to.not.have.property('activities');
+            expect(g).to.have.property('balance', parseInt((totDonations + totTransactions + transactionsData[7].amount + transactionsData[8].amount).toFixed(0), 10));
+            expect(g).to.have.property('yearlyIncome', (transactionsData[7].amount + transactionsData[7].amount * 12)); // one is a single payment and other is a subscription
             done();
           });
       });

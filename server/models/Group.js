@@ -14,8 +14,8 @@ import {getTier, isBackerActive, capitalize, pluralize } from '../lib/utils';
 import activities from '../constants/activities';
 import Promise from 'bluebird';
 
-const DEFAULT_LOGO = '/static/images/1px.png';
-const DEFAULT_BACKGROUND_IMG = '/static/images/collectives/default-header-bg.jpg';
+const DEFAULT_LOGO = '/public/images/1px.png';
+const DEFAULT_BACKGROUND_IMG = `${config.host.website}/public/images/collectives/default-header-bg.jpg`;
 
 const getDefaultSettings = (group) => {
   return {
@@ -91,7 +91,7 @@ export default function(Sequelize, DataTypes) {
     backgroundImage: {
       type: DataTypes.STRING,
       get() {
-        return this.getDataValue('backgroundImage') || `${config.host.website}${DEFAULT_BACKGROUND_IMG}`;
+        return this.getDataValue('backgroundImage');
       }
     },
 
@@ -146,17 +146,15 @@ export default function(Sequelize, DataTypes) {
       unique: true,
       set(slug) {
         if (slug && slug.toLowerCase) {
-          this.setDataValue('slug', slug.toLowerCase());
+          this.setDataValue('slug', slug.toLowerCase().replace(/ /g, '-'));
         }
       }
     },
 
     twitterHandle: {
       type: DataTypes.STRING, // without the @ symbol. Ex: 'asood123'
-      set(username) {
-        if (username.substr(0,1) === '@') {
-          this.setDataValue('twitterHandle', username.substr(1));
-        }
+      set(twitterHandle) {
+        this.setDataValue('twitterHandle', twitterHandle.replace(/^@/,''));
       }
     },
 
@@ -252,6 +250,15 @@ export default function(Sequelize, DataTypes) {
     },
 
     instanceMethods: {
+      getUsersForViewer(viewer) {
+        const promises = [queries.getUsersFromGroupWithTotalDonations(this.id)];
+        if (viewer) {
+          promises.push(viewer.canEditGroup(this.id));
+        }
+        return Promise.all(promises)
+        .then(results => results[0].map(user => results[1] ? user.info : user.public))
+      },
+
       getSuperCollectiveGroupsIds() {
         if (!this.isSupercollective) return Promise.resolve([this.id]);
         if (this.superCollectiveGroupsIds) return Promise.resolve(this.superCollectiveGroupsIds);
@@ -289,7 +296,7 @@ export default function(Sequelize, DataTypes) {
             });
             users.map(user => {
               user.tier = getTier(user, tiers);
-              user.avatar = user.avatar || `/static/images/users/avatar-02.svg`;
+              user.avatar = user.avatar || `/public/images/users/avatar-02.svg`;
               if (tierIndex[user.tier] === undefined) {
                 tierIndex[user.tier] = tiers.length;
                 tiers.push({ name: user.tier, title: capitalize(pluralize(user.tier)), users: [], range: [0, Infinity] });
@@ -436,10 +443,10 @@ export default function(Sequelize, DataTypes) {
         */
         return Sequelize.query(`
           WITH "activeMonthlySubscriptions" as (
-            SELECT DISTINCT t."SubscriptionId", t."netAmountInGroupCurrency"
+            SELECT DISTINCT d."SubscriptionId", t."netAmountInGroupCurrency"
             FROM "Transactions" t
-            LEFT JOIN "Subscriptions" s
-            ON s.id = t."SubscriptionId"
+            LEFT JOIN "Donations" d ON d.id = t."DonationId"
+            LEFT JOIN "Subscriptions" s ON s.id = d."SubscriptionId"
             WHERE t."GroupId"=:GroupId
               AND s."isActive" IS TRUE
               AND s.interval = 'month'
@@ -451,18 +458,22 @@ export default function(Sequelize, DataTypes) {
             +
             (SELECT
               COALESCE(SUM(t."netAmountInGroupCurrency"),0) FROM "Transactions" t
-              LEFT JOIN "Subscriptions" s ON t."SubscriptionId" = s.id
-              WHERE "GroupId" = :GroupId
+              LEFT JOIN "Donations" d ON t."DonationId" = d.id
+              LEFT JOIN "Subscriptions" s ON d."SubscriptionId" = s.id
+              WHERE t."GroupId" = :GroupId
                 AND t.amount > 0
                 AND t."deletedAt" IS NULL
+                AND t."createdAt" > (current_date - INTERVAL '12 months')
                 AND ((s.interval = 'year' AND s."isActive" IS TRUE AND s."deletedAt" IS NULL) OR s.interval IS NULL))
             +
             (SELECT
               COALESCE(SUM(t."netAmountInGroupCurrency"),0) FROM "Transactions" t
-              LEFT JOIN "Subscriptions" s ON t."SubscriptionId" = s.id
-              WHERE "GroupId" = :GroupId
+              LEFT JOIN "Donations" d ON t."DonationId" = d.id
+              LEFT JOIN "Subscriptions" s ON d."SubscriptionId" = s.id
+              WHERE t."GroupId" = :GroupId
                 AND t.amount > 0
                 AND t."deletedAt" IS NULL
+                AND t."createdAt" > (current_date - INTERVAL '12 months')
                 AND s.interval = 'month' AND s."isActive" IS FALSE AND s."deletedAt" IS NULL)
             "yearlyIncome"
           `.replace(/\s\s+/g, ' '), // this is to remove the new lines and save log space.
@@ -551,17 +562,21 @@ export default function(Sequelize, DataTypes) {
           });
       },
 
-      getRelatedGroups(limit=3, minTotalDonationInCents=10000) {
-        return Group.getGroupsSummaryByTag(this.tags, limit, [this.id], minTotalDonationInCents, true);
+      getRelatedGroups(limit=3, minTotalDonationInCents=10000, orderBy, orderDir) {
+        return Group.getGroupsSummaryByTag(this.tags, limit, [this.id], minTotalDonationInCents, true, orderBy, orderDir);
       },
 
-      hasHost() {
+      getHost() {
         return Sequelize.models.UserGroup.find({
           where: {
             GroupId: this.id,
             role: roles.HOST
           }
-        })
+        });
+      },
+
+      hasHost() {
+        return this.getHost()
         .then(userGroup => Promise.resolve(!!userGroup));
       },
 
@@ -569,7 +584,7 @@ export default function(Sequelize, DataTypes) {
         if (this.isSupercollective &&
           this.settings.superCollectiveTag &&
           this.settings.superCollectiveTag.length > 0) {
-          return Group.getGroupsSummaryByTag(this.settings.superCollectiveTag, 100, [this.id], 0, false);
+          return Group.getGroupsSummaryByTag(this.settings.superCollectiveTag, 10000, [this.id], 0, false);
         }
         return Promise.resolve();
       }

@@ -1,8 +1,6 @@
-import config from 'config';
-
-const DEFAULT_BACKGROUND_IMG = '/static/images/collectives/default-header-bg.jpg';
-
 export default function(Sequelize, DataTypes) {
+
+  const { models } = Sequelize;
 
   const Event = Sequelize.define('Event', {
     id: {
@@ -50,7 +48,10 @@ export default function(Sequelize, DataTypes) {
       type: DataTypes.INTEGER
     },
 
-    name: DataTypes.STRING,
+    name: {
+      type: DataTypes.STRING,
+      allowNull: false
+    },
 
     description: DataTypes.TEXT,
 
@@ -63,11 +64,14 @@ export default function(Sequelize, DataTypes) {
     backgroundImage: {
       type: DataTypes.STRING,
       get() {
-        return this.getDataValue('backgroundImage') || `${config.host.website}${DEFAULT_BACKGROUND_IMG}`;
+        return this.getDataValue('backgroundImage');
       }
     },
 
-    slug: DataTypes.STRING,
+    slug: {
+      type: DataTypes.STRING,
+      allowNull: false
+    },
 
     startsAt: {
       type: DataTypes.DATE,
@@ -78,6 +82,8 @@ export default function(Sequelize, DataTypes) {
       type: DataTypes.DATE,
       defaultValue: Sequelize.NOW
     },
+
+    timezone: DataTypes.TEXT,
 
     createdAt: {
       type: DataTypes.DATE,
@@ -94,6 +100,55 @@ export default function(Sequelize, DataTypes) {
     }
   }, {
     paranoid: true,
+
+    getterMethods: {
+      info() {
+        return {
+          id: this.id,
+          createdByUserId: this.createdByUserId,
+          GroupId: this.GroupId,
+          currency: this.currency,
+          maxAmount: this.maxAmount,
+          maxQuantity: this.maxQuantity,
+          name: this.name,
+          description: this.description,
+          locationName: this.locationName,
+          address: this.address,
+          geoLocationLatLong: this.geoLocationLatLong,
+          backgroundImage: this.backgroundImage,
+          slug: this.slug,
+          startsAt: this.startsAt,
+          endsAt: this.endsAt,
+          timezone: this.timezone,
+          status: this.status,
+          confirmedAt: this.confirmedAt,
+          createdAt: this.createdAt,
+          updatedAt: this.updatedAt
+        }
+      }
+    },
+
+    classMethods: {
+      getBySlug: (groupSlug, eventSlug) => {
+        return Event.findOne({
+          where: {
+            slug: eventSlug
+          },
+          include: [{
+            model: models.Group,
+            where: {
+              slug: groupSlug
+            }
+          }]
+        })
+        .then(ev => {
+          if (!ev) {
+            throw new Error(`No event found with slug: ${eventSlug} in collective: ${groupSlug}`)
+          }
+          return ev;
+        })        
+      }
+    }
   });
 
   return Event;

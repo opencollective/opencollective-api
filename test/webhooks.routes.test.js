@@ -177,14 +177,14 @@ describe('webhooks.routes.test.js', () => {
     beforeEach('Make the donation', (done) => {
       const payment = {
         stripeToken: STRIPE_TOKEN,
-        amount: webhookSubscription.amount / 100,
+        amount: webhookSubscription.amount,
         currency: CURRENCY,
         interval: INTERVAL,
         email: stripeEmail
       };
 
       request(app)
-        .post(`/groups/${group.id}/payments`)
+        .post(`/groups/${group.id}/donations/stripe`)
         .send({
           api_key: application.api_key,
           payment
@@ -279,11 +279,12 @@ describe('webhooks.routes.test.js', () => {
         where: {
           DonationId: donation.id
         },
-        include: [
-          {
-            model: models.Subscription,
-          }
-        ]
+        include: [{
+          model: models.Donation,
+          include: [{
+            model: models.Subscription
+          }]
+        }]
       })
       .tap((res) => {
         expect(res.count).to.equal(2);
@@ -301,9 +302,9 @@ describe('webhooks.routes.test.js', () => {
         expect(res.rows[0]).to.have.property('paymentProcessorFeeInTxnCurrency', 15500);
         expect(res.rows[0]).to.have.property('txnCurrencyFxRate', 0.25);
         expect(res.rows[0]).to.have.property('netAmountInGroupCurrency', 25875)
-        expect(transaction.amount).to.be.equal(webhookSubscription.amount / 100);
-        expect(transaction.Subscription.isActive).to.be.equal(true);
-        expect(transaction.Subscription).to.have.property('activatedAt');
+        expect(transaction.amount).to.be.equal(webhookSubscription.amount);
+        expect(transaction.Donation.Subscription.isActive).to.be.equal(true);
+        expect(transaction.Donation.Subscription).to.have.property('activatedAt');
         done();
       })
       .catch(done);
@@ -373,9 +374,12 @@ describe('webhooks.routes.test.js', () => {
         .end(err => {
           expect(err).to.not.exist;
           models.Transaction.findAndCountAll({
-            include: [
-              { model: models.Subscription }
-            ]
+            include: [{ 
+              model: models.Donation,
+              include: [{
+                model: models.Subscription
+              }]
+            }]
           })
           .tap(res => {
             expect(res.count).to.be.equal(3); // third transaction
@@ -385,7 +389,7 @@ describe('webhooks.routes.test.js', () => {
             expect(transaction.PaymentMethodId).to.be.equal(paymentMethod.id);
             expect(transaction.currency).to.be.equal(CURRENCY);
             expect(transaction.type).to.be.equal(type.DONATION);
-            expect(transaction.amount).to.be.equal(webhookSubscription.amount / 100);
+            expect(transaction.amount).to.be.equal(webhookSubscription.amount);
 
             expect(res.rows[0]).to.have.property('amountInTxnCurrency', 140000); // taken from stripe mocks
             expect(res.rows[0]).to.have.property('txnCurrency', 'USD');
@@ -394,9 +398,9 @@ describe('webhooks.routes.test.js', () => {
             expect(res.rows[0]).to.have.property('paymentProcessorFeeInTxnCurrency', 15500);
             expect(res.rows[0]).to.have.property('txnCurrencyFxRate', 0.25);
             expect(res.rows[0]).to.have.property('netAmountInGroupCurrency', 25875);
-            expect(transaction.Subscription.isActive).to.be.equal(true);
-            expect(transaction.Subscription).to.have.property('activatedAt');
-            expect(transaction.Subscription.interval).to.be.equal('month');
+            expect(transaction.Donation.Subscription.isActive).to.be.equal(true);
+            expect(transaction.Donation.Subscription).to.have.property('activatedAt');
+            expect(transaction.Donation.Subscription.interval).to.be.equal('month');
 
             expect(emailSendSpy.callCount).to.equal(4);
             expect(emailSendSpy.thirdCall.args[0])

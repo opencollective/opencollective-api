@@ -1,5 +1,6 @@
 import url from 'url';
 import Promise from 'bluebird';
+import slug from 'slug';
 import clearbit from '../gateways/clearbit';
 import { sequelize } from '../models';
 
@@ -8,20 +9,6 @@ export default {
   memory: {},
 
   clearbit,
-
-  fetchInfo(user) {
-    return this.getUserData(user.email)
-      .then(userData => {
-        if (userData) {
-          user.firstName = user.firstName || userData.name.givenName;
-          user.lastName = user.lastName || userData.name.familyName;
-          user.avatar = user.avatar || userData.avatar;
-          user.twitterHandle = user.twitterHandle || userData.twitter.handle;
-          user.website = user.website || userData.site;
-        }
-        return user;
-      });
-  },
 
   fetchAvatar(email) {
     return this.getUserData(email)
@@ -131,7 +118,7 @@ export default {
       user.name ? user.name.replace(/ /g, '') : null,
       user.email ? user.email.split(/@|\+/)[0] : null]
       .filter(username => username ? true : false) // filter out any nulls
-      .map(username => username.toLowerCase(/\./g,'')) // lowercase them all
+      .map(username => slug(username).toLowerCase(/\./g,'')) // lowercase them all
       // remove any '+' signs
       .map(username => username.indexOf('+') !== -1 ? username.substr(0, username.indexOf('+')) : username);
 
@@ -179,6 +166,24 @@ export default {
       }
     }
     return null;
+  },
+
+  updateUserInfoFromClearbit(user) {
+    if (!user.email) {
+      return Promise.resolve();
+    } 
+    return this.getUserData(user.email)
+      .then(userData => {
+        if (userData) {
+          user.firstName = user.firstName || userData.name.givenName;
+          user.lastName = user.lastName || userData.name.familyName;
+          user.avatar = user.avatar || userData.avatar;
+          user.twitterHandle = user.twitterHandle || userData.twitter.handle;
+          user.website = user.website || userData.site;
+          return user.save();
+        } else {
+          return Promise.resolve();
+        }
+      });
   }
-    
 };

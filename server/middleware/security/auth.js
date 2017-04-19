@@ -1,10 +1,10 @@
 import config from 'config';
 
-import models from '../../models';
 import errors from '../../lib/errors';
 import {required_valid} from '../required_param';
 import roles from '../../constants/roles';
 import {authenticateUser} from './authentication';
+import { hasRole } from '../../lib/auth';
 
 const {
   Forbidden, // I know who you are, but you permanently don't have access to this resource
@@ -78,17 +78,11 @@ export function mustHaveRole(possibleRoles) {
   return (req, res, next) => {
     required_valid('remoteUser', 'group')(req, res, (e) => {
       if (e) return next(e);
-      if (!req.remoteUser) return next(new Forbidden()); // this shouldn't happen, need to investigate why it does'
-      const query = {
-        where: {
-          UserId: req.remoteUser.id,
-          GroupId: req.group.id,
-          role: { $in: possibleRoles }
-        }
-      };
-      models.UserGroup.findOne(query)
-      .then(ug => {
-        if (!ug) return next(new Forbidden(`Logged in user must be ${possibleRoles.join(' or ')} of this group`));
+      if (!req.remoteUser) return next(new Forbidden()); // this shouldn't happen, need to investigate why it does
+
+      return hasRole(req.remoteUser.id, req.group.id, possibleRoles)
+      .then(hasRole => {
+        if (!hasRole) return next(new Forbidden(`Logged in user must be ${possibleRoles.join(' or ')} of this collective`));
         else return next(null, true);
       })
       .catch(next);

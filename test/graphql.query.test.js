@@ -55,16 +55,17 @@ describe('Query Tests', () => {
       it('when given only an existing event slug', async () => {
         const query = `
           query getOneEvent {
-            getEvent(eventSlug: "${event1.slug}") {
+            Event(eventSlug: "${event1.slug}") {
               id,
               name,
               description
             }
           }
         `;
-        const result = await graphql(schema, query);
+        const context = { remoteUser: null };
+        const result = await graphql(schema, query, null, context);
         expect(result.errors.length).to.equal(1);
-        expect(result.errors[0].message).to.equal('Field \"getEvent\" argument \"collectiveSlug\" of type \"String!\" is required but not provided.');
+        expect(result.errors[0].message).to.equal('Field \"Event\" argument \"collectiveSlug\" of type \"String!\" is required but not provided.');
       })
     })
 
@@ -73,17 +74,18 @@ describe('Query Tests', () => {
       it('when given a non-existent slug', async () => {
         const query = `
           query getMultipleEvents {
-            getEvents(collectiveSlug: "non-existent-slug") {
+            allEventsForCollective(collectiveSlug: "non-existent-slug") {
               id,
               name,
               description
             }
           }
         `;
-        const result = await graphql(schema, query);
+        const context = { remoteUser: null };
+        const result = await graphql(schema, query, null, context);
         expect(result).to.deep.equal({
           data: {
-            getEvents: []
+            allEventsForCollective: []
           }
         });
       });
@@ -91,17 +93,18 @@ describe('Query Tests', () => {
       it('when given an existing collective slug when it has no events', async () => {
         const query = `
           query getMultipleEvents {
-            getEvents(collectiveSlug: "${group3.slug}") {
+            allEventsForCollective(collectiveSlug: "${group3.slug}") {
               id,
               name,
               description
             }
           }
         `;
-        const result = await graphql(schema, query);
+        const context = { remoteUser: null };
+        const result = await graphql(schema, query, null, context);
         expect(result).to.deep.equal({
           data: {
-            getEvents: []
+            allEventsForCollective: []
           }
         });
       });
@@ -109,23 +112,34 @@ describe('Query Tests', () => {
 
     describe('returns event(s)', () => {
 
-      it('when given an event slug and collectiveSlug', async () => {
+      it('when given an event slug and collectiveSlug (case insensitive)', async () => {
         const query = `
           query getOneEvent {
-            getEvent(collectiveSlug: "scouts", eventSlug:"jan-meetup") {
+            Event(collectiveSlug: "Scouts", eventSlug:"Jan-Meetup") {
               id,
               name,
-              description
+              description,
+              collective {
+                slug,
+                twitterHandle
+              }
+              timezone
             }
           }
         `;
-        const result = await graphql(schema, query);
+        const context = { remoteUser: null };
+        const result = await graphql(schema, query, null, context);
         expect(result).to.deep.equal({
           data: {
-            getEvent: {
+            Event: {
               description: "January monthly meetup",
               id: 1,
               name: "January meetup",
+              timezone: "America/New_York",
+              collective: {
+                slug: 'scouts',
+                twitterHandle: 'scouts'
+              }
             }            
           }
         });
@@ -136,17 +150,18 @@ describe('Query Tests', () => {
         it('when given only a collective slug', async () => {
           const query = `
             query getMultipleEvents {
-              getEvents(collectiveSlug: "${group1.slug}") {
+              allEventsForCollective(collectiveSlug: "${group1.slug}") {
                 id,
                 name,
                 description
               }
             }
           `;
-          const result = await graphql(schema, query);
+          const context = { remoteUser: null };
+          const result = await graphql(schema, query, null, context);
           expect(result).to.deep.equal({
             data: {
-              getEvents: [
+              allEventsForCollective: [
                 {
                   description: "January monthly meetup",
                   id: 1,
@@ -182,7 +197,8 @@ describe('Query Tests', () => {
             EventId: event1.id, 
             TierId: tier1.id, 
             GroupId: group1.id, 
-            UserId: user2.id 
+            UserId: user2.id,
+            confirmedAt: new Date()
           })));
 
         beforeEach(() => models.Response.create(
@@ -190,7 +206,19 @@ describe('Query Tests', () => {
             EventId: event1.id, 
             TierId: tier1.id, 
             GroupId: group1.id, 
-            UserId: user3.id 
+            UserId: user3.id,
+            confirmedAt: new Date()
+          })));
+
+        // this response shouldn't show up in the query
+        // because it's not confirmed
+        beforeEach(() => models.Response.create(
+          Object.assign(utils.data('response2'), { 
+            EventId: event1.id, 
+            TierId: tier1.id, 
+            GroupId: group1.id, 
+            UserId: user1.id,
+            confirmedAt: null
           })));
 
         beforeEach(() => models.Response.create(
@@ -198,13 +226,32 @@ describe('Query Tests', () => {
             EventId: event1.id, 
             TierId: tier2.id, 
             GroupId: group1.id, 
-            UserId: user3.id 
+            UserId: user3.id,
+            confirmedAt: new Date()
           })));
         
+        it('sends response data', async () => {
+          const query = `
+            query getMultipleEvents {
+              Event(collectiveSlug: "${group1.slug}", eventSlug: "${event1.slug}") {
+                responses {
+                  createdAt,
+                  status
+                }
+              }
+            }
+          `;
+          const context = { remoteUser: null };
+          const result = await graphql(schema, query, null, context);
+          const response = result.data.Event.responses[0];
+          expect(response).to.have.property("createdAt");
+          expect(response).to.have.property("status");
+        });
+
         it('when given only a collective slug', async () => {
           const query = `
             query getOneEvent {
-              getEvents(collectiveSlug: "${group1.slug}") {
+              allEventsForCollective(collectiveSlug: "${group1.slug}") {
                 id,
                 name,
                 description,
@@ -236,10 +283,11 @@ describe('Query Tests', () => {
               }
             }
           `;
-          const result = await graphql(schema, query);
+          const context = { remoteUser: null };
+          const result = await graphql(schema, query, null, context);
           expect(result).to.deep.equal({
             data: {
-              getEvents: [
+              allEventsForCollective: [
                 {
                   id: 1,
                   name: "January meetup",
@@ -289,8 +337,8 @@ describe('Query Tests', () => {
                       "availableQuantity": 98,
                       "responses": [
                         {
-                          "id": 3,
-                          "status": "NO",
+                          "id": 4,
+                          "status": "YES",
                           "description": null,
                           "user": {
                             "id": 3,
@@ -306,7 +354,7 @@ describe('Query Tests', () => {
                   "name": "Feb meetup",
                   "description": "February monthly meetup",
                   "address": "505 Broadway, NY 10012",
-                  "backgroundImage": "http://localhost:3000/static/images/collectives/default-header-bg.jpg",
+                  "backgroundImage": null,
                   "location": "Puck Fair",
                   "lat": null,
                   "long": null,

@@ -23,13 +23,12 @@ describe('transaction model', () => {
       .tap(g => group = g)
       .then(() => group.addUserWithRole(user, roles.HOST)));
 
-  it('isExpense is true if the amount is negative', done => {
+  it('automatically generates uuid', done => {
     Transaction.create({
-      amount: -10
+      amount: -1000
     })
     .then(transaction => {
-      expect(transaction.info.isExpense).to.be.true;
-      expect(transaction.info.isDonation).to.be.false;
+      expect(transaction.info.uuid).to.match(/^[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i);
       done();
     })
     .catch(done);
@@ -38,25 +37,13 @@ describe('transaction model', () => {
   it('get the host', (done) => {
     Transaction.create({
       GroupId: group.id,
-      amount: 100
+      amount: 10000
     })
     .then(transaction => transaction.getHost())
     .then(host => {
       expect(host.id).to.equal(user.id);
       done();
     })
-  });
-
-  it('isDonation is true when amount is > 0', done => {
-    Transaction.create({
-      amount: 0.1
-    })
-    .then(transaction => {
-      expect(transaction.info.isDonation).to.be.true;
-      expect(transaction.info.isExpense).to.be.false;
-      done();
-    })
-    .catch(done);
   });
 
   it('createFromPayload creates a new Transaction', done => {

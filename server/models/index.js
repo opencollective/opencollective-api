@@ -1,8 +1,13 @@
 /**
  * Dependencies.
  */
+import pg from 'pg';
 import Sequelize from 'sequelize';
 import { database as config } from 'config';
+
+// this is needed to prevent sequelize from converting integers to strings, when model definition isn't clear
+// like in case of the key totalDonations and raw query (like User.getTopBackers())
+pg.defaults.parseInt8 = true;
 
 /**
  * Database connection.
@@ -136,11 +141,12 @@ export function setupModels(client) {
   m.Group.hasMany(m.Donation);
   m.Transaction.belongsTo(m.Donation);
   m.Donation.hasMany(m.Transaction);
+  m.Donation.belongsTo(m.Response);
+  m.Response.hasOne(m.Donation);
 
   // Subscription
-  m.Transaction.belongsTo(m.Subscription);
-  m.Subscription.hasMany(m.Transaction);
   m.Donation.belongsTo(m.Subscription);
+  m.Subscription.hasOne(m.Donation);
 
   // PaymentMethod
   m.Donation.belongsTo(m.PaymentMethod);

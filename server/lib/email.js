@@ -134,8 +134,10 @@ const sendMessage = (recipients, subject, html, options = {}) => {
       const from = options.from || config.email.from;
       const bcc = options.bcc;
       const text = options.text;
+      const headers = { 'o:tag': options.tag, 'X-Mailgun-Dkim': 'yes' };
       debug("mailgun> sending email to ", to,"bcc", bcc, "text", text);
-      mailgun.sendMail({ from, to, bcc, subject, text, html }, (err, info) => {
+
+      mailgun.sendMail({ from, to, bcc, subject, text, html, headers }, (err, info) => {
         if (err) {
           return reject(err);
         } else {
@@ -149,17 +151,23 @@ const sendMessage = (recipients, subject, html, options = {}) => {
   }
 };
 
+/**
+ * Get the label to unsubscribe from the email notification
+ * Shown in the footer of the email following "To unsubscribe from "
+ */
 const getNotificationLabel = (template, recipient) => {
 
   template = template.replace('.text', '');
 
   const notificationTypeLabels = {
-    'group.monthlyreport': 'monthly reports',
-    'user.yearlyreport': 'yearly reports',
-    'group.transaction.created': 'notifications of new transactions for this collective',
-    'group.expense.created': 'notifications of new expenses submitted to this collective',
+    'backer.monthlyreport': 'monthly reports for backers',
     'email.approve': 'notifications of new emails pending approval',
-    'email.message': recipient
+    'email.message': recipient,
+    'group.donation.created': 'notifications of new donations for this collective',
+    'group.expense.created': 'notifications of new expenses submitted to this collective',
+    'group.monthlyreport': 'monthly reports for collectives',
+    'group.transaction.created': 'notifications of new transactions for this collective',
+    'user.yearlyreport': 'yearly reports'
   }
 
   return notificationTypeLabels[template];
@@ -170,6 +178,11 @@ const getNotificationLabel = (template, recipient) => {
  */
 const generateEmailFromTemplate = (template, recipient, data, options = {}) => {
 
+  if (template === 'ticket.confirmed') {
+    if (data.group.slug === 'sustainoss')
+      template += '.sustainoss';
+  }
+
   if (template === 'thankyou') {
     if (data.group.name.match(/WWCode/i))
       template += '.wwcode';
@@ -177,6 +190,8 @@ const generateEmailFromTemplate = (template, recipient, data, options = {}) => {
       template += '.ispcwa';
     if (data.group.slug === 'brusselstogether')
       template = 'thankyou.brusselstogether';
+    if (data.group.slug === 'sustainoss')
+      template = 'thankyou.sustainoss';
     if (_.contains(['lesbarbares', 'nuitdebout', 'laprimaire'], data.group.slug)) {
       template += '.fr';
 
@@ -229,6 +244,7 @@ const generateEmailFromTemplateAndSend = (template, recipient, data, options = {
     .then(renderedTemplate => {
       const attributes = getTemplateAttributes(renderedTemplate.html);
       options.text = renderedTemplate.text;
+      options.tag = template;
       return emailLib.sendMessage(recipient, attributes.subject, attributes.body, options)
     });
 };
@@ -238,20 +254,31 @@ const generateEmailFromTemplateAndSend = (template, recipient, data, options = {
  */
 const sendMessageFromActivity = (activity, notification) => {
   const data = activity.data;
+  const userEmail = notification && notification.User ? notification.User.email : activity.data.user.email;
+
   switch (activity.type) {
     case activities.GROUP_TRANSACTION_CREATED:
-      return generateEmailFromTemplateAndSend('group.transaction.created', notification.User.email, data);
+      return generateEmailFromTemplateAndSend('group.transaction.created', userEmail, data);
+
     case activities.GROUP_EXPENSE_CREATED:
       data.actions = {
         approve: notification.User.generateLoginLink(`/${data.group.slug}/expenses/${data.expense.id}/approve`),
         reject: notification.User.generateLoginLink(`/${data.group.slug}/expenses/${data.expense.id}/reject`)
       };
-      return generateEmailFromTemplateAndSend('group.expense.created', notification.User.email, data);
+      return generateEmailFromTemplateAndSend('group.expense.created', userEmail, data);
+
     case activities.GROUP_EXPENSE_APPROVED:
       data.actions = {
         viewExpenseUrl: notification.User.generateLoginLink(`/${data.group.slug}/transactions/expenses#exp${data.expense.id}`)
       }
-      return generateEmailFromTemplateAndSend('group.expense.approved.for.host', notification.User.email, data);
+      return generateEmailFromTemplateAndSend('group.expense.approved.for.host', userEmail, data);
+
+    case activities.GROUP_CREATED:
+      return generateEmailFromTemplateAndSend('group.created', userEmail, data);
+
+    case activities.SUBSCRIPTION_CANCELED:
+      return generateEmailFromTemplateAndSend('subscription.canceled', userEmail, data);
+
     default:
       return Promise.resolve();
   }

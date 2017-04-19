@@ -1,5 +1,4 @@
-import {processDonation} from '../lib/donations';
-import {type} from '../constants/transactions';
+import { type } from '../constants/transactions';
 
 const donationType = type.DONATION;
 
@@ -50,6 +49,8 @@ export default function(Sequelize, DataTypes) {
 
     title: DataTypes.STRING,
 
+    notes: DataTypes.TEXT,
+
     SubscriptionId: {
       type: DataTypes.INTEGER,
       references: {
@@ -64,6 +65,16 @@ export default function(Sequelize, DataTypes) {
       type: DataTypes.INTEGER,
       references: {
         model: 'PaymentMethods',
+        key: 'id'
+      },
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE'
+    },
+
+    ResponseId: {
+      type: DataTypes.INTEGER,
+      references: {
+        model: 'Responses',
         key: 'id'
       },
       onDelete: 'SET NULL',
@@ -107,12 +118,6 @@ export default function(Sequelize, DataTypes) {
           createdAt: this.createdAt,
           updatedAt: this.updatedAt
         }
-      }
-    },
-
-    hooks: {
-      afterCreate: function(donation) {
-        return processDonation(Sequelize, donation);
       }
     }
   });

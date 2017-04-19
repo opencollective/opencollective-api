@@ -4,8 +4,11 @@
 [![Slack Status](https://slack.opencollective.com/badge.svg)](https://slack.opencollective.com)
 [![Gitter chat](https://badges.gitter.im/OpenCollective/OpenCollective.svg)](https://gitter.im/OpenCollective/OpenCollective)
 [![Dependency Status](https://david-dm.org/opencollective/opencollective-api.svg)](https://david-dm.org/opencollective/opencollective-api)
+[![Coverage Status](https://coveralls.io/repos/github/OpenCollective/opencollective-api/badge.svg)](https://coveralls.io/github/OpenCollective/opencollective-api)
 
 ## How to get started
+
+Note: If you see a step below that could be improved (or is outdated), please update instructions. We rarely go through this process ourselves, so your fresh pair of eyes and your recent experience with it, makes you the best candidate to improve them for other users. 
 
 ### Database
 Install Postgres 9.x. Start the database server, if necessary.
@@ -57,18 +60,18 @@ alias pgstop='pg_ctl stop -m fast'
 ## Reset db with fixtures
 
 Run the server on the side (in parallel because the reset scripts hits directly the api):
-`npm run start`
+`DEBUG=email npm run dev`
 
 Run the script afterwards:
 `npm run db:reset`
 
-You can now login on development with `user@opencollective.com` and `password`.
+You can now login on development (website repo) with `user@opencollective.com` and the token will show up in your console.
 You can auth to the paypal sandbox with `ops@opencollective.com` and `paypal123`.
 
 Feel free to modify `scripts/create_user_and_group.js` to create your own user/group.
 
 ## Documentation
-http://docs.opencollective.apiary.io/
+WIP
 
 ## Deployment
 
