@@ -128,7 +128,11 @@ describe("email.routes.test", () => {
       .send(webhookBodyPayload)
       .then((res) => {
         expect(res.statusCode).to.equal(200);
+<<<<<<< HEAD
         expect(spy.args[0][1]).to.equal('organizers@testcollective.opencollective.com');
+=======
+        expect(spy.args[0][1]).to.equal('members@testcollective.opencollective.com');
+>>>>>>> a6dcf10925ab437ea9515f171c8abf2c7cd17b39
         const emailSentTo = [spy.args[0][3].bcc,spy.args[1][3].bcc];
         expect(emailSentTo.indexOf(usersData[0].email) !== -1).to.be.true;
         expect(emailSentTo.indexOf(usersData[1].email) !== -1).to.be.true;
