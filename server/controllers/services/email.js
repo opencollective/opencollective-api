@@ -139,7 +139,7 @@ export const webhook = (req, res, next) => {
   }
 
   // If an email is sent to info@:slug.opencollective.com,
-  // we simply forward it to members who subscribed to that mailinglist (no approval process)
+  // we simply forward it to organizers who subscribed to that mailinglist (no approval process)
   if (mailinglist === 'info') {
     return sendEmailToList(recipient, {
       subject: email.subject,
@@ -155,7 +155,7 @@ export const webhook = (req, res, next) => {
 
   // If the email is sent to :tierSlug or :eventSlug@:collectiveSlug.opencollective.com
   // We leave the original message on the mailgun server
-  // and we send the email to the admins (members) of the collective for approval
+  // and we send the email to the admins (organizers) of the collective for approval
   // once approved, we will fetch the original email from the server and send it to all recipients
   let subscribers;
 
@@ -173,7 +173,7 @@ export const webhook = (req, res, next) => {
         return s;
       });
     })
-    // We fetch all the members of the collective (admins) to whom we will send the email to approve
+    // We fetch all the organizers of the collective (admins) to whom we will send the email to approve
     .then(() => {
       return sequelize.query(`
         SELECT * FROM "UserGroups" ug LEFT JOIN "Users" u ON ug."UserId"=u.id WHERE ug."GroupId"=:groupid AND ug.role=:role AND ug."deletedAt" IS NULL
@@ -182,10 +182,10 @@ export const webhook = (req, res, next) => {
         model: models.User
       });
     })
-    .tap(members => {
-      if (members.length === 0) throw new Error('no_members');
+    .tap(organizers => {
+      if (organizers.length === 0) throw new Error('no_organizers');
     })
-    .then(members => {
+    .then(organizers => {
       const messageId = email['message-url'].substr(email['message-url'].lastIndexOf('/')+1);
       const mailserver = email['message-url'].substring(8, email['message-url'].indexOf('.'));
       const getData = (user) => {
@@ -198,11 +198,11 @@ export const webhook = (req, res, next) => {
           approve_url: `${config.host.website}/api/services/email/approve?mailserver=${mailserver}&messageId=${messageId}&approver=${encodeURIComponent(user.email)}`
         };
       };
-      // We send the email to each member (admin) with
-      // to: members@:collectiveSlug.opencollective.com
-      // bcc: member.email
+      // We send the email to each organizer (admin) with
+      // to: organizers@:collectiveSlug.opencollective.com
+      // bcc: organizer.email
       // body: includes mailing list, recipients, preview of the email and approve button
-      return Promise.map(members, (user) => emailLib.send('email.approve', `members@${slug}.opencollective.com`, getData(user), { bcc: user.email }));
+      return Promise.map(organizers, (organizer) => emailLib.send('email.approve', `organizers@${slug}.opencollective.com`, getData(organizer), { bcc: organizer.email }));
     })
     .then(() => res.send('Mailgun webhook processed successfully'))
     .catch(e => {
@@ -220,11 +220,11 @@ export const webhook = (req, res, next) => {
           /**
            * TODO
            * If there is no such collective, we send an email to confirm to create the collective
-           * with the people in /cc as initial members
+           * with the people in /cc as initial organizers
            */
           return res.send({error: { message: `There is no group with slug ${slug}` }});
-        case 'no_members':
-          return res.send({error: { message: `There is no members to approve emails sent to ${email.recipient}` }});
+        case 'no_organizers':
+          return res.send({error: { message: `There is no organizers to approve emails sent to ${email.recipient}` }});
         default:
           return next(e);
       }
