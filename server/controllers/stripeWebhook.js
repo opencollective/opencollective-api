@@ -252,6 +252,8 @@ export default function stripeWebhook(req, res, next) {
           relatedGroups,
           interval: subscription && subscription.interval,
           subscriptionsLink: user.generateLoginLink('/subscriptions')
+        }, {
+          from: `${group.name} <organizers@${group.slug}.opencollective.com>`
         }))
       .then(() => cb())
       .catch(cb);
