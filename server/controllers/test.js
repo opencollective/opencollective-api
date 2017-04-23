@@ -4,7 +4,6 @@ import Sequelize from 'sequelize';
 import models, { setupModels } from '../models';
 import { type } from '../constants/transactions';
 import roles from '../constants/roles';
-import emailLib from '../lib/email';
 import errors from '../lib/errors';
 
 const envsAndDatabases = {
