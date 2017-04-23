@@ -18,20 +18,12 @@ export const unsubscribe = (req, res, next) => {
     return next(new errors.BadRequest('Invalid token'));
   }
 
-  const include = [{ model: models.User, where: { email }}];
-
-  if (slug !== 'undefined') {
-    include.push({ model: models.Group, where: { slug }});
-  }
-
-  models.Notification.findOne({
-    where: { type },
-    include
-  })
-  .then(notification => {
-    if (!notification) throw new errors.BadRequest('No notification found for this user, group and type');
-    return notification.update({ active: false })
-  })
+  Promise.all([
+    models.Group.findOne({ where: { slug }}),
+    models.User.findOne({ where: { email }})
+  ]).then(results => {
+      return results[1].unsubscribe(results[0].id, type, 'email')
+    })
   .then(() => res.send({"response": "ok"}))
   .catch(next);
 
