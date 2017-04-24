@@ -62,7 +62,7 @@ describe('lib/email', () => {
       config
     };
     const options = {
-      from: `${group.name} <organizers@${group.slug}.opencollective.com>`,
+      from: `${group.name} <hello@${group.slug}.opencollective.com>`,
     };
 
     return emailLib.send(template, data.user.email, data, options)

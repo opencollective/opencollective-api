@@ -31,11 +31,8 @@ export const unsubscribe = (req, res, next) => {
 
 // TODO: move to emailLib.js
 const sendEmailToList = (to, email) => {
-  const tokens = to.match(/(.+)@(.+)\.opencollective\.com/i);
-  const mailinglist = tokens[1];
-  const collectiveSlug = tokens[2];
-  const type = `mailinglist.${mailinglist}`;
-  email.from = email.from || `${collectiveSlug} collective <info@${collectiveSlug}.opencollective.com>`;
+  const { mailinglist, collectiveSlug, type } = getNotificationType(to);  
+  email.from = email.from || `${collectiveSlug} collective <hello@${collectiveSlug}.opencollective.com>`;
   email.group = email.group || { slug: collectiveSlug }; // used for the unsubscribe url
 
   return models.Notification.getSubscribers(collectiveSlug, mailinglist)
@@ -119,13 +116,22 @@ export const approve = (req, res, next) => {
     })
 };
 
+export const getNotificationType = (email) => {
+  const tokens = email.match(/(.+)@(.+)\.opencollective\.com/i);
+  const collectiveSlug = tokens[2];
+  let mailinglist = tokens[1];
+  if (['info','hello','members','organizers'].indexOf(mailinglist) !== -1) {
+    mailinglist = 'members';
+  }
+  const type = `mailinglist.${mailinglist}`;
+  return { collectiveSlug, mailinglist, type };
+}
+
 export const webhook = (req, res, next) => {
   const email = req.body;
   const { recipient } = email;
   debug('webhook')(">>> webhook received", JSON.stringify(email));
-  const tokens = recipient.match(/(.+)@(.+)\.opencollective\.com/i);
-  const mailinglist = tokens[1];
-  const slug = tokens[2];
+  const { mailinglist, collectiveSlug } = getNotificationType(recipient);
 
   const body = email['body-html'] || email['body-plain'];
 
@@ -138,9 +144,9 @@ export const webhook = (req, res, next) => {
     return res.send('Email already processed, skipping');
   }
 
-  // If an email is sent to info@:slug.opencollective.com,
+  // If an email is sent to [info|hello|members|organizers]@:collectiveSlug.opencollective.com,
   // we simply forward it to organizers who subscribed to that mailinglist (no approval process)
-  if (mailinglist === 'info') {
+  if (mailinglist === 'members') {
     return sendEmailToList(recipient, {
       subject: email.subject,
       body,
@@ -159,7 +165,7 @@ export const webhook = (req, res, next) => {
   // once approved, we will fetch the original email from the server and send it to all recipients
   let subscribers;
 
-  models.Group.find({ where: { slug } })
+  models.Group.find({ where: { slug: collectiveSlug } })
     .tap(g => {
       if (!g) throw new Error('group_not_found');
       group = g;
@@ -202,7 +208,7 @@ export const webhook = (req, res, next) => {
       // to: organizers@:collectiveSlug.opencollective.com
       // bcc: organizer.email
       // body: includes mailing list, recipients, preview of the email and approve button
-      return Promise.map(organizers, (organizer) => emailLib.send('email.approve', `organizers@${slug}.opencollective.com`, getData(organizer), { bcc: organizer.email }));
+      return Promise.map(organizers, (organizer) => emailLib.send('email.approve', `organizers@${collectiveSlug}.opencollective.com`, getData(organizer), { bcc: organizer.email }));
     })
     .then(() => res.send('Mailgun webhook processed successfully'))
     .catch(e => {
@@ -213,7 +219,7 @@ export const webhook = (req, res, next) => {
            * If there is no such mailing list,
            * - if the sender is a MEMBER, we send an email to confirm to create the mailing list
            *   with the people in /cc as initial subscribers
-           * - if the sender is unknown, we return an email suggesting to contact info@:slug.opencollective.com
+           * - if the sender is unknown, we return an email suggesting to contact info@:collectiveSlug.opencollective.com
            */
           return res.send({error: { message: `There is no user subscribed to ${recipient}` }});
         case 'group_not_found':
@@ -222,7 +228,7 @@ export const webhook = (req, res, next) => {
            * If there is no such collective, we send an email to confirm to create the collective
            * with the people in /cc as initial organizers
            */
-          return res.send({error: { message: `There is no group with slug ${slug}` }});
+          return res.send({error: { message: `There is no collective with slug ${collectiveSlug}` }});
         case 'no_organizers':
           return res.send({error: { message: `There is no organizers to approve emails sent to ${email.recipient}` }});
         default:

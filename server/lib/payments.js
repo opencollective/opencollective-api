@@ -240,7 +240,7 @@ const processPayment = (donation) => {
                 event: eventResponse.Event.info,
                 tier: eventResponse.Tier.info
               }, {
-                from: `${group.name} <organizers@${group.slug}.opencollective.com>`
+                from: `${group.name} <hello@${group.slug}.opencollective.com>`
               })
           } else {
             // normal donation

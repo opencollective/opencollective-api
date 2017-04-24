@@ -29,8 +29,7 @@ const usersData = [
     lastName: 'Damman',
     email: 'xdamman+test@gmail.com',
     role: 'MEMBER',
-    avatar: 'https://pbs.twimg.com/profile_images/3075727251/5c825534ad62223ae6a539f6a5076d3c.jpeg',
-    lists: ['mailinglist.info']
+    avatar: 'https://pbs.twimg.com/profile_images/3075727251/5c825534ad62223ae6a539f6a5076d3c.jpeg'
   },
   {
     firstName: 'Aseem',
@@ -172,7 +171,7 @@ describe("email.routes.test", () => {
         expect(spy.args[0][1]).to.equal('organizers@testcollective.opencollective.com');
         expect(spy.args[0][2].subject).to.equal('test collective organizers');
         expect([spy.args[0][3].bcc, spy.args[1][3].bcc]).to.contain(usersData[0].email);
-        expect(spy.args[0][3].from).to.equal('testcollective collective <info@testcollective.opencollective.com>');
+        expect(spy.args[0][3].from).to.equal('testcollective collective <hello@testcollective.opencollective.com>');
       });
   });
 
@@ -223,7 +222,7 @@ describe("email.routes.test", () => {
       const where = {
         UserId: users[0].id,
         GroupId: group.id,
-        type: 'mailinglist.organizers'
+        type: 'mailinglist.members'
       };
 
       return request(app)
