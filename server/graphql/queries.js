@@ -11,6 +11,7 @@ import {
 } from './types';
 
 import models from '../models';
+import debug from 'debug';
 
 const queries = {
   Collective: {
@@ -21,6 +22,7 @@ const queries = {
       }
     },
     resolve(_, args) {
+      debug('graphql')((new Date()).getTime(), " resolve Collective", (new Date).getTime());
       return models.Group.findOne({
         where: { slug: args.collectiveSlug.toLowerCase() }
       })
@@ -56,6 +58,7 @@ const queries = {
       }
     },
     resolve(_, args) {
+      debug('graphql')((new Date()).getTime(), " resolve Event", (new Date).getTime());
       return models.Event.findOne({
         where: { slug: args.eventSlug.toLowerCase() },
         include: [{

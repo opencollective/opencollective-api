@@ -1,5 +1,6 @@
 import serverStatus from 'express-server-status';
 import GraphHTTP from 'express-graphql'
+import { graphqlExpress } from 'graphql-server-express';
 
 import schema from './graphql/schema';
 import * as activities from './controllers/activities';
@@ -37,6 +38,8 @@ import * as params from './middleware/params';
 import errors from './lib/errors';
 
 import sanitizer from './middleware/sanitizer';
+
+import debug from 'debug';
 
 /**
  * NotImplemented response.
@@ -78,11 +81,15 @@ export default (app) => {
   /**
    * GraphQL
    */
-  app.use('/graphql', GraphHTTP({
-    schema: schema,
-    pretty: process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'staging',
-    graphiql: process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'staging'
-  }));
+  // app.use('/graphql', GraphHTTP({
+  //   schema: schema,
+  //   pretty: process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'staging',
+  //   graphiql: process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'staging'
+  // }));
+  app.use('/graphql', (req, res, next) => {
+    debug('graphql')("start graphql request");
+    return graphqlExpress({ schema, context: req })(req, res, next);
+  });
 
   /**
    * Webhook for stripe when it gets a new subscription invoice
