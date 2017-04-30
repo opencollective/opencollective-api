@@ -79,11 +79,26 @@ const getTemplateAttributes = (str) => {
   return attributes;
 };
 
+let shouldBccOpsCache = {};
+setInterval(() => {
+  shouldBccOpsCache = {};
+}, 1000 * 60 * 60 ); // we reset the cache every hour
+
+const shouldBccOps = (subject) => {
+  if (shouldBccOpsCache[subject]) {
+    return false;
+  } else {
+    shouldBccOpsCache[subject] = true;
+    return true;
+  }
+};
+
 /*
  * sends an email message to a recipient with given subject and body
  */
 const sendMessage = (recipients, subject, html, options = {}) => {
-  options.bcc = options.bcc || `ops@opencollective.com`;
+
+  options.bcc = options.bcc || shouldBccOps(subject) && `ops@opencollective.com`;
 
   if (!_.isArray(recipients)) recipients = [ recipients ];
 
