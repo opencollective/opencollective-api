@@ -379,7 +379,7 @@ export const refreshTokenByEmail = (req, res, next) => {
   const user = req.remoteUser;
 
   return emailLib.send('user.new.token', req.remoteUser.email, {
-    loginLink: user.generateLoginLink(redirect)
+    loginLink: user.generateLoginLink(redirect), { bcc: 'ops@opencollective.com' }
   })
   .then(() => res.send({ success: true }))
   .catch(next);
