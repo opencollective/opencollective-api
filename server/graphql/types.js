@@ -174,7 +174,7 @@ export const CollectiveType = new GraphQLObjectType({
       users: {
         type: new GraphQLList(UserType),
         resolve(collective, args, req) {
-          debug('graphql')((new Date()).getTime(), " resolve getUsersForViewer", (new Date).getTime());
+          debug('graphql')("resolve getUsersForViewer");
           return collective.getUsersForViewer(req.remoteUser);
         }
       },
@@ -187,14 +187,14 @@ export const CollectiveType = new GraphQLObjectType({
       events: {
         type: new GraphQLList(EventType),
         resolve(collective) {
-          debug('graphql')((new Date()).getTime(), " resolve getEvents", (new Date).getTime());
+          debug('graphql')("resolve getEvents");
           return collective.getEvents();
         }
       },
       stripePublishableKey: {
         type: GraphQLString,
         resolve(collective) {
-          debug('graphql')((new Date()).getTime(), " resolve getStripeAccount", (new Date).getTime());
+          debug('graphql')("resolve getStripeAccount");
           return collective.getStripeAccount()
           .then(stripeAccount => stripeAccount && stripeAccount.stripePublishableKey)
         }
@@ -235,10 +235,10 @@ export const EventType = new GraphQLObjectType({
       createdByUser: {
         type: UserType,
         resolve(event) {
-          debug('graphql')((new Date()).getTime(), " resolve createdByUser", (new Date).getTime());
+          debug('graphql')("resolve createdByUser");
           return models.User.findById(event.createdByUserId)
             .then((res) => {
-              debug('graphql')((new Date()).getTime(), " resolve createdByUser done",  (new Date).getTime())
+              debug('graphql')("resolve createdByUser done")
               return res;
             })
         }
@@ -246,10 +246,10 @@ export const EventType = new GraphQLObjectType({
       collective: {
         type: CollectiveType,
         resolve(event) {
-          debug('graphql')((new Date()).getTime(), " resolve event.getGroup", (new Date).getTime());
+          debug('graphql')("resolve event.getGroup");
           return event.getGroup()
             .then((res) => {
-              debug('graphql')((new Date()).getTime(), " resolve event.getGroup done",  (new Date).getTime())
+              debug('graphql')("resolve event.getGroup done")
               return res;
             });
         }
@@ -325,10 +325,12 @@ export const EventType = new GraphQLObjectType({
       tiers: {
         type: new GraphQLList(TierType),
         resolve(event) {
-          debug('graphql')((new Date()).getTime(), " resolve tiers", (new Date).getTime());
+          debug('graphql')("resolve tiers");
+          console.time("resolve-tiers");
           return event.getTiers({ order: [['amount', 'ASC']] })
             .then((res) => {
-              debug('graphql')((new Date()).getTime(), " resolve tiers done",  (new Date).getTime())
+              console.timeEnd("resolve-tiers");
+              debug('graphql')("resolve tiers done")
               return res;
             });          
         }
@@ -336,7 +338,7 @@ export const EventType = new GraphQLObjectType({
       responses: {
         type: new GraphQLList(ResponseType),
         resolve(event) {
-          debug('graphql')((new Date()).getTime(), " resolve responses", (new Date).getTime());
+          debug('graphql')("resolve responses");
           return event.getResponses({
             where: { 
               confirmedAt: { $ne: null } 
@@ -346,7 +348,7 @@ export const EventType = new GraphQLObjectType({
             ]
           })
           .then((res) => {
-            debug('graphql')((new Date()).getTime(), " resolve responses done",  (new Date).getTime())
+            debug('graphql')("resolve responses done")
             return res;
           });          
         }
@@ -434,7 +436,7 @@ export const TierType = new GraphQLObjectType({
         resolve(tier) {
           return tier.getEvent()
             .then((res) => {
-              debug('graphql')((new Date()).getTime(), " resolve tier.getEvent done",  (new Date).getTime())
+              debug('graphql')("resolve tier.getEvent done")
               return res;
             });
         }
@@ -442,14 +444,14 @@ export const TierType = new GraphQLObjectType({
       responses: {
         type: new GraphQLList(ResponseType),
         resolve(tier) {
-          debug('graphql')((new Date()).getTime(), " resolve responses", (new Date).getTime());
+          debug('graphql')("resolve responses");
           return tier.getResponses({
             where: { 
               confirmedAt: { $ne: null } 
             }
           })
           .then((res) => {
-            debug('graphql')((new Date()).getTime(), " resolve responses done",  (new Date).getTime())
+            debug('graphql')("resolve responses done")
             return res;
           });          
         }

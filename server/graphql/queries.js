@@ -22,7 +22,7 @@ const queries = {
       }
     },
     resolve(_, args) {
-      debug('graphql')((new Date()).getTime(), " resolve Collective", (new Date).getTime());
+      debug('graphql')("resolve Collective");
       return models.Group.findOne({
         where: { slug: args.collectiveSlug.toLowerCase() }
       })
@@ -58,14 +58,14 @@ const queries = {
       }
     },
     resolve(_, args) {
-      debug('graphql')((new Date()).getTime(), " resolve Event", (new Date).getTime());
+      debug('graphql')("resolve Event");
       return models.Event.findOne({
         where: { slug: args.eventSlug.toLowerCase() },
         include: [{
           model: models.Group,
           where: { slug: args.collectiveSlug.toLowerCase() }
         }]
-      })
+      });
     }
   },
   /*
