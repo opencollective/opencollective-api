@@ -1,5 +1,12 @@
 #!/usr/bin/env node
 
+// Only run on the first of the month
+const today = new Date();
+if (process.env.NODE_ENV === 'production' && today.getDate() !== 1) {
+  console.log('NODE_ENV is production and today is not the first of month, script aborted!');
+  process.exit();
+}
+
 process.env.PORT = 3066;
 
 import _ from 'lodash';
@@ -37,7 +44,7 @@ const init = () => {
   const where = {};
   const query = {
     where: {
-      type: 'backer.monthlyreport',
+      type: 'user.monthlyreport',
       active: true
     },
     include: [{ model: User, where }]
@@ -139,7 +146,7 @@ const sendEmail = (recipient, data) => {
   // We don't send the monthly email if there is no active subscription
   if (!data.subscriptions || data.subscriptions.length === 0) return;
 
-  return emailLib.send('backer.monthlyreport', recipient.email, data);
+  return emailLib.send('user.monthlyreport', recipient.email, data);
 }
 
 init();
