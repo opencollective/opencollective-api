@@ -326,13 +326,11 @@ export const EventType = new GraphQLObjectType({
         type: new GraphQLList(TierType),
         resolve(event) {
           debug('graphql')("resolve tiers");
-          console.time("resolve-tiers");
           return event.getTiers({ order: [['amount', 'ASC']] })
             .then((res) => {
-              console.timeEnd("resolve-tiers");
               debug('graphql')("resolve tiers done")
               return res;
-            });          
+            });
         }
       },
       responses: {
@@ -350,7 +348,7 @@ export const EventType = new GraphQLObjectType({
           .then((res) => {
             debug('graphql')("resolve responses done")
             return res;
-          });          
+          });
         }
       }
 
