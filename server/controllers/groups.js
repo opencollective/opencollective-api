@@ -306,7 +306,8 @@ export const create = (req, res, next) => {
       })
     })
     .tap(g => {
-      return User.findOne({ where: { id: group.HostId || defaultHostId() }}).tap(h => {
+      const HostId = group.HostId || defaultHostId();
+      return User.findOne({ where: { id: HostId }}).tap(h => {
         host = h;
         _addUserToGroup(g, host, {role: roles.HOST, remoteUser: creator})
       })
