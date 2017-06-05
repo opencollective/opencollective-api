@@ -110,26 +110,33 @@ export const update = (req, res, next) => {
   const origExpense = req.expense;
   const newExpense = req.required.expense;
   const user = req.remoteUser || req.user;
-  const modifiableProps = [
-    'amount',
-    'attachment',
-    'category',
-    'comment',
-    'incurredAt',
-    'currency',
-    'notes',
+  const modifiablePropsWhenStatusApproved = [
     'payoutMethod',
+    'category',
     'title',
-    'vat'
+    'incurredAt',
+    'notes'
   ];
 
-  assertExpenseStatus(origExpense, status.PENDING)
-    .tap(() => {
-      modifiableProps.forEach(prop => origExpense[prop] = newExpense[prop] || origExpense[prop]);
-      origExpense.updatedAt = new Date();
-      origExpense.lastEditedById = user.id;
-    })
-    .then(() => origExpense.save())
+  // following fields can only be modified while an expense is PENDING
+  const modifiablePropsWhenStatusPending = modifiablePropsWhenStatusApproved.concat([
+    'amount',
+    'currency',
+    'vat',
+    'attachment'
+  ]);
+
+  let modifiablePropsList = [];
+
+  if (origExpense.status === status.APPROVED) {
+    modifiablePropsList = modifiablePropsWhenStatusApproved;
+  } else if (origExpense.status === status.PENDING) {
+    modifiablePropsList = modifiablePropsWhenStatusPending;
+  }
+  modifiablePropsList.forEach(prop => origExpense[prop] = newExpense[prop] || origExpense[prop]);
+  origExpense.updatedAt = new Date();
+  origExpense.lastEditedById = user.id;
+  return origExpense.save()
     .tap(expense => createActivity(expense, activities.GROUP_EXPENSE_UPDATED))
     .tap(expense => res.send(expense.info))
     .catch(next);
