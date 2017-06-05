@@ -110,28 +110,17 @@ export const update = (req, res, next) => {
   const origExpense = req.expense;
   const newExpense = req.required.expense;
   const user = req.remoteUser || req.user;
-  const modifiablePropsWhenStatusApproved = [
-    'payoutMethod',
-    'category',
-    'title',
-    'incurredAt',
-    'notes'
-  ];
-
-  // following fields can only be modified while an expense is PENDING
-  const modifiablePropsWhenStatusPending = modifiablePropsWhenStatusApproved.concat([
-    'amount',
-    'currency',
-    'vat',
-    'attachment'
-  ]);
+  const modifiableProps = {
+    approved: ['payoutMethod', 'category', 'title', 'incurredAt', 'notes'],
+    pending: ['amount', 'currency', 'vat', 'attachment']
+  }
 
   let modifiablePropsList = [];
 
   if (origExpense.status === status.APPROVED) {
-    modifiablePropsList = modifiablePropsWhenStatusApproved;
+    modifiablePropsList = modifiableProps.approved;
   } else if (origExpense.status === status.PENDING) {
-    modifiablePropsList = modifiablePropsWhenStatusPending;
+    modifiablePropsList = [...modifiableProps.approved, ...modifiableProps.pending];
   }
   modifiablePropsList.forEach(prop => origExpense[prop] = newExpense[prop] || origExpense[prop]);
   origExpense.updatedAt = new Date();
