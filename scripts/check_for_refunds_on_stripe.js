@@ -12,17 +12,14 @@ const done = (err) => {
   process.exit();
 }
 
-function promiseSeq(arr, predicate, consecutive=10) {  
+function promiseSeq(arr, predicate, consecutive=100) {  
   return chunkArray(arr, consecutive).reduce(( prom, items, ix ) => {
     // wait for the previous Promise.all() to resolve
     return prom.then(( allResults ) => {
       console.log('SET', ix);
       return Promise.all(
         // then we build up the next set of simultaneous promises
-        items.map(( item ) => {
-          // call the processing function
-          return predicate(item, ix)
-        })
+        items.map((item) => predicate(item, ix))
       )
     });
   }, Promise.resolve([]));
@@ -43,16 +40,15 @@ function promiseSeq(arr, predicate, consecutive=10) {
 let refundCount = 0;
 
 function getCharge(transaction) {
-  console.log(transaction.id, transaction.Group.id)
   return transaction.Group.getStripeAccount()
   .then(stripeAccount => {
     if (stripeAccount && transaction.data && transaction.data.charge) {
       return retreiveCharge(stripeAccount, transaction.data.charge.id)
         .then(charge => {
           if (charge) {
-            console.log("refunded: ", charge.refunded)
             if (charge.refunded) {
               refundCount++;
+              console.log("Charge Refunded, txn id: ", transaction.id)
             }
           } else {
             console.log("Charge not found: ", transaction.data.charge.id);
@@ -62,7 +58,8 @@ function getCharge(transaction) {
     return Promise.resolve();
   })
   .catch(err => {
-    console.log(err);
+    // do nothing
+    // console.log(err);
   })
 }
 
@@ -77,11 +74,10 @@ function run() {
     include: [
       { model: models.Group }
     ],
-    order: [['id', 'DESC']],
+    order: [['id', 'DESC']]
   })
   .tap(transactions => console.log('Transactions found: ', transactions.length))
-  .then(transactions => )
-  .then(transactions => Promise.all(transactions.map(getCharge)))
+  .then(transactions => promiseSeq(transactions, (txn, ix) => getCharge(txn)))
   .then(() => console.log("Refund count: ", refundCount))
   .then(() => done())
   .catch(done)
