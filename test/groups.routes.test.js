@@ -267,7 +267,7 @@ describe('groups.routes.test.js', () => {
           expect(res.body).to.have.property('description');
           expect(res.body).to.have.property('longDescription');
           expect(res.body).to.have.property('expensePolicy', 'expense policy');
-          expect(res.body).to.have.property('isActive', false);
+          expect(res.body).to.have.property('isActive', true);
           expect(emailLib.send.lastCall.args[1]).to.equal('githubuser@gmail.com');
         })
         .then(() => ConnectedAccount.findOne({where: {username: 'asood123'}}))
