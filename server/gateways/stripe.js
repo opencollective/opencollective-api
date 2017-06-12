@@ -94,7 +94,7 @@ export const createCharge = (stripeAccount, charge) => {
 /**
  * Fetch charge
  */
-export const retreiveCharge = (stripeAccount, chargeId) => {
+export const retrieveCharge = (stripeAccount, chargeId) => {
   return client(stripeAccount).charges.retrieve(chargeId);
 };
 

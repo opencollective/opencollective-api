@@ -1,10 +1,10 @@
 /*
- * This script tells us which Stripe subscriptions are inactive
+ * This script tells us which transactions have been refunded on Stripe
  */
 
 const app = require('../server/index');
 import models from '../server/models';
-import { retreiveCharge } from '../server/gateways/stripe';
+import { retrieveCharge } from '../server/gateways/stripe';
 
 const done = (err) => {
   if (err) console.log('err', err);
@@ -43,7 +43,7 @@ function getCharge(transaction) {
   return transaction.Group.getStripeAccount()
   .then(stripeAccount => {
     if (stripeAccount && transaction.data && transaction.data.charge) {
-      return retreiveCharge(stripeAccount, transaction.data.charge.id)
+      return retrieveCharge(stripeAccount, transaction.data.charge.id)
         .then(charge => {
           if (charge) {
             if (charge.refunded) {
