@@ -220,7 +220,6 @@ export default function stripeWebhook(req, res, next) {
         platformFeeInTxnCurrency: fees.applicationFee,
         paymentProcessorFeeInTxnCurrency: fees.stripeFee,
         data: {charge, balanceTransaction},
-        description: `${donation.Subscription.interval}ly recurring subscription`,
       };
 
       models.Transaction.createFromPayload({

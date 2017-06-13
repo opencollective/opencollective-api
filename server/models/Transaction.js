@@ -15,7 +15,7 @@ export default (Sequelize, DataTypes) => {
   const Transaction = Sequelize.define('Transaction', {
     uuid: DataTypes.STRING(36),
     type: DataTypes.STRING, // Expense or Donation
-    description: DataTypes.STRING,
+    description: DataTypes.STRING, // #deprecated
     amount: DataTypes.INTEGER,
     currency: {
       type: DataTypes.STRING,
@@ -63,13 +63,32 @@ export default (Sequelize, DataTypes) => {
 
     getterMethods: {
 
+      title() {
+        return (this.Donation && this.Donation.title) ||
+        (this.Expense && this.Expense.title) || 
+        this.description;
+      },
+
+      expenseCategory() {
+        return this.Expense && this.Expense.category
+      },
+
+      expenseIncurredAt() {
+        return this.Expense && this.Expense.incurredAt;
+      },
+
+      expensePayoutMethod() {
+        return this.Expense && this.Expense.payoutMethod;
+      },
+
       // Info.
       info() {
         return {
           id: this.id,
           uuid: this.uuid,
           type: this.type,
-          description: this.description,
+          description: this.description, // #deprecated
+          title: this.title,
           amount: this.amount,
           currency: this.currency,
           createdAt: this.createdAt,
@@ -80,7 +99,12 @@ export default (Sequelize, DataTypes) => {
           paymentProcessorFee: this.paymentProcessorFee,
           netAmountInGroupCurrency: this.netAmountInGroupCurrency,
           amountInTxnCurrency: this.amountInTxnCurrency,
-          txnCurrency: this.txnCurrency
+          txnCurrency: this.txnCurrency,
+
+          // expense related fields
+          expenseCategory: this.expenseCategory,
+          expenseIncurredAt: this.expenseIncurredAt,
+          expensePayoutMethod: this.expensePayoutMethod
         };
       }
     },

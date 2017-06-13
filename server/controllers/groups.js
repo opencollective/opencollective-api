@@ -20,7 +20,8 @@ const {
   Transaction,
   ConnectedAccount,
   User,
-  Donation
+  Donation,
+  Expense
 } = models;
 
 const _addUserToGroup = (group, user, options) => {
@@ -120,6 +121,9 @@ export const updateTransaction = (req, res, next) => {
  * Get group's transactions.
  */
 export const getTransactions = (req, res, next) => {
+
+  const canEditGroup = req.remoteUser && req.remoteUser.canEditGroup;
+
   const where = {
     GroupId: req.group.id
   };
@@ -140,7 +144,7 @@ export const getTransactions = (req, res, next) => {
 
   const query = _.merge({
     where,
-    include: { model: Donation },
+    include: [{ model: Donation }, {model: Expense}],
     order: [[req.sorting.key, req.sorting.dir]]
   }, req.pagination);
 
@@ -154,7 +158,20 @@ export const getTransactions = (req, res, next) => {
         Link: getLinkHeader(getRequestedUrl(req), req.pagination)
       });
 
-      res.send(transactions.rows.map(transaction => Object.assign({}, transaction.info, {'description': (transaction.Donation && transaction.Donation.title) || transaction.description })));
+      res.send(transactions.rows.map(transaction => {
+
+        // only show these if user has permission
+        const notes = canEditGroup && 
+                      ((transaction.Donation && transaction.Donation.notes) || 
+                        (transaction.Expense && transaction.Expense.notes));
+        const attachment = canEditGroup && transaction.Expense && transaction.Expense.attachment;
+        
+        return Object.assign({}, transaction.info, {
+          notes,
+          attachment
+        });
+      }));
+
     })
     .catch(next);
 };

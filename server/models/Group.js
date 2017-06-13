@@ -308,16 +308,14 @@ export default function(Sequelize, DataTypes) {
           });
       },
 
-      hasUserWithRole(userId, expectedRoles, cb) {
-        this
-          .getUsers({
+      hasUserWithRole(userId, expectedRoles) {
+        return this.getUsers({
             where: {
               id: userId
             }
           })
           .then(users => users.map(user => user.UserGroup.role))
-          .tap(actualRoles => cb(null, _.intersection(expectedRoles, actualRoles).length > 0))
-          .catch(cb);
+          .then(actualRoles => _.intersection(expectedRoles, actualRoles).length > 0)
       },
 
       addUserWithRole(user, role) {

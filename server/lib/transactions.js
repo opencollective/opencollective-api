@@ -45,7 +45,6 @@ export function createFromPaidExpense(paymentMethod, expense, paymentResponses, 
     type: type.EXPENSE,
     amount: -expense.amount,
     currency: expense.currency,
-    description: expense.title,
     UserId,
     GroupId: expense.GroupId,
   })
