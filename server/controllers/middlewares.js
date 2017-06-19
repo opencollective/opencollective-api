@@ -203,7 +203,7 @@ export const paginate = (options) => {
   options = options || {};
 
   options = {
-    default: options.default || 50,
+    default: options.default || 100,
     min: options.min || 1,
     max: options.max || 100,
     maxTotal: options.maxTotal || false
