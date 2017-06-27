@@ -145,6 +145,21 @@ export default (Sequelize, DataTypes) => {
       getHostForViewer(viewer) {
         return this.getUserForViewer(viewer, this.HostId);
       },
+      getExpenseForViewer(viewer) {
+        const promises = [ models.Expense.findOne({where: { id: this.ExpenseId }}) ];
+        if (viewer) {
+          promises.push(viewer.canEditGroup(this.GroupId));
+        }
+        return Promise.all(promises)
+        .then(results => {
+          const expense = results[0];
+          const canEditGroup = results[1];
+          if (!expense) return null;
+          if (viewer && canEditGroup) return expense.info;
+          if (viewer && viewer.id === expense.UserId) return expense.info;
+          return expense.public;
+        })
+      },
       getSource() {
         switch (this.type) {
           case 'EXPENSE':

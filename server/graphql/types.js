@@ -14,6 +14,10 @@ import models from '../models';
 import dataloaderSequelize from 'dataloader-sequelize';
 dataloaderSequelize(models.Response);
 dataloaderSequelize(models.Event);
+dataloaderSequelize(models.User);
+dataloaderSequelize(models.Transaction);
+dataloaderSequelize(models.Expense);
+dataloaderSequelize(models.Donation);
 
 export const ResponseStatusType = new GraphQLEnumType({
   name: 'Responses',
@@ -707,14 +711,14 @@ export const TransactionExpenseType = new GraphQLObjectType({
     },
     notes: {
       type: GraphQLString,
-      resolve(transaction) {
-        return transaction.getExpense().then(expense => expense && expense.notes);
+      resolve(transaction, args, req) {
+        return transaction.getExpenseForViewer(req.remoteUser).then(expense => expense && expense.notes);
       }
     },
     attachment: {
       type: GraphQLString,
-      resolve(transaction) {
-        return transaction.getExpense().then(expense => expense && expense.attachment);
+      resolve(transaction, args, req) {
+        return transaction.getExpenseForViewer(req.remoteUser).then(expense => expense && expense.attachment);
       }
     }
   }
