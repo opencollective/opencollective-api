@@ -9,6 +9,8 @@ import { type } from '../constants/transactions';
  */
 export default (Sequelize, DataTypes) => {
 
+  const { models } = Sequelize;
+
   const Transaction = Sequelize.define('Transaction', {
     uuid: DataTypes.STRING(36),
     type: DataTypes.STRING, // Expense or Donation
@@ -59,7 +61,7 @@ export default (Sequelize, DataTypes) => {
       allowNull: false
     },
 
-    // stores the currency that the transaction happened in (currency of the donor)
+    // stores the currency that the transaction happened in (currency of the host)
     txnCurrency: {
       type: DataTypes.STRING,
       set(val) {
@@ -128,6 +130,21 @@ export default (Sequelize, DataTypes) => {
     },
 
     instanceMethods: {
+      getUserForViewer(viewer, userid = this.UserId) {
+        const promises = [models.User.findOne({where: { id: userid }})];
+        if (viewer) {
+          promises.push(viewer.canEditGroup(this.GroupId));
+        }
+        return Promise.all(promises)
+        .then(results => {
+          const user = results[0];
+          const canEditGroup = results[1];
+          return canEditGroup ? user.info : user.public;
+        })
+      },
+      getHostForViewer(viewer) {
+        return this.getUserForViewer(viewer, this.HostId);
+      },
       getSource() {
         switch (this.type) {
           case 'EXPENSE':
