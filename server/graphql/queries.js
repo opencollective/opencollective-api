@@ -70,7 +70,8 @@ const queries = {
             model: models.Group,
             where: { slug: args.collectiveSlug.toLowerCase() }
           }
-        ]
+        ],
+        order: [ ['id', 'DESC'] ]
       };
       if (args.limit) query.limit = args.limit;
       if (args.offset) query.offset = args.offset;

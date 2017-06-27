@@ -25,12 +25,13 @@ describe('graphql.transaction.test.js', () => {
 
   describe('return collective.transactions', () => {
     it('when given an event slug and collectiveSlug (case insensitive)', async () => {
+      const limit = 40;
       const query = `
         query Collective {
           Collective(collectiveSlug: "wwcodeaustin") {
             id,
             slug,
-            transactions {
+            transactions(limit: ${limit}) {
               id,
               type,
               user {
@@ -64,12 +65,12 @@ describe('graphql.transaction.test.js', () => {
       const result = await graphql(schema, query, null, context);
       expect(result.errors).to.not.exist;
       const transactions = result.data.Collective.transactions;
-      expect(transactions.length).to.equal(76);
+      expect(transactions.length).to.equal(limit);
       const expense = transactions.find(t => t.type === 'EXPENSE');
       const donation = transactions.find(t => t.type === 'DONATION');
       expect(expense).to.have.property('attachment');
       expect(donation).to.have.property('paymentMethod');
-      expect(donation.user.id).to.equal(646); // Lindsey user
+      expect(donation.user.id).to.equal(4720); // Lindsey user
       expect(donation.host.id).to.equal(3); // wwcode host
       expect(donation.user.email).to.equal(null); // can't see email if not logged in
       expect(donation.host.email).to.equal(null);
@@ -78,9 +79,9 @@ describe('graphql.transaction.test.js', () => {
 
   describe('return transactions', () => {
 
-    it.only('when given an event slug and collectiveSlug (case insensitive)', async () => {
+    it('with pagination', async () => {
       const limit = 10;
-      const offset = 19;
+      const offset = 20;
       const query = `
         query allTransactions {
           allTransactions(collectiveSlug: "wwcodeaustin", limit: ${limit}, offset: ${offset}) {
@@ -117,7 +118,7 @@ describe('graphql.transaction.test.js', () => {
       expect(result.errors).to.not.exist;
       const transactions = result.data.allTransactions;
       expect(transactions.length).to.equal(limit);
-      expect(transactions[0].id).to.equal(2820);
+      expect(transactions[0].id).to.equal(3587);
     });
   });
 });
