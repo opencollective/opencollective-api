@@ -1,7 +1,8 @@
 import {
   GraphQLList,
   GraphQLNonNull,
-  GraphQLString
+  GraphQLString,
+  GraphQLInt
 } from 'graphql';
 
 import {
@@ -58,16 +59,22 @@ const queries = {
     args: {
       collectiveSlug: {
         type: new GraphQLNonNull(GraphQLString)
-      }
+      },
+      limit: { type: GraphQLInt },
+      offset: { type: GraphQLInt }
     },
     resolve(_, args, req) {
-      return models.Transaction.findAll({
+      const query = {
         include: [
           {
             model: models.Group,
             where: { slug: args.collectiveSlug.toLowerCase() }
           }
-        ]});
+        ]
+      };
+      if (args.limit) query.limit = args.limit;
+      if (args.offset) query.offset = args.offset;
+      return models.Transaction.findAll(query);
     }
   },
   /*
