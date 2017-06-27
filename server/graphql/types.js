@@ -11,6 +11,8 @@ import {
 import status from '../constants/response_status';
 import models from '../models';
 import dataloaderSequelize from 'dataloader-sequelize';
+import debug from 'debug';
+
 dataloaderSequelize(models.Response);
 dataloaderSequelize(models.Event);
 
@@ -178,6 +180,7 @@ export const CollectiveType = new GraphQLObjectType({
       users: {
         type: new GraphQLList(UserType),
         resolve(collective, args, req) {
+          debug('graphql')("resolve getUsersForViewer");
           return collective.getUsersForViewer(req.remoteUser);
         }
       },
@@ -196,12 +199,14 @@ export const CollectiveType = new GraphQLObjectType({
       events: {
         type: new GraphQLList(EventType),
         resolve(collective) {
+          debug('graphql')("resolve getEvents");
           return collective.getEvents();
         }
       },
       stripePublishableKey: {
         type: GraphQLString,
         resolve(collective) {
+          debug('graphql')("resolve getStripeAccount");
           return collective.getStripeAccount()
           .then(stripeAccount => stripeAccount && stripeAccount.stripePublishableKey)
         }
@@ -253,13 +258,23 @@ export const EventType = new GraphQLObjectType({
       createdByUser: {
         type: UserType,
         resolve(event) {
+          debug('graphql')("resolve createdByUser");
           return models.User.findById(event.createdByUserId)
+            .then((res) => {
+              debug('graphql')("resolve createdByUser done")
+              return res;
+            })
         }
       },
       collective: {
         type: CollectiveType,
         resolve(event) {
-          return event.getGroup();
+          debug('graphql')("resolve event.getGroup");
+          return event.getGroup()
+            .then((res) => {
+              debug('graphql')("resolve event.getGroup done")
+              return res;
+            });
         }
       },
       slug: {
@@ -314,12 +329,18 @@ export const EventType = new GraphQLObjectType({
       tiers: {
         type: new GraphQLList(TierType),
         resolve(event) {
-          return event.getTiers({ order: [['amount', 'ASC']] });
+          debug('graphql')("resolve tiers");
+          return event.getTiers({ order: [['amount', 'ASC']] })
+            .then((res) => {
+              debug('graphql')("resolve tiers done")
+              return res;
+            });
         }
       },
       responses: {
         type: new GraphQLList(ResponseType),
         resolve(event) {
+          debug('graphql')("resolve responses");
           return event.getResponses({
             where: { 
               confirmedAt: { $ne: null } 
@@ -327,6 +348,10 @@ export const EventType = new GraphQLObjectType({
             order: [
               ['createdAt', 'DESC']
             ]
+          })
+          .then((res) => {
+            debug('graphql')("resolve responses done")
+            return res;
           });
         }
       }
@@ -411,17 +436,26 @@ export const TierType = new GraphQLObjectType({
       event: {
         type: EventType,
         resolve(tier) {
-          return tier.getEvent();
+          return tier.getEvent()
+            .then((res) => {
+              debug('graphql')("resolve tier.getEvent done")
+              return res;
+            });
         }
       },
       responses: {
         type: new GraphQLList(ResponseType),
         resolve(tier) {
+          debug('graphql')("resolve responses");
           return tier.getResponses({
             where: { 
               confirmedAt: { $ne: null } 
             }
-          });
+          })
+          .then((res) => {
+            debug('graphql')("resolve responses done")
+            return res;
+          });          
         }
       }
     }

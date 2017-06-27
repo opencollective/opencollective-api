@@ -41,6 +41,14 @@ export const sequelize = new Sequelize(
 const models = setupModels(sequelize);
 export default models;
 
+if (process.env.DEBUG && process.env.DEBUG.match(/sequelize/)) {
+  sequelize.addHook('beforeFind', () => console.time('sequelize.find'));
+  sequelize.addHook('afterFind', () => console.timeEnd('sequelize.find'));
+  sequelize.addHook('beforeValidate', () => console.time('sequelize.validate'));
+  sequelize.addHook('afterValidate', () => console.timeEnd('sequelize.validate'));
+}
+
+
 /**
  * Separate function to be able to use in scripts
  */
