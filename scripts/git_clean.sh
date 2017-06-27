@@ -6,6 +6,7 @@ if [[ `git checkout master` ]]; then
       echo "> $BRANCH merged with master";
       if [[ `git diff master` ]]; then
 	echo "> $BRANCH is different than master";
+        git reset --hard > /dev/null;
       else
 	echo "> Removing branch $BRANCH";
         git checkout master;
