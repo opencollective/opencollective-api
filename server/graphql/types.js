@@ -9,6 +9,8 @@ import {
   GraphQLInterfaceType
 } from 'graphql';
 
+import GraphQLJSON from 'graphql-type-json';
+
 import status from '../constants/response_status';
 import models from '../models';
 import dataloaderSequelize from 'dataloader-sequelize';
@@ -172,6 +174,12 @@ export const CollectiveType = new GraphQLObjectType({
         type: GraphQLString,
         resolve(collective) {
           return collective.backgroundImage;
+        }
+      },
+      settings: {
+        type: GraphQLJSON,
+        resolve(collective) {
+          return collective.settings || {};
         }
       },
       slug: {
@@ -535,7 +543,7 @@ export const PaymentMethodType = new GraphQLObjectType({
           return pm.id;
         }
       },
-      service: {
+      name: {
         type: GraphQLString,
         resolve(pm) {
           return pm.service;
@@ -599,12 +607,21 @@ export const TransactionInterfaceType = new GraphQLInterfaceType({
   },
   fields: {
     id: { type: GraphQLInt },
+    uuid: { type: GraphQLString },
+    amount: { type: GraphQLInt },
+    currency: { type: GraphQLString },
+    netAmountInGroupCurrency: { type: GraphQLInt },
+    hostFeeInTxnCurrency: { type: GraphQLInt },
+    platformFeeInTxnCurrency: { type: GraphQLInt },
+    paymentProcessorFeeInTxnCurrency: { type: GraphQLInt },
     user: { type: UserType },
     host: { type: UserType },
+    paymentMethod: { type: PaymentMethodType },
     collective: { type: CollectiveType },
     type: { type: GraphQLString },
     title: { type: GraphQLString },
-    notes: { type: GraphQLString }
+    notes: { type: GraphQLString },
+    createdAt: { type: GraphQLString }
   }
 });
 
@@ -617,6 +634,12 @@ export const TransactionExpenseType = new GraphQLObjectType({
       type: GraphQLInt,
       resolve(transaction) {
         return transaction.id;
+      }
+    },
+    uuid: {
+      type: GraphQLString,
+      resolve(transaction) {
+        return transaction.uuid;
       }
     },
     type: {
@@ -715,6 +738,18 @@ export const TransactionExpenseType = new GraphQLObjectType({
         return transaction.getExpenseForViewer(req.remoteUser).then(expense => expense && expense.notes);
       }
     },
+    paymentMethod: {
+      type: PaymentMethodType,
+      resolve(transaction) {
+        return transaction.getPaymentMethod().then(pm => pm || { service: 'manual' });
+      }
+    },
+    category: {
+      type: GraphQLString,
+      resolve(transaction, args, req) {
+        return transaction.getExpenseForViewer(req.remoteUser).then(expense => expense && expense.category);
+      }
+    },
     attachment: {
       type: GraphQLString,
       resolve(transaction, args, req) {
@@ -734,6 +769,12 @@ export const TransactionDonationType = new GraphQLObjectType({
         type: GraphQLInt,
         resolve(transaction) {
           return transaction.id;
+        }
+      },
+      uuid: {
+        type: GraphQLString,
+        resolve(transaction) {
+          return transaction.uuid;
         }
       },
       type: {
@@ -835,7 +876,7 @@ export const TransactionDonationType = new GraphQLObjectType({
       paymentMethod: {
         type: PaymentMethodType,
         resolve(transaction) {
-          return transaction.getDonation().then(donation => donation && donation.getPaymentMethod());
+          return transaction.getPaymentMethod().then(pm => pm || { service: 'manual' });
         }
       },
       response: {

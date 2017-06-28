@@ -42,6 +42,7 @@
     "flat": "2.0.0",
     "form-data": "0.2.0",
     "graphql": "0.9.1",
+    "graphql-type-json": "0.1.4",
     "handlebars": "4.0.5",
     "helmet": "3.5.0",
     "isomorphic-fetch": "2.2.1",
