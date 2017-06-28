@@ -16,10 +16,12 @@ import models from '../models';
 import dataloaderSequelize from 'dataloader-sequelize';
 dataloaderSequelize(models.Response);
 dataloaderSequelize(models.Event);
-dataloaderSequelize(models.User);
 dataloaderSequelize(models.Transaction);
 dataloaderSequelize(models.Expense);
 dataloaderSequelize(models.Donation);
+
+// This breaks the tests for some reason (mocha test/usergroup.routes.test.js -g "successfully add a user to a group with a role")
+// dataloaderSequelize(models.User);
 
 export const ResponseStatusType = new GraphQLEnumType({
   name: 'Responses',
