@@ -200,7 +200,7 @@ export const CollectiveType = new GraphQLObjectType({
           limit: { type: GraphQLInt },
           offset: { type: GraphQLInt }
         },
-        resolve(collective, args, req) {
+        resolve(collective, args) {
           const query = {};
           if (args.limit) query.limit = args.limit;
           if (args.offset) query.offset = args.offset;
@@ -217,7 +217,6 @@ export const CollectiveType = new GraphQLObjectType({
       twitterHandle: {
         type: GraphQLString,
         resolve(collective) {
-          const query = {};
           return collective.twitterHandle;
         }
       },

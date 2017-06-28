@@ -63,7 +63,7 @@ const queries = {
       limit: { type: GraphQLInt },
       offset: { type: GraphQLInt }
     },
-    resolve(_, args, req) {
+    resolve(_, args) {
       const query = {
         include: [
           {
