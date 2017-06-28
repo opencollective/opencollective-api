@@ -215,9 +215,9 @@ export default (Sequelize, DataTypes) => {
         }
         return Transaction.findById(transaction.id, {
           include: [
-            { model: Sequelize.models.Group },
-            { model: Sequelize.models.User },
-            { model: Sequelize.models.PaymentMethod }
+            { model: models.Group },
+            { model: models.User },
+            { model: models.PaymentMethod }
           ]
         })
         // Create activity.
@@ -240,7 +240,7 @@ export default (Sequelize, DataTypes) => {
           if (transaction.PaymentMethod) {
             activityPayload.data.paymentMethod = transaction.PaymentMethod.info;
           }
-          return Sequelize.models.Activity.create(activityPayload);
+          return models.Activity.create(activityPayload);
         })
         .catch(err => console.error(`Error creating activity of type ${activities.GROUP_TRANSACTION_CREATED} for transaction ID ${transaction.id}`, err));
       }
