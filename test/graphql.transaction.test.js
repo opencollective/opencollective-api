@@ -51,7 +51,7 @@ describe('graphql.transaction.test.js', () => {
               ... on Donation {
                 paymentMethod {
                   id,
-                  service
+                  name
                 },
                 subscription {
                   id,
@@ -105,7 +105,7 @@ describe('graphql.transaction.test.js', () => {
             ... on Donation {
               paymentMethod {
                 id,
-                service
+                name
               },
               subscription {
                 id,
