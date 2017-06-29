@@ -23,7 +23,7 @@ describe("utils", () => {
   });
 
   it("exports PDF", function(done) {
-    this.timeout(20000);
+    this.timeout(10000);
 
     const data = {
       host: {
@@ -49,7 +49,7 @@ describe("utils", () => {
       ]
     }
     exportToPDF("expenses", data).then(buffer => {
-      expect(buffer.length).to.equal(26166);
+      expect(buffer.length).to.equal(26123);
       done();
     });
   })
