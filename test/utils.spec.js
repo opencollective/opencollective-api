@@ -23,7 +23,7 @@ describe("utils", () => {
   });
 
   it("exports PDF", function(done) {
-    this.timeout(15000);
+    this.timeout(20000);
 
     const data = {
       host: {
