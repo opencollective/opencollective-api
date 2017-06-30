@@ -9,7 +9,7 @@
     overflow: hidden;
     padding: 12px;
   }
-  .CollectiveCard {
+  .Subscription .CollectiveCard {
     float: right;
     margin: 0!important;
     display: none !important;
@@ -19,7 +19,7 @@
     margin-bottom: 10px;
   }
   @media(min-width: 400px) {
-    .CollectiveMission, .CollectiveCard {
+    .CollectiveMission, .Subscription .CollectiveCard {
       display: block !important;
     }
     .CollectiveMission {
@@ -105,6 +105,9 @@
   li {
     margin: 4px 0;
   }
+  p.noExpense {
+    margin: 4px 0;
+  }
 </style>
 
 <table border=0 width="100%" class="Subscription">
@@ -117,9 +120,11 @@
         <tr>
           <td>
             <div class="Links">
+              {{#if group.website}}
               <a href="{{group.website}}">Website</a>
-              <span>&nbsp;|&nbsp;</span>
-              <a href="//opencollective.com/{{group.slug}}?{{@root.utm}}">Open Collective Page</a>
+              <span> | </span>
+              {{/if}}
+              <a href="https://opencollective.com/{{group.slug}}?{{@root.utm}}">Open Collective Page</a>
             </div>
           </td>
         </tr>
@@ -161,7 +166,7 @@
                 {{/each}}
                 </ul>
               {{else}}
-              <p>No expense filed this month. <a href="https://opencollective.com/{{group.slug}}/expenses/new">Submit an expense</a>.</p>
+              <p class="noExpense">No expense filed this month. <a href="https://opencollective.com/{{group.slug}}/expenses/new">Submit an expense</a>.</p>
               {{/if}}
               <p><a href="https://opencollective.com/{{group.slug}}/transactions">View all past transactions</a></p>
             </div>

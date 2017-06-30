@@ -85,7 +85,7 @@ const processGroup = (group) => {
           .then(results => {
             console.log('***', group.name, '***');
             const data = {};
-            data.group = _.pick(group, ['id', 'name', 'slug', 'logo', 'mission', 'currency','publicUrl', 'tags', 'backgroundImage', 'settings', 'totalDonations', 'contributorsCount']);
+            data.group = _.pick(group, ['id', 'name', 'slug', 'website', 'logo', 'mission', 'currency','publicUrl', 'tags', 'backgroundImage', 'settings', 'totalDonations', 'contributorsCount']);
             const res = getTiersStats(results[0], startDate, endDate);
             data.group.stats = res.stats;
             data.group.stats.balance = results[1];
