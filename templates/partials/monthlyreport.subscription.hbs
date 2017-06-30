@@ -7,8 +7,6 @@
     border: solid 1px #d5d7d9;
     margin-bottom: 32px;
     overflow: hidden;
-  }
-  table {
     padding: 12px;
   }
   .CollectiveCard {
@@ -18,6 +16,7 @@
   }
   .CollectiveMission {
     display: block !important;
+    margin-bottom: 10px;
   }
   @media(min-width: 400px) {
     .CollectiveMission, .CollectiveCard {
@@ -47,9 +46,6 @@
     color: #494b4d;
     margin-bottom: -4px;
   }
-  .Subscription .Links {
-    margin-bottom: 18px;
-  }
   .Subscription .Links a {
     font-family: Helvetica;
     font-size: 10px;
@@ -63,8 +59,8 @@
     font-size: 12px;
     line-height: 1.25;
     color: #6d7073;
-    margin: 10px 0;
     max-width: 180px;
+    margin: 0;
   }
   .Subscription .Statistic {
     margin: 8px 0 16px 0;
@@ -104,67 +100,78 @@
     font-size: 12px;
     padding: 0 0px;
     margin: 8px 0;
+    list-style: none;
   }
   li {
     margin: 4px 0;
   }
-  .currentBalance {
-    margin: 12px 0;    
-  }
-  .currentBalance, .latestExpenses {
-    overflow: hidden;
-  }
 </style>
 
-<div class="Subscription">
-  <table border=0 width="100%">
-    <tr>
-      <td valign="top" width="100%">
-        <h1>{{group.name}}</h1>
-        <div class="Links">
-          <a href="{{group.website}}">Website</a>
-          <span>&nbsp;|&nbsp;</span>
-          <a href="//opencollective.com/{{group.slug}}?{{@root.utm}}">Open Collective Page</a>
-        </div>
-
-        <p class="CollectiveMission">{{group.mission}}</p>
-
-        <p>You’re contributing <b>{{{currency amount currency=currency}}}</b> per {{interval}} since {{{moment createdAt}}}</p>
-
-        <div class="currentBalance">
-          <label>Current balance:</label> 
-          <div class="Statistic">
-            <div class="Amount">{{{currency group.stats.balance currency=currency}}}</div>
-            <div class="Change">
-              {{#if group.stats.totalDonations}}
-              <div class="PositiveChange">+&nbsp;{{{currency group.stats.totalDonations currency=currency}}}</div>
-              {{/if}}
-              {{#if group.stats.totalPaidExpenses}}
-              <div class="NegativeChange">-&nbsp;{{{currency group.stats.totalPaidExpenses currency=currency}}}</div>
-              {{/if}}
+<table border=0 width="100%" class="Subscription">
+  <tr>
+    <td valign="top" width="100%">
+      <table>
+        <tr>
+          <td><h1>{{group.name}}</h1></td>
+        </tr>
+        <tr>
+          <td>
+            <div class="Links">
+              <a href="{{group.website}}">Website</a>
+              <span>&nbsp;|&nbsp;</span>
+              <a href="//opencollective.com/{{group.slug}}?{{@root.utm}}">Open Collective Page</a>
             </div>
-          </div>
-        </div>
+          </td>
+        </tr>
+        <tr><td height="10"></td></tr>
+        <tr>
+          <td><p class="CollectiveMission">{{group.mission}}</p></td>
+        </tr>
+        <tr>
+          <td><p>You’re contributing <b>{{{currency amount currency=currency}}}</b> per {{interval}} since {{{moment createdAt}}}</p></td>
+        </tr>
+        <tr><td height="10"></td></tr>
+        <tr>
+          <td>
+            <div class="currentBalance">
+              <label>Current balance:</label> 
+              <div class="Statistic">
+                <div class="Amount">{{{currency group.stats.balance currency=currency}}}</div>
+                <div class="Change">
+                  {{#if group.stats.totalDonations}}
+                  <div class="PositiveChange">+&nbsp;{{{currency group.stats.totalDonations currency=currency}}}</div>
+                  {{/if}}
+                  {{#if group.stats.totalPaidExpenses}}
+                  <div class="NegativeChange">-&nbsp;{{{currency group.stats.totalPaidExpenses currency=currency}}}</div>
+                  {{/if}}
+                </div>
+              </div>
+            </div>
+          </td>
+        </tr>
+        <tr><td height="10"></td></tr>
+        <tr>
+          <td>
+            <div class="latestExpenses">
+              <label>Latest {{{pluralize "expense" n=group.expenses.length}}}:</label>
+              {{#if group.expenses.length}}
+                <ul>
+                {{#each group.expenses}}
+                <li>{{{moment createdAt format="MM/DD"}}} {{{currency amount currency=../currency}}} {{title}} {{status}}</li>
+                {{/each}}
+                </ul>
+              {{else}}
+              <p>No expense filed this month. <a href="https://opencollective.com/{{group.slug}}/expenses/new">Submit an expense</a>.</p>
+              {{/if}}
+              <p><a href="https://opencollective.com/{{group.slug}}/transactions">View all past transactions</a></p>
+            </div>
+          </td>
+        </tr>
+      </table>
 
-        <div class="latestExpenses">
-          <label>Latest {{{pluralize "expense" n=group.expenses.length}}}:</label>
-          {{#if group.expenses.length}}
-            <ul>
-            {{#each group.expenses}}
-            <li>{{{moment createdAt format="MM/DD"}}} {{{currency amount currency=../currency}}} {{title}} {{status}}</li>
-            {{/each}}
-            </ul>
-          {{else}}
-          <p>No expense filed this month. <a href="https://opencollective.com/{{group.slug}}/expenses/new">Submit an expense</a>.</p>
-          {{/if}}
-          <p><a href="https://opencollective.com/{{group.slug}}/transactions">View all past transactions</a></p>
-      </div>
-
-      </td>
-      <td valign="top">
-        {{> collectivecard group}}
-      </td>
-    </tr>
-  </table>
-
-</div>
+    </td>
+    <td valign="top">
+      {{> collectivecard group}}
+    </td>
+  </tr>
+</table>
