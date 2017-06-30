@@ -547,7 +547,7 @@ export const getOne = (req, res, next) => {
     req.group.getStripeAccount(),
     req.group.getConnectedAccount(),
     req.group.getBalance(),
-    req.group.getYearlyIncome(),
+    req.group.getYearlyBudget(),
     req.group.getTotalDonations(),
     req.group.getBackersCount(),
     req.group.getTwitterSettings(),
@@ -559,7 +559,7 @@ export const getOne = (req, res, next) => {
     group.stripeAccount = values[0] && _.pick(values[0], 'stripePublishableKey');
     group.hasPaypal = values[1] && values[1].provider === 'paypal';
     group.balance = values[2];
-    group.yearlyIncome = values[3];
+    group.yearlyBudget = values[3];
     group.donationTotal = values[4];
     group.backersCount = values[5];
     group.contributorsCount = (group.data && group.data.githubContributors) ? Object.keys(group.data.githubContributors).length : 0;
@@ -571,7 +571,7 @@ export const getOne = (req, res, next) => {
     if (group.superCollectiveData) {
       group.collectivesCount = group.superCollectiveData.length;
       group.contributorsCount += aggregate(group.superCollectiveData, 'contributorsCount');
-      group.yearlyIncome += aggregate(group.superCollectiveData, 'yearlyIncome');
+      group.yearlyBudget += aggregate(group.superCollectiveData, 'yearlyBudget');
       group.backersCount += aggregate(group.superCollectiveData, 'backersCount');
       group.donationTotal += aggregate(group.superCollectiveData, 'donationTotal');
     }

@@ -375,7 +375,7 @@ describe('groups.routes.test.js', () => {
           expect(res.body).to.have.property('name', publicGroup.name);
           expect(res.body).to.have.property('isActive', true);
           expect(res.body).to.have.property('stripeAccount');
-          expect(res.body).to.have.property('yearlyIncome');
+          expect(res.body).to.have.property('yearlyBudget');
           expect(res.body).to.have.property('backersCount');
           expect(res.body).to.have.property('related');
           expect(res.body.tags).to.eql(publicGroup.tags);
@@ -453,7 +453,7 @@ describe('groups.routes.test.js', () => {
             group: publicGroup,
           })));
 
-      it('successfully get a group with remaining budget and yearlyIncome', (done) => {
+      it('successfully get a group with remaining budget and yearlyBudget', (done) => {
         request(app)
           .get(`/groups/${publicGroup.id}`)
           .send({
@@ -464,7 +464,7 @@ describe('groups.routes.test.js', () => {
             expect(e).to.not.exist;
             const g = res.body;
             expect(g).to.have.property('balance', parseInt((totDonations + totTransactions + transactionsData[7].amount + transactionsData[8].amount).toFixed(0), 10));
-            expect(g).to.have.property('yearlyIncome', (transactionsData[7].amount + transactionsData[7].amount * 12)); // one is a single payment and other is a subscription
+            expect(g).to.have.property('yearlyBudget', (transactionsData[7].amount + transactionsData[7].amount * 12)); // one is a single payment and other is a subscription
             done();
           });
       });
@@ -535,8 +535,8 @@ describe('groups.routes.test.js', () => {
             expect(res.body).to.have.property('isSupercollective', supercollective.isSupercollective);
             expect(res.body).to.have.property('superCollectiveData')
             expect(res.body.superCollectiveData.length).to.eql(1);
-            expect(res.body.superCollectiveData[0].contributorsCount).to.eql(Object.keys(data.githubContributors).length);
-            expect(res.body.contributorsCount).to.equal(Object.keys(data.githubContributors).length);
+            expect(res.body.superCollectiveData[0].contributorsCount).to.eql(1+Object.keys(data.githubContributors).length);
+            expect(res.body.contributorsCount).to.equal(1+Object.keys(data.githubContributors).length);
             expect(res.body.superCollectiveData[0].publicUrl).to.contain('wwcode-austin');
             expect(res.body.superCollectiveData[0]).to.have.property('settings');
             done();
