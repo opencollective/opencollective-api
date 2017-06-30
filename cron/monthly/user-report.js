@@ -77,7 +77,7 @@ const processGroup = (group) => {
     group.getTotalTransactions(startDate, endDate, 'donation'),
     group.getTotalTransactions(startDate, endDate, 'expense'),
     group.getExpenses(null, startDate, endDate),
-    group.getYearlyIncome(),
+    group.getYearlyBudget(),
     Expense.findAll({ where: { GroupId: group.id, createdAt: { $gte: startDate, $lt: endDate } }, limit: 3, order: [['id', 'DESC']], include: [ {model: User} ]})
   ];
 
@@ -92,7 +92,7 @@ const processGroup = (group) => {
             data.group.stats.totalDonations = results[2];
             data.group.stats.totalPaidExpenses = -results[3];
             data.group.contributorsCount = (group.data && group.data.githubContributors) ? Object.keys(group.data.githubContributors).length : data.group.stats.backers.lastMonth;
-            data.group.yearlyIncome = results[5];
+            data.group.yearlyBudget = results[5];
             data.group.expenses = results[6]
             console.log(data.group.stats);
             groupsData[group.slug] = data.group;

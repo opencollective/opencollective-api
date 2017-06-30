@@ -92,7 +92,7 @@ data['user.monthlyreport'] = {
       mission: 'We are on a mission to provide a framework for clean code, easy debugging experience, and fun.',
       // totalDonations: 41,
       tier: 'backer',
-      yearlyIncome: 6271 * 100,
+      yearlyBudget: 6271 * 100,
       contributorsCount: 0,
     },
     {
@@ -104,7 +104,7 @@ data['user.monthlyreport'] = {
       mission: 'We are on a mission to provide a framework for clean code, easy debugging experience, and fun.',
       // totalDonations: 41,
       tier: 'backer',
-      yearlyIncome: 6271 * 100,
+      yearlyBudget: 6271 * 100,
       contributorsCount: 0,
     },
     {
@@ -116,7 +116,7 @@ data['user.monthlyreport'] = {
       mission: 'We are on a mission to provide a framework for clean code, easy debugging experience, and fun.',
       // totalDonations: 41,
       tier: 'backer',
-      yearlyIncome: 6271 * 100,
+      yearlyBudget: 6271 * 100,
       contributorsCount: 0,
     },
   ],

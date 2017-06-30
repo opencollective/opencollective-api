@@ -440,7 +440,7 @@ export default function(Sequelize, DataTypes) {
         .then(result => Promise.resolve(parseInt(result.toJSON().total, 10)));
       },
 
-      getYearlyIncome() {
+      getYearlyBudget() {
         /*
           Three cases:
           1) All active monthly subscriptions. Multiply by 12
@@ -460,6 +460,9 @@ export default function(Sequelize, DataTypes) {
           )
           SELECT
             (SELECT
+              COALESCE(SUM("netAmountInGroupCurrency"),0) FROM "Transactions" WHERE "deletedAt" IS NULL AND "GroupId"=:GroupId)
+            +
+            (SELECT
               COALESCE(SUM("netAmountInGroupCurrency"*12),0) FROM "activeMonthlySubscriptions")
             +
             (SELECT
@@ -470,7 +473,7 @@ export default function(Sequelize, DataTypes) {
                 AND t.amount > 0
                 AND t."deletedAt" IS NULL
                 AND t."createdAt" > (current_date - INTERVAL '12 months')
-                AND ((s.interval = 'year' AND s."isActive" IS TRUE AND s."deletedAt" IS NULL) OR s.interval IS NULL))
+                AND (s.interval = 'year' AND s."isActive" IS TRUE AND s."deletedAt" IS NULL))
             +
             (SELECT
               COALESCE(SUM(t."netAmountInGroupCurrency"),0) FROM "Transactions" t
@@ -481,13 +484,13 @@ export default function(Sequelize, DataTypes) {
                 AND t."deletedAt" IS NULL
                 AND t."createdAt" > (current_date - INTERVAL '12 months')
                 AND s.interval = 'month' AND s."isActive" IS FALSE AND s."deletedAt" IS NULL)
-            "yearlyIncome"
+            "yearlyBudget"
           `.replace(/\s\s+/g, ' '), // this is to remove the new lines and save log space.
           {
             replacements: { GroupId: this.id },
             type: Sequelize.QueryTypes.SELECT
           })
-          .then(result => Promise.resolve(parseInt(result[0].yearlyIncome,10)));
+          .then(result => Promise.resolve(parseInt(result[0].yearlyBudget,10)));
       },
 
 
@@ -613,13 +616,13 @@ export default function(Sequelize, DataTypes) {
               };
 
               return Promise.all([
-                  group.getYearlyIncome(),
+                  group.getYearlyBudget(),
                   queries.getUsersFromGroupWithTotalDonations(group.id)
                     .then(appendTier)
                 ])
                 .then(results => {
                   const groupInfo = group.card;
-                  groupInfo.yearlyIncome = results[0];
+                  groupInfo.yearlyBudget = results[0];
                   const usersByRole = groupBy(results[1], 'role');
                   const backers = usersByRole[roles.BACKER] || [];
                   groupInfo.backersAndSponsorsCount = backers.length;

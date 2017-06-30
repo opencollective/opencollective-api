@@ -283,14 +283,14 @@ export const show = (req, res, next) => {
     const groupInfoArray = [];
     req.user.getGroups().map(group => {
       return Promise.all([
-        group.getYearlyIncome(),
+        group.getYearlyBudget(),
         queries.getUsersFromGroupWithTotalDonations(group.id).tap(backers => {
           backers.map(b => b.tier = getTier(b, group.tiers));
         })
       ])
       .then(results => {
         let groupInfo = group.info;
-        groupInfo.yearlyIncome = results[0];
+        groupInfo.yearlyBudget = results[0];
         const users = results[1];
         const user = users.filter(u => u.id === req.user.id)[0];
         const usersByRole = groupBy(users, 'role');

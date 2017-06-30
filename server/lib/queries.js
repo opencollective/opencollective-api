@@ -30,6 +30,9 @@ const getTotalAnnualBudget = () => {
   return sequelize.query(`
   SELECT
     (SELECT
+      COALESCE(SUM("netAmountInGroupCurrency"),0) FROM "Transactions" WHERE "deletedAt" IS NULL AND "GroupId"!=1)
+    +
+    (SELECT
       COALESCE(SUM(${generateFXConversionSQL()} * 12),0)
       FROM "Subscriptions" s
       LEFT JOIN "Donations" d ON s.id = d."SubscriptionId"
@@ -48,8 +51,11 @@ const getTotalAnnualBudget = () => {
       LEFT JOIN "Subscriptions" s ON d."SubscriptionId" = s.id
       WHERE t.amount > 0 AND t."GroupId" != 1
         AND t."deletedAt" IS NULL
-        AND t."createdAt" > (current_date - INTERVAL '12 months') 
-        AND ((s.interval = 'year' AND s."isActive" IS TRUE AND s."deletedAt" IS NULL) OR s.interval IS NULL))
+        AND t."deletedAt" IS NULL
+        AND (
+          s.interval = 'year' AND s."isActive" IS TRUE AND s."deletedAt" IS NULL AND t."createdAt" > (current_date - INTERVAL '12 months')
+        )
+    )
     +
     (SELECT
       COALESCE(SUM(${generateFXConversionSQL()}),0) FROM "Transactions" t
@@ -59,11 +65,11 @@ const getTotalAnnualBudget = () => {
         AND t."deletedAt" IS NULL
         AND t."createdAt" > (current_date - INTERVAL '12 months')
         AND s.interval = 'month' AND s."isActive" IS FALSE AND s."deletedAt" IS NULL)
-    "yearlyIncome"
+    "yearlyBudget"
   `, {
     type: sequelize.QueryTypes.SELECT
   })
-  .then(res => Math.round(parseInt(res[0].yearlyIncome, 10)));
+  .then(res => Math.round(parseInt(res[0].yearlyBudget, 10)));
 };
 
 const getTotalDonations = () => {
