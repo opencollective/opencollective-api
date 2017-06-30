@@ -136,6 +136,37 @@
           <td><p>You’re contributing <b>{{{currency amount currency=currency}}}</b> per {{interval}} since {{{moment createdAt}}}</p></td>
         </tr>
         <tr><td height="10"></td></tr>
+        {{#if group.events.upcoming}}
+          <tr>
+            <td>
+              <label>Upcoming {{{pluralize "event" n=group.events.upcoming.length}}}:</label>
+              <ul>
+              {{#each group.events.upcoming}}
+                <li>{{{moment startsAt timezone=timezone format="MMMM Do HH:mm"}}} @ {{locationName}}<br />
+                <a href="https://opencollective.com/{{../group.slug}}/events/{{slug}}">{{name}}</a><br />
+                RSVPs: {{stats.confirmed}} {{#if stats.interested}}(+{{stats.interested}} interested){{/if}}</li>
+              {{/each}}
+              </ul>
+            </td>
+          </tr>
+          <tr><td height="5"></td></tr>
+        {{/if}}
+
+        {{#if group.events.past}}
+          <tr>
+            <td>
+              <label>Past {{{pluralize "event" n=group.events.past.length}}}:</label>
+              <ul>
+              {{#each group.events.past}}
+                <li>{{{moment startsAt timezone=timezone format="MMMM Do HH:mm"}}} @ {{locationName}}<br />
+                <a href="https://opencollective.com/{{../group.slug}}/events/{{slug}}">{{name}}</a><br />
+                RSVPs: {{stats.confirmed}} {{#if stats.interested}}(+{{stats.interested}} interested){{/if}}</li>
+              {{/each}}
+              </ul>
+            </td>
+          </tr>
+          <tr><td height="5"></td></tr>
+        {{/if}}
         <tr>
           <td>
             <div class="currentBalance">

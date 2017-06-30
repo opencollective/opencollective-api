@@ -67,6 +67,33 @@ const init = () => {
   });
 }
 
+const now = new Date;
+const processEvents = (events) => {
+  const res = {
+    upcoming: [],
+    past: []
+  };
+
+  events.forEach(event => {
+    event.stats = { confirmed: 0, interested: 0 };
+    event.Responses.forEach(response => {
+      if (response.status === 'INTERESTED') {
+        event.stats.interested++;
+      }
+      if (response.status === 'YES') {
+        event.stats.confirmed++;
+      }
+    })
+
+    if (new Date(event.startsAt) > now) {
+      res.upcoming.push(event);
+    } else {
+      res.past.push(event);
+    }
+  })
+  return res;
+};
+
 const groupsData = {};
 const processGroup = (group) => {
   if ( groupsData[group.slug]) return groupsData[group.slug];
@@ -78,7 +105,8 @@ const processGroup = (group) => {
     group.getTotalTransactions(startDate, endDate, 'expense'),
     group.getExpenses(null, startDate, endDate),
     group.getYearlyIncome(),
-    Expense.findAll({ where: { GroupId: group.id, createdAt: { $gte: startDate, $lt: endDate } }, limit: 3, order: [['id', 'DESC']], include: [ {model: User} ]})
+    Expense.findAll({ where: { GroupId: group.id, createdAt: { $gte: startDate, $lt: endDate } }, limit: 3, order: [['id', 'DESC']], include: [ {model: User} ]}),
+    group.getEvents({ where: { GroupId: group.id, startsAt: { $gte: startDate } }, order: [['startsAt', 'DESC']], include: [ {model: models.Response} ]})
   ];
 
   return Promise.all(promises)
@@ -93,7 +121,8 @@ const processGroup = (group) => {
             data.group.stats.totalPaidExpenses = -results[3];
             data.group.contributorsCount = (group.data && group.data.githubContributors) ? Object.keys(group.data.githubContributors).length : data.group.stats.backers.lastMonth;
             data.group.yearlyIncome = results[5];
-            data.group.expenses = results[6]
+            data.group.expenses = results[6];
+            data.group.events = processEvents(results[7]);
             console.log(data.group.stats);
             groupsData[group.slug] = data.group;
             return group;
