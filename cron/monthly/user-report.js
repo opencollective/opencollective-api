@@ -31,6 +31,7 @@ const debug = debugLib('monthlyreport');
 
 const {
   Group,
+  Expense,
   Notification,
   Subscription,
   User
@@ -76,7 +77,8 @@ const processGroup = (group) => {
     group.getTotalTransactions(startDate, endDate, 'donation'),
     group.getTotalTransactions(startDate, endDate, 'expense'),
     group.getExpenses(null, startDate, endDate),
-    group.getYearlyIncome()
+    group.getYearlyIncome(),
+    Expense.findAll({ where: { GroupId: group.id, createdAt: { $gte: startDate, $lt: endDate } }, limit: 3, order: [['id', 'DESC']], include: [ {model: User} ]})
   ];
 
   return Promise.all(promises)
@@ -88,12 +90,12 @@ const processGroup = (group) => {
             data.group.stats = res.stats;
             data.group.stats.balance = results[1];
             data.group.stats.totalDonations = results[2];
-            data.group.stats.totalExpenses = results[3];
+            data.group.stats.totalPaidExpenses = -results[3];
             data.group.contributorsCount = (group.data && group.data.githubContributors) ? Object.keys(group.data.githubContributors).length : data.group.stats.backers.lastMonth;
             data.group.yearlyIncome = results[5];
+            data.group.expenses = results[6]
             console.log(data.group.stats);
             groupsData[group.slug] = data.group;
-            console.log("group", data.group);
             return group;
           })
           .catch(e => {
@@ -145,6 +147,10 @@ const sendEmail = (recipient, data) => {
 
   // We don't send the monthly email if there is no active subscription
   if (!data.subscriptions || data.subscriptions.length === 0) return;
+
+  if (process.env.SEND_EMAIL_TO) {
+    recipient.email = process.env.SEND_EMAIL_TO;
+  }
 
   return emailLib.send('user.monthlyreport', recipient.email, data);
 }

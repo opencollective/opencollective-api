@@ -35,9 +35,10 @@ Subject: {{{capitalize month}}} Report
     width: 100%;
   }
   .MonthlyReport {
-    background-color: #eef2f5;
     padding-bottom: 20px;
     padding-top: 64px;
+    padding-left: 4px;
+    padding-right: 4px;
     width: 100%;
   }
   .Wrapper {
@@ -97,7 +98,7 @@ Subject: {{{capitalize month}}} Report
 
 <style>
   .Section {
-    padding: 0 60px;
+    padding: 0 8px;
   }
   .Section.Intro {
     padding-bottom: 68px;
@@ -110,10 +111,10 @@ Subject: {{{capitalize month}}} Report
     padding-bottom: 48px;
   }
   .Section.Subscriptions > h1 {
-    margin: -14px 0 0 -10px;
+    margin: -14px 0 0 -8px;
     background-color: white;
     display: inline-block;
-    padding: 0 10px;
+    padding: 0 10px 0 8px;
   }
   .Section.Subscriptions .Date {
     text-transform: uppercase;
@@ -130,14 +131,15 @@ Subject: {{{capitalize month}}} Report
     border-top: 1px solid #d5d7d9;
     background-color: #fafcfd;
     padding-top: 48px;
-    padding-left: 16px;
-    padding-right: 16px;
+    padding-left: 8px;
+    padding-right: 8px;
   }
   .Section.Interest .Cards {
     padding-top: 32px;
     padding-bottom: 32px;
     height: 348px;
     min-height: 300px;
+    overflow: hidden;
   }
   .Section.Interest .Cards .CollectiveCard {
     margin: 0 6px;
@@ -181,8 +183,8 @@ Subject: {{{capitalize month}}} Report
     background-color: #fafcfd;
     padding-top: 48px;
     padding-bottom: 68px;
-    padding-left: 16px;
-    padding-right: 16px;
+    padding-left: 8px;
+    padding-right: 8px;
   }
   .Section.Notice p {
     font-family: Helvetica;
@@ -202,10 +204,10 @@ Subject: {{{capitalize month}}} Report
 <style>
   @media (max-width:660px) {
     .Wrapper {
-      max-width: 320px !important;
+      max-width: 600px !important;
     }
     .Section.Intro {
-      padding: 0 16px !important;
+      padding: 0 8px !important;
       padding-bottom: 48px !important;
     }
     .Section.Intro p {
@@ -221,7 +223,7 @@ Subject: {{{capitalize month}}} Report
       margin-bottom: 32px !important;
     }
     .Section.Subscriptions {
-      padding: 0 16px !important;
+      padding: 0 8px !important;
       padding-bottom: 48px !important;
     }
     .Section.Notice {
@@ -245,44 +247,20 @@ Subject: {{{capitalize month}}} Report
   }
 </style>
 
-<style>
-  @media (max-width:660px) {
-    .Subscription { height: auto !important; }
-    .Subscription .LeftSide, .Subscription .RightSide {
-      float: none !important;
-      width: auto !important;
-      margin: 0 auto !important;
-      margin-bottom: -24px !important;
-    }
-    .Subscription .LeftSide {
-      padding-bottom: 0 !important;
-      margin-bottom: -24px !important;
-    }
-    .Subscription .RightSide {
-      padding-top: 24px !important;
-    }
-    .ShowCasedCard {
-      display: block !important;
-      margin-left: auto !important;
-      margin-right: auto !important;
-    }
-  }
-</style>
 
-<div class='MonthlyReport'>
-  <div class='Wrapper'>
-   <!-- <p>If you are having problems viewing this email, please <a href='{{fallbackUrl}}'>click here</a>.</p> -->
-    <div class='Container'>
-      <a class='ContainerLogo' href='//opencollective.com'></a>
-      <div class='ContainerLogoName'></div>
-      <div class='Section Intro'>
+<div class="MonthlyReport">
+  <div class="Wrapper">
+   <!-- <p>If you are having problems viewing this email, please <a href='{{fallbackUrl}}">click here</a>.</p> -->
+    <div class="Container">
+      <a class="ContainerLogo" href="//opencollective.com"></a>
+      <div class="ContainerLogoName"></div>
+      <div class="Section Intro">
         <h2>Hi {{recipient.firstName}}!</h2>
         <p>This is your monthly report for all the collectives that you are supporting on opencollective.com. Let us know how you like this and do not hesitate if you have any feedback or ideas. Just reply to this email!</p>
-
       </div>
-      <div class='Section Subscriptions'>
+      <div class="Section Subscriptions">
         <h1>Active Subscriptions</h1>
-        <span class='Date'>{{month}} {{year}}</span>
+        <span class="Date">{{month}} {{year}}</span>
         <div>
           {{#each subscriptions}}
             {{> mr-subscription}}
@@ -290,16 +268,16 @@ Subject: {{{capitalize month}}} Report
         </div>
       </div>
       {{#if relatedGroups.length}}
-      <div class='Section Interest'>
+      <div class="Section Interest">
         <h3>Collectives that might interest you:</h3>
-        <div class='Cards CardsCount-{{relatedGroups.length}}'>
+        <div class="Cards CardsCount-{{relatedGroups.length}}">
           {{#each relatedGroups}}
             {{> collectivecard}}
           {{/each}}
         </div>
       </div>
       {{/if}}
-      <div class='Section Notice'>
+      <div class="Section Notice">
 
         <p>To manage your subscriptions, <a href="{{manageSubscriptionsUrl}}?{{utm}}">click here</a>.</p>
 
