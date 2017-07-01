@@ -137,7 +137,6 @@ Subject: {{{capitalize month}}} Report
   .Section.Interest .Cards {
     padding-top: 32px;
     padding-bottom: 32px;
-    height: 348px;
     min-height: 300px;
     overflow: hidden;
     text-align: center;
@@ -203,11 +202,6 @@ Subject: {{{capitalize month}}} Report
       padding-bottom: 60px !important;
     }
   }
-  @media (max-width:660px) {
-    .Section.Interest .Cards {
-      height: auto !important;
-    }
-  }
 </style>
 
 
@@ -231,14 +225,14 @@ Subject: {{{capitalize month}}} Report
         </div>
       </div>
       {{#if relatedGroups.length}}
-      <div class="Section Interest">
+      <table class="Section Interest"><tr><td>
         <h3>Collectives that might interest you:</h3>
         <div class="Cards CardsCount-{{relatedGroups.length}}">
           {{#each relatedGroups}}
             {{> collectivecard}}
           {{/each}}
         </div>
-      </div>
+      </td></tr></table>
       {{/if}}
       <div class="Section Notice">
 
