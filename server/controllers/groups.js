@@ -347,6 +347,8 @@ export const createFromGithub = (req, res, next) => {
     {"name":"sponsor","range":[100,500000],"presets":[100,250,500],"interval":"monthly"}
   ];
 
+  group.isActive = true; // enables the group to go live right away
+
   ConnectedAccount
     .findOne({
       where: { id: connectedAccountId },
