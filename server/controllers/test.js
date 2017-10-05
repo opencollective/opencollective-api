@@ -128,6 +128,7 @@ export const resetTestDatabase = function(req, res, next) {
     }))
     .then(order => models.Transaction.create({
       amount: 100,
+      description: "Donation 1",
       CollectiveId: testGroup.id,
       type: type.CREDIT,
       currency: "EUR",
@@ -144,6 +145,7 @@ export const resetTestDatabase = function(req, res, next) {
     }))
     .then(order => models.Transaction.create({
       amount: 200,
+      description: "Donation 2",
       type: type.CREDIT,
       currency: "EUR",
       CreatedByUserId: testBacker2.id,
