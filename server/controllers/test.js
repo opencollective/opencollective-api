@@ -185,7 +185,9 @@ export const resetTestDatabase = function(req, res, next) {
 export const getTestUserLoginUrl = function(req, res, next) {
   if (envsAndDatabases[process.env.NODE_ENV]) {
     return models.User.findOne({where: {email: 'testuser@opencollective.com'}})
-    .then(user => res.redirect(user.generateLoginLink('')))
+    .then(user => user.generateLoginLink(''))
+    .then(link => link.replace('signin','login'))
+    .then(link => res.redirect(link))
     .catch(next)
   }
   return next(new errors.BadRequest(`Unsupported NODE_ENV ${process.env.NODE_ENV} for retreiving test API login token`));
