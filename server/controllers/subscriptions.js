@@ -14,7 +14,11 @@ export const getAll = (req, res, next) => {
         CreatedByUserId: req.remoteUser.id
       },
       include: [
-        { model: models.Transaction },
+        { model: models.Transaction,
+          where: {
+            type: 'DEBIT'
+          }
+        },
         { model: models.Collective, as: 'collective' },
         { model: models.User, as: 'createdByUser' }
       ]
