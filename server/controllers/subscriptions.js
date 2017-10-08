@@ -17,7 +17,8 @@ export const getAll = (req, res, next) => {
         { model: models.Transaction,
           where: {
             type: 'DEBIT'
-          }
+          },
+          required: false
         },
         { model: models.Collective, as: 'collective' },
         { model: models.User, as: 'createdByUser' }
