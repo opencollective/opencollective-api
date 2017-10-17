@@ -374,8 +374,16 @@ const CollectiveFields = () => {
       description: 'Get the host collective that is receiving the money on behalf of this collective',
       type: CollectiveInterfaceType,
       resolve(collective, args, req) {
-        if (!collective.HostCollectiveId) return null;
-        return req.loaders.collective.findById.load(collective.HostCollectiveId);
+        if (collective.HostCollectiveId) {
+          return req.loaders.collective.findById.load(collective.HostCollectiveId);
+        }
+
+        if (collective.ParentCollectiveId) {
+          return req.loaders.collective.findById.load(collective.ParentCollectiveId)
+            .then(parentCollective => req.loaders.collective.findById.load(parentCollective.HostCollectiveId));
+        }
+
+        return null;
       }
     },
     members: {
