@@ -1,8 +1,9 @@
 'use strict';
 
 const Promise = require('bluebird');
+const uuid = require('node-uuid');
 
-const DRY_RUN = true;
+const DRY_RUN = false;
 
 const insert = (sequelize, table, entry) => {
   delete entry.id;
@@ -39,8 +40,6 @@ const findAndFixSuperCollectives = (sequelize) => {
       settings: null,
       tags: null
     });
-
-    const userId = superCollective.data.UserId;
 
     return insert(sequelize, "Collectives", newOrg)
       .then(() => sequelize.query(`
@@ -298,6 +297,174 @@ const fixParentCollectiveIds = (sequelize) => {
 
 }
 
+const fixTripleEntryTransactions = (sequelize) => {
+  // Whatever tripe entry transactions are now left, we can simply remove the 
+  // row that doesn't have `FromCollectiveId`
+
+  console.log('>>> Fixing remaining triple entry transaction groups');
+  return sequelize.query(`
+    SELECT "TransactionGroup" FROM "Transactions"
+    WHERE "TransactionGroup" IS NOT NULL and "deletedAt" IS NULL
+    GROUP BY "TransactionGroup"
+    HAVING COUNT(*) >= 3 
+    `, { type: sequelize.QueryTypes.SELECT })
+  .then(transactionGroups => {
+    console.log('>>> transaction groups found: ', transactionGroups.length);
+    return transactionGroups;
+  })
+  .each(transactionGroup => {
+    console.log('>>> Processing', transactionGroup);
+    // fetch all transaction matching that transactionGroup
+    return sequelize.query(`
+      SELECT * FROM "Transactions" 
+      WHERE "TransactionGroup" = :transactionGroup
+      `, {
+        type: sequelize.QueryTypes.SELECT,
+        replacements: {
+          transactionGroup: transactionGroup.TransactionGroup // data returned this way from query
+        }
+      })
+      .then(transactions => {
+        const extraTxn = transactions.filter(t => !t.FromCollectiveId)[0];
+
+        if (extraTxn) {
+          return sequelize.query(`
+            UPDATE "Transactions"
+              SET "deletedAt" = :date
+            WHERE id = :tId
+            `, {
+              replacements: {
+                date: new Date(),
+                tId: extraTxn.id
+              }
+            })
+        } else {
+          throw Error('Error finding transaction without FromCollectiveId');
+        }
+      })
+  })
+}
+
+// Make sure every Transaction has a TxnGroup
+const addTransactionGroupsForOrders = (sequelize) => {
+  
+  // find all txns without TransactionGroup and with OrderId
+  // there are more efficient ways of doing this, not worth it for a one-time run
+  return sequelize.query(`
+    SELECT DISTINCT("OrderId") FROM "Transactions"
+    WHERE "TransactionGroup" IS NULL
+      AND "OrderId" IS NOT NULL
+    ORDER BY "OrderId"
+    `, { type: sequelize.QueryTypes.SELECT})
+  .then(orderIds => {
+    // find matching pairs by Orders
+    console.log('>>> OrderIds Found: ', orderIds.length)    
+    return orderIds
+  })
+  .each(orderId => {
+    console.log('>>> Processing OrderId', orderId.OrderId);
+    return sequelize.query(`
+      SELECT * FROM "Transactions"
+      WHERE "OrderId" = :orderId AND 
+        "TransactionGroup" IS NULL
+      `, { 
+        type: sequelize.QueryTypes.SELECT,
+        replacements: {
+          orderId: orderId.OrderId
+        }})
+    .then(txns => {
+      if (txns.length != 2) {
+        console.log(txns.length)
+        throw Error("Expected two transactions with this orderId: ", orderId.OrderId);
+      } else {
+        return sequelize.query(`
+          UPDATE "Transactions"
+            SET "TransactionGroup" = :uuid
+          WHERE "OrderId" = :orderId
+            AND "TransactionGroup" IS NULL
+          `, {
+            replacements: {
+              uuid: uuid.v4(),
+              orderId: orderId.OrderId
+            }
+          })
+        .catch(err => {
+          console.log(err);
+        })
+      }
+    })
+  })
+}
+
+const addTransactionGroupsForExpenses = (sequelize) => {
+  
+  // find all txns without TransactionGroup and with ExpenseId
+  // there are more efficient ways of doing this, not worth it for a one-time run
+  return sequelize.query(`
+    SELECT DISTINCT("ExpenseId") FROM "Transactions"
+    WHERE "TransactionGroup" IS NULL
+      AND "ExpenseId" IS NOT NULL
+    ORDER BY "ExpenseId"
+    `, { type: sequelize.QueryTypes.SELECT})
+  .then(expenseIds => {
+    // find matching pairs by Expenses
+    console.log('>>> ExpenseIds Found: ', expenseIds.length)    
+    return expenseIds
+  })
+  .each(expenseId => {
+    console.log('>>> Processing ExpenseId', expenseId.ExpenseId);
+    return sequelize.query(`
+      SELECT * FROM "Transactions"
+      WHERE "ExpenseId" = :expenseId AND 
+        "TransactionGroup" IS NULL
+      `, { 
+        type: sequelize.QueryTypes.SELECT,
+        replacements: {
+          expenseId: expenseId.ExpenseId
+        }})
+    .then(txns => {
+      if (txns.length != 2) {
+        console.log(txns.length)
+        throw Error("Expected two transactions with this expenseId: ", expenseId.ExpenseId);
+      } else {
+        return sequelize.query(`
+          UPDATE "Transactions"
+            SET "TransactionGroup" = :uuid
+          WHERE "ExpenseId" = :expenseId
+            AND "TransactionGroup" IS NULL
+          `, {
+            replacements: {
+              uuid: uuidv4(),
+              expenseId: expenseId.ExpenseId
+            }
+          })
+        .catch(err => {
+          console.log(err);
+        })
+      }
+    })
+  })
+}
+
+// Take remaining rows that don't have a TransactionGroup and FromCollectiveId
+// and remove them
+const deleteRowsWithoutTransactionGroup = (sequelize) => {
+  console.log('>>> Deleting remaining rows without TransanctionGroup and without FromCollectiveId')
+  return sequelize.query(`
+    UPDATE "Transactions"
+      SET "deletedAt" = :date
+    WHERE "OrderId" IS NULL
+      AND "ExpenseId" IS NULL
+      AND "deletedAt" IS NULL
+      AND "TransactionGroup" IS NULL
+      AND "FromCollectiveId" IS NULL
+    `, {
+      replacements: {
+        date: new Date()
+      }
+    })
+}
+
 
 module.exports = {
   up: (queryInterface, DataTypes) => {
@@ -305,6 +472,10 @@ module.exports = {
     return findAndFixSuperCollectives(queryInterface.sequelize)
       .then(() => fixHostCollectiveIds(queryInterface.sequelize))
       .then(() => fixParentCollectiveIds(queryInterface.sequelize))
+      .then(() => fixTripleEntryTransactions(queryInterface.sequelize))
+      .then(() => addTransactionGroupsForOrders(queryInterface.sequelize))
+      .then(() => addTransactionGroupsForExpenses(queryInterface.sequelize))
+      .then(() => deleteRowsWithoutTransactionGroup(queryInterface.sequelize))
       .then(() => {
         if (DRY_RUN) {
           throw new Error('Throwing to make sure we can retry this migration');
