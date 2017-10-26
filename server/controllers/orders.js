@@ -18,6 +18,10 @@ export const manual = (req, res, next) => {
 
   let user = remoteUser;
 
+  if (!order.email) {
+    order.email = remoteUser.email;
+  }
+
   return models.User.findOrCreateByEmail(order.email, models.User.splitName(order.name))
     .then(u => user = u)
     .then(() => models.Order.create({
