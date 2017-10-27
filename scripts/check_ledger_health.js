@@ -83,6 +83,24 @@ const checkUsersAndOrgs = () => {
   })
 }
 
+const checkMembers = () => {
+  console.log('\n>>> Checking Members table');
+
+  return models.Member.findAll({
+    where: {
+      MemberCollectiveId: {
+        $col: 'CollectiveId'
+      }
+    }
+  })
+  .then(circularMembers => {
+    console.log('\t>>> Members with id = MemberCollectiveId: ', circularMembers.length)
+    if (VERBOSE)
+      console.log(circularMembers.map(cm => cm.id))
+  })
+}
+
+
 // Check all transactions
 const checkTransactions = () => {
 
@@ -189,6 +207,7 @@ const run = () => {
   return checkHostsUserOrOrg()
   .then(() => checkHostCollectives())
   .then(() => checkUsersAndOrgs())
+  .then(() => checkMembers())
   .then(() => checkTransactions())
   .then(() => done())
   .catch(done)

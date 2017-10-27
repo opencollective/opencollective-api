@@ -7,7 +7,7 @@ const DRY_RUN = false;
 
 const insert = (sequelize, table, entry) => {
   delete entry.id;
-  console.log(`INSERT INTO "${table}" ("${Object.keys(entry).join('","')}") VALUES (:${Object.keys(entry).join(",:")})`)
+  console.log(`INSERT INTO "${table}" ("${Object.keys(entry).join('","')}") VALUES (:${Object.values(entry).join(",:")})`)
   if (entry.data) {
     entry.data = JSON.stringify(entry.data);
   }
@@ -59,21 +59,36 @@ const findAndFixSuperCollectives = (sequelize) => {
       SELECT * FROM "Members"
       WHERE 
         "CollectiveId" = :collectiveId AND
-        role LIKE 'ADMIN'
+        (role LIKE 'ADMIN' OR role LIKE 'HOST')
+        AND "deletedAt" IS NULL
       `, { 
         type: sequelize.QueryTypes.SELECT,
         replacements: {
           collectiveId: superCollective.id
         }})
-      .filter(member => member.role === 'HOST' || member.role === 'ADMIN')
+      .then(members => {
+        console.log('>>> Members found: ', members.length);
+        return members;
+      })
       .each(member => {
-        const newMember = {
-          CreatedByUserId: member.CreatedByUserId,
-          CollectiveId: orgCollective.id,
-          role: member.role,
-          MemberCollectiveId: member.MemberCollectiveId
+        // this check treats circular members where CollectiveId = MemberCollectiveId
+        if (member.CollectiveId !== member.MemberCollectiveId) {
+          const newMember = {
+            CreatedByUserId: member.CreatedByUserId,
+            CollectiveId: orgCollective.id,
+            role: member.role,
+            MemberCollectiveId: member.MemberCollectiveId
+          }
+          return insert(sequelize, "Members", newMember);          
+        } else {
+          const newMember = {
+            CreatedByUserId: member.CreatedByUserId,
+            CollectiveId: member.CollectiveId,
+            role: member.role,
+            MemberCollectiveId: orgCollective.id
+          }
+          return insert(sequelize, "Members", newMember);   
         }
-        return insert(sequelize, "Members", newMember);
       });
   }
 
@@ -85,7 +100,20 @@ const findAndFixSuperCollectives = (sequelize) => {
       `, { replacements: {
         orgCollectiveId: orgCollective.id,
         superCollectiveId: superCollective.id
-        }});
+        }})
+    // Also update the Members table
+    .then(() => sequelize.query(`
+        UPDATE "Members"
+          SET "MemberCollectiveId" = :orgCollectiveId
+        WHERE "MemberCollectiveId" = :superCollectiveId
+          AND (role LIKE 'HOST' or role LIKE 'ADMIN')
+        `, {
+          replacements: {
+            orgCollectiveId: orgCollective.id,
+            superCollectiveId: superCollective.id
+          }
+        }))
+    .then(output => console.log(output))
   }
 
   const moveStripeAccount = (superCollective, orgCollective) => {
@@ -127,9 +155,6 @@ const findAndFixSuperCollectives = (sequelize) => {
 
       // check that each entry was filled
       if (!(withoutFromCollective && withoutFromCollective.id && debit && debit.id && credit && credit.id)) {
-        console.log('>>> withoutFromCollective', withoutFromCollective)
-        console.log('>>> debit', debit);
-        console.log('>>> credit', credit);
         throw new Error('TransactionGroup check failed');
       }
 
@@ -187,7 +212,6 @@ const findAndFixSuperCollectives = (sequelize) => {
               2. take the debit and change CollectiveId to orgCollectiveId
               3. take the credit and change FromCollectiveId to orgCollectiveId
             */
-            console.log('>>> transactions', transactions);
             if (transactions.length !== 3) {
               throw new Error('Found a transaction group of length', transactions.length);
             } 
@@ -294,7 +318,6 @@ const fixParentCollectiveIds = (sequelize) => {
     WHERE 
       id IN (SELECT * FROM hosts);
     `)
-
 }
 
 const fixTripleEntryTransactions = (sequelize) => {
@@ -434,7 +457,7 @@ const addTransactionGroupsForExpenses = (sequelize) => {
             AND "TransactionGroup" IS NULL
           `, {
             replacements: {
-              uuid: uuidv4(),
+              uuid: uuid.v4(),
               expenseId: expenseId.ExpenseId
             }
           })
@@ -469,9 +492,9 @@ const deleteRowsWithoutTransactionGroup = (sequelize) => {
 module.exports = {
   up: (queryInterface, DataTypes) => {
 
-    return findAndFixSuperCollectives(queryInterface.sequelize)
+    return fixParentCollectiveIds(queryInterface.sequelize) // needs to happen first
+      .then(() => findAndFixSuperCollectives(queryInterface.sequelize))
       .then(() => fixHostCollectiveIds(queryInterface.sequelize))
-      .then(() => fixParentCollectiveIds(queryInterface.sequelize))
       .then(() => fixTripleEntryTransactions(queryInterface.sequelize))
       .then(() => addTransactionGroupsForOrders(queryInterface.sequelize))
       .then(() => addTransactionGroupsForExpenses(queryInterface.sequelize))

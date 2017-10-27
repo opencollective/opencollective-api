@@ -11,7 +11,7 @@ const orgsFoundWithoutMember = [];
 
 const insert = (sequelize, table, entry) => {
   delete entry.id;
-  console.log(`INSERT INTO "${table}" ("${Object.keys(entry).join('","')}") VALUES (:${Object.keys(entry).join(",:")})`)
+  console.log(`INSERT INTO "${table}" ("${Object.keys(entry).join('","')}") VALUES (:${Object.values(entry).join(",:")})`)
   if (entry.data) {
     entry.data = JSON.stringify(entry.data);
   }
@@ -45,7 +45,7 @@ const updateOrgMembers = (sequelize) => {
       return sequelize.query(`
         SELECT * FROM "Members" m
         LEFT JOIN "Collectives" c on m."MemberCollectiveId" = c.id 
-        WHERE m."CollectiveId" = :collectiveId;
+        WHERE m."CollectiveId" = :collectiveId and m."deletedAt" IS NULL;
         `, { 
           type: sequelize.QueryTypes.SELECT, 
           replacements: {
@@ -74,7 +74,7 @@ const updateOrgMembers = (sequelize) => {
           if (users.length === 1) {
             orgsChanged.push(collective);
             const user = users[0];
-            console.log('>>> User found: ', user);
+            console.log('>>> User found: ', user.id);
             
             // Create a new collective for that User
             let name = user.firstName;
