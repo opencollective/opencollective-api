@@ -61,6 +61,24 @@ const checkHostCollectives = () => {
   })
 }
 
+// TODO: make sure every Host has a Stripe Account
+const checkHostStripeAccount = () => {
+  return sequelize.query(`
+  WITH hosts AS 
+    (SELECT DISTINCT("HostCollectiveId") AS id FROM "Collectives" c 
+      WHERE "HostCollectiveId" IS NOT NULL)
+    
+  SELECT h.id FROM hosts h
+  LEFT JOIN "ConnectedAccounts" ca ON (h.id = ca."CollectiveId")
+  WHERE ca."CollectiveId" IS NULL
+    `, { type: sequelize.QueryTypes.SELECT})
+  .then(hostsWithoutStripe => {
+    console.log('\t>>> Hosts without Stripe: ', hostsWithoutStripe.length)
+    if (VERBOSE)
+      console.log(hostsWithoutStripe.map(h => h.id).join(', '));
+  })
+}
+
 const checkUsersAndOrgs = () => {
 
   console.log('\n>>> Checking USER and ORG Collectives')
@@ -96,7 +114,7 @@ const checkMembers = () => {
   .then(circularMembers => {
     console.log('\t>>> Members with id = MemberCollectiveId: ', circularMembers.length)
     if (VERBOSE)
-      console.log(circularMembers.map(cm => cm.id))
+      console.log(circularMembers.map(cm => cm.id).join(', '))
   })
 }
 
@@ -206,6 +224,7 @@ const run = () => {
   
   return checkHostsUserOrOrg()
   .then(() => checkHostCollectives())
+  .then(() => checkHostStripeAccount())
   .then(() => checkUsersAndOrgs())
   .then(() => checkMembers())
   .then(() => checkTransactions())

@@ -113,7 +113,6 @@ const findAndFixSuperCollectives = (sequelize) => {
             superCollectiveId: superCollective.id
           }
         }))
-    .then(output => console.log(output))
   }
 
   const moveStripeAccount = (superCollective, orgCollective) => {
@@ -121,6 +120,7 @@ const findAndFixSuperCollectives = (sequelize) => {
       UPDATE "ConnectedAccounts"
         SET "CollectiveId" = :orgCollectiveId
       WHERE "CollectiveId" = :superCollectiveId
+        AND service LIKe 'stripe'
       `, {
         replacements: {
           orgCollectiveId: orgCollective.id,
