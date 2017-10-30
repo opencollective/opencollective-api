@@ -231,11 +231,17 @@ const getTopBackers = (since, until, tags, limit) => {
 /**
  * Get top collectives ordered by available balance
  */
-const getChildCollectivesWithBalance = (ParentCollectiveId, options) => {
+const getCollectivesWithBalance = (where = {}, options) => {
   const orderDirection = options.orderDirection || "DESC";
   const orderBy = options.orderBy || "balance";
   const limit = options.limit || 20;
   const offset = options.offset || 0;
+
+  let whereCondition = '';
+  Object.keys(where).forEach(key => {
+    whereCondition += `AND c."${key}"=:${key}`;
+  });
+
   return sequelize.query(`
     with "balance" AS (
       SELECT t."CollectiveId", SUM("netAmountInCollectiveCurrency") as "balance"
@@ -244,16 +250,19 @@ const getChildCollectivesWithBalance = (ParentCollectiveId, options) => {
       WHERE
         c.type = 'COLLECTIVE'
         AND c."isActive" IS TRUE
-        AND c."ParentCollectiveId"=:ParentCollectiveId
+        ${whereCondition}
         AND c."deletedAt" IS NULL
-        AND t.type='CREDIT'
         GROUP BY t."CollectiveId"
     )
-    select c.*, td.* FROM "balance" td LEFT JOIN "Collectives" c on td."CollectiveId" = c.id
+    SELECT c.*, td.* FROM "Collectives" c
+    LEFT JOIN "balance" td ON td."CollectiveId" = c.id
+    WHERE c."isActive" IS TRUE
+    ${whereCondition}
+    AND c."deletedAt" IS NULL
     ORDER BY ${orderBy} ${orderDirection} NULLS LAST LIMIT ${limit} OFFSET ${offset}
   `.replace(/\s\s+/g, ' '), // this is to remove the new lines and save log space.
   {
-    replacements: { ParentCollectiveId },
+    replacements: where,
     model: models.Collective
   });
 };
@@ -365,8 +374,15 @@ const getMembersOfCollectiveWithRole = (CollectiveIds) => {
 /**
  * Returns all the users of a collective with their `totalDonations` and `role` (HOST/ADMIN/BACKER)
  */
-const getBackersOfCollectiveWithTotalDonations = (CollectiveIds, until) => {
+const getBackersOfCollectiveWithTotalDonations = (CollectiveIds, options = {}) => {
+  const { until } = options;
   const untilCondition = (table) => until ? `AND ${table}."createdAt" < '${until.toISOString().toString().substr(0,10)}'` : '';
+
+  let types, filterByMemberollectiveType = '';
+  if (options.type) {
+    types = (typeof options.type === 'string') ? options.type.split(',') : options.type;
+    filterByMemberollectiveType = `AND c.type IN (:types)`
+  }
 
   const collectiveids = (typeof CollectiveIds === 'number') ? [CollectiveIds] : CollectiveIds;
   return sequelize.query(`
@@ -381,13 +397,18 @@ const getBackersOfCollectiveWithTotalDonations = (CollectiveIds, until) => {
       GROUP BY t."FromCollectiveId"
     )
     SELECT
-      max(c.id) as id,
+      member."MemberCollectiveId",
+      member.role,
+      max(member.id) as "MemberId",
+      max(member."TierId") as "TierId",
       max(member."createdAt") as "createdAt",
+      max(c.id) as id,
+      max(c.type) as type,
+      max(c."HostCollectiveId") as "HosCollectiveId",
       max(c.name) as name,
       max(u."firstName") as "firstName",
       max(u."lastName") as "lastName",
       max(c.slug) as slug,
-      member.role as role,
       max(c.image) as image,
       max(c.website) as website,
       max(u.email) as email,
@@ -400,13 +421,21 @@ const getBackersOfCollectiveWithTotalDonations = (CollectiveIds, until) => {
     LEFT JOIN "Members" member ON c.id = member."MemberCollectiveId"
     LEFT JOIN "Users" u ON c.id = u."CollectiveId"
     WHERE member."CollectiveId" IN (:collectiveids)
-    AND member.role = 'BACKER'
+    AND member.role = :role
     AND member."deletedAt" IS NULL ${untilCondition('member')}
-    GROUP BY member.role, c.id
+    ${filterByMemberollectiveType}
+    GROUP BY member.role, member."MemberCollectiveId"
     ORDER BY "totalDonations" DESC, "createdAt" ASC
+    LIMIT :limit OFFSET :offset
   `.replace(/\s\s+/g,' '), // this is to remove the new lines and save log space.
   {
-    replacements: { collectiveids },
+    replacements: {
+      collectiveids,
+      role: options.role || 'BACKER',
+      limit: options.limit || 100000, // we should reduce this to 100 by default but right now Webpack depends on it
+      offset: options.offset || 0,
+      types
+    },
     type: sequelize.QueryTypes.SELECT,
     model: models.Collective
   });
@@ -451,7 +480,7 @@ export default {
   getCollectivesByTag,
   getTotalNumberOfActiveCollectives,
   getTotalNumberOfDonors,
-  getChildCollectivesWithBalance,
+  getCollectivesWithBalance,
   getUniqueCollectiveTags
 };
 

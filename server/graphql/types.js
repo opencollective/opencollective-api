@@ -86,7 +86,10 @@ export const UserType = new GraphQLObjectType({
       memberOf: {
         type: new GraphQLList(MemberType),
         resolve(user) {
-          return models.Member.findAll({ where: { MemberCollectiveId: user.CollectiveId }});
+          return models.Member.findAll({
+            where: { MemberCollectiveId: user.CollectiveId },
+            include: [ { model: models.Collective, as: 'collective', required: true } ]
+          });
         }
       },
       billingAddress: {
@@ -125,7 +128,7 @@ export const MemberType = new GraphQLObjectType({
       totalDonations: {
         type: GraphQLInt,
         resolve(member, args, req) {
-          return req.loaders.transactions.totalAmountDonatedFromTo.load({
+          return member.totalDonations || req.loaders.transactions.totalAmountDonatedFromTo.load({
             FromCollectiveId: member.MemberCollectiveId,
             CollectiveId: member.CollectiveId,
           });
@@ -134,13 +137,13 @@ export const MemberType = new GraphQLObjectType({
       collective: {
         type: CollectiveInterfaceType,
         resolve(member, args, req) {
-          return req.loaders.collective.findById.load(member.CollectiveId);
+          return member.collective || req.loaders.collective.findById.load(member.CollectiveId);
         }
       },
       member: {
         type: CollectiveInterfaceType,
         resolve(member, args, req) {
-          return req.loaders.collective.findById.load(member.MemberCollectiveId);
+          return member.memberCollective || req.loaders.collective.findById.load(member.MemberCollectiveId);
         }
       },
       role: {
@@ -280,8 +283,8 @@ export const ExpenseType = new GraphQLObjectType({
   }
 });
 
-export const StatsTierType = new GraphQLObjectType({
-  name: 'StatsTierType',
+export const TierStatsType = new GraphQLObjectType({
+  name: 'TierStatsType',
   description: 'Stats about a tier',
   fields: () => {
     return {
@@ -297,6 +300,13 @@ export const StatsTierType = new GraphQLObjectType({
         type: GraphQLInt,
         resolve(tier, args, req) {
           return req.loaders.tiers.totalOrders.load(tier.id);
+        }
+      },
+      totalDistinctOrders: {
+        description: 'total number of people/organizations in this tier',
+        type: GraphQLInt,
+        resolve(tier, args, req) {
+          return req.loaders.tiers.totalDistinctOrders.load(tier.id);
         }
       },
       availableQuantity: {
@@ -437,7 +447,7 @@ export const TierType = new GraphQLObjectType({
         }
       },
       stats: {
-        type: StatsTierType,
+        type: TierStatsType,
         resolve(tier) {
           return tier;
         }
