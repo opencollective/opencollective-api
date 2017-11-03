@@ -3,7 +3,7 @@
  */
 import _ from 'lodash';
 import async from 'async';
-import { defaultHostUser, getLinkHeader, getRequestedUrl } from '../lib/utils';
+import { defaultHostCollective, getLinkHeader, getRequestedUrl } from '../lib/utils';
 import Promise from 'bluebird';
 import roles from '../constants/roles';
 import activities from '../constants/activities';
@@ -215,7 +215,7 @@ export const create = (req, res, next) => {
       })
     })
     .tap(() => {
-      return models.User.findOne({ where: { id: collectiveData.HostId || defaultHostUser().id }}).tap(h => {
+      return models.User.findOne({ where: { id: collectiveData.HostId || defaultHostCollective().id }}).tap(h => {
         host = h;
         createdCollective.HostCollectiveId = h.CollectiveId;
         createdCollective.ParentCollectiveId = h.CollectiveId;
@@ -260,11 +260,9 @@ export const createFromGithub = (req, res, next) => {
   const { payload } = req.required;
   const { connectedAccountId } = req.jwtPayload;
   const debug = debugLib("github");
-  let creatorUser, creatorCollective, options, creatorCollectiveConnectedAccount;
+  let creatorUser, creatorCollective, options;
   const collectiveData = payload.group;
   const githubUser = payload.user;
-  const contributors = payload.users;
-  const creatorGithubUsername = payload.github_username;
   let createdCollective;
   
   collectiveData.tiers = [
@@ -293,7 +291,6 @@ export const createFromGithub = (req, res, next) => {
     .then(ca => {
       debug("connected account found", ca && ca.username);
       creatorCollective = ca.Collective;
-      creatorCollectiveConnectedAccount = ca;
       return models.User.findById(creatorCollective.CreatedByUserId);
     })
     .then(user => {
@@ -321,15 +318,15 @@ export const createFromGithub = (req, res, next) => {
       if (existingCollective) {
         collectiveData.slug = `${collectiveData.slug}-${Math.floor((Math.random() * 1000) + 1)}`;
       }
-      collectiveData.HostCollectiveId = defaultHostUser('opensource').CollectiveId;
-      collectiveData.ParentCollectiveId = defaultHostUser('opensource').CollectiveId;
+      collectiveData.HostCollectiveId = defaultHostCollective('opensource').CollectiveId;
+      collectiveData.ParentCollectiveId = defaultHostCollective('opensource').ParentCollectiveId;
       collectiveData.currency = 'USD';
       return Collective.create(Object.assign({}, collectiveData, { CreatedByUserId: creatorUser.id, LastEditedByUserId: creatorUser.id }));
     })
     .tap(g => debug("createdCollective", g && g.dataValues))
     .tap(g => createdCollective = g)
     .then(() => _addUserToCollective(createdCollective, creatorUser, options))
-    .then(() => _addUserToCollective(createdCollective, defaultHostUser("opensource"), { role: roles.HOST, remoteUser: creatorUser }))
+    .then(() => _addUserToCollective(createdCollective, defaultHostCollective("opensource"), { role: roles.HOST, remoteUser: creatorUser }))
     .then(() => {
       if (collectiveData.tiers) {
         return models.Tier.createMany(collectiveData.tiers, { CollectiveId: createdCollective.id, currency: collectiveData.currency })
@@ -344,64 +341,6 @@ export const createFromGithub = (req, res, next) => {
         collective: createdCollective.info,
         host: host.info,
         user: creatorUser.info
-      }
-    }))
-    .then(() => Promise.map(contributors, contributor => {
-    // since we added the creator above with an email, avoid double adding
-    if (contributor !== creatorGithubUsername && contributor !== creatorCollectiveConnectedAccount.username) {
-      const caAttr = {
-        username: contributor,
-        service: 'github'
-      };
-      const userAttr = {
-        image: `https://images.githubusercontent.com/${contributor}`
-      };
-      let connectedAccount, contributorUserCollective;
-      return ConnectedAccount.findOne({ where: caAttr })
-        .then(ca => {
-          if (ca) {
-            debug("Connected Account for ", caAttr, ca && ca.dataValues);
-            return ca;
-          }
-          debug("Creating Connected Account", caAttr);
-          return ConnectedAccount.create(caAttr);
-        })
-        .then(ca => {
-          connectedAccount = ca;
-          if (!ca.CollectiveId) {
-            return Collective.findOne({ where: userAttr });
-          } else {
-            return ca.getCollective();
-          }
-        })
-        .then(userCollective => {
-          if (userCollective && userCollective.CreatedByUserId) {
-            debug("User Collective Found", userCollective && userCollective.dataValues);
-            return userCollective;
-          }
-          // If we cannot find an existing user for this contributor,
-          // we fetch extra info from Github API and create a new user
-          return fetchGithubUser(contributor)
-            .then(json => {
-              if (json && json.name) {
-                userAttr.name = json.name;
-                userAttr.website = json.blog;
-                userAttr.email = json.email;
-              }
-              debug("findOrCreateUserWithCollective", userAttr);
-              return User.findOne({where: { email: json.email } })
-              .then(u => u || User.createUserWithCollective(Object.assign({}, userAttr)))
-              .then(u => u.collective)
-            });
-        })
-        .then(userCollective => contributorUserCollective = userCollective)
-        .then(() => {
-          debug("addConnectedAccount", connectedAccount && connectedAccount.dataValues, "to contributor user collective", contributorUserCollective && contributorUserCollective.dataValues)
-          return contributorUserCollective.addConnectedAccount(connectedAccount)
-        })
-        .then(() => _addUserToCollective(createdCollective, { id: contributorUserCollective.CreatedByUserId, CollectiveId: contributorUserCollective.id }, options));
-      } else {
-        return Promise.resolve();
       }
     }))
     .then(() => {
