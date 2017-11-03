@@ -8,7 +8,6 @@ import Promise from 'bluebird';
 import roles from '../constants/roles';
 import activities from '../constants/activities';
 import emailLib from '../lib/email';
-import fetchGithubUser from '../lib/github';
 import queries from '../lib/queries';
 import models from '../models';
 import errors from '../lib/errors';
