@@ -18,18 +18,21 @@ const updateApplyHosts = (sequelize) => {
   return sequelize.query(`
     SELECT 
       c.id AS id,
-      h.id AS hostId,
+      h.id AS "hostId",
       c.settings AS settings,
-      h.settings AS hostSettings,
+      h.settings AS "hostSettings",
       c.slug AS slug,
       h.slug as "hostSlug",
-      c."HostCollectiveId" as "HostCollectiveId"
+      c."HostCollectiveId" as "HostCollectiveId",
+      c.tags as tags
       FROM "Collectives" c
 
     LEFT JOIN "Collectives" h on c."HostCollectiveId" = h.id
 
     WHERE (c."settings"::TEXT ILIKE '%HostId%') 
-      AND c.id > 1 AND c.id != 39 AND c.id != 549 AND c.id != 829 AND c.id != 858 and c.id != 878
+      AND c.id > 1 AND c.id != 39 AND c.id != 549 
+      AND c.id != 829 AND c.id != 858 and c.id != 878
+      AND h.id != 9805
 
     ORDER BY c.id; 
     `, { type: sequelize.QueryTypes.SELECT})
@@ -45,6 +48,10 @@ const updateApplyHosts = (sequelize) => {
 
     const originalSlug = collective.slug;
     const newSlug = `${originalSlug}-collective`;
+    let tags = '{}';
+    if (collective.tags && collective.tags.length > 0) {
+      tags = `{${collective.tags.join(',')}}`
+    }
 
     if (!collective.HostCollectiveId) {
       throw new Error('Collective found without host: ', collective.id);
@@ -66,11 +73,12 @@ const updateApplyHosts = (sequelize) => {
     // change host slug to the original slug and set apply = true
     .then(() => sequelize.query(`
       UPDATE "Collectives"
-        SET slug = :originalSlug, settings='{"apply": true}'
+        SET slug = :originalSlug, settings='{"apply": true}', tags= :tags
       WHERE id= :hostId 
       `, { replacements: {
         originalSlug,
-        hostId: collective.HostCollectiveId
+        hostId: collective.HostCollectiveId,
+        tags: tags
       }}))
     .then(() => {
       collectivesUpdated.push(collective);
