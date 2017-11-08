@@ -213,7 +213,7 @@ describe('graphql.tiers.test', () => {
 
         const members = await models.Member.findAll({where: { MemberCollectiveId: user1.CollectiveId, CollectiveId: collective1.id }});
         const orders = await models.Order.findAll({where: { FromCollectiveId: user1.CollectiveId, CollectiveId: collective1.id }});
-        const subscription = await models.Subscription.findById(orders[0].SubscriptionId);
+        // const subscription = await models.Subscription.findById(orders[0].SubscriptionId);
         const order = await models.Order.findById(orders[0].id);
         const transactions = await models.Transaction.findAll({where: { FromCollectiveId: user1.CollectiveId, CollectiveId: collective1.id }});
 
