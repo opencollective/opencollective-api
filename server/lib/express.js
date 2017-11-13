@@ -15,9 +15,10 @@ import { Strategy as MeetupStrategy } from 'passport-meetup-oauth2';
 import { sequelize as db } from '../models';
 import { middleware } from '../graphql/loaders';
 import debug from 'debug';
+import lruCache from '../middleware/lru_cache';
+
 
 const SequelizeStore = connectSessionSequelize(session.Store);
-
 
 export default function(app) {
   app.use(helmet());
@@ -42,12 +43,21 @@ export default function(app) {
     });
   }
 
-  // log the slow graphql queries
+  // Logs.
+  app.use(morgan('dev'));
+
+  // Body parser.
+  app.use(bodyParser.json({limit: '50mb'}));
+  app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
+
+  // check for slow requests
   app.use((req, res, next) => {
     req.startAt = new Date;
     const temp = res.end
+
     res.end = function() {
       const timeElapsed = (new Date) - req.startAt;
+
       if (timeElapsed > (process.env.SLOW_REQUEST_THRESHOLD || 1000)) {
         if (req.body && req.body.query) {
           console.log(">>> slow request", req.body.query.substr(0, req.body.query.indexOf(")")+1));
@@ -59,16 +69,12 @@ export default function(app) {
     next();
   });
 
-  // Body parser.
-  app.use(bodyParser.json({limit: '50mb'}));
-  app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
+  app.use(lruCache())
+
   app.use(multer());
 
   // Cors.
   app.use(cors());
-
-  // Logs.
-  app.use(morgan('dev'));
 
   // Error handling.
   if (process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'staging') {
