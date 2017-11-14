@@ -45,8 +45,6 @@ export default () => {
         cache.set(checksum, cached);
         req.cached = cached;
       }
-    } else {
-      next();
     }
 
     res.end = function(data) {

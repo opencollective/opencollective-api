@@ -17,7 +17,6 @@ import { middleware } from '../graphql/loaders';
 import debug from 'debug';
 import lruCache from '../middleware/lru_cache';
 
-
 const SequelizeStore = connectSessionSequelize(session.Store);
 
 export default function(app) {
@@ -53,11 +52,10 @@ export default function(app) {
   // check for slow requests
   app.use((req, res, next) => {
     req.startAt = new Date;
-    const temp = res.end
-
+    const temp = res.end;
+    
     res.end = function() {
       const timeElapsed = (new Date) - req.startAt;
-
       if (timeElapsed > (process.env.SLOW_REQUEST_THRESHOLD || 1000)) {
         if (req.body && req.body.query) {
           console.log(">>> slow request", req.body.query.substr(0, req.body.query.indexOf(")")+1));
