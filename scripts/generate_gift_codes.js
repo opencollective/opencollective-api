@@ -10,6 +10,7 @@ const VERIFICATION_MODULO = 45790; // don't change
 const NAME = 'Bloomberg Beta Gift Card';
 const SERVICE = 'prepaid';
 const CREATED_BY_USER_ID = 30; // user id of the creator or the admin of the collective funding gift cards
+const COLLECTIVE_ID = 9805; // issuer's collective ID
 const MONTHLY_LIMIT_PER_MEMBER = 5000 // in cents
 const CURRENCY = 'USD';
 const CODE_PREFIX = 'BB' // prepends all codes with prefix, ex: BBFTC9805
@@ -70,6 +71,7 @@ const generatePrepaidCards = (batches) => {
           name: NAME,
           service: SERVICE,
           CreatedByUserId: CREATED_BY_USER_ID,
+          CollectiveId: COLLECTIVE_ID,
           monthlyLimitPerMember: MONTHLY_LIMIT_PER_MEMBER, // overloading to serve as prepaid amount
           currency: CURRENCY
         })
