@@ -292,7 +292,7 @@ export default function(Sequelize, DataTypes) {
     },
 
     hooks: {
-      beforeCreate: (instance) => {
+      beforeValidate: (instance) => {
         if (instance.slug) return Promise.resolve();
 
         const potentialSlugs = [
