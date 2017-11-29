@@ -18,7 +18,8 @@ import {
   UserType,
   TierType,
   ExpenseType,
-  MemberType
+  MemberType,
+  PaymentMethodType
 } from './types';
 
 import models from '../models';
@@ -259,6 +260,27 @@ const queries = {
       } else {
         return models.Collective.findAll({ where: { type: 'EVENT' }});
       }
+    }
+  },
+
+  /*
+   * Given a prepaid code, return validity and amount
+   */
+  PaymentMethod: {
+    type: PaymentMethodType,
+    args: {
+      token: { type: new GraphQLNonNull(GraphQLString) }
+    },
+    resolve(_, args) {
+      return models.PaymentMethod.findOne({
+        where: { 
+          token: args.token,
+          expiryDate: {
+            $gt: new Date()
+          },
+          archivedAt: null // archived PMs are assumed to be used or inactive
+        }
+      });
     }
   }
 }
