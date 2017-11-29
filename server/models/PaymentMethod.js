@@ -168,6 +168,11 @@ export default function(Sequelize, DataTypes) {
       getBalance = () => Promise.resolve(10000000); // GraphQL doesn't like Infinity
     }
 
+    // needed because prepaid payment method can be accessed without logged in
+    if (this.service === 'prepaid') {
+      return paymentProvider.getBalance(this);
+    }
+
     if (!user) return Promise.resolve({});
     debug("getBalanceForUser", user.dataValues, "paymentProvider:", this.service);
 
@@ -236,10 +241,11 @@ export default function(Sequelize, DataTypes) {
         }
       })
       .then(pm => {
-        if (pm) {
-          return pm 
+        if (!pm) {
+          throw new Error(`Your gift card code doesn't exist`);
+        } else {
+          return pm;
         }
-        throw new Error(`Your gift card code doesn't exist`);
       })
     } else {
       // if the user is trying to reuse an existing payment method,

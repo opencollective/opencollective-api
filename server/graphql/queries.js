@@ -266,7 +266,7 @@ const queries = {
   /*
    * Given a prepaid code, return validity and amount
    */
-  PaymentMethod: {
+  prepaidPaymentMethod: {
     type: PaymentMethodType,
     args: {
       token: { type: new GraphQLNonNull(GraphQLString) }

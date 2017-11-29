@@ -50,8 +50,15 @@ export const executeOrder = (user, order) => {
       return paymentProviders[paymentProvider].processOrder(order); // eslint-disable-line import/namespace
     })
     .then(transaction => {
-      order.transaction = transaction;
-      sendConfirmationEmail(order); // async
+      // for gift cards
+      console.log("TRANSACTION", transaction)
+      console.log("order", order.paymentMethod);
+      if (!transaction && order.paymentMethod.service === 'prepaid') {
+        sendProcessingEmail(order); // async
+      } else {
+        order.transaction = transaction;
+        sendConfirmationEmail(order); // async
+      }
       return null;
     });
 }
@@ -108,4 +115,26 @@ const sendConfirmationEmail = (order) => {
       }
     ));
   }
+}
+
+// Needed for Gift cards when users donate to a non-open source host
+// Assumes one-time payments
+const sendProcessingEmail = (order) => {
+    const { collective, fromCollective } = order;
+  const user = order.createdByUser;
+
+  return collective.getRelatedCollectives(2, 0)
+    .then(relatedCollectives => emailLib.send(
+      'processing',
+      user.email,
+      { order: order.info,
+        transaction: pick(order.transaction, ['createdAt', 'uuid']),
+        user: user.info,
+        collective: collective.info,
+        fromCollective: fromCollective.minimal,
+        relatedCollectives,
+        subscriptionsLink: user.generateLoginLink('/subscriptions')
+      }, {
+        from: `${collective.name} <hello@${collective.slug}.opencollective.com>`
+      }));
 }
