@@ -51,8 +51,6 @@ export const executeOrder = (user, order) => {
     })
     .then(transaction => {
       // for gift cards
-      console.log("TRANSACTION", transaction)
-      console.log("order", order.paymentMethod);
       if (!transaction && order.paymentMethod.service === 'prepaid') {
         sendProcessingEmail(order); // async
       } else {
@@ -123,8 +121,7 @@ const sendProcessingEmail = (order) => {
     const { collective, fromCollective } = order;
   const user = order.createdByUser;
 
-  return collective.getRelatedCollectives(2, 0)
-    .then(relatedCollectives => emailLib.send(
+  return emailLib.send(
       'processing',
       user.email,
       { order: order.info,
@@ -132,9 +129,9 @@ const sendProcessingEmail = (order) => {
         user: user.info,
         collective: collective.info,
         fromCollective: fromCollective.minimal,
-        relatedCollectives,
         subscriptionsLink: user.generateLoginLink('/subscriptions')
       }, {
         from: `${collective.name} <hello@${collective.slug}.opencollective.com>`
-      }));
+      })
+    .then(() => emailLib.sendMessage('support@opencollective.com', 'Gift card order needs manual attention', null, { text: `Order Id: ${order.id} by userId: ${user.id}`}));
 }
