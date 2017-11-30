@@ -10,19 +10,17 @@ Subject: Thank you for your {{{currency order.totalAmount currency=order.currenc
 <p>Hi!</p>
 {{/if}}
 
-<p>We would like to thank you for your donation of {{{currency order.totalAmount currency=order.currency}}} on {{{moment order.createdAt}}}. Your order is currently processing - we'll let you know when funds have been transferred to us (from your gift card).</p>
+<p>We would like to thank you for your donation of {{{currency order.totalAmount currency=order.currency}}} on {{{moment order.createdAt}}} via a Gift Card. Your order is currently processing - we'll let you know when funds have been transferred to {{collective.name}}.</p>
 
-<p>You can follow our future activities and how we will be spending the money on our open collective page:
+<p>In the meantime, you can follow the collective and how it is spending the money on its Open Collective page:
   <a href="https://opencollective.com/{{collective.slug}}">https://opencollective.com/{{collective.slug}}</a>.
 </p>
 
 <p>Warmly,</p>
 
 <p>
-  – The {{collective.name}} open collective
+  – Team Open Collective
 </p>
-
-{{> relatedcollectives}}
 
 {{> footer}}
 
