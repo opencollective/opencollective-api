@@ -101,9 +101,9 @@ export default {
               .then(t => transactions = t)
 
               // add roles
-              .then(() => order.collective.findOrAddUserWithRole(user, roles.BACKER, {
+              .then(() => order.collective.findOrAddUserWithRole({ id: user.id, CollectiveId: order.fromCollective.id}, roles.BACKER, {
                 CreatedByUserId: user.id, TierId: order.TierId }))
-              
+
               // Mark order row as processed
               .then(() => order.update({ processedAt: new Date() }))
 
