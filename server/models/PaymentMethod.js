@@ -102,7 +102,7 @@ export default function(Sequelize, DataTypes) {
           if (!instance.token) {
             throw new Error(`${instance.service} payment method requires a token`);
           }
-          if (instance.service === 'stripe' && !instance.token.match(/^tok_[a-zA-Z0-9]{24}/)) {
+          if (instance.service === 'stripe' && !instance.token.match(/^(tok|src)_[a-zA-Z0-9]{24}/)) {
             throw new Error(`Invalid Stripe token ${instance.token}`);
           }
         }
