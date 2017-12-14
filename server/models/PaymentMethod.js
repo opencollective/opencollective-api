@@ -1,4 +1,4 @@
-import * as stripe from '../gateways/stripe';
+import * as stripe from '../paymentProviders/stripe/gateway';
 import { types as CollectiveTypes } from '../constants/collectives';
 import { type as TransactionTypes } from '../constants/transactions';
 import * as paymentProviders from '../paymentProviders';
@@ -69,6 +69,10 @@ export default function(Sequelize, DataTypes) {
       }
     },
 
+    type: {
+      type: DataTypes.STRING
+    },
+
     data: DataTypes.JSON,
 
     createdAt: {
@@ -102,7 +106,7 @@ export default function(Sequelize, DataTypes) {
           if (!instance.token) {
             throw new Error(`${instance.service} payment method requires a token`);
           }
-          if (instance.service === 'stripe' && !instance.token.match(/^tok_[a-zA-Z0-9]{24}/)) {
+          if (instance.service === 'stripe' && !instance.token.match(/^(tok|src)_[a-zA-Z0-9]{24}/)) {
             throw new Error(`Invalid Stripe token ${instance.token}`);
           }
         }
@@ -128,7 +132,11 @@ export default function(Sequelize, DataTypes) {
 
       features() {
         const paymentProvider = paymentProviders[this.service]; // eslint-disable-line import/namespace
-        return paymentProvider.features || {};
+        const type = this.type || 'default';
+
+        return paymentProvider.types[type].features;
+        // TODO: do we still need this?
+        // return paymentProvider.features || {};
       },
 
       minimal() {

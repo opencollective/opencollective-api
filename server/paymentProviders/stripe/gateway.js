@@ -1,9 +1,9 @@
 import _ from 'lodash';
 import Stripe from 'stripe';
 import config from 'config';
-
-import { planId } from '../lib/utils';
 import debugLib from 'debug';
+
+import { planId } from '../../lib/utils';
 const debug = debugLib('stripe');
 export const appStripe = Stripe(config.stripe.secret);
 

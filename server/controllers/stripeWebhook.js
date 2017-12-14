@@ -3,7 +3,7 @@ import async from 'async';
 import _ from 'lodash';
 import activities from '../constants/activities';
 import { planId } from '../lib/utils';
-import { appStripe, extractFees } from '../gateways/stripe';
+import { appStripe, extractFees } from '../paymentProviders/stripe/gateway';
 import models, { sequelize } from '../models';
 import errors from '../lib/errors';
 import emailLib from '../lib/email';

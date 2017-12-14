@@ -12,7 +12,7 @@ import emailLib from '../server/lib/email';
 import * as payments from '../server/lib/payments';
 import nock from 'nock';
 import initNock from './webhooks.routes.test.nock.js';
-import { appStripe } from '../server/gateways/stripe';
+import { appStripe } from '../server/paymentProviders/stripe/gateway';
 
 /**
  * Mock data
