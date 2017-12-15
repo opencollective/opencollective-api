@@ -10,7 +10,7 @@ export const appStripe = Stripe(config.stripe.secret);
 /**
  * Get the stripe client for the connected account
  */
-const client = stripeAccount => Stripe(stripeAccount.token);
+const client = stripeAccount => Stripe(stripeAccount.token || stripeAccount);
 
 /**
  * Create a plan if it doesn not find it
@@ -112,8 +112,7 @@ export const createCharge = (stripeAccount, charge) => {
  * Fetch charge
  */
 export const retrieveCharge = (stripeAccount, chargeId) => {
-  debug("retrieveCharge");
-  return client(stripeAccount).charges.retrieve(chargeId);
+  return appStripe.charges.retrieve(chargeId, { stripe_account: stripeAccount.username});
 };
 
 /**
@@ -123,6 +122,13 @@ export const retrieveBalanceTransaction = (stripeAccount, txn) => {
   debug("retrieveBalanceTransaction", { username: stripeAccount.username, CollectiveId: stripeAccount.CollectiveId }, txn);
   return appStripe.balance.retrieveTransaction(txn, { stripe_account: stripeAccount.username });
 };
+
+/**
+ * Retreive an event (for webhook)
+ */
+export const retrieveEvent = (stripeAccount, eventId) => {
+  return appStripe.events.retrieve(eventId, { stripe_account: stripeAccount.username })
+}
 
 export const extractFees = (balance) => {
   const fees = {
