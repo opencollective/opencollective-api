@@ -54,7 +54,12 @@ export const executeOrder = (user, order, options) => {
       // for gift cards
       if (!transaction && order.paymentMethod.service === 'prepaid') {
         sendProcessingEmail(order); // async
-      } else {
+      } else if (!transaction && order.paymentMethod.service === 'stripe' && order.paymentMethod.type === 'bitcoin') {
+        // TODO: need a new processing email (this one uses gift card language)
+        // TODO: make this if statement based on synchronouslyChargeable feature on paymentProvider.type
+        sendProcessingEmail(order); // async
+      }
+      else {
         order.transaction = transaction;
         sendConfirmationEmail(order); // async
       }
