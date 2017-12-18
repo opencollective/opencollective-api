@@ -60,7 +60,8 @@ export default {
     const getOrCreateCustomerOnPlatformAccount = () => {
       if (!paymentMethod.customerId) {
         return stripeGateway.createCustomer(null, paymentMethod.token, {
-          email: user.email
+          email: user.email,
+          collective: order.fromCollective.info
         })
         .then(customer => customer.id)
         .then(platformCustomerId => paymentMethod.update({ customerId: platformCustomerId}))

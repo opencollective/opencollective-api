@@ -134,6 +134,7 @@ export default function(Sequelize, DataTypes) {
         const paymentProvider = paymentProviders[this.service]; // eslint-disable-line import/namespace
         const type = this.type || 'default';
 
+        // TODO: transfer other payment methods to support type
         return paymentProvider.types[type].features;
         // TODO: do we still need this?
         // return paymentProvider.features || {};

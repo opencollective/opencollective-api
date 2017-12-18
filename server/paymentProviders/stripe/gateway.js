@@ -75,13 +75,10 @@ export const createCustomer = (stripeAccount, token, options = {}) => {
   const collective = options.collective || {};
 
   const payload = {
+    source: token,
     description:  `https://opencollective.com/${collective.slug}`,
     email: options.email || '',
   };
-
-  if (token) {
-    payload.source = token;
-  }
 
   return appStripe.customers.create(payload, { stripe_account: stripeAccount && stripeAccount.username });
 };

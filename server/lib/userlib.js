@@ -129,7 +129,8 @@ export default {
         if (userData) {
           user.firstName = user.firstName || userData.name.givenName;
           user.lastName = user.lastName || userData.name.familyName;
-          user.image = user.image || userData.image;
+          // TODO: user.image no longer exists. Update this to attach the image to User Collective
+          // user.image = user.image || userData.image; 
           user.twitterHandle = user.twitterHandle || userData.twitter.handle;
           user.website = user.website || userData.site;
           return user.save();

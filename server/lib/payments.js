@@ -58,8 +58,7 @@ export const executeOrder = (user, order, options) => {
         // TODO: need a new processing email (this one uses gift card language)
         // TODO: make this if statement based on synchronouslyChargeable feature on paymentProvider.type
         sendProcessingEmail(order); // async
-      }
-      else {
+      } else {
         order.transaction = transaction;
         sendConfirmationEmail(order); // async
       }

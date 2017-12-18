@@ -1,12 +1,15 @@
 'use strict';
 
-// TODO: populate type field for existing paymentMethods
-
 module.exports = {
   up: (queryInterface, Sequelize) => {
     return queryInterface.addColumn('PaymentMethods', 'type', {
-        type: Sequelize.STRING
-      })
+      type: Sequelize.STRING
+    })
+    .then(queryInterface.sequelize.query(`
+      UPDATE "PaymentMethods"
+        SET "type" = 'creditcard'
+      WHERE type IS NULL AND service ilike 'stripe'
+      `))
   },
 
   down: (queryInterface, Sequelize) => {
