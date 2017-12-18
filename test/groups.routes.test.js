@@ -291,6 +291,7 @@ describe('groups.routes.test.js', () => {
     beforeEach('create a new payment method for user', () => models.PaymentMethod.create({
       CollectiveId: user.CollectiveId,
       service: 'stripe',
+      type: 'creditcard',
       token: 'tok_123456781234567812345678'
     }))
 

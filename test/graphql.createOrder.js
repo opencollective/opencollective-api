@@ -470,6 +470,7 @@ describe('createOrder', () => {
       const paymentMethod = await models.PaymentMethod.create({
         CreatedByUserId: xdamman.id,
         service: 'opencollective',
+        type: 'collective',
         CollectiveId: fromCollective.id
       });
 

@@ -1,7 +1,7 @@
-import models, { sequelize } from '../models';
-import { type as TransactionTypes } from '../constants/transactions';
+import models, { sequelize } from '../../models';
+import { type as TransactionTypes } from '../../constants/transactions';
 import Promise from 'bluebird';
-import { getFxRate } from '../lib/currency';
+import { getFxRate } from '../../lib/currency';
 
 export default {
   features: {

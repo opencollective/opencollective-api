@@ -48,7 +48,7 @@ export const executeOrder = (user, order, options) => {
     })
     .then(() => {
       const paymentProvider = (order.paymentMethod) ? order.paymentMethod.service : 'manual';
-      return paymentProviders[paymentProvider].processOrder(order, options); // eslint-disable-line import/namespace
+      return paymentProviders[paymentProvider].types[order.paymentMethod.type || 'default'].processOrder(order, options); // eslint-disable-line import/namespace
     })
     .then(transaction => {
       // for gift cards

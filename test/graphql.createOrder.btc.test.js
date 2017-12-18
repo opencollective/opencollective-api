@@ -4,7 +4,7 @@ import models from '../server/models';
 import * as utils from './utils';
 import Stripe from 'stripe';
 import config from 'config';
-import nock from 'nock';
+// import nock from 'nock';
 // import initNock from './graphql.createOrder.nock';
 
 const createOrderQuery = `
@@ -43,7 +43,7 @@ const createOrderQuery = `
 
 describe('graphql.createOrder.btc.test.js', () => {
   
-  let collective, host, admin, hostStripeAccount;
+  let collective, host, admin; // hostStripeAccount;
   // before(initNock);
 
   // after(() => {
@@ -55,7 +55,7 @@ describe('graphql.createOrder.btc.test.js', () => {
     admin = await models.User.createUserWithCollective({ name: "admin" });
     host = await models.Collective.create({ type: "ORGANIZATION", name: "host", isActive: true});
     collective = await models.Collective.create({ name: "tipbox", slug: "tipbox", hostFeePercent: 5, isActive: true, HostCollectiveId: host.id });
-    hostStripeAccount = await models.ConnectedAccount.create({
+    /* hostStripeAccount = await models.ConnectedAccount.create({
       CreatedByUserId: admin.id,      
       service: 'stripe',
       username: 'acct_18KWlTLzdXg9xKNS', // using opensource host test stripe account
@@ -64,7 +64,7 @@ describe('graphql.createOrder.btc.test.js', () => {
         publishableKey: 'pk_test_l7H1cDlh2AekeETfq742VJbC'
       },
       CollectiveId: host.id
-    });
+    }); */
     await models.Member.create({
       CreatedByUserId: admin.id,
       CollectiveId: collective.id,

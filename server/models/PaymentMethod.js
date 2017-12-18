@@ -132,12 +132,7 @@ export default function(Sequelize, DataTypes) {
 
       features() {
         const paymentProvider = paymentProviders[this.service]; // eslint-disable-line import/namespace
-        const type = this.type || 'default';
-
-        // TODO: transfer other payment methods to support type
-        return paymentProvider.types[type].features;
-        // TODO: do we still need this?
-        // return paymentProvider.features || {};
+        return paymentProvider.types[this.type || 'default'].features;
       },
 
       minimal() {
@@ -171,15 +166,15 @@ export default function(Sequelize, DataTypes) {
   PaymentMethod.prototype.getBalanceForUser = function(user) {
     const paymentProvider = paymentProviders[this.service]; // eslint-disable-line import/namespace
     let getBalance;
-    if (paymentProvider && paymentProvider.getBalance) {
-      getBalance = paymentProvider.getBalance;
+    if (paymentProvider && paymentProvider.types[this.type || 'default'].getBalance) {
+      getBalance = paymentProvider.types[this.type || 'default'].getBalance;
     } else {
       getBalance = () => Promise.resolve(10000000); // GraphQL doesn't like Infinity
     }
 
     // needed because prepaid payment method can be accessed without logged in
-    if (this.service === 'prepaid') {
-      return paymentProvider.getBalance(this);
+    if (this.service === 'opencollective' && this.type === 'prepaid') {
+      return paymentProvider.types.prepaid.getBalance(this);
     }
 
     if (!user) return Promise.resolve({});
