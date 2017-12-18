@@ -6,7 +6,8 @@ import roles from '../../constants/roles';
 
 export default {
   features: {
-    recurring: false
+    recurring: false,
+    waitToCharge: false
   },
   
   getBalance: (paymentMethod) => {

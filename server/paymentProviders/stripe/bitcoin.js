@@ -12,7 +12,7 @@ export default {
 
   features: {
     recurring: false,
-    sychronouslyChargeable: false
+    waitToCharge: true
   },
 
   processOrder: (order) => {
