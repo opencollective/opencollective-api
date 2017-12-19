@@ -121,7 +121,7 @@ export default {
 
   webhook: (requestBody) => {
     /**
-     * We check the event on stripe to be sure we don't get a fake event from
+     * We check the event on stripe directly to be sure we don't get a fake event from
      * someone else
      */
     return retrieveEvent({ username: requestBody.user_id }, requestBody.id)

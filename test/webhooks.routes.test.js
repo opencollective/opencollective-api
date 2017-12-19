@@ -35,11 +35,11 @@ describe('webhooks.routes.test.js', () => {
   beforeEach(() => {
     initNock();
     stripeMock = _.cloneDeep(originalStripeMock);
-    webhookEvent = stripeMock.webhook;
+    webhookEvent = stripeMock.webhook_payment_succeeded;
     webhookInvoice = webhookEvent.data.object;
     webhookSubscription = webhookInvoice.lines.data[0];
     sandbox = sinon.sandbox.create();
-    sandbox.stub(appStripe.events, "retrieve", () => Promise.resolve(stripeMock.webhook));
+    sandbox.stub(appStripe.events, "retrieve", () => Promise.resolve(stripeMock.webhook_payment_succeeded));
     sandbox.stub(appStripe.charges, "retrieve", () => Promise.resolve(stripeMock.charges.create));
     sandbox.stub(appStripe.customers, "createSubscription", () => Promise.resolve(stripeMock.createSubscription));
     sandbox.stub(appStripe.balance, "retrieveTransaction", () => Promise.resolve(stripeMock.balance));
@@ -257,11 +257,11 @@ describe('webhooks.routes.test.js', () => {
   describe('errors', () => {
 
     it('returns an error if the event is not `invoice.payment_succeeded`', (done) => {
-      stripeMock.webhook.type = 'application_fee.created';
+      stripeMock.webhook_payment_succeeded.type = 'application_fee.created';
 
       request(app)
         .post('/webhooks/stripe')
-        .send(stripeMock.webhook)
+        .send(stripeMock.webhook_payment_succeeded)
         .expect(400, {
           error: {
             code: 400,
@@ -274,7 +274,7 @@ describe('webhooks.routes.test.js', () => {
 
     it('returns an error if the event does not exist', (done) => {
 
-      stripeMock.webhook = {
+      stripeMock.webhook_payment_succeeded = {
         error: {
           type: 'invalid_request_error',
           message: 'No such event',
@@ -317,11 +317,11 @@ describe('webhooks.routes.test.js', () => {
     });
 
     it('returns 200 if the subscription id does not appear in an existing order in NON-production', (done) => {
-      stripeMock.webhook.type = 'invoice.payment_succeeded';
-      stripeMock.webhook.data.object.lines.data[0].id = 'abc';
+      stripeMock.webhook_payment_succeeded.type = 'invoice.payment_succeeded';
+      stripeMock.webhook_payment_succeeded.data.object.lines.data[0].id = 'abc';
       request(app)
         .post('/webhooks/stripe')
-        .send(stripeMock.webhook)
+        .send(stripeMock.webhook_payment_succeeded)
         .expect(200)
         .end(done);
     });
@@ -330,7 +330,7 @@ describe('webhooks.routes.test.js', () => {
       const e = _.extend({}, webhookEvent);
       e.id = e.id.replace(/0/g, 2);
       e.data.object.lines.data[0].plan.id = 'abc';
-      stripeMock.webhook.data.object.lines.data[0].plan.id = 'abc';
+      stripeMock.webhook_payment_succeeded.data.object.lines.data[0].plan.id = 'abc';
 
       request(app)
         .post('/webhooks/stripe')
