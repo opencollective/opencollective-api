@@ -30,6 +30,7 @@ export default {
       email: user.email
     })
     .then(customer => paymentMethod.update({ customerId: customer.id, CollectiveId: fromCollective.id}))
+    .then(() => Promise.resolve()) // need to return transactions, which there aren't any
 
     // now we wait for the webhook to come through with source.chargeable
   },
