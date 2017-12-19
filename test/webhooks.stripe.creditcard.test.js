@@ -11,7 +11,7 @@ import originalStripeMock from './mocks/stripe';
 import emailLib from '../server/lib/email';
 import * as payments from '../server/lib/payments';
 import nock from 'nock';
-import initNock from './webhooks.routes.test.nock.js';
+import initNock from './webhooks.stripe.creditcard.test.nock.js';
 import { appStripe } from '../server/paymentProviders/stripe/gateway';
 
 /**
@@ -29,7 +29,7 @@ const hostStripeAccount = {
   username: 'acct_198T7jD8MNtzsDcg'
 };
 
-describe('webhooks.routes.test.js', () => {
+describe('webhooks.stripe.creditcard.test.js', () => {
   let sandbox, user, host, paymentMethod, collective, order, emailSendSpy, stripeToken, stripeMock, webhookEvent, webhookInvoice, webhookSubscription;
 
   beforeEach(() => {
@@ -235,62 +235,8 @@ describe('webhooks.routes.test.js', () => {
     });
   });
 
-  it('returns 200 if the event is not livemode in production', (done) => {
-    const event = _.extend({}, webhookEvent, {
-      livemode: false
-    });
-
-    const env = process.env.NODE_ENV;
-    process.env.NODE_ENV = 'production';
-
-    request(app)
-      .post('/webhooks/stripe')
-      .send(event)
-      .expect(200)
-      .end((err) => {
-        expect(err).to.not.exist;
-        process.env.NODE_ENV = env;
-        done();
-      });
-  });
-
   describe('errors', () => {
 
-    it('returns an error if the event is not `invoice.payment_succeeded`', (done) => {
-      stripeMock.webhook_payment_succeeded.type = 'application_fee.created';
-
-      request(app)
-        .post('/webhooks/stripe')
-        .send(stripeMock.webhook_payment_succeeded)
-        .expect(400, {
-          error: {
-            code: 400,
-            type: 'bad_request',
-            message: 'Wrong event type received'
-          }
-        })
-        .end(done);
-    });
-
-    it('returns an error if the event does not exist', (done) => {
-
-      stripeMock.webhook_payment_succeeded = {
-        error: {
-          type: 'invalid_request_error',
-          message: 'No such event',
-          param: 'id',
-          requestId: 'req_7Y8TeQytYKcs1k'
-        }
-      };
-
-      request(app)
-        .post('/webhooks/stripe')
-        .send({
-          id: 123
-        })
-        .expect(400)
-        .end(done);
-    });
 
     it('returns an error if the subscription id does not appear in an exisiting transaction in production', (done) => {
       const e = _.extend({}, webhookEvent, { type: 'invoice.payment_succeeded' });

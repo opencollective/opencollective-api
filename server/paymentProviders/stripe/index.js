@@ -120,12 +120,21 @@ export default {
   },
 
   webhook: (requestBody) => {
+
+    // Stripe sends test events to production as well
+    // don't do anything if the event is not livemode
+    if (process.env.NODE_ENV === 'production' && !requestBody.livemode) {
+      return Promise.resolve();
+    }
     /**
      * We check the event on stripe directly to be sure we don't get a fake event from
      * someone else
      */
     return retrieveEvent({ username: requestBody.user_id }, requestBody.id)
       .then(event => {
+        if (!event || (event && !event.type)) {
+          throw new errors.BadRequest('Event not found');
+        }
         if (event.type === 'invoice.payment_succeeded') {
           return creditcard.webhook(requestBody, event)
         } else if (event.type === 'source.chargeable') {
