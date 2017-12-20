@@ -92,6 +92,7 @@ export default {
 
     // based on the source, fetch order
     const sourceId = event.data.object.id;
+    const isProduction = process.env.NODE_ENV === 'production';
 
     let order, hostStripeAccount;
     // create activity to record webhook
@@ -117,51 +118,61 @@ export default {
     }))
     .then(o => order = o)
     .then(() => {
-      if (!order) {
-        // this handles a race condition where a user may transfer money before hitting submit on our site
-        // we'll ignore any webhooks with unknown sources and count on 
-        // stripe to try again
+      if (!order && !isProduction) {
+        /**
+       * Stripe doesn't make a difference between development, test, staging
+       * environments. If we get a webhook from another env,
+       * `transaction.Subscription.stripeSubscriptionId`
+       * will not be found and throw an error. Stripe will retry to send the webhook
+       * if it doesn't get a 2XX status code.
+       * For non-production environments, we will simply return 200 to avoid
+       * the retry on Stripe side (and the email from Stripe support).
+       */ 
+        return Promise.resolve();
+      }
+
+      if (!order && isProduction) {
         throw new errors.BadRequest('Source not found');
       }
-    })
-    .then(() => order.collective.getHostStripeAccount())
-    .then(stripeAccount => hostStripeAccount = stripeAccount)
-    .then(() => createChargeAndTransactions(order, {
-      hostStripeAccount: hostStripeAccount.username, 
-      source: sourceId,
-    }))
-    // let's add that user as a member
-    .tap(() => order.collective.findOrAddUserWithRole({ 
-      id: order.createdByUser.id, 
-      CollectiveId: order.fromCollective.id}, 
-      roles.BACKER, 
-      { CreatedByUserId: order.createdByUser.id, 
-        TierId: order.TierId })
-    )
-    // now we send an email to confirm transaction
-    .then(transaction => {
-      const user = order.createdByUser || {};
-      return order.collective.getRelatedCollectives(2, 0)
-        .then(relatedCollectives => emailLib.send(
-          'thankyou',
-          user.email,
-          { order: order.info,
-            transaction: transaction.info,
-            user: user.info,
-            collective: order.collective.info,
-            fromCollective: order.fromCollective.minimal,
-            relatedCollectives,
-            config: { host: config.host },
-            subscriptionsLink: user.generateLoginLink('/subscriptions')
-          }, {
-            from: `${order.collective.name} <hello@${order.collective.slug}.opencollective.com>`
-          }))
-    })
-    // Mark order row as processed
-    .then(() => order.update({ processedAt: new Date() }))
 
-    // Mark paymentMethod as confirmed
-    .tap(() => order.paymentMethod.update({ archivedAt: new Date }))
+      return order.collective.getHostStripeAccount()
+        .then(stripeAccount => hostStripeAccount = stripeAccount)
+        .then(() => createChargeAndTransactions(order, {
+          hostStripeAccount: hostStripeAccount.username, 
+          source: sourceId,
+        }))
+        // let's add that user as a member
+        .tap(() => order.collective.findOrAddUserWithRole({ 
+          id: order.createdByUser.id, 
+          CollectiveId: order.fromCollective.id}, 
+          roles.BACKER, 
+          { CreatedByUserId: order.createdByUser.id, 
+            TierId: order.TierId })
+        )
+        // now we send an email to confirm transaction
+        .then(transaction => {
+          const user = order.createdByUser || {};
+          return order.collective.getRelatedCollectives(2, 0)
+            .then(relatedCollectives => emailLib.send(
+              'thankyou',
+              user.email,
+              { order: order.info,
+                transaction: transaction.info,
+                user: user.info,
+                collective: order.collective.info,
+                fromCollective: order.fromCollective.minimal,
+                relatedCollectives,
+                config: { host: config.host },
+                subscriptionsLink: user.generateLoginLink('/subscriptions')
+              }, {
+                from: `${order.collective.name} <hello@${order.collective.slug}.opencollective.com>`
+              }))
+        })
+        // Mark order row as processed
+        .then(() => order.update({ processedAt: new Date() }))
 
+        // Mark paymentMethod as confirmed
+        .tap(() => order.paymentMethod.update({ archivedAt: new Date }))
+    })
   }
 }
