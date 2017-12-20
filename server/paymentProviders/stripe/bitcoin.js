@@ -40,11 +40,15 @@ export default {
     const createChargeAndTransactions = (order, { hostStripeAccount, source }) => {
   
       const { collective, createdByUser: user, paymentMethod } = order;
-      let charge;      
+      let charge, stripeFees = 500;      
 
       // We need to specify exactly the amount of money to send to host account
-      // bitcoin transactions have a standard 0.8% fee charged by Stripe
-      const destinationAmount = order.totalAmount - (order.totalAmount*0.008) - (order.totalAmount*0.05); // remove stripe fee and our fee
+      // bitcoin transactions have a standard 0.8% fee charged by Stripe or $5 max
+
+      if (order.totalAmount*0.008 < 500) {
+        stripeFees = order.totalAmount*0.008;
+      }
+      const destinationAmount = order.totalAmount - stripeFees - (order.totalAmount*0.05); // remove stripe fee and our fee
 
       return stripeGateway.appStripe.charges.create(
         {
