@@ -21,15 +21,21 @@ import * as constants from '../server/constants/transactions';
 
 */
 
+let sharedCustomersCount = 0, nonSharedCustomersCount = 0, subsUpdatedCount = 0, subsSkippedCount = 0;
 
 const done = (err) => {
   if (err) console.log('err', err);
+  console.log('Non-shared customers found: ', nonSharedCustomersCount);
+  console.log('Shared customers found: ', sharedCustomersCount);
+  console.log('Total subscriptions updated: ', subsUpdatedCount);
+  console.log('Total subscriptions skipped: ', subsSkippedCount);
   console.log('done!');
   process.exit();
 }
 
 const migrateSubscriptions = (options) => {
   const { oldStripeAccountId, newStripeAccountId, limit, dryRun } = options;
+
 
   let oldStripeAccount, newStripeAccount, currentOCSubscription;
   // fetch old stripe account
@@ -58,9 +64,13 @@ const migrateSubscriptions = (options) => {
     return oldStripeSubscriptionList.data;
   })
   .each(oldStripeSubscription => {
-    console.log("---OLD SUBSCRIPTION---")
-    console.log(oldStripeSubscription);
-    console.log("---------END----------")
+    if (options.verbose) {
+      console.log("\n---OLD SUBSCRIPTION---")
+      console.log(oldStripeSubscription);
+      console.log("---------END----------")
+    } else {
+      console.log("\nProcessing subscription: ", oldStripeSubscription.id);
+    }
 
     let platformCustomerId, customerIdOnOldStripeAccount, customerIdOnNewStripeAccount;
 
@@ -74,15 +84,6 @@ const migrateSubscriptions = (options) => {
           throw new Error("Subscription not found in our DB: ", oldStripeSubscription.id)
         }
       })
-
-      // now deal with customerId
-
-      /*if case 1:
-      - use token to create a new customerId on platform
-      - store that in PM
-      - store old customerId in data.CustomerIdForHost (using old stripe account)
-      - use token to create a third customerId for new host
-      - store new customerId in data.CustomerIdForHost (under new stripe account)*/
 
       // fetch paymentMethod used for this subscription
       .then(() => {
@@ -98,25 +99,62 @@ const migrateSubscriptions = (options) => {
         })
       })
       .then(order => {
-        // figure out which of the three cases this payment method falls into
-        /*
-          Case 1: old subscription
-            -- pm.data.CustomerIdForHost is null
-          Case 2: post-v2 subscription
-            -- pm.data.CustomerIdForHost[oldStripeAccount.username] is not null
-          Case 3: post-v2 subscription and user already has a customer Id on new stripe account
-            -- pm.data.CustomerIdForHost[oldStripeAccount.username] is not null and pm.data.CustomerIdForHost[newStripeAccount.username] is not null
-        */
-
         const pm = order.paymentMethod;
         const customerIdForHostsList = pm.data && pm.data.CustomerIdForHost;
+
         platformCustomerId = pm.customerId;
         customerIdOnOldStripeAccount = customerIdForHostsList && customerIdForHostsList[oldStripeAccount.username];
         customerIdOnNewStripeAccount = customerIdForHostsList && customerIdForHostsList[newStripeAccount.username];
 
-        let customerPromise = Promise.resolve();
-        // const pmData = (pm && pm.data) || {};
-        const pmDataCustomerIdForHost = {};
+        const processSubscription = () => {
+
+          if (dryRun) {
+            console.log('Dry run: Exiting without making any changes on Stripe')
+            subsUpdatedCount += 1
+            return Promise.resolve();
+          }
+          // create plan
+          const plan = {
+            interval: oldStripeSubscription.plan.interval,
+            amount: oldStripeSubscription.plan.amount,
+            currency: oldStripeSubscription.plan.currency
+          }
+          return stripeGateway.getOrCreatePlan(newStripeAccount, plan)
+
+          // add a new subscription
+          .then(stripeSubscriptionPlan => {
+            const subscription = {
+              // carryover fields
+              plan: stripeSubscriptionPlan.id,
+              application_fee_percent: constants.OC_FEE_PERCENT,
+              metadata: oldStripeSubscription.metadata,
+              // needed to make sure we don't double charge them
+              billing_cycle_anchor: oldStripeSubscription.current_period_end,
+              prorate: false
+            };
+            return stripeGateway.createSubscription(
+              newStripeAccount,
+              customerIdOnNewStripeAccount,
+              subscription);
+          })
+
+          // store the new stripeSubscription info in our table
+          .then(newStripeSubscription => {
+            const preMigrationData = currentOCSubscription.data;
+
+            return currentOCSubscription.updateAttributes({
+              data: Object.assign({}, newStripeSubscription, { preMigrationData }),
+              stripeSubscriptionId: newStripeSubscription.id
+            });
+          })
+          // delete new subscription from stripe
+          .then(() => stripeGateway.cancelSubscription(
+            oldStripeAccount, oldStripeSubscription.id))
+          .catch(err => {
+            console.log("ERROR: ", err, oldStripeSubscription)
+            return err;
+          })
+        }
 
         // we shouldn't have any active subscriptions on stripe without customerId
         // on paymentMethod
@@ -124,113 +162,57 @@ const migrateSubscriptions = (options) => {
           throw new Error("Payment Method found without Customer Id: ", pm.id);
         }
 
-        // now figure out various customerId cases
-        if (customerIdOnOldStripeAccount && customerIdOnNewStripeAccount) {
-          // case 3 above
-          // this payment method has been used for both hosts already
-          // so no need to create new customer id
-          console.log("Customer Id found on both old and new stripe accounts");
+        // figure out which of the three cases this payment method falls into
+        /*
+          Case 1: old subscription
+            -- pm.data.CustomerIdForHost is null
+            -- Check for customerId is moved over by stripe, otherwise skip
+          Case 2: post-v2 subscription
+            -- pm.data.CustomerIdForHost[oldStripeAccount.username] is not null
+            -- Create customerId on newStripeAccount and update PM
+          Case 3: post-v2 subscription and user already has a customer Id on new stripe account
+            -- pm.data.CustomerIdForHost[oldStripeAccount.username] is not null and pm.data.CustomerIdForHost[newStripeAccount.username] is not null
+            -- Do nothing in this case
+        */
 
-        } else if (customerIdOnOldStripeAccount && !customerIdOnNewStripeAccount) {
-          // case 2 above
-          // this payment method has only been used for old host
-          // need to create a customer Id for new host
-          console.log("Customer id found on old stripe account, creating one on new stripe acount")
+        if (!customerIdOnOldStripeAccount && !customerIdOnNewStripeAccount) {
+          // Case 3
+          console.log("Non-shared customer Id found, checking for customer on new Stripe Account")
 
-          customerPromise = customerPromise.then(() => stripeGateway.createCustomer(newStripeAccount, pm.token, {
-            email: order.createdByUser.email
-          }))
-          .then(stripeCustomer => {
-            customerIdOnNewStripeAccount = stripeCustomer.id;
-            pmDataCustomerIdForHost[newStripeAccount.username] = stripeCustomer.id;
-          })
-
-        } else if (!customerIdOnOldStripeAccount && !customerIdOnNewStripeAccount) {
-          // case 1 above
-          // old payment method, only used one-time and customerId only created on host
-          // need to create a customerId on platform and customerId on new host 
-          console.log("Customer id found on old Stripe account, creating on platform and new stripe account")
-
-          
-          // This is only if you can take a token from a connected account and use it 
-          // on platform and other connected accounts
-          customerPromise = customerPromise.then(() => stripeGateway.createCustomer(null, pm.token,{
-            email: order.createdByUser.email
-          }))
-          .then(stripePlatformCustomer => platformCustomerId = stripePlatformCustomer.id)
-          .then(() => stripeGateway.createCustomer(newStripeAccount, pm.token, {
-            email: order.createdByUser.email
-          }))
-          .then(stripeCustomer => {
-            customerIdOnNewStripeAccount = stripeCustomer.id;
-            pmDataCustomerIdForHost[newStripeAccount.username] = stripeCustomer.id;
-            pmDataCustomerIdForHost[oldStripeAccount.username] = pm.customerId; // store the original customer id with the correct host
-          })
-          
-        }
-
-        if (dryRun) {
-          return Promise.reject('Dry run: Exiting without making any changes on Stripe');
-        }
-
-        // now create customerIds
-        return customerPromise
-          
-          // store new customer Ids if needed
-          .then(() => {
-            if (pmDataCustomerIdForHost) {
-              const pmData = pm.data || {};
-              pmData.customerIdForHost = Object.assign({}, pmData.customerIdForHost, ...pmDataCustomerIdForHost);
-              return pm.update({data: pmData})
-            }
-            return Promise.resolve();
-          })
-          .then(() => {
-            // define subscription plan
-            const plan = {
-              interval: oldStripeSubscription.plan.interval,
-              amount: oldStripeSubscription.plan.amount,
-              currency: oldStripeSubscription.plan.currency
-            }
-            return stripeGateway.getOrCreatePlan(newStripeAccount, plan)
-
-            // add a new subscription
-            .then(stripeSubscriptionPlan => {
-              const subscription = {
-                // carryover fields
-                plan: stripeSubscriptionPlan.id,
-                application_fee_percent: constants.OC_FEE_PERCENT,
-                metadata: oldStripeSubscription.metadata,
-                // needed to make sure we don't double charge them
-                billing_cycle_anchor: oldStripeSubscription.current_period_end,
-                prorate: false
-              };
-              return stripeGateway.createSubscription(
-                newStripeAccount,
-                customerIdOnNewStripeAccount,
-                subscription);
+          nonSharedCustomersCount += 1;
+          return stripeGateway.retrieveCustomer(newStripeAccount, oldStripeSubscription.customer)
+            .then(() => {
+              return processSubscription();
             })
-
-            // store the new stripeSubscription info in our table
-            .then(newStripeSubscription => {
-              const preMigrationData = currentOCSubscription.data;
-
-              return currentOCSubscription.updateAttributes({
-                data: Object.assign({}, newStripeSubscription, { preMigrationData }),
-                stripeSubscriptionId: newStripeSubscription.id
-              });
-            })
-            // delete new subscription from stripe
-            .then(() => stripeGateway.cancelSubscription(
-              oldStripeAccount, oldStripeSubscription.id))
+            // if customer not found, stripe will throw this error
             .catch(err => {
-              console.log("ERROR: ", err, oldStripeSubscription)
-              return err;
+              if (err.message.indexOf('No such customer') !== -1) {
+                console.log('Customer not found on new stripe account, skipping')
+                subsSkippedCount += 1;
+              } else {
+                return done(err)
+              }
             })
-          })
+        } else if (customerIdOnOldStripeAccount && !customerIdOnNewStripeAccount) {
+          // Case 2
+          console.log("Shared Customer id found on old stripe account, creating one on new stripe acount")
+
+          sharedCustomersCount += 1;
+          if (dryRun) {
+            console.log('Dry run: Exiting without making any changes on Stripe');
+            return Promise.resolve();
+          }
+
+          return stripeGateway.createToken(newStripeAccount, platformCustomerId)
+            .then(stripeCustomer => {
+              customerIdOnNewStripeAccount = stripeCustomer.id;
+              const pmData = pm.data;
+              pmData.customerIdForHost = Object.assign({}, pmData.customerIdForHost, {[newStripeAccount.username]: stripeCustomer.id})
+              return pm.update({data: pmData})
+                .then(() => processSubscription())
+            })
+        }
       })
-
-
   })
 }
 
@@ -270,15 +252,26 @@ const run = () => {
       constant: true
     }
   );
+  parser.addArgument(
+    [ '--verbose'],
+    {
+      help: 'verbose output',
+      defaultValue: false,
+      action: 'storeConst',
+      constant: true
+    })
 
   const args = parser.parseArgs();
 
   const options = {
-    oldStripAccountId: args.fromId,
+    oldStripeAccountId: args.fromId,
     newStripeAccountId: args.toId,
     dryRun: !args.notdryrun,
-    limit: args.limit || 1
+    limit: args.limit || 1,
+    verbose: args.verbose
   }
+
+  console.log("Using args: ", options);
 
   return migrateSubscriptions(options)
   .catch(done)
