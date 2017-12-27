@@ -1,3 +1,5 @@
+import argparse from 'argparse'
+
 import models from '../server/models';
 import * as stripeGateway from '../server/paymentProviders/stripe/gateway';
 import * as constants from '../server/constants/transactions';
@@ -26,25 +28,27 @@ const done = (err) => {
   process.exit();
 }
 
-// replace with real values
-const OLD_STRIPE_ACCOUNT_ID = 2090; // id1486 in prod
-const NEW_STRIPE_ACCOUNT_ID = 2091; // id1943 in prod
+const migrateSubscriptions = (options) => {
+  const { oldStripeAccountId, newStripeAccountId, limit, dryRun } = options;
 
-let oldStripeAccount = null;
-let newStripeAccount = null;
-let currentOCSubscription;
-
-const dryrun = process.argv[2] ? process.argv[2] !== 'production' : true;
-const limit = process.argv[3] || 1;
-
-const migrateSubscriptions = () => {
+  let oldStripeAccount, newStripeAccount, currentOCSubscription;
   // fetch old stripe account
-  return models.ConnectedAccount.findById(OLD_STRIPE_ACCOUNT_ID)
-  .then(stripeAccount => oldStripeAccount = stripeAccount)
+  return models.ConnectedAccount.findById(oldStripeAccountId)
+  .then(stripeAccount => {
+    if (!stripeAccount) {
+      throw new Error('Old stripe account not found');
+    }
+    oldStripeAccount = stripeAccount
+  })
 
   // fetch new stripe account
-  .then(() => models.ConnectedAccount.findById(NEW_STRIPE_ACCOUNT_ID))
-  .then(stripeAccount => newStripeAccount = stripeAccount)
+  .then(() => models.ConnectedAccount.findById(newStripeAccountId))
+  .then(stripeAccount => {
+    if (!stripeAccount) {
+      throw new Error('New stripe account not found')
+    }
+    newStripeAccount = stripeAccount
+  })
 
   // fetch subscriptions from old stripe account
   .then(() => stripeGateway.getSubscriptionsList(oldStripeAccount, limit))
@@ -165,7 +169,7 @@ const migrateSubscriptions = () => {
           
         }
 
-        if (dryrun) {
+        if (dryRun) {
           return Promise.reject('Dry run: Exiting without making any changes on Stripe');
         }
 
@@ -233,7 +237,50 @@ const migrateSubscriptions = () => {
 const run = () => {
   console.log('\nStarting migrate_subscriptions_in_stripe...')
 
-  return migrateSubscriptions()
+  const parser = new argparse.ArgumentParser({
+    addHelp:true,
+    description: 'Migrate stripe subscriptions from one host to another'
+  });
+  parser.addArgument(
+    [ '-f', '--fromId'],
+    {
+      help: 'Id of Host to move FROM',
+      required: true
+    }
+  );
+  parser.addArgument(
+    ['-t', '--toId'],
+    {
+      help: 'Id of Host to move TO',
+      required: true
+    }
+  );
+  parser.addArgument(
+    [ '-l', '--limit' ],
+    {
+      help: 'how many subscriptions to fetch at a time'
+    }
+  );
+  parser.addArgument(
+    [ '--notdryrun' ],
+    {
+      help: 'this flag indicates it\'s not a dry run',
+      defaultValue: false,
+      action: 'storeConst',
+      constant: true
+    }
+  );
+
+  const args = parser.parseArgs();
+
+  const options = {
+    oldStripAccountId: args.fromId,
+    newStripeAccountId: args.toId,
+    dryRun: !args.notdryrun,
+    limit: args.limit || 1
+  }
+
+  return migrateSubscriptions(options)
   .catch(done)
 }
 
