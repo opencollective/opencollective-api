@@ -85,7 +85,7 @@ const migrateSubscriptions = (options) => {
         }
       })
 
-      // fetch paymentMethod used for this subscription
+      // fetch order with paymentMethod and other info used for this subscription
       .then(() => {
         return models.Order.find({
           where: {
@@ -172,7 +172,7 @@ const migrateSubscriptions = (options) => {
             -- Create customerId on newStripeAccount and update PM
           Case 3: post-v2 subscription and user already has a customer Id on new stripe account
             -- pm.data.CustomerIdForHost[oldStripeAccount.username] is not null and pm.data.CustomerIdForHost[newStripeAccount.username] is not null
-            -- Do nothing in this case
+            -- Nothing needed in terms of Customer Id in this case
         */
 
         if (!customerIdOnOldStripeAccount && !customerIdOnNewStripeAccount) {
@@ -226,14 +226,14 @@ const run = () => {
   parser.addArgument(
     [ '-f', '--fromId'],
     {
-      help: 'Id of Host to move FROM',
+      help: 'Stripe ConnectedAccount Id of Host to move FROM',
       required: true
     }
   );
   parser.addArgument(
-    ['-t', '--toId'],
+    ['-t', '--toHostCollectiveId'],
     {
-      help: 'Id of Host to move TO',
+      help: 'Stripe ConnectedAccount Id of Host to move TO',
       required: true
     }
   );
