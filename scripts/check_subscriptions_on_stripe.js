@@ -8,6 +8,7 @@ import { retrieveSubscription } from '../server/paymentProviders/stripe/gateway'
 
 let inactiveSubscriptionCount = 0;
 let sumAmount = 0;
+let subStatus = {};
 
 const done = (err) => {
   if (err) console.log('err', err);
@@ -47,11 +48,16 @@ const getSubscriptionFromStripe = (order, options) => {
     .then(stripeSubscription => {
       // if reached here, means subscription found
       // Note: when we upgrade stripe API, this will fail. New API returns cancelled subscriptions as well
+      if (stripeSubscription.status in subStatus) {
+        subStatus[stripeSubscription.status] += 1;
+      } else {
+        subStatus[stripeSubscription.status] = 0;
+      }
       return Promise.resolve();
     })
     .catch(err => {
       if (dryRun) {
-        console.log(err)
+        console.log(err.message)
         console.log("dry run, skipping");
         inactiveSubscriptionCount += 1;
         if (order.currency === 'USD' || order.currency === 'EUR') {
@@ -111,6 +117,7 @@ const checkSubscriptions = (options) => {
   })
   .tap(orders => console.log("Total subscriptions to be processed (from -l arg): ", orders.length))
   .then(orders => promiseSeq(orders, (order) => getSubscriptionFromStripe(order, options), options.batchSize))
+  .then(() => console.log("Subscriptions by status: ", subStatus))
   .then(() => console.log("Subscriptions marked inactive: ", inactiveSubscriptionCount))
   .then(() => console.log("Total amount reduced per month (in ~USD): ", sumAmount))
   .then(() => done())
