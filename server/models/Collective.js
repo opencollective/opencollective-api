@@ -545,6 +545,10 @@ export default function(Sequelize, DataTypes) {
       });
   };
 
+  Collective.prototype.getParentCollective = function() {
+    return models.Collective.findById(this.ParentCollectiveId);
+  }
+
   /**
    * Get the Tier object of a user
    * @param {*} user 

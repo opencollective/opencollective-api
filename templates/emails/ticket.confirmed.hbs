@@ -1,4 +1,4 @@
-Subject: {{ response.quantity }} {{{pluralize "ticket" n=response.quantity}}} confirmed for {{ collective.name }}
+Subject: {{ response.quantity }} {{{pluralize "ticket" n=response.quantity}}} confirmed for {{ event.name }}
 
 {{> header}}
 
@@ -10,7 +10,7 @@ Subject: {{ response.quantity }} {{{pluralize "ticket" n=response.quantity}}} co
 <p>Hi!</p>
 {{/if}}
 
-<p>We are excited that you'll be joining us at {{ collective.name }} on {{ moment collective.startsAt timezone=collective.timezone format="MMMM Do YYYY" }} at {{ collective.locationName }} ({{collective.address}}). The event starts at {{ moment collective.startsAt timezone=collective.timezone format="h:mma" }}.</p>
+<p>We are excited that you'll be joining us at {{ event.name }} on {{ moment event.startsAt timezone=event.timezone format="MMMM Do YYYY" }} at {{ event.locationName }} ({{event.address}}). The event starts at {{ moment event.startsAt timezone=event.timezone format="h:mma" }}.</p>
 
 <p>This confirms your {{ response.quantity }} {{{pluralize "ticket" n=response.quantity}}}{{#if donation}} for a total of {{{currency order.totalAmount currency=order.currency}}}{{/if}}. </p>
 
