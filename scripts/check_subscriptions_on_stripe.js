@@ -8,10 +8,13 @@ import { retrieveSubscription } from '../server/paymentProviders/stripe/gateway'
 
 let inactiveSubscriptionCount = 0;
 let sumAmount = 0;
-let subStatus = {};
+const subStatus = {};
 
 const done = (err) => {
   if (err) console.log('err', err);
+  console.log("Subscriptions by status: ", subStatus)
+  console.log("Subscriptions marked inactive: ", inactiveSubscriptionCount)
+  console.log("Total amount reduced per month (in ~USD): ", sumAmount)
   console.log('done!');
   process.exit();
 }
@@ -49,9 +52,16 @@ const getSubscriptionFromStripe = (order, options) => {
       // if reached here, means subscription found
       // Note: when we upgrade stripe API, this will fail. New API returns cancelled subscriptions as well
       if (stripeSubscription.status in subStatus) {
-        subStatus[stripeSubscription.status] += 1;
+        subStatus[stripeSubscription.status].subCount += 1;
+
+        const amountKey = stripeSubscription.plan.currency;
+        if (amountKey in subStatus[stripeSubscription.status]) {
+          subStatus[stripeSubscription.status][amountKey] += stripeSubscription.plan.amount;
+        } else {
+          subStatus[stripeSubscription.status][amountKey] = stripeSubscription.plan.amount;
+        }
       } else {
-        subStatus[stripeSubscription.status] = 0;
+        subStatus[stripeSubscription.status] = { subCount: 0 };
       }
       return Promise.resolve();
     })
@@ -117,9 +127,6 @@ const checkSubscriptions = (options) => {
   })
   .tap(orders => console.log("Total subscriptions to be processed (from -l arg): ", orders.length))
   .then(orders => promiseSeq(orders, (order) => getSubscriptionFromStripe(order, options), options.batchSize))
-  .then(() => console.log("Subscriptions by status: ", subStatus))
-  .then(() => console.log("Subscriptions marked inactive: ", inactiveSubscriptionCount))
-  .then(() => console.log("Total amount reduced per month (in ~USD): ", sumAmount))
   .then(() => done())
   .catch(done)
 }
@@ -183,5 +190,22 @@ const run = () => {
   .then(() => done())
   .catch(done)
 }
+
+const exitHandler = (options, err) => {
+    if (options.cleanup) console.log('clean');
+    if (err) console.log(err.stack);
+    if (options.exit) {
+      console.log("reached here");
+      done();
+      process.exit();
+    }
+}
+
+process.stdin.resume();//so the program will not close instantly
+//do something when app is closing
+//process.on('exit', exitHandler.bind(null, { exit: true}));
+
+//catches ctrl+c event
+process.on('SIGINT', exitHandler.bind(null, {exit:true}));
 
 run();
