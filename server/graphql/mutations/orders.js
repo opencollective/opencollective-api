@@ -204,7 +204,7 @@ export function createOrder(_, args, req) {
         return orderCreated
           .setPaymentMethod(order.paymentMethod)
           .then(() => executeOrder(req.remoteUser || user, orderCreated, pick(order, ['hostFeePercent', 'platformFeePercent']))) // also adds the user as a BACKER of collective
-      } else {
+      } else if (collective.type === types.EVENT) {
         // Free ticket, add user as an ATTENDEE
         const email = (req.remoteUser) ? req.remoteUser.email : args.order.user.email;
         return collective.addUserWithRole(user, roles.ATTENDEE)
