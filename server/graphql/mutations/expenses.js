@@ -129,6 +129,9 @@ export async function editExpense(remoteUser, expenseData) {
     || expenseData.attachment !== expense.attachment) {
 
     expenseData.status = statuses.PENDING;
+  } else {
+    // make sure that we don't override the status of the expense.
+    delete expenseData.status;
   }
 
   const res = await expense.update(expenseData);
