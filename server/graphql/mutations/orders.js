@@ -204,16 +204,20 @@ export function createOrder(_, args, req) {
         return orderCreated
           .setPaymentMethod(order.paymentMethod)
           .then(() => executeOrder(req.remoteUser || user, orderCreated, pick(order, ['hostFeePercent', 'platformFeePercent']))) // also adds the user as a BACKER of collective
-      } else {
+      } else if (collective.type === types.EVENT) {
         // Free ticket, add user as an ATTENDEE
         const email = (req.remoteUser) ? req.remoteUser.email : args.order.user.email;
         return collective.addUserWithRole(user, roles.ATTENDEE)
-          .then(() => emailLib.send('ticket.confirmed', email, {
-          recipient: { name: fromCollective.name },
-          collective: collective.info,
-          order: orderCreated.info,
-          tier: tier && tier.info
-        }));
+          .then(async () => {
+            const parentCollective = await collective.getParentCollective();
+            return emailLib.send('ticket.confirmed', email, {
+              recipient: { name: fromCollective.name },
+              event: collective.info,
+              collective: parentCollective.info,
+              order: orderCreated.info,
+              tier: tier && tier.info
+            })
+        });
       }
     })
     // make sure we return the latest version of the Order Instance
