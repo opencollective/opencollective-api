@@ -327,7 +327,7 @@ export default function(Sequelize, DataTypes) {
           mission: this.mission,
           tags: this.tags,
           locationName: this.locationName,
-          image: this.previewImage() // Useful for displaying in results
+          image: this.previewImage // Useful for displaying in results
         }
       },
     },
