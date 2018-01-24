@@ -43,6 +43,12 @@ export default function(Sequelize, DataTypes) {
     return Promise.map(notifications, u => Notification.create(_.defaults({},u,defaultValues))).catch(console.error);
   };
 
+  Notification.subscribeCollectiveWithRole = (collective, CollectiveId, role) => {
+    return collective.getAdminUsers().then(adminUsers => {
+      return Promise.each(adminUsers, adminUser => Notification.subscribeUserWithRole(adminUser.id, CollectiveId, role));
+    });
+  }
+
   Notification.subscribeUserWithRole = (UserId, CollectiveId, role) => {
 
     if (!UserId) {
@@ -71,7 +77,7 @@ export default function(Sequelize, DataTypes) {
         break;
     }
 
-    Promise.map(notifications, (notification) => {
+    return Promise.map(notifications, (notification) => {
       return models.Notification
         .create({ ...notification, UserId: UserId, CollectiveId: CollectiveId, channel: 'email' })
         .catch(e => console.error(e.name, `User ${UserId} is already subscribed to ${notification.type}`))
@@ -132,6 +138,21 @@ export default function(Sequelize, DataTypes) {
       if (!subscribers) return getSubscribersForMailingList(mailinglist)
       else return subscribers;
     });
+  }
+
+  /**
+   * Get an array of all the UserId that have unsubscribed from the `notificationType` notification for (optional) CollectiveId
+   * @param {*} notificationType 
+   * @param {*} CollectiveId (optional)
+   */
+  Notification.getUnsubscribers = (notificationType, CollectiveId) => {
+    return models.Notification.findAll({
+      where: {
+        CollectiveId: CollectiveId,
+        type: notificationType,
+        active: false
+      }
+    }).then(us => us.map(us => us.UserId));
   }
 
   return Notification;

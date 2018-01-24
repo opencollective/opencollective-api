@@ -425,10 +425,12 @@ export default function(Sequelize, DataTypes) {
     }).map(member => member.memberCollective);
   }
 
-  Collective.prototype.getEmails = async function() {
+  /**
+   * Get the admin users { id, email } of this collective
+   */
+  Collective.prototype.getAdminUsers = async function() {
     if (this.type === 'USER') {
-      const user = await this.getUser();
-      return [user.email];
+      return [await this.getUser()];
     }
     const admins = await models.Member.findAll({
       where: {
@@ -436,8 +438,15 @@ export default function(Sequelize, DataTypes) {
         role: roles.ADMIN
       }
     });
-    const emails = await Promise.map(admins, admin => models.User.findOne({ where: { CollectiveId: admin.MemberCollectiveId }}).then(u => u.email));
-    return emails;
+    const users = await Promise.map(admins, admin => models.User.findOne({ where: { CollectiveId: admin.MemberCollectiveId }}));
+    return users;
+  }
+
+  /**
+   * Get the email addresses of the admins of this collective
+   */
+  Collective.prototype.getEmails = async function() {
+    return this.getAdminUsers().then(users => users.map(u => u && u.email));
   }
 
   Collective.prototype.getEvents = function(query = {}) {
@@ -584,6 +593,10 @@ export default function(Sequelize, DataTypes) {
    */
   Collective.prototype.addUserWithRole = function(user, role, defaultAttributes) {
 
+    if (role === roles.HOST) {
+      return console.error("Please use Collective.addHost(hostCollective, remoteUser);");
+    }
+
     models.Notification.subscribeUserWithRole(user.id, this.id, role);
 
     const member = {
@@ -606,9 +619,6 @@ export default function(Sequelize, DataTypes) {
       const memberUser = results[2];
 
       switch (role) {
-        case roles.HOST:
-          return this.update({ HostCollectiveId: user.CollectiveId });
-
         case roles.BACKER:
         case roles.ATTENDEE:
         case roles.FOLLOWER:
@@ -695,17 +705,22 @@ export default function(Sequelize, DataTypes) {
     });
   };
 
+  /**
+   * Add the host in the Members table and updates HostCollectiveId
+   * @param {*} hostCollective instanceof models.Collective
+   * @param {*} creatorUser { id } (optional, falls back to hostCollective.CreatedByUserId)
+   */
   Collective.prototype.addHost = function(hostCollective, creatorUser) {
 
-    models.Notification.subscribeUserWithRole(creatorUser.id, this.id, roles.HOST);
+    models.Notification.subscribeCollectiveWithRole(hostCollective, this.id, roles.HOST);
 
     const member = {
       role: roles.HOST,
-      CreatedByUserId: creatorUser.id,
+      CreatedByUserId: creatorUser ? creatorUser.id : hostCollective.CreatedByUserId,
       MemberCollectiveId: hostCollective.id,
       CollectiveId: this.id,
     };
-
+    this.update({ HostCollectiveId: hostCollective.id });
     return models.Member.create(member);
   };
 
