@@ -4,10 +4,8 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import config from 'config';
-import moment from 'moment';
 import Promise from 'bluebird';
 
-import { decrypt, encrypt } from '../lib/utils';
 import errors from '../lib/errors';
 import userLib from '../lib/userlib';
 import knox from '../gateways/knox';
@@ -241,40 +239,6 @@ export default (Sequelize, DataTypes) => {
     });
   };
 
-  User.prototype.hasMissingInfo = function() {
-    return !(this.firstName && this.image);
-  };
-
-  User.prototype.encryptId = function() {
-    return encrypt(String(this.id));
-  };
-
-  User.prototype.generateResetUrl = function(plainToken) {
-    const encId = this.encryptId();
-    return `${config.host.webapp}/reset/${encId}/${plainToken}/`;
-  };
-
-  User.prototype.checkResetToken = function(token, cb) {
-    const today = moment();
-    const resetPasswordSentAt = moment(this.resetPasswordSentAt);
-    const daysDifference = today.diff(resetPasswordSentAt, 'days');
-
-    if (daysDifference > 0) {
-      return cb(new errors.BadRequest('The reset token has expired'));
-    }
-
-    if (!this.resetPasswordTokenHash) {
-      return cb(new errors.BadRequest('The reset token does not exist'))
-    }
-
-    bcrypt.compare(token, this.resetPasswordTokenHash, (err, matched) => {
-      if (err) return cb(err);
-      if (!matched) return cb(new errors.BadRequest('The reset token is invalid'));
-
-      cb();
-    });
-  };
-
   User.prototype.generateLoginLink = function(redirect) {
     const expiresInHours = 24*30;
     const token = this.jwt({ scope: 'login' }, expiresInHours);
@@ -295,13 +259,6 @@ export default (Sequelize, DataTypes) => {
       ...options
     };
     return models.Member.findAll(query);
-  };
-
-  User.prototype.getCollectives = function(options = {}) {
-    return this.getMemberships({
-      ... options,
-      include: [ { model: models.Collective, as: 'collective' } ]
-    }).map(membership => membership.collective);
   };
 
   User.prototype.unsubscribe = function(CollectiveId, type, channel = 'email') {
@@ -499,10 +456,6 @@ export default (Sequelize, DataTypes) => {
       });
     })
     .catch(cb);
-  };
-
-  User.decryptId = (encrypted) => {
-    return decrypt(encrypted);
   };
 
   User.findOrCreateByEmail = (email, otherAttributes) => {
