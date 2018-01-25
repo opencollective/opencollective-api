@@ -89,17 +89,6 @@ export const create = (req, res, next) => {
 };
 
 /**
- * Get token.
- */
-export const getToken = (req, res) => {
-  res.send({
-    access_token: req.user.jwt(),
-    refresh_token: req.user.refresh_token
-  });
-};
-
-
-/**
  * For the case when a user has submitted an expired token,
  * we can automatically detect the email address and send a refreshed token.
  */
