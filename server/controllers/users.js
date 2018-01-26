@@ -1,3 +1,4 @@
+import * as auth from '../lib/auth';
 import userLib from '../lib/userlib';
 import constants from '../constants/activities';
 import emailLib from '../lib/email';
@@ -162,7 +163,17 @@ export const signin = (req, res, next) => {
     })
     .then(response => res.send(response))
     .catch(next);
-}
+};
+
+/**
+ * Receive a JWT and generate another one.
+ *
+ * This can be used right after the first login
+ */
+export const updateToken = async (req, res) => {
+  const token = req.remoteUser.jwt({}, auth.TOKEN_EXPIRATION_SESSION);
+  res.send({ token });
+};
 
 /**
  * Deprecated (for old website)

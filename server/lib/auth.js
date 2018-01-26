@@ -1,10 +1,12 @@
-import jwt from 'jsonwebtoken';
 import config from 'config';
+import jwt from 'jsonwebtoken';
+import moment from 'moment';
 import models from '../models';
 import Promise from 'bluebird';
 
 /* These constants are all using seconds */
 export const TOKEN_EXPIRATION_LOGIN = 5 * 60;
+export const TOKEN_EXPIRATION_SESSION = moment.duration({ days: "30" }).asSeconds();
 
 /** Generate a JWToken with the received parameters */
 export function createJwt(subject, payload, expiresIn) {
