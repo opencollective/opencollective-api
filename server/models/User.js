@@ -239,8 +239,8 @@ export default (Sequelize, DataTypes) => {
   };
 
   User.prototype.generateConnectedAccountVerifiedToken = function(connectedAccountId, username) {
-    const expiresInHours = 24;
-    return this.jwt({ scope: 'connected-account', connectedAccountId, username }, expiresInHours);
+    const payload = { scope: 'connected-account', connectedAccountId, username };
+    return this.jwt(payload, auth.TOKEN_EXPIRATION_CONNECTED_ACCOUNT);
   };
 
   User.prototype.getMemberships = function(options = {}) {

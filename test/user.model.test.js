@@ -160,6 +160,23 @@ describe('user.models.test.js', () => {
     });
   });
 
+  describe('#generateConnectedAccountVerifiedToken', () => {
+    it('generates a valid token with right expiration time', async () => {
+      // Given a user instance with a mocked `jwt` method
+      const user = await User.create({ email: 'foo@oc.com', password: '123456' });
+      const mockUser = sinon.stub(user, 'jwt', (payload, expiration) => ({ payload, expiration }));
+
+      // When an account verification link is created
+      const output = user.generateConnectedAccountVerifiedToken(1, 'user');
+
+      // Then the expiration time should match with a constant
+      expect(output.expiration).to.equal(auth.TOKEN_EXPIRATION_CONNECTED_ACCOUNT);
+
+      // And then restore the mocked object
+      mockUser.restore();
+    });
+  });
+
   describe('class methods', () => {
 
     beforeEach(() => utils.resetTestDB());

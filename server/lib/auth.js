@@ -4,9 +4,13 @@ import moment from 'moment';
 import models from '../models';
 import Promise from 'bluebird';
 
-/* These constants are all using seconds */
-export const TOKEN_EXPIRATION_LOGIN = 5 * 60;
-export const TOKEN_EXPIRATION_SESSION = moment.duration({ days: "30" }).asSeconds();
+// Helper
+const daysToSeconds = (days) => moment.duration({ days }).asSeconds();
+
+/* Constants that determin token expiration */
+export const TOKEN_EXPIRATION_LOGIN = daysToSeconds(1);
+export const TOKEN_EXPIRATION_CONNECTED_ACCOUNT = daysToSeconds(1);
+export const TOKEN_EXPIRATION_SESSION = daysToSeconds(30);
 
 /** Generate a JWToken with the received parameters */
 export function createJwt(subject, payload, expiresIn) {
