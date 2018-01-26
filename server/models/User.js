@@ -2,10 +2,10 @@
  * Dependencies.
  */
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
 import config from 'config';
 import Promise from 'bluebird';
 
+import * as auth from '../lib/auth';
 import errors from '../lib/errors';
 import userLib from '../lib/userlib';
 import knox from '../gateways/knox';
@@ -220,29 +220,21 @@ export default (Sequelize, DataTypes) => {
   /**
    * Instance Methods
    */
-  User.prototype.jwt = function(payload, expiresInHours) {
-    const { secret } = config.keys.opencollective;
-    expiresInHours = expiresInHours || 24*30; // 1 month
+  User.prototype.jwt = function(payload, expiration) {
+    expiration = expiration || auth.TOKEN_EXPIRATION_LOGIN;
 
     // We are sending too much data (large jwt) but the app and website
-    // need the id and email. We will refactor that progressively to have
-    // a smaller token.
+    // need the id and email. We will refactor that progressively to
+    // have a smaller token.
     const data = extend({}, payload, {
       id: this.id,
       email: this.email
     });
-
-    return jwt.sign(data, secret, {
-      expiresIn: 60 * 60 * expiresInHours,
-      subject: this.id, // user
-      issuer: config.host.api
-    });
+    return auth.createJwt(this.id, data, expiration);
   };
 
   User.prototype.generateLoginLink = function(redirect) {
-    const expiresInHours = 24*30;
-    const token = this.jwt({ scope: 'login' }, expiresInHours);
-
+    const token = this.jwt({ scope: 'login' });
     return `${config.host.website}/signin/${token}?next=${redirect}`;
   };
 

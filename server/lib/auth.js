@@ -1,5 +1,22 @@
+import jwt from 'jsonwebtoken';
+import config from 'config';
 import models from '../models';
 import Promise from 'bluebird';
+
+/* These constants are all using seconds */
+export const TOKEN_EXPIRATION_LOGIN = 5 * 60;
+
+/** Generate a JWToken with the received parameters */
+export function createJwt(subject, payload, expiresIn) {
+  const { secret } = config.keys.opencollective;
+  const issuer = config.host.api;
+  return jwt.sign(payload, secret, { expiresIn, issuer, subject });
+}
+
+/** Verify JWToken */
+export function verifyJwt(token) {
+  return jwt.verify(token, config.keys.opencollective.secret);
+}
 
 /**
  * Returns the subset of UserCollectiveIds that the remoteUser has access to
@@ -16,6 +33,5 @@ export function getListOfAccessibleUsers(remoteUser, UserCollectiveIds) {
       CollectiveId: { $in: adminOfCollectives }
     },
     group: ['MemberCollectiveId']
-  })
-  .then(results => results.map(r => r.MemberCollectiveId))
+  }).then(results => results.map(r => r.MemberCollectiveId));
 }

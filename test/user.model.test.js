@@ -1,7 +1,11 @@
 import sinon from 'sinon';
+import config from 'config';
+import url from 'url';
 import {expect} from 'chai';
 import * as utils from '../test/utils';
+
 import models from '../server/models';
+import * as auth from '../server/lib/auth';
 
 const userData = utils.data('user1');
 
@@ -106,6 +110,54 @@ describe('user.models.test.js', () => {
       });
     });
 
+  });
+
+  describe('#jwt', () => {
+    // Ensure the date will start at 0 instead of starting at epoch so
+    // date related things can be tested
+    let clock;
+    beforeEach(() => clock = sinon.useFakeTimers());
+    afterEach(() => clock.restore());
+
+    it('should generate valid JWTokens with user data', async () => {
+      // Given a user instance
+      const user = await User.create({ email: 'foo@oc.com', password: '123456' });
+
+      // When the token is generated
+      const token = user.jwt();
+
+      // Then the token should be valid
+      const decoded = auth.verifyJwt(token);
+
+      // And then the decoded token should contain the user data
+      expect(decoded.sub).to.equal(user.id);
+      expect(decoded.id).to.equal(user.id);
+      expect(decoded.email).to.equal('foo@oc.com');
+
+      // And then the default expiration of the token should have a
+      // short life time
+      expect(decoded.exp).to.equal(auth.TOKEN_EXPIRATION_LOGIN);
+    });
+  });
+
+  describe('#generateLoginLink', () => {
+    it('contains the right base URL from config and the right query parameter', async () => {
+      // Given a user instance with a mocked `jwt` method
+      const user = await User.create({ email: 'foo@oc.com', password: '123456' });
+      const mockUser = sinon.stub(user, 'jwt', () => 'foo');
+
+      // When a login link is created
+      const link = user.generateLoginLink('/path/to/redirect');
+
+      // Then the link should contain the right url
+      const parsed = url.parse(link);
+      expect(`${parsed.protocol}//${parsed.host}`).to.equal(config.host.website);
+      expect(parsed.query).to.equal('next=/path/to/redirect');
+      expect(parsed.pathname).to.equal('/signin/foo');
+
+      // And Then restore the mock
+      mockUser.restore();
+    });
   });
 
   describe('class methods', () => {
