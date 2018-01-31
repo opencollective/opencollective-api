@@ -5,6 +5,7 @@ import models from '../models';
 import emailLib from './email';
 import { types } from '../constants/collectives';
 import paymentProviders from '../paymentProviders';
+import * as libsubscription from './subscriptions';
 
 export async function processOrder(order, options) {
   const provider = order.paymentMethod ? order.paymentMethod.service : 'manual';
@@ -46,11 +47,18 @@ export const executeOrder = (user, order, options) => {
   return order.populate()
     .then(() => {
       if (payment.interval) {
-        return models.Subscription.create(payment)
-          .then(subscription => {
-            order.subscription = subscription;
-            return order.update({ SubscriptionId: subscription.id });
-          })
+        return models.Subscription.create(payment).then(subscription => {
+          // The order instance doesn't have the Subscription field
+          // here because it was just created and no models were
+          // included so we're doing that manually here. Not the
+          // cutest but works.
+          order.Subscription = subscription;
+          libsubscription.updateNextChargeDate('success', order); // No DB access
+          subscription.activate();
+          return subscription;
+        }).then((subscription) => {
+          return order.update({ SubscriptionId: subscription.id });
+        })
       }
     })
     .then(() => {
