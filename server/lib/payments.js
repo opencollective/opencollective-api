@@ -4,7 +4,14 @@ import { includes, pick, get } from 'lodash';
 import models from '../models';
 import emailLib from './email';
 import { types } from '../constants/collectives';
-import * as paymentProviders from '../paymentProviders';
+import paymentProviders from '../paymentProviders';
+
+export async function processOrder(order, options) {
+  const provider = order.paymentMethod ? order.paymentMethod.service : 'manual';
+  const methodType = order.paymentMethod.type || 'default';
+  const method = paymentProviders[provider].types[methodType]; // eslint-disable-line import/namespace
+  return await method.processOrder(order, options);
+}
 
 /**
  * Execute an order as user using paymentMethod
@@ -47,8 +54,7 @@ export const executeOrder = (user, order, options) => {
       }
     })
     .then(() => {
-      const paymentProvider = (order.paymentMethod) ? order.paymentMethod.service : 'manual';
-      return paymentProviders[paymentProvider].types[order.paymentMethod.type || 'default'].processOrder(order, options)  // eslint-disable-line import/namespace
+      return processOrder(order, options)
         .tap(async () => {
           if (!order.matchingFund) return;
           const matchingFundCollective = await models.Collective.findById(order.matchingFund.CollectiveId);

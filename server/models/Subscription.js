@@ -26,6 +26,12 @@ export default (Sequelize, DataTypes) => {
       defaultValue: false
     },
 
+    nextChargeDate: DataTypes.DATE,
+
+    nextPeriodStart: DataTypes.DATE,
+
+    chargeRetryCount: DataTypes.INTEGER,
+
     data: DataTypes.JSON,
 
     stripeSubscriptionId: DataTypes.STRING,
