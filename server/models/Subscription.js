@@ -1,4 +1,5 @@
 import CustomDataTypes from './DataTypes';
+import Temporal from 'sequelize-temporal';
 
 export default (Sequelize, DataTypes) => {
 
@@ -57,6 +58,7 @@ export default (Sequelize, DataTypes) => {
     return this.save();
   };
 
+  Temporal(Subscription, Sequelize);
   return Subscription;
 };
 
