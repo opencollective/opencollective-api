@@ -4,6 +4,7 @@ import moment from 'moment';
 import { ArgumentParser } from 'argparse';
 
 import * as payments from '../server/lib/payments';
+import emailLib from '../server/lib/email';
 import { promiseSeq } from '../server/lib/utils';
 import { sequelize } from '../server/models';
 import {
@@ -19,6 +20,8 @@ const csvFields = [
   'amount',
   'from',
   'to',
+  'status',
+  'error',
   'retriesBefore',
   'retriesAfter',
   'chargeDateBefore',
@@ -44,6 +47,8 @@ async function processOrderWithSubscription(options, order) {
     amount: order.totalAmount,
     from: order.fromCollective.slug,
     to: order.collective.slug,
+    status: null,
+    error: null,
     retriesBefore: order.Subscription.chargeRetryCount,
     retriesAfter: null,
     chargeDateBefore: dateFormat(order.Subscription.nextCharge),
@@ -59,12 +64,14 @@ async function processOrderWithSubscription(options, order) {
       status = 'success';
     } catch (error) {
       status = 'failure';
+      csvEntry.error = error;
     }
   }
 
   updateNextChargeDate(status, order);
   updateChargeRetryCount(status, order);
 
+  csvEntry.status = status;
   csvEntry.retriesAfter = order.Subscription.chargeRetryCount;
   csvEntry.chargeDateAfter = dateFormat(order.Subscription.nextChargeDate);
   csvEntry.nextPeriodStartAfter = dateFormat(order.Subscription.nextPeriodStart);
@@ -79,6 +86,7 @@ async function processOrderWithSubscription(options, order) {
 
 /** Run the script with parameters read from the command line */
 async function run(options) {
+  const start = new Date;
   const orders = await ordersWithPendingCharges();
   vprint(options, `${orders.length} subscriptions pending charges. dryRun: ${options.dryRun}`);
   const data = [];
@@ -99,6 +107,24 @@ async function run(options) {
   } else {
     vprint(options, 'Not generating CSV file');
   }
+  if (!options.dryRun) {
+    vprint(options, 'Sending email report');
+    await emailReport(start, orders, data);
+  }
+}
+
+async function emailReport(start, orders, data) {
+  let issuesFound = false;
+  const result = [`Total Subscriptions pending charges found: ${orders.length}\n`];
+
+  data.map((i) => {
+    if (i.status !== null) issuesFound = true;
+    return [i.orderId, i.subscriptionId, i.amount, i.from, i.to, i.status].join('');
+  });
+
+  result.push("\n\nTotal time taken: ", new Date() - start, "ms");
+  const subject = `${issuesFound ? '❌' : '✅'} Daily Subscription Report - ${(new Date()).toLocaleDateString()}`;
+  return emailLib.sendMessage('ops@opencollective.com', subject, '', { bcc: ' ', text: result.join('\n') });
 }
 
 /** Print `message` to console if `options.verbose` is true */
