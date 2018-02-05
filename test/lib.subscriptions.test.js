@@ -29,7 +29,7 @@ describe('LibSubscription', () => {
       };
 
       // When dates are updated with success
-      updateNextChargeDate('success', order);
+      updateNextChargeDate('new', order);
 
       // Then both dates should be advanced to the first day of the
       // next month
@@ -50,7 +50,7 @@ describe('LibSubscription', () => {
       };
 
       // When dates are updated with success
-      updateNextChargeDate('success', order);
+      updateNextChargeDate('new', order);
 
       // Then both dates should be advanced
       expect(order.Subscription.nextPeriodStart.getTime())
@@ -92,8 +92,8 @@ describe('LibSubscription', () => {
       const order = {
         Subscription: {
           interval: 'month',
-          nextPeriodStart: new Date("2018-01-29 0:0"),
-          nextChargeDate: new Date("2018-02-01 0:0")
+          nextPeriodStart: new Date("2018-01-20 0:0"),
+          nextChargeDate: new Date("2018-01-22 0:0")
         }
       };
 
@@ -103,9 +103,9 @@ describe('LibSubscription', () => {
       // Then both dates should be updated based on nextPeriodStart
       // rather than nextChargeDate
       expect(order.Subscription.nextPeriodStart.getTime())
-        .to.equal((new Date("2018-02-01 0:0")).getTime());
+        .to.equal((new Date("2018-02-20 0:0")).getTime());
       expect(order.Subscription.nextChargeDate.getTime())
-        .to.equal((new Date("2018-02-01 0:0")).getTime());
+        .to.equal((new Date("2018-02-20 0:0")).getTime());
     });
 
     it("should use the createdAt field when `nextChargeDate` is null", () => {
@@ -120,7 +120,7 @@ describe('LibSubscription', () => {
       };
 
       // When dates are updated with success
-      updateNextChargeDate('success', order);
+      updateNextChargeDate('new', order);
 
       // Then both dates should be updated according to createdAt
       expect(order.Subscription.nextPeriodStart.getTime())

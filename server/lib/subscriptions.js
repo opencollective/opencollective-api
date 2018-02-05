@@ -66,18 +66,23 @@ export async function handleRetryStatus(order, transaction) {
  * subscription can be charged again. Currently supported status
  * values:
  *
- *   1. success: 1st day of the next month for monthly, 1st day of the
+ *   0. new: 1st day of the next month for monthly, 1st day of the
  *      same month of the next year for yearly.
+ *   1. success: Increment date by 1 month for monthly or 1 year for
+ *      yearly subscriptions
  *   2. failure: Two days after today.
  */
 export function updateNextChargeDate(status, order) {
   const initial = order.Subscription.nextPeriodStart || order.Subscription.createdAt;
   let nextDate = moment(initial);
-  if (status === 'success') {
+  if (status === 'new' || status === 'success') {
     if (order.Subscription.interval === 'month') {
-      nextDate.add(1, 'months').startOf('month');
+      nextDate.add(1, 'months');
     } else if (order.Subscription.interval === 'year') {
-      nextDate.add(1, 'years').startOf('month');
+      nextDate.add(1, 'years');
+    }
+    if (status === 'new') {
+      nextDate.startOf('month');
     }
     order.Subscription.nextPeriodStart = nextDate.toDate();
   } else if (status === 'failure') {

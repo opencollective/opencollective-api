@@ -13,21 +13,25 @@ const csvFields = [
   'localSubscriptionId',
   'stripeSubscriptionId',
   'stripeStatus',
-  'newDate',
-  'newDateHuman',
+  'nextChargeDate',
+  'nextChargeDateHuman',
+  'nextPeriodStart',
+  'nextPeriodStartHuman',
   'state',
   'error',
 ];
 
 
-function successLine(order, stripeStatus, newDate) {
+function successLine(order, stripeStatus, nextChargeDate, nextPeriodStart) {
   return {
     orderId: order.id,
     localSubscriptionId: order.Subscription.id,
     stripeSubscriptionId: order.Subscription.stripeSubscriptionId,
     stripeStatus,
-    newDate,
-    newDateHuman: newDate ? moment(newDate * 1000).format() : newDate,
+    nextChargeDate,
+    nextChargeDateHuman: nextChargeDate ? moment(nextChargeDate * 1000).format() : null,
+    nextPeriodStart,
+    nextPeriodStartHuman: nextPeriodStart ? moment(nextPeriodStart * 1000).format() : null,
     state: 'done',
     error: ''
   };
@@ -39,48 +43,46 @@ function errorLine(order, state, error) {
     localSubscriptionId: order.Subscription.id,
     stripeSubscriptionId: order.Subscription.stripeSubscriptionId,
     stripeStatus: '',
-    newDate: '',
-    newDateHuman: '',
+    nextChargeDate: '',
+    nextChargeDateHuman: '',
+    nextPeriodStart: '',
+    nextPeriodStartHuman: '',
     state,
     error: error.message
   };
 }
 
 async function updateLocalSubscription(order, stripeSubscription) {
-  let date;
-  switch (stripeSubscription.status) {
+  let nextChargeDate, nextPeriodStart;
+  const status = stripeSubscription.status;
+
+  switch (status) {
   case 'trialing':
-    date = stripeSubscription.trial_end;
+    nextChargeDate = nextPeriodStart = stripeSubscription.trial_end;
     break;
   case 'active':
-    date = stripeSubscription.current_period_end;
+    nextChargeDate = nextPeriodStart = stripeSubscription.current_period_end;
     break;
   case 'past_due':
-    if (stripeSubscription.trial_end) {
-      date = stripeSubscription.trial_end;
-    } else {
-      date = stripeSubscription.current_period_end;
-    }
-    break;
   case 'unpaid':
-    date = stripeSubscription.current_period_end;
+    nextChargeDate = Math.floor((new Date).getTime() / 1000); // In milliseconds
+    nextPeriodStart = stripeSubscription.current_period_end;
     break;
   case 'cancelled':
     // cancel the subscription in our DB
-    date = null;
+    nextChargeDate = nextPeriodStart = null;
     break;
   }
 
-  if (date) {
-    // Initialize both dates with the same value
-    order.Subscription.nextChargeDate = new Date(date * 1000);
-    order.Subscription.nextPeriodStart = new Date(date * 1000);
+  if (nextChargeDate && nextPeriodStart) {
+    order.Subscription.nextChargeDate = new Date(nextChargeDate * 1000);
+    order.Subscription.nextPeriodStart = new Date(nextPeriodStart * 1000);
   } else {
     // Cancel the subscription
     order.Subscription.isActive = false;
     order.Subscription.deactivatedAt = new Date;
   }
-  return { status: stripeSubscription.status, date };
+  return { status, nextChargeDate, nextPeriodStart };
 }
 
 /** Update subscription database entry with data from stripe.
@@ -125,7 +127,7 @@ async function eachOrder(order, options) {
   }
 
   // All good, just save important info
-  return successLine(order, updates.status, updates.date);
+  return successLine(order, updates.status, updates.nextChargeDate, updates.nextPeriodStart);
 }
 
 /** Run the script with parameters read from the command line */
@@ -144,7 +146,7 @@ async function run(options) {
   }, options.batchSize);
 
   if (data.length > 0) {
-    json2csv({ data, csvFields }, (err, csv) => {
+    json2csv({ data, fields: csvFields }, (err, csv) => {
       vprint(options, 'Writing the output to a CSV file');
       if (err) console.log(err);
       else fs.writeFileSync('move_subscriptions_from_stripe.output.csv', csv);

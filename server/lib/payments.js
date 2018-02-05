@@ -53,7 +53,7 @@ export const executeOrder = (user, order, options) => {
           // included so we're doing that manually here. Not the
           // cutest but works.
           order.Subscription = subscription;
-          libsubscription.updateNextChargeDate('success', order); // No DB access
+          libsubscription.updateNextChargeDate('new', order); // No DB access
           return subscription.save();
         }).then((subscription) => {
           return order.update({ SubscriptionId: subscription.id });
