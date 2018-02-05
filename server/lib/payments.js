@@ -54,8 +54,7 @@ export const executeOrder = (user, order, options) => {
           // cutest but works.
           order.Subscription = subscription;
           libsubscription.updateNextChargeDate('success', order); // No DB access
-          subscription.activate();
-          return subscription;
+          return subscription.save();
         }).then((subscription) => {
           return order.update({ SubscriptionId: subscription.id });
         })
@@ -101,7 +100,13 @@ export const executeOrder = (user, order, options) => {
         order.transaction = transaction;
         sendOrderConfirmedEmail(order); // async
       }
-      return null;
+      return transaction;
+    })
+    .tap(async (transaction) => {
+      // Credit card charges are synchronous. If the transaction is
+      // created here it means that the payment went through so it's
+      // safe to enable subscriptions after this.
+      if (payment.interval && transaction) await order.Subscription.activate();
     });
 }
 
