@@ -158,7 +158,7 @@ async function run(options) {
 async function findStripeSubscriptions() {
   return models.Order.findAll({
     order: ['id'],
-    where: { SubscriptionId: { [Op.eq]: null } },
+    where: { SubscriptionId: { [Op.ne]: null } },
     include: [{
       model: models.Subscription,
       where: {
