@@ -64,7 +64,7 @@ async function processOrderWithSubscription(options, order) {
       status = 'success';
     } catch (error) {
       status = 'failure';
-      csvEntry.error = error;
+      csvEntry.error = error.message;
     }
   }
 
@@ -99,7 +99,7 @@ async function run(options) {
   }, options.batchSize);
 
   if (data.length > 0) {
-    json2csv({ data, csvFields }, (err, csv) => {
+    json2csv({ data, fields: csvFields }, (err, csv) => {
       vprint(options, 'Writing the output to a CSV file');
       if (err) console.log(err);
       else fs.writeFileSync('charge_subscriptions.output.csv', csv);
