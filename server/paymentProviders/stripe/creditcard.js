@@ -6,9 +6,7 @@ import * as constants from '../../constants/transactions';
 import roles from '../../constants/roles';
 import * as stripeGateway from './gateway';
 import { planId } from '../../lib/utils';
-import debugLib from 'debug';
-
-const debug = debugLib("stripecc");
+import errors from '../../lib/errors';
 
 /**
  * Calculates the 1st of next month
@@ -163,9 +161,8 @@ export default {
        this one because it could flag a subscription that wasn't
        migrated to the new system.  */
     if (planId(stripeSubscription.plan) === stripeSubscription.plan.id) {
-      debug("fetchEvent",
-            "Stripe Subscription. It should have been migrated",
-            stripeSubscription.id);
+      return Promise.reject(
+        new errors.BadRequest('Subscription not migrated ${stripeSubscription.id}'));
     }
     /* We return 200 because Stripe can keep pinging us if we don't do
        so for some events. */
