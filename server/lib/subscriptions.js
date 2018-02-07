@@ -4,6 +4,7 @@ import { Op } from 'sequelize';
 
 import models from '../models';
 import emailLib from './email';
+import * as paymentsLib from './payments';
 
 /** Maximum number of attempts before an order gets cancelled. */
 export const MAX_RETRIES = 3;
@@ -31,6 +32,60 @@ export async function ordersWithPendingCharges() {
         }
       }]
   });
+}
+
+/** Process order and trigger result handlers.
+ *
+ * Uses `lib.payments.processOrder()` to charge subscription and
+ * handle both success and failure of that processing.
+ */
+export async function processOrderWithSubscription(options, order) {
+  const csvEntry = {
+    orderId: order.id,
+    subscriptionId: order.Subscription.id,
+    amount: order.totalAmount,
+    from: order.fromCollective.slug,
+    to: order.collective.slug,
+    status: null,
+    error: null,
+    retriesBefore: order.Subscription.chargeRetryCount,
+    retriesAfter: null,
+    chargeDateBefore: dateFormat(order.Subscription.nextCharge),
+    chargeDateAfter: null,
+    nextPeriodStartBefore: dateFormat(order.Subscription.nextPeriodStart),
+    nextPeriodStartAfter: null
+  };
+
+  let status = 'unattempted', transaction;
+  if (!options.dryRun) {
+    try {
+      transaction = await paymentsLib.processOrder(order);
+      status = 'success';
+    } catch (error) {
+      status = 'failure';
+      csvEntry.error = error.message;
+    }
+  }
+
+  updateNextChargeDate(status, order);
+  updateChargeRetryCount(status, order);
+
+  csvEntry.status = status;
+  csvEntry.retriesAfter = order.Subscription.chargeRetryCount;
+  csvEntry.chargeDateAfter = dateFormat(order.Subscription.nextChargeDate);
+  csvEntry.nextPeriodStartAfter = dateFormat(order.Subscription.nextPeriodStart);
+
+  if (!options.dryRun) {
+    await handleRetryStatus(order, transaction);
+    await order.Subscription.save();
+  }
+
+  return csvEntry;
+}
+
+/** Standard way to format dates in this script */
+function dateFormat(date) {
+  return moment(date).format();
 }
 
 /** Handle processing result.

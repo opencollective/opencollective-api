@@ -1,6 +1,5 @@
 import fs from 'fs';
 import json2csv from 'json2csv';
-import moment from 'moment';
 import { ArgumentParser } from 'argparse';
 
 import * as payments from '../server/lib/payments';
@@ -9,11 +8,16 @@ import { promiseSeq } from '../server/lib/utils';
 import { sequelize } from '../server/models';
 import {
   ordersWithPendingCharges,
+  processOrderWithSubscription,
   updateNextChargeDate,
   updateChargeRetryCount,
   handleRetryStatus,
 } from '../server/lib/subscriptions';
 
+const REPORT_EMAIL = 'ops@opencollective.com';
+
+// These field names are the ones returned by
+// processOrderWithSubscription().
 const csvFields = [
   'orderId',
   'subscriptionId',
@@ -29,60 +33,6 @@ const csvFields = [
   'nextPeriodStartBefore',
   'nextPeriodStartAfter'
 ];
-
-/** Standard way to format dates in this script */
-function dateFormat(date) {
-  return moment(date).format();
-}
-
-/** Process order and trigger result handlers.
- *
- * Uses `lib.payments.processOrder()` to charge subscription and
- * handle both success and failure of that processing.
- */
-async function processOrderWithSubscription(options, order) {
-  const csvEntry = {
-    orderId: order.id,
-    subscriptionId: order.Subscription.id,
-    amount: order.totalAmount,
-    from: order.fromCollective.slug,
-    to: order.collective.slug,
-    status: null,
-    error: null,
-    retriesBefore: order.Subscription.chargeRetryCount,
-    retriesAfter: null,
-    chargeDateBefore: dateFormat(order.Subscription.nextCharge),
-    chargeDateAfter: null,
-    nextPeriodStartBefore: dateFormat(order.Subscription.nextPeriodStart),
-    nextPeriodStartAfter: null
-  };
-
-  let status, transaction;
-  if (!options.dryRun) {
-    try {
-      transaction = await payments.processOrder(order);
-      status = 'success';
-    } catch (error) {
-      status = 'failure';
-      csvEntry.error = error.message;
-    }
-  }
-
-  updateNextChargeDate(status, order);
-  updateChargeRetryCount(status, order);
-
-  csvEntry.status = status;
-  csvEntry.retriesAfter = order.Subscription.chargeRetryCount;
-  csvEntry.chargeDateAfter = dateFormat(order.Subscription.nextChargeDate);
-  csvEntry.nextPeriodStartAfter = dateFormat(order.Subscription.nextPeriodStart);
-
-  if (!options.dryRun) {
-    await handleRetryStatus(order, transaction);
-    await order.Subscription.save();
-  }
-
-  return csvEntry;
-}
 
 /** Run the script with parameters read from the command line */
 async function run(options) {
@@ -113,18 +63,30 @@ async function run(options) {
   }
 }
 
+/** Send an email with details of the subscriptions processed */
 async function emailReport(start, orders, data) {
+  const icon = (err) => err ? '❌' : '✅';
   let issuesFound = false;
-  const result = [`Total Subscriptions pending charges found: ${orders.length}\n`];
+  let result = [`Total Subscriptions pending charges found: ${orders.length}`, ''];
 
-  data.map((i) => {
-    if (i.status !== null) issuesFound = true;
-    return [i.orderId, i.subscriptionId, i.amount, i.from, i.to, i.status].join('');
-  });
+  result = result.concat(data.map((i) => {
+    if (i.status === 'failure') issuesFound = true;
+    return ` ${i.status !== 'unattempted' ? icon(i.error) : ''} ` + [
+      `order: ${i.orderId}`,
+      `subscription: ${i.subscriptionId}`,
+      `amount: ${i.amount}`,
+      `from: ${i.from}`,
+      `to: ${i.to}`,
+      `status: ${i.status}`,
+      `error: ${i.error}`,
+    ].join(', ');
+  }));
 
-  result.push("\n\nTotal time taken: ", new Date() - start, "ms");
-  const subject = `${issuesFound ? '❌' : '✅'} Daily Subscription Report - ${(new Date()).toLocaleDateString()}`;
-  return emailLib.sendMessage('ops@opencollective.com', subject, '', { bcc: ' ', text: result.join('\n') });
+  const now = new Date;
+  const end = now - start;
+  result.push(`\n\nTotal time taken: ${end}ms`);
+  const subject = `${icon(issuesFound)} Daily Subscription Report - ${now.toLocaleDateString()}`;
+  return emailLib.sendMessage(REPORT_EMAIL, subject, '', { bcc: ' ', text: result.join('\n') });
 }
 
 /** Print `message` to console if `options.verbose` is true */

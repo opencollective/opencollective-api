@@ -6,6 +6,7 @@ import * as utils from './utils';
 // Supporting libraries
 import models from '../server/models';
 import emailLib from '../server/lib/email';
+import * as paymentsLib from '../server/lib/payments';
 
 // What's being tested
 import {
@@ -14,7 +15,39 @@ import {
   updateNextChargeDate,
   updateChargeRetryCount,
   ordersWithPendingCharges,
+  processOrderWithSubscription,
 } from '../server/lib/subscriptions';
+
+
+async function createOrderWithSubscription(interval, date) {
+  const payment = { amount: 1000, currency: 'USD', interval };
+  const user = await models.User.createUserWithCollective({ name: "Test McTesterson" });
+  const fromCollective = await models.Collective.create({ name: "Donor Collective" });
+  const collective = await models.Collective.create({ name: "Parcel" });
+  const tier = await models.Tier.create({ name: "backer" });
+  const subscription = await models.Subscription.create({
+    ...payment,
+    isActive: true,
+    activatedAt: new Date("2018-01-27 0:0"),
+    nextChargeDate: new Date(`${date} 0:0`),
+    nextPeriodStart: new Date(`${date} 0:0`)
+  });
+  const order = await models.Order.create({
+    CreatedByUserId: user.id,
+    FromCollectiveId: user.CollectiveId,
+    CollectiveId: collective.id,
+    TierId: tier.id,
+    SubscriptionId: subscription.id,
+    totalAmount: payment.amount,
+    currency: payment.currency,
+    interval: payment.interval
+  });
+  order.Subscription = subscription;
+  order.fromCollective = fromCollective;
+  order.collective = collective;
+  order.createdByUser = user;
+  return { order, subscription, user, collective };
+}
 
 describe('LibSubscription', () => {
   describe('#updateNextChargeDate', () => {
@@ -73,18 +106,18 @@ describe('LibSubscription', () => {
       const clock = sinon.useFakeTimers((new Date("2018-01-28 0:0")).getTime());
 
       // When dates are updated with failure
+      updateNextChargeDate('failure', order);
+
       try {
-        updateNextChargeDate('failure', order);
+        // Then just the nextCharge date should be updated. The date
+        // that saves the last period's start should keep the same value
+        expect(order.Subscription.nextPeriodStart.getTime())
+          .to.equal((new Date("2018-01-20 0:0")).getTime());
+        expect(order.Subscription.nextChargeDate.getTime())
+          .to.equal((new Date("2018-01-30 0:0")).getTime());
       } finally {
         clock.restore();
       }
-
-      // Then just the nextCharge date should be updated. The date
-      // that saves the last period's start should keep the same value
-      expect(order.Subscription.nextPeriodStart.getTime())
-        .to.equal((new Date("2018-01-20 0:0")).getTime());
-      expect(order.Subscription.nextChargeDate.getTime())
-        .to.equal((new Date("2018-01-30 0:0")).getTime());
     });
 
     it('should bump nextChargeDate according to nextPeriodStart after success', () => {
@@ -219,8 +252,147 @@ describe('LibSubscription', () => {
     });
   });
 
+  describe('#processOrderWithSubscription', () => {
+    let emailMock;
+    beforeEach(() => emailMock = sinon.mock(emailLib));
+    afterEach(() => emailMock.restore());
+
+    it('not do anything if dryRun is true', async () => {
+      // Given the following order
+      const order = {
+        Subscription: { id: 1, save: sinon.spy() },
+        collective: {},
+        fromCollective: {},
+        createdByUser: { email: 'test@oc.com', generateLoginLink: () => '/' }
+      };
+
+      // And given that we don't want send to be called at all
+      emailMock.expects('send').never();
+
+      // When the order above is processed
+      const entry = await processOrderWithSubscription({ dryRun: true }, order);
+
+      // Then nothing was attempted
+      expect(entry.status).to.equal('unattempted');
+      expect(order.Subscription.save.getCalls()).to.be.empty;
+
+      // And then the email mock should be verified
+      emailMock.verify();
+    });
+
+    describe('Update dates after processing an order @database', () => {
+      let paymentsStub, emailMock, clock;
+
+      beforeEach(async () => {
+        clock = sinon.useFakeTimers((new Date("2018-01-28 0:0")).getTime());
+        emailMock = sinon.mock(emailLib);
+        paymentsStub = sinon.stub(paymentsLib, 'processOrder');
+        await utils.resetTestDB();
+      });
+
+      afterEach(() => {
+        clock.restore();
+        emailMock.restore();
+        paymentsStub.restore();
+      });
+
+      it('should update dates after successfuly processing monthly ', async () => {
+        // Given an order with a subscription
+        const { order } = await createOrderWithSubscription('month', '2018-01-27');
+
+        // And given that an email should be sent afterwards
+        emailMock.expects('send').once().withArgs('thankyou');
+
+        // And that the payments library will return a transaction (to
+        // be included in the email)
+        paymentsStub.returns({ info: 'Transaction' });
+
+        // When the order is processed
+        const entry = await processOrderWithSubscription({ dryRun: false }, order);
+
+        // Expect the mock expectations to be verified. The right
+        // email was sent.
+        emailMock.verify();
+        // Expect the processOrder function was called
+        expect(paymentsStub.called).to.be.true;
+
+        // And then the status of the processing is successful
+        expect(entry.status).to.equal('success');
+
+        // And then the dates are incremented by one month
+        expect(order.Subscription.nextChargeDate.getTime())
+          .to.equal(new Date("2018-02-27 0:0").getTime());
+        expect(order.Subscription.nextPeriodStart.getTime())
+          .to.equal(new Date("2018-02-27 0:0").getTime());
+      });
+
+      it('should update dates after successfuly processing yearly ', async () => {
+        // Given an order with a subscription
+        const { order } = await createOrderWithSubscription('year', '2018-01-27');
+
+        // And given that an email should be sent afterwards
+        emailMock.expects('send').once().withArgs('thankyou');
+
+        // And that the payments library will return a transaction (to
+        // be included in the email)
+        paymentsStub.returns({ info: 'Transaction' });
+
+        // When the order is processed
+        const entry = await processOrderWithSubscription({ dryRun: false }, order);
+
+        // Expect the mock expectations to be verified. The right
+        // email was sent.
+        emailMock.verify();
+        // Expect the processOrder function was called
+        expect(paymentsStub.called).to.be.true;
+
+        // And then the status of the processing is successful
+        expect(entry.status).to.equal('success');
+
+        // And then the dates are incremented by one month
+        expect(order.Subscription.nextChargeDate.getTime())
+          .to.equal(new Date("2019-01-27 0:0").getTime());
+        expect(order.Subscription.nextPeriodStart.getTime())
+          .to.equal(new Date("2019-01-27 0:0").getTime());
+      });
+
+      it('should update nextChargeDate after failed processing yearly ', async () => {
+        // Given an order with a subscription
+        const { order } = await createOrderWithSubscription('year', '2018-01-27');
+
+        // And given that an email should be sent afterwards
+        emailMock.expects('send').once().withArgs('payment.failed');
+
+        // And that the payments library will throw an error
+        paymentsStub.throws("TypeError -- Whatever");
+
+        // When the order is processed
+        const entry = await processOrderWithSubscription({ dryRun: false }, order);
+
+        // Expect the mock expectations to be verified. The right
+        // email was sent.
+        emailMock.verify();
+        // Expect the processOrder function was called
+        expect(paymentsStub.called).to.be.true;
+
+        // And then the status of the processing is successful
+        expect(entry.status).to.equal('failure');
+
+        // And then the nextChargeDate is ajusted for two days later
+        expect(order.Subscription.nextChargeDate.getTime())
+          .to.equal(new Date("2018-01-30 0:0").getTime());
+
+        // And the nextPeriodStart doesn't change for a failed
+        // processing
+        expect(order.Subscription.nextPeriodStart.getTime())
+          .to.equal(new Date("2018-01-27 0:0").getTime());
+      });
+    });
+  });
+
   describe('#ordersWithPendingCharges @database', () => {
     let user, collective, tier;
+
     beforeEach(async () => {
       await utils.resetTestDB();
       user = await models.User.createUserWithCollective({ name: "Test McTesterson" });
