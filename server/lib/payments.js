@@ -7,12 +7,40 @@ import { types } from '../constants/collectives';
 import paymentProviders from '../paymentProviders';
 import * as libsubscription from './subscriptions';
 
-/** Unpack actual method from Payment Method attached to the order */
+/** Find payment method handler
+ *
+ * @param {Object} paymentMethod: This must point to a row in the
+ *  `PaymentMethods` table. That information is retrieved and the
+ *  fields `service' & `type' are used to figure out which payment
+ *  {service: 'stripe', type: 'bitcoin'}.
+ * @return the payment method's JS module.
+ */
+export function findPaymentMethod(paymentMethod) {
+  const provider = paymentMethod ? paymentMethod.service : 'manual';
+  const methodType = paymentMethod.type || 'default';
+  return paymentProviders[provider].types[methodType]; // eslint-disable-line import/namespace
+}
+
+/** Process an order using its payment information
+ *
+ * @param {Object} order must contain a valid `paymentMethod`
+ *  field. Which means that the query to select the order must include
+ *  the `PaymentMethods` table.
+ */
 export async function processOrder(order, options) {
-  const provider = order.paymentMethod ? order.paymentMethod.service : 'manual';
-  const methodType = order.paymentMethod.type || 'default';
-  const method = paymentProviders[provider].types[methodType]; // eslint-disable-line import/namespace
-  return await method.processOrder(order, options);
+  const paymentMethod = findPaymentMethod(order.paymentMethod);
+  return await paymentMethod.processOrder(order, options);
+}
+
+/** Refund a transaction
+ *
+ * @param {Object} transaction must contain a valid `PaymentMethod`
+ *  field. Which means that the query to select it from the DB must
+ *  include the `PaymentMethods` table.
+ */
+export async function refundTransaction(transaction) {
+  const paymentMethod = findPaymentMethod(transaction.PaymentMethod);
+  return await paymentMethod.refundTransaction(transaction);
 }
 
 /** Calculates how much an amount's fee is worth */

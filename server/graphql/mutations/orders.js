@@ -3,7 +3,7 @@ import Promise from 'bluebird';
 
 import models from '../../models';
 import { capitalize, pluralize } from '../../lib/utils';
-import { executeOrder } from '../../lib/payments';
+import * as libPayments from '../../lib/payments';
 import emailLib from '../../lib/email';
 import { types } from '../../constants/collectives';
 import roles from '../../constants/roles';
@@ -207,7 +207,7 @@ export function createOrder(_, args, req) {
       if (paymentRequired) {
         return orderCreated
           .setPaymentMethod(order.paymentMethod)
-          .then(() => executeOrder(req.remoteUser || user, orderCreated, pick(order, ['hostFeePercent', 'platformFeePercent']))) // also adds the user as a BACKER of collective
+          .then(() => libPayments.executeOrder(req.remoteUser || user, orderCreated, pick(order, ['hostFeePercent', 'platformFeePercent']))) // also adds the user as a BACKER of collective
       } else {
         // Free ticket, add user as an ATTENDEE
         const email = (req.remoteUser) ? req.remoteUser.email : args.order.user.email;
@@ -368,4 +368,24 @@ export function updateSubscription(remoteUser, args) {
     return updatePromise
         .then(() => order.update({ PaymentMethodId: newPm.id}))
   })
+}
+
+export async function refundTransaction(_, args, req) {
+  // 0. Retrieve transaction from database
+  const transaction = await models.Transaction.findById(args.id, {
+    include: [models.Order, models.PaymentMethod]
+  });
+
+  // 1. Verify user permission. User must be either
+  //   a. User that created transaction (within 24h)
+  //   b. Host or Admin of the collective receiving the donation
+  if (req.remoteUser.id != transaction.CreatedByUserId &&
+      !req.remoteUser.hasRole([roles.ADMIN, roles.HOST],
+                              transaction.CollectiveId)) {
+    throw new errors.Unauthorized({ message: "Not an admin neither owner" });
+  }
+
+  // 2. Refund via payment method
+  // 3. Create new transactions with the refund value in our database
+  return libPayments.refundTransaction(transaction);
 }
