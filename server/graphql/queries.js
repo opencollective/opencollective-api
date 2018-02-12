@@ -22,7 +22,8 @@ import {
   ExpenseType,
   UpdateType,
   MemberType,
-  PaymentMethodType
+  PaymentMethodType,
+  OrderType
 } from './types';
 
 import models, { sequelize } from '../models';
@@ -439,6 +440,39 @@ const queries = {
       } else {
         return models.Collective.findAll({ where: { type: 'EVENT' }});
       }
+    }
+  },
+
+  /*
+   * Given a collective (User or Org), returns all subscriptions
+   */
+  allSubscriptions: {
+    type: new GraphQLList(OrderType),
+    args: {
+      slug: { type: GraphQLString },
+      limit: { type: GraphQLInt },
+      offset: { type: GraphQLInt }
+    },
+    resolve(_, args) {
+      if (!args.slug) {
+        throw new Error('Please send a slug to fetch subscriptions for')
+      }
+      const query = {
+        include: [
+          { model: models.Collective, 
+            as: 'fromCollective', 
+            where: {
+              slug: args.slug
+            }
+          },
+          { model: models.Subscription, as: 'Subscription', required: true},
+          { model: models.PaymentMethod, as: 'paymentMethod'}]
+      };
+
+      if (args.limit) query.limit = args.limit;
+      if (args.offset) query.offset = args.offset;
+
+      return models.Order.findAll(query)
     }
   },
 

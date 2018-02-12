@@ -129,6 +129,7 @@ export default function(Sequelize, DataTypes) {
       beforeCreate: (instance) => {
         if (instance.service !== 'opencollective') {
           if (!instance.token) {
+            console.log(instance);
             throw new Error(`${instance.service} payment method requires a token`);
           }
           if (instance.service === 'stripe' && !instance.token.match(/^(tok|src)_[a-zA-Z0-9]{24}/)) {
@@ -156,7 +157,7 @@ export default function(Sequelize, DataTypes) {
           confirmedAt: this.confirmedAt,
           name: this.name,
           data: this.data
-        };
+        }
       },
 
       features() {

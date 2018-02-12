@@ -1,11 +1,14 @@
+import { pick } from 'lodash';
+import Promise from 'bluebird';
+
 import models from '../../models';
 import { capitalize, pluralize } from '../../lib/utils';
 import { executeOrder } from '../../lib/payments';
 import emailLib from '../../lib/email';
-import Promise from 'bluebird';
 import { types } from '../../constants/collectives';
 import roles from '../../constants/roles';
-import { pick } from 'lodash';
+import * as errors from '../errors';
+import activities from '../../constants/activities';
 
 export function createOrder(_, args, req) {
   let tier, collective, fromCollective, paymentRequired, interval, orderCreated, user;
@@ -227,4 +230,111 @@ export function createOrder(_, args, req) {
       console.error(">>> createOrder mutation error: ", e)
       throw e;
     })
+}
+
+export function cancelSubscription(remoteUser, orderId) {
+
+  if (!remoteUser) {
+    throw new errors.Unauthorized({ message: "You need to be logged in to cancel a subscription" });
+  }
+
+  let order = null;
+  const query = {
+    where: {
+      id: orderId
+    },
+    include: [
+      { model: models.Subscription},
+      { model: models.Collective, as: 'collective'},
+      { model: models.Collective, as: 'fromCollective'}
+    ]
+  };
+  return models.Order.findOne(query)
+  .then(o => order = o)
+  .then(() => {
+    if (!remoteUser.isAdmin(order.FromCollectiveId)) {
+      throw new errors.Unauthorized({
+        message: "You don't have permission to cancel this subscription"
+      })
+    } else {
+      return Promise.resolve();
+    }
+  })
+  .then(() => {
+    if (!order.Subscription.isActive) {
+      throw new errors.BadRequest({
+        message: "This subscription is already canceled"
+      })
+    } else {
+      return Promise.resolve();
+    }
+  })
+  .then(() => order.Subscription.deactivate())
+
+  // createActivity - that sends out the email 
+  .then(() => models.Activity.create({
+        type: activities.SUBSCRIPTION_CANCELED,
+        CollectiveId: order.CollectiveId,
+        UserId: order.CreatedByUserId,
+        data: {
+          subscription: order.Subscription,
+          collective: order.collective.minimal,
+          user: remoteUser.minimal,
+          fromCollective: order.fromCollective.minimal
+        }
+      }))
+  .then(() => models.Order.findOne(query)) // need to fetch it second time to get updated data.
+}
+
+export function updateSubscription(remoteUser, args) {
+  const { id, paymentMethod } = args;
+
+  console.log( "updateSubscription args", args);
+
+  let order = null;
+
+  const query = { 
+    where: {
+      id,
+    },
+    include: [
+      { model: models.Subscription},
+      { model: models.PaymentMethod, as: 'paymentMethod'}
+    ]
+  };
+
+  // throw new Error('failed...');
+  return models.Order.findOne(query)
+  .then(o => order = o)
+  .then(() => {
+    if (!remoteUser.isAdmin(order.FromCollectiveId)) {
+      throw new errors.Unauthorized({
+        message: "You don't have permission to update this subscription"
+      })
+    } else {
+      return Promise.resolve();
+    }
+  })
+  .then(() => {
+    // means it's an existing paymentMethod
+    if (paymentMethod.uuid && paymentMethod.uuid.length === 36) {
+      console.log("changing payment methods");
+
+      return models.PaymentMethod.findOne({where: { uuid: paymentMethod.uuid}})
+        .then(pm => {
+          if (!pm){
+            throw new Error('Payment method not found with this uuid', paymentMethod.uuid);
+          }
+          console.log("updating payment Method to: ", pm.id);
+          return order.update({ PaymentMethodId: pm.id});
+        })
+    } else {
+      // means it's a new paymentMethod
+
+      const newPMData = Object.assign(paymentMethod, { CollectiveId: order.FromCollectiveId })
+      return models.PaymentMethod.createFromStripeSourceToken(newPMData)
+        .then(newPm => order.update({ PaymentMethodId: newPm.id}))
+        //.then(() => models.Order.findOne(query))
+    }
+  })
 }
