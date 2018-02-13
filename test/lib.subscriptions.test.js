@@ -201,7 +201,7 @@ describe('LibSubscription', () => {
       emailMock.verify();
     });
 
-    it.skip('should send a failure email if retries are > 0 & < MAX_RETRIES', async () => {
+    it('should send a failure email if retries are > 0 & < MAX_RETRIES', async () => {
       // Given an order
       const order = {
         Subscription: { chargeRetryCount: 1 },

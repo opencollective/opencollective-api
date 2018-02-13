@@ -111,7 +111,7 @@ export async function handleRetryStatus(order, transaction) {
   switch (order.Subscription.chargeRetryCount) {
   case 0: await sendThankYouEmail(order, transaction); break;
   case MAX_RETRIES: cancelSubscriptionAndNotifyUser(order); break;
-  //default: sendFailedEmail(order, false); break;
+  default: sendFailedEmail(order, false); break;
   }
 }
 

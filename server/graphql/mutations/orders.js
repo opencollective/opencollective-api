@@ -250,26 +250,28 @@ export function cancelSubscription(remoteUser, orderId) {
     ]
   };
   return models.Order.findOne(query)
-  .then(o => order = o)
-  .then(() => {
+  .tap(o => order = o)
+  .tap(order => {
+    if (!order) {
+      throw new Error("Subscription not found")
+    } 
+    return Promise.resolve()
+  })
+  .tap(order => {
     if (!remoteUser.isAdmin(order.FromCollectiveId)) {
       throw new errors.Unauthorized({
         message: "You don't have permission to cancel this subscription"
       })
-    } else {
-      return Promise.resolve();
     }
+    return Promise.resolve();
   })
-  .then(() => {
+  .tap(order => {
     if (!order.Subscription.isActive) {
-      throw new errors.BadRequest({
-        message: "This subscription is already canceled"
-      })
-    } else {
-      return Promise.resolve();
+      throw new Error("Subscription already canceled")
     }
+    return Promise.resolve();
   })
-  .then(() => order.Subscription.deactivate())
+  .then(order => order.Subscription.deactivate())
 
   // createActivity - that sends out the email 
   .then(() => models.Activity.create({
@@ -287,11 +289,13 @@ export function cancelSubscription(remoteUser, orderId) {
 }
 
 export function updateSubscription(remoteUser, args) {
+
+  if (!remoteUser) {
+    throw new errors.Unauthorized({ message: "You need to be logged in to update a subscription"});
+  }
+
   const { id, paymentMethod } = args;
 
-  console.log( "updateSubscription args", args);
-
-  let order = null;
 
   const query = { 
     where: {
@@ -305,36 +309,42 @@ export function updateSubscription(remoteUser, args) {
 
   // throw new Error('failed...');
   return models.Order.findOne(query)
-  .then(o => order = o)
-  .then(() => {
+  .tap(order => {
+    if (!order) {
+      throw new Error("Subscription not found")
+    }
+    return Promise.resolve();
+  })
+  .tap(order => {
     if (!remoteUser.isAdmin(order.FromCollectiveId)) {
       throw new errors.Unauthorized({
         message: "You don't have permission to update this subscription"
       })
-    } else {
-      return Promise.resolve();
     }
+    return Promise.resolve();
   })
-  .then(() => {
+  .tap(order => {
+    if (!order.Subscription.isActive) {
+      throw new Error('Subscription must be active to be updated');
+    }
+    return Promise.resolve();
+  })
+  .tap(order => {
     // means it's an existing paymentMethod
     if (paymentMethod.uuid && paymentMethod.uuid.length === 36) {
-      console.log("changing payment methods");
 
       return models.PaymentMethod.findOne({where: { uuid: paymentMethod.uuid}})
         .then(pm => {
           if (!pm){
             throw new Error('Payment method not found with this uuid', paymentMethod.uuid);
           }
-          console.log("updating payment Method to: ", pm.id);
           return order.update({ PaymentMethodId: pm.id});
         })
     } else {
       // means it's a new paymentMethod
-
       const newPMData = Object.assign(paymentMethod, { CollectiveId: order.FromCollectiveId })
       return models.PaymentMethod.createFromStripeSourceToken(newPMData)
         .then(newPm => order.update({ PaymentMethodId: newPm.id}))
-        //.then(() => models.Order.findOne(query))
     }
   })
 }
