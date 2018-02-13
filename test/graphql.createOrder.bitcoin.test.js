@@ -52,7 +52,6 @@ const createOrderQuery = `
         isActive
         stripeSubscriptionId
       }
-      processedAt
     }
   }
   `;

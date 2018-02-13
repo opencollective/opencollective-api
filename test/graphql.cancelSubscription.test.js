@@ -163,7 +163,7 @@ describe('graphql.cancelSubscriptions.test.js', () => {
       const { subject, html, cc } = nm.sendMail.lastCall.args[0];
 
       expect(subject).to.contain('Subscription canceled to Scouts');
-      expect(html).to.contain('20 €/month has been canceled');
+      expect(html).to.contain('month has been canceled');
       expect(cc).to.equal(`info@${collective.slug}.opencollective.com`);
     });
   });
