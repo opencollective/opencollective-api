@@ -308,7 +308,6 @@ export function updateSubscription(remoteUser, args) {
     ]
   };
 
-  // throw new Error('failed...');
   return models.Order.findOne(query)
   .tap(order => {
     if (!order) {
@@ -335,6 +334,9 @@ export function updateSubscription(remoteUser, args) {
     let updatePromise;
     let newPm;
     
+    // TODO: Would be even better if we could charge you here directly
+    // before letting you proceed
+
     // means it's an existing paymentMethod
     if (paymentMethod.uuid && paymentMethod.uuid.length === 36) {
       updatePromise = models.PaymentMethod.findOne({where: { uuid: paymentMethod.uuid}})

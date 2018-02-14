@@ -156,7 +156,7 @@ const sendOrderConfirmedEmail = async (order) => {
       relatedCollectives,
       monthlyInterval: (interval === 'month'),
       firstPayment: true,
-      subscriptionsLink: interval && user.generateLoginLink('/subscriptions')
+      subscriptionsLink: interval && user.generateLoginLink(`/${fromCollective.slug}/subscriptions`)
     };
 
     let matchingFundCollective;
@@ -201,7 +201,7 @@ const sendOrderProcessingEmail = (order) => {
         user: user.info,
         collective: collective.info,
         fromCollective: fromCollective.minimal,
-        subscriptionsLink: user.generateLoginLink('/subscriptions')
+        subscriptionsLink: user.generateLoginLink(`/${fromCollective.slug}/subscriptions`)
       }, {
         from: `${collective.name} <hello@${collective.slug}.opencollective.com>`
       })

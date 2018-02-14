@@ -253,8 +253,7 @@ const mutations = {
     type: OrderType,
     args: {
       id: { type: new GraphQLNonNull(GraphQLInt)},
-      paymentMethod: { type: PaymentMethodInputType},
-      amount: { type: GraphQLInt}
+      paymentMethod: { type: PaymentMethodInputType}
     },
     resolve(_, args, req) {
       return updateSubscription(req.remoteUser, args)
