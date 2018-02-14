@@ -42,7 +42,7 @@ mutation updateSubscription($id: Int!, $paymentMethod: PaymentMethodInputType, $
 describe('graphql.updateSubscriptions.test.js', () => {
   let collective, user, user2, paymentMethod, sandbox;
 
-  before(initNock);
+  beforeEach(initNock);
 
   before(() => {
     sandbox = sinon.sandbox.create();
@@ -122,7 +122,8 @@ describe('graphql.updateSubscriptions.test.js', () => {
           PaymentMethodId: paymentMethod.id,
           SubscriptionId: sub.id
         }))
-        .tap(d => order = d)
+        .then(order => models.Order.findOne({ where: { id: order.id }, include: [{ model: models.Subscription }]}))
+        .tap(o => order = o)
         .catch()
     });
 
@@ -172,53 +173,154 @@ describe('graphql.updateSubscriptions.test.js', () => {
         expect(res.errors[0].message).to.equal('Payment method not found with this uuid')
       });
 
-      it('succeeds when the payment method uuid is valid', async () => {
-        const pm2 = await models.PaymentMethod.create(Object.assign({}, utils.data('paymentMethod2'), {token: 'tok_123456781234567812345612', customerId: 'cus_new', name: '3434'}));
+      describe('when the order was not past due', () => {
+        it('succeeds when the payment method uuid is valid', async () => {
+          const pm2 = await models.PaymentMethod.create(Object.assign({}, utils.data('paymentMethod2'), {token: 'tok_123456781234567812345612', customerId: 'cus_new', name: '3434'}));
 
-        const res = await utils.graphqlQuery(updateSubscriptionQuery, {id:order.id, paymentMethod: { uuid: pm2.uuid }}, user);
+          const originalNextChargeDate = order.Subscription.nextChargeDate.toString();
+          const originalNextPeriodStart = order.Subscription.nextPeriodStart.toString();
+          const originalChargeRetryCount = order.Subscription.chargeRetryCount;
 
-        expect(res.errors).to.not.exist;
+          const res = await utils.graphqlQuery(updateSubscriptionQuery, {id:order.id, paymentMethod: { uuid: pm2.uuid }}, user);
 
-        const updatedOrder = await models.Order.findById(order.id);
+          expect(res.errors).to.not.exist;
 
-        expect(updatedOrder.PaymentMethodId).to.equal(pm2.id);
-      });
+          const updatedOrder = await models.Order.findOne({ 
+            where: {
+              id: order.id
+            },
+            include: [{ model: models.Subscription }]
+          });
 
-      it('succeeds in updating subscription to a new payment method', async () => {
-
-        const res = await utils.graphqlQuery(updateSubscriptionQuery, {
-          id:order.id, 
-          paymentMethod: {
-             name: '8431',
-             token: 'tok_1BvCA5DjPFcHOcTmg1234567',
-             service: 'stripe',
-             type: 'creditcard',
-             data: { 
-              expMonth: 1,
-              expYear: 2019,
-              brand: 'American Express',
-              country: 'US',
-              funding: 'credit',
-              zip: '10012' 
-            } 
-          }
-        }, user);
-
-        expect(res.errors).to.not.exist;
-
-        const newPM = await models.PaymentMethod.findOne({
-          where: {
-            name: '8431',
-            token: 'tok_1BvCA5DjPFcHOcTmg1234567'
-          }
+          expect(updatedOrder.PaymentMethodId).to.equal(pm2.id);
+          expect(updatedOrder.Subscription.chargeRetryCount).to.equal(originalChargeRetryCount);
+          expect(updatedOrder.Subscription.nextChargeDate.toString()).to.have.string(originalNextChargeDate);
+          expect(updatedOrder.Subscription.nextPeriodStart.toString()).to.have.string(originalNextPeriodStart);
         });
 
-        const updatedOrder = await models.Order.findById(order.id);
+        it('succeeds when it\'s a new payment method', async () => {
+          const res = await utils.graphqlQuery(updateSubscriptionQuery, {
+            id:order.id, 
+            paymentMethod: {
+               name: '8431',
+               token: 'tok_1BvCA5DjPFcHOcTmg1234567',
+               service: 'stripe',
+               type: 'creditcard',
+               data: { 
+                expMonth: 1,
+                expYear: 2019,
+                brand: 'American Express',
+                country: 'US',
+                funding: 'credit',
+                zip: '10012' 
+              } 
+            }
+          }, user);
 
-        expect(updatedOrder.PaymentMethodId).to.equal(newPM.id);
+          expect(res.errors).to.not.exist;
+          const newPM = await models.PaymentMethod.findOne({
+            where: {
+              name: '8431',
+              token: 'tok_1BvCA5DjPFcHOcTmg1234567'
+            }
+          });
+          const updatedOrder = await models.Order.findById(order.id);
+          expect(updatedOrder.PaymentMethodId).to.equal(newPM.id);
+        });
+      })
 
-      });
+      describe('when the order was past due', () => {
 
+        let pastDueSubscription, clock;
+
+        beforeEach(async () => {
+          pastDueSubscription = await models.Subscription.findById(1);
+          const nextChargeDate = new Date('2018-01-29');
+
+          pastDueSubscription = await pastDueSubscription.update({ chargeRetryCount: 1, nextChargeDate }) 
+        })
+
+        before(() => clock = sinon.useFakeTimers((new Date("2018-01-28 0:0")).getTime()));
+
+        after(() => clock.restore());
+
+        it('succeeds when the payment method uuid is valid', async () => {          
+
+          // add a new payment method
+          const pm2 = await models.PaymentMethod.create(Object.assign({}, utils.data('paymentMethod2'), {token: 'tok_123456781234567812345612', customerId: 'cus_new', name: '3434'}));
+
+          // record original value
+          const originalNextPeriodStart = pastDueSubscription.nextPeriodStart;
+
+          // run query
+          const res = await utils.graphqlQuery(updateSubscriptionQuery, {id:order.id, paymentMethod: { uuid: pm2.uuid }}, user);
+
+          // expect no errors
+          expect(res.errors).to.not.exist;
+
+          // fetch updated order
+          const updatedOrder = await models.Order.findOne({ 
+            where: {
+              id: order.id
+            },
+            include: [{ model: models.Subscription }]
+          });
+
+
+          expect(updatedOrder.PaymentMethodId).to.equal(pm2.id);
+          expect(updatedOrder.Subscription.chargeRetryCount).to.equal(0);
+          expect(updatedOrder.Subscription.nextChargeDate.getTime()).to.equal((new Date("2018-01-28 0:0")).getTime());
+          expect(updatedOrder.Subscription.nextPeriodStart.getTime()).to.equal(originalNextPeriodStart.getTime());
+        });
+
+        it('succeeds when it\'s a new payment method', async () => {
+
+          // record original value
+          const originalNextPeriodStart = pastDueSubscription.nextPeriodStart;
+
+          // run query
+          const res = await utils.graphqlQuery(updateSubscriptionQuery, {
+            id:order.id, 
+            paymentMethod: {
+               name: '8431',
+               token: 'tok_1BvCA5DjPFcHOcTmg1234567',
+               service: 'stripe',
+               type: 'creditcard',
+               data: { 
+                expMonth: 1,
+                expYear: 2019,
+                brand: 'American Express',
+                country: 'US',
+                funding: 'credit',
+                zip: '10012' 
+              } 
+            }
+          }, user);
+
+          console.log(res);
+          expect(res.errors).to.not.exist;
+
+          const newPM = await models.PaymentMethod.findOne({
+            where: {
+              name: '8431',
+              token: 'tok_1BvCA5DjPFcHOcTmg1234567'
+            }
+          });
+
+          // fetch updated order
+          const updatedOrder = await models.Order.findOne({ 
+            where: {
+              id: order.id
+            },
+            include: [{ model: models.Subscription }]
+          });
+
+          expect(updatedOrder.PaymentMethodId).to.equal(newPM.id);
+          expect(updatedOrder.Subscription.chargeRetryCount).to.equal(0);
+          expect(updatedOrder.Subscription.nextChargeDate.getTime()).to.equal((new Date("2018-01-28 0:0")).getTime());
+          expect(updatedOrder.Subscription.nextPeriodStart.getTime()).to.equal(originalNextPeriodStart.getTime());
+        });
+      })      
     })
 
 

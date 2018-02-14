@@ -9,6 +9,7 @@ import { types } from '../../constants/collectives';
 import roles from '../../constants/roles';
 import * as errors from '../errors';
 import activities from '../../constants/activities';
+import { getNextChargeAndPeriodStartDates, getChargeRetryCount} from '../../lib/subscriptions';
 
 export function createOrder(_, args, req) {
   let tier, collective, fromCollective, paymentRequired, interval, orderCreated, user;
@@ -330,21 +331,36 @@ export function updateSubscription(remoteUser, args) {
     return Promise.resolve();
   })
   .tap(order => {
+
+    let updatePromise;
+    let newPm;
+    
     // means it's an existing paymentMethod
     if (paymentMethod.uuid && paymentMethod.uuid.length === 36) {
-
-      return models.PaymentMethod.findOne({where: { uuid: paymentMethod.uuid}})
+      updatePromise = models.PaymentMethod.findOne({where: { uuid: paymentMethod.uuid}})
         .then(pm => {
           if (!pm){
             throw new Error('Payment method not found with this uuid', paymentMethod.uuid);
           }
-          return order.update({ PaymentMethodId: pm.id});
+          newPm = pm;
         })
     } else {
       // means it's a new paymentMethod
       const newPMData = Object.assign(paymentMethod, { CollectiveId: order.FromCollectiveId })
-      return models.PaymentMethod.createFromStripeSourceToken(newPMData)
-        .then(newPm => order.update({ PaymentMethodId: newPm.id}))
+      updatePromise = models.PaymentMethod.createFromStripeSourceToken(newPMData)
+        .then(pm => newPm = pm)
     }
+
+    // determine if this order was pastdue
+    if (order.Subscription.chargeRetryCount > 0) {
+      const updatedDates = getNextChargeAndPeriodStartDates('updated', order);
+      const chargeRetryCount = getChargeRetryCount('updated', order);
+
+      updatePromise = updatePromise
+        .then(() => order.Subscription.update({ nextChargeDate: updatedDates.nextChargeDate, chargeRetryCount }))
+    }
+
+    return updatePromise
+        .then(() => order.update({ PaymentMethodId: newPm.id}))
   })
 }
