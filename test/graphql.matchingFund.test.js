@@ -96,6 +96,7 @@ describe('graphql.matchingFund.test.js', () => {
 
     // €1,000 matching fund @ 2x
     user1.paymentMethod = await models.PaymentMethod.create({
+      name: 'payment method',
       service: "stripe",
       matching: 2,
       initialBalance: 150000, // $1,500
@@ -109,6 +110,7 @@ describe('graphql.matchingFund.test.js', () => {
     });
 
     user2.paymentMethod = await models.PaymentMethod.create({
+      name: 'payment method',
       service: "stripe",
       currency: 'USD',
       data: {

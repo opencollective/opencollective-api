@@ -63,6 +63,7 @@ const createOrderQuery = `
 
   const constants = {
   paymentMethod: {
+    name: 'payment method',
     service: "stripe",
     type: 'creditcard',
     data: {
