@@ -10,8 +10,8 @@ import initNock from './graphql.updateSubscription.nock';
 const ordersData = utils.data('orders');
 
 const updateSubscriptionQuery = `
-mutation updateSubscription($id: Int!, $paymentMethod: PaymentMethodInputType, $amount: Int) {
-  updateSubscription(id: $id, paymentMethod: $paymentMethod, amount: $amount) {
+mutation updateSubscription($id: Int!, $paymentMethod: PaymentMethodInputType) {
+  updateSubscription(id: $id, paymentMethod: $paymentMethod) {
     id
     currency
     totalAmount

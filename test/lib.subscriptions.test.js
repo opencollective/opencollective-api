@@ -172,12 +172,20 @@ describe('LibSubscription', () => {
           }
         };
 
+        // And given that we freeze time
+        const clock = sinon.useFakeTimers((new Date("2018-01-28 0:0")).getTime());
+
         // when dates are updated with 'updated' status
         const updatedDates = getNextChargeAndPeriodStartDates('updated', order);
 
-        // Then only nextChargeDate should be set to today;
-        expect(updatedDates.nextChargeDate.getTime())
-          .to.equal((new Date()).getTime());
+        try {
+          // Then only nextChargeDate should be set to today;
+          expect(updatedDates.nextChargeDate.getTime())
+            .to.equal((new Date()).getTime());          
+        } finally {
+          clock.restore();
+        }
+
     })
   });
 
