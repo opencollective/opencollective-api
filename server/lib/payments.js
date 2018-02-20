@@ -48,6 +48,54 @@ export function calcFee(amount, fee) {
   return Math.round(amount * fee / 100);
 }
 
+/** Create refund transactions
+ *
+ * This function creates the negative transactions after refunding an
+ * existing transaction.
+ *
+ * If a CREDIT transaction from collective A to collective B is
+ * received. Two new transactions are created:
+ *
+ *   1. CREDIT from collective B to collective A
+ *   2. DEBIT from collective A to collective B
+ *
+ * @param {Objet<models.Transaction>} transaction Can be either a
+ *  DEBIT or a CREDIT transaction and it will generate a pair of
+ *  transactions that debit the collective that was credited and
+ *  credit the user that was debited.
+ * @param {Integer} refundedPaymentProcessorFee is the amount refunded
+ *  by the payment processor. If it's 0 (zero) it means that the
+ *  payment processor didn't refund its fee at all. In that case, the
+ *  equivalent value will be moved from the host so the user can get
+ *  the full refund.
+ * @param {Object} data contains the information from the payment
+ *  method that should be saved within the *data* field of the
+ *  transactions being created.
+ */
+export async function createRefundTransaction(transaction, refundedPaymentProcessorFee, data) {
+  const payload = pick(transaction, ['CreatedByUserId', 'PaymentMethodId']);
+  payload.FromCollectiveId = transaction.CollectiveId;
+  payload.CollectiveId = transaction.FromCollectiveId;
+  payload.transaction = pick(transaction, [
+    'OrderId', 'amount', 'currency', 'hostCurrency', 'amountInHostCurrency',
+    'hostCurrencyFxRate', 'hostFeeInHostCurrency', 'platformFeeInHostCurrency',
+    'paymentProcessorFeeInHostCurrency',
+    'netAmountInCollectiveCurrency', 'HostCollectiveId',
+  ]);
+  payload.transaction.description = `Refund of "${transaction.description}"`;
+  payload.transaction.data = data;
+
+  /* If the payment processor doesn't refund the fee, the equivalent
+   * of the fee will be transferred from the host to the user so the
+   * user can get the full refund. */
+  if (refundedPaymentProcessorFee === 0) {
+    payload.transaction.hostFeeInHostCurrency +=
+      payload.transaction.paymentProcessorFeeInHostCurrency;
+    payload.transaction.paymentProcessorFeeInHostCurrency = 0;
+  }
+  return models.Transaction.createFromPayload(payload);
+}
+
 /**
  * Execute an order as user using paymentMethod
  * It validates the paymentMethod and makes sure the user can use it
