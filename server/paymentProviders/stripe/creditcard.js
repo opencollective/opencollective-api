@@ -180,8 +180,12 @@ export default {
     const fees = stripeGateway.extractFees(balance);
 
     /* Create negative transactions for the received transaction */
-    await paymentsLib.createRefundTransaction(
+    const refundTransaction = await paymentsLib.createRefundTransaction(
       transaction, fees.stripeFee, { refund, balance });
+
+    /* Associate refundId to all the transactions created */
+    await paymentsLib.associateTransactionRefundId(
+      transaction, refundTransaction);
   },
 
   webhook: (requestBody, event) => {

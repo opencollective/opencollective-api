@@ -153,19 +153,21 @@ describe("Refund Transaction", () => {
       // And then the transaction created for the refund operation
       // should decrement all the fees in the CREDIT from collective
       // to user.
-      const [tr3, tr4] = allTransactions.slice(2);
+      const [tr1, tr2, tr3, tr4] = allTransactions;
 
       expect(tr3.type).to.equal('DEBIT');
       expect(tr3.amount).to.equal(-4075);
       expect(tr3.platformFeeInHostCurrency).to.be.null;
       expect(tr3.hostFeeInHostCurrency).to.be.null;
       expect(tr3.paymentProcessorFeeInHostCurrency).to.be.null;
+      expect(tr3.refundId).to.equal(tr1.id);
 
       expect(tr4.type).to.equal('CREDIT');
       expect(tr4.amount).to.equal(5000);
       expect(tr4.platformFeeInHostCurrency).to.equal(250);
       expect(tr4.hostFeeInHostCurrency).to.equal(500);
       expect(tr4.paymentProcessorFeeInHostCurrency).to.equal(175);
+      expect(tr4.refundId).to.equal(tr2.id);
     });
 
   }); /* describe("Stripe Transaction - for hosts created before September 17th 2017") */
@@ -209,19 +211,21 @@ describe("Refund Transaction", () => {
       // And then the transaction created for the refund operation
       // should decrement all the fees in the CREDIT from collective
       // to user.
-      const [tr3, tr4] = allTransactions.slice(2);
+      const [tr1, tr2, tr3, tr4] = allTransactions;
 
       expect(tr3.type).to.equal('DEBIT');
       expect(tr3.amount).to.equal(-4075);
       expect(tr3.platformFeeInHostCurrency).to.be.null;
       expect(tr3.hostFeeInHostCurrency).to.be.null;
       expect(tr3.paymentProcessorFeeInHostCurrency).to.be.null;
+      expect(tr3.refundId).to.equal(tr1.id);
 
       expect(tr4.type).to.equal('CREDIT');
       expect(tr4.amount).to.equal(5000);
       expect(tr4.platformFeeInHostCurrency).to.equal(250);
       expect(tr4.hostFeeInHostCurrency).to.equal(675);
       expect(tr4.paymentProcessorFeeInHostCurrency).to.equal(0);
+      expect(tr4.refundId).to.equal(tr2.id);
     });
 
   }); /* describe("Stripe Transaction - for hosts created after September 17th 2017") */

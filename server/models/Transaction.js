@@ -128,6 +128,11 @@ export default (Sequelize, DataTypes) => {
       type: DataTypes.UUID,
     },
 
+    refundId: {
+      type: DataTypes.INTEGER,
+      references: { model: 'Transactions',  key: 'id' }
+    },
+
     createdAt: {
       type: DataTypes.DATE,
       defaultValue: Sequelize.NOW

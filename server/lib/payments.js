@@ -1,5 +1,6 @@
 import Promise from 'bluebird';
 import { includes, pick, get } from 'lodash';
+import { Op } from 'sequelize';
 
 import models from '../models';
 import emailLib from './email';
@@ -94,6 +95,21 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
     payload.transaction.paymentProcessorFeeInHostCurrency = 0;
   }
   return models.Transaction.createFromPayload(payload);
+}
+
+export async function associateTransactionRefundId(transaction, refund) {
+  const [tr1, tr2, tr3, tr4] = await models.Transaction.findAll({
+    order: ['id'],
+    where: { [Op.or]: [
+      { TransactionGroup: transaction.TransactionGroup },
+      { TransactionGroup: refund.TransactionGroup },
+    ] }
+  });
+
+  tr1.refundId = tr3.id; await tr1.save();
+  tr2.refundId = tr4.id; await tr2.save();
+  tr3.refundId = tr1.id; await tr3.save();
+  tr4.refundId = tr2.id; await tr4.save();
 }
 
 /**
