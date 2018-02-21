@@ -75,18 +75,23 @@ const queries = {
   allTransactions: {
     type: new GraphQLList(TransactionInterfaceType),
     args: {
-      CollectiveId: { type: new GraphQLNonNull(GraphQLInt) },
+      CollectiveId: { type: GraphQLInt },
+      collectiveSlug: { type: GraphQLString },
       type: { type: GraphQLString },
       limit: { type: GraphQLInt },
       offset: { type: GraphQLInt },
       dateFrom: { type: GraphQLString },
       dateTo: { type: GraphQLString },
     },
-    resolve(_, args) {
+    async resolve(_, args) {
       const query = {
-        where: { CollectiveId: args.CollectiveId },
+        where: {},
         order: [ ['createdAt', 'DESC'] ]
       };
+
+      const CollectiveId = args.CollectiveId || await fetchCollectiveId(args.collectiveSlug);
+
+      if (CollectiveId) query.where.CollectiveId = CollectiveId;
       if (args.type) query.where.type = args.type;
       if (args.limit) query.limit = args.limit;
       if (args.offset) query.offset = args.offset;
@@ -171,12 +176,14 @@ const queries = {
       CollectiveId: { type: new GraphQLNonNull(GraphQLInt) },
       includeHostedCollectives: { type: GraphQLBoolean },
       status: { type: GraphQLString },
+      category: { type: GraphQLString },
       limit: { type: GraphQLInt },
       offset: { type: GraphQLInt }
     },
     resolve(_, args, req) {
       const query = { where: {} };
       if (args.status) query.where.status = args.status;
+      if (args.category) query.where.category = { $iLike: args.category };
       if (args.limit) query.limit = args.limit;
       if (args.offset) query.offset = args.offset;
       query.order = [["incurredAt", "DESC"]];
@@ -420,9 +427,9 @@ const queries = {
   allEvents: {
     type: new GraphQLList(CollectiveInterfaceType),
     args: {
-      slug: {
-        type: GraphQLString
-      }
+      slug: { type: GraphQLString },
+      limit: { type: GraphQLInt },
+      offset: { type: GraphQLInt }
     },
     resolve(_, args) {
       if (args.slug) {
@@ -430,7 +437,9 @@ const queries = {
           .findBySlug(args.slug, { attributes: ['id'] })
           .then(collective => models.Collective.findAll({
             where: { ParentCollectiveId: collective.id, type: 'EVENT' },
-            order: [['startsAt', 'DESC'], ['createdAt', 'DESC']]
+            order: [['startsAt', 'DESC'], ['createdAt', 'DESC']],
+            limit: args.limit || 10,
+            offset: args.offset || 0
           }))
           .catch(e => {
             console.error(e.message);
