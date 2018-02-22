@@ -74,27 +74,39 @@ export function calcFee(amount, fee) {
  *  transactions being created.
  */
 export async function createRefundTransaction(transaction, refundedPaymentProcessorFee, data) {
-  const payload = pick(transaction, ['CreatedByUserId', 'PaymentMethodId']);
-  payload.FromCollectiveId = transaction.CollectiveId;
-  payload.CollectiveId = transaction.FromCollectiveId;
-  payload.transaction = pick(transaction, [
-    'OrderId', 'amount', 'currency', 'hostCurrency', 'amountInHostCurrency',
-    'hostCurrencyFxRate', 'hostFeeInHostCurrency', 'platformFeeInHostCurrency',
+  /* If the transaction passed isn't the one from the collective
+   * perspective, the opposite transaction is retrieved. */
+  const collectiveLedger = (transaction.type === 'CREDIT') ? transaction :
+        await models.Transaction.find({ where: {
+          TransactionGroup: transaction.TransactionGroup,
+          id: { [Op.ne]: transaction.id }
+        } });
+  const userLedgerRefund = pick(collectiveLedger, [
+    'FromCollectiveId', 'CollectiveId', 'HostCollectiveId', 'PaymentMethodId',
+    'CreatedByUserId', 'OrderId', 'hostCurrencyFxRate', 'hostCurrency',
+    'hostFeeInHostCurrency', 'platformFeeInHostCurrency',
     'paymentProcessorFeeInHostCurrency',
-    'netAmountInCollectiveCurrency', 'HostCollectiveId',
   ]);
-  payload.transaction.description = `Refund of "${transaction.description}"`;
-  payload.transaction.data = data;
+  userLedgerRefund.amount = -collectiveLedger.amount;
+  userLedgerRefund.amountInHostCurrency = -collectiveLedger.amountInHostCurrency;
+  userLedgerRefund.netAmountInCollectiveCurrency =
+    -Math.round((collectiveLedger.amountInHostCurrency
+                 - collectiveLedger.platformFeeInHostCurrency
+                 - collectiveLedger.hostFeeInHostCurrency
+                 - collectiveLedger.paymentProcessorFeeInHostCurrency)
+                * collectiveLedger.hostCurrencyFxRate);
+  userLedgerRefund.description = `Refund of "${transaction.description}"`;
+  userLedgerRefund.data = data;
 
   /* If the payment processor doesn't refund the fee, the equivalent
    * of the fee will be transferred from the host to the user so the
    * user can get the full refund. */
   if (refundedPaymentProcessorFee === 0) {
-    payload.transaction.hostFeeInHostCurrency +=
-      payload.transaction.paymentProcessorFeeInHostCurrency;
-    payload.transaction.paymentProcessorFeeInHostCurrency = 0;
+    userLedgerRefund.hostFeeInHostCurrency +=
+      userLedgerRefund.paymentProcessorFeeInHostCurrency;
+    userLedgerRefund.paymentProcessorFeeInHostCurrency = 0;
   }
-  return models.Transaction.createFromPayload(payload);
+  return models.Transaction.createDoubleEntry(userLedgerRefund);
 }
 
 export async function associateTransactionRefundId(transaction, refund) {
@@ -106,10 +118,10 @@ export async function associateTransactionRefundId(transaction, refund) {
     ] }
   });
 
-  tr1.refundId = tr3.id; await tr1.save();
-  tr2.refundId = tr4.id; await tr2.save();
-  tr3.refundId = tr1.id; await tr3.save();
-  tr4.refundId = tr2.id; await tr4.save();
+  tr1.refundId = tr4.id; await tr1.save(); // User Ledger
+  tr2.refundId = tr3.id; await tr2.save(); // Collective Ledger
+  tr3.refundId = tr2.id; await tr3.save(); // Collective Ledger
+  tr4.refundId = tr1.id; await tr4.save(); // User Ledger
 }
 
 /**
