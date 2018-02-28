@@ -1,5 +1,5 @@
 /*
- * This script runs through a few checks and lets us know if something is off
+ * This script calculates how many new backers and old backers we have added by calendar months
  */
 
 import Promise from 'bluebird';
@@ -47,21 +47,25 @@ const calculateNewBackersPerMonth = () => {
   .each(order => {
     const dateKey = getMonthYearKeyFromDate(order.createdAt);
     if (order.FromCollectiveId in seenFromCollectiveIdList) {
-      // ignore it
+      if (dateKey in results) {
+        results[dateKey]['oldBackers'] += 1;
+      } else {
+        results[dateKey] = { newBackers: 0, oldBackers: 1};
+      }
     } else {
       // means this is a new backer
       seenFromCollectiveIdList[order.FromCollectiveId] = true;
       if (dateKey in results) {
-        results[dateKey] += 1;
+        results[dateKey]['newBackers'] += 1;
       } else {
-        results[dateKey] = 1;
+        results[dateKey] = { newBackers: 1, oldBackers: 0 };
       }
     }
   })
   .then(() => {
-    let csvFields = ['month', 'newBackers'];
+    let csvFields = ['month', 'newBackers', 'oldBackers'];
     console.log(results);
-    const data = Object.keys(results).map(result => ({'month': result, 'newBackers': results[result]}));
+    const data = Object.keys(results).map(result => ({'month': result, 'newBackers': results[result].newBackers, 'oldBackers': results[result].oldBackers}));
     console.log(data);
     json2csv({ data , fields: csvFields }, (err, csv) => {
       console.log('Writing the output to', outputFilename);

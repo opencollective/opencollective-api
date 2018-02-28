@@ -1,5 +1,5 @@
 /*
- * This script runs through a few checks and lets us know if something is off
+ * This script runs breaks out how many new and old backers are added per active month per collective
  */
 
 import Promise from 'bluebird';
@@ -17,15 +17,12 @@ const done = (err) => {
 
 const results = {};
 const arrayLength = 30;
-//const csvFields = ['id', 'slug', 'newBackerCount', 'oldBackerCount'];
 const outputFilename = 'backer_count_output.csv';
 
 const initiateNewCollectiveStats = (firstOrder, isNewBacker) => {
 
   const generateMonths = (collectiveStats) => {
     const numArray = Array.apply(null, {length: arrayLength}).map(Number.call, Number).slice(2, arrayLength);
-
-    console.log(numArray);
 
     numArray.map(i => {
       collectiveStats.months[i] = {
@@ -49,7 +46,7 @@ const initiateNewCollectiveStats = (firstOrder, isNewBacker) => {
     }
   }
   const newCollectiveStats = generateMonths(collectiveStats);
-  console.log(newCollectiveStats);
+  console.log("newCollectiveStats", newCollectiveStats);
   return newCollectiveStats;  
 };
 
@@ -59,11 +56,14 @@ const countOrderInStats = (order, isNewBacker) => {
   const orderStats = results[order.CollectiveId];
 
   const newOrderDate = moment(order.createdAt);
-  const diff = newOrderDate.diff(moment(orderStats.months['1'].date));
+  let diff = newOrderDate.diff(moment(orderStats.months['1'].date));
 
+  console.log(orderStats);
   console.log(order.createdAt, orderStats.months['1'].date, diff);
 
-  const month = (Math.round((diff / 1000 / 3600 / 24) % 30), 0) + 1;
+  if (diff < 0) diff = 0;
+
+  const month = Math.floor(diff / 1000 / 3600 / 24 / 30) % 30 + 1;
 
   console.log("month", month);
 
@@ -85,7 +85,7 @@ const calculateBackersPerCollective = () => {
       }*/
       CollectiveId: {
         [sequelize.Op.notIn]: [ 1 ]
-      }
+      }, 
     },
     include: [
       { model: models.Collective, as: 'fromCollective', paranoid: false }, 
@@ -118,17 +118,22 @@ const calculateBackersPerCollective = () => {
   })
   .then(() => {
     let csvFields = ['id', 'slug'];
-    const array = Array.apply(null, {length: arrayLength}).map(Number.call, Number);
+    const array = Array.apply(null, {length: arrayLength}).map(Number.call, Number).slice(0, -1);
 
     array.map(n => csvFields = csvFields.concat([`month${n+1}NewBackerCount`, `month${n+1}OldBackerCount`]));
 
     console.log(csvFields);
 
-    const data = Object.keys(results).map(stat => {
-      const obj = { id: stat.id, slug: stat.slug};
+    //console.log(results);
+
+    console.log(array);
+
+    const data = Object.keys(results).map(key => {
+      const obj = { id: results[key].id, slug: results[key].slug};
       array.map(n => {
-        obj[`month${n+1}NewBackerCount`] = results.months[`${n+1}`].newBackerCount;
-        obj[`month${n+1}OldBackerCount`] = results.months[`${n+1}`].oldBackerCount;
+        console.log(`${n+1}`, results[key].months[`${n+1}`]);
+        obj[`month${n+1}NewBackerCount`] = results[key].months[`${n+1}`].newBackerCount;
+        obj[`month${n+1}OldBackerCount`] = results[key].months[`${n+1}`].oldBackerCount;
       })
       return obj;
     });
