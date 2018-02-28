@@ -25,17 +25,28 @@ class Migration {
     return transactions;
   }
 
-  /** Verify values of fees in a transaction */
-  verifyFees = (tr) => {
-    return tr.amountInHostCurrency +
+  /** net value of a transaction */
+  trValue = (tr) => Math.round(
+      tr.amountInHostCurrency +
       tr.hostFeeInHostCurrency +
       tr.platformFeeInHostCurrency +
-      tr.paymentProcessorFeeInHostCurrency === (tr.netAmountInCollectiveCurrency * tr.hostCurrencyFxRate);
-  }
+      tr.paymentProcessorFeeInHostCurrency) * tr.hostCurrencyFxRate;
+
+  /** Verify net value of a transaction */
+  verify = (tr) => this.trValue(tr) === tr.netAmountInCollectiveCurrency;
+
+  /** Difference between transaction net value & netAmountInCollectiveCurrency */
+  difference = (tr) => this.trValue(tr) - tr.netAmountInCollectiveCurrency;
 
   /** Convert `value` to negative if it's possitive */
   toNegative = (value) => {
     return value > 0 ? -value : value;
+  }
+
+  /** Ensure that `tr` has the `hostCurrencyFxRate` field filled in */
+  ensureHostCurrencyFxRate = (tr) => {
+    if (tr.amount === tr.amountInHostCurrency && !tr.hostCurrencyFxRate)
+      tr.hostCurrencyFxRate = 1;
   }
 
   /** Rewrite the values of the fees */
@@ -55,15 +66,17 @@ class Migration {
     const credit = tr1.type === 'CREDIT' ? tr1 : tr2;
     const debit =  tr1.type === 'DEBIT' ? tr1 : tr2;
     if (tr1.ExpenseId !== null && tr1.ExpenseId === tr2.ExpenseId) {
-      console.log('  Expense.:', this.verifyFees(tr1), this.verifyFees(tr2));
+      console.log('  Expense.:', this.verify(tr1), this.verify(tr2));
     } else if (tr1.OrderId !== null && tr1.OrderId === tr2.OrderId) {
-      console.log('  Order...:', this.verifyFees(tr1), this.verifyFees(tr2));
+      console.log('  Order...:', this.verify(tr1), this.verify(tr2));
+      this.ensureHostCurrencyFxRate(credit);
+      this.ensureHostCurrencyFxRate(debit);
       this.rewriteFees(credit, debit);
-      if (!this.verifyFees(credit)) {
-        console.log(`    Transaction CREDIT ${credit.TransactionGroup} doesn't add up`);
+      if (!this.verify(credit)) {
+        console.log(`    Transaction CREDIT ${credit.TransactionGroup} doesn't add up: ${this.difference(credit)}`);
       }
-      if (!this.verifyFees(debit)) {
-        console.log(`    Transaction DEBIT ${credit.TransactionGroup} doesn't add up`);
+      if (!this.verify(debit)) {
+        console.log(`    Transaction DEBIT ${credit.TransactionGroup} doesn't add up: ${this.difference(debit)}`);
       }
 
       // if (!credit.hostFeeInHostCurrency)
@@ -73,7 +86,7 @@ class Migration {
       // if (!credit.paymentProcessorFeeInHostCurrency)
       //   console.log('    * WARNING: C:ppFee.......: ', credit.paymentProcessorFeeInHostCurrency);
     } else {
-      console.log('  WAT.....:', this.verifyFees(tr1), this.verifyFees(tr2));
+      console.log('  WAT.....:', this.verify(tr1), this.verify(tr2));
     }
 
     console.log('    * C:amount......: ', credit.amountInHostCurrency);
