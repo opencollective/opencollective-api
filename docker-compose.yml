@@ -23,9 +23,8 @@ services:
       SESSION_SECRET: i&j@/V6Wx.`g>Aq?qQQF(>u)/Erm;3A=
   postgres:
     image: kartoza/postgis:9.6-2.4
-    # Uncomment below for production (persist database)
     # volumes:
-    # - ./.data/database:/data/db
+    # - /path/to/persistent/db:/var/lib/postgresql
     ports:
     - 15432:5432
     environment:
