@@ -49,6 +49,11 @@ class Migration {
       tr.hostCurrencyFxRate = 1;
   }
 
+  /** Return false if there are no fees on a transaction */
+  hasFees = (tr) => (tr.hostFeeInHostCurrency && parseInt(tr.hostFeeInHostCurrency, 10) !== 0)
+    || (tr.platformFeeInHostCurrency && parseInt(tr.platformFeeInHostCurrency, 10) !== 0)
+    || (tr.paymentProcessorFeeInHostCurrency && parseInt(tr.paymentProcessorFeeInHostCurrency, 10) !== 0);
+
   /** Rewrite the values of the fees */
   rewriteFees = (credit, debit) => {
     credit.hostFeeInHostCurrency = debit.hostFeeInHostCurrency = this.toNegative(credit.hostFeeInHostCurrency);
@@ -68,15 +73,22 @@ class Migration {
     if (tr1.ExpenseId !== null && tr1.ExpenseId === tr2.ExpenseId) {
       console.log('  Expense.:', this.verify(tr1), this.verify(tr2));
     } else if (tr1.OrderId !== null && tr1.OrderId === tr2.OrderId) {
-      console.log('  Order...:', this.verify(tr1), this.verify(tr2));
       this.ensureHostCurrencyFxRate(credit);
       this.ensureHostCurrencyFxRate(debit);
+
+      console.log('  Order...:', this.verify(credit), this.verify(debit));
+      if (!this.hasFees(tr1) && !this.hasFees(tr2)) {
+        console.log('    No fees, skipping');
+        return;
+      }
+
       this.rewriteFees(credit, debit);
+
       if (!this.verify(credit)) {
-        console.log(`    Transaction CREDIT ${credit.TransactionGroup} doesn't add up: ${this.difference(credit)}`);
+        console.log(`    doesn't add up | ${credit.id} | CREDIT | ${credit.TransactionGroup} | ${this.difference(credit)} |`);
       }
       if (!this.verify(debit)) {
-        console.log(`    Transaction DEBIT ${credit.TransactionGroup} doesn't add up: ${this.difference(debit)}`);
+        console.log(`    doesn't add up | ${debit.id}  | DEBIT  | ${debit.TransactionGroup}  | ${this.difference(debit)}  |`);
       }
 
       // if (!credit.hostFeeInHostCurrency)
