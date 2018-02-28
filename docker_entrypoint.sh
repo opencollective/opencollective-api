@@ -8,6 +8,5 @@ until npm run db:migrate; do
   sleep 5
 done
 
-./scripts/postinstall.sh
 echo "Executing process..."
 exec "$@"
