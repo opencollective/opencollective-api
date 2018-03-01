@@ -2,14 +2,14 @@ import fs from 'fs';
 import json2csv from 'json2csv';
 import { ArgumentParser } from 'argparse';
 
-import emailLib from '../server/lib/email';
-import { promiseSeq } from '../server/lib/utils';
-import { sequelize } from '../server/models';
+import emailLib from '../../server/lib/email';
+import { promiseSeq } from '../../server/lib/utils';
+import { sequelize } from '../../server/models';
 import {
   ordersWithPendingCharges,
   processOrderWithSubscription,
   groupProcessedOrders,
-} from '../server/lib/subscriptions';
+} from '../../server/lib/subscriptions';
 
 const REPORT_EMAIL = 'ops@opencollective.com';
 
