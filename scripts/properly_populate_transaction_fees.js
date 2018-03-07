@@ -19,7 +19,7 @@ import * as transactionsLib from '../server/lib/transactions';
 import * as paymentsLib from '../server/lib/payments';
 import { OC_FEE_PERCENT } from '../server/constants/transactions';
 
-class Migration {
+export class Migration {
   constructor(options) {
     this.options = options;
     this.offset = 0;
@@ -47,29 +47,129 @@ class Migration {
   /** Convert `value` to negative if it's possitive */
   toNegative = (value) => value > 0 ? -value : value;
 
-  /** Ensure that `tr` has the `hostCurrencyFxRate` field filled in */
-  ensureHostCurrencyFxRate = (tr) => {
-    if (tr.amount === tr.amountInHostCurrency && !tr.hostCurrencyFxRate)
-      tr.hostCurrencyFxRate = 1;
+
+  /** Saves what type of change was made to a given field in a transaction */
+  saveTransactionChange = (tr, field, oldValue, newValue) => {
+    if (!tr.data) tr.data = {};
+    if (!tr.data.migration) tr.data.migration = {};
+    tr.data.migration[field] = { oldValue, newValue };
   }
 
-  /** Return true if the transaction has any host fees */
-  hasHostFee = (tr) => tr.hostFeeInHostCurrency
-    && parseInt(tr.hostFeeInHostCurrency, 10) !== 0;
-  /** Return true if the transaction has any platform fees */
-  hasPlatformFee = (tr) => tr.paymentProcessorFeeInHostCurrency
-    && parseInt(tr.paymentProcessorFeeInHostCurrency, 10) !== 0;
-  /** Return false if there are no fees on a transaction */
-  hasFees = (tr) => this.hasHostFee(tr) || this.hasPlatformFee(tr)
-    || (tr.platformFeeInHostCurrency && parseInt(tr.platformFeeInHostCurrency, 10) !== 0);
+  /** Ensure that `tr` has the `hostCurrencyFxRate` field filled in */
+  ensureHostCurrencyFxRate = (tr) => {
+    if (tr.amount === tr.amountInHostCurrency
+        && tr.currency === tr.hostCurrency
+        && !tr.hostCurrencyFxRate) {
+      tr.hostCurrencyFxRate = 1;
+      this.saveTransactionChange(tr, 'hostCurrencyFxRate', null, 1);
+    }
+  }
 
+  /** Rewrite Host, Platform, and Payment Processor Fees
+   *
+   * It figures out if the given fee exist first in the credit
+   * transaction, then in the debit transaction. If no fee is found,
+   * the then the transaction is left untouched. */
   rewriteFees = (credit, debit) => {
-    credit.hostFeeInHostCurrency = debit.hostFeeInHostCurrency =
-      this.toNegative(credit.hostFeeInHostCurrency || credit.hostFeeInHostCurrency);
-    credit.platformFeeInHostCurrency = debit.platformFeeInHostCurrency =
-      this.toNegative(credit.platformFeeInHostCurrency || debit.platformFeeInHostCurrency);
-    credit.paymentProcessorFeeInHostCurrency = debit.paymentProcessorFeeInHostCurrency =
-      this.toNegative(credit.paymentProcessorFeeInHostCurrency || debit.paymentProcessorFeeInHostCurrency);
+    // Update hostFeeInHostCurrency
+    const newHostFeeInHostCurrency = this.toNegative(credit.hostFeeInHostCurrency || debit.hostFeeInHostCurrency);
+    if (newHostFeeInHostCurrency) {
+      this.saveTransactionChange(credit, 'hostFeeInHostCurrency', credit.hostFeeInHostCurrency, newHostFeeInHostCurrency);
+      credit.hostFeeInHostCurrency = newHostFeeInHostCurrency;
+      this.saveTransactionChange(debit, 'hostFeeInHostCurrency', debit.hostFeeInHostCurrency, newHostFeeInHostCurrency);
+      debit.hostFeeInHostCurrency = newHostFeeInHostCurrency;
+    }
+    // Update platformFeeInHostCurrency
+    const newPlatformFeeInHostCurrency = this.toNegative(credit.platformFeeInHostCurrency || debit.platformFeeInHostCurrency);
+    if (newPlatformFeeInHostCurrency) {
+      this.saveTransactionChange(credit, 'platformFeeInHostCurrency', credit.platformFeeInHostCurrency, newPlatformFeeInHostCurrency);
+      credit.platformFeeInHostCurrency = newPlatformFeeInHostCurrency;
+      this.saveTransactionChange(debit, 'platformFeeInHostCurrency', debit.platformFeeInHostCurrency, newPlatformFeeInHostCurrency);
+      debit.platformFeeInHostCurrency = newPlatformFeeInHostCurrency;
+    }
+    // Update paymentProcessorFeeInHostCurrency
+    const newPaymentProcessorFeeInHostCurrency = this.toNegative(credit.paymentProcessorFeeInHostCurrency || debit.paymentProcessorFeeInHostCurrency);
+    if (newPaymentProcessorFeeInHostCurrency) {
+      this.saveTransactionChange(credit, 'paymentProcessorFeeInHostCurrency', credit.paymentProcessorFeeInHostCurrency, newPaymentProcessorFeeInHostCurrency);
+      credit.paymentProcessorFeeInHostCurrency = newPaymentProcessorFeeInHostCurrency;
+      this.saveTransactionChange(debit, 'paymentProcessorFeeInHostCurrency', debit.paymentProcessorFeeInHostCurrency, newPaymentProcessorFeeInHostCurrency);
+      debit.paymentProcessorFeeInHostCurrency = newPaymentProcessorFeeInHostCurrency;
+    }
+  }
+
+  /** Recalculate host fee if it doesn't round up properly  */
+  recalculateHostFee = (credit, debit) => {
+    const fee = (credit.hostFeeInHostCurrency || debit.hostFeeInHostCurrency);
+    const hostFeePercent = -this.toNegative(fee * 100 / credit.amountInHostCurrency);
+    if (!!hostFeePercent && hostFeePercent !== credit.collective.hostFeePercent) {
+      console.log('Correcting Suspicious hostFee', credit.id,
+                  credit.amountInHostCurrency,
+                  credit.amountInHostCurrency * credit.collective.hostFeePercent / 100,
+                  hostFeePercent);
+      const newHostFeeInHostCurrency = this.toNegative(
+        paymentsLib.calcFee(credit.amountInHostCurrency, credit.collective.hostFeePercent));
+      this.saveTransactionChange(credit, 'hostFeeInHostCurrency', credit.hostFeeInHostCurrency, newHostFeeInHostCurrency);
+      credit.hostFeeInHostCurrency = newHostFeeInHostCurrency;
+      this.saveTransactionChange(debit, 'hostFeeInHostCurrency', debit.hostFeeInHostCurrency, newHostFeeInHostCurrency);
+      debit.hostFeeInHostCurrency = newHostFeeInHostCurrency;
+    }
+
+    // I wanted to make sure that it was safe to use the field
+    // credit.collective.hostFeePercent like I did above so I wrote
+    // the following code to find the approximate value from the data.
+
+    // const hostFee = credit.hostFeeInHostCurrency
+    //       || debit.hostFeeInHostCurrency;
+    // const amount = credit.amountInHostCurrency
+    //       || debit.netAmountInCollectiveCurrency * debit.hostCurrencyFxRate;
+    // if (!hostFee || !amount) return;
+    //
+    // const hostFeePercent = -this.toNegative(hostFee * 100 / amount);
+    // if (!hostFeePercent) return;
+    //
+    // if (hostFeePercent != 5 && hostFeePercent != 10) {
+    //   console.log('Correcting Suspicious hostFee',
+    //               credit.id,
+    //               credit.amountInHostCurrency,
+    //               credit.amountInHostCurrency * hostFeePercent / 100,
+    //               hostFeePercent);
+    //
+    //   /* Since the current values are not properly rounded */
+    //   let roundHostFeePercent;
+    //   if (hostFeePercent > 4 && hostFeePercent < 6)
+    //     roundHostFeePercent = 5;
+    //   else if (hostFeePercent > 9 && hostFeePercent < 11)
+    //     roundHostFeePercent = 10;
+    //   else roundHostFeePercent = Math.round(hostFeePercent);
+    //
+    //   const newHostFeeInHostCurrency =
+    //         this.toNegative(paymentsLib.calcFee(
+    //           credit.amountInHostCurrency, roundHostFeePercent));
+    //   if (newHostFeeInHostCurrency) {
+    //     this.saveTransactionChange(credit, 'hostFeeInHostCurrency', credit.hostFeeInHostCurrency, newHostFeeInHostCurrency);
+    //     credit.hostFeeInHostCurrency = newHostFeeInHostCurrency;
+    //     this.saveTransactionChange(debit, 'hostFeeInHostCurrency', debit.hostFeeInHostCurrency, newHostFeeInHostCurrency);
+    //     debit.hostFeeInHostCurrency = newHostFeeInHostCurrency;
+    //   }
+    // }
+  }
+
+  /** Recalculate platform fee if it doesn't match OC_FEE_PERCENT  */
+  recalculatePlatformFee = (credit, debit) => {
+    const fee = (credit.platformFeeInHostCurrency || debit.platformFeeInHostCurrency);
+    const platformFeePercent = -this.toNegative(fee * 100 / credit.amountInHostCurrency);
+    if (!!platformFeePercent && platformFeePercent !== OC_FEE_PERCENT) {
+      console.log('Correcting Suspicious platformFee', credit.id,
+                  credit.amountInHostCurrency,
+                  credit.amountInHostCurrency * OC_FEE_PERCENT / 100,
+                  platformFeePercent);
+      const newPlatformFeeInHostCurrency = this.toNegative(
+        paymentsLib.calcFee(credit.amountInHostCurrency, OC_FEE_PERCENT));
+      this.saveTransactionChange(credit, 'platformFeeInHostCurrency', credit.platformFeeInHostCurrency, newPlatformFeeInHostCurrency);
+      credit.platformFeeInHostCurrency = newPlatformFeeInHostCurrency;
+      this.saveTransactionChange(debit, 'platformFeeInHostCurrency', debit.platformFeeInHostCurrency, newPlatformFeeInHostCurrency);
+      debit.platformFeeInHostCurrency = newPlatformFeeInHostCurrency;
+    }
   }
 
   /** Fix rounding errors in fees and rewrite netAmount */
@@ -79,38 +179,13 @@ class Migration {
       if (!debit.collective) console.log('debit with no collective!!!!', credit.id);
       return;
     }
+    this.recalculateHostFee(credit, debit);
+    this.recalculatePlatformFee(credit, debit);
 
-    /* Recalculate Host Fee */
-    let hostFeePercent;
-    if (this.hasHostFee(credit) || this.hasHostFee(debit)) {
-      hostFeePercent = Math.round(-this.toNegative(
-        (credit.hostFeePercent || debit.hostFeePercent) * 100 / credit.amountInHostCurrency));
-    }
-    if (hostFeePercent != 5 && hostFeePercent != 10 && hostFeePercent !== 0)
-      console.log('Suspicious hostFee',
-                  credit.id,
-                  credit.amountInHostCurrency,
-                  credit.amountInHostCurrency * hostFeePercent / 100,
-                  hostFeePercent);
-
-    /* Recalculate Platform Fee */
-    const platformFeePercent = Math.round(-this.toNegative(
-      credit.platformFeeInHostCurrency * 100 / credit.amountInHostCurrency));
-    if (platformFeePercent != 5 && platformFeePercent !== 0)
-      console.log('Suspicious platformFee',
-                  credit.id,
-                  credit.amountInHostCurrency,
-                  credit.amountInHostCurrency * 0.05,
-                  platformFeePercent);
-
-    /* This */
-    credit.platformFeeInHostCurrency = this.toNegative(
-      paymentsLib.calcFee(credit.amountInHostCurrency, OC_FEE_PERCENT));
-    debit.platformFeeInHostCurrency = this.toNegative(
-      paymentsLib.calcFee(credit.amountInHostCurrency, OC_FEE_PERCENT));
-
+    /* Rewrite netAmountInCollectiveCurrency for both credit & debit */
     credit.netAmountInCollectiveCurrency = transactionsLib.netAmount(credit);
     debit.netAmountInCollectiveCurrency = -credit.amountInHostCurrency * credit.hostCurrencyFxRate;
+    debit.amount = -credit.amount;
   }
 
   /** Make sure two transactions are pairs of each other */
@@ -123,6 +198,12 @@ class Migration {
     }
     if (tr1.OrderId !== tr2.OrderId) {
       throw new Error('Wrong transaction pair detected: OrderId does not match');
+    }
+    if (tr1.OrderId && tr1.ExpenseId) {
+      throw new Error('tr1 cannot be order & expense');
+    }
+    if (tr2.OrderId && tr2.ExpenseId) {
+      throw new Error('tr2 cannot be order & expense');
     }
   }
 
@@ -153,38 +234,41 @@ class Migration {
         console.log(`| EDAU  | DEBIT | ${debit.id} | ${debit.TransactionGroup}  | ${transactionsLib.difference(debit)}  |`);
       }
     } else if (tr1.OrderId !== null) {
-      this.ensureHostCurrencyFxRate(credit);
-      this.ensureHostCurrencyFxRate(debit);
-      this.rewriteFees(credit, debit);
-
-      // Both CREDIT & DEBIT transactions add up
       if (transactionsLib.verify(credit) && transactionsLib.verify(debit)) {
         console.log('Order...: true, true');
         return;
       }
 
-      // Something is off
-      console.log('  Order...:', transactionsLib.verify(credit), transactionsLib.verify(debit));
-      if (!this.hasFees(tr1) && !this.hasFees(tr2)) {
-        console.log('    No fees, skipping');
+      // Try to set up hostCurrencyFxRate if it's null
+      this.ensureHostCurrencyFxRate(credit);
+      this.ensureHostCurrencyFxRate(debit);
+      if (transactionsLib.verify(credit) && transactionsLib.verify(debit)) {
+        console.log('Order...: true, true # after updating hostCurrencyFxRate');
         return;
       }
 
-      this.rewriteFeesAndNetAmount(credit, debit);
+      // Try to just setup fees
+      this.rewriteFees(credit, debit);
+      if (transactionsLib.verify(credit) && transactionsLib.verify(debit)) {
+        console.log('Order...: true, true # after updating fees');
+        return;
+      }
 
+      // Try to recalculate the fees & net amount
+      this.rewriteFeesAndNetAmount(credit, debit);
+      if (transactionsLib.verify(credit) && transactionsLib.verify(debit)) {
+        console.log('Order...: true, true # after recalculating fees & net amount');
+        return;
+      }
+
+      // Something is still off
+      console.log('Order...:', transactionsLib.verify(credit), transactionsLib.verify(debit));
       if (!transactionsLib.verify(credit)) {
         console.log(`| ODAU | CREDIT | ${credit.id} | ${credit.TransactionGroup} | ${transactionsLib.difference(credit)} |`);
       }
       if (!transactionsLib.verify(debit)) {
         console.log(`| ODAU | DEBIT  | ${debit.id}  | ${debit.TransactionGroup}  | ${transactionsLib.difference(debit)}  |`);
       }
-
-      // if (!credit.hostFeeInHostCurrency)
-      //   console.log('    * WARNING: C:hostFee.....: ', credit.hostFeeInHostCurrency);
-      // if (!credit.platformFeeInHostCurrency)
-      //   console.log('    * WARNING: C:platformFee.: ', credit.platformFeeInHostCurrency);
-      // if (!credit.paymentProcessorFeeInHostCurrency)
-      //   console.log('    * WARNING: C:ppFee.......: ', credit.paymentProcessorFeeInHostCurrency);
     } else {
       console.log('  WAT.....:', transactionsLib.verify(tr1), transactionsLib.verify(tr2));
     }
@@ -202,8 +286,17 @@ class Migration {
     // console.log('    * D:ppFee.......: ', debit.paymentProcessorFeeInHostCurrency);
   }
 
+  /** Print out a CSV line */
+  logChange = (tr) => {
+    const fields = ((tr.data || {}).migration || {});
+    for (const k of Object.keys(fields)) {
+      console.log(`CSV:${tr.id},${tr.type},${tr.TransactionGroup},${k},${fields[k].oldValue},${fields[k].newValue}`);
+    }
+  }
+
   /** Run the whole migration */
   run = async () => {
+    console.log('CSV:id,type,group,field,oldval,newval');
     const count = this.options.limit || await this.countValidTransactions();
     while (this.offset < count) {
       /* Transactions are sorted by their TransactionGroup, which
@@ -216,8 +309,10 @@ class Migration {
         if (transactions[i].TransactionGroup !== transactions[i + 1].TransactionGroup) {
           throw new Error(`Cannot find pair for the transaction id ${transactions[i].id}`);
         }
-        /* Migrate the pair that we just found */
+        /* Migrate the pair that we just found & log */
         this.migrate(transactions[i], transactions[i + 1]);
+        this.logChange(transactions[i]);
+        this.logChange(transactions[i+1]);
       }
     }
   }
@@ -277,5 +372,5 @@ async function entryPoint(options) {
   vprint(options, 'Finished migrating fees');
 }
 
-/* Entry point */
-entryPoint(parseCommandLineArguments());
+/* Only call entry point if we're arg[0] */
+if (!module.parent) entryPoint(parseCommandLineArguments());
