@@ -102,12 +102,14 @@ export class Migration {
     const fee = (credit.hostFeeInHostCurrency || debit.hostFeeInHostCurrency);
     const hostFeePercent = -this.toNegative(fee * 100 / credit.amountInHostCurrency);
     if (!!hostFeePercent && hostFeePercent !== credit.collective.hostFeePercent) {
-      console.log('Correcting Suspicious hostFee', credit.id,
-                  credit.amountInHostCurrency,
-                  credit.amountInHostCurrency * credit.collective.hostFeePercent / 100,
-                  hostFeePercent);
       const newHostFeeInHostCurrency = this.toNegative(
         paymentsLib.calcFee(credit.amountInHostCurrency, credit.collective.hostFeePercent));
+      console.log('Correcting Suspicious hostFee', credit.id,
+                  debit.id,
+                  credit.amountInHostCurrency,
+                  credit.amountInHostCurrency * credit.collective.hostFeePercent / 100,
+                  hostFeePercent,
+                  newHostFeeInHostCurrency);
       this.saveTransactionChange(credit, 'hostFeeInHostCurrency', credit.hostFeeInHostCurrency, newHostFeeInHostCurrency);
       credit.hostFeeInHostCurrency = newHostFeeInHostCurrency;
       this.saveTransactionChange(debit, 'hostFeeInHostCurrency', debit.hostFeeInHostCurrency, newHostFeeInHostCurrency);
@@ -182,10 +184,26 @@ export class Migration {
     this.recalculateHostFee(credit, debit);
     this.recalculatePlatformFee(credit, debit);
 
-    /* Rewrite netAmountInCollectiveCurrency for both credit & debit */
-    credit.netAmountInCollectiveCurrency = transactionsLib.netAmount(credit);
-    debit.netAmountInCollectiveCurrency = -credit.amountInHostCurrency * credit.hostCurrencyFxRate;
-    debit.amount = -credit.amount;
+    /* Rewrite netAmountInCollectiveCurrency for credit */
+    const newNetAmountInCollectiveCurrency = transactionsLib.netAmount(credit);
+    this.saveTransactionChange(
+      credit, 'netAmountInCollectiveCurrency',
+      credit.netAmountInCollectiveCurrency,
+      newNetAmountInCollectiveCurrency);
+    credit.netAmountInCollectiveCurrency = newNetAmountInCollectiveCurrency;
+
+    /* Rewrite amountInHostCurrency & amount for debit */
+    const newAmountInHostCurrency = -credit.netAmountInHostCurrency;
+    this.saveTransactionChange(
+      debit, 'amountInHostCurrency',
+      debit.amountInHostCurrency,
+      newAmountInHostCurrency);
+    debit.amountInHostCurrency = newAmountInHostCurrency;
+    this.saveTransactionChange(
+      debit, 'amount',
+      debit.amount,
+      newAmountInHostCurrency);
+    debit.amount = newAmountInHostCurrency;
   }
 
   /** Make sure two transactions are pairs of each other */
@@ -207,7 +225,10 @@ export class Migration {
     }
   }
 
-  /** Migrate one pair of transactions */
+  /** Migrate one pair of transactions.
+   *
+   * Return true if the row was changed and false if it was left
+   * untouched. */
   migrate = async (tr1, tr2) => {
     console.log(tr1.TransactionGroup);
     console.log(tr2.TransactionGroup);
@@ -220,7 +241,7 @@ export class Migration {
       // Both CREDIT & DEBIT transactions add up
       if (transactionsLib.verify(credit) && transactionsLib.verify(debit)) {
         console.log('Expense.: true, true');
-        return;
+        return false;
       }
 
       // this.rewriteFees(credit, debit);
@@ -236,7 +257,7 @@ export class Migration {
     } else if (tr1.OrderId !== null) {
       if (transactionsLib.verify(credit) && transactionsLib.verify(debit)) {
         console.log('Order...: true, true');
-        return;
+        return false;
       }
 
       // Try to set up hostCurrencyFxRate if it's null
@@ -244,30 +265,30 @@ export class Migration {
       this.ensureHostCurrencyFxRate(debit);
       if (transactionsLib.verify(credit) && transactionsLib.verify(debit)) {
         console.log('Order...: true, true # after updating hostCurrencyFxRate');
-        return;
+        return true;
       }
 
       // Try to just setup fees
       this.rewriteFees(credit, debit);
       if (transactionsLib.verify(credit) && transactionsLib.verify(debit)) {
         console.log('Order...: true, true # after updating fees');
-        return;
+        return true;
       }
 
       // Try to recalculate the fees & net amount
       this.rewriteFeesAndNetAmount(credit, debit);
       if (transactionsLib.verify(credit) && transactionsLib.verify(debit)) {
         console.log('Order...: true, true # after recalculating fees & net amount');
-        return;
+        return true;
       }
 
       // Something is still off
       console.log('Order...:', transactionsLib.verify(credit), transactionsLib.verify(debit));
       if (!transactionsLib.verify(credit)) {
-        console.log(`| ODAU | CREDIT | ${credit.id} | ${credit.TransactionGroup} | ${transactionsLib.difference(credit)} |`);
+        console.log(`| ODAU | CREDIT | ${credit.id} | ${credit.TransactionGroup} | ${transactionsLib.netAmount(credit)} | ${transactionsLib.difference(credit)} |`);
       }
       if (!transactionsLib.verify(debit)) {
-        console.log(`| ODAU | DEBIT  | ${debit.id}  | ${debit.TransactionGroup}  | ${transactionsLib.difference(debit)}  |`);
+        console.log(`| ODAU | DEBIT  | ${debit.id}  | ${debit.TransactionGroup}  | ${transactionsLib.netAmount(debit)} | ${transactionsLib.difference(debit)}  |`);
       }
     } else {
       console.log('  WAT.....:', transactionsLib.verify(tr1), transactionsLib.verify(tr2));
@@ -284,6 +305,7 @@ export class Migration {
     // console.log('    * D:hostFee.....: ', debit.hostFeeInHostCurrency);
     // console.log('    * D:platformFee.: ', debit.platformFeeInHostCurrency);
     // console.log('    * D:ppFee.......: ', debit.paymentProcessorFeeInHostCurrency);
+    return false;
   }
 
   /** Print out a CSV line */
@@ -297,6 +319,7 @@ export class Migration {
   /** Run the whole migration */
   run = async () => {
     console.log('CSV:id,type,group,field,oldval,newval');
+    let rowsChanged = 0;
     const count = this.options.limit || await this.countValidTransactions();
     while (this.offset < count) {
       /* Transactions are sorted by their TransactionGroup, which
@@ -309,12 +332,15 @@ export class Migration {
         if (transactions[i].TransactionGroup !== transactions[i + 1].TransactionGroup) {
           throw new Error(`Cannot find pair for the transaction id ${transactions[i].id}`);
         }
-        /* Migrate the pair that we just found & log */
-        this.migrate(transactions[i], transactions[i + 1]);
-        this.logChange(transactions[i]);
-        this.logChange(transactions[i+1]);
+        /* Migrate the pair that we just found & log if migration fixed the row */
+        if (this.migrate(transactions[i], transactions[i + 1])) {
+          this.logChange(transactions[i]);
+          this.logChange(transactions[i+1]);
+          rowsChanged++;
+        }
       }
     }
+    console.log(`${rowsChanged} rows changed`);
   }
 }
 
