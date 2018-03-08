@@ -148,7 +148,7 @@ describe('createOrder', () => {
       expect(transaction.CollectiveId).to.equal(collective.id);
       expect(transaction.currency).to.equal(collective.currency);
       // expect(transaction.hostFeeInHostCurrency).to.equal(0.05 * order.totalAmount); // need to update BrusselsTogether.hostFee in opencollective_dvl DB
-      expect(transaction.platformFeeInHostCurrency).to.equal(0.05 * order.totalAmount);
+      expect(transaction.platformFeeInHostCurrency).to.equal(-(0.05 * order.totalAmount));
       expect(transaction.data.charge.currency).to.equal(collective.currency.toLowerCase());
       expect(transaction.data.charge.status).to.equal('succeeded');
       expect(transaction.data.balanceTransaction.net - transaction.hostFeeInHostCurrency).to.equal(transaction.netAmountInCollectiveCurrency);
@@ -206,7 +206,7 @@ describe('createOrder', () => {
       expect(transaction.CollectiveId).to.equal(collective.id);
       expect(transaction.currency).to.equal(collective.currency);
       expect(transaction.hostFeeInHostCurrency).to.equal(0);
-      expect(transaction.platformFeeInHostCurrency).to.equal(0.05 * order.totalAmount);
+      expect(transaction.platformFeeInHostCurrency).to.equal(-(0.05 * order.totalAmount));
       expect(transaction.data.charge.currency).to.equal(collective.currency.toLowerCase());
       expect(transaction.data.charge.status).to.equal('succeeded');
       expect(transaction.data.balanceTransaction.net - transaction.hostFeeInHostCurrency).to.equal(transaction.netAmountInCollectiveCurrency);
@@ -266,7 +266,7 @@ describe('createOrder', () => {
       expect(transaction.CollectiveId).to.equal(collective.id);
       expect(transaction.currency).to.equal(collective.currency);
       expect(transaction.hostFeeInHostCurrency).to.equal(0);
-      expect(transaction.platformFeeInHostCurrency).to.equal(0.05 * order.totalAmount);
+      expect(transaction.platformFeeInHostCurrency).to.equal(-(0.05 * order.totalAmount));
       expect(transaction.data.charge.currency).to.equal(collective.currency.toLowerCase());
       expect(transaction.data.charge.status).to.equal('succeeded');
       expect(transaction.data.balanceTransaction.net - transaction.hostFeeInHostCurrency).to.equal(transaction.netAmountInCollectiveCurrency);
@@ -441,7 +441,7 @@ describe('createOrder', () => {
       expect(res.errors).to.not.exist;
 
       const availableBalance = await paymentMethod.getBalanceForUser(duc);
-      expect(availableBalance.amount).to.equal(1078);
+      expect(availableBalance.amount).to.equal(1160);
 
       const orderCreated = res.data.createOrder;
       const fromCollective = orderCreated.fromCollective;
@@ -459,7 +459,7 @@ describe('createOrder', () => {
       // Should fail if order.totalAmount > PaymentMethod.getBalanceForUser
       res = await utils.graphqlQuery(createOrderQuery, { order }, duc);
       expect(res.errors).to.exist;
-      expect(res.errors[0].message).to.equal("You don't have enough funds available ($11 left) to execute this order (€200 ~= $239)");
+      expect(res.errors[0].message).to.equal("You don't have enough funds available ($12 left) to execute this order (€200 ~= $239)");
 
     });
 

@@ -112,3 +112,25 @@ export function createFromPaidExpense(host, paymentMethod, expense, paymentRespo
     })
     .then(transaction => models.Transaction.createDoubleEntry(transaction));
   }
+
+/** Calculate net amount of a transaction */
+export function netAmount(tr) {
+  return Math.round((
+      tr.amountInHostCurrency +
+      tr.hostFeeInHostCurrency +
+      tr.platformFeeInHostCurrency +
+      tr.paymentProcessorFeeInHostCurrency) * tr.hostCurrencyFxRate);
+}
+
+/** Verify net amount of a transaction */
+export function verify(tr) {
+  return netAmount(tr) === tr.netAmountInCollectiveCurrency;
+}
+
+/** Calculate how off a transaction is
+ *
+ * Which is pretty much the difference between transaction net amount
+ * & netAmountInCollectiveCurrency */
+export function difference(tr) {
+  return netAmount(tr) - tr.netAmountInCollectiveCurrency;
+}
