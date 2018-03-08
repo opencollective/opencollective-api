@@ -249,10 +249,10 @@ export class Migration {
       console.log('  Expense.:', transactionsLib.verify(tr1), transactionsLib.verify(tr2));
 
       if (!transactionsLib.verify(credit)) {
-        console.log(`| EDAU | CREDIT | ${credit.id} | ${credit.TransactionGroup} | ${transactionsLib.difference(credit)} |`);
+        console.log(`EDAU, CREDIT, ${credit.id}, ${credit.TransactionGroup}, ${transactionsLib.difference(credit)}`);
       }
       if (!transactionsLib.verify(debit)) {
-        console.log(`| EDAU  | DEBIT | ${debit.id} | ${debit.TransactionGroup}  | ${transactionsLib.difference(debit)}  |`);
+        console.log(`EDAU, DEBIT, ${debit.id}, ${debit.TransactionGroup}, ${transactionsLib.difference(debit)}`);
       }
     } else if (tr1.OrderId !== null) {
       if (transactionsLib.verify(credit) && transactionsLib.verify(debit)) {
@@ -285,10 +285,10 @@ export class Migration {
       // Something is still off
       console.log('Order...:', transactionsLib.verify(credit), transactionsLib.verify(debit));
       if (!transactionsLib.verify(credit)) {
-        console.log(`| ODAU | CREDIT | ${credit.id} | ${credit.TransactionGroup} | ${transactionsLib.netAmount(credit)} | ${transactionsLib.difference(credit)} |`);
+        console.log(`ODAU, CREDIT, ${credit.id}, ${credit.TransactionGroup}, ${transactionsLib.netAmount(credit)}, ${transactionsLib.difference(credit)}`);
       }
       if (!transactionsLib.verify(debit)) {
-        console.log(`| ODAU | DEBIT  | ${debit.id}  | ${debit.TransactionGroup}  | ${transactionsLib.netAmount(debit)} | ${transactionsLib.difference(debit)}  |`);
+        console.log(`ODAU, DEBIT, ${debit.id}, ${debit.TransactionGroup}, ${transactionsLib.netAmount(debit)}, ${transactionsLib.difference(debit)}`);
       }
     } else {
       console.log('  WAT.....:', transactionsLib.verify(tr1), transactionsLib.verify(tr2));
