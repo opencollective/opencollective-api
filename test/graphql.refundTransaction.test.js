@@ -7,6 +7,7 @@ import * as utils from './utils';
 import models from '../server/models';
 import * as constants from '../server/constants/transactions';
 import * as stripeGateway from '../server/paymentProviders/stripe/gateway';
+import * as paymentsLib from '../server/lib/payments';
 
 // The GraphQL query that will refund a transaction (it returns the
 // transaction being refunded)
@@ -82,7 +83,7 @@ async function setupTestObjects() {
       hostCurrency: balanceTransaction.currency,
       amountInHostCurrency: balanceTransaction.amount,
       hostCurrencyFxRate: order.totalAmount / balanceTransaction.amount,
-      hostFeeInHostCurrency: parseInt(balanceTransaction.amount * collective.hostFeePercent / 100, 10),
+      hostFeeInHostCurrency: paymentsLib.calcFee(balanceTransaction.amount, collective.hostFeePercent),
       platformFeeInHostCurrency: fees.applicationFee,
       paymentProcessorFeeInHostCurrency: fees.stripeFee,
       description: order.description,
@@ -161,9 +162,9 @@ describe("Refund Transaction", () => {
       expect(tr1.CollectiveId).to.equal(user.CollectiveId);
       expect(tr1.amount).to.equal(-4075);
       expect(tr1.amountInHostCurrency).to.equal(-4075);
-      expect(tr1.platformFeeInHostCurrency).to.be.null;
-      expect(tr1.hostFeeInHostCurrency).to.be.null;
-      expect(tr1.paymentProcessorFeeInHostCurrency).to.be.null;
+      expect(tr1.platformFeeInHostCurrency).to.equal(-250);
+      expect(tr1.hostFeeInHostCurrency).to.equal(-500);
+      expect(tr1.paymentProcessorFeeInHostCurrency).to.equal(-175);
       expect(tr1.netAmountInCollectiveCurrency).to.equal(-5000);
       expect(tr1.refundId).to.equal(tr4.id);
 
@@ -173,9 +174,9 @@ describe("Refund Transaction", () => {
       expect(tr2.CollectiveId).to.equal(collective.id);
       expect(tr2.amount).to.equal(5000);
       expect(tr2.amountInHostCurrency).to.equal(5000);
-      expect(tr2.platformFeeInHostCurrency).to.equal(250);
-      expect(tr2.hostFeeInHostCurrency).to.equal(500);
-      expect(tr2.paymentProcessorFeeInHostCurrency).to.equal(175);
+      expect(tr2.platformFeeInHostCurrency).to.equal(-250);
+      expect(tr2.hostFeeInHostCurrency).to.equal(-500);
+      expect(tr2.paymentProcessorFeeInHostCurrency).to.equal(-175);
       expect(tr2.netAmountInCollectiveCurrency).to.equal(4075);
       expect(tr2.refundId).to.equal(tr3.id);
 
@@ -186,9 +187,9 @@ describe("Refund Transaction", () => {
       expect(tr3.amount).to.equal(-5000);
       expect(tr3.amountInHostCurrency).to.equal(-5000);
       expect(tr3.netAmountInCollectiveCurrency).to.equal(-4075);
-      expect(tr3.platformFeeInHostCurrency).to.equal(250);
-      expect(tr3.hostFeeInHostCurrency).to.equal(500);
-      expect(tr3.paymentProcessorFeeInHostCurrency).to.equal(175);
+      expect(tr3.platformFeeInHostCurrency).to.equal(-250);
+      expect(tr3.hostFeeInHostCurrency).to.equal(-500);
+      expect(tr3.paymentProcessorFeeInHostCurrency).to.equal(-175);
       expect(tr3.refundId).to.equal(tr2.id);
 
       // 4. Refund User Ledger
@@ -198,9 +199,9 @@ describe("Refund Transaction", () => {
       expect(tr4.amount).to.equal(4075);
       expect(tr4.netAmountInCollectiveCurrency).to.equal(5000);
       expect(tr4.amountInHostCurrency).to.equal(4075);
-      expect(tr4.platformFeeInHostCurrency).to.be.null;
-      expect(tr4.hostFeeInHostCurrency).to.be.null;
-      expect(tr4.paymentProcessorFeeInHostCurrency).to.be.null;
+      expect(tr4.platformFeeInHostCurrency).to.equal(-250);
+      expect(tr4.hostFeeInHostCurrency).to.equal(-500);
+      expect(tr4.paymentProcessorFeeInHostCurrency).to.equal(-175);
       expect(tr4.refundId).to.equal(tr1.id);
     });
 
@@ -253,9 +254,9 @@ describe("Refund Transaction", () => {
       expect(tr1.CollectiveId).to.equal(user.CollectiveId);
       expect(tr1.amount).to.equal(-4075);
       expect(tr1.amountInHostCurrency).to.equal(-4075);
-      expect(tr1.platformFeeInHostCurrency).to.be.null;
-      expect(tr1.hostFeeInHostCurrency).to.be.null;
-      expect(tr1.paymentProcessorFeeInHostCurrency).to.be.null;
+      expect(tr1.platformFeeInHostCurrency).to.equal(-250);
+      expect(tr1.hostFeeInHostCurrency).to.equal(-500);
+      expect(tr1.paymentProcessorFeeInHostCurrency).to.equal(-175);
       expect(tr1.netAmountInCollectiveCurrency).to.equal(-5000);
       expect(tr1.refundId).to.equal(tr4.id);
 
@@ -265,9 +266,9 @@ describe("Refund Transaction", () => {
       expect(tr2.CollectiveId).to.equal(collective.id);
       expect(tr2.amount).to.equal(5000);
       expect(tr2.amountInHostCurrency).to.equal(5000);
-      expect(tr2.platformFeeInHostCurrency).to.equal(250);
-      expect(tr2.hostFeeInHostCurrency).to.equal(500);
-      expect(tr2.paymentProcessorFeeInHostCurrency).to.equal(175);
+      expect(tr2.platformFeeInHostCurrency).to.equal(-250);
+      expect(tr2.hostFeeInHostCurrency).to.equal(-500);
+      expect(tr2.paymentProcessorFeeInHostCurrency).to.equal(-175);
       expect(tr2.netAmountInCollectiveCurrency).to.equal(4075);
       expect(tr2.refundId).to.equal(tr3.id);
 
@@ -278,8 +279,11 @@ describe("Refund Transaction", () => {
       expect(tr3.amount).to.equal(-5000);
       expect(tr3.amountInHostCurrency).to.equal(-5000);
       expect(tr3.netAmountInCollectiveCurrency).to.equal(-4075);
-      expect(tr3.platformFeeInHostCurrency).to.equal(250);
-      expect(tr3.hostFeeInHostCurrency).to.equal(175 + 500);
+      expect(tr3.platformFeeInHostCurrency).to.equal(-250);
+      // This is the part that we're saying that the host is paying
+      // the refund. The `paymentProcessorFeeInHostCurrency` set to
+      // zero and its value was added to the `hostFeeInHostCurrency`
+      expect(tr3.hostFeeInHostCurrency).to.equal(-175 -500);
       expect(tr3.paymentProcessorFeeInHostCurrency).to.equal(0);
       expect(tr3.refundId).to.equal(tr2.id);
 
@@ -290,9 +294,12 @@ describe("Refund Transaction", () => {
       expect(tr4.amount).to.equal(4075);
       expect(tr4.netAmountInCollectiveCurrency).to.equal(5000);
       expect(tr4.amountInHostCurrency).to.equal(4075);
-      expect(tr4.platformFeeInHostCurrency).to.be.null;
-      expect(tr4.hostFeeInHostCurrency).to.be.null;
-      expect(tr4.paymentProcessorFeeInHostCurrency).to.be.null;
+      expect(tr4.platformFeeInHostCurrency).to.equal(-250);
+      // This is the part that we're saying that the host is paying
+      // the refund. The `paymentProcessorFeeInHostCurrency` set to
+      // zero and its value was added to the `hostFeeInHostCurrency`
+      expect(tr4.hostFeeInHostCurrency).to.equal(-500 -175);
+      expect(tr4.paymentProcessorFeeInHostCurrency).to.equal(0);
       expect(tr4.refundId).to.equal(tr1.id);
     });
 

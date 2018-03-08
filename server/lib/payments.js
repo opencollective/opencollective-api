@@ -7,6 +7,7 @@ import emailLib from './email';
 import { types } from '../constants/collectives';
 import paymentProviders from '../paymentProviders';
 import * as libsubscription from './subscriptions';
+import * as libtransactions from './transactions';
 
 /** Find payment method handler
  *
@@ -89,12 +90,7 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
   ]);
   userLedgerRefund.amount = -collectiveLedger.amount;
   userLedgerRefund.amountInHostCurrency = -collectiveLedger.amountInHostCurrency;
-  userLedgerRefund.netAmountInCollectiveCurrency =
-    -Math.round((collectiveLedger.amountInHostCurrency
-                 - collectiveLedger.platformFeeInHostCurrency
-                 - collectiveLedger.hostFeeInHostCurrency
-                 - collectiveLedger.paymentProcessorFeeInHostCurrency)
-                * collectiveLedger.hostCurrencyFxRate);
+  userLedgerRefund.netAmountInCollectiveCurrency = -libtransactions.netAmount(collectiveLedger);
   userLedgerRefund.description = `Refund of "${transaction.description}"`;
   userLedgerRefund.data = data;
 
