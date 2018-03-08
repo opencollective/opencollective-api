@@ -73,7 +73,7 @@ async function HostReport(year, month) {
 
   let previewCondition = '';
   if (process.env.DEBUG && process.env.DEBUG.match(/preview/))
-    previewCondition = "AND c.id IN (9805, 9804, 9802, 9801)"; // open source collective host, wwcode host, brusselstogether, changex
+    previewCondition = "AND c.id IN (11004, 9804, 9802, 9801)"; // open source collective host, wwcode host, brusselstogether, changex
     // previewCondition = "AND c.id IN (9802)"; // brusselstogether
 
   if (process.env.SLUGS) {
