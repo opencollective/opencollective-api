@@ -13,9 +13,9 @@ import HostReport from '../../reports/host-report';
 
 const d = new Date;
 let year = process.env.YEAR;
-let hostId = process.env.HOST_ID;
+const hostId = process.env.HOST_ID;
 if (process.env.YEARLY_REPORT) {
-    year = year || (new Date(d.getFullYear() -1, 1, 1)).getFullYear();
+  year = year || (new Date(d.getFullYear() -1, 1, 1)).getFullYear();
   HostReport(year, null, hostId);
 } else {
   const rd = new Date(d.getFullYear(), d.getMonth()-1);
