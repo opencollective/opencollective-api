@@ -73,7 +73,7 @@ export class Migration {
   rewriteFees = (credit, debit) => {
     // Update hostFeeInHostCurrency
     const newHostFeeInHostCurrency = this.toNegative(credit.hostFeeInHostCurrency || debit.hostFeeInHostCurrency);
-    if (newHostFeeInHostCurrency) {
+    if (newHostFeeInHostCurrency || newHostFeeInHostCurrency === 0) {
       this.saveTransactionChange(credit, 'hostFeeInHostCurrency', credit.hostFeeInHostCurrency, newHostFeeInHostCurrency);
       credit.hostFeeInHostCurrency = newHostFeeInHostCurrency;
       this.saveTransactionChange(debit, 'hostFeeInHostCurrency', debit.hostFeeInHostCurrency, newHostFeeInHostCurrency);
@@ -81,7 +81,7 @@ export class Migration {
     }
     // Update platformFeeInHostCurrency
     const newPlatformFeeInHostCurrency = this.toNegative(credit.platformFeeInHostCurrency || debit.platformFeeInHostCurrency);
-    if (newPlatformFeeInHostCurrency) {
+    if (newPlatformFeeInHostCurrency || newPlatformFeeInHostCurrency === 0) {
       this.saveTransactionChange(credit, 'platformFeeInHostCurrency', credit.platformFeeInHostCurrency, newPlatformFeeInHostCurrency);
       credit.platformFeeInHostCurrency = newPlatformFeeInHostCurrency;
       this.saveTransactionChange(debit, 'platformFeeInHostCurrency', debit.platformFeeInHostCurrency, newPlatformFeeInHostCurrency);
@@ -89,7 +89,7 @@ export class Migration {
     }
     // Update paymentProcessorFeeInHostCurrency
     const newPaymentProcessorFeeInHostCurrency = this.toNegative(credit.paymentProcessorFeeInHostCurrency || debit.paymentProcessorFeeInHostCurrency);
-    if (newPaymentProcessorFeeInHostCurrency) {
+    if (newPaymentProcessorFeeInHostCurrency || newPaymentProcessorFeeInHostCurrency === 0) {
       this.saveTransactionChange(credit, 'paymentProcessorFeeInHostCurrency', credit.paymentProcessorFeeInHostCurrency, newPaymentProcessorFeeInHostCurrency);
       credit.paymentProcessorFeeInHostCurrency = newPaymentProcessorFeeInHostCurrency;
       this.saveTransactionChange(debit, 'paymentProcessorFeeInHostCurrency', debit.paymentProcessorFeeInHostCurrency, newPaymentProcessorFeeInHostCurrency);
@@ -147,7 +147,7 @@ export class Migration {
     //   const newHostFeeInHostCurrency =
     //         this.toNegative(paymentsLib.calcFee(
     //           credit.amountInHostCurrency, roundHostFeePercent));
-    //   if (newHostFeeInHostCurrency) {
+    //   if (newHostFeeInHostCurrency || newHostFeeInHostCurrency === 0) {
     //     this.saveTransactionChange(credit, 'hostFeeInHostCurrency', credit.hostFeeInHostCurrency, newHostFeeInHostCurrency);
     //     credit.hostFeeInHostCurrency = newHostFeeInHostCurrency;
     //     this.saveTransactionChange(debit, 'hostFeeInHostCurrency', debit.hostFeeInHostCurrency, newHostFeeInHostCurrency);
