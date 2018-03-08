@@ -34,7 +34,7 @@ const deltaAmount = (a, b) => {
   return r;
 }
 
-async function HostReport(year, month) {
+async function HostReport(year, month, hostId) {
 
   const startTime = new Date;
   let previousStartDate, startDate, endDate;
@@ -75,6 +75,10 @@ async function HostReport(year, month) {
   if (process.env.DEBUG && process.env.DEBUG.match(/preview/))
     previewCondition = "AND c.id IN (11004, 9804, 9802, 9801)"; // open source collective host, wwcode host, brusselstogether, changex
     // previewCondition = "AND c.id IN (9802)"; // brusselstogether
+
+  if (hostId) {
+    previewCondition = `AND c.id = ${hostId}`
+  }
 
   if (process.env.SLUGS) {
     const slugs = process.env.SLUGS.split(',');
