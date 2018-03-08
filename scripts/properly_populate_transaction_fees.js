@@ -47,7 +47,6 @@ export class Migration {
   /** Convert `value` to negative if it's possitive */
   toNegative = (value) => value > 0 ? -value : value;
 
-
   /** Saves what type of change was made to a given field in a transaction */
   saveTransactionChange = (tr, field, oldValue, newValue) => {
     if (!tr.data) tr.data = {};
@@ -260,6 +259,11 @@ export class Migration {
         return false;
       }
 
+      if (credit.currency !== credit.hostCurrency || debit.currency !== debit.hostCurrency) {
+        console.log('Order...:', transactionsLib.verify(credit), transactionsLib.verify(debit), ' # not touched because currency is different');
+        return false;
+      }
+
       // Try to set up hostCurrencyFxRate if it's null
       this.ensureHostCurrencyFxRate(credit);
       this.ensureHostCurrencyFxRate(debit);
@@ -275,12 +279,13 @@ export class Migration {
         return true;
       }
 
-      // Try to recalculate the fees & net amount
-      this.rewriteFeesAndNetAmount(credit, debit);
-      if (transactionsLib.verify(credit) && transactionsLib.verify(debit)) {
-        console.log('Order...: true, true # after recalculating fees & net amount');
-        return true;
-      }
+      // -*- Temporarily disabled -*-
+      // // Try to recalculate the fees & net amount
+      // this.rewriteFeesAndNetAmount(credit, debit);
+      // if (transactionsLib.verify(credit) && transactionsLib.verify(debit)) {
+      //   console.log('Order...: true, true # after recalculating fees & net amount');
+      //   return true;
+      // }
 
       // Something is still off
       console.log('Order...:', transactionsLib.verify(credit), transactionsLib.verify(debit));
@@ -337,6 +342,15 @@ export class Migration {
           this.logChange(transactions[i]);
           this.logChange(transactions[i+1]);
           rowsChanged++;
+
+          if (!this.options.dryRun) {
+            try {
+              await transactions[i].save();
+              await transactions[i+1].save();
+            } catch (error) {
+              console.log('Error saving transactions', error);
+            }
+          }
         }
       }
     }
