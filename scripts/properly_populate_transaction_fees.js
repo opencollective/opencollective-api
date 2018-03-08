@@ -7,17 +7,23 @@
  * larger than ~50000. Use --max-old-space=8192 to do it all in one
  * batch and iterate faster.
  *
+ * If you're running with `--notdryrun` it will be slower because we
+ * also save the changes on the database. With that flag, running
+ * batches of 1000 it takes ~2m;
+ *
  * For production usage, It might be a good idea to break it down in
  * multiple batches to leave some room for the database to process
- * operations from the web clients. I've been running 7 batches of
- * 10000 and didn't take more than ~20s in my machine (i7~2.2GHz),
- * which is just a little bit slower than running it all in one batch.
+ * operations from the web clients. I've been running batches of 500
+ * and didn't take more than ~3m in my machine (i7~2.2GHz), which is
+ * just a little bit slower than running it all in one batch and we
+ * don't block the database for other transactions.
  */
 import { ArgumentParser } from 'argparse';
 import models, { sequelize } from '../server/models';
 import * as transactionsLib from '../server/lib/transactions';
 import * as paymentsLib from '../server/lib/payments';
 import { OC_FEE_PERCENT } from '../server/constants/transactions';
+import { sleep } from '../server/lib/utils';
 
 export class Migration {
   constructor(options) {
@@ -37,8 +43,8 @@ export class Migration {
       where: { deletedAt: null },
       order: ['TransactionGroup'],
       limit: this.options.batchSize,
-      offset: this.offset,
-      include: [{ model: models.Collective, as: 'collective' }]
+      offset: this.offset
+      // , include: [{ model: models.Collective, as: 'collective' }]
     });
     this.offset += transactions.length;
     return transactions;
@@ -52,6 +58,10 @@ export class Migration {
     if (!tr.data) tr.data = {};
     if (!tr.data.migration) tr.data.migration = {};
     tr.data.migration[field] = { oldValue, newValue };
+
+    // Sequelize isn't really that great detecting changes in JSON
+    // fields. So we're explicitly signaling the change.
+    tr.changed('data', true);
   }
 
   /** Ensure that `tr` has the `hostCurrencyFxRate` field filled in */
@@ -228,7 +238,7 @@ export class Migration {
    *
    * Return true if the row was changed and false if it was left
    * untouched. */
-  migrate = async (tr1, tr2) => {
+  migrate = (tr1, tr2) => {
     console.log(tr1.TransactionGroup);
     console.log(tr2.TransactionGroup);
     this.validatePair(tr1, tr2);
@@ -325,36 +335,50 @@ export class Migration {
   run = async () => {
     console.log('CSV:id,type,group,field,oldval,newval');
     let rowsChanged = 0;
-    const count = this.options.limit || await this.countValidTransactions();
+    const allTransactions = await this.countValidTransactions();
+    const count = this.options.limit
+          ? Math.min(this.options.limit, allTransactions)
+          : allTransactions;
     while (this.offset < count) {
       /* Transactions are sorted by their TransactionGroup, which
        * means that the first transaction is followed by its negative
        * transaction, the third transaction is followed by its pair
        * and so forth. */
       const transactions = await this.retrieveValidTransactions();
-      for (let i = 0; i < transactions.length; i += 2) {
-        /* Sanity check */
-        if (transactions[i].TransactionGroup !== transactions[i + 1].TransactionGroup) {
-          throw new Error(`Cannot find pair for the transaction id ${transactions[i].id}`);
-        }
-        /* Migrate the pair that we just found & log if migration fixed the row */
-        if (this.migrate(transactions[i], transactions[i + 1])) {
-          this.logChange(transactions[i]);
-          this.logChange(transactions[i+1]);
-          rowsChanged++;
 
-          if (!this.options.dryRun) {
-            try {
-              await transactions[i].save();
-              await transactions[i+1].save();
-            } catch (error) {
-              console.log('Error saving transactions', error);
+      let dbTransaction;
+      try {
+        dbTransaction = await sequelize.transaction();
+
+        for (let i = 0; i < transactions.length; i += 2) {
+          /* Sanity check */
+          if (transactions[i].TransactionGroup !== transactions[i + 1].TransactionGroup) {
+            throw new Error(`Cannot find pair for the transaction id ${transactions[i].id}`);
+          }
+
+          /* Migrate the pair that we just found & log if migration fixed the row */
+          const [tr1, tr2] = [transactions[i], transactions[i + 1]];
+          if (this.migrate(tr1, tr2)) {
+            this.logChange(tr1);
+            this.logChange(tr2);
+            rowsChanged += 2;
+            if (!this.options.dryRun) {
+              await tr1.save({ transaction: dbTransaction });
+              await tr2.save({ transaction: dbTransaction });
             }
           }
         }
+
+        /* We're done with that batch, let's commit the transaction
+         * and take a quick break */
+        await dbTransaction.commit();
+        await sleep(60);
+      } catch (error) {
+        console.log('Error saving transactions', error);
+        await dbTransaction.rollback();
       }
     }
-    console.log(`${rowsChanged} rows changed`);
+    console.log(`${rowsChanged} pairs changed`);
   }
 }
 
@@ -383,14 +407,14 @@ function parseCommandLineArguments() {
   });
   parser.addArgument(['-b', '--batch-size'], {
     help: 'batch size to fetch at a time',
-    defaultValue: 10
+    defaultValue: 100
   });
   const args = parser.parseArgs();
   return {
     dryRun: !args.notdryrun,
     verbose: !args.quiet,
     limit: args.limit,
-    batchSize: args.batch_size || 100
+    batchSize: args.batch_size
   };
 }
 

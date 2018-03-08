@@ -1,3 +1,4 @@
+import sinon from 'sinon';
 import { expect } from 'chai';
 import { Migration } from '../scripts/properly_populate_transaction_fees';
 
@@ -5,7 +6,7 @@ describe('Migration', () => {
   describe('#saveTransactionChange', () => {
     it('should create a new change within the data field', () => {
       // Given a transaction with an empty data field
-      const transaction = { data: null };
+      const transaction = { data: null, changed: sinon.spy() };
 
       // When a new change is added
       (new Migration).saveTransactionChange(transaction, 'hostCurrencyFxRate', null, 1);
@@ -14,12 +15,18 @@ describe('Migration', () => {
       expect(transaction.data).to.have.property('migration');
       expect(transaction.data.migration).to.have.property('hostCurrencyFxRate');
       expect(transaction.data.migration.hostCurrencyFxRate).to.deep.equal({ oldValue: null, newValue: 1 });
+
+      // And then the spy was properly called
+      expect(transaction.changed.called).to.be.true;
     });
 
     it('should not override previously created fields', () => {
       // Given a transaction with a data field that contains a
       // migration field
-      const transaction = { data: { migration: { hostCurrencyFxRate: { oldValue: null, newValue: 1 } } } };
+      const transaction = {
+        data: { migration: { hostCurrencyFxRate: { oldValue: null, newValue: 1 } } },
+        changed: sinon.spy()
+      };
 
       // When a new field is added
       (new Migration).saveTransactionChange(transaction, 'platformFeeInHostCurrency', 1082, 1083);
@@ -43,7 +50,7 @@ describe('Migration', () => {
   describe('#ensureHostCurrencyFxRate', () => {
     it('should not touch transactions that contain a hostCurrencyFxRate value', () => {
       // Given a transaction *with a value* for hostCurrencyFxRate
-      const transaction = { hostCurrencyFxRate: 1.5 };
+      const transaction = { hostCurrencyFxRate: 1.5, changed: sinon.spy() };
 
       // When we call the function that ensures the value exists
       (new Migration).ensureHostCurrencyFxRate(transaction);
@@ -54,7 +61,12 @@ describe('Migration', () => {
     });
     it('should not touch transactions between different currencies', () => {
       // Given a transaction between different currencies
-      const transaction = { currency: 'MXN', hostCurrency: 'USD', hostCurrencyFxRate: 18.2 };
+      const transaction = {
+        currency: 'MXN',
+        hostCurrency: 'USD',
+        hostCurrencyFxRate: 18.2,
+        changed: sinon.spy()
+      };
       // when we call the function to that the value exists
       (new Migration).ensureHostCurrencyFxRate(transaction);
       // Then we see that nothing is done to hostCurrencyFxRate
@@ -62,7 +74,12 @@ describe('Migration', () => {
     });
     it('should not touch transactions that amount is different from amountInHostCurrency', () => {
       // Given a transaction with amount different from amountInHostCurrency
-      const transaction = { amount: 10, amountInHostCurrency: 20, hostCurrencyFxRate: 2 };
+      const transaction = {
+        amount: 10,
+        amountInHostCurrency: 20,
+        hostCurrencyFxRate: 2,
+        changed: sinon.spy()
+      };
       // when we call the function to that the value exists
       (new Migration).ensureHostCurrencyFxRate(transaction);
       // Then we see that nothing is done to hostCurrencyFxRate
@@ -73,12 +90,12 @@ describe('Migration', () => {
     it('should find hostFeeInHostCurrency in the credit transaction & ensure it is negative in both credit & debit', () => {
       // Given a credit and a debit transactions
       const [credit1, debit1] = [
-        { hostFeeInHostCurrency: 250 },
-        { hostFeeInHostCurrency: 0 },
+        { hostFeeInHostCurrency: 250, changed: sinon.spy() },
+        { hostFeeInHostCurrency: 0, changed: sinon.spy() },
       ];
       const [credit2, debit2] = [
-        { hostFeeInHostCurrency: null },
-        { hostFeeInHostCurrency: 250 },
+        { hostFeeInHostCurrency: null, changed: sinon.spy() },
+        { hostFeeInHostCurrency: 250, changed: sinon.spy() },
       ];
 
       // When the fee is rewritten
@@ -100,12 +117,12 @@ describe('Migration', () => {
     it('should find platformFeeInHostCurrency in the credit transaction & ensure it is negative in both credit & debit', () => {
       // Given a credit and a debit transactions
       const [credit1, debit1] = [
-        { platformFeeInHostCurrency: 250 },
-        { platformFeeInHostCurrency: 0 },
+        { platformFeeInHostCurrency: 250, changed: sinon.spy() },
+        { platformFeeInHostCurrency: 0, changed: sinon.spy() },
       ];
       const [credit2, debit2] = [
-        { platformFeeInHostCurrency: null },
-        { platformFeeInHostCurrency: 250 },
+        { platformFeeInHostCurrency: null, changed: sinon.spy() },
+        { platformFeeInHostCurrency: 250, changed: sinon.spy() },
       ];
 
       // When the fee is rewritten
@@ -127,12 +144,12 @@ describe('Migration', () => {
     it('should find paymentProcessorFeeInHostCurrency in the credit transaction & ensure it is negative in both credit & debit', () => {
       // Given a credit and a debit transactions
       const [credit1, debit1] = [
-        { paymentProcessorFeeInHostCurrency: 250 },
-        { paymentProcessorFeeInHostCurrency: 0 },
+        { paymentProcessorFeeInHostCurrency: 250, changed: sinon.spy() },
+        { paymentProcessorFeeInHostCurrency: 0, changed: sinon.spy() },
       ];
       const [credit2, debit2] = [
-        { paymentProcessorFeeInHostCurrency: null },
-        { paymentProcessorFeeInHostCurrency: 250 },
+        { paymentProcessorFeeInHostCurrency: null, changed: sinon.spy() },
+        { paymentProcessorFeeInHostCurrency: 250, changed: sinon.spy() },
       ];
 
       // When the fee is rewritten
@@ -158,12 +175,12 @@ describe('Migration', () => {
       // off because of a rounding error (one case for credit & one
       // for debit)
       const [credit1, debit1] = [
-        { platformFeeInHostCurrency: 1082, amountInHostCurrency: 21650 },
-        { platformFeeInHostCurrency: 0 },
+        { platformFeeInHostCurrency: 1082, amountInHostCurrency: 21650, changed: sinon.spy() },
+        { platformFeeInHostCurrency: 0, changed: sinon.spy() },
       ];
       const [credit2, debit2] = [
-        { platformFeeInHostCurrency: 0, amountInHostCurrency: 21650 },
-        { platformFeeInHostCurrency: 1082 },
+        { platformFeeInHostCurrency: 0, amountInHostCurrency: 21650, changed: sinon.spy() },
+        { platformFeeInHostCurrency: 1082, changed: sinon.spy() },
       ];
 
       // When the fee is recalculated
@@ -188,12 +205,12 @@ describe('Migration', () => {
       // Given a transaction that has the hostFeeInHostCurrency off
       // because of a rounding error
       const [credit1, debit1] = [
-        { hostFeeInHostCurrency: 1082, amountInHostCurrency: 21650, collective: { hostFeePercent: 5 } },
-        { hostFeeInHostCurrency: 0 },
+        { hostFeeInHostCurrency: 1082, amountInHostCurrency: 21650, collective: { hostFeePercent: 5 }, changed: sinon.spy() },
+        { hostFeeInHostCurrency: 0, changed: sinon.spy() },
       ];
       const [credit2, debit2] = [
-        { hostFeeInHostCurrency: 0, amountInHostCurrency: 21650, collective: { hostFeePercent: 5 } },
-        { hostFeeInHostCurrency: 1082 },
+        { hostFeeInHostCurrency: 0, amountInHostCurrency: 21650, collective: { hostFeePercent: 5 }, changed: sinon.spy() },
+        { hostFeeInHostCurrency: 1082, changed: sinon.spy() },
       ];
 
       // When the fee is recalculated
