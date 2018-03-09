@@ -61,7 +61,7 @@ export function calcFee(amount, fee) {
  *   1. CREDIT from collective B to collective A
  *   2. DEBIT from collective A to collective B
  *
- * @param {Objet<models.Transaction>} transaction Can be either a
+ * @param {Object<models.Transaction>} transaction Can be either a
  *  DEBIT or a CREDIT transaction and it will generate a pair of
  *  transactions that debit the collective that was credited and
  *  credit the user that was debited.

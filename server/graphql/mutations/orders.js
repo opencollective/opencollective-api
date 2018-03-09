@@ -377,7 +377,7 @@ export async function refundTransaction(_, args, req) {
   });
 
   // 1. Verify user permission. User must be either
-  //   a. User that created transaction (within 24h)
+  //   a. User that created transaction (within 24h) -- Not implemented yet
   //   b. Host or Admin of the collective receiving the donation
   if (req.remoteUser.id != transaction.CreatedByUserId &&
       !req.remoteUser.hasRole([roles.ADMIN, roles.HOST],
