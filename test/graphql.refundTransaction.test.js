@@ -100,6 +100,20 @@ describe("Refund Transaction", () => {
    * first thing we do. */
   beforeEach(async () => await utils.resetTestDB());
 
+  it("should gracefully fail when transaction does not exist", async () => {
+    // Given that we create a user, host, collective, tier,
+    // paymentMethod, an order and a transaction (that we'll ignore)
+    const { user } = await setupTestObjects();
+
+    // When a refunded attempt happens on a transaction that does not
+    // exist in the database
+    const result = await utils.graphqlQuery(refundQuery, { id: 919191 }, user);
+
+    // Then it should error out with the right error
+    const [{ message }] = result.errors;
+    expect(message).to.equal('Transaction not found');
+  });
+
   it("should error if user isn't an admin of the host or the creator of the transaction", async () => {
     // Given that we create a user, host, collective, tier,
     // paymentMethod, an order and a transaction

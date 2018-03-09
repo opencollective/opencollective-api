@@ -373,8 +373,10 @@ export function updateSubscription(remoteUser, args) {
 export async function refundTransaction(_, args, req) {
   // 0. Retrieve transaction from database
   const transaction = await models.Transaction.findById(args.id, {
-    include: [models.Order, models.PaymentMethod]
-  });
+    include: [models.Order, models.PaymentMethod] });
+  if (!transaction) {
+    throw new errors.NotFound({ message: 'Transaction not found' });
+  }
 
   // 1. Verify user permission. User must be either
   //   a. User that created transaction (within 24h) -- Not implemented yet
