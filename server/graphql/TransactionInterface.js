@@ -34,7 +34,7 @@ export const TransactionInterfaceType = new GraphQLInterfaceType({
   fields: () => {
     return {
       id: { type: GraphQLInt },
-      refundId: { type: GraphQLInt },
+      RefundTransactionId: { type: GraphQLInt },
       uuid: { type: GraphQLString },
       amount: { type: GraphQLInt },
       currency: { type: GraphQLString },
@@ -64,10 +64,10 @@ const TransactionFields = () => {
         return transaction.id;
       }
     },
-    refundId: {
+    RefundTransactionId: {
       type: GraphQLInt,
       resolve(transaction) {
-        return transaction.refundId;
+        return transaction.RefundTransactionId;
       }
     },
     uuid: {

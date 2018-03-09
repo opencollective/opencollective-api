@@ -128,7 +128,7 @@ export default (Sequelize, DataTypes) => {
       type: DataTypes.UUID,
     },
 
-    refundId: {
+    RefundTransactionId: {
       type: DataTypes.INTEGER,
       references: { model: 'Transactions',  key: 'id' }
     },

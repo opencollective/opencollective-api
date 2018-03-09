@@ -114,10 +114,10 @@ export async function associateTransactionRefundId(transaction, refund) {
     ] }
   });
 
-  tr1.refundId = tr4.id; await tr1.save(); // User Ledger
-  tr2.refundId = tr3.id; await tr2.save(); // Collective Ledger
-  tr3.refundId = tr2.id; await tr3.save(); // Collective Ledger
-  tr4.refundId = tr1.id; await tr4.save(); // User Ledger
+  tr1.RefundTransactionId = tr4.id; await tr1.save(); // User Ledger
+  tr2.RefundTransactionId = tr3.id; await tr2.save(); // Collective Ledger
+  tr3.RefundTransactionId = tr2.id; await tr3.save(); // Collective Ledger
+  tr4.RefundTransactionId = tr1.id; await tr4.save(); // User Ledger
 }
 
 /**

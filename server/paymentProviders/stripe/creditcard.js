@@ -183,7 +183,7 @@ export default {
     const refundTransaction = await paymentsLib.createRefundTransaction(
       transaction, fees.stripeFee, { refund, balance });
 
-    /* Associate refundId to all the transactions created */
+    /* Associate RefundTransactionId to all the transactions created */
     await paymentsLib.associateTransactionRefundId(
       transaction, refundTransaction);
   },

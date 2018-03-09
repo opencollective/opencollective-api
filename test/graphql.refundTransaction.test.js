@@ -173,7 +173,7 @@ describe("Refund Transaction", () => {
       expect(tr1.hostFeeInHostCurrency).to.equal(-500);
       expect(tr1.paymentProcessorFeeInHostCurrency).to.equal(-175);
       expect(tr1.netAmountInCollectiveCurrency).to.equal(-5000);
-      expect(tr1.refundId).to.equal(tr4.id);
+      expect(tr1.RefundTransactionId).to.equal(tr4.id);
 
       // 2. Collective Ledger
       expect(tr2.type).to.equal('CREDIT');
@@ -185,7 +185,7 @@ describe("Refund Transaction", () => {
       expect(tr2.hostFeeInHostCurrency).to.equal(-500);
       expect(tr2.paymentProcessorFeeInHostCurrency).to.equal(-175);
       expect(tr2.netAmountInCollectiveCurrency).to.equal(4075);
-      expect(tr2.refundId).to.equal(tr3.id);
+      expect(tr2.RefundTransactionId).to.equal(tr3.id);
 
       // 3. Refund Collective Ledger
       expect(tr3.type).to.equal('DEBIT');
@@ -197,7 +197,7 @@ describe("Refund Transaction", () => {
       expect(tr3.platformFeeInHostCurrency).to.equal(-250);
       expect(tr3.hostFeeInHostCurrency).to.equal(-500);
       expect(tr3.paymentProcessorFeeInHostCurrency).to.equal(-175);
-      expect(tr3.refundId).to.equal(tr2.id);
+      expect(tr3.RefundTransactionId).to.equal(tr2.id);
 
       // 4. Refund User Ledger
       expect(tr4.type).to.equal('CREDIT');
@@ -209,7 +209,7 @@ describe("Refund Transaction", () => {
       expect(tr4.platformFeeInHostCurrency).to.equal(-250);
       expect(tr4.hostFeeInHostCurrency).to.equal(-500);
       expect(tr4.paymentProcessorFeeInHostCurrency).to.equal(-175);
-      expect(tr4.refundId).to.equal(tr1.id);
+      expect(tr4.RefundTransactionId).to.equal(tr1.id);
     });
 
   }); /* describe("Stripe Transaction - for hosts created before September 17th 2017") */
@@ -271,7 +271,7 @@ describe("Refund Transaction", () => {
       expect(tr1.hostFeeInHostCurrency).to.equal(-500);
       expect(tr1.paymentProcessorFeeInHostCurrency).to.equal(-175);
       expect(tr1.netAmountInCollectiveCurrency).to.equal(-5000);
-      expect(tr1.refundId).to.equal(tr4.id);
+      expect(tr1.RefundTransactionId).to.equal(tr4.id);
 
       // 2. Collective Ledger
       expect(tr2.type).to.equal('CREDIT');
@@ -283,7 +283,7 @@ describe("Refund Transaction", () => {
       expect(tr2.hostFeeInHostCurrency).to.equal(-500);
       expect(tr2.paymentProcessorFeeInHostCurrency).to.equal(-175);
       expect(tr2.netAmountInCollectiveCurrency).to.equal(4075);
-      expect(tr2.refundId).to.equal(tr3.id);
+      expect(tr2.RefundTransactionId).to.equal(tr3.id);
 
       // 3. Refund Collective Ledger
       expect(tr3.type).to.equal('DEBIT');
@@ -298,7 +298,7 @@ describe("Refund Transaction", () => {
       // zero and its value was added to the `hostFeeInHostCurrency`
       expect(tr3.hostFeeInHostCurrency).to.equal(-175 -500);
       expect(tr3.paymentProcessorFeeInHostCurrency).to.equal(0);
-      expect(tr3.refundId).to.equal(tr2.id);
+      expect(tr3.RefundTransactionId).to.equal(tr2.id);
 
       // 4. Refund User Ledger
       expect(tr4.type).to.equal('CREDIT');
@@ -313,7 +313,7 @@ describe("Refund Transaction", () => {
       // zero and its value was added to the `hostFeeInHostCurrency`
       expect(tr4.hostFeeInHostCurrency).to.equal(-500 -175);
       expect(tr4.paymentProcessorFeeInHostCurrency).to.equal(0);
-      expect(tr4.refundId).to.equal(tr1.id);
+      expect(tr4.RefundTransactionId).to.equal(tr1.id);
     });
 
   }); /* describe("Stripe Transaction - for hosts created after September 17th 2017") */
