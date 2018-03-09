@@ -1,5 +1,6 @@
 // Test tools
 import nock from 'nock';
+import sinon from 'sinon';
 import { expect } from 'chai';
 import * as utils from './utils';
 
@@ -112,7 +113,7 @@ describe("Refund Transaction", () => {
 
     // Then it should error out with the right error
     const [{ message }] = result.errors;
-    expect(message).to.equal('Not an admin neither owner');
+    expect(message).to.equal('Not a site admin');
   });
 
   /* Stripe will fully refund the processing fee for accounts created
@@ -121,6 +122,12 @@ describe("Refund Transaction", () => {
    * complete but we really don't use the other fields retrieved from
    * Stripe. */
   describe("Stripe Transaction - for hosts created before September 17th 2017", () => {
+    let userStub
+    beforeEach(() => {
+      userStub = sinon.stub(models.User.prototype, 'isRoot', () => true);
+    });
+    afterEach(() => userStub.restore());
+
     beforeEach(() => {
       nock('https://api.stripe.com:443')
         .post('/v1/refunds')
@@ -213,6 +220,12 @@ describe("Refund Transaction", () => {
    * complete but we really don't use the other fields retrieved from
    * Stripe. */
   describe("Stripe Transaction - for hosts created after September 17th 2017", () => {
+    let userStub
+    beforeEach(() => {
+      userStub = sinon.stub(models.User.prototype, 'isRoot', () => true);
+    });
+    afterEach(() => userStub.restore());
+
     beforeEach(() => {
       nock('https://api.stripe.com:443')
         .post('/v1/refunds')

@@ -378,11 +378,10 @@ export async function refundTransaction(_, args, req) {
 
   // 1. Verify user permission. User must be either
   //   a. User that created transaction (within 24h) -- Not implemented yet
-  //   b. Host or Admin of the collective receiving the donation
-  if (req.remoteUser.id != transaction.CreatedByUserId &&
-      !req.remoteUser.hasRole([roles.ADMIN, roles.HOST],
-                              transaction.CollectiveId)) {
-    throw new errors.Unauthorized({ message: "Not an admin neither owner" });
+  //   b. Host Collective receiving the donation -- Not implemented yet
+  //   c. Site Admin
+  if (!req.remoteUser.isRoot()) {
+    throw new errors.Unauthorized({ message: "Not a site admin" });
   }
 
   // 2. Refund via payment method
