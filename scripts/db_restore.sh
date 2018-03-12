@@ -7,81 +7,76 @@ usage() {
   exit 0;
 }
 
+# Parse command line arguments
 while [[ $# -gt 1 ]]
 do
-key="$1"
-
-case $key in
-    -d|--dbname)
-    LOCALDBNAME="$2"
-    shift # past argument
-    ;;
-    -U|--username)
-    LOCALDBUSER="$2"
-    shift # past argument
-    ;;
-    -f|--file)
-    DBDUMP_FILE="$2"
-    shift # past argument
-    ;;
-    *)
-            # unknown option
-    ;;
-esac
-shift # past argument or value
+    key="$1"
+    case $key in
+        -d|--dbname)
+            LOCALDBNAME="$2"; shift;;
+        -U|--username)
+            LOCALDBUSER="$2"; shift;;
+        -f|--file)
+            DBDUMP_FILE="$2"; shift;;
+        *)
+            usage; exit 1;;
+    esac
+    shift
 done
 
+# Can't go on without target database defined
+if [ -z "$LOCALDBNAME" ]; then usage; fi;
+
+# Defaults to `opencollective' user
 LOCALDBUSER=${LOCALDBUSER:-"opencollective"}
 
+# Debug output
 echo "LOCALDBUSER=$LOCALDBUSER"
 echo "LOCALDBNAME=$LOCALDBNAME"
 echo "DBDUMP_FILE=$DBDUMP_FILE"
 
-if [ -z "$LOCALDBNAME" ]; then usage; fi;
+# Terminate all the queries that are still running. It prints out the
+# content of the queries being killed. Should be useful for finding
+# out why they're still running.
+cat <<-EOF | psql -U $LOCALDBUSER postgres
+    SELECT pg_terminate_backend(pid), query
+    FROM pg_stat_activity
+    WHERE pid <> pg_backend_pid()
+    AND datname = '${LOCALDBNAME}';
+EOF
 
-# kill all connections to the postgres server
-# echo "Killing all connections to database '$LOCALDBNAME'"
+## Recreate database from scratch. No steps should fail here as well
+if ! dropdb $LOCALDBNAME; then
+    echo "db_restore.sh: Failed to drop target database"
+    exit 1
+fi
+if ! createdb -O $LOCALDBUSER $LOCALDBNAME; then
+    echo "db_restore.sh: Failed to create new target database"
+    exit 1
+fi
 
-# cat <<-EOF | psql -U $LOCALDBUSER -d $LOCALDBNAME
-# SELECT pg_terminate_backend(pg_stat_activity.pid)
-# FROM pg_stat_activity
-# where pg_stat_activity.datname = '$LOCALDBNAME'
-# EOF
+# This is needed because only super users can create extensions and we
+# don't want to make the `opencollective` user a super user, so we
+# create the extension as the user running this script & then grant
+# all the permissions to the `LOCALDBUSER` which is `opencollective`
+# in pretty much all the environments.
+if ! psql -d $LOCALDBNAME -c "CREATE EXTENSION POSTGIS;"; then
+    echo "db_restore.sh: Failed to create POSTGIS extension in target database"
+    exit 1
+fi
+if ! psql -d $LOCALDBNAME -c "GRANT ALL PRIVILEGES ON spatial_ref_sys TO ${LOCALDBUSER};"; then
+    echo "db_restore.sh: Failed to give user permissions to POSTGIS table"
+    exit 1
+fi
 
-dropdb $LOCALDBNAME;
-createdb -O $LOCALDBUSER $LOCALDBNAME 2> /dev/null
-
-# Add POSTGIS extension
-psql "${LOCALDBNAME}" -c "CREATE EXTENSION POSTGIS;" 1> /dev/null
-
-# The first time we run it, we will trigger FK constraints errors
-set +e
-pg_restore --no-acl -n public -O -c -d "${LOCALDBNAME}" "${DBDUMP_FILE}" 2>/dev/null
-set -e
-
-# So we run it twice :-)
-pg_restore --no-acl -n public -O -c -d "${LOCALDBNAME}" "${DBDUMP_FILE}"
+# Restore should not generate any errors. If it does, the whole
+# restoration will exit with error and that error should be fixed.
+if ! pg_restore --no-acl --no-owner --clean --schema=public \
+     --if-exists --role=$LOCALDBUSER --dbname=$LOCALDBNAME \
+     $DBDUMP_FILE;
+then
+    echo "db_restore.sh: Failed to restore dump file into target database"
+    exit 1
+fi
 
 echo "DB restored to postgres://localhost/${LOCALDBNAME}"
-
-# cool trick: all stdout ignored in this block
-{
-  set +e
-  # We make sure the user $LOCALDBUSER has access; could fail
-  psql "${LOCALDBNAME}" -c "CREATE ROLE ${LOCALDBUSER} WITH login;" 2>/dev/null
-  set -e
-
-  # Change ownership of all tables
-  tables=`psql -qAt -c "select tablename from pg_tables where schemaname = 'public';" "${LOCALDBNAME}"`
-
-  for tbl in $tables ; do
-    psql "${LOCALDBNAME}" -c "alter table \"${tbl}\" owner to ${LOCALDBUSER};"
-  done
-
-  # Change ownership of the database
-  psql "${LOCALDBNAME}" -c "alter database ${LOCALDBNAME} owner to ${LOCALDBUSER};"
-
-  psql "${LOCALDBNAME}" -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ${LOCALDBUSER};"
-  psql "${LOCALDBNAME}" -c "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ${LOCALDBUSER};"
-
-} | tee >/dev/null
