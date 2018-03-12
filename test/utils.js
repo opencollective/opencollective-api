@@ -38,32 +38,19 @@ export const resetTestDB = () => sequelize.sync({force: true})
     process.exit(1);
   });
 
-export function loadDB(dbname) {
-
-  const importDB = (cb) => {
-    const cmd = `${path.join(__dirname, '../scripts/db_restore.sh')} -d ${config.database.database} -U ${config.database.username} -f ${path.join(__dirname,"dbdumps", `${dbname}.pgsql`)}`;
-    exec(cmd, cb);
-  };
-
-  return new Promise((resolve, reject) => {
-    importDB((err, stdout) => {
-      if (!err) {
-        debug("utils")(`${dbname} imported successfully`, stdout);
-        return resolve(stdout);
-      }
-      if (err) { // First try may fail due to foreign keys restrictions
-        debug("utils")(`error importing ${dbname}`, err);
-        importDB((err, stdout) => {
-          if (err) {
-            debug("utils")(`2nd attempt: error importing ${dbname}`, err);
-            return reject(err);
-          } else {
-            return resolve(stdout);
-          }
-        });
-      }
-    })
-  });
+export async function loadDB(dbname) {
+  const { database, username } = config.database;
+  const scriptPath = path.join(__dirname, '../scripts/db_restore.sh');
+  const backupPath = path.join(__dirname, 'dbdumps', `${dbname}.pgsql`);
+  const cmd = `${scriptPath} -d ${database} -U ${username} -f ${backupPath}`;
+  try {
+    const output = await Promise.promisify(exec)(cmd);
+    debug("utils")(`${dbname} imported successfully:`);
+    debug("utils")(output);
+  } catch (error) {
+    debug("utils")(`Failed to import database ${dbname}:`);
+    debug("utils")(error.cause);
+  }
 }
 
 export const stringify = (json) => {
