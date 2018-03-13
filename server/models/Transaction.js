@@ -225,6 +225,11 @@ export default (Sequelize, DataTypes) => {
       })
   }
 
+  Transaction.prototype.getRefundTransaction = function() {
+    if (!this.RefundTransactionId) return null;
+    return Transaction.findById(this.RefundTransactionId);
+  };
+
   /**
    * Class Methods
    */

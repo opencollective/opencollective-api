@@ -1,5 +1,5 @@
 import Promise from 'bluebird';
-import { includes, pick, get } from 'lodash';
+import { includes, pick, get, find } from 'lodash';
 import { Op } from 'sequelize';
 
 import models from '../models';
@@ -118,6 +118,11 @@ export async function associateTransactionRefundId(transaction, refund) {
   tr2.RefundTransactionId = tr3.id; await tr2.save(); // Collective Ledger
   tr3.RefundTransactionId = tr2.id; await tr3.save(); // Collective Ledger
   tr4.RefundTransactionId = tr1.id; await tr4.save(); // User Ledger
+
+  // We need to return the same transactions we received because the
+  // graphql mutation needs it to return to the user. However we have
+  // to return the updated instances, not the ones we received.
+  return find([tr1, tr2, tr3, tr4], { id: transaction.id });
 }
 
 /**

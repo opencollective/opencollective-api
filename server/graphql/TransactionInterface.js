@@ -51,8 +51,9 @@ export const TransactionInterfaceType = new GraphQLInterfaceType({
       description: { type: GraphQLString },
       privateMessage: { type: GraphQLString },
       createdAt: { type: GraphQLString },
-      updatedAt: { type: GraphQLString }
-    }
+      updatedAt: { type: GraphQLString },
+      refundTransaction: { type: TransactionInterfaceType }
+    };
   }
 });
 
@@ -68,6 +69,12 @@ const TransactionFields = () => {
       type: GraphQLInt,
       resolve(transaction) {
         return transaction.RefundTransactionId;
+      }
+    },
+    refundTransaction: {
+      type: TransactionInterfaceType,
+      resolve(transaction) {
+        return transaction.getRefundTransaction();
       }
     },
     uuid: {

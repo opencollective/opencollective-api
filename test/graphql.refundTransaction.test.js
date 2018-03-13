@@ -261,6 +261,10 @@ describe("Refund Transaction", () => {
       // Then there should be no errors
       if (result.errors) throw result.errors;
 
+      // And then the returned value should match the transaction
+      // passed to the mutation
+      expect(result.data.refundTransaction.id).to.equal(transaction.id);
+
       // And then all the transactions with that same order id are
       // retrieved.
       const allTransactions = await models.Transaction.findAll({ where: { OrderId: transaction.OrderId } });

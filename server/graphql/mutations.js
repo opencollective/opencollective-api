@@ -29,7 +29,7 @@ import {
 } from './CollectiveInterface';
 
 import {
-  TransactionOrderType,
+  TransactionInterfaceType,
 } from './TransactionInterface';
 
 import {
@@ -265,7 +265,7 @@ const mutations = {
   },
 
   refundTransaction: {
-    type: TransactionOrderType,
+    type: TransactionInterfaceType,
     args: {
       id: {
         type: new GraphQLNonNull(GraphQLInt)

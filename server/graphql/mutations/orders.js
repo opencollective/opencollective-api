@@ -388,5 +388,9 @@ export async function refundTransaction(_, args, req) {
 
   // 2. Refund via payment method
   // 3. Create new transactions with the refund value in our database
-  return libPayments.refundTransaction(transaction);
+  const result = await libPayments.refundTransaction(transaction);
+
+  // Return the transaction passed to the `refundTransaction` method
+  // after it was updated.
+  return result;
 }

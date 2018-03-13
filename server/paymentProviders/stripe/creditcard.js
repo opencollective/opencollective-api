@@ -184,7 +184,7 @@ export default {
       transaction, fees.stripeFee, { refund, balance });
 
     /* Associate RefundTransactionId to all the transactions created */
-    await paymentsLib.associateTransactionRefundId(
+    return paymentsLib.associateTransactionRefundId(
       transaction, refundTransaction);
   },
 
