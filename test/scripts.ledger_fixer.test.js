@@ -1,6 +1,6 @@
 import sinon from 'sinon';
 import { expect } from 'chai';
-import { Migration } from '../scripts/properly_populate_transaction_fees';
+import { Migration } from '../scripts/ledger_fixer';
 
 describe('Migration', () => {
   describe('#saveTransactionChange', () => {
