@@ -45,7 +45,6 @@ export class Migration {
       order: ['TransactionGroup'],
       limit: this.options.batchSize,
       offset: this.offset
-      // , include: [{ model: models.Collective, as: 'collective' }]
     });
     this.offset += transactions.length;
     return transactions;
@@ -232,6 +231,55 @@ export class Migration {
     }
   }
 
+  /** Migrate a pair of transactions */
+  migratePair = (type, credit, debit) => {
+    const firstLetter = type.charAt(0).toUpperCase();
+
+    // Both CREDIT & DEBIT transactions add up
+    if (transactionsLib.verify(credit) && transactionsLib.verify(debit)) {
+      console.log(`${type}.: true, true`);
+      return false;
+    }
+    // Don't do anything for now since these are not in the same currency
+    if (credit.currency !== credit.hostCurrency || debit.currency !== debit.hostCurrency) {
+      console.log(`${type}.:`, transactionsLib.verify(credit), transactionsLib.verify(debit), ' # not touched because currency is different');
+      return false;
+    }
+
+    // Try to set up hostCurrencyFxRate if it's null
+    this.ensureHostCurrencyFxRate(credit);
+    this.ensureHostCurrencyFxRate(debit);
+    if (transactionsLib.verify(credit) && transactionsLib.verify(debit)) {
+      console.log(`${type}.: true, true # after updating hostCurrencyFxRate'`);
+      return true;
+    }
+
+    // Try to just setup fees
+    this.rewriteFees(credit, debit);
+    if (transactionsLib.verify(credit) && transactionsLib.verify(debit)) {
+      console.log(`${type}.: true, true # after updating fees`);
+      return true;
+    }
+
+    // -*- Temporarily disabled -*-
+    // // Try to recalculate the fees & net amount
+    // this.rewriteFeesAndNetAmount(credit, debit);
+    // if (transactionsLib.verify(credit) && transactionsLib.verify(debit)) {
+    //   console.log('Order...: true, true # after recalculating fees & net amount');
+    //   return true;
+    // }
+
+    // Something is still off
+    console.log(`${type}.:`, transactionsLib.verify(credit), transactionsLib.verify(debit));
+    if (!transactionsLib.verify(credit)) {
+      console.log(`${firstLetter}DAU, CREDIT, ${credit.id}, ${credit.TransactionGroup}, ${transactionsLib.difference(credit)}`);
+    }
+    if (!transactionsLib.verify(debit)) {
+      console.log(`${firstLetter}DAU, DEBIT, ${debit.id}, ${debit.TransactionGroup}, ${transactionsLib.difference(debit)}`);
+    }
+    return false;
+  }
+
   /** Migrate one pair of transactions.
    *
    * Return true if the row was changed and false if it was left
@@ -245,85 +293,11 @@ export class Migration {
     const debit =  tr1.type === 'DEBIT' ? tr1 : tr2;
 
     if (tr1.ExpenseId !== null) {
-      // Both CREDIT & DEBIT transactions add up
-      if (transactionsLib.verify(credit) && transactionsLib.verify(debit)) {
-        console.log('Expense.: true, true');
-        return false;
-      }
-      // Don't do anything for now since these are not in the same currency
-      if (credit.currency !== credit.hostCurrency || debit.currency !== debit.hostCurrency) {
-        console.log('Expense.: ', transactionsLib.verify(credit), transactionsLib.verify(debit), ' # not touched because currency is different');
-        return false;
-      }
-
-      // Try to set up hostCurrencyFxRate if it's null
-      this.ensureHostCurrencyFxRate(credit);
-      this.ensureHostCurrencyFxRate(debit);
-      if (transactionsLib.verify(credit) && transactionsLib.verify(debit)) {
-        console.log('Expense.: true, true # after updating hostCurrencyFxRate');
-        return true;
-      }
-
-      // Try to just setup fees
-      this.rewriteFees(credit, debit);
-      if (transactionsLib.verify(credit) && transactionsLib.verify(debit)) {
-        console.log('Expense.: true, true # after updating fees');
-        return true;
-      }
-
-      // Something is still off
-      console.log('Expense.:', transactionsLib.verify(tr1), transactionsLib.verify(tr2));
-      if (!transactionsLib.verify(credit)) {
-        console.log(`EDAU, CREDIT, ${credit.id}, ${credit.TransactionGroup}, ${transactionsLib.difference(credit)}`);
-      }
-      if (!transactionsLib.verify(debit)) {
-        console.log(`EDAU, DEBIT, ${debit.id}, ${debit.TransactionGroup}, ${transactionsLib.difference(debit)}`);
-      }
+      return this.migratePair('Expense', credit, debit);
     } else if (tr1.OrderId !== null) {
-      // Both CREDIT & DEBIT transactions add up
-      if (transactionsLib.verify(credit) && transactionsLib.verify(debit)) {
-        console.log('Order...: true, true');
-        return false;
-      }
-      // Don't do anything for now since these are not in the same currency
-      if (credit.currency !== credit.hostCurrency || debit.currency !== debit.hostCurrency) {
-        console.log('Order...:', transactionsLib.verify(credit), transactionsLib.verify(debit), ' # not touched because currency is different');
-        return false;
-      }
-
-      // Try to set up hostCurrencyFxRate if it's null
-      this.ensureHostCurrencyFxRate(credit);
-      this.ensureHostCurrencyFxRate(debit);
-      if (transactionsLib.verify(credit) && transactionsLib.verify(debit)) {
-        console.log('Order...: true, true # after updating hostCurrencyFxRate');
-        return true;
-      }
-
-      // Try to just setup fees
-      this.rewriteFees(credit, debit);
-      if (transactionsLib.verify(credit) && transactionsLib.verify(debit)) {
-        console.log('Order...: true, true # after updating fees');
-        return true;
-      }
-
-      // -*- Temporarily disabled -*-
-      // // Try to recalculate the fees & net amount
-      // this.rewriteFeesAndNetAmount(credit, debit);
-      // if (transactionsLib.verify(credit) && transactionsLib.verify(debit)) {
-      //   console.log('Order...: true, true # after recalculating fees & net amount');
-      //   return true;
-      // }
-
-      // Something is still off
-      console.log('Order...:', transactionsLib.verify(credit), transactionsLib.verify(debit));
-      if (!transactionsLib.verify(credit)) {
-        console.log(`ODAU, CREDIT, ${credit.id}, ${credit.TransactionGroup}, ${transactionsLib.netAmount(credit)}, ${transactionsLib.difference(credit)}`);
-      }
-      if (!transactionsLib.verify(debit)) {
-        console.log(`ODAU, DEBIT, ${debit.id}, ${debit.TransactionGroup}, ${transactionsLib.netAmount(debit)}, ${transactionsLib.difference(debit)}`);
-      }
+      return this.migratePair('Order..', credit, debit);
     } else {
-      console.log('  WAT.....:', transactionsLib.verify(tr1), transactionsLib.verify(tr2));
+      return this.migratePair('Neither', credit, debit);
     }
 
     // console.log('    * C:amount......: ', credit.amountInHostCurrency);
