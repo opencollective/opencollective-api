@@ -31,6 +31,7 @@ export class Migration {
     this.options = options;
     this.offset = 0;
     this.migrated = 0;
+    this.ordersCreated = 0;
   }
 
   /** Retrieve the total number of valid transactions */
@@ -127,6 +128,26 @@ export class Migration {
     debit.amount = newAmountInHostCurrency;
   }
 
+  /** Create an order for orphan transactions */
+  createOrder = async (credit, debit) => {
+    const order = await models.Order.create({
+      CreatedByUserId: credit.CreatedByUserId,
+      FromCollectiveId: credit.FromCollectiveId,
+      CollectiveId: credit.CollectiveId,
+      description: credit.description,
+      totalAmount: credit.amount,
+      currency: credit.currency,
+      processedAt: credit.createdAt,
+      PaymentMethodId: credit.PaymentMethodId,
+      quantity: 1
+    });
+
+    credit.OrderId = order.id;
+    debit.OrderId = order.id;
+
+    this.ordersCreated++;
+  }
+
   /** Make sure two transactions are pairs of each other */
   validatePair = (tr1, tr2) => {
     if (tr1.TransactionGroup !== tr2.TransactionGroup) {
@@ -202,7 +223,7 @@ export class Migration {
    *
    * Return true if the row was changed and false if it was left
    * untouched. */
-  migrate = (tr1, tr2) => {
+  migrate = async (tr1, tr2) => {
     console.log(tr1.TransactionGroup);
     console.log(tr2.TransactionGroup);
     this.validatePair(tr1, tr2);
@@ -215,6 +236,9 @@ export class Migration {
     } else if (tr1.OrderId !== null) {
       return this.migratePair('Order..', credit, debit);
     } else {
+      if (!this.options.dryRun) {
+        await this.createOrder(credit, debit);
+      }
       return this.migratePair('Neither', credit, debit);
     }
 
@@ -267,7 +291,7 @@ export class Migration {
 
           /* Migrate the pair that we just found & log if migration fixed the row */
           const [tr1, tr2] = [transactions[i], transactions[i + 1]];
-          if (this.migrate(tr1, tr2)) {
+          if (await this.migrate(tr1, tr2)) {
             this.logChange(tr1);
             this.logChange(tr2);
             rowsChanged += 2;
@@ -288,6 +312,7 @@ export class Migration {
       }
     }
     console.log(`${rowsChanged} pairs changed`);
+    console.log(`${this.ordersCreated} orders created`);
   }
 }
 
