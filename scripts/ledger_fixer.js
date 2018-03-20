@@ -25,6 +25,9 @@ import * as paymentsLib from '../server/lib/payments';
 import { OC_FEE_PERCENT } from '../server/constants/transactions';
 import { sleep } from '../server/lib/utils';
 import { toNegative } from '../server/lib/math';
+import libemail from '../server/lib/email';
+
+const REPORT_EMAIL = 'ops@opencollective.com';
 
 export class Migration {
   constructor(options) {
@@ -32,6 +35,8 @@ export class Migration {
     this.offset = 0;
     this.migrated = 0;
     this.ordersCreated = 0;
+    this.counters = {};
+    this.logFiles = {};
   }
 
   /** Retrieve the total number of valid transactions */
@@ -142,10 +147,11 @@ export class Migration {
       quantity: 1
     });
 
+    this.saveTransactionChange(credit, 'OrderId', credit.OrderId, order.id);
     credit.OrderId = order.id;
-    debit.OrderId = order.id;
 
-    this.ordersCreated++;
+    this.saveTransactionChange(debit, 'OrderId', debit.OrderId, order.id);
+    debit.OrderId = order.id;
   }
 
   /** Make sure two transactions are pairs of each other */
@@ -169,17 +175,20 @@ export class Migration {
 
   /** Migrate a pair of transactions */
   migratePair = (type, credit, debit) => {
-    const firstLetter = type.charAt(0).toUpperCase();
+    const fileName = `broken.${type.toLowerCase()}.csv`;
+    const icon = (good) => good ? '✅' : '❌';
 
     // Both CREDIT & DEBIT transactions add up
     if (transactionsLib.verify(credit) && transactionsLib.verify(debit)) {
-      console.log(`${type}.: true, true`);
+      vprint(`${type}.: true, true`);;
       return false;
     }
 
     // Don't do anything for now since these are not in the same currency
     if (credit.currency !== credit.hostCurrency || debit.currency !== debit.hostCurrency) {
-      console.log(`${type}.:`, transactionsLib.verify(credit), transactionsLib.verify(debit), ' # not touched because currency is different');
+      const [vc, vd] = [transactionsLib.verify(credit), transactionsLib.verify(debit)];
+      this.incr('not touched due to different currency');
+      this.log('report.txt', ` ${icon(vc && vd)} ${type}:${credit.TransactionGroup} ${vc}, ${vd} # not touched because currency is different`);
       return false;
     }
 
@@ -187,14 +196,16 @@ export class Migration {
     this.ensureHostCurrencyFxRate(credit);
     this.ensureHostCurrencyFxRate(debit);
     if (transactionsLib.verify(credit) && transactionsLib.verify(debit)) {
-      console.log(`${type}.: true, true # after updating hostCurrencyFxRate'`);
+      this.incr('fix hostFeeInHostCurrency');
+      this.log('report.txt', ` ${icon(true)} ${type}:${credit.TransactionGroup} true, true # after updating hostCurrencyFxRate'`);
       return true;
     }
 
     // Try to just setup fees
     this.rewriteFees(credit, debit);
     if (transactionsLib.verify(credit) && transactionsLib.verify(debit)) {
-      console.log(`${type}.: true, true # after updating fees`);
+      this.incr('rewrite fees');
+      this.log('report.txt', ` ${icon(true)} ${type}:${credit.TransactionGroup} true, true # after updating fees`);
       return true;
     }
 
@@ -203,18 +214,19 @@ export class Migration {
         && transactionsLib.difference(credit) === 1) {
       this.rewriteNetAmount(credit, debit);
       if (transactionsLib.verify(credit) && transactionsLib.verify(debit)) {
-        console.log(`${type}.: true, true # after recalculating netAmount`);
+        this.incr('recalculate net amount');
+        this.log('report.txt', ` ${icon(true)} ${type}:${credit.TransactionGroup} true, true # after recalculating netAmount`);
         return true;
       }
     }
 
     // Something is still off
-    console.log(`${type}.:`, transactionsLib.verify(credit), transactionsLib.verify(debit));
+    vprint(`${type}.:`, transactionsLib.verify(credit), transactionsLib.verify(debit));
     if (!transactionsLib.verify(credit)) {
-      console.log(`${firstLetter}DAU, CREDIT, ${credit.id}, ${credit.TransactionGroup}, ${transactionsLib.difference(credit)}`);
+      this.log(fileName, `${credit.id}, CREDIT, ${credit.TransactionGroup}, ${transactionsLib.difference(credit)}`);
     }
     if (!transactionsLib.verify(debit)) {
-      console.log(`${firstLetter}DAU, DEBIT, ${debit.id}, ${debit.TransactionGroup}, ${transactionsLib.difference(debit)}`);
+      this.log(fileName, `${debit.id}, DEBIT, ${debit.TransactionGroup}, ${transactionsLib.difference(debit)}`);
     }
     return false;
   }
@@ -224,18 +236,16 @@ export class Migration {
    * Return true if the row was changed and false if it was left
    * untouched. */
   migrate = async (tr1, tr2) => {
-    console.log(tr1.TransactionGroup);
-    console.log(tr2.TransactionGroup);
     this.validatePair(tr1, tr2);
-
     const credit = tr1.type === 'CREDIT' ? tr1 : tr2;
     const debit =  tr1.type === 'DEBIT' ? tr1 : tr2;
 
     if (tr1.ExpenseId !== null) {
       return this.migratePair('Expense', credit, debit);
     } else if (tr1.OrderId !== null) {
-      return this.migratePair('Order..', credit, debit);
+      return this.migratePair('Order', credit, debit);
     } else {
+      this.ordersCreated++;
       if (!this.options.dryRun) {
         await this.createOrder(credit, debit);
       }
@@ -256,22 +266,18 @@ export class Migration {
     return false;
   }
 
-  /** Print out a CSV line */
-  logChange = (tr) => {
-    const fields = ((tr.data || {}).migration || {});
-    for (const k of Object.keys(fields)) {
-      console.log(`CSV:${tr.id},${tr.type},${tr.TransactionGroup},${k},${fields[k].oldValue},${fields[k].newValue}`);
-    }
-  }
-
   /** Run the whole migration */
   run = async () => {
-    console.log('CSV:id,type,group,field,oldval,newval');
+    this.log('changes.csv', 'id,type,group,field,oldval,newval');
     let rowsChanged = 0;
     const allTransactions = await this.countValidTransactions();
     const count = this.options.limit
           ? Math.min(this.options.limit, allTransactions)
           : allTransactions;
+
+    this.log('report.txt', `Ledger Fixer Report (dryRun: ${this.options.dryRun})`);
+    this.log('report.txt', `Analyzing ${count} of ${allTransactions}\n`);
+
     while (this.offset < count) {
       /* Transactions are sorted by their TransactionGroup, which
        * means that the first transaction is followed by its negative
@@ -281,8 +287,8 @@ export class Migration {
 
       let dbTransaction;
       try {
+        this.log('report.txt', `\nBatch ${this.offset}/${count}: start`);
         dbTransaction = await sequelize.transaction();
-
         for (let i = 0; i < transactions.length; i += 2) {
           /* Sanity check */
           if (transactions[i].TransactionGroup !== transactions[i + 1].TransactionGroup) {
@@ -307,12 +313,66 @@ export class Migration {
         await dbTransaction.commit();
         await sleep(60);
       } catch (error) {
-        console.log('Error saving transactions', error);
         await dbTransaction.rollback();
+        this.log('report.txt', `\nBatch ${this.offset}/${count}: FAILED!\n`);
+        this.log('report.txt', `Error ${error}`);
       }
     }
-    console.log(`${rowsChanged} pairs changed`);
-    console.log(`${this.ordersCreated} orders created`);
+
+    this.log('report.txt', '\nSummary:');
+    this.log('report.txt', `${rowsChanged} pairs changed`);
+    this.log('report.txt', `${this.ordersCreated} orders created`);
+
+    this.log('report.txt', `\nTransactions fixed:`);
+    for (const counter of Object.keys(this.counters)) {
+        this.log('report.txt', ` * ${counter} ${this.counters[counter]}`);
+    }
+
+    this.log('report.txt', `\nTransactions with problems:`);
+    for (const filename of Object.keys(this.logFiles)) {
+      if (filename.startsWith('broken.')) {
+        this.log('report.txt', ` * ${filename} ${this.logFiles[filename].length}`);
+      }
+    }
+  }
+
+  incr = (counter) => {
+    if (!this.counters[counter]) this.counters[counter] = 0;
+    this.counters[counter]++;
+  }
+
+  log = (name, msg) => {
+    if (!this.logFiles[name]) {
+      this.logFiles[name] = [];
+    }
+
+    this.logFiles[name].push(msg);
+
+    if (this.options.verbose) {
+      console.log(name, msg);
+    }
+  }
+
+  /** Print out a CSV line */
+  logChange = (tr) => {
+    const fields = ((tr.data || {}).migration || {});
+    for (const k of Object.keys(fields)) {
+      this.log('changes.csv', `${tr.id},${tr.type},${tr.TransactionGroup},${k},${fields[k].oldValue},${fields[k].newValue}`);
+    }
+  }
+
+  report = async () => {
+    const body = this.logFiles['report.txt'].join('\n');
+    const attachments = [];
+    for (const filename of Object.keys(this.logFiles)) {
+      if (filename !== 'report.txt') {
+        const content = this.logFiles[filename].join('\n');
+        attachments.push({ filename, content });
+      }
+    }
+
+    const icon = Object.keys(this.logFiles).length !== 2 ? '❌' : '✅';
+    return emailReport(`${icon} Ledger Fixer Report`, body, attachments);
   }
 }
 
@@ -359,12 +419,22 @@ function vprint(options, message) {
   }
 }
 
+/** Sends the report to REPORT_EMAIL address */
+async function emailReport(subject, text, attachments) {
+  return libemail.sendMessage(REPORT_EMAIL, subject, '', {
+    text, attachments
+  });
+}
+
 /** Kick off the script with all the user selected options */
 async function entryPoint(options) {
   vprint(options, 'Starting to migrate fees');
+  const migration = new Migration(options);
   try {
-    await (new Migration(options)).run();
+    await migration.run();
   } finally {
+    vprint(options, 'Running report');
+    await migration.report();
     await sequelize.close();
   }
   vprint(options, 'Finished migrating fees');
