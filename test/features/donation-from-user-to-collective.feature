@@ -26,11 +26,11 @@ Feature: Donation from user to collective
     # And "Platform" should have "2 USD" in their balance
 
   Scenario: Donation from different currency as Collective's wallet (with hostFee)
-    Given a Collective "wwcodedf" with a host in "MXN"
+    Given a Collective "wwcodedf" with a host in "MXN" and "10%" fee
     And a User "Elizabeth"
     And Host fee is "5%" of the order
     And the conversion rate from "USD" to "MXN" is 18.43
     When "Elizabeth" donates "50 USD" to "wwcodedf"
     Then "wwcodedf" should have "922 MXN" in their balance
     And "Elizabeth" should have "-50 USD" in their balance
-    # And "Platform" should have "2 USD" in their balance
+    And "wwcodedf-host" should have "2 USD" in their balance

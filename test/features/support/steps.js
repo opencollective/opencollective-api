@@ -48,12 +48,13 @@ Given('a User {string}', async function (name) {
   this.transaction.keys[name] = user.collective;
 });
 
-Given('a Collective {string} with a host in {string}', async function (name, currency) {
+Given(/^a Collective "([^\"]+)" with a host in "([^\"]+)"( and "([^\"]+)%" fee)?$/, async function (name, currency, fee) {
   const email = randEmail(`${name}-host-${currency}@oc.com`);
   const hostOwner = await models.User.create({ email });
   const host = await models.Collective.create({
     CreatedByUserId: hostOwner.id,
     slug: "Host",
+    hostFeePercent: fee ? parseInt(fee) : 0,
     currency,
   });
 
@@ -68,7 +69,6 @@ Given('a Collective {string} with a host in {string}', async function (name, cur
 
   this.transaction.keys[name] = collective;
   this.transaction.keys[`${name}-host`] = host;
-  // this.transaction.keys[`${name}-host-${hostOwner}`] = hostOwner.colle;
   this.transaction.set({ hostOwner, host, collective });
 });
 
