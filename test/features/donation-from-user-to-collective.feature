@@ -1,32 +1,36 @@
 Feature: Donation from user to collective
 
   Scenario: Donation from same currency as Collective's wallet (no fee)
-    Given a Collective with a host in "USD"
-    When a User donates "50 USD" to Collective
-    Then the "Collective" should have "50 USD" in balance
-    And the "User" should have "-50 USD" in balance
+    Given a Collective "Webpack" with a host in "USD"
+    And a User "Jane"
+    When "Jane" donates "50 USD" to "Webpack"
+    Then "Webpack" should have "50 USD" in their balance
+    And "Jane" should have "-50 USD" in their balance
 
   Scenario: Donation from different currency as Collective's wallet (no fee)
-    Given a Collective with a host in "MXN"
+    Given a Collective "wwcodedf" with a host in "MXN"
+    And a User "Rodrigo"
     And the conversion rate from "USD" to "MXN" is 18.43
-    When a User donates "50 USD" to Collective
-    Then the "Collective" should have "922 MXN" in balance
-    And the "User" should have "-50 USD" in balance
+    When "Rodrigo" donates "50 USD" to "wwcodedf"
+    Then "wwcodedf" should have "922 MXN" in their balance
+    And "Rodrigo" should have "-50 USD" in their balance
 
   Scenario: Donation from different currency as Collective's wallet (with platformFee)
-    Given a Collective with a host in "MXN"
-    And Platform Fee is "5%" of the order
+    Given a Collective "magit" with a host in "MXN"
+    And a User "Emily"
+    And Platform fee is "5%" of the order
     And the conversion rate from "USD" to "MXN" is 18.43
-    When a User donates "50 USD" to Collective
-    Then the "Collective" should have "922 MXN" in balance
-    And the "User" should have "-50 USD" in balance
-    And the "Platform" should have "2 USD" in balance
+    When "Emily" donates "50 USD" to "magit"
+    Then "magit" should have "922 MXN" in their balance
+    And "Emily" should have "-50 USD" in their balance
+    # And "Platform" should have "2 USD" in their balance
 
   Scenario: Donation from different currency as Collective's wallet (with hostFee)
-    Given a Collective with a host in "MXN"
-    And Host Fee is "5%" of the order
+    Given a Collective "wwcodedf" with a host in "MXN"
+    And a User "Elizabeth"
+    And Host fee is "5%" of the order
     And the conversion rate from "USD" to "MXN" is 18.43
-    When a User donates "50 USD" to Collective
-    Then the "Collective" should have "922 MXN" in balance
-    And the "User" should have "-50 USD" in balance
-    And the "Platform" should have "2 USD" in balance
+    When "Elizabeth" donates "50 USD" to "wwcodedf"
+    Then "wwcodedf" should have "922 MXN" in their balance
+    And "Elizabeth" should have "-50 USD" in their balance
+    # And "Platform" should have "2 USD" in their balance

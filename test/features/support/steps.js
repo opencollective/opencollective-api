@@ -17,6 +17,13 @@ import * as libpayments from '../../../server/lib/payments';
 /* Sandbox for mocks, stubs, etc.*/
 const sandbox = sinon.sandbox.create();
 
+export function randEmail(email) {
+  const [user, domain] = email.split('@');
+  const rand = Math.random().toString(36).substring(2, 15);
+  return `${user}-${rand}@${domain}`;
+}
+
+
 /* Setup environment for each test.
  *
  * Two main things are needed here: 1. mock stripe calls; 2. clean
@@ -30,14 +37,27 @@ Before(async () => {
 
 After(() => sandbox.restore());
 
-Given('a Collective with a host in {string}', async function (currency) {
-  const hostOwner = await models.User.create({ email: 'a@host.co' });
+Given('a User {string}', async function (name) {
+  const email = randEmail(`${name}@oc.com`);
+  const user = await models.User.createUserWithCollective({
+    email,
+    name,
+    username: name,
+    description: `A user called ${name}`,
+  });
+  this.transaction.keys[name] = user.collective;
+});
+
+Given('a Collective {string} with a host in {string}', async function (name, currency) {
+  const email = randEmail(`${name}-host-${currency}@oc.com`);
+  const hostOwner = await models.User.create({ email });
   const host = await models.Collective.create({
     CreatedByUserId: hostOwner.id,
     slug: "Host",
     currency,
   });
-  const collective = await models.Collective.create({ name: "Parcel" });
+
+  const collective = await models.Collective.create({ name });
   await collective.addHost(host);
   await models.ConnectedAccount.create({
     service: 'stripe',
@@ -45,6 +65,10 @@ Given('a Collective with a host in {string}', async function (currency) {
     username: 'acct_198T7jD8MNtzsDcg',
     CollectiveId: host.id,
   });
+
+  this.transaction.keys[name] = collective;
+  this.transaction.keys[`${name}-host`] = host;
+  // this.transaction.keys[`${name}-host-${hostOwner}`] = hostOwner.colle;
   this.transaction.set({ hostOwner, host, collective });
 });
 
@@ -52,45 +76,41 @@ Given('the conversion rate from {string} to {string} is {float}', function (from
   this.transaction.set({ fx: { from, to, rate }});
 });
 
-Given(/^(\w+) Fee is "(\d+)%" of the order$/, async function (name, value) {
+Given(/^(\w+) fee is "(\d+)%" of the order$/, async function (name, value) {
   this.transaction.set({ fee: { name, value }});
 });
 
-When('a User donates {string} to Collective', async function (amount) {
+When('{string} donates {string} to {string}', async function (from, amount, to) {
   const [value, currency] = amount.split(' ');
-  const user = await models.User.createUserWithCollective({
-    username: 'username',
-    email: 'username@host.com',
-  });
+  const fromNode = this.transaction.keys[from];
+  const toNode = this.transaction.keys[to];
   const order = await models.Order.create({
     description: 'Donation',
     totalAmount: parseInt(value),
     currency,
-    CreatedByUserId: user.id,
-    FromCollectiveId: user.CollectiveId,
-    CollectiveId: this.transaction.state.collective.id,
+    CreatedByUserId: fromNode.CreatedByUserId,
+    FromCollectiveId: fromNode.id,
+    CollectiveId: toNode.id,
   });
   await order.setPaymentMethod({
     token: "tok_123456781234567812345678",
   });
-  this.transaction.set({ user, order });
 
   sandbox.stub(
     stripe,
     "retrieveBalanceTransaction",
     this.transaction.createRetrieveBalanceTransactionStub(value, currency));
 
+  const user = models.User.findById(fromNode.CreatedByUserId);
+
   const transaction = await libpayments.executeOrder(user, order);
-  this.transaction.set({ transaction });
+
+  this.transaction.set({ order, transaction });
 });
 
-Then('the {string} should have {string} in balance', function(ledger, amount) {
+Then('{string} should have {string} in their balance', function(ledger, amount) {
+  const ledgerId = this.transaction.keys[ledger].id;
   const [value, currency] = amount.split(' ');
-  const ledgerId = {
-    Collective: this.transaction.state.collective.id,
-    User: this.transaction.state.user.CollectiveId,
-  }[ledger];
-
   console.log(value, currency, ledgerId);
 
   //expect(this.variable).to.eql(number);

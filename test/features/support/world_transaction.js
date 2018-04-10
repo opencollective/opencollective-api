@@ -1,17 +1,11 @@
 export default class TransactionWorld {
   constructor() {
-    this.state = {
-      hostOwner: null,
-      host: null,
-      collective: null,
-    };
+    this.state = {};
+    this.keys = {};
   }
 
   set = (newState) => {
-    this.state = {
-      ...this.state,
-      ...newState
-    };
+    this.state = { ...this.state, ...newState };
   }
 
   calculateFees = () => {
