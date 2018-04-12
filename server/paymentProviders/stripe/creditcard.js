@@ -117,14 +117,21 @@ export default {
             CollectiveId: collective.id,
             PaymentMethodId: paymentMethod.id
           };
+          const amounts = {
+            // This is the amount in the host currency
+            amount: balanceTransaction.amount,
+            currency: balanceTransaction.currency,
+            // This is the amount in the donor's currency
+            fromAmount: order.totalAmount,
+            fromCurrency: order.currency,
+            fromCurrencyRate: balanceTransaction.exchange_rate
+              ? balanceTransaction.exchange_rate
+              : balanceTransaction.amount / order.totalAmount,
+          };
           payload.transaction = {
+            ...amounts,
             type: constants.type.CREDIT,
             OrderId: order.id,
-            amount: order.totalAmount,
-            currency: order.currency,
-            hostCurrency: balanceTransaction.currency,
-            amountInHostCurrency: balanceTransaction.amount,
-            hostCurrencyFxRate: order.totalAmount / balanceTransaction.amount,
             hostFeeInHostCurrency,
             platformFeeInHostCurrency: fees.applicationFee,
             paymentProcessorFeeInHostCurrency: fees.stripeFee,
