@@ -45,7 +45,8 @@ Given(/^a Collective "([^\"]+)" with a host in "([^\"]+)"( and "([^\"]+)%" fee)?
 });
 
 Given('the conversion rate from {string} to {string} is {float}', function (from, to, rate) {
-  this.transaction.set({ fx: { from, to, rate }});
+  if (!this.transaction.state.fx) this.transaction.state.fx = [];
+  this.transaction.state.fx.push({ from, to, rate });
 });
 
 Given(/^(\w+) fee is "(\d+)%" of the order$/, async function (name, value) {
@@ -56,25 +57,38 @@ When('{string} donates {string} to {string}', async function (from, amount, to) 
   const [value, currency] = amount.split(' ');
   const fromNode = this.transaction.keys[from];
   const toNode = this.transaction.keys[to];
+  const toHostNode = this.transaction.keys[`${to}-host`];
   const { order } = await libteststore.orderAndPaymentMethod(
     fromNode, toNode, parseInt(value), currency);
 
   /* This has to be called before executeOrder() and it's being called
    * here and not in the hook because it needs the order parameters to
    * be generated. */
+  const toOrderCurrency = (v, cf, ct) => cf === ct ? v : this
+        .transaction.state.fx
+        .filter((x) => x.from === cf && x.to === ct)
+        .reduce((a, b) => Math.round(v * b.rate), 0);
+  const valueInHostCurrency =
+        toOrderCurrency(value, currency, toHostNode.currency);
+  if (!valueInHostCurrency) throw new Error(
+    `No conversion rate registered for ${currency} -> ${toHostNode.currency}`);
   sandbox.stub(
     stripe,
     "retrieveBalanceTransaction",
-    this.transaction.createRetrieveBalanceTransactionStub(value, currency));
+    this.transaction.createRetrieveBalanceTransactionStub(
+      valueInHostCurrency, toHostNode.currency));
 
   const user = await models.User.findById(fromNode.CreatedByUserId);
   const transaction = await libpayments.executeOrder(user, order);
   this.transaction.set({ order, transaction });
 });
 
-Then('{string} should have {string} in their balance', function(ledger, amount) {
-  const ledgerId = this.transaction.keys[ledger].id;
-  const rows = libledger.rows(this.transaction.state.transaction.TransactionGroup);
-  const balance = libledger.balanceFromCurrency(ledgerId, rows);
-  // expect(balance).to.equal(amount);
+Then('{string} should have {string} in their balance', async function(ledger, amount) {
+  const ledgerCollective = this.transaction.keys[ledger];
+  const rows = await libledger.rows(this.transaction.state.transaction.TransactionGroup);
+  const balanceFunc = ledgerCollective.type === 'USER'
+    ? libledger.balanceFromCurrency
+    : libledger.balance;
+  const balance = balanceFunc(ledgerCollective.id, rows);
+  expect(balance).to.equal(amount);
 });

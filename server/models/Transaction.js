@@ -33,6 +33,12 @@ export default (Sequelize, DataTypes) => {
 
     currency: CustomDataTypes(DataTypes).currency,
 
+    fromAmount: DataTypes.INTEGER,
+
+    fromCurrency: DataTypes.STRING,
+
+    fromCurrencyRate: DataTypes.FLOAT,
+
     CreatedByUserId: {
       type: DataTypes.INTEGER,
       references: {
@@ -295,12 +301,22 @@ export default (Sequelize, DataTypes) => {
     transaction.TransactionGroup = uuidv4();
     transaction.hostCurrencyFxRate = transaction.hostCurrencyFxRate || 1;
 
+    const amounts = {
+      // This is the amount in the host currency
+      amount: -transaction.amount,
+      currency: transaction.currency,
+      // This is the amount in the donor's currency
+      fromAmount: -transaction.fromAmount,
+      fromCurrency: transaction.fromCurrency,
+      fromCurrencyRate: transaction.fromCurrencyRate,
+    };
+
     const oppositeTransaction = {
       ...transaction,
+      ...amounts,
       type: (-transaction.amount > 0) ? type.CREDIT : type.DEBIT,
       FromCollectiveId: transaction.CollectiveId,
       CollectiveId: transaction.FromCollectiveId,
-      amount: -transaction.netAmountInCollectiveCurrency,
       netAmountInCollectiveCurrency: -transaction.amount,
       amountInHostCurrency: -transaction.netAmountInCollectiveCurrency / transaction.hostCurrencyFxRate,
       hostFeeInHostCurrency: transaction.hostFeeInHostCurrency,
