@@ -39,7 +39,6 @@ export function getTransactions(collectiveids, startDate = new Date("2015-01-01"
 }
 
 export function createFromPaidExpense(host, paymentMethod, expense, paymentResponses, preapprovalDetails, UserId) {
-  const hostCurrency = host.currency;
   let createPaymentResponse, executePaymentResponse;
   let fxrate;
   let paymentProcessorFeeInCollectiveCurrency = 0;
@@ -77,20 +76,22 @@ export function createFromPaidExpense(host, paymentMethod, expense, paymentRespo
 
     getFxRatePromise = Promise.resolve(fxrate);
   } else {
-    // If manual (add funds or manual reimbursement of an expense)
-    getFxRatePromise = getFxRate(expense.currency, host.currency, expense.incurredAt || expense.createdAt);
+    // If manual (add funds or manual reimbursement of an
+    // expense). The rate between host currency and expense currency
+    // will be retrieved. Not the way around (expense -> host) because
+    // the transaction will be recorded in the *host* currency and the
+    // expense currency conversion will be saved in the `from*`
+    // fields.
+    getFxRatePromise = getFxRate(host.currency, expense.currency, expense.incurredAt || expense.createdAt);
   }
 
   // We assume that all expenses are in Collective currency
   // (otherwise, ledger breaks with a triple currency conversion)
   const transaction = {
     netAmountInCollectiveCurrency: -1 * (expense.amount + paymentProcessorFeeInCollectiveCurrency),
-    hostCurrency,
     paymentProcessorFeeInHostCurrency: toNegative(paymentProcessorFeeInHostCurrency),
     ExpenseId: expense.id,
     type: type.DEBIT,
-    amount: -expense.amount,
-    currency: expense.currency,
     description: expense.description,
     CreatedByUserId: UserId,
     CollectiveId: expense.CollectiveId,
@@ -100,9 +101,18 @@ export function createFromPaidExpense(host, paymentMethod, expense, paymentRespo
 
   return getFxRatePromise
     .then(fxrate => {
-      if (!isNaN(fxrate)) {
-        transaction.hostCurrencyFxRate = fxrate;
-        transaction.amountInHostCurrency = -Math.round(fxrate * expense.amount); // amountInHostCurrency is an INTEGER (in cents)
+      if (host.currency === expense.currency) {
+        transaction.amount = -expense.amount;
+        transaction.fromAmount = -expense.amount;
+        transaction.currency = host.currency;
+        transaction.fromCurrency = expense.currency; // Should be the same as above
+        transaction.fromCurrencyRate = 1;
+      } else if (host.currency !== expense.currency && !isNaN(fxrate)) {
+        transaction.amount = -Math.round(expense.amount * fxrate);
+        transaction.fromAmount = -expense.amount;
+        transaction.currency = host.currency;
+        transaction.fromCurrency = expense.currency;
+        transaction.fromCurrencyRate = fxrate;
       }
       return transaction;
     })
