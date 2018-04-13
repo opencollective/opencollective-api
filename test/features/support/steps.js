@@ -87,8 +87,8 @@ Then('{string} should have {string} in their balance', async function(ledger, am
   const ledgerCollective = this.transaction.keys[ledger];
   const rows = await libledger.rows(this.transaction.state.transaction.TransactionGroup);
   const balanceFunc = ledgerCollective.type === 'USER'
-    ? libledger.balanceFromCurrency
-    : libledger.balance;
+    ? libledger.formattedBalanceFromCurrency
+    : libledger.formattedBalance;
   const balance = balanceFunc(ledgerCollective.id, rows);
   expect(balance).to.equal(amount);
 });
