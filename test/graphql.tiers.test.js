@@ -223,7 +223,8 @@ describe('graphql.tiers.test', () => {
         // expect(orders[0].SubscriptionId).to.not.be.null;
         // expect(subscription.interval).to.equal(tier1.interval);
         expect(transactions).to.have.length(1);
-        expect(transactions[0].amount).to.equal(tier1.amount);
+        expect(transactions[0].fromAmount).to.equal(tier1.amount);
+        expect(transactions[0].amount).to.equal(999);
       });
 
       it("user1 becomes a backer of collective1 using a new payment method", async () => {
