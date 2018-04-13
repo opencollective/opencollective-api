@@ -126,11 +126,10 @@ export function createFromPaidExpense(host, paymentMethod, expense, paymentRespo
 
 /** Calculate net amount of a transaction */
 export function netAmount(tr) {
-  return Math.round((
-      tr.amountInHostCurrency +
-      tr.hostFeeInHostCurrency +
-      tr.platformFeeInHostCurrency +
-      tr.paymentProcessorFeeInHostCurrency) * tr.hostCurrencyFxRate);
+  return tr.amount +
+    tr.hostFeeInHostCurrency +
+    tr.platformFeeInHostCurrency +
+    tr.paymentProcessorFeeInHostCurrency;
 }
 
 /** Verify net amount of a transaction */

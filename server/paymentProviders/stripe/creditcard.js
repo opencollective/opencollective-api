@@ -9,6 +9,19 @@ import * as paymentsLib from '../../lib/payments';
 import { planId } from '../../lib/utils';
 import errors from '../../lib/errors';
 
+/** Fill in amount fields of a Stripe transaction. */
+export const getAmounts = (balanceTransaction, order) => ({
+  // This is the amount in the host currency
+  amount: balanceTransaction.amount,
+  currency: balanceTransaction.currency,
+  // This is the amount in the donor's currency
+  fromAmount: order.totalAmount,
+  fromCurrency: order.currency,
+  fromCurrencyRate: balanceTransaction.exchange_rate
+    ? balanceTransaction.exchange_rate
+    : balanceTransaction.amount / order.totalAmount,
+});
+
 /**
  * Calculates the 1st of next month
  * input: date
@@ -117,19 +130,8 @@ export default {
             CollectiveId: collective.id,
             PaymentMethodId: paymentMethod.id
           };
-          const amounts = {
-            // This is the amount in the host currency
-            amount: balanceTransaction.amount,
-            currency: balanceTransaction.currency,
-            // This is the amount in the donor's currency
-            fromAmount: order.totalAmount,
-            fromCurrency: order.currency,
-            fromCurrencyRate: balanceTransaction.exchange_rate
-              ? balanceTransaction.exchange_rate
-              : balanceTransaction.amount / order.totalAmount,
-          };
           payload.transaction = {
-            ...amounts,
+            ...getAmounts(balanceTransaction, order),
             type: constants.type.CREDIT,
             OrderId: order.id,
             hostFeeInHostCurrency,
