@@ -34,7 +34,7 @@ const getTotalAnnualBudgetForHost = (HostCollectiveId) => {
       SELECT id FROM "Collectives" WHERE "HostCollectiveId"=:HostCollectiveId AND "isActive"=true
     ),
     "monthlyOrdersWithAmountInHostCurrency" AS (
-      SELECT o.id, MAX(o."CollectiveId") as "CollectiveId", MAX(t.currency) AS currency, MAX(t."amountInHostCurrency") as "amountInHostCurrency"
+      SELECT o.id, MAX(o."CollectiveId") as "CollectiveId", MAX(t.currency) AS currency, MAX(t."amount") as "amount"
       FROM "Orders" o
       LEFT JOIN "Subscriptions" s ON o."SubscriptionId" = s.id
       LEFT JOIN "Transactions" t ON t."OrderId" = o.id
@@ -44,7 +44,7 @@ const getTotalAnnualBudgetForHost = (HostCollectiveId) => {
       GROUP BY o.id
     ),
     "yearlyAndOneTimeOrdersWithAmountInHostCurrency" AS (
-      SELECT o.id, MAX(o."CollectiveId") as "CollectiveId", MAX(t.currency) AS currency, MAX(t."amountInHostCurrency") as "amountInHostCurrency"
+      SELECT o.id, MAX(o."CollectiveId") as "CollectiveId", MAX(t.currency) AS currency, MAX(t."amount") as "amount"
       FROM "Orders" o
       LEFT JOIN "Subscriptions" s ON o."SubscriptionId" = s.id
       LEFT JOIN "Transactions" t ON t."OrderId" = o.id
@@ -56,12 +56,12 @@ const getTotalAnnualBudgetForHost = (HostCollectiveId) => {
     )
  
   SELECT
-    ( SELECT COALESCE(SUM("amountInHostCurrency") * 12, 0) FROM "monthlyOrdersWithAmountInHostCurrency" t )
+    ( SELECT COALESCE(SUM("amount") * 12, 0) FROM "monthlyOrdersWithAmountInHostCurrency" t )
     +
-    ( SELECT COALESCE(SUM("amountInHostCurrency"), 0) FROM "yearlyAndOneTimeOrdersWithAmountInHostCurrency" t )
+    ( SELECT COALESCE(SUM("amount"), 0) FROM "yearlyAndOneTimeOrdersWithAmountInHostCurrency" t )
     +
     (SELECT
-      COALESCE(SUM("amountInHostCurrency"),0) FROM "Transactions" t
+      COALESCE(SUM("amount"),0) FROM "Transactions" t
       LEFT JOIN "Orders" o on t."OrderId" = o.id
       LEFT JOIN "Subscriptions" s ON o."SubscriptionId" = s.id
       WHERE t.type='CREDIT' AND t."CollectiveId" IN (SELECT id FROM collectiveids)

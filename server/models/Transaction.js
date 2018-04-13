@@ -303,12 +303,15 @@ export default (Sequelize, DataTypes) => {
 
     const amounts = {
       // This is the amount in the host currency
-      amount: -transaction.amount,
+      amount: -transaction.netAmountInCollectiveCurrency,
       currency: transaction.currency,
-      // This is the amount in the donor's currency
-      fromAmount: -transaction.fromAmount,
-      fromCurrency: transaction.fromCurrency,
-      fromCurrencyRate: transaction.fromCurrencyRate,
+      // This is the amount in the donor's currency. They won't have
+      // information about the net amount because that's going to
+      // change. This will make fromAmount look very off compared to
+      // amount but that's fine.
+      fromAmount: -transaction.fromAmount || transaction.amount,
+      fromCurrency: transaction.fromCurrency || transaction.currency,
+      fromCurrencyRate: transaction.fromCurrencyRate || 1,
     };
 
     const oppositeTransaction = {
@@ -318,7 +321,6 @@ export default (Sequelize, DataTypes) => {
       FromCollectiveId: transaction.CollectiveId,
       CollectiveId: transaction.FromCollectiveId,
       netAmountInCollectiveCurrency: -transaction.amount,
-      amountInHostCurrency: -transaction.netAmountInCollectiveCurrency / transaction.hostCurrencyFxRate,
       hostFeeInHostCurrency: transaction.hostFeeInHostCurrency,
       platformFeeInHostCurrency: transaction.platformFeeInHostCurrency,
       paymentProcessorFeeInHostCurrency: transaction.paymentProcessorFeeInHostCurrency
@@ -361,6 +363,8 @@ export default (Sequelize, DataTypes) => {
         transaction.CollectiveId = CollectiveId;
         transaction.PaymentMethodId = transaction.PaymentMethodId || PaymentMethodId;
         transaction.type = (transaction.amount > 0) ? type.CREDIT : type.DEBIT;
+
+        // Fees
         transaction.platformFeeInHostCurrency =
           toNegative(transaction.platformFeeInHostCurrency);
         transaction.hostFeeInHostCurrency =
@@ -368,16 +372,17 @@ export default (Sequelize, DataTypes) => {
         transaction.paymentProcessorFeeInHostCurrency =
           toNegative(transaction.paymentProcessorFeeInHostCurrency);
 
-        if (transaction.amount > 0 && transaction.hostCurrencyFxRate) {
-          // populate netAmountInCollectiveCurrency for donations
-          // @aseem: why the condition on && transaction.hostCurrencyFxRate ?
-            transaction.netAmountInCollectiveCurrency =
-              Math.round((transaction.amountInHostCurrency
-                        + transaction.platformFeeInHostCurrency
-                        + transaction.hostFeeInHostCurrency
-                        + transaction.paymentProcessorFeeInHostCurrency)
-              * transaction.hostCurrencyFxRate);
-        }
+        // Currency related fields
+        transaction.fromAmount = transaction.fromAmount || transaction.amount;
+        transaction.fromCurrency = transaction.fromCurrency || transaction.currency;
+        transaction.fromCurrencyRate = transaction.fromCurrencyRate || 1;
+
+        // Remove fees from the amount
+        transaction.netAmountInCollectiveCurrency =
+          transaction.amount +
+          transaction.hostFeeInHostCurrency +
+          transaction.platformFeeInHostCurrency +
+          transaction.paymentProcessorFeeInHostCurrency;
         return Transaction.createDoubleEntry(transaction);
     });
   };
