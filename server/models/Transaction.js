@@ -110,22 +110,27 @@ export default (Sequelize, DataTypes) => {
       allowNull: true
     },
 
-    // stores the currency that the transaction happened in (currency of the host)
+    // Deprecated.
     hostCurrency: {
       type: DataTypes.STRING,
       set(val) {
-        if (val && val.toUpperCase) {
-          this.setDataValue('hostCurrency', val.toUpperCase());
-        }
+        throw new Error('Field `hostCurrency` is deprecated. Use `currency` instead');
+      }
+    },
+    hostCurrencyFxRate: {
+      type: DataTypes.FLOAT,
+      set(val) {
+        throw new Error('Field `hostCurrencyFxRate` is deprecated. Use `fromCurrencyRate` instead');
+      }
+    },
+    amountInHostCurrency: {
+      type: DataTypes.INTEGER,
+      set(val) {
+        throw new Error('Field `amountInHostCurrency` is deprecated. Use `amount` instead');
       }
     },
 
-    // stores the foreign exchange rate at the time of transaction between donation currency and transaction currency
-    // hostCurrencyFxRate = amount/amountInHostCurrency
-    hostCurrencyFxRate: DataTypes.FLOAT,
-
-    // amount in currency of the host
-    amountInHostCurrency: DataTypes.INTEGER,
+    // Fees
     platformFeeInHostCurrency: DataTypes.INTEGER,
     hostFeeInHostCurrency: DataTypes.INTEGER,
     paymentProcessorFeeInHostCurrency: DataTypes.INTEGER,
