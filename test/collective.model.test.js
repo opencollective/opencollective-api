@@ -62,7 +62,6 @@ describe('Collective model', () => {
   },{
     createdAt: new Date('2016-06-15'),
     amount: 25000,
-    amountInHostCurrency: 25000,
     netAmountInCollectiveCurrency: 22500,
     currency: 'USD',
     type: 'CREDIT',
@@ -71,7 +70,6 @@ describe('Collective model', () => {
   },{
     createdAt: new Date('2016-07-16'),
     amount: 50000,
-    amountInHostCurrency: 50000,
     netAmountInCollectiveCurrency: 45000,
     currency: 'USD',
     type: 'CREDIT',
@@ -80,8 +78,7 @@ describe('Collective model', () => {
   },
   {
     createdAt: new Date('2016-08-18'),
-    amount: 500,
-    amountInHostCurrency: 50000,
+    amount: 50000,
     netAmountInCollectiveCurrency: 45000,
     currency: 'USD',
     type: 'CREDIT',
@@ -334,7 +331,7 @@ describe('Collective model', () => {
           expect(tiers).to.have.length(2);
           expect(tiers[0].users).to.have.length(1);
           const backer = tiers[0].users[0];
-          expect(parseInt(backer.totalDonations, 10)).to.equal(transactions[2].amountInHostCurrency + transactions[3].amountInHostCurrency);
+          expect(parseInt(backer.totalDonations, 10)).to.equal(transactions[2].amount + transactions[3].amount);
           expect(new Date(backer.firstDonation).getTime()).to.equal(new Date(transactions[2].createdAt).getTime());
           expect(new Date(backer.lastDonation).getTime()).to.equal(new Date(transactions[3].createdAt).getTime());
           done();

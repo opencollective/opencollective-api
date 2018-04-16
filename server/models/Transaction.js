@@ -157,11 +157,11 @@ export default (Sequelize, DataTypes) => {
     getterMethods: {
 
       netAmountInHostCurrency() {
-        return this.amountInHostCurrency + this.paymentProcessorFeeInHostCurrency + this.platformFeeInHostCurrency + this.hostFeeInHostCurrency;
+        return this.amount + this.paymentProcessorFeeInHostCurrency + this.platformFeeInHostCurrency + this.hostFeeInHostCurrency;
       },
 
       amountSentToHostInHostCurrency() {
-        return this.amountInHostCurrency + this.paymentProcessorFeeInHostCurrency + this.platformFeeInHostCurrency;
+        return this.amount + this.paymentProcessorFeeInHostCurrency + this.platformFeeInHostCurrency;
       },
 
       // Info.
@@ -180,11 +180,12 @@ export default (Sequelize, DataTypes) => {
           platformFee: this.platformFee,
           hostFee: this.hostFee,
           paymentProcessorFeeInHostCurrency: this.paymentProcessorFeeInHostCurrency,
-          amountInHostCurrency: this.amountInHostCurrency,
           netAmountInCollectiveCurrency: this.netAmountInCollectiveCurrency,
           netAmountInHostCurrency: this.netAmountInHostCurrency,
           amountSentToHostInHostCurrency: this.amountSentToHostInHostCurrency,
-          hostCurrency: this.hostCurrency
+          // Deprecated fields redirecting to their new values
+          amountInHostCurrency: this.amount,
+          hostCurrency: this.currency,
         };
       }
     },
