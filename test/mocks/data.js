@@ -454,9 +454,9 @@ export default {
         "tags": ["consultancy"],
         "amount": -20000,
         "type": "DEBIT",
-        "amountInHostCurrency": -20000,
+        "fromAmount": -20000,
         "currency": "USD",
-        "hostCurrency": "USD",
+        "fromCollective": "USD",
         "createdAt": "2015-01-23T08:00:00.000Z",
       },
       {

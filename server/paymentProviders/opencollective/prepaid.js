@@ -39,19 +39,24 @@ export default {
           return Promise.resolve();
         } else {
           // transfer all money using gift card from Host to User
+          const amounts = {
+            // This is the amount in the host currency
+            amount: order.paymentMethod.monthlyLimitPerMember, // treating this field as one-time limit
+            currency: order.paymentMethod.currency,
+            // This is the amount in the donor's currency
+            fromAmount: order.totalAmount,
+            fromCurrency: order.currency,
+            fromCurrencyRate: 1, // assuming all USD transactions for now
+          };
           const payload = {
             CreatedByUserId: user.id,
             FromCollectiveId: order.paymentMethod.CollectiveId,
             CollectiveId: user.CollectiveId,
             PaymentMethodId: order.PaymentMethodId,
             transaction: {
+              ...amounts,
               type: TransactionTypes.CREDIT,
               OrderId: order.id,
-              amount: order.paymentMethod.monthlyLimitPerMember, // treating this field as one-time limit
-              amountInHostCurrency: order.paymentMethod.monthlyLimitPerMember,
-              currency: order.paymentMethod.currency,
-              hostCurrency: order.currency, // assuming all USD transactions for now
-              hostCurrencyFxRate: 1,
               hostFeeInHostCurrency: 0,
               platformFeeInHostCurrency: 0, // we don't charge a fee until the money is used by User
               paymentProcessorFeeInHostCurrency: 0,
@@ -81,25 +86,27 @@ export default {
           // Use the above payment method to donate to Collective
           .then(pm => newPM = pm)
           .then(() => {
-
             const hostFeeInHostCurrency = paymentsLib.calcFee(
               order.totalAmount,
               order.collective.hostFeePercent);
             const platformFeeInHostCurrency = paymentsLib.calcFee(
               order.totalAmount, PLATFORM_FEE);
+            const amounts = {
+              amount: order.totalAmount,
+              currency: order.currency,
+              fromAmount: order.totalAmount,
+              fromCurrency: order.currency,
+              fromCurrencyRate: 1,
+            };
             const payload = {
               CreatedByUserId: user.id,
               FromCollectiveId: order.FromCollectiveId,
               CollectiveId: order.CollectiveId,
               PaymentMethodId: newPM.id,
               transaction: {
+                ...amounts,
                 type: TransactionTypes.CREDIT,
                 OrderId: order.id,
-                amount: order.totalAmount,
-                amountInHostCurrency: order.totalAmount,
-                currency: order.currency,
-                hostCurrency: order.currency,
-                hostCurrencyFxRate: 1,
                 hostFeeInHostCurrency,
                 platformFeeInHostCurrency,
                 paymentProcessorFeeInHostCurrency: 0,

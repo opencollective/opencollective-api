@@ -1,7 +1,6 @@
 import models, { sequelize } from '../../models';
 import { type as TransactionTypes } from '../../constants/transactions';
 import Promise from 'bluebird';
-import { getFxRate } from '../../lib/currency';
 import * as paymentsLib from '../../lib/payments';
 
 export default {
@@ -78,36 +77,28 @@ export default {
         CollectiveId: order.CollectiveId,
         PaymentMethodId: order.PaymentMethodId
       };
-      // Different collectives on the same host may have different currencies
-      // That's bad design. We should always keep the same host currency everywhere and only use the currency
-      // of the collective for display purposes (using the fxrate at the time of display)
-      // Anyway, until we change that, when we give money to a collective that has a different currency
-      // we need to compute the equivalent using the fxrate of the day
-      return getFxRate(order.currency, order.paymentMethod.currency)
-      .then(fxrate => {
-        const totalAmountInPaymentMethodCurrency = order.totalAmount * fxrate;
-        const hostFeeInHostCurrency = paymentsLib.calcFee(
-          order.totalAmount * fxrate,
-          hostFeePercent);
-        const platformFeeInHostCurrency = paymentsLib.calcFee(
-          order.totalAmount * fxrate,
-          platformFeePercent);
-        payload.transaction = {
-          type: TransactionTypes.CREDIT,
-          OrderId: order.id,
-          amount: order.totalAmount,
-          currency: order.currency,
-          hostCurrency: results.collectiveHost.currency,
-          hostCurrencyFxRate: 1/fxrate,
-          netAmountInCollectiveCurrency: order.totalAmount * (1 - hostFeePercent/100),
-          amountInHostCurrency: totalAmountInPaymentMethodCurrency,
-          hostFeeInHostCurrency,
-          platformFeeInHostCurrency,
-          paymentProcessorFeeInHostCurrency: 0,
-          description: order.description,
-        };
-        return models.Transaction.createFromPayload(payload);
-      });
-    })
+      const hostFeeInHostCurrency = paymentsLib.calcFee(
+        order.totalAmount, hostFeePercent);
+      const platformFeeInHostCurrency = paymentsLib.calcFee(
+        order.totalAmount, platformFeePercent);
+      const amounts = {
+        amount: order.totalAmount,
+        currency: results.collectiveHost.currency,
+        fromAmount: order.totalAmount,
+        fromCurrency: order.currency,
+        fromCurrencyRate: 1,
+      };
+      payload.transaction = {
+        ...amounts,
+        type: TransactionTypes.CREDIT,
+        OrderId: order.id,
+        netAmountInCollectiveCurrency: order.totalAmount * (1 - hostFeePercent/100),
+        hostFeeInHostCurrency,
+        platformFeeInHostCurrency,
+        paymentProcessorFeeInHostCurrency: 0,
+        description: order.description,
+      };
+      return models.Transaction.createFromPayload(payload);
+    });
   }
-}
+};

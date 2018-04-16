@@ -87,7 +87,7 @@ const queries = {
       }
 
       const transactions = await models.Transaction.findAll({
-        attributes: [ 'createdAt', 'HostCollectiveId', 'amountInHostCurrency', 'hostCurrency'],
+        attributes: [ 'createdAt', 'HostCollectiveId', 'amount', 'currency'],
         where: {
           type: 'CREDIT',
           FromCollectiveId: fromCollective.id,
@@ -103,7 +103,7 @@ const queries = {
         const month = createdAt.getMonth() + 1;
         const month2digit = month < 10 ? `0${month}`: `${month}`;
         const slug = `${year}${month2digit}-${hostsById[HostCollectiveId].slug}-${fromCollective.slug}`;
-        const totalAmount = invoicesByKey[slug] ? invoicesByKey[slug].totalAmount + transaction.amountInHostCurrency : transaction.amountInHostCurrency;
+        const totalAmount = invoicesByKey[slug] ? invoicesByKey[slug].totalAmount + transaction.amount : transaction.amount;
         invoicesByKey[slug] = {
           HostCollectiveId,
           FromCollectiveId: fromCollective.id,
@@ -111,7 +111,7 @@ const queries = {
           year,
           month,
           totalAmount,
-          currency: transaction.hostCurrency
+          currency: transaction.currency
         }
       });
       const invoices = [];
@@ -177,8 +177,8 @@ const queries = {
       };
       let totalAmount = 0
       transactions.map(transaction => {
-        totalAmount += transaction.amountInHostCurrency;
-        invoice.currency = transaction.hostCurrency;
+        totalAmount += transaction.amount;
+        invoice.currency = transaction.currency;
       })
       invoice.FromCollectiveId = fromCollective.id;
       invoice.totalAmount = totalAmount;

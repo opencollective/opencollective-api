@@ -30,8 +30,8 @@ with "CollectiveTransactions" as (
   SELECT
     "CollectiveId",
     MAX("HostCollectiveId") as "HostCollectiveId",
-    SUM("amountInHostCurrency") as "amountInHostCurrency",
-    MAX("hostCurrency") as "hostCurrency",
+    SUM("amount") as "amount",
+    MAX("currency") as "currency",
     SUM("platformFeeInHostCurrency") as "platformFeeInHostCurrency",
     MAX("hostFeeInHostCurrency") as "hostFeeInHostCurrency",
     MAX("paymentProcessorFeeInHostCurrency") as "paymentProcessorFeeInHostCurrency"
@@ -122,23 +122,23 @@ const processCollective = (collective) => {
         twitterHandle: row.twitterHandle,
         settings: row.settings,
         data: row.data,
-        totalDonations: Number(row.amountInHostCurrency),
-        currency: row.hostCurrency
+        totalDonations: Number(row.amount),
+        currency: row.currency
       };
 
       hosts[row.hostSlug].collectivesBySlug[row.slug] = collectivesBySlug[row.slug];
 
-      if (typeof totalDonations[row.hostCurrency] === 'undefined')
-        totalDonations[row.hostCurrency] = 0;
+      if (typeof totalDonations[row.currency] === 'undefined')
+        totalDonations[row.currency] = 0;
 
-      _.set(hosts, [row.hostSlug, 'totalFees', row.hostCurrency], 0);
-      _.set(hosts, ['stripe', 'totalFees', row.hostCurrency], 0);
-      _.set(hosts, ['opencollective', 'totalFees', row.hostCurrency], 0);
+      _.set(hosts, [row.hostSlug, 'totalFees', row.currency], 0);
+      _.set(hosts, ['stripe', 'totalFees', row.currency], 0);
+      _.set(hosts, ['opencollective', 'totalFees', row.currency], 0);
 
-      totalDonations[row.hostCurrency] += Number(row.amountInHostCurrency);
-      hosts[row.hostSlug]['totalFees'][row.hostCurrency] += Number(row.hostFeeInHostCurrency);
-      hosts['opencollective']['totalFees'][row.hostCurrency] += Number(row.platformFeeInHostCurrency);
-      hosts['stripe']['totalFees'][row.hostCurrency] += Number(row.paymentProcessorFeeInHostCurrency);
+      totalDonations[row.currency] += Number(row.amount);
+      hosts[row.hostSlug]['totalFees'][row.currency] += Number(row.hostFeeInHostCurrency);
+      hosts['opencollective']['totalFees'][row.currency] += Number(row.platformFeeInHostCurrency);
+      hosts['stripe']['totalFees'][row.currency] += Number(row.paymentProcessorFeeInHostCurrency);
     })
 
     for (const hostSlug in hosts) {

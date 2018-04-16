@@ -95,13 +95,13 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
         } });
   const userLedgerRefund = pick(collectiveLedger, [
     'FromCollectiveId', 'CollectiveId', 'HostCollectiveId', 'PaymentMethodId',
-    'OrderId', 'hostCurrencyFxRate', 'hostCurrency',
+    'OrderId', 'currency', 'fromCurrency', 'fromCurrencyRate',
     'hostFeeInHostCurrency', 'platformFeeInHostCurrency',
     'paymentProcessorFeeInHostCurrency',
   ]);
   userLedgerRefund.CreatedByUserId = user.id;
   userLedgerRefund.amount = -collectiveLedger.amount;
-  userLedgerRefund.amountInHostCurrency = -collectiveLedger.amountInHostCurrency;
+  userLedgerRefund.fromAmount = -collectiveLedger.fromAmount;
   userLedgerRefund.netAmountInCollectiveCurrency = -libtransactions.netAmount(collectiveLedger);
   userLedgerRefund.description = `Refund of "${transaction.description}"`;
   userLedgerRefund.data = data;

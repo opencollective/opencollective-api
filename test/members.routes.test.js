@@ -22,7 +22,6 @@ const createTransactions = () => {
     FromCollectiveId: users[2].CollectiveId,
     CollectiveId: collective.id,
     amount: 2000,
-    amountInHostCurrency: 2000,
     createdAt: '2016-05-07 19:52:21.203+00',
     updatedAt: '2016-05-07 19:52:21.203+00'
   },
@@ -31,7 +30,6 @@ const createTransactions = () => {
     FromCollectiveId: users[3].CollectiveId,
     CollectiveId: collective.id,
     amount: 10000,
-    amountInHostCurrency: 10000,
     createdAt: '2016-05-07 19:52:21.203+00',
     updatedAt: '2016-05-07 19:52:21.203+00'
   }];

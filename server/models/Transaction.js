@@ -33,6 +33,12 @@ export default (Sequelize, DataTypes) => {
 
     currency: CustomDataTypes(DataTypes).currency,
 
+    fromAmount: DataTypes.INTEGER,
+
+    fromCurrency: DataTypes.STRING,
+
+    fromCurrencyRate: DataTypes.FLOAT,
+
     CreatedByUserId: {
       type: DataTypes.INTEGER,
       references: {
@@ -104,22 +110,27 @@ export default (Sequelize, DataTypes) => {
       allowNull: true
     },
 
-    // stores the currency that the transaction happened in (currency of the host)
+    // Deprecated.
     hostCurrency: {
       type: DataTypes.STRING,
       set(val) {
-        if (val && val.toUpperCase) {
-          this.setDataValue('hostCurrency', val.toUpperCase());
-        }
+        throw new Error('Field `hostCurrency` is deprecated. Use `currency` instead');
+      }
+    },
+    hostCurrencyFxRate: {
+      type: DataTypes.FLOAT,
+      set(val) {
+        throw new Error('Field `hostCurrencyFxRate` is deprecated. Use `fromCurrencyRate` instead');
+      }
+    },
+    amountInHostCurrency: {
+      type: DataTypes.INTEGER,
+      set(val) {
+        throw new Error('Field `amountInHostCurrency` is deprecated. Use `amount` instead');
       }
     },
 
-    // stores the foreign exchange rate at the time of transaction between donation currency and transaction currency
-    // hostCurrencyFxRate = amount/amountInHostCurrency
-    hostCurrencyFxRate: DataTypes.FLOAT,
-
-    // amount in currency of the host
-    amountInHostCurrency: DataTypes.INTEGER,
+    // Fees
     platformFeeInHostCurrency: DataTypes.INTEGER,
     hostFeeInHostCurrency: DataTypes.INTEGER,
     paymentProcessorFeeInHostCurrency: DataTypes.INTEGER,
@@ -151,11 +162,11 @@ export default (Sequelize, DataTypes) => {
     getterMethods: {
 
       netAmountInHostCurrency() {
-        return this.amountInHostCurrency + this.paymentProcessorFeeInHostCurrency + this.platformFeeInHostCurrency + this.hostFeeInHostCurrency;
+        return this.amount + this.paymentProcessorFeeInHostCurrency + this.platformFeeInHostCurrency + this.hostFeeInHostCurrency;
       },
 
       amountSentToHostInHostCurrency() {
-        return this.amountInHostCurrency + this.paymentProcessorFeeInHostCurrency + this.platformFeeInHostCurrency;
+        return this.amount + this.paymentProcessorFeeInHostCurrency + this.platformFeeInHostCurrency;
       },
 
       // Info.
@@ -174,11 +185,12 @@ export default (Sequelize, DataTypes) => {
           platformFee: this.platformFee,
           hostFee: this.hostFee,
           paymentProcessorFeeInHostCurrency: this.paymentProcessorFeeInHostCurrency,
-          amountInHostCurrency: this.amountInHostCurrency,
           netAmountInCollectiveCurrency: this.netAmountInCollectiveCurrency,
           netAmountInHostCurrency: this.netAmountInHostCurrency,
           amountSentToHostInHostCurrency: this.amountSentToHostInHostCurrency,
-          hostCurrency: this.hostCurrency
+          // Deprecated fields redirecting to their new values
+          amountInHostCurrency: this.amount,
+          hostCurrency: this.currency,
         };
       }
     },
@@ -295,14 +307,26 @@ export default (Sequelize, DataTypes) => {
     transaction.TransactionGroup = uuidv4();
     transaction.hostCurrencyFxRate = transaction.hostCurrencyFxRate || 1;
 
+    const amounts = {
+      // This is the amount in the host currency
+      amount: -transaction.netAmountInCollectiveCurrency,
+      currency: transaction.currency,
+      // This is the amount in the donor's currency. They won't have
+      // information about the net amount because that's going to
+      // change. This will make fromAmount look very off compared to
+      // amount but that's fine.
+      fromAmount: -transaction.fromAmount || transaction.amount,
+      fromCurrency: transaction.fromCurrency || transaction.currency,
+      fromCurrencyRate: transaction.fromCurrencyRate || 1,
+    };
+
     const oppositeTransaction = {
       ...transaction,
+      ...amounts,
       type: (-transaction.amount > 0) ? type.CREDIT : type.DEBIT,
       FromCollectiveId: transaction.CollectiveId,
       CollectiveId: transaction.FromCollectiveId,
-      amount: -transaction.netAmountInCollectiveCurrency,
       netAmountInCollectiveCurrency: -transaction.amount,
-      amountInHostCurrency: -transaction.netAmountInCollectiveCurrency / transaction.hostCurrencyFxRate,
       hostFeeInHostCurrency: transaction.hostFeeInHostCurrency,
       platformFeeInHostCurrency: transaction.platformFeeInHostCurrency,
       paymentProcessorFeeInHostCurrency: transaction.paymentProcessorFeeInHostCurrency
@@ -345,6 +369,8 @@ export default (Sequelize, DataTypes) => {
         transaction.CollectiveId = CollectiveId;
         transaction.PaymentMethodId = transaction.PaymentMethodId || PaymentMethodId;
         transaction.type = (transaction.amount > 0) ? type.CREDIT : type.DEBIT;
+
+        // Fees
         transaction.platformFeeInHostCurrency =
           toNegative(transaction.platformFeeInHostCurrency);
         transaction.hostFeeInHostCurrency =
@@ -352,16 +378,17 @@ export default (Sequelize, DataTypes) => {
         transaction.paymentProcessorFeeInHostCurrency =
           toNegative(transaction.paymentProcessorFeeInHostCurrency);
 
-        if (transaction.amount > 0 && transaction.hostCurrencyFxRate) {
-          // populate netAmountInCollectiveCurrency for donations
-          // @aseem: why the condition on && transaction.hostCurrencyFxRate ?
-            transaction.netAmountInCollectiveCurrency =
-              Math.round((transaction.amountInHostCurrency
-                        + transaction.platformFeeInHostCurrency
-                        + transaction.hostFeeInHostCurrency
-                        + transaction.paymentProcessorFeeInHostCurrency)
-              * transaction.hostCurrencyFxRate);
-        }
+        // Currency related fields
+        transaction.fromAmount = transaction.fromAmount || transaction.amount;
+        transaction.fromCurrency = transaction.fromCurrency || transaction.currency;
+        transaction.fromCurrencyRate = transaction.fromCurrencyRate || 1;
+
+        // Remove fees from the amount
+        transaction.netAmountInCollectiveCurrency =
+          transaction.amount +
+          transaction.hostFeeInHostCurrency +
+          transaction.platformFeeInHostCurrency +
+          transaction.paymentProcessorFeeInHostCurrency;
         return Transaction.createDoubleEntry(transaction);
     });
   };
