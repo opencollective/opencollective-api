@@ -29,7 +29,7 @@ export function authorizeApiKey(req, res, next) {
     { method: 'GET', regex: /^\/collectives\/[0-9]+\/transactions\/[0-9]+\/callback\?token=.+&paymentId=.+&PayerID=.+/ }, // PayPal callback
     { method: 'GET', regex: /^\/collectives\/[0-9]+\/transactions\/[0-9]+\/callback\?token=.+/ }, // PayPal callback
     { method: 'POST', regex: /^\/webhooks\/(mailgun|stripe)/ },
-    { method: 'GET', regex: /^\/connected-accounts\/(stripe|paypal)\/callback/ },
+    { method: 'GET', regex: /^\/connected-accounts\/(stripe|paypal|paypalbt)\/callback/ },
     { method: 'GET', regex: /^\/services\/email\/approve\?messageId=.+/ },
     { method: 'GET', regex: /^\/services\/email\/unsubscribe\/(.+)\/([a-zA-Z0-9-_]+)\/([a-zA-Z0-9-_\.]+)\/.+/ }
   ];

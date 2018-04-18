@@ -19,6 +19,11 @@
       "resetPasswordSecret": "RESET_PASSWORD_SECRET"
     }
   },
+  "paypalbt": {
+    "environment": "PAYPALBT_ENVIRONMENT",
+    "clientId": "PAYPALBT_CLIENT_ID",
+    "clientSecret": "PAYPALBT_CLIENT_SECRET"
+  },
   "stripe": {
     "secret": "STRIPE_SECRET",
     "key": "STRIPE_KEY",

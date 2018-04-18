@@ -28,6 +28,7 @@
     "bcrypt": "1.0.2",
     "bluebird": "3.4.0",
     "body-parser": "1.17.2",
+    "braintree": "2.9.0",
     "child-process-promise": "1.1.0",
     "clearbit": "1.2.1",
     "config": "1.19.0",
