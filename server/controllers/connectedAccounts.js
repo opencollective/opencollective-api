@@ -136,6 +136,15 @@ export const verify = (req, res, next) => {
   }
 };
 
+export const clientToken = (req, res, next) => {
+  const { service } = req.params;
+  const method = get(paymentProviders, `${service}.oauth.clientToken`);
+  if (method) {
+    return method(req, res, next);
+  }
+  throw new Error(`Service ${service} doesn't provide method 'clientToken'.`);
+};
+
 export const fetchAllRepositories = (req, res, next) => {
   const payload = req.jwtPayload;
   ConnectedAccount

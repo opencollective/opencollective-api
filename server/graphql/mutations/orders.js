@@ -17,7 +17,8 @@ const debugOrder = debug('order');
 export function createOrder(order, loaders, remoteUser) {
   let tier, collective, fromCollective, paymentRequired, interval, orderCreated, user;
 
-  if (order.paymentMethod && order.paymentMethod.service === 'stripe' && order.paymentMethod.uuid && !remoteUser) {
+  if (order.paymentMethod && ['stripe', 'paypalbt'].includes(order.paymentMethod.service)
+      && order.paymentMethod.uuid && !remoteUser) {
     throw new Error("You need to be logged in to be able to use a payment method on file");
   }
 

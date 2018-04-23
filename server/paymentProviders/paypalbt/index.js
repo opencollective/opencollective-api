@@ -27,7 +27,7 @@ async function oauthRedirectUrl(remoteUser, CollectiveId) {
     loginOnly: "false",
     paymentMethods: ["credit_card", "paypal"],
     redirectUri: config.paypalbt.redirectUri,
-    scope: "read_write",
+    scope: "read_write,shared_vault_transactions",
     state,
     user: {
       first_name: remoteUser.firstName,
@@ -66,7 +66,7 @@ async function oauthCallback(req, res, next) {
     service: 'paypalbt',
     CollectiveId,
     CreatedByUserId,
-    username: merchantId,
+    clientId: merchantId,
     token: credentials.accessToken,
     refreshToken: credentials.refreshToken,
     data: {
@@ -80,15 +80,59 @@ async function oauthCallback(req, res, next) {
   return res.redirect(url);
 }
 
-const paypalBt = null;
+async function clientToken(req, res, next) {
+  // Retrieve collective using the ID retrieved from request
+  const { CollectiveId } = req.query;
+  const collective = await models.Collective.findById(CollectiveId);
+  if (!collective) throw new Error('Collective does not exist');
+
+  // Get the host account
+  const { service } = req.params;
+  const hostCollectiveId = await collective.getHostCollectiveId();
+  if (!hostCollectiveId) throw new Error('Can\'t retrieve host collective id');
+
+  // Merchant ID of the host account
+  if (!hostCollectiveId) throw new Error('Can\'t retrieve host collective id');
+  const connectedAccount = await models.ConnectedAccount.findOne({
+    where: { service, CollectiveId: hostCollectiveId } });
+  if (!connectedAccount) throw new Error('Host does not have a paypal account');
+  const { clientId, token } = connectedAccount;
+
+  // Authenticate to braintree with the host account instead of using
+  // the client connected with the platform account.
+  const clientWithHostAccount = braintree.connect({
+    accessToken: token,
+    environment: config.paypalbt.environment,
+  });
+
+  // Generate token for the above merchant id
+  try {
+    const result = await clientWithHostAccount.clientToken.generate();
+    res.send({ clientToken: result.clientToken });
+  } catch (error) {
+    res.send({ error });
+  }
+}
+
+async function processOrder(order) {
+  throw new Error('Not Implemented');
+}
+
+const paypalbt = {
+  features: {
+    recurring: true,
+  },
+  processOrder
+};
 
 export default {
   types: {
-    default: paypalBt,
-    paypalBt
+    default: paypalbt,
+    paypalbt
   },
   oauth: {
     redirectUrl: oauthRedirectUrl,
     callback: oauthCallback,
+    clientToken,
   },
 };
