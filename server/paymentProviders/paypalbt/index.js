@@ -2,6 +2,8 @@ import braintree from 'braintree';
 import config from 'config';
 import jwt from 'jsonwebtoken';
 
+import * as constants from '../../constants/transactions';
+import * as libpayments from '../../lib/payments';
 import models from '../../models';
 import errors from '../../lib/errors';
 
@@ -87,35 +89,65 @@ async function clientToken(req, res, next) {
   if (!collective) throw new Error('Collective does not exist');
 
   // Get the host account
-  const { service } = req.params;
-  const hostCollectiveId = await collective.getHostCollectiveId();
-  if (!hostCollectiveId) throw new Error('Can\'t retrieve host collective id');
-
-  // Merchant ID of the host account
-  if (!hostCollectiveId) throw new Error('Can\'t retrieve host collective id');
-  const connectedAccount = await models.ConnectedAccount.findOne({
-    where: { service, CollectiveId: hostCollectiveId } });
-  if (!connectedAccount) throw new Error('Host does not have a paypal account');
-  const { clientId, token } = connectedAccount;
-
-  // Authenticate to braintree with the host account instead of using
-  // the client connected with the platform account.
-  const clientWithHostAccount = braintree.connect({
-    accessToken: token,
-    environment: config.paypalbt.environment,
-  });
+  const merchant = await getMerchantGateway(collective);
 
   // Generate token for the above merchant id
   try {
-    const result = await clientWithHostAccount.clientToken.generate();
+    const result = await merchant.clientToken.generate();
     res.send({ clientToken: result.clientToken });
   } catch (error) {
-    res.send({ error });
+    next(error);
   }
 }
 
+async function getMerchantGateway(collective) {
+  // Merchant ID of the host account
+  const hostCollectiveId = await collective.getHostCollectiveId();
+  if (!hostCollectiveId) throw new Error('Can\'t retrieve host collective id');
+  const connectedAccount = await models.ConnectedAccount.findOne({
+    where: { service: 'paypalbt', CollectiveId: hostCollectiveId } });
+  if (!connectedAccount) throw new Error('Host does not have a paypal account');
+  const { token } = connectedAccount;
+  return braintree.connect({
+    accessToken: token,
+    environment: config.paypalbt.environment,
+  });
+}
+
+async function getOrCreateUserToken(merchant, order) {
+  if (!order.paymentMethod.customerId) {
+    const result = await merchant.customer.create({
+      firstName: order.fromCollective.name,
+      paymentMethodNonce: order.paymentMethod.token,
+    });
+    console.log(result);
+    order.paymentMethod.update({
+      customerId: result.customer.id,
+      token: result.customer.paymentMethods[0].token,
+    });
+  }
+  return order.paymentMethod.token;
+}
+
+
+async function createTransactions(merchant, order) {
+  const paymentMethodToken = await getOrCreateUserToken(merchant, order);
+  const serviceFeeAmount = libpayments.calcFee(order.totalAmount, constants.OC_FEE_PERCENT);
+  const result = await merchant.transaction.sale({
+    paymentMethodToken,
+    serviceFeeAmount,
+    amount: order.totalAmount,
+  });
+  console.log(result);
+}
+
 async function processOrder(order) {
-  throw new Error('Not Implemented');
+  const merchant = await getMerchantGateway(order.collective);
+  await createTransactions(merchant, order);
+  // await order.update({ processedAt: new Date() });
+  // await order.paymentMethod.update({ confirmedAt: new Date });
+  // return transactions;
+  return null;
 }
 
 const paypalbt = {
