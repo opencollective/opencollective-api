@@ -9,6 +9,7 @@ import passport from 'passport';
 import connectSessionSequelize from 'connect-session-sequelize';
 import session from 'express-session';
 import helmet from 'helmet';
+import Liana from 'forest-express-sequelize';
 import { Strategy as GitHubStrategy } from 'passport-github';
 import { Strategy as TwitterStrategy } from 'passport-twitter';
 import { Strategy as MeetupStrategy } from 'passport-meetup-oauth2';
@@ -74,6 +75,14 @@ export default function(app) {
   app.use(lruCache());
 
   app.use(multer());
+
+  app.use(Liana.init({
+    modelsDir: __dirname + '/../models',
+    configDir: __dirname + '/../forest',
+    envSecret: process.env.FOREST_ENV_SECRET,
+    authSecret: process.env.FOREST_AUTH_SECRET,
+    sequelize: require('../models').sequelize
+  }));
 
   // Error handling.
   if (process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'staging') {
