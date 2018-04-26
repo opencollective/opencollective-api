@@ -83,30 +83,25 @@ async function oauthCallback(req, res, next) {
 }
 
 async function clientToken(req, res, next) {
-  // Retrieve collective using the ID retrieved from request
   const { CollectiveId } = req.query;
   const collective = await models.Collective.findById(CollectiveId);
-  if (!collective) throw new Error('Collective does not exist');
-
-  // Get the host account
-  const merchant = await getMerchantGateway(collective);
-
-  // Generate token for the above merchant id
+  if (!collective) return next(new errors.BadRequest('Collective does not exist'));
   try {
+    const merchant = await getMerchantGateway(collective);
     const result = await merchant.clientToken.generate();
-    res.send({ clientToken: result.clientToken });
+    return res.send({ clientToken: result.clientToken });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 }
 
 async function getMerchantGateway(collective) {
   // Merchant ID of the host account
   const hostCollectiveId = await collective.getHostCollectiveId();
-  if (!hostCollectiveId) throw new Error('Can\'t retrieve host collective id');
+  if (!hostCollectiveId) throw new errors.BadRequest('Can\'t retrieve host collective id');
   const connectedAccount = await models.ConnectedAccount.findOne({
     where: { service: 'paypalbt', CollectiveId: hostCollectiveId } });
-  if (!connectedAccount) throw new Error('Host does not have a paypal account');
+  if (!connectedAccount) throw new errors.BadRequest('Host does not have a paypal account');
   const { token } = connectedAccount;
   return braintree.connect({
     accessToken: token,
