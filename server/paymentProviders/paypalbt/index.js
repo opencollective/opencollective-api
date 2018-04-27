@@ -43,7 +43,7 @@ async function oauthRedirectUrl(remoteUser, CollectiveId) {
       locality: hostCollective.locationName,
       website: hostCollective.website,
       description: hostCollective.description,
-    }
+    },
   });
 }
 
@@ -82,36 +82,67 @@ async function oauthCallback(req, res, next) {
   return res.redirect(url);
 }
 
+/** Generate a token to be used by the UI
+ *
+ * The frontend libraries from PayPal and Braintree require a token
+ * generated on the server side using the platform's API keys.
+ *
+ * This function is called via the HTTP API for connected accounts and
+ * it's optional in the "Open Collective's Payment Provider" API for
+ * payment providers that don't require the token in the UI side.
+ */
 async function clientToken(req, res, next) {
   const { CollectiveId } = req.query;
   const collective = await models.Collective.findById(CollectiveId);
   if (!collective) return next(new errors.BadRequest('Collective does not exist'));
   try {
-    const merchant = await getMerchantGateway(collective);
-    const result = await merchant.clientToken.generate();
+    const merchantAccount = await getMerchantAccount(collective);
+    const merchantGateway = await getMerchantGateway(merchantAccount);
+    const result = await merchantGateway.clientToken.generate();
     return res.send({ clientToken: result.clientToken });
   } catch (error) {
     return next(error);
   }
 }
 
-async function getMerchantGateway(collective) {
-  // Merchant ID of the host account
+/** Retrieve connected account of the host
+ *
+ * The connected account of the host contains the token to
+ * authenticate as a gateway as well as the host's merchant id.
+ *
+ * @param {models.Collective} collective is an instance of the
+ *  collective model that will have its host data retrieved.
+ * @return {models.ConnectedAccount} the instance of the connected
+ *  account that contains the merchant id in the field `clientId` and
+ *  the gateway access token in the field `token`.
+ */
+async function getMerchantAccount(collective) {
   const hostCollectiveId = await collective.getHostCollectiveId();
   if (!hostCollectiveId) throw new errors.BadRequest('Can\'t retrieve host collective id');
   const connectedAccount = await models.ConnectedAccount.findOne({
     where: { service: 'paypalbt', CollectiveId: hostCollectiveId } });
   if (!connectedAccount) throw new errors.BadRequest('Host does not have a paypal account');
-  const { token } = connectedAccount;
+  return connectedAccount;
+}
+
+/** Return a Braintree gateway connected as a merchant.
+ *
+ * @param {models.ConnectAccount} merchantAccount is the db instance
+ *  that contains the data about the host that will be used to create
+ *  the gateway.
+ */
+async function getMerchantGateway(merchantAccount) {
   return braintree.connect({
-    accessToken: token,
+    accessToken: merchantAccount.token,
     environment: config.paypalbt.environment,
   });
 }
 
-async function getOrCreateUserToken(merchant, order) {
+/** Retrieve or create a new token for a PayPal user.
+ */
+async function getOrCreateUserToken(merchantGateway, order) {
   if (!order.paymentMethod.customerId) {
-    const result = await merchant.customer.create({
+    const result = await merchantGateway.customer.create({
       firstName: order.fromCollective.name,
       paymentMethodNonce: order.paymentMethod.token,
     });
@@ -124,21 +155,27 @@ async function getOrCreateUserToken(merchant, order) {
   return order.paymentMethod.token;
 }
 
+async function createTransactions(order) {
+  const merchantAccount = await getMerchantAccount(order.collective);
+  const merchantGateway = await getMerchantGateway(merchantAccount);
+  const paymentMethodToken = await getOrCreateUserToken(merchantGateway, order);
 
-async function createTransactions(merchant, order) {
-  const paymentMethodToken = await getOrCreateUserToken(merchant, order);
-  const serviceFeeAmount = libpayments.calcFee(order.totalAmount, constants.OC_FEE_PERCENT);
-  const result = await merchant.transaction.sale({
+  const amount = order.totalAmount / 100; // PayPal uses doubles to store currency
+  const serviceFeeAmount = libpayments.calcFee(amount, constants.OC_FEE_PERCENT);
+
+  const result = await merchantGateway.transaction.sale({
+    merchantAccountId: merchantAccount.clientId,
     paymentMethodToken,
     serviceFeeAmount,
-    amount: order.totalAmount,
+    amount,
+    options: {
+      submitForSettlement: true
+    }
   });
-  console.log(result);
 }
 
 async function processOrder(order) {
-  const merchant = await getMerchantGateway(order.collective);
-  await createTransactions(merchant, order);
+  await createTransactions(order);
   // await order.update({ processedAt: new Date() });
   // await order.paymentMethod.update({ confirmedAt: new Date });
   // return transactions;
