@@ -51,6 +51,7 @@ Given('{string} connects a {string} account', async function (hostName, connecte
   const hostAdmin = this.getValue(`${hostName}-admin`);
   const method = {
     stripe: store.stripeConnectedAccount,
+    paypalbt: store.paypalbtConnectedAccount,
   }[connectedAccountName.toLowerCase()];
   await method(host.id, hostAdmin.id);
 });
@@ -78,6 +79,7 @@ async function handleDonation (fromName, value, toName, paymentMethod, userName=
   /* Use the appropriate stub to execute the order */
   const method = {
     stripe: store.stripeOneTimeDonation,
+    paypalbt: store.paypalbtOneTimeDonation,
   }[paymentMethodName];
   if (!method) throw new Error(`Payment Method ${paymentMethod} doesn't exist`);
   return method({

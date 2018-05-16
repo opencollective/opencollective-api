@@ -236,3 +236,44 @@ export async function stripeOneTimeDonation(opt) {
     sandbox.restore();
   }
 }
+
+/* -- PAYPAL/BRAINTREE METHODS -- */
+
+/** Create a PayPal/Braintree account for a host collective
+ *
+ * @param {Number} hostId is the id of the host collective that the
+ *  newly created connected account object will be associated to.
+ * @return {models.ConnectedAccount} the newly created connected
+ *  account instance.
+ */
+export async function paypalbtConnectedAccount(hostId, CreatedByUserId=null) {
+  return models.ConnectedAccount.create({
+    service: 'paypalbt',
+    token: 'a_valid_access_token',
+    ClientId: 'merchant_3784278wfd982398219',
+    CollectiveId: hostId,
+    CreatedByUserId,
+  });
+}
+
+export async function paypalbtOneTimeDonation(opt) {
+  const { userCollective, collective, amount, currency, appFee, ppFee } = opt;
+  const params = { from: userCollective, to: collective, amount, currency };
+  const { order } = await newOrder(params)
+  const user = await models.User.findById(userCollective.CreatedByUserId);
+  // Every transaction made can use different values, so we stub the
+  // stripe call, create the order, and restore the stripe call so it
+  // can be stubbed again by the next call to this helper.
+  const sandbox = sinon.sandbox.create();
+  try {
+    // utils.stubStripeCreate(sandbox);
+    // utils.stubStripeBalance(sandbox, amount, currency, appFee, ppFee);
+
+    // Although it's supposed to be OK to omit `await' when returning
+    // a promise, it's causing this next call to fail so I'm keeping
+    // it here.
+    return await libpayments.executeOrder(user, order);
+  } finally {
+    sandbox.restore();
+  }
+}
