@@ -1,4 +1,7 @@
 import { pick, omit, get } from 'lodash';
+import moment from 'moment';
+import uuidv4 from 'uuid/v4';
+
 import debug from 'debug';
 import Promise from 'bluebird';
 
@@ -420,4 +423,28 @@ export async function refundTransaction(_, args, req) {
   // Return the transaction passed to the `refundTransaction` method
   // after it was updated.
   return result;
+}
+
+export async function addFundsToOrg(args, remoteUser) {
+  if (!remoteUser.isRoot()) throw new Error('Only site admins can perform this operation');
+  const [
+    fromCollective,
+    hostCollective,
+  ] = await Promise.all([
+    models.Collective.findById(args.collectiveId),
+    models.Collective.findById(args.hostCollectiveId)
+  ]);
+  return models.PaymentMethod.create({
+    name: args.description || 'Host funds',
+    currency: hostCollective.currency,
+    CollectiveId: args.collectiveId,
+    customerId: fromCollective.slug,
+    expiryDate: moment().add(1, 'year').format(),
+    uuid: uuidv4(),
+    data: { HostCollectiveId: args.hostCollectiveId },
+    service: 'opencollective',
+    type: 'prepaid',
+    createdAt: new Date,
+    updatedAt: new Date,
+  });
 }
