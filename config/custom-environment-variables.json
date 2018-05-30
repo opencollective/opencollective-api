@@ -22,7 +22,10 @@
   "paypalbt": {
     "environment": "PAYPALBT_ENVIRONMENT",
     "clientId": "PAYPALBT_CLIENT_ID",
-    "clientSecret": "PAYPALBT_CLIENT_SECRET"
+    "clientSecret": "PAYPALBT_CLIENT_SECRET",
+    "merchantId": "PAYPALBT_MERCHANT_ID",
+    "pubKey": "PAYPALBT_PUBLIC_KEY",
+    "privKey": "PAYPALBT_PRIVATE_KEY"
   },
   "stripe": {
     "secret": "STRIPE_SECRET",

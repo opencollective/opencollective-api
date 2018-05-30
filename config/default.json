@@ -55,8 +55,9 @@
   "paypalbt": {
     "redirectUri": "http://localhost:3060/connected-accounts/paypalbt/callback",
     "environment": "sandbox",
-    "clientId": "client_id$sandbox$xxx",
-    "clientSecret": "client_secret$sandbox$xxx"
+    "merchantId": "merchant",
+    "pubKey": "pubkey",
+    "privKey": "privkey"
   },
   "stripe": {
     "redirectUri": "http://localhost:3060/connected-accounts/stripe/callback",
