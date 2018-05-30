@@ -3,6 +3,7 @@ import config from 'config';
 import jwt from 'jsonwebtoken';
 
 import * as constants from '../../constants/transactions';
+import * as roles from '../../constants/roles';
 import * as libpayments from '../../lib/payments';
 import models from '../../models';
 import errors from '../../lib/errors';
@@ -43,7 +44,6 @@ async function getOrCreateUserToken(merchantGateway, order) {
       firstName: order.fromCollective.name,
       paymentMethodNonce: order.paymentMethod.token,
     });
-    console.log(result);
     order.paymentMethod.update({
       customerId: result.customer.id,
       token: result.customer.paymentMethods[0].token,
@@ -52,14 +52,13 @@ async function getOrCreateUserToken(merchantGateway, order) {
   return order.paymentMethod.token;
 }
 
-async function createTransactions(order) {
+async function createPayPalTransaction(order) {
   const merchantGateway = gateway;
   const paymentMethodToken = await getOrCreateUserToken(merchantGateway, order);
   const amount = order.totalAmount / 100; // PayPal uses doubles to store currency
   //const serviceFeeAmount = libpayments.calcFee(amount, constants.OC_FEE_PERCENT);
 
-  const result = await merchantGateway.transaction.sale({
-    merchantAccountId: merchantAccount.clientId,
+  return merchantGateway.transaction.sale({
     paymentMethodToken,
     // serviceFeeAmount,
     amount,
@@ -69,12 +68,75 @@ async function createTransactions(order) {
   });
 }
 
+function formatAmountValue(amount)
+{
+  return parseFloat(amount) * 100;
+}
+
+async function createTransactions(order, paypalTransaction) {
+  const { transaction, success } = paypalTransaction;
+
+  if (!success) throw new Error("Unsuccessful PayPal transaction");
+
+  const { paypal: { transactionFeeAmount } } = transaction;
+
+  const payload = {
+    CreatedByUserId: order.createdByUser.id,
+    FromCollectiveId: order.FromCollectiveId,
+    CollectiveId: order.collective.id,
+    PaymentMethodId: order.paymentMethod.id
+  };
+
+  const amount = formatAmountValue(transaction.amount);
+
+  const hostFeeInHostCurrency = libpayments.calcFee(
+    amount, order.collective.hostFeePercent);
+
+  const paymentProcessorFeeInHostCurrency =
+        formatAmountValue(transactionFeeAmount);
+
+  const platformFeeInHostCurrency = libpayments.calcFee(
+    amount, constants.OC_FEE_PERCENT);
+
+  payload.transaction = {
+    type: constants.type.CREDIT,
+    OrderId: order.id,
+    amount: order.totalAmount,
+    currency: order.currency,
+    hostCurrency: paypalTransaction.currencyIsoCode,
+    amountInHostCurrency: amount,
+    hostCurrencyFxRate: order.totalAmount / amount,
+    hostFeeInHostCurrency,
+    platformFeeInHostCurrency,
+    paymentProcessorFeeInHostCurrency,
+    description: order.description,
+    data: { paypalTransaction },
+  };
+
+  return models.Transaction.createFromPayload(payload);
+}
+
+async function addUserToCollective(order) {
+  return order.collective.findOrAddUserWithRole(
+    {
+      id: order.createdByUser.id,
+      CollectiveId: order.fromCollective.id
+    },
+    roles.BACKER,
+    {
+      CreatedByUserId: order.createdByUser.id,
+      TierId: order.TierId
+    }
+  );
+}
+
 async function processOrder(order) {
-  await createTransactions(order);
-  // await order.update({ processedAt: new Date() });
-  // await order.paymentMethod.update({ confirmedAt: new Date });
-  // return transactions;
-  return null;
+  const paypalTransaction = await createPayPalTransaction(order);
+  const transactions = await createTransactions(order, paypalTransaction);
+  await addUserToCollective(order);
+  await order.update({ processedAt: new Date() });
+  await order.paymentMethod.update({ confirmedAt: new Date });
+  return transactions;
 }
 
 const paypalbt = {
