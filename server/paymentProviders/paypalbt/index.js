@@ -7,7 +7,7 @@ import * as libpayments from '../../lib/payments';
 import models from '../../models';
 import errors from '../../lib/errors';
 
-const gateway = braintree.connect({
+export const gateway = braintree.connect({
   environment: braintree.Environment.Sandbox,
   merchantId: config.paypalbt.merchantId,
   publicKey: config.paypalbt.pubKey,
@@ -40,7 +40,7 @@ async function clientToken(req, res, next) {
  * @param {models.Order} order is the order object created with the
  *  order request from the user.
  */
-async function getOrCreateUserToken(order) {
+export async function getOrCreateUserToken(order) {
   if (!order.paymentMethod.customerId) {
     const result = await gateway.customer.create({
       firstName: order.fromCollective.name,
@@ -192,12 +192,14 @@ const paypalbt = {
   processOrder
 };
 
+export const oauth = {
+  clientToken,
+};
+
 export default {
   types: {
     default: paypalbt,
     paypalbt
   },
-  oauth: {
-    clientToken,
-  },
+  oauth,
 };
