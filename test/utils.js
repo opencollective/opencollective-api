@@ -19,6 +19,7 @@ import { sequelize } from '../server/models';
 import * as libcache from '../server/lib/cache';
 import * as libpayments from '../server/lib/payments';
 import * as stripeGateway from '../server/paymentProviders/stripe/gateway';
+import * as paypalbt from '../server/paymentProviders/paypalbt';
 
 const appStripe = Stripe(config.stripe.secret);
 
@@ -229,5 +230,12 @@ export function stubStripeBalance(sandbox, amount, currency, applicationFee=0, s
     net: amount - fee,
     status: "pending",
     type: "charge",
+  }));
+}
+
+
+export function stubPaypalbtCreateCustomer(sandbox, defaults) {
+  return sandbox.stub(paypalbt.gateway.customer, "create", async () => ({
+    customer: defaults,
   }));
 }

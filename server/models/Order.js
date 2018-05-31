@@ -147,7 +147,7 @@ export default function(Sequelize, DataTypes) {
 
       // does this payment method support recurring payments?
       recurring() {
-        return (this.service === 'stripe');
+        return (['stripe', 'paypalbt'].includes(this.service));
       },
 
       info() {

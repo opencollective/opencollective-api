@@ -196,8 +196,9 @@ export default (app) => {
    */
   app.get('/:slug/connected-accounts', connectedAccounts.list);
   app.get('/connected-accounts/:service(github)', aN.authenticateService); // backward compatibility
-  app.get('/connected-accounts/:service(github|twitter|meetup|stripe|paypal)/oauthUrl', aN.authenticateService);
+  app.get('/connected-accounts/:service(github|twitter|meetup|stripe|paypal|paypalbt)/oauthUrl', aN.authenticateService);
   app.get('/connected-accounts/:service/verify', aN.parseJwtNoExpiryCheck, connectedAccounts.verify);
+  app.get('/connected-accounts/:service/clientToken', connectedAccounts.clientToken);
 
 
   // /**
