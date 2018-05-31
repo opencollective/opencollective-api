@@ -30,6 +30,7 @@ services:
       API_KEY: "dvl-1510egmf4a23d80342403fb599qd"
       WEBSITE_URL: "http://localhost:13000"
       API_URL: "http://localhost:13060"
+      INTERNAL_API_URL: "http://api:3060"
     volumes:
       - ../../frontend:/usr/src/frontend
     ports:
