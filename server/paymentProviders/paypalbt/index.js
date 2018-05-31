@@ -26,7 +26,11 @@ export const gateway = braintree.connect({
 async function clientToken(req, res, next) {
   const { CollectiveId } = req.query;
   const collective = await models.Collective.findById(CollectiveId);
-  if (!collective) return next(new errors.BadRequest('Collective does not exist'));
+  if (!collective)
+    return next(new errors.BadRequest('Collective does not exist'));
+  // Only for Open Source Collective right now
+  if (collective.HostCollectiveId !== 11004)
+    return next(new errors.BadRequest('PayPal not available for host'));
   try {
     const result = await gateway.clientToken.generate({});
     return res.send({ clientToken: result.clientToken });
@@ -184,6 +188,8 @@ async function processOrder(order) {
   await order.paymentMethod.update({ confirmedAt: new Date });
   return transactions;
 }
+
+/* Interface expected by the Payment Provider API */
 
 const paypalbt = {
   features: {
