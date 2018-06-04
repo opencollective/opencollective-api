@@ -4,5 +4,4 @@ VOLUME /usr/src/frontend
 
 WORKDIR /usr/src/frontend
 
-RUN apt-get update
-RUN apt-get install graphicsmagick --yes
+RUN apt-get update -y && apt-get install -y graphicsmagick
