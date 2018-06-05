@@ -436,6 +436,8 @@ export async function addFundsToOrg(args, remoteUser) {
   ]);
   return models.PaymentMethod.create({
     name: args.description || 'Host funds',
+    initialBalance: args.totalAmount,
+    monthlyLimitPerMember: args.totalAmount,
     currency: hostCollective.currency,
     CollectiveId: args.collectiveId,
     customerId: fromCollective.slug,
