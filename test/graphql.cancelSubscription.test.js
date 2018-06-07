@@ -73,11 +73,11 @@ describe('graphql.cancelSubscriptions.test.js', () => {
             },
             logger: false
           });
-      sinon.stub(nodemailer, 'createTransport', () => nm);
+      sinon.stub(nodemailer, 'createTransport').callsFake(() => nm);
     });
 
     // stub the transport
-    beforeEach(() => sinon.stub(nm, 'sendMail', (object, cb) => cb(null, object)));
+    beforeEach(() => sinon.stub(nm, 'sendMail').callsFake((object, cb) => cb(null, object)));
 
     afterEach(() => nm.sendMail.restore());
 

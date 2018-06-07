@@ -13,7 +13,7 @@ describe('Query Tests', () => {
   before(() => sandbox = sinon.createSandbox());
 
   before(() => {
-    sandbox.stub(payments, 'executeOrder', (user, order) => {
+    sandbox.stub(payments, 'executeOrder').callsFake((user, order) => {
       return models.Order.update({ processedAt: new Date }, { where: { id: order.id }});
     });
   });

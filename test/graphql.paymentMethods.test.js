@@ -88,7 +88,7 @@ describe('graphql.paymentMethods.test.js', () => {
 
     beforeEach(() => {
       sandbox = sinon.createSandbox();
-      sandbox.stub(libcurrency, 'getFxRate', () => Promise.resolve(fxrate));
+      sandbox.stub(libcurrency, 'getFxRate').callsFake(() => Promise.resolve(fxrate));
       return models.PaymentMethod.findOne({
         where: {
           service: 'opencollective',

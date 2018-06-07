@@ -22,7 +22,7 @@ describe('Mutation Tests', () => {
     sandbox = sinon.createSandbox();
     emailSendSpy = sandbox.spy(emailLib, 'send');
     emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage');
-    executeOrderStub = sandbox.stub(payments, 'executeOrder',
+    executeOrderStub = sandbox.stub(payments, 'executeOrder').callsFake(
       (user, order) => {
         // assumes payment goes through and marks Order as confirmedAt
         return models.Tier.findById(order.TierId)

@@ -35,8 +35,8 @@ describe('libhost', () => {
     await utils.resetTestDB();
     // Given that we stub the currency conversion machinery
     sandbox = sinon.createSandbox();
-    sandbox.stub(libcurrency, 'getFxRate', () => 0.75779);
-    sandbox.stub(libcurrency, 'convertToCurrency', (a) => a * 2);
+    sandbox.stub(libcurrency, 'getFxRate').callsFake(() => 0.75779);
+    sandbox.stub(libcurrency, 'convertToCurrency').callsFake((a) => a * 2);
 
     // Given a host with a collective
     const currency = 'USD';
