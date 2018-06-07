@@ -553,9 +553,9 @@ describe('Mutation Tests', () => {
     describe('creates an order', () => {
 
       beforeEach("reset spies", () => {
-        executeOrderStub.reset();
-        emailSendSpy.reset();
-        emailSendMessageSpy.reset();
+        executeOrderStub.resetHistory();
+        emailSendSpy.resetHistory();
+        emailSendMessageSpy.resetHistory();
       });
 
       describe('as an organization', () => {
@@ -943,7 +943,7 @@ describe('Mutation Tests', () => {
           });
           const executeOrderArgument = executeOrderStub.firstCall.args;
           expect(executeOrderStub.callCount).to.equal(1);
-          executeOrderStub.reset();
+          executeOrderStub.resetHistory();
           expect(executeOrderArgument[1].id).to.equal(1);
           expect(executeOrderArgument[1].TierId).to.equal(2);
           expect(executeOrderArgument[1].CollectiveId).to.equal(5);

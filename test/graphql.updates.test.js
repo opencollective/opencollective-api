@@ -144,7 +144,7 @@ describe('graphql.updates.test', () => {
       });
 
       beforeEach(() => {
-        sendEmailSpy.reset();
+        sendEmailSpy.resetHistory();
       })
 
       it("published the update successfully", async () => {
