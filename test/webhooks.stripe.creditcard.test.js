@@ -17,7 +17,7 @@ describe('webhooks.stripe.creditcard.test.js', () => {
                 .data.object.lines.data[0]
                 .plan.id = 'some-foreign-plan-type';
 
-      sandbox = sinon.sandbox.create();
+      sandbox = sinon.createSandbox();
       sandbox.stub(appStripe.events, "retrieve", () => Promise.resolve(stripeMock.webhook_payment_succeeded));
     });
 
@@ -37,7 +37,7 @@ describe('webhooks.stripe.creditcard.test.js', () => {
 
     beforeEach(() => {
       const stripeMock = _.cloneDeep(originalStripeMock);
-      sandbox = sinon.sandbox.create();
+      sandbox = sinon.createSandbox();
       sandbox.stub(appStripe.events, "retrieve", () => Promise.resolve(stripeMock.webhook_payment_succeeded));
     });
 

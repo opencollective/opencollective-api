@@ -37,7 +37,7 @@ describe('lib.payments.test.js', () => {
   beforeEach(() => utils.resetTestDB());
 
   beforeEach(() => {
-    sandbox = sinon.sandbox.create();
+    sandbox = sinon.createSandbox();
     sandbox.stub(stripe, "createCustomer", () => Promise.resolve({ id: "cus_BM7mGwp1Ea8RtL"}));
     sandbox.stub(stripe, "createToken", () => Promise.resolve({ id: "tok_1AzPXGD8MNtzsDcgwaltZuvp"}));
     sandbox.stub(stripe, "createCharge", () => Promise.resolve({ id: "ch_1AzPXHD8MNtzsDcgXpUhv4pm"}));

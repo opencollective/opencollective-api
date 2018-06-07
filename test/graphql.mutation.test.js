@@ -19,7 +19,7 @@ describe('Mutation Tests', () => {
   */
 
   before(() => {
-    sandbox = sinon.sandbox.create();
+    sandbox = sinon.createSandbox();
     emailSendSpy = sandbox.spy(emailLib, 'send');
     emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage');
     executeOrderStub = sandbox.stub(payments, 'executeOrder',

@@ -15,7 +15,7 @@ describe('user.models.test.js', () => {
   let sandbox;
 
   before(() => {
-    sandbox = sinon.sandbox.create();
+    sandbox = sinon.createSandbox();
   });
 
   after(() => sandbox.restore());

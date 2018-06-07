@@ -60,7 +60,7 @@ describe('graphql.matchingFund.test.js', () => {
   before(initNock);
 
   before(() => {
-    sandbox = sinon.sandbox.create();
+    sandbox = sinon.createSandbox();
     emailSendSpy = sandbox.spy(emailLib, 'send');
   });
 

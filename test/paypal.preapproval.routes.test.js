@@ -16,7 +16,7 @@ describe('paypal.preapproval.routes.test.js', () => {
   let user, user2, sandbox;
 
   before(() => {
-    sandbox = sinon.sandbox.create();
+    sandbox = sinon.createSandbox();
   });
 
   after(() => sandbox.restore());

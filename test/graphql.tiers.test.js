@@ -49,7 +49,7 @@ describe('graphql.tiers.test', () => {
   });
 
   before(() => {
-    sandbox = sinon.sandbox.create();
+    sandbox = sinon.createSandbox();
   });
 
   after(() => sandbox.restore());

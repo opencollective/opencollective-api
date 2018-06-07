@@ -45,7 +45,7 @@ describe('graphql.updateSubscriptions.test.js', () => {
   beforeEach(initNock);
 
   before(() => {
-    sandbox = sinon.sandbox.create();
+    sandbox = sinon.createSandbox();
   });
 
   after(() => sandbox.restore());

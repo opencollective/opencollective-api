@@ -34,7 +34,7 @@ describe('webhooks.stripe.test.js', () => {
   describe('Webhook events: ', () => {
 
     beforeEach(() => {
-      sandbox = sinon.sandbox.create();
+      sandbox = sinon.createSandbox();
     });
 
     afterEach(() => {

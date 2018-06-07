@@ -20,7 +20,7 @@ describe('graphql.cancelSubscriptions.test.js', () => {
   let collective, user, user2, paymentMethod, sandbox;
 
   before(() => {
-    sandbox = sinon.sandbox.create();
+    sandbox = sinon.createSandbox();
   });
 
   after(() => sandbox.restore());

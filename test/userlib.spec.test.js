@@ -21,7 +21,7 @@ describe("userlib", () => {
   let sandbox, stub;
   beforeEach(() => {
     userlib.memory = {};
-    sandbox = sinon.sandbox.create();
+    sandbox = sinon.createSandbox();
     stub = sandbox.stub(userlib.clearbit.Enrichment, 'find', (opts) => {
       return new Bluebird((resolve, reject) => {
         switch (opts.email) {

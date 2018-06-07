@@ -33,7 +33,7 @@ describe('users.routes.test.js', () => {
 
   let sandbox;
   beforeEach(() => {
-    sandbox = sinon.sandbox.create();
+    sandbox = sinon.createSandbox();
     userlib.memory = {};
     sandbox.stub(userlib, 'getUserData', (email) => {
       return new Bluebird((resolve) => {
