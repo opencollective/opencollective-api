@@ -6,30 +6,22 @@ import roles from '../../constants/roles';
 import * as constants from '../../constants/transactions';
 import * as libpayments from '../../lib/payments';
 
-/** Address of the API that we'll be talking to */
-const PAYPAL_BASE_URL = config.paypal.payment.environment === 'sandbox'
-      ? 'https://api.sandbox.paypal.com/v1/'
-      : 'https://api.paypal.com/v1/';
-
-/* Values defined either in the .env file or in one of the
- * config/*.json in the root directory of this repository.*/
-const paypalAuth = {
-  user: config.paypal.payment.clientId,
-  pass: config.paypal.payment.clientSecret,
-};
-
 /** Build an URL for the PayPal API */
-function paypalUrl(path) {
+export function paypalUrl(path) {
   if (path.startsWith('/')) throw new Error("Please don't use absolute paths");
-  return (new URL(PAYPAL_BASE_URL + path)).toString();
+  const baseUrl = config.paypal.payment.environment === 'sandbox'
+    ? 'https://api.sandbox.paypal.com/v1/'
+    : 'https://api.paypal.com/v1/';
+  return (new URL(baseUrl + path)).toString();
 }
 
 /** Exchange clientid and secretid by an auth token with PayPal API */
 export async function retrieveOAuthToken() {
+  const { clientId, clientSecret } = config.paypal.payment;
   const url = paypalUrl('oauth2/token');
   const body = 'grant_type=client_credentials';
   /* The OAuth token entrypoint uses Basic HTTP Auth */
-  const authStr = `${paypalAuth.user}:${paypalAuth.pass}`;
+  const authStr = `${clientId}:${clientSecret}`;
   const basicAuth = Buffer.from(authStr).toString('base64');
   const headers = { Authorization: `Basic ${basicAuth}`};
   /* Execute the request and unpack the token */
@@ -39,7 +31,7 @@ export async function retrieveOAuthToken() {
 }
 
 /** Assemble POST requests for communicating with PayPal API */
-async function paypalRequest(urlPath, body) {
+export async function paypalRequest(urlPath, body) {
   const url = paypalUrl(urlPath);
   const token = await retrieveOAuthToken();
   const params = {
