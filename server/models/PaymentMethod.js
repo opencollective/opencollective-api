@@ -250,7 +250,7 @@ export default function(Sequelize, DataTypes) {
       : () => Promise.resolve(10000000); // GraphQL doesn't like Infinity
 
     // needed because giftcard payment method can be accessed without logged in
-    if (libpayments.isProvider('opencollective.prepaid', this)) {
+    if (libpayments.isProvider('opencollective.giftcard', this)) {
       return getBalance(this);
     }
 
