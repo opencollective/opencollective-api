@@ -325,8 +325,7 @@ export default function(Sequelize, DataTypes) {
       };
       debug("PaymentMethod.create", paymentMethodData);
       return models.PaymentMethod.create(paymentMethodData);
-    } else if (paymentMethod.uuid && paymentMethod.service === 'prepaid') {
-
+    } else if (paymentMethod.uuid && libpayments.isProvider('opencollective.giftcard', paymentMethod)) {
       return PaymentMethod.findOne({
         where: {
           uuid: paymentMethod.uuid,
