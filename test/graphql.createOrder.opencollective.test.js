@@ -1,11 +1,17 @@
 import { expect } from 'chai';
 
+/* Support code */
 import models from '../server/models';
-import * as giftcard from '../server/paymentProviders/opencollective/giftcard';
+import * as libpayments from '../server/lib/payments';
 
 /* Test tools */
 import * as utils from './utils';
 import * as store from './features/support/stores';
+
+/* What's being tested */
+import * as giftcard from '../server/paymentProviders/opencollective/giftcard';
+import * as prepaid from '../server/paymentProviders/opencollective/prepaid';
+
 
 const createOrderQuery = `
   mutation createOrder($order: OrderInputType!) {
@@ -15,6 +21,171 @@ const createOrderQuery = `
 
 
 describe('grahpql.createOrder.opencollective', () => {
+
+  describe('prepaid', () => {
+
+    describe('#getBalance', () => {
+
+      before(utils.resetTestDB);
+
+      it('should error if payment method is not a prepaid', async () => {
+        expect(prepaid.getBalance({ service: 'opencollective', type: 'giftcard' }))
+          .to.be.eventually.rejectedWith(Error, 'Expected opencollective.prepaid but got opencollective.giftcard');
+      }); /* End of "should error if payment method is not a prepaid" */
+
+      it('should return initial balance of payment method if nothing was spend on the card', async () => {
+        const paymentMethod = await models.PaymentMethod.create({
+          service: 'opencollective',
+          type: 'prepaid',
+          initialBalance: 10000,
+          currency: 'USD',
+        });
+        expect(await prepaid.getBalance(paymentMethod)).to.deep.equal({
+          amount: 10000,
+          currency: 'USD'
+        });
+      }); /* End of "should return initial balance of payment method if nothing was spend on the card" */
+
+      it('should return initial balance of payment method minus credit already spent', async () => {
+        // Given a user & collective
+        const { user, userCollective } = await store.newUser('new user');
+        const { hostCollective, collective } = await store.newCollectiveWithHost('test', 'USD', 'USD', 0);
+
+        // And given the following order with a payment method
+        const { order } = await store.newOrder({
+          from: userCollective,
+          to: collective,
+          amount: 2000,
+          currency: 'USD',
+          paymentMethodData: {
+            customerId: 'new-user',
+            service: 'opencollective',
+            type: 'prepaid',
+            initialBalance: 10000,
+            currency: 'USD',
+            data: { HostCollectiveId: hostCollective.id },
+          }
+        });
+
+        // When the above order is executed
+        await libpayments.executeOrder(user, order);
+
+        // Then the payment method should have the initial balance
+        // minus what was already spent.
+        expect(await prepaid.getBalance(order.paymentMethod)).to.deep.equal({
+          amount: 8000,
+          currency: 'USD'
+        });
+      }); /* End of "should return initial balance of payment method minus credit already spent" */
+
+    }); /* End of "#getBalance" */
+
+    describe('#processOrder', () => {
+
+      let user, userCollective, hostCollective, collective;
+
+      beforeEach(async () => {
+        await utils.resetTestDB();
+        ({ user, userCollective } = await store.newUser('new user'));
+        ({ hostCollective, collective } = await store.newCollectiveWithHost('test', 'USD', 'USD', 10));
+      }); /* End of "beforeEach" */
+
+      it('should fail if payment method does not have a customer id', async () => {
+        // Given the following order with a payment method
+        const { order } = await store.newOrder({
+          from: userCollective,
+          to: collective,
+          amount: 2000,
+          currency: 'USD',
+          paymentMethodData: {
+            service: 'opencollective',
+            type: 'prepaid',
+            initialBalance: 10000,
+            currency: 'USD',
+            data: { HostCollectiveId: hostCollective.id },
+          }
+        });
+
+        // When the above order is executed; Then the transaction
+        // should be unsuccessful.
+        await expect(libpayments.executeOrder(user, order)).to.be.eventually.rejectedWith(
+          Error, 'Prepaid method must have a value for `customerId`');
+      }); /* End of "should fail if payment method does not have a customer id" */
+
+      it('should fail if payment method does not have a host id', async () => {
+        // Given the following order with a payment method
+        const { order } = await store.newOrder({
+          from: userCollective,
+          to: collective,
+          amount: 2000,
+          currency: 'USD',
+          paymentMethodData: {
+            customerId: 'new-user',
+            service: 'opencollective',
+            type: 'prepaid',
+            initialBalance: 10000,
+            currency: 'USD',
+          }
+        });
+
+        // When the above order is executed; Then the transaction
+        // should be unsuccessful.
+        await expect(libpayments.executeOrder(user, order)).to.be.eventually.rejectedWith(
+          Error, 'Prepaid method must have a value for `data.HostCollectiveId`');
+      }); /* End of "should fail if payment method does not have a host id" */
+
+      it('should fail if payment method from someone else is used', async () => {
+        // Given the following order with a payment method
+        const { order } = await store.newOrder({
+          from: userCollective,
+          to: collective,
+          amount: 2000,
+          currency: 'USD',
+          paymentMethodData: {
+            customerId: 'a-different-user',
+            service: 'opencollective',
+            type: 'prepaid',
+            initialBalance: 10000,
+            currency: 'USD',
+            data: { HostCollectiveId: hostCollective.id },
+          }
+        });
+
+        // When the above order is executed; Then the transaction
+        // should be unsuccessful.
+        await expect(libpayments.executeOrder(user, order)).to.be.eventually.rejectedWith(
+          Error, 'Prepaid method can only be used by the organization that received it');
+      }); /* End of "should fail if payment method from someone else is used" */
+
+      it('should fail if from collective and collective are from different hosts ', async () => {
+        // Given the following order with a payment method
+        const { order } = await store.newOrder({
+          from: userCollective,
+          to: collective,
+          amount: 2000,
+          currency: 'USD',
+          paymentMethodData: {
+            customerId: 'new-user',
+            service: 'opencollective',
+            type: 'prepaid',
+            initialBalance: 10000,
+            currency: 'USD',
+            data: { HostCollectiveId: 2000 },
+          }
+        });
+
+        // When the above order is executed; Then the transaction
+        // should be unsuccessful.
+        await expect(libpayments.executeOrder(user, order)).to.be.eventually.rejectedWith(
+          Error, 'Prepaid method can only be used in collectives from the same host');
+      }); /* End of "should fail if from collective and collective are from different hosts" */
+
+      it('should fail to place an order if there is not enough balance', () => {
+      }); /* End of "should fail to place an order if there is not enough balance" */
+
+    }); /* End of "#processOrder" */
+
+  }); /* End of "prepaid" */
 
   describe('giftcard', () => {
 
