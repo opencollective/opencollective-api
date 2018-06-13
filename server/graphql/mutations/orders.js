@@ -425,6 +425,22 @@ export async function refundTransaction(_, args, req) {
   return result;
 }
 
+
+/** Create prepaid payment method that can be used by an organization
+ *
+ * @param {Object} args contains the parameters to create the new
+ *  payment method.
+ * @param {String} args.description The description of the new payment
+ *  method.
+ * @param {Number} args.collectiveId The ID of the organization
+ *  receiving the credit card.
+ * @param {Number} args.hostCollectiveId The ID of the host that
+ *  received the money on its bank account.
+ * @param {Number} args.totalAmount The total amount that will be
+ *  credited to the newly created payment method.
+ * @param {models.User} remoteUser is the user creating the new credit
+ *  card. Right now only site admins can use this feature.
+ */
 export async function addFundsToOrg(args, remoteUser) {
   if (!remoteUser.isRoot()) throw new Error('Only site admins can perform this operation');
   const [
