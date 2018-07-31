@@ -71,7 +71,7 @@ export const CollectiveOrderFieldType = new GraphQLEnumType({
 });
 
 export const BackersStatsType = new GraphQLObjectType({
-  name: "BackersStatsType",
+  name: "CollectiveStatsBackers",
   description: "Breakdown of backers per type (ANY/USER/ORGANIZATION/COLLECTIVE)",
   fields: () => {
     return {
@@ -115,7 +115,7 @@ export const BackersStatsType = new GraphQLObjectType({
 });
 
 export const CollectivesStatsType = new GraphQLObjectType({
-  name: "CollectivesStatsType",
+  name: "CollectiveStatsCollectives",
   description: "Breakdown of collectives under this collective by role (all/hosted/memberOf/events)",
   fields: () => {
     return {
@@ -184,7 +184,7 @@ export const CollectivesStatsType = new GraphQLObjectType({
 });
 
 export const ExpensesStatsType = new GraphQLObjectType({
-  name: "ExpensesStatsType",
+  name: "CollectiveStatsExpenses",
   description: "Breakdown of expenses per status (ALL/PENDING/APPROVED/PAID/REJECTED)",
   fields: () => {
     return {
@@ -241,7 +241,7 @@ export const ExpensesStatsType = new GraphQLObjectType({
 });
 
 export const TransactionsStatsType = new GraphQLObjectType({
-  name: "TransactionsStatsType",
+  name: "CollectiveStatsTransactions",
   description: "Breakdown of transactions per type (ALL/CREDIT/DEBIT)",
   fields: () => {
     return {
@@ -277,7 +277,7 @@ export const TransactionsStatsType = new GraphQLObjectType({
 });
 
 export const CollectiveStatsType = new GraphQLObjectType({
-  name: "CollectiveStatsType",
+  name: "CollectiveStats",
   description: "Stats for the collective",
   fields: () => {
     return {
