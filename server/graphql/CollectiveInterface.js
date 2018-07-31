@@ -417,8 +417,10 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
   resolveType: (collective) => {
     switch (collective.type) {
       case types.COLLECTIVE:
+        return CollectiveCollectiveType;
+
       case types.BOT:
-        return CollectiveType;
+        return CollectiveCollectiveType;
 
       case types.USER:
         return UserCollectiveType;
@@ -1093,7 +1095,7 @@ const CollectiveFields = () => {
   }
 };
 
-export const CollectiveType = new GraphQLObjectType({
+export const CollectiveCollectiveType = new GraphQLObjectType({
   name: 'Collective',
   description: 'This represents a Collective',
   interfaces: [ CollectiveInterfaceType ],
@@ -1160,7 +1162,7 @@ export const CollectiveSearchResultsType = new GraphQLObjectType({
   description: 'The results from searching for collectives with pagination info',
   fields: () => ({
     collectives: {
-      type: new GraphQLList(CollectiveType),
+      type: new GraphQLList(CollectiveInterfaceType),
     },
     limit: {
       type: GraphQLInt,
