@@ -438,7 +438,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       id: { type: GraphQLInt },
       createdByUser: { type: UserType },
       parentCollective: { type: CollectiveInterfaceType },
-      type: { type: GraphQLString },
+      type: { type: CollectiveTypeType },
       isActive: { type: GraphQLBoolean },
       name: { type: GraphQLString },
       company: { type: GraphQLString },
@@ -575,6 +575,15 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
   }
 });
 
+const CollectiveTypeType = new GraphQLEnumType({
+  name: 'CollectiveType',
+  values: {
+    ORGANIZATION: {},
+    COLLECTIVE: {},
+    USER: {},
+    EVENT: {},
+  }
+});
 
 const CollectiveFields = () => {
   return {
@@ -597,7 +606,7 @@ const CollectiveFields = () => {
       }
     },
     type: {
-      type: GraphQLString,
+      type: CollectiveTypeType,
       resolve(collective) {
         return collective.type;
       }
