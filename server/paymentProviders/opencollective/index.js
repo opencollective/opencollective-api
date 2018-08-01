@@ -1,6 +1,6 @@
 /** @module paymentProviders/opencollective */
 
-import * as collective from './collective';
+import collective from './collective';
 import * as prepaid from './prepaid';
 import * as giftcard from './giftcard';
 
