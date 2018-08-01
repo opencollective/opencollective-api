@@ -122,7 +122,7 @@ export const UserType = new GraphQLObjectType({
 });
 
 export const StatsMemberType = new GraphQLObjectType({
-  name: 'MemberStats',
+  name: 'MembershipStats',
   description: 'Stats about a membership',
   fields: () => {
     return {
@@ -159,8 +159,8 @@ export const StatsMemberType = new GraphQLObjectType({
 
 
 export const MemberType = new GraphQLObjectType({
-  name: 'Member',
-  description: 'This is a Member',
+  name: 'Membership',
+  description: 'This is a Membership',
   fields: () => {
     return {
        id: {
@@ -346,7 +346,7 @@ export const InvoiceType = new GraphQLObjectType({
 });
 
 export const ExpenseType = new GraphQLObjectType({
-  name: 'ExpenseType',
+  name: 'Expense',
   description: 'This represents an Expense',
   fields: () => {
     return {
@@ -901,7 +901,7 @@ export const StatsOrderType = new GraphQLObjectType({
 });
 
 export const OrderType = new GraphQLObjectType({
-  name: 'OrderType',
+  name: 'Order',
   description: 'This is an order (for donations, buying tickets, subscribing to a Tier)',
   fields: () => {
     return {
