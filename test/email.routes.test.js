@@ -15,11 +15,11 @@ import initNock from './email.routes.test.nock.js';
 
 const generateToken = (email, slug, template) => {
   const uid = `${email}.${slug}.${template}.${config.keys.opencollective.secret}`;
-  return crypto.createHash('md5').update(uid).digest("hex");
-}
+  return crypto.createHash('md5').update(uid).digest('hex');
+};
 
 const {
-  Collective
+  Collective,
 } = models;
 
 const usersData = [
@@ -28,37 +28,37 @@ const usersData = [
     lastName: 'Damman',
     email: 'xdamman+test@gmail.com',
     role: 'ADMIN',
-    image: 'https://pbs.twimg.com/profile_images/3075727251/5c825534ad62223ae6a539f6a5076d3c.jpeg'
+    image: 'https://pbs.twimg.com/profile_images/3075727251/5c825534ad62223ae6a539f6a5076d3c.jpeg',
   },
   {
     firstName: 'Aseem',
     lastName: 'Sood',
     email: 'asood123+test@gmail.com',
-    role: 'ADMIN'
+    role: 'ADMIN',
   },
   {
     firstName: 'Pia',
     lastName: 'Mancini',
     email: 'pia+test@opencollective.com',
-    role: 'BACKER'
+    role: 'BACKER',
   },
   {
     firstName: 'github',
     lastName: '',
     email: 'github+test@opencollective.com',
-    role: 'BACKER'
-  }
+    role: 'BACKER',
+  },
 ];
 
 const collectiveData = {
   slug: 'testcollective',
   name: 'Test Collective',
-  settings: {}
+  settings: {},
 };
 
 let collective, users = [];
 
-describe("email.routes.test", () => {
+describe('email.routes.test', () => {
 
   let sandbox;
 
@@ -96,16 +96,16 @@ describe("email.routes.test", () => {
               channel: 'email',
               UserId: user.id,
               CollectiveId: collective.id,
-              type: list
+              type: list,
             })
           );
-        })
+        });
       })
       .then(() => done())
       .catch(console.error);
   });
 
-  it("forwards emails sent to info@:slug.opencollective.com", () => {
+  it('forwards emails sent to info@:slug.opencollective.com', () => {
 
     const spy = sandbox.spy(emailLib, 'sendMessage');
 
@@ -120,7 +120,7 @@ describe("email.routes.test", () => {
       });
   });
 
-  it("forwards the email for approval to the core members", () => {
+  it('forwards the email for approval to the core members', () => {
     const spy = sandbox.spy(emailLib, 'send');
     return request(app)
       .post('/webhooks/mailgun')
@@ -138,7 +138,7 @@ describe("email.routes.test", () => {
   });
 
 
-  it("skip the email if already processed", () => {
+  it('skip the email if already processed', () => {
     const spy = sandbox.spy(emailLib, 'send');
 
     return request(app)
@@ -150,7 +150,7 @@ describe("email.routes.test", () => {
       });
   });
 
-  it("rejects emails sent to unknown mailing list", () => {
+  it('rejects emails sent to unknown mailing list', () => {
 
     const unknownMailingListWebhook = Object.assign({}, webhookBodyPayload, { recipient: 'unknown@testcollective.opencollective.com' });
 
@@ -163,7 +163,7 @@ describe("email.routes.test", () => {
       });
   });
 
-  it("approves the email", () => {
+  it('approves the email', () => {
 
     const spy = sandbox.spy(emailLib, 'send');
 
@@ -178,7 +178,7 @@ describe("email.routes.test", () => {
       });
   });
 
-  it("return 404 if message not found", () => {
+  it('return 404 if message not found', () => {
     const messageId = 'eyJwIjpmYWxzZSwiayI6IjY5MTdlYTZlLWVhNzctNGQzOC04OGUxLWMzMTQwMzdmNGRhNiIsInMiOiIwMjNjMzgwYWFlIiwiYyI6InNhaWFkIn0=';
     return request(app)
       .get(`/services/email/approve?messageId=${messageId}&approver=xdamman%40gmail.com&mailserver=so`)
@@ -188,38 +188,38 @@ describe("email.routes.test", () => {
       });
   });
 
-  describe("send email to event", () => {
+  describe('send email to event', () => {
 
     let spy;
-    const slug = `event1-ev111`;
-    const subject = "email reminder for event 1";
+    const slug = 'event1-ev111';
+    const subject = 'email reminder for event 1';
 
     before(async () => {
 
       const event = await models.Collective.create({
-        type: "EVENT",
-        name: "event 1",
+        type: 'EVENT',
+        name: 'event 1',
         ParentCollectiveId: collective.id,
-        slug
+        slug,
       });
 
       await models.Member.create({
         CreatedByUserId: users[0].id,
         MemberCollectiveId: users[0].CollectiveId,
         CollectiveId: event.id,
-        role: 'FOLLOWER'
+        role: 'FOLLOWER',
       });
 
       await models.Member.create({
         CreatedByUserId: users[1].id,
         MemberCollectiveId: users[1].CollectiveId,
         CollectiveId: event.id,
-        role: 'ATTENDEE'
+        role: 'ATTENDEE',
       });
 
     });
 
-    it("send please approve email when sending email to eventSlug@parentCollectiveSlug.opencollective.com", async () => {
+    it('send please approve email when sending email to eventSlug@parentCollectiveSlug.opencollective.com', async () => {
       spy = sandbox.spy(emailLib, 'sendMessage');
       return request(app)
       .post('/webhooks/mailgun')
@@ -232,7 +232,7 @@ describe("email.routes.test", () => {
       });
     });
 
-    it("approves an email sent to eventSlug@parentCollectiveSlug.opencollective.com", (done) => {
+    it('approves an email sent to eventSlug@parentCollectiveSlug.opencollective.com', (done) => {
 
       spy = sandbox.spy(emailLib, 'send');
       request(app)
@@ -246,16 +246,16 @@ describe("email.routes.test", () => {
     });
   });
 
-  describe("unsubscribe", () => {
+  describe('unsubscribe', () => {
 
     const template = 'mailinglist.admins';
 
     const generateUnsubscribeUrl = (email) => {
       const token = generateToken(email, collectiveData.slug, template);
       return `/services/email/unsubscribe/${encodeURIComponent(email)}/${collectiveData.slug}/${template}/${token}`;
-    }
+    };
 
-    it("returns an error if invalid token", () => {
+    it('returns an error if invalid token', () => {
       return request(app)
         .get(`/services/email/unsubscribe/${encodeURIComponent(usersData[0].email)}/${collectiveData.slug}/${template}/xxxxxxxxxx`)
         .then((res) => {
@@ -264,7 +264,7 @@ describe("email.routes.test", () => {
         });
     });
 
-    it("sends the unsubscribe link in the footer of the email", () => {
+    it('sends the unsubscribe link in the footer of the email', () => {
 
     const spy = sandbox.stub(emailLib, 'sendMessage');
 
@@ -274,23 +274,23 @@ describe("email.routes.test", () => {
         for (const i in spy.args) {
           const emailBody = spy.args[i][2];
           expect(emailBody).to.contain(generateUnsubscribeUrl(spy.args[i][3].bcc));
-          expect(emailBody).to.contain("To unsubscribe from the admins mailing list");
+          expect(emailBody).to.contain('To unsubscribe from the admins mailing list');
         }
       });
     });
 
-    it("unsubscribes", () => {
+    it('unsubscribes', () => {
       const where = {
         UserId: users[0].id,
         CollectiveId: collective.id,
         type: 'mailinglist.admins',
-        active: true
+        active: true,
       };
 
       return request(app)
         .get(generateUnsubscribeUrl(users[0].email))
         .then(() => models.Notification.count({ where }))
-        .then(count => expect(count).to.equal(0))
+        .then(count => expect(count).to.equal(0));
     });
   });
 });

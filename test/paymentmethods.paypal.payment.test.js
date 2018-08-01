@@ -63,7 +63,7 @@ describe('paypal.payment', () => {
       nock('https://api.sandbox.paypal.com')
         .persist()
         .post('/v1/oauth2/token')
-        .basicAuth({ user: 'my-client-id', pass: 'my-client-secret'})
+        .basicAuth({ user: 'my-client-id', pass: 'my-client-secret' })
         .reply(200, { access_token: 'dat-token' });
     }); /* End of "before()" */
 
@@ -82,7 +82,7 @@ describe('paypal.payment', () => {
     describe('#paypalRequest', () => {
       before(() => {
         nock('https://api.sandbox.paypal.com')
-          .matchHeader('Authorization', `Bearer dat-token`)
+          .matchHeader('Authorization', 'Bearer dat-token')
           .post('/v1/path/we/are/testing')
           .reply(200, { success: 1 });
       }); /* End of "before()" */
@@ -96,7 +96,7 @@ describe('paypal.payment', () => {
     describe('#createPayment', () => {
       before(() => {
         nock('https://api.sandbox.paypal.com')
-          .matchHeader('Authorization', `Bearer dat-token`)
+          .matchHeader('Authorization', 'Bearer dat-token')
           .post('/v1/payments/payment')
           .reply(200, { id: 'a very legit payment id' });
       }); /* End of "before()" */
@@ -113,7 +113,7 @@ describe('paypal.payment', () => {
     describe('#executePayment', () => {
       before(() => {
         nock('https://api.sandbox.paypal.com')
-          .matchHeader('Authorization', `Bearer dat-token`)
+          .matchHeader('Authorization', 'Bearer dat-token')
           .post('/v1/payments/payment/my-payment-id/execute')
           .reply(200, { success: 'Reply from payment execution' });
       }); /* End of "before()" */
@@ -124,7 +124,7 @@ describe('paypal.payment', () => {
         const order = {
           paymentMethod: {
             data: { paymentID: 'my-payment-id', payerID: 'my-payer-id' },
-          }
+          },
         };
         const output = await paypalPayment.executePayment(order);
         expect(output.success).to.equal('Reply from payment execution');
@@ -168,9 +168,9 @@ describe('paypal.payment', () => {
           transactions: [{
             amount: { total: '50.00', currency: 'USD' },
             related_resources: [{
-              sale: { transaction_fee: { value: '1.75' } }
-            }]
-          }]
+              sale: { transaction_fee: { value: '1.75' } },
+            }],
+          }],
         };
 
         const tr = await paypalPayment.createTransaction(order, paymentInfo);

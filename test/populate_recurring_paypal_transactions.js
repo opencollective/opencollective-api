@@ -14,7 +14,7 @@ const paypalTransaction = {
     payer_email: '',
     payer_name: 'Xavier Damman',
     time_stamp: '2016-03-18T09:26:38Z',
-    time_zone: 'GMT'
+    time_zone: 'GMT',
   },
   completed: {
     transaction_id: '1JU73306EH9078253',
@@ -26,8 +26,8 @@ const paypalTransaction = {
     payer_email: 'arnaudbenard13+paypalsandbox@gmail.com',
     payer_name: 'Xavier Damman',
     time_stamp: '2016-03-19T04:01:36Z',
-    time_zone: 'GMT'
-  }
+    time_zone: 'GMT',
+  },
 };
 
 /*
@@ -56,7 +56,7 @@ describe.skip('scripts/populate_recurring_paypal_transactions', () => {
     models.ConnectedAccount.create({
       service: 'paypal',
       clientId: 'abc',
-      token: 'def'
+      token: 'def',
     })
     .then(account => account.setUser(user)));
 
@@ -64,28 +64,28 @@ describe.skip('scripts/populate_recurring_paypal_transactions', () => {
     const fixture = {
       amount: 10,
       currency: 'USD',
-      interval: 'month'
+      interval: 'month',
     };
 
     return models.Subscription.create(_.extend({}, fixture, {
         data: {
-          billingAgreementId
-        }
+          billingAgreementId,
+        },
       }))
     .then(subscription => models.Transaction.createFromPayload({
       CreatedByUserId: user.id,
       FromCollectiveId: user.CollectiveId,
       CollectiveId: collective.id,
       subscription,
-      transaction: fixture
+      transaction: fixture,
     }))
     .then(res =>
       models.Transaction.findOne({
         where: { id: res.id },
         include: [
           { model: models.Collective },
-          { model: models.User }
-        ]
+          { model: models.User },
+        ],
       }))
     .tap(t => transaction = t);
   });
@@ -104,13 +104,13 @@ describe.skip('scripts/populate_recurring_paypal_transactions', () => {
           billingAgreementId
         );
       });
-    }
+    };
   });
 
   it('updates if it has 1 completed event', () =>
     runScript([
       paypalTransaction.created,
-      paypalTransaction.completed
+      paypalTransaction.completed,
     ])
     .then(res => {
       expect(res.subscription.isActive).to.be.true;
@@ -128,7 +128,7 @@ describe.skip('scripts/populate_recurring_paypal_transactions', () => {
     // First confirmation
     return script.handlePaypalTransactions([
         paypalTransaction.created,
-        paypalTransaction.completed
+        paypalTransaction.completed,
       ],
       transaction,
       subscription,
@@ -142,7 +142,7 @@ describe.skip('scripts/populate_recurring_paypal_transactions', () => {
       return script.handlePaypalTransactions([
           paypalTransaction.created,
           paypalTransaction.completed,
-          _.extend({}, paypalTransaction.completed, { transaction_id })
+          _.extend({}, paypalTransaction.completed, { transaction_id }),
         ],
         transaction,
         subscriptions[0],
@@ -163,7 +163,7 @@ describe.skip('scripts/populate_recurring_paypal_transactions', () => {
   it('does not create a new transaction if it is already created', () => {
     const paypalTransactions = [
       paypalTransaction.created,
-      paypalTransaction.completed
+      paypalTransaction.completed,
     ];
 
     return runScript(paypalTransactions)
@@ -187,7 +187,7 @@ describe.skip('scripts/populate_recurring_paypal_transactions', () => {
     runScript([
       paypalTransaction.created,
       paypalTransaction.completed,
-      paypalTransaction.completed
+      paypalTransaction.completed,
     ])
     .then(message => {
       expect(message).to.be.equal(`Invalid subscription ${subscription.id} with billingAgreement ${billingAgreementId}, it should be activated already`);

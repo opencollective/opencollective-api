@@ -21,14 +21,14 @@ import {
 
 async function createOrderWithSubscription(interval, date, quantity=1) {
   const payment = { amount: 1000, currency: 'USD', interval };
-  const user = await models.User.createUserWithCollective({ name: "Test McTesterson" });
-  const fromCollective = await models.Collective.create({ name: "Donor Collective" });
-  const collective = await models.Collective.create({ name: "Parcel" });
-  const tier = await models.Tier.create({ name: "backer" });
+  const user = await models.User.createUserWithCollective({ name: 'Test McTesterson' });
+  const fromCollective = await models.Collective.create({ name: 'Donor Collective' });
+  const collective = await models.Collective.create({ name: 'Parcel' });
+  const tier = await models.Tier.create({ name: 'backer' });
   const subscription = await models.Subscription.create({
     ...payment,
     isActive: true,
-    activatedAt: new Date("2018-01-27 0:0"),
+    activatedAt: new Date('2018-01-27 0:0'),
     nextChargeDate: new Date(`${date} 0:0`),
     nextPeriodStart: new Date(`${date} 0:0`),
     chargeNumber: 0,
@@ -42,7 +42,7 @@ async function createOrderWithSubscription(interval, date, quantity=1) {
     SubscriptionId: subscription.id,
     totalAmount: payment.amount,
     currency: payment.currency,
-    interval: payment.interval
+    interval: payment.interval,
   });
   order.Subscription = subscription;
   order.fromCollective = fromCollective;
@@ -58,9 +58,9 @@ describe('LibSubscription', () => {
       const order = {
         Subscription: {
           interval: 'month',
-          nextPeriodStart: new Date("2018-01-30"),
-          nextChargeDate: new Date("2018-01-30")
-        }
+          nextPeriodStart: new Date('2018-01-30'),
+          nextChargeDate: new Date('2018-01-30'),
+        },
       };
 
       // When dates are updated with success
@@ -69,19 +69,19 @@ describe('LibSubscription', () => {
       // Then both dates should be advanced to the first day of the
       // next month
       expect(updatedDates.nextPeriodStart.getTime())
-        .to.equal((new Date("2018-02-01 0:0")).getTime());
+        .to.equal((new Date('2018-02-01 0:0')).getTime());
       expect(updatedDates.nextChargeDate.getTime())
-        .to.equal((new Date("2018-02-01 0:0")).getTime());
+        .to.equal((new Date('2018-02-01 0:0')).getTime());
     });
 
-    it("should use first day of the same month next year for yearly subscriptions", () => {
+    it('should use first day of the same month next year for yearly subscriptions', () => {
       // Given the following order & subscription
       const order = {
         Subscription: {
           interval: 'year',
-          nextPeriodStart: new Date("2018-01-30"),
-          nextChargeDate: new Date("2018-01-30")
-        }
+          nextPeriodStart: new Date('2018-01-30'),
+          nextChargeDate: new Date('2018-01-30'),
+        },
       };
 
       // When dates are updated with success
@@ -89,9 +89,9 @@ describe('LibSubscription', () => {
 
       // Then both dates should be advanced
       expect(updatedDates.nextPeriodStart.getTime())
-        .to.equal((new Date("2019-01-01 0:0")).getTime());
+        .to.equal((new Date('2019-01-01 0:0')).getTime());
       expect(updatedDates.nextChargeDate.getTime())
-        .to.equal((new Date("2019-01-01 0:0")).getTime());
+        .to.equal((new Date('2019-01-01 0:0')).getTime());
     });
 
     it('should bump the nextChargeDate by two days from today on failure', () => {
@@ -99,13 +99,13 @@ describe('LibSubscription', () => {
       const order = {
         Subscription: {
           interval: 'year',
-          nextPeriodStart: new Date("2018-01-20 0:0"),
-          nextChargeDate: new Date("2018-01-20 0:0")
-        }
+          nextPeriodStart: new Date('2018-01-20 0:0'),
+          nextChargeDate: new Date('2018-01-20 0:0'),
+        },
       };
 
       // And given that we freeze time
-      const clock = sinon.useFakeTimers((new Date("2018-01-28 0:0")).getTime());
+      const clock = sinon.useFakeTimers((new Date('2018-01-28 0:0')).getTime());
 
       // When dates are updated with failure
       const updatedDates = getNextChargeAndPeriodStartDates('failure', order);
@@ -116,7 +116,7 @@ describe('LibSubscription', () => {
         expect(updatedDates.nextPeriodStart)
           .to.equal(undefined);
         expect(updatedDates.nextChargeDate.getTime())
-          .to.equal((new Date("2018-01-30 0:0")).getTime());
+          .to.equal((new Date('2018-01-30 0:0')).getTime());
       } finally {
         clock.restore();
       }
@@ -127,9 +127,9 @@ describe('LibSubscription', () => {
       const order = {
         Subscription: {
           interval: 'month',
-          nextPeriodStart: new Date("2018-01-20 0:0"),
-          nextChargeDate: new Date("2018-01-22 0:0")
-        }
+          nextPeriodStart: new Date('2018-01-20 0:0'),
+          nextChargeDate: new Date('2018-01-22 0:0'),
+        },
       };
 
       // When dates are updated with success
@@ -138,20 +138,20 @@ describe('LibSubscription', () => {
       // Then both dates should be updated based on nextPeriodStart
       // rather than nextChargeDate
       expect(updatedDates.nextPeriodStart.getTime())
-        .to.equal((new Date("2018-02-20 0:0")).getTime());
+        .to.equal((new Date('2018-02-20 0:0')).getTime());
       expect(updatedDates.nextChargeDate.getTime())
-        .to.equal((new Date("2018-02-20 0:0")).getTime());
+        .to.equal((new Date('2018-02-20 0:0')).getTime());
     });
 
-    it("should use the createdAt field when `nextChargeDate` is null", () => {
+    it('should use the createdAt field when `nextChargeDate` is null', () => {
       // Given the following order & subscription
       const order = {
         Subscription: {
           interval: 'month',
           nextPeriodStart: null,
           nextChargeDate: null,
-          createdAt: new Date("2018-01-30")
-        }
+          createdAt: new Date('2018-01-30'),
+        },
       };
 
       // When dates are updated with success
@@ -159,9 +159,9 @@ describe('LibSubscription', () => {
 
       // Then both dates should be updated according to createdAt
       expect(updatedDates.nextPeriodStart.getTime())
-        .to.equal((new Date("2018-02-01 0:0")).getTime());
+        .to.equal((new Date('2018-02-01 0:0')).getTime());
       expect(updatedDates.nextChargeDate.getTime())
-        .to.equal((new Date("2018-02-01 0:0")).getTime());
+        .to.equal((new Date('2018-02-01 0:0')).getTime());
     });
 
     it("should set the nextChargeDate to today and not modify nextPeriodStart when status is 'updated'", () => {
@@ -169,13 +169,13 @@ describe('LibSubscription', () => {
         const order = {
           Subscription: {
             interval: 'year',
-            nextPeriodStart: new Date("2018-01-20 0:0"),
-            nextChargeDate: new Date("2018-01-20 0:0")
-          }
+            nextPeriodStart: new Date('2018-01-20 0:0'),
+            nextChargeDate: new Date('2018-01-20 0:0'),
+          },
         };
 
         // And given that we freeze time
-        const clock = sinon.useFakeTimers((new Date("2018-01-28 0:0")).getTime());
+        const clock = sinon.useFakeTimers((new Date('2018-01-28 0:0')).getTime());
 
         // when dates are updated with 'updated' status
         const updatedDates = getNextChargeAndPeriodStartDates('updated', order);
@@ -188,7 +188,7 @@ describe('LibSubscription', () => {
           clock.restore();
         }
 
-    })
+    });
   });
 
   describe('#getChargeRetryCount', () => {
@@ -220,7 +220,7 @@ describe('LibSubscription', () => {
         Subscription: { chargeRetryCount: 0 },
         collective: { getRelatedCollectives: () => null },
         fromCollective: {},
-        createdByUser: { email: 'test@oc.com', generateLoginLink: () => '/' }
+        createdByUser: { email: 'test@oc.com', generateLoginLink: () => '/' },
       };
 
       // And given that we expect the method send from the mock to be
@@ -240,7 +240,7 @@ describe('LibSubscription', () => {
         Subscription: { chargeRetryCount: 1 },
         collective: {},
         fromCollective: {},
-        createdByUser: { email: 'test@oc.com', generateLoginLink: () => '/' }
+        createdByUser: { email: 'test@oc.com', generateLoginLink: () => '/' },
       };
 
       // And given that we expect the method send from the mock to be
@@ -250,7 +250,7 @@ describe('LibSubscription', () => {
         order: order.info,
         collective: order.collective.info,
         fromCollective: order.fromCollective.minimal,
-        subscriptionsLink: '/'
+        subscriptionsLink: '/',
       });
 
       // When the status of the order is handled
@@ -266,7 +266,7 @@ describe('LibSubscription', () => {
         Subscription: { chargeRetryCount: MAX_RETRIES },
         collective: {},
         fromCollective: {},
-        createdByUser: { email: 'test@oc.com', generateLoginLink: () => '/' }
+        createdByUser: { email: 'test@oc.com', generateLoginLink: () => '/' },
       };
 
       // And given that we expect the method send from the mock to be
@@ -276,7 +276,7 @@ describe('LibSubscription', () => {
         order: order.info,
         collective: order.collective.info,
         fromCollective: order.fromCollective.minimal,
-        subscriptionsLink: '/'
+        subscriptionsLink: '/',
       });
 
       // When the status of the order is handled
@@ -298,7 +298,7 @@ describe('LibSubscription', () => {
         Subscription: { id: 1, save: sinon.spy() },
         collective: {},
         fromCollective: {},
-        createdByUser: { email: 'test@oc.com', generateLoginLink: () => '/' }
+        createdByUser: { email: 'test@oc.com', generateLoginLink: () => '/' },
       };
 
       // And given that we don't want send to be called at all
@@ -319,7 +319,7 @@ describe('LibSubscription', () => {
       let paymentsStub, emailMock, clock;
 
       beforeEach(async () => {
-        clock = sinon.useFakeTimers((new Date("2018-01-28 0:0")).getTime());
+        clock = sinon.useFakeTimers((new Date('2018-01-28 0:0')).getTime());
         emailMock = sinon.mock(emailLib);
         paymentsStub = sinon.stub(paymentsLib, 'processOrder');
         await utils.resetTestDB();
@@ -356,9 +356,9 @@ describe('LibSubscription', () => {
 
         // And then the dates are incremented by one month
         expect(order.Subscription.nextChargeDate.getTime())
-          .to.equal(new Date("2018-02-27 0:0").getTime());
+          .to.equal(new Date('2018-02-27 0:0').getTime());
         expect(order.Subscription.nextPeriodStart.getTime())
-          .to.equal(new Date("2018-02-27 0:0").getTime());
+          .to.equal(new Date('2018-02-27 0:0').getTime());
       });
 
       it('should update dates after successfuly processing yearly ', async () => {
@@ -386,9 +386,9 @@ describe('LibSubscription', () => {
 
         // And then the dates are incremented by one month
         expect(order.Subscription.nextChargeDate.getTime())
-          .to.equal(new Date("2019-01-27 0:0").getTime());
+          .to.equal(new Date('2019-01-27 0:0').getTime());
         expect(order.Subscription.nextPeriodStart.getTime())
-          .to.equal(new Date("2019-01-27 0:0").getTime());
+          .to.equal(new Date('2019-01-27 0:0').getTime());
       });
 
       it('should update nextChargeDate after failed processing yearly ', async () => {
@@ -399,7 +399,7 @@ describe('LibSubscription', () => {
         emailMock.expects('send').once().withArgs('payment.failed');
 
         // And that the payments library will throw an error
-        paymentsStub.throws("TypeError -- Whatever");
+        paymentsStub.throws('TypeError -- Whatever');
 
         // When the order is processed
         const entry = await processOrderWithSubscription({ dryRun: false }, order);
@@ -417,12 +417,12 @@ describe('LibSubscription', () => {
 
         // And then the nextChargeDate is ajusted for two days later
         expect(order.Subscription.nextChargeDate.getTime())
-          .to.equal(new Date("2018-01-30 0:0").getTime());
+          .to.equal(new Date('2018-01-30 0:0').getTime());
 
         // And the nextPeriodStart doesn't change for a failed
         // processing
         expect(order.Subscription.nextPeriodStart.getTime())
-          .to.equal(new Date("2018-01-27 0:0").getTime());
+          .to.equal(new Date('2018-01-27 0:0').getTime());
       });
 
       it('should increment chargeNumber after successfuly processing the order', async () => {
@@ -447,7 +447,7 @@ describe('LibSubscription', () => {
         const { order } = await createOrderWithSubscription('month', '2018-04-17');
 
         // And that the payments library will throw an error
-        paymentsStub.throws("TypeError -- Whatever");
+        paymentsStub.throws('TypeError -- Whatever');
 
         // When the order is processed
         const entry = await processOrderWithSubscription({ dryRun: false }, order);
@@ -497,9 +497,9 @@ describe('LibSubscription', () => {
 
     beforeEach(async () => {
       await utils.resetTestDB();
-      user = await models.User.createUserWithCollective({ name: "Test McTesterson" });
-      collective = await models.Collective.create({ name: "Parcel" });
-      tier = await models.Tier.create({ name: "backer" });
+      user = await models.User.createUserWithCollective({ name: 'Test McTesterson' });
+      collective = await models.Collective.create({ name: 'Parcel' });
+      tier = await models.Tier.create({ name: 'backer' });
     });
 
     it('should filter orders with NULL subscription IDs', async () => {
@@ -526,8 +526,8 @@ describe('LibSubscription', () => {
       const subscription = await models.Subscription.create({
         ...payment,
         isActive: true,
-        activatedAt: new Date("2018-01-29"),
-        nextChargeDate: new Date("2018-01-29"),
+        activatedAt: new Date('2018-01-29'),
+        nextChargeDate: new Date('2018-01-29'),
       });
       await models.Order.create({
         CreatedByUserId: user.id,
@@ -565,7 +565,7 @@ describe('LibSubscription', () => {
         { orderId: 1, status: 'success', amount: 1000, retriesAfter: 0 },
         { orderId: 2, status: 'success', amount: 1000, retriesAfter: 0 },
         { orderId: 3, status: 'failure', amount: 2000, retriesAfter: 1 },
-        { orderId: 4, status: 'failure', amount: 3000, retriesAfter: MAX_RETRIES }
+        { orderId: 4, status: 'failure', amount: 3000, retriesAfter: MAX_RETRIES },
       ];
 
       // When the orders are grouped by their different statuses

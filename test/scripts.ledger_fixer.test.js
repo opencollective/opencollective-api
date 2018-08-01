@@ -7,7 +7,7 @@ describe('Migration', () => {
   // JSON key that contains the date the change happened. So to test
   // it properly here time has to be frozen.
   let clock;
-  beforeEach(() => clock = sinon.useFakeTimers((new Date("2018-03-20 0:0")).getTime()));
+  beforeEach(() => clock = sinon.useFakeTimers((new Date('2018-03-20 0:0')).getTime()));
   afterEach(() => clock.restore());
 
   describe('#saveTransactionChange', () => {
@@ -33,7 +33,7 @@ describe('Migration', () => {
       // migration field
       const transaction = {
         data: { migration: { '20180320': { hostCurrencyFxRate: { oldValue: null, newValue: 1 } } } },
-        changed: sinon.spy()
+        changed: sinon.spy(),
       };
 
       // When a new field is added
@@ -66,7 +66,7 @@ describe('Migration', () => {
         currency: 'MXN',
         hostCurrency: 'USD',
         hostCurrencyFxRate: 18.2,
-        changed: sinon.spy()
+        changed: sinon.spy(),
       };
       // when we call the function to that the value exists
       (new Migration).ensureHostCurrencyFxRate(transaction);
@@ -79,7 +79,7 @@ describe('Migration', () => {
         amount: 10,
         amountInHostCurrency: 20,
         hostCurrencyFxRate: 2,
-        changed: sinon.spy()
+        changed: sinon.spy(),
       };
       // when we call the function to that the value exists
       (new Migration).ensureHostCurrencyFxRate(transaction);

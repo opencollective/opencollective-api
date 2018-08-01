@@ -10,23 +10,23 @@ import * as utils from './utils';
 import * as store from './features/support/stores';
 
 const order = {
-  "quantity": 1,
-  "interval": null,
-  "totalAmount": 154300,
-  "paymentMethod": {
-    "name": "4242",
-    "token": "tok_1B5j8xDjPFcHOcTm3ogdnq0K",
-    "data": {
-      "expMonth": 10,
-      "expYear": 2023,
-      "brand": "Visa",
-      "country": "US",
-      "funding": "credit"
-    }
+  'quantity': 1,
+  'interval': null,
+  'totalAmount': 154300,
+  'paymentMethod': {
+    'name': '4242',
+    'token': 'tok_1B5j8xDjPFcHOcTm3ogdnq0K',
+    'data': {
+      'expMonth': 10,
+      'expYear': 2023,
+      'brand': 'Visa',
+      'country': 'US',
+      'funding': 'credit',
+    },
   },
-  "collective": {
-    "id": null
-  }
+  'collective': {
+    'id': null,
+  },
 };
 
 const createOrderQuery = `
@@ -65,13 +65,13 @@ const createOrderQuery = `
 const constants = {
   paymentMethod: {
     name: 'payment method',
-    service: "stripe",
+    service: 'stripe',
     type: 'creditcard',
     data: {
       expMonth: 11,
-      expYear: 2025
-    }
-  }
+      expYear: 2025,
+    },
+  },
 };
 
 describe('createOrder', () => {
@@ -82,14 +82,14 @@ describe('createOrder', () => {
     nock('http://data.fixer.io')
       .get(/20[0-9]{2}\-[0-9]{2}\-[0-9]{2}/)
       .times(5)
-      .query({ access_key: config.fixer.accessKey, base: 'EUR', symbols: 'USD'})
-      .reply(200, {"base":"EUR","date":"2017-09-01","rates":{"USD":1.192}});
+      .query({ access_key: config.fixer.accessKey, base: 'EUR', symbols: 'USD' })
+      .reply(200, { 'base':'EUR','date':'2017-09-01','rates':{ 'USD':1.192 } });
 
     nock('http://data.fixer.io')
       .get('/latest')
       .times(5)
-      .query({ access_key: config.fixer.accessKey, base: 'EUR', symbols: 'USD'})
-      .reply(200, {"base":"EUR","date":"2017-09-22","rates":{"USD":1.1961} }, ['Server', 'nosniff']);
+      .query({ access_key: config.fixer.accessKey, base: 'EUR', symbols: 'USD' })
+      .reply(200, { 'base':'EUR','date':'2017-09-22','rates':{ 'USD':1.1961 } }, ['Server', 'nosniff']);
   });
 
   after(() => nock.cleanAll());
@@ -118,17 +118,17 @@ describe('createOrder', () => {
 
   afterEach(() => sandbox.restore());
 
-    it("fails if collective is not active", async () => {
+    it('fails if collective is not active', async () => {
       const collective = await models.Collective.create({
         slug: 'test',
         name: 'test',
-        isActive: false
+        isActive: false,
       });
       const thisOrder = cloneDeep(order);
       thisOrder.collective.id = collective.id;
       const res = await utils.graphqlQuery(createOrderQuery, { order: thisOrder });
       expect(res.errors).to.exist;
-      expect(res.errors[0].message).to.equal("This collective is not active");
+      expect(res.errors[0].message).to.equal('This collective is not active');
     });
 
     it('creates an order as new user and sends a tweet', async () => {
@@ -136,23 +136,23 @@ describe('createOrder', () => {
       // collective
       await models.ConnectedAccount.create({
         CollectiveId: brusselstogether.id,
-        service: "twitter",
-        clientId: "clientid",
-        token: "xxxx",
+        service: 'twitter',
+        clientId: 'clientid',
+        token: 'xxxx',
         settings: {
-          "newBacker": {
+          'newBacker': {
             active: true,
-            tweet: "{backerTwitterHandle} thank you for your {amount} donation!"
-          }
-        }
+            tweet: '{backerTwitterHandle} thank you for your {amount} donation!',
+          },
+        },
       });
       // And given an order
       order.collective = { id: brusselstogether.id };
       order.user = {
-        firstName: "John",
-        lastName: "Smith",
-        email: "jsmith@email.com",
-        twitterHandle: "johnsmith",
+        firstName: 'John',
+        lastName: 'Smith',
+        email: 'jsmith@email.com',
+        twitterHandle: 'johnsmith',
         newsletterOptIn: true,
       };
       // When the query is executed
@@ -164,7 +164,7 @@ describe('createOrder', () => {
       const fromCollective = res.data.createOrder.fromCollective;
       const collective = res.data.createOrder.collective;
       const transaction = await models.Transaction.findOne({
-        where: { CollectiveId: collective.id, amount: order.totalAmount }
+        where: { CollectiveId: collective.id, amount: order.totalAmount },
       });
       expect(transaction.FromCollectiveId).to.equal(fromCollective.id);
       expect(transaction.CollectiveId).to.equal(collective.id);
@@ -186,7 +186,7 @@ describe('createOrder', () => {
       expect(transaction.data.charge.currency).to.equal('eur');
 
       await utils.waitForCondition(() => tweetStatusSpy.callCount > 0);
-      expect(tweetStatusSpy.firstCall.args[1]).to.contain("@johnsmith thank you for your €1,543 donation!");
+      expect(tweetStatusSpy.firstCall.args[1]).to.contain('@johnsmith thank you for your €1,543 donation!');
     });
 
     it('creates an order as new anonymous user', async () => {
@@ -194,9 +194,9 @@ describe('createOrder', () => {
       const newOrder = cloneDeep(order);
       newOrder.collective = { id: brusselstogether.id };
       newOrder.user = {
-        firstName: "",
-        lastName: "",
-        email: "jsmith@email.com"
+        firstName: '',
+        lastName: '',
+        email: 'jsmith@email.com',
       };
       newOrder.totalAmount = 0;
       delete newOrder.paymentMethod;
@@ -230,7 +230,7 @@ describe('createOrder', () => {
       // And then the creator of the order should be xdamman
       const collective = res.data.createOrder.collective;
       const transaction = await models.Transaction.findOne({
-        where: { CollectiveId: collective.id, amount: order.totalAmount }
+        where: { CollectiveId: collective.id, amount: order.totalAmount },
       });
       expect(transaction.FromCollectiveId).to.equal(xdamman.CollectiveId);
       expect(transaction.CollectiveId).to.equal(collective.id);
@@ -251,8 +251,8 @@ describe('createOrder', () => {
       // And the parameters for the query
       const collectiveToEdit = {
         id: xdamman.CollectiveId,
-        paymentMethods: []
-      }
+        paymentMethods: [],
+      };
       collectiveToEdit.paymentMethods.push({
         name: '4242',
         service: 'stripe',
@@ -278,7 +278,7 @@ describe('createOrder', () => {
 
       // And the order is setup with the above data
       order.collective = { id: brusselstogether.id };
-      order.fromCollective = { id: xdamman.CollectiveId }
+      order.fromCollective = { id: xdamman.CollectiveId };
       order.paymentMethod = { uuid: res.data.editCollective.paymentMethods[0].uuid };
 
       // When the order is created
@@ -292,7 +292,7 @@ describe('createOrder', () => {
       // right collective, and right amounts
       const collective = res.data.createOrder.collective;
       const transaction = await models.Transaction.findOne({
-        where: { CollectiveId: collective.id, amount: order.totalAmount }
+        where: { CollectiveId: collective.id, amount: order.totalAmount },
       });
       expect(transaction.FromCollectiveId).to.equal(xdamman.CollectiveId);
       expect(transaction.CollectiveId).to.equal(collective.id);
@@ -329,7 +329,7 @@ describe('createOrder', () => {
       expect(subscription.amount).to.equal(order.totalAmount);
 
       const transaction = await models.Transaction.findOne({
-        where: { CollectiveId: collective.id, FromCollectiveId: xdamman.CollectiveId, amount: order.totalAmount }
+        where: { CollectiveId: collective.id, FromCollectiveId: xdamman.CollectiveId, amount: order.totalAmount },
       });
 
       // make sure the transaction has been recorded
@@ -341,8 +341,8 @@ describe('createOrder', () => {
     it('creates an order as a new user for a new organization', async () => {
       // Given the following data for the order
       order.collective = { id: brusselstogether.id };
-      order.user = { firstName: "John", lastName: "Smith", email: "jsmith@email.com" };
-      order.fromCollective = { name: "NewCo", website: "newco.com" };
+      order.user = { firstName: 'John', lastName: 'Smith', email: 'jsmith@email.com' };
+      order.fromCollective = { name: 'NewCo', website: 'newco.com' };
       order.paymentMethod = { ...constants.paymentMethod, token: 'tok_3B5j8xDjPFcHOcTm3ogdnq0K' };
       // When the order is created
       const res = await utils.graphqlQuery(createOrderQuery, { order });
@@ -351,7 +351,7 @@ describe('createOrder', () => {
       const orderCreated = res.data.createOrder;
       const fromCollective = orderCreated.fromCollective;
       const collective = orderCreated.collective;
-      const transactions = await models.Transaction.findAll({ where: { OrderId: orderCreated.id }});
+      const transactions = await models.Transaction.findAll({ where: { OrderId: orderCreated.id } });
       expect(fromCollective.website).to.equal('http://newco.com'); // api should prepend http://
       expect(transactions.length).to.equal(2);
       expect(transactions[0].type).to.equal('DEBIT');
@@ -369,7 +369,7 @@ describe('createOrder', () => {
       // And given an organization
       const newco = await models.Collective.create({
         type: 'ORGANIZATION',
-        name: "newco",
+        name: 'newco',
         CreatedByUserId: xdamman.id,
       });
       // And the order parameters
@@ -385,7 +385,7 @@ describe('createOrder', () => {
         CollectiveId: newco.id,
         MemberCollectiveId: duc.CollectiveId,
         role: 'MEMBER',
-        CreatedByUserId: duc.id
+        CreatedByUserId: duc.id,
       });
 
       res = await utils.graphqlQuery(createOrderQuery, { order }, duc);
@@ -394,7 +394,7 @@ describe('createOrder', () => {
       const orderCreated = res.data.createOrder;
       const fromCollective = orderCreated.fromCollective;
       const collective = orderCreated.collective;
-      const transactions = await models.Transaction.findAll({ where: { OrderId: orderCreated.id }});
+      const transactions = await models.Transaction.findAll({ where: { OrderId: orderCreated.id } });
       expect(orderCreated.createdByUser.id).to.equal(duc.id);
       expect(transactions.length).to.equal(2);
       expect(transactions[0].type).to.equal('DEBIT');
@@ -405,12 +405,12 @@ describe('createOrder', () => {
       expect(transactions[1].CollectiveId).to.equal(collective.id);
     });
 
-    it(`creates an order as a logged in user for an existing collective using the collective's payment method`, async () => {
+    it('creates an order as a logged in user for an existing collective using the collective\'s payment method', async () => {
       const duc = (await store.newUser('another user')).user;
       const newco = await models.Collective.create({
         type: 'ORGANIZATION',
-        name: "newco",
-        CreatedByUserId: duc.id
+        name: 'newco',
+        CreatedByUserId: duc.id,
       });
       order.collective = { id: brusselstogether.id };
       order.fromCollective = { id: newco.id };
@@ -419,7 +419,7 @@ describe('createOrder', () => {
         ...constants.paymentMethod,
         token: 'tok_5B5j8xDjPFcHOcTm3ogdnq0K',
         monthlyLimitPerMember: 10000,
-        CollectiveId: newco.id
+        CollectiveId: newco.id,
       });
       order.paymentMethod = { uuid: paymentMethod.uuid };
 
@@ -432,13 +432,13 @@ describe('createOrder', () => {
         CollectiveId: newco.id,
         MemberCollectiveId: duc.CollectiveId,
         role: 'MEMBER',
-        CreatedByUserId: duc.id
+        CreatedByUserId: duc.id,
       });
 
       // Should fail if order.totalAmount > PaymentMethod.monthlyLimitPerMember
       res = await utils.graphqlQuery(createOrderQuery, { order }, duc);
       expect(res.errors).to.exist;
-      expect(res.errors[0].message).to.equal("The total amount of this order (€200 ~= $239) is higher than your monthly spending limit on this payment method ($100)");
+      expect(res.errors[0].message).to.equal('The total amount of this order (€200 ~= $239) is higher than your monthly spending limit on this payment method ($100)');
 
       sandbox.useFakeTimers((new Date('2017-09-22')).getTime());
       await paymentMethod.update({ monthlyLimitPerMember: 25000 }); // $250 limit
@@ -452,7 +452,7 @@ describe('createOrder', () => {
       const orderCreated = res.data.createOrder;
       const fromCollective = orderCreated.fromCollective;
       const collective = orderCreated.collective;
-      const transactions = await models.Transaction.findAll({ where: { OrderId: orderCreated.id }, order: [['id','ASC']]});
+      const transactions = await models.Transaction.findAll({ where: { OrderId: orderCreated.id }, order: [['id','ASC']] });
       expect(orderCreated.createdByUser.id).to.equal(duc.id);
       expect(transactions.length).to.equal(2);
       expect(transactions[0].type).to.equal('DEBIT');
@@ -469,7 +469,7 @@ describe('createOrder', () => {
 
     });
 
-    describe(`host moves funds between collectives`, async () => {
+    describe('host moves funds between collectives', async () => {
       let hostAdmin, hostCollective;
 
       beforeEach(async () => {
@@ -505,22 +505,22 @@ describe('createOrder', () => {
           type: 'CREDIT',
           currency: 'USD',
         });
-      })
+      });
 
-      it("Should fail if not enough funds in the fromCollective", async () => {
+      it('Should fail if not enough funds in the fromCollective', async () => {
         const res = await utils.graphqlQuery(createOrderQuery, { order }, hostAdmin);
         expect(res.errors).to.exist;
         expect(res.errors[0].message).to.equal("You don't have enough funds available ($7,461 left) to execute this order ($100,000)");
       });
 
-      it("succeeds", async () => {
+      it('succeeds', async () => {
         order.totalAmount = 20000;
         const res = await utils.graphqlQuery(createOrderQuery, { order }, hostAdmin);
         expect(res.errors).to.not.exist;
-      })
+      });
     });
 
-    it(`creates an order as a logged in user for an existing collective using the collective's balance`, async () => {
+    it('creates an order as a logged in user for an existing collective using the collective\'s balance', async () => {
       const xdamman = (await store.newUser('xdamman')).user;
       const { hostCollective } = await store.newHost('Host Collective', 'USD', 10);
       const fromCollective = (await store.newCollectiveInHost(
@@ -534,14 +534,14 @@ describe('createOrder', () => {
         CreatedByUserId: xdamman.id,
         CollectiveId: fromCollective.id,
         MemberCollectiveId: xdamman.CollectiveId,
-        role: 'ADMIN'
+        role: 'ADMIN',
       });
 
       const paymentMethod = await models.PaymentMethod.create({
         CreatedByUserId: xdamman.id,
         service: 'opencollective',
         type: 'collective',
-        CollectiveId: fromCollective.id
+        CollectiveId: fromCollective.id,
       });
 
       await models.Transaction.create({
@@ -575,7 +575,7 @@ describe('createOrder', () => {
       expect(availableBalance.amount).to.equal(726149);
 
       const orderCreated = res.data.createOrder;
-      const transactions = await models.Transaction.findAll({ where: { OrderId: orderCreated.id }});
+      const transactions = await models.Transaction.findAll({ where: { OrderId: orderCreated.id } });
       expect(orderCreated.createdByUser.id).to.equal(xdamman.id);
       expect(transactions.length).to.equal(2);
       expect(transactions[0].type).to.equal('DEBIT');

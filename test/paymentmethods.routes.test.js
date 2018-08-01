@@ -69,8 +69,8 @@ describe('paymentMethods.routes.test.js', () => {
         .get(`/users/${user.id}/payment-methods?api_key=${application.api_key}`)
         .query({
           filter: {
-            service: 'paypal'
-          }
+            service: 'paypal',
+          },
         })
         .set('Authorization', `Bearer ${user.jwt()}`)
         .expect(200)

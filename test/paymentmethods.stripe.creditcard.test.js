@@ -10,10 +10,10 @@ import models from '../server/models';
 import creditcard from '../server/paymentProviders/stripe/creditcard';
 
 async function createOrderWithPaymentMethod(paymentMethodName) {
-  const user = await models.User.createUserWithCollective({ name: "TestMcTesterson", email: "tmct@mct.com" });
-  const host = await models.Collective.create({ name: "Host Collective" });
-  const tier = await models.Tier.create({ name: "backer" });
-  const collective = await models.Collective.create({ name: "Parcel!!" });
+  const user = await models.User.createUserWithCollective({ name: 'TestMcTesterson', email: 'tmct@mct.com' });
+  const host = await models.Collective.create({ name: 'Host Collective' });
+  const tier = await models.Tier.create({ name: 'backer' });
+  const collective = await models.Collective.create({ name: 'Parcel!!' });
   collective.addHost(host);
   const connectedAccount = await models.ConnectedAccount.create({
     service: 'stripe',
@@ -23,11 +23,11 @@ async function createOrderWithPaymentMethod(paymentMethodName) {
   const paymentMethod = await models.PaymentMethod.create({
     name: paymentMethodName,
     token: 'tok_123456781234567812345678',
-    service: "stripe",
+    service: 'stripe',
     type: 'creditcard',
     data: { expMonth: 11, expYear: 2025 },
     monthlyLimitPerMember: 10000,
-    CollectiveId: collective.id
+    CollectiveId: collective.id,
   });
   const order = await models.Order.create({
     CreatedByUserId: user.id,
@@ -36,7 +36,7 @@ async function createOrderWithPaymentMethod(paymentMethodName) {
     PaymentMethodId: paymentMethod.id,
     TierId: tier.id,
     totalAmount: 1000,
-    currency: 'USD'
+    currency: 'USD',
   });
   order.fromCollective = user.collective;
   order.collective = collective;
@@ -63,12 +63,12 @@ describe('stripe.creditcard', () => {
 
       // Calls performed by createChargeAndTransactions
       nock('https://api.stripe.com:443').post('/v1/charges').reply(200, {
-        id: "ch_1B5j91D8MNtzsDcgNMsUgI8L",
-        balance_transaction: "txn_1B5j92D8MNtzsDcgQzIcmfrn"
+        id: 'ch_1B5j91D8MNtzsDcgNMsUgI8L',
+        balance_transaction: 'txn_1B5j92D8MNtzsDcgQzIcmfrn',
       });
       nock('https://api.stripe.com:443')
         .get('/v1/balance/history/txn_1B5j92D8MNtzsDcgQzIcmfrn')
-        .reply(200, {"amount": 1000, "fee": 0, "fee_details": []});
+        .reply(200, { 'amount': 1000, 'fee': 0, 'fee_details': [] });
     });
 
     afterEach(() => nock.cleanAll());

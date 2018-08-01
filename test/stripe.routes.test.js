@@ -44,7 +44,7 @@ describe('stripe.routes.test.js', () => {
             const error = response.body.error;
             expect(error.code).to.equal(401);
             expect(error.type).to.equal('unauthorized');
-            expect(error.message).to.equal("Please login as an admin of this collective to add a connected account");
+            expect(error.message).to.equal('Please login as an admin of this collective to add a connected account');
             done();
           }));
     });
@@ -56,8 +56,8 @@ describe('stripe.routes.test.js', () => {
         .expect(200)
         .end((e, res) => {
           expect(e).to.not.exist;
-          expect(res.body.redirectUrl).to.contain('https://connect.stripe.com/oauth/authorize')
-          expect(res.body.redirectUrl).to.contain(`&state=`)
+          expect(res.body.redirectUrl).to.contain('https://connect.stripe.com/oauth/authorize');
+          expect(res.body.redirectUrl).to.contain('&state=');
           done();
         });
     });
@@ -70,45 +70,45 @@ describe('stripe.routes.test.js', () => {
       token_type: 'bearer',
       stripe_publishable_key: 'pk_test_123',
       stripe_user_id: 'acct_123',
-      scope: 'read_write'
+      scope: 'read_write',
     };
 
     const stripeResponseAccountInfo = {
-      "id": "acct_198T7jD8MNtzsDcg",
-      "object": "account",
-      "business_logo": "https://s3.amazonaws.com/stripe-uploads/acct_198T7jD8MNtzsDcgmerchant-icon-1496926780969-BrusselsTogetherHashLogo.png",
-      "business_name": "#BrusselsTogether",
-      "business_primary_color": "#fefeff",
-      "business_url": "https://brusselstogether.org",
-      "charges_enabled": true,
-      "country": "BE",
-      "currencies_supported": [
-          "usd",
-          "eur",
-          "afn",
-          "all"
+      'id': 'acct_198T7jD8MNtzsDcg',
+      'object': 'account',
+      'business_logo': 'https://s3.amazonaws.com/stripe-uploads/acct_198T7jD8MNtzsDcgmerchant-icon-1496926780969-BrusselsTogetherHashLogo.png',
+      'business_name': '#BrusselsTogether',
+      'business_primary_color': '#fefeff',
+      'business_url': 'https://brusselstogether.org',
+      'charges_enabled': true,
+      'country': 'BE',
+      'currencies_supported': [
+          'usd',
+          'eur',
+          'afn',
+          'all',
       ],
-      "default_currency": "eur",
-      "details_submitted": true,
-      "display_name": "brusselstogether.org",
-      "email": "whateveremail@gmail.com",
-      "managed": false,
-      "metadata": {},
-      "statement_descriptor": "BRUSSELSTOGETHER.ORG",
-      "support_address": {
-          "city": null,
-          "country": "BE",
-          "line1": null,
-          "line2": null,
-          "postal_code": null,
-          "state": null
+      'default_currency': 'eur',
+      'details_submitted': true,
+      'display_name': 'brusselstogether.org',
+      'email': 'whateveremail@gmail.com',
+      'managed': false,
+      'metadata': {},
+      'statement_descriptor': 'BRUSSELSTOGETHER.ORG',
+      'support_address': {
+          'city': null,
+          'country': 'BE',
+          'line1': null,
+          'line2': null,
+          'postal_code': null,
+          'state': null,
       },
-      "support_email": "info@brusselstogether.org",
-      "support_phone": "+3200000000",
-      "support_url": "",
-      "timezone": "Europe/Madrid",
-      "transfers_enabled": true,
-      "type": "standard"
+      'support_email': 'info@brusselstogether.org',
+      'support_phone': '+3200000000',
+      'support_url': '',
+      'timezone': 'Europe/Madrid',
+      'transfers_enabled': true,
+      'type': 'standard',
     };
 
     beforeEach(() => {
@@ -117,7 +117,7 @@ describe('stripe.routes.test.js', () => {
         grant_type: 'authorization_code',
         client_id: config.stripe.clientId,
         client_secret: config.stripe.secret,
-        code: 'abc'
+        code: 'abc',
       })
       .reply(200, () => stripeResponse);
 
@@ -154,7 +154,7 @@ describe('stripe.routes.test.js', () => {
     it('should set a stripeAccount', (done) => {
       const encodedJWT = jwt.sign({
         CollectiveId: collective.id,
-        CreatedByUserId: collective.CreatedByUserId
+        CreatedByUserId: collective.CreatedByUserId,
       }, config.keys.opencollective.secret, { expiresIn: '1h' });
       async.auto({
         request: (cb) => {
@@ -191,7 +191,7 @@ describe('stripe.routes.test.js', () => {
             cb();
           })
           .catch(cb);
-        }]
+        }],
       }, done);
     });
   });

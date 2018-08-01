@@ -22,7 +22,7 @@ describe('graphql.collective.test.js', () => {
     const query = `query Collective($slug: String) {
       Collective(slug: $slug) { id slug } }`;
     // When a collective that doesn't exist is retrieved
-    const result = await utils.graphqlQuery(query, { slug: "apex" });
+    const result = await utils.graphqlQuery(query, { slug: 'apex' });
     // Than we're supposed to see some errors
     expect(result.errors).to.exist;
     expect(result.errors[0].message).to.equal('No collective found with slug apex');
@@ -45,7 +45,7 @@ describe('graphql.collective.test.js', () => {
       userCollective: org0,
       collective: apex,
       currency,
-      amount: 20000
+      amount: 20000,
     });
     await hostAdmin.populateRoles();
     // And given a few donations from new users
@@ -61,23 +61,23 @@ describe('graphql.collective.test.js', () => {
       const expense = await store.createApprovedExpense(user, {
         category: 'Engineering',
         amount: 100 * (i + 1),
-        description: "test",
+        description: 'test',
         currency,
         payoutMethod: 'manual',
-        collective: { id: apex.id }
+        collective: { id: apex.id },
       });
       await expenses.payExpense(hostAdmin, expense.id, 0);
     }
 
     // And given a tier object
     await models.Tier.create({
-      name: "backer",
-      type: "TIER",
-      slug: "backers",
-      description: "$10/month",
+      name: 'backer',
+      type: 'TIER',
+      slug: 'backers',
+      description: '$10/month',
       amount: 1000,
       interval: 'month',
-      currency: "USD",
+      currency: 'USD',
       maxQuantity: 10,
       CollectiveId: apex.id,
     });
@@ -163,7 +163,7 @@ describe('graphql.collective.test.js', () => {
       }
     }`;
 
-    const result = await utils.graphqlQuery(query, { slug: "apex" });
+    const result = await utils.graphqlQuery(query, { slug: 'apex' });
     result.errors && console.error(result.errors);
     expect(result.errors).to.not.exist;
 
@@ -182,36 +182,36 @@ describe('graphql.collective.test.js', () => {
     expect(collective.stats.backers).to.deep.equal({
       all: 11,
       users: 10,
-      organizations: 1
+      organizations: 1,
     });
 
     expect(collective.stats.topFundingSources).to.deep.equal({
-      "byCollective": [{
+      'byCollective': [{
         image: null,
-        slug: "org0",
-        name: "org0",
+        slug: 'org0',
+        name: 'org0',
         totalDonations: 18000,
       }, {
         image: null,
-        slug: "testuser9",
-        name: "testuser9",
+        slug: 'testuser9',
+        name: 'testuser9',
         totalDonations: 9000,
       }, {
         image: null,
-        slug: "testuser8",
-        name: "testuser8",
+        slug: 'testuser8',
+        name: 'testuser8',
         totalDonations: 8100,
       }],
-      "byCollectiveType": [{ type: "USER", totalDonations: 49500 }]
+      'byCollectiveType': [{ type: 'USER', totalDonations: 49500 }],
     });
 
     expect(collective.stats.topExpenses).to.deep.equal({
-      "byCategory": [{ category: "Engineering", "count": 10, "totalExpenses": 5500 }],
-      "byCollective": [
-        { slug: "testuser9", image: null, name: "testuser9", totalExpenses: -1000, twitterHandle: null },
-        { slug: "testuser8", image: null, name: "testuser8", totalExpenses: -900, twitterHandle: null },
-        { slug: "testuser7", image: null, name: "testuser7", totalExpenses: -800, twitterHandle: null },
-      ]
+      'byCategory': [{ category: 'Engineering', 'count': 10, 'totalExpenses': 5500 }],
+      'byCollective': [
+        { slug: 'testuser9', image: null, name: 'testuser9', totalExpenses: -1000, twitterHandle: null },
+        { slug: 'testuser8', image: null, name: 'testuser8', totalExpenses: -900, twitterHandle: null },
+        { slug: 'testuser7', image: null, name: 'testuser7', totalExpenses: -800, twitterHandle: null },
+      ],
     });
   });
 
@@ -238,7 +238,7 @@ describe('graphql.collective.test.js', () => {
         }
       }
     `;
-    const result = await utils.graphqlQuery(query, { slug: "meetup-5" });
+    const result = await utils.graphqlQuery(query, { slug: 'meetup-5' });
     // Then there should be no errors
     result.errors && console.error(result.errors);
     expect(result.errors).to.not.exist;
@@ -247,7 +247,7 @@ describe('graphql.collective.test.js', () => {
     expect(result.data.Collective.host.id).to.equal(hostCollective.id);
     expect(result.data.Collective.host.slug).to.equal(hostCollective.slug);
     expect(result.data.Collective.path).to.equal('/brusselstogether-collective/events/meetup-5');
-    expect(result.data.Collective.host.path).to.equal("/brusselstogether");
+    expect(result.data.Collective.host.path).to.equal('/brusselstogether');
   });
 
   it('gets the expense stats across all hosted collectives', async () => {
@@ -264,30 +264,30 @@ describe('graphql.collective.test.js', () => {
     // And given a helper to create data for expenses
     const d = (amount, description, cid) => ({
       amount, description, currency: 'EUR',
-      payoutMethod: 'manual', collective: { id: cid }
+      payoutMethod: 'manual', collective: { id: cid },
     });
 
     // And given that we add some expenses to brussels together:
-    await store.createPaidExpense(user, d(2000, "Pizza", collective.id));
-    await store.createPaidExpense(user, d(1000, "Lunch", collective.id));
-    await store.createPaidExpense(user, d(1000, "Lunch", collective.id));
-    await store.createPaidExpense(user, d(1000, "Lunch", collective.id));
-    await store.createPaidExpense(user, d(2000, "Tickets", collective.id));
-    await store.createRejectedExpense(user, d(50000, "10 T-Shirts", collective.id));
-    await store.createRejectedExpense(user, d(50000, "10 T-Shirts", collective.id));
-    await store.createRejectedExpense(user, d(50000, "10 T-Shirts", collective.id));
+    await store.createPaidExpense(user, d(2000, 'Pizza', collective.id));
+    await store.createPaidExpense(user, d(1000, 'Lunch', collective.id));
+    await store.createPaidExpense(user, d(1000, 'Lunch', collective.id));
+    await store.createPaidExpense(user, d(1000, 'Lunch', collective.id));
+    await store.createPaidExpense(user, d(2000, 'Tickets', collective.id));
+    await store.createRejectedExpense(user, d(50000, '10 T-Shirts', collective.id));
+    await store.createRejectedExpense(user, d(50000, '10 T-Shirts', collective.id));
+    await store.createRejectedExpense(user, d(50000, '10 T-Shirts', collective.id));
 
     // And given that we add some expenses for the collective veganizerbxl
-    await store.createPaidExpense(user, d(2000, "Vegan Pizza", veganizerbxl.id));
-    await store.createPaidExpense(user, d(1000, "Vegan Lunch", veganizerbxl.id));
-    await store.createPaidExpense(user, d(1000, "Vegan Lunch", veganizerbxl.id));
-    await store.createPaidExpense(user, d(1000, "Vegan Treats", veganizerbxl.id));
-    await store.createPaidExpense(user, d(2000, "Tickets", veganizerbxl.id));
-    await store.createApprovedExpense(user, d(50000, "Vegan stuff", veganizerbxl.id));
-    await store.createRejectedExpense(user, d(50000, "Non vegan thing", veganizerbxl.id));
-    await store.createRejectedExpense(user, d(50000, "Non vegan biscuit", veganizerbxl.id));
-    await store.createRejectedExpense(user, d(50000, "Non vegan stuff", veganizerbxl.id));
-    await store.createRejectedExpense(user, d(50000, "Non vegan t-shirts", veganizerbxl.id));
+    await store.createPaidExpense(user, d(2000, 'Vegan Pizza', veganizerbxl.id));
+    await store.createPaidExpense(user, d(1000, 'Vegan Lunch', veganizerbxl.id));
+    await store.createPaidExpense(user, d(1000, 'Vegan Lunch', veganizerbxl.id));
+    await store.createPaidExpense(user, d(1000, 'Vegan Treats', veganizerbxl.id));
+    await store.createPaidExpense(user, d(2000, 'Tickets', veganizerbxl.id));
+    await store.createApprovedExpense(user, d(50000, 'Vegan stuff', veganizerbxl.id));
+    await store.createRejectedExpense(user, d(50000, 'Non vegan thing', veganizerbxl.id));
+    await store.createRejectedExpense(user, d(50000, 'Non vegan biscuit', veganizerbxl.id));
+    await store.createRejectedExpense(user, d(50000, 'Non vegan stuff', veganizerbxl.id));
+    await store.createRejectedExpense(user, d(50000, 'Non vegan t-shirts', veganizerbxl.id));
 
     // When the following query is executed
     const query = `
@@ -327,7 +327,7 @@ describe('graphql.collective.test.js', () => {
     }
     `;
 
-    const result = await utils.graphqlQuery(query, { slug: "brusselstogether" });
+    const result = await utils.graphqlQuery(query, { slug: 'brusselstogether' });
     result.errors && console.error(result.errors);
     expect(result.errors).to.not.exist;
 
@@ -337,31 +337,31 @@ describe('graphql.collective.test.js', () => {
     expect(result.data.Collective.stats.collectives.memberOf).to.equal(0);
     expect(collectives.sort((a, b) => a.id - b.id)).to.deep.equal([
       {
-        "id": collective.id,
-        "slug": "brusselstogether-collective",
-        "stats": {
-          "expenses": {
-            "all": 8,
-            "paid": 5,
-            "pending": 0,
-            "rejected": 3,
-            "approved": 0
-          }
-        }
+        'id': collective.id,
+        'slug': 'brusselstogether-collective',
+        'stats': {
+          'expenses': {
+            'all': 8,
+            'paid': 5,
+            'pending': 0,
+            'rejected': 3,
+            'approved': 0,
+          },
+        },
       },
       {
-        "id": veganizerbxl.id,
-        "slug": "veganizerbxl",
-        "stats": {
-          "expenses": {
-            "all": 10,
-            "paid": 5,
-            "pending": 0,
-            "rejected": 4,
-            "approved": 1
-          }
-        }
-      }
+        'id': veganizerbxl.id,
+        'slug': 'veganizerbxl',
+        'stats': {
+          'expenses': {
+            'all': 10,
+            'paid': 5,
+            'pending': 0,
+            'rejected': 4,
+            'approved': 1,
+          },
+        },
+      },
     ]);
   });
 
@@ -420,7 +420,7 @@ describe('graphql.collective.test.js', () => {
     }
     `;
     const fetchMembersByType = async (type) => {
-      const result = await utils.graphqlQuery(query, { slug: "apex", type });
+      const result = await utils.graphqlQuery(query, { slug: 'apex', type });
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       return result.data.Collective.members;
@@ -447,7 +447,7 @@ describe('graphql.collective.test.js', () => {
     expect(memberOrgs[1].stats.totalDonations).to.equal(100000);
   });
 
-  describe("allMembers query", () => {
+  describe('allMembers query', () => {
 
     const allMembersQuery = `
     query allMembers($collectiveSlug: String, $memberCollectiveSlug: String, $orderBy: String, $role: String, $type: String, $isActive: Boolean) {
@@ -515,7 +515,7 @@ describe('graphql.collective.test.js', () => {
     });
 
     it('gets the active members ', async () => {
-      const result = await utils.graphqlQuery(allMembersQuery, { collectiveSlug: "brusselstogether-collective", isActive: true, orderBy: "totalDonations" });
+      const result = await utils.graphqlQuery(allMembersQuery, { collectiveSlug: 'brusselstogether-collective', isActive: true, orderBy: 'totalDonations' });
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       const members = result.data.allMembers;
@@ -528,7 +528,7 @@ describe('graphql.collective.test.js', () => {
     });
 
     it('gets the members by collectiveSlug without email', async () => {
-      const result = await utils.graphqlQuery(allMembersQuery, { collectiveSlug: "brusselstogether-collective" });
+      const result = await utils.graphqlQuery(allMembersQuery, { collectiveSlug: 'brusselstogether-collective' });
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       const members = result.data.allMembers;
@@ -542,7 +542,7 @@ describe('graphql.collective.test.js', () => {
 
     it('gets the user members by collectiveSlug with email', async () => {
       const hostAdmin = brusselsTogetherHostAdmin;
-      const result = await utils.graphqlQuery(allMembersQuery, { collectiveSlug: "veganizerbxl", type: "USER" }, hostAdmin);
+      const result = await utils.graphqlQuery(allMembersQuery, { collectiveSlug: 'veganizerbxl', type: 'USER' }, hostAdmin);
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       const members = result.data.allMembers;
@@ -553,7 +553,7 @@ describe('graphql.collective.test.js', () => {
 
     it('gets the user members by collectiveSlug without email if logged in as admin of another host', async () => {
       const { hostAdmin } = await store.newHost('another host', 'USD', 10);
-      const result = await utils.graphqlQuery(allMembersQuery, { collectiveSlug: "veganizerbxl", type: "USER" }, hostAdmin);
+      const result = await utils.graphqlQuery(allMembersQuery, { collectiveSlug: 'veganizerbxl', type: 'USER' }, hostAdmin);
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       const members = result.data.allMembers;
@@ -563,7 +563,7 @@ describe('graphql.collective.test.js', () => {
     });
 
     it('gets the members by memberCollectiveSlug by role', async () => {
-      const result = await utils.graphqlQuery(allMembersQuery, { memberCollectiveSlug: "xdamman", role: "ADMIN" });
+      const result = await utils.graphqlQuery(allMembersQuery, { memberCollectiveSlug: 'xdamman', role: 'ADMIN' });
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       const members = result.data.allMembers;
@@ -574,7 +574,7 @@ describe('graphql.collective.test.js', () => {
     });
 
     it('gets the members by memberCollectiveSlug sorted by totalDonations', async () => {
-      const result = await utils.graphqlQuery(allMembersQuery, { memberCollectiveSlug: "xdamman", orderBy: "totalDonations" });
+      const result = await utils.graphqlQuery(allMembersQuery, { memberCollectiveSlug: 'xdamman', orderBy: 'totalDonations' });
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       const members = result.data.allMembers;
@@ -584,7 +584,7 @@ describe('graphql.collective.test.js', () => {
     });
 
     it('gets the members by memberCollectiveSlug sorted by balance', async () => {
-      const result = await utils.graphqlQuery(allMembersQuery, { memberCollectiveSlug: "piamancini", orderBy: "balance" });
+      const result = await utils.graphqlQuery(allMembersQuery, { memberCollectiveSlug: 'piamancini', orderBy: 'balance' });
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       const members = result.data.allMembers;
@@ -603,39 +603,39 @@ describe('graphql.collective.test.js', () => {
       pubnubCollective = (await store.newCollectiveWithHost(
         'pubnub', 'USD', 'USD', 10, pubnubAdmin, { isActive: true })).collective;
       adminMembership = await models.Member.findOne({ where: {
-        MemberCollectiveId: pubnubAdmin.id
-      }});
+        MemberCollectiveId: pubnubAdmin.id,
+      } });
     });
 
     it('edits members', async () => {
 
       const collective = {
-        "id": pubnubCollective.id,
-        "type": "ORGANIZATION",
-        "slug": "pubnub",
-        "name": "PubNub ",
-        "description": null,
-        "longDescription": null,
-        "currency": "USD",
-        "image": "https://opencollective-production.s3-us-west-1.amazonaws.com/pubnublogopng_38ab9250-d2c4-11e6-8ba3-b7985935397d.png",
-        "members": [
+        'id': pubnubCollective.id,
+        'type': 'ORGANIZATION',
+        'slug': 'pubnub',
+        'name': 'PubNub ',
+        'description': null,
+        'longDescription': null,
+        'currency': 'USD',
+        'image': 'https://opencollective-production.s3-us-west-1.amazonaws.com/pubnublogopng_38ab9250-d2c4-11e6-8ba3-b7985935397d.png',
+        'members': [
           {
-            "id": adminMembership.id,
-            "role": "ADMIN",
-            "member": {
-              "name": "Xavier Damman",
-              "email": null
-            }
+            'id': adminMembership.id,
+            'role': 'ADMIN',
+            'member': {
+              'name': 'Xavier Damman',
+              'email': null,
+            },
           },
           {
-            "role": "MEMBER",
-            "member": {
-              "name": "member1",
-              "email": "member1@hail.com"
-            }
-          }
+            'role': 'MEMBER',
+            'member': {
+              'name': 'member1',
+              'email': 'member1@hail.com',
+            },
+          },
         ],
-        "location": {}
+        'location': {},
       };
 
       const query = `
@@ -671,7 +671,7 @@ describe('graphql.collective.test.js', () => {
       const member = await models.User.findById(members[2].member.createdByUser.id);
       const res2 = await utils.graphqlQuery(query, { collective }, member);
       expect(res2.errors).to.exist;
-      expect(res2.errors[0].message).to.equal(`You must be logged in as an admin or as the host of this organization collective to edit it`);
+      expect(res2.errors[0].message).to.equal('You must be logged in as an admin or as the host of this organization collective to edit it');
     });
 
     it('edit payment methods', async () => {
@@ -689,9 +689,9 @@ describe('graphql.collective.test.js', () => {
             brand: 'VISA',
             funding: 'credit',
             expMonth: 1,
-            expYear: 2022
-          }
-        }]
+            expYear: 2022,
+          },
+        }],
       };
 
       query = `
@@ -721,7 +721,7 @@ describe('graphql.collective.test.js', () => {
       collective.paymentMethods.push({
         name: '1212',
         service: 'stripe',
-        token: 'tok_123456781234567812345678'
+        token: 'tok_123456781234567812345678',
       });
 
       query = `

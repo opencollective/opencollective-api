@@ -41,8 +41,8 @@ describe('graphql.cancelSubscriptions.test.js', () => {
     models.ConnectedAccount.create({
       service: 'stripe',
       token: 'sktest_123',
-      CollectiveId: user.CollectiveId
-    })
+      CollectiveId: user.CollectiveId,
+    });
   });
 
   // Create a paymentMethod.
@@ -71,7 +71,7 @@ describe('graphql.cancelSubscriptions.test.js', () => {
             sendMail (data, callback) {
                 callback();
             },
-            logger: false
+            logger: false,
           });
       sinon.stub(nodemailer, 'createTransport').callsFake(() => nm);
     });
@@ -95,62 +95,62 @@ describe('graphql.cancelSubscriptions.test.js', () => {
           FromCollectiveId: user.CollectiveId,
           CollectiveId: collective.id,
           PaymentMethodId: paymentMethod.id,
-          SubscriptionId: sub.id
+          SubscriptionId: sub.id,
         }))
         .tap(d => order = d)
-        .catch()
+        .catch();
     });
 
     it('fails if if no authorization provided', async () => {
-      const res = await utils.graphqlQuery(cancelSubscriptionQuery, { id: order.id});
+      const res = await utils.graphqlQuery(cancelSubscriptionQuery, { id: order.id });
 
       expect(res.errors).to.exist;
       expect(res.errors[0].message).to.equal('You need to be logged in to cancel a subscription');
     });
 
     it('fails if the subscription does not exist', async () => {
-      const res = await utils.graphqlQuery(cancelSubscriptionQuery, { id: 2}, user);
+      const res = await utils.graphqlQuery(cancelSubscriptionQuery, { id: 2 }, user);
       expect(res.errors).to.exist;
       expect(res.errors[0].message).to.equal('Subscription not found');
     });
 
     it('fails if user isn\'t an admin of the collective' , async () => {
-      const res = await utils.graphqlQuery(cancelSubscriptionQuery, { id: order.id}, user2);
+      const res = await utils.graphqlQuery(cancelSubscriptionQuery, { id: order.id }, user2);
 
       expect(res.errors).to.exist;
       expect(res.errors[0].message).to.equal('You don\'t have permission to cancel this subscription');
     });
 
     it('fails if the subscription is already canceled', async () => {
-      const order2 = await models.Subscription.create(Object.assign({}, subscription, {isActive: false, deactivatedAt: new Date()}))
+      const order2 = await models.Subscription.create(Object.assign({}, subscription, { isActive: false, deactivatedAt: new Date() }))
         .then(sub => models.Order.create({
           ...ordersData[0],
           CreatedByUserId: user.id,
           FromCollectiveId: user.CollectiveId,
           CollectiveId: collective.id,
           PaymentMethodId: paymentMethod.id,
-          SubscriptionId: sub.id
-        }))
+          SubscriptionId: sub.id,
+        }));
 
-      const res = await utils.graphqlQuery(cancelSubscriptionQuery, { id: order2.id}, user);
+      const res = await utils.graphqlQuery(cancelSubscriptionQuery, { id: order2.id }, user);
 
       expect(res.errors).to.exist;
-      expect(res.errors[0].message).to.equal('Subscription already canceled')
-    })
+      expect(res.errors[0].message).to.equal('Subscription already canceled');
+    });
 
     it('succeeds in canceling the subscription', async () => {
-      const res = await utils.graphqlQuery(cancelSubscriptionQuery, {id:order.id}, user);
+      const res = await utils.graphqlQuery(cancelSubscriptionQuery, { id:order.id }, user);
 
       expect(res.errors).to.not.exist;
 
-      const orders = await models.Order.findAll({ include: [{ model: models.Subscription}]})
+      const orders = await models.Order.findAll({ include: [{ model: models.Subscription }] });
 
       // check that subscription is updated in database
       expect(orders[0].Subscription.isActive).to.equal(false);
       expect(orders[0].Subscription.deactivatedAt).to.not.equal(null);
 
       // check that activity is created
-      const activity = await models.Activity.findOne({where: {type: 'subscription.canceled'}});
+      const activity = await models.Activity.findOne({ where: { type: 'subscription.canceled' } });
 
       expect(activity).to.be.defined;
       expect(activity.CollectiveId).to.be.equal(collective.id);

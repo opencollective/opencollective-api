@@ -23,11 +23,11 @@ describe('lib.payments.test.js', () => {
   let host, user, user2, collective, order, collective2, sandbox, emailSendSpy;
 
   before(() => {
-    nock('http://data.fixer.io', {"encodedQueryParams":true})
+    nock('http://data.fixer.io', { 'encodedQueryParams':true })
     .get('/latest')
     .times(19)
-    .query({ access_key: config.fixer.accessKey, base: 'EUR', symbols: 'USD'})
-    .reply(200, {"base":"EUR","date":"2017-10-05","rates":{"USD":1.1742}});
+    .query({ access_key: config.fixer.accessKey, base: 'EUR', symbols: 'USD' })
+    .reply(200, { 'base':'EUR','date':'2017-10-05','rates':{ 'USD':1.1742 } });
   });
 
   after(() => {
@@ -38,10 +38,10 @@ describe('lib.payments.test.js', () => {
 
   beforeEach(() => {
     sandbox = sinon.createSandbox();
-    sandbox.stub(stripe, "createCustomer").callsFake(() => Promise.resolve({ id: "cus_BM7mGwp1Ea8RtL"}));
-    sandbox.stub(stripe, "createToken").callsFake(() => Promise.resolve({ id: "tok_1AzPXGD8MNtzsDcgwaltZuvp"}));
-    sandbox.stub(stripe, "createCharge").callsFake(() => Promise.resolve({ id: "ch_1AzPXHD8MNtzsDcgXpUhv4pm"}));
-    sandbox.stub(stripe, "retrieveBalanceTransaction").callsFake(() => Promise.resolve(stripeMocks.balance));
+    sandbox.stub(stripe, 'createCustomer').callsFake(() => Promise.resolve({ id: 'cus_BM7mGwp1Ea8RtL' }));
+    sandbox.stub(stripe, 'createToken').callsFake(() => Promise.resolve({ id: 'tok_1AzPXGD8MNtzsDcgwaltZuvp' }));
+    sandbox.stub(stripe, 'createCharge').callsFake(() => Promise.resolve({ id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' }));
+    sandbox.stub(stripe, 'retrieveBalanceTransaction').callsFake(() => Promise.resolve(stripeMocks.balance));
     emailSendSpy = sandbox.spy(emailLib, 'send');
   });
 
@@ -54,7 +54,7 @@ describe('lib.payments.test.js', () => {
   });
 
   beforeEach('create a user', () => models.User.createUserWithCollective(userData).then(u => user = u));
-  beforeEach('create a user', () => models.User.createUserWithCollective({ email: EMAIL, name: "anotheruser"}).then(u => user2 = u));
+  beforeEach('create a user', () => models.User.createUserWithCollective({ email: EMAIL, name: 'anotheruser' }).then(u => user2 = u));
   beforeEach('create a host', () => models.User.createUserWithCollective(utils.data('host1')).then(u => host = u));
   beforeEach('create a collective', () => models.Collective.create(utils.data('collective1')).then(g => collective = g));
   beforeEach('create a collective', () => models.Collective.create(utils.data('collective2')).then(g => collective2 = g));
@@ -63,8 +63,8 @@ describe('lib.payments.test.js', () => {
     FromCollectiveId: user.CollectiveId,
     CollectiveId: collective.id,
     totalAmount: AMOUNT,
-    currency: CURRENCY
-  }).then(o => o.setPaymentMethod({ token: STRIPE_TOKEN })).then(t => order = t))
+    currency: CURRENCY,
+  }).then(o => o.setPaymentMethod({ token: STRIPE_TOKEN })).then(t => order = t));
   beforeEach('add host to collective', () => collective.addHost(host.collective));
   beforeEach('add host to collective2', () => collective2.addHost(host.collective));
 
@@ -72,7 +72,7 @@ describe('lib.payments.test.js', () => {
     models.ConnectedAccount.create({
       service: 'stripe',
       token: 'abc',
-      CollectiveId: host.collective.id
+      CollectiveId: host.collective.id,
     })
     .tap(() => done())
     .catch(done);
@@ -125,10 +125,10 @@ describe('lib.payments.test.js', () => {
           return payments
             .executeOrder(user, order)
             .catch(err => expect(err.message).to.equal('The host for the anotheruser collective has no Stripe account set up (HostCollectiveId: null)'));
-        })
+        });
 
         it('if stripe has live key and not in production', () => models.ConnectedAccount
-          .update({ service: 'stripe', token: 'sk_live_abc' }, { where: { CollectiveId: host.CollectiveId }})
+          .update({ service: 'stripe', token: 'sk_live_abc' }, { where: { CollectiveId: host.CollectiveId } })
           .then(() => payments.executeOrder(user, order))
           .catch(err => expect(err.message).to.contain('You can\'t use a Stripe live key')));
       });
@@ -147,12 +147,12 @@ describe('lib.payments.test.js', () => {
               amount: 10000,
               type: 'CREDIT',
               PaymentMethodId: order.PaymentMethodId,
-              HostCollectiveId: host.CollectiveId
+              HostCollectiveId: host.CollectiveId,
             }));
             beforeEach('execute order', () => payments.executeOrder(user, order));
 
             it('successfully creates a paymentMethod with the CreatedByUserId', () => models.PaymentMethod
-              .findAndCountAll({ where: { CreatedByUserId: user.id }})
+              .findAndCountAll({ where: { CreatedByUserId: user.id } })
               .then((res) => {
                 expect(res.count).to.equal(1);
                 expect(res.rows[0]).to.have.property('token', STRIPE_TOKEN);
@@ -174,8 +174,8 @@ describe('lib.payments.test.js', () => {
               where: {
                 MemberCollectiveId: user.CollectiveId,
                 CollectiveId: collective.id,
-                role: roles.BACKER
-              }
+                role: roles.BACKER,
+              },
             }).then(member => {
               expect(member).to.exist;
             }));
@@ -204,7 +204,7 @@ describe('lib.payments.test.js', () => {
 
             it('does not re-create a paymentMethod', (done) => {
               models.PaymentMethod
-                .findAndCountAll({ where: { CreatedByUserId: user.id }})
+                .findAndCountAll({ where: { CreatedByUserId: user.id } })
                 .then((res) => {
                   expect(res.count).to.equal(1);
                   done();
@@ -223,18 +223,18 @@ describe('lib.payments.test.js', () => {
               FromCollectiveId: user2.CollectiveId,
               CollectiveId: collective2.id,
               totalAmount: AMOUNT2,
-              currency: collective2.currency
+              currency: collective2.currency,
             })
             .then(o => o.setPaymentMethod({ token: STRIPE_TOKEN }))
-            .then(o => order2 = o))
+            .then(o => order2 = o));
 
           beforeEach('execute order', () => {
             order2.interval = 'month';
-            return payments.executeOrder(user, order2)
+            return payments.executeOrder(user, order2);
           });
 
           it('successfully creates a paymentMethod', () => models.PaymentMethod
-            .findAndCountAll({ where: { CreatedByUserId: user2.id }})
+            .findAndCountAll({ where: { CreatedByUserId: user2.id } })
             .then((res) => {
               expect(res.count).to.equal(1);
             }));
@@ -295,8 +295,8 @@ describe('lib.payments.test.js', () => {
           platformFeeInHostCurrency: 250,
           paymentProcessorFeeInHostCurrency: 175,
           description: 'Monthly subscription to Webpack',
-          data: { charge: { id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' } }
-        }
+          data: { charge: { id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' } },
+        },
       });
 
       // When the refund transaction is created
@@ -304,7 +304,7 @@ describe('lib.payments.test.js', () => {
 
       // And when transactions for that order are retrieved
       const allTransactions = await models.Transaction.findAll({ where: {
-        OrderId: order.id
+        OrderId: order.id,
       } });
 
       // Then there should be 4 transactions in total under that order id
