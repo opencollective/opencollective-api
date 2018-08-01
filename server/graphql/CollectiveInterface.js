@@ -409,7 +409,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
         return CollectiveCollectiveType;
 
       case types.BOT:
-        return CollectiveCollectiveType;
+        return BotCollectiveType;
 
       case types.USER:
         return UserCollectiveType;
@@ -1143,6 +1143,13 @@ export const OrganizationCollectiveType = new GraphQLObjectType({
 export const EventCollectiveType = new GraphQLObjectType({
   name: 'Event',
   description: 'This represents an Event Collective',
+  interfaces: [ CollectiveInterfaceType ],
+  fields: CollectiveFields
+});
+
+export const BotCollectiveType = new GraphQLObjectType({
+  name: 'Bot',
+  description: 'This represents a Bot Collective',
   interfaces: [ CollectiveInterfaceType ],
   fields: CollectiveFields
 });
