@@ -15,7 +15,7 @@ import {
 import {
   CollectiveInterfaceType,
   CollectiveSearchResultsType,
-  TypeOfCollectiveType,
+  CollectiveTypeType,
   CollectiveOrderFieldType,
 } from './CollectiveInterface';
 
@@ -561,7 +561,7 @@ const queries = {
     args: {
       tags: { type: new GraphQLList(GraphQLString) },
       type: {
-        type: TypeOfCollectiveType,
+        type: CollectiveTypeType,
         description: "COLLECTIVE, USER, ORGANIZATION, EVENT"
       },
       HostCollectiveId: { type: GraphQLInt },

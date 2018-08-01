@@ -34,17 +34,6 @@ import models, { Op } from '../models';
 import roles from '../constants/roles';
 import { get } from 'lodash';
 
-export const TypeOfCollectiveType = new GraphQLEnumType({
-  name: 'TypeOfCollective',
-  values: {
-    COLLECTIVE: {},
-    EVENT: {},
-    ORGANIZATION: {},
-    USER: {},
-    BOT: {},
-  },
-});
-
 export const CollectiveOrderFieldType = new GraphQLEnumType({
   name: 'CollectiveOrderField',
   description: 'Properties by which collectives can be ordered.',
@@ -584,6 +573,7 @@ const CollectiveTypeType = new GraphQLEnumType({
     COLLECTIVE: {},
     USER: {},
     EVENT: {},
+    BOT: {},
   }
 });
 
