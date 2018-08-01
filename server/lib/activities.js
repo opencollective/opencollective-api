@@ -101,13 +101,13 @@ export default {
         break;
 
       case activities.COLLECTIVE_EXPENSE_CREATED:
-        return `New Expense: ${userString} submitted an expense to ${collective}: ${currency} ${amount} for ${description}!`
+        return `New Expense: ${userString} submitted an expense to ${collective}: ${currency} ${amount} for ${description}!`;
 
       case activities.COLLECTIVE_EXPENSE_REJECTED:
-        return `Expense rejected: ${currency} ${amount} for ${description} in ${collective} by userId: ${lastEditedById}!`
+        return `Expense rejected: ${currency} ${amount} for ${description} in ${collective} by userId: ${lastEditedById}!`;
 
       case activities.COLLECTIVE_EXPENSE_APPROVED:
-        return `Expense approved: ${currency} ${amount} for ${description} in ${collective} by userId: ${lastEditedById}!`
+        return `Expense approved: ${currency} ${amount} for ${description} in ${collective} by userId: ${lastEditedById}!`;
 
       case activities.CONNECTED_ACCOUNT_CREATED:
         return `New Connected Account created by ${connectedAccountUsername} on ${service}. ${connectedAccountLink}`;
@@ -119,7 +119,7 @@ export default {
           const remaining = Number(details.maxTotalAmountOfAllPayments) - Number(details.curPaymentsAmount);
           remainingClause = `(${remaining} ${currency} remaining on preapproval key)`;
         } else {
-          remainingClause = `[Manual payment]`;
+          remainingClause = '[Manual payment]';
         }
         return `Expense paid on ${collective}: ${currency} ${amount} for '${description}' ${remainingClause}`;
       }
@@ -231,25 +231,25 @@ export default {
           case TransactionTypes.CREDIT:
             if (userTwitter) {
               tweet = encodeURIComponent(`@${userTwitter} thanks for your ${currencies[currency].format(recurringAmount)} donation to ${collectiveTwitter ? `@${collectiveTwitter}` : collectiveName} 👍 ${publicUrl}`);
-              tweetLink = linkify(format, `https://twitter.com/intent/tweet?status=${tweet}`,"Thank that person on Twitter");
+              tweetLink = linkify(format, `https://twitter.com/intent/tweet?status=${tweet}`,'Thank that person on Twitter');
               tweetThis = ` [${tweetLink}]`;
             }
             return `New Donation: ${userString} gave ${currency} ${amount} to ${collective}!${tweetThis}`;
 
           case TransactionTypes.DEBIT:
-            return `New Expense: ${userString} submitted an expense to ${collective}: ${currency} ${amount} for ${description}!`
+            return `New Expense: ${userString} submitted an expense to ${collective}: ${currency} ${amount} for ${description}!`;
         }
 
         break;
 
       case activities.COLLECTIVE_EXPENSE_CREATED:
-        return `New Expense: ${userString} submitted an expense to ${collective}: ${currency} ${amount} for ${description}!`
+        return `New Expense: ${userString} submitted an expense to ${collective}: ${currency} ${amount} for ${description}!`;
 
       case activities.COLLECTIVE_EXPENSE_REJECTED:
-        return `Expense rejected: ${currency} ${amount} for ${description} in ${collective}!`
+        return `Expense rejected: ${currency} ${amount} for ${description} in ${collective}!`;
 
       case activities.COLLECTIVE_EXPENSE_APPROVED:
-        return `Expense approved: ${currency} ${amount} for ${description} in ${collective}!`
+        return `Expense approved: ${currency} ${amount} for ${description} in ${collective}!`;
 
       case activities.COLLECTIVE_EXPENSE_PAID:
         return `Expense paid on ${collective}: ${currency} ${amount} for '${description}'`;
@@ -257,7 +257,7 @@ export default {
       case activities.SUBSCRIPTION_CONFIRMED:
         if (userTwitter) {
           tweet = encodeURIComponent(`@${userTwitter} thanks for your ${currencies[currency].format(recurringAmount)} donation to ${collectiveTwitter ? `@${collectiveTwitter}` : collectiveName} 👍 ${publicUrl}`);
-          tweetLink = linkify(format, `https://twitter.com/intent/tweet?status=${tweet}`,"Thank that person on Twitter");
+          tweetLink = linkify(format, `https://twitter.com/intent/tweet?status=${tweet}`,'Thank that person on Twitter');
           tweetThis = ` [${tweetLink}]`;
         }
         return `New subscription confirmed: ${currency} ${recurringAmount} from ${userString} to ${collective}!${tweetThis}`;
@@ -276,8 +276,8 @@ export default {
       .filter(key => flattenedData[key])
       .map(key => `${key}: ${flattenedData[key]}`);
     return rows.join('\n');
-  }
-}
+  },
+};
 
 /**
  * Generates a url for Slack
@@ -298,7 +298,7 @@ const linkify = (format, link, text) => {
     default:
       return `[${text}](${link})`;
   }
-}
+};
 
 /**
  * Generates a userString given a user's info
@@ -319,4 +319,4 @@ const getUserString = (format, userCollective, email) => {
     returnVal += ` (${email})`;
   }
   return returnVal;
-}
+};

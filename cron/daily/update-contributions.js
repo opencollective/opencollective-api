@@ -5,7 +5,7 @@ import models from '../../server/models';
 const _ = require('lodash'); //eslint-disable-line import/no-commonjs
 
 Promise.longStackTraces();
-const client = GitHubClient({logLevel: 'verbose'});
+const client = GitHubClient({ logLevel: 'verbose' });
 const { log } = client; // repurpose the logger
 const { Collective } = models;
 
@@ -16,8 +16,8 @@ const { Collective } = models;
 
 Collective.findAll({
   where: {
-    type: "COLLECTIVE"
-  }
+    type: 'COLLECTIVE',
+  },
 })
   .tap(collectives => {
     log.verbose('collectives', `Found ${collectives.length} collective(s) to inspect`);
@@ -26,13 +26,13 @@ Collective.findAll({
     const org = _.get(collective, 'settings.githubOrg');
     const repoLink = _.get(collective, 'settings.githubRepo');
     if (!org && !repoLink) {
-      log.warn(collective.name, `No GitHub org or repo associated`);
+      log.warn(collective.name, 'No GitHub org or repo associated');
       return;
     }
     let fetchPromise;
 
     if (org) {
-      fetchPromise = client.contributorsInOrg({orgs: [org]})
+      fetchPromise = client.contributorsInOrg({ orgs: [org] })
         .get(org)
         .then(repos => {
           const data = {};
@@ -49,7 +49,7 @@ Collective.findAll({
               .map('stars')
               .reduce((sum, n) => {
                 return sum + n;
-              }, 0)
+              }, 0);
           return data;
         });
     } else {
@@ -60,13 +60,13 @@ Collective.findAll({
       }
       const options = {
         user: split[0],
-        repo: split[1]
-      }
+        repo: split[1],
+      };
       fetchPromise = client.contributorsForRepo(options)
         .then(data => {
           const contributorData = {};
           data.map(dataEntry => contributorData[dataEntry.user] = dataEntry.contributions);
-          return {contributorData}
+          return { contributorData };
         });
     }
 
@@ -74,13 +74,13 @@ Collective.findAll({
       .then(githubData => {
         const data =_.assign(collective.data || {}, {
           githubContributors: githubData.contributorData,
-          repos: githubData.repoData
+          repos: githubData.repoData,
         });
         return collective.update({ data });
       })
       .then(() => {
         log.info(collective.name,
-          `Successfully updated contribution data`);
+          'Successfully updated contribution data');
       })
       .catch(err => {
         log.error(collective.name, err.stack);

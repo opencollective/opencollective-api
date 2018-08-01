@@ -8,7 +8,7 @@ import {
   GraphQLNonNull,
   GraphQLString,
   GraphQLScalarType,
-  GraphQLError
+  GraphQLError,
 } from 'graphql';
 
 import GraphQLJSON from 'graphql-type-json';
@@ -34,7 +34,7 @@ const EmailType = new GraphQLScalarType({
       }
 
       return ast.value;
-    }
+    },
 });
 
 export const PaymentMethodInputType = new GraphQLInputObjectType({
@@ -45,15 +45,15 @@ export const PaymentMethodInputType = new GraphQLInputObjectType({
     uuid: { type: GraphQLString }, // used to fetch an existing payment method
     token: { type: GraphQLString },
     service: { type: GraphQLString },
-    type: { type: GraphQLString, description: "creditcard or bitcoin" },
+    type: { type: GraphQLString, description: 'creditcard or bitcoin' },
     customerId: { type: GraphQLString },
     data: { type: GraphQLJSON },
     name: { type: GraphQLString },
     primary: { type: GraphQLBoolean },
     monthlyLimitPerMember: { type: GraphQLInt },
     currency: { type: GraphQLString },
-    save: { type: GraphQLBoolean }
-  })
+    save: { type: GraphQLBoolean },
+  }),
 });
 
 export const UserInputType = new GraphQLInputObjectType({
@@ -73,7 +73,7 @@ export const UserInputType = new GraphQLInputObjectType({
       website: { type: GraphQLString },
       paypalEmail: { type: GraphQLString },
       newsletterOptIn: { type: GraphQLBoolean },
-  })
+  }),
 });
 
 export const MemberInputType = new GraphQLInputObjectType({
@@ -84,8 +84,8 @@ export const MemberInputType = new GraphQLInputObjectType({
       member: { type: CollectiveAttributesInputType },
       collective: { type: CollectiveAttributesInputType },
       role: { type: GraphQLString },
-      description: { type: GraphQLString }
-  })
+      description: { type: GraphQLString },
+  }),
 });
 
 export const CollectiveInputType = new GraphQLInputObjectType({
@@ -102,7 +102,7 @@ export const CollectiveInputType = new GraphQLInputObjectType({
     description: { type: GraphQLString },
     longDescription: { type: GraphQLString },
     expensePolicy: { type: GraphQLString },
-    location: { type: LocationInputType},
+    location: { type: LocationInputType },
     startsAt: { type: GraphQLString },
     endsAt: { type: GraphQLString },
     timezone: { type: GraphQLString },
@@ -121,8 +121,8 @@ export const CollectiveInputType = new GraphQLInputObjectType({
     // not very logical to have this here. Might need some refactoring. Used to add/edit members and to create a new user on a new order
     email: { type: GraphQLString },
     firstName: { type: GraphQLString },
-    lastName: { type: GraphQLString }
-  })
+    lastName: { type: GraphQLString },
+  }),
 });
 
 export const ConnectedAccountInputType = new GraphQLInputObjectType({
@@ -130,8 +130,8 @@ export const ConnectedAccountInputType = new GraphQLInputObjectType({
   description: 'Input type for ConnectedAccountInputType',
   fields: () => ({
     id: { type: GraphQLInt },
-    settings: { type: GraphQLJSON }
-  })
+    settings: { type: GraphQLJSON },
+  }),
 });
 
 export const CollectiveAttributesInputType = new GraphQLInputObjectType({
@@ -156,9 +156,9 @@ export const CollectiveAttributesInputType = new GraphQLInputObjectType({
     endsAt: { type: GraphQLString },
     timezone: { type: GraphQLString },
     maxAmount: { type: GraphQLInt },
-    currency: { type: GraphQLString},
-    settings: { type: GraphQLJSON }
-  })
+    currency: { type: GraphQLString },
+    settings: { type: GraphQLJSON },
+  }),
 });
 
 export const LocationInputType = new GraphQLInputObjectType({
@@ -168,8 +168,8 @@ export const LocationInputType = new GraphQLInputObjectType({
     name: { type: GraphQLString },
     address: { type: GraphQLString },
     lat: { type: GraphQLFloat },
-    long: { type: GraphQLFloat }
-  })
+    long: { type: GraphQLFloat },
+  }),
 });
 
 export const TierInputType = new GraphQLInputObjectType({
@@ -190,7 +190,7 @@ export const TierInputType = new GraphQLInputObjectType({
     password: { type: GraphQLString },
     startsAt: { type: GraphQLString },
     endsAt: { type: GraphQLString },
-  })
+  }),
 });
 
 export const OrderInputType = new GraphQLInputObjectType({
@@ -207,13 +207,13 @@ export const OrderInputType = new GraphQLInputObjectType({
     publicMessage: { type: GraphQLString },
     privateMessage: { type: GraphQLString },
     paymentMethod: { type: PaymentMethodInputType },
-    matchingFund: { type: GraphQLString, description: "The first part of the UUID of the PaymentMethod that can be used to match the donation" },
-    referral: { type: CollectiveAttributesInputType, description: "The referral collective" },
+    matchingFund: { type: GraphQLString, description: 'The first part of the UUID of the PaymentMethod that can be used to match the donation' },
+    referral: { type: CollectiveAttributesInputType, description: 'The referral collective' },
     user: { type: UserInputType },
     fromCollective: { type: CollectiveAttributesInputType },
     collective: { type: new GraphQLNonNull(CollectiveAttributesInputType) },
-    tier: { type: TierInputType }
-  })
+    tier: { type: TierInputType },
+  }),
 });
 
 export const CommentInputType = new GraphQLInputObjectType({
@@ -226,8 +226,8 @@ export const CommentInputType = new GraphQLInputObjectType({
     FromCollectiveId: { type: new GraphQLNonNull(GraphQLInt) },
     CollectiveId: { type: new GraphQLNonNull(GraphQLInt) },
     ExpenseId: { type: GraphQLInt },
-    UpdateId: { type: GraphQLInt }
-  })
+    UpdateId: { type: GraphQLInt },
+  }),
 });
 
 export const CommentAttributesInputType = new GraphQLInputObjectType({
@@ -240,8 +240,8 @@ export const CommentAttributesInputType = new GraphQLInputObjectType({
     FromCollectiveId: { type: GraphQLInt },
     CollectiveId: { type: GraphQLInt },
     ExpenseId: { type: GraphQLInt },
-    UpdateId: { type: GraphQLInt }
-  })
+    UpdateId: { type: GraphQLInt },
+  }),
 });
 
 export const UpdateInputType = new GraphQLInputObjectType({
@@ -257,8 +257,8 @@ export const UpdateInputType = new GraphQLInputObjectType({
     html: { type: GraphQLString },
     fromCollective: { type: CollectiveAttributesInputType },
     collective: { type: new GraphQLNonNull(CollectiveAttributesInputType) },
-    tier: { type: TierInputType }
-  })
+    tier: { type: TierInputType },
+  }),
 });
 
 export const UpdateAttributesInputType = new GraphQLInputObjectType({
@@ -273,8 +273,8 @@ export const UpdateAttributesInputType = new GraphQLInputObjectType({
     markdown: { type: GraphQLString },
     html: { type: GraphQLString },
     fromCollective: { type: CollectiveAttributesInputType },
-    tier: { type: TierInputType }
-  })
+    tier: { type: TierInputType },
+  }),
 });
 
 export const ExpenseInputType = new GraphQLInputObjectType({
@@ -292,12 +292,12 @@ export const ExpenseInputType = new GraphQLInputObjectType({
       status: { type: GraphQLString },
       payoutMethod: {
         type: GraphQLString,
-        description: "Can be paypal, donation, manual, other"
+        description: 'Can be paypal, donation, manual, other',
       },
       privateMessage: { type: GraphQLString },
       attachment: { type: GraphQLString },
       user: { type: UserInputType },
-      collective: { type: CollectiveAttributesInputType }
-    }
-  }
+      collective: { type: CollectiveAttributesInputType },
+    };
+  },
 });

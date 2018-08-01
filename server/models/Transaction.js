@@ -10,7 +10,7 @@ import { toNegative } from '../lib/math';
 import { exportToCSV } from '../lib/utils';
 import { get } from 'lodash';
 
-const debug = debugLib("transaction");
+const debug = debugLib('transaction');
 
 /*
  * Transaction model
@@ -27,7 +27,7 @@ export default (Sequelize, DataTypes) => {
     uuid: {
       type: DataTypes.UUID,
       defaultValue: DataTypes.UUIDV4,
-      unique: true
+      unique: true,
     },
 
     description: DataTypes.STRING,
@@ -39,11 +39,11 @@ export default (Sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       references: {
         model: 'Users',
-        key: 'id'
+        key: 'id',
       },
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
-      allowNull: false
+      allowNull: false,
     },
 
     // Source of the money for a DEBIT
@@ -52,22 +52,22 @@ export default (Sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       references: {
         model: 'Collectives',
-        key: 'id'
+        key: 'id',
       },
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
-      allowNull: true // when a host adds funds, we need to create a transaction to add money to the system (to the host collective)
+      allowNull: true, // when a host adds funds, we need to create a transaction to add money to the system (to the host collective)
     },
 
     CollectiveId: {
       type: DataTypes.INTEGER,
       references: {
         model: 'Collectives',
-        key: 'id'
+        key: 'id',
       },
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
-      allowNull: false
+      allowNull: false,
     },
 
     // Keeps a reference to the host because this is where the bank account is
@@ -76,22 +76,22 @@ export default (Sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       references: {
         model: 'Collectives',
-        key: 'id'
+        key: 'id',
       },
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
-      allowNull: true // the opposite transaction that records the CREDIT to the User that submitted an expense doesn't have a HostCollectiveId, see https://github.com/opencollective/opencollective/issues/1154
+      allowNull: true, // the opposite transaction that records the CREDIT to the User that submitted an expense doesn't have a HostCollectiveId, see https://github.com/opencollective/opencollective/issues/1154
     },
 
     OrderId: {
       type: DataTypes.INTEGER,
       references: {
         model: 'Orders',
-        key: 'id'
+        key: 'id',
       },
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
-      allowNull: true
+      allowNull: true,
     },
 
     // Refactor: an Expense should be an Order
@@ -99,11 +99,11 @@ export default (Sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       references: {
         model: 'Expenses',
-        key: 'id'
+        key: 'id',
       },
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
-      allowNull: true
+      allowNull: true,
     },
 
     // stores the currency that the transaction happened in (currency of the host)
@@ -113,7 +113,7 @@ export default (Sequelize, DataTypes) => {
         if (val && val.toUpperCase) {
           this.setDataValue('hostCurrency', val.toUpperCase());
         }
-      }
+      },
     },
 
     // stores the foreign exchange rate at the time of transaction between donation currency and transaction currency
@@ -137,17 +137,17 @@ export default (Sequelize, DataTypes) => {
 
     RefundTransactionId: {
       type: DataTypes.INTEGER,
-      references: { model: 'Transactions',  key: 'id' }
+      references: { model: 'Transactions',  key: 'id' },
     },
 
     createdAt: {
       type: DataTypes.DATE,
-      defaultValue: Sequelize.NOW
+      defaultValue: Sequelize.NOW,
     },
 
     deletedAt: {
-      type: DataTypes.DATE
-    }
+      type: DataTypes.DATE,
+    },
   }, {
     paranoid: true,
 
@@ -181,9 +181,9 @@ export default (Sequelize, DataTypes) => {
           netAmountInCollectiveCurrency: this.netAmountInCollectiveCurrency,
           netAmountInHostCurrency: this.netAmountInHostCurrency,
           amountSentToHostInHostCurrency: this.amountSentToHostInHostCurrency,
-          hostCurrency: this.hostCurrency
+          hostCurrency: this.hostCurrency,
         };
-      }
+      },
     },
 
     hooks: {
@@ -191,8 +191,8 @@ export default (Sequelize, DataTypes) => {
         Transaction.createActivity(transaction);
         // intentionally returns null, needs to be async (https://github.com/petkaantonov/bluebird/blob/master/docs/docs/warning-explanations.md#warning-a-promise-was-created-in-a-handler-but-was-not-returned-from-it)
         return null;
-      }
-    }
+      },
+    },
   });
 
   /**
@@ -234,8 +234,8 @@ export default (Sequelize, DataTypes) => {
         } else {
           return null;
         }
-      })
-  }
+      });
+  };
 
   Transaction.prototype.getRefundTransaction = function() {
     if (!this.RefundTransactionId) return null;
@@ -265,27 +265,27 @@ export default (Sequelize, DataTypes) => {
 
   Transaction.exportCSV = (transactions, collectivesById) => {
     const getColumnName = (attr) => {
-      if (attr === 'CollectiveId') return "collective";
-      if (attr === 'Expense.privateMessage') return "private note";
+      if (attr === 'CollectiveId') return 'collective';
+      if (attr === 'Expense.privateMessage') return 'private note';
       else return attr;
-    }
+    };
 
     const processValue = (attr, value) => {
-      if (attr === "CollectiveId") return get(collectivesById[value], 'slug');
+      if (attr === 'CollectiveId') return get(collectivesById[value], 'slug');
       if (['amount', 'netAmountInCollectiveCurrency', 'paymentProcessorFeeInHostCurrency', 'hostFeeInHostCurrency', 'platformFeeInHostCurrency', 'netAmountInHostCurrency'].indexOf(attr) !== -1) {
         return value / 100; // converts cents
       }
       return value;
-    }
+    };
 
     return exportToCSV(transactions,
       [
         'id', 'createdAt', 'CollectiveId', 'amount', 'currency', 'description', 'netAmountInCollectiveCurrency', 'hostCurrency', 'hostCurrencyFxRate',
-        'paymentProcessorFeeInHostCurrency', 'hostFeeInHostCurrency', 'platformFeeInHostCurrency', 'netAmountInHostCurrency', 'Expense.privateMessage'
+        'paymentProcessorFeeInHostCurrency', 'hostFeeInHostCurrency', 'platformFeeInHostCurrency', 'netAmountInHostCurrency', 'Expense.privateMessage',
       ],
       getColumnName,
       processValue);
-  }
+  };
 
   /**
    * Create the opposite transaction from the perspective of the FromCollective
@@ -337,10 +337,10 @@ export default (Sequelize, DataTypes) => {
       amountInHostCurrency: -transaction.netAmountInCollectiveCurrency * transaction.hostCurrencyFxRate,
       hostFeeInHostCurrency: transaction.hostFeeInHostCurrency,
       platformFeeInHostCurrency: transaction.platformFeeInHostCurrency,
-      paymentProcessorFeeInHostCurrency: transaction.paymentProcessorFeeInHostCurrency
+      paymentProcessorFeeInHostCurrency: transaction.paymentProcessorFeeInHostCurrency,
     };
 
-    debug("createDoubleEntry", transaction, "opposite", oppositeTransaction);
+    debug('createDoubleEntry', transaction, 'opposite', oppositeTransaction);
 
     // We first record the negative transaction
     // and only then we can create the transaction to add money somewhere else
@@ -361,7 +361,7 @@ export default (Sequelize, DataTypes) => {
   Transaction.createFromPayload = ({ CreatedByUserId, FromCollectiveId, CollectiveId, transaction, PaymentMethodId }) => {
 
     if (!transaction.amount) {
-      return Promise.reject(new Error("transaction.amount cannot be null or zero"));
+      return Promise.reject(new Error('transaction.amount cannot be null or zero'));
     }
 
     return models.Collective.findById(CollectiveId)
@@ -402,8 +402,8 @@ export default (Sequelize, DataTypes) => {
         { model: models.Collective, as: 'fromCollective' },
         { model: models.Collective, as: 'collective' },
         { model: models.User, as: 'createdByUser' },
-        { model: models.PaymentMethod }
-      ]
+        { model: models.PaymentMethod },
+      ],
     })
     // Create activity.
     .then(transaction => {
@@ -417,8 +417,8 @@ export default (Sequelize, DataTypes) => {
           transaction: transaction.info,
           user: transaction.User && transaction.User.minimal,
           fromCollective: transaction.fromCollective && transaction.fromCollective.minimal,
-          collective: transaction.collective && transaction.collective.minimal
-        }
+          collective: transaction.collective && transaction.collective.minimal,
+        },
       };
       if (transaction.createdByUser) {
         activityPayload.data.user = transaction.createdByUser.info;

@@ -81,11 +81,11 @@ export async function processOrder(order) {
       paymentProcessorFeeInHostCurrency: 0,
       description: order.paymentMethod.name,
       HostCollectiveId,
-    }
+    },
   });
 
   // mark gift card as used, so no one can use it again
-  await order.paymentMethod.update({archivedAt: new Date()});
+  await order.paymentMethod.update({ archivedAt: new Date() });
 
   // create new payment method to allow User to use the money
   const newPaymentMethod = await models.PaymentMethod.create({
@@ -97,7 +97,7 @@ export async function processOrder(order) {
     CreatedByUserId: user.id,
     MonthlyLimitPerMember: originalPM.monthlyLimitPerMember,
     currency: originalPM.currency,
-    token: null // we don't pass the gift card token on
+    token: null, // we don't pass the gift card token on
   });
 
   // Use the above payment method to donate to Collective
@@ -122,12 +122,12 @@ export async function processOrder(order) {
       hostFeeInHostCurrency,
       platformFeeInHostCurrency,
       paymentProcessorFeeInHostCurrency: 0,
-      description: order.description
-    }
+      description: order.description,
+    },
   });
 
   // add roles
-  await order.collective.findOrAddUserWithRole({ id: user.id, CollectiveId: order.fromCollective.id}, roles.BACKER, {
+  await order.collective.findOrAddUserWithRole({ id: user.id, CollectiveId: order.fromCollective.id }, roles.BACKER, {
     CreatedByUserId: user.id, TierId: order.TierId,
   });
 
@@ -144,7 +144,7 @@ export async function processOrder(order) {
 export default {
   features: {
     recurring: true,
-    waitToCharge: false
+    waitToCharge: false,
   },
   getBalance,
   processOrder,

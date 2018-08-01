@@ -21,7 +21,7 @@ const startDate = new Date(`${d.getFullYear()-1}`);
 const endDate = new Date(`${d.getFullYear()}`);
 const year = startDate.getFullYear();
 
-console.log("startDate", startDate, "endDate", endDate);
+console.log('startDate', startDate, 'endDate', endDate);
 
 let platformStats, totalUsersProcessed = 0, totalUsersSkipped = 0;
 
@@ -73,34 +73,34 @@ const buildTweet = (fromCollective, collectives, totalDonations) => {
   }
 
   return tweet;
-}
+};
 
 const getPlatformStats = () => {
   return Promise.props({
     totalCollectives: queries.getTotalNumberOfActiveCollectives(startDate, endDate),
-    totalAnnualBudget: queries.getTotalAnnualBudget()
-  })
-}
+    totalAnnualBudget: queries.getTotalAnnualBudget(),
+  });
+};
 
 const processCollective = (collective) => {
   return sequelize.query(GetCollectiveTransactionsQuery, {
     type: sequelize.QueryTypes.SELECT,
-    replacements: { FromCollectiveId: collective.id, startDate, endDate }
+    replacements: { FromCollectiveId: collective.id, startDate, endDate },
   })
   .then(transactions => {
     if (!transactions || transactions.length === 0) {
       totalUsersSkipped++;
       return Promise.reject(`No transaction for ${collective.slug}, skipping`);
     }
-    console.log(">>> processing collective", collective.slug);
+    console.log('>>> processing collective', collective.slug);
     totalUsersProcessed++;
-    const hosts = { opencollective: { name: 'Platform fees'}, stripe: { name: 'Credit Card Processing Fees (Stripe)' } };
+    const hosts = { opencollective: { name: 'Platform fees' }, stripe: { name: 'Credit Card Processing Fees (Stripe)' } };
     const totalCollectives = transactions.length;
     const totalDonations = {};
     const collectivesBySlug = {};
     transactions.forEach(row => {
       if (!row.hostName) {
-        return console.log(">>> no hostname for", row);
+        return console.log('>>> no hostname for', row);
       }
       if (typeof hosts[row.hostSlug] === 'undefined') {
         hosts[row.hostSlug] = {
@@ -109,7 +109,7 @@ const processCollective = (collective) => {
           image: row.hostLogo,
           twitterHandle: row.hostTwitterHandle,
           description: row.hostDescription || row.hostMission,
-          collectivesBySlug: {}
+          collectivesBySlug: {},
         };
       }
 
@@ -123,7 +123,7 @@ const processCollective = (collective) => {
         settings: row.settings,
         data: row.data,
         totalDonations: Number(row.amountInHostCurrency),
-        currency: row.hostCurrency
+        currency: row.hostCurrency,
       };
 
       hosts[row.hostSlug].collectivesBySlug[row.slug] = collectivesBySlug[row.slug];
@@ -139,7 +139,7 @@ const processCollective = (collective) => {
       hosts[row.hostSlug]['totalFees'][row.hostCurrency] += Number(row.hostFeeInHostCurrency);
       hosts['opencollective']['totalFees'][row.hostCurrency] += Number(row.platformFeeInHostCurrency);
       hosts['stripe']['totalFees'][row.hostCurrency] += Number(row.paymentProcessorFeeInHostCurrency);
-    })
+    });
 
     for (const hostSlug in hosts) {
       if (!hosts[hostSlug].collectivesBySlug) continue;
@@ -170,8 +170,8 @@ const processCollective = (collective) => {
       fburl: `https://facebook.com/sharer.php?url=${encodeURIComponent(`https://opencollective.com/${collective.slug}?description=${encodeURIComponent(tweetText.substr(2))}`)}`,
       fees,
       hosts,
-      year
-    }
+      year,
+    };
   })
   .then(data => {
     return getUsers(collective).then(users => {
@@ -179,12 +179,12 @@ const processCollective = (collective) => {
       data.platformStats = platformStats;
       data.recipients = users.map(u => u.email);
       if (data.recipients.length > 1) {
-        console.log(">>> recipients for ", collective.type.toLowerCase(), collective.slug, ":", data.recipients);
+        console.log('>>> recipients for ', collective.type.toLowerCase(), collective.slug, ':', data.recipients);
       }
       if (data.recipients.length > 0) {
         return emailLib.send('user.yearlyreport', data.recipients, data);
       }
-    })
+    });
   })
   .catch(console.error);
 };
@@ -192,9 +192,9 @@ const processCollective = (collective) => {
 const getHosts = () => {
   return models.Member.findAll({
     attributes: [ [sequelize.fn('DISTINCT', sequelize.col('MemberCollectiveId')), 'MemberCollectiveId']],
-    where: { role: 'HOST' }
+    where: { role: 'HOST' },
   }).map(m => m.MemberCollectiveId);
-}
+};
 
 const getCollectives = () => {
   const where = {};
@@ -208,9 +208,9 @@ const getCollectives = () => {
   }
 
   return models.Collective.findAll({
-    where: { ...where, type: { [Op.in]: ['ORGANIZATION', 'USER'] }}
+    where: { ...where, type: { [Op.in]: ['ORGANIZATION', 'USER'] } },
   });
-}
+};
 
 const getUsers = (collective) => {
   return models.Notification.findAll({
@@ -218,8 +218,8 @@ const getUsers = (collective) => {
       channel: 'email',
       CollectiveId: collective.id,
       type: 'user.yearlyreport',
-      active: false
-    }
+      active: false,
+    },
   }).then(unsubscriptions => {
     const excludeUnsubscribed = {};
     const unsubscribedUserIds = unsubscriptions.map(u => u.UserId);
@@ -233,18 +233,18 @@ const getUsers = (collective) => {
     if (collective.type === 'USER') {
       return models.User.findAll({
         where: { CollectiveId: collective.id, ...excludeUnsubscribed },
-        include: [ { model: models.Collective, as: 'collective', attributes: ['slug', 'name'] } ]
+        include: [ { model: models.Collective, as: 'collective', attributes: ['slug', 'name'] } ],
       });
     } else if (collective.type === 'ORGANIZATION') {
       return models.Member.findAll({
-        where: { CollectiveId: collective.id, role: 'ADMIN' }
+        where: { CollectiveId: collective.id, role: 'ADMIN' },
       }).then(memberships => models.User.findAll({
         where: { CollectiveId: { [Op.in]: memberships.map(m => m.MemberCollectiveId) }, ...excludeUnsubscribed },
-        include: [ { model: models.Collective, as: 'collective', attributes: ['slug', 'name'] } ]
+        include: [ { model: models.Collective, as: 'collective', attributes: ['slug', 'name'] } ],
       }));
     }
   });
-}
+};
 
 const init = () => {
 
@@ -258,17 +258,17 @@ const init = () => {
   .map(collective => {
     if (hosts.indexOf(collective.id) !== -1) {
       totalUsersSkipped++;
-      return console.log(collective.slug, "is a host, skipping");
+      return console.log(collective.slug, 'is a host, skipping');
     }
     return processCollective(collective);
   })
   .then(() => {
     const timeLapsed = Math.round((new Date - startTime)/1000);
-    console.log(`Total user/organizations processed: `, totalUsersProcessed);
-    console.log(`Total user/organizations skipped: `, totalUsersSkipped);
+    console.log('Total user/organizations processed: ', totalUsersProcessed);
+    console.log('Total user/organizations skipped: ', totalUsersSkipped);
     console.log(`Total run time: ${timeLapsed}s`);
     process.exit(0);
   });
-}
+};
 
 init();

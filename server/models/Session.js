@@ -4,30 +4,30 @@ export default function(Sequelize, DataTypes) {
   const Session = Sequelize.define('Session', {
     sid: {
       type: DataTypes.STRING(32),
-      primaryKey: true
+      primaryKey: true,
     },
 
     expires: {
-      type: DataTypes.DATE
+      type: DataTypes.DATE,
     },
 
     data: {
-      type: DataTypes.TEXT
+      type: DataTypes.TEXT,
     },
 
     createdAt: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,
-      allowNull: false
+      allowNull: false,
     },
 
     updatedAt: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,
-      allowNull: false
-    }
+      allowNull: false,
+    },
   }, {
-    paranoid: true
+    paranoid: true,
   });
 
   return Session;

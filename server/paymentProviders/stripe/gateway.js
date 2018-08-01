@@ -15,7 +15,7 @@ export const appStripe = Stripe(config.stripe.secret);
  * Create a plan if it doesn not find it
  */
 export const getOrCreatePlan = (stripeAccount, plan) => {
-  debug(">>> stripe: createCharge using stripeAccount", { username: stripeAccount.username, CollectiveId: stripeAccount.CollectiveId }, "plan:", plan);
+  debug('>>> stripe: createCharge using stripeAccount', { username: stripeAccount.username, CollectiveId: stripeAccount.CollectiveId }, 'plan:', plan);
   const id = planId(plan);
 
   plan.id = id;
@@ -36,7 +36,7 @@ export const getOrCreatePlan = (stripeAccount, plan) => {
  * Create stripe subscription with plan
  */
 export const createSubscription = (stripeAccount, customerId, subscription) => {
-  debug("createSubscription");
+  debug('createSubscription');
   return appStripe.customers.createSubscription(customerId, subscription, { stripe_account: stripeAccount.username });
 };
 
@@ -44,7 +44,7 @@ export const createSubscription = (stripeAccount, customerId, subscription) => {
  * Retrieve stripe subscription
  */
 export const retrieveSubscription = (stripeAccount, stripeSubsriptionId) => {
-  debug("retrieveSubscription", "account", stripeAccount.username, "stripeSubsriptionId", stripeSubsriptionId)
+  debug('retrieveSubscription', 'account', stripeAccount.username, 'stripeSubsriptionId', stripeSubsriptionId);
   return appStripe.subscriptions.retrieve(stripeSubsriptionId, { stripe_account: stripeAccount.username });
 };
 
@@ -54,7 +54,7 @@ export const retrieveSubscription = (stripeAccount, stripeSubsriptionId) => {
 export const getSubscriptionsList = (stripeAccount, options = {}) => {
 
   const params = {
-    limit: options.limit || 10
+    limit: options.limit || 10,
   };
 
   if (options.startingAfter) {
@@ -69,7 +69,7 @@ export const getSubscriptionsList = (stripeAccount, options = {}) => {
     params.plan = options.plan;
   }
 
-  debug("getSubscriptionsList");
+  debug('getSubscriptionsList');
   return appStripe.subscriptions.list(params, { stripe_account: stripeAccount.username });
 };
 
@@ -77,7 +77,7 @@ export const getSubscriptionsList = (stripeAccount, options = {}) => {
  * Delete a subscription
  */
 export const cancelSubscription = (stripeAccount, stripeSubscriptionId) => {
-  debug("cancelSubscription");
+  debug('cancelSubscription');
   return appStripe.subscriptions.del(stripeSubscriptionId, { stripe_account: stripeAccount.username });
 };
 
@@ -101,7 +101,7 @@ export const createCustomer = (stripeAccount, token, options = {}) => {
  * Fetch customer
  */
 export const retrieveCustomer = (stripeAccount, customerId) => {
-  debug("retrieveCustomer");
+  debug('retrieveCustomer');
   return appStripe.customers.retrieve(customerId, { stripe_account: stripeAccount.username });
 };
 
@@ -110,7 +110,7 @@ export const retrieveCustomer = (stripeAccount, customerId) => {
  * Doc: https://stripe.com/docs/connect/shared-customers
  */
 export const createToken = (stripeAccount, customerId) => {
-  debug(">>> stripe: createToken using stripeAccount", { username: stripeAccount.username, CollectiveId: stripeAccount.CollectiveId }, "for customerId:", customerId);
+  debug('>>> stripe: createToken using stripeAccount', { username: stripeAccount.username, CollectiveId: stripeAccount.CollectiveId }, 'for customerId:', customerId);
   return appStripe.tokens.create({ customer: customerId }, { stripe_account: stripeAccount.username });
 };
 
@@ -118,7 +118,7 @@ export const createToken = (stripeAccount, customerId) => {
  * Create charge
  */
 export const createCharge = (stripeAccount, charge) => {
-  debug(">>> stripe: createCharge using stripeAccount", { username: stripeAccount.username, CollectiveId: stripeAccount.CollectiveId }, "charge:", charge);
+  debug('>>> stripe: createCharge using stripeAccount', { username: stripeAccount.username, CollectiveId: stripeAccount.CollectiveId }, 'charge:', charge);
   return appStripe.charges.create(charge, { stripe_account: stripeAccount.username });
 };
 
@@ -126,14 +126,14 @@ export const createCharge = (stripeAccount, charge) => {
  * Fetch charge
  */
 export const retrieveCharge = (stripeAccount, chargeId) => {
-  return appStripe.charges.retrieve(chargeId, { stripe_account: stripeAccount.username});
+  return appStripe.charges.retrieve(chargeId, { stripe_account: stripeAccount.username });
 };
 
 /** Refund a charge & the application fee */
 export const refundCharge = (stripeAccount, chargeId) => {
   return appStripe.refunds.create(
     { charge: chargeId, refund_application_fee: true },
-    { stripe_account: stripeAccount.username}
+    { stripe_account: stripeAccount.username }
   );
 };
 
@@ -141,7 +141,7 @@ export const refundCharge = (stripeAccount, chargeId) => {
  * Retrieve a balance transaction (for fees)
  */
 export const retrieveBalanceTransaction = (stripeAccount, txn) => {
-  debug("retrieveBalanceTransaction", { username: stripeAccount.username, CollectiveId: stripeAccount.CollectiveId }, txn);
+  debug('retrieveBalanceTransaction', { username: stripeAccount.username, CollectiveId: stripeAccount.CollectiveId }, txn);
   return appStripe.balance.retrieveTransaction(txn, { stripe_account: stripeAccount.username });
 };
 
@@ -149,15 +149,15 @@ export const retrieveBalanceTransaction = (stripeAccount, txn) => {
  * Retreive an event (for webhook)
  */
 export const retrieveEvent = (stripeAccount, eventId) => {
-  return appStripe.events.retrieve(eventId, { stripe_account: stripeAccount.username })
-}
+  return appStripe.events.retrieve(eventId, { stripe_account: stripeAccount.username });
+};
 
 export const extractFees = (balance) => {
   const fees = {
     total: balance.fee,
     stripeFee: 0,
     applicationFee: 0,
-    other: 0
+    other: 0,
   };
 
   balance.fee_details.forEach(fee => {

@@ -13,14 +13,14 @@ function getDate(date = 'latest') {
     const dd = date.getDate();
     date = [date.getFullYear(),
           (mm>9 ? '' : '0') + mm,
-          (dd>9 ? '' : '0') + dd
+          (dd>9 ? '' : '0') + dd,
          ].join('-');
   }
   return date;
 }
 
 export function getFxRate(fromCurrency, toCurrency, date = 'latest') {
-  debug(">>> getFxRate for ", date, fromCurrency, toCurrency);
+  debug('>>> getFxRate for ', date, fromCurrency, toCurrency);
 
   if (fromCurrency === toCurrency) return Promise.resolve(1);
   if (!fromCurrency || !toCurrency) return Promise.resolve(1);
@@ -34,7 +34,7 @@ export function getFxRate(fromCurrency, toCurrency, date = 'latest') {
   const key = `${dateKey}-${fromCurrency}-${toCurrency}`;
   if (cache[key]) return Promise.resolve(cache[key]);
   return new Promise((resolve, reject) => {
-    const params = { access_key: config.fixer.accessKey, base: fromCurrency, symbols: toCurrency }
+    const params = { access_key: config.fixer.accessKey, base: fromCurrency, symbols: toCurrency };
     const searchParams = Object.keys(params).map(key => `${key}=${params[key]}`).join('&');
     fetch(`http://data.fixer.io/${date}?${searchParams}`)
       .then(res => res.json())
@@ -45,20 +45,20 @@ export function getFxRate(fromCurrency, toCurrency, date = 'latest') {
           return resolve(fxrate);
         } catch (e) {
           const msg = `>>> lib/currency: can't fetch fxrate from ${fromCurrency} to ${toCurrency} for date ${date}`;
-          console.error(msg, "json:", json, "error:", e);
+          console.error(msg, 'json:', json, 'error:', e);
           throw new Error(msg);
         }
       })
       .catch(e => {
-        console.error("Unable to fetch fxrate", e.message);
+        console.error('Unable to fetch fxrate', e.message);
         // for testing in airplane mode
         if (!process.env.NODE_ENV || process.env.NODE_ENV === 'development') {
-          console.log(">>> development environment -> returning 1.1 instead of throwing the error", e);
+          console.log('>>> development environment -> returning 1.1 instead of throwing the error', e);
           return resolve(1.1);
         } else {
           reject(e);
         }
-      })
+      });
   });
 }
 
@@ -70,7 +70,7 @@ export function convertToCurrency(amount, fromCurrency, toCurrency, date = 'late
 
   return getFxRate(fromCurrency, toCurrency, date).then(fxrate => {
     return fxrate * amount;
-  })
+  });
 }
 
 /**

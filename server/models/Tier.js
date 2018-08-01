@@ -13,17 +13,17 @@ export default function(Sequelize, DataTypes) {
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
-      autoIncrement: true
+      autoIncrement: true,
     },
 
     CollectiveId: {
       type: DataTypes.INTEGER,
       references: {
         model: 'Collectives',
-        key: 'id'
+        key: 'id',
       },
       onDelete: 'SET NULL',
-      onUpdate: 'CASCADE'
+      onUpdate: 'CASCADE',
     },
 
     // human readable way to uniquely access a tier for a given collective or collective/event combo
@@ -33,7 +33,7 @@ export default function(Sequelize, DataTypes) {
         if (slug && slug.toLowerCase) {
           this.setDataValue('slug', slug.toLowerCase().replace(/ /g, '-'));
         }
-      }
+      },
     },
 
     name: {
@@ -44,12 +44,12 @@ export default function(Sequelize, DataTypes) {
           this.slug = name;
         }
         this.setDataValue('name', name);
-      }
+      },
     },
 
     type: {
       type: DataTypes.STRING, // TIER, TICKET, DONATION, SERVICE, PRODUCT, MEMBERSHIP
-      defaultValue: 'TIER'
+      defaultValue: 'TIER',
     },
 
     description: DataTypes.STRING,
@@ -57,11 +57,11 @@ export default function(Sequelize, DataTypes) {
 
     amount: {
       type: DataTypes.INTEGER, // In cents
-      min: 0
+      min: 0,
     },
 
     presets: {
-      type: DataTypes.ARRAY(DataTypes.INTEGER)
+      type: DataTypes.ARRAY(DataTypes.INTEGER),
     },
 
     currency: CustomDataTypes(DataTypes).currency,
@@ -71,56 +71,56 @@ export default function(Sequelize, DataTypes) {
       validate: {
         isIn: {
           args: [['month', 'year']],
-          msg: 'Must be month or year'
-        }
-      }
+          msg: 'Must be month or year',
+        },
+      },
     },
 
     // Max quantity of tickets to sell (0 for unlimited)
     maxQuantity: {
       type: DataTypes.INTEGER,
-      min: 0
+      min: 0,
     },
 
     // Max quantity of tickets per user (0 for unlimited)
     maxQuantityPerUser: {
       type: DataTypes.INTEGER,
-      min: 0
+      min: 0,
     },
 
     // Goal to reach
     goal: {
       type: DataTypes.INTEGER,
-      min: 0
+      min: 0,
     },
 
     password: {
-      type: DataTypes.STRING
+      type: DataTypes.STRING,
     },
 
     startsAt: {
       type: DataTypes.DATE,
-      defaultValue: Sequelize.NOW
+      defaultValue: Sequelize.NOW,
     },
 
     endsAt: {
       type: DataTypes.DATE,
-      defaultValue: Sequelize.NOW
+      defaultValue: Sequelize.NOW,
     },
 
     createdAt: {
       type: DataTypes.DATE,
-      defaultValue: Sequelize.NOW
+      defaultValue: Sequelize.NOW,
     },
 
     updatedAt: {
       type: DataTypes.DATE,
-      defaultValue: Sequelize.NOW
+      defaultValue: Sequelize.NOW,
     },
 
     deletedAt: {
-      type: DataTypes.DATE
-    }
+      type: DataTypes.DATE,
+    },
   }, {
     paranoid: true,
 
@@ -136,16 +136,16 @@ export default function(Sequelize, DataTypes) {
           startsAt: this.startsAt,
           endsAt: this.endsAt,
           createdAt: this.createdAt,
-          updatedAt: this.updatedAt
-        }
+          updatedAt: this.updatedAt,
+        };
       },
 
       minimal() {
         return {
           id: this.id,
           type: this.type,
-          name: this.name
-        }
+          name: this.name,
+        };
       },
 
       title() {
@@ -163,8 +163,8 @@ export default function(Sequelize, DataTypes) {
           str += ` per ${this.interval}`;
         }
         return str;
-      }
-    }
+      },
+    },
   });
 
   /**
@@ -183,8 +183,8 @@ export default function(Sequelize, DataTypes) {
         CollectiveId: this.CollectiveId,
         MemberCollectiveId: backerCollective.id,
         TierId: this.id,
-        createdAt: { [Op.lte]: until }
-      }
+        createdAt: { [Op.lte]: until },
+      },
     }).then(membership => {
       if (!membership) return false;
       if (!this.interval) return true;
@@ -194,36 +194,36 @@ export default function(Sequelize, DataTypes) {
         where: {
           CollectiveId: this.CollectiveId,
           FromCollectiveId: backerCollective.id,
-          TierId: this.id
-        }
+          TierId: this.id,
+        },
       }).then(order => {
         if (!order) return false;
         return models.Transaction.findOne({
           where: { OrderId: order.id, CollectiveId: this.CollectiveId },
-          order: [['createdAt', 'DESC']]
+          order: [['createdAt', 'DESC']],
         }).then(transaction => {
           if (!transaction) {
-            debug("No transaction found for order", order.dataValues);
+            debug('No transaction found for order', order.dataValues);
             return false;
           }
           if (this.interval === 'month' && days(transaction.createdAt, until) <= 31) return true;
           if (this.interval === 'year' && days(transaction.createdAt, until) <= 365) return true;
           return false;
-        })
-      })
-    })
-  }
+        });
+      });
+    });
+  };
 
    // TODO: Check for maxQuantityPerUser
   Tier.prototype.availableQuantity = function() {
     return models.Order.sum('quantity', {
         where: {
           TierId: this.id,
-          processedAt: { [Op.ne]: null }
-        }
+          processedAt: { [Op.ne]: null },
+        },
       })
       .then(usedQuantity => {
-        debug("availableQuantity", "usedQuantity:", usedQuantity, "maxQuantity", this.maxQuantity);
+        debug('availableQuantity', 'usedQuantity:', usedQuantity, 'maxQuantity', this.maxQuantity);
         if (this.maxQuantity && usedQuantity) {
           return this.maxQuantity - usedQuantity;
         } else if (this.maxQuantity) {
@@ -231,19 +231,19 @@ export default function(Sequelize, DataTypes) {
         } else {
           return 10000000; // GraphQL doesn't like infinity
         }
-      })
+      });
   };
 
   Tier.prototype.checkAvailableQuantity = function(quantityNeeded = 1) {
     return this.availableQuantity()
-    .then(available => (available - quantityNeeded >= 0))
+    .then(available => (available - quantityNeeded >= 0));
   };
 
   /**
    * Class Methods
    */
   Tier.createMany = (tiers, defaultValues = {}) => {
-    return Promise.map(tiers, t => Tier.create(_.defaults({}, t, defaultValues)), {concurrency: 1});
+    return Promise.map(tiers, t => Tier.create(_.defaults({}, t, defaultValues)), { concurrency: 1 });
   };
 
   /**
@@ -251,26 +251,26 @@ export default function(Sequelize, DataTypes) {
    */
   Tier.appendTier = (collective, backerCollectives) => {
     const backerCollectivesIds = backerCollectives.map(b => b.id);
-    debug("appendTier", collective.name, "backers: ", backerCollectives.length);
+    debug('appendTier', collective.name, 'backers: ', backerCollectives.length);
     return models.Member.findAll({
       where: {
         MemberCollectiveId: { [Op.in]: backerCollectivesIds },
-        CollectiveId: collective.id
+        CollectiveId: collective.id,
       },
-      include: [ { model: models.Tier }]
+      include: [ { model: models.Tier }],
     })
     .then(memberships => {
       const membershipsForBackerCollective = {};
       memberships.map(m => {
         membershipsForBackerCollective[m.MemberCollectiveId] = m.Tier;
-      })
+      });
       return backerCollectives.map(backerCollective => {
         backerCollective.tier = membershipsForBackerCollective[backerCollective.id];
-        debug("appendTier for", backerCollective.name,":", backerCollective.tier && backerCollective.tier.slug);
+        debug('appendTier for', backerCollective.name,':', backerCollective.tier && backerCollective.tier.slug);
         return backerCollective;
-      })
+      });
     });
-  }
+  };
 
   return Tier;
 }

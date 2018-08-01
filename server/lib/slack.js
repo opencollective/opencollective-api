@@ -20,7 +20,7 @@ export default {
     const message = activitiesLib.formatMessageForPrivateChannel(activity, 'slack');
     const options = {
       attachments: formatAttachment(activity),
-      channel: config.slack.privateActivityChannel
+      channel: config.slack.privateActivityChannel,
     };
     return this.postMessage(message, config.slack.webhookUrl, options);
   },
@@ -52,7 +52,7 @@ export default {
       text: msg,
       username: 'OpenCollective Activity Bot',
       icon_url: 'https://opencollective.com/favicon.ico',
-      attachments: options.attachments || []
+      attachments: options.attachments || [],
     };
 
     // note that channel is optional on slack, as every webhook has a default channel
@@ -79,7 +79,7 @@ export default {
           return resolve();
         });
     });
-  }
+  },
 };
 
 const formatAttachment = (activity) => {
@@ -87,8 +87,8 @@ const formatAttachment = (activity) => {
     return [{
       title: 'Data',
       color: 'good',
-      text: activitiesLib.formatAttachment(activity.data)
+      text: activitiesLib.formatAttachment(activity.data),
     }];
   }
   return [];
-}
+};

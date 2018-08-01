@@ -24,7 +24,7 @@ const month = moment(d).format('MMMM');
 const startDate = new Date(d.getFullYear(), d.getMonth(), 1);
 const endDate = new Date(d.getFullYear(), d.getMonth()+1, 1);
 
-console.log("startDate", startDate,"endDate", endDate);
+console.log('startDate', startDate,'endDate', endDate);
 
 const debug = debugLib('monthlyreport');
 
@@ -33,7 +33,7 @@ async function publishToSlack(message, webhookUrl, options) {
   try {
     return slackLib.postMessage(message, webhookUrl, options);
   } catch (e) {
-    console.warn(`Unable to post to slack`, e);
+    console.warn('Unable to post to slack', e);
   }
 }
 
@@ -43,7 +43,7 @@ const init = () => {
 
   const query = {
       where: { service: 'twitter' },
-      include: [ { model: models.Collective, as: 'collective', required: true, where: { type: 'COLLECTIVE', isActive: true } }]
+      include: [ { model: models.Collective, as: 'collective', required: true, where: { type: 'COLLECTIVE', isActive: true } }],
   };
 
   if (process.env.SLUG) {
@@ -64,9 +64,9 @@ const init = () => {
     .then(() => {
       const timeLapsed = Math.round((new Date - startTime)/1000);
       console.log(`Total run time: ${timeLapsed}s`);
-      process.exit(0)
+      process.exit(0);
     });
-}
+};
 
 function getLocaleFromCurrency(currency) {
   let locale;
@@ -88,16 +88,16 @@ const formatCurrency =  (amount, currency) => {
     style: 'currency',
     currency,
     minimumFractionDigits : 0,
-    maximumFractionDigits : 0
-  })
-}
+    maximumFractionDigits : 0,
+  });
+};
 
 const processCollective = (collective) => {
   const settings = get(collective, 'twitterAccount.settings.monthlyStats');
   if (!settings || !settings.active) {
     return;
   } else {
-    console.log(">>> processing collective", collective.slug);
+    console.log('>>> processing collective', collective.slug);
   }
   // for testing:
   // if (['material-ui', 'dim', 'electricsheep'].indexOf(collective.slug) === -1) return;
@@ -111,7 +111,7 @@ const processCollective = (collective) => {
     collective.getBackersStats(startDate, endDate),
     collective.getBackersCount({ since: startDate, until: endDate }),
     collective.getTopExpenseCategories(startDate, endDate),
-    collective.getTopVendors(startDate, endDate)
+    collective.getTopVendors(startDate, endDate),
   ];
 
   return Promise.all(promises)
@@ -132,7 +132,7 @@ const processCollective = (collective) => {
           })
           .then(data => sendTweet(collective.twitterAccount, data))
           .catch(e => {
-            console.error("Error in processing collective", collective.slug, e);
+            console.error('Error in processing collective', collective.slug, e);
           });
 };
 
@@ -144,7 +144,7 @@ const compileTwitterHandles = (userCollectives, total, limit) => {
     res += `, +${total-limitToShow}`;
   }
   return res;
-}
+};
 
 const sendTweet = async (twitterAccount, data) => {
   const stats = data.collective.stats;
@@ -160,32 +160,32 @@ const sendTweet = async (twitterAccount, data) => {
     totalAmountReceived: formatCurrency(stats.totalReceived, data.collective.currency),
     topBackersTwitterHandles: compileTwitterHandles(data.topBackers, 0, 3),
     newBackersTwitterHandles: compileTwitterHandles(data.topNewBackers, stats.backers.new, 5),
-    topExpenseCategories: stats.topExpenseCategories.length === 0 ? 'none' : stats.topExpenseCategories.slice(0,2).map(ec => ec.category).join(' & ').toLowerCase()
-  }
+    topExpenseCategories: stats.topExpenseCategories.length === 0 ? 'none' : stats.topExpenseCategories.slice(0,2).map(ec => ec.category).join(' & ').toLowerCase(),
+  };
 
   const template = stats.totalReceived === 0 ? 'monthlyStatsNoNewDonation' : 'monthlyStats';
   const tweet = await twitter.compileTweet(template, replacements);
 
   // We thread the tweet with the previos monthly stats
-  const in_reply_to_status_id = get(twitterAccount, `settings.monthlyStats.lastTweetId`);
+  const in_reply_to_status_id = get(twitterAccount, 'settings.monthlyStats.lastTweetId');
   try {
     const res = await twitter.tweetStatus(twitterAccount, tweet, `https://opencollective.com/${data.collective.slug}`, { in_reply_to_status_id });
     const tweetUrl = `https://twitter.com/${res.user.screen_name}/status/${res.id_str}`;
     // publish to slack.opencollective.com
     await publishToSlack(tweetUrl, config.slack.webhookUrl, { channel: config.slack.publicActivityChannel });
 
-    set(twitterAccount, `settings.monthlyStats.lastTweetId`, res.id_str);
-    set(twitterAccount, `settings.monthlyStats.lastTweetSentAt`, new Date(res.created_at));
+    set(twitterAccount, 'settings.monthlyStats.lastTweetId', res.id_str);
+    set(twitterAccount, 'settings.monthlyStats.lastTweetSentAt', new Date(res.created_at));
     twitterAccount.save();
-    console.log(">>> sending tweet:", tweet.length);
+    console.log('>>> sending tweet:', tweet.length);
     if (process.env.DEBUG) {
-      console.log(">>> twitter response: ", JSON.stringify(res));
+      console.log('>>> twitter response: ', JSON.stringify(res));
     }
     debug(replacements);
     console.log(tweet);
   } catch (e) {
-    console.error("Unable to tweet", tweet, e);
+    console.error('Unable to tweet', tweet, e);
   }
-}
+};
 
 init();

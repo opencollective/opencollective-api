@@ -44,10 +44,10 @@ const done = (error) => {
 };
 
 const initializeClientandIndex = (indexName) => {
-  const client = algoliasearch(ALGOLIA_APP_ID, ALGOLIA_KEY, { protocol: 'https:'});
+  const client = algoliasearch(ALGOLIA_APP_ID, ALGOLIA_KEY, { protocol: 'https:' });
   const index = client.initIndex(indexName);
   return index;
-}
+};
 
 const cleanIndex = async () => {
   const collectives = await models.Collective.findAll({

@@ -12,7 +12,7 @@ class Meetup {
     this.collective = collective;
     this.settings = {
       api_key: meetupAccount.token,
-      slug: meetupAccount.username
+      slug: meetupAccount.username,
     };
   }
 
@@ -52,13 +52,13 @@ class Meetup {
       url: `http://api.meetup.com/2/event/${eventId}?key=${this.settings.api_key}`,
       method: 'post',
       form: { description },
-      json: true
+      json: true,
     });
   }
 
   generateNewDescription(action, description) {
     const descriptionHeader = this.makeHeader();
-    const regex = new RegExp(`<p><a href="https://opencollective.com/`);
+    const regex = new RegExp('<p><a href="https://opencollective.com/');
     let newDescription = null;
     switch (action) {
       case 'addHeader':
@@ -70,7 +70,7 @@ class Meetup {
         if (description.match(regex)) {
           const paragraphs = description.split('</p> <p>');
           // If there were no backers, we only have one paragraph to remove
-          const numberOfParagraphsToSkip = ( paragraphs[1].substr(0,36) === `<a href="https://opencollective.com/`) ? 2 : 1;
+          const numberOfParagraphsToSkip = ( paragraphs[1].substr(0,36) === '<a href="https://opencollective.com/') ? 2 : 1;
           newDescription = `<p>${paragraphs.slice(numberOfParagraphsToSkip).join('</p> <p>')}`;
         }
         break;
@@ -87,7 +87,7 @@ class Meetup {
 
     const reqopt = {
       url: `http://api.meetup.com/${urlname}/events?key=${this.settings.api_key}`,
-      json: true
+      json: true,
     };
 
     const promises = [];

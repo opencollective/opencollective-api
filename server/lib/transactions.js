@@ -23,15 +23,15 @@ export function exportTransactions(transactions, attributes) {
  * @param {*} endDate
  * @param {*} limit
  */
-export function getTransactions(collectiveids, startDate = new Date("2015-01-01"), endDate = new Date, options) {
+export function getTransactions(collectiveids, startDate = new Date('2015-01-01'), endDate = new Date, options) {
   const where = options.where || {};
   const query = {
     where: {
       ...where,
       CollectiveId: { [Op.in]: collectiveids },
-      createdAt: { [Op.gte]: startDate, [Op.lt]: endDate }
+      createdAt: { [Op.gte]: startDate, [Op.lt]: endDate },
     },
-    order: [ ['createdAt', 'DESC' ]]
+    order: [ ['createdAt', 'DESC' ]],
   };
   if (options.limit) query.limit = options.limit;
   if (options.include) query.include = options.include;
@@ -94,7 +94,7 @@ export function createFromPaidExpense(host, paymentMethod, expense, paymentRespo
     CreatedByUserId: UserId,
     CollectiveId: expense.CollectiveId,
     HostCollectiveId: host.id,
-    PaymentMethodId: paymentMethod ? paymentMethod.id : null
+    PaymentMethodId: paymentMethod ? paymentMethod.id : null,
   };
 
   return getFxRatePromise

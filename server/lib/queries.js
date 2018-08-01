@@ -1,5 +1,5 @@
 import models, { sequelize, Op } from '../models';
-import currencies from '../constants/currencies'
+import currencies from '../constants/currencies';
 import Promise from 'bluebird';
 import config from 'config';
 import { memoize, pick } from 'lodash';
@@ -12,8 +12,8 @@ const CACHE_REFRESH_INTERVAL = process.env.CACHE_REFRESH_INTERVAL || 1000 * 60 *
 * Hacky way to do currency conversion
 */
 const generateFXConversionSQL = (aggregate) => {
-  let currencyColumn = "t.currency";
-  let amountColumn = "t.\"netAmountInCollectiveCurrency\"";
+  let currencyColumn = 't.currency';
+  let amountColumn = 't."netAmountInCollectiveCurrency"';
 
   if (aggregate) {
     currencyColumn = 'MAX(t.currency)';
@@ -76,7 +76,7 @@ const getTotalAnnualBudgetForHost = (HostCollectiveId) => {
     "yearlyIncome"
   `, {
     replacements: { HostCollectiveId },
-    type: sequelize.QueryTypes.SELECT
+    type: sequelize.QueryTypes.SELECT,
   })
   .then(res => Math.round(parseInt(res[0].yearlyIncome, 10)));
 };
@@ -116,7 +116,7 @@ const getTotalAnnualBudget = () => {
         AND s.interval = 'month' AND s."isActive" IS FALSE AND s."deletedAt" IS NULL)
     "yearlyIncome"
   `, {
-    type: sequelize.QueryTypes.SELECT
+    type: sequelize.QueryTypes.SELECT,
   })
   .then(res => Math.round(parseInt(res[0].yearlyIncome, 10)));
 };
@@ -131,7 +131,7 @@ const getTotalDonations = () => {
     WHERE type='CREDIT' AND "PaymentMethodId" IS NOT NULL
   `.replace(/\s\s+/g, ' '), // this is to remove the new lines and save log space.
   {
-    type: sequelize.QueryTypes.SELECT
+    type: sequelize.QueryTypes.SELECT,
   })
   .then(res => Math.round(res[0].totalDonationsInUSD));
 };
@@ -145,9 +145,9 @@ const getTotalDonationsByCollectiveType = (CollectiveId) => {
     SELECT MAX(c.type) as type, SUM("netAmountInCollectiveCurrency") as "totalDonations" FROM "Transactions" t LEFT JOIN "Collectives" c ON t."FromCollectiveId" = c.id WHERE c.type='USER' AND t."CollectiveId"=:CollectiveId and t.type='CREDIT' GROUP BY c.type ORDER BY "totalDonations" DESC
   `, {
     replacements: { CollectiveId },
-    type: sequelize.QueryTypes.SELECT
-  })
-}
+    type: sequelize.QueryTypes.SELECT,
+  });
+};
 
 /**
  * Returns an array with the top (default 3) donors for a given CollectiveId (where the money comes from)
@@ -160,9 +160,9 @@ const getTopDonorsForCollective = (CollectiveId, options = {}) => {
     SELECT MAX(c.slug) as slug, MAX(c.image) as image, MAX(c.name) as name, SUM("netAmountInCollectiveCurrency") as "totalDonations" FROM "Transactions" t LEFT JOIN "Collectives" c ON t."FromCollectiveId" = c.id WHERE t."CollectiveId"=:CollectiveId and t.type='CREDIT' GROUP BY c.id ORDER BY "totalDonations" DESC LIMIT :limit
   `, {
     replacements: { CollectiveId, limit: options.limit },
-    type: sequelize.QueryTypes.SELECT
+    type: sequelize.QueryTypes.SELECT,
   });
-}
+};
 
 /**
  * Returns an array with the top (default 3) vendors for a given CollectiveId (where the money goes)
@@ -182,9 +182,9 @@ const getTopVendorsForCollective = (CollectiveId, options = {}) => {
     GROUP BY c.id ORDER BY "totalExpenses" ASC LIMIT :limit
   `, {
     replacements: { CollectiveId, limit: options.limit },
-    type: sequelize.QueryTypes.SELECT
+    type: sequelize.QueryTypes.SELECT,
   });
-}
+};
 
 /**
  * Get the top expense categories for a given collective with total amount and total number of expenses
@@ -204,9 +204,9 @@ const getTopExpenseCategories = (CollectiveId, options = {}) => {
     ORDER BY "totalExpenses" DESC LIMIT :limit
   `, {
     replacements: { CollectiveId, limit: options.limit },
-    type: sequelize.QueryTypes.SELECT
+    type: sequelize.QueryTypes.SELECT,
   });
-}
+};
 
 /**
  * Returns the top backers (Collectives) in a given time range in given tags
@@ -216,7 +216,7 @@ const getTopBackers = (since, until, tags, limit) => {
 
   const sinceClause = (since) ? `AND t."createdAt" >= '${since.toISOString()}'`: '';
   const untilClause = (until) ? `AND t."createdAt" < '${until.toISOString()}'` : '';
-  const tagsClause = (tags) ? `AND collective.tags && $tags` : ''; // && operator means "overlaps"
+  const tagsClause = (tags) ? 'AND collective.tags && $tags' : ''; // && operator means "overlaps"
 
   return sequelize.query(`
     SELECT
@@ -242,16 +242,16 @@ const getTopBackers = (since, until, tags, limit) => {
     `.replace(/\s\s+/g, ' '), // this is to remove the new lines and save log space.
     {
       bind: { tags: tags || [] },
-      model: models.Collective
+      model: models.Collective,
     });
-  }
+  };
 
 /**
  * Get top collectives ordered by available balance
  */
 const getCollectivesWithBalance = async (where = {}, options) => {
-  const orderDirection = options.orderDirection || "DESC";
-  const orderBy = options.orderBy || "balance";
+  const orderDirection = options.orderDirection || 'DESC';
+  const orderBy = options.orderBy || 'balance';
   const limit = options.limit || 20;
   const offset = options.offset || 0;
 
@@ -267,7 +267,7 @@ const getCollectivesWithBalance = async (where = {}, options) => {
 
   const params = {
     bind: where,
-    model: models.Collective
+    model: models.Collective,
   };
 
   const allFields = 'c.*, td.*';
@@ -321,9 +321,9 @@ const getCollectivesByTag = (tag, limit, excludeList, minTotalDonationInCents, r
     excludeClause = `AND c.id not in (${excludeList})`;
   }
   if (minTotalDonationInCents && minTotalDonationInCents > 0) {
-    minTotalDonationInCentsClause = `WHERE "totalDonations" >= ${minTotalDonationInCents}`
+    minTotalDonationInCentsClause = `WHERE "totalDonations" >= ${minTotalDonationInCents}`;
   } else {
-    minTotalDonationInCentsClause = ''
+    minTotalDonationInCentsClause = '';
   }
 
   if (tag) {
@@ -354,7 +354,7 @@ const getCollectivesByTag = (tag, limit, excludeList, minTotalDonationInCents, r
   `.replace(/\s\s+/g, ' '), // this is to remove the new lines and save log space.
   {
     bind: { tag },
-    model: models.Collective
+    model: models.Collective,
   });
 };
 
@@ -372,8 +372,8 @@ const getUniqueCollectiveTags = () => {
       )
     SELECT * FROM top_tags WHERE count > 20 ORDER BY tag ASC
   `)
-  .then(results => results[0].map(x => x.tag))
-}
+  .then(results => results[0].map(x => x.tag));
+};
 
 /**
  * Returns top sponsors ordered by total amount donated and number of collectives they sponsor
@@ -390,10 +390,10 @@ const getTopSponsors = () => {
     `.replace(/\s\s+/g, ' '), // this is to remove the new lines and save log space.
     {
       replacements: { limit: 6 },
-      type: sequelize.QueryTypes.SELECT
+      type: sequelize.QueryTypes.SELECT,
   })
   .then(sponsors => sponsors.map(sponsor => {
-    sponsor.publicUrl = `${config.host.website}/${sponsor.slug}`
+    sponsor.publicUrl = `${config.host.website}/${sponsor.slug}`;
     return sponsor;
   }));
 };
@@ -405,7 +405,7 @@ const getTopSponsors = () => {
  * - id 1 (opencollective-company)
  * - id 51 and 9804 (wwcode host)
  */
-const getCollectivesOrderedByMonthlySpendingQuery = async ({ where = {}, orderDirection = "ASC", limit = 0, offset = 0 }) => {
+const getCollectivesOrderedByMonthlySpendingQuery = async ({ where = {}, orderDirection = 'ASC', limit = 0, offset = 0 }) => {
   const whereStatement = Object.keys(where).reduce((statement, key) => `${statement} AND c."${key}"=:${key}`, '');
 
   const d = new Date;
@@ -413,7 +413,7 @@ const getCollectivesOrderedByMonthlySpendingQuery = async ({ where = {}, orderDi
 
   const params = {
     replacements: { ...where, since },
-    model: models.Collective
+    model: models.Collective,
   };
 
   const sql = (fields) => `
@@ -466,9 +466,9 @@ const getMembersOfCollectiveWithRole = (CollectiveIds) => {
 `, {
     replacements: { collectiveids },
     type: sequelize.QueryTypes.SELECT,
-    model: models.Collective
+    model: models.Collective,
   });
-}
+};
 
 /**
  * Returns all the users of a collective with their `totalDonations` and `role` (HOST/ADMIN/BACKER)
@@ -484,23 +484,23 @@ const getMembersWithTotalDonations = (where, options = {}) => {
       condition += `AND ${table}."createdAt" < '${options.until.toISOString().toString().substr(0,10)}'`;
     }
     return condition;
-  }
+  };
 
   const roleCond = (where.role) ? `AND member.role = '${where.role}'` : '';
 
   let types, filterByMemberCollectiveType = '';
   if (options.type) {
     types = (typeof options.type === 'string') ? options.type.split(',') : options.type;
-    filterByMemberCollectiveType = `AND c.type IN (:types)`
+    filterByMemberCollectiveType = 'AND c.type IN (:types)';
   }
 
   let memberCondAttribute, transactionType, groupBy;
   if (where.CollectiveId) {
-    memberCondAttribute = "CollectiveId";
+    memberCondAttribute = 'CollectiveId';
     transactionType = 'CREDIT';
     groupBy = 'MemberCollectiveId';
   } else if (where.MemberCollectiveId) {
-    memberCondAttribute = "MemberCollectiveId";
+    memberCondAttribute = 'MemberCollectiveId';
     transactionType = 'DEBIT';
     groupBy = 'CollectiveId';
   }
@@ -558,10 +558,10 @@ const getMembersWithTotalDonations = (where, options = {}) => {
       collectiveids,
       limit: options.limit || 100000, // we should reduce this to 100 by default but right now Webpack depends on it
       offset: options.offset || 0,
-      types
+      types,
     },
     type: sequelize.QueryTypes.SELECT,
-    model: models.Collective
+    model: models.Collective,
   });
 };
 
@@ -573,7 +573,7 @@ const getMembersWithBalance = (where, options = {}) => {
   let types, filterByMemberCollectiveType = '';
   if (options.type) {
     types = (typeof options.type === 'string') ? options.type.split(',') : options.type;
-    filterByMemberCollectiveType = `AND c.type IN (:types)`
+    filterByMemberCollectiveType = 'AND c.type IN (:types)';
   }
 
   let whereCondition = '';
@@ -583,10 +583,10 @@ const getMembersWithBalance = (where, options = {}) => {
 
   let memberCondAttribute, groupBy;
   if (where.CollectiveId) {
-    memberCondAttribute = "CollectiveId";
+    memberCondAttribute = 'CollectiveId';
     groupBy = 'MemberCollectiveId';
   } else if (where.MemberCollectiveId) {
-    memberCondAttribute = "MemberCollectiveId";
+    memberCondAttribute = 'MemberCollectiveId';
     groupBy = 'CollectiveId';
   }
   const collectiveids = (typeof where[memberCondAttribute] === 'number') ? [where[memberCondAttribute]] : where[memberCondAttribute];
@@ -644,14 +644,14 @@ const getMembersWithBalance = (where, options = {}) => {
     collectiveids,
     limit: options.limit || 100000, // we should reduce this to 100 by default but right now Webpack depends on it
     offset: options.offset || 0,
-    types
+    types,
   };
 
   return sequelize.query(query.replace(/\s\s+/g,' '), // this is to remove the new lines and save log space.
   {
     replacements,
     type: sequelize.QueryTypes.SELECT,
-    model: models.Collective
+    model: models.Collective,
   });
 };
 
@@ -664,10 +664,10 @@ const getTotalNumberOfActiveCollectives = (since, until) => {
       LEFT JOIN "Collectives" c ON t."CollectiveId" = c.id
     WHERE c.type='COLLECTIVE' ${sinceClause} ${untilClause}
   `, {
-    type: sequelize.QueryTypes.SELECT
+    type: sequelize.QueryTypes.SELECT,
   })
   .then(res => parseInt(res[0].count));
-}
+};
 
 const getTotalNumberOfDonors = () => {
   return sequelize.query(`
@@ -676,10 +676,10 @@ const getTotalNumberOfDonors = () => {
       LEFT JOIN "Collectives" c ON t."CollectiveId" = c.id
     WHERE c.type='COLLECTIVE'
   `, {
-    type: sequelize.QueryTypes.SELECT
+    type: sequelize.QueryTypes.SELECT,
   })
   .then(res => parseInt(res[0].count));
-}
+};
 
 const getCollectivesWithMinBackersQuery = async ({ backerCount = 10, orderBy = 'createdAt', orderDirection = 'ASC', limit = 0, offset = 0, where = {} }) => {
   if (where.type) delete where.type;
@@ -720,10 +720,10 @@ const getCollectivesWithMinBackers = memoize(getCollectivesWithMinBackersQuery, 
 
 // warming up the cache with the homepage queries
 const cacheEntries = [
-  { method: "getCollectivesOrderedByMonthlySpending", params: {"type":"COLLECTIVE","orderBy":"monthlySpending","orderDirection":"DESC","limit":4,"offset":0,"where":{"type":"COLLECTIVE"}} },
-  { method: "getCollectivesOrderedByMonthlySpending", params: {"type":"ORGANIZATION","orderBy":"monthlySpending","orderDirection":"DESC","limit":6,"offset":0,"where":{"type":"ORGANIZATION"}} },
-  { method: "getCollectivesOrderedByMonthlySpending", params: {"type":"USER","orderBy":"monthlySpending","orderDirection":"DESC","limit":30,"offset":0,"where":{"type":"USER"}} },
-  { method: "getCollectivesWithMinBackers", params: {"type":"COLLECTIVE","isActive":true,"minBackerCount":10,"orderBy":"createdAt","orderDirection":"DESC","limit":4,"offset":0,"where":{"type":"COLLECTIVE","isActive":true}}}
+  { method: 'getCollectivesOrderedByMonthlySpending', params: { 'type':'COLLECTIVE','orderBy':'monthlySpending','orderDirection':'DESC','limit':4,'offset':0,'where':{ 'type':'COLLECTIVE' } } },
+  { method: 'getCollectivesOrderedByMonthlySpending', params: { 'type':'ORGANIZATION','orderBy':'monthlySpending','orderDirection':'DESC','limit':6,'offset':0,'where':{ 'type':'ORGANIZATION' } } },
+  { method: 'getCollectivesOrderedByMonthlySpending', params: { 'type':'USER','orderBy':'monthlySpending','orderDirection':'DESC','limit':30,'offset':0,'where':{ 'type':'USER' } } },
+  { method: 'getCollectivesWithMinBackers', params: { 'type':'COLLECTIVE','isActive':true,'minBackerCount':10,'orderBy':'createdAt','orderDirection':'DESC','limit':4,'offset':0,'where':{ 'type':'COLLECTIVE','isActive':true } } },
 ];
 
 const refreshCache = async () => {

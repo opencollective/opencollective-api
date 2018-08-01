@@ -14,7 +14,7 @@ const debug = debugLib('paypal');
 export default {
   features: {
     recurring: false,
-    paymentMethod: true // creates a payment method that can be used to pay up to $2,000 USD or equivalent
+    paymentMethod: true, // creates a payment method that can be used to pay up to $2,000 USD or equivalent
   },
 
   fees: async ({ amount, currency, host }) => {
@@ -54,17 +54,17 @@ export default {
           {
             email,
             amount,
-            paymentType: 'SERVICE'
-          }
-        ]
-      }
+            paymentType: 'SERVICE',
+          },
+        ],
+      },
     };
 
     return paypalAdaptive.pay(payload)
       .tap(payResponse => createPaymentResponse = payResponse)
       .then(payResponse => paypalAdaptive.executePayment(payResponse.payKey))
       .then(executePaymentResponse => {
-        return { createPaymentResponse, executePaymentResponse}
+        return { createPaymentResponse, executePaymentResponse };
       });
   },
 
@@ -74,12 +74,12 @@ export default {
     let totalSpent = 0, totalTransactions = 0, firstTransactionAt, lastTransactionAt;
     return models.Transaction.findAll({
       attributes: [
-        'amountInHostCurrency', 'paymentProcessorFeeInHostCurrency', 'platformFeeInHostCurrency', 'hostFeeInHostCurrency'
+        'amountInHostCurrency', 'paymentProcessorFeeInHostCurrency', 'platformFeeInHostCurrency', 'hostFeeInHostCurrency',
       ],
       where: {
         type: 'DEBIT',
-        PaymentMethodId: paymentMethod.id
-      }
+        PaymentMethodId: paymentMethod.id,
+      },
     }).map(t => {
       totalTransactions++;
       if (!firstTransactionAt) {
@@ -91,6 +91,6 @@ export default {
     .then(() => {
       debug(`Total spent: ${formatCurrency(totalSpent, paymentMethod.currency)} across ${totalTransactions} transactions between ${firstTransactionAt} and ${lastTransactionAt}`);
       return 200000 + totalSpent; // total spent has a negative value (in cents)
-    })
-  }
-}
+    });
+  },
+};

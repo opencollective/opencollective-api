@@ -8,7 +8,7 @@ const paypalAdaptiveClient = new Paypal({
   password: config.paypal.classic.password,
   signature: config.paypal.classic.signature,
   appId: config.paypal.classic.appId,
-  sandbox: config.env !== 'production'
+  sandbox: config.env !== 'production',
 });
 
 
@@ -17,7 +17,7 @@ const callPaypal = (endpointName, payload) => {
   // Needs to be included in every call to PayPal
   const requestEnvelope = {
     errorLanguage: 'en_US',
-    detailLevel: 'ReturnAll'
+    detailLevel: 'ReturnAll',
   };
 
   // Note you can't use Promise.promisify because error details are in the response,
@@ -37,7 +37,7 @@ const callPaypal = (endpointName, payload) => {
       resolve(res);
     });
   });
-}
+};
 
 const pay = (payload) => callPaypal('pay', payload);
 const executePayment = (payKey) => callPaypal('executePayment', { payKey });
@@ -48,5 +48,5 @@ export default {
   pay,
   executePayment,
   preapproval,
-  preapprovalDetails
-}
+  preapprovalDetails,
+};

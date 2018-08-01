@@ -19,9 +19,9 @@ exports.config = { // eslint-disable-line import/no-commonjs
      * issues with the agent, 'info' and higher will impose the least overhead on
      * production applications.
      */
-    level: 'info'
+    level: 'info',
   },
   transaction_tracer: {
-    enabled: true
-  }
-}
+    enabled: true,
+  },
+};

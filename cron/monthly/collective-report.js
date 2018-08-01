@@ -29,7 +29,7 @@ const dateFormat = 'YYYYMM';
 const startDate = new Date(d.getFullYear(), d.getMonth(), 1);
 const endDate = new Date(d.getFullYear(), d.getMonth()+1, 1);
 
-console.log("startDate", startDate,"endDate", endDate);
+console.log('startDate', startDate,'endDate', endDate);
 
 const debug = debugLib('monthlyreport');
 
@@ -50,9 +50,9 @@ const init = () => {
           'twitterHandle',
           'currency',
           'settings',
-          'tags'
+          'tags',
       ],
-      where: { type: 'COLLECTIVE', isActive: true }
+      where: { type: 'COLLECTIVE', isActive: true },
   };
 
   let slugs;
@@ -74,9 +74,9 @@ const init = () => {
   .then(() => {
     const timeLapsed = Math.round((new Date - startTime)/1000);
     console.log(`Total run time: ${timeLapsed}s`);
-    process.exit(0)
+    process.exit(0);
   });
-}
+};
 
 const topBackersCache = {};
 const getTopBackers = (startDate, endDate, tags) => {
@@ -87,10 +87,10 @@ const getTopBackers = (startDate, endDate, tags) => {
     return models.Collective.getTopBackers(startDate, endDate, tags, 5)
       .then(backers => {
         if (!backers) return [];
-        return Promise.map(backers, backer => processBacker(backer, startDate, endDate, tags))
+        return Promise.map(backers, backer => processBacker(backer, startDate, endDate, tags));
       })
       .then(backers => {
-        backers = _.without(backers, null)
+        backers = _.without(backers, null);
         topBackersCache[cacheKey] = backers;
         return backers;
     });
@@ -102,9 +102,9 @@ const formatCurrency =  (amount, currency) => {
     style: 'currency',
     currency,
     minimumFractionDigits : 0,
-    maximumFractionDigits : 2
-  })
-}
+    maximumFractionDigits : 2,
+  });
+};
 
 const generateDonationsString = (backer, transactions) => {
   if (!backer.name) {
@@ -124,10 +124,10 @@ const generateDonationsString = (backer, transactions) => {
   }
   const joinStringArray = (arr) => {
     return arr.join(', ').replace(/,([^, ]*)$/,' and $1');
-  }
+  };
   return {
     html: joinStringArray(donationsHTMLArray),
-    text: joinStringArray(donationsTextArray)
+    text: joinStringArray(donationsTextArray),
   };
 };
 
@@ -140,7 +140,7 @@ const processBacker = (backer, startDate, endDate, tags) => {
       backer = _.pick(backer, ['name','slug','image','website']);
       backer.donationsString = donationsString;
       return backer;
-    })
+    });
 };
 
 const processCollective = (collective) => {
@@ -155,9 +155,9 @@ const processCollective = (collective) => {
     collective.getBackersStats(startDate, endDate),
     collective.getNewOrders(startDate, endDate),
     collective.getCancelledOrders(startDate, endDate),
-    collective.getUpdates("published", startDate, endDate),
+    collective.getUpdates('published', startDate, endDate),
     collective.getNextGoal(endDate),
-    collective.getTransactions({ where: { createdAt: { [Op.gte]: startDate, [Op.lt]: endDate }}})
+    collective.getTransactions({ where: { createdAt: { [Op.gte]: startDate, [Op.lt]: endDate } } }),
   ];
 
   let emailData = {};
@@ -196,7 +196,7 @@ const processCollective = (collective) => {
 
                   options.attachments = [{
                     filename: csv_filename,
-                    content: csv
+                    content: csv,
                   }];
                 }
 
@@ -207,12 +207,12 @@ const processCollective = (collective) => {
           .then(collective => {
             const activity = {
               type: 'collective.monthlyreport',
-              data: emailData
+              data: emailData,
             };
             return notifyAdminsOfCollective(collective.id, activity, options);
           })
           .catch(e => {
-            console.error("Error in processing collective", collective.slug, e);
+            console.error('Error in processing collective', collective.slug, e);
           });
 };
 

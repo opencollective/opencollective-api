@@ -1,19 +1,19 @@
 import config from 'config';
 
 import errors from '../../lib/errors';
-import {required_valid} from '../required_param';
+import { required_valid } from '../required_param';
 import roles from '../../constants/roles';
-import {authenticateUser} from './authentication';
+import { authenticateUser } from './authentication';
 
 const {
   Forbidden, // I know who you are, but you permanently don't have access to this resource
-  Unauthorized // You are not authorized, try to authenticate again
+  Unauthorized, // You are not authorized, try to authenticate again
 } = errors;
 
 const {
   HOST,
   ADMIN,
-  BACKER
+  BACKER,
 } = roles;
 
 /**
@@ -31,7 +31,7 @@ export function authorizeApiKey(req, res, next) {
     { method: 'POST', regex: /^\/webhooks\/(mailgun|stripe)/ },
     { method: 'GET', regex: /^\/connected-accounts\/(stripe|paypal)\/callback/ },
     { method: 'GET', regex: /^\/services\/email\/approve\?messageId=.+/ },
-    { method: 'GET', regex: /^\/services\/email\/unsubscribe\/(.+)\/([a-zA-Z0-9-_]+)\/([a-zA-Z0-9-_\.]+)\/.+/ }
+    { method: 'GET', regex: /^\/services\/email\/unsubscribe\/(.+)\/([a-zA-Z0-9-_]+)\/([a-zA-Z0-9-_\.]+)\/.+/ },
   ];
 
   for (const i in exceptions) {
@@ -54,7 +54,7 @@ export function authorizeApiKey(req, res, next) {
 export function mustBeLoggedIn(req, res, next) {
   authenticateUser(req, res, (e) => {
     if (e) return next(e);
-    if (!req.remoteUser) return next(new Unauthorized("User is not authenticated"));
+    if (!req.remoteUser) return next(new Unauthorized('User is not authenticated'));
     else return next();
   });
 }
@@ -84,7 +84,7 @@ export function mustHaveRole(possibleRoles) {
       }
       if (!req.remoteUser.hasRole(possibleRoles, req.collective.id)) return next(new Forbidden(`Logged in user must be ${possibleRoles.join(' or ')} of this collective`));
       else return next(null, true);
-    })
+    });
   };
 }
 
@@ -109,7 +109,7 @@ export function canEditObject(object) {
         return next(null, true);
       });
     });
-  }
+  };
 }
 
 

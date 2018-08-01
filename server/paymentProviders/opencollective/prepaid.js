@@ -82,12 +82,12 @@ export async function processOrder(order) {
       hostFeeInHostCurrency,
       platformFeeInHostCurrency,
       paymentProcessorFeeInHostCurrency: 0,
-      description: order.description
-    }
+      description: order.description,
+    },
   });
 
   // add roles
-  await order.collective.findOrAddUserWithRole({ id: user.id, CollectiveId: order.fromCollective.id}, roles.BACKER, {
+  await order.collective.findOrAddUserWithRole({ id: user.id, CollectiveId: order.fromCollective.id }, roles.BACKER, {
     CreatedByUserId: user.id, TierId: order.TierId,
   });
 
@@ -104,7 +104,7 @@ export async function processOrder(order) {
 export default {
   features: {
     recurring: true,
-    waitToCharge: false
+    waitToCharge: false,
   },
   getBalance,
   processOrder,

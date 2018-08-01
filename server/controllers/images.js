@@ -9,20 +9,20 @@ export default function uploadImage(req, res, next) {
 
   if (!file) {
     return next(new errors.ValidationFailed('missing_required', {
-      file: 'File field is required and missing'
+      file: 'File field is required and missing',
     }));
   }
 
   if (!file.mimetype || !(file.mimetype.match(/image\/.*/i) || file.mimetype.match(/application\/pdf/i))) {
     return next(new errors.ValidationFailed('invalid mimetype', {
-      file: 'Mimetype of the file should be image/png, image/jpeg or application/pdf'
-    }))
+      file: 'Mimetype of the file should be image/png, image/jpeg or application/pdf',
+    }));
   }
 
   if (file.size > 1024 * 1024 * 10) {
     return next(new errors.ValidationFailed('invalid filesize', {
-      file: 'Filesize cannot exceed 10MB'
-    }))
+      file: 'Filesize cannot exceed 10MB',
+    }));
   }
 
   if (!knox) {
@@ -38,7 +38,7 @@ export default function uploadImage(req, res, next) {
   const put = knox.put(filename, {
     'Content-Length': file.size,
     'Content-Type': file.mimetype,
-    'x-amz-acl': 'public-read'
+    'x-amz-acl': 'public-read',
   });
 
   fs.createReadStream(file.path).pipe(put);
@@ -46,7 +46,7 @@ export default function uploadImage(req, res, next) {
   put.on('response', (response) => {
     res.send({
       status: response.statusCode,
-      url: put.url
+      url: put.url,
     });
   });
 }

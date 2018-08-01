@@ -7,7 +7,7 @@ const {
   User,
   Collective,
   Transaction,
-  Expense
+  Expense,
 } = models;
 
 /**
@@ -22,7 +22,7 @@ const parseId = (param) => {
   const id = parseInt(param);
 
   if (_.isNaN(id)) {
-    return Promise.reject(new errors.BadRequest('This is not a correct id.'))
+    return Promise.reject(new errors.BadRequest('This is not a correct id.'));
   } else {
     return Promise.resolve({ id });
   }
@@ -62,7 +62,7 @@ export function collectiveid(req, res, next, collectiveIdOrSlug) {
  */
 export function transactionuuid(req, res, next, transactionuuid) {
   if (!isUUID(transactionuuid)) {
-    next(new errors.BadRequest("Must provide transaction uuid"));
+    next(new errors.BadRequest('Must provide transaction uuid'));
     return null;
   }
 
@@ -88,7 +88,7 @@ export function paranoidtransactionid(req, res, next, id) {
     .then(where => {
       return Transaction.findOne({
         where,
-        paranoid: false
+        paranoid: false,
       });
     })
     .then((transaction) => {
@@ -118,8 +118,8 @@ export function expenseid(req, res, next, expenseid) {
       where: Object.assign({}, where, queryInCollective),
       include: [
         { model: models.Collective, as: 'collective' },
-        { model: models.User }
-      ]
+        { model: models.User },
+      ],
     }))
     .then((expense) => {
       if (!expense) {

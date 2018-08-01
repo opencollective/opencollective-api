@@ -23,7 +23,7 @@ export async function retrieveOAuthToken() {
   /* The OAuth token entrypoint uses Basic HTTP Auth */
   const authStr = `${clientId}:${clientSecret}`;
   const basicAuth = Buffer.from(authStr).toString('base64');
-  const headers = { Authorization: `Basic ${basicAuth}`};
+  const headers = { Authorization: `Basic ${basicAuth}` };
   /* Execute the request and unpack the token */
   const response = await fetch(url, { method: 'post', body, headers });
   const jsonOutput = await response.json();
@@ -54,7 +54,7 @@ export async function paypalRequest(urlPath, body) {
  */
 export async function createPayment(req, res) {
   const { amount, currency } = req.body;
-  if (!amount || !currency) throw new Error("Amount & Currency are required");
+  if (!amount || !currency) throw new Error('Amount & Currency are required');
   const paymentParams = {
     intent: 'sale',
     payer: { payment_method: 'paypal' },
@@ -64,8 +64,8 @@ export async function createPayment(req, res) {
        reasonable. */
     redirect_urls: {
       return_url: 'https://opencollective.com',
-      cancel_url: 'https://opencollective.com'
-    }
+      cancel_url: 'https://opencollective.com',
+    },
   };
   const payment = await paypalRequest('payments/payment', paymentParams);
   return res.json({ id: payment.id });
@@ -104,7 +104,7 @@ export async function createTransaction(order, paymentInfo) {
     CreatedByUserId: order.createdByUser.id,
     FromCollectiveId: order.FromCollectiveId,
     CollectiveId: order.collective.id,
-    PaymentMethodId: order.paymentMethod.id
+    PaymentMethodId: order.paymentMethod.id,
   };
   payload.transaction = {
     type: constants.TransactionTypes.CREDIT,

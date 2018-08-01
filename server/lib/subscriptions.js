@@ -21,22 +21,22 @@ export async function ordersWithPendingCharges() {
   return models.Order.findAll({
     where: {
       SubscriptionId: { [Op.ne]: null },
-      deletedAt: null
+      deletedAt: null,
     },
     include: [
-      { model: models.User, as: 'createdByUser'},
-      { model: models.Collective, as: 'collective'},
-      { model: models.Collective, as: 'fromCollective'},
-      { model: models.PaymentMethod, as: 'paymentMethod'},
+      { model: models.User, as: 'createdByUser' },
+      { model: models.Collective, as: 'collective' },
+      { model: models.Collective, as: 'fromCollective' },
+      { model: models.PaymentMethod, as: 'paymentMethod' },
       { model: models.Subscription,
         where: {
           isActive: true,
           deletedAt: null,
           deactivatedAt: null,
           activatedAt: { [Op.lte]: new Date },
-          nextChargeDate: { [Op.lte]: new Date }
-        }
-      }]
+          nextChargeDate: { [Op.lte]: new Date },
+        },
+      }],
   });
 }
 
@@ -64,7 +64,7 @@ export async function processOrderWithSubscription(options, order) {
     chargeDateBefore: dateFormat(order.Subscription.nextCharge),
     chargeDateAfter: null,
     nextPeriodStartBefore: dateFormat(order.Subscription.nextPeriodStart),
-    nextPeriodStartAfter: null
+    nextPeriodStartAfter: null,
   };
 
   let status = 'unattempted', transaction;
@@ -225,7 +225,7 @@ export function groupProcessedOrders(orders) {
     } else {
       map.set(key, {
         total: value.amount,
-        entries: [value]
+        entries: [value],
       });
     }
     return map;
@@ -246,9 +246,9 @@ export async function sendFailedEmail(order, lastAttempt) {
     order: order.info,
     collective: order.collective.info,
     fromCollective: order.fromCollective.minimal,
-    subscriptionsLink: user.generateLoginLink(`/${order.fromCollective.slug}/subscriptions`)
+    subscriptionsLink: user.generateLoginLink(`/${order.fromCollective.slug}/subscriptions`),
   }, {
-    from: `${order.collective.name} <hello@${order.collective.slug}.opencollective.com>`
+    from: `${order.collective.name} <hello@${order.collective.slug}.opencollective.com>`,
   });
 }
 
@@ -268,8 +268,8 @@ export async function sendThankYouEmail(order, transaction) {
     recommendedCollectives,
     config: { host: config.host },
     interval: order.Subscription.interval,
-    subscriptionsLink: user.generateLoginLink(`/${order.fromCollective.slug}/subscriptions`)
+    subscriptionsLink: user.generateLoginLink(`/${order.fromCollective.slug}/subscriptions`),
   }, {
-    from: `${order.collective.name} <hello@${order.collective.slug}.opencollective.com>`
+    from: `${order.collective.name} <hello@${order.collective.slug}.opencollective.com>`,
   });
 }

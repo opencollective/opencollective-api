@@ -12,29 +12,29 @@ export default function (Sequelize, DataTypes) {
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
-      autoIncrement: true
+      autoIncrement: true,
     },
 
     UserId: {
       type: DataTypes.INTEGER,
       references: {
         model: 'Users',
-        key: 'id'
+        key: 'id',
       },
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
-      allowNull: false
+      allowNull: false,
     },
 
     CollectiveId: {
       type: DataTypes.INTEGER,
       references: {
         model: 'Collectives',
-        key: 'id'
+        key: 'id',
       },
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
-      allowNull: false
+      allowNull: false,
     },
 
     currency: CustomDataTypes(DataTypes).currency,
@@ -42,12 +42,12 @@ export default function (Sequelize, DataTypes) {
     amount: {
       type: DataTypes.INTEGER,
       validate: { min: 1 },
-      allowNull: false
+      allowNull: false,
     },
 
     description: {
       type: DataTypes.STRING,
-      allowNull: false
+      allowNull: false,
     },
 
     payoutMethod: {
@@ -55,11 +55,11 @@ export default function (Sequelize, DataTypes) {
       validate: {
         isIn: {
           args: [['paypal', 'manual', 'donation', 'other']],
-          msg: 'Must be paypal, manual, donation or other'
-        }
+          msg: 'Must be paypal, manual, donation or other',
+        },
       },
       allowNull: false,
-      defaultValue: 'manual'
+      defaultValue: 'manual',
     },
 
     privateMessage: DataTypes.STRING,
@@ -71,11 +71,11 @@ export default function (Sequelize, DataTypes) {
       type: DataTypes.INTEGER,
       references: {
         model: 'Users',
-        key: 'id'
+        key: 'id',
       },
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
-      allowNull: false
+      allowNull: false,
     },
 
     status: {
@@ -85,31 +85,31 @@ export default function (Sequelize, DataTypes) {
       validate: {
         isIn: {
           args: [Object.keys(status)],
-          msg: `Must be in ${Object.keys(status)}`
-        }
-      }
+          msg: `Must be in ${Object.keys(status)}`,
+        },
+      },
     },
 
     incurredAt: {
       type: DataTypes.DATE,
-      allowNull: false
+      allowNull: false,
     },
 
     createdAt: {
       type: DataTypes.DATE,
       defaultValue: Sequelize.NOW,
-      allowNull: false
+      allowNull: false,
     },
 
     updatedAt: {
       type: DataTypes.DATE,
       defaultValue: Sequelize.NOW,
-      allowNull: false
+      allowNull: false,
     },
 
     deletedAt: {
-      type: DataTypes.DATE
-    }
+      type: DataTypes.DATE,
+    },
   }, {
     paranoid: true,
 
@@ -132,8 +132,8 @@ export default function (Sequelize, DataTypes) {
           status: this.status,
           incurredAt: this.incurredAt,
           createdAt: this.createdAt,
-          updatedAt: this.updatedAt
-        }
+          updatedAt: this.updatedAt,
+        };
       },
       public() {
         return {
@@ -151,9 +151,9 @@ export default function (Sequelize, DataTypes) {
           status: this.status,
           incurredAt: this.incurredAt,
           createdAt: this.createdAt,
-          updatedAt: this.updatedAt
-        }
-      }
+          updatedAt: this.updatedAt,
+        };
+      },
     },
   });
 
@@ -203,15 +203,15 @@ export default function (Sequelize, DataTypes) {
       where: {
         UserId: userId,
         createdAt: {
-          [Op.between]: [since, until] // between means since >= x <= until
-        }
-      }
+          [Op.between]: [since, until], // between means since >= x <= until
+        },
+      },
     });
     const arr = [];
     for (const expense of userExpenses) {
       const entry = {
         currency: expense.currency,
-        amount: expense.amount
+        amount: expense.amount,
       };
       if (expense.status === status.PAID) {
         entry.date = expense.updatedAt;

@@ -16,15 +16,15 @@ const sendErrorByEmail = (req, err) => {
     req.body.passwordConfirmation = '***********';
 
   errorHTML += curlify(req, req.body);
-  errorHTML += "<br />\n<br />\n";
-  errorHTML += "Error: <br />\n";
+  errorHTML += '<br />\n<br />\n';
+  errorHTML += 'Error: <br />\n';
   errorHTML += JSON.stringify(err);
 
   emailLib.sendMessage(
     'server-errors@opencollective.com',
     `[${req.app.set('env')}] Error ${err.code}: ${req.method} ${req.url}`,
     errorHTML,
-    {bcc: ' '})
+    { bcc: ' ' })
   .catch(console.error);
 };
 
@@ -68,5 +68,5 @@ export default (err, req, res, next) => {
   debug('Error Express : ', err);
   if (err.stack) debug(err.stack);
 
-  res.status(err.code).send({error: err});
+  res.status(err.code).send({ error: err });
 };

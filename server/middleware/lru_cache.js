@@ -3,11 +3,11 @@ import LRUCache from 'lru-cache';
 import { hashCode } from '../lib/utils';
 import { EventEmitter } from 'events';
 import debugLib from 'debug';
-const debug = debugLib("cache");
+const debug = debugLib('cache');
 
 const cache = LRUCache({
   max: 1000,
-  maxAge: 1000 * 5 // in ms
+  maxAge: 1000 * 5, // in ms
 });
 
 export default () => {
@@ -33,16 +33,16 @@ export default () => {
 
       let cached = cache.get(checksum);
       if (cached) {
-        debug("cache hit", cached.status);
+        debug('cache hit', cached.status);
         switch (cached.status) {
           case 'finished':
-            debug("sending response", cached.contentType, cached.response);
-            res.setHeader("content-type", cached.contentType);
-            return res.send(Buffer.from(cached.response, "base64"));
+            debug('sending response', cached.contentType, cached.response);
+            res.setHeader('content-type', cached.contentType);
+            return res.send(Buffer.from(cached.response, 'base64'));
           case 'running':
             return cached.once('finished', () => {
-              return res.send(Buffer.from(cached.response, "base64"));
-            })
+              return res.send(Buffer.from(cached.response, 'base64'));
+            });
         }
       } else {
         cached = new EventEmitter();
@@ -57,14 +57,14 @@ export default () => {
         req.cached.status = 'finished';
         req.cached.response = data;
         if (typeof data === 'object') {
-          req.cached.contentType = "application/json; charset=utf-8";
+          req.cached.contentType = 'application/json; charset=utf-8';
         }
         req.cached.emit('finished');
-        debug("set cache", req.checksum, req.cached);
-        cache.set(req.checksum, req.cached)
+        debug('set cache', req.checksum, req.cached);
+        cache.set(req.checksum, req.cached);
       }
       temp.apply(this,arguments);
-    }
+    };
     next();
-  }
+  };
 };

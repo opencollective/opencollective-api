@@ -16,7 +16,7 @@ const {
   Activity,
   Expense,
   Collective,
-  Transaction
+  Transaction,
 } = models;
 
 const createdLastWeek = getTimeFrame('createdAt', process.env.START_DATE);
@@ -29,12 +29,12 @@ const updatedWeekBefore = getTimeFrame('updatedAt', weekBefore);
 const donation = {
   where: {
     OrderId: {
-      [Op.not]: null
+      [Op.not]: null,
     },
     platformFeeInHostCurrency: {
-      [Op.lt]: 0
-    }
-  }
+      [Op.lt]: 0,
+    },
+  },
 };
 
 const pendingExpense = { where: { status: expenseStatus.PENDING } };
@@ -42,12 +42,12 @@ const approvedExpense = { where: { status: expenseStatus.APPROVED } };
 const rejectedExpense = { where: { status: expenseStatus.REJECTED } };
 const paidExpense = { where : { status: expenseStatus.PAID } };
 
-const credit = { where: {type: 'CREDIT'}};
+const credit = { where: { type: 'CREDIT' } };
 
 const excludeOcTeam = { where: {
   CollectiveId: {
-    [Op.not]: 1 // OpenCollective collective
-  }
+    [Op.not]: 1, // OpenCollective collective
+  },
 } };
 
 const lastWeekDonations = merge({}, createdLastWeek, donation, excludeOcTeam, credit);
@@ -65,7 +65,7 @@ const collectiveByCurrency = {
   plain: false,
   group: ['currency'],
   attributes: ['currency'],
-  order: ['currency']
+  order: ['currency'],
 };
 
 const onlyIncludeCollectiveType = {
@@ -73,16 +73,16 @@ const onlyIncludeCollectiveType = {
     model: models.Collective,
     as: 'collective',
     where: {
-      type: 'COLLECTIVE'
-    }
-  }]
+      type: 'COLLECTIVE',
+    },
+  }],
 };
 
 const paypalReceived = { where: { type: activities.WEBHOOK_PAYPAL_RECEIVED } };
 
 const distinct = {
   plain: false,
-  distinct: true
+  distinct: true,
 };
 
 export default function run() {
@@ -135,26 +135,26 @@ export default function run() {
     // Collective statistics
 
     activeCollectivesWithTransactions: Transaction
-      .findAll(merge({attributes: ['CollectiveId'] }, createdLastWeek, distinct, excludeOcTeam, onlyIncludeCollectiveType))
+      .findAll(merge({ attributes: ['CollectiveId'] }, createdLastWeek, distinct, excludeOcTeam, onlyIncludeCollectiveType))
       .map(row => row.CollectiveId),
 
     priorActiveCollectivesWithTransactions: Transaction
-      .findAll(merge({attributes: ['CollectiveId'] }, createdWeekBefore, distinct, excludeOcTeam, onlyIncludeCollectiveType))
+      .findAll(merge({ attributes: ['CollectiveId'] }, createdWeekBefore, distinct, excludeOcTeam, onlyIncludeCollectiveType))
       .map(row => row.CollectiveId),
 
     activeCollectivesWithExpenses: Expense
-      .findAll(merge({attributes: ['CollectiveId'] }, updatedLastWeek, distinct, excludeOcTeam))
+      .findAll(merge({ attributes: ['CollectiveId'] }, updatedLastWeek, distinct, excludeOcTeam))
       .map(row => row.CollectiveId),
 
     priorActiveCollectivesWithExpenses: Expense
-      .findAll(merge({attributes: ['CollectiveId'] }, updatedWeekBefore, distinct, excludeOcTeam))
+      .findAll(merge({ attributes: ['CollectiveId'] }, updatedWeekBefore, distinct, excludeOcTeam))
       .map(row => row.CollectiveId),
 
     newCollectives: Collective
       .findAll(merge({}, { attributes: ['slug', 'tags'], where: { type: 'COLLECTIVE' } }, createdLastWeek))
       .map(collective => {
         const openSource = collective.dataValues.tags && collective.dataValues.tags.indexOf('open source') !== -1;
-        return `${collective.dataValues.slug} (${openSource ? 'open source' : collective.dataValues.tags})`
+        return `${collective.dataValues.slug} (${openSource ? 'open source' : collective.dataValues.tags})`;
       }),
 
     priorNewCollectivesCount: Collective.count(merge({}, { where: { type: 'COLLECTIVE' } }, createdWeekBefore)),
@@ -199,9 +199,9 @@ function getTimeFrame(propName, startDate) {
     where: {
       [propName]: {
         [Op.gt]: lastWeekStart,
-        [Op.lt]: thisWeekStart
-      }
-    }
+        [Op.lt]: thisWeekStart,
+      },
+    },
   };
 }
 
@@ -246,14 +246,14 @@ function displayTotals(totals) {
   if (totals.length > 0) {
     return ` totaling:\n    * ${totals.join('\n    * ').trim()}`;
   }
-  return "";
+  return '';
 }
 
 function displayCollectives(collectives) {
   if (collectives.length > 0) {
     return `:\n    * ${collectives.join('\n    * ').trim()}`;
   }
-  return "";
+  return '';
 }
 
 function compareNumbers(recentNumber, priorNumber) {

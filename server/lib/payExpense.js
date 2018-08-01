@@ -27,19 +27,19 @@ const services = {
           {
             email,
             amount,
-            paymentType: 'SERVICE'
-          }
-        ]
-      }
+            paymentType: 'SERVICE',
+          },
+        ],
+      },
     };
 
     return paypalAdaptive.pay(payload)
     .tap(payResponse => createPaymentResponse = payResponse)
     .then(payResponse => paypalAdaptive.executePayment(payResponse.payKey))
     .then(executePaymentResponse => {
-      return { createPaymentResponse, executePaymentResponse}
+      return { createPaymentResponse, executePaymentResponse };
     });
-  }
+  },
 };
 
 export default service => {

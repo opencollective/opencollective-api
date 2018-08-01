@@ -11,13 +11,13 @@ import debug from 'debug';
 import paymentProviders from '../../paymentProviders';
 
 const {
-  User
+  User,
 } = models;
 
 const {
   BadRequest,
   CustomError,
-  Unauthorized
+  Unauthorized,
 } = errors;
 
 const { secret } = config.keys.opencollective;
@@ -82,8 +82,8 @@ export const checkJwtExpiry = (req, res, next) => {
 export function authenticateUserByJwtNoExpiry() {
   return [
     this.parseJwtNoExpiryCheck,
-    this._authenticateUserByJwt
-  ]
+    this._authenticateUserByJwt,
+  ];
 }
 
 /**
@@ -103,7 +103,7 @@ export const _authenticateUserByJwt = (req, res, next) => {
       return user.populateRoles();
     })
     .then(() => {
-      debug('auth')('logged in user', req.remoteUser.id, "roles:", req.remoteUser.rolesByCollectiveId);
+      debug('auth')('logged in user', req.remoteUser.id, 'roles:', req.remoteUser.rolesByCollectiveId);
 
       // Populates req.remoteUser.canEditCurrentCollective, used for GraphQL to keep track whether the remoteUser can see members' details
       const CollectiveId = get(req, 'body.variables.collective.id') || req.params.collectiveid;
@@ -128,14 +128,14 @@ export function authenticateUser(req, res, next) {
   parseJwtNoExpiryCheck(req, res, (e) => {
     // If a token was submitted but is invalid, we continue without authenticating the user
     if (e) {
-      debug('auth')(">>> checkJwtExpiry invalid error", e);
+      debug('auth')('>>> checkJwtExpiry invalid error', e);
       return next();
     }
 
     checkJwtExpiry(req, res, (e) => {
       // If a token was submitted and is expired, we continue without authenticating the user
       if (e) {
-        debug('auth')(">>> checkJwtExpiry expiry error", e);
+        debug('auth')('>>> checkJwtExpiry expiry error', e);
         return next();
       }
       _authenticateUserByJwt(req, res, next);
@@ -148,24 +148,24 @@ export function authenticateInternalUserByJwt() {
   return (req, res, next) => {
     parseJwtNoExpiryCheck(req, res, (e) => {
       if (e) {
-        debug('auth')(">>> parseJwtNoExpiryCheck error", e);
+        debug('auth')('>>> parseJwtNoExpiryCheck error', e);
         return next(e);
       }
       checkJwtExpiry(req, res, (e) => {
         if (e) {
-          debug('auth')(">>> checkJwtExpiry error", e);
+          debug('auth')('>>> checkJwtExpiry error', e);
           return next(e);
         }
         _authenticateUserByJwt(req, res, (e) => {
           if (e) {
-            debug('auth')(">>> _authenticateUserByJwt error", e);
+            debug('auth')('>>> _authenticateUserByJwt error', e);
             return next(e);
           }
           _authenticateInternalUserById(req, res, next);
         });
       });
     });
-  }
+  };
 }
 
 export const _authenticateInternalUserById = (req, res, next) => {
@@ -174,7 +174,7 @@ export const _authenticateInternalUserById = (req, res, next) => {
   } else {
     throw new Unauthorized();
   }
-}
+};
 
 export const authenticateService = (req, res, next) => {
 
@@ -198,11 +198,11 @@ export const authenticateService = (req, res, next) => {
   }
 
   if (!req.query.CollectiveId) {
-    return next(new errors.ValidationFailed(`Please provide a CollectiveId as a query parameter`));
+    return next(new errors.ValidationFailed('Please provide a CollectiveId as a query parameter'));
   }
 
   if (!req.remoteUser || !req.remoteUser.isAdmin(req.query.CollectiveId)) {
-    throw new errors.Unauthorized("Please login as an admin of this collective to add a connected account");
+    throw new errors.Unauthorized('Please login as an admin of this collective to add a connected account');
   }
 
   if (paymentProviders[service]) {
@@ -240,7 +240,7 @@ export const authenticateServiceCallback = (req, res, next) => {
         uri: 'https://api.github.com/user/emails',
         qs: { access_token: accessToken },
         headers: { 'User-Agent': 'OpenCollective' },
-        json: true
+        json: true,
       })
         .then(json => json.map(entry => entry.email))
         .then(emails => createOrUpdateConnectedAccount(req, res, next, accessToken, data, emails))

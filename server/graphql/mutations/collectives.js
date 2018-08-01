@@ -12,29 +12,29 @@ const defaultTiers = (collectiveData) => {
     tiers.push({
       type: 'TIER',
       name: '1 month',
-      description: "Sponsor our meetup and get: a shout-out on social media, presence on the merch table and your logo on our meetup page.",
+      description: 'Sponsor our meetup and get: a shout-out on social media, presence on the merch table and your logo on our meetup page.',
       slug: '1month-sponsor',
       amount: 25000,
-      button: "become a sponsor",
-      currency: collectiveData.currency
+      button: 'become a sponsor',
+      currency: collectiveData.currency,
     });
     tiers.push({
       type: 'TIER',
       name: '3 months',
-      description: "**10% off!** - Sponsor our meetup and get: a shout-out on social media, presence on the merch table and your logo on our meetup page.",
+      description: '**10% off!** - Sponsor our meetup and get: a shout-out on social media, presence on the merch table and your logo on our meetup page.',
       slug: '3month-sponsor',
       amount: 67500,
-      button: "become a sponsor",
-      currency: collectiveData.currency
+      button: 'become a sponsor',
+      currency: collectiveData.currency,
     });
     tiers.push({
       type: 'TIER',
       name: '6 months',
-      description: "**20% off!** - Sponsor our meetup and get: a shout-out on social media, presence on the merch table and your logo on our meetup page.",
+      description: '**20% off!** - Sponsor our meetup and get: a shout-out on social media, presence on the merch table and your logo on our meetup page.',
       slug: '6month-sponsor',
       amount: 120000,
-      button: "become a sponsor",
-      currency: collectiveData.currency
+      button: 'become a sponsor',
+      currency: collectiveData.currency,
     });
     return tiers;
   }
@@ -46,7 +46,7 @@ const defaultTiers = (collectiveData) => {
       amount: 500,
       presets: [500, 1000, 2500, 5000],
       interval: 'month',
-      currency: collectiveData.currency
+      currency: collectiveData.currency,
     });
     tiers.push({
       type: 'TIER',
@@ -55,26 +55,26 @@ const defaultTiers = (collectiveData) => {
       amount: 10000,
       presets: [10000, 25000, 50000],
       interval: 'month',
-      currency: collectiveData.currency
+      currency: collectiveData.currency,
     });
   }
   return tiers;
-}
+};
 
 export function createCollective(_, args, req) {
   if (!req.remoteUser) {
-    return Promise.reject(new errors.Unauthorized({ message: "You need to be logged in to create a collective"}));
+    return Promise.reject(new errors.Unauthorized({ message: 'You need to be logged in to create a collective' }));
   }
 
   if (!args.collective.name) {
-    return Promise.reject(new errors.ValidationFailed({ message: "collective.name required" }));
+    return Promise.reject(new errors.ValidationFailed({ message: 'collective.name required' }));
   }
 
   let hostCollective, parentCollective, collective;
 
   const collectiveData = {
     ...args.collective,
-    CreatedByUserId: req.remoteUser.id
+    CreatedByUserId: req.remoteUser.id,
   };
 
   collectiveData.tiers = collectiveData.tiers || [];
@@ -114,7 +114,7 @@ export function createCollective(_, args, req) {
       } else {
         args.collective.HostCollectiveId = 8674; // Open Collective Inc. Host
       }
-      collectiveData.tags.push("Tech meetups");
+      collectiveData.tags.push('Tech meetups');
     }
     promises.push(
       req.loaders
@@ -154,11 +154,11 @@ export function createCollective(_, args, req) {
       collectiveData.slug = `${slug}-${parentCollective.id}${collectiveData.type.substr(0,2)}`.toLowerCase();
       const canCreateEvent = req.remoteUser.hasRole(['ADMIN', 'HOST', 'BACKER'], parentCollective.id);
       if (!canCreateEvent) {
-        return Promise.reject(new errors.Unauthorized({ message: `You must be logged in as a member of the ${parentCollective.slug} collective to create an event`}));
+        return Promise.reject(new errors.Unauthorized({ message: `You must be logged in as a member of the ${parentCollective.slug} collective to create an event` }));
       }
     } else if (collectiveData.HostCollectiveData) {
       if (!hostCollective.settings.apply) {
-        return Promise.reject(new errors.Unauthorized({ message: `This host does not accept applications for new collectives` }))
+        return Promise.reject(new errors.Unauthorized({ message: 'This host does not accept applications for new collectives' }));
       } else {
         collectiveData.isActive = false;
       }
@@ -189,16 +189,16 @@ export function createCollective(_, args, req) {
         host: hostCollective.info,
         user: {
           email: req.remoteUser.email,
-          collective: remoteUserCollective.info
-        }
-      }
-    })
+          collective: remoteUserCollective.info,
+        },
+      },
+    });
     return collective;
   })
   .catch(e => {
     let msg;
     switch (e.name) {
-      case "SequelizeUniqueConstraintError":
+      case 'SequelizeUniqueConstraintError':
         msg = `The slug ${e.fields.slug.replace(/\-[0-9]+ev$/, '')} is already taken. Please use another name for your ${collectiveData.type.toLowerCase()}.`;
         break;
       default:
@@ -206,16 +206,16 @@ export function createCollective(_, args, req) {
         break;
     }
     throw new Error(msg);
-  })
+  });
 }
 
 export function editCollective(_, args, req) {
   if (!req.remoteUser) {
-    throw new errors.Unauthorized({ message: "You need to be logged in to edit a collective" });
+    throw new errors.Unauthorized({ message: 'You need to be logged in to edit a collective' });
   }
 
   if (!args.collective.id) {
-    return Promise.reject(new errors.ValidationFailed({ message: "collective.id required" }));
+    return Promise.reject(new errors.ValidationFailed({ message: 'collective.id required' }));
   }
 
   const location = args.collective.location || {};
@@ -224,7 +224,7 @@ export function editCollective(_, args, req) {
     ...args.collective,
     locationName: location.name,
     address: location.address,
-    LastEditedByUserId: req.remoteUser.id
+    LastEditedByUserId: req.remoteUser.id,
   };
 
   updatedCollectiveData.type = updatedCollectiveData.type || 'COLLECTIVE';
@@ -232,7 +232,7 @@ export function editCollective(_, args, req) {
   if (location.lat) {
     updatedCollectiveData.geoLocationLatLong = {
       type: 'Point',
-      coordinates: [ location.lat, location.long ]
+      coordinates: [ location.lat, location.long ],
     };
   }
 
@@ -243,7 +243,7 @@ export function editCollective(_, args, req) {
       .then(c => {
         if (!c) throw new Error(`Collective with id ${args.collective.id} not found`);
         collective = c;
-      })
+      }),
     ];
 
   if (args.collective.ParentCollectiveId) {
@@ -265,9 +265,9 @@ export function editCollective(_, args, req) {
       updatedCollectiveData.slug = `${slug}-${parentCollective.id}${collective.type.substr(0,2)}`.toLowerCase();
     }
     if (updatedCollectiveData.type === 'EVENT') {
-      return (req.remoteUser.id === collective.CreatedByUserId) || req.remoteUser.hasRole(['ADMIN', 'HOST', 'BACKER'], parentCollective.id)
+      return (req.remoteUser.id === collective.CreatedByUserId) || req.remoteUser.hasRole(['ADMIN', 'HOST', 'BACKER'], parentCollective.id);
     } else {
-      return (req.remoteUser.id === collective.CreatedByUserId) || req.remoteUser.hasRole(['ADMIN', 'HOST'], updatedCollectiveData.id)
+      return (req.remoteUser.id === collective.CreatedByUserId) || req.remoteUser.hasRole(['ADMIN', 'HOST'], updatedCollectiveData.id);
     }
   })
   .then(canEditCollective => {
@@ -297,7 +297,7 @@ export function editCollective(_, args, req) {
 
 export async function approveCollective(remoteUser, CollectiveId) {
   if (!remoteUser) {
-    throw new errors.Unauthorized({ message: "You need to be logged in to approve a collective" });
+    throw new errors.Unauthorized({ message: 'You need to be logged in to approve a collective' });
   }
 
   const collective = await models.Collective.findById(CollectiveId);
@@ -308,7 +308,7 @@ export async function approveCollective(remoteUser, CollectiveId) {
   const hostCollective = await collective.getHostCollective();
 
   if (!remoteUser.isAdmin(hostCollective.id)) {
-    throw new errors.Unauthorized({ message: "You need to be logged in as an admin of the host of this collective to approve it", data: { HostCollectiveId: hostCollective.id } });
+    throw new errors.Unauthorized({ message: 'You need to be logged in as an admin of the host of this collective to approve it', data: { HostCollectiveId: hostCollective.id } });
   }
 
   models.Activity.create({
@@ -319,24 +319,24 @@ export async function approveCollective(remoteUser, CollectiveId) {
       collective: collective.info,
       host: hostCollective.info,
       user: {
-        email: remoteUser.email
-      }
-    }
-  })
+        email: remoteUser.email,
+      },
+    },
+  });
 
   return collective.update({ isActive: true });
 }
 
 export function deleteCollective(_, args, req) {
   if (!req.remoteUser) {
-    throw new errors.Unauthorized({ message: "You need to be logged in to delete a collective" });
+    throw new errors.Unauthorized({ message: 'You need to be logged in to delete a collective' });
   }
 
   return models.Collective.findById(args.id)
     .then(collective => {
       if (!collective) throw new errors.NotFound({ message: `Collective with id ${args.id} not found` });
       if (!req.remoteUser.isAdmin(collective.id) && !req.remoteUser.isAdmin(collective.ParentCollectiveId)) {
-        throw new errors.Unauthorized({ message: "You need to be logged in as a core contributor or as a host to delete this collective" });
+        throw new errors.Unauthorized({ message: 'You need to be logged in as a core contributor or as a host to delete this collective' });
       }
 
       return collective.destroy();

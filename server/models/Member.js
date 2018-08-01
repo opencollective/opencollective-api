@@ -8,49 +8,49 @@ export default function(Sequelize, DataTypes) {
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
-      autoIncrement: true
+      autoIncrement: true,
     },
 
     CreatedByUserId: {
       type: DataTypes.INTEGER,
       references: {
         model: 'Users',
-        key: 'id'
+        key: 'id',
       },
       onDelete: 'SET NULL',
-      onUpdate: 'CASCADE'
+      onUpdate: 'CASCADE',
     },
 
     MemberCollectiveId: {
       type: DataTypes.INTEGER,
       references: {
         model: 'Collectives',
-        key: 'id'
+        key: 'id',
       },
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
-      allowNull: false
+      allowNull: false,
     },
 
     CollectiveId: {
       type: DataTypes.INTEGER,
       references: {
         model: 'Collectives',
-        key: 'id'
+        key: 'id',
       },
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
-      allowNull: false
+      allowNull: false,
     },
 
     TierId: {
       type: DataTypes.INTEGER,
       references: {
         model: 'Tiers',
-        key: 'id'
+        key: 'id',
       },
       onDelete: 'SET NULL',
-      onUpdate: 'CASCADE'
+      onUpdate: 'CASCADE',
     },
 
     role: {
@@ -60,9 +60,9 @@ export default function(Sequelize, DataTypes) {
       validate: {
         isIn: {
           args: [[roles.HOST, roles.ADMIN, roles.MEMBER, roles.BACKER, roles.CONTRIBUTOR, roles.ATTENDEE, roles.FOLLOWER, roles.FUNDRAISER]],
-          msg: 'Must be host, admin, member, backer, contributor, attendee, fundraiser or follower'
-        }
-      }
+          msg: 'Must be host, admin, member, backer, contributor, attendee, fundraiser or follower',
+        },
+      },
     },
 
     description: DataTypes.STRING,
@@ -70,19 +70,19 @@ export default function(Sequelize, DataTypes) {
     // Dates.
     createdAt: {
       type: DataTypes.DATE,
-      defaultValue: Sequelize.NOW
+      defaultValue: Sequelize.NOW,
     },
     updatedAt: {
       type: DataTypes.DATE,
-      defaultValue: Sequelize.NOW
-    }
+      defaultValue: Sequelize.NOW,
+    },
   }, {
     paranoid: true,
     indexes: [
        {
           fields: ['MemberCollectiveId', 'CollectiveId', 'role'],
           name: 'MemberCollectiveId-CollectiveId-role',
-      }
+      },
     ],
     getterMethods: {
       // Info.
@@ -95,10 +95,10 @@ export default function(Sequelize, DataTypes) {
           MemberCollectiveId: this.MemberCollectiveId,
           createdAt: this.createdAt,
           updatedAt: this.updatedAt,
-          deletedAt: this.deletedAt
+          deletedAt: this.deletedAt,
         };
-      }
-    }
+      },
+    },
   });
 
   /**
@@ -111,7 +111,7 @@ export default function(Sequelize, DataTypes) {
     if (member.tier.interval === 'month' && days(new Date(member.lastDonation)) <= 31) return true;
     if (member.tier.interval === 'year' && days(new Date(member.lastDonation)) <= 365) return true;
     return false;
-  }
+  };
 
-  return Member
+  return Member;
 }

@@ -41,12 +41,12 @@ export default function(Sequelize, DataTypes) {
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
-      autoIncrement: true
+      autoIncrement: true,
     },
 
     type: {
       type: DataTypes.STRING, // COLLECTIVE, USER, EVENT
-      defaultValue: "COLLECTIVE"
+      defaultValue: 'COLLECTIVE',
     },
 
     slug: {
@@ -57,7 +57,7 @@ export default function(Sequelize, DataTypes) {
         if (slug && slug.toLowerCase) {
           this.setDataValue('slug', slug.toLowerCase().replace(/ /g, '-').replace(/\./g, ''));
         }
-      }
+      },
     },
 
     name: DataTypes.STRING,
@@ -67,47 +67,47 @@ export default function(Sequelize, DataTypes) {
       type: DataTypes.INTEGER,
       references: {
         model: 'Users',
-        key: 'id'
+        key: 'id',
       },
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
-      allowNull: true // non authenticated users can create a collective
+      allowNull: true, // non authenticated users can create a collective
     },
 
     LastEditedByUserId: {
       type: DataTypes.INTEGER,
       references: {
         model: 'Users',
-        key: 'id'
+        key: 'id',
       },
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
-      allowNull: true // needs to be true because of old rows
+      allowNull: true, // needs to be true because of old rows
     },
 
     ParentCollectiveId: {
       type: DataTypes.INTEGER,
       references: {
         model: 'Collectives',
-        key: 'id'
+        key: 'id',
       },
       onDelete: 'SET NULL',
-      onUpdate: 'CASCADE'
+      onUpdate: 'CASCADE',
     },
 
     HostCollectiveId: {
       type: DataTypes.INTEGER,
       references: {
         model: 'Collectives',
-        key: 'id'
+        key: 'id',
       },
       onDelete: 'SET NULL',
-      onUpdate: 'CASCADE'
+      onUpdate: 'CASCADE',
     },
 
     hostFeePercent: {
       type: DataTypes.FLOAT,
-      defaultValue: HOST_FEE_PERCENT
+      defaultValue: HOST_FEE_PERCENT,
     },
 
     mission: DataTypes.STRING, // max 95 characters
@@ -121,31 +121,31 @@ export default function(Sequelize, DataTypes) {
     image: {
       type: DataTypes.STRING,
       get() {
-        const image = this.getDataValue("image");
+        const image = this.getDataValue('image');
         if (image) return image;
         if (this.type === 'ORGANIZATION' && this.website && !this.website.match(/^https:\/\/twitter\.com\//)) {
           const image = `https://logo.clearbit.com/${getDomain(this.website)}`;
           return image;
         }
-      }
+      },
     },
 
     backgroundImage: {
       type: DataTypes.STRING,
       get() {
         return this.getDataValue('backgroundImage');
-      }
+      },
     },
 
     // Max amount to raise across all tiers
     maxAmount: {
       type: DataTypes.INTEGER, // In cents
-      min: 0
+      min: 0,
     },
 
     // Max quantity of tickets across all tiers
     maxQuantity: {
-      type: DataTypes.INTEGER
+      type: DataTypes.INTEGER,
     },
 
     locationName: DataTypes.STRING,
@@ -160,34 +160,34 @@ export default function(Sequelize, DataTypes) {
 
     data: {
       type: DataTypes.JSON,
-      allowNull: true
+      allowNull: true,
     },
 
     startsAt: {
       type: DataTypes.DATE,
-      defaultValue: Sequelize.NOW
+      defaultValue: Sequelize.NOW,
     },
 
     endsAt: {
       type: DataTypes.DATE,
-      defaultValue: Sequelize.NOW
+      defaultValue: Sequelize.NOW,
     },
 
     timezone: DataTypes.STRING,
 
     createdAt: {
       type: DataTypes.DATE,
-      defaultValue: Sequelize.NOW
+      defaultValue: Sequelize.NOW,
     },
 
     updatedAt: {
       type: DataTypes.DATE,
-      defaultValue: Sequelize.NOW
+      defaultValue: Sequelize.NOW,
     },
 
     isActive: {
       type: DataTypes.BOOLEAN,
-      defaultValue: false
+      defaultValue: false,
     },
 
     twitterHandle: {
@@ -195,7 +195,7 @@ export default function(Sequelize, DataTypes) {
       set(twitterHandle) {
         if (typeof twitterHandle !== 'string') return;
         this.setDataValue('twitterHandle', twitterHandle.replace(/^@/,''));
-      }
+      },
     },
 
     website: {
@@ -206,24 +206,24 @@ export default function(Sequelize, DataTypes) {
           return prependHttp(website);
         }
         return (this.getDataValue('twitterHandle')) ? `https://twitter.com/${this.getDataValue('twitterHandle')}` : null;
-      }
+      },
     },
 
     publicUrl: {
       type: new DataTypes.VIRTUAL(DataTypes.STRING, ['slug']),
       get() {
         return `${config.host.website}/${this.get('slug')}`;
-      }
+      },
     },
 
     tags: {
-      type: DataTypes.ARRAY(DataTypes.STRING)
+      type: DataTypes.ARRAY(DataTypes.STRING),
     },
 
     isSupercollective: {
       type: DataTypes.BOOLEAN,
-      defaultValue: false
-    }
+      defaultValue: false,
+    },
 
   }, {
     paranoid: true,
@@ -235,8 +235,8 @@ export default function(Sequelize, DataTypes) {
           name: this.locationName,
           address: this.address,
           lat: this.geoLocationLatLong && this.geoLocationLatLong.coordinates && this.geoLocationLatLong.coordinates[0],
-          long: this.geoLocationLatLong && this.geoLocationLatLong.coordinates && this.geoLocationLatLong.coordinates[1]
-        }
+          long: this.geoLocationLatLong && this.geoLocationLatLong.coordinates && this.geoLocationLatLong.coordinates[1],
+        };
       },
 
       previewImage() {
@@ -246,7 +246,7 @@ export default function(Sequelize, DataTypes) {
 
         const format = (this.image.match(/\.png$/)) ? 'png' : 'jpg';
 
-        const queryurl = (this.type === 'USER') ? `/c_thumb,g_face,h_48,r_max,w_48,bo_3px_solid_white/c_thumb,h_48,r_max,w_48,bo_2px_solid_rgb:66C71A/e_trim` : `/h_96,c_fill`;
+        const queryurl = (this.type === 'USER') ? '/c_thumb,g_face,h_48,r_max,w_48,bo_3px_solid_white/c_thumb,h_48,r_max,w_48,bo_2px_solid_rgb:66C71A/e_trim' : '/h_96,c_fill';
 
         return `${cloudinaryBaseUrl}${queryurl}/f_${format}/${encodeURIComponent(this.image)}`;
       },
@@ -284,7 +284,7 @@ export default function(Sequelize, DataTypes) {
           hostFeePercent: this.hostFeePercent,
           tags: this.tags,
           HostCollectiveId: this.HostCollectiveId,
-          isSupercollective: this.isSupercollective
+          isSupercollective: this.isSupercollective,
         };
       },
       card() {
@@ -299,8 +299,8 @@ export default function(Sequelize, DataTypes) {
           mission: this.mission,
           description: this.description,
           settings: this.settings,
-          currency: this.currency
-        }
+          currency: this.currency,
+        };
       },
       // used to generate the invoice
       invoice() {
@@ -316,8 +316,8 @@ export default function(Sequelize, DataTypes) {
           address: this.address,
           description: this.description,
           settings: this.settings,
-          currency: this.currency
-        }
+          currency: this.currency,
+        };
       },
       minimal() {
         return {
@@ -329,8 +329,8 @@ export default function(Sequelize, DataTypes) {
           twitterHandle: this.twitterHandle,
           publicUrl: this.publicUrl,
           mission: this.mission,
-          isSupercollective: this.isSupercollective
-        }
+          isSupercollective: this.isSupercollective,
+        };
       },
       activity() {
         return {
@@ -342,8 +342,8 @@ export default function(Sequelize, DataTypes) {
           website: this.website,
           twitterHandle: this.twitterHandle,
           description: this.description,
-          previewImage: this.previewImage
-        }
+          previewImage: this.previewImage,
+        };
       },
       searchIndex() {
         return {
@@ -358,8 +358,8 @@ export default function(Sequelize, DataTypes) {
           locationName: this.locationName,
           balance: this.balance, // useful in ranking
           yearlyBudget: this.yearlyBudget,
-          backersCount: this.backersCount
-        }
+          backersCount: this.backersCount,
+        };
       },
     },
 
@@ -371,12 +371,12 @@ export default function(Sequelize, DataTypes) {
           instance.slug,
           instance.image ? userlib.getUsernameFromGithubURL(instance.image) : null,
           instance.twitterHandle ? instance.twitterHandle.replace(/@/g, '') : null,
-          instance.name ? instance.name.replace(/ /g, '-') : null
+          instance.name ? instance.name.replace(/ /g, '-') : null,
         ];
         return Collective.generateSlug(potentialSlugs)
           .then(slug => {
             if (!slug) {
-              return Promise.reject(new Error(`We couldn't generate a unique slug for this collective`, potentialSlugs));
+              return Promise.reject(new Error('We couldn\'t generate a unique slug for this collective', potentialSlugs));
             }
             instance.slug = slug;
             return Promise.resolve();
@@ -397,11 +397,11 @@ export default function(Sequelize, DataTypes) {
           type: 'collective',
           name: `${capitalize(instance.name)} ${capitalize(instance.type.toLowerCase())}`,
           primary: true,
-          currency: instance.currency
+          currency: instance.currency,
         });
         return null;
-      }
-    }
+      },
+    },
   });
 
   /**
@@ -418,7 +418,7 @@ export default function(Sequelize, DataTypes) {
     const stats = {};
     goals.sort((a, b) => {
       if (a.amount < b.amount) return -1;
-      else return 1
+      else return 1;
     });
 
     let nextGoal;
@@ -444,26 +444,26 @@ export default function(Sequelize, DataTypes) {
           nextGoal = goal;
           nextGoal.progress = Math.round(stats.yearlyBudget/goal.amount*100) / 100;
           nextGoal.percentage = `${Math.round(nextGoal.progress * 100)}%`;
-          nextGoal.missing = { amount: Math.round((goal.amount - stats.yearlyBudget )/ 12), interval: 'month' }
+          nextGoal.missing = { amount: Math.round((goal.amount - stats.yearlyBudget )/ 12), interval: 'month' };
           nextGoal.interval = 'year';
           return;
         }
       }
-    })
+    });
     return nextGoal;
-  }
+  };
 
   // If no image has been provided, try to find a good image using clearbit/gravatar and save it if it returns 200
   Collective.prototype.findImage = function(user) {
-    if (this.getDataValue("image")) return this.image;
+    if (this.getDataValue('image')) return this.image;
 
     const checkAndUpdateImage = (image) => {
       return fetch(image).then(response => {
         if (response.status === 200) {
           return this.update({ image });
         }
-      })
-    }
+      });
+    };
 
     if (this.type === 'ORGANIZATION' && this.website) {
       const image = `https://logo.clearbit.com/${getDomain(this.website)}`;
@@ -472,18 +472,18 @@ export default function(Sequelize, DataTypes) {
     }
     if (this.type === 'USER' && user) {
       if (user.email) {
-        const md5 = crypto.createHash('md5').update(user.email.toLowerCase().trim()).digest("hex");
+        const md5 = crypto.createHash('md5').update(user.email.toLowerCase().trim()).digest('hex');
         const avatar = `https://www.gravatar.com/avatar/${md5}?default=404`;
         checkAndUpdateImage(avatar);
         return avatar;
       }
     }
-  }
+  };
 
   // run when attaching a Stripe Account to this user/organization collective
   Collective.prototype.becomeHost = function() {
     this.data = this.data || {};
-    return models.PaymentMethod.findOne({ where: { service: 'opencollective', CollectiveId: this.id }})
+    return models.PaymentMethod.findOne({ where: { service: 'opencollective', CollectiveId: this.id } })
       .then(pm => {
         if (pm) return null;
         return models.PaymentMethod.create({
@@ -492,9 +492,9 @@ export default function(Sequelize, DataTypes) {
           type: 'collective',
           name: `${capitalize(this.name)} Collective`,
           primary: true,
-          currency: this.currency
+          currency: this.currency,
         });
-      })
+      });
   };
 
   // This is quite ugly, and only needed for events.
@@ -504,7 +504,7 @@ export default function(Sequelize, DataTypes) {
       return models.Collective.findById(this.ParentCollectiveId, { attributes: ['id', 'slug'] })
         .then(parent => {
           return `/${parent.slug}/events/${this.slug}`;
-        })
+        });
     } else {
       return Promise.resolve(`/${this.slug}`);
     }
@@ -526,21 +526,21 @@ export default function(Sequelize, DataTypes) {
    * including all the admins of the organizations that are members/backers of this collective
    */
   Collective.prototype.getUsers = function() {
-    debug("getUsers for ", this.id);
+    debug('getUsers for ', this.id);
     return models.Member.findAll({
       where: { CollectiveId: this.id },
       include: [
-        { model: models.Collective, as: 'memberCollective' }
-      ]
+        { model: models.Collective, as: 'memberCollective' },
+      ],
     })
-    .tap(memberships => debug(">>> members found", memberships.length))
+    .tap(memberships => debug('>>> members found', memberships.length))
     .map(membership => membership.memberCollective)
     .map(memberCollective => {
-      debug(">>> fetching user for", memberCollective.slug, memberCollective.type);
+      debug('>>> fetching user for', memberCollective.slug, memberCollective.type);
       if (memberCollective.type === types.USER) {
         return memberCollective.getUser().then(user => [user]);
       } else {
-        debug("User", memberCollective.slug, "type: ", memberCollective.type);
+        debug('User', memberCollective.slug, 'type: ', memberCollective.type);
         return memberCollective.getAdminUsers();
       }
     })
@@ -554,13 +554,13 @@ export default function(Sequelize, DataTypes) {
     return models.Member.findAll({
       where: {
         CollectiveId: this.id,
-        role: roles.ADMIN
+        role: roles.ADMIN,
       },
       include: [
-        { model: models.Collective, as: 'memberCollective' }
-      ]
+        { model: models.Collective, as: 'memberCollective' },
+      ],
     }).map(member => member.memberCollective);
-  }
+  };
 
   /**
    * Get the admin users { id, email } of this collective
@@ -572,19 +572,19 @@ export default function(Sequelize, DataTypes) {
     const admins = await models.Member.findAll({
       where: {
         CollectiveId: this.id,
-        role: roles.ADMIN
-      }
+        role: roles.ADMIN,
+      },
     });
-    const users = await Promise.map(admins, admin => models.User.findOne({ where: { CollectiveId: admin.MemberCollectiveId }}));
+    const users = await Promise.map(admins, admin => models.User.findOne({ where: { CollectiveId: admin.MemberCollectiveId } }));
     return users;
-  }
+  };
 
   /**
    * Get the email addresses of the admins of this collective
    */
   Collective.prototype.getEmails = async function() {
     return this.getAdminUsers().then(users => users.map(u => u && u.email));
-  }
+  };
 
   Collective.prototype.getEvents = function(query = {}) {
     return Collective.findAll({
@@ -592,8 +592,8 @@ export default function(Sequelize, DataTypes) {
       where: {
         ...query.where,
         ParentCollectiveId: this.id,
-        type: types.EVENT
-      }
+        type: types.EVENT,
+      },
     });
   };
 
@@ -609,24 +609,24 @@ export default function(Sequelize, DataTypes) {
       where: {
         CollectiveId: this.id,
         role: roles.BACKER,
-        createdAt: { [Op.lt]: until }
-      }
+        createdAt: { [Op.lt]: until },
+      },
     });
 
     return Promise.all([
       getBackersUntil(startDate),
-      getBackersUntil(endDate)
+      getBackersUntil(endDate),
     ])
     .then(results => {
       return {
         backers: {
           lastMonth: results[1],
           previousMonth: results[0],
-          new: results[1] - results[0]
-        }
-      }
+          new: results[1] - results[0],
+        },
+      };
     });
-  }
+  };
 
   /**
    * Get new orders in last time period
@@ -637,20 +637,20 @@ export default function(Sequelize, DataTypes) {
     const orders = await models.Order.findAll({
       where: {
         CollectiveId: this.id,
-        createdAt: { [Op.gte]: startDate, [Op.lt]: endDate }
+        createdAt: { [Op.gte]: startDate, [Op.lt]: endDate },
       },
       paranoid: false,
       include: [
-        { model: models.Collective, as: "fromCollective" },
-        { model: models.Tier }
-      ]
+        { model: models.Collective, as: 'fromCollective' },
+        { model: models.Tier },
+      ],
     });
     orders.sort((a, b) => {
       if (a.dataValues.totalAmount > b.dataValues.totalAmount) return -1;
       else return 1;
     });
     return orders;
-  }
+  };
 
   /**
    * Get orders whose subscription was cancelled during last time period
@@ -660,24 +660,24 @@ export default function(Sequelize, DataTypes) {
   Collective.prototype.getCancelledOrders = async function(startDate = 0, endDate = new Date) {
     const orders = await models.Order.findAll({
       where: {
-        CollectiveId: this.id
+        CollectiveId: this.id,
       },
       include: [
         {
           model: models.Subscription,
           required: true,
           where: {
-            deactivatedAt: { [Op.gte]: startDate, [Op.lt]: endDate }
-          }
+            deactivatedAt: { [Op.gte]: startDate, [Op.lt]: endDate },
+          },
         },
         {
           model: models.Collective,
-          as: "fromCollective"
+          as: 'fromCollective',
         },
         {
-          model: models.Tier
-        }
-      ]
+          model: models.Tier,
+        },
+      ],
     }).map(async (order) => {
       order.totalTransactions = await order.getTotalTransactions();
       return order;
@@ -689,7 +689,7 @@ export default function(Sequelize, DataTypes) {
     });
 
     return orders;
-  }
+  };
 
   /**
    * Get the total number of backers (individuals or organizations that have given money to the collective)
@@ -701,13 +701,13 @@ export default function(Sequelize, DataTypes) {
 
     const query = {
       attributes: [
-        [Sequelize.fn('COUNT', Sequelize.fn('DISTINCT', Sequelize.col('FromCollectiveId'))), 'count']
+        [Sequelize.fn('COUNT', Sequelize.fn('DISTINCT', Sequelize.col('FromCollectiveId'))), 'count'],
       ],
       where: {
         CollectiveId: this.id,
         FromCollectiveId: { [Op.ne]: this.HostCollectiveId },
-        type: 'CREDIT'
-      }
+        type: 'CREDIT',
+      },
     };
 
     if (options.since) {
@@ -727,8 +727,8 @@ export default function(Sequelize, DataTypes) {
           as: 'fromCollective',
           attributes: [],
           required: true,
-          where: { type: { [Op.in]: types }}
-        }
+          where: { type: { [Op.in]: types } },
+        },
       ];
       query.raw = true; // need this otherwise it automatically also fetches Transaction.id which messes up everything
     }
@@ -741,14 +741,14 @@ export default function(Sequelize, DataTypes) {
           model: models.Collective,
           as: 'fromCollective',
           attributes: [],
-          required: true
-        }
+          required: true,
+        },
       ];
       query.raw = true; // need this otherwise it automatically also fetches Transaction.id which messes up everything
       query.group = options.group;
-      method = "findAll";
+      method = 'findAll';
     } else {
-      method = "findOne";
+      method = 'findOne';
     }
 
     return models.Transaction[method](query).then(res => {
@@ -759,13 +759,13 @@ export default function(Sequelize, DataTypes) {
           res.forEach(r => {
             stats[r.type] = r.count;
             all += r.count;
-          })
+          });
           stats.all = all;
-          debug("getBackersCount", stats);
+          debug('getBackersCount', stats);
           return stats;
         } else {
           const result = res.dataValues || res || {};
-          debug("getBackersCount", result);
+          debug('getBackersCount', result);
           if (!result.count) return 0;
           return Promise.resolve(Number(result.count));
         }
@@ -774,14 +774,14 @@ export default function(Sequelize, DataTypes) {
 
   Collective.prototype.getIncomingOrders = function(options) {
     const query = deepmerge({
-      where: { CollectiveId: this.id }
+      where: { CollectiveId: this.id },
     }, options);
     return models.Order.findAll(query);
   };
 
   Collective.prototype.getOutgoingOrders = function(options) {
     const query = deepmerge({
-      where: { FromCollectiveId: this.id }
+      where: { FromCollectiveId: this.id },
     }, options);
     return models.Order.findAll(query);
   };
@@ -789,7 +789,7 @@ export default function(Sequelize, DataTypes) {
   Collective.prototype.getRoleForMemberCollective = function(MemberCollectiveId) {
     if (!MemberCollectiveId) return null;
     return models.Member.findOne({
-      where: { MemberCollectiveId, CollectiveId: this.id }
+      where: { MemberCollectiveId, CollectiveId: this.id },
     }).then(member => member.role);
   };
 
@@ -799,8 +799,8 @@ export default function(Sequelize, DataTypes) {
     return models.Collective.findAll({
       attributes: ['id'],
       where: {
-        tags: { [Op.contains]: [this.settings.superCollectiveTag] }
-      }
+        tags: { [Op.contains]: [this.settings.superCollectiveTag] },
+      },
     })
     .then(rows => rows.map(r => r.id))
     .then(ids => {
@@ -817,7 +817,7 @@ export default function(Sequelize, DataTypes) {
    *  { name: 'backer', users: [ {UserObject}, {UserObject} ], range: [], ... }
    * ]
    */
-  Collective.prototype.getTiersWithUsers = function(options = {active: false, attributes: ['id', 'username', 'image', 'firstDonation', 'lastDonation', 'totalDonations', 'website'] }) {
+  Collective.prototype.getTiersWithUsers = function(options = { active: false, attributes: ['id', 'username', 'image', 'firstDonation', 'lastDonation', 'totalDonations', 'website'] }) {
     const tiersById = {};
       // Get the list of tiers for the collective (including deleted ones)
     return models.Tier
@@ -832,28 +832,28 @@ export default function(Sequelize, DataTypes) {
         return models.Order.findOne({
           attributes: [ 'TierId' ],
           where: { FromCollectiveId: backerCollective.id, CollectiveId: this.id, TierId: { [Op.ne]: null } },
-          include
+          include,
         }).then(order => {
           if (!order) {
-            debug("Collective.getTiersWithUsers: no order for a tier for ", { FromCollectiveId: backerCollective.id, CollectiveId: this.id });
+            debug('Collective.getTiersWithUsers: no order for a tier for ', { FromCollectiveId: backerCollective.id, CollectiveId: this.id });
             return null;
           }
           const TierId = order.TierId;
           tiersById[TierId] = tiersById[TierId] || order.Tier;
           if (!tiersById[TierId]) {
-            console.error(">>> Couldn't find a tier with id", order.TierId, "collective: ", this.slug);
+            console.error(">>> Couldn't find a tier with id", order.TierId, 'collective: ', this.slug);
             tiersById[TierId] = { dataValues: { users: [] } };
           }
           tiersById[TierId].dataValues.users = tiersById[TierId].dataValues.users || [];
           if (options.active) {
             backerCollective.isActive = order.Subscription.isActive;
           }
-          debug("adding to tier", TierId, "backer: ", backerCollective.dataValues.slug);
+          debug('adding to tier', TierId, 'backer: ', backerCollective.dataValues.slug);
           tiersById[TierId].dataValues.users.push(backerCollective.dataValues);
-        })
+        });
       })
       .then(() => {
-        return Object.values(tiersById)
+        return Object.values(tiersById);
       });
   };
 
@@ -866,9 +866,9 @@ export default function(Sequelize, DataTypes) {
     return models.Order.findOne({
       where: {
         FromCollectiveId: backerCollective.id,
-        CollectiveId: this.id
+        CollectiveId: this.id,
       },
-      include: [ { model: models.Tier } ]
+      include: [ { model: models.Tier } ],
     }).then(order => order && order.Tier);
   };
 
@@ -882,7 +882,7 @@ export default function(Sequelize, DataTypes) {
   Collective.prototype.addUserWithRole = function(user, role, defaultAttributes) {
 
     if (role === roles.HOST) {
-      return console.error("Please use Collective.addHost(hostCollective, remoteUser);");
+      return console.error('Please use Collective.addHost(hostCollective, remoteUser);');
     }
 
     const member = {
@@ -890,14 +890,14 @@ export default function(Sequelize, DataTypes) {
       CreatedByUserId: user.id,
       MemberCollectiveId: user.CollectiveId,
       CollectiveId: this.id,
-      ... defaultAttributes
+      ... defaultAttributes,
     };
 
-    debug("addUserWithRole", user.id, role, "member", member);
+    debug('addUserWithRole', user.id, role, 'member', member);
     return Promise.all([
       models.Member.create(member),
       models.User.findById(member.CreatedByUserId, { include: [ { model: models.Collective, as: 'collective' }] }),
-      models.User.findById(user.id, { include: [ { model: models.Collective, as: 'collective' }] })
+      models.User.findById(user.id, { include: [ { model: models.Collective, as: 'collective' }] }),
     ])
     .then(results => {
       const member = results[0];
@@ -915,11 +915,11 @@ export default function(Sequelize, DataTypes) {
                 include: [
                   { model: models.Tier },
                   { model: models.Subscription },
-                  { model: models.Collective, as: 'referral' }
+                  { model: models.Collective, as: 'referral' },
                 ],
-                order: [['createdAt', 'ASC']]
+                order: [['createdAt', 'ASC']],
               }),
-              urlPath: this.getUrlPath()
+              urlPath: this.getUrlPath(),
             })
             .then(({ order, urlPath, memberCollective }) => {
               const data = {
@@ -930,8 +930,8 @@ export default function(Sequelize, DataTypes) {
                 order: order && {
                   ...order.activity,
                   tier: order.Tier && order.Tier.minimal,
-                  subscription: { interval: order.Subscription && order.Subscription.interval }
-                }
+                  subscription: { interval: order.Subscription && order.Subscription.interval },
+                },
               };
               if (order && order.referral) {
                 data.order.referral = order.referral.minimal;
@@ -939,7 +939,7 @@ export default function(Sequelize, DataTypes) {
               return models.Activity.create({
                 CollectiveId: this.id,
                 type: activities.COLLECTIVE_MEMBER_CREATED,
-                data
+                data,
               });
             });
 
@@ -953,19 +953,19 @@ export default function(Sequelize, DataTypes) {
           return emailLib.send(`${this.type}.newmember`.toLowerCase(), memberUser.email, {
             remoteUser: {
               email: remoteUser.email,
-              collective: pick(remoteUser.collective, ['slug', 'name', 'image'])
+              collective: pick(remoteUser.collective, ['slug', 'name', 'image']),
             },
             role: role.toLowerCase(),
             isAdmin: role === roles.ADMIN,
             collective: {
               slug: this.slug,
               name: this.name,
-              type: this.type.toLowerCase()
+              type: this.type.toLowerCase(),
             },
             recipient: {
-              collective: memberUser.collective.activity
+              collective: memberUser.collective.activity,
             },
-            loginLink: `${config.host.website}/signin?next=/${memberUser.collective.slug}/edit`
+            loginLink: `${config.host.website}/signin?next=/${memberUser.collective.slug}/edit`,
           }, { cc: remoteUser.email });
         default:
           return member;
@@ -980,11 +980,11 @@ export default function(Sequelize, DataTypes) {
         role,
         CreatedByUserId: user.id,
         MemberCollectiveId: user.CollectiveId,
-        CollectiveId: this.id
-      }})
+        CollectiveId: this.id,
+      } })
     .then(Member => {
       if (!Member) {
-        return this.addUserWithRole(user, role, defaultAttributes)
+        return this.addUserWithRole(user, role, defaultAttributes);
       } else {
         return Member;
       }
@@ -1018,8 +1018,8 @@ export default function(Sequelize, DataTypes) {
         if (diff.length === 0) {
           return null;
         } else {
-          debug("editMembers", "delete", diff);
-          return models.Member.update({ deletedAt: new Date }, { where: { id: { [Op.in]: diff }}})
+          debug('editMembers', 'delete', diff);
+          return models.Member.update({ deletedAt: new Date }, { where: { id: { [Op.in]: diff } } });
         }
       })
       .then(() => {
@@ -1027,8 +1027,8 @@ export default function(Sequelize, DataTypes) {
           if (member.id) {
             // Edit an existing membership (edit the role/description)
             const editableAttributes = pick(member, ['role', 'description']);
-            debug("editMembers", "update member", member.id, editableAttributes);
-            return models.Member.update(editableAttributes, { where: { id: member.id }});
+            debug('editMembers', 'update member', member.id, editableAttributes);
+            return models.Member.update(editableAttributes, { where: { id: member.id } });
           } else {
             // Create new membership
             const memberAttrs = {
@@ -1040,19 +1040,19 @@ export default function(Sequelize, DataTypes) {
             if (member.CreatedByUserId) {
               const user = {
                 id: member.CreatedByUserId,
-                CollectiveId: member.MemberCollectiveId
+                CollectiveId: member.MemberCollectiveId,
               };
               return this.addUserWithRole(user, member.role, { TierId: member.TierId, ...memberAttrs });
             } else {
               return models.User.findOrCreateByEmail(member.member.email, member.member)
                 .then(user => {
                   return this.addUserWithRole(user, member.role, { TierId: member.TierId, ...memberAttrs });
-                })
+                });
             }
           }
         });
       })
-      .then(() => this.getMembers({ where: { role: { [Op.in]: [ roles.ADMIN, roles.MEMBER ] } } } ))
+      .then(() => this.getMembers({ where: { role: { [Op.in]: [ roles.ADMIN, roles.MEMBER ] } } } ));
   };
 
   // edit the tiers of this collective (create/update/remove)
@@ -1063,12 +1063,12 @@ export default function(Sequelize, DataTypes) {
     .then(oldTiers => {
       // remove the tiers that are not present anymore in the updated collective
       const diff = difference(oldTiers.map(t => t.id), tiers.map(t => t.id));
-      return models.Tier.update({ deletedAt: new Date }, { where: { id: { [Op.in]: diff }}})
+      return models.Tier.update({ deletedAt: new Date }, { where: { id: { [Op.in]: diff } } });
     })
     .then(() => {
       return Promise.map(tiers, (tier) => {
         if (tier.id) {
-          return models.Tier.update(tier, { where: { id: tier.id }});
+          return models.Tier.update(tier, { where: { id: tier.id } });
         } else {
           if (!tier.name) return;
           tier.CollectiveId = this.id;
@@ -1093,39 +1093,39 @@ export default function(Sequelize, DataTypes) {
       CollectiveId: this.id,
       archivedAt: { [Op.eq]: null },
       service: 'stripe',
-      type: 'creditcard'
-    }})
+      type: 'creditcard',
+    } })
     .then(oldPaymentMethods => {
       // remove the paymentMethods that are not present anymore in the updated collective
       const diff = difference(oldPaymentMethods.map(t => t.id), paymentMethods.map(t => t.id));
-      return models.PaymentMethod.update({ archivedAt: new Date }, { where: { id: { [Op.in]: diff }}})
+      return models.PaymentMethod.update({ archivedAt: new Date }, { where: { id: { [Op.in]: diff } } });
     })
     .then(() => {
       return Promise.map(paymentMethods, (pm) => {
         if (pm.id) {
-          return models.PaymentMethod.update(pm, { where: { id: pm.id }});
+          return models.PaymentMethod.update(pm, { where: { id: pm.id } });
         } else {
           pm.CollectiveId = this.id;
           pm.currency = pm.currency || this.currency;
-          models.PaymentMethod.update({ primary: false }, { where: { CollectiveId: this.id, archivedAt: { [Op.eq]: null } }});
+          models.PaymentMethod.update({ primary: false }, { where: { CollectiveId: this.id, archivedAt: { [Op.eq]: null } } });
           return models.PaymentMethod.createFromStripeSourceToken({ ...defaultAttributes, ...pm, type: 'creditcard' }); // TODO: nicer to not have to hard code 'creditcard'
         }
       });
-    })
+    });
   };
 
 
   Collective.prototype.getExpenses = function(status, startDate, endDate = new Date) {
     const where = {
       createdAt: { [Op.lt]: endDate },
-      CollectiveId: this.id
+      CollectiveId: this.id,
     };
     if (status) where.status = status;
     if (startDate) where.createdAt[Op.gte] = startDate;
 
     return models.Expense.findAll({
       where,
-      order: [['createdAt','DESC']]
+      order: [['createdAt','DESC']],
     });
   };
 
@@ -1133,14 +1133,14 @@ export default function(Sequelize, DataTypes) {
   Collective.prototype.getUpdates = function(status, startDate = 0, endDate = new Date) {
     const where = {
       createdAt: { [Op.lt]: endDate },
-      CollectiveId: this.id
+      CollectiveId: this.id,
     };
     if (startDate) where.createdAt[Op.gte] = startDate;
     if (status === 'published') where.publishedAt = { [Op.ne]: null };
 
     return models.Update.findAll({
       where,
-      order: [['createdAt','DESC']]
+      order: [['createdAt','DESC']],
     });
   };
 
@@ -1158,29 +1158,29 @@ export default function(Sequelize, DataTypes) {
       where: {
         ...where,
         CollectiveId: this.id,
-        confirmedAt: { [Op.ne]: null }
+        confirmedAt: { [Op.ne]: null },
       },
-      order: [['confirmedAt', 'DESC']]
+      order: [['confirmedAt', 'DESC']],
     })
     .tap(paymentMethod => {
       if (!paymentMethod) {
-        throw new Error(`No payment method found`);
+        throw new Error('No payment method found');
       } else if (paymentMethod.endDate && (paymentMethod.endDate < new Date())) {
         throw new Error('Payment method expired');
       }
     });
-  }
+  };
 
   Collective.prototype.getBalance = function(until) {
     until = until || new Date();
     return models.Transaction.find({
       attributes: [
-        [Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('netAmountInCollectiveCurrency')), 0), 'total']
+        [Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('netAmountInCollectiveCurrency')), 0), 'total'],
       ],
       where: {
         CollectiveId: this.id,
-        createdAt: { [Op.lt]: until }
-      }
+        createdAt: { [Op.lt]: until },
+      },
     })
     .then(result => Promise.resolve(parseInt(result.toJSON().total, 10)));
   };
@@ -1230,7 +1230,7 @@ export default function(Sequelize, DataTypes) {
       `.replace(/\s\s+/g, ' '), // this is to remove the new lines and save log space.
       {
         replacements: { CollectiveId: this.id },
-        type: Sequelize.QueryTypes.SELECT
+        type: Sequelize.QueryTypes.SELECT,
       })
       .then(result => Promise.resolve(parseInt(result[0].yearlyIncome,10)));
   };
@@ -1240,14 +1240,14 @@ export default function(Sequelize, DataTypes) {
     const where = {
       amount: { [Op.gt]: 0 },
       createdAt: { [Op.lt]: endDate },
-      CollectiveId: this.id
+      CollectiveId: this.id,
     };
     if (startDate) where.createdAt[Op.gte] = startDate;
     return models.Transaction.find({
       attributes: [
-        [Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('amount')), 0), 'total']
+        [Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('amount')), 0), 'total'],
       ],
-      where
+      where,
     })
     .then(result => Promise.resolve(parseInt(result.toJSON().total, 10)));
   };
@@ -1258,14 +1258,14 @@ export default function(Sequelize, DataTypes) {
     const where = {
       type: 'DEBIT',
       createdAt: { [Op.lt]: endDate },
-      CollectiveId: this.id
+      CollectiveId: this.id,
     };
     if (startDate) where.createdAt[Op.gte] = startDate;
     return models.Transaction.find({
       attributes: [
-        [Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('netAmountInCollectiveCurrency')), 0), 'total']
+        [Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('netAmountInCollectiveCurrency')), 0), 'total'],
       ],
-      where
+      where,
     })
     .then(result => Promise.resolve(-parseInt(result.toJSON().total, 10)));
   };
@@ -1282,12 +1282,12 @@ export default function(Sequelize, DataTypes) {
       attributes: [
         [Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('totalAmount')), 0), 'total'],
         [Sequelize.fn('MAX', Sequelize.col('createdAt')), 'createdAt'],
-        [Sequelize.fn('MAX', Sequelize.col('currency')), 'currency']
+        [Sequelize.fn('MAX', Sequelize.col('currency')), 'currency'],
       ],
       where: {
-        ReferralCollectiveId: this.id
+        ReferralCollectiveId: this.id,
       },
-      group: ['currency']
+      group: ['currency'],
     })
     .then(rows => rows.map(r => r.dataValues))
     .then(amounts => Promise.map(amounts, s => convertToCurrency(s.total, s.currency, this.currency, s.createdAt)))
@@ -1295,23 +1295,23 @@ export default function(Sequelize, DataTypes) {
       let total = 0;
       amounts.map(a => total += a);
       return Math.round(total);
-    })
+    });
   };
 
   Collective.prototype.getTotalTransactions = function(startDate, endDate, type, attribute = 'netAmountInCollectiveCurrency') {
     endDate = endDate || new Date;
     const where = {
       createdAt: { [Op.lt]: endDate },
-      CollectiveId: this.id
+      CollectiveId: this.id,
     };
     if (startDate) where.createdAt[Op.gte] = startDate;
     if (type === 'donation') where.amount = { [Op.gt]: 0 };
     if (type === 'expense') where.amount = { [Op.lt]: 0 };
     return models.Transaction.find({
       attributes: [
-        [Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col(attribute)), 0), 'total']
+        [Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col(attribute)), 0), 'total'],
       ],
-      where
+      where,
     })
     .then(result => Promise.resolve(parseInt(result.toJSON().total, 10)));
   };
@@ -1330,21 +1330,21 @@ export default function(Sequelize, DataTypes) {
     return models.Transaction.findAll({
       where: {
         FromCollectiveId: this.id,
-        createdAt: { [Op.gte]: since || 0, [Op.lt]: until || new Date}
+        createdAt: { [Op.gte]: since || 0, [Op.lt]: until || new Date },
       },
       order: [ ['amount','DESC'] ],
-      include: [ { model: models.Collective, as: 'collective', where: conditionOnCollective } ]
+      include: [ { model: models.Collective, as: 'collective', where: conditionOnCollective } ],
     });
   };
 
   Collective.prototype.isHost = function() {
     if (this.type !== 'ORGANIZATION' && this.type !== 'USER') return Promise.resolve(false);
-    return models.Member.findOne({ where: { MemberCollectiveId: this.id, role: 'HOST' }}).then(r => Boolean(r));
-  }
+    return models.Member.findOne({ where: { MemberCollectiveId: this.id, role: 'HOST' } }).then(r => Boolean(r));
+  };
 
   Collective.prototype.isHostOf = function(CollectiveId) {
-    return models.Collective.findOne({ where: { id: CollectiveId, HostCollectiveId: this.id }}).then(r => Boolean(r));
-  }
+    return models.Collective.findOne({ where: { id: CollectiveId, HostCollectiveId: this.id } }).then(r => Boolean(r));
+  };
 
   Collective.prototype.getRelatedCollectives = function(limit=3, minTotalDonationInCents=10000, orderBy, orderDir) {
     return Collective.getCollectivesSummaryByTag(this.tags, limit, [this.id], minTotalDonationInCents, true, orderBy, orderDir);
@@ -1358,7 +1358,7 @@ export default function(Sequelize, DataTypes) {
     return models.Member.findOne({
       attributes: ['MemberCollectiveId'],
       where: { role: roles.HOST, CollectiveId: this.ParentCollectiveId },
-      include: [ { model: models.Collective, as: 'memberCollective' } ]
+      include: [ { model: models.Collective, as: 'memberCollective' } ],
     }).then(m => {
       if (m && m.memberCollective) return m.memberCollective;
       return this.isHost().then(isHost => isHost ? this : null);
@@ -1378,12 +1378,12 @@ export default function(Sequelize, DataTypes) {
     let HostCollectiveId;
     return this.getHostCollectiveId()
       .then(id => {
-        HostCollectiveId = id
-        debug("getHostStripeAccount for collective", this.slug, `(id: ${this.id})`, "HostCollectiveId", id);
+        HostCollectiveId = id;
+        debug('getHostStripeAccount for collective', this.slug, `(id: ${this.id})`, 'HostCollectiveId', id);
         return id && models.ConnectedAccount.findOne({ where: { service: 'stripe', CollectiveId: id } });
       })
       .then(stripeAccount => {
-        debug("getHostStripeAccount", "using stripe account", stripeAccount && stripeAccount.username);
+        debug('getHostStripeAccount', 'using stripe account', stripeAccount && stripeAccount.username);
         if (!stripeAccount || !stripeAccount.token) {
           return Promise.reject(new Error(`The host for the ${this.name} collective has no Stripe account set up (HostCollectiveId: ${HostCollectiveId})`));
         } else if (process.env.NODE_ENV !== 'production' && _.includes(stripeAccount.token, 'live')) {
@@ -1398,12 +1398,12 @@ export default function(Sequelize, DataTypes) {
     if (!stripeAccount) return Promise.resolve(null);
 
     if (stripeAccount.id) {
-      return models.ConnectedAccount.update({ CollectiveId: this.id }, { where: { id: stripeAccount.id }, limit: 1});
+      return models.ConnectedAccount.update({ CollectiveId: this.id }, { where: { id: stripeAccount.id }, limit: 1 });
     } else {
       return models.ConnectedAccount.create({
         service: 'stripe',
         ...stripeAccount,
-        CollectiveId: this.id
+        CollectiveId: this.id,
       });
     }
   };
@@ -1419,7 +1419,7 @@ export default function(Sequelize, DataTypes) {
 
   Collective.prototype.getTopBackers = function(since, until, limit) {
     return queries.getMembersWithTotalDonations({ CollectiveId: this.id, role: 'BACKER' }, { since, until, limit })
-      .tap(backers => debug("getTopBackers", backers.map(b => b.dataValues)));
+      .tap(backers => debug('getTopBackers', backers.map(b => b.dataValues)));
   };
 
 
@@ -1427,20 +1427,20 @@ export default function(Sequelize, DataTypes) {
    * Class Methods
    */
   Collective.createOrganization = (collectiveData, adminUser, creator = {}) => {
-    const CreatedByUserId = creator.id || adminUser.id
+    const CreatedByUserId = creator.id || adminUser.id;
     return Collective
       .create({
         CreatedByUserId,
         ...collectiveData,
         type: types.ORGANIZATION,
-        isActive: true
+        isActive: true,
       })
       .tap(collective => {
         return models.Member.create({
           CreatedByUserId,
           CollectiveId: collective.id,
           MemberCollectiveId: adminUser.CollectiveId,
-          role: roles.ADMIN
+          role: roles.ADMIN,
         });
       })
       .tap(collective => {
@@ -1449,25 +1449,25 @@ export default function(Sequelize, DataTypes) {
           UserId: adminUser.id,
           CollectiveId: collective.id,
           data: {
-            collective: pick(collective, ['name', 'slug'])
-          }
-        })
+            collective: pick(collective, ['name', 'slug']),
+          },
+        });
       });
   };
 
   Collective.createMany = (collectives, defaultValues) => {
-    return Promise.map(collectives, u => Collective.create(_.defaults({},u,defaultValues)), {concurrency: 1}).catch(console.error);
+    return Promise.map(collectives, u => Collective.create(_.defaults({},u,defaultValues)), { concurrency: 1 }).catch(console.error);
   };
 
   Collective.getTopBackers = (since, until, tags, limit) => {
     return queries.getTopBackers(since || 0, until || new Date, tags, limit || 5)
-      .tap(backers => debug("getTopBackers", backers.map(b => b.dataValues)));
+      .tap(backers => debug('getTopBackers', backers.map(b => b.dataValues)));
   };
 
   Collective.getHostCollectiveId = async (CollectiveId) => {
     const res = await models.Member.findOne({
       attributes: ['MemberCollectiveId'],
-      where: { CollectiveId, role: roles.HOST }
+      where: { CollectiveId, role: roles.HOST },
     });
     return res && res.MemberCollectiveId;
   };
@@ -1488,7 +1488,7 @@ export default function(Sequelize, DataTypes) {
       } else {
         return slugSuggestionHelper(`${slugToCheck}`, slugList, count+1);
       }
-    }
+    };
 
     suggestions = suggestions.filter(slug => slug ? true : false) // filter out any nulls
       .map(slug => slugify(slug.trim()).toLowerCase(/\./g,'')) // lowercase them all
@@ -1499,7 +1499,7 @@ export default function(Sequelize, DataTypes) {
     return Sequelize.query(`
         SELECT slug FROM "Collectives" where slug like '${suggestions[0]}%'
       `, {
-        type: Sequelize.QueryTypes.SELECT
+        type: Sequelize.QueryTypes.SELECT,
       })
     .then(userObjectList => userObjectList.map(user => user.slug))
     .then(slugList => slugSuggestionHelper(suggestions[0], slugList, 0));
@@ -1512,24 +1512,24 @@ export default function(Sequelize, DataTypes) {
     return Collective.findOne({ where: { slug: slug.toLowerCase() }, ...options })
       .then(collective => {
         if (!collective) {
-          throw new Error(`No collective found with slug ${slug}`)
+          throw new Error(`No collective found with slug ${slug}`);
         }
         return collective;
-      })
+      });
   };
 
   Collective.getCollectivesSummaryByTag = (tags, limit=3, excludeList=[], minTotalDonationInCents, randomOrder, orderBy, orderDir, offset) => {
-    debug("getCollectivesSummaryByTag", tags, limit, excludeList, minTotalDonationInCents, randomOrder, orderBy, orderDir, offset);
+    debug('getCollectivesSummaryByTag', tags, limit, excludeList, minTotalDonationInCents, randomOrder, orderBy, orderDir, offset);
     return queries.getCollectivesByTag(tags, limit, excludeList, minTotalDonationInCents, randomOrder, orderBy, orderDir, offset)
       .then(collectives => {
-        debug("getCollectivesSummaryByTag", collectives && collectives.length, "collectives found");
+        debug('getCollectivesSummaryByTag', collectives && collectives.length, 'collectives found');
         return Promise.all(collectives.map(collective => {
-          debug("getCollectivesSummaryByTag", "collective", collective.slug);
+          debug('getCollectivesSummaryByTag', 'collective', collective.slug);
           return Promise.all([
               collective.getYearlyIncome(),
               queries
                 .getMembersWithTotalDonations({ CollectiveId: collective.id }, { role: 'BACKER' })
-                .then(users => models.Tier.appendTier(collective, users))
+                .then(users => models.Tier.appendTier(collective, users)),
             ])
             .then(results => {
               const usersByRole = {};
@@ -1537,7 +1537,7 @@ export default function(Sequelize, DataTypes) {
               users.map(user => {
                 usersByRole[user.dataValues.role] = usersByRole[user.dataValues.role] || [];
                 usersByRole[user.dataValues.role].push(user);
-              })
+              });
               const collectiveInfo = collective.card;
               collectiveInfo.yearlyIncome = results[0];
               const backers = usersByRole[roles.BACKER] || [];
@@ -1550,19 +1550,19 @@ export default function(Sequelize, DataTypes) {
               return collectiveInfo;
             });
         }));
-      })
+      });
   };
 
   Collective.associate = (m) => {
     Collective.hasMany(m.ConnectedAccount);
-    Collective.belongsToMany(m.Collective, { through: { model: m.Member, unique: false, foreignKey: 'MemberCollectiveId' }, as: 'memberCollectives'});
-    Collective.belongsToMany(m.Collective, { through: { model: m.Member, unique: false, foreignKey: 'CollectiveId' }, as: 'memberOfCollectives'});
+    Collective.belongsToMany(m.Collective, { through: { model: m.Member, unique: false, foreignKey: 'MemberCollectiveId' }, as: 'memberCollectives' });
+    Collective.belongsToMany(m.Collective, { through: { model: m.Member, unique: false, foreignKey: 'CollectiveId' }, as: 'memberOfCollectives' });
     Collective.hasMany(m.Member);
     Collective.hasMany(m.Activity);
     Collective.hasMany(m.Notification);
     Collective.hasMany(m.Transaction, { foreignKey: 'CollectiveId', as: 'transactions' }); // collective.getTransactions()
     Collective.hasMany(m.Tier, { as: 'tiers' });
-  }
+  };
 
   Temporal(Collective, Sequelize);
 

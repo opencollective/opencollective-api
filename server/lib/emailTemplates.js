@@ -68,7 +68,7 @@ const templateNames = [
   'user.new.token',
   'user.new.token.text',
   'user.yearlyreport',
-  'user.yearlyreport.text'
+  'user.yearlyreport.text',
 ];
 
 const templatesPath = `${__dirname}/../../templates`;

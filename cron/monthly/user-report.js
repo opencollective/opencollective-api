@@ -33,7 +33,7 @@ const month2digit = moment(d).format('MM');
 const startDate = new Date(d.getFullYear(), d.getMonth(), 1);
 const endDate = new Date(d.getFullYear(), d.getMonth()+1, 1);
 
-console.log("startDate", startDate,"endDate", endDate);
+console.log('startDate', startDate,'endDate', endDate);
 
 const debug = debugLib('monthlyreport');
 
@@ -49,8 +49,8 @@ const fetchUserSubscribers = async (notificationType, backerCollective) => {
     where: {
       CollectiveId: backerCollective.id,
       type: notificationType,
-      active: false
-    }
+      active: false,
+    },
   });
   const unsubscribedUserIds = unsubscriptions.map(n => n.UserId);
   console.log(`${unsubscribedUserIds.length} users have unsubscribed from the ${notificationType} report for ${backerCollective.type} ${backerCollective.slug}`);
@@ -59,7 +59,7 @@ const fetchUserSubscribers = async (notificationType, backerCollective) => {
   const subscribers = admins.filter(a => unsubscribedUserIds.indexOf(a.id) === -1);
 
   return subscribers;
-}
+};
 
 const init = async () => {
 
@@ -70,14 +70,14 @@ const init = async () => {
       type: 'CREDIT',
       OrderId: { [Op.ne]: null }, // make sure we don't consider collectives paying out expenses as backers of user collectives
       RefundTransactionId: null, // make sure we don't consider refunds
-      createdAt: { [Op.gte]: startDate, [Op.lt]: endDate }
-    }
+      createdAt: { [Op.gte]: startDate, [Op.lt]: endDate },
+    },
   };
 
   let FromCollectiveIds;
   if (process.env.SLUGS) {
     const slugs = process.env.SLUGS.split(',');
-    const res = await models.Collective.findAll({ attributes: ['id'], where:  { slug: { [Op.in] : slugs }}});
+    const res = await models.Collective.findAll({ attributes: ['id'], where:  { slug: { [Op.in] : slugs } } });
     FromCollectiveIds = res.map(r => r.id);
   } else if (process.env.DEBUG && process.env.DEBUG.match(/preview/)) {
     FromCollectiveIds = [1729, 12671]; // xdamman, coinbase
@@ -92,19 +92,19 @@ const init = async () => {
 
   const timeLapsed = Math.round((new Date - startTime)/1000);
   console.log(`Total run time: ${timeLapsed}s`);
-  process.exit(0)
-}
+  process.exit(0);
+};
 
 const processBacker = async (FromCollectiveId) => {
   const backerCollective = await models.Collective.findById(FromCollectiveId);
-  console.log(">>> Processing backer", backerCollective.slug);
+  console.log('>>> Processing backer', backerCollective.slug);
   const distinctTransactions = await models.Transaction.findAll({
     attributes: [ [sequelize.fn('DISTINCT', sequelize.col('CollectiveId')), 'CollectiveId'], 'HostCollectiveId' ],
     where: {
       FromCollectiveId,
       type: 'CREDIT',
-      createdAt: { [Op.gte]: startDate, [Op.lt]: endDate }
-    }
+      createdAt: { [Op.gte]: startDate, [Op.lt]: endDate },
+    },
   });
 
   console.log(`>>> Collective ${FromCollectiveId} has backed ${distinctTransactions.length} collectives`);
@@ -122,7 +122,7 @@ const processBacker = async (FromCollectiveId) => {
     await Promise.map(hosts, async (host) => {
       const filename = `${year}${month2digit}-${host.slug}-${backerCollective.slug}.pdf`;
       const invoiceUrl = `${config.host.website}/${backerCollective.slug}/invoices/${filename}`;
-      console.log(">>> downloading", invoiceUrl);
+      console.log('>>> downloading', invoiceUrl);
       await fetch(invoiceUrl, { headers })
         .then(response => {
           if (response.status === 200) {
@@ -135,10 +135,10 @@ const processBacker = async (FromCollectiveId) => {
           if (!blob) return;
           attachments.push({
             filename,
-            content: blob
-          })
-        })
-    }, { concurrency: 4 })
+            content: blob,
+          });
+        });
+    }, { concurrency: 4 });
   }
 
   const orders = await models.Order.findAll({
@@ -147,11 +147,11 @@ const processBacker = async (FromCollectiveId) => {
       FromCollectiveId,
       [Op.or]: {
         createdAt: { [Op.gte]: startDate, [Op.lt]: endDate },
-        SubscriptionId: { [Op.ne]: null }
-      }
+        SubscriptionId: { [Op.ne]: null },
+      },
     },
-    include: [ { model: models.Subscription } ]
-  })
+    include: [ { model: models.Subscription } ],
+  });
   const ordersByCollectiveId = {};
   orders.map(o => {
     ordersByCollectiveId[o.CollectiveId] = o;
@@ -160,13 +160,13 @@ const processBacker = async (FromCollectiveId) => {
   collectives.map(collective => {
     collectivesWithOrders.push({
       ...collective,
-      order: ordersByCollectiveId[collective.id]
+      order: ordersByCollectiveId[collective.id],
     });
   });
   collectivesWithOrders.sort((a, b) => {
     if (get(a, 'order.totalAmount') > get(b, 'order.totalAmount')) return -1;
     else return 1;
-  })
+  });
 
   const stats = await computeStats(collectivesWithOrders, backerCollective.currency);
   const relatedCollectives = await models.Collective.getCollectivesSummaryByTag(stats.topTags, 3, null, 0, false, 'c."createdAt"', 'DESC');
@@ -180,23 +180,23 @@ const processBacker = async (FromCollectiveId) => {
         collectives: collectivesWithOrders,
         manageSubscriptionsUrl: user.generateLoginLink('/subscriptions'),
         relatedCollectives,
-        stats
+        stats,
       };
       const options = {
-        attachments
+        attachments,
       };
       return sendEmail(user, data, options);
     });
   } catch (e) {
     console.error(e);
   }
-}
+};
 
 const now = new Date;
 const processEvents = (events) => {
   const res = {
     upcoming: [],
-    past: []
+    past: [],
   };
 
   events.forEach(event => {
@@ -210,14 +210,14 @@ const processEvents = (events) => {
       if (order.processedAt !== null) {
         event.stats.confirmed++;
       }
-    })
+    });
 
     if (new Date(event.startsAt) > now) {
       res.upcoming.push(event);
     } else {
       res.past.push(event);
     }
-  })
+  });
   return res;
 };
 
@@ -251,21 +251,21 @@ const processCollective =  async (CollectiveId) => {
       where: { CollectiveId: collective.id, createdAt: { [Op.gte]: startDate, [Op.lt]: endDate } },
       limit: 3,
       order: [['id', 'DESC']],
-      include: [ models.User ]
+      include: [ models.User ],
     }),
     collective.getEvents({
       where: { startsAt: { [Op.gte]: startDate } },
       order: [['startsAt', 'DESC']],
       include: [
         { model: models.Member, as: 'members' },
-        { model: models.Order, as: 'orders' }
-      ]
+        { model: models.Order, as: 'orders' },
+      ],
     }),
     models.Update.findAll({
       where: { CollectiveId: collective.id, publishedAt: { [Op.gte]: startDate, [Op.lt]: endDate } },
-      order: [['createdAt', 'DESC']]
+      order: [['createdAt', 'DESC']],
     }),
-    collective.getNextGoal(endDate)
+    collective.getNextGoal(endDate),
   ];
 
   const results = await Promise.all(promises);
@@ -282,7 +282,7 @@ const processCollective =  async (CollectiveId) => {
   data.collective.events = processEvents(results[7]);
   data.collective.updates = results[8];
   data.collective.stats.updates = results[8].length;
-  const nextGoal = results[9]
+  const nextGoal = results[9];
   if (nextGoal) {
     nextGoal.tweet = `🚀 ${collective.twitterHandle ? `@${collective.twitterHandle}` : collective.name} is at ${nextGoal.percentage} of their next goal: ${nextGoal.title}.\nJoin me in helping them get there! 🙌\nhttps://opencollective.com/${collective.slug}`;
     data.collective.nextGoal = nextGoal;
@@ -295,8 +295,8 @@ const processCollective =  async (CollectiveId) => {
 const getTopKeysFromObject = (obj, valueAttr, limit = 3) => {
   const values = [];
   Object.keys(obj).map(t => {
-    values.push({ value: t, occurences: valueAttr ? obj[t][valueAttr] : obj[t]});
-  })
+    values.push({ value: t, occurences: valueAttr ? obj[t][valueAttr] : obj[t] });
+  });
   values.sort((a, b) => {
     if (a.occurences > b.occurences) return -1;
     else return 1;
@@ -306,7 +306,7 @@ const getTopKeysFromObject = (obj, valueAttr, limit = 3) => {
     topValues.push(values[i].value);
   }
   return topValues;
-}
+};
 
 const computeStats = async (collectives, currency = 'USD') => {
   const categories = {};
@@ -315,7 +315,7 @@ const computeStats = async (collectives, currency = 'USD') => {
     collectives: collectives.length,
     expenses: 0,
     totalSpentPerCurrency: {},
-    totalDonatedPerCurrency: {}
+    totalDonatedPerCurrency: {},
   };
   await Promise.map(collectives, async (collective) => {
     const expenses = collective.expenses;
@@ -323,7 +323,7 @@ const computeStats = async (collectives, currency = 'USD') => {
       collective.tags.map(t => {
         tagsIndex[t] = tagsIndex[t] || 0;
         tagsIndex[t]++;
-      })
+      });
     }
     if (collective.order) {
       stats.totalDonatedPerCurrency[collective.order.currency] = stats.totalDonatedPerCurrency[collective.order.currency] || 0;
@@ -340,9 +340,9 @@ const computeStats = async (collectives, currency = 'USD') => {
         categories[expense.category].totalAmountInBackerCurrency += amountInBackerCurrency;
         stats.totalSpentPerCurrency[expense.currency] = stats.totalSpentPerCurrency[expense.currency] || 0;
         stats.totalSpentPerCurrency[expense.currency] += expense.amount;
-      })
+      });
     }
-  })
+  });
   stats.topTags = getTopKeysFromObject(tagsIndex);
   stats.topCategories = getTopKeysFromObject(categories, 'totalAmountInBackerCurrency');
   stats.categories = categories;
@@ -350,17 +350,17 @@ const computeStats = async (collectives, currency = 'USD') => {
   stats.totalDonatedString = formatCurrencyObject(stats.totalDonatedPerCurrency);
   const ar = [];
   stats.topCategories.map(category => {
-    ar.push(`${category} (${formatCurrencyObject(categories[category].totalAmountPerCurrency)})`)
-  })
-  stats.expensesBreakdownString = `${(Object.keys(categories).length > 3) ? `, mostly in` : ` in`} ${formatArrayToString(ar)}`;
+    ar.push(`${category} (${formatCurrencyObject(categories[category].totalAmountPerCurrency)})`);
+  });
+  stats.expensesBreakdownString = `${(Object.keys(categories).length > 3) ? ', mostly in' : ' in'} ${formatArrayToString(ar)}`;
   return stats;
-}
+};
 
 const sendEmail = (recipient, data, options = {}) => {
   if (recipient.length === 0) return;
   data.recipient = recipient;
   if (process.env.ONLY && recipient.email !== process.env.ONLY) {
-    debug("Skipping ", recipient.email);
+    debug('Skipping ', recipient.email);
     return Promise.resolve();
   }
 
@@ -372,11 +372,11 @@ const sendEmail = (recipient, data, options = {}) => {
     options.attachments.map(attachment => {
       const filepath = path.resolve(`/tmp/${attachment.filename}`);
       fs.writeFileSync(filepath, attachment.content);
-      console.log(">>> preview attachment", filepath);
-    })
+      console.log('>>> preview attachment', filepath);
+    });
   }
 
   return emailLib.send('user.monthlyreport', recipient.email, data, options);
-}
+};
 
 init();
