@@ -18,7 +18,7 @@ function extractHostname(url) {
   let hostname;
   //find & remove protocol (http, ftp, etc.) and get hostname
 
-  if (url.indexOf("://") > -1) {
+  if (url.indexOf('://') > -1) {
       hostname = url.split('/')[2];
   } else {
       hostname = url.split('/')[0];
@@ -54,8 +54,8 @@ export function getDomain(url = '') {
  * Encrypt with resetPasswordSecret
  */
 export const encrypt = (text) => {
-  const cipher = crypto.createCipher('aes-256-cbc', config.keys.opencollective.resetPasswordSecret)
-  let crypted = cipher.update(text, 'utf8', 'hex')
+  const cipher = crypto.createCipheriv('aes-256-cbc', config.keys.opencollective.resetPasswordSecret, null);
+  let crypted = cipher.update(text, 'utf8', 'hex');
   crypted += cipher.final('hex');
   return crypted;
 };
@@ -64,8 +64,8 @@ export const encrypt = (text) => {
  * Descript wih resetPasswordSecret
  */
 export const decrypt = (text) => {
-  const decipher = crypto.createDecipher('aes-256-cbc', config.keys.opencollective.resetPasswordSecret)
-  let dec = decipher.update(text,'hex','utf8')
+  const decipher = crypto.createDecipheriv('aes-256-cbc', config.keys.opencollective.resetPasswordSecret, null);
+  let dec = decipher.update(text,'hex','utf8');
   dec += decipher.final('utf8');
   return dec;
 };
@@ -75,12 +75,12 @@ export function strip_tags(str, allowedTags) {
     allowedTags: allowedTags || sanitizeHtml.defaults.allowedTags.concat([
       'img',
       'h1',
-      'h2'
+      'h2',
     ]),
     allowedAttributes: {
       a: [ 'href', 'name', 'target' ],
-      img: [ 'src' ]
-    }
+      img: [ 'src' ],
+    },
   });
 }
 
@@ -92,10 +92,10 @@ export const sanitizeObject = (obj, attributes, sanitizerFn) => {
   attributes.forEach(attr => {
     if (!obj[attr]) return;
     if (typeof obj[attr] === 'object') return sanitizeObject(obj[attr], Object.keys(obj[attr]), sanitizerFn);
-    obj[attr] = sanitizer(obj[attr] || "");
+    obj[attr] = sanitizer(obj[attr] || '');
   });
   return obj;
-}
+};
 
 /**
  * recursively reads all values of an object and hide emails and tokens
@@ -106,17 +106,17 @@ export const sanitizeForLogs = (obj) => {
     if (!value) return;
     if (typeof value === 'string') {
       if (value.indexOf('@') !== -1) {
-        return "(email obfuscated)";
+        return '(email obfuscated)';
       }
       if (value.substr(0,4) === 'tok_') {
-        return "(token obfuscated)";
+        return '(token obfuscated)';
       }
     }
     return value;
-  }
+  };
 
   return sanitizeObject(cloneDeep(obj), Object.keys(obj), sanitizer);
-}
+};
 
 String.prototype.trunc = function(n, useWordBoundary ) {
   if (this.length <= n) return this;
@@ -172,8 +172,8 @@ export const addParameterUrl = (url, parameters) => {
 const paginatePage = (offset, limit) => {
   return {
     page: Math.floor(offset / limit + 1),
-    perPage: limit
-  }
+    perPage: limit,
+  };
 };
 
 /**
@@ -187,17 +187,17 @@ export const getLinks = (url, options) => {
     return null;
 
   const links = {
-    next: addParameterUrl(url, {page: page + 1, per_page: perPage}),
-    current: addParameterUrl(url, {page, per_page: perPage})
+    next: addParameterUrl(url, { page: page + 1, per_page: perPage }),
+    current: addParameterUrl(url, { page, per_page: perPage }),
   };
   if (page > 1) {
-    links.prev = addParameterUrl(url, {page: page - 1, per_page: perPage});
-    links.first = addParameterUrl(url, {page: 1, per_page: perPage});
+    links.prev = addParameterUrl(url, { page: page - 1, per_page: perPage });
+    links.first = addParameterUrl(url, { page: 1, per_page: perPage });
   }
 
   if (options.total) {
     const lastPage = Math.ceil(options.total / perPage);
-    links.last = addParameterUrl(url, {page: lastPage, per_page: perPage});
+    links.last = addParameterUrl(url, { page: lastPage, per_page: perPage });
     if (page >= lastPage)
       delete links.next;
   }
@@ -237,8 +237,8 @@ export const planId = (plan) =>  {
 export const paginateOffset = (page, perPage) => {
   return {
     offset: (page - 1) * perPage,
-    limit: perPage
-  }
+    limit: perPage,
+  };
 };
 
 /**
@@ -247,13 +247,13 @@ export const paginateOffset = (page, perPage) => {
 export const days = (d1, d2 = new Date) => {
   const oneDay = 24*60*60*1000; // hours*minutes*seconds*milliseconds
   return Math.round(Math.abs((d1.getTime() - d2.getTime())/(oneDay)));
-}
+};
 
 export const flattenArray = (arr) => {
   return arr.reduce((flat, toFlatten) => {
     return flat.concat(Array.isArray(toFlatten) ? flattenArray(toFlatten) : toFlatten);
   }, []);
-}
+};
 
 /**
  * Returns stats for each tier compared to previousMonth
@@ -290,7 +290,7 @@ export const getTiersStats = (tiers, startDate, endDate) => {
     if (get(tier, 'dataValues.users') && get(tier, 'dataValues.users').length > 0) {
       return true;
     } else {
-      debug("skipping tier", tier.dataValues, "because it has no users");
+      debug('skipping tier', tier.dataValues, 'because it has no users');
       return false;
     }
   });
@@ -301,15 +301,15 @@ export const getTiersStats = (tiers, startDate, endDate) => {
   return Promise.map(tiers, tier => {
 
     const backers = get(tier, 'dataValues.users');
-    let index = 0
-    debug("> processing tier ", tier.name, "total backers: ", backers.length, backers);
+    let index = 0;
+    debug('> processing tier ', tier.name, 'total backers: ', backers.length, backers);
 
     // We sort backers by total donations DESC
     backers.sort((a,b) => b.totalDonations - a.totalDonations );
 
     return Promise.filter(backers, backer => {
       if (backersIds[backer.id]) {
-        debug(">>> backer ", backer.slug, "is a duplicate");
+        debug('>>> backer ', backer.slug, 'is a duplicate');
         return false;
       }
       backersIds[backer.id] = true;
@@ -330,13 +330,13 @@ export const getTiersStats = (tiers, startDate, endDate) => {
             stats.backers.lost++;
           }
 
-          debug("----------- ", backer.slug, "----------");
-          debug("firstDonation", backer.firstDonation && backer.firstDonation.toISOString().substr(0,10));
-          debug("totalDonations", backer.totalDonations/100);
-          debug("active last month?", backer.activeLastMonth);
-          debug("active previous month?", backer.activePreviousMonth);
-          debug("is new?", backer.isNew === true);
-          debug("is lost?", backer.isLost === true);
+          debug('----------- ', backer.slug, '----------');
+          debug('firstDonation', backer.firstDonation && backer.firstDonation.toISOString().substr(0,10));
+          debug('totalDonations', backer.totalDonations/100);
+          debug('active last month?', backer.activeLastMonth);
+          debug('active previous month?', backer.activePreviousMonth);
+          debug('is new?', backer.isNew === true);
+          debug('is lost?', backer.isLost === true);
           if (backer.activePreviousMonth)
             stats.backers.previousMonth++;
           if (backer.activeLastMonth) {
@@ -362,7 +362,7 @@ export const getTiersStats = (tiers, startDate, endDate) => {
   .then(tiers => {
     return { stats, tiers };
   });
-}
+};
 
 /**
  * export data to CSV
@@ -379,10 +379,10 @@ export function exportToCSV(data, attributes, getColumnName = (attr) => attr, pr
   const getLine = (row) => {
     const cols = [];
     attributes.map(attr => {
-      cols.push(`${processValue(attr, get(row,attr) || '')}`.replace(/\"/g,"\""));
+      cols.push(`${processValue(attr, get(row,attr) || '')}`.replace(/\"/g,'"'));
     });
     return `"${cols.join('","')}"`;
-  }
+  };
 
   data.map(row => {
     lines.push(getLine(row));
@@ -396,7 +396,7 @@ export function exportToCSV(data, attributes, getColumnName = (attr) => attr, pr
 export function exportToPDF(template, data, options) {
 
   options = options || {};
-  options.paper = options.paper || 'Letter' // Letter for US or A4 for Europe
+  options.paper = options.paper || 'Letter'; // Letter for US or A4 for Europe
 
   let paperSize;
 
@@ -407,9 +407,9 @@ export function exportToPDF(template, data, options) {
         height: '297mm',
         margin: {
           top: '10mm',
-          left: '10mm'
-        }
-      }
+          left: '10mm',
+        },
+      };
       break;
     case 'Letter':
     default:
@@ -418,9 +418,9 @@ export function exportToPDF(template, data, options) {
         height: '11in',
         margin: {
           top: '0.4in',
-          left: '0.4in'
-        }
-      }
+          left: '0.4in',
+        },
+      };
       break;
   }
 
@@ -549,7 +549,7 @@ export function formatCurrency(amount, currency, precision = 0) {
     currencyDisplay: 'symbol',
     currency,
     minimumFractionDigits : precision,
-    maximumFractionDigits : precision
+    maximumFractionDigits : precision,
   });
 }
 
@@ -565,7 +565,7 @@ export function formatCurrencyObject(currencyObj, options = { precision: 0, conj
     }
   }
   if (array.length === 1) return array[0].str;
-  array.sort((a, b) => b.value - a.value)
+  array.sort((a, b) => b.value - a.value);
   return formatArrayToString(array.map(r => r.str), options.conjonction);
 }
 
@@ -606,7 +606,7 @@ export function promiseSeq(arr, predicate, consecutive =100) {
       return Promise.all(
         // then we build up the next set of simultaneous promises
         items.map((item) => predicate(item, ix))
-      )
+      );
     });
   }, Promise.resolve([]));
 
