@@ -4,4 +4,3 @@ seeders/
 migrations/
 coverage/
 dist/
-test/
