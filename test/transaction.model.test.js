@@ -1,9 +1,9 @@
-import {expect} from 'chai';
+import { expect } from 'chai';
 import sinon from 'sinon';
 import * as utils from '../test/utils';
 import models from '../server/models';
 
-const {Transaction} = models;
+const { Transaction } = models;
 
 const userData = utils.data('user1');
 const collectiveData = utils.data('collective1');
@@ -26,7 +26,7 @@ describe('transaction model', () => {
           CreatedByUserId: user.id,
           FromCollectiveId: user.CollectiveId,
           CollectiveId: collective.id,
-          HostCollectiveId: host.CollectiveId
+          HostCollectiveId: host.CollectiveId,
         };
       })
       .then(() => collective.addHost(host.collective)));
@@ -34,7 +34,7 @@ describe('transaction model', () => {
   it('automatically generates uuid', done => {
     Transaction.create({
       amount: -1000,
-      ...defaultTransactionData
+      ...defaultTransactionData,
     })
     .then(transaction => {
       expect(transaction.info.uuid).to.match(/^[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i);
@@ -46,12 +46,12 @@ describe('transaction model', () => {
   it('get the host', (done) => {
     Transaction.create({
       ...defaultTransactionData,
-      amount: 10000
+      amount: 10000,
     })
     .then(transaction => {
       expect(transaction.HostCollectiveId).to.equal(host.CollectiveId);
       done();
-    })
+    });
   });
 
   it('createFromPayload creates a double entry transaction', () => {
@@ -59,7 +59,7 @@ describe('transaction model', () => {
       transaction: transactionsData[7],
       CreatedByUserId: user.id,
       FromCollectiveId: user.CollectiveId,
-      CollectiveId: collective.id
+      CollectiveId: collective.id,
     })
     .then(() => {
       return Transaction.findAll()
@@ -69,9 +69,9 @@ describe('transaction model', () => {
         expect(transactions[0].description).to.equal(transactionsData[7].description);
         expect(transactions[0].amount).to.equal(-transactionsData[7].netAmountInCollectiveCurrency);
         expect(transactions[1].amount).to.equal(-transactions[0].netAmountInCollectiveCurrency);
-      })
-    })
-  })
+      });
+    });
+  });
 
   it('createFromPayload() generates a new activity', (done) => {
 
@@ -85,7 +85,7 @@ describe('transaction model', () => {
       transaction: transactionsData[7],
       CreatedByUserId: user.id,
       FromCollectiveId: user.CollectiveId,
-      CollectiveId: collective.id
+      CollectiveId: collective.id,
     })
     .then(transaction => {
       expect(transaction.CollectiveId).to.equal(collective.id);

@@ -35,14 +35,14 @@ describe('transactions.routes.test.js', () => {
       defaultAttributes = {
         CreatedByUserId: user.id,
         FromCollectiveId: user.CollectiveId,
-        HostCollectiveId: host.CollectiveId
+        HostCollectiveId: host.CollectiveId,
       };
     });
 
     before('create multiple transactions for publicCollective', () => models.Transaction
       .createMany(transactionsData, { CollectiveId: publicCollective.id, ...defaultAttributes })
       .then(transactions => {
-        transaction = transactions[0]
+        transaction = transactions[0];
       })
     );
 
@@ -60,9 +60,9 @@ describe('transactions.routes.test.js', () => {
         .get(`/transactions/${transaction.id}?api_key=${application.api_key}`)
         .expect(400)
         .end((e, res) => {
-          expect(res.body.error.message).to.equal("Must provide transaction uuid");
+          expect(res.body.error.message).to.equal('Must provide transaction uuid');
           done();
-        })
+        });
     });
 
     it('get the transaction details with host info', (done) => {
@@ -115,7 +115,7 @@ describe('transactions.routes.test.js', () => {
         .send({
           per_page: perPage,
           sort: 'id',
-          direction: 'asc'
+          direction: 'asc',
         })
         .set('Authorization', `Bearer ${user.jwt()}`)
         .expect(200)
@@ -148,7 +148,7 @@ describe('transactions.routes.test.js', () => {
           per_page: perPage,
           page,
           sort: 'id',
-          direction: 'asc'
+          direction: 'asc',
         })
         .set('Authorization', `Bearer ${user.jwt()}`)
         .expect(200)
@@ -173,7 +173,7 @@ describe('transactions.routes.test.js', () => {
         .send({
           since_id: sinceId,
           sort: 'id',
-          direction: 'asc'
+          direction: 'asc',
         })
         .set('Authorization', `Bearer ${user.jwt()}`)
         .expect(200)
@@ -203,7 +203,7 @@ describe('transactions.routes.test.js', () => {
         .get(`/groups/${publicCollective.id}/transactions?api_key=${application.api_key}`)
         .send({
           sort: 'createdAt',
-          direction: 'asc'
+          direction: 'asc',
         })
         .set('Authorization', `Bearer ${user.jwt()}`)
         .expect(200)

@@ -12,12 +12,12 @@ describe('currencylib', () => {
 
     nock('http://data.fixer.io')
       .get(`/${startDate}`)
-      .query({ access_key: config.fixer.accessKey, base: 'EUR', symbols: 'USD'})
+      .query({ access_key: config.fixer.accessKey, base: 'EUR', symbols: 'USD' })
       .reply(200, { base: 'EUR', date: startDate, rates: { USD: 1.079 } });
 
     nock('http://data.fixer.io')
       .get(`/${endDate}`)
-      .query({ access_key: config.fixer.accessKey, base: 'EUR', symbols: 'USD'})
+      .query({ access_key: config.fixer.accessKey, base: 'EUR', symbols: 'USD' })
       .reply(200, { base: 'EUR', date: endDate, rates: { USD : 1.0533 } });
 
     nock('http://data.fixer.io')
@@ -25,7 +25,7 @@ describe('currencylib', () => {
       .query({ access_key: config.fixer.accessKey, base: 'INR', symbols: 'USD' })
       .reply(200, { base: 'INR', date: endDate, rates: { USD : 0.014962 } });
 
-  })
+  });
 
   it('converts EUR to USD', () =>
     currencylib.convertToCurrency(1, 'EUR', 'USD', new Date(startDate)).then(amount =>

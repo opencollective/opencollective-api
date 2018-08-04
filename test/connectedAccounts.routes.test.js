@@ -30,7 +30,7 @@ describe('connectedAccounts.routes.test.js: GIVEN a collective', () => {
 
       beforeEach(done => {
         req = request(app)
-          .get(`/connected-accounts/github?utm_source=mm`)
+          .get('/connected-accounts/github?utm_source=mm')
           .send({ api_key: application.api_key });
         done();
       });
@@ -72,7 +72,7 @@ describe('connectedAccounts.routes.test.js: GIVEN a collective', () => {
 
     describe('WHEN calling with valid API key', () => {
       beforeEach(done => {
-        req = req.send({api_key: application.api_key});
+        req = req.send({ api_key: application.api_key });
         done();
       });
 
@@ -120,7 +120,7 @@ describe('connectedAccounts.routes.test.js: GIVEN a collective', () => {
     describe('WHEN providing API key and token but no username', () => {
       beforeEach(done => {
         req = req
-              .set('Authorization', `Bearer ${user.jwt({ scope: 'github'})}`)
+              .set('Authorization', `Bearer ${user.jwt({ scope: 'github' })}`)
               .send({ api_key: application.api_key });
         done();
       });
@@ -131,7 +131,7 @@ describe('connectedAccounts.routes.test.js: GIVEN a collective', () => {
     describe('WHEN providing API key, token and scope', () => {
       beforeEach(done => {
         req = req
-              .set('Authorization', `Bearer ${user.jwt({ scope: 'connected-account', username: 'asood123', connectedAccountId: 1})}`)
+              .set('Authorization', `Bearer ${user.jwt({ scope: 'connected-account', username: 'asood123', connectedAccountId: 1 })}`)
               .send({ api_key: application.api_key });
         done();
       });

@@ -42,7 +42,7 @@ describe('grahpql.createOrder.opencollective', () => {
         });
         expect(await prepaid.getBalance(paymentMethod)).to.deep.equal({
           amount: 10000,
-          currency: 'USD'
+          currency: 'USD',
         });
       }); /* End of "should return initial balance of payment method if nothing was spend on the card" */
 
@@ -64,7 +64,7 @@ describe('grahpql.createOrder.opencollective', () => {
             initialBalance: 10000,
             currency: 'USD',
             data: { HostCollectiveId: hostCollective.id },
-          }
+          },
         });
 
         // When the above order is executed
@@ -74,7 +74,7 @@ describe('grahpql.createOrder.opencollective', () => {
         // minus what was already spent.
         expect(await prepaid.getBalance(order.paymentMethod)).to.deep.equal({
           amount: 8000,
-          currency: 'USD'
+          currency: 'USD',
         });
       }); /* End of "should return initial balance of payment method minus credit already spent" */
 
@@ -103,7 +103,7 @@ describe('grahpql.createOrder.opencollective', () => {
             initialBalance: 10000,
             currency: 'USD',
             data: { HostCollectiveId: hostCollective.id },
-          }
+          },
         });
 
         // When the above order is executed; Then the transaction
@@ -125,7 +125,7 @@ describe('grahpql.createOrder.opencollective', () => {
             type: 'prepaid',
             initialBalance: 10000,
             currency: 'USD',
-          }
+          },
         });
 
         // When the above order is executed; Then the transaction
@@ -148,7 +148,7 @@ describe('grahpql.createOrder.opencollective', () => {
             initialBalance: 10000,
             currency: 'USD',
             data: { HostCollectiveId: hostCollective.id },
-          }
+          },
         });
 
         // When the above order is executed; Then the transaction
@@ -171,7 +171,7 @@ describe('grahpql.createOrder.opencollective', () => {
             initialBalance: 10000,
             currency: 'USD',
             data: { HostCollectiveId: 2000 },
-          }
+          },
         });
 
         // When the above order is executed; Then the transaction
@@ -206,7 +206,7 @@ describe('grahpql.createOrder.opencollective', () => {
 
         expect(await giftcard.getBalance(paymentMethod)).to.deep.equal({
           amount: 5000,
-          currency: 'USD'
+          currency: 'USD',
         });
 
       }); /* End of "should return the monthlyLimitPerMember as amount" */
@@ -254,7 +254,7 @@ describe('grahpql.createOrder.opencollective', () => {
             token: pm.token,
           },
           quantity: 1,
-          totalAmount: 5000
+          totalAmount: 5000,
         };
 
         const result = await utils.graphqlQuery(createOrderQuery, { order }, user);
@@ -288,7 +288,7 @@ describe('grahpql.createOrder.opencollective', () => {
             token: pm.token,
           },
           quantity: 1,
-          totalAmount: 5000
+          totalAmount: 5000,
         };
 
         const result = await utils.graphqlQuery(createOrderQuery, { order }, user);

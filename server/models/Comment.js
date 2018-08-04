@@ -23,62 +23,62 @@ export default function(Sequelize, DataTypes) {
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
-      autoIncrement: true
+      autoIncrement: true,
     },
 
     CollectiveId: {
       type: DataTypes.INTEGER,
       references: {
         model: 'Collectives',
-        key: 'id'
+        key: 'id',
       },
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
-      allowNull: false
+      allowNull: false,
     },
 
     FromCollectiveId: {
       type: DataTypes.INTEGER,
       references: {
         model: 'Collectives',
-        key: 'id'
+        key: 'id',
       },
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
-      allowNull: true
+      allowNull: true,
     },
 
     CreatedByUserId: {
       type: DataTypes.INTEGER,
       references: {
         model: 'Users',
-        key: 'id'
+        key: 'id',
       },
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
-      allowNull: true // non authenticated users can create a Update
+      allowNull: true, // non authenticated users can create a Update
     },
 
     ExpenseId: {
       type: DataTypes.INTEGER,
       references: {
         model: 'Expenses',
-        key: 'id'
+        key: 'id',
       },
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
-      allowNull: true
+      allowNull: true,
     },
 
     UpdateId: {
       type: DataTypes.INTEGER,
       references: {
         model: 'Updates',
-        key: 'id'
+        key: 'id',
       },
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
-      allowNull: true
+      allowNull: true,
     },
 
     markdown: DataTypes.TEXT,
@@ -86,22 +86,22 @@ export default function(Sequelize, DataTypes) {
       type: DataTypes.TEXT,
       get() {
         return this.getDataValue('html') ? this.getDataValue('html') : markdownConverter.makeHtml(this.getDataValue('markdown'));
-      }
+      },
     },
 
     createdAt: {
       type: DataTypes.DATE,
-      defaultValue: Sequelize.NOW
+      defaultValue: Sequelize.NOW,
     },
 
     updatedAt: {
       type: DataTypes.DATE,
-      defaultValue: Sequelize.NOW
+      defaultValue: Sequelize.NOW,
     },
 
     deletedAt: {
-      type: DataTypes.DATE
-    }
+      type: DataTypes.DATE,
+    },
 
   }, {
     paranoid: true,
@@ -116,27 +116,27 @@ export default function(Sequelize, DataTypes) {
           markdown: this.markdown,
           html: this.html,
           createdAt: this.createdAt,
-          updatedAt: this.updatedAt
+          updatedAt: this.updatedAt,
         };
       },
       minimal() {
         return {
           id: this.id,
-          createdAt: this.createdAt
-        }
+          createdAt: this.createdAt,
+        };
       },
       activity() {
         return {
           id: this.id,
-          createdAt: this.createdAt
-        }
-      }
+          createdAt: this.createdAt,
+        };
+      },
     },
 
     hooks: {
       beforeCreate: (instance) => {
         if (!instance.ExpenseId && !instance.UpdateId) {
-          throw new Error("Missing target expense or update");
+          throw new Error('Missing target expense or update');
         }
       },
       afterCreate: (instance) => {
@@ -148,15 +148,15 @@ export default function(Sequelize, DataTypes) {
             CommentId: instance.id,
             comment: {
               id: instance.id,
-              html: instance.html
+              html: instance.html,
             },
             FromCollectiveId: instance.FromCollectiveId,
             ExpenseId: instance.ExpenseId,
-            UpdateId: instance.UpdateId
-          }
-        })
-      }
-    }
+            UpdateId: instance.UpdateId,
+          },
+        });
+      },
+    },
   });
 
   /**
@@ -167,22 +167,22 @@ export default function(Sequelize, DataTypes) {
   Comment.prototype.edit = async function(remoteUser, newCommentData) {
     mustBeLoggedInTo(remoteUser, 'edit this comment');
     if (remoteUser.id !== this.CreatedByUserId || !remoteUser.isAdmin(this.CollectiveId)) {
-      throw new errors.Unauthorized({ message: "You must be the author or an admin of this collective to edit this comment" });
+      throw new errors.Unauthorized({ message: 'You must be the author or an admin of this collective to edit this comment' });
     }
     const editableAttributes = ['FromCollectiveId', 'markdown', 'html'];
     sanitizeObject(newCommentData, ['markdown', 'html']);
     return await this.update({
-      ...pick(newCommentData, editableAttributes)
+      ...pick(newCommentData, editableAttributes),
     });
-  }
+  };
 
   Comment.prototype.delete = async function(remoteUser) {
-    mustBeLoggedInTo(remoteUser, "delete this comment");
+    mustBeLoggedInTo(remoteUser, 'delete this comment');
     if (remoteUser.id !== this.CreatedByUserId || !remoteUser.isAdmin(this.CollectiveId)) {
-      throw new errors.Unauthorized({ message: "You need to be logged in as a core contributor or as a host to delete this comment" });
+      throw new errors.Unauthorized({ message: 'You need to be logged in as a core contributor or as a host to delete this comment' });
     }
     return this.destroy();
-  }
+  };
 
   // Returns the User model of the User that created this Update
   Comment.prototype.getUser = function() {
@@ -199,7 +199,7 @@ export default function(Sequelize, DataTypes) {
     Comment.belongsTo(m.Expense, { foreignKey: 'ExpenseId', as: 'expense' });
     Comment.belongsTo(m.Update, { foreignKey: 'UpdateId', as: 'update' });
     Comment.belongsTo(m.User, { foreignKey: 'CreatedByUserId', as: 'user' });
-  }
+  };
 
   Temporal(Comment, Sequelize);
 

@@ -63,7 +63,7 @@ describe('graphql.invoices.test.js', () => {
           }
         }
       `;
-      const result = await utils.graphqlQuery(query, { fromCollectiveSlug: "xdamman" });
+      const result = await utils.graphqlQuery(query, { fromCollectiveSlug: 'xdamman' });
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.contain("You don't have permission to access invoices for this user");
     });
@@ -87,7 +87,7 @@ describe('graphql.invoices.test.js', () => {
           }
         }
       `;
-      const result = await utils.graphqlQuery(query, { fromCollectiveSlug: "xdamman" }, xdamman);
+      const result = await utils.graphqlQuery(query, { fromCollectiveSlug: 'xdamman' }, xdamman);
       result.errors && console.error(result.errors[0]);
       expect(result.errors).to.not.exist;
       const invoices = result.data.allInvoices;
@@ -95,9 +95,9 @@ describe('graphql.invoices.test.js', () => {
       expect(invoices[0].year).to.equal(2017);
       expect(invoices[0].month).to.equal(11);
       expect(invoices[0].totalAmount).to.equal(1000);
-      expect(invoices[0].currency).to.equal("EUR");
-      expect(invoices[0].host.slug).to.equal("brusselstogether-host");
-      expect(invoices[0].fromCollective.slug).to.equal("xdamman");
+      expect(invoices[0].currency).to.equal('EUR');
+      expect(invoices[0].host.slug).to.equal('brusselstogether-host');
+      expect(invoices[0].fromCollective.slug).to.equal('xdamman');
     });
 
     it('returns invoice data for a given year/month', async () => {
@@ -132,14 +132,14 @@ describe('graphql.invoices.test.js', () => {
           }
         }
       `;
-      const result = await utils.graphqlQuery(query, { invoiceSlug: "201710-brusselstogether-host-xdamman" }, xdamman);
+      const result = await utils.graphqlQuery(query, { invoiceSlug: '201710-brusselstogether-host-xdamman' }, xdamman);
       result.errors && console.error(result.errors[0]);
       expect(result.errors).to.not.exist;
       const invoice = result.data.Invoice;
-      expect(invoice.host.slug).to.equal("brusselstogether-host");
-      expect(invoice.fromCollective.slug).to.equal("xdamman");
+      expect(invoice.host.slug).to.equal('brusselstogether-host');
+      expect(invoice.fromCollective.slug).to.equal('xdamman');
       expect(invoice.totalAmount).to.equal(1500);
-      expect(invoice.currency).to.equal("EUR");
+      expect(invoice.currency).to.equal('EUR');
       expect(invoice.transactions).to.have.length(2);
     });
 

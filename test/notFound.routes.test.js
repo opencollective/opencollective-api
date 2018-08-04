@@ -16,7 +16,7 @@ describe('notFound.routes.test.js', () => {
         .get(`/blablabla?api_key=${application.api_key}`);
     });
 
-    it("THEN returns 404", () =>
+    it('THEN returns 404', () =>
       req.expect(404)
         .toPromise()
         .tap(res => expect(res.error.text).to.equal('Not Found')));

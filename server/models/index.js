@@ -24,13 +24,13 @@ if (config.options.logging) {
   if (process.env.NODE_ENV === 'production') {
     config.options.logging = (query, executionTime) => {
       if (executionTime > 50) {
-        debug("psql")(query.replace(/(\n|\t| +)/g,' ').slice(0, 100), '|', executionTime, 'ms');
+        debug('psql')(query.replace(/(\n|\t| +)/g,' ').slice(0, 100), '|', executionTime, 'ms');
       }
-    }
+    };
   } else {
     config.options.logging = (query, executionTime) => {
-      debug("psql")(`\n-------------------- <query> --------------------\n`,query,`\n-------------------- </query executionTime="${executionTime}"> --------------------\n`);
-    }
+      debug('psql')('\n-------------------- <query> --------------------\n',query,`\n-------------------- </query executionTime="${executionTime}"> --------------------\n`);
+    };
   }
 }
 
@@ -71,7 +71,7 @@ export function setupModels(client) {
     'Tier',
     'Transaction',
     'Update',
-    'User'
+    'User',
   ].forEach((model) => {
     m[model] = client.import(`${__dirname}/${model}`);
   });
@@ -135,8 +135,8 @@ export function setupModels(client) {
   m.Order.belongsTo(m.Collective, { foreignKey: 'ReferralCollectiveId', as: 'referral' });
   m.Order.belongsTo(m.Tier);
   // m.Collective.hasMany(m.Order); // makes the test `mocha test/graphql.transaction.test.js -g "insensitive" fail
-  m.Collective.hasMany(m.Member, { foreignKey: "CollectiveId", as: 'members'});
-  m.Collective.hasMany(m.Order, { foreignKey: "CollectiveId", as: 'orders'});
+  m.Collective.hasMany(m.Member, { foreignKey: 'CollectiveId', as: 'members' });
+  m.Collective.hasMany(m.Order, { foreignKey: 'CollectiveId', as: 'orders' });
   m.Transaction.belongsTo(m.Order);
   m.Order.hasMany(m.Transaction);
   m.Tier.hasMany(m.Order);

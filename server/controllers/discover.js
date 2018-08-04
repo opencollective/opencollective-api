@@ -31,7 +31,7 @@ export default (req, res, next) => {
       show,
       sort,
       offset,
-      collectives
+      collectives,
     };
     res.send(di);
   })

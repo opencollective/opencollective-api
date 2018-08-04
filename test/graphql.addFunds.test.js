@@ -45,7 +45,7 @@ describe('graphql.addFunds', () => {
     // And then there should be a new payment method created in the
     // database
     const dbResult = await models.PaymentMethod.findAll({
-      where: { customerId: collective.slug }
+      where: { customerId: collective.slug },
     });
 
     expect(dbResult.length).to.equal(1);
@@ -72,7 +72,7 @@ describe('graphql.addFunds', () => {
     // And then there should be a new payment method created in the
     // database
     const dbResult = await models.PaymentMethod.findAll({
-      where: { customerId: collective.slug }
+      where: { customerId: collective.slug },
     });
 
     expect(dbResult.length).to.equal(1);

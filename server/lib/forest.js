@@ -26,11 +26,11 @@ export default (app) => {
       .findOne({ where: { id } })
       .then(subscription => subscription.activate())
       .then(() => {
-        res.status(200).send({success: 'The subscription was successfully activated.'});
+        res.status(200).send({ success: 'The subscription was successfully activated.' });
       })
       .catch(e => {
-        res.status(400).send({error: e.message});
-      })
+        res.status(400).send({ error: e.message });
+      });
   });
 
   app.post('/forest/actions/cancel-subscription', Liana.ensureAuthenticated, (req, res) => {
@@ -40,11 +40,11 @@ export default (app) => {
       .findOne({ where: { id } })
       .then(subscription => subscription.deactivate())
       .then(() => {
-        res.status(200).send({success: 'The subscription was successfully canceled.'});
+        res.status(200).send({ success: 'The subscription was successfully canceled.' });
       })
       .catch(e => {
-        res.status(400).send({error: e.message});
-      })
+        res.status(400).send({ error: e.message });
+      });
   });
 
   app.post('/forest/actions/delete-collective-and-dependencies', Liana.ensureAuthenticated, async (req, res) => {
@@ -71,7 +71,7 @@ export default (app) => {
           });
         // Delete Members
         await models.Member
-          .findAll({ where: { CollectiveId: collective.id }})
+          .findAll({ where: { CollectiveId: collective.id } })
           .then(members => {
             members.forEach(async member => {
               await member.destroy();
@@ -79,7 +79,7 @@ export default (app) => {
           });
         // Delete Expenses
         await models.Expense
-          .findAll({ where: { CollectiveId: collective.id }})
+          .findAll({ where: { CollectiveId: collective.id } })
           .then(expenses => {
             expenses.forEach(async expense => {
               await expense.destroy();
@@ -88,7 +88,7 @@ export default (app) => {
 
         // Delete Tiers
         await models.Tier
-          .findAll({ where: { CollectiveId: collective.id }})
+          .findAll({ where: { CollectiveId: collective.id } })
           .then(tiers => {
             tiers.forEach(async tier => {
               await tier.destroy();
@@ -96,7 +96,7 @@ export default (app) => {
           });
         // Delete Payment Methods
         await models.PaymentMethod
-          .findAll({ where: { CollectiveId: collective.id }})
+          .findAll({ where: { CollectiveId: collective.id } })
           .then(paymentMethods => {
             paymentMethods.forEach(async paymentMethod => {
               await paymentMethod.destroy();
@@ -109,7 +109,7 @@ export default (app) => {
         const msg = 'The collective and its dependencies were successfully deleted.';
         res.status(200).send({
           html: `<p>${msg}</p>
-                 <p><a href="../../../">Click here to continue</a>.</p>`
+                 <p><a href="../../../">Click here to continue</a>.</p>`,
         });
       })
       .catch(e => {
@@ -117,9 +117,9 @@ export default (app) => {
         res.status(400).send({
           error: `There was an error while processing your request.\n
             "${msg}"\n
-            Maybe you want to proceed manually?`
+            Maybe you want to proceed manually?`,
         });
-      })
+      });
   });
 
   app.post('/forest/actions/delete-user-and-dependencies', Liana.ensureAuthenticated, async (req, res) => {
@@ -146,7 +146,7 @@ export default (app) => {
         });
       // Delete Memberships
       await models.Member
-        .findAll({ where: { MemberCollectiveId: userCollective.id }})
+        .findAll({ where: { MemberCollectiveId: userCollective.id } })
         .then(members => {
           members.forEach(async member => {
             await member.destroy();
@@ -154,7 +154,7 @@ export default (app) => {
         });
       // Delete Expenses
       await models.Expense
-        .findAll({ where: { UserId: user.id }})
+        .findAll({ where: { UserId: user.id } })
         .then(expenses => {
           expenses.forEach(async expense => {
             await expense.destroy();
@@ -162,7 +162,7 @@ export default (app) => {
         });
       // Delete Payment Methods
       await models.PaymentMethod
-        .findAll({ where: { CollectiveId: userCollective.id }})
+        .findAll({ where: { CollectiveId: userCollective.id } })
         .then(paymentMethods => {
           paymentMethods.forEach(async paymentMethod => {
             await paymentMethod.destroy();
@@ -176,7 +176,7 @@ export default (app) => {
       const msg = 'The user and its dependencies were successfully deleted.';
       res.status(200).send({
         html: `<p>${msg}</p>
-               <p><a href="../../../">Click here to continue</a>.</p>`
+               <p><a href="../../../">Click here to continue</a>.</p>`,
       });
 
     } catch (e) {
@@ -185,7 +185,7 @@ export default (app) => {
       res.status(400).send({
         error: `There was an error while processing your request.\n
           "${msg}"\n
-          Maybe you want to proceed manually?`
+          Maybe you want to proceed manually?`,
       });
 
     }
@@ -225,7 +225,7 @@ export default (app) => {
         });
       // Merge Memberships
       await models.Member
-        .findAll({ where: { MemberCollectiveId: userCollective.id }})
+        .findAll({ where: { MemberCollectiveId: userCollective.id } })
         .then(members => {
           members.forEach(async member => {
             await member.update({ MemberCollectiveId: mergeIntoUserCollective.id });
@@ -233,7 +233,7 @@ export default (app) => {
         });
       // Merge Expenses
       await models.Expense
-        .findAll({ where: { UserId: user.id }})
+        .findAll({ where: { UserId: user.id } })
         .then(expenses => {
           expenses.forEach(async expense => {
             await expense.update({ UserId: mergeIntoUser.id });
@@ -241,7 +241,7 @@ export default (app) => {
         });
       // Merge Payment Methods
       await models.PaymentMethod
-        .findAll({ where: { CollectiveId: userCollective.id }})
+        .findAll({ where: { CollectiveId: userCollective.id } })
         .then(paymentMethods => {
           paymentMethods.forEach(async paymentMethod => {
             await paymentMethod.update({ CollectiveId: mergeIntoUserCollective.id });
@@ -255,7 +255,7 @@ export default (app) => {
       const msg = 'The user was successfully deleted and its dependencies merged.';
       res.status(200).send({
         html: `<p>${msg}</p>
-               <p><a href="../../../">Click here to continue</a>.</p>`
+               <p><a href="../../../">Click here to continue</a>.</p>`,
       });
 
     } catch (e) {
@@ -264,7 +264,7 @@ export default (app) => {
       res.status(400).send({
         error: `There was an error while processing your request.\n
           "${msg}"\n
-          Maybe you want to proceed manually?`
+          Maybe you want to proceed manually?`,
       });
 
     }
@@ -290,11 +290,11 @@ function getForestModels () {
   delete m.Collective.associations.memberOfCollectives;
   // Missing relations
   m.Collective.hasMany(m.PaymentMethod);
-  m.Collective.hasMany(m.Expense, { foreignKey: "CollectiveId", as: 'Expense'});
+  m.Collective.hasMany(m.Expense, { foreignKey: 'CollectiveId', as: 'Expense' });
   m.Collective.hasMany(m.Member, { foreignKey: 'MemberCollectiveId', as: 'Membership' });
   delete m.Collective.associations.orders;
-  m.Collective.hasMany(m.Order, { foreignKey: "CollectiveId", as: 'ReceivedOrders'});
-  m.Collective.hasMany(m.Order, { foreignKey: "FromCollectiveId", as: 'IssuedOrders'});
+  m.Collective.hasMany(m.Order, { foreignKey: 'CollectiveId', as: 'ReceivedOrders' });
+  m.Collective.hasMany(m.Order, { foreignKey: 'FromCollectiveId', as: 'IssuedOrders' });
 
   // Customize User
   // --------------

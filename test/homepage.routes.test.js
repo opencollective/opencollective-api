@@ -31,7 +31,7 @@ describe('homepage.routes.test.js', () => {
         CreatedByUserId: user.id,
         CollectiveId: user.CollectiveId,
         service: 'stripe',
-        token: 'tok_123456781234567812345678'
+        token: 'tok_123456781234567812345678',
       }))
       .tap(p => paymentMethod = p)
       .then(() => {
@@ -43,8 +43,8 @@ describe('homepage.routes.test.js', () => {
           FromCollectiveId: user.CollectiveId,
           CollectiveId: collective.id,
           CreatedByUserId: user.id,
-          HostCollectiveId: user.id
-        })
+          HostCollectiveId: user.id,
+        });
       })
   );
 
@@ -63,7 +63,7 @@ describe('homepage.routes.test.js', () => {
         expect(body.collectives).to.have.property('meetup');
         expect(body.collectives.opensource.length).to.equal(1);
         expect(body.collectives.opensource[0].name).to.equal(collectiveData.name);
-      }))
+      }));
 
   });
 

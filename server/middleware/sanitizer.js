@@ -21,8 +21,8 @@ const sanitizeHelper = (value) => {
   } else if (typeof value === 'object') {
     lodashEach(value, (val, key) => {
       value[key] = sanitizeHelper(val);
-    })
+    });
   }
   return value;
-}
+};
 

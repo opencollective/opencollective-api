@@ -5,7 +5,7 @@ import _ from 'lodash';
 import cheerio from 'cheerio';
 import app from '../server/index';
 import config from 'config';
-import {expect} from 'chai';
+import { expect } from 'chai';
 import request from 'supertest-as-promised';
 import moment from 'moment';
 import * as utils from '../test/utils';
@@ -37,13 +37,13 @@ describe('users.routes.test.js', () => {
     userlib.memory = {};
     sandbox.stub(userlib, 'getUserData').callsFake((email) => {
       return new Bluebird((resolve) => {
-        if (email === "xd@noreply.com") {
+        if (email === 'xd@noreply.com') {
           return resolve(mock.person);
         } else {
           return resolve(null);
         }
-      })
-    })
+      });
+    });
   });
 
   afterEach(() => sandbox.restore());
@@ -61,7 +61,7 @@ describe('users.routes.test.js', () => {
           sendMail (data, callback) {
               callback();
           },
-          logger: false
+          logger: false,
         });
     sinon.stub(nodemailer, 'createTransport').callsFake(() => nm);
   });
@@ -78,8 +78,8 @@ describe('users.routes.test.js', () => {
   });
 
 
-  describe("existence", () => {
-    it("returns true", (done) => {
+  describe('existence', () => {
+    it('returns true', (done) => {
       models.User.create({ email: 'john@smith.com' })
         .then(() => {
           request(app)
@@ -87,19 +87,19 @@ describe('users.routes.test.js', () => {
             .end((e, res) => {
               expect(res.body.exists).to.be.true;
               done();
-            })
+            });
         });
-    })
+    });
 
-    it("returns false", (done) => {
+    it('returns false', (done) => {
       request(app)
         .get(`/users/exists?email=john2@smith.com&api_key=${application.api_key}`)
         .end((e, res) => {
           expect(res.body.exists).to.be.false;
           done();
-        })
+        });
     });
-  })
+  });
 
   /**
    * Create.
@@ -110,7 +110,7 @@ describe('users.routes.test.js', () => {
       request(app)
         .post('/users')
         .send({
-          user: userData
+          user: userData,
         })
         .expect(400)
     );
@@ -120,7 +120,7 @@ describe('users.routes.test.js', () => {
         .post('/users')
         .send({
           api_key: '*invalid_api_key*',
-          user: userData
+          user: userData,
         })
         .expect(401)
     );
@@ -129,7 +129,7 @@ describe('users.routes.test.js', () => {
       request(app)
         .post('/users')
         .send({
-          api_key: application.api_key
+          api_key: application.api_key,
         })
         .expect(400)
     );
@@ -139,7 +139,7 @@ describe('users.routes.test.js', () => {
         .post('/users')
         .send({
           api_key: application.api_key,
-          user: _.omit(userData, 'email')
+          user: _.omit(userData, 'email'),
         })
         .end((e,res) => {
           expect(e).to.not.exist;
@@ -153,7 +153,7 @@ describe('users.routes.test.js', () => {
         .post('/users')
         .send({
           api_key: application.api_key,
-          user: _.extend({}, userData, {email: 'abcdefg'})
+          user: _.extend({}, userData, { email: 'abcdefg' }),
         })
         .end((e,res) => {
           expect(res.statusCode).to.equal(400);
@@ -167,7 +167,7 @@ describe('users.routes.test.js', () => {
         .post('/users')
         .send({
           api_key: application.api_key,
-          user: userData
+          user: userData,
         })
         .end((e, res) => {
           expect(e).to.not.exist;
@@ -188,7 +188,7 @@ describe('users.routes.test.js', () => {
           .post('/users')
           .send({
             api_key: application.api_key,
-            user: _.pick(userData, 'email')
+            user: _.pick(userData, 'email'),
           })
           .end((e,res) => {
             expect(res.statusCode).to.equal(400);
@@ -212,7 +212,7 @@ describe('users.routes.test.js', () => {
         .put(`/users/${user.id}/paypalemail?api_key=${application.api_key}`)
         .set('Authorization', `Bearer ${user.jwt()}`)
         .send({
-          paypalEmail: email
+          paypalEmail: email,
         })
         .end((err, res) => {
           const { body } = res;
@@ -226,7 +226,7 @@ describe('users.routes.test.js', () => {
       return request(app)
         .put(`/users/${user.id}/paypalemail?api_key=${application.api_key}`)
         .send({
-          paypalEmail: email
+          paypalEmail: email,
         })
         .expect(401);
     });
@@ -236,7 +236,7 @@ describe('users.routes.test.js', () => {
         .put(`/users/${user.id}/paypalemail?api_key=${application.api_key}`)
         .set('Authorization', `Bearer ${user.jwt()}`)
         .send({
-          paypalEmail: 'abc'
+          paypalEmail: 'abc',
         })
         .expect(400));
   });
@@ -254,17 +254,17 @@ describe('users.routes.test.js', () => {
       request(app)
         .post('/users/new_login_token')
         .send({
-          api_key: application.api_key
+          api_key: application.api_key,
         })
         .expect(400, {
           error: {
             code: 400,
-            "fields": {
-              "email": "Required field email missing"
+            'fields': {
+              'email': 'Required field email missing',
             },
-            message: "Missing required fields",
-            type: 'missing_required'
-          }
+            message: 'Missing required fields',
+            type: 'missing_required',
+          },
         })
         .end(done);
     });
@@ -276,7 +276,7 @@ describe('users.routes.test.js', () => {
         .post('/users/new_login_token')
         .send({
           email,
-          api_key: application.api_key
+          api_key: application.api_key,
         })
         .expect(200)
         .end(done);
@@ -288,7 +288,7 @@ describe('users.routes.test.js', () => {
         .post('/users/new_login_token')
         .send({
           email: user.email,
-          api_key: application.api_key
+          api_key: application.api_key,
         })
         .expect(200)
         .then(() => {
@@ -296,7 +296,7 @@ describe('users.routes.test.js', () => {
           const $ = cheerio.load(options.html);
           const href = $('a').attr('href');
           expect(href).to.contain(`${config.host.website}/signin/`);
-          expect(options.to).to.equal("emailbcc+user1-at-opencollective.com@opencollective.com");
+          expect(options.to).to.equal('emailbcc+user1-at-opencollective.com@opencollective.com');
         }));
   });
 
@@ -321,7 +321,7 @@ describe('users.routes.test.js', () => {
         expiresIn: 100,
         subject: fakeUser.id,
         issuer: config.host.api,
-        audience: application.id
+        audience: application.id,
       });
 
       request(app)
@@ -330,9 +330,9 @@ describe('users.routes.test.js', () => {
         .expect(401, {
           error: {
             code: 401,
-            message: "Invalid payload",
-            type: 'unauthorized'
-          }
+            message: 'Invalid payload',
+            type: 'unauthorized',
+          },
         })
         .end(done);
     });
@@ -342,7 +342,7 @@ describe('users.routes.test.js', () => {
         expiresIn: -1,
         subject: user.id,
         issuer: config.host.api,
-        audience: application.id
+        audience: application.id,
       });
 
       return request(app)
@@ -355,7 +355,7 @@ describe('users.routes.test.js', () => {
           const $ = cheerio.load(options.html);
           const href = $('a').attr('href');
           expect(href).to.contain(`${config.host.website}/signin/`);
-          expect(options.to).to.equal("emailbcc+user1-at-opencollective.com@opencollective.com");
+          expect(options.to).to.equal('emailbcc+user1-at-opencollective.com@opencollective.com');
         });
     });
 

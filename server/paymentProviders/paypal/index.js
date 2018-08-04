@@ -24,7 +24,7 @@ const debugPaypal = debug('paypal');
 const getPreapprovalDetailsAndUpdatePaymentMethod = function(paymentMethod) {
 
   if (!paymentMethod) {
-    return Promise.reject(new Error("No payment method provided to getPreapprovalDetailsAndUpdatePaymentMethod"))
+    return Promise.reject(new Error('No payment method provided to getPreapprovalDetailsAndUpdatePaymentMethod'));
   }
 
   let preapprovalDetailsResponse;
@@ -33,7 +33,7 @@ const getPreapprovalDetailsAndUpdatePaymentMethod = function(paymentMethod) {
     .tap(response => preapprovalDetailsResponse = response)
     .then(response => {
       if (response.approved === 'false') {
-        throw new errors.BadRequest('This preapprovalkey is not approved yet.')
+        throw new errors.BadRequest('This preapprovalkey is not approved yet.');
       }
     })
     .then(() => paymentMethod.update({
@@ -42,14 +42,14 @@ const getPreapprovalDetailsAndUpdatePaymentMethod = function(paymentMethod) {
         data: {
           ...paymentMethod.data,
           response: preapprovalDetailsResponse,
-        }
+        },
       })
     )
     .catch(e => {
-      debugPaypal(">>> getPreapprovalDetailsAndUpdatePaymentMethod error ", e);
+      debugPaypal('>>> getPreapprovalDetailsAndUpdatePaymentMethod error ', e);
       throw e;
-    })
-}
+    });
+};
 
 export default {
   types: {
@@ -64,7 +64,7 @@ export default {
       // TODO: The cancel URL doesn't work - no routes right now.
       const { redirect } = options;
       if (!redirect) {
-        throw new Error("Please provide a redirect url as a query parameter (?redirect=)");
+        throw new Error('Please provide a redirect url as a query parameter (?redirect=)');
       }
       const expiryDate = moment().add(1, 'years');
 
@@ -77,7 +77,7 @@ export default {
           .then(limit => {
             // We can request a paykey for up to $2,000 equivalent (minus 5%)
             const lowerLimit = collective.currency === 'USD' ? 2000 : Math.floor(0.95 * limit);
-            debugPaypal(">>> requesting a paykey for ", formatCurrency(lowerLimit*100, collective.currency));
+            debugPaypal('>>> requesting a paykey for ', formatCurrency(lowerLimit*100, collective.currency));
             return {
               currencyCode: 'USD', // collective.currency, // we should use the currency of the host collective but still waiting on PayPal to resolve that issue.
               startingDate: new Date().toISOString(),
@@ -88,7 +88,7 @@ export default {
               feesPayer: 'SENDER',
               maxAmountPerPayment: 2000.00, // lowerLimit, // PayPal claims this can go up to $10k without needing additional permissions from them.
               maxTotalAmountOfAllPayments: 2000.00, //, // PayPal claims this isn't needed but Live errors out if we don't send it.
-              clientDetails: CollectiveId
+              clientDetails: CollectiveId,
             };
           });
         })
@@ -101,9 +101,9 @@ export default {
           CollectiveId,
           token: response.preapprovalKey,
           data: {
-            redirect
+            redirect,
           },
-          expiryDate
+          expiryDate,
         }))
         .then(() => response.preapprovalUrl);
     },
@@ -113,9 +113,9 @@ export default {
       return models.PaymentMethod.findOne({
         where: {
           service: 'paypal',
-          token: req.query.preapprovalKey
+          token: req.query.preapprovalKey,
         },
-        order: [['createdAt', 'DESC']]
+        order: [['createdAt', 'DESC']],
       })
       .then(pm => {
         paymentMethod = pm;
@@ -132,9 +132,9 @@ export default {
 
         return getPreapprovalDetailsAndUpdatePaymentMethod(pm)
           .catch(e => {
-            debugPaypal(">>> paypal callback error:", e);
+            debugPaypal('>>> paypal callback error:', e);
             const redirect = `${paymentMethod.data.redirect}?status=error&service=paypal&error=Error%20while%20contacting%20PayPal&errorMessage=${encodeURIComponent(e.message)}`;
-            debugPaypal(">>> redirect", redirect);
+            debugPaypal('>>> redirect', redirect);
             res.redirect(redirect);
             throw e; // make sure we skip what follows until next catch()
           })
@@ -144,8 +144,8 @@ export default {
               UserId: paymentMethod.CreatedByUserId,
               CollectiveId: paymentMethod.CollectiveId,
               data: {
-                paymentMethod: pm.minimal
-              }
+                paymentMethod: pm.minimal,
+              },
             });
           })
 
@@ -154,8 +154,8 @@ export default {
             where: {
               service: 'paypal',
               CollectiveId: paymentMethod.CollectiveId,
-              token: { [Op.ne]: req.query.preapprovalkey }
-            }
+              token: { [Op.ne]: req.query.preapprovalkey },
+            },
           }))
 
           // TODO: Call paypal to cancel preapproval keys before marking as deleted.
@@ -163,8 +163,8 @@ export default {
 
           .then(() => {
             const redirect = `${paymentMethod.data.redirect}?status=success&service=paypal`;
-            return res.redirect(redirect)
-          })
+            return res.redirect(redirect);
+          });
       })
       .catch(next);
     },
@@ -176,20 +176,20 @@ export default {
       return models.PaymentMethod.findOne({
           where: {
             service: 'paypal',
-            token: req.query.preapprovalKey
+            token: req.query.preapprovalKey,
           },
-          order: [['createdAt', 'DESC']]
+          order: [['createdAt', 'DESC']],
         })
         .then(pm => {
           if (!pm) {
             return next(new errors.BadRequest(`No paymentMethod found with this preapproval key: ${req.query.preapprovalKey}`));
           }
           if (!req.remoteUser.isAdmin(pm.CollectiveId)) {
-            return next(new errors.Unauthorized("You are not authorized to verify a payment method of a collective that you are not an admin of"));
+            return next(new errors.Unauthorized('You are not authorized to verify a payment method of a collective that you are not an admin of'));
           }
           return getPreapprovalDetailsAndUpdatePaymentMethod(pm).then(pm => res.json(pm.info));
         })
         .catch(next);
-    }
-  }
-}
+    },
+  },
+};

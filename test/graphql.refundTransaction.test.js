@@ -31,7 +31,7 @@ async function setupTestObjects() {
     service: 'stripe',
     token: 'sk_test_XOFJ9lGbErcK5akcfdYM1D7j',
     username: 'acct_198T7jD8MNtzsDcg',
-    CollectiveId: host.id
+    CollectiveId: host.id,
   });
   const order = await models.Order.create({
     description: 'Donation',
@@ -41,34 +41,34 @@ async function setupTestObjects() {
     CreatedByUserId: user.id,
     FromCollectiveId: user.CollectiveId,
     CollectiveId: collective.id,
-    PaymentMethodId: paymentMethod.id
+    PaymentMethodId: paymentMethod.id,
   });
   const charge = {
-    "id": "ch_1Bs9ECBYycQg1OMfGIYoPFvk",
-    "object": "charge",
-    "amount": 5000,
-    "amount_refunded": 0,
-    "application": "ca_68FQ4jN0XMVhxpnk6gAptwvx90S9VYXF",
-    "application_fee": "fee_1Bs9EEBYycQg1OMfdtHLPqEr",
-    "balance_transaction": "txn_1Bs9EEBYycQg1OMfTR33Y5Xr",
-    "captured": true,
-    "created": 1517834264,
-    "currency": "usd",
-    "customer": "cus_9sKDFZkPwuFAF8"
+    'id': 'ch_1Bs9ECBYycQg1OMfGIYoPFvk',
+    'object': 'charge',
+    'amount': 5000,
+    'amount_refunded': 0,
+    'application': 'ca_68FQ4jN0XMVhxpnk6gAptwvx90S9VYXF',
+    'application_fee': 'fee_1Bs9EEBYycQg1OMfdtHLPqEr',
+    'balance_transaction': 'txn_1Bs9EEBYycQg1OMfTR33Y5Xr',
+    'captured': true,
+    'created': 1517834264,
+    'currency': 'usd',
+    'customer': 'cus_9sKDFZkPwuFAF8',
   };
   const balanceTransaction = {
-    "id": "txn_1Bs9EEBYycQg1OMfTR33Y5Xr",
-    "object": "balance_transaction",
-    "amount": 5000,
-    "currency":"usd",
-    "fee": 425,
-    "fee_details": [
-      {"amount": 175, "currency":"usd", "type": "stripe_fee"},
-      {"amount": 250, "currency": "usd", "type": "application_fee"}
+    'id': 'txn_1Bs9EEBYycQg1OMfTR33Y5Xr',
+    'object': 'balance_transaction',
+    'amount': 5000,
+    'currency':'usd',
+    'fee': 425,
+    'fee_details': [
+      { 'amount': 175, 'currency':'usd', 'type': 'stripe_fee' },
+      { 'amount': 250, 'currency': 'usd', 'type': 'application_fee' },
     ],
-    "net": 4575,
-    "status": "pending",
-    "type": "charge"
+    'net': 4575,
+    'status': 'pending',
+    'type': 'charge',
   };
   const fees = stripeGateway.extractFees(balanceTransaction);
   const payload = {
@@ -88,8 +88,8 @@ async function setupTestObjects() {
       platformFeeInHostCurrency: fees.applicationFee,
       paymentProcessorFeeInHostCurrency: fees.stripeFee,
       description: order.description,
-      data: { charge, balanceTransaction }
-    }
+      data: { charge, balanceTransaction },
+    },
   };
   const transaction = await models.Transaction.createFromPayload(payload);
   return { user, host, collective, tier, paymentMethod, order, transaction };
@@ -104,12 +104,12 @@ function initStripeNock({ amount, fee, fee_details, net }) {
     .reply(200, { id: 'txn_1Bvu79LzdXg9xKNSWEVCLSUu', amount, fee, fee_details, net });
 }
 
-describe("Refund Transaction", () => {
+describe('Refund Transaction', () => {
   /* All the tests will touch the database, so resetting it is the
    * first thing we do. */
   beforeEach(async () => await utils.resetTestDB());
 
-  it("should gracefully fail when transaction does not exist", async () => {
+  it('should gracefully fail when transaction does not exist', async () => {
     // Given that we create a user, host, collective, tier,
     // paymentMethod, an order and a transaction (that we'll ignore)
     const { user } = await setupTestObjects();
@@ -139,7 +139,7 @@ describe("Refund Transaction", () => {
     expect(message).to.equal('Not a site admin');
   });
 
-  describe("Save CreatedByUserId", () => {
+  describe('Save CreatedByUserId', () => {
     let userStub;
     beforeEach(() => {
       userStub = sinon.stub(models.User.prototype, 'isRoot').callsFake(() => true);
@@ -150,7 +150,7 @@ describe("Refund Transaction", () => {
 
     afterEach(nock.cleanAll);
 
-    it("should save the ID of the user that refunded the transaction in CreatedByUserId", async () => {
+    it('should save the ID of the user that refunded the transaction in CreatedByUserId', async () => {
       // Given that we create a user, host, collective, tier,
       // paymentMethod, an order and a transaction
       const { user, transaction } = await setupTestObjects();
@@ -185,7 +185,7 @@ describe("Refund Transaction", () => {
    * transaction call right after a refund.  The nock output isn't
    * complete but we really don't use the other fields retrieved from
    * Stripe. */
-  describe("Stripe Transaction - for hosts created before September 17th 2017", () => {
+  describe('Stripe Transaction - for hosts created before September 17th 2017', () => {
     let userStub;
     beforeEach(() => {
       userStub = sinon.stub(models.User.prototype, 'isRoot').callsFake(() => true);
@@ -277,7 +277,7 @@ describe("Refund Transaction", () => {
    * transaction call right after a refund.  The nock output isn't
    * complete but we really don't use the other fields retrieved from
    * Stripe. */
-  describe("Stripe Transaction - for hosts created after September 17th 2017", () => {
+  describe('Stripe Transaction - for hosts created after September 17th 2017', () => {
     let userStub;
     beforeEach(() => {
       userStub = sinon.stub(models.User.prototype, 'isRoot').callsFake(() => true);

@@ -28,7 +28,7 @@ const csvFields = [
   'chargeDateBefore',
   'chargeDateAfter',
   'nextPeriodStartBefore',
-  'nextPeriodStartAfter'
+  'nextPeriodStartAfter',
 ];
 
 /** Run the script with parameters read from the command line */
@@ -58,7 +58,7 @@ async function run(options) {
             vprint(options, 'Sending email report');
             const attachments = [{
               filename: `${(new Date).toLocaleDateString()}.csv`,
-              content: csv
+              content: csv,
             }];
             await emailReport(start, orders, groupProcessedOrders(data), attachments);
           }
@@ -119,7 +119,7 @@ async function emailReport(start, orders, data, attachments) {
   return emailLib.sendMessage(REPORT_EMAIL, subject, '', {
     bcc: ' ',
     text: result.join('\n'),
-    attachments
+    attachments,
   });
 }
 
@@ -149,18 +149,18 @@ export function parseCommandLineArguments() {
     constant: true,
   });
   parser.addArgument(['-l', '--limit'], {
-    help: 'total subscriptions to process'
+    help: 'total subscriptions to process',
   });
   parser.addArgument(['-b', '--batch-size'], {
     help: 'batch size to fetch at a time',
-    defaultValue: 10
+    defaultValue: 10,
   });
   const args = parser.parseArgs();
   return {
     dryRun: args.dryrun,
     verbose: !args.quiet,
     limit: args.limit,
-    batchSize: args.batch_size
+    batchSize: args.batch_size,
   };
 }
 

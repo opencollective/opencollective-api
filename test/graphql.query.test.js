@@ -44,7 +44,7 @@ describe('Query Tests', () => {
       }));
 
     beforeEach(() => models.Collective.create(
-      Object.assign({}, utils.data('event2'), { slug: "another-event", CreatedByUserId: user2.id, ParentCollectiveId: collective2.id })));
+      Object.assign({}, utils.data('event2'), { slug: 'another-event', CreatedByUserId: user2.id, ParentCollectiveId: collective2.id })));
       //.tap(e => event3 = e)); leaving it here, so setup above makes sense.
 
     describe('returns nothing', () => {
@@ -63,8 +63,8 @@ describe('Query Tests', () => {
         const result = await graphql(schema, query, null, req);
         expect(result).to.deep.equal({
           data: {
-            allEvents: []
-          }
+            allEvents: [],
+          },
         });
       });
 
@@ -82,8 +82,8 @@ describe('Query Tests', () => {
         const result = await graphql(schema, query, null, req);
         expect(result).to.deep.equal({
           data: {
-            allEvents: []
-          }
+            allEvents: [],
+          },
         });
       });
     });
@@ -110,16 +110,16 @@ describe('Query Tests', () => {
         expect(result).to.deep.equal({
           data: {
             Collective: {
-              description: "January monthly meetup",
+              description: 'January monthly meetup',
               id: 7,
-              name: "January meetup",
-              timezone: "America/New_York",
+              name: 'January meetup',
+              timezone: 'America/New_York',
               parentCollective: {
                 slug: 'scouts',
-                twitterHandle: 'scouts'
-              }
-            }
-          }
+                twitterHandle: 'scouts',
+              },
+            },
+          },
         });
       });
 
@@ -141,17 +141,17 @@ describe('Query Tests', () => {
             data: {
               allEvents: [
                 {
-                  description: "February monthly meetup",
+                  description: 'February monthly meetup',
                   id: 8,
-                  name: "Feb meetup"
+                  name: 'Feb meetup',
                 },
                 {
-                  description: "January monthly meetup",
+                  description: 'January monthly meetup',
                   id: 7,
-                  name: "January meetup"
-                }
-              ]
-            }
+                  name: 'January meetup',
+                },
+              ],
+            },
           });
         });
       });
@@ -175,7 +175,7 @@ describe('Query Tests', () => {
             FromCollectiveId: user2.CollectiveId,
             TierId: ticket1.id,
             CreatedByUserId: user2.id,
-            processedAt: new Date()
+            processedAt: new Date(),
           })));
 
         beforeEach(() => models.Order.create(
@@ -184,7 +184,7 @@ describe('Query Tests', () => {
             FromCollectiveId: user3.CollectiveId,
             TierId: ticket1.id,
             CreatedByUserId: user3.id,
-            processedAt: new Date()
+            processedAt: new Date(),
           })));
 
         // this order shouldn't show up in the query
@@ -195,7 +195,7 @@ describe('Query Tests', () => {
             FromCollectiveId: user1.CollectiveId,
             TierId: ticket1.id,
             CreatedByUserId: user1.id,
-            processedAt: null
+            processedAt: null,
           })));
 
         beforeEach(() => models.Order.create(
@@ -204,7 +204,7 @@ describe('Query Tests', () => {
             FromCollectiveId: user3.CollectiveId,
             TierId: ticket2.id,
             CreatedByUserId: user3.id,
-            processedAt: new Date()
+            processedAt: new Date(),
           })));
 
         it('sends order data', async () => {
@@ -221,7 +221,7 @@ describe('Query Tests', () => {
           const result = await graphql(schema, query, null, req);
           result.errors && console.error(result.errors);
           const order = result.data.Collective.orders[0];
-          expect(order).to.have.property("createdAt");
+          expect(order).to.have.property('createdAt');
         });
 
         it('when given only a collective slug1', async () => {
@@ -266,8 +266,8 @@ describe('Query Tests', () => {
           const result = await graphql(schema, query, null, req);
           expect(result).to.deep.equal({
             data: {
-              allEvents: [{"id":8,"name":"Feb meetup","description":"February monthly meetup","location":{"name":"Puck Fair","address":"505 Broadway, NY 10012"},"backgroundImage":null,"createdByUser":{"id":1,"firstName":"Phil"},"tiers":[{"id":3,"name":"Free ticket","description":"free tickets for all","maxQuantity":10,"stats":{"availableQuantity":10,"totalOrders":0},"orders":[]}]},{"id":7,"name":"January meetup","description":"January monthly meetup","location":{"name":"Balanced NYC","address":"547 Broadway, NY 10012"},"backgroundImage":"http://opencollective.com/backgroundimage.png","createdByUser":{"id":1,"firstName":"Phil"},"tiers":[{"id":1,"name":"Free ticket","description":"free tickets for all","maxQuantity":10,"stats":{"availableQuantity":7,"totalOrders":2},"orders":[{"id":1,"description":"I work on bitcoin","createdByUser":{"id":2,"firstName":"Anish"}},{"id":2,"description":"I have been working on open source for over a decade","createdByUser":{"id":3,"firstName":"Xavier"}}]},{"id":2,"name":"paid ticket","description":"$20 ticket","maxQuantity":100,"stats":{"availableQuantity":98,"totalOrders":1},"orders":[{"id":4,"description":null,"createdByUser":{"id":3,"firstName":"Xavier"}}]}]}]
-            }
+              allEvents: [{ 'id':8,'name':'Feb meetup','description':'February monthly meetup','location':{ 'name':'Puck Fair','address':'505 Broadway, NY 10012' },'backgroundImage':null,'createdByUser':{ 'id':1,'firstName':'Phil' },'tiers':[{ 'id':3,'name':'Free ticket','description':'free tickets for all','maxQuantity':10,'stats':{ 'availableQuantity':10,'totalOrders':0 },'orders':[] }] },{ 'id':7,'name':'January meetup','description':'January monthly meetup','location':{ 'name':'Balanced NYC','address':'547 Broadway, NY 10012' },'backgroundImage':'http://opencollective.com/backgroundimage.png','createdByUser':{ 'id':1,'firstName':'Phil' },'tiers':[{ 'id':1,'name':'Free ticket','description':'free tickets for all','maxQuantity':10,'stats':{ 'availableQuantity':7,'totalOrders':2 },'orders':[{ 'id':1,'description':'I work on bitcoin','createdByUser':{ 'id':2,'firstName':'Anish' } },{ 'id':2,'description':'I have been working on open source for over a decade','createdByUser':{ 'id':3,'firstName':'Xavier' } }] },{ 'id':2,'name':'paid ticket','description':'$20 ticket','maxQuantity':100,'stats':{ 'availableQuantity':98,'totalOrders':1 },'orders':[{ 'id':4,'description':null,'createdByUser':{ 'id':3,'firstName':'Xavier' } }] }] }],
+            },
           });
         });
       });

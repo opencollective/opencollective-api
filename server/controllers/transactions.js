@@ -5,13 +5,13 @@ export const getFxRateController = (req, res, next) => {
   const {
     fromCurrency,
     toCurrency,
-    date
+    date,
   } = req.params;
 
   return getFxRate(fromCurrency, toCurrency, date).then(fxrate => {
-    return res.send({fxrate});
+    return res.send({ fxrate });
   }).catch(next);
-}
+};
 
 /**
  * Get a transaction
@@ -27,15 +27,15 @@ export const getOne = (req, res) => {
   .then(async (results) => {
     const { collective, fromCollective, createdByUser } = results;
     const host = await transaction.getHostCollective();
-    if (!host) throw new Error("No host attached to this transaction");
+    if (!host) throw new Error('No host attached to this transaction');
 
     return {
       ...transaction.info,
       host: host.invoice,
       fromCollective: fromCollective.invoice,
       collective: collective.invoice,
-      createdByUser: createdByUser && createdByUser.public
+      createdByUser: createdByUser && createdByUser.public,
     };
   })
-  .then(transaction => res.send(transaction))
+  .then(transaction => res.send(transaction));
 };

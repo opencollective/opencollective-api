@@ -14,41 +14,41 @@ describe('graphql.paymentMethods.test.js', () => {
   beforeEach(() => utils.resetTestDB());
 
   beforeEach(() => models.User.createUserWithCollective({
-    name: "Host Admin",
-    email: "admin@email.com"
+    name: 'Host Admin',
+    email: 'admin@email.com',
   }).tap(u => admin = u));
 
   beforeEach(() => models.User.createUserWithCollective({
     name: 'Xavier',
     currency: 'EUR',
-    email: 'xxxx@email.com'
+    email: 'xxxx@email.com',
   }).tap(u => user = u));
 
   beforeEach(() => models.Collective.create({
     name: 'open source collective',
-    type: "ORGANIZATION",
-    currency: 'USD'
+    type: 'ORGANIZATION',
+    currency: 'USD',
   }).tap(c => host = c).then(c => c.becomeHost()));
 
   beforeEach(() => models.ConnectedAccount.create({
     CollectiveId: host.id,
-    service: 'stripe'
+    service: 'stripe',
   }));
 
   beforeEach(() => models.Collective.create({
-    name: "tipbox",
-    type: "COLLECTIVE",
+    name: 'tipbox',
+    type: 'COLLECTIVE',
     isActive: true,
-    currency: "EUR",
+    currency: 'EUR',
     hostFeePercent: 5,
-    HostCollectiveId: host.id
+    HostCollectiveId: host.id,
   }).tap(c => collective = c));
 
   beforeEach(() => models.Member.create({
     CollectiveId: collective.id,
     MemberCollectiveId: host.id,
     role: roles.HOST,
-    CreatedByUserId: admin.id
+    CreatedByUserId: admin.id,
   }));
 
   beforeEach(() => host.addUserWithRole(admin, roles.ADMIN));
@@ -58,9 +58,9 @@ describe('graphql.paymentMethods.test.js', () => {
     service: 'paypal',
     type: 'adaptive',
     name: 'host@paypal.com',
-    data:  { redirect: "http://localhost:3000/brusselstogether/collectives/expenses" },
+    data:  { redirect: 'http://localhost:3000/brusselstogether/collectives/expenses' },
     token: 'PA-5GM04696CF662222W',
-    CollectiveId: host.id
+    CollectiveId: host.id,
   }).then(pm => paypalPaymentMethod = pm));
 
   beforeEach('adding transaction from host (USD) to reimburse user\'s expense in a European chapter (EUR)', () => models.Transaction.createDoubleEntry({
@@ -75,7 +75,7 @@ describe('graphql.paymentMethods.test.js', () => {
     amountInHostCurrency: -1150,
     paymentProcessorFeeInHostCurrency: -100,
     netAmountInCollectiveCurrency: -1250,
-    PaymentMethodId: paypalPaymentMethod.id
+    PaymentMethodId: paypalPaymentMethod.id,
   }));
 
   describe('oauth flow', () => {
@@ -93,20 +93,20 @@ describe('graphql.paymentMethods.test.js', () => {
         where: {
           service: 'opencollective',
           CollectiveId: host.id,
-          type: 'collective'
-        }
+          type: 'collective',
+        },
       }).then(pm => {
         order = {
           totalAmount: 1000, // €10
           collective: {
-            id: collective.id
+            id: collective.id,
           },
           paymentMethod: {
-            uuid: pm.uuid
-          }
-        }
-      })
-    })
+            uuid: pm.uuid,
+          },
+        };
+      });
+    });
 
     afterEach(() => {
       sandbox.restore();
@@ -134,53 +134,53 @@ describe('graphql.paymentMethods.test.js', () => {
     it('fails to add funds if not logged in as an admin of the host', async () => {
 
       order.fromCollective = {
-        id: host.id
+        id: host.id,
       };
       const result = await utils.graphqlQuery(createOrderQuery, { order }, user);
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.equal(`You don't have sufficient permissions to create an order on behalf of the open source collective organization`);
+      expect(result.errors[0].message).to.equal('You don\'t have sufficient permissions to create an order on behalf of the open source collective organization');
 
       order.user = {
         email: 'admin@neworg.com',
-        name: 'Paul Newman'
+        name: 'Paul Newman',
       };
       order.fromCollective = {
-        name: "new org",
-        website: "http://neworg.com"
+        name: 'new org',
+        website: 'http://neworg.com',
       };
       const result2 = await utils.graphqlQuery(createOrderQuery, { order }, user);
       expect(result2.errors).to.exist;
-      expect(result2.errors[0].message).to.equal(`You don't have sufficient permissions to access this payment method`);
+      expect(result2.errors[0].message).to.equal('You don\'t have sufficient permissions to access this payment method');
     });
 
     it('fails to change platformFeePercent if not root', async () => {
       order.fromCollective = {
-        id: host.id
+        id: host.id,
       };
       order.platformFeePercent = 5;
       const result = await utils.graphqlQuery(createOrderQuery, { order }, user);
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.equal(`Only a root can change the platformFeePercent`);
+      expect(result.errors[0].message).to.equal('Only a root can change the platformFeePercent');
     });
 
     it('fails to add funds to a collective not hosted on the same host', async () => {
 
       const collective2 = await models.Collective.create({
-        name: "wwcode austin",
-        type: "COLLECTIVE",
+        name: 'wwcode austin',
+        type: 'COLLECTIVE',
         isActive: true,
-        currency: "USD",
+        currency: 'USD',
         hostFeePercent: 5,
-        HostCollectiveId: user.CollectiveId
+        HostCollectiveId: user.CollectiveId,
       });
       order.collective = { id: collective2.id };
       order.fromCollective = {
-        id: host.id
+        id: host.id,
       };
 
       const result = await utils.graphqlQuery(createOrderQuery, { order }, admin);
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.equal(`Cannot transfer money between different hosts (open source collective -> Xavier)`);
+      expect(result.errors[0].message).to.equal('Cannot transfer money between different hosts (open source collective -> Xavier)');
     });
 
     it('adds funds from the host (USD) to the collective (EUR)', async () => {
@@ -201,13 +201,13 @@ describe('graphql.paymentMethods.test.js', () => {
        *  - amountInHostCurrency: -$1165
        */
       order.fromCollective = {
-        id: host.id
+        id: host.id,
       };
       const result = await utils.graphqlQuery(createOrderQuery, { order }, admin);
       result.errors && console.error(result.errors[0]);
       expect(result.errors).to.not.exist;
       const orderCreated = result.data.createOrder;
-      const transaction = await models.Transaction.findOne({ where: { OrderId: orderCreated.id, type: 'CREDIT' }});
+      const transaction = await models.Transaction.findOne({ where: { OrderId: orderCreated.id, type: 'CREDIT' } });
       expect(transaction.FromCollectiveId).to.equal(transaction.HostCollectiveId);
       expect(transaction.hostFeeInHostCurrency).to.equal(0);
       expect(transaction.platformFeeInHostCurrency).to.equal(0);
@@ -226,21 +226,21 @@ describe('graphql.paymentMethods.test.js', () => {
       order.hostFeePercent = hostFeePercent;
       order.user = {
         email: 'admin@neworg.com',
-        name: 'Paul Newman'
+        name: 'Paul Newman',
       };
       order.fromCollective = {
-        name: "new org",
-        website: "http://neworg.com"
+        name: 'new org',
+        website: 'http://neworg.com',
       };
       const result = await utils.graphqlQuery(createOrderQuery, { order }, admin);
       result.errors && console.error(result.errors[0]);
       expect(result.errors).to.not.exist;
       const orderCreated = result.data.createOrder;
-      const transaction = await models.Transaction.findOne({ where: { OrderId: orderCreated.id, type: 'CREDIT' }});
-      const org = await models.Collective.findOne({ where: { slug: 'new-org' }});
-      const adminMembership = await models.Member.findOne({ where: { CollectiveId: org.id, role: 'ADMIN' }});
-      const backerMembership = await models.Member.findOne({ where: { MemberCollectiveId: org.id, role: 'BACKER' }});
-      const orgAdmin = await models.Collective.findOne({ where: { id: adminMembership.MemberCollectiveId }});
+      const transaction = await models.Transaction.findOne({ where: { OrderId: orderCreated.id, type: 'CREDIT' } });
+      const org = await models.Collective.findOne({ where: { slug: 'new-org' } });
+      const adminMembership = await models.Member.findOne({ where: { CollectiveId: org.id, role: 'ADMIN' } });
+      const backerMembership = await models.Member.findOne({ where: { MemberCollectiveId: org.id, role: 'BACKER' } });
+      const orgAdmin = await models.Collective.findOne({ where: { id: adminMembership.MemberCollectiveId } });
       expect(transaction.CreatedByUserId).to.equal(admin.id);
       expect(org.CreatedByUserId).to.equal(admin.id);
       expect(adminMembership.CreatedByUserId).to.equal(admin.id);
@@ -264,7 +264,7 @@ describe('graphql.paymentMethods.test.js', () => {
 
   describe('get the balance', () => {
 
-    it("returns the balance", async () => {
+    it('returns the balance', async () => {
 
       const query = `
       query Collective($slug: String) {
@@ -287,6 +287,6 @@ describe('graphql.paymentMethods.test.js', () => {
       expect(paymentMethod.balance).to.equal(198750); // $2000 - $12.50
     });
 
-  })
+  });
 
 });

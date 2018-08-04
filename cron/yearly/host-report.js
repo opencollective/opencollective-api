@@ -13,4 +13,4 @@ import HostReport from '../../reports/host-report';
 
 const d = new Date;
 const year = (new Date(d.getFullYear() - 1, 1, 1)).getFullYear();
-HostReport(year)
+HostReport(year);

@@ -11,7 +11,7 @@ const paymentMethodProvider = {};
 
 paymentMethodProvider.features = {
   recurring: false,
-  waitToCharge: false
+  waitToCharge: false,
 };
 
 // Returns the balance in the currency of the paymentMethod (ie. currency of the Collective)
@@ -24,14 +24,14 @@ paymentMethodProvider.getBalance = (paymentMethod) => {
     if (paymentMethod.monthlyLimitPerMember) {
       return models.Transaction.find({
         attributes: [
-          [ sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('netAmountInCollectiveCurrency')), 0), 'amount' ]
+          [ sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('netAmountInCollectiveCurrency')), 0), 'amount' ],
         ],
         where: {
           PaymentMethodId: paymentMethod.Id,
-          FromCollectiveId: paymentMethod.CollectiveId
-        }
+          FromCollectiveId: paymentMethod.CollectiveId,
+        },
       })
-      .then(result => Promise.resolve(paymentMethod.monthlyLimitPerMember - result.dataValues.amount))
+      .then(result => Promise.resolve(paymentMethod.monthlyLimitPerMember - result.dataValues.amount));
     }
 
     // If the collective is a host (USER or ORGANIZATION)
@@ -46,11 +46,11 @@ paymentMethodProvider.getBalance = (paymentMethod) => {
     // Otherwise we compute the balance based on all previous transactions for this collective
     return models.Transaction.find({
       attributes: [
-        [ sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('netAmountInCollectiveCurrency')), 0), 'amount' ]
+        [ sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('netAmountInCollectiveCurrency')), 0), 'amount' ],
       ],
       where: {
-        CollectiveId: paymentMethod.CollectiveId
-      }
+        CollectiveId: paymentMethod.CollectiveId,
+      },
     })
     .then(result => {
       return result.dataValues.amount;
@@ -66,7 +66,7 @@ paymentMethodProvider.processOrder = async (order, options = {}) => {
   // If the paymentMethod is the one of the host to make a payment on behalf of another of its collective,
   // we need to use the payment method of the fromCollective (to make sure it has enough funds)
   if (fromCollectiveHost && order.paymentMethod.CollectiveId === fromCollectiveHost.id && fromCollectiveHost.id === collectiveHost.id) {
-    order.paymentMethod = await models.PaymentMethod.findOne({ where: { CollectiveId: order.fromCollective.id }});
+    order.paymentMethod = await models.PaymentMethod.findOne({ where: { CollectiveId: order.fromCollective.id } });
     // We need to recheck the balance
     const balance = await paymentMethodProvider.getBalance(order.paymentMethod);
     if (balance < order.totalAmount) {
@@ -75,7 +75,7 @@ paymentMethodProvider.processOrder = async (order, options = {}) => {
   }
 
   if (order.paymentMethod.CollectiveId !== order.fromCollective.id && order.fromCollective.type === 'COLLECTIVE') {
-    throw new Error(`Cannot use an opencollective payment method to make a payment on behalf of another collective`);
+    throw new Error('Cannot use an opencollective payment method to make a payment on behalf of another collective');
   }
 
   const hostFeePercent = options.hostFeePercent || 0;
@@ -95,7 +95,7 @@ paymentMethodProvider.processOrder = async (order, options = {}) => {
     CreatedByUserId: order.CreatedByUserId,
     FromCollectiveId: order.FromCollectiveId,
     CollectiveId: order.CollectiveId,
-    PaymentMethodId: order.PaymentMethodId
+    PaymentMethodId: order.PaymentMethodId,
   };
 
   // Different collectives on the same host may have different currencies

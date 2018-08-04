@@ -1,10 +1,10 @@
-import {expect} from 'chai';
+import { expect } from 'chai';
 import models from '../server/models';
 import * as utils from '../test/utils';
 
 const {
   Collective,
-  User
+  User,
 } = models;
 
 describe('Collective model', () => {
@@ -20,22 +20,22 @@ describe('Collective model', () => {
       {
         name: 'backer',
         range: [2, 100],
-        interval: 'monthly'
+        interval: 'monthly',
       },
       {
         name: 'sponsor',
         range: [100, 100000],
-        interval: 'yearly'
-      }
-    ]
+        interval: 'yearly',
+      },
+    ],
   };
 
   const users = [{
     username: 'xdamman',
-    email: 'xdamman@opencollective.com'
+    email: 'xdamman@opencollective.com',
   },{
     username: 'piamancini',
-    email: 'pia@opencollective.com'
+    email: 'pia@opencollective.com',
   }];
 
 
@@ -48,7 +48,7 @@ describe('Collective model', () => {
       { type: 'TICKET', name: 'ticket 1', amount: 1000, maxQuantity: 10 },
       { type: 'TIER', name: 'backer', amount: 500, interval: 'month' },
       { type: 'TIER', name: 'sponsor', amount: 1000000, interval: 'year' },
-      { type: 'TIER', name: 'donor', slug: 'donors' }
+      { type: 'TIER', name: 'donor', slug: 'donors' },
     ], { CollectiveId: collective.id }))
     .then(ts => tiers = ts)
     .then(() => models.Order.create({
@@ -56,9 +56,9 @@ describe('Collective model', () => {
       TierId: tiers[0].id,
       processedAt: new Date,
       FromCollectiveId: 1,
-      CollectiveId: collective.id
+      CollectiveId: collective.id,
     }))
-  )
+  );
 
   it('checks available quantity', () => tiers[0].checkAvailableQuantity(2)
     .then(available => {

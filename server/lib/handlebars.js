@@ -28,7 +28,7 @@ const col = (str, size, trim = true) => {
     str +=' ';
   }
   return str;
-}
+};
 
 handlebars.registerHelper('col', (str, props) => {
   if (!str || !props) return str;
@@ -52,7 +52,7 @@ handlebars.registerHelper('moment', (value, props) => {
 handlebars.registerHelper('currency', (value, props) => {
   const { currency, precision, size, sign } = props.hash;
 
-  if (isNaN(value)) return "";
+  if (isNaN(value)) return '';
 
   let res = function() {
     if (!currency) return value / 100;
@@ -67,7 +67,7 @@ handlebars.registerHelper('currency', (value, props) => {
       style: 'currency',
       currency,
       minimumFractionDigits : precision || 0,
-      maximumFractionDigits : precision || 0
+      maximumFractionDigits : precision || 0,
     });
   }();
 
@@ -93,7 +93,7 @@ handlebars.registerHelper('number', (value, props) => {
   }
   return value.toLocaleString(locale, {
     minimumFractionDigits : precision || 0,
-    maximumFractionDigits : precision || 0
+    maximumFractionDigits : precision || 0,
   });
 });
 

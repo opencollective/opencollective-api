@@ -8,10 +8,10 @@ import slackLib from './slack';
 import twitter from './twitter';
 import emailLib from '../lib/email';
 import activityType from '../constants/activities';
-import {W9_BOT_SLUG} from '../constants/collectives';
+import { W9_BOT_SLUG } from '../constants/collectives';
 import models from '../models';
 import debugLib from 'debug';
-const debug = debugLib("notification");
+const debug = debugLib('notification');
 
 export default async (Sequelize, activity) => {
   // publish everything to our private channel
@@ -31,13 +31,13 @@ export default async (Sequelize, activity) => {
     CollectiveId: activity.CollectiveId,
     type: [
       activityType.ACTIVITY_ALL,
-      activity.type
+      activity.type,
     ],
     channel: ['gitter', 'slack', 'twitter'],
-    active: true
+    active: true,
   };
 
-  const notificationChannels = await models.Notification.findAll({ where })
+  const notificationChannels = await models.Notification.findAll({ where });
 
   return Promise.map(notificationChannels, notifConfig => {
     if (notifConfig.channel === 'gitter') {
@@ -51,7 +51,7 @@ export default async (Sequelize, activity) => {
     }
   })
   .catch(err => {
-    console.error(`Error while publishing activity type ${activity.type} for collective ${activity.CollectiveId}`, activity, "error: ", err);
+    console.error(`Error while publishing activity type ${activity.type} for collective ${activity.CollectiveId}`, activity, 'error: ', err);
   });
 };
 
@@ -81,59 +81,59 @@ function publishToSlackPrivateChannel(activity) {
 async function notifySubscribers(users, activity, options={}) {
   const { data } = activity;
   if (!users || users.length === 0) {
-    debug("notifySubscribers: no user to notify for activity", activity.type);
+    debug('notifySubscribers: no user to notify for activity', activity.type);
     return;
   }
-  debug("notifySubscribers", users.length, users.map(u => u && u.email, activity.type));
+  debug('notifySubscribers', users.length, users.map(u => u && u.email, activity.type));
   const CollectiveId = get(options, 'collective.id') || activity.CollectiveId;
   const unsubscribedUserIds = await models.Notification.getUnsubscribersUserIds(activity.type, CollectiveId);
-  debug("unsubscribedUserIds", unsubscribedUserIds);
+  debug('unsubscribedUserIds', unsubscribedUserIds);
   if (process.env.ONLY) {
-    debug("ONLY set to ", process.env.ONLY, " => skipping subscribers");
-    return emailLib.send(options.template || activity.type, process.env.ONLY, data, options)
+    debug('ONLY set to ', process.env.ONLY, ' => skipping subscribers');
+    return emailLib.send(options.template || activity.type, process.env.ONLY, data, options);
   }
   return users.map(u => {
     if (!u) return;
     // skip users that have unsubscribed
     if (unsubscribedUserIds.indexOf(u.id) === -1) {
-      debug("sendMessageFromActivity", activity.type, "UserId", u.id);
+      debug('sendMessageFromActivity', activity.type, 'UserId', u.id);
 
       switch (activity.type) {
         case activityType.COLLECTIVE_EXPENSE_CREATED:
           data.actions = {
             approve: u.generateLoginLink(`/${data.collective.slug}/expenses/${data.expense.id}/approve`),
-            reject: u.generateLoginLink(`/${data.collective.slug}/expenses/${data.expense.id}/reject`)
+            reject: u.generateLoginLink(`/${data.collective.slug}/expenses/${data.expense.id}/reject`),
           };
           break;
 
         case activityType.COLLECTIVE_CREATED:
           data.actions = {
-            approve: u.generateLoginLink(`/${data.host.slug}/collectives/${data.collective.id}/approve`)
+            approve: u.generateLoginLink(`/${data.host.slug}/collectives/${data.collective.id}/approve`),
           };
           break;
       }
-      return emailLib.send(options.template || activity.type, u.email, data, options)
+      return emailLib.send(options.template || activity.type, u.email, data, options);
     }
   });
 }
 
 async function notifyUserId(UserId, activity, options) {
   const user = await models.User.findById(UserId);
-  debug("notifyUserId", UserId, user.email);
+  debug('notifyUserId', UserId, user.email);
   return emailLib.send(activity.type, user.email, activity.data, options);
 }
 
 export async function notifyAdminsOfCollective(CollectiveId, activity, options = {}) {
-  debug("notify admins of CollectiveId", CollectiveId);
-  const collective = await models.Collective.findById(CollectiveId)
+  debug('notify admins of CollectiveId', CollectiveId);
+  const collective = await models.Collective.findById(CollectiveId);
   if (!collective) {
-    throw new Error(`notifyAdminsOfCollective> can't notify ${activity.type}: no collective found with id ${CollectiveId}`)
+    throw new Error(`notifyAdminsOfCollective> can't notify ${activity.type}: no collective found with id ${CollectiveId}`);
   }
   let adminUsers = await collective.getAdminUsers();
   if (options.exclude) {
     adminUsers = adminUsers.filter(u => options.exclude.indexOf(u.id) === -1);
   }
-  debug("Total users to notify:", adminUsers.length);
+  debug('Total users to notify:', adminUsers.length);
   activity.CollectiveId = collective.id;
   return notifySubscribers(adminUsers, activity, options);
 }
@@ -163,8 +163,8 @@ async function w9bot(activity) {
 
   const w9Bot = await models.Collective.findOne({
     where: {
-      slug: W9_BOT_SLUG
-    }
+      slug: W9_BOT_SLUG,
+    },
   });
 
   // U$ 600.00 total amount allowed without form as of July 2018
@@ -174,7 +174,7 @@ async function w9bot(activity) {
       CollectiveId: activity.data.collective.id,
       ExpenseId: activity.data.expense.id,
       FromCollectiveId: w9Bot.id,
-      html: get(w9Bot, 'settings.W9.comment')
+      html: get(w9Bot, 'settings.W9.comment'),
     };
 
     // adding UserId to Host Data to keep track of all UserIds that received the request
@@ -188,17 +188,17 @@ async function w9bot(activity) {
 }
 
 async function notifyMembersOfCollective(CollectiveId, activity, options) {
-  debug("notify members of CollectiveId", CollectiveId);
-  const collective = await models.Collective.findById(CollectiveId)
+  debug('notify members of CollectiveId', CollectiveId);
+  const collective = await models.Collective.findById(CollectiveId);
   const allUsers = await collective.getUsers();
-  debug("Total users to notify:", allUsers.length);
+  debug('Total users to notify:', allUsers.length);
   activity.CollectiveId = collective.id;
   return notifySubscribers(allUsers, activity, options);
 }
 
 async function notifyByEmail(activity) {
-  debug("notifyByEmail", activity.type);
-  debugLib("activity.data")("activity.data", activity.data);
+  debug('notifyByEmail', activity.type);
+  debugLib('activity.data')('activity.data', activity.data);
   switch (activity.type) {
 
     case activityType.ORGANIZATION_COLLECTIVE_CREATED:
@@ -208,7 +208,7 @@ async function notifyByEmail(activity) {
     case activityType.COLLECTIVE_UPDATE_PUBLISHED:
       twitter.tweetActivity(activity);
       activity.data.update = await models.Update.findById(activity.data.update.id, {
-        include: [ { model: models.Collective, as: "fromCollective" } ]
+        include: [ { model: models.Collective, as: 'fromCollective' } ],
       });
       notifyMembersOfCollective(activity.data.update.CollectiveId, activity, { from: `hello@${activity.data.collective.slug}.opencollective.com` });
       break;
@@ -259,21 +259,21 @@ async function notifyByEmail(activity) {
 
     case activityType.COLLECTIVE_EXPENSE_APPROVED:
       activity.data.actions = {
-        viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`
+        viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
       };
       if (get(activity, 'data.expense.payoutMethod') === 'paypal') {
         activity.data.expense.payoutMethod = `PayPal (${activity.data.user.paypalEmail})`;
       }
       notifyUserId(activity.data.expense.UserId, activity);
-      notifyAdminsOfCollective(activity.data.host.id, activity, { template: 'collective.expense.approved.for.host', collective: activity.data.host })
+      notifyAdminsOfCollective(activity.data.host.id, activity, { template: 'collective.expense.approved.for.host', collective: activity.data.host });
       break;
 
     case activityType.COLLECTIVE_EXPENSE_PAID:
       activity.data.actions = {
-        viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`
-      }
+        viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
+      };
       notifyUserId(activity.data.expense.UserId, activity);
-      notifyAdminsOfCollective(activity.data.host.id, activity, { template: 'collective.expense.paid.for.host', collective: activity.data.host })
+      notifyAdminsOfCollective(activity.data.host.id, activity, { template: 'collective.expense.paid.for.host', collective: activity.data.host });
       break;
 
     case activityType.COLLECTIVE_APPROVED:
@@ -282,7 +282,7 @@ async function notifyByEmail(activity) {
 
     case activityType.COLLECTIVE_CREATED:
       notifyAdminsOfCollective(activity.data.host.id, activity, { template: 'collective.created.for.host', collective: activity.data.host });
-      if (activity.data.collective.tags && activity.data.collective.tags.indexOf("meetup") !== -1) {
+      if (activity.data.collective.tags && activity.data.collective.tags.indexOf('meetup') !== -1) {
         notifyAdminsOfCollective(activity.data.collective.id, activity, { template: 'collective.created.meetup' });
       } else {
         notifyAdminsOfCollective(activity.data.collective.id, activity);

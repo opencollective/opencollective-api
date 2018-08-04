@@ -12,7 +12,7 @@ import { getHostedCollectives, getBackersStats, sumTransactions } from '../serve
 const debug = debugLib('hostreport');
 
 if (process.env.SKIP_PLATFORM_STATS) {
-  console.log("Skipping computing platform stats");
+  console.log('Skipping computing platform stats');
 }
 
 const summary = {
@@ -23,7 +23,7 @@ const summary = {
   numberTransactions: 0,
   numberDonations: 0,
   numberPaidExpenses: 0,
-  hosts: []
+  hosts: [],
 };
 
 const deltaAmount = (a, b) => {
@@ -32,7 +32,7 @@ const deltaAmount = (a, b) => {
     r[attr] = a[attr] - b[attr];
   }
   return r;
-}
+};
 
 async function HostReport(year, month, hostId) {
 
@@ -55,34 +55,34 @@ async function HostReport(year, month, hostId) {
   }
 
   const dateRange = {
-    createdAt: { [Op.gte]: startDate, [Op.lt]: endDate }
+    createdAt: { [Op.gte]: startDate, [Op.lt]: endDate },
   };
 
   const previousDateRange = {
-    createdAt: { [Op.gte]: previousStartDate, [Op.lt]: startDate }
-  }
+    createdAt: { [Op.gte]: previousStartDate, [Op.lt]: startDate },
+  };
 
   const emailTemplate = (!month) ? 'host.yearlyreport' : 'host.monthlyreport';
   const reportName = (!month) ? `${year} Yearly Host Report` : `${year}/${month+1} Monthly Host Report`;
   const dateFormat = (!month) ? 'YYYY' : 'YYYYMM';
   const csv_filename = `${moment(d).format(dateFormat)}-transactions.csv`;
   const pdf_filename = `${moment(d).format(dateFormat)}-expenses.pdf`;
-  console.log("startDate", startDate,"endDate", endDate);
+  console.log('startDate', startDate,'endDate', endDate);
 
   year = year || startDate.getFullYear();
 
   let previewCondition = '';
   if (process.env.DEBUG && process.env.DEBUG.match(/preview/))
-    previewCondition = "AND c.id IN (11004, 9804, 9802, 9801)"; // open source collective host, wwcode host, brusselstogether, changex
+    previewCondition = 'AND c.id IN (11004, 9804, 9802, 9801)'; // open source collective host, wwcode host, brusselstogether, changex
     // previewCondition = "AND c.id IN (9802)"; // brusselstogether
 
   if (hostId) {
-    previewCondition = `AND c.id = ${hostId}`
+    previewCondition = `AND c.id = ${hostId}`;
   }
 
   if (process.env.SLUGS) {
     const slugs = process.env.SLUGS.split(',');
-    previewCondition = `AND c.slug IN ('${slugs.join("','")}')`
+    previewCondition = `AND c.slug IN ('${slugs.join("','")}')`;
   }
 
   const getPlatformStats = () => {
@@ -90,46 +90,46 @@ async function HostReport(year, month, hostId) {
     return models.Collective.findAll({ where: { type: { [Op.in]: ['COLLECTIVE', 'EVENT'] } } })
       .then((collectives) => {
         const where = {
-          CollectiveId: { [Op.in]: collectives.map(c => c.id) }
+          CollectiveId: { [Op.in]: collectives.map(c => c.id) },
         };
         const now = new Date;
         const catchError = (e) => {
-          console.error(">>> host-report.js: unable to perform the sum of transactions", e);
+          console.error('>>> host-report.js: unable to perform the sum of transactions', e);
           return 0;
-        }
+        };
         return Promise.all([
           sumTransactions('netAmountInCollectiveCurrency', { where }, 'USD', now).catch(catchError),                      // total host balance
-          sumTransactions('netAmountInCollectiveCurrency', { where: { ...where, ...dateRange} }, 'USD', now).catch(catchError),   // delta host balance last month
-          sumTransactions('amount', { where, type: 'CREDIT', ...dateRange, platformFeeInHostCurrency: { [Op.gt]: 0 }}, 'USD', now).catch(catchError), // total donations last month excluding  "add funds"
-          sumTransactions('amount', { where, type: 'CREDIT', ...previousDateRange, platformFeeInHostCurrency: { [Op.gt]: 0 }}, 'USD', now).catch(catchError), // total donations last month excluding  "add funds" previous month
+          sumTransactions('netAmountInCollectiveCurrency', { where: { ...where, ...dateRange } }, 'USD', now).catch(catchError),   // delta host balance last month
+          sumTransactions('amount', { where, type: 'CREDIT', ...dateRange, platformFeeInHostCurrency: { [Op.gt]: 0 } }, 'USD', now).catch(catchError), // total donations last month excluding  "add funds"
+          sumTransactions('amount', { where, type: 'CREDIT', ...previousDateRange, platformFeeInHostCurrency: { [Op.gt]: 0 } }, 'USD', now).catch(catchError), // total donations last month excluding  "add funds" previous month
           sumTransactions('amount', { where, type: 'CREDIT', ...dateRange, platformFeeInHostCurrency: { [Op.or]: [null, 0 ] } }, 'USD', now).catch(catchError), // total "add funds" last month
           sumTransactions('amount', { where, type: 'CREDIT', ...previousDateRange, platformFeeInHostCurrency: { [Op.or]: [null, 0 ] } }, 'USD', now).catch(catchError), // total "add funds" previous month
-          sumTransactions('netAmountInCollectiveCurrency', { where, type: 'CREDIT', ...dateRange}, 'USD', now).catch(catchError), // total net amount received last month (after processing fee and host fees)
-          sumTransactions('netAmountInCollectiveCurrency', { where, type: 'DEBIT', ...dateRange}, 'USD', now).catch(catchError),  // total net amount paid out last month
-          sumTransactions('netAmountInCollectiveCurrency', { where, type: 'DEBIT', ...previousDateRange}, 'USD', now).catch(catchError),  // total net amount paid out previous month
-          sumTransactions("hostFeeInHostCurrency", { where: { ...where, ...dateRange  }}, 'USD', now).catch(catchError),
-          sumTransactions("hostFeeInHostCurrency", { where: { ...where, ...previousDateRange  }}, 'USD', now).catch(catchError),
-          sumTransactions("paymentProcessorFeeInHostCurrency", { where: { ...where, ...dateRange  }}, 'USD', now).catch(catchError),
-          sumTransactions("paymentProcessorFeeInHostCurrency", { where: { ...where, ...previousDateRange  }}, 'USD', now).catch(catchError),
-          sumTransactions("platformFeeInHostCurrency", { where: { ...where, ...dateRange  }}, 'USD', now).catch(catchError),
-          sumTransactions("platformFeeInHostCurrency", { where: { ...where, ...previousDateRange  }}, 'USD', now).catch(catchError),
-          getBackersStats(startDate, endDate)
-        ])
+          sumTransactions('netAmountInCollectiveCurrency', { where, type: 'CREDIT', ...dateRange }, 'USD', now).catch(catchError), // total net amount received last month (after processing fee and host fees)
+          sumTransactions('netAmountInCollectiveCurrency', { where, type: 'DEBIT', ...dateRange }, 'USD', now).catch(catchError),  // total net amount paid out last month
+          sumTransactions('netAmountInCollectiveCurrency', { where, type: 'DEBIT', ...previousDateRange }, 'USD', now).catch(catchError),  // total net amount paid out previous month
+          sumTransactions('hostFeeInHostCurrency', { where: { ...where, ...dateRange  } }, 'USD', now).catch(catchError),
+          sumTransactions('hostFeeInHostCurrency', { where: { ...where, ...previousDateRange  } }, 'USD', now).catch(catchError),
+          sumTransactions('paymentProcessorFeeInHostCurrency', { where: { ...where, ...dateRange  } }, 'USD', now).catch(catchError),
+          sumTransactions('paymentProcessorFeeInHostCurrency', { where: { ...where, ...previousDateRange  } }, 'USD', now).catch(catchError),
+          sumTransactions('platformFeeInHostCurrency', { where: { ...where, ...dateRange  } }, 'USD', now).catch(catchError),
+          sumTransactions('platformFeeInHostCurrency', { where: { ...where, ...previousDateRange  } }, 'USD', now).catch(catchError),
+          getBackersStats(startDate, endDate),
+        ]);
       });
-  }
+  };
 
   const getHostStats = (host, collectiveids) => {
 
     const where = { CollectiveId: { [Op.in]: collectiveids } };
-    const whereWithDateRange = { ...where, ...dateRange};
+    const whereWithDateRange = { ...where, ...dateRange };
 
     const payoutProcessorFeesQuery = (service) => {
       return {
-        where: { ...where, ...dateRange, type: 'DEBIT'},
+        where: { ...where, ...dateRange, type: 'DEBIT' },
         raw: true,
-        include: [ { attributes: [ [sequelize.fn('MAX', sequelize.col('service')), 'service'] ], model: models.PaymentMethod, where: { 'service': { [Op.in]: [service, null] } } }]
-      }
-    }
+        include: [ { attributes: [ [sequelize.fn('MAX', sequelize.col('service')), 'service'] ], model: models.PaymentMethod, where: { 'service': { [Op.in]: [service, null] } } }],
+      };
+    };
 
     return Promise.props({
       balance:                    sumTransactions('netAmountInCollectiveCurrency', { where: { ...where, createdAt: { [Op.lt]: endDate } } }, host.currency), // total host balance
@@ -137,21 +137,21 @@ async function HostReport(year, month, hostId) {
       totalAmountDonations:       sumTransactions('amount', { where: { ...whereWithDateRange, type: 'CREDIT' } }, host.currency), // total donations last month
       totalNetAmountReceivedForCollectives: sumTransactions('netAmountInCollectiveCurrency', { where: { ...whereWithDateRange, type: 'CREDIT' } }, host.currency), // total net amount received last month
       totalAmountPaidExpenses:    sumTransactions('netAmountInCollectiveCurrency', { where: { ...whereWithDateRange, type: 'DEBIT' } }, host.currency), // total net amount paid out last month
-      totalHostFees:              sumTransactions("hostFeeInHostCurrency", { where: whereWithDateRange }, host.currency),
+      totalHostFees:              sumTransactions('hostFeeInHostCurrency', { where: whereWithDateRange }, host.currency),
       backers:                    getBackersStats(startDate, endDate, collectiveids),
-      platformFees:               sumTransactions("platformFeeInHostCurrency", { where: whereWithDateRange }, host.currency),
-      paymentProcessorFees:       sumTransactions("paymentProcessorFeeInHostCurrency", { where: { ...whereWithDateRange, type: 'CREDIT'} }, host.currency), // total stripe fees
-      payoutProcessorFeesPaypal:  sumTransactions("paymentProcessorFeeInHostCurrency", payoutProcessorFeesQuery("paypal"), host.currency), // total paypal fees
-      payoutProcessorFeesManual:  sumTransactions("paymentProcessorFeeInHostCurrency", payoutProcessorFeesQuery("opencollective"), host.currency) // total other payout processor fees (manual host fee)
+      platformFees:               sumTransactions('platformFeeInHostCurrency', { where: whereWithDateRange }, host.currency),
+      paymentProcessorFees:       sumTransactions('paymentProcessorFeeInHostCurrency', { where: { ...whereWithDateRange, type: 'CREDIT' } }, host.currency), // total stripe fees
+      payoutProcessorFeesPaypal:  sumTransactions('paymentProcessorFeeInHostCurrency', payoutProcessorFeesQuery('paypal'), host.currency), // total paypal fees
+      payoutProcessorFeesManual:  sumTransactions('paymentProcessorFeeInHostCurrency', payoutProcessorFeesQuery('opencollective'), host.currency), // total other payout processor fees (manual host fee)
     });
-  }
+  };
 
   const processHost = (host) => {
 
     summary.totalHosts++;
-    console.log(">>> Processing host", host.slug);
+    console.log('>>> Processing host', host.slug);
     const data = {}, attachments = [];
-    const note = `using fxrate of the day of the transaction as provided by the ECB. Your effective fxrate may vary.`;
+    const note = 'using fxrate of the day of the transaction as provided by the ECB. Your effective fxrate may vary.';
     const expensesPerPage = 30; // number of expenses per page of the Table Of Content (for PDF export)
 
     let collectivesById = {};
@@ -168,24 +168,24 @@ async function HostReport(year, month, hostId) {
     data.notes = null;
     data.expensesPerPage = [ [] ];
     data.stats = {
-      numberPaidExpenses: 0
+      numberPaidExpenses: 0,
     };
 
     const getHostAdminsEmails = (host) => {
       if (host.type === 'USER') {
-        return models.User.findAll({ where: { CollectiveId: host.id }}).map(u => u.email);
+        return models.User.findAll({ where: { CollectiveId: host.id } }).map(u => u.email);
       }
       return models.Member.findAll({
        where: {
           CollectiveId: host.id,
           role: 'ADMIN',
-        }
+        },
       }).map(admin => {
         return models.User.findOne({
           attributes: ['email'],
-         where: { CollectiveId: admin.MemberCollectiveId }
-        }).then(user => user.email)
-      }, { concurrency: 1 })
+         where: { CollectiveId: admin.MemberCollectiveId },
+        }).then(user => user.email);
+      }, { concurrency: 1 });
     };
 
     const processTransaction = (transaction) => {
@@ -213,20 +213,20 @@ async function HostReport(year, month, hostId) {
       if (!t.description) {
         return transaction.getSource().then(source => {
           if (!source) {
-            console.log(">>> no source found for ", transaction);
+            console.log('>>> no source found for ', transaction);
             return t;
           }
-            t.description = source.description
+            t.description = source.description;
             return t;
           });
       } else {
         return Promise.resolve(t);
       }
-    }
+    };
 
     return getHostedCollectives(host.id, endDate)
       .tap(collectives => {
-        collectivesById = _.indexBy(collectives, "id")
+        collectivesById = _.indexBy(collectives, 'id');
         data.stats.totalCollectives = Object.keys(collectivesById).length;
         summary.totalCollectives += data.stats.totalCollectives;
         console.log(`>>> processing ${data.stats.totalCollectives} collectives`);
@@ -234,12 +234,12 @@ async function HostReport(year, month, hostId) {
       .then(() => getTransactions(Object.keys(collectivesById), startDate, endDate, {
         include: [
           { model: models.Expense },
-          { model: models.User, as: 'createdByUser' }
-        ]
+          { model: models.User, as: 'createdByUser' },
+        ],
       }))
       .tap(transactions => {
         if (!transactions || transactions.length == 0) {
-          throw new Error(`No transaction found`);
+          throw new Error('No transaction found');
         }
         console.log(`>>> processing ${transactions.length} transactions`);
       })
@@ -248,44 +248,44 @@ async function HostReport(year, month, hostId) {
         const csv = models.Transaction.exportCSV(transactions, collectivesById);
         attachments.push({
           filename: csv_filename,
-          content: csv
+          content: csv,
         });
       })
       .then(transactions => data.transactions = transactions)
-      .then(() => exportToPDF("expenses", data, {
-        paper: host.currency === 'USD' ? 'Letter' : 'A4'
+      .then(() => exportToPDF('expenses', data, {
+        paper: host.currency === 'USD' ? 'Letter' : 'A4',
       }))
       .then(pdf => {
         attachments.push({
           filename: pdf_filename,
-          content: pdf
-        })
+          content: pdf,
+        });
       })
       .then(() => getHostStats(host, Object.keys(collectivesById)))
       .then(stats => {
         stats.totalAmountPaid = {
-          totalInHostCurrency: stats.totalAmountPaidExpenses.totalInHostCurrency + stats.paymentProcessorFees.totalInHostCurrency + stats.platformFees.totalInHostCurrency
+          totalInHostCurrency: stats.totalAmountPaidExpenses.totalInHostCurrency + stats.paymentProcessorFees.totalInHostCurrency + stats.platformFees.totalInHostCurrency,
         };
         stats.totalAmountSpent = {
-          totalInHostCurrency: stats.totalAmountPaidExpenses.totalInHostCurrency + stats.payoutProcessorFeesPaypal.totalInHostCurrency
+          totalInHostCurrency: stats.totalAmountPaidExpenses.totalInHostCurrency + stats.payoutProcessorFeesPaypal.totalInHostCurrency,
         };
         stats.totalHostRevenue = {
-          totalInHostCurrency: stats.totalHostFees.totalInHostCurrency + stats.payoutProcessorFeesManual.totalInHostCurrency
+          totalInHostCurrency: stats.totalHostFees.totalInHostCurrency + stats.payoutProcessorFeesManual.totalInHostCurrency,
         };
         stats.totalNetAmountReceived = {
-          totalInHostCurrency: stats.totalNetAmountReceivedForCollectives.totalInHostCurrency - stats.totalHostFees.totalInHostCurrency // totalHostFees is negative
+          totalInHostCurrency: stats.totalNetAmountReceivedForCollectives.totalInHostCurrency - stats.totalHostFees.totalInHostCurrency, // totalHostFees is negative
         };
 
         data.stats = {
           ... data.stats,
           ... stats,
-          totalActiveCollectives: Object.keys(_.indexBy(data.transactions, "CollectiveId")).length,
+          totalActiveCollectives: Object.keys(_.indexBy(data.transactions, 'CollectiveId')).length,
           numberTransactions: data.transactions.length,
-          numberDonations: data.transactions.length - data.stats.numberPaidExpenses
+          numberDonations: data.transactions.length - data.stats.numberPaidExpenses,
         };
         summary.hosts.push({
           host: { name: host.name, slug: host.slug, currency: host.currency },
-          stats: data.stats
+          stats: data.stats,
         });
         summary.totalActiveHosts++;
         summary.totalActiveCollectives += data.stats.totalActiveCollectives;
@@ -303,17 +303,17 @@ async function HostReport(year, month, hostId) {
   };
 
   const sendEmail = (recipients, data, attachments) => {
-      debug("Sending email to ", recipients);
+      debug('Sending email to ', recipients);
       if (!recipients || recipients.length === 0){
-        console.error("Unable to send host report for ", data.host.slug, "No recipient to send to");
+        console.error('Unable to send host report for ', data.host.slug, 'No recipient to send to');
         return;
       }
       // debug("email data transactions", data.transactions);
-      debug("email data stats", data.stats);
-      debug("email data stats.backers", data.stats.backers);
+      debug('email data stats', data.stats);
+      debug('email data stats.backers', data.stats.backers);
       const options = { attachments };
       return emailLib.send(emailTemplate, recipients, data, options);
-  }
+  };
 
   const query = `
   with "hosts" as (SELECT DISTINCT "HostCollectiveId" AS id FROM "Collectives" WHERE "deletedAt" IS NULL AND "isActive" IS TRUE AND "HostCollectiveId" IS NOT NULL)
@@ -322,7 +322,7 @@ async function HostReport(year, month, hostId) {
 
   const hosts = await sequelize.query(query, {
     model: models.Collective,
-    type: sequelize.QueryTypes.SELECT
+    type: sequelize.QueryTypes.SELECT,
   });
   console.log(`Preparing the ${reportName} for ${hosts.length} hosts`);
 
@@ -352,7 +352,7 @@ async function HostReport(year, month, hostId) {
       deltaPaymentProcessorFees: deltaAmount(platformStats[11], platformStats[12]),
       totalPlatformFees: platformStats[13],
       deltaPlatformFees: deltaAmount(platformStats[13], platformStats[14]),
-      backers: platformStats[15]
+      backers: platformStats[15],
     };
     summary.hosts.sort((a, b) => {
       return b.stats.backers.new - a.stats.backers.new;
@@ -361,9 +361,9 @@ async function HostReport(year, month, hostId) {
     return emailLib.send('host.report.summary', 'info@opencollective.com', summary);
   })
   .then(() => {
-    console.log(">>> All done. Exiting.");
+    console.log('>>> All done. Exiting.');
     process.exit(0);
-  })
+  });
 
 }
 

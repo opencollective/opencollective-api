@@ -8,8 +8,8 @@ Liana.collection('Collective', {
         field: 'Confirmation',
         type: 'Boolean',
         description: 'You are about to delete this collective and all its dependencies (Members, Unpaid Expenses, Tiers, Payment Methods). Check this box to proceed.',
-        isRequired: true
-      }]
-    }
-  ]
+        isRequired: true,
+      }],
+    },
+  ],
 });

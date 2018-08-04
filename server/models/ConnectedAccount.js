@@ -14,9 +14,9 @@ export default (Sequelize, DataTypes) => {
       validate: {
         isIn: {
           args: [supportedServices],
-          msg: `Must be in ${supportedServices}`
-        }
-      }
+          msg: `Must be in ${supportedServices}`,
+        },
+      },
     },
 
     username: DataTypes.STRING, // paypal email / Stripe UserId / Twitter username / ...
@@ -32,13 +32,13 @@ export default (Sequelize, DataTypes) => {
 
     createdAt: {
       type: DataTypes.DATE,
-      defaultValue: Sequelize.NOW
+      defaultValue: Sequelize.NOW,
     },
 
     updatedAt: {
       type: DataTypes.DATE,
-      defaultValue: Sequelize.NOW
-    }
+      defaultValue: Sequelize.NOW,
+    },
 
   }, {
     paranoid: true,
@@ -50,7 +50,7 @@ export default (Sequelize, DataTypes) => {
           service: this.service,
           username: this.username,
           createdAt: this.createdAt,
-          updatedAt: this.updatedAt
+          updatedAt: this.updatedAt,
         };
       },
 
@@ -58,10 +58,10 @@ export default (Sequelize, DataTypes) => {
         return {
           client_id: this.clientId,
           client_secret: this.token,
-          mode: config.paypal.rest.mode
-        }
-      }
-    }
+          mode: config.paypal.rest.mode,
+        };
+      },
+    },
 
   });
 };

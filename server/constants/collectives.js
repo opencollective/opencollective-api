@@ -5,7 +5,7 @@ export const types = {
   EVENT: 'EVENT',
   USER: 'USER',
   ORGANIZATION: 'ORGANIZATION',
-  BOT: 'BOT'
+  BOT: 'BOT',
 };
 
 export const W9_BOT_SLUG = 'w9bot';
@@ -14,5 +14,5 @@ export const DEFAULT_BACKGROUND_IMG = `${config.host.website}/public/images/coll
 
 export const defaultBackgroundImage = {
   COLLECTIVE: `${config.host.website}/static/images/defaultBackgroundImage.png`,
-  USER: `${config.host.website}/static/images/defaultBackgroundImage-profile.svg`
+  USER: `${config.host.website}/static/images/defaultBackgroundImage-profile.svg`,
 };

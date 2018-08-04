@@ -34,14 +34,14 @@ const render = (template, data) => {
   // (useful to get login token without sending an email)
   debugLib('data')(`Rendering ${template} with data`, data);
 
-  return {text, html};
+  return { text, html };
 };
 
 const generateUnsubscribeToken = (email, collectiveSlug, type) => {
   const uid = `${email}.${collectiveSlug || 'any'}.${type}.${config.keys.opencollective.secret}`;
-  const token = crypto.createHash('md5').update(uid).digest("hex");
+  const token = crypto.createHash('md5').update(uid).digest('hex');
   return token;
-}
+};
 
 /*
  * Gets the body from a string (usually a template)
@@ -66,7 +66,7 @@ const getTemplateAttributes = (str) => {
  * sends an email message to a recipient with given subject and body
  */
 const sendMessage = (recipients, subject, html, options = {}) => {
-  options.bcc = options.bcc || `emailbcc@opencollective.com`;
+  options.bcc = options.bcc || 'emailbcc@opencollective.com';
 
   if (!isArray(recipients)) recipients = [ recipients ];
 
@@ -86,7 +86,7 @@ const sendMessage = (recipients, subject, html, options = {}) => {
 
   if (process.env.NODE_ENV === 'staging') {
     subject = `[STAGING] ${subject}`;
-  } else if (process.env.NODE_ENV !== 'production' && process.env.WEBSITE_URL !== "https://opencollective.com") {
+  } else if (process.env.NODE_ENV !== 'production' && process.env.WEBSITE_URL !== 'https://opencollective.com') {
     subject = `[TESTING] ${subject}`;
   }
 
@@ -95,11 +95,11 @@ const sendMessage = (recipients, subject, html, options = {}) => {
     to = recipients.join(', ');
   }
   if (process.env.ONLY) {
-    debug("Only sending email to ", process.env.ONLY);
+    debug('Only sending email to ', process.env.ONLY);
     to = process.env.ONLY;
   } else if (process.env.NODE_ENV !== 'production') {
     if (!to) {
-      return Promise.reject(new Error("No recipient defined"));
+      return Promise.reject(new Error('No recipient defined'));
   }
     to = `emailbcc+${to.replace(/@/g, '-at-')}@opencollective.com`;
   }
@@ -108,13 +108,13 @@ const sendMessage = (recipients, subject, html, options = {}) => {
     options.attachments.map(attachment => {
       const filepath = path.resolve(`/tmp/${attachment.filename}`);
       fs.writeFileSync(filepath, attachment.content);
-      console.log(">>> preview attachment", filepath);
-    })
+      console.log('>>> preview attachment', filepath);
+    });
   }
 
   debug(`sending email to ${to}`);
   if (recipients.length === 0) {
-    debug("No recipient to send to, only sending to bcc", options.bcc);
+    debug('No recipient to send to, only sending to bcc', options.bcc);
   }
 
   if (config.mailgun.user) {
@@ -122,8 +122,8 @@ const sendMessage = (recipients, subject, html, options = {}) => {
       service: 'Mailgun',
       auth: {
         user: config.mailgun.user,
-        pass: config.mailgun.password
-      }
+        pass: config.mailgun.password,
+      },
     });
 
     return new Promise((resolve, reject) => {
@@ -136,22 +136,22 @@ const sendMessage = (recipients, subject, html, options = {}) => {
       // only attach tag in production to keep data clean
       const tag = process.env.NODE_ENV === 'production' ? options.tag : 'internal';
       const headers = { 'X-Mailgun-Tag': tag, 'X-Mailgun-Dkim': 'yes' };
-      debug("mailgun> sending email to ", to, "bcc", bcc);
+      debug('mailgun> sending email to ', to, 'bcc', bcc);
 
       return mailgun.sendMail({ from, cc, to, bcc, subject, text, html, headers, attachments }, (err, info) => {
         if (err) {
-          debug(">>> mailgun.sendMail error", err);
+          debug('>>> mailgun.sendMail error', err);
           return reject(err);
         } else {
-          debug(">>> mailgun.sendMail success", info);
+          debug('>>> mailgun.sendMail success', info);
           return resolve(info);
         }
-      })
+      });
     });
   } else {
-    debug(">>> mailgun not configured");
-    debugLib("text")(options.text);
-    debugLib("html")(html);
+    debug('>>> mailgun not configured');
+    debugLib('text')(options.text);
+    debugLib('html')(html);
     return Promise.resolve();
   }
 };
@@ -182,8 +182,8 @@ const getNotificationLabel = (template, recipients) => {
     'collective.transaction.created': 'notifications of new transactions for this collective',
     'onboarding': 'onboarding emails',
     'user.monthlyreport': 'monthly reports for backers',
-    'user.yearlyreport': 'yearly reports'
-  }
+    'user.yearlyreport': 'yearly reports',
+  };
 
   return notificationTypeLabels[template];
 };
@@ -245,7 +245,7 @@ const generateEmailFromTemplate = (template, recipient, data = {}, options = {})
       const text = `Hi @${data.member.memberCollective.twitterHandle} thanks for your donation to ${collectiveMention} https://opencollective.com/${slug} 🎉😊`;
       data.tweet = {
         text,
-        encoded: encodeURIComponent(text)
+        encoded: encodeURIComponent(text),
       };
     }
   }
@@ -267,11 +267,11 @@ const generateEmailFromTemplate = (template, recipient, data = {}, options = {})
     filepath = path.resolve(`/tmp/${template}.${slug}.html`);
     const script = `<script>data=${JSON.stringify(data)};</script>`;
     fs.writeFileSync(filepath, `${renderedTemplate.html}\n\n${script}`);
-    console.log(">>> preview email", filepath);
+    console.log('>>> preview email', filepath);
     if (renderedTemplate.text) {
       filepath = `/tmp/${template}.${slug}.txt`;
       fs.writeFileSync(filepath, renderedTemplate.text);
-      console.log(">>> preview email", filepath);
+      console.log('>>> preview email', filepath);
     }
   }
 
@@ -283,14 +283,14 @@ const generateEmailFromTemplate = (template, recipient, data = {}, options = {})
  */
 const generateEmailFromTemplateAndSend = (template, recipient, data, options = {}) => {
   if (!recipient) {
-    return Promise.reject("No recipient");
+    return Promise.reject('No recipient');
   }
   return generateEmailFromTemplate(template, recipient, data, options)
     .then(renderedTemplate => {
       const attributes = getTemplateAttributes(renderedTemplate.html);
       options.text = renderedTemplate.text;
       options.tag = template;
-      return emailLib.sendMessage(recipient, attributes.subject, attributes.body, options)
+      return emailLib.sendMessage(recipient, attributes.subject, attributes.body, options);
     });
 };
 
@@ -299,7 +299,7 @@ const emailLib = {
   getTemplateAttributes,
   sendMessage,
   generateEmailFromTemplate,
-  send: generateEmailFromTemplateAndSend
+  send: generateEmailFromTemplateAndSend,
 };
 
 export default emailLib;

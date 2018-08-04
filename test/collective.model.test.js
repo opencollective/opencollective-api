@@ -1,4 +1,4 @@
-import {expect} from 'chai';
+import { expect } from 'chai';
 import models from '../server/models';
 import * as utils from '../test/utils';
 import sinon from 'sinon';
@@ -7,7 +7,7 @@ import emailLib from '../server/lib/email';
 const {
   Transaction,
   Collective,
-  User
+  User,
 } = models;
 
 describe('Collective model', () => {
@@ -24,22 +24,22 @@ describe('Collective model', () => {
       {
         name: 'backer',
         range: [2, 100],
-        interval: 'monthly'
+        interval: 'monthly',
       },
       {
         name: 'sponsor',
         range: [100, 100000],
-        interval: 'yearly'
-      }
-    ]
+        interval: 'yearly',
+      },
+    ],
   };
 
   const users = [{
     username: 'xdamman',
-    email: 'xdamman@opencollective.com'
+    email: 'xdamman@opencollective.com',
   },{
     username: 'piamancini',
-    email: 'pia@opencollective.com'
+    email: 'pia@opencollective.com',
   }];
 
   const transactions = [{
@@ -51,7 +51,7 @@ describe('Collective model', () => {
     description: 'pizza',
     tags: ['food'],
     CreatedByUserId: 1,
-    FromCollectiveId: 1
+    FromCollectiveId: 1,
   },{
     createdAt: new Date('2016-07-14'),
     amount: -15000,
@@ -61,7 +61,7 @@ describe('Collective model', () => {
     description: 'stickers',
     tags: ['marketing'],
     CreatedByUserId: 1,
-    FromCollectiveId: 1
+    FromCollectiveId: 1,
   },{
     createdAt: new Date('2016-06-15'),
     amount: 25000,
@@ -70,7 +70,7 @@ describe('Collective model', () => {
     currency: 'USD',
     type: 'CREDIT',
     CreatedByUserId: 1,
-    FromCollectiveId: 1
+    FromCollectiveId: 1,
   },{
     createdAt: new Date('2016-07-16'),
     amount: 50000,
@@ -79,7 +79,7 @@ describe('Collective model', () => {
     currency: 'USD',
     type: 'CREDIT',
     CreatedByUserId: 1,
-    FromCollectiveId: 1
+    FromCollectiveId: 1,
   },
   {
     createdAt: new Date('2016-08-18'),
@@ -89,7 +89,7 @@ describe('Collective model', () => {
     currency: 'USD',
     type: 'CREDIT',
     CreatedByUserId: 2,
-    FromCollectiveId: 2
+    FromCollectiveId: 2,
   }];
 
 
@@ -113,7 +113,7 @@ describe('Collective model', () => {
     .then(() => Collective.create({
       slug: 'webpack',
       tags: ['open source'],
-      isActive: true
+      isActive: true,
     }))
     .then(g => opensourceCollective = g)
     .then(() => collective.addUserWithRole(user1, 'BACKER'))
@@ -124,69 +124,69 @@ describe('Collective model', () => {
 
   it('creates a unique slug', () => {
     return Collective
-      .create({slug: 'piamancini'})
+      .create({ slug: 'piamancini' })
       .tap(collective => {
-        expect(collective.slug).to.equal('piamancini')
-      })
-      .then(() => Collective.create({ name: 'XavierDamman'}))
-      .then(collective => {
-        expect(collective.slug).to.equal('xavierdamman')
-      })
-      .then(() => Collective.create({ name: 'piamancini2' }))
-      .then(() => Collective.create({ twitterHandle: '@piamancini'}))
-      .then(collective => {
-        expect(collective.slug).to.equal('piamancini1')
-        expect(collective.twitterHandle).to.equal('piamancini')
+        expect(collective.slug).to.equal('piamancini');
       })
       .then(() => Collective.create({ name: 'XavierDamman' }))
       .then(collective => {
-        expect(collective.slug).to.equal('xavierdamman1')
+        expect(collective.slug).to.equal('xavierdamman');
+      })
+      .then(() => Collective.create({ name: 'piamancini2' }))
+      .then(() => Collective.create({ twitterHandle: '@piamancini' }))
+      .then(collective => {
+        expect(collective.slug).to.equal('piamancini1');
+        expect(collective.twitterHandle).to.equal('piamancini');
+      })
+      .then(() => Collective.create({ name: 'XavierDamman' }))
+      .then(collective => {
+        expect(collective.slug).to.equal('xavierdamman1');
       })
       .then(() => Collective.create({ name: 'hélène & les g.arçons' }))
       .then(collective => {
         expect(collective.slug).to.equal('helene-and-les-garcons');
-      })
-  })
+      });
+  });
 
   it('creates an organization and populates logo image', (done) => {
     models.Collective.create({
-      name: "Open Collective",
-      type: "ORGANIZATION",
-      website: "https://opencollective.com"
+      name: 'Open Collective',
+      type: 'ORGANIZATION',
+      website: 'https://opencollective.com',
     }).then(collective => {
-      expect(collective.image).to.equal("https://logo.clearbit.com/opencollective.com");
+      expect(collective.image).to.equal('https://logo.clearbit.com/opencollective.com');
       models.Collective.findById(collective.id).then(c => {
-        expect(c.image).to.equal("https://logo.clearbit.com/opencollective.com");
+        expect(c.image).to.equal('https://logo.clearbit.com/opencollective.com');
         done();
-      })
-    })
+      });
+    });
   });
 
-  it("creates an organization with an admin user", async () => {
+  it('creates an organization with an admin user', async () => {
     models.Collective.createOrganization({
-      name: "Coinbase"
-    }, user1)
+      name: 'Coinbase',
+    }, user1);
     await utils.waitForCondition(() => sendEmailSpy.callCount > 0);
     // utils.inspectSpy(sendEmailSpy, 3);
     expect(sendEmailSpy.firstCall.args[0]).to.equal(user1.email);
-    expect(sendEmailSpy.firstCall.args[1]).to.equal("Welcome to Open Collective 🙌");
-    expect(sendEmailSpy.firstCall.args[2]).to.contain("Discover");
+    expect(sendEmailSpy.firstCall.args[1]).to.equal('Welcome to Open Collective 🙌');
+    expect(sendEmailSpy.firstCall.args[2]).to.contain('Discover');
   });
 
   it('creates a user and populates avatar image', (done) => {
     models.User.createUserWithCollective({
-      name: "Xavier Damman",
-      type: "USER",
-      email: "xavier@tribal.be"
+      name: 'Xavier Damman',
+      type: 'USER',
+      email: 'xavier@tribal.be',
     }).then(user => {
       expect(user.collective.image).to.equal(undefined);
       setTimeout(() => {
         models.Collective.findById(user.collective.id).then(c => {
-          expect(c.image).to.equal("https://www.gravatar.com/avatar/a97d0fcd96579015da610aa284f8d8df?default=404");
+          expect(c.image).to.equal('https://www.gravatar.com/avatar/a97d0fcd96579015da610aa284f8d8df?default=404');
           done();
-        })
+        });
       }, 700);
-    })
+    });
   });
 
   it('computes the balance ', () =>
@@ -202,11 +202,11 @@ describe('Collective model', () => {
       let sum = 0;
       transactions.map(t => {
         if (t.createdAt < until)
-          sum += t.netAmountInCollectiveCurrency
+          sum += t.netAmountInCollectiveCurrency;
       });
       expect(balance).to.equal(sum);
       done();
-    })
+    });
   });
 
   it('computes the number of backers', () => collective.getBackersCount()
@@ -216,7 +216,7 @@ describe('Collective model', () => {
 
   it('computes the number of backers until a certain month', (done) => {
     const until = new Date('2016-07-01');
-    collective.getBackersCount({until}).then(count => {
+    collective.getBackersCount({ until }).then(count => {
       const backers = {};
       transactions.map(t => {
         if (t.amount > 0 && t.createdAt < until)
@@ -224,7 +224,7 @@ describe('Collective model', () => {
       });
       expect(count).to.equal(Object.keys(backers).length);
       done();
-    })
+    });
   });
 
   it('gets all the expenses', (done) => {
@@ -267,17 +267,17 @@ describe('Collective model', () => {
   });
 
   it('get the related collectives', () => {
-    const defaultValues = {HostCollectiveId: host.CollectiveId, PaymentMethodId: 1 };
+    const defaultValues = { HostCollectiveId: host.CollectiveId, PaymentMethodId: 1 };
     return Collective.createMany(utils.data('relatedCollectives'))
     .then(collectives => collectives.map(c => c.id))
-    .map(CollectiveId => Transaction.createDoubleEntry({...transactions[2], CollectiveId, ...defaultValues}))
+    .map(CollectiveId => Transaction.createDoubleEntry({ ...transactions[2], CollectiveId, ...defaultValues }))
     .then(() => collective.getRelatedCollectives(3, 0))
     .then(relatedCollectives => {
       expect(relatedCollectives).to.have.length(3);
-    })
+    });
   });
 
-  describe("backers", () => {
+  describe('backers', () => {
 
     it('gets the top backers', () => {
       return Collective.getTopBackers()
@@ -308,44 +308,44 @@ describe('Collective model', () => {
     });
 
     it('gets the latest transactions of a user collective', () => {
-      return Collective.findOne({where: { type: 'USER' }}).then(userCollective => {
+      return Collective.findOne({ where: { type: 'USER' } }).then(userCollective => {
         return userCollective.getLatestTransactions(new Date('2016-06-01'), new Date('2016-08-01'))
           .then(transactions => {
             expect(transactions.length).to.equal(8);
-          })
+          });
       });
     });
 
     it('gets the latest transactions of a user collective to open source', () => {
-      return Collective.findOne({where: { type: 'USER' }}).then(userCollective => {
+      return Collective.findOne({ where: { type: 'USER' } }).then(userCollective => {
         return userCollective.getLatestTransactions(new Date('2016-06-01'), new Date('2016-08-01'), ['open source'])
           .then(transactions => {
             expect(transactions.length).to.equal(1);
-            expect(transactions[0]).to.have.property("amount");
-            expect(transactions[0]).to.have.property("currency");
-            expect(transactions[0]).to.have.property("collective");
-            expect(transactions[0].collective).to.have.property("name");
-          })
+            expect(transactions[0]).to.have.property('amount');
+            expect(transactions[0]).to.have.property('currency');
+            expect(transactions[0]).to.have.property('collective');
+            expect(transactions[0].collective).to.have.property('name');
+          });
       });
     });
   });
 
-  describe("tiers", () => {
+  describe('tiers', () => {
     before('adding backer tier', () => models.Tier.create({ ...utils.data('tier1'), CollectiveId: collective.id })); // adding backer tier
     before('adding sponsor tier', () => models.Tier.create({ ...utils.data('tier2'), CollectiveId: collective.id })); // adding sponsor tier
-    before('adding user as backer', () => collective.addUserWithRole(user2, 'BACKER'))
+    before('adding user as backer', () => collective.addUserWithRole(user2, 'BACKER'));
     before('creating order for backer tier', () => models.Order.create({
       CreatedByUserId: user1.id,
       FromCollectiveId: user1.CollectiveId,
       CollectiveId: collective.id,
-      TierId: 1
+      TierId: 1,
     }));
 
     before('creating order for sponsor tier', () => models.Order.create({
       CreatedByUserId: user2.id,
       FromCollectiveId: user2.CollectiveId,
       CollectiveId: collective.id,
-      TierId: 2
+      TierId: 2,
     }));
 
     it('get the tiers with users', (done) => {
@@ -372,13 +372,13 @@ describe('Collective model', () => {
         {
           id: 1,
           name: 'super backer',
-          amount: 1500
+          amount: 1500,
         },
         {
           name: 'new tier',
           amount: 2000,
-          slug: 'newtier'
-        }
+          slug: 'newtier',
+        },
       ])
       .then(tiers => {
         expect(tiers.length).to.equal(2);
@@ -386,53 +386,53 @@ describe('Collective model', () => {
         expect(tiers[0].name).to.equal('new tier');
         expect(tiers[1].name).to.equal('super backer');
         done();
-      })
-    })
+      });
+    });
   });
 
-  describe("members", () => {
-    it("gets email addresses of admins", async () => {
+  describe('members', () => {
+    it('gets email addresses of admins', async () => {
       await collective.editMembers([
         {
           id: user1.id,
           MemberCollectiveId: user1.CollectiveId,
-          role: 'ADMIN'
+          role: 'ADMIN',
         },
         {
           role: 'ADMIN',
           member: {
             name: 'Etienne Dupont',
-            email: 'etiennedupont@email.com'
-          }
-        }
+            email: 'etiennedupont@email.com',
+          },
+        },
       ]);
       const emails = await collective.getEmails();
       expect(emails.length).to.equal(2);
     });
 
-    it("add/update/remove members", (done) => {
+    it('add/update/remove members', (done) => {
       collective.editMembers([
         {
           id: user1.id,
           MemberCollectiveId: user1.CollectiveId,
-          role: 'ADMIN'
+          role: 'ADMIN',
         },
         {
           role: 'MEMBER',
           member: {
             name: 'Etienne Dupont',
-            email: 'etiennedupont@email.com'
-          }
-        }
+            email: 'etiennedupont@email.com',
+          },
+        },
       ]).then(members => {
         expect(members.length).to.equal(2);
         expect(members[0].role).to.equal('ADMIN');
         expect(members[1].role).to.equal('MEMBER');
         done();
-      })
+      });
     });
 
-    it("add an existing user to a collective by email address", (done) => {
+    it('add an existing user to a collective by email address', (done) => {
       collective.editMembers([])
       .then(members => {
         expect(members).to.have.length(0);
@@ -442,9 +442,9 @@ describe('Collective model', () => {
           role: 'MEMBER',
           member: {
             name: user1.name,
-            email: user1.email
-          }
-        }
+            email: user1.email,
+          },
+        },
       ]))
       .then(members => {
         expect(members).to.have.length(1);
@@ -455,50 +455,50 @@ describe('Collective model', () => {
     });
   });
 
-  describe("goals", () => {
+  describe('goals', () => {
 
-    it("returns the next goal based on balance", async () => {
+    it('returns the next goal based on balance', async () => {
       const goals = [
         {
           type: 'yearlyBudget',
           amount: 500000,
-          title: "hire fte"
+          title: 'hire fte',
         },
         {
           type: 'balance',
           amount: 200000,
-          title: "buy laptop"
-        }
+          title: 'buy laptop',
+        },
       ];
-      await collective.update({ settings: { goals }});
+      await collective.update({ settings: { goals } });
       const nextGoal = await collective.getNextGoal();
       expect(nextGoal.type).to.equal('balance');
       expect(nextGoal.amount).to.equal(200000);
       expect(nextGoal.progress).to.equal(0.48);
-      expect(nextGoal.percentage).to.equal("48%");
-      expect(nextGoal.missing.amount).to.equal(103500)
+      expect(nextGoal.percentage).to.equal('48%');
+      expect(nextGoal.missing.amount).to.equal(103500);
     });
 
-    it("returns the next goal based on yearlBudget", async () => {
+    it('returns the next goal based on yearlBudget', async () => {
       const goals = [
         {
           type: 'yearlyBudget',
           amount: 500000,
-          title: "hire fte"
+          title: 'hire fte',
         },
         {
           type: 'balance',
           amount: 5000,
-          title: "buy stickers"
-        }
+          title: 'buy stickers',
+        },
       ];
-      await collective.update({ settings: { goals }});
+      await collective.update({ settings: { goals } });
       const nextGoal = await collective.getNextGoal();
       expect(nextGoal.type).to.equal('yearlyBudget');
       expect(nextGoal.amount).to.equal(500000);
-      expect(nextGoal.interval).to.equal("year");
+      expect(nextGoal.interval).to.equal('year');
       expect(nextGoal.missing.amount).to.equal(41667);
-      expect(nextGoal.missing.interval).to.equal("month");
+      expect(nextGoal.missing.interval).to.equal('month');
     });
 
   });

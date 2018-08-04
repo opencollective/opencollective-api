@@ -24,7 +24,7 @@ describe('graphql.search.test.js', () => {
     image: '',
     balance: 1300,
     yearlyBudget: 3600,
-    backersCount: 130
+    backersCount: 130,
   }];
   const nbHits = 10;
 
@@ -64,7 +64,7 @@ describe('graphql.search.test.js', () => {
       length: 20,
       offset: 0,
     })).to.be.true;
-    expect(result.data.search).to.deep.equal({ collectives: [{ id: hits[0].id }]});
+    expect(result.data.search).to.deep.equal({ collectives: [{ id: hits[0].id }] });
   });
 
   it('accepts limit and offset arguments', async () => {

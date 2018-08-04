@@ -4,7 +4,7 @@ import debug from 'debug';
 
 const cache = LRU({
   max: 1000,
-  maxAge: 1000 * 60 * 60 * 24 // we keep it max 1d
+  maxAge: 1000 * 60 * 60 * 24, // we keep it max 1d
 });
 
 /** Reset cache mostly for tests */
@@ -19,10 +19,10 @@ export async function fetchCollectiveId(collectiveSlug) {
 
   const collective = await models.Collective.findOne({
     attributes: ['id'],
-    where: { slug: collectiveSlug }
+    where: { slug: collectiveSlug },
   });
 
-  debug("cache")("setting collective id for ", collectiveSlug, "to", collective.id);
+  debug('cache')('setting collective id for ', collectiveSlug, 'to', collective.id);
   cache.set(collectiveSlug, collective.id);
   return collective.id;
 

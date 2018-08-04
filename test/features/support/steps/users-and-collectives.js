@@ -60,7 +60,7 @@ Given('{string} payment processor fee is {string}', async function (ppName, feeS
 });
 
 Given('platform fee is {string}', async function (feeStr) {
-  this.addValue(`platform-fee`, feeStr);
+  this.addValue('platform-fee', feeStr);
 });
 
 async function handleDonation (fromName, value, toName, paymentMethod, userName=null) {

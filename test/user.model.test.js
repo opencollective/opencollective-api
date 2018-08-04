@@ -1,7 +1,7 @@
 import sinon from 'sinon';
 import config from 'config';
 import url from 'url';
-import {expect} from 'chai';
+import { expect } from 'chai';
 import * as utils from '../test/utils';
 
 import models from '../server/models';
@@ -34,23 +34,23 @@ describe('user.models.test.js', () => {
 
     it('succeeds without email', () =>
       User
-        .create({ firstName: userData.firstName})
+        .create({ firstName: userData.firstName })
         .tap(user => expect(user).to.have.property('firstName', userData.firstName)));
 
     it('fails if invalid email', () =>
       User
-        .create({ firstName: userData.firstName, email: 'johndoe'})
+        .create({ firstName: userData.firstName, email: 'johndoe' })
         .catch(err => expect(err).to.exist));
 
     it('fails if no email is given', () => {
       User
         .create({ firstName: 'blah' })
         .catch(err => expect(err).to.exist);
-    })
+    });
 
     it('successfully creates a user and lowercase email', () =>
       User
-        .create({ firstName: userData.firstName, email: userData.email})
+        .create({ firstName: userData.firstName, email: userData.email })
         .tap(user => {
           expect(user).to.have.property('firstName', userData.firstName);
           expect(user).to.have.property('email', userData.email.toLowerCase());
@@ -65,7 +65,7 @@ describe('user.models.test.js', () => {
       return User
         .create({
           email,
-          password: 123456
+          password: 123456,
         })
         .tap(user => {
           expect(user).to.have.property('email', email);
@@ -81,7 +81,7 @@ describe('user.models.test.js', () => {
       return User
         .create({
           email,
-          password: '123456'
+          password: '123456',
         })
         .tap(user => {
           expect(user).to.have.property('email', email);
@@ -184,7 +184,7 @@ describe('user.models.test.js', () => {
 
     it('creates a new user collective and generates a unique slug', () => {
       const email = 'xavier.damman@email.com';
-      return User.createUserWithCollective({ email, firstName: "Xavier", lastName: "Damman" })
+      return User.createUserWithCollective({ email, firstName: 'Xavier', lastName: 'Damman' })
         .then(user => {
           expect(user.email).to.equal(email);
           expect(user.collective.slug).to.equal('xavier-damman');
@@ -196,7 +196,7 @@ describe('user.models.test.js', () => {
           expect(user2.collective.name).to.equal('Xavier Damman');
           expect(user2.firstName).to.equal('Xavier');
           expect(user2.lastName).to.equal('Damman');
-        })
+        });
     });
 
   });

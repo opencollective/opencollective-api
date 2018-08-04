@@ -28,7 +28,7 @@ export default {
       return Promise.resolve(this.memory[email]);
     }
 
-    return this.clearbit.Enrichment.find({email, stream: true})
+    return this.clearbit.Enrichment.find({ email, stream: true })
       .tap(res => this.memory[email] = res.person)
       .then(res => res.person)
       .catch(clearbit.Enrichment.NotFoundError, () => this.memory[email] = null)
@@ -45,7 +45,7 @@ export default {
     const { ip } = userData;
 
     if (!email || !email.match(/.+@.+\..+/)) {
-      return cb(new Error("Invalid email"));
+      return cb(new Error('Invalid email'));
     }
 
     if (website) {
@@ -65,7 +65,7 @@ export default {
       linkedin: linkedinUrl,
       facebook: facebookUrl,
       twitter: twitterHandle,
-      stream: true
+      stream: true,
     })
     .then((res) => {
       const { person } = res;
@@ -76,11 +76,11 @@ export default {
         const personAvatarSources = ['twitter', 'aboutme', 'grimage', 'github'];
         personAvatarSources.forEach((source) => {
           if (person[source] && person[source].image) {
-            sources.push({src: person[source].image, source});
+            sources.push({ src: person[source].image, source });
           }
         });
         if (person.image) {
-          sources.push({src: person.image, source: 'clearbit'});
+          sources.push({ src: person.image, source: 'clearbit' });
         }
       }
 
@@ -88,11 +88,11 @@ export default {
         const companyAvatarSources = ['twitter', 'angellist'];
         companyAvatarSources.forEach((source) => {
           if (company[source] && company[source].image) {
-            sources.push({src: company[source].image, source});
+            sources.push({ src: company[source].image, source });
           }
         });
         if (company.image) {
-          sources.push({src: company.image, source: 'clearbit'});
+          sources.push({ src: company.image, source: 'clearbit' });
         }
       }
 
@@ -141,5 +141,5 @@ export default {
           return Promise.resolve();
         }
       });
-  }
+  },
 };

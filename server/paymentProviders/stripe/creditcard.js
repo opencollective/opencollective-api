@@ -18,7 +18,7 @@ export default {
 
   features: {
     recurring: true,
-    waitToCharge: false
+    waitToCharge: false,
   },
 
   processOrder: (order) => {
@@ -40,13 +40,13 @@ export default {
       if (!paymentMethod.customerId) {
         return stripeGateway.createCustomer(null, paymentMethod.token, {
           email: user.email,
-          collective: order.fromCollective.info
+          collective: order.fromCollective.info,
         })
         .then(customer => customer.id)
-        .then(platformCustomerId => paymentMethod.update({ customerId: platformCustomerId}))
+        .then(platformCustomerId => paymentMethod.update({ customerId: platformCustomerId }));
       }
       return Promise.resolve();
-    }
+    };
 
     /**
      * Get the customerId for the Stripe Account of the Host
@@ -66,7 +66,7 @@ export default {
       return data.customerIdForHost[hostStripeAccount.username] || stripeGateway.createToken(hostStripeAccount, paymentMethod.customerId)
       .then(token => stripeGateway.createCustomer(hostStripeAccount, token.id, {
         email: user.email,
-        collective: fromCollective.info
+        collective: fromCollective.info,
       }))
       .then(customer => customer.id)
       .tap(customerId => {
@@ -98,8 +98,8 @@ export default {
             from: `${config.host.website}/${order.fromCollective.slug}`,
             to: `${config.host.website}/${order.collective.slug}`,
             customerEmail: user.email,
-            PaymentMethodId: paymentMethod.id
-          }
+            PaymentMethodId: paymentMethod.id,
+          },
         })
         .tap(c => charge = c)
         .then(charge => stripeGateway.retrieveBalanceTransaction(
@@ -115,7 +115,7 @@ export default {
             CreatedByUserId: user.id,
             FromCollectiveId: order.FromCollectiveId,
             CollectiveId: collective.id,
-            PaymentMethodId: paymentMethod.id
+            PaymentMethodId: paymentMethod.id,
           };
           payload.transaction = {
             type: constants.TransactionTypes.CREDIT,
@@ -151,7 +151,7 @@ export default {
       .tap(t => transactions = t)
 
       // add user to the collective
-      .tap(() => collective.findOrAddUserWithRole({ id: user.id, CollectiveId: fromCollective.id}, roles.BACKER, { CreatedByUserId: user.id, TierId: order.TierId }))
+      .tap(() => collective.findOrAddUserWithRole({ id: user.id, CollectiveId: fromCollective.id }, roles.BACKER, { CreatedByUserId: user.id, TierId: order.TierId }))
 
       // Mark order row as processed
       .tap(() => order.update({ processedAt: new Date() }))
@@ -217,5 +217,5 @@ export default {
     /* We return 200 because Stripe can keep pinging us if we don't do
        so for some events. */
     return Promise.resolve();
-  }
+  },
 };

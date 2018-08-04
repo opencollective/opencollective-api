@@ -37,20 +37,20 @@ export function getListOfAccessibleMembers(remoteUser, CollectiveIds) {
     attributes: ['MemberCollectiveId'],
     where: {
       MemberCollectiveId: { [Op.in]: CollectiveIds },
-      CollectiveId: { [Op.in]: adminOfCollectives }
+      CollectiveId: { [Op.in]: adminOfCollectives },
     },
-    group: ['MemberCollectiveId']
+    group: ['MemberCollectiveId'],
   })
-  .then(results => results.map(r => r.MemberCollectiveId))
+  .then(results => results.map(r => r.MemberCollectiveId));
 }
 
-export function mustBeLoggedInTo(remoteUser, action = "do this") {
+export function mustBeLoggedInTo(remoteUser, action = 'do this') {
   if (!remoteUser) {
     throw new errors.Unauthorized({ message: `You must be logged in to ${action}` });
   }
 }
 
-export function mustHaveRole(remoteUser, roles, CollectiveId, action = "perform this action") {
+export function mustHaveRole(remoteUser, roles, CollectiveId, action = 'perform this action') {
   mustBeLoggedInTo(remoteUser, action);
   if (!CollectiveId || !remoteUser.hasRole(roles, CollectiveId)) {
     throw new errors.Unauthorized({ message: `You don't have sufficient permissions to ${action}` });

@@ -77,7 +77,7 @@ const errors = {
     this.type = type;
     this.message = msg;
     Error.call(this, msg);
-  }
+  },
 
 };
 
@@ -90,7 +90,7 @@ Error.prototype.info = function() {
     type: this.type,
     message: this.message || '',
     fields: this.fields,
-    data: this.data
+    data: this.data,
   };
 
   if (!this.code || this.code >= 500) {

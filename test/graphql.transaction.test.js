@@ -79,7 +79,7 @@ describe('graphql.transaction.test.js', () => {
           }
         }
       `;
-      const result = await utils.graphqlQuery(query, { slug: "WWCodeAustin", limit });
+      const result = await utils.graphqlQuery(query, { slug: 'WWCodeAustin', limit });
       expect(result.data.Collective).to.exist;
       expect(result.data.Collective.transactions).to.have.length(10);
       expect(result).to.matchSnapshot();

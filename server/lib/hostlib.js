@@ -10,7 +10,7 @@ export function getHostedCollectives(hostid, endDate = new Date) {
   `, {
     replacements: { hostid, endDate },
     model: models.Collective,
-    type: sequelize.QueryTypes.SELECT
+    type: sequelize.QueryTypes.SELECT,
   });
 }
 
@@ -19,7 +19,7 @@ export function getBackersStats(startDate = new Date('2015-01-01'), endDate = ne
   const getBackersIds = (startDate, endDate) => {
     const where = {
         type: 'CREDIT',
-        createdAt: { [Op.gte]: startDate, [Op.lt]: endDate }
+        createdAt: { [Op.gte]: startDate, [Op.lt]: endDate },
       };
 
     if (collectiveids) {
@@ -28,18 +28,18 @@ export function getBackersStats(startDate = new Date('2015-01-01'), endDate = ne
 
     return models.Transaction.findAll({
       attributes: [ [sequelize.fn('DISTINCT', sequelize.col('FromCollectiveId')), 'CollectiveId'] ],
-      where
+      where,
     })
     .then(rows => rows.map(r => r.dataValues.CollectiveId))
     ;
-  }
+  };
 
   const stats = {};
 
   return Promise.all([
     getBackersIds(new Date('2015-01-01'), endDate),
     getBackersIds(new Date('2015-01-01'), startDate),
-    getBackersIds(startDate, endDate)
+    getBackersIds(startDate, endDate),
   ]).then(results => {
     stats.total = results[0].length;
     stats.repeat = _.intersection(results[1], results[2]).length;
@@ -53,7 +53,7 @@ export function sumTransactionsBy(groupBy, attribute, query) {
   const findAllQuery = {
     attributes: [ [sequelize.fn('SUM', sequelize.col(attribute)), 'amount'], groupBy ],
     group: [`Transaction.${groupBy}`],
-    ...query
+    ...query,
   };
   return models.Transaction.findAll(findAllQuery)
     .then(rows => {
@@ -67,7 +67,7 @@ export function sumTransactionsBy(groupBy, attribute, query) {
 }
 
 export function sumTransactionsByCurrency(attribute = 'netAmountInCollectiveCurrency', query) {
-  return sumTransactionsBy("currency", attribute, query);
+  return sumTransactionsBy('currency', attribute, query);
 }
 
 /**
@@ -105,7 +105,7 @@ export function sumTransactions(attribute, query = {}, hostCurrency, date) {
 export function getTotalHostFees(collectiveids, type, startDate = new Date('2015-01-01'), endDate = new Date, hostCurrency = 'USD') {
   const where = {
     CollectiveId: { [Op.in]: collectiveids },
-    createdAt: { [Op.gte]: startDate, [Op.lt]: endDate }
+    createdAt: { [Op.gte]: startDate, [Op.lt]: endDate },
   };
   if (type) {
     where.type = type;
@@ -116,7 +116,7 @@ export function getTotalHostFees(collectiveids, type, startDate = new Date('2015
 export function getTotalNetAmount(collectiveids, type, startDate = new Date('2015-01-01'), endDate = new Date, hostCurrency = 'USD') {
   const where = {
     CollectiveId: { [Op.in]: collectiveids },
-    createdAt: { [Op.gte]: startDate, [Op.lt]: endDate }
+    createdAt: { [Op.gte]: startDate, [Op.lt]: endDate },
   };
   if (type) {
     where.type = type;

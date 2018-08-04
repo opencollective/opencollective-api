@@ -1,4 +1,4 @@
-import {expect} from 'chai';
+import { expect } from 'chai';
 import request from 'supertest';
 import _ from 'lodash';
 import sinon from 'sinon';
@@ -14,7 +14,7 @@ describe('webhooks.stripe.test.js', () => {
     const webhookEvent = stripeMock.webhook_source_chargeable;
 
     const event = _.extend({}, webhookEvent, {
-      livemode: false
+      livemode: false,
     });
 
     const env = process.env.NODE_ENV;
@@ -39,7 +39,7 @@ describe('webhooks.stripe.test.js', () => {
 
     afterEach(() => {
       sandbox.restore();
-    })
+    });
 
     it('returns an error if the event does not exist', (done) => {
       const stripeMock = _.cloneDeep(originalStripeMock);
@@ -49,24 +49,24 @@ describe('webhooks.stripe.test.js', () => {
           type: 'invalid_request_error',
           message: 'No such event',
           param: 'id',
-          requestId: 'req_7Y8TeQytYKcs1k'
-        }
+          requestId: 'req_7Y8TeQytYKcs1k',
+        },
       };
 
-      sandbox.stub(appStripe.events, "retrieve")
+      sandbox.stub(appStripe.events, 'retrieve')
         .callsFake(() => Promise.resolve(stripeMock.event_payment_succeeded));
 
     request(app)
       .post('/webhooks/stripe')
       .send({
-        id: 123
+        id: 123,
       })
       .expect(400, {
         error: {
           code: 400,
           type: 'bad_request',
-          message: 'Event not found'
-        }
+          message: 'Event not found',
+        },
       })
       .end(done);
   });
@@ -74,7 +74,7 @@ describe('webhooks.stripe.test.js', () => {
   it('error out on `source.chargeable`', (done) => {
       const stripeMock = _.cloneDeep(originalStripeMock);
 
-      sandbox.stub(appStripe.events, "retrieve")
+      sandbox.stub(appStripe.events, 'retrieve')
         .callsFake(() => Promise.resolve(stripeMock.event_source_chargeable));
       request(app)
         .post('/webhooks/stripe')
@@ -87,7 +87,7 @@ describe('webhooks.stripe.test.js', () => {
       const stripeMock = _.cloneDeep(originalStripeMock);
       stripeMock.event_source_chargeable.type = 'application_fee.created';
 
-      sandbox.stub(appStripe.events, "retrieve")
+      sandbox.stub(appStripe.events, 'retrieve')
         .callsFake(() => Promise.resolve(stripeMock.event_source_chargeable));
 
       request(app)
@@ -97,8 +97,8 @@ describe('webhooks.stripe.test.js', () => {
           error: {
             code: 400,
             type: 'bad_request',
-            message: 'Wrong event type received'
-          }
+            message: 'Wrong event type received',
+          },
         })
         .end(done);
     });

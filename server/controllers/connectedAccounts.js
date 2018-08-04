@@ -8,7 +8,7 @@ import { get } from 'lodash';
 
 const {
   ConnectedAccount,
-  User
+  User,
 } = models;
 
 export const list = (req, res, next) => {
@@ -17,11 +17,11 @@ export const list = (req, res, next) => {
   models.Collective.findBySlug(slug)
     .then(collective => {
       return models.ConnectedAccount.findAll({
-        where: { CollectiveId: collective.id }
+        where: { CollectiveId: collective.id },
       });
     })
     .map(connectedAccount => connectedAccount.info)
-    .tap(connectedAccounts => res.json({connectedAccounts}))
+    .tap(connectedAccounts => res.json({ connectedAccounts }))
     .catch(next);
 };
 
@@ -46,7 +46,7 @@ export const createOrUpdate = (req, res, next, accessToken, data, emails) => {
           name: profile.name || profile.login,
           image,
           email: emails[0],
-        }))
+        }));
       }
       return fetchUserPromise
         .then(u => {
@@ -65,7 +65,7 @@ export const createOrUpdate = (req, res, next, accessToken, data, emails) => {
           userCollective.image = userCollective.image || image;
           userCollective.save();
         })
-        .then(() => ConnectedAccount.findOne({ where: { service, CollectiveId: user.CollectiveId} }))
+        .then(() => ConnectedAccount.findOne({ where: { service, CollectiveId: user.CollectiveId } }))
         .then(ca => ca || ConnectedAccount.create(attrs))
         .then(ca => {
           caId = ca.id;
@@ -83,7 +83,7 @@ export const createOrUpdate = (req, res, next, accessToken, data, emails) => {
         .then(ca => ca.update({
           clientId: accessToken,
           token: data.tokenSecret,
-          CreatedByUserId: req.remoteUser.id
+          CreatedByUserId: req.remoteUser.id,
         }))
         .then(() => res.redirect(redirect || `${config.host.website}/${req.query.slug}/edit#connectedAccounts`))
         .catch(next);
@@ -109,7 +109,7 @@ export const createOrUpdate = (req, res, next, accessToken, data, emails) => {
           clientId: accessToken,
           token: data.tokenSecret,
           data: data.profile._json,
-          CreatedByUserId: req.remoteUser.id
+          CreatedByUserId: req.remoteUser.id,
         }))
         .then(() => res.redirect(redirect || `${config.host.website}/${collective.slug}/edit#connectedAccounts`))
         .catch(next);
@@ -130,7 +130,7 @@ export const verify = (req, res, next) => {
 
   if (!payload) return next(new errors.Unauthorized());
   if (payload.scope === 'connected-account' && payload.username) {
-    res.send({service, username: payload.username, connectedAccountId: payload.connectedAccountId})
+    res.send({ service, username: payload.username, connectedAccountId: payload.connectedAccountId });
   } else {
     return next(new errors.BadRequest('Github authorization failed'));
   }
@@ -139,7 +139,7 @@ export const verify = (req, res, next) => {
 export const fetchAllRepositories = (req, res, next) => {
   const payload = req.jwtPayload;
   ConnectedAccount
-  .findOne({where: {id: payload.connectedAccountId}})
+  .findOne({ where: { id: payload.connectedAccountId } })
   .then(ca => {
 
     return Promise.map([1,2,3,4,5], page => request({
@@ -149,16 +149,16 @@ export const fetchAllRepositories = (req, res, next) => {
         sort: 'pushed',
         access_token: ca.token,
         type: 'all',
-        page
+        page,
       },
       headers: {
         'User-Agent': 'Open Collective',
-        'Accept': 'application/vnd.github.mercy-preview+json' // needed to fetch 'topics', which we can use as tags
+        'Accept': 'application/vnd.github.mercy-preview+json', // needed to fetch 'topics', which we can use as tags
       },
-      json: true
+      json: true,
     }))
     .then(data => [].concat(...data))
-    .filter(repo => repo.permissions && repo.permissions.push && !repo.private)
+    .filter(repo => repo.permissions && repo.permissions.push && !repo.private);
   })
   .then(body => res.json(body))
   .catch(next);

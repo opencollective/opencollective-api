@@ -19,7 +19,7 @@ const getTotalDonors = memoize(() => {
 
 const getTopCollectives = memoize((tag) => {
   return models.Collective.getCollectivesSummaryByTag(tag, 3, [], 100000, true);
-})
+});
 
 const refreshCache = () => {
   getTopCollectives.cache.clear();
@@ -28,8 +28,8 @@ const refreshCache = () => {
   getTopCollectives('open source'),
   getTopCollectives('meetup'),
   getTotalDonors(),
-  getTotalCollectives()
-}
+  getTotalCollectives();
+};
 
 // We only use the cache on staging and production
 const useCache = ['production', 'staging'].indexOf(process.env.NODE_ENV) !== -1;
@@ -57,21 +57,21 @@ export default (req, res, next) => {
     getTotalAnnualBudget(),
     getTopCollectives('open source'),
     getTopCollectives('meetup'),
-    queries.getTopSponsors()
+    queries.getTopSponsors(),
   ])
   .then(results => {
     const hp = {
       stats: {
         totalCollectives: results[0],
         totalDonors: results[1],
-        totalAnnualBudget: results[2]
+        totalAnnualBudget: results[2],
       },
       collectives: {
         opensource: results[3],
-        meetup: results[4]
+        meetup: results[4],
       },
-      sponsors: results[5]
-    }
+      sponsors: results[5],
+    };
     res.send(hp);
   })
   .catch(next);

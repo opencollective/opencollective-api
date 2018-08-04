@@ -19,8 +19,6 @@
     // common warnings in the codebase
     "no-process-exit": "off",
     "node/shebang": "off",
-    "no-useless-escape": "off",
-    // don't complain about es6 imports and exports
-    "node/no-unsupported-features": ["error", {"ignores": ["modules"]}]
+    "no-useless-escape": "off"
   }
 }

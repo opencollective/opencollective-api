@@ -8,7 +8,7 @@ import models, { Op } from '../models';
 import errors from '../lib/errors';
 
 const {
-  User
+  User,
 } = models;
 
 /**
@@ -34,28 +34,28 @@ export const format = (format) => {
 
     switch (format) {
       case 'csv': {
-        const {send} = res;
+        const { send } = res;
         res.send = (data) => {
           data = _.map(data, (row) => {
             if (row.createdAt)
-              row.createdAt = moment(row.createdAt).format("YYYY-MM-DD HH:mm");
+              row.createdAt = moment(row.createdAt).format('YYYY-MM-DD HH:mm');
             if (row.totalDonations)
               row.totalDonations = (row.totalDonations/100).toFixed(2); // convert from cents
             return row;
           });
           const fields = (data.length > 0) ? Object.keys(data[0]) : [];
-          json2csv({data, fields }, (err, csv) => {
+          json2csv({ data, fields }, (err, csv) => {
             res.setHeader('content-type', 'text/csv');
             send.call(res, csv);
           });
-        }
+        };
         return next();
       }
       default:
         return next();
     }
 
-  }
+  };
 
 };
 
@@ -71,10 +71,10 @@ export const getOrCreateUser = (req, res, next) => {
       const { name, paypalEmail } = req.body.expense;
       return req.remoteUser.updateWhiteListedAttributes({ name, paypalEmail })
         .then(user => req.user = user)
-        .then(() => next())
+        .then(() => next());
     } else {
       req.user = req.remoteUser;
-      return next()
+      return next();
     }
   }
 
@@ -96,7 +96,7 @@ export const getOrCreateUser = (req, res, next) => {
   const password = req.body.password || req.query.password;
 
   if (!email && !paypalEmail) {
-    return next(new errors.ValidationFailed("Email or paypalEmail required"));
+    return next(new errors.ValidationFailed('Email or paypalEmail required'));
   }
 
   if (password) {
@@ -113,16 +113,16 @@ export const getOrCreateUser = (req, res, next) => {
   const userData = {
     name,
     email: email || paypalEmail,
-    paypalEmail
+    paypalEmail,
   };
 
   User.findOne({
     where: {
       [Op.or]: {
         email: userData.email,
-        paypalEmail: userData.paypalEmail
-      }
-    }
+        paypalEmail: userData.paypalEmail,
+      },
+    },
   })
   .then(user => user || users._create(userData))
   .tap(user => req.user = user)
@@ -177,7 +177,7 @@ export const paginate = (options) => {
     default: options.default || 100,
     min: options.min || 1,
     max: options.max || 100,
-    maxTotal: options.maxTotal || false
+    maxTotal: options.maxTotal || false,
   };
 
   return function(req, res, next) {
@@ -187,8 +187,8 @@ export const paginate = (options) => {
     if (sinceId) {
       req.pagination = {
         where: {
-          id: {[Op.gt]: sinceId}
-        }
+          id: { [Op.gt]: sinceId },
+        },
       };
       return next();
     }
@@ -223,7 +223,7 @@ export const sorting = (options) => {
 
     req.sorting = {
       key: key || options.key,
-      dir: (dir || options.dir).toUpperCase()
+      dir: (dir || options.dir).toUpperCase(),
     };
 
     next();

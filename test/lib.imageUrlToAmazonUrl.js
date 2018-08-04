@@ -17,13 +17,13 @@ describe('lib.imageUrlToAmazonUrl.js', () => {
   describe('#Convert an external image url to a Amazon url', () => {
 
     const nocks = {};
-    let multiPartStub
+    let multiPartStub;
 
     before(() => {
       sinon.stub(uuid, 'v1').callsFake(() => 'testuuid');
 
-      multiPartStub = sinon.stub(imageUrlLib, 'multiPartUpload')
-      multiPartStub.yields(null, {Location: returnUrl});
+      multiPartStub = sinon.stub(imageUrlLib, 'multiPartUpload');
+      multiPartStub.yields(null, { Location: returnUrl });
     });
 
     beforeEach(() => {
@@ -31,8 +31,8 @@ describe('lib.imageUrlToAmazonUrl.js', () => {
       s.read = () => null;
       s.write = function(){};
       s.end = function(){
-        s.emit('response', {statusCode: 200, statusMessage: 'OK'});
-      }
+        s.emit('response', { statusCode: 200, statusMessage: 'OK' });
+      };
       nocks['cloudfront.get'] = nock(imageUrl)
         .get('')
         .reply(200, s);
@@ -40,7 +40,7 @@ describe('lib.imageUrlToAmazonUrl.js', () => {
 
     after(() => {
       uuid.v1.restore();
-    })
+    });
 
     it('returns an error if the image url is not found', (done) => {
       nocks['cloudfront.head'] = nock(imageUrl)
@@ -53,14 +53,14 @@ describe('lib.imageUrlToAmazonUrl.js', () => {
         (e) => {
           expect(e.toString()).to.include('Image not found');
           done();
-        })
+        });
     });
 
     it('successfully converts cloudfront.net url to amazon aws url', done => {
       nocks['cloudfront.head'] = nock(imageUrl)
       .head('')
       .reply(200, amazonMockData.cloudfront.head, {
-        'Content-Type': 'image/png'
+        'Content-Type': 'image/png',
       });
 
       imageUrlLib.imageUrlToAmazonUrl(
@@ -73,7 +73,7 @@ describe('lib.imageUrlToAmazonUrl.js', () => {
           expect(multiPartStub.firstCall.args[0].headers).to.deep.equal({
             'Content-Type': 'image/png',
             'x-amz-acl': 'public-read',
-            'Cache-Control': `max-age=${60*60*24*30}`
+            'Cache-Control': `max-age=${60*60*24*30}`,
           });
           expect(aws_src).to.equal(returnUrl);
           done();

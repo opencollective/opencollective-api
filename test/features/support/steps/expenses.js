@@ -26,14 +26,14 @@ When('{string} expenses {string} for {string} to {string} via {string}', async f
 When('expense for {string} is approved by {string}', async function(description, collectiveName) {
   const hostAdmin = this.getValue(`${collectiveName}-host-admin`);
   const expense = this.getValue(`expense-${description}`);
-  const query = `mutation approveExpense($id: Int!) { approveExpense(id: $id) { id } }`;
+  const query = 'mutation approveExpense($id: Int!) { approveExpense(id: $id) { id } }';
   const result = await utils.graphqlQuery(query, expense, hostAdmin);
   expect(result.errors).to.not.exist;
 });
 
 When('expense for {string} is paid by {string} with {string} fee', async function(description, collectiveName, fee) {
   const hostAdmin = this.getValue(`${collectiveName}-host-admin`);
-  const query = `mutation payExpense($id: Int!, $fee: Int!) { payExpense(id: $id, fee: $fee) { id } }`;
+  const query = 'mutation payExpense($id: Int!, $fee: Int!) { payExpense(id: $id, fee: $fee) { id } }';
   const expense = this.getValue(`expense-${description}`);
   const parameters = { id: expense.id, fee: utils.readFee(expense.totalAmount, fee) };
   const result = await utils.graphqlQuery(query, parameters, hostAdmin);

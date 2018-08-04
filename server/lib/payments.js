@@ -117,7 +117,7 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
   const collectiveLedger = (transaction.type === 'CREDIT') ? transaction :
         await models.Transaction.find({ where: {
           TransactionGroup: transaction.TransactionGroup,
-          id: { [Op.ne]: transaction.id }
+          id: { [Op.ne]: transaction.id },
         } });
   const userLedgerRefund = pick(collectiveLedger, [
     'FromCollectiveId', 'CollectiveId', 'HostCollectiveId', 'PaymentMethodId',
@@ -160,7 +160,7 @@ export async function associateTransactionRefundId(transaction, refund) {
     where: { [Op.or]: [
       { TransactionGroup: transaction.TransactionGroup },
       { TransactionGroup: refund.TransactionGroup },
-    ] }
+    ] },
   });
 
   tr1.RefundTransactionId = tr4.id; await tr1.save(); // User Ledger
@@ -183,10 +183,10 @@ export async function associateTransactionRefundId(transaction, refund) {
 export const executeOrder = (user, order, options) => {
 
   if (! (order instanceof models.Order)) {
-    return Promise.reject(new Error("order should be an instance of the Order model"));
+    return Promise.reject(new Error('order should be an instance of the Order model'));
   }
   if (!order) {
-    return Promise.reject(new Error("No order provided"));
+    return Promise.reject(new Error('No order provided'));
   }
   if (order.processedAt) {
     return Promise.reject(new Error(`This order (#${order.id}) has already been processed at ${order.processedAt}`));
@@ -195,7 +195,7 @@ export const executeOrder = (user, order, options) => {
   const payment = {
     amount: order.totalAmount,
     interval: order.interval,
-    currency: order.currency
+    currency: order.currency,
   };
 
   try {
@@ -246,7 +246,7 @@ export const executeOrder = (user, order, options) => {
             FromCollectiveId: order.matchingFund.CollectiveId,
             fromCollective: matchingFundCollective,
             description: `Matching ${order.matchingFund.matching}x ${order.fromCollective.name}'s donation`,
-            createdByUser: await matchingFundCollective.getUser()
+            createdByUser: await matchingFundCollective.getUser(),
           };
 
           // processOrder expects an update function to update `order.processedAt`
@@ -305,10 +305,10 @@ const sendOrderConfirmedEmail = async (order) => {
         user: user.info,
         recipient: { name: fromCollective.name },
         collective: collective.info,
-        tier: tier.info
+        tier: tier.info,
       },
       {
-        from: `${collective.name} <hello@${collective.slug}.opencollective.com>`
+        from: `${collective.name} <hello@${collective.slug}.opencollective.com>`,
       });
   } else {
     // normal order
@@ -326,7 +326,7 @@ const sendOrderConfirmedEmail = async (order) => {
       recommendedCollectives,
       monthlyInterval: (interval === 'month'),
       firstPayment: true,
-      subscriptionsLink: interval && user.generateLoginLink(`/${fromCollective.slug}/subscriptions`)
+      subscriptionsLink: interval && user.generateLoginLink(`/${fromCollective.slug}/subscriptions`),
     };
 
     let matchingFundCollective;
@@ -335,7 +335,7 @@ const sendOrderConfirmedEmail = async (order) => {
       data.matchingFund = {
         collective: pick(matchingFundCollective, ['slug', 'name', 'image']),
         matching: order.matchingFund.matching,
-        amount: order.matchingFund.matching * order.totalAmount
+        amount: order.matchingFund.matching * order.totalAmount,
       };
     }
 
@@ -355,7 +355,7 @@ const sendSupportEmailForManualIntervention = (order) => {
     'support@opencollective.com',
     'Gift card order needs manual attention',
     null,
-    { text: `Order Id: ${order.id} by userId: ${user.id}`});
+    { text: `Order Id: ${order.id} by userId: ${user.id}` });
 };
 
 // Assumes one-time payments,
@@ -370,8 +370,8 @@ const sendOrderProcessingEmail = (order) => {
         user: user.info,
         collective: collective.info,
         fromCollective: fromCollective.minimal,
-        subscriptionsLink: user.generateLoginLink(`/${fromCollective.slug}/subscriptions`)
+        subscriptionsLink: user.generateLoginLink(`/${fromCollective.slug}/subscriptions`),
       }, {
-        from: `${collective.name} <hello@${collective.slug}.opencollective.com>`
+        from: `${collective.name} <hello@${collective.slug}.opencollective.com>`,
       });
 };

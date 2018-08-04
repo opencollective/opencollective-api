@@ -14,7 +14,7 @@ import roles from '../../constants/roles';
 import status from '../../constants/order_status';
 import * as errors from '../errors';
 import activities from '../../constants/activities';
-import { getNextChargeAndPeriodStartDates, getChargeRetryCount} from '../../lib/subscriptions';
+import { getNextChargeAndPeriodStartDates, getChargeRetryCount } from '../../lib/subscriptions';
 
 const debugOrder = debug('order');
 
@@ -22,15 +22,15 @@ export function createOrder(order, loaders, remoteUser) {
   let tier, collective, fromCollective, paymentRequired, interval, orderCreated, user;
 
   if (order.paymentMethod && order.paymentMethod.service === 'stripe' && order.paymentMethod.uuid && !remoteUser) {
-    throw new Error("You need to be logged in to be able to use a payment method on file");
+    throw new Error('You need to be logged in to be able to use a payment method on file');
   }
 
   if (!order.collective || !order.collective.id) {
-    throw new Error("No collective id provided");
+    throw new Error('No collective id provided');
   }
 
   if (order.platformFeePercent && !remoteUser.isRoot()) {
-    throw new Error(`Only a root can change the platformFeePercent`);
+    throw new Error('Only a root can change the platformFeePercent');
   }
 
   // Check the existence of the recipient Collective
@@ -42,17 +42,17 @@ export function createOrder(order, loaders, remoteUser) {
     order.collective = collective = c;
 
     if (!collective.isActive) {
-      throw new Error(`This collective is not active`);
+      throw new Error('This collective is not active');
     }
 
     if (order.fromCollective && order.fromCollective.id === collective.id) {
-      throw new Error(`Well tried. But no you can't order yourself something ;-)`);
+      throw new Error('Well tried. But no you can\'t order yourself something ;-)');
     }
 
     if (order.hostFeePercent) {
       return collective.getHostCollectiveId().then(HostCollectiveId => {
         if (!remoteUser.isAdmin(HostCollectiveId)) {
-          throw new Error(`Only an admin of the host can change the hostFeePercent`);
+          throw new Error('Only an admin of the host can change the hostFeePercent');
         }
       });
     }
@@ -64,7 +64,7 @@ export function createOrder(order, loaders, remoteUser) {
       .then(tier => {
         if (!tier) throw new Error(`No tier found with tier id: ${order.tier.id} for collective slug ${collective.slug}`);
         return tier;
-      })
+      });
   })
   .then(t => {
     tier = t; // we may not have a tier
@@ -81,7 +81,7 @@ export function createOrder(order, loaders, remoteUser) {
   .then(() => {
     if (paymentRequired) {
       if (!order.paymentMethod || !(order.paymentMethod.uuid || order.paymentMethod.token)) {
-        throw new Error(`This order requires a payment method`);
+        throw new Error('This order requires a payment method');
       }
     }
   })
@@ -94,7 +94,7 @@ export function createOrder(order, loaders, remoteUser) {
     }
     return tier.checkAvailableQuantity(order.quantity)
     .then(enoughQuantityAvailable => enoughQuantityAvailable ?
-      Promise.resolve() : Promise.reject(new Error(`No more tickets left for ${tier.name}`)))
+      Promise.resolve() : Promise.reject(new Error(`No more tickets left for ${tier.name}`)));
     })
 
     // find or create user, check permissions to set `fromCollective`
@@ -119,7 +119,7 @@ export function createOrder(order, loaders, remoteUser) {
 
       // If a `fromCollective` is provided, we check its existence and if the user can create an order on its behalf
       if (order.fromCollective.id) {
-        if (!remoteUser) throw new Error(`You need to be logged in to create an order for an existing open collective`);
+        if (!remoteUser) throw new Error('You need to be logged in to create an order for an existing open collective');
         return loaders.collective.findById.load(order.fromCollective.id)
         .then(c => {
           if (!c) throw new Error(`From collective id ${order.fromCollective.id} not found`);
@@ -178,7 +178,7 @@ export function createOrder(order, loaders, remoteUser) {
       if (interval) {
         defaultDescription = `${capitalize(interval)}ly donation to ${collective.name}${tierNameInfo}`;
       } else {
-        defaultDescription = `Donation to ${collective.name}${tierNameInfo}`
+        defaultDescription = `Donation to ${collective.name}${tierNameInfo}`;
       }
 
       const orderData = {
@@ -194,14 +194,14 @@ export function createOrder(order, loaders, remoteUser) {
         publicMessage: order.publicMessage,
         privateMessage: order.privateMessage,
         processedAt: paymentRequired ? null : new Date,
-        MatchingPaymentMethodId: order.MatchingPaymentMethodId
+        MatchingPaymentMethodId: order.MatchingPaymentMethodId,
       };
 
       if (order.referral && get(order, 'referral.id') !== orderData.FromCollectiveId) {
         orderData.ReferralCollectiveId = order.referral.id;
       }
 
-      return models.Order.create(orderData)
+      return models.Order.create(orderData);
     })
 
     // process payment, if needed
@@ -215,7 +215,7 @@ export function createOrder(order, loaders, remoteUser) {
       if (paymentRequired) {
         return orderCreated
           .setPaymentMethod(order.paymentMethod)
-          .then(() => libPayments.executeOrder(remoteUser || user, orderCreated, pick(order, ['hostFeePercent', 'platformFeePercent']))) // also adds the user as a BACKER of collective
+          .then(() => libPayments.executeOrder(remoteUser || user, orderCreated, pick(order, ['hostFeePercent', 'platformFeePercent']))); // also adds the user as a BACKER of collective
       } else {
         // Free ticket, add user as an ATTENDEE
         const email = (remoteUser) ? remoteUser.email : order.user.email;
@@ -224,7 +224,7 @@ export function createOrder(order, loaders, remoteUser) {
           recipient: { name: fromCollective.name },
           collective: collective.info,
           order: orderCreated.info,
-          tier: tier && tier.info
+          tier: tier && tier.info,
         }));
       }
     })
@@ -238,7 +238,8 @@ export function createOrder(order, loaders, remoteUser) {
       return order;
     })
     .catch(e => {
-      debugOrder("createOrder mutation error: ", e);
+      debugOrder('createOrder mutation error: ', e);
+
       if (orderCreated && !orderCreated.processedAt) {
         // TODO: Order should be updated with data JSON field to store the error to review later
         orderCreated.update({ status: status.ERROR });
@@ -250,39 +251,39 @@ export function createOrder(order, loaders, remoteUser) {
 export function cancelSubscription(remoteUser, orderId) {
 
   if (!remoteUser) {
-    throw new errors.Unauthorized({ message: "You need to be logged in to cancel a subscription" });
+    throw new errors.Unauthorized({ message: 'You need to be logged in to cancel a subscription' });
   }
 
   let order = null;
   const query = {
     where: {
-      id: orderId
+      id: orderId,
     },
     include: [
-      { model: models.Subscription},
-      { model: models.Collective, as: 'collective'},
-      { model: models.Collective, as: 'fromCollective'}
-    ]
+      { model: models.Subscription },
+      { model: models.Collective, as: 'collective' },
+      { model: models.Collective, as: 'fromCollective' },
+    ],
   };
   return models.Order.findOne(query)
   .tap(o => order = o)
   .tap(order => {
     if (!order) {
-      throw new Error("Subscription not found")
+      throw new Error('Subscription not found');
     }
-    return Promise.resolve()
+    return Promise.resolve();
   })
   .tap(order => {
     if (!remoteUser.isAdmin(order.FromCollectiveId)) {
       throw new errors.Unauthorized({
-        message: "You don't have permission to cancel this subscription"
-      })
+        message: "You don't have permission to cancel this subscription",
+      });
     }
     return Promise.resolve();
   })
   .tap(order => {
     if (!order.Subscription.isActive) {
-      throw new Error("Subscription already canceled")
+      throw new Error('Subscription already canceled');
     }
     return Promise.resolve();
   })
@@ -300,15 +301,15 @@ export function cancelSubscription(remoteUser, orderId) {
           subscription: order.Subscription,
           collective: order.collective.minimal,
           user: remoteUser.minimal,
-          fromCollective: order.fromCollective.minimal
-        }
+          fromCollective: order.fromCollective.minimal,
+        },
       }))
-  .then(() => models.Order.findOne(query)) // need to fetch it second time to get updated data.
+  .then(() => models.Order.findOne(query)); // need to fetch it second time to get updated data.
 }
 
 export async function updateSubscription(remoteUser, args) {
   if (!remoteUser) {
-    throw new errors.Unauthorized({ message: "You need to be logged in to update a subscription"});
+    throw new errors.Unauthorized({ message: 'You need to be logged in to update a subscription' });
   }
 
   const { id, paymentMethod, amount } = args;
@@ -318,20 +319,20 @@ export async function updateSubscription(remoteUser, args) {
       id,
     },
     include: [
-      { model: models.Subscription},
-      { model: models.PaymentMethod, as: 'paymentMethod'}
-    ]
+      { model: models.Subscription },
+      { model: models.PaymentMethod, as: 'paymentMethod' },
+    ],
   };
 
   let order = await models.Order.findOne(query);
 
   if (!order) {
-    throw new Error("Subscription not found")
+    throw new Error('Subscription not found');
   }
   if (!remoteUser.isAdmin(order.FromCollectiveId)) {
     throw new errors.Unauthorized({
-      message: "You don't have permission to update this subscription"
-    })
+      message: "You don't have permission to update this subscription",
+    });
   }
   if (!order.Subscription.isActive) {
     throw new Error('Subscription must be active to be updated');
@@ -345,7 +346,7 @@ export async function updateSubscription(remoteUser, args) {
 
       // means it's an existing paymentMethod
       if (paymentMethod.uuid && paymentMethod.uuid.length === 36) {
-        newPm = await models.PaymentMethod.findOne({ where: { uuid: paymentMethod.uuid }});
+        newPm = await models.PaymentMethod.findOne({ where: { uuid: paymentMethod.uuid } });
         if (!newPm){
           throw new Error('Payment method not found with this uuid', paymentMethod.uuid);
         }
@@ -363,7 +364,7 @@ export async function updateSubscription(remoteUser, args) {
         await order.Subscription.update({ nextChargeDate: updatedDates.nextChargeDate, chargeRetryCount });
       }
 
-      order = await order.update({ PaymentMethodId: newPm.id});
+      order = await order.update({ PaymentMethodId: newPm.id });
   }
 
   if (amount !== undefined) {
@@ -417,7 +418,7 @@ export async function refundTransaction(_, args, req) {
   //   b. Host Collective receiving the donation -- Not implemented yet
   //   c. Site Admin
   if (!req.remoteUser.isRoot()) {
-    throw new errors.Unauthorized({ message: "Not a site admin" });
+    throw new errors.Unauthorized({ message: 'Not a site admin' });
   }
 
   // 2. Refund via payment method
@@ -453,7 +454,7 @@ export async function addFundsToOrg(args, remoteUser) {
     hostCollective,
   ] = await Promise.all([
     models.Collective.findById(args.CollectiveId),
-    models.Collective.findById(args.HostCollectiveId)
+    models.Collective.findById(args.HostCollectiveId),
   ]);
   let paymentMethod = await models.PaymentMethod.findOne({ where: {
     CollectiveId: args.CollectiveId,

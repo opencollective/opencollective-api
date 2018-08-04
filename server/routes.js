@@ -58,11 +58,11 @@ export default (app) => {
         debug('params')(query);
         delete body.query;
       }
-      debug('params')("req.query", req.query);
-      debug('params')("req.body", JSON.stringify(body, null, '  '));
-      debug('params')("req.params", req.params);
-      debug('headers')("req.headers", req.headers);
-      debug('curl')("curl", curlify(req, req.body))
+      debug('params')('req.query', req.query);
+      debug('params')('req.body', JSON.stringify(body, null, '  '));
+      debug('params')('req.params', req.params);
+      debug('headers')('req.headers', req.headers);
+      debug('curl')('curl', curlify(req, req.body));
       next();
     });
   }
@@ -100,7 +100,7 @@ export default (app) => {
     formatError,
     schema: schema,
     pretty: process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'staging',
-    graphiql: process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'staging'
+    graphiql: process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'staging',
   }));
 
   /**
@@ -177,7 +177,7 @@ export default (app) => {
    * Transactions (financial).
    */
   app.get('/transactions/:transactionuuid', transactions.getOne); // Get the transaction details
-  app.get('/groups/:collectiveid/transactions', mw.paginate(), mw.sorting({key: 'createdAt', dir: 'DESC'}), collectives.getTransactions); // Get a group's transactions.
+  app.get('/groups/:collectiveid/transactions', mw.paginate(), mw.sorting({ key: 'createdAt', dir: 'DESC' }), collectives.getTransactions); // Get a group's transactions.
 
   /**
    * Notifications.

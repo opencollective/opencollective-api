@@ -10,7 +10,7 @@ import creditcard from './creditcard';
 import stripeLib from 'stripe';
 import debugLib from 'debug';
 
-const debug = debugLib("stripe");
+const debug = debugLib('stripe');
 const AUTHORIZE_URI = 'https://connect.stripe.com/oauth/authorize';
 const TOKEN_URI = 'https://connect.stripe.com/oauth/token';
 
@@ -21,7 +21,7 @@ const getToken = code => () => axios
     grant_type: 'authorization_code',
     client_id: config.stripe.clientId,
     client_secret: config.stripe.secret,
-    code
+    code,
   })
   .then(res => res.data);
 
@@ -32,8 +32,8 @@ const getAccountInformation = (data) => {
       data.account = account;
       return resolve(data);
     });
-  })
-}
+  });
+};
 
 export default {
 
@@ -52,9 +52,9 @@ export default {
       // That's why we encode the state in a JWT
       const state = jwt.sign({
         CollectiveId,
-        CreatedByUserId: remoteUser.id
+        CreatedByUserId: remoteUser.id,
       }, config.keys.opencollective.secret, {
-        expiresIn: '45m' // People may need some time to set up their Stripe Account if they don't have one already
+        expiresIn: '45m', // People may need some time to set up their Stripe Account if they don't have one already
       });
 
       const params = qs.stringify({
@@ -62,7 +62,7 @@ export default {
         scope: 'read_write',
         client_id: config.stripe.clientId,
         redirect_uri: config.stripe.redirectUri,
-        state
+        state,
       });
       return Promise.resolve(`${AUTHORIZE_URI}?${params}`);
     },
@@ -70,7 +70,7 @@ export default {
     // callback called by Stripe after the user approves the connection
     callback: (req, res, next) => {
       let state, collective;
-      debug("req.query", JSON.stringify(req.query, null, '  '));
+      debug('req.query', JSON.stringify(req.query, null, '  '));
       try {
         state = jwt.verify(req.query.state, config.keys.opencollective.secret);
       } catch (e) {
@@ -94,8 +94,8 @@ export default {
           publishableKey: data.stripe_publishable_key,
           tokenType: data.token_type,
           scope: data.scope,
-          account: data.account
-        }
+          account: data.account,
+        },
       });
 
       /**
@@ -105,7 +105,7 @@ export default {
        */
       const updateHost = (connectedAccount) => {
         if (!connectedAccount) {
-          console.error(">>> updateHost: error: no connectedAccount");
+          console.error('>>> updateHost: error: no connectedAccount');
         }
         const { account } = connectedAccount.data;
         if (!collective.address && account.legal_entity) {
@@ -120,13 +120,13 @@ export default {
             addressLines.push(`${address.postal_code} ${address.city}`);
 
           addressLines.push(address.country);
-          collective.address = addressLines.join(`\n`);
+          collective.address = addressLines.join('\n');
         }
         collective.currency = account.default_currency.toUpperCase();
         collective.timezone = collective.timezone || account.timezone;
         collective.image = collective.image || account.business_logo;
         return collective.save();
-      }
+      };
 
       return models.Collective.findById(CollectiveId)
         .then(c => {
@@ -138,7 +138,7 @@ export default {
               CreatedByUserId,
               CollectiveId: collective.id,
               MemberCollectiveId: collective.id,
-              role: 'HOST'
+              role: 'HOST',
             });
           }
         })
@@ -148,7 +148,7 @@ export default {
         .then(updateHost)
         .then(() => res.redirect(`${config.host.website}/${collective.slug}?message=StripeAccountConnected`))
         .catch(next);
-    }
+    },
   },
 
   processOrder: (order) => {
@@ -188,5 +188,5 @@ export default {
           throw new errors.BadRequest('Wrong event type received');
         }
       });
-  }
+  },
 };

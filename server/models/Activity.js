@@ -9,16 +9,16 @@ export default function(Sequelize, DataTypes) {
 
     createdAt: {
       type: DataTypes.DATE,
-      defaultValue: Sequelize.NOW
-    }
+      defaultValue: Sequelize.NOW,
+    },
   }, {
     updatedAt: false,
 
     hooks: {
       afterCreate(activity) {
         notify(Sequelize, activity); // intentionally no return statement, needs to be async
-      }
-    }
+      },
+    },
   });
 
   return Activity;

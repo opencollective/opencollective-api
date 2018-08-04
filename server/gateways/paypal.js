@@ -14,7 +14,7 @@ import config from 'config';
 const getConfig = (connectedAccount) => ({
   mode: config.paypal.rest.mode,
   client_id: connectedAccount.clientId,
-  client_secret: connectedAccount.token
+  client_secret: connectedAccount.token,
 });
 
 const getCallbackUrl = (collective, transaction) => `${config.host.api}/collectives/${collective.id}/transactions/${transaction.id}/callback`;
@@ -33,20 +33,20 @@ const createBillingPlan = (planDescription, collective, transaction, subscriptio
     name: `Plan for ${planDescription}`,
     merchant_preferences: {
       cancel_url: callbackUrl,
-      return_url: callbackUrl
+      return_url: callbackUrl,
     },
     payment_definitions: [{
       amount: {
         currency,
-        value: amount
+        value: amount,
       },
       cycles: '0',
       frequency,
       frequency_interval: '1',
-      name: `Regular payment`,
-      type: 'REGULAR' // or TRIAL
+      name: 'Regular payment',
+      type: 'REGULAR', // or TRIAL
     }],
-    type: 'INFINITE' // or FIXED
+    type: 'INFINITE', // or FIXED
   };
 
   paypal.billingPlan.create(billingPlan, paypalConfig, cb);
@@ -63,15 +63,15 @@ const createBillingAgreement = (agreementDescription, planId, paypalConfig, cb) 
     description: agreementDescription,
     start_date: isoDate,
     plan: {
-      id: planId
+      id: planId,
     },
     payer: {
-      payment_method: 'paypal'
-    }
+      payment_method: 'paypal',
+    },
   };
 
   paypal.billingAgreement.create(billingAgreement, paypalConfig, cb);
-}
+};
 
 /**
  * Create a subscription payment and return the links to the paypal approval
@@ -107,15 +107,15 @@ const createSubscription = (connectedAccount, collective, transaction, subscript
         paypalConfig,
         cb
       );
-    }]
+    }],
 
   }, (err, results) => {
     if (err) return callback(err);
 
     return callback(null, {
       billingPlan: results.createBillingPlan,
-      billingAgreement: results.createBillingAgreement
-    })
+      billingAgreement: results.createBillingAgreement,
+    });
   });
 };
 
@@ -131,19 +131,19 @@ const createPayment = (connectedAccount, collective, transaction, callback) => {
   const payment = {
     intent: 'sale',
     payer: {
-      payment_method: 'paypal'
+      payment_method: 'paypal',
     },
     redirect_urls: {
         return_url: callbackUrl,
-        cancel_url: callbackUrl
+        cancel_url: callbackUrl,
     },
     transactions: [{
       amount: {
         currency,
-        total: amount
+        total: amount,
       },
-      description: `Donation to ${collective.name} (${currency} ${amount})`
-    }]
+      description: `Donation to ${collective.name} (${currency} ${amount})`,
+    }],
   };
 
   paypal.payment.create(payment, paypalConfig, callback);
@@ -164,6 +164,6 @@ const execute = (connectedAccount, token, paymentId, PayerID, cb) => {
     paypal.billingAgreement.execute(token, {}, paypalConfig, cb);
   }
 
-}
+};
 
 export { createSubscription, createPayment, execute };

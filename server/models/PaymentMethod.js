@@ -27,33 +27,33 @@ export default function(Sequelize, DataTypes) {
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
-      autoIncrement: true
+      autoIncrement: true,
     },
 
     uuid: {
       type: DataTypes.UUID,
       defaultValue: DataTypes.UUIDV4,
-      unique: true
+      unique: true,
     },
 
     CreatedByUserId: {
       type: DataTypes.INTEGER,
       references: {
         model: 'Users',
-        key: 'id'
+        key: 'id',
       },
       onDelete: 'SET NULL',
-      onUpdate: 'CASCADE'
+      onUpdate: 'CASCADE',
     },
 
     CollectiveId: {
       type: DataTypes.INTEGER,
       references: {
         model: 'Collectives',
-        key: 'id'
+        key: 'id',
       },
       onDelete: 'SET NULL',
-      onUpdate: 'CASCADE'
+      onUpdate: 'CASCADE',
     },
 
     name: DataTypes.STRING, // custom human readable identifier for the payment method
@@ -64,7 +64,7 @@ export default function(Sequelize, DataTypes) {
 
     // Monthly limit in cents for each member of this.CollectiveId (in the currency of that collective)
     monthlyLimitPerMember: {
-      type: DataTypes.INTEGER
+      type: DataTypes.INTEGER,
     },
 
     currency: CustomDataTypes(DataTypes).currency,
@@ -75,58 +75,58 @@ export default function(Sequelize, DataTypes) {
       validate: {
         isIn: {
           args: [payoutMethods],
-          msg: `Must be in ${payoutMethods}`
-        }
-      }
+          msg: `Must be in ${payoutMethods}`,
+        },
+      },
     },
 
     type: {
-      type: DataTypes.STRING
+      type: DataTypes.STRING,
     },
 
     data: DataTypes.JSON,
 
     createdAt: {
       type: DataTypes.DATE,
-      defaultValue: Sequelize.NOW
+      defaultValue: Sequelize.NOW,
     },
 
     updatedAt: {
       type: DataTypes.DATE,
-      defaultValue: Sequelize.NOW
+      defaultValue: Sequelize.NOW,
     },
 
     confirmedAt: {
-      type: DataTypes.DATE
+      type: DataTypes.DATE,
     },
 
     archivedAt: {
-      type: DataTypes.DATE
+      type: DataTypes.DATE,
     },
 
     expiryDate: {
-      type: DataTypes.DATE
+      type: DataTypes.DATE,
     },
 
     initialBalance: {
       type: DataTypes.INTEGER,
-      description: "Initial balance on this payment method. Current balance should be a computed value based on transactions."
+      description: 'Initial balance on this payment method. Current balance should be a computed value based on transactions.',
     },
 
     matching: {
       type: DataTypes.INTEGER,
-      description: "if not null, this payment method can only be used to match x times the donation amount"
+      description: 'if not null, this payment method can only be used to match x times the donation amount',
     },
 
     limitedToTags: {
       type: DataTypes.ARRAY(DataTypes.STRING),
-      description: "if not null, this payment method can only be used for collectives that have one the tags"
+      description: 'if not null, this payment method can only be used for collectives that have one the tags',
     },
 
     limitedToCollectiveIds: {
       type: DataTypes.ARRAY(DataTypes.INTEGER),
-      description: "if not null, this payment method can only be used for collectives listed by their id"
-    }
+      description: 'if not null, this payment method can only be used for collectives listed by their id',
+    },
 
   }, {
     paranoid: true,
@@ -146,7 +146,7 @@ export default function(Sequelize, DataTypes) {
             }
           }
         }
-      }
+      },
     },
 
     getterMethods: {
@@ -162,8 +162,8 @@ export default function(Sequelize, DataTypes) {
           updatedAt: this.updatedAt,
           confirmedAt: this.confirmedAt,
           name: this.name,
-          data: this.data
-        }
+          data: this.data,
+        };
       },
 
       features() {
@@ -179,9 +179,9 @@ export default function(Sequelize, DataTypes) {
           createdAt: this.createdAt,
           updatedAt: this.updatedAt,
           confirmedAt: this.confirmedAt,
-          expiryDate: this.expiryDate
+          expiryDate: this.expiryDate,
         };
-      }
+      },
     },
   });
 
@@ -222,15 +222,15 @@ export default function(Sequelize, DataTypes) {
 
     const balance = await this.getBalanceForUser(user);
     if (totalAmountInPaymentMethodCurrency * this.matching > balance.amount) {
-      throw new Error(`There is not enough funds left on this ${name} to match your order (balance: ${formatCurrency(balance.amount, this.currency)}`)
+      throw new Error(`There is not enough funds left on this ${name} to match your order (balance: ${formatCurrency(balance.amount, this.currency)}`);
     }
 
     if (balance && totalAmountInPaymentMethodCurrency > balance.amount) {
-      throw new Error(`You don't have enough funds available (${formatCurrency(balance.amount, this.currency)} left) to execute this order (${orderAmountInfo})`)
+      throw new Error(`You don't have enough funds available (${formatCurrency(balance.amount, this.currency)} left) to execute this order (${orderAmountInfo})`);
     }
 
     return true;
-  }
+  };
 
   /**
    * getBalanceForUser
@@ -241,7 +241,7 @@ export default function(Sequelize, DataTypes) {
    */
   PaymentMethod.prototype.getBalanceForUser = async function(user) {
     if (user && !(user instanceof models.User)) {
-      throw new Error(`Internal error at PaymentMethod.getBalanceForUser(user): user is not an instance of User`);
+      throw new Error('Internal error at PaymentMethod.getBalanceForUser(user): user is not an instance of User');
     }
 
     const paymentProvider = libpayments.findPaymentMethodProvider(this);
@@ -255,7 +255,7 @@ export default function(Sequelize, DataTypes) {
     }
 
     if (this.monthlyLimitPerMember && !user) {
-      console.error(">>> this payment method has a monthly limit. Please provide a user to be able to compute their balance.");
+      console.error('>>> this payment method has a monthly limit. Please provide a user to be able to compute their balance.');
       return { amount: 0, currency: this.currency };
     }
 
@@ -274,7 +274,7 @@ export default function(Sequelize, DataTypes) {
     let limit = Infinity; // no no, no no no no, no no no no limit!
     const where = {
       PaymentMethodId: this.id,
-      type: TransactionTypes.DEBIT
+      type: TransactionTypes.DEBIT,
     };
 
     if (this.monthlyLimitPerMember) {
@@ -298,7 +298,7 @@ export default function(Sequelize, DataTypes) {
    * Class Methods
    */
   PaymentMethod.createFromStripeSourceToken = (PaymentMethodData) => {
-    debug("createFromStripeSourceToken", PaymentMethodData);
+    debug('createFromStripeSourceToken', PaymentMethodData);
     return stripe.createCustomer(null, PaymentMethodData.token)
       .then(customer => {
         PaymentMethodData.customerId = customer.id;
@@ -319,23 +319,23 @@ export default function(Sequelize, DataTypes) {
       // If no UUID provided, we create a new paymentMethod
       const paymentMethodData = {
         ...paymentMethod,
-        service: paymentMethod.service || "stripe",
+        service: paymentMethod.service || 'stripe',
         CreatedByUserId: user.id,
-        CollectiveId: paymentMethod.CollectiveId // might be null if the user decided not to save the credit card on file
+        CollectiveId: paymentMethod.CollectiveId, // might be null if the user decided not to save the credit card on file
       };
-      debug("PaymentMethod.create", paymentMethodData);
+      debug('PaymentMethod.create', paymentMethodData);
       return models.PaymentMethod.create(paymentMethodData);
     } else if (paymentMethod.uuid && libpayments.isProvider('opencollective.giftcard', paymentMethod)) {
       return PaymentMethod.findOne({
         where: {
           uuid: paymentMethod.uuid,
           token: paymentMethod.token.toUpperCase(),
-          archivedAt: null
-        }
+          archivedAt: null,
+        },
       })
       .then(pm => {
         if (!pm) {
-          throw new Error(`Your gift card code doesn't exist`);
+          throw new Error('Your gift card code doesn\'t exist');
         } else {
           return pm;
         }
@@ -345,12 +345,12 @@ export default function(Sequelize, DataTypes) {
     } else {
       // if the user is trying to reuse an existing payment method,
       // we make sure it belongs to the logged in user or to a collective that the user is an admin of
-      if (!user) throw new Error("You need to be logged in to be able to use a payment method on file");
+      if (!user) throw new Error('You need to be logged in to be able to use a payment method on file');
       return PaymentMethod
         .findOne({ where: { uuid: paymentMethod.uuid } })
         .then(pm => {
           if (!pm) {
-            throw new Error(`You don't have a payment method with that uuid`);
+            throw new Error('You don\'t have a payment method with that uuid');
           }
           return models.Collective.findById(pm.CollectiveId)
             .then(PaymentMethodCollective => {
@@ -366,43 +366,43 @@ export default function(Sequelize, DataTypes) {
               }
               return pm;
             });
-        })
+        });
     }
-  }
+  };
 
   PaymentMethod.getMatchingFund = (shortUUID, options = {}) => {
     const where = {};
     if (options.ForCollectiveId) {
-      where.limitedToCollectiveIds = Sequelize.or({ limitedToCollectiveIds: {[Op.eq]: null } }, { limitedToCollectiveIds: options.ForCollectiveId });
+      where.limitedToCollectiveIds = Sequelize.or({ limitedToCollectiveIds: { [Op.eq]: null } }, { limitedToCollectiveIds: options.ForCollectiveId });
     }
     return PaymentMethod.findOne({
       where: Sequelize.and(
-        Sequelize.where(Sequelize.cast(Sequelize.col('uuid'), 'text'), {[Op.like]: `${shortUUID}%` }),
+        Sequelize.where(Sequelize.cast(Sequelize.col('uuid'), 'text'), { [Op.like]: `${shortUUID}%` }),
         { matching: { [Op.ne]: null } }
-      )
+      ),
     }).then(async (pm) => {
       if (pm.expiryDate) {
         if (new Date(pm.expiryDate) < new Date) {
-          throw new Error("This matching fund is expired");
+          throw new Error('This matching fund is expired');
         }
       }
       if (pm.limitedToCollectiveIds) {
         if (!options.ForCollectiveId || pm.limitedToCollectiveIds.indexOf(options.ForCollectiveId) === -1) {
-          throw new Error("This matching fund is not available for this collective");
+          throw new Error('This matching fund is not available for this collective');
         }
       }
       if (pm.limitedToTags) {
         if (!options.ForCollectiveId) {
-          throw new Error("Please provide a ForCollectiveId");
+          throw new Error('Please provide a ForCollectiveId');
         }
         const collective = await models.Collective.findById(options.ForCollectiveId);
         if (intersection(collective.tags, pm.limitedToTags).length === 0) {
-          throw new Error("This matching fund is not available to collectives in this category")
+          throw new Error('This matching fund is not available to collectives in this category');
         }
       }
       return pm;
     });
-  }
+  };
 
   return PaymentMethod;
 }

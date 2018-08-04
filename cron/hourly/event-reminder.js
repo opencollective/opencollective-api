@@ -12,7 +12,7 @@ Date.prototype.toString = function() {
 
   return `${[this.getFullYear(),
           (mm>9 ? '' : '0') + mm,
-          (dd>9 ? '' : '0') + dd
+          (dd>9 ? '' : '0') + dd,
          ].join('-')} ${hours > 9 ? hours : `${hours}0`}:${minutes}`;
 };
 
@@ -30,26 +30,26 @@ if (process.env.DEBUG) {
   tomorrowEndsAt.setFullYear(tomorrowEndsAt.getFullYear()+1);
   nextWeekEndsAt.setFullYear(nextWeekEndsAt.getFullYear()+1);
 }
-console.log(">>> Fetching all events that start within time range", tomorrowStartsAt.toString(), tomorrowEndsAt.toString());
+console.log('>>> Fetching all events that start within time range', tomorrowStartsAt.toString(), tomorrowEndsAt.toString());
 
 models.Collective.findAll({ where: {
-  type: "EVENT",
-  startsAt: { [Op.gte]: tomorrowStartsAt, [Op.lt]: tomorrowEndsAt }
-}})
+  type: 'EVENT',
+  startsAt: { [Op.gte]: tomorrowStartsAt, [Op.lt]: tomorrowEndsAt },
+} })
 .tap(events => {
   console.log(`>>> Processing ${events.length} events`);
 })
-.map(event => processEvent(event, "event.reminder.1d"))
+.map(event => processEvent(event, 'event.reminder.1d'))
 .then(() => {
-  console.log(">>> Fetching all events that start within time range", nextWeekStartsAt.toString(), nextWeekEndsAt.toString());
+  console.log('>>> Fetching all events that start within time range', nextWeekStartsAt.toString(), nextWeekEndsAt.toString());
   return models.Collective.findAll({
     where: {
-      type: "EVENT",
-      startsAt: { [Op.gte]: nextWeekStartsAt, [Op.lt]: nextWeekEndsAt }
-    }
-  })
+      type: 'EVENT',
+      startsAt: { [Op.gte]: nextWeekStartsAt, [Op.lt]: nextWeekEndsAt },
+    },
+  });
 })
-.map(event => processEvent(event, "event.reminder.7d"))
+.map(event => processEvent(event, 'event.reminder.7d'))
 .then(() => {
   console.log(`${totalEvents} events processed. All done.`);
   process.exit(0);
@@ -58,10 +58,10 @@ models.Collective.findAll({ where: {
 function processEvent(event, template) {
   totalEvents++;
 
-  console.log(">>> processing", event.slug);
+  console.log('>>> processing', event.slug);
   return models.Order.findAll({
     where: { CollectiveId: event.id },
-    include: [ { model: models.Collective, as: 'fromCollective' } ]
+    include: [ { model: models.Collective, as: 'fromCollective' } ],
   })
   .tap(orders => {
     console.log(`Processing ${orders.length} orders`);
@@ -74,10 +74,10 @@ function processEvent(event, template) {
     const data = {
       collective: { ... event.info, path: event.path },
       recipient: { name: fromCollective.name },
-      order: order.info
-    }
+      order: order.info,
+    };
     return emailLib.send(template, recipient, data).catch(e => {
-      console.warn("Unable to send email to ", event.slug, recipient, "error:", e);
+      console.warn('Unable to send email to ', event.slug, recipient, 'error:', e);
     });
-  })
+  });
 }

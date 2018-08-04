@@ -1,5 +1,5 @@
 import app from '../server/index';
-import {expect} from 'chai';
+import { expect } from 'chai';
 import request from 'supertest-as-promised';
 import * as utils from '../test/utils';
 import roles from '../server/constants/roles';
@@ -24,7 +24,7 @@ const createTransactions = () => {
     amount: 2000,
     amountInHostCurrency: 2000,
     createdAt: '2016-05-07 19:52:21.203+00',
-    updatedAt: '2016-05-07 19:52:21.203+00'
+    updatedAt: '2016-05-07 19:52:21.203+00',
   },
   {
     CreatedByUserId: users[3].id,
@@ -33,7 +33,7 @@ const createTransactions = () => {
     amount: 10000,
     amountInHostCurrency: 10000,
     createdAt: '2016-05-07 19:52:21.203+00',
-    updatedAt: '2016-05-07 19:52:21.203+00'
+    updatedAt: '2016-05-07 19:52:21.203+00',
   }];
 
   return collective
@@ -58,7 +58,7 @@ describe('members.routes.test.js', () => {
     const promises = [
       collective.addHost(users[0].collective),
       collective.addUserWithRole(users[1], roles.ADMIN),
-      collective.addUserWithRole(users[2], roles.BACKER)
+      collective.addUserWithRole(users[2], roles.BACKER),
     ];
     Promise.all(promises).then(() => done() );
   });
@@ -89,7 +89,7 @@ describe('members.routes.test.js', () => {
         .post(`/groups/${collective.id}/users/${users[1].id}`)
         .send({
           api_key: application.api_key,
-          role: 'nonexistingrole'
+          role: 'nonexistingrole',
         })
         .set('Authorization', `Bearer ${users[0].jwt()}`)
         .expect(400)
@@ -101,7 +101,7 @@ describe('members.routes.test.js', () => {
         .post(`/groups/${collective.id}/users/${users[2].id}`)
         .send({
           api_key: application.api_key,
-          role: 'ADMIN'
+          role: 'ADMIN',
         })
         .set('Authorization', `Bearer ${users[2].jwt()}`)
         .expect(403)
@@ -113,7 +113,7 @@ describe('members.routes.test.js', () => {
         .post(`/groups/${collective.id}/users/${users[1].id}`)
         .send({
           api_key: application.api_key,
-          role: 'nonexistingrole'
+          role: 'nonexistingrole',
         })
         .set('Authorization', `Bearer ${users[2].jwt()}`)
         .expect(403)
@@ -128,14 +128,14 @@ describe('members.routes.test.js', () => {
           error: {
             code: 400,
             type: 'bad_request',
-            message: 'Collective already has a host'
-          }
+            message: 'Collective already has a host',
+          },
         })
         .send({
           api_key: application.api_key,
-          role: roles.HOST
+          role: roles.HOST,
         })
-        .end(done)
+        .end(done);
     });
 
     it('successfully add a user to a collective', (done) => {
@@ -162,7 +162,7 @@ describe('members.routes.test.js', () => {
         .set('Authorization', `Bearer ${users[0].jwt()}`)
         .send({
           api_key: application.api_key,
-          role
+          role,
         })
         .expect(200)
         .end((e, res) => {
@@ -194,19 +194,19 @@ describe('members.routes.test.js', () => {
     beforeEach(createTransactions);
 
     // Create the tiers
-    beforeEach('create backer tier', () => models.Tier.create({...utils.data('tier1'), CollectiveId: collective.id }))
-    beforeEach('create sponsor tier', () => models.Tier.create({...utils.data('tier2'), CollectiveId: collective.id }))
+    beforeEach('create backer tier', () => models.Tier.create({ ...utils.data('tier1'), CollectiveId: collective.id }));
+    beforeEach('create sponsor tier', () => models.Tier.create({ ...utils.data('tier2'), CollectiveId: collective.id }));
 
     // Add users to tiers
     beforeEach('add users to tiers', () => Promise.all([
-      models.Member.update({ TierId: 1 }, { where: { MemberCollectiveId: users[2].CollectiveId, CollectiveId: collective.id }}),
-      models.Member.update({ TierId: 2 }, { where: { MemberCollectiveId: users[3].CollectiveId, CollectiveId: collective.id }})
+      models.Member.update({ TierId: 1 }, { where: { MemberCollectiveId: users[2].CollectiveId, CollectiveId: collective.id } }),
+      models.Member.update({ TierId: 2 }, { where: { MemberCollectiveId: users[3].CollectiveId, CollectiveId: collective.id } }),
     ]));
 
     // Add active and non active subscription
     beforeEach('add active subscription', () => Promise.all([
-      models.Order.create({FromCollectiveId: users[2].CollectiveId, CollectiveId: collective.id, CreatedByUserId: users[2].id, TierId: 1, Subscription: { isActive: true }}, { include: [ { model: models.Subscription } ] }),
-      models.Order.create({FromCollectiveId: users[3].CollectiveId, CollectiveId: collective.id, CreatedByUserId: users[3].id, TierId: 2, Subscription: { isActive: false }}, { include: [ { model: models.Subscription } ] })
+      models.Order.create({ FromCollectiveId: users[2].CollectiveId, CollectiveId: collective.id, CreatedByUserId: users[2].id, TierId: 1, Subscription: { isActive: true } }, { include: [ { model: models.Subscription } ] }),
+      models.Order.create({ FromCollectiveId: users[3].CollectiveId, CollectiveId: collective.id, CreatedByUserId: users[3].id, TierId: 2, Subscription: { isActive: false } }, { include: [ { model: models.Subscription } ] }),
     ]));
 
     it('get the list of backers with their corresponding tier', () =>
@@ -248,19 +248,19 @@ describe('members.routes.test.js', () => {
           const getValue = (rowIndex, colName) => {
             const row = backers[rowIndex].split(',');
             return row[headers.indexOf(colName)];
-          }
+          };
           expect(backers.length).to.equal(2);
           const getColValue = (row, colName) => {
             const res = row.split(',')[headers.indexOf(colName)].trim().replace(/^\"/,'').replace(/\"$/, '');
             return res;
-          }
+          };
           backers.sort((a,b) => {
             return (getColValue(a, 'name').substr(0,1) < getColValue(b, 'name').substr(0,1)) ? -1 : 1;
           });
-          expect(getValue(0, "role")).to.equal('"BACKER"');
-          expect(getValue(0, "tier")).to.equal('"sponsors"');
-          expect(getValue(1, "role")).to.equal('"BACKER"');
-          expect(getValue(1, "tier")).to.equal('"backers"');
+          expect(getValue(0, 'role')).to.equal('"BACKER"');
+          expect(getValue(0, 'tier')).to.equal('"sponsors"');
+          expect(getValue(1, 'role')).to.equal('"BACKER"');
+          expect(getValue(1, 'tier')).to.equal('"backers"');
           expect(headers).to.not.contain('"email"');
         })
         .end(done);
@@ -289,9 +289,9 @@ describe('members.routes.test.js', () => {
           const getValue = (rowIndex, colName) => {
             const row = backers[rowIndex].split(',');
             return row[headers.indexOf(colName)];
-          }
+          };
           expect(headers).to.contain('email');
-          expect(getValue(0,"email")).to.contain('@');
+          expect(getValue(0,'email')).to.contain('@');
         })
         .end(done);
     });

@@ -25,7 +25,7 @@ export default function(Sequelize, DataTypes) {
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
-      autoIncrement: true
+      autoIncrement: true,
     },
 
     slug: {
@@ -36,62 +36,62 @@ export default function(Sequelize, DataTypes) {
         if (slug && slug.toLowerCase) {
           this.setDataValue('slug', slug.toLowerCase().replace(/ /g, '-').replace(/\./g, ''));
         }
-      }
+      },
     },
 
     CollectiveId: {
       type: DataTypes.INTEGER,
       references: {
         model: 'Collectives',
-        key: 'id'
+        key: 'id',
       },
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
-      allowNull: false
+      allowNull: false,
     },
 
     TierId: {
       type: DataTypes.INTEGER,
       references: {
         model: 'Tiers',
-        key: 'id'
+        key: 'id',
       },
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
-      allowNull: true
+      allowNull: true,
     },
 
     FromCollectiveId: {
       type: DataTypes.INTEGER,
       references: {
         model: 'Collectives',
-        key: 'id'
+        key: 'id',
       },
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
-      allowNull: true
+      allowNull: true,
     },
 
     CreatedByUserId: {
       type: DataTypes.INTEGER,
       references: {
         model: 'Users',
-        key: 'id'
+        key: 'id',
       },
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
-      allowNull: true // non authenticated users can create a Update
+      allowNull: true, // non authenticated users can create a Update
     },
 
     LastEditedByUserId: {
       type: DataTypes.INTEGER,
       references: {
         model: 'Users',
-        key: 'id'
+        key: 'id',
       },
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
-      allowNull: true // needs to be true because of old rows
+      allowNull: true, // needs to be true because of old rows
     },
 
     title: DataTypes.STRING,
@@ -100,32 +100,32 @@ export default function(Sequelize, DataTypes) {
       type: DataTypes.TEXT,
       get() {
         return this.getDataValue('markdown') ? markdownConverter.makeHtml(this.getDataValue('markdown')) : this.getDataValue('html');
-      }
+      },
     },
 
     image: DataTypes.STRING,
 
     tags: {
-      type: DataTypes.ARRAY(DataTypes.STRING)
+      type: DataTypes.ARRAY(DataTypes.STRING),
     },
 
     publishedAt: {
-      type: DataTypes.DATE
+      type: DataTypes.DATE,
     },
 
     createdAt: {
       type: DataTypes.DATE,
-      defaultValue: Sequelize.NOW
+      defaultValue: Sequelize.NOW,
     },
 
     updatedAt: {
       type: DataTypes.DATE,
-      defaultValue: Sequelize.NOW
+      defaultValue: Sequelize.NOW,
     },
 
     deletedAt: {
-      type: DataTypes.DATE
-    }
+      type: DataTypes.DATE,
+    },
 
   }, {
     paranoid: true,
@@ -143,7 +143,7 @@ export default function(Sequelize, DataTypes) {
           updatedAt: this.updatedAt,
           publishedAt: this.publishedAt,
           slug: this.slug,
-          tags: this.tags
+          tags: this.tags,
         };
       },
       minimal() {
@@ -152,8 +152,8 @@ export default function(Sequelize, DataTypes) {
           publishedAt: this.publishedAt,
           title: this.title,
           image: this.image,
-          slug: this.slug
-        }
+          slug: this.slug,
+        };
       },
       activity() {
         return {
@@ -162,9 +162,9 @@ export default function(Sequelize, DataTypes) {
           title: this.title,
           CollectiveId: this.CollectiveId,
           FromCollectiveId: this.FromCollectiveId,
-          TierId: this.TierId
-        }
-      }
+          TierId: this.TierId,
+        };
+      },
     },
 
     hooks: {
@@ -180,11 +180,11 @@ export default function(Sequelize, DataTypes) {
           UserId: instance.LastEditedByUserId,
           CollectiveId: instance.CollectiveId,
           data: {
-            update: instance.activity
-          }
-        })
-      }
-    }
+            update: instance.activity,
+          },
+        });
+      },
+    },
   });
 
   /**
@@ -195,12 +195,12 @@ export default function(Sequelize, DataTypes) {
   Update.prototype.edit = async function(remoteUser, newUpdateData) {
     mustBeLoggedInTo(remoteUser, 'edit this update');
     if (remoteUser.id !== this.CreatedByUserId || !remoteUser.isAdmin(this.CollectiveId)) {
-      throw new errors.Unauthorized({ message: "You must be the author or an admin of this collective to edit this update" });
+      throw new errors.Unauthorized({ message: 'You must be the author or an admin of this collective to edit this update' });
     }
     if (newUpdateData.TierId) {
       const tier = await models.Tier.findById(newUpdateData.TierId);
       if (!tier) {
-        throw new errors.ValidationFailed({ message: "Tier not found" });
+        throw new errors.ValidationFailed({ message: 'Tier not found' });
       }
       if (tier.CollectiveId !== this.CollectiveId) {
         throw new errors.ValidationFailed({ message: "Cannot link this update to a Tier that doesn't belong to this collective" });
@@ -210,9 +210,9 @@ export default function(Sequelize, DataTypes) {
     sanitizeObject(newUpdateData, ['html', 'markdown']);
     return await this.update({
       ...pick(newUpdateData, editableAttributes),
-      LastEditedByUserId: remoteUser.id
+      LastEditedByUserId: remoteUser.id,
     });
-  }
+  };
 
   // Publish update
   Update.prototype.publish = async function(remoteUser) {
@@ -226,27 +226,27 @@ export default function(Sequelize, DataTypes) {
       data: {
         collective: this.collective.activity,
         update: this.activity,
-        url: `${config.host.website}/${this.collective.slug}/updates/${this.slug}`
-      }
+        url: `${config.host.website}/${this.collective.slug}/updates/${this.slug}`,
+      },
     });
     return await this.save();
-  }
+  };
 
   // Unpublish update
   Update.prototype.unpublish = async function(remoteUser) {
     mustHaveRole(remoteUser, 'ADMIN', this.CollectiveId, 'unpublish this update');
     this.publishedAt = null;
     return await this.save();
-  }
+  };
 
   Update.prototype.delete = async function(remoteUser) {
-    mustBeLoggedInTo(remoteUser, "delete this update");
+    mustBeLoggedInTo(remoteUser, 'delete this update');
     if (!remoteUser.isAdmin(this.id) && !remoteUser.isAdmin(this.ParentUpdateId)) {
-      throw new errors.Unauthorized({ message: "You need to be logged in as a core contributor or as a host to delete this update" });
+      throw new errors.Unauthorized({ message: 'You need to be logged in as a core contributor or as a host to delete this update' });
     }
 
     return this.destroy();
-  }
+  };
 
   // Returns the User model of the User that created this Update
   Update.prototype.getUser = function() {
@@ -272,18 +272,18 @@ export default function(Sequelize, DataTypes) {
       } else {
         return slugSuggestionHelper(`${slugToCheck}`, slugList, count+1);
       }
-    }
+    };
 
     // fetch any matching slugs or slugs for the top choice in the list above
     return Sequelize.query(`
         SELECT slug FROM "Updates" WHERE "CollectiveId"=${this.CollectiveId} AND slug like '${suggestion}%'
       `, {
-        type: Sequelize.QueryTypes.SELECT
+        type: Sequelize.QueryTypes.SELECT,
       })
     .then(updateObjectList => updateObjectList.map(update => update.slug))
     .then(slugList => slugSuggestionHelper(suggestion, slugList, 0))
     .then(slug => {
-      if (!slug) return Promise.reject(new Error(`We couldn't generate a unique slug for this Update`));
+      if (!slug) return Promise.reject(new Error('We couldn\'t generate a unique slug for this Update'));
       this.slug = slug;
     });
   };
@@ -300,10 +300,10 @@ export default function(Sequelize, DataTypes) {
     return Update.findOne({ where: { slug: slug.toLowerCase() }, ...options })
       .then(Update => {
         if (!Update) {
-          throw new Error(`No update found with slug ${slug}`)
+          throw new Error(`No update found with slug ${slug}`);
         }
         return Update;
-      })
+      });
   };
 
   Update.associate = (m) => {
@@ -311,7 +311,7 @@ export default function(Sequelize, DataTypes) {
     Update.belongsTo(m.Collective, { foreignKey: 'FromCollectiveId', as: 'fromCollective' });
     Update.belongsTo(m.Tier, { foreignKey: 'TierId', as: 'tier' });
     Update.belongsTo(m.User, { foreignKey: 'LastEditedByUserId', as: 'user' });
-  }
+  };
 
   Temporal(Update, Sequelize);
 

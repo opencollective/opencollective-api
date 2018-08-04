@@ -8,7 +8,7 @@ import sinon from 'sinon';
 import emailLib from '../server/lib/email';
 import stripeMock from './mocks/stripe';
 import models from '../server/models';
-import {appStripe} from '../server/paymentProviders/stripe/gateway';
+import { appStripe } from '../server/paymentProviders/stripe/gateway';
 
 const chance = chanceLib.Chance();
 
@@ -34,13 +34,13 @@ describe('groups.routes.test.js', () => {
 
   beforeEach(() => utils.resetTestDB());
 
-  beforeEach('create host org', () => models.Collective.create({ slug: "wwcode", name: "Women Who Code 501c3" }).tap(c => hostCollective = c));
-  beforeEach('create host admin1', () => models.User.createUserWithCollective({ name: "finance", email: "finance@opencollective.com"}).tap(u => hostAdmin1 = u));
-  beforeEach('create host admin2', () => models.User.createUserWithCollective({ firstName: "finance2", email: "finance2+wwcode@opencollective.com"}).tap(u => hostAdmin2 = u));
+  beforeEach('create host org', () => models.Collective.create({ slug: 'wwcode', name: 'Women Who Code 501c3' }).tap(c => hostCollective = c));
+  beforeEach('create host admin1', () => models.User.createUserWithCollective({ name: 'finance', email: 'finance@opencollective.com' }).tap(u => hostAdmin1 = u));
+  beforeEach('create host admin2', () => models.User.createUserWithCollective({ firstName: 'finance2', email: 'finance2+wwcode@opencollective.com' }).tap(u => hostAdmin2 = u));
   beforeEach('create user', () => models.User.createUserWithCollective(userData).tap(u => user = u));
   beforeEach('add host admin1', () => hostCollective.addUserWithRole(hostAdmin1, 'ADMIN'));
   beforeEach('add host admin2', () => hostCollective.addUserWithRole(hostAdmin2, 'ADMIN'));
-  beforeEach('unsubscribe admin2', () => models.Notification.create({ UserId: hostAdmin2.id, CollectiveId: hostCollective.id, type: 'collective.created', active: false}));
+  beforeEach('unsubscribe admin2', () => models.Notification.create({ UserId: hostAdmin2.id, CollectiveId: hostCollective.id, type: 'collective.created', active: false }));
 
   // Stripe stub.
   beforeEach(() => {
@@ -60,7 +60,7 @@ describe('groups.routes.test.js', () => {
       request(app)
         .post('/groups?flow=blah')
         .send({
-          payload: publicGroupData
+          payload: publicGroupData,
         })
         .expect(400)
     );
@@ -69,7 +69,7 @@ describe('groups.routes.test.js', () => {
       request(app)
         .post('/groups?flow=github')
         .send({
-          payload: publicGroupData
+          payload: publicGroupData,
         })
         .expect(400)
     );
@@ -79,7 +79,7 @@ describe('groups.routes.test.js', () => {
         .post('/groups?flow=github')
         .send({
           group: publicGroupData,
-          api_key: application.api_key
+          api_key: application.api_key,
         })
         .expect(400)
     );
@@ -96,11 +96,11 @@ describe('groups.routes.test.js', () => {
         return ConnectedAccount.create({
           username: 'asood123',
           service: 'github',
-          secret: 'xxxxx'
+          secret: 'xxxxx',
         })
         .then(ca => {
           preCA = ca;
-          return User.createUserWithCollective({ email: 'githubuser@gmail.com'} );
+          return User.createUserWithCollective({ email: 'githubuser@gmail.com' } );
         })
         .then(user => user.collective.addConnectedAccount(preCA));
       });
@@ -117,12 +117,12 @@ describe('groups.routes.test.js', () => {
             group: {
               name:'Loot',
               slug:'Loot',
-              mission: 'mission statement'
+              mission: 'mission statement',
             },
             users: ['asood123', 'oc'],
-            github_username: 'asood123'
+            github_username: 'asood123',
           },
-          api_key: application.api_key
+          api_key: application.api_key,
         })
         .expect(200)
         .toPromise()
@@ -135,7 +135,7 @@ describe('groups.routes.test.js', () => {
           expect(res.body).to.have.property('longDescription');
           expect(res.body).to.have.property('isActive', true);
           expect(emailLib.send.lastCall.args[1]).to.equal('githubuser@gmail.com');
-          return models.Member.findAll({ where: { CollectiveId: res.body.id }});
+          return models.Member.findAll({ where: { CollectiveId: res.body.id } });
         })
         .then(members => {
           expect(members).to.have.length(2);
@@ -143,14 +143,14 @@ describe('groups.routes.test.js', () => {
           expect(members[1]).to.have.property('role', roles.HOST);
           return null;
         })
-        .then(() => ConnectedAccount.findOne({where: { username: 'asood123' }}))
+        .then(() => ConnectedAccount.findOne({ where: { username: 'asood123' } }))
         .then(ca => {
           expect(ca).to.have.property('service', 'github');
           return ca.getCollective();
         })
         .then(userCollective => {
-          expect(userCollective).to.exist
-        }))
+          expect(userCollective).to.exist;
+        }));
     });
 
   });
@@ -182,7 +182,7 @@ describe('groups.routes.test.js', () => {
         .post('/groups')
         .send({
           api_key: application.api_key,
-          group: Object.assign({}, publicGroupData, { isActive: true, slug: 'another', users: [ Object.assign({}, userData, { role: roles.ADMIN} )]})
+          group: Object.assign({}, publicGroupData, { isActive: true, slug: 'another', users: [ Object.assign({}, userData, { role: roles.ADMIN } )] }),
         })
         .expect(200)
         .end((e, res) => {
@@ -206,8 +206,8 @@ describe('groups.routes.test.js', () => {
       CollectiveId: user.CollectiveId,
       service: 'stripe',
       type: 'creditcard',
-      token: 'tok_123456781234567812345678'
-    }))
+      token: 'tok_123456781234567812345678',
+    }));
 
     // Create a transaction for group1.
     beforeEach('create a transaction for group 1', () =>
@@ -217,13 +217,13 @@ describe('groups.routes.test.js', () => {
         CreatedByUserId: user.id,
         FromCollectiveId: user.CollectiveId,
         CollectiveId: publicCollective.id,
-        HostCollectiveId: hostCollective.id
+        HostCollectiveId: hostCollective.id,
       }));
 
     beforeEach('add user as backer', () => models.Member.create({
       role: roles.BACKER,
       MemberCollectiveId: user.CollectiveId,
-      CollectiveId: publicCollective.id
+      CollectiveId: publicCollective.id,
     }));
 
     it('fails getting an undefined group', () =>
@@ -280,7 +280,7 @@ describe('groups.routes.test.js', () => {
 
       // Create group2
       beforeEach('create group 2', () =>
-        models.Collective.create({HostCollectiveId: hostCollective.id, name: "group 2", slug: "group2"})
+        models.Collective.create({ HostCollectiveId: hostCollective.id, name: 'group 2', slug: 'group2' })
       );
 
         // Create transactions for publicCollective.
@@ -290,7 +290,7 @@ describe('groups.routes.test.js', () => {
           FromCollectiveId: user.CollectiveId,
           CollectiveId: publicCollective.id,
           HostCollectiveId: hostCollective.id,
-          approved: true
+          approved: true,
         })
       );
 
@@ -303,10 +303,10 @@ describe('groups.routes.test.js', () => {
           CreatedByUserId: user.id,
           FromCollectiveId: user.CollectiveId,
           CollectiveId: publicCollective.id,
-          SubscriptionId: subscription.id
+          SubscriptionId: subscription.id,
         }))
         .then(order => models.Transaction.createFromPayload({
-            transaction: Object.assign({}, transactionsData[7], { netAmountInCollectiveCurrency: transactionsData[7].amount, OrderId: order.id}),
+            transaction: Object.assign({}, transactionsData[7], { netAmountInCollectiveCurrency: transactionsData[7].amount, OrderId: order.id }),
             CreatedByUserId: user.id,
             FromCollectiveId: user.CollectiveId,
             CollectiveId: publicCollective.id,
@@ -316,7 +316,7 @@ describe('groups.routes.test.js', () => {
         request(app)
           .get(`/groups/${publicCollective.id}`)
           .send({
-            api_key: application.api_key
+            api_key: application.api_key,
           })
           .expect(200)
           .end((e, res) => {
@@ -367,7 +367,7 @@ describe('groups.routes.test.js', () => {
       backgroundImage: 'http://opengroup.com/assets/backgroundImage.png',
       isActive: true,
       settings: { lang: 'fr' },
-      otherprop: 'value'
+      otherprop: 'value',
     };
 
     // Create the group with user.
@@ -380,8 +380,8 @@ describe('groups.routes.test.js', () => {
             slug: 'public-group',
             name: 'public group with host',
             HostCollectiveId: hostCollective.id,
-            users: [ Object.assign({}, userData, { role: roles.ADMIN} ) ]
-          })
+            users: [ Object.assign({}, userData, { role: roles.ADMIN } ) ],
+          }),
         })
         .expect(200)
         .end((e, res) => {
@@ -414,7 +414,7 @@ describe('groups.routes.test.js', () => {
         .put(`/groups/${group.id}`)
         .send({
           api_key: application.api_key,
-          group: groupNew
+          group: groupNew,
         })
         .expect(401)
         .end(done);
@@ -426,7 +426,7 @@ describe('groups.routes.test.js', () => {
         .set('Authorization', `Bearer ${user2.jwt()}`)
         .send({
           api_key: application.api_key,
-          group: groupNew
+          group: groupNew,
         })
         .expect(403)
         .end(done);
@@ -438,7 +438,7 @@ describe('groups.routes.test.js', () => {
         .set('Authorization', `Bearer ${user3.jwt()}`)
         .send({
           api_key: application.api_key,
-          group: groupNew
+          group: groupNew,
         })
         .expect(403)
         .end(done);
@@ -458,7 +458,7 @@ describe('groups.routes.test.js', () => {
         .set('Authorization', `Bearer ${user4.jwt()}`)
         .send({
           api_key: application.api_key,
-          group: groupNew
+          group: groupNew,
         })
         .expect(200)
         .end(done);
@@ -470,7 +470,7 @@ describe('groups.routes.test.js', () => {
         .set('Authorization', `Bearer ${user.jwt()}`)
         .send({
           api_key: application.api_key,
-          group: groupNew
+          group: groupNew,
         })
         .expect(200)
         .end((e, res) => {
@@ -498,9 +498,9 @@ describe('groups.routes.test.js', () => {
       models.Member.create({
         MemberCollectiveId: user3.CollectiveId,
         CollectiveId: group.id,
-        role: roles.ADMIN
+        role: roles.ADMIN,
       })
-      .then(() => models.Member.findAll({ where: { MemberCollectiveId: user3.CollectiveId, CollectiveId: group.id }}))
+      .then(() => models.Member.findAll({ where: { MemberCollectiveId: user3.CollectiveId, CollectiveId: group.id } }))
       .tap(rows => expect(rows.length).to.equal(2)));
   });
 

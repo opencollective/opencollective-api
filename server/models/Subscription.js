@@ -7,7 +7,7 @@ export default (Sequelize, DataTypes) => {
 
     amount: {
       type: DataTypes.INTEGER,
-      validate: { min: 0 }
+      validate: { min: 0 },
     },
 
     currency: CustomDataTypes(DataTypes).currency,
@@ -17,14 +17,14 @@ export default (Sequelize, DataTypes) => {
       validate: {
         isIn: {
           args: [['month', 'year']],
-          msg: 'Must be month or year'
-        }
-      }
+          msg: 'Must be month or year',
+        },
+      },
     },
 
     isActive: {
       type: DataTypes.BOOLEAN,
-      defaultValue: false
+      defaultValue: false,
     },
 
     nextChargeDate: DataTypes.DATE,
@@ -43,9 +43,9 @@ export default (Sequelize, DataTypes) => {
 
     activatedAt: DataTypes.DATE,
 
-    deactivatedAt: DataTypes.DATE
+    deactivatedAt: DataTypes.DATE,
   }, {
-    paranoid: true
+    paranoid: true,
   });
 
   Subscription.prototype.activate = function() {

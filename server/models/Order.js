@@ -16,17 +16,17 @@ export default function(Sequelize, DataTypes) {
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
-      autoIncrement: true
+      autoIncrement: true,
     },
 
     CreatedByUserId: {
       type: DataTypes.INTEGER,
       references: {
         model: 'Users',
-        key: 'id'
+        key: 'id',
       },
       onDelete: 'SET NULL',
-      onUpdate: 'CASCADE'
+      onUpdate: 'CASCADE',
     },
 
     // User|Organization|Collective that is author of this Order
@@ -34,29 +34,29 @@ export default function(Sequelize, DataTypes) {
       type: DataTypes.INTEGER,
       references: {
         model: 'Collectives',
-        key: 'id'
+        key: 'id',
       },
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
-      allowNull: false
+      allowNull: false,
     },
 
     CollectiveId: {
       type: DataTypes.INTEGER,
       references: {
         model: 'Collectives',
-        key: 'id'
+        key: 'id',
       },
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
-      allowNull: false
+      allowNull: false,
     },
 
     TierId: {
       type: DataTypes.INTEGER,
       references: {
         model: 'Tiers',
-        key: 'id'
+        key: 'id',
       },
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
@@ -64,13 +64,13 @@ export default function(Sequelize, DataTypes) {
 
     quantity: {
       type: DataTypes.INTEGER,
-      min: 0
+      min: 0,
     },
 
     currency: CustomDataTypes(DataTypes).currency,
 
     totalAmount: {
-      type: DataTypes.INTEGER // Total amount of the order in cents
+      type: DataTypes.INTEGER, // Total amount of the order in cents
     },
 
     description: DataTypes.STRING,
@@ -82,20 +82,20 @@ export default function(Sequelize, DataTypes) {
       type: DataTypes.INTEGER,
       references: {
         model: 'Subscriptions',
-        key: 'id'
+        key: 'id',
       },
       onDelete: 'SET NULL',
-      onUpdate: 'CASCADE'
+      onUpdate: 'CASCADE',
     },
 
     PaymentMethodId: {
       type: DataTypes.INTEGER,
       references: {
         model: 'PaymentMethods',
-        key: 'id'
+        key: 'id',
       },
       onDelete: 'SET NULL',
-      onUpdate: 'CASCADE'
+      onUpdate: 'CASCADE',
     },
 
     MatchingPaymentMethodId: {
@@ -104,7 +104,7 @@ export default function(Sequelize, DataTypes) {
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
       allowNull: true,
-      description: "References the PaymentMethod used to match"
+      description: 'References the PaymentMethod used to match',
     },
 
     ReferralCollectiveId: {
@@ -113,7 +113,7 @@ export default function(Sequelize, DataTypes) {
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
       allowNull: true,
-      description: "Referral"
+      description: 'Referral',
     },
 
     processedAt: DataTypes.DATE,
@@ -132,17 +132,17 @@ export default function(Sequelize, DataTypes) {
 
     createdAt: {
       type: DataTypes.DATE,
-      defaultValue: Sequelize.NOW
+      defaultValue: Sequelize.NOW,
     },
 
     updatedAt: {
       type: DataTypes.DATE,
-      defaultValue: Sequelize.NOW
+      defaultValue: Sequelize.NOW,
     },
 
     deletedAt: {
-      type: DataTypes.DATE
-    }
+      type: DataTypes.DATE,
+    },
   }, {
     paranoid: true,
 
@@ -169,8 +169,8 @@ export default function(Sequelize, DataTypes) {
           publicMessage: this.publicMessage,
           SubscriptionId: this.SubscriptionId,
           createdAt: this.createdAt,
-          updatedAt: this.updatedAt
-        }
+          updatedAt: this.updatedAt,
+        };
       },
 
       activity() {
@@ -179,10 +179,10 @@ export default function(Sequelize, DataTypes) {
           totalAmount: this.totalAmount,
           currency: this.currency,
           description: this.description,
-          publicMessage: this.publicMessage
-        }
-      }
-    }
+          publicMessage: this.publicMessage,
+        };
+      },
+    },
   });
 
   /**
@@ -195,13 +195,13 @@ export default function(Sequelize, DataTypes) {
     return models.Transaction.sum('amount', {
       where: {
         OrderId: this.id,
-        type: TransactionTypes.CREDIT
-      }
+        type: TransactionTypes.CREDIT,
+      },
     });
-  }
+  };
 
   Order.prototype.setPaymentMethod = function(paymentMethodData) {
-    debug("setPaymentMethod", paymentMethodData);
+    debug('setPaymentMethod', paymentMethodData);
     return this.getUser()
       .then(user => models.PaymentMethod.getOrCreate(user, paymentMethodData))
       .then(pm => this.validatePaymentMethod(pm))
@@ -218,7 +218,7 @@ export default function(Sequelize, DataTypes) {
    * Makes sure that the user can use this payment method for such order
    */
   Order.prototype.validatePaymentMethod = function(paymentMethod) {
-    debug("validatePaymentMethod", paymentMethod.dataValues, "this.user", this.CreatedByUserId);
+    debug('validatePaymentMethod', paymentMethod.dataValues, 'this.user', this.CreatedByUserId);
     return paymentMethod.canBeUsedForOrder(this, this.createdByUser).then(canBeUsedForOrder => {
       if (canBeUsedForOrder) return paymentMethod;
       else return null;
@@ -229,7 +229,7 @@ export default function(Sequelize, DataTypes) {
     if (this.createdByUser) return Promise.resolve(this.createdByUser);
     return models.User.findById(this.CreatedByUserId).then(user => {
       this.createdByUser = user;
-      debug("getUser", user.dataValues);
+      debug('getUser', user.dataValues);
       return user.populateRoles();
     });
   };

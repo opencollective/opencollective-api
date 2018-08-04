@@ -54,7 +54,7 @@ describe('discover', () => {
           expect(ids[0]).equal(collective1.id); // Newest (created second)
           expect(ids[1]).equal(collective2.id);
           done();
-        })
+        });
     });
 
     it('/discover?show=open source', (done) => {
@@ -72,7 +72,7 @@ describe('discover', () => {
           expect(ids.indexOf(collective2.id)).equal(-1);
           expect(ids[0]).equal(collective1.id);
           done();
-        })
+        });
     });
 
     it('/discover?show=meetup', (done) => {
@@ -90,7 +90,7 @@ describe('discover', () => {
           expect(ids.indexOf(collective2.id)).not.equal(-1);
           expect(ids[0]).equal(collective2.id);
           done();
-        })
+        });
     });
 
     it('/discover?show=undefined', (done) => {
@@ -104,7 +104,7 @@ describe('discover', () => {
           expect(body.collectives).to.be.Array;
           expect(body.collectives.length).equal(0);
           done();
-        })
+        });
     });
 
     it('/discover?show=all&sort=newest', (done) => {
@@ -123,7 +123,7 @@ describe('discover', () => {
           expect(ids[0]).equal(collective2.id); // Newest (created last)
           expect(ids[1]).equal(collective1.id);
           done();
-        })
+        });
     });
 
     it('/discover?show=all&sort=undefined', (done) => {
@@ -142,7 +142,7 @@ describe('discover', () => {
           expect(ids[0]).equal(collective1.id); // Most popular
           expect(ids[1]).equal(collective2.id);
           done();
-        })
+        });
     });
 
   });

@@ -54,7 +54,7 @@ describe('paypal.preapproval.routes.test.js', () => {
         models.User.createUserWithCollective(utils.data('user2'))
           .then(user => cb(null, user))
           .catch(cb);
-      }]
+      }],
     }, (e, results) => {
       expect(e).to.not.exist;
       user = results.createUserA;
@@ -78,14 +78,14 @@ describe('paypal.preapproval.routes.test.js', () => {
 
     it('should get a preapproval key', (done) => {
       request(app)
-        .get(`/connected-accounts/paypal/oauthUrl?api_key=${application.api_key}&CollectiveId=${user.CollectiveId}&redirect=${encodeURIComponent("https://localhost:3030/paypal/redirect")}`)
+        .get(`/connected-accounts/paypal/oauthUrl?api_key=${application.api_key}&CollectiveId=${user.CollectiveId}&redirect=${encodeURIComponent('https://localhost:3030/paypal/redirect')}`)
         .set('Authorization', `Bearer ${user.jwt()}`)
         .expect(200)
         .end((e, res) => {
           expect(e).to.not.exist;
-          expect(res.body.redirectUrl).to.contain("&preapprovalkey=PA-");
+          expect(res.body.redirectUrl).to.contain('&preapprovalkey=PA-');
           models.PaymentMethod
-            .findAndCountAll({ where: { service: 'paypal' }})
+            .findAndCountAll({ where: { service: 'paypal' } })
             .then((res) => {
               expect(res.count).to.equal(1);
               const paykey = res.rows[0];
@@ -109,7 +109,7 @@ describe('paypal.preapproval.routes.test.js', () => {
 
     beforeEach('get preapproval key', (done) => {
       request(app)
-        .get(`/connected-accounts/paypal/oauthUrl?api_key=${application.api_key}&CollectiveId=${user.CollectiveId}&redirect=${encodeURIComponent("https://localhost:3030/paypal/redirect")}`)
+        .get(`/connected-accounts/paypal/oauthUrl?api_key=${application.api_key}&CollectiveId=${user.CollectiveId}&redirect=${encodeURIComponent('https://localhost:3030/paypal/redirect')}`)
         .set('Authorization', `Bearer ${user.jwt()}`)
         .expect(200)
         .end(done);
@@ -128,12 +128,12 @@ describe('paypal.preapproval.routes.test.js', () => {
 
       it('should fail with an unknown preapproval key', (done) => {
         request(app)
-          .get(`/connected-accounts/paypal/callback?preapprovalKey=abc&paypalApprovalStatus=success`)
+          .get('/connected-accounts/paypal/callback?preapprovalKey=abc&paypalApprovalStatus=success')
           .set('Authorization', `Bearer ${user.jwt()}`)
           .end((e, res) => {
             const error = res.body.error;
             expect (error.code).to.equal(400);
-            expect(error.message).to.equal("No paymentMethod found with this preapproval key: abc");
+            expect(error.message).to.equal('No paymentMethod found with this preapproval key: abc');
             done();
           });
       });
@@ -145,7 +145,7 @@ describe('paypal.preapproval.routes.test.js', () => {
           .set('Authorization', `Bearer ${user.jwt()}`)
           .expect(302)
           .end((e, res) => {
-            expect(res.headers.location).to.include("paypal/redirect?status=success&service=paypal");
+            expect(res.headers.location).to.include('paypal/redirect?status=success&service=paypal');
 
             models.PaymentMethod.findAndCountAll({ where: { token: preapprovalkey } })
             .then(res => {
@@ -180,7 +180,7 @@ describe('paypal.preapproval.routes.test.js', () => {
           .get(`/connected-accounts/paypal/callback?preapprovalKey=${preapprovalkey}&paypalApprovalStatus=success`)
           .set('Authorization', `Bearer ${user.jwt()}`)
           .end((e, res) => {
-            expect(res.headers.location).to.contain("paypal/redirect?status=error&service=paypal&error=Error%20while%20contacting%20PayPal&errorMessage=This%20preapprovalkey%20is%20not%20approved%20yet");
+            expect(res.headers.location).to.contain('paypal/redirect?status=error&service=paypal&error=Error%20while%20contacting%20PayPal&errorMessage=This%20preapprovalkey%20is%20not%20approved%20yet');
             done();
           });
       });
@@ -203,7 +203,7 @@ describe('paypal.preapproval.routes.test.js', () => {
           .get(`/connected-accounts/paypal/callback?preapprovalKey=${preapprovalkey}&paypalApprovalStatus=success`)
           .set('Authorization', `Bearer ${user.jwt()}`)
           .end((e, res) => {
-            expect(res.headers.location).to.contain("/paypal/redirect?status=error&service=paypal&error=Error%20while%20contacting%20PayPal");
+            expect(res.headers.location).to.contain('/paypal/redirect?status=error&service=paypal&error=Error%20while%20contacting%20PayPal');
             done();
           });
       });
@@ -249,8 +249,8 @@ describe('paypal.preapproval.routes.test.js', () => {
           type: 'adaptive',
           CreatedByUserId: user.id,
           CollectiveId: user.CollectiveId,
-          token: 'blah'
-        })
+          token: 'blah',
+        });
       });
 
       beforeEach(() => {
