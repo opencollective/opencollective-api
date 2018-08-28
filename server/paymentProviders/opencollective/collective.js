@@ -99,11 +99,6 @@ paymentMethodProvider.processOrder = async (order, options = {}) => {
       throw new Error(`Payments Across hosts are only allowed when both Collectives have the same currency. Collective ${order.collective.name}` +
         ` is ${order.collective.currency} and ${order.fromCollective.name} is ${order.fromCollective.currency}.`);
     }
-    // Check if Hosts have the same currency as well
-    if (fromCollectiveHost.currency !== collectiveHost.currency) {
-      throw new Error(`Payment Across Hosts are only allowed when both Hosts have the same currency. Host ${fromCollectiveHost.name}` +
-        ` is ${fromCollectiveHost.currency} and ${collectiveHost.name} is ${collectiveHost.currency}.`);
-    }
     // try to find a credit card for the fromCollectiveHost
     const fromCollectiveHostPaymentMethod = await models.PaymentMethod.findOne({
       where: {
