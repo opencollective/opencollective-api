@@ -34,17 +34,6 @@ import models, { Op } from '../models';
 import roles from '../constants/roles';
 import { get } from 'lodash';
 
-export const TypeOfCollectiveType = new GraphQLEnumType({
-  name: 'TypeOfCollective',
-  values: {
-    COLLECTIVE: {},
-    EVENT: {},
-    ORGANIZATION: {},
-    USER: {},
-    BOT: {},
-  },
-});
-
 export const CollectiveOrderFieldType = new GraphQLEnumType({
   name: 'CollectiveOrderField',
   description: 'Properties by which collectives can be ordered.',
@@ -90,7 +79,7 @@ export const HostCollectiveOrderFieldType = new GraphQLEnumType({
 });
 
 export const BackersStatsType = new GraphQLObjectType({
-  name: "BackersStatsType",
+  name: "CollectiveStatsBackers",
   description: "Breakdown of backers per type (ANY/USER/ORGANIZATION/COLLECTIVE)",
   fields: () => {
     return {
@@ -134,7 +123,7 @@ export const BackersStatsType = new GraphQLObjectType({
 });
 
 export const CollectivesStatsType = new GraphQLObjectType({
-  name: "CollectivesStatsType",
+  name: "CollectiveStatsCollectives",
   description: "Breakdown of collectives under this collective by role (all/hosted/memberOf/events)",
   fields: () => {
     return {
@@ -202,7 +191,7 @@ export const CollectivesStatsType = new GraphQLObjectType({
 });
 
 export const ExpensesStatsType = new GraphQLObjectType({
-  name: "ExpensesStatsType",
+  name: "CollectiveStatsExpenses",
   description: "Breakdown of expenses per status (ALL/PENDING/APPROVED/PAID/REJECTED)",
   fields: () => {
     return {
@@ -259,7 +248,7 @@ export const ExpensesStatsType = new GraphQLObjectType({
 });
 
 export const TransactionsStatsType = new GraphQLObjectType({
-  name: "TransactionsStatsType",
+  name: "CollectiveStatsTransactions",
   description: "Breakdown of transactions per type (ALL/CREDIT/DEBIT)",
   fields: () => {
     return {
@@ -295,7 +284,7 @@ export const TransactionsStatsType = new GraphQLObjectType({
 });
 
 export const CollectiveStatsType = new GraphQLObjectType({
-  name: "CollectiveStatsType",
+  name: "CollectiveStats",
   description: "Stats for the collective",
   fields: () => {
     return {
@@ -435,8 +424,10 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
   resolveType: (collective) => {
     switch (collective.type) {
       case types.COLLECTIVE:
+        return CollectiveCollectiveType;
+
       case types.BOT:
-        return CollectiveType;
+        return BotCollectiveType;
 
       case types.USER:
         return UserCollectiveType;
@@ -456,7 +447,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       id: { type: GraphQLInt },
       createdByUser: { type: UserType },
       parentCollective: { type: CollectiveInterfaceType },
-      type: { type: GraphQLString },
+      type: { type: CollectiveTypeType },
       isActive: { type: GraphQLBoolean },
       name: { type: GraphQLString },
       company: { type: GraphQLString },
@@ -594,6 +585,16 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
   }
 });
 
+const CollectiveTypeType = new GraphQLEnumType({
+  name: 'CollectiveType',
+  values: {
+    ORGANIZATION: {},
+    COLLECTIVE: {},
+    USER: {},
+    EVENT: {},
+    BOT: {},
+  }
+});
 
 const CollectiveFields = () => {
   return {
@@ -616,7 +617,7 @@ const CollectiveFields = () => {
       }
     },
     type: {
-      type: GraphQLString,
+      type: CollectiveTypeType,
       resolve(collective) {
         return collective.type;
       }
@@ -1102,7 +1103,7 @@ const CollectiveFields = () => {
   }
 };
 
-export const CollectiveType = new GraphQLObjectType({
+export const CollectiveCollectiveType = new GraphQLObjectType({
   name: 'Collective',
   description: 'This represents a Collective',
   interfaces: [ CollectiveInterfaceType ],
@@ -1164,12 +1165,19 @@ export const EventCollectiveType = new GraphQLObjectType({
   fields: CollectiveFields
 });
 
+export const BotCollectiveType = new GraphQLObjectType({
+  name: 'Bot',
+  description: 'This represents a Bot Collective',
+  interfaces: [ CollectiveInterfaceType ],
+  fields: CollectiveFields
+});
+
 export const CollectiveSearchResultsType = new GraphQLObjectType({
   name: 'CollectiveSearchResults',
   description: 'The results from searching for collectives with pagination info',
   fields: () => ({
     collectives: {
-      type: new GraphQLList(CollectiveType),
+      type: new GraphQLList(CollectiveInterfaceType),
     },
     limit: {
       type: GraphQLInt,

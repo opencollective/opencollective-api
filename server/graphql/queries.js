@@ -15,7 +15,7 @@ import {
 import {
   CollectiveInterfaceType,
   CollectiveSearchResultsType,
-  TypeOfCollectiveType,
+  CollectiveTypeType,
   CollectiveOrderFieldType,
   HostCollectiveOrderFieldType
 } from './CollectiveInterface';
@@ -570,7 +570,7 @@ const queries = {
         description: "Fetch all collectives that match at least one of the tags",
       },
       type: {
-        type: TypeOfCollectiveType,
+        type: CollectiveTypeType,
         description: "COLLECTIVE, USER, ORGANIZATION, EVENT"
       },
       HostCollectiveId: {

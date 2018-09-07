@@ -122,9 +122,8 @@ export const UserType = new GraphQLObjectType({
   }
 });
 
-
 export const StatsMemberType = new GraphQLObjectType({
-  name: 'StatsMemberType',
+  name: 'MembershipStats',
   description: 'Stats about a membership',
   fields: () => {
     return {
@@ -161,8 +160,8 @@ export const StatsMemberType = new GraphQLObjectType({
 
 
 export const MemberType = new GraphQLObjectType({
-  name: 'Member',
-  description: 'This is a Member',
+  name: 'Membership',
+  description: 'This is a Membership',
   fields: () => {
     return {
        id: {
@@ -261,7 +260,7 @@ export const MemberType = new GraphQLObjectType({
 });
 
 export const LocationType = new GraphQLObjectType({
-  name: 'LocationType',
+  name: 'Location',
   description: 'Type for Location',
   fields: () => ({
     name: { type: GraphQLString },
@@ -272,7 +271,7 @@ export const LocationType = new GraphQLObjectType({
 });
 
 export const InvoiceType = new GraphQLObjectType({
-  name: 'InvoiceType',
+  name: 'Invoice',
   description: 'This represents an Invoice',
   fields: () => {
     return {
@@ -348,7 +347,7 @@ export const InvoiceType = new GraphQLObjectType({
 });
 
 export const ExpenseType = new GraphQLObjectType({
-  name: 'ExpenseType',
+  name: 'Expense',
   description: 'This represents an Expense',
   fields: () => {
     return {
@@ -497,7 +496,7 @@ export const ExpenseType = new GraphQLObjectType({
 });
 
 export const UpdateType = new GraphQLObjectType({
-  name: 'UpdateType',
+  name: 'Update',
   description: 'This represents an Update',
   fields: () => {
     return {
@@ -666,7 +665,7 @@ export const CommentListType = new GraphQLObjectType({
 
 
 export const CommentType = new GraphQLObjectType({
-  name: 'CommentType',
+  name: 'Comment',
   description: 'This represents a Comment',
   fields: () => {
     return {
@@ -735,7 +734,7 @@ export const CommentType = new GraphQLObjectType({
 });
 
 export const TierStatsType = new GraphQLObjectType({
-  name: 'TierStatsType',
+  name: 'TierStats',
   description: 'Stats about a tier',
   fields: () => {
     return {
@@ -913,7 +912,7 @@ export const TierType = new GraphQLObjectType({
 });
 
 export const StatsOrderType = new GraphQLObjectType({
-  name: 'StatsOrderType',
+  name: 'OrderStats',
   description: 'Stats about an order',
   fields: () => {
     return {
@@ -943,7 +942,7 @@ export const StatsOrderType = new GraphQLObjectType({
 });
 
 export const OrderType = new GraphQLObjectType({
-  name: 'OrderType',
+  name: 'Order',
   description: 'This is an order (for donations, buying tickets, subscribing to a Tier)',
   fields: () => {
     return {
@@ -1121,7 +1120,7 @@ export const OrderType = new GraphQLObjectType({
 
 // Note: we assume that all of this data is publicly accessible without a login
 export const ConnectedAccountType = new GraphQLObjectType({
-  name: "ConnectedAccountType",
+  name: "ConnectedAccount",
   description: "Sanitized ConnectedAccount Info (ConnectedAccount model)",
   fields: () => {
     return {
@@ -1167,7 +1166,7 @@ export const ConnectedAccountType = new GraphQLObjectType({
 
 // TODO: Put behind a login token
 export const PaymentMethodType = new GraphQLObjectType({
-  name: "PaymentMethodType",
+  name: "PaymentMethod",
   description: "Sanitized PaymentMethod Info (PaymentMethod model)",
   fields: () => {
     return {

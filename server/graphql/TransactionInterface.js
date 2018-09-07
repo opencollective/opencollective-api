@@ -22,7 +22,7 @@ import {
 } from './types';
 
 export const TransactionInterfaceType = new GraphQLInterfaceType({
-  name: "Transaction",
+  name: "TransactionInterface",
   description: "Transaction interface",
   resolveType: (transaction) => {
     switch (transaction.type) {
@@ -190,8 +190,8 @@ const TransactionFields = () => {
   }
 }
 export const TransactionExpenseType = new GraphQLObjectType({
-  name: 'Expense',
-  description: 'Expense model',
+  name: 'TransactionDebit',
+  // description: 'Expense model',
   interfaces: [ TransactionInterfaceType ],
   fields: () => {
     return {
@@ -225,8 +225,8 @@ export const TransactionExpenseType = new GraphQLObjectType({
 });
 
 export const TransactionOrderType = new GraphQLObjectType({
-  name: 'Order',
-  description: 'Order model',
+  name: 'TransactionCredit',
+  // description: 'Order model',
   interfaces: [ TransactionInterfaceType ],
   fields: () => {
     return {
