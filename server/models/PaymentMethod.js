@@ -46,6 +46,16 @@ export default function(Sequelize, DataTypes) {
         onUpdate: 'CASCADE',
       },
 
+      CreatedByCollectiveId: {
+        type: DataTypes.INTEGER,
+        references: { model: 'Collectives', key: 'id' },
+        onDelete: 'SET NULL',
+        onUpdate: 'CASCADE',
+        allowNull: true,
+        description:
+          'References the collective that created this payment method',
+      },
+
       /**
        * Can be NULL when the user doesn't want to remember the payment method information (e.g. credit card info)
        * In that case we still need to store it for archive reasons (we want to be able to print the invoice and show the payment method that has been used)

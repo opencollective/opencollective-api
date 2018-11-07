@@ -1068,6 +1068,15 @@ export const OrderType = new GraphQLObjectType({
           return order.getCreatedByUser();
         },
       },
+      usingVirtualCardFromCollective: {
+        type: CollectiveInterfaceType,
+        resolve(order, args, req) {
+          const collectiveId = order.UsingVirtualCardFromCollectiveId;
+          return (
+            collectiveId && req.loaders.collective.findById.load(collectiveId)
+          );
+        },
+      },
       description: {
         description:
           'Description of the order that will show up in the invoice',
@@ -1379,6 +1388,17 @@ export const PaymentMethodType = new GraphQLObjectType({
         resolve(paymentMethod, args, req) {
           return req.loaders.collective.findById.load(
             paymentMethod.CollectiveId,
+          );
+        },
+      },
+      createdByCollective: {
+        type: CollectiveInterfaceType,
+        resolve(paymentMethod, args, req) {
+          return (
+            paymentMethod.CreatedByCollectiveId &&
+            req.loaders.collective.findById.load(
+              paymentMethod.CreatedByCollectiveId,
+            )
           );
         },
       },

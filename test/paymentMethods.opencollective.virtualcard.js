@@ -34,6 +34,9 @@ const claimPaymentMethodQuery = `
         name
         twitterHandle
       }
+      createdByCollective {
+        id
+      }
     }
   }
 `;
@@ -55,6 +58,9 @@ const createOrderQuery = `
         interval
         isActive
         stripeSubscriptionId
+      }
+      usingVirtualCardFromCollective {
+        id
       }
       totalAmount
       currency
@@ -716,6 +722,8 @@ describe('opencollective.virtualcard', () => {
         expect(paymentMethod.collective.twitterHandle).to.equal(
           args.user.twitterHandle,
         );
+        // Original collective should be stored in createdByCollective
+        expect(paymentMethod.createdByCollective.id).to.equal(collective1.id);
         // and collective id of "original" virtual card should be different than the one returned
         expect(virtualCardPaymentMethod.CollectiveId).not.to.equal(
           paymentMethod.collective.id,
@@ -1010,6 +1018,12 @@ describe('opencollective.virtualcard', () => {
           limit: 2,
         });
         // checking if transaction generated(CREDIT) matches the correct payment method
+        // Ensure virtual card source collective has been linked correctly
+        const resultData = gqlResult.data.createOrder;
+        expect(resultData.usingVirtualCardFromCollective).to.exist;
+        expect(resultData.usingVirtualCardFromCollective.id).to.equal(
+          collective1.id,
+        );
         // amount, currency and collectives...
         const creditTransaction = transactions[0];
         expect(creditTransaction.type).to.be.equal('CREDIT');

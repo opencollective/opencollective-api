@@ -168,6 +168,10 @@ async function processOrder(order) {
  */
 async function create(args, remoteUser) {
   const collective = await models.Collective.findById(args.CollectiveId);
+  if (!collective) {
+    throw Error("Collective #{args.CollectiveId} doesn't exist");
+  }
+
   let SourcePaymentMethodId = args.PaymentMethodId;
   let sourcePaymentMethod;
   if (!args.PaymentMethodId) {
@@ -218,6 +222,7 @@ async function create(args, remoteUser) {
   // creates a new Virtual card Payment method
   const paymentMethod = await models.PaymentMethod.create({
     CreatedByUserId: remoteUser && remoteUser.id,
+    CreatedByCollectiveId: collective.id,
     name: description,
     description: args.description || description,
     initialBalance: amount,
