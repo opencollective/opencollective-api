@@ -303,16 +303,25 @@ describe('Collective model', () => {
       // moving to a host where the user making the request is not an admin of turns isActive to false
       sendEmailSpy.resetHistory();
       await newCollective.changeHost(hostUser.collective, user2);
-      await assertCollectiveCurrency(newCollective, hostUser.collective.currency);
+      await assertCollectiveCurrency(
+        newCollective,
+        hostUser.collective.currency,
+      );
       expect(newCollective.HostCollectiveId).to.equal(hostUser.id);
       expect(newCollective.isActive).to.be.false;
       await utils.waitForCondition(() => sendEmailSpy.callCount > 1);
       expect(sendEmailSpy.firstCall.args[0]).to.equal(hostUser.email);
-      expect(sendEmailSpy.firstCall.args[1]).to.equal(`New collective would love to be hosted by ${hostUser.collective.name}`);
+      expect(sendEmailSpy.firstCall.args[1]).to.equal(
+        `New collective would love to be hosted by ${hostUser.collective.name}`,
+      );
       expect(sendEmailSpy.secondCall.args[0]).to.equal(user1.email);
-      expect(sendEmailSpy.secondCall.args[1]).to.equal(`Thanks for applying to ${hostUser.collective.name}`);
+      expect(sendEmailSpy.secondCall.args[1]).to.equal(
+        `Thanks for applying to ${hostUser.collective.name}`,
+      );
       expect(sendEmailSpy.firstCall.args[2]).to.contain(user2.collective.name);
-      expect(sendEmailSpy.secondCall.args[3].from).to.equal('hello@wwcode.opencollective.com');
+      expect(sendEmailSpy.secondCall.args[3].from).to.equal(
+        'hello@wwcode.opencollective.com',
+      );
     });
   });
 

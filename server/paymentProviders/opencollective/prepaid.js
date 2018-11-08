@@ -30,12 +30,15 @@ async function getBalance(paymentMethod) {
     where: {
       PaymentMethodId: paymentMethod.id,
       type: 'DEBIT',
-    }
+    },
   });
   let spent = 0;
-  for ( const transaction of allTransactions) {
+  for (const transaction of allTransactions) {
     if (transaction.currency != paymentMethod.currency) {
-      const fxRate = await currency.getFxRate(transaction.currency, paymentMethod.currency);
+      const fxRate = await currency.getFxRate(
+        transaction.currency,
+        paymentMethod.currency,
+      );
       spent += transaction.netAmountInCollectiveCurrency * fxRate;
     } else {
       spent += transaction.netAmountInCollectiveCurrency;
