@@ -287,7 +287,6 @@ export const executeOrder = (user, order, options) => {
         .tap(() =>
           order.update({
             status: order.SubscriptionId ? status.ACTIVE : status.PAID,
-            UsingVirtualCardFromCollectiveId: order.paymentMethod.CreatedByCollectiveId,
           }),
         )
         .tap(async () => {

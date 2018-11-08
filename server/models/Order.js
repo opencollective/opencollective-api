@@ -117,16 +117,6 @@ export default function(Sequelize, DataTypes) {
         description: 'Referral',
       },
 
-      UsingVirtualCardFromCollectiveId: {
-        type: DataTypes.INTEGER,
-        references: { model: 'Collectives', key: 'id' },
-        onDelete: 'SET NULL',
-        onUpdate: 'CASCADE',
-        allowNull: true,
-        description:
-          'References the collective that created the virtual card used for this order',
-      },
-
       processedAt: DataTypes.DATE,
 
       status: {

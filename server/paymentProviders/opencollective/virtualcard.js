@@ -132,7 +132,10 @@ async function processOrder(order) {
   order.paymentMethod = paymentMethod;
   // gets the Debit transaction generated through the TransactionGroup field.
   const updatedTransactions = await models.Transaction.update(
-    { PaymentMethodId: paymentMethod.id },
+    {
+      PaymentMethodId: paymentMethod.id,
+      UsingVirtualCardFromCollectiveId: paymentMethod.CollectiveId,
+    },
     {
       where: { TransactionGroup: creditTransaction.TransactionGroup },
       returning: true,
@@ -222,7 +225,6 @@ async function create(args, remoteUser) {
   // creates a new Virtual card Payment method
   const paymentMethod = await models.PaymentMethod.create({
     CreatedByUserId: remoteUser && remoteUser.id,
-    CreatedByCollectiveId: collective.id,
     name: description,
     description: args.description || description,
     initialBalance: amount,
