@@ -1658,32 +1658,19 @@ export default function(Sequelize, DataTypes) {
    *  cards from other collectives when set to false.
    */
   Collective.prototype.transactionsWhereQuery = function(includeUsedVirtualCardsEmittedByOthers = true) {
-    const debitTransactionOrQuery = includeUsedVirtualCardsEmittedByOthers
-      ? // Include all transactions made by this collective or using one of its
-        // virtual cards
-        { CollectiveId: this.id, UsingVirtualCardFromCollectiveId: this.id }
-      : // Either Collective made the transaction without using a virtual card,
-        // or a transaction was made using one of its virtual cards - but don't
-        // include virtual cards used emitted by other collectives
-        [
-          { CollectiveId: this.id, UsingVirtualCardFromCollectiveId: null },
-          { UsingVirtualCardFromCollectiveId: this.id },
-        ];
-
-    return {
-      [Op.or]: [
-        // Debit transactions
-        {
-          type: 'DEBIT',
-          [Op.or]: debitTransactionOrQuery,
-        },
-        // Credit transactions
-        {
-          type: 'CREDIT',
-          CollectiveId: this.id,
-        },
-      ],
-    };
+    const query = { CollectiveId: this.id };
+    if (includeUsedVirtualCardsEmittedByOthers) {
+      return {
+        [Op.or]: [
+          query,
+          {
+            type: 'DEBIT',
+            UsingVirtualCardFromCollectiveId: this.id,
+          },
+        ],
+      };
+    }
+    return query;
   };
 
   /**
