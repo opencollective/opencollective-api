@@ -62,7 +62,7 @@
     "isomorphic-fetch": "2.2.1",
     "joi": "14.3.0",
     "json2csv": "3.4.2",
-    "jsonwebtoken": "5.7.0",
+    "jsonwebtoken": "8.4.0",
     "juice": "5.0.1",
     "knox": "github:automattic/knox#278337d7673341658efcc81e631c3f63fa53d374",
     "knox-mpu-alt": "0.2.2",
