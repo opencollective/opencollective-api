@@ -6,9 +6,6 @@
 
 process.env.PORT = 3066;
 
-import _ from 'lodash';
-import moment from 'moment';
-import config from 'config';
 import Promise from 'bluebird';
 import debugLib from 'debug';
 import models, { sequelize, Op } from '../server/models';
@@ -17,7 +14,7 @@ import roles from '../server/constants/roles';
 
 const debug = debugLib('onetime.email');
 
-const { Collective, Member, User } = models;
+const { Collective } = models;
 
 const init = () => {
   console.log('\nStarting script to send a one-time email...\n');
@@ -31,8 +28,9 @@ const init = () => {
   };
 
   // for debugging, handpick a few collectives
-  if (process.env.DEBUG && process.env.DEBUG.match(/preview/))
+  if (process.env.DEBUG && process.env.DEBUG.match(/preview/)) {
     collectiveQuery.where = { slug: { [Op.in]: ['webpack'] } };
+  }
 
   // get all active collectives
   return Collective.findAll(collectiveQuery)

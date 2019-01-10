@@ -8,7 +8,7 @@ import models from '../server/models';
 
 const debug = require('debug')('subscribe');
 
-const { Notification, User } = models;
+const { User } = models;
 
 const processRows = rows => {
   return Promise.map(rows, processRow);

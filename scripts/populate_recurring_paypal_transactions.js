@@ -11,14 +11,13 @@
  *
  * AB
  */
-
-const paypal = require('paypal-rest-sdk');
-const Bluebird = require('bluebird');
-const moment = require('moment');
-const _ = require('lodash');
+import Bluebird from 'bluebird';
+import paypal from 'paypal-rest-sdk';
+import moment from 'moment';
+import { find, filter } from 'lodash';
 
 import models from '../server/models';
-const slack = require('../server/lib/slack');
+import slack from '../server/lib/slack';
 
 const startDate = '2016-03-01'; // date that we started paypal payments
 const endDate = moment().format('YYYY-MM-DD');
@@ -35,7 +34,7 @@ const searchTransactions = (billingAgreementId, paypalConfig) => {
 
 const findUnregisteredTransaction = (transactions, paypalTransactions) => {
   return paypalTransactions.filter(pt => {
-    return !_.find(transactions, t => {
+    return !find(transactions, t => {
       return t.data && t.data.transaction_id === pt.transaction_id;
     });
   });
@@ -105,8 +104,8 @@ const log = message => {
 export const handlePaypalTransactions = (paypalTransactions, transaction, subscription, billingAgreementId) => {
   const collective = transaction.Collective;
   const user = transaction.User;
-  const completedList = _.filter(paypalTransactions, { status: 'Completed' });
-  const created = _.find(paypalTransactions, { status: 'Created' });
+  const completedList = filter(paypalTransactions, { status: 'Completed' });
+  const created = find(paypalTransactions, { status: 'Created' });
 
   if (!created) {
     return log(`No Created event, invalid: ${billingAgreementId}`);

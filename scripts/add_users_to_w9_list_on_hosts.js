@@ -51,7 +51,7 @@ function run() {
     .then(async data => {
       const groupedByHostId = _.groupBy(data, 'HostId');
 
-      for (let [key, value] of Object.entries(groupedByHostId)) {
+      for (const [key, value] of Object.entries(groupedByHostId)) {
         const uniqueUserIds = _.uniq(value.map(pair => pair.UserId));
         await checkAndInsertUserIntoHostList(key, uniqueUserIds);
       }

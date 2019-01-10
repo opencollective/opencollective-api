@@ -22,7 +22,7 @@ const init = () => {
 };
 
 const processRow = row => {
-  const type = `collective.expense.created`;
+  const type = 'collective.expense.created';
   debug(`Subscribing UserId ${row.UserId} to ${type} of CollectiveId ${row.CollectiveId}`);
   return Notification.create({
     UserId: row.UserId,

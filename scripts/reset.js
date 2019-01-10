@@ -1,8 +1,9 @@
 import '../server/env'; // important to load first for environment config
+
 import models from '../server/models';
+import roles from '../server/constants/roles';
 
 const exec = require('child-process-promise').exec;
-const roles = require('../server/constants/roles');
 
 const data = {};
 

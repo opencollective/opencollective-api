@@ -1,4 +1,3 @@
-import config from 'config';
 import models, { Op } from '../server/models';
 import { capitalize } from '../server/lib/utils';
 

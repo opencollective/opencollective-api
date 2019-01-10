@@ -1,7 +1,7 @@
-const Stripe = require('stripe');
-const app = require('../server/index');
+import Stripe from 'stripe';
+
 import models from '../server/models';
-const slackLib = require('../server/lib/slack');
+import slackLib from '../server/lib/slack';
 
 const done = err => {
   if (err) console.log('err', err);
@@ -9,7 +9,7 @@ const done = err => {
   process.exit();
 };
 
-var message = [];
+const message = [];
 
 models.Transaction.findAll({
   include: [
@@ -24,7 +24,7 @@ models.Transaction.findAll({
       return Promise.resolve();
     }
 
-    var accountId;
+    let accountId;
 
     return new Promise((resolve, reject) => {
       transaction.Collective.getStripeAccount((err, account) => {

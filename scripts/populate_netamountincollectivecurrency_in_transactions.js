@@ -1,4 +1,3 @@
-const app = require('../server/index');
 import models from '../server/models';
 
 const done = err => {

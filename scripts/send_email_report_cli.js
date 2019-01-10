@@ -1,9 +1,9 @@
-const util = require('util');
+import util from 'util';
+import prompts from 'prompts';
+import moment from 'moment';
+
 const exec = require('child_process').exec;
 const execPromise = util.promisify(exec);
-const spawn = require('child_process').spawn;
-const prompts = require('prompts');
-const moment = require('moment');
 
 const reports = [
   {
@@ -35,7 +35,6 @@ const reports = [
 const PG_DATABASE = process.env.PG_DATABASE || 'opencollective_prod_snapshot';
 
 function getChoices(array) {
-  const res = [];
   return array.map(key => ({ title: key.template, value: key.command }));
 }
 
@@ -91,13 +90,13 @@ async function runReport(responses) {
   return new Promise(resolve => {
     const cmd = exec(command, { env });
     cmd.stdout.pipe(process.stdout);
-    cmd.on('exit', code => {
+    cmd.on('exit', () => {
       resolve();
     });
   });
 }
 
-async function main({ argv }) {
+async function main() {
   // console.log('hi', argv)
 
   console.log('This utility generates one of the automatic email reports for users or hosts.');

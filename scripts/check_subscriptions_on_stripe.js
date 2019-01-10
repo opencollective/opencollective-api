@@ -45,7 +45,7 @@ const promiseSeq = (arr, predicate, consecutive) => {
 
 const getSubscriptionFromStripe = (order, options) => {
   const { dryRun = true } = options;
-  //console.log(`Processing SubscriptionId: ${order.SubscriptionId}`);
+  // console.log(`Processing SubscriptionId: ${order.SubscriptionId}`);
   return order.collective
     .getHostStripeAccount()
     .then(stripeAccount => retrieveSubscription(stripeAccount, order.Subscription.stripeSubscriptionId))
@@ -192,11 +192,11 @@ const exitHandler = (options, err) => {
   }
 };
 
-process.stdin.resume(); //so the program will not close instantly
-//do something when app is closing
-//process.on('exit', exitHandler.bind(null, { exit: true}));
+process.stdin.resume(); // so the program will not close instantly
+// do something when app is closing
+// process.on('exit', exitHandler.bind(null, { exit: true}));
 
-//catches ctrl+c event
+// catches ctrl+c event
 process.on('SIGINT', exitHandler.bind(null, { exit: true }));
 
 run();

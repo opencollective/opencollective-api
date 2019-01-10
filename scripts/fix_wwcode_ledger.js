@@ -2,7 +2,7 @@
  * This is a one-time use script to fix wwcode ledger
  */
 
-import models, { sequelize, Op } from '../server/models';
+import models, { Op } from '../server/models';
 
 const done = err => {
   if (err) console.log('err', err);
@@ -112,7 +112,7 @@ const checkAndFixExpenses = () => {
             console.log('\t\t>>> Should be: ', validUserCollectives);
 
             expensesAffected.push(expense.id);
-            //return Promise.resolve();
+            // return Promise.resolve();
             return debit
               .update({ FromCollectiveId: validUserCollectives[0] })
               .then(() => credit.update({ CollectiveId: validUserCollectives[0] }));

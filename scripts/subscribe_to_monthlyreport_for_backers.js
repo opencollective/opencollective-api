@@ -32,7 +32,7 @@ const processRow = row => {
     UserId: row.id,
     type,
   })
-    .then(notification => console.log(`> UserId ${row.id} is now subscribed to ${type}`))
+    .then(() => console.log(`> UserId ${row.id} is now subscribed to ${type}`))
     .catch(() => console.error(`UserId ${row.id} already subscribed to ${type}`));
 };
 

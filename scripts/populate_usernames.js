@@ -1,4 +1,3 @@
-import config from 'config';
 import models from '../server/models';
 
 const done = err => {

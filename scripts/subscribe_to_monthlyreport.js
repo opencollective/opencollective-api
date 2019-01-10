@@ -35,9 +35,7 @@ const processRow = row => {
     CollectiveId: row.CollectiveId,
     type,
   })
-    .then(notification =>
-      console.log(`> UserId ${row.UserId} is now subscribed to ${type} of CollectiveId ${row.CollectiveId}`),
-    )
+    .then(() => console.log(`> UserId ${row.UserId} is now subscribed to ${type} of CollectiveId ${row.CollectiveId}`))
     .catch(() =>
       console.error(`UserId ${row.UserId} already subscribed to ${type} of CollectiveId ${row.CollectiveId}`),
     );

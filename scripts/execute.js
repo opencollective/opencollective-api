@@ -1,4 +1,4 @@
-const slack = require('../server/lib/slack');
+import slack from '../server/lib/slack';
 
 /**
  * Executes a script by name

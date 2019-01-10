@@ -3,8 +3,8 @@
  */
 import config from 'config';
 import nodemailer from 'nodemailer';
-import config from 'config';
 import juice from 'juice';
+import { has, get } from 'lodash';
 
 import libEmailTemplates from '../server/lib/emailTemplates';
 
@@ -353,7 +353,7 @@ if (!templateName) {
           text,
           html: attributes.body,
         },
-        (err, info) => {
+        () => {
           console.log('email sent');
         },
       );
