@@ -578,6 +578,21 @@ const mutations = {
     },
     resolve: async (_, args, req) => claimPaymentMethod(args, req.remoteUser),
   },
+  removePaymentMethod: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Removes the payment method',
+    args: {
+      id: {
+        type: new GraphQLNonNull(GraphQLInt),
+        description: 'ID of the payment method to remove',
+      },
+    },
+    resolve: async (_, args, req) => {
+      if (!req.remoteUser) {
+        throw new Error('You need to be logged in');
+      }
+    },
+  },
 };
 
 export default mutations;

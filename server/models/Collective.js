@@ -1462,6 +1462,16 @@ export default function(Sequelize, DataTypes) {
       .then(() => this.getTiers());
   };
 
+  Collective.prototype.removePaymentMethod = async (paymentMethodId, user) => {
+    const paymentMethod = await models.PaymentMethod.findByPk(paymentMethodId);
+    if (!paymentMethod) {
+      throw new Error('This payment method does not exist');
+    } else if (!user.isAdmin(paymentMethod.CollectiveId)) {
+      throw new Error("You don't have enough perissions to do that");
+    }
+    return paymentMethod.update({ archivedAt: new Date() });
+  };
+
   /*
    * Assumes:
    * - only credit cards on stripe can be updated

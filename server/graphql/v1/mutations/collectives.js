@@ -290,6 +290,7 @@ export function editCollective(_, args, req) {
       }),
     )
     .then(() =>
+      // TODO Deprecated since 2019-02-06 - We now use specific graphql queries
       collective.editPaymentMethods(args.collective.paymentMethods, {
         CreatedByUserId: req.remoteUser.id,
       }),
