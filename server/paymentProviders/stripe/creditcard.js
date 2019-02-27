@@ -8,11 +8,6 @@ import * as paymentsLib from '../../lib/payments';
 import { planId } from '../../lib/utils';
 import errors from '../../lib/errors';
 
-/**
- * Calculates the 1st of next month
- * input: date
- * output: 1st of following month, needs to be in Unix time and in seconds (not ms)
- */
 export default {
   features: {
     recurring: true,
