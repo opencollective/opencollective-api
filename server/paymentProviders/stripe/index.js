@@ -7,6 +7,7 @@ import models from '../../models';
 import errors from '../../lib/errors';
 import { retrieveEvent } from './gateway';
 import creditcard from './creditcard';
+import sepa from './sepa';
 import stripeLib from 'stripe';
 import debugLib from 'debug';
 import { get } from 'lodash';
@@ -44,6 +45,7 @@ export default {
   types: {
     default: creditcard,
     creditcard,
+    sepa,
   },
 
   oauth: {
@@ -166,6 +168,8 @@ export default {
     switch (order.paymentMethod.type) {
       case 'bitcoin':
         throw new errors.BadRequest('Stripe-Bitcoin not supported anymore :(');
+      case 'sepa':
+        return sepa.processOrder(order);
       case 'creditcard': /* Fallthrough */
       default:
         return creditcard.processOrder(order);
@@ -193,6 +197,10 @@ export default {
          * that our stuff is broken. But that should never happen
          * since they discontinued the support. */
         throw new errors.BadRequest('Stripe-Bitcoin not supported anymore :(');
+      } else if (event.type === 'charge.succeeded') {
+        return sepa.webhook.chargeSucceded(requestBody, event);
+      } else if (event.type === 'charge.failed') {
+        return sepa.webhook.chargeFailed(requestBody, event);
       } else {
         throw new errors.BadRequest('Wrong event type received');
       }
