@@ -248,6 +248,7 @@ export const OrderInputType = new GraphQLInputObjectType({
     totalAmount: { type: GraphQLInt },
     hostFeePercent: { type: GraphQLInt },
     platformFeePercent: { type: GraphQLInt },
+    data: { type: GraphQLJSON },
     currency: { type: GraphQLString },
     interval: { type: GraphQLString },
     description: { type: GraphQLString },
