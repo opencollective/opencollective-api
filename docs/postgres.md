@@ -13,6 +13,24 @@ Using brew was not an option:
 - `brew install postgresql postgis` would end up with Postgres 10.x
 - `brew install postgresql@9.x` would end up with Postgres 9.x without possibility to install Postgis
 
+### Using Docker
+
+If you don't want to run a local instance of Postgres in your computer, you can run one in Docker.
+Keep in mind that you still need to have the local client tools like `psql`, `dropdb`, `createuser` still locally available.
+
+Create and run the container:
+
+```
+docker run -p 5432:5432 -d --name opencollective-postgres mdillon/postgis:9.6
+```
+
+Set the necessary environment variables:
+
+```
+export PGHOST=localhost
+export PGUSER=postgres
+```
+
 ## Setting Up The database
 
 Now, assuming the postgres database superuser is `postgres`:

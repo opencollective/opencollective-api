@@ -21,6 +21,7 @@ If you see a step below that could be improved (or is outdated), please update t
 
 - Check the version: 10.3, 9.6.8, 9.5.12, 9.4.17, 9.3.22 or newer
 - Check that the [PostGIS](https://postgis.net/install/) extension is available
+- You can see more instructions on how to set up Postgres locally [here](docs/postgres.md)
 
 3. For [node-gyp](https://github.com/nodejs/node-gyp), make sure you have Python 2 available and configured as the active version. You can use [pyenv](https://github.com/pyenv/pyenv) to manage Python versions.
 
