@@ -20,15 +20,13 @@ export default {
     /**
      * Get or create a customer under the platform stripe account
      */
-    const getOrCreateCustomerOnPlatformAccount = () => {
+    const getOrCreateCustomerOnPlatformAccount = async () => {
       if (!paymentMethod.customerId) {
-        return stripeGateway
-          .createCustomer(null, paymentMethod.token, {
-            email: user.email,
-            collective: order.fromCollective.info,
-          })
-          .then(customer => customer.id)
-          .then(platformCustomerId => paymentMethod.update({ customerId: platformCustomerId }));
+        const customer = await stripeGateway.createCustomer(null, paymentMethod.token, {
+          email: user.email,
+          collective: order.fromCollective.info,
+        });
+        await paymentMethod.update({ customerId: customer.id });
       }
       return Promise.resolve();
     };
@@ -39,7 +37,7 @@ export default {
      * and saves it under PaymentMethod.data[hostStripeAccount.username]
      * @param {*} hostStripeAccount
      */
-    const getOrCreateCustomerIdForHost = hostStripeAccount => {
+    const getOrCreateCustomerIdForHost = async hostStripeAccount => {
       // Customers pre-migration will have their stripe user connected
       // to the platform stripe account, not to the host's stripe
       // account. Since payment methods had no name before that
@@ -48,23 +46,12 @@ export default {
 
       const data = paymentMethod.data || {};
       data.customerIdForHost = data.customerIdForHost || {};
-      return (
-        data.customerIdForHost[hostStripeAccount.username] ||
-        stripeGateway
-          .createToken(hostStripeAccount, paymentMethod.customerId)
-          .then(token =>
-            stripeGateway.createCustomer(hostStripeAccount, token.id, {
-              email: user.email,
-              collective: fromCollective.info,
-            }),
-          )
-          .then(customer => customer.id)
-          .tap(customerId => {
-            data.customerIdForHost[hostStripeAccount.username] = customerId;
-            paymentMethod.data = data;
-            paymentMethod.save();
-          })
-      );
+      if (data.customerIdForHost[hostStripeAccount.username]) {
+        return data.customerIdForHost[hostStripeAccount.username];
+      } else {
+        const token = await stripeGateway.createToken(hostStripeAccount, paymentMethod.customerId);
+        return token.id;
+      }
     };
 
     /**
@@ -98,6 +85,8 @@ export default {
     const hostStripeCustomerId = await getOrCreateCustomerIdForHost(hostStripeAccount);
     await createCharge(hostStripeAccount, hostStripeCustomerId);
     await paymentMethod.update({ confirmedAt: new Date() });
+
+    // TODO Send SEPA debit charge created notification email.
   },
 
   /** Refund a given transaction that was already refunded
@@ -169,6 +158,7 @@ export default {
       };
       await models.Transaction.createFromPayload(payload);
       await order.update({ status: status.PAID });
+      // TODO Send thankyou email.
     },
 
     async chargeFailed(requestBody, event) {
@@ -176,6 +166,7 @@ export default {
       const order = await models.Order.findByPk(charge.metadata.OrderId).then(order => order.populate());
 
       await order.update({ status: status.REJECTED });
+      // TODO Send payment.failed email.
     },
   },
 };
