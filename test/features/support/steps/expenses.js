@@ -21,11 +21,9 @@ When('{string} expenses {string} for {string} to {string} via {string}', async f
     payoutMethod: payoutMethod.toLowerCase(),
     collective: { id: collective.id },
   };
-  console.log('create expense');
   const query = `mutation createExpense($expense: ExpenseInputType!) {
       createExpense(expense: $expense) { id, status } }`;
   const result = await utils.graphqlQuery(query, { expense }, user);
-  console.log(result);
   expect(result.errors).to.not.exist;
   this.addValue(`expense-${description}`, result.data.createExpense);
 });
