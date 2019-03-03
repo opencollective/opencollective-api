@@ -10,7 +10,8 @@ When('{string} expenses {string} for {string} to {string} via {string}', async f
   collectiveName,
   payoutMethod,
 ) {
-  const [amount, currency] = value.split(' ');
+  const [amountStr, currency] = value.split(' ');
+  const amount = parseInt(amountStr, 10);
   const user = this.getValue(`${userName}-user`);
   const collective = this.getValue(collectiveName);
   const expense = {
@@ -20,9 +21,11 @@ When('{string} expenses {string} for {string} to {string} via {string}', async f
     payoutMethod: payoutMethod.toLowerCase(),
     collective: { id: collective.id },
   };
+  console.log('create expense');
   const query = `mutation createExpense($expense: ExpenseInputType!) {
       createExpense(expense: $expense) { id, status } }`;
   const result = await utils.graphqlQuery(query, { expense }, user);
+  console.log(result);
   expect(result.errors).to.not.exist;
   this.addValue(`expense-${description}`, result.data.createExpense);
 });
