@@ -50,7 +50,7 @@ PRE_DEPLOY_BRANCH="master"
 
 GIT_LOG_FORMAT_SHELL='short'
 GIT_LOG_FORMAT_SLACK='format:<https://github.com/opencollective/opencollective-api/commit/%H|[%ci]> *%an* %n_%<(80,trunc)%s_%n'
-GIT_LOG_COMPARISON="$PRE_DEPLOY_ORIGIN/$PRE_DEPLOY_BRANCH..$LOCAL_ORIGIN/$LOCAL_BRANCH"
+GIT_LOG_ARGS=(--grep "^Merge pull request #" "$PRE_DEPLOY_ORIGIN/$PRE_DEPLOY_BRANCH..$LOCAL_ORIGIN/$LOCAL_BRANCH")
 
 # ---- Utils ----
 
@@ -78,17 +78,17 @@ function exit_success()
 
 # ---- Ensure we have a reference to the remote ----
 
-git remote add $PRE_DEPLOY_ORIGIN $DEPLOY_ORIGIN_URL &> /dev/null
+git remote add "$PRE_DEPLOY_ORIGIN" "$DEPLOY_ORIGIN_URL" &> /dev/null
 
 # ---- Show the commits about to be pushed ----
 
 # Update deploy remote
 echo "ℹ️  Fetching remote $1 state..."
-git fetch $PRE_DEPLOY_ORIGIN > /dev/null
+git fetch "$PRE_DEPLOY_ORIGIN" > /dev/null
 
 echo ""
 echo "-------------- New commits --------------"
-git --no-pager log --pretty="${GIT_LOG_FORMAT_SHELL}" $GIT_LOG_COMPARISON
+git --no-pager log --pretty="${GIT_LOG_FORMAT_SHELL}" "${GIT_LOG_ARGS[@]}"
 echo "-----------------------------------------"
 echo ""
 
@@ -110,12 +110,12 @@ if [ -z "$OC_SLACK_USER_TOKEN" ]; then
 fi
 
 ESCAPED_CHANGELOG=$(
-  git log --pretty="${GIT_LOG_FORMAT_SLACK}" $GIT_LOG_COMPARISON \
+  git log --pretty="${GIT_LOG_FORMAT_SLACK}" "${GIT_LOG_ARGS[@]}" \
   | sed 's/"/\\\\"/g'
 )
 
 if [ ! -z "$DEPLOY_MSG" ]; then
-  CUSTOM_MESSAGE="-- _$(echo $DEPLOY_MSG | sed 's/"/\\\\"/g' | sed "s/'/\\\\'/g")_"
+  CUSTOM_MESSAGE="-- _$(echo "$DEPLOY_MSG" | sed 's/"/\\\\"/g' | sed "s/'/\\\\'/g")_"
 fi
 
 read -d '' PAYLOAD << EOF
