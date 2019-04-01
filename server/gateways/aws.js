@@ -1,10 +1,10 @@
-import knox from 'knox';
 import config from 'config';
+import aws from 'aws-sdk'
 
 // S3 bucket
-let knoxClient;
+let awsClient;
 if (config.aws.s3.key) {
-  knoxClient = knox.createClient({
+  awsClient = aws.config.update({
     key: config.aws.s3.key,
     secret: config.aws.s3.secret,
     bucket: config.aws.s3.bucket,
@@ -12,4 +12,4 @@ if (config.aws.s3.key) {
   });
 }
 
-export default knoxClient;
+export default awsClient;
