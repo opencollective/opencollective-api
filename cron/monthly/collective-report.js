@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import '../../server/env';
 
+const collectiveReportDisabled = true;
+
 // Only run on the first of the month
 const today = new Date();
 if (process.env.NODE_ENV === 'production' && today.getDate() !== 1) {
@@ -37,6 +39,11 @@ const processCollectives = collectives => {
 };
 
 const init = () => {
+  if (collectiveReportDisabled) {
+    console.log('The monthly Collective report is disabled.');
+    return;
+  }
+
   const startTime = new Date();
 
   const query = {
