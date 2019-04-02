@@ -1,4 +1,4 @@
-FROM node:10.3.0
+FROM node:11.13.0
 
 VOLUME /usr/src/frontend
 

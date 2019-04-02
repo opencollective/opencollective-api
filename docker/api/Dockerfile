@@ -1,10 +1,7 @@
-FROM node:10.3.0
-
-RUN echo 'deb http://ftp.debian.org/debian jessie-backports main' > \
-    /etc/apt/sources.list.d/jessie-backports.list
+FROM node:11.13.0
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq5=9.6.6-0+deb9u1~bpo8+1 postgresql-client-9.6 && rm -rf /var/lib/apt/lists/*
+    postgresql-client-9.6 && rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /usr/src/app
 
