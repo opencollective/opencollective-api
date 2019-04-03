@@ -31,6 +31,7 @@
     "body-parser": "1.18.3",
     "child-process-promise": "2.2.1",
     "clearbit": "1.3.4",
+    "aws-sdk": "^2.432.0",
     "cloudflare": "2.4.1",
     "cloudflare-ip": "0.0.7",
     "config": "3.0.1",
