@@ -221,6 +221,7 @@ export default function(Sequelize, DataTypes) {
             const image = `https://logo.clearbit.com/${getDomain(this.website)}`;
             return image;
           }
+          return `https://ui-avatars.com/api/?rounded=true&name=${this.name}`;
         },
       },
 
@@ -1129,6 +1130,8 @@ export default function(Sequelize, DataTypes) {
             if (options.active) {
               backerCollective.isActive = order.Subscription.isActive;
             }
+            backerCollective.image =
+              backerCollective.image || `https://ui-avatars.com/api/?rounded=true&name=${backerCollective.name}`;
             debug('adding to tier', TierId, 'backer: ', backerCollective.dataValues.slug);
             tiersById[TierId].dataValues.users.push(backerCollective.dataValues);
           });
