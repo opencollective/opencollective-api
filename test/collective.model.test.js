@@ -350,7 +350,7 @@ describe('Collective model', () => {
       type: 'USER',
       email: 'xavier@tribal.be',
     }).then(user => {
-      expect(user.collective.image).to.equal(undefined);
+      expect(user.collective.image).to.contain('ui-avatars.com');
       setTimeout(() => {
         models.Collective.findByPk(user.collective.id).then(c => {
           expect(c.image).to.equal('https://www.gravatar.com/avatar/a97d0fcd96579015da610aa284f8d8df?default=404');
