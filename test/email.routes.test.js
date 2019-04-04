@@ -145,7 +145,7 @@ describe('email.routes.test', () => {
               'https://res.cloudinary.com/opencollective/image/fetch/c_thumb,g_face,h_48,r_max,w_48,bo_3px_solid_white/c_thumb,h_48,r_max,w_48,bo_2px_solid_rgb:66C71A/e_trim/f_auto/https%3A%2F%2Fassets-cdn.github.com%2Fimages%2Fmodules%2Flogos_page%2FGitHub-Logo.png',
             );
             expect(latestSubscribers[1].roundedAvatar).to.equal(
-              'https://ui-avatars.com/api/?name=Pia%20Mancini&rounded=true&size=48',
+              'https://res.cloudinary.com/opencollective/image/fetch/c_thumb,g_face,h_48,r_max,w_48,bo_3px_solid_white/c_thumb,h_48,r_max,w_48,bo_2px_solid_rgb:66C71A/e_trim/f_auto/https%3A%2F%2Fui-avatars.com%2Fapi%2F%3Frounded%3Dtrue%26name%3DPia%2520Mancini',
             );
             emailSentTo.push(spy.args[i][3].bcc);
           }
@@ -198,7 +198,7 @@ describe('email.routes.test', () => {
         expect(emailData.sender.email).to.equal(usersData[0].email);
         expect(emailData.sender.image).to.equal(usersData[0].image);
         expect(emailData.approver.email).to.equal(usersData[1].email);
-        expect(emailData.approver.image).to.equal(usersData[1].image);
+        expect(emailData.approver.image).to.equal('https://ui-avatars.com/api/?rounded=true&name=Aseem%20Sood');
         expect(emailsSent.length).to.equal(2);
         expect(emailsSent[0][1]).to.equal('admins@testcollective.opencollective.com');
         expect(emailsSent[0][2].subject).to.equal('test collective admins');

@@ -76,7 +76,7 @@ Object {
   "amount": 5000,
   "collective": Object {
     "id": 3,
-    "image": null,
+    "image": "https://ui-avatars.com/api/?rounded=true&name=Scouts%20d'Arlon",
     "name": "Scouts d'Arlon",
     "slug": "scouts",
   },
@@ -84,13 +84,13 @@ Object {
   "description": "Donation to that great project",
   "fromCollective": Object {
     "id": 1,
-    "image": null,
+    "image": "https://ui-avatars.com/api/?rounded=true&name=Phil%20Mod",
     "name": "Phil Mod",
     "slug": "philmod",
   },
   "host": Object {
     "id": 2,
-    "image": null,
+    "image": "https://ui-avatars.com/api/?rounded=true&name=WWCode",
     "name": "WWCode",
     "slug": "wwcode",
   },
@@ -112,7 +112,7 @@ Object {
   "amount": -1199,
   "collective": Object {
     "id": 3,
-    "image": null,
+    "image": "https://ui-avatars.com/api/?rounded=true&name=Scouts%20d'Arlon",
     "name": "Scouts d'Arlon",
     "slug": "scouts",
   },
@@ -123,7 +123,7 @@ Object {
   "currency": "USD",
   "fromCollective": Object {
     "id": 1,
-    "image": null,
+    "image": "https://ui-avatars.com/api/?rounded=true&name=Phil%20Mod",
     "name": "Phil Mod",
     "slug": "philmod",
   },
@@ -148,7 +148,7 @@ Object {
   "amount": 5000,
   "collective": Object {
     "id": 3,
-    "image": null,
+    "image": "https://ui-avatars.com/api/?rounded=true&name=Scouts%20d'Arlon",
     "name": "Scouts d'Arlon",
     "slug": "scouts",
   },
@@ -159,7 +159,7 @@ Object {
   "currency": "USD",
   "fromCollective": Object {
     "id": 1,
-    "image": null,
+    "image": "https://ui-avatars.com/api/?rounded=true&name=Phil%20Mod",
     "name": "Phil Mod",
     "slug": "philmod",
   },
