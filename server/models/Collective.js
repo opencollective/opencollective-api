@@ -221,7 +221,9 @@ export default function(Sequelize, DataTypes) {
             const image = `https://logo.clearbit.com/${getDomain(this.website)}`;
             return image;
           }
-          return `https://ui-avatars.com/api/?rounded=true&name=${encodeURIComponent(this.name)}`;
+          if (this.type === 'USER') {
+            return `https://ui-avatars.com/api/?rounded=true&name=${encodeURIComponent(this.name)}`;
+          }
         },
       },
 
