@@ -1,9 +1,9 @@
 import path from 'path';
 import uuidv1 from 'uuid/v1';
+import config from 'config';
 
 import errors from '../lib/errors';
-import awsClient from '../lib/awsClient';
-import { AWS } from 'aws-sdk';
+import S3 from '../lib/awsClient';
 
 // Use a 2 minutes timeout for image upload requests as the default 25 seconds
 // often leads to failing requests.
@@ -37,29 +37,33 @@ export default function uploadImage(req, res, next) {
     );
   }
 
-  if (!awsClient) {
+  if (!S3) {
     return next(new errors.ServerError('AWS Knox client not initialized'));
   }
 
   /**
    * We will replace the name to avoid collisions
    */
+
   const ext = path.extname(file.originalname);
   const filename = ['/', uuidv1(), ext].join('');
 
-  const s3 = new AWS.S3({
-    params: { Bucket: awsClient.bucket },
+  const params = {
+    Bucket: config.aws.s3.bucket,
+    Key: filename,
     ContentType: file.mimetype,
     ACL: 'public-read',
-  });
-
-  const config = {
-    Key: filename,
     Body: filename,
-    ACL: 'public-read',
   };
 
-  s3.upload(config);
+  S3.upload(params, (err, data) => {
+    //handle error
+    if (err) {
+      res.status(500).json({ error: true, Message: err });
+    } else {
+      res.send({ data });
+    }
+  });
 
   req.setTimeout(IMAGE_UPLOAD_TIMEOUT);
 }
