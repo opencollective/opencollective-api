@@ -210,16 +210,5 @@ export default {
       const updatedPaymentMethod = await getPreapprovalDetailsAndUpdatePaymentMethod(pm);
       return res.json(updatedPaymentMethod.info);
     },
-
-    updateBalance: async paymentMethod => {
-      return await getPreapprovalDetailsAndUpdatePaymentMethod(paymentMethod);
-    },
-
-    getBalance: async paymentMethod => {
-      return {
-        amount: get(paymentMethod, 'data.balance'),
-        currency: get(paymentMethod, 'data.currency'),
-      };
-    },
   },
 };
