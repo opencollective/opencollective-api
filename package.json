@@ -67,7 +67,6 @@
     "json2csv": "4.5.0",
     "jsonwebtoken": "5.7.0",
     "juice": "5.2.0",
-    "knox": "github:automattic/knox#278337d7673341658efcc81e631c3f63fa53d374",
     "limax": "1.7.0",
     "lodash": "4.17.11",
     "lru-cache": "5.1.1",

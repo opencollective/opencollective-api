@@ -1,8 +1,9 @@
 import path from 'path';
 import uuidv1 from 'uuid/v1';
 
+import s3 from '../lib/awsSdk';
 import errors from '../lib/errors';
-import knox from '../lib/knox';
+import config from 'config';
 
 // Use a 2 minutes timeout for image upload requests as the default 25 seconds
 // often leads to failing requests.
@@ -35,8 +36,8 @@ export default function uploadImage(req, res, next) {
     );
   }
 
-  if (!knox) {
-    return next(new errors.ServerError('AWS Knox client not initialized'));
+  if (!s3) {
+    return next(new errors.ServerError('AWS-SDK client not initialized'));
   }
 
   /**
@@ -45,20 +46,19 @@ export default function uploadImage(req, res, next) {
   const ext = path.extname(file.originalname);
   const filename = ['/', uuidv1(), ext].join('');
 
-  const put = knox.put(filename, {
-    'Content-Length': file.size,
-    'Content-Type': file.mimetype,
-    'x-amz-acl': 'public-read',
-  });
-
   req.setTimeout(IMAGE_UPLOAD_TIMEOUT);
 
-  put.on('response', response => {
-    res.send({
-      status: response.statusCode,
-      url: put.url,
-    });
-  });
-
-  put.end(file.buffer);
+  s3.client.upload(
+    {
+      Bucket: config.aws.s3.bucket,
+      ContentLength: file.size,
+      ContentType: file.mimetype,
+      ACL: 'public-read',
+      Key: filename,
+      Body: file,
+    },
+    (err, data) => {
+      if (err === null) res.send({ status: '200', url: data.Location });
+    },
+  );
 }
