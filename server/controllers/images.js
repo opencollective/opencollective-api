@@ -3,7 +3,6 @@ import uuidv1 from 'uuid/v1';
 
 import s3 from '../lib/awsSdk';
 import errors from '../lib/errors';
-import config from 'config';
 
 // Use a 2 minutes timeout for image upload requests as the default 25 seconds
 // often leads to failing requests.
@@ -36,7 +35,7 @@ export default function uploadImage(req, res, next) {
     );
   }
 
-  if (!s3) {
+  if (s3 === null) {
     return next(new errors.ServerError('AWS-SDK client not initialized'));
   }
 
@@ -50,7 +49,6 @@ export default function uploadImage(req, res, next) {
 
   s3.client.upload(
     {
-      Bucket: config.aws.s3.bucket,
       ContentLength: file.size,
       ContentType: file.mimetype,
       ACL: 'public-read',
