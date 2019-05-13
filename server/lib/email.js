@@ -7,6 +7,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import he from 'he';
+import fetch from 'node-fetch';
 import { isArray, pick, get, merge, includes } from 'lodash';
 
 import models from '../models';
@@ -46,9 +47,6 @@ const render = (template, data) => {
     data.user.paypalEmail = data.user.paypalEmail || data.user.email;
   }
 
-  if (templates[`${template}.text`]) {
-    text = templates[`${template}.text`](data);
-  }
   const html = juice(he.decode(templates[template](data)));
 
   // When in development mode, we log the data used to compile the template
@@ -233,20 +231,8 @@ const getNotificationLabel = (template, recipients) => {
 /*
  * Given a template, recipient and data, generates email.
  */
-const generateEmailFromTemplate = (template, recipient, data = {}, options = {}) => {
+const generateEmailFromTemplate = async (template, recipient, data = {}, options = {}) => {
   const slug = get(options, 'collective.slug') || get(data, 'collective.slug') || 'undefined';
-
-  // If we are sending the same email to multiple recipients, it doesn't make sense to allow them to unsubscribe
-  if (!isArray(recipient)) {
-    data.notificationTypeLabel = getNotificationLabel(options.type || template, recipient);
-    data.unsubscribeUrl = `${config.host.website}/api/services/email/unsubscribe/${encodeURIComponent(
-      recipient || options.bcc,
-    )}/${slug}/${options.type || template}/${generateUnsubscribeToken(
-      recipient || options.bcc,
-      slug,
-      options.type || template,
-    )}`;
-  }
 
   if (template === 'ticket.confirmed') {
     // if (slug === 'sustainoss') template += '.sustainoss';
@@ -306,9 +292,33 @@ const generateEmailFromTemplate = (template, recipient, data = {}, options = {})
     return Promise.reject(new Error(`Invalid email template: ${template}`));
   }
 
-  const renderedTemplate = render(template, data);
+  const result = render(template, data);
+  const attributes = getTemplateAttributes(result.html);
 
-  return Promise.resolve(renderedTemplate);
+  return { subject: attributes.subject, html: attributes.body, text: result.text };
+};
+
+/*
+ * Given a template, recipient and data, generates email.
+ */
+const generateEmailWithService = async (template, recipient, data = {}) => {
+  const templateUrl = `${config.host.emails}/template/${template}/render`;
+
+  try {
+    const result = await fetch(templateUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ props: data }),
+    });
+    const html = await result.text();
+    if (html) {
+      const title = /<title>([^<]+)<\/title>/.exec(html);
+      const subject = title && title.length > 0 ? title[1] : null;
+      return { html, subject };
+    }
+  } catch (error) {
+    logger.error(error.msg);
+  }
 };
 
 const isNotificationActive = async (template, data) => {
@@ -334,12 +344,35 @@ const generateEmailFromTemplateAndSend = async (template, recipient, data, optio
     return;
   }
 
-  return generateEmailFromTemplate(template, recipient, data, options).then(renderedTemplate => {
-    const attributes = getTemplateAttributes(renderedTemplate.html);
-    options.text = renderedTemplate.text;
-    options.tag = template;
-    return emailLib.sendMessage(recipient, attributes.subject, attributes.body, options);
-  });
+  // If we are sending the same email to multiple recipients, it doesn't make sense to allow them to unsubscribe
+  if (!isArray(recipient)) {
+    const slug = get(options, 'collective.slug') || get(data, 'collective.slug') || 'undefined';
+    data.notificationTypeLabel = getNotificationLabel(options.type || template, recipient);
+    data.unsubscribeUrl = `${config.host.website}/api/services/email/unsubscribe/${encodeURIComponent(
+      recipient || options.bcc,
+    )}/${slug}/${options.type || template}/${generateUnsubscribeToken(
+      recipient || options.bcc,
+      slug,
+      options.type || template,
+    )}`;
+  }
+
+  // Render with new email service
+  let result;
+  if (template === 'user.new.token') {
+    result = await generateEmailWithService(template, recipient, data, options);
+  }
+
+  // Render with handlebar templates
+  if (!result) {
+    result = await generateEmailFromTemplate(template, recipient, data, options);
+  }
+
+  if (!result.text && templates[`${template}.text`]) {
+    result.text = templates[`${template}.text`](data);
+  }
+
+  return emailLib.sendMessage(recipient, result.subject, result.html, { ...options, text: result.text, tag: template });
 };
 
 const emailLib = {

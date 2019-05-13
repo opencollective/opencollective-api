@@ -2,8 +2,9 @@
 
 ## Receving Emails
 
+- Make sure you have [MailDev](https://danfarrelly.nyc/MailDev/) installed globally: `npm install -g maildev`
 - Launch the API server with `MAILDEV=true npm run dev`
-- In a separate terminal, launch [MailDev](https://danfarrelly.nyc/MailDev/) with `npm run maildev`
+- In a separate terminal, launch [MailDev](https://danfarrelly.nyc/MailDev/) with `maildev`
 - Open `http://localhost:1080` to browse outgoing emails
 
 ## Email Templates

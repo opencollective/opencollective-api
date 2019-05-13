@@ -26,7 +26,8 @@
     "webapp": "http://localhost:3000/app",
     "website": "http://localhost:3000",
     "images": "https://images.opencollective.com",
-    "invoices": "https://invoices.opencollective.com"
+    "invoices": "https://invoices.opencollective.com",
+    "emails": "https://emails.opencollective.com"
   },
   "limits": {
     "ordersPerHour": {

@@ -19,7 +19,8 @@
     "webapp": "https://app.opencollective.com",
     "website": "https://opencollective.com",
     "images": "https://images.opencollective.com",
-    "invoices": "https://invoices.opencollective.com"
+    "invoices": "https://invoices.opencollective.com",
+    "emails": "https://emails.opencollective.com"
   },
   "stripe": {
     "redirectUri": "https://api.opencollective.com/connected-accounts/stripe/callback"

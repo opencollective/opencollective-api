@@ -26,7 +26,6 @@
 | MAILGUN_USER            | .mailgun.user                          | mailgun user                                  |
 | MAILGUN_API_KEY         | .mailgun.apiKey                        | mailgun password                              |
 | API_URL                 | .host.api                              | API exposed url                               |
-| WEBAPP_URL              | .host.webapp                           | webapp URL                                    |
 | WEBSITE_URL             | .host.website                          | UI URL                                        |
 | FRONTEND_URL            | .host.frontend                         | URL of the frontend service (for caching)     |
 | SLACK_HOOK_URL          | .slack.webhookUrl                      | slack hook url                                |
