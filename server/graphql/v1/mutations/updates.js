@@ -28,6 +28,7 @@ export async function createUpdate(_, args, req) {
     html: strip_tags(args.update.html),
     CollectiveId,
     isPrivate: args.update.isPrivate,
+    makePublicOn: args.update.makePublicOn,
     TierId: get(args, 'update.tier.id'),
     CreatedByUserId: req.remoteUser.id,
     FromCollectiveId: req.remoteUser.CollectiveId,

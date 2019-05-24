@@ -126,6 +126,11 @@ export default function(Sequelize, DataTypes) {
         defaultValue: false,
       },
 
+      makePublicOn: {
+        type: DataTypes.DATE,
+        defaultValue: null,
+      },
+
       tags: {
         type: DataTypes.ARRAY(DataTypes.STRING),
       },
@@ -235,6 +240,7 @@ export default function(Sequelize, DataTypes) {
       'image',
       'tags',
       'isPrivate',
+      'makePublicOn',
     ];
     sanitizeObject(newUpdateData, ['html', 'markdown']);
     return await this.update({
