@@ -99,6 +99,7 @@ export const UserInputType = new GraphQLInputObjectType({
     website: { type: GraphQLString },
     paypalEmail: { type: GraphQLString },
     newsletterOptIn: { type: GraphQLBoolean },
+    publicKey: { type: GraphQLString },
   }),
 });
 
