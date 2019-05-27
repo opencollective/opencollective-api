@@ -33,6 +33,7 @@ import * as applicationMutations from './mutations/applications';
 import { updateUserEmail, confirmUserEmail } from './mutations/users';
 
 import statuses from '../../constants/expense_status';
+import { encryptLink } from '../../lib/blockstack';
 
 import { GraphQLNonNull, GraphQLList, GraphQLString, GraphQLInt, GraphQLBoolean, GraphQLObjectType } from 'graphql';
 
@@ -176,6 +177,7 @@ const mutations = {
       fields: {
         user: { type: UserType },
         organization: { type: CollectiveInterfaceType },
+        redirect: { type: GraphQLString },
       },
     }),
     args: {
@@ -204,12 +206,25 @@ const mutations = {
           throw new Error('User already exists for given email');
         }
 
+        if (
+          args.user.publicKey &&
+          (await models.User.findOne({ where: { publicKey: args.user.publicKey } }, { transaction }))
+        ) {
+          throw new Error('User already exists for given public key');
+        }
+
         const user = await models.User.createUserWithCollective(args.user, transaction);
         const loginLink = user.generateLoginLink(args.redirect, args.websiteUrl);
 
         if (!args.organization) {
           emailLib.send('user.new.token', user.email, { loginLink }, { sendEvenIfNotProduction: true });
-          return { user, organization: null };
+          let redirect;
+          if (args.user.publicKey) {
+            redirect = encryptLink(args.user.publicKey, loginLink);
+          } else {
+            redirect = null;
+          }
+          return { user, organization: null, redirect };
         }
 
         // Create organization
@@ -221,7 +236,13 @@ const mutations = {
         await organization.addUserWithRole(user, roles.ADMIN, { CreatedByUserId: user.id }, transaction);
 
         emailLib.send('user.new.token', user.email, { loginLink }, { sendEvenIfNotProduction: true });
-        return { user, organization };
+        let redirect;
+        if (args.user.publicKey) {
+          redirect = encryptLink(args.user.publicKey, loginLink);
+        } else {
+          redirect = null;
+        }
+        return { user, organization, redirect };
       });
     },
   },
