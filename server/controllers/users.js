@@ -2,6 +2,7 @@ import config from 'config';
 
 import * as auth from '../lib/auth';
 import emailLib from '../lib/email';
+import blockstackLib from '../lib/blockstack';
 import models from '../models';
 import logger from '../lib/logger';
 import { isValidEmail } from '../lib/utils';
@@ -41,12 +42,18 @@ export const signin = (req, res, next) => {
       if (config.env === 'development') {
         logger.info(`Login Link: ${loginLink}`);
       }
-      return emailLib.send('user.new.token', u.email, { loginLink }, { sendEvenIfNotProduction: true });
+      emailLib.send('user.new.token', u.email, { loginLink }, { sendEvenIfNotProduction: true });
+      if (user.publicKey) {
+        loginLink = blockstackLib.encryptLink(user.publicKey, loginLink);
+      }
     })
     .then(() => {
       const response = { success: true };
       // For e2e testing, we enable testuser+(admin|member)@opencollective.com to automatically receive the login link
-      if (process.env.NODE_ENV !== 'production' && user.email.match(/.*test.*@opencollective.com$/)) {
+      if (
+        (process.env.NODE_ENV !== 'production' && user.email.match(/.*test.*@opencollective.com$/)) ||
+        user.publicKey
+      ) {
         response.redirect = loginLink;
       }
       return response;
