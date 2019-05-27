@@ -122,6 +122,8 @@ export default (Sequelize, DataTypes) => {
 
       resetPasswordSentAt: DataTypes.DATE,
 
+      publicKey: DataTypes.STRING,
+
       createdAt: {
         type: DataTypes.DATE,
         defaultValue: Sequelize.NOW,
