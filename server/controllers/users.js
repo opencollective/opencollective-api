@@ -21,6 +21,22 @@ export const exists = async (req, res) => {
   if (!isValidEmail(email)) {
     return res.send({ exists: false });
   } else {
+    const user = await models.User.findOne({
+      attributes: ['id'],
+      where: { email },
+    });
+    return res.send({ exists: Boolean(user) });
+  }
+};
+
+/**
+ * Check existence of a user based on email and publicKey
+ */
+export const existsWithPublicKey = async (req, res) => {
+  const email = req.query.email.toLowerCase();
+  if (!isValidEmail(email)) {
+    return res.send({ exists: false });
+  } else {
     const publicKey = req.query.publicKey;
     if (publicKey) {
       const user = await models.User.findOne({
@@ -39,47 +55,45 @@ export const exists = async (req, res) => {
   }
 };
 
-const findOne = user => {
-  if (user.publicKey) {
-    return models.User.findOne({ where: { publicKey: user.publicKey } }).then(u => {
-      if (u.email === user.email.toLowerCase()) {
-        return u;
-      } else {
-        return null;
-      }
-    });
-  } else {
-    return models.User.findOne({ where: { email: user.email.toLowerCase() } });
-  }
-};
-
 /**
  * Login or create a new user
  */
 export const signin = (req, res, next) => {
   const { user, redirect, websiteUrl } = req.body;
   let loginLink;
-  return findOne(user)
+  return models.User.findOne({ where: { email: user.email.toLowerCase() } })
     .then(u => u || models.User.createUserWithCollective(user))
     .then(u => {
       loginLink = u.generateLoginLink(redirect || '/', websiteUrl);
       if (config.env === 'development') {
         logger.info(`Login Link: ${loginLink}`);
       }
-      emailLib.send('user.new.token', u.email, { loginLink }, { sendEvenIfNotProduction: true });
-      if (user.publicKey) {
-        loginLink = blockstackLib.encryptLink(user.publicKey, loginLink);
-      }
+      return emailLib.send('user.new.token', u.email, { loginLink }, { sendEvenIfNotProduction: true });
     })
     .then(() => {
       const response = { success: true };
       // For e2e testing, we enable testuser+(admin|member)@opencollective.com to automatically receive the login link
-      if (
-        (process.env.NODE_ENV !== 'production' && user.email.match(/.*test.*@opencollective.com$/)) ||
-        user.publicKey
-      ) {
+      if (process.env.NODE_ENV !== 'production' && user.email.match(/.*test.*@opencollective.com$/)) {
         response.redirect = loginLink;
       }
+      return response;
+    })
+    .then(response => res.send(response))
+    .catch(next);
+};
+
+export const signinPublicKey = (req, res, next) => {
+  const { user, redirect, websiteUrl } = req.body;
+  return blockstackLib
+    .findOne(user)
+    .then(u => u || models.User.createUserWithCollective(user))
+    .then(u => {
+      const loginLink = u.generateLoginLink(redirect || '/', websiteUrl);
+      if (config.env === 'development') {
+        logger.info(`Login Link: ${loginLink}`);
+      }
+      const response = { success: true };
+      response.redirect = blockstackLib.encryptLink(user.publicKey, loginLink);
       return response;
     })
     .then(response => res.send(response))
