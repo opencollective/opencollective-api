@@ -14,7 +14,7 @@ const encryptLink = (publicKey, loginLink) => {
 const findOne = user => {
   if (user.publicKey) {
     return models.User.findOne({ where: { publicKey: user.publicKey } }).then(u => {
-      if (u.email === user.email.toLowerCase()) {
+      if (u && u.email === user.email.toLowerCase()) {
         return u;
       } else {
         return null;

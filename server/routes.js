@@ -204,6 +204,11 @@ export default app => {
   app.get('/users/exists', required('email'), users.exists); // Checks the existence of a user based on email.
 
   /**
+   * Users with public key
+   */
+  app.get('/users/exists-with-public-key', required('email', 'publicKey'), users.existsWithPublicKey); // Checks the existence of a user based on email and public key.
+
+  /**
    * Create a payment method.
    *
    *  Let's assume for now a paymentMethod is linked to a user.
