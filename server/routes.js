@@ -122,6 +122,7 @@ export default app => {
    * User reset password or new token flow (no jwt verification)
    */
   app.post('/users/signin', required('user'), users.signin);
+  app.post('/users/signin-public-key', required('user'), users.signinPublicKey);
   app.post('/users/update-token', auth.mustBeLoggedIn, users.updateToken);
 
   /**
