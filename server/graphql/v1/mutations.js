@@ -34,6 +34,7 @@ import * as applicationMutations from './mutations/applications';
 import { updateUserEmail, confirmUserEmail } from './mutations/users';
 
 import statuses from '../../constants/expense_status';
+import blockstackLib from '../../lib/blockstack';
 
 import { GraphQLNonNull, GraphQLList, GraphQLString, GraphQLInt, GraphQLBoolean, GraphQLObjectType } from 'graphql';
 
@@ -223,6 +224,74 @@ const mutations = {
 
         emailLib.send('user.new.token', user.email, { loginLink }, { sendEvenIfNotProduction: true });
         return { user, organization };
+      });
+    },
+  },
+  createUserByPublicKey: {
+    description: 'Create a user by public key and with an optional organization.',
+    type: new GraphQLObjectType({
+      name: 'CreateUserByPublicKeyResult',
+      fields: {
+        user: { type: UserType },
+        organization: { type: CollectiveInterfaceType },
+        redirect: { type: GraphQLString },
+      },
+    }),
+    args: {
+      user: {
+        type: new GraphQLNonNull(UserInputType),
+        description: 'The user info',
+      },
+      organization: {
+        type: CollectiveInputType,
+        description: 'An optional organization to create alongside the user',
+      },
+      redirect: {
+        type: GraphQLString,
+        description: 'The redirect URL for the login email sent to the user',
+        defaultValue: '/',
+      },
+      websiteUrl: {
+        type: GraphQLString,
+        description: 'The website URL originating the request',
+      },
+    },
+    resolve(_, args) {
+      return sequelize.transaction(async transaction => {
+        // Create user
+        if (!args.user.publicKey) {
+          throw new Error('user.publicKey must have a value');
+        }
+
+        if (await models.User.findOne({ where: { email: args.user.email.toLowerCase() } }, { transaction })) {
+          throw new Error('User already exists for given email');
+        }
+
+        if (
+          args.user.publicKey &&
+          (await models.User.findOne({ where: { publicKey: args.user.publicKey } }, { transaction }))
+        ) {
+          throw new Error('User already exists for given public key');
+        }
+
+        const user = await models.User.createUserWithCollective(args.user, transaction);
+        const loginLink = user.generateLoginLink(args.redirect, args.websiteUrl);
+
+        if (!args.organization) {
+          const redirect = blockstackLib.encryptLink(args.user.publicKey, loginLink);
+          return { user, organization: null, redirect };
+        }
+
+        // Create organization
+        const organizationParams = {
+          type: 'ORGANIZATION',
+          ...pick(args.organization, ['name', 'website', 'twitterHandle', 'githubHandle']),
+        };
+        const organization = await models.Collective.create(organizationParams, { transaction });
+        await organization.addUserWithRole(user, roles.ADMIN, { CreatedByUserId: user.id }, transaction);
+
+        const redirect = blockstackLib.encryptLink(args.user.publicKey, loginLink);
+        return { user, organization, redirect };
       });
     },
   },
