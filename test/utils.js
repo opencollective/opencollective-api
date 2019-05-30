@@ -6,7 +6,7 @@ import Promise from 'bluebird';
 import Stripe from 'stripe';
 import { graphql } from 'graphql';
 import { isArray, values, get, cloneDeep } from 'lodash';
-import { execSync } from 'child_process';
+import { execSync, execFileSync } from 'child_process';
 
 /* Test data */
 import jsonData from './mocks/data';
@@ -20,8 +20,10 @@ import cache from '../server/lib/cache';
 import * as libpayments from '../server/lib/payments';
 import * as stripeGateway from '../server/paymentProviders/stripe/gateway';
 import * as db_restore from '../scripts/db_restore';
+import logger from '../server/lib/logger';
 
 const appStripe = Stripe(config.stripe.secret);
+const execOptions = { timeout: 20000 };
 
 if (process.env.RECORD) {
   nock.recorder.rec();
@@ -181,6 +183,21 @@ export const separator = length => {
     separator += '-';
   }
   console.log(`\n${separator}\n`);
+};
+
+export const makePublic = () => {
+  execFileSync(
+    './node_modules/.bin/babel-node',
+    ['./cron/daily/make-private-updates-public.js'],
+    execOptions,
+    (error, stdout, stderr) => {
+      if (error) {
+        logger.error(stderr);
+        throw error;
+      }
+      logger.verbose(stdout);
+    },
+  );
 };
 
 /* ---- Stripe Helpers ---- */
