@@ -118,6 +118,10 @@ async function checkRecaptcha(order, remoteUser, reqIp) {
 }
 
 export async function createOrder(order, loaders, remoteUser, reqIp) {
+  if (!remoteUser) {
+    throw new Error('You need to be logged in to add fund to collective');
+  }
+
   debug('Beginning creation of order', order);
   await checkOrdersLimit(order, remoteUser, reqIp);
   const recaptchaResponse = await checkRecaptcha(order, remoteUser, reqIp);
@@ -243,27 +247,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
         throw new Error(`No more tickets left for ${tier.name}`);
       }
     }
-
-    // find or create user, check permissions to set `fromCollective`
-    let user;
-    if (order.user && order.user.email) {
-      // Form changes in frontend when trying to create an order with an
-      // existing email, asking user to login. So if user given in `order.user`
-      // already exists, that could mean two things:
-      // 1. Email is registered under another account as Paypal address.
-      // 2. We got a bad payload trying to impersonate another user.
-      const existingUser = await models.User.findByEmailOrPaypalEmail(order.user.email);
-      if (existingUser) {
-        throw new Error('An account already exists for this email address. Please login.');
-      }
-      user = await models.User.createUserWithCollective({
-        ...order.user,
-        currency: order.currency,
-        CreatedByUserId: remoteUser ? remoteUser.id : null,
-      });
-    } else if (remoteUser) {
-      user = remoteUser;
-    }
+    const user = remoteUser;
 
     let fromCollective;
     if (!order.fromCollective || (!order.fromCollective.id && !order.fromCollective.name)) {
