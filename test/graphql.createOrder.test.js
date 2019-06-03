@@ -139,14 +139,10 @@ describe('createOrder', () => {
       website: 'https://github.com/opencollective/frontend',
     });
     const thisOrder = cloneDeep(baseOrder);
+    const user = (await store.newUser('xdamman')).user;
+    thisOrder.user = user;
+
     thisOrder.collective.id = collective.id;
-    thisOrder.user = {
-      firstName: 'John',
-      lastName: 'Smith',
-      email: 'jsmith@email.com',
-      twitterHandle: 'johnsmith',
-      newsletterOptIn: true,
-    };
 
     const res = await utils.graphqlQuery(createOrderQuery, {
       order: thisOrder,
@@ -165,13 +161,8 @@ describe('createOrder', () => {
     });
     const thisOrder = cloneDeep(baseOrder);
     thisOrder.collective.id = collective.id;
-    thisOrder.user = {
-      firstName: 'John',
-      lastName: 'Smith',
-      email: 'jsmith@email.com',
-      twitterHandle: 'johnsmith',
-      newsletterOptIn: true,
-    };
+    const user = (await store.newUser('xdamman')).user;
+    thisOrder.user = user;
     thisOrder.interval = 'month';
 
     const res = await utils.graphqlQuery(createOrderQuery, {
@@ -223,12 +214,8 @@ describe('createOrder', () => {
     delete thisOrder.paymentMethod;
     thisOrder.paymentMethod = { type: 'manual' };
     thisOrder.collective.id = event.id;
-    thisOrder.user = {
-      firstName: 'John',
-      lastName: 'Smith',
-      email: 'jsmith@email.com',
-      twitterHandle: 'johnsmith',
-    };
+    const user = (await store.newUser('xdamman')).user;
+    thisOrder.user = user;
     thisOrder.tier = { id: tier.id };
     thisOrder.quantity = 2;
     thisOrder.totalAmount = 2000;
@@ -272,13 +259,7 @@ describe('createOrder', () => {
     });
     // And given an order
     order.collective = { id: fearlesscitiesbrussels.id };
-    order.user = {
-      firstName: 'John',
-      lastName: 'Smith',
-      email: 'jsmith@email.com',
-      twitterHandle: 'johnsmith',
-      newsletterOptIn: true,
-    };
+    order.user = (await store.newUser('xdamman')).user;
     // When the query is executed
     const res = await utils.graphqlQuery(createOrderQuery, { order });
 
