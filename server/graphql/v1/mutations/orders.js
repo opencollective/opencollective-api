@@ -119,7 +119,7 @@ async function checkRecaptcha(order, remoteUser, reqIp) {
 
 export async function createOrder(order, loaders, remoteUser, reqIp) {
   if (!remoteUser) {
-    throw new Error('You need to be logged in to add fund to collective');
+    throw new Error('You need to be logged in to create order');
   }
 
   debug('Beginning creation of order', order);
