@@ -39,7 +39,7 @@
     "cors": "2.8.5",
     "cucumber": "5.1.0",
     "dataloader": "1.4.0",
-    "dataloader-sequelize": "1.7.10",
+    "dataloader-sequelize": "2.0.0",
     "debug": "4.1.1",
     "deepmerge": "3.2.0",
     "dotenv": "8.0.0",
