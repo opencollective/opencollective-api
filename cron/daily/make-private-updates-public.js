@@ -13,33 +13,17 @@ logger.info(`Updates for ${today}`);
 // get all the private updates with the makePublicOn <= today
 // and make them public
 
-let updates = 0;
-
-models.Update.findAll({
-  where: {
-    isPrivate: true,
-    makePublicOn: { [Op.lte]: today },
+models.Update.update(
+  {
+    isPrivate: false,
   },
-})
-  .tap(privateUpdates => {
-    logger.verbose(`${privateUpdates.length} private updates due for change found.`);
-  })
-  .map(privateUpdate => makeUpdatePublic(privateUpdate))
-  .then(() => {
-    logger.info(`Number of private updates made public: ${updates}`);
-    process.exit(0);
-  });
-
-const makeUpdatePublic = async update => {
-  logger.verbose(`Making update: ${update.id}: ${update.slug} public`);
-  update.isPrivate = false;
-  await update
-    .save()
-    .then(() => {
-      updates++;
-    })
-    .catch(e => {
-      logger.error(`Error making update with id: ${update.id}, public `);
-      logger.error(e);
-    });
-};
+  {
+    where: {
+      isPrivate: true,
+      makePublicOn: { [Op.lte]: today },
+    },
+  },
+).then(([affectedCount]) => {
+  logger.info(`Number of private updates made public: ${affectedCount}`);
+  process.exit(0);
+});
