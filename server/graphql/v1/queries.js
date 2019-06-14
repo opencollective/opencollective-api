@@ -127,7 +127,10 @@ const queries = {
         where: {
           type: 'CREDIT',
           [Op.or]: [
-            { FromCollectiveId: fromCollective.id, UsingVirtualCardFromCollectiveId: null },
+            {
+              FromCollectiveId: fromCollective.id,
+              UsingVirtualCardFromCollectiveId: null,
+            },
             { UsingVirtualCardFromCollectiveId: fromCollective.id },
           ],
         },
@@ -208,7 +211,10 @@ const queries = {
 
       const where = {
         [Op.or]: [
-          { FromCollectiveId: fromCollective.id, UsingVirtualCardFromCollectiveId: null },
+          {
+            FromCollectiveId: fromCollective.id,
+            UsingVirtualCardFromCollectiveId: null,
+          },
           { UsingVirtualCardFromCollectiveId: fromCollective.id },
         ],
         HostCollectiveId: host.id,
@@ -278,7 +284,10 @@ const queries = {
 
       const where = {
         [Op.or]: [
-          { FromCollectiveId: fromCollective.id, UsingVirtualCardFromCollectiveId: null },
+          {
+            FromCollectiveId: fromCollective.id,
+            UsingVirtualCardFromCollectiveId: null,
+          },
           { UsingVirtualCardFromCollectiveId: fromCollective.id },
         ],
         HostCollectiveId: host.id,
@@ -557,7 +566,7 @@ const queries = {
       if (!req.remoteUser || !req.remoteUser.isAdmin(args.CollectiveId)) {
         query.where.publishedAt = { [Op.ne]: null };
       }
-      return req.loaders.collective.findById.load(args.CollectiveId).then(collective => {
+      return req.loaders.Collective.byId.load(args.CollectiveId).then(collective => {
         if (!collective) {
           throw new Error('Collective not found');
         }
@@ -661,7 +670,7 @@ const queries = {
       if (args.limit) query.limit = args.limit;
       if (args.offset) query.offset = args.offset;
       query.order = [['incurredAt', 'DESC']];
-      return req.loaders.collective.findById.load(args.CollectiveId).then(collective => {
+      return req.loaders.Collective.byId.load(args.CollectiveId).then(collective => {
         if (!collective) {
           throw new Error('Collective not found');
         }
@@ -1171,7 +1180,10 @@ const queries = {
   allEvents: {
     type: new GraphQLList(CollectiveInterfaceType),
     args: {
-      slug: { type: GraphQLString, description: 'Slug of the parent collective' },
+      slug: {
+        type: GraphQLString,
+        description: 'Slug of the parent collective',
+      },
       limit: { type: GraphQLInt },
       offset: { type: GraphQLInt },
       isArchived: {

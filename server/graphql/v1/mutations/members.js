@@ -18,7 +18,7 @@ export function createMember(_, args, req) {
   };
 
   return (
-    req.loaders.collective.findById
+    req.loaders.Collective.byId
       .load(args.collective.id)
       .then(c => {
         if (!c) throw new Error(`Collective with id ${args.collective.id} not found`);
@@ -34,7 +34,7 @@ export function createMember(_, args, req) {
       // find or create user
       .then(() => {
         if (args.member.id) {
-          return req.loaders.collective.findById.load(args.member.id).then(memberCollective => {
+          return req.loaders.Collective.byId.load(args.member.id).then(memberCollective => {
             return {
               id: memberCollective.CreatedByUserId,
               CollectiveId: memberCollective.id,

@@ -182,7 +182,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
     // Check the existence of the recipient Collective
     let collective;
     if (order.collective.id) {
-      collective = await loaders.collective.findById.load(order.collective.id);
+      collective = await loaders.Collective.byId.load(order.collective.id);
     } else if (order.collective.website) {
       collective = (await models.Collective.findOrCreate({
         where: { website: order.collective.website },
@@ -267,7 +267,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
 
     let fromCollective;
     if (!order.fromCollective || (!order.fromCollective.id && !order.fromCollective.name)) {
-      fromCollective = await loaders.collective.findById.load(user.CollectiveId);
+      fromCollective = await loaders.Collective.byId.load(user.CollectiveId);
     }
 
     // If a `fromCollective` is provided, we check its existence and if the user can create an order on its behalf
@@ -276,7 +276,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
         throw new Error('You need to be logged in to create an order for an existing open collective');
       }
 
-      fromCollective = await loaders.collective.findById.load(order.fromCollective.id);
+      fromCollective = await loaders.Collective.byId.load(order.fromCollective.id);
       if (!fromCollective) {
         throw new Error(`From collective id ${order.fromCollective.id} not found`);
       }
@@ -334,11 +334,11 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
 
       // Load host
       if (collective.HostCollectiveId) {
-        hostCollective = await loaders.collective.findById.load(collective.HostCollectiveId);
+        hostCollective = await loaders.Collective.byId.load(collective.HostCollectiveId);
       } else if (collective.ParentCollectiveId) {
-        const parentCollective = await loaders.collective.findById.load(collective.ParentCollectiveId);
+        const parentCollective = await loaders.Collective.byId.load(collective.ParentCollectiveId);
         if (parentCollective) {
-          hostCollective = await loaders.collective.findById.load(parentCollective.HostCollectiveId);
+          hostCollective = await loaders.Collective.byId.load(parentCollective.HostCollectiveId);
         }
       }
 
@@ -784,7 +784,9 @@ export async function refundTransaction(_, args, req) {
   //   c. Site Admin
 
   if (!req.remoteUser.isAdmin(HostCollectiveId) && !req.remoteUser.isRoot()) {
-    throw new errors.Unauthorized({ message: 'Not a site admin or host collective admin' });
+    throw new errors.Unauthorized({
+      message: 'Not a site admin or host collective admin',
+    });
   }
 
   // 2. Refund via payment method
