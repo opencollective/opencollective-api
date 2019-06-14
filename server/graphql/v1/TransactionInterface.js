@@ -248,7 +248,7 @@ const TransactionFields = () => {
         const paymentMethodId = transaction.PaymentMethodId || get(transaction, 'paymentMethod.id');
         if (!paymentMethodId) return null;
         // TODO: put behind a login check
-        return req.loaders.paymentMethods.findById.load(paymentMethodId);
+        return req.loaders.PaymentMethod.byId.load(paymentMethodId);
       },
     },
   };
