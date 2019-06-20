@@ -129,7 +129,8 @@ describe('opencollective.virtualcard', () => {
           amount: 10000,
           currency: 'USD',
         };
-        const paymentMethod = await virtualcard.create(args, user1);
+        const loaders = utils.makeRequest(user1).loaders;
+        const paymentMethod = await virtualcard.create(args, user1, loaders);
         expect(paymentMethod).to.exist;
         expect(paymentMethod.CollectiveId).to.be.equal(collective1.id);
         expect(paymentMethod.initialBalance).to.be.equal(args.amount);
@@ -153,7 +154,8 @@ describe('opencollective.virtualcard', () => {
           currency: 'USD',
           expiryDate: expiryDate,
         };
-        const paymentMethod = await virtualcard.create(args, user1);
+        const loaders = utils.makeRequest(user1).loaders;
+        const paymentMethod = await virtualcard.create(args, user1, loaders);
         expect(paymentMethod).to.exist;
         expect(paymentMethod.CollectiveId).to.be.equal(collective1.id);
         expect(paymentMethod.initialBalance).to.be.equal(args.amount);
@@ -170,7 +172,8 @@ describe('opencollective.virtualcard', () => {
           monthlyLimitPerMember: 10000,
           currency: 'USD',
         };
-        const paymentMethod = await virtualcard.create(args, user1);
+        const loaders = utils.makeRequest(user1).loaders;
+        const paymentMethod = await virtualcard.create(args, user1, loaders);
         expect(paymentMethod).to.exist;
         expect(paymentMethod.CollectiveId).to.be.equal(collective1.id);
         expect(paymentMethod.service).to.be.equal('opencollective');
@@ -197,7 +200,8 @@ describe('opencollective.virtualcard', () => {
           currency: 'USD',
           expiryDate: expiryDate,
         };
-        const paymentMethod = await virtualcard.create(args, user1);
+        const loaders = utils.makeRequest(user1).loaders;
+        const paymentMethod = await virtualcard.create(args, user1, loaders);
         expect(paymentMethod).to.exist;
         expect(paymentMethod.CollectiveId).to.be.equal(collective1.id);
         expect(paymentMethod.service).to.be.equal('opencollective');
@@ -250,7 +254,8 @@ describe('opencollective.virtualcard', () => {
           amount: 10000,
           currency: 'USD',
         };
-        return virtualcard.create(createParams, user1).then(pm => (virtualCardPaymentMethod = pm));
+        const loaders = utils.makeRequest(user1).loaders;
+        return virtualcard.create(createParams, user1, loaders).then(pm => (virtualCardPaymentMethod = pm));
       });
 
       it('new User should claim a virtual card', async () => {
@@ -354,6 +359,7 @@ describe('opencollective.virtualcard', () => {
               currency: 'USD',
             },
             user1,
+            utils.makeRequest(user1).loaders,
           )
           .then(pm => (virtualCardPaymentMethod = pm)),
       );
@@ -695,7 +701,7 @@ describe('opencollective.virtualcard', () => {
         );
       }); /** End of "should create a U$100 virtual card payment method" */
 
-      it("should fail if payment method does't belongs to collective", async () => {
+      it("should fail if payment method doesn't belongs to collective", async () => {
         const args = {
           type: 'virtualcard',
           currency: 'USD',
@@ -758,6 +764,7 @@ describe('opencollective.virtualcard', () => {
               currency: 'USD',
             },
             user1,
+            utils.makeRequest(user1).loaders,
           )
           .then(pm => (virtualCardPaymentMethod = pm)),
       );
@@ -952,6 +959,7 @@ describe('opencollective.virtualcard', () => {
               limitedToTags: ['open source'],
             },
             user1,
+            utils.makeRequest(user1).loaders,
           )
           .then(pm => (virtualCardPaymentMethod = pm)),
       );

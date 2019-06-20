@@ -61,8 +61,9 @@ describe('graphql.collective.test.js', () => {
         currency,
         amount: 1000 * (i + 1),
       });
+      const loaders = utils.makeRequest(user).loaders;
       // And given some expenses
-      const expense = await store.createApprovedExpense(user, {
+      const expense = await store.createApprovedExpense(user, loaders, {
         category: 'Engineering',
         amount: 100 * (i + 1),
         description: 'test',
@@ -277,6 +278,9 @@ describe('graphql.collective.test.js', () => {
       isActive: true,
     });
 
+    // dataloaders for data from sequelize
+    const loaders = utils.makeRequest(user).loaders;
+
     // And given a helper to create data for expenses
     const d = (amount, description, cid) => ({
       amount,
@@ -287,26 +291,26 @@ describe('graphql.collective.test.js', () => {
     });
 
     // And given that we add some expenses to brussels together:
-    await store.createPaidExpense(user, d(2000, 'Pizza', collective.id));
-    await store.createPaidExpense(user, d(1000, 'Lunch', collective.id));
-    await store.createPaidExpense(user, d(1000, 'Lunch', collective.id));
-    await store.createPaidExpense(user, d(1000, 'Lunch', collective.id));
-    await store.createPaidExpense(user, d(2000, 'Tickets', collective.id));
-    await store.createRejectedExpense(user, d(50000, '10 T-Shirts', collective.id));
-    await store.createRejectedExpense(user, d(50000, '10 T-Shirts', collective.id));
-    await store.createRejectedExpense(user, d(50000, '10 T-Shirts', collective.id));
+    await store.createPaidExpense(user, loaders, d(2000, 'Pizza', collective.id));
+    await store.createPaidExpense(user, loaders, d(1000, 'Lunch', collective.id));
+    await store.createPaidExpense(user, loaders, d(1000, 'Lunch', collective.id));
+    await store.createPaidExpense(user, loaders, d(1000, 'Lunch', collective.id));
+    await store.createPaidExpense(user, loaders, d(2000, 'Tickets', collective.id));
+    await store.createRejectedExpense(user, loaders, d(50000, '10 T-Shirts', collective.id));
+    await store.createRejectedExpense(user, loaders, d(50000, '10 T-Shirts', collective.id));
+    await store.createRejectedExpense(user, loaders, d(50000, '10 T-Shirts', collective.id));
 
     // And given that we add some expenses for the collective veganizerbxl
-    await store.createPaidExpense(user, d(2000, 'Vegan Pizza', veganizerbxl.id));
-    await store.createPaidExpense(user, d(1000, 'Vegan Lunch', veganizerbxl.id));
-    await store.createPaidExpense(user, d(1000, 'Vegan Lunch', veganizerbxl.id));
-    await store.createPaidExpense(user, d(1000, 'Vegan Treats', veganizerbxl.id));
-    await store.createPaidExpense(user, d(2000, 'Tickets', veganizerbxl.id));
-    await store.createApprovedExpense(user, d(50000, 'Vegan stuff', veganizerbxl.id));
-    await store.createRejectedExpense(user, d(50000, 'Non vegan thing', veganizerbxl.id));
-    await store.createRejectedExpense(user, d(50000, 'Non vegan biscuit', veganizerbxl.id));
-    await store.createRejectedExpense(user, d(50000, 'Non vegan stuff', veganizerbxl.id));
-    await store.createRejectedExpense(user, d(50000, 'Non vegan t-shirts', veganizerbxl.id));
+    await store.createPaidExpense(user, loaders, d(2000, 'Vegan Pizza', veganizerbxl.id));
+    await store.createPaidExpense(user, loaders, d(1000, 'Vegan Lunch', veganizerbxl.id));
+    await store.createPaidExpense(user, loaders, d(1000, 'Vegan Lunch', veganizerbxl.id));
+    await store.createPaidExpense(user, loaders, d(1000, 'Vegan Treats', veganizerbxl.id));
+    await store.createPaidExpense(user, loaders, d(2000, 'Tickets', veganizerbxl.id));
+    await store.createApprovedExpense(user, loaders, d(50000, 'Vegan stuff', veganizerbxl.id));
+    await store.createRejectedExpense(user, loaders, d(50000, 'Non vegan thing', veganizerbxl.id));
+    await store.createRejectedExpense(user, loaders, d(50000, 'Non vegan biscuit', veganizerbxl.id));
+    await store.createRejectedExpense(user, loaders, d(50000, 'Non vegan stuff', veganizerbxl.id));
+    await store.createRejectedExpense(user, loaders, d(50000, 'Non vegan t-shirts', veganizerbxl.id));
 
     // When the following query is executed
     const query = `

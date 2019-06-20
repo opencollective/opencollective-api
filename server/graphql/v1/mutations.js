@@ -601,7 +601,7 @@ const mutations = {
       data: { type: PaymentMethodDataVirtualCardInputType, description: 'The data attached to this PaymentMethod' },
     },
     resolve: async (_, args, req) => {
-      return paymentMethodsMutation.createPaymentMethod(args, req.remoteUser);
+      return paymentMethodsMutation.createPaymentMethod(args, req.remoteUser, req.loaders);
     },
   },
   updatePaymentMethod: {

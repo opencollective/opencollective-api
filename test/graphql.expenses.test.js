@@ -99,32 +99,33 @@ describe('GraphQL Expenses API', () => {
       // Given that we have a collective
       const { hostAdmin, collective } = await store.newCollectiveWithHost('railsgirlsatl', 'USD', 'USD', 10);
       // And given the above collective has some expenses
+      const loaders = utils.makeRequest(hostAdmin).loaders;
       const data = {
         currency: 'USD',
         payoutMethod: 'manual',
         collective: { id: collective.id },
       };
-      await store.createExpense(hostAdmin, {
+      await store.createExpense(hostAdmin, loaders, {
         amount: 1000,
         description: 'Pizza',
         ...data,
       });
-      await store.createExpense(hostAdmin, {
+      await store.createExpense(hostAdmin, loaders, {
         amount: 2000,
         description: 'Beer',
         ...data,
       });
-      await store.createExpense(hostAdmin, {
+      await store.createExpense(hostAdmin, loaders, {
         amount: 3000,
         description: 'Banner',
         ...data,
       });
-      await store.createExpense(hostAdmin, {
+      await store.createExpense(hostAdmin, loaders, {
         amount: 4000,
         description: 'Stickers',
         ...data,
       });
-      await store.createExpense(hostAdmin, {
+      await store.createExpense(hostAdmin, loaders, {
         amount: 5000,
         description: 'T-shirts',
         ...data,
@@ -158,17 +159,18 @@ describe('GraphQL Expenses API', () => {
       inactiveCollective.isActive = false;
       await inactiveCollective.save();
       // And given that the first collective created above have two expenses
+      const loaders = utils.makeRequest(hostAdmin).loaders;
       const data = {
         currency: 'USD',
         payoutMethod: 'manual',
         collective: { id: collective.id },
       };
-      await store.createExpense(hostAdmin, {
+      await store.createExpense(hostAdmin, loaders, {
         amount: 1000,
         description: 'Pizza',
         ...data,
       });
-      await store.createExpense(hostAdmin, {
+      await store.createExpense(hostAdmin, loaders, {
         amount: 2000,
         description: 'Beer',
         ...data,
@@ -176,12 +178,12 @@ describe('GraphQL Expenses API', () => {
       // And given that the second collective created above also have
       // two expenses
       data.collective = { id: anotherCollective.id };
-      await store.createExpense(hostAdmin, {
+      await store.createExpense(hostAdmin, loaders, {
         amount: 3000,
         description: 'Banner',
         ...data,
       });
-      await store.createExpense(hostAdmin, {
+      await store.createExpense(hostAdmin, loaders, {
         amount: 4000,
         description: 'Stickers',
         ...data,
@@ -189,7 +191,7 @@ describe('GraphQL Expenses API', () => {
       // And given that the inactive collective created above also has
       // one expense
       data.collective = { id: inactiveCollective.id };
-      await store.createExpense(hostAdmin, {
+      await store.createExpense(hostAdmin, loaders, {
         amount: 3500,
         description: 'Banner inactive',
         ...data,
@@ -220,18 +222,19 @@ describe('GraphQL Expenses API', () => {
       const anotherCollective = (await store.newCollectiveInHost('babel', 'USD', hostCollective)).collective;
       // And given that the first collective created above have two
       // expenses but just one categorized as `legal`.
+      const loaders = utils.makeRequest(hostAdmin).loaders;
       const data = {
         currency: 'USD',
         payoutMethod: 'manual',
         collective: { id: collective.id },
       };
-      await store.createExpense(hostAdmin, {
+      await store.createExpense(hostAdmin, loaders, {
         amount: 1000,
         category: 'legal',
         description: 'Pizza',
         ...data,
       });
-      await store.createExpense(hostAdmin, {
+      await store.createExpense(hostAdmin, loaders, {
         amount: 2000,
         category: 'treat',
         description: 'Beer',
@@ -240,13 +243,13 @@ describe('GraphQL Expenses API', () => {
       // And given that the second collective created above also have
       // two expenses but just one categorized as `legal`.
       data.collective = { id: anotherCollective.id };
-      await store.createExpense(hostAdmin, {
+      await store.createExpense(hostAdmin, loaders, {
         amount: 3000,
         category: 'legal',
         description: 'Banner',
         ...data,
       });
-      await store.createExpense(hostAdmin, {
+      await store.createExpense(hostAdmin, loaders, {
         amount: 4000,
         category: 'stuff',
         description: 'Stickers',
@@ -277,18 +280,19 @@ describe('GraphQL Expenses API', () => {
       const anotherCollective = (await store.newCollectiveInHost('babel', 'USD', hostCollective)).collective;
       // And given that the first collective created above have two
       // expenses but just one filed by our user
+      const loaders = utils.makeRequest(xdamman).loaders;
       const data = {
         currency: 'USD',
         payoutMethod: 'manual',
         collective: { id: collective.id },
       };
-      await store.createExpense(xdamman, {
+      await store.createExpense(xdamman, loaders, {
         amount: 1000,
         category: 'legal',
         description: 'Pizza',
         ...data,
       });
-      await store.createExpense(hostAdmin, {
+      await store.createExpense(hostAdmin, loaders, {
         amount: 2000,
         category: 'treat',
         description: 'Beer',
@@ -297,13 +301,13 @@ describe('GraphQL Expenses API', () => {
       // And given that the second collective created above also have
       // two expenses but just one filed by our user
       data.collective = { id: anotherCollective.id };
-      await store.createExpense(xdamman, {
+      await store.createExpense(xdamman, loaders, {
         amount: 3000,
         category: 'legal',
         description: 'Banner',
         ...data,
       });
-      await store.createExpense(hostAdmin, {
+      await store.createExpense(hostAdmin, loaders, {
         amount: 4000,
         category: 'stuff',
         description: 'Stickers',
@@ -351,32 +355,33 @@ describe('GraphQL Expenses API', () => {
       // Given that we have a collective
       const { hostAdmin, collective } = await store.newCollectiveWithHost('railsgirlsatl', 'USD', 'USD', 10);
       // And given the above collective has some expenses
+      const loaders = utils.makeRequest(hostAdmin).loaders;
       const data = {
         currency: 'USD',
         payoutMethod: 'manual',
         collective: { id: collective.id },
       };
-      await store.createExpense(hostAdmin, {
+      await store.createExpense(hostAdmin, loaders, {
         amount: 1000,
         description: 'Pizza',
         ...data,
       });
-      await store.createExpense(hostAdmin, {
+      await store.createExpense(hostAdmin, loaders, {
         amount: 2000,
         description: 'Beer',
         ...data,
       });
-      await store.createExpense(hostAdmin, {
+      await store.createExpense(hostAdmin, loaders, {
         amount: 3000,
         description: 'Banner',
         ...data,
       });
-      await store.createExpense(hostAdmin, {
+      await store.createExpense(hostAdmin, loaders, {
         amount: 4000,
         description: 'Stickers',
         ...data,
       });
-      await store.createExpense(hostAdmin, {
+      await store.createExpense(hostAdmin, loaders, {
         amount: 5000,
         description: 'T-shirts',
         ...data,
@@ -502,12 +507,13 @@ describe('GraphQL Expenses API', () => {
       // Given that we have a collective
       const { hostAdmin, collective } = await store.newCollectiveWithHost('parcel', 'USD', 'USD', 10);
       // And given the above collective has some expenses
+      const loaders = utils.makeRequest(hostAdmin).loaders;
       const data = {
         currency: 'USD',
         payoutMethod: 'manual',
         collective: { id: collective.id },
       };
-      const expense = await store.createExpense(hostAdmin, {
+      const expense = await store.createExpense(hostAdmin, loaders, {
         amount: 1000,
         description: 'Pizza',
         ...data,
@@ -533,13 +539,14 @@ describe('GraphQL Expenses API', () => {
       });
       // And given the above collective has one expense (created by
       // the above user)
+      const loaders = utils.makeRequest(user).loaders;
       const data = {
         currency: 'USD',
         payoutMethod: 'paypal',
         privateMessage: 'Private instructions to reimburse this expense',
         collective: { id: collective.id },
       };
-      const expense = await store.createExpense(user, {
+      const expense = await store.createExpense(user, loaders, {
         amount: 1000,
         description: 'Pizza',
         ...data,
@@ -577,13 +584,14 @@ describe('GraphQL Expenses API', () => {
       await collective.save();
       // And given the above collective has one expense (created by
       // the above user)
+      const loaders = utils.makeRequest(user).loaders;
       const data = {
         currency: 'USD',
         payoutMethod: 'paypal',
         privateMessage: 'Private instructions to reimburse this expense',
         collective: { id: collective.id },
       };
-      const expense = await store.createExpense(user, {
+      const expense = await store.createExpense(user, loaders, {
         amount: 1000,
         description: 'Pizza',
         ...data,
@@ -632,7 +640,8 @@ describe('GraphQL Expenses API', () => {
       const { user } = await store.newUser('someone cool');
       // And given the above collective has one expense (in PENDING
       // state)
-      const expense = await store.createExpense(user, {
+      const loaders = utils.makeRequest(user).loaders;
+      const expense = await store.createExpense(user, loaders, {
         amount: 1000,
         description: 'Pizza',
         currency: 'USD',
@@ -660,7 +669,8 @@ describe('GraphQL Expenses API', () => {
       const { user } = await store.newUser('someone cool');
       // And given the above collective has one expense (in PENDING
       // state)
-      const expense = await store.createExpense(user, {
+      const loaders = utils.makeRequest(user).loaders;
+      const expense = await store.createExpense(user, loaders, {
         amount: 1000,
         description: 'Pizza',
         currency: 'USD',
@@ -713,7 +723,8 @@ describe('GraphQL Expenses API', () => {
       const { user } = await store.newUser('someone cool');
       // And given the above collective has one expense (in PENDING
       // state)
-      const expense = await store.createExpense(user, {
+      const loaders = utils.makeRequest(user).loaders;
+      const expense = await store.createExpense(user, loaders, {
         amount: 1000,
         description: 'Pizza',
         currency: 'USD',
@@ -752,7 +763,8 @@ describe('GraphQL Expenses API', () => {
       const { user } = await store.newUser('someone cool');
       // And given the above collective has one expense (in PENDING
       // state)
-      const expense = await store.createExpense(user, {
+      const loaders = utils.makeRequest(user).loaders;
+      const expense = await store.createExpense(user, loaders, {
         amount: 1000,
         description: 'Pizza',
         currency: 'USD',
@@ -814,7 +826,8 @@ describe('GraphQL Expenses API', () => {
         });
         // And given the above collective has one expense (in PENDING
         // state)
-        expense = await store.createExpense(user, {
+        const loaders = utils.makeRequest(user).loaders;
+        expense = await store.createExpense(user, loaders, {
           amount: 1000,
           description: 'Pizza',
           currency: 'EUR',
@@ -870,7 +883,8 @@ describe('GraphQL Expenses API', () => {
 
         // And given the above collective has one expense (in PENDING
         // state)
-        expense = await store.createExpense(user, {
+        const loaders = utils.makeRequest(user).loaders;
+        expense = await store.createExpense(user, loaders, {
           amount: 1000,
           description: 'Pizza',
           currency: 'EUR',
@@ -1028,12 +1042,13 @@ describe('GraphQL Expenses API', () => {
       // Given that we have a collective
       const { hostAdmin, collective } = await store.newCollectiveWithHost('railsgirlsatl', 'USD', 'USD', 10);
       // And given the above collective has one expense
+      const loaders = utils.makeRequest(hostAdmin).loaders;
       const data = {
         currency: 'USD',
         payoutMethod: 'manual',
         collective: { id: collective.id },
       };
-      const expense = await store.createExpense(hostAdmin, {
+      const expense = await store.createExpense(hostAdmin, loaders, {
         amount: 1000,
         description: 'Pizza',
         ...data,
@@ -1052,12 +1067,13 @@ describe('GraphQL Expenses API', () => {
       // Given that we have a collective
       const { hostAdmin, collective } = await store.newCollectiveWithHost('railsgirlsatl', 'USD', 'USD', 10);
       // And given the above collective has one expense
+      const loaders = utils.makeRequest(hostAdmin).loaders;
       const data = {
         currency: 'USD',
         payoutMethod: 'manual',
         collective: { id: collective.id },
       };
-      const expense = await store.createExpense(hostAdmin, {
+      const expense = await store.createExpense(hostAdmin, loaders, {
         amount: 1000,
         description: 'Pizza',
         ...data,
@@ -1084,7 +1100,8 @@ describe('GraphQL Expenses API', () => {
         payoutMethod: 'manual',
         collective: { id: collective.id },
       };
-      const expense = await store.createExpense(user, {
+      const loaders = utils.makeRequest(user).loaders;
+      const expense = await store.createExpense(user, loaders, {
         amount: 1000,
         description: 'Pizza',
         ...data,
@@ -1112,12 +1129,13 @@ describe('GraphQL Expenses API', () => {
       // And given a user that will file an expense
       const { user } = await store.newUser('an internet user');
       // And given the above collective has one expense (created by the above user)
+      const loaders = utils.makeRequest(user).loaders;
       const data = {
         currency: 'USD',
         payoutMethod: 'manual',
         collective: { id: collective.id },
       };
-      const expense = await store.createExpense(user, {
+      const expense = await store.createExpense(user, loaders, {
         amount: 1000,
         description: 'Pizza',
         ...data,
@@ -1141,12 +1159,13 @@ describe('GraphQL Expenses API', () => {
       const { user } = await store.newUser('someone cool');
       // And given the above collective has one expense (created by
       // the regular user above)
+      const loaders = utils.makeRequest(user).loaders;
       const data = {
         currency: 'USD',
         payoutMethod: 'manual',
         collective: { id: collective.id },
       };
-      const expense = await store.createExpense(user, {
+      const expense = await store.createExpense(user, loaders, {
         amount: 1000,
         description: 'Pizza',
         ...data,
@@ -1167,12 +1186,13 @@ describe('GraphQL Expenses API', () => {
       const { user } = await store.newUser('someone cool');
       // And given the above collective has one expense (created by
       // the regular user above)
+      const loaders = utils.makeRequest(user).loaders;
       const data = {
         currency: 'USD',
         payoutMethod: 'manual',
         collective: { id: collective.id },
       };
-      const expense = await store.createExpense(user, {
+      const expense = await store.createExpense(user, loaders, {
         amount: 1000,
         description: 'Pizza',
         ...data,

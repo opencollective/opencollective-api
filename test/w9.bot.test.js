@@ -455,13 +455,14 @@ describe('w9.bot.test.js', () => {
       });
       // And given the above collective has one expense (created by
       // the above user)
+      const loaders = utils.makeRequest(user).loaders;
       const data = {
         currency: 'USD',
         payoutMethod: 'paypal',
         privateMessage: 'Private instructions to reimburse this expense',
         collective: { id: collective.id },
       };
-      await store.createExpense(user, {
+      await store.createExpense(user, loaders, {
         amount: 1,
         description: 'Pizza',
         ...data,
@@ -502,13 +503,14 @@ describe('w9.bot.test.js', () => {
       expect(threshold).to.be.above(0);
 
       // Then creates the first expense that exceeds the threshold
+      const loaders = utils.makeRequest(user).loaders;
       const expenseData = {
         currency: 'USD',
         payoutMethod: 'other',
         privateMessage: 'First expense',
         collective: { id: collective.id },
       };
-      await store.createExpense(user, {
+      await store.createExpense(user, loaders, {
         amount: threshold + 100,
         description: 'Pizza',
         ...expenseData,
@@ -527,7 +529,7 @@ describe('w9.bot.test.js', () => {
       expect(get(hostAfterCreatedExpense, 'data.W9.requestSentToUserIds')[0]).to.be.equal(user.id);
 
       // And then another expense is createdexpense. = '';
-      const expense2 = await store.createExpense(user, {
+      const expense2 = await store.createExpense(user, loaders, {
         amount: 100,
         payoutMethod: 'other',
         description: 'tet',
@@ -586,13 +588,14 @@ describe('w9.bot.test.js', () => {
       expect(threshold).to.be.above(0);
 
       // Then creates the first expense that exceeds the threshold
+      const loaders = utils.makeRequest(user).loaders;
       const expenseData = {
         currency: 'USD',
         payoutMethod: 'other',
         privateMessage: 'First expense',
         collective: { id: collective.id },
       };
-      await store.createExpense(user, {
+      await store.createExpense(user, loaders, {
         amount: threshold + 100,
         description: 'Pizza',
         ...expenseData,
@@ -611,7 +614,7 @@ describe('w9.bot.test.js', () => {
       expect(get(hostAfterCreatedExpense, 'data.W9.requestSentToUserIds')[0]).to.be.equal(user.id);
 
       // And then another expense is createdexpense. = '';
-      const expense2 = await store.createExpense(user, {
+      const expense2 = await store.createExpense(user, loaders, {
         amount: 100,
         payoutMethod: 'other',
         description: 'tet',
@@ -651,7 +654,7 @@ describe('w9.bot.test.js', () => {
       expect(get(hostAfterPaidExpense, 'data.W9.receivedFromUserIds')[0]).to.be.equal(user.id);
 
       // And then another expense is created
-      const expense3 = await store.createExpense(user, {
+      const expense3 = await store.createExpense(user, loaders, {
         amount: 100,
         description: 'expense 3',
         ...expenseData,

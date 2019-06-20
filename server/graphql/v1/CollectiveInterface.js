@@ -739,8 +739,8 @@ const CollectiveFields = () => {
     },
     parentCollective: {
       type: CollectiveInterfaceType,
-      resolve(collective, req) {
-        return req.loaders.Collective.byId.load(collective.ParentCollectiveId);
+      resolve(collective) {
+        return models.Collective.findByPk(collective.ParentCollectiveId);
       },
     },
     type: {

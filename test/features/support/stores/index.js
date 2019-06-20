@@ -180,29 +180,31 @@ export async function newCollectiveInHost(name, currency, hostCollective, user =
  *
  * @param {models.User} user an instance of the User model that will
  *  be used to perform the action of creating the expense.
+ * @param {Object} loaders Dataloader for cached model data from
+ *  sequelize
  * @param {Object} expenseData contains values for the brand new
  *  expense. It especifically waits for the fields `amount`,
  *  `currency`, `description` and `paymentMethod`.
  * @return {models.Expense} newly created expense instance.
  */
-export async function createExpense(user, expenseData) {
-  return expenses.createExpense(user, expenseData);
+export async function createExpense(user, loaders, expenseData) {
+  return expenses.createExpense(user, loaders, expenseData);
 }
 
-export async function createApprovedExpense(user, expenseData) {
-  const expense = await createExpense(user, expenseData);
+export async function createApprovedExpense(user, loaders, expenseData) {
+  const expense = await createExpense(user, loaders, expenseData);
   await expense.update({ status: 'APPROVED' });
   return expense;
 }
 
-export async function createPaidExpense(user, expenseData) {
-  const expense = await createExpense(user, expenseData);
+export async function createPaidExpense(user, loaders, expenseData) {
+  const expense = await createExpense(user, loaders, expenseData);
   await expense.update({ status: 'PAID' });
   return expense;
 }
 
-export async function createRejectedExpense(user, expenseData) {
-  const expense = await createExpense(user, expenseData);
+export async function createRejectedExpense(user, loaders, expenseData) {
+  const expense = await createExpense(user, loaders, expenseData);
   await expense.update({ status: 'REJECTED' });
   return expense;
 }
