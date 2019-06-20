@@ -79,3 +79,27 @@ export const confirmUserEmail = async emailConfirmationToken => {
     emailConfirmationToken: null,
   });
 };
+
+/**
+ * Sets `publicKey` to `newPublicKey` for `user`.
+ */
+export const updateUserPublicKey = async (user, newPublicKey) => {
+  if (!user) {
+    throw new Unauthorized();
+  }
+
+  // If somehow user tries to update the public key to its existing value then we don't do anything
+  if (user.publicKey === newPublicKey) {
+    return user;
+  }
+
+  // Ensure this public key is not already used by another user
+  const existingPublicKey = await models.User.findOne({ where: { publicKey: newPublicKey } });
+  if (existingPublicKey) {
+    throw new ValidationFailed({ message: 'A user with that public key already exists' });
+  }
+
+  return user.update({
+    publicKey: newPublicKey,
+  });
+};

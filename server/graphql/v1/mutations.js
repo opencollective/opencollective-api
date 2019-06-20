@@ -30,7 +30,7 @@ import * as paymentMethodsMutation from './mutations/paymentMethods';
 import * as updateMutations from './mutations/updates';
 import * as commentMutations from './mutations/comments';
 import * as applicationMutations from './mutations/applications';
-import { updateUserEmail, confirmUserEmail } from './mutations/users';
+import { updateUserEmail, confirmUserEmail, updateUserPublicKey } from './mutations/users';
 
 import statuses from '../../constants/expense_status';
 import blockstackLib from '../../lib/blockstack';
@@ -318,6 +318,19 @@ const mutations = {
     },
     resolve: (_, { token }) => {
       return confirmUserEmail(token);
+    },
+  },
+  updateUserPublicKey: {
+    type: UserType,
+    description: 'Update the public key for logged in user',
+    args: {
+      publicKey: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: 'The new public key for user',
+      },
+    },
+    resolve: (_, { publicKey }, { remoteUser }) => {
+      return updateUserPublicKey(remoteUser, publicKey);
     },
   },
   editConnectedAccount: {

@@ -199,6 +199,7 @@ export default (Sequelize, DataTypes) => {
             lastName: this.lastName,
             email: this.email,
             emailWaitingForValidation: this.emailWaitingForValidation,
+            publicKey: this.publicKey,
             createdAt: this.createdAt,
             updatedAt: this.updatedAt,
             paypalEmail: this.paypalEmail,
