@@ -52,12 +52,12 @@ const queries = {
       slug: { type: GraphQLString },
       id: { type: GraphQLInt },
     },
-    resolve(_, args) {
+    resolve(_, args, req) {
       let collective;
       if (args.slug) {
         collective = models.Collective.findBySlug(args.slug.toLowerCase());
       } else if (args.id) {
-        collective = models.Collective.findByPk(args.id);
+        collective = req.loaders.Collective.byId.load(args.id);
       } else {
         return new Error('Please provide a slug or an id');
       }
@@ -102,7 +102,7 @@ const queries = {
   AuthenticatedUser: {
     type: CollectiveInterfaceType,
     resolve(_, args, req) {
-      return models.Collective.findByPk(req.remoteUser.CollectiveId);
+      return req.loaders.Collective.byId.load(req.remoteUser.CollectiveId);
     },
   },
 
@@ -142,7 +142,7 @@ const queries = {
         const HostCollectiveId = transaction.HostCollectiveId;
         hostsById[HostCollectiveId] =
           hostsById[HostCollectiveId] ||
-          (await models.Collective.findByPk(HostCollectiveId, {
+          (await req.loaders.Collective.byId.load(HostCollectiveId, {
             attributes: ['id', 'slug'],
           }));
         const createdAt = new Date(transaction.createdAt);

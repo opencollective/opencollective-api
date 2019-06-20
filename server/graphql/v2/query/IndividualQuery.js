@@ -17,14 +17,14 @@ const IndividualQuery = {
       description: 'The slug identifying the individual (ie: piamancini for https://opencollective.com/piamancini)',
     },
   },
-  async resolve(_, args) {
+  async resolve(_, args, req) {
     let collective;
     if (args.slug) {
       const slug = args.slug.toLowerCase();
       collective = await models.Collective.findBySlug(slug);
     } else if (args.id) {
       const id = idDecode(args.id, 'account');
-      collective = await models.Collective.findByPk(id);
+      collective = await req.loaders.Collective.byId.load(id);
     } else {
       return new Error('Please provide a slug or an id');
     }

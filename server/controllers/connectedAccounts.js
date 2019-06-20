@@ -48,7 +48,7 @@ export const createOrUpdate = (req, res, next, accessToken, data, emails) => {
           attrs.clientId = profile.id;
           attrs.data = profile;
           attrs.CreatedByUserId = user.id;
-          return models.Collective.findByPk(user.CollectiveId);
+          return req.loaders.Collective.byId.load(user.CollectiveId);
         })
         .then(c => {
           userCollective = c;
@@ -84,7 +84,7 @@ export const createOrUpdate = (req, res, next, accessToken, data, emails) => {
     }
 
     case 'meetup':
-      return createConnectedAccountForCollective(req.query.CollectiveId, service)
+      return createConnectedAccountForCollective(req.query.CollectiveId, service, req.loaders)
         .then(ca =>
           ca.update({
             clientId: accessToken,
@@ -99,7 +99,8 @@ export const createOrUpdate = (req, res, next, accessToken, data, emails) => {
       let collective;
       const profile = data.profile._json;
 
-      return models.Collective.findByPk(req.query.CollectiveId)
+      return req.loaders.Collective.byId
+        .load(req.query.CollectiveId)
         .then(c => {
           collective = c;
           collective.image =
@@ -114,7 +115,7 @@ export const createOrUpdate = (req, res, next, accessToken, data, emails) => {
           collective.twitterHandle = profile.screen_name;
           collective.save();
         })
-        .then(() => createConnectedAccountForCollective(req.query.CollectiveId, service))
+        .then(() => createConnectedAccountForCollective(req.query.CollectiveId, service, req.loaders))
         .then(ca =>
           ca.update({
             username: data.profile.username,
@@ -200,9 +201,10 @@ export const getOrgMemberships = async (req, res, next) => {
   }
 };
 
-function createConnectedAccountForCollective(CollectiveId, service) {
+function createConnectedAccountForCollective(CollectiveId, service, loaders) {
   const attrs = { service };
-  return models.Collective.findByPk(CollectiveId)
+  return loaders.Collective.byId
+    .load(CollectiveId)
     .then(collective => (attrs.CollectiveId = collective.id))
     .then(() => ConnectedAccount.findOne({ where: attrs }))
     .then(ca => ca || ConnectedAccount.create(attrs));

@@ -1,5 +1,4 @@
 import { get } from 'lodash';
-import models from '../../models';
 import {
   GraphQLInt,
   GraphQLFloat,
@@ -157,7 +156,7 @@ const TransactionFields = () => {
     },
     host: {
       type: UserCollectiveType,
-      async resolve(transaction) {
+      async resolve(transaction, req) {
         if (transaction && transaction.getHostCollective) {
           return transaction.getHostCollective();
         }
@@ -166,15 +165,15 @@ const TransactionFields = () => {
         let HostCollectiveId = transaction.HostCollectiveId;
         // if the transaction is from the perspective of the fromCollective
         if (!HostCollectiveId) {
-          const fromCollective = await models.Collective.findByPk(FromCollectiveId);
+          const fromCollective = await req.loaders.Collective.byId.load(FromCollectiveId);
           HostCollectiveId = await fromCollective.getHostCollectiveId();
           // if fromCollective has no host, we try the collective
           if (!HostCollectiveId) {
-            const collective = await models.Collective.findByPk(CollectiveId);
+            const collective = await req.loaders.Collective.byId.load(CollectiveId);
             HostCollectiveId = await collective.getHostCollectiveId();
           }
         }
-        return models.Collective.findByPk(HostCollectiveId);
+        return req.loaders.Collective.byId.load(HostCollectiveId);
       },
     },
     createdByUser: {
@@ -190,42 +189,42 @@ const TransactionFields = () => {
     },
     fromCollective: {
       type: CollectiveInterfaceType,
-      resolve(transaction) {
+      resolve(transaction, req) {
         // If it's a sequelize model transaction, it means it has the method getFromCollective
         // otherwise we check whether transaction has 'fromCollective.id', if not we return null
         if (transaction && transaction.getFromCollective) {
           return transaction.getFromCollective();
         }
         if (get(transaction, 'fromCollective.id')) {
-          return models.Collective.findByPk(get(transaction, 'fromCollective.id'));
+          return req.loaders.Collective.byId.load(get(transaction, 'fromCollective.id'));
         }
         return null;
       },
     },
     usingVirtualCardFromCollective: {
       type: CollectiveInterfaceType,
-      resolve(transaction) {
+      resolve(transaction, req) {
         // If it's a sequelize model transaction, it means it has the method getVirtualCardEmitterCollective
         // otherwise we find the collective by id if transactions has UsingVirtualCardFromCollectiveId, if not we return null
         if (transaction && transaction.getVirtualCardEmitterCollective) {
           return transaction.getVirtualCardEmitterCollective();
         }
         if (transaction && transaction.UsingVirtualCardFromCollectiveId) {
-          return models.Collective.findByPk(transaction.UsingVirtualCardFromCollectiveId);
+          return req.loaders.Collective.byId.load(transaction.UsingVirtualCardFromCollectiveId);
         }
         return null;
       },
     },
     collective: {
       type: CollectiveInterfaceType,
-      resolve(transaction) {
+      resolve(transaction, req) {
         // If it's a sequelize model transaction, it means it has the method getCollective
         // otherwise we check whether transaction has 'collective.id', if not we return null
         if (transaction && transaction.getCollective) {
           return transaction.getCollective();
         }
         if (get(transaction, 'collective.id')) {
-          return models.Collective.findByPk(get(transaction, 'collective.id'));
+          return req.loaders.Collective.byId.load(get(transaction, 'collective.id'));
         }
         return null;
       },

@@ -155,7 +155,7 @@ export async function createCollective(_, args, req) {
   if (collective.type !== types.COLLECTIVE) {
     return collective;
   }
-  const remoteUserCollective = await models.Collective.findByPk(req.remoteUser.CollectiveId);
+  const remoteUserCollective = await req.loaders.Collective.byId.load(req.remoteUser.CollectiveId);
   models.Activity.create({
     type: activities.COLLECTIVE_CREATED,
     UserId: req.remoteUser.id,
@@ -201,7 +201,7 @@ export async function createCollectiveFromGithub(_, args, req) {
     collectiveData.CreatedByUserId = user.id;
     collectiveData.LastEditedByUserId = user.id;
     collective = await models.Collective.create(collectiveData);
-    const host = await models.Collective.findByPk(defaultHostCollective('opensource').CollectiveId);
+    const host = await req.loaders.Collective.byId.load(defaultHostCollective('opensource').CollectiveId);
     const promises = [
       collective.addUserWithRole(user, roles.ADMIN),
       collective.addHost(host, user),
@@ -277,7 +277,7 @@ export async function createCollectiveFromGithub(_, args, req) {
   }
 
   debugGithub('createdCollective', collective && collective.dataValues);
-  const host = await models.Collective.findByPk(defaultHostCollective('opensource').CollectiveId);
+  const host = await req.loaders.Collective.byId.load(defaultHostCollective('opensource').CollectiveId);
   const promises = [
     collective.addUserWithRole(user, roles.ADMIN),
     collective.addHost(host, user, { skipCollectiveApplyActivity: true }),
@@ -437,14 +437,14 @@ export function editCollective(_, args, req) {
     });
 }
 
-export async function approveCollective(remoteUser, CollectiveId) {
+export async function approveCollective(remoteUser, loaders, CollectiveId) {
   if (!remoteUser) {
     throw new errors.Unauthorized({
       message: 'You need to be logged in to approve a collective',
     });
   }
 
-  const collective = await models.Collective.findByPk(CollectiveId);
+  const collective = await loaders.Collective.byId.load(CollectiveId);
   if (!collective) {
     throw new errors.NotFound({
       message: `Collective with id ${CollectiveId} not found`,
@@ -488,7 +488,7 @@ export function deleteEventCollective(_, args, req) {
     });
   }
 
-  return models.Collective.findByPk(args.id).then(collective => {
+  return req.loaders.Collective.byId.load(args.id).then(collective => {
     if (!collective)
       throw new errors.NotFound({
         message: `Collective with id ${args.id} not found`,
@@ -510,7 +510,7 @@ export async function claimCollective(_, args, req) {
     });
   }
 
-  let collective = await models.Collective.findByPk(args.id);
+  let collective = await req.loaders.Collective.byId.load(args.id);
   if (!collective) {
     throw new errors.NotFound({
       message: `Collective with id ${args.id} not found`,
@@ -566,7 +566,7 @@ export async function claimCollective(_, args, req) {
   }
 
   // add remoteUser as admin of collective
-  await collective.addUserWithRole(req.remoteUser, roles.ADMIN);
+  await collective.addUserWithRole(req, roles.ADMIN);
   collective = await collective.update({
     CreatedByUserId: req.remoteUser.id,
     LastEditedByUserId: req.remoteUser.id,
@@ -575,7 +575,7 @@ export async function claimCollective(_, args, req) {
   // add opensource collective as host
   // set collective as active
   // create default tiers
-  const host = await models.Collective.findByPk(defaultHostCollective('opensource').CollectiveId);
+  const host = await req.loaders.Collective.byId.load(defaultHostCollective('opensource').CollectiveId);
 
   collective = await collective.addHost(host, {
     ...req.remoteUser.minimal,
@@ -618,7 +618,7 @@ export async function archiveCollective(_, args, req) {
     });
   }
 
-  const collective = await models.Collective.findByPk(args.id);
+  const collective = await req.loaders.Collective.byId.load(args.id);
   if (!collective) {
     throw new errors.NotFound({
       message: `Collective with id ${args.id} not found`,
@@ -647,7 +647,7 @@ export async function unarchiveCollective(_, args, req) {
     });
   }
 
-  const collective = await models.Collective.findByPk(args.id);
+  const collective = await req.loaders.Collective.byId.load(args.id);
   if (!collective) {
     throw new errors.NotFound({
       message: `Collective with id ${args.id} not found`,
@@ -670,7 +670,7 @@ export async function deleteCollective(_, args, req) {
     });
   }
 
-  const collective = await models.Collective.findByPk(args.id);
+  const collective = await req.loaders.Collective.byId.load(args.id);
   if (!collective) {
     throw new errors.NotFound({
       message: `Collective with id ${args.id} not found`,

@@ -6,8 +6,6 @@ import CollectiveQuery from './CollectiveQuery';
 
 import { Account } from '../interface/Account';
 
-import models from '../../../models';
-
 const query = {
   account: AccountQuery,
   collective: CollectiveQuery,
@@ -16,7 +14,7 @@ const query = {
   loggedInAccount: {
     type: Account,
     resolve(_, args, req) {
-      return models.Collective.findByPk(req.remoteUser.CollectiveId);
+      return req.loaders.Collective.byId.load(req.remoteUser.CollectiveId);
     },
   },
 };

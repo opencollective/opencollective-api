@@ -80,7 +80,7 @@ export async function updateExpenseStatus(remoteUser, expenseId, status) {
   return res;
 }
 
-export async function createExpense(remoteUser, expenseData) {
+export async function createExpense(remoteUser, loaders, expenseData) {
   if (!remoteUser) {
     throw new errors.Unauthorized('You need to be logged in to create an expense');
   }
@@ -95,7 +95,7 @@ export async function createExpense(remoteUser, expenseData) {
   }
   expenseData.UserId = remoteUser.id;
 
-  const collective = await models.Collective.findByPk(expenseData.collective.id);
+  const collective = await loaders.Collective.byId.load(expenseData.collective.id);
 
   if (expenseData.currency && expenseData.currency !== collective.currency) {
     throw new errors.ValidationFailed(

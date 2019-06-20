@@ -244,10 +244,10 @@ export default function(Sequelize, DataTypes) {
   };
 
   // Publish update
-  Update.prototype.publish = async function(remoteUser) {
+  Update.prototype.publish = async function(remoteUser, loaders) {
     mustHaveRole(remoteUser, 'ADMIN', this.CollectiveId, 'publish this update');
     this.publishedAt = new Date();
-    this.collective = this.collective || (await models.Collective.findByPk(this.CollectiveId));
+    this.collective = this.collective || (await loaders.Collective.byId.load(this.CollectiveId));
     models.Activity.create({
       type: activities.COLLECTIVE_UPDATE_PUBLISHED,
       UserId: remoteUser.id,

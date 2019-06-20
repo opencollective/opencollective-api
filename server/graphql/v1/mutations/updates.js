@@ -14,7 +14,7 @@ export async function createUpdate(_, args, req) {
   mustHaveRole(req.remoteUser, 'ADMIN', CollectiveId, 'create an update');
   require(args, 'update.title');
 
-  const collective = await models.Collective.findByPk(CollectiveId);
+  const collective = await req.loaders.Collective.byId.load(CollectiveId);
 
   if (!collective) {
     throw new Error('This collective does not exist');
@@ -47,15 +47,15 @@ export async function editUpdate(_, args, req) {
   require(args, 'update.id');
   let update = await fetchUpdate(args.update.id);
   update = await update.edit(req.remoteUser, args.update);
-  const collective = await models.Collective.findByPk(update.CollectiveId);
+  const collective = await req.loaders.Collective.byId.load(update.CollectiveId);
   purgeCacheForPage(`/${collective.slug}`);
   return update;
 }
 
 export async function publishUpdate(_, args, req) {
   let update = await fetchUpdate(args.id);
-  update = await update.publish(req.remoteUser);
-  const collective = await models.Collective.findByPk(update.CollectiveId);
+  update = await update.publish(req.remoteUser, req.loaders);
+  const collective = await req.loaders.Collective.byId.load(update.CollectiveId);
   purgeCacheForPage(`/${collective.slug}`);
   return update;
 }
@@ -63,7 +63,7 @@ export async function publishUpdate(_, args, req) {
 export async function unpublishUpdate(_, args, req) {
   let update = await fetchUpdate(args.id);
   update = await update.unpublish(req.remoteUser);
-  const collective = await models.Collective.findByPk(update.CollectiveId);
+  const collective = await req.loaders.Collective.byId.load(update.CollectiveId);
   purgeCacheForPage(`/${collective.slug}`);
   return update;
 }
@@ -71,7 +71,7 @@ export async function unpublishUpdate(_, args, req) {
 export async function deleteUpdate(_, args, req) {
   let update = await fetchUpdate(args.id);
   update = await update.delete(req.remoteUser);
-  const collective = await models.Collective.findByPk(update.CollectiveId);
+  const collective = await req.loaders.Collective.byId.load(update.CollectiveId);
   purgeCacheForPage(`/${collective.slug}`);
   return update;
 }

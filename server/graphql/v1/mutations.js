@@ -149,7 +149,7 @@ const mutations = {
       id: { type: new GraphQLNonNull(GraphQLInt) },
     },
     resolve(_, args, req) {
-      return approveCollective(req.remoteUser, args.id);
+      return approveCollective(req.remoteUser, req.loaders, args.id);
     },
   },
   archiveCollective: {
@@ -306,7 +306,7 @@ const mutations = {
       expense: { type: new GraphQLNonNull(ExpenseInputType) },
     },
     resolve(_, args, req) {
-      return createExpense(req.remoteUser, args.expense);
+      return createExpense(req.remoteUser, req.loaders, args.expense);
     },
   },
   editExpense: {
@@ -391,7 +391,7 @@ const mutations = {
       },
     },
     resolve(_, args, req) {
-      return addFundsToCollective(args.order, req.remoteUser);
+      return addFundsToCollective(args.order, req.remoteUser, req.loaders);
     },
   },
   updateOrder: {
@@ -550,7 +550,7 @@ const mutations = {
       HostCollectiveId: { type: new GraphQLNonNull(GraphQLInt) },
       description: { type: GraphQLString },
     },
-    resolve: async (_, args, req) => addFundsToOrg(args, req.remoteUser),
+    resolve: async (_, args, req) => addFundsToOrg(args, req.remoteUser, req.loaders),
   },
   createApplication: {
     type: ApplicationType,
@@ -630,6 +630,7 @@ const mutations = {
       return paymentMethodsMutation.createPaymentMethod(
         { ...args, service: 'stripe', type: 'creditcard' },
         req.remoteUser,
+        req.loaders,
       );
     },
   },
@@ -681,7 +682,7 @@ const mutations = {
       },
       expiryDate: { type: GraphQLString },
     },
-    resolve: async (_, { emails, numberOfVirtualCards, ...args }, { remoteUser }) => {
+    resolve: async (_, { emails, numberOfVirtualCards, ...args }, { remoteUser, loaders }) => {
       if (numberOfVirtualCards && emails && numberOfVirtualCards !== emails.length) {
         throw Error("numberOfVirtualCards and emails counts doesn't match");
       } else if (args.limitedToOpenSourceCollectives && args.limitedToHostCollectiveIds) {
@@ -702,9 +703,9 @@ const mutations = {
       }
 
       if (numberOfVirtualCards) {
-        return await bulkCreateVirtualCards(args, remoteUser, numberOfVirtualCards);
+        return await bulkCreateVirtualCards(args, remoteUser, numberOfVirtualCards, loaders);
       } else if (emails) {
-        return await createVirtualCardsForEmails(args, remoteUser, emails, args.customMessage);
+        return await createVirtualCardsForEmails(args, remoteUser, emails, args.customMessage, loaders);
       }
 
       throw new Error('You must either pass numberOfVirtualCards of an email list');
@@ -716,7 +717,7 @@ const mutations = {
       code: { type: new GraphQLNonNull(GraphQLString) },
       user: { type: UserInputType },
     },
-    resolve: async (_, args, req) => paymentMethodsMutation.claimPaymentMethod(args, req.remoteUser),
+    resolve: async (_, args, req) => paymentMethodsMutation.claimPaymentMethod(args, req.remoteUser, req.loaders),
   },
   removePaymentMethod: {
     type: new GraphQLNonNull(PaymentMethodType),

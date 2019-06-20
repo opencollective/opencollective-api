@@ -10,8 +10,9 @@ import { Forbidden, ValidationFailed } from '../../errors';
  *
  * @param {Object} args contains the parameters to create the new payment method
  * @param {Object} remoteUser logged in user
+ * @param {Object} loaders DataLoaders
  */
-export async function createPaymentMethod(args, remoteUser) {
+export async function createPaymentMethod(args, remoteUser, loaders) {
   if (!remoteUser) {
     throw new Error('You need to be logged in to create this payment method.');
   } else if (!remoteUser.isAdmin(args.CollectiveId)) {
@@ -23,9 +24,9 @@ export async function createPaymentMethod(args, remoteUser) {
     if (!args.amount && !args.monthlyLimitPerMember) {
       throw Error('you need to define either the amount or the monthlyLimitPerMember of the payment method.');
     }
-    return createVirtualPaymentMethod(args, remoteUser);
+    return createVirtualPaymentMethod(args, remoteUser, loaders);
   } else if (args.service === 'stripe' && args.type === 'creditcard') {
-    return createStripeCreditCard(args, remoteUser);
+    return createStripeCreditCard(args, remoteUser, loaders);
   } else {
     throw Error('Payment method type not supported');
   }
@@ -48,19 +49,19 @@ export async function createPaymentMethod(args, remoteUser) {
  * @param {Object} remoteUser logged in user
  * @returns {models.PaymentMethod} return the virtual card payment method.
  */
-async function createVirtualPaymentMethod(args, remoteUser) {
+async function createVirtualPaymentMethod(args, remoteUser, loaders) {
   // making sure it's a string, trim and uppercase it.
   args.currency = args.currency.toString().toUpperCase();
   if (!['USD', 'EUR'].includes(args.currency)) {
     throw new Error(`Currency ${args.currency} not supported. We only support USD and EUR at the moment.`);
   }
-  const paymentMethod = await virtualcard.create(args, remoteUser);
+  const paymentMethod = await virtualcard.create(args, remoteUser, loaders);
   return paymentMethod;
 }
 
 /** Add a stripe credit card to given collective */
-async function createStripeCreditCard(args, remoteUser) {
-  const collective = await models.Collective.findByPk(args.CollectiveId);
+async function createStripeCreditCard(args, remoteUser, loaders) {
+  const collective = await loaders.Collective.byId.load(args.CollectiveId);
   if (!collective) {
     throw Error('This collective does not exists');
   }
@@ -97,16 +98,17 @@ async function createStripeCreditCard(args, remoteUser) {
  * @param {Object} args contains the parameters
  * @param {String} args.code The 8 last digits of the UUID
  * @param {String} args.email The email of the user claiming the virtual card
+ * @param {Object} loaders Dataloaders
  * @returns {models.PaymentMethod} return the virtual card payment method.
  */
-export async function claimPaymentMethod(args, remoteUser) {
+export async function claimPaymentMethod(args, remoteUser, loaders) {
   const paymentMethod = await virtualcard.claim(args, remoteUser);
   const user = await models.User.findOne({
     where: { CollectiveId: paymentMethod.CollectiveId },
   });
   const { initialBalance, monthlyLimitPerMember, currency, name, expiryDate } = paymentMethod;
   const amount = initialBalance || monthlyLimitPerMember;
-  const emitter = await models.Collective.findByPk(paymentMethod.sourcePaymentMethod.CollectiveId);
+  const emitter = await loaders.Collective.byId.load(paymentMethod.sourcePaymentMethod.CollectiveId);
 
   const qs = new URLSearchParams({
     code: paymentMethod.uuid.substring(0, 8),

@@ -774,7 +774,7 @@ export async function refundTransaction(_, args, req) {
     throw new errors.NotFound({ message: 'Transaction not found' });
   }
 
-  const collective = await models.Collective.findByPk(transaction.CollectiveId);
+  const collective = await req.loaders.Collective.byId.load(transaction.CollectiveId);
   const isHost = await collective.isHost();
   const HostCollectiveId = isHost ? collective.id : await collective.getHostCollectiveId();
 
@@ -813,11 +813,11 @@ export async function refundTransaction(_, args, req) {
  * @param {models.User} remoteUser is the user creating the new credit
  *  card. Right now only site admins can use this feature.
  */
-export async function addFundsToOrg(args, remoteUser) {
+export async function addFundsToOrg(args, remoteUser, loaders) {
   if (!remoteUser.isRoot()) throw new Error('Only site admins can perform this operation');
   const [fromCollective, hostCollective] = await Promise.all([
-    models.Collective.findByPk(args.CollectiveId),
-    models.Collective.findByPk(args.HostCollectiveId),
+    loaders.Collective.byId.load(args.CollectiveId),
+    loaders.Collective.byId.load(args.HostCollectiveId),
   ]);
   // creates a new Payment method
   const paymentMethod = await models.PaymentMethod.create({
@@ -878,7 +878,7 @@ export async function markOrderAsPaid(remoteUser, id) {
   return order;
 }
 
-export async function addFundsToCollective(order, remoteUser) {
+export async function addFundsToCollective(order, remoteUser, loaders) {
   if (!remoteUser) {
     throw new Error('You need to be logged in to add fund to collective');
   }
@@ -887,7 +887,7 @@ export async function addFundsToCollective(order, remoteUser) {
     throw new Error('Total amount cannot be a negative value');
   }
 
-  const collective = await models.Collective.findByPk(order.collective.id);
+  const collective = await loaders.Collective.byId.load(order.collective.id);
   if (!collective) {
     throw new Error(`No collective found: ${order.collective.id}`);
   }
@@ -918,7 +918,7 @@ export async function addFundsToCollective(order, remoteUser) {
   }
 
   if (order.fromCollective.id) {
-    fromCollective = await models.Collective.findByPk(order.fromCollective.id);
+    fromCollective = await loaders.Collective.byId.load(order.fromCollective.id);
     if (!fromCollective) {
       throw new Error(`From collective id ${order.fromCollective.id} not found`);
     }

@@ -151,9 +151,9 @@ async function processOrder(order) {
  * @returns {models.PaymentMethod + code} return the virtual card payment method with
             an extra property "code" that is basically the last 8 digits of the UUID
  */
-async function create(args, remoteUser) {
+async function create(args, remoteUser, loaders) {
   const totalAmount = args.amount || args.monthlyLimitPerMember;
-  const collective = await models.Collective.findByPk(args.CollectiveId);
+  const collective = await loaders.Collective.byId.load(args.CollectiveId);
   if (!collective) {
     throw new Error('Collective does not exist');
   } else if (!(await checkCreateLimit(collective, 1, totalAmount))) {
@@ -180,12 +180,12 @@ async function create(args, remoteUser) {
  * @param {object} remoteUser
  * @param {integer} count
  */
-export async function bulkCreateVirtualCards(args, remoteUser, count) {
+export async function bulkCreateVirtualCards(args, remoteUser, count, loaders) {
   if (!count) return [];
 
   // Check rate limit
   const totalAmount = (args.amount || args.monthlyLimitPerMember) * count;
-  const collective = await models.Collective.findByPk(args.CollectiveId);
+  const collective = await loaders.Collective.byId.load(args.CollectiveId);
   if (!collective) {
     throw new Error('Collective does not exist');
   } else if (!(await checkCreateLimit(collective, count, totalAmount))) {
@@ -212,14 +212,15 @@ export async function bulkCreateVirtualCards(args, remoteUser, count) {
  * @param {object} remoteUser
  * @param {integer} count
  * @param {string} customMessage A message that will be sent in the invitation email
+ * @param {object} loaders Dataloaders
  */
-export async function createVirtualCardsForEmails(args, remoteUser, emails, customMessage) {
+export async function createVirtualCardsForEmails(args, remoteUser, emails, customMessage, loaders) {
   if (emails.length === 0) {
     return [];
   }
   // Check rate limit
   const totalAmount = (args.amount || args.monthlyLimitPerMember) * emails.length;
-  const collective = await models.Collective.findByPk(args.CollectiveId);
+  const collective = await loaders.Collective.byId.load(args.CollectiveId);
   if (!collective) {
     throw new Error('Collective does not exist');
   } else if (!(await checkCreateLimit(collective, emails.length, totalAmount))) {
