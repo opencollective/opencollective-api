@@ -94,9 +94,11 @@ export const updateUserPublicKey = async (user, newPublicKey) => {
   }
 
   // Ensure this public key is not already used by another user
-  const existingPublicKey = await models.User.findOne({ where: { publicKey: newPublicKey } });
-  if (existingPublicKey) {
-    throw new ValidationFailed({ message: 'A user with that public key already exists' });
+  if (newPublicKey) {
+    const existingPublicKey = await models.User.findOne({ where: { publicKey: newPublicKey } });
+    if (existingPublicKey) {
+      throw new ValidationFailed({ message: 'A user with that public key already exists' });
+    }
   }
 
   return user.update({

@@ -325,8 +325,8 @@ const mutations = {
     description: 'Update the public key for logged in user',
     args: {
       publicKey: {
-        type: new GraphQLNonNull(GraphQLString),
-        description: 'The new public key for user',
+        type: GraphQLString,
+        description: 'The new public key for user or null',
       },
     },
     resolve: (_, { publicKey }, { remoteUser }) => {
