@@ -33,10 +33,15 @@ describe('cron.makePrivateUpdatesPublic.test', () => {
         {
           id: 2,
           title: 'update 2',
+          makePublicOn: new Date(new Date(today).toISOString()),
+          isPrivate: true,
+        },
+        {
+          id: 3,
+          title: 'update 3',
           makePublicOn: new Date(new Date(today - new Date(dateOffset * -1)).toISOString()),
           isPrivate: true,
         },
-        { id: 3, title: 'update 3', makePublicOn: new Date(new Date(today).toISOString()), isPrivate: true },
         { id: 4, title: 'update 4', makePublicOn: null, isPrivate: true },
       ],
       { CreatedByUserId: user1.id, CollectiveId: collective1.id },
@@ -51,14 +56,14 @@ describe('cron.makePrivateUpdatesPublic.test', () => {
     });
     it('update.makePublic = today', async () => {
       const update2 = await models.Update.findByPk(2);
-      expect(update2.dataValues.isPrivate).to.equal(true);
+      expect(update2.dataValues.isPrivate).to.equal(false);
     });
   });
 
   describe('private update not made public if update.makePublic > today', () => {
     it('update.makePublic > today', async () => {
       const update3 = await models.Update.findByPk(3);
-      expect(update3.dataValues.isPrivate).to.equal(false);
+      expect(update3.dataValues.isPrivate).to.equal(true);
     });
   });
 

@@ -321,6 +321,12 @@ export default function(Sequelize, DataTypes) {
       });
   };
 
+  Update.prototype.makePublic = async function() {
+    if (this.isPrivate === false) return;
+    this.isPrivate = false;
+    return await this.save();
+  };
+
   Update.createMany = (updates, defaultValues) => {
     return Promise.map(updates, u => Update.create(defaults({}, u, defaultValues)), { concurrency: 1 }).catch(
       console.error,
