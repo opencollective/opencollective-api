@@ -308,6 +308,11 @@ export default function(Sequelize, DataTypes) {
         defaultValue: false,
       },
 
+      approvedAt: {
+        type: DataTypes.DATE,
+        defaultValue: Sequelize.NOW,
+      },
+
       twitterHandle: {
         type: DataTypes.STRING, // without the @ symbol. Ex: 'asood123'
         set(twitterHandle) {
@@ -463,6 +468,7 @@ export default function(Sequelize, DataTypes) {
             tags: this.tags,
             HostCollectiveId: this.HostCollectiveId,
             isSupercollective: this.isSupercollective,
+            approvedAt: this.approvedAt,
           };
         },
         card() {
