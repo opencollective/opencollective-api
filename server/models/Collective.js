@@ -1516,6 +1516,7 @@ export default function(Sequelize, DataTypes) {
     }
     this.HostCollectiveId = null;
     this.isActive = false; // we should rename isActive to isApproved (by the host)
+    this.ApprovedAt = NULL;
     if (newHostCollectiveId) {
       const newHostCollective = await models.Collective.findByPk(newHostCollectiveId);
       if (!newHostCollective) {

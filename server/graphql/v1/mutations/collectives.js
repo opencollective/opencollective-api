@@ -240,7 +240,7 @@ export async function createCollectiveFromGithub(_, args, req) {
     const promises = [
       collective.addUserWithRole(user, roles.ADMIN),
       collective.addHost(host, user),
-      collective.update({ isActive: true }),
+      collective.update({ isActive: true, ApprovedAt: Date.now() }),
     ];
 
     await Promise.all(promises);
@@ -516,7 +516,7 @@ export async function approveCollective(remoteUser, CollectiveId) {
     },
   });
 
-  return collective.update({ isActive: true });
+  return collective.update({ isActive: true, ApprovedAt: Date.now() });
 }
 
 export function deleteEventCollective(_, args, req) {
@@ -675,7 +675,7 @@ export async function archiveCollective(_, args, req) {
     throw new Error('Cannot archive collective with balance > 0');
   }
 
-  return collective.update({ isActive: false, deactivatedAt: Date.now() });
+  return collective.update({ isActive: false, deactivatedAt: Date.now(), ApprovedAt: NULL });
 }
 
 export async function unarchiveCollective(_, args, req) {
