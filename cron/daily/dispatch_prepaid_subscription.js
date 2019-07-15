@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import fetch from 'isomorphic-fetch';
+import uuidV4 from 'uuid/v4';
+import debugLib from 'debug';
 import { map } from 'bluebird';
 import { Op } from 'sequelize';
 
@@ -9,6 +11,8 @@ import models from '../../server/models';
 import * as libPayments from '../../server/lib/payments';
 import { getNextChargeAndPeriodStartDates } from '../../server/lib/subscriptions';
 import status from '../../server/constants/order_status';
+
+const debug = debugLib('dispatch_prepaid_subscription');
 
 async function run() {
   // fetch orders created from PREPAID tier
@@ -24,6 +28,7 @@ async function run() {
         where: { type: 'PREPAID' },
       },
       { model: models.Collective, as: 'fromCollective' },
+      { model: models.User, as: 'createdByUser' },
       { model: models.Collective, as: 'collective' },
       {
         model: models.Subscription,
@@ -38,18 +43,19 @@ async function run() {
     ],
   });
 
-  map(allOrders, async order => {
+  return map(allOrders, async order => {
     // Amount shareable amongst dependencies
     const shareableAmount = order.totalAmount;
     const jsonUrl = order.data.customData.jsonUrl;
     const depRecommendation = await fetchDependcies(jsonUrl);
     const sumOfWeights = depRecommendation.reduce((sum, dependency) => dependency.weigh + sum, 0);
 
-    map(depRecommendation, async dependency => {
+    return map(depRecommendation, async dependency => {
       // Check if the collective is avaliable
       const collective = await models.Collective.findByPk(dependency.opencollective.id);
       const totalAmount = computeAmount(shareableAmount, sumOfWeights, dependency.weigh);
-      const pm = await order.collective.getPaymentMethod({ service: 'opencollective', type: 'prepaid' }, false);
+      const HostCollectiveId = await order.collective.getHostCollectiveId();
+      // const pm = await order.collective.getPaymentMethod({ service: 'opencollective', type: 'prepaid' }, false);
 
       const orderData = {
         CreatedByUserId: order.CreatedByUserId,
@@ -57,31 +63,43 @@ async function run() {
         CollectiveId: collective.id,
         quantity: order.quantity,
         description: order.description,
-        processedAt: new Date(),
         totalAmount,
         currency: order.currency,
         status: status.PENDING,
       };
 
+      const paymentMethod = await models.PaymentMethod.create({
+        initialBalance: totalAmount,
+        currency: order.currency,
+        CollectiveId: order.FromCollectiveId,
+        customerId: order.fromCollective.slug,
+        service: 'opencollective',
+        type: 'prepaid',
+        uuid: uuidV4(),
+        data: { HostCollectiveId },
+      });
+
       const orderCreated = await models.Order.create(orderData);
-      await orderCreated.setPaymentMethod(pm.uuid);
+      await orderCreated.setPaymentMethod(paymentMethod);
+      await orderCreated.reload();
+
       try {
-        await libPayments.executeOrder(
-          // order.fromCollective, Order needs instance of user here not collective
-          orderCreated,
-        );
+        await libPayments.executeOrder(order.createdByUser, orderCreated);
       } catch (e) {
-        // Don't save new card for user if order failed
-        if (!order.paymentMethod.id && !order.paymentMethod.uuid) {
-          await orderCreated.paymentMethod.update({ CollectiveId: null });
-        }
+        debug(`Error occured excuting order ${orderCreated.id}`, e);
         throw e;
       }
-    });
-    // Update the original order subscription for next charge period
-    order.Subscription = Object.assign(order.Subscription, getNextChargeAndPeriodStartDates('success', order));
-    await order.Subscription.save();
-    await order.save();
+      return;
+    })
+      .then(async () => {
+        order.Subscription = Object.assign(order.Subscription, getNextChargeAndPeriodStartDates('success', order));
+        await order.Subscription.save();
+        await order.save();
+      })
+      .catch(error => {
+        debug(`Error occured processing and dispatching order ${order.id}`, error);
+        console.error(error);
+      });
   });
 }
 
@@ -95,6 +113,13 @@ const fetchDependcies = jsonUrl => {
   return fetch(jsonUrl).then(res => res.json());
 };
 
-run().catch(err => {
-  console.error(err);
-});
+run()
+  .then(() => {
+    console.log('>>> All subscription dispatched');
+    process.exit(0);
+  })
+  .catch(error => {
+    debug('Error when dispatching fund', error);
+    console.error(error);
+    process.exit();
+  });
