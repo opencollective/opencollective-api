@@ -505,6 +505,14 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
 
     order = await models.Order.findByPk(orderCreated.id);
 
+    if (tier && tier.type === 'PREPAID' && order.status === status.ACTIVE) {
+      const subscription = await models.Subscription.findByPk(order.SubscriptionId);
+      subscription.data = {
+        nextDispatchDate: new Date(),
+      };
+      await subscription.save();
+    }
+
     // If there was a referral for this order, we add it as a FUNDRAISER role
     if (order.ReferralCollectiveId && order.ReferralCollectiveId !== user.CollectiveId) {
       collective.addUserWithRole({ id: user.id, CollectiveId: order.ReferralCollectiveId }, roles.FUNDRAISER);

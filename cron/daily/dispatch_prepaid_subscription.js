@@ -2,14 +2,14 @@
 import fetch from 'isomorphic-fetch';
 import uuidV4 from 'uuid/v4';
 import debugLib from 'debug';
-import { map } from 'bluebird';
+import moment from 'moment';
+import { map, filter } from 'bluebird';
 import { Op } from 'sequelize';
 
 import '../../server/env';
 
 import models from '../../server/models';
 import * as libPayments from '../../server/lib/payments';
-import { getNextChargeAndPeriodStartDates } from '../../server/lib/subscriptions';
 import status from '../../server/constants/order_status';
 
 const debug = debugLib('dispatch_prepaid_subscription');
@@ -36,26 +36,36 @@ async function run() {
           isActive: true,
           deletedAt: null,
           deactivatedAt: null,
-          activatedAt: { [Op.lte]: new Date() },
-          nextChargeDate: { [Op.lte]: new Date() },
         },
       },
     ],
   });
 
-  return map(allOrders, async order => {
+  return filter(allOrders, order => {
+    return order.Subscription.data && needsDispatching(order.Subscription.data.nextDispatchDate);
+  }).map(async order => {
     // Amount shareable amongst dependencies
     const shareableAmount = order.totalAmount;
     const jsonUrl = order.data.customData.jsonUrl;
     const depRecommendation = await fetchDependcies(jsonUrl);
     const sumOfWeights = depRecommendation.reduce((sum, dependency) => dependency.weigh + sum, 0);
+    const HostCollectiveId = await order.collective.getHostCollectiveId();
+
+    const paymentMethod = await models.PaymentMethod.create({
+      initialBalance: shareableAmount,
+      currency: order.currency,
+      CollectiveId: order.FromCollectiveId,
+      customerId: order.fromCollective.slug,
+      service: 'opencollective',
+      type: 'prepaid',
+      uuid: uuidV4(),
+      data: { HostCollectiveId },
+    });
 
     return map(depRecommendation, async dependency => {
       // Check if the collective is avaliable
       const collective = await models.Collective.findByPk(dependency.opencollective.id);
       const totalAmount = computeAmount(shareableAmount, sumOfWeights, dependency.weigh);
-      const HostCollectiveId = await order.collective.getHostCollectiveId();
-      // const pm = await order.collective.getPaymentMethod({ service: 'opencollective', type: 'prepaid' }, false);
 
       const orderData = {
         CreatedByUserId: order.CreatedByUserId,
@@ -67,18 +77,6 @@ async function run() {
         currency: order.currency,
         status: status.PENDING,
       };
-
-      const paymentMethod = await models.PaymentMethod.create({
-        initialBalance: totalAmount,
-        currency: order.currency,
-        CollectiveId: order.FromCollectiveId,
-        customerId: order.fromCollective.slug,
-        service: 'opencollective',
-        type: 'prepaid',
-        uuid: uuidV4(),
-        data: { HostCollectiveId },
-      });
-
       const orderCreated = await models.Order.create(orderData);
       await orderCreated.setPaymentMethod(paymentMethod);
       await orderCreated.reload();
@@ -92,7 +90,11 @@ async function run() {
       return;
     })
       .then(async () => {
-        order.Subscription = Object.assign(order.Subscription, getNextChargeAndPeriodStartDates('success', order));
+        const nextDispatchDate = getNextDispatchingDate(
+          order.Subscription.interval,
+          order.Subscription.data.nextDispatchDate,
+        );
+        order.Subscription.data = { nextDispatchDate };
         await order.Subscription.save();
         await order.save();
       })
@@ -112,6 +114,21 @@ const computeAmount = (totalAmount, sumOfWeights, dependencyWeight) => {
 const fetchDependcies = jsonUrl => {
   return fetch(jsonUrl).then(res => res.json());
 };
+
+function needsDispatching(nextDispatchDate) {
+  const needs = moment(nextDispatchDate).isSameOrBefore();
+  return needs;
+}
+
+function getNextDispatchingDate(interval, currentDispatchDate) {
+  const nextDispatchDate = moment(currentDispatchDate);
+  if (interval === 'month') {
+    nextDispatchDate.add(1, 'months');
+  } else if (interval === 'year') {
+    nextDispatchDate.add(1, 'years');
+  }
+  return nextDispatchDate.toDate();
+}
 
 run()
   .then(() => {
