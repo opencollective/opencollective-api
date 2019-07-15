@@ -310,7 +310,12 @@ export default function(Sequelize, DataTypes) {
 
       approvedAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        allowNull: true,
+      },
+
+      isApproved: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
       },
 
       twitterHandle: {
@@ -468,6 +473,7 @@ export default function(Sequelize, DataTypes) {
             tags: this.tags,
             HostCollectiveId: this.HostCollectiveId,
             isSupercollective: this.isSupercollective,
+            isApproved: this.isApproved,
             approvedAt: this.approvedAt,
           };
         },
@@ -1517,6 +1523,7 @@ export default function(Sequelize, DataTypes) {
     this.HostCollectiveId = null;
     this.isActive = false; // we should rename isActive to isApproved (by the host)
     this.approvedAt = NULL;
+    this.isApproved = false;
     if (newHostCollectiveId) {
       const newHostCollective = await models.Collective.findByPk(newHostCollectiveId);
       if (!newHostCollective) {
