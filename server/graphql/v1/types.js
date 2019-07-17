@@ -16,7 +16,6 @@ import { Kind } from 'graphql/language';
 import GraphQLJSON from 'graphql-type-json';
 import he from 'he';
 import { pick } from 'lodash';
-import { map } from 'bluebird';
 import moment from 'moment';
 
 import { CollectiveInterfaceType, CollectiveSearchResultsType } from './CollectiveInterface';
@@ -1652,19 +1651,7 @@ export const OrderType = new GraphQLObjectType({
         type: GraphQLJSON,
         description: 'Additional information on order: tax and custom fields',
         async resolve(order) {
-          const data = pick(order.data, ['tax', 'customData', 'lastDispatchedOrdersId']) || null;
-          if (data.lastDispatchedOrdersId && data.lastDispatchedOrdersId.length !== 0) {
-            const dispatchedOrders = await map(data.lastDispatchedOrdersId, id =>
-              models.Order.findOne({
-                where: { id, status: status.PAID },
-                include: [{ model: models.Collective, as: 'collective' }],
-              }),
-            );
-            data.dispatchedOrders = dispatchedOrders;
-            return data;
-          } else {
-            return data;
-          }
+          return pick(order.data, ['tax', 'customData']) || null;
         },
       },
     };
