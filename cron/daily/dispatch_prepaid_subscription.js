@@ -8,7 +8,7 @@ import '../../server/env';
 
 import models from '../../server/models';
 import status from '../../server/constants/order_status';
-import { dispatchFunds, getNextDispatchingDate } from '../../server/lib/subscriptions';
+import { dispatchFunds, getNextDispatchingDate } from '../../server/lib/dispatcher';
 const debug = debugLib('dispatch_prepaid_subscription');
 
 async function run() {
@@ -42,13 +42,12 @@ async function run() {
     return order.Subscription.data && needsDispatching(order.Subscription.data.nextDispatchDate);
   }).map(async order => {
     return dispatchFunds(order)
-      .then(async createdOrdersId => {
+      .then(async () => {
         const nextDispatchDate = getNextDispatchingDate(
           order.Subscription.interval,
           order.Subscription.data.nextDispatchDate,
         );
         order.Subscription.data = { nextDispatchDate };
-        order.data = Object.assign(order.data, { lastDispatchedOrdersId: createdOrdersId });
         await order.Subscription.save();
         await order.save();
       })
