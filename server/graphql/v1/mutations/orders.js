@@ -14,12 +14,8 @@ import recaptcha from '../../../lib/recaptcha';
 import slackLib from '../../../lib/slack';
 import * as libPayments from '../../../lib/payments';
 import { capitalize, pluralize, formatCurrency, md5 } from '../../../lib/utils';
-import {
-  getNextChargeAndPeriodStartDates,
-  getChargeRetryCount,
-  dispatchFunds,
-  getNextDispatchingDate,
-} from '../../../lib/subscriptions';
+import { getNextChargeAndPeriodStartDates, getChargeRetryCount } from '../../../lib/subscriptions';
+import { dispatchFunds, getNextDispatchingDate } from '../../../lib/dispatcher';
 
 import roles from '../../../constants/roles';
 import status from '../../../constants/order_status';
@@ -949,40 +945,36 @@ export async function addFundsToCollective(order, remoteUser) {
   return models.Order.findByPk(orderCreated.id);
 }
 
-export async function createOrderForDispatch(order, loaders, remoteUser, reqIp) {
-  let tier;
-  // Ensure prepaid tier is avaliable
-  if (order.tier) {
-    tier = await models.Tier.findByPk(order.tier.id);
-
-    if (!tier || tier.type !== 'PREPAID') {
-      throw new Error(`No tier found with tier id: ${order.tier.id} for collective slug ${order.collective.slug}`);
-    }
+export async function dispatchOrder(orderId) {
+  const order = await models.Order.findByPk(orderId);
+  if (!order) {
+    throw new Error(`No order with id ${orderId} found`);
   }
 
-  let dispatchedOrdersId;
-  const createdOrder = await createOrder(order, loaders, remoteUser, reqIp);
-  const subscription = await models.Subscription.findByPk(createdOrder.SubscriptionId);
-  if (!subscription.isActive || createdOrder.status !== status.ACTIVE) {
+  if (!order.data.customData || !order.data.customData.jsonUrl) {
+    throw new Error('Requires customData jsonUrl to dispatch order');
+  }
+
+  const subscription = await models.Subscription.findByPk(order.SubscriptionId);
+  if (!subscription.isActive || order.status !== status.ACTIVE) {
     throw new Error(`Order was created but not active`);
   }
 
+  let dispatchedOrders;
   try {
-    dispatchedOrdersId = await dispatchFunds(createdOrder);
+    dispatchedOrders = await dispatchFunds(order);
   } catch (err) {
     console.error(err);
-    throw new Error(`Unable to dispatch funds to collectves but your order was created.`);
+    throw new Error(`Unable to dispatch funds to collectves.`);
   }
 
-  if (dispatchedOrdersId) {
+  if (dispatchedOrders) {
     subscription.data = {
-      nextDispatchDate: getNextDispatchingDate(createdOrder.interval, new Date()),
+      nextDispatchDate: getNextDispatchingDate(order.interval, new Date()),
     };
-    createdOrder.data = Object.assign(createdOrder.data, { lastDispatchedOrdersId: dispatchedOrdersId });
+
     await subscription.save();
-    await createdOrder.save();
-    await createdOrder.reload();
   }
 
-  return createdOrder;
+  return dispatchedOrders;
 }
