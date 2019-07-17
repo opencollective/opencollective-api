@@ -21,7 +21,7 @@ import {
   completePledge,
   markOrderAsPaid,
   updateOrderInfo,
-  createOrderForDispatch,
+  dispatchOrder,
 } from './mutations/orders';
 import { createMember, removeMember, editMembership } from './mutations/members';
 import { editTiers, editTier } from './mutations/tiers';
@@ -395,15 +395,15 @@ const mutations = {
       return createOrder(args.order, req.loaders, req.remoteUser, req.ip);
     },
   },
-  createOrderForDispatch: {
-    type: OrderType,
+  dispatchOrder: {
+    type: new GraphQLList(OrderType),
     args: {
-      order: {
-        type: new GraphQLNonNull(OrderInputType),
+      id: {
+        type: new GraphQLNonNull(GraphQLInt),
       },
     },
-    resolve(_, args, req) {
-      return createOrderForDispatch(args.order, req.loaders, req.remoteUser, req.ip);
+    resolve(_, args) {
+      return dispatchOrder(args.id);
     },
   },
   addFundsToCollective: {
