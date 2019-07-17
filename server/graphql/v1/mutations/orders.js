@@ -14,7 +14,12 @@ import recaptcha from '../../../lib/recaptcha';
 import slackLib from '../../../lib/slack';
 import * as libPayments from '../../../lib/payments';
 import { capitalize, pluralize, formatCurrency, md5 } from '../../../lib/utils';
-import { getNextChargeAndPeriodStartDates, getChargeRetryCount } from '../../../lib/subscriptions';
+import {
+  getNextChargeAndPeriodStartDates,
+  getChargeRetryCount,
+  dispatchFunds,
+  getNextDispatchingDate,
+} from '../../../lib/subscriptions';
 
 import roles from '../../../constants/roles';
 import status from '../../../constants/order_status';
@@ -505,14 +510,6 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
 
     order = await models.Order.findByPk(orderCreated.id);
 
-    if (tier && tier.type === 'PREPAID' && order.status === status.ACTIVE) {
-      const subscription = await models.Subscription.findByPk(order.SubscriptionId);
-      subscription.data = {
-        nextDispatchDate: new Date(),
-      };
-      await subscription.save();
-    }
-
     // If there was a referral for this order, we add it as a FUNDRAISER role
     if (order.ReferralCollectiveId && order.ReferralCollectiveId !== user.CollectiveId) {
       collective.addUserWithRole({ id: user.id, CollectiveId: order.ReferralCollectiveId }, roles.FUNDRAISER);
@@ -950,4 +947,42 @@ export async function addFundsToCollective(order, remoteUser) {
   }
 
   return models.Order.findByPk(orderCreated.id);
+}
+
+export async function createOrderForDispatch(order, loaders, remoteUser, reqIp) {
+  let tier;
+  // Ensure prepaid tier is avaliable
+  if (order.tier) {
+    tier = await models.Tier.findByPk(order.tier.id);
+
+    if (!tier || tier.type !== 'PREPAID') {
+      throw new Error(`No tier found with tier id: ${order.tier.id} for collective slug ${order.collective.slug}`);
+    }
+  }
+
+  let dispatchedOrdersId;
+  const createdOrder = await createOrder(order, loaders, remoteUser, reqIp);
+  const subscription = await models.Subscription.findByPk(createdOrder.SubscriptionId);
+  if (!subscription.isActive || createdOrder.status !== status.ACTIVE) {
+    throw new Error(`Order was created but not active`);
+  }
+
+  try {
+    dispatchedOrdersId = await dispatchFunds(createdOrder);
+  } catch (err) {
+    console.error(err);
+    throw new Error(`Unable to dispatch funds to collectves but your order was created.`);
+  }
+
+  if (dispatchedOrdersId) {
+    subscription.data = {
+      nextDispatchDate: getNextDispatchingDate(createdOrder.interval, new Date()),
+    };
+    createdOrder.data = Object.assign(createdOrder.data, { lastDispatchedOrdersId: dispatchedOrdersId });
+    await subscription.save();
+    await createdOrder.save();
+    await createdOrder.reload();
+  }
+
+  return createdOrder;
 }
