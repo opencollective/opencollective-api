@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import debugLib from 'debug';
-import moment from 'moment';
 import { filter } from 'bluebird';
 import { Op } from 'sequelize';
 
@@ -8,7 +7,7 @@ import '../../server/env';
 
 import models from '../../server/models';
 import status from '../../server/constants/order_status';
-import { dispatchFunds, getNextDispatchingDate } from '../../server/lib/dispatcher';
+import { dispatchFunds, getNextDispatchingDate, needsDispatching } from '../../server/lib/dispatcher';
 const debug = debugLib('dispatch_prepaid_subscription');
 
 async function run() {
@@ -56,11 +55,6 @@ async function run() {
         console.error(error);
       });
   });
-}
-
-function needsDispatching(nextDispatchDate) {
-  const needs = moment(nextDispatchDate).isSameOrBefore();
-  return needs;
 }
 
 run()
