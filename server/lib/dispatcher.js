@@ -20,6 +20,11 @@ export function getNextDispatchingDate(interval, currentDispatchDate) {
   return nextDispatchDate.toDate();
 }
 
+export function needsDispatching(nextDispatchDate) {
+  const needs = moment(nextDispatchDate).isSameOrBefore();
+  return needs;
+}
+
 function computeAmount(totalAmount, sumOfWeights, dependencyWeight) {
   // Express each weight as percentage
   const percentage = (dependencyWeight / sumOfWeights) * 100;
@@ -31,7 +36,6 @@ function fetchDependencies(jsonUrl) {
 }
 
 export async function dispatchFunds(order) {
-  console.log(order);
   const debug = debugLib('dispatch_prepaid_subscription');
   // Amount shareable amongst dependencies
   const transaction = await models.Transaction.findOne({
