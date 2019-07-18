@@ -960,7 +960,7 @@ export async function dispatchOrder(orderId) {
     throw new Error(`Order was created but not active`);
   }
 
-  if (subscription.data.nextDispatchDate && !needsDispatching(subscription.data.nextDispatchDate)) {
+  if (subscription.data && !needsDispatching(subscription.data.nextDispatchDate)) {
     throw new Error(`Order is not up for dispatching, next dispatching date is ${subscription.data.nextDispatchDate}`);
   }
 
@@ -973,8 +973,9 @@ export async function dispatchOrder(orderId) {
   }
 
   if (dispatchedOrders) {
+    const currentDispatchDate = subscription.data.nextDispatchDate || new Date();
     subscription.data = {
-      nextDispatchDate: getNextDispatchingDate(order.interval, new Date()),
+      nextDispatchDate: getNextDispatchingDate(subscription.interval, currentDispatchDate),
     };
 
     await subscription.save();
