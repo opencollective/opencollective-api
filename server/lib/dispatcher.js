@@ -93,7 +93,7 @@ export async function dispatchFunds(order) {
         FromCollectiveId: order.FromCollectiveId,
         CollectiveId: collective.id,
         quantity: order.quantity,
-        description: order.description,
+        description: `Monthly donation to ${collective.name} through BackYourStack`,
         totalAmount,
         currency: order.currency,
         status: status.PENDING,
