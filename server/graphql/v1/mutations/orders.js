@@ -16,7 +16,7 @@ import slackLib from '../../../lib/slack';
 import * as libPayments from '../../../lib/payments';
 import { capitalize, pluralize, formatCurrency } from '../../../lib/utils';
 import { getNextChargeAndPeriodStartDates, getChargeRetryCount } from '../../../lib/subscriptions';
-import { dispatchFunds, getNextDispatchingDate } from '../../../lib/dispatcher';
+import { dispatchFunds, getNextDispatchingDate, needsDispatching } from '../../../lib/dispatcher';
 
 import roles from '../../../constants/roles';
 import status from '../../../constants/order_status';
@@ -975,6 +975,10 @@ export async function dispatchOrder(orderId) {
   const subscription = await models.Subscription.findByPk(order.SubscriptionId);
   if (!subscription.isActive || order.status !== status.ACTIVE) {
     throw new Error(`Order was created but not active`);
+  }
+
+  if (subscription.data.nextDispatchDate && !needsDispatching(subscription.data.nextDispatchDate)) {
+    throw new Error(`Order is not up for dispatching, next dispatching date is ${subscription.data.nextDispatchDate}`);
   }
 
   let dispatchedOrders;
