@@ -39,22 +39,25 @@ async function run() {
 
   return filter(allOrders, order => {
     return order.Subscription.data && needsDispatching(order.Subscription.data.nextDispatchDate);
-  }).map(async order => {
-    return dispatchFunds(order)
-      .then(async () => {
-        const nextDispatchDate = getNextDispatchingDate(
-          order.Subscription.interval,
-          order.Subscription.data.nextDispatchDate,
-        );
-        order.Subscription.data = { nextDispatchDate };
-        await order.Subscription.save();
-        await order.save();
-      })
-      .catch(error => {
-        debug(`Error occured processing and dispatching order ${order.id}`, error);
-        console.error(error);
-      });
-  });
+  }).map(
+    async order => {
+      return dispatchFunds(order)
+        .then(async () => {
+          const nextDispatchDate = getNextDispatchingDate(
+            order.Subscription.interval,
+            order.Subscription.data.nextDispatchDate,
+          );
+          order.Subscription.data = { nextDispatchDate };
+          await order.Subscription.save();
+          await order.save();
+        })
+        .catch(error => {
+          debug(`Error occured processing and dispatching order ${order.id}`, error);
+          console.error(error);
+        });
+    },
+    { concurrency: 3 },
+  );
 }
 
 run()

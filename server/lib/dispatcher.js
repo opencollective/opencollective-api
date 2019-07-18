@@ -81,32 +81,35 @@ export async function dispatchFunds(order) {
     data: { HostCollectiveId },
   });
 
-  return map(depRecommendation, async dependency => {
-    // Check if the collective is avaliable
-    const collective = await models.Collective.findByPk(dependency.opencollective.id);
-    const totalAmount = computeAmount(shareableAmount, sumOfWeights, dependency.weight);
+  return map(
+    depRecommendation,
+    async dependency => {
+      // Check if the collective is avaliable
+      const collective = await models.Collective.findByPk(dependency.opencollective.id);
+      const totalAmount = computeAmount(shareableAmount, sumOfWeights, dependency.weight);
 
-    const orderData = {
-      CreatedByUserId: order.CreatedByUserId,
-      FromCollectiveId: order.FromCollectiveId,
-      CollectiveId: collective.id,
-      quantity: order.quantity,
-      description: order.description,
-      totalAmount,
-      currency: order.currency,
-      status: status.PENDING,
-    };
+      const orderData = {
+        CreatedByUserId: order.CreatedByUserId,
+        FromCollectiveId: order.FromCollectiveId,
+        CollectiveId: collective.id,
+        quantity: order.quantity,
+        description: order.description,
+        totalAmount,
+        currency: order.currency,
+        status: status.PENDING,
+      };
 
-    const orderCreated = await models.Order.create(orderData);
-    await orderCreated.setPaymentMethod(paymentMethod);
-    await orderCreated.reload();
+      const orderCreated = await models.Order.create(orderData);
+      await orderCreated.setPaymentMethod(paymentMethod);
 
-    try {
-      await paymentsLib.executeOrder(order.createdByUser, orderCreated);
-    } catch (e) {
-      debug(`Error occured excuting order ${orderCreated.id}`, e);
-      throw e;
-    }
-    return orderCreated;
-  });
+      try {
+        await paymentsLib.executeOrder(order.createdByUser, orderCreated);
+      } catch (e) {
+        debug(`Error occured excuting order ${orderCreated.id}`, e);
+        throw e;
+      }
+      return orderCreated;
+    },
+    { concurrency: 3 },
+  );
 }
