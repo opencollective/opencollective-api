@@ -313,11 +313,6 @@ export default function(Sequelize, DataTypes) {
         allowNull: true,
       },
 
-      isApproved: {
-        type: DataTypes.BOOLEAN,
-        defaultValue: false,
-      },
-
       twitterHandle: {
         type: DataTypes.STRING, // without the @ symbol. Ex: 'asood123'
         set(twitterHandle) {
@@ -473,7 +468,6 @@ export default function(Sequelize, DataTypes) {
             tags: this.tags,
             HostCollectiveId: this.HostCollectiveId,
             isSupercollective: this.isSupercollective,
-            isApproved: this.isApproved,
             approvedAt: this.approvedAt,
           };
         },
@@ -1523,7 +1517,6 @@ export default function(Sequelize, DataTypes) {
     this.HostCollectiveId = null;
     this.isActive = false; // we should rename isActive to isApproved (by the host)
     this.approvedAt = NULL;
-    this.isApproved = false;
     if (newHostCollectiveId) {
       const newHostCollective = await models.Collective.findByPk(newHostCollectiveId);
       if (!newHostCollective) {
