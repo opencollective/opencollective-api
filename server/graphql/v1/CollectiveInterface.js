@@ -554,6 +554,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       isDeletable: { type: GraphQLBoolean },
       host: { type: CollectiveInterfaceType },
       hostCollective: { type: CollectiveInterfaceType },
+      isApproved: { type: GraphQLBoolean },
       members: {
         type: new GraphQLList(MemberType),
         description:
@@ -597,6 +598,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
           offset: { type: GraphQLInt },
           isActive: { type: GraphQLBoolean },
           isArchived: { type: GraphQLBoolean },
+          isApproved: { type: GraphQLBoolean },
         },
       },
       followers: {
@@ -929,6 +931,13 @@ const CollectiveFields = () => {
       type: GraphQLBoolean,
       resolve(collective) {
         return Boolean(collective.deactivatedAt && !collective.isActive);
+      },
+    },
+    isApproved: {
+      description: 'Returns whether tis collective is approved or not',
+      type: GraphQLBoolean,
+      resolve(collective) {
+        return Boolean(collective.approvedAt && collective.isActive);
       },
     },
     isDeletable: {
