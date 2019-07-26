@@ -61,7 +61,7 @@ export default {
       if (!redirect) {
         throw new Error('Please provide a redirect url as a query parameter (?redirect=)');
       }
-      const expiryDate = moment().add(1, 'years');
+      const expiryDate = moment().add(10, 'months');
 
       let collective, response;
 
