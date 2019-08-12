@@ -62,7 +62,7 @@ export default function(Sequelize, DataTypes) {
       },
 
       type: {
-        type: DataTypes.STRING, // TIER, TICKET, DONATION, SERVICE, PRODUCT, MEMBERSHIP, PREPAID
+        type: DataTypes.STRING, // TIER, TICKET, DONATION, SERVICE, PRODUCT, MEMBERSHIP
         defaultValue: 'TIER',
       },
 

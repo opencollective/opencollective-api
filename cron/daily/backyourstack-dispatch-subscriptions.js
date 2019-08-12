@@ -1,17 +1,34 @@
 #!/usr/bin/env node
-import debugLib from 'debug';
+import '../../server/env';
+
 import { filter } from 'bluebird';
 import { Op } from 'sequelize';
 
-import '../../server/env';
-
 import models from '../../server/models';
 import status from '../../server/constants/order_status';
-import { dispatchFunds, getNextDispatchingDate, needsDispatching } from '../../server/lib/dispatcher';
-const debug = debugLib('dispatch_prepaid_subscription');
+import { dispatchFunds, getNextDispatchingDate, needsDispatching } from '../../server/lib/backyourstack/dispatcher';
 
 async function run() {
-  // fetch orders created from PREPAID tier
+  const tiers = await models.Tier.findAll({
+    where: {
+      slug: { [Op.iLike]: 'monthly-plan' },
+      deletedAt: null,
+    },
+    include: [
+      {
+        model: models.Collective,
+        where: { slug: 'backyourstack' },
+      },
+    ],
+  });
+
+  if (tiers.length === 0) {
+    console.log('Could not find any matching tiers.');
+    process.exit(1);
+  }
+
+  const tierIds = tiers.map(tier => tier.id);
+
   const allOrders = await models.Order.findAll({
     where: {
       status: status.ACTIVE,
@@ -21,7 +38,7 @@ async function run() {
     include: [
       {
         model: models.Tier,
-        where: { type: 'PREPAID' },
+        where: { id: { [Op.in]: tierIds } },
       },
       { model: models.Collective, as: 'fromCollective' },
       { model: models.User, as: 'createdByUser' },
@@ -52,7 +69,7 @@ async function run() {
           await order.save();
         })
         .catch(error => {
-          debug(`Error occured processing and dispatching order ${order.id}`, error);
+          console.log(`Error occured processing and dispatching order ${order.id}`);
           console.error(error);
         });
     },
@@ -66,7 +83,7 @@ run()
     process.exit(0);
   })
   .catch(error => {
-    debug('Error when dispatching fund', error);
+    console.log('Error when dispatching fund');
     console.error(error);
-    process.exit();
+    process.exit(1);
   });

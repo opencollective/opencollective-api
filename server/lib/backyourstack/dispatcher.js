@@ -1,14 +1,12 @@
-/** @module lib/subscriptions */
-
-import fetch from 'isomorphic-fetch';
+import fetch from 'node-fetch';
 import uuidV4 from 'uuid/v4';
 import debugLib from 'debug';
-import { map } from 'bluebird';
-import models from '../models';
 import moment from 'moment';
+import { map } from 'bluebird';
 
-import status from '../constants/order_status';
-import * as paymentsLib from './payments';
+import models from '../../models';
+import status from '../../constants/order_status';
+import * as paymentsLib from '../payments';
 
 export function getNextDispatchingDate(interval, currentDispatchDate) {
   const nextDispatchDate = moment(currentDispatchDate);
@@ -85,7 +83,12 @@ export async function dispatchFunds(order) {
     depRecommendation,
     async dependency => {
       // Check if the collective is avaliable
-      const collective = await models.Collective.findByPk(dependency.opencollective.id);
+      const collective = await models.Collective.findOne({ where: { slug: dependency.opencollective.slug } });
+      if (!collective) {
+        console.log(`Unable to fetch collective with slug ${dependency.opencollective.slug}`);
+        return;
+      }
+
       const totalAmount = computeAmount(shareableAmount, sumOfWeights, dependency.weight);
 
       const orderData = {
@@ -100,6 +103,7 @@ export async function dispatchFunds(order) {
       };
 
       const orderCreated = await models.Order.create(orderData);
+
       await orderCreated.setPaymentMethod(paymentMethod);
 
       try {
@@ -108,6 +112,7 @@ export async function dispatchFunds(order) {
         debug(`Error occured excuting order ${orderCreated.id}`, e);
         throw e;
       }
+
       return orderCreated;
     },
     { concurrency: 3 },

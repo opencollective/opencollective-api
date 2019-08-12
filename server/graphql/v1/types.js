@@ -1650,7 +1650,7 @@ export const OrderType = new GraphQLObjectType({
       data: {
         type: GraphQLJSON,
         description: 'Additional information on order: tax and custom fields',
-        async resolve(order) {
+        resolve(order) {
           return pick(order.data, ['tax', 'customData']) || null;
         },
       },
