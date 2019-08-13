@@ -41,17 +41,28 @@ export async function dispatchFunds(order) {
   });
   const shareableAmount = transaction.netAmountInCollectiveCurrency;
   const jsonUrl = order.data.customData.jsonUrl;
-  let depRecommendation;
+  const collectives = [];
+  let depRecommendations;
 
   try {
-    depRecommendation = await fetchDependencies(jsonUrl);
+    depRecommendations = await fetchDependencies(jsonUrl);
   } catch (err) {
     debug('Error fetching dependcies', err);
     console.error(err);
     throw new Error('Unable to fetch dependencies, please ensure the url is correct');
   }
 
-  const sumOfWeights = depRecommendation.reduce((sum, dependency) => dependency.weight + sum, 0);
+  for (const depRecommended of depRecommendations) {
+    const collective = await models.Collective.findOne({ where: { slug: depRecommended.opencollective.slug } });
+    if (!collective) {
+      console.log(`Unable to fetch collective with slug ${depRecommended.opencollective.slug}`);
+      return;
+    }
+    collective.totalAmount = computeAmount(shareableAmount, sumOfWeights, depRecommended.weight);
+    collectives.push(collective);
+  }
+
+  const sumOfWeights = collectives.reduce((sum, dependency) => dependency.weight + sum, 0);
   let HostCollectiveId;
   if (!order.collective) {
     const collective = await models.Collective.findByPk(order.CollectiveId);
@@ -80,27 +91,19 @@ export async function dispatchFunds(order) {
   });
 
   return map(
-    depRecommendation,
-    async dependency => {
-      // Check if the collective is avaliable
-      const collective = await models.Collective.findOne({ where: { slug: dependency.opencollective.slug } });
-      if (!collective) {
-        console.log(`Unable to fetch collective with slug ${dependency.opencollective.slug}`);
-        return;
-      }
-
-      const totalAmount = computeAmount(shareableAmount, sumOfWeights, dependency.weight);
-
+    collectives,
+    async collective => {
       const orderData = {
         CreatedByUserId: order.CreatedByUserId,
         FromCollectiveId: order.FromCollectiveId,
         CollectiveId: collective.id,
         quantity: order.quantity,
         description: `Monthly donation to ${collective.name} through BackYourStack`,
-        totalAmount,
+        totalAmount: collective.totalAmount,
         currency: order.currency,
         status: status.PENDING,
       };
+      delete collective.totalAmount;
 
       const orderCreated = await models.Order.create(orderData);
 
