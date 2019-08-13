@@ -26,7 +26,7 @@ export function needsDispatching(nextDispatchDate) {
 function computeAmount(totalAmount, sumOfWeights, dependencyWeight) {
   // Express each weight as percentage
   const percentage = (dependencyWeight / sumOfWeights) * 100;
-  return Math.round((percentage / 100) * totalAmount);
+  return Math.floor((percentage / 100) * totalAmount);
 }
 
 function fetchDependencies(jsonUrl) {
