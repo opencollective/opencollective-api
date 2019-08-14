@@ -58,7 +58,7 @@ export async function dispatchFunds(order) {
       console.log(`Unable to fetch collective with slug ${depRecommended.opencollective.slug}`);
       return;
     }
-    collective.totalAmount = computeAmount(shareableAmount, sumOfWeights, depRecommended.weight);
+    collective.weight = depRecommended.weight;
     collectives.push(collective);
   }
 
@@ -93,24 +93,26 @@ export async function dispatchFunds(order) {
   return map(
     collectives,
     async collective => {
+      const totalAmount = computeAmount(shareableAmount, sumOfWeights, collective.weight);
       const orderData = {
         CreatedByUserId: order.CreatedByUserId,
         FromCollectiveId: order.FromCollectiveId,
         CollectiveId: collective.id,
         quantity: order.quantity,
         description: `Monthly donation to ${collective.name} through BackYourStack`,
-        totalAmount: collective.totalAmount,
+        totalAmount,
         currency: order.currency,
         status: status.PENDING,
       };
-      delete collective.totalAmount;
-
       const orderCreated = await models.Order.create(orderData);
 
       await orderCreated.setPaymentMethod(paymentMethod);
 
       try {
-        await paymentsLib.executeOrder(order.createdByUser, orderCreated);
+        await paymentsLib.executeOrder(order.createdByUser, orderCreated, {
+          skipPlatformFee: true,
+          skipHostFee: true,
+        });
       } catch (e) {
         debug(`Error occured excuting order ${orderCreated.id}`, e);
         throw e;
