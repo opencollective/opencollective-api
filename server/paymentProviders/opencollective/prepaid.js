@@ -82,12 +82,16 @@ async function processOrder(order, options) {
 
   let hostFeeInHostCurrency, platformFeeInHostCurrency;
 
-  if (options.skipPlatformFee && options.skipHostFee) {
-    hostFeeInHostCurrency = 0;
+  if (options && options.skipPlatformFee) {
     platformFeeInHostCurrency = 0;
   } else {
-    hostFeeInHostCurrency = libpayments.calcFee(order.totalAmount, order.collective.hostFeePercent);
     platformFeeInHostCurrency = libpayments.calcFee(order.totalAmount, OC_FEE_PERCENT);
+  }
+
+  if (options && options.skipHostFee) {
+    hostFeeInHostCurrency = 0;
+  } else {
+    hostFeeInHostCurrency = libpayments.calcFee(order.totalAmount, order.collective.hostFeePercent);
   }
 
   // Use the above payment method to donate to Collective
