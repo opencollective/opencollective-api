@@ -55,8 +55,8 @@ export async function dispatchFunds(order) {
   for (const depRecommended of depRecommendations) {
     const collective = await models.Collective.findOne({ where: { slug: depRecommended.opencollective.slug } });
     if (!collective) {
-      console.log(`Unable to fetch collective with slug ${depRecommended.opencollective.slug}`);
-      return;
+      debug(`Unable to fetch collective with slug ${depRecommended.opencollective.slug}`);
+      continue;
     }
     collective.weight = depRecommended.weight;
     collectives.push(collective);
