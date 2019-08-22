@@ -1442,6 +1442,9 @@ const CollectiveFields = () => {
           return [];
         }
         let paymentMethods = await req.loaders.paymentMethods.findByCollectiveId.load(collective.id);
+        // Filter only "saved" stripe Payment Methods
+        // In the future we should only return the "saved" whatever the service
+        paymentMethods = paymentMethods.filter(pm => pm.service !== 'stripe' || pm.saved);
         if (args.service) {
           paymentMethods = paymentMethods.filter(pm => pm.service === args.service);
         }
