@@ -1,14 +1,12 @@
 import _ from 'lodash';
 import config from 'config';
-import Stripe from 'stripe';
 
 import models from '../../models';
 import logger from '../../lib/logger';
+import stripe from '../../lib/stripe';
 import * as constants from '../../constants/transactions';
 import * as stripeGateway from './gateway';
 import * as paymentsLib from '../../lib/payments';
-
-const stripe = Stripe(config.stripe.secret);
 
 /**
  * Get or create a customer under the platform stripe account
@@ -131,7 +129,7 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
   if (paymentIntent.status !== 'succeeded') {
     logger.error('Unknown error with Stripe Payment Intent.');
     logger.error(paymentIntent);
-    throw new new Error('Unknown error with Stripe. Please contact support.')();
+    throw new Error('Unknown error with Stripe. Please contact support.')();
   }
 
   // Success: delete reference to paymentIntent

@@ -153,7 +153,10 @@ describe('createOrder', () => {
       order: thisOrder,
     });
 
+    // There should be no errors
+    res.errors && console.error(res.errors);
     expect(res.errors).to.not.exist;
+
     expect(res.data.createOrder.status).to.equal('PENDING');
   });
 
@@ -179,7 +182,10 @@ describe('createOrder', () => {
       order: thisOrder,
     });
 
+    // There should be no errors
+    res.errors && console.error(res.errors);
     expect(res.errors).to.not.exist;
+
     expect(res.data.createOrder.status).to.equal('PENDING');
     expect(res.data.createOrder.subscription.interval).to.equal('month');
   });
@@ -236,8 +242,11 @@ describe('createOrder', () => {
     const res = await utils.graphqlQuery(createOrderQuery, {
       order: thisOrder,
     });
+
+    // There should be no errors
     res.errors && console.error(res.errors);
     expect(res.errors).to.not.exist;
+
     expect(res.data.createOrder.status).to.equal('PENDING');
     const transactionsCount = await models.Transaction.count({
       where: { OrderId: res.data.createOrder.id },
@@ -347,9 +356,10 @@ describe('createOrder', () => {
     emailSendMessageSpy.resetHistory();
     res = await utils.graphqlQuery(createOrderQuery, { order: newOrder }, user);
 
-    // Then there should be no errors
+    // There should be no errors
     res.errors && console.error(res.errors);
     expect(res.errors).to.not.exist;
+
     await utils.waitForCondition(() => emailSendMessageSpy.callCount > 0);
     expect(emailSendMessageSpy.callCount).to.equal(1);
     expect(emailSendMessageSpy.firstCall.args[0]).to.equal(user.email);
@@ -373,6 +383,7 @@ describe('createOrder', () => {
     // Then there should be no errors
     res.errors && console.error(res.errors);
     expect(res.errors).to.not.exist;
+
     await utils.waitForCondition(() => emailSendMessageSpy.callCount > 0);
     // expect(emailSendMessageSpy.callCount).to.equal(1); // this often fails (expect 2 to equal 1) :-/
     expect(emailSendMessageSpy.firstCall.args[0]).to.equal(user.email);
@@ -423,12 +434,13 @@ describe('createOrder', () => {
           country: 'US',
           funding: 'credit',
         },
+        save: true,
       },
     };
 
     const res = await utils.graphqlQuery(createOrderQuery, { order: newOrder });
     expect(res.errors[0].message).to.equal('Your card was declined.');
-    const pm = await models.PaymentMethod.findOne({ where: { name: uniqueName } });
+    const pm = await models.PaymentMethod.findOne({ where: { name: uniqueName, saved: true } });
     expect(pm.CollectiveId).to.equal(null);
   });
 
@@ -442,8 +454,11 @@ describe('createOrder', () => {
     order.collective = { id: fearlesscitiesbrussels.id };
     // When the query is executed
     const res = await utils.graphqlQuery(createOrderQuery, { order }, xdamman);
+
     // Then there should be no errors
+    res.errors && console.error(res.errors);
     expect(res.errors).to.not.exist;
+
     // And then the creator of the order should be xdamman
     const collective = res.data.createOrder.collective;
     const transaction = await models.Transaction.findOne({
@@ -528,8 +543,11 @@ describe('createOrder', () => {
     order.collective = { id: fearlesscitiesbrussels.id };
     // When the order is created
     const res = await utils.graphqlQuery(createOrderQuery, { order }, xdamman);
+
+    // There should be no errors
     res.errors && console.error(res.errors);
     expect(res.errors).to.not.exist;
+
     // Then the created transaction should match the requested data
     const orderCreated = res.data.createOrder;
     const { collective, subscription } = orderCreated;
@@ -570,8 +588,11 @@ describe('createOrder', () => {
     };
     // When the order is created
     const res = await utils.graphqlQuery(createOrderQuery, { order });
+
+    // There should be no errors
     res.errors && console.error(res.errors);
     expect(res.errors).to.not.exist;
+
     const orderCreated = res.data.createOrder;
     const fromCollective = orderCreated.fromCollective;
     const collective = orderCreated.collective;
@@ -621,8 +642,11 @@ describe('createOrder', () => {
     });
 
     res = await utils.graphqlQuery(createOrderQuery, { order }, duc);
+
+    // There should be no errors
     res.errors && console.error(res.errors);
     expect(res.errors).to.not.exist;
+
     const orderCreated = res.data.createOrder;
     const fromCollective = orderCreated.fromCollective;
     const collective = orderCreated.collective;
@@ -652,7 +676,10 @@ describe('createOrder', () => {
       remoteUser,
     );
 
-    expect(res.errors).to.exist;
+    // There should be no errors
+    res.errors && console.error(res.errors);
+    expect(res.errors).to.not.exist;
+
     expect(res.errors[0].message).to.equal('An account already exists for this email address. Please login.');
   });
 
@@ -717,6 +744,8 @@ describe('createOrder', () => {
     sandbox.useFakeTimers(new Date('2017-09-22').getTime());
     await paymentMethod.update({ monthlyLimitPerMember: 25000 }); // $250 limit
     res = await utils.graphqlQuery(createOrderQuery, { order }, duc);
+
+    // There should be no errors
     res.errors && console.error(res.errors);
     expect(res.errors).to.not.exist;
 
@@ -850,6 +879,8 @@ describe('createOrder', () => {
     order.totalAmount = 20000;
 
     res = await utils.graphqlQuery(createOrderQuery, { order }, xdamman);
+
+    // There should be no errors
     res.errors && console.error(res.errors);
     expect(res.errors).to.not.exist;
 

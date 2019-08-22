@@ -504,7 +504,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
 
     return order;
   } catch (error) {
-    console.log(error);
+    // console.log(error);
 
     if (orderCreated) {
       if (!orderCreated.processedAt) {
@@ -585,7 +585,7 @@ export async function confirmOrder(order, remoteUser) {
 
     return order;
   } catch (error) {
-    console.log(error);
+    // console.log(error);
 
     if (!error.stripeResponse) {
       throw error;
