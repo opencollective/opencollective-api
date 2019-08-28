@@ -78,18 +78,6 @@ async function createStripeCreditCard(args, remoteUser) {
     },
   );
 
-  // We must unset the `primary` flag on all other payment methods
-  await models.PaymentMethod.update(
-    { primary: false },
-    {
-      where: {
-        id: { [Op.ne]: paymentMethod.id },
-        CollectiveId: collective.id,
-        archivedAt: { [Op.eq]: null },
-      },
-    },
-  );
-
   return paymentMethod;
 }
 

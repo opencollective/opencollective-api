@@ -642,7 +642,6 @@ export default function(Sequelize, DataTypes) {
               service: 'opencollective',
               type: 'collective',
               name: `${capitalize(instance.name)} ${capitalize(instance.type.toLowerCase())}`,
-              primary: true,
               currency: instance.currency,
             });
           }
@@ -842,7 +841,6 @@ export default function(Sequelize, DataTypes) {
         service: 'opencollective',
         type: 'collective',
         name: `${capitalize(this.name)} Collective`,
-        primary: true,
         currency: this.currency,
       });
     });
@@ -1487,7 +1485,6 @@ export default function(Sequelize, DataTypes) {
           service: 'opencollective',
           type: 'collective',
           name: `${capitalize(this.name)} ${capitalize(this.type.toLowerCase())}`,
-          primary: true,
           currency: hostCollective.currency,
         }),
       );

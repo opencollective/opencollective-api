@@ -70,7 +70,6 @@ export default function(Sequelize, DataTypes) {
       description: DataTypes.STRING, // custom human readable description
       customerId: DataTypes.STRING, // stores the id of the customer from the payment processor at the platform level
       token: DataTypes.STRING,
-      primary: DataTypes.BOOLEAN,
 
       // Monthly limit in cents for each member of this.CollectiveId (in the currency of that collective)
       monthlyLimitPerMember: {
@@ -464,7 +463,6 @@ export default function(Sequelize, DataTypes) {
     debug('createFromStripeSourceToken', PaymentMethodData);
     return stripe.createCustomer(null, PaymentMethodData.token, options).then(customer => {
       PaymentMethodData.customerId = customer.id;
-      PaymentMethodData.primary = true;
       return PaymentMethod.create(PaymentMethodData);
     });
   };

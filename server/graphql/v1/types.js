@@ -1807,8 +1807,9 @@ export const PaymentMethodType = new GraphQLObjectType({
       },
       primary: {
         type: GraphQLBoolean,
-        resolve(paymentMethod) {
-          return paymentMethod.primary;
+        deprecationReason: '2019-08-28: was not used and is not supported anymore',
+        resolve() {
+          return false;
         },
       },
       matching: {

@@ -53,7 +53,7 @@ export const PaymentMethodInputType = new GraphQLInputObjectType({
     customerId: { type: GraphQLString },
     data: { type: GraphQLJSON },
     name: { type: GraphQLString },
-    primary: { type: GraphQLBoolean },
+    primary: { type: GraphQLBoolean, deprecationReason: '2019-08-28: was not used and is not supported anymore' },
     monthlyLimitPerMember: { type: GraphQLInt },
     currency: { type: GraphQLString },
     save: { type: GraphQLBoolean },
