@@ -878,6 +878,50 @@ const getCollectivesWithMinBackersQuery = async ({
   return { total, collectives };
 };
 
+/**
+ * For incognito collectives, we retrieve the user using `CreatedByUserId`
+ * because `user.CollectiveId` is always set to the "main" collective.
+ * We use the special key `tmpCollectiveKey` to ensure that we always
+ * reconciliate collectives with the correct user regardless of wether
+ * we used `collective.CreatedByUserId` or `user.CollectiveId` for the join.
+ *
+ * @param {[Number]} collectiveIds - the list of collective ids
+ *
+ * @returns {{[CollectiveId]: User}} a map of users indexed by CollectiveId
+ */
+const getUsersFromCollectiveIds = collectiveIds => {
+  if (!collectiveIds || collectiveIds.length === 0) {
+    return Promise.resolve([]);
+  }
+
+  const tmpCollectiveKey = '__main_collective_id__';
+  return sequelize
+    .query(
+      `
+        SELECT u.*, c.id AS ${tmpCollectiveKey}
+        FROM "Users" u
+        INNER JOIN  "Collectives" c
+          ON (c."isIncognito" = FALSE AND c.id = u."CollectiveId")
+          OR (c."isIncognito" = TRUE AND u.id = c."CreatedByUserId")
+        WHERE c.id IN (?)
+      `,
+      {
+        replacements: [collectiveIds],
+        type: sequelize.QueryTypes.SELECT,
+        model: models.User,
+        mapToModel: true,
+      },
+    )
+    .then(results => {
+      return results.reduce((resultMap, user) => {
+        const collectiveId = user.dataValues[tmpCollectiveKey];
+        delete user.dataValues[tmpCollectiveKey];
+        resultMap[collectiveId] = user;
+        return resultMap;
+      }, {});
+    });
+};
+
 const serializeCollectivesResult = JSON.stringify;
 
 const unserializeCollectivesResult = string => {
@@ -922,6 +966,7 @@ const queries = {
   getUniqueCollectiveTags,
   getCollectivesWithMinBackers,
   getCollectivesWithMinBackersQuery,
+  getUsersFromCollectiveIds,
 };
 
 export default queries;

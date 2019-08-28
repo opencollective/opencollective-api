@@ -5,6 +5,7 @@ import DataLoader from 'dataloader';
 import dataloaderSequelize from 'dataloader-sequelize';
 import { get, groupBy } from 'lodash';
 import debugLib from 'debug';
+import queries from '../lib/queries';
 
 dataloaderSequelize(models.Order);
 dataloaderSequelize(models.Transaction);
@@ -181,16 +182,17 @@ export const loaders = req => {
         ),
       },
     },
-    // This one is tricky. We need to make sure that the remoteUser can view the personal details of the user.
-    getUserDetailsByCollectiveId: new DataLoader(UserCollectiveIds =>
-      getListOfAccessibleMembers(req.remoteUser, UserCollectiveIds)
-        .then(accessibleUserCollectiveIds =>
-          models.User.findAll({
-            where: { CollectiveId: { [Op.in]: accessibleUserCollectiveIds } },
-          }),
-        )
-        .then(results => sortResults(UserCollectiveIds, results, 'CollectiveId', {})),
-    ),
+    /**
+     * Fetch the users from their CollectiveIds, making sure that the remoteUser can view
+     * the personal details for them.
+     */
+    getUserDetailsByCollectiveId: new DataLoader(UserCollectiveIds => {
+      return getListOfAccessibleMembers(req.remoteUser, UserCollectiveIds)
+        .then(queries.getUsersFromCollectiveIds)
+        .then(resultMap => {
+          return UserCollectiveIds.map(id => resultMap[id] || {});
+        });
+    }),
     getOrgDetailsByCollectiveId: new DataLoader(OrgCollectiveIds =>
       getListOfAccessibleMembers(req.remoteUser, OrgCollectiveIds)
         .then(accessibleOrgCollectiveIds =>

@@ -11,6 +11,7 @@ import _ from 'lodash';
 import debugLib from 'debug';
 import { Op } from 'sequelize';
 import channels from '../constants/channels';
+import queries from '../lib/queries';
 
 const debug = debugLib('notification');
 
@@ -109,16 +110,10 @@ export default function(Sequelize, DataTypes) {
 
   Notification.getSubscribersUsers = async (collectiveSlug, mailinglist) => {
     debug('getSubscribersUsers', collectiveSlug, mailinglist);
-    const getUsers = memberships => {
-      if (!memberships || memberships.length === 0) return [];
-      return models.User.findAll({
-        where: {
-          CollectiveId: { [Op.in]: memberships.map(m => m.MemberCollectiveId) },
-        },
-      });
-    };
-
-    return await Notification.getSubscribers(collectiveSlug, mailinglist).then(getUsers);
+    const memberships = await Notification.getSubscribers(collectiveSlug, mailinglist);
+    const membersCollectiveIds = memberships.map(m => m.MemberCollectiveId);
+    const usersMap = await queries.getUsersFromCollectiveIds(membersCollectiveIds);
+    return Object.values(usersMap);
   };
 
   Notification.getSubscribersCollectives = async (collectiveSlug, mailinglist) => {
