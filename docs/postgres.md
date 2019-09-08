@@ -18,6 +18,40 @@ Get the app from [Postgres.app](http://postgresapp.com/). Install it.
 
 Then to enable the CLI tools, follow the steps from: https://postgresapp.com/documentation/cli-tools.html
 
+## On Fedora 30
+
+Install required packages from repositories and initialize database
+```
+sudo dnf install postgresql postgresql-server postgresql-server-devel postgis postgis-devel
+sudo postgresql-setup --initdb
+```
+
+Export configuration variables
+```
+export PGHOST=localhost
+export PGUSER=opencollective
+```
+Edit the pg_hba.conf file to use local connections without passwords by changing authentication mechanism for local connections to trust.
+```
+sudo vi /var/lib/pgsql/data/pg_hba.conf
+```
+
+Start Postgres service
+```
+sudo systemctl enable postgresql
+sudo systemctl start postgresql
+```
+
+Create user and database
+```
+sudo su - postgres
+createuser opencollective
+createdb opencollective_dvl
+psql -d opencollective_dvl -c 'GRANT ALL PRIVILEGES ON DATABASE opencollective_dvl TO opencollective'
+psql -d opencollective_dvl -c 'CREATE EXTENSION postgis'
+exit
+```
+
 ### With Docker
 
 If you don't want to run a local instance of PostgreSQL in your computer, you can run one in Docker. Keep in mind that you still need to have the local client tools like `psql`, `dropdb`, `createuser` locally available.
