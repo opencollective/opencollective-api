@@ -18,6 +18,7 @@
       "apiKey": "dvl-1510egmf4a23d80342403fb599qd",
       "sessionSecret": "mei0ieD3ahli9fengie7teeceeCaicho",
       "jwtSecret": "vieneixaGhahk2aej2pohsh2aeB1oa6o",
+      "emailUnsubscribeSecret": "vieneixaGhahk2aej2pohsh2aeB1oa6o",
       "hashidSalt": "aiwiurohyohleevoo4ohraigi3auTohz"
     }
   },
@@ -114,12 +115,16 @@
     "secret": "FanG4FjeV3aGHjpS2A1YckyWuhvxfKHoZN5Q5bHO",
     "workflowId": "qdUbX5nw8sMZzykz",
     "callbackPath": "/helloworks/callback",
+    "documentEncryptionKey": "Pz/LnMPzhxQqsbXZ0SCb3sP0uhw8dCxspoAXLXO4CV8=",
     "aws": {
       "s3": {
-        "bucket": "opencollective-helloworks-documents",
+        "bucket": "opencollective-staging-us-tax-forms",
         "region": "us-west-1",
         "apiVersion": "2006-03-01"
       }
     }
+  },
+  "githubFlow": {
+    "minNbStars": 100
   }
 }

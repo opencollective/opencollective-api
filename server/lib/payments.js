@@ -48,7 +48,7 @@ export function isProvider(fqn, paymentMethod) {
  * @param {models.PaymentMethod} paymentMethod This must point to a row in the
  *  `PaymentMethods` table. That information is retrieved and the
  *  fields `service' & `type' are used to figure out which payment
- *  {service: 'stripe', type: 'bitcoin'}.
+ *  {service: 'stripe', type: 'creditcard'}.
  * @return the payment method's JS module.
  */
 export function findPaymentMethodProvider(paymentMethod) {
@@ -77,23 +77,6 @@ export async function processOrder(order, options) {
     return;
   } else {
     return await paymentMethodProvider.processOrder(order, options);
-  }
-}
-
-/**
- * If the transaction is not null, this function will mark the order as
- * paid and will ensure the payment method used for it does not belong
- * to the order referral. If it does, the field will be nulled.
- */
-export async function updateOrderWithTransaction(order, transaction) {
-  if (transaction) {
-    const updateParams = { status: status.PAID, processedAt: new Date() };
-    const pmEmitterId = transaction.UsingVirtualCardFromCollectiveId;
-    if (pmEmitterId && pmEmitterId === order.ReferralCollectiveId) {
-      updateParams.ReferralCollectiveId = null;
-    }
-
-    await order.update(updateParams);
   }
 }
 
@@ -248,31 +231,6 @@ export const addBackerToCollective = async (user, collective, TierId) => {
   });
 };
 
-export const processMatchingFund = async (order, options) => {
-  const matchingFundCollective = await models.Collective.findByPk(order.matchingFund.CollectiveId);
-  // if there is a matching fund, we execute the order
-  // also adds the owner of the matching fund as a BACKER of collective
-  const matchingOrder = {
-    ...pick(order, ['id', 'collective', 'tier', 'currency']),
-    totalAmount: order.totalAmount * order.matchingFund.matching,
-    paymentMethod: order.matchingFund,
-    FromCollectiveId: order.matchingFund.CollectiveId,
-    fromCollective: matchingFundCollective,
-    description: `Matching ${order.matchingFund.matching}x ${order.fromCollective.name}'s donation`,
-    createdByUser: await matchingFundCollective.getUser(),
-  };
-
-  // processOrder expects an update function to update `order.processedAt`
-  matchingOrder.update = () => {};
-
-  return paymentProviders[order.paymentMethod.service].types[order.paymentMethod.type || 'default']
-    .processOrder(matchingOrder, options) // eslint-disable-line import/namespace
-    .then(transaction => {
-      sendOrderConfirmedEmail({ ...order, transaction }); // async
-      return null;
-    });
-};
-
 export const createSubscription = async order => {
   const subscription = await models.Subscription.create({
     amount: order.totalAmount,
@@ -337,8 +295,15 @@ export const executeOrder = async (user, order, options) => {
   await order.populate();
 
   const transaction = await processOrder(order, options);
-  order.matchingFund && (await processMatchingFund(order, options));
-  transaction && (await updateOrderWithTransaction(order, transaction));
+  if (transaction) {
+    await order.update({ status: status.PAID, processedAt: new Date() });
+  }
+
+  // If the user asked for it, mark the payment method as saved for future financial contributions
+  if (order.data && order.data.savePaymentMethod) {
+    order.paymentMethod.saved = true;
+    order.paymentMethod.save();
+  }
 
   // Register user as collective backer
   await addBackerToCollective(
@@ -363,6 +328,8 @@ export const executeOrder = async (user, order, options) => {
   // Credit card charges are synchronous. If the transaction is
   // created here it means that the payment went through so it's
   // safe to create subscription after this.
+
+  // The order will be updated to ACTIVE
   order.interval && transaction && (await createSubscription(order));
 };
 
@@ -412,24 +379,7 @@ const sendOrderConfirmedEmail = async order => {
       subscriptionsLink: interval && `${config.host.website}/${fromCollective.slug}/subscriptions`,
     };
 
-    let matchingFundCollective;
-    if (order.matchingFund) {
-      matchingFundCollective = await models.Collective.findByPk(order.matchingFund.CollectiveId);
-      data.matchingFund = {
-        collective: pick(matchingFundCollective, ['slug', 'name', 'image']),
-        matching: order.matchingFund.matching,
-        amount: order.matchingFund.matching * order.totalAmount,
-      };
-      // sending the order confirmed email to the matching fund owner or to the donor
-      if (get(order, 'transaction.FromCollectiveId') === get(order, 'matchingFund.CollectiveId')) {
-        const recipients = await matchingFundCollective.getEmails();
-        return emailLib.send('donationmatched', recipients, data, emailOptions);
-      } else {
-        return emailLib.send('thankyou', user.email, data, emailOptions);
-      }
-    } else {
-      return emailLib.send('thankyou', user.email, data, emailOptions);
-    }
+    return emailLib.send('thankyou', user.email, data, emailOptions);
   }
 };
 
@@ -451,7 +401,7 @@ const sendOrderProcessingEmail = async order => {
     user: user.info,
     collective: collective.info,
     host: host.info,
-    fromCollective: fromCollective.minimal,
+    fromCollective: fromCollective.activity,
     subscriptionsLink: `${config.host.website}/${fromCollective.slug}/subscriptions`,
   };
   const instructions = get(host, 'settings.paymentMethods.manual.instructions');

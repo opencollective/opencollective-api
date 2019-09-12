@@ -48,7 +48,7 @@ export const PaymentMethodInputType = new GraphQLInputObjectType({
     service: { type: GraphQLString },
     type: {
       type: GraphQLString,
-      description: 'creditcard, bitcoin, prepaid, manual',
+      description: 'creditcard, virtualcard, prepaid, manual...',
     },
     customerId: { type: GraphQLString },
     data: { type: GraphQLJSON },
@@ -145,12 +145,8 @@ export const NotificationInputType = new GraphQLInputObjectType({
   description: 'Input type for NotificationType',
   fields: () => ({
     id: { type: GraphQLInt },
-    channel: { type: GraphQLString },
-    type: { type: GraphQLString },
-    active: { type: GraphQLBoolean },
+    type: { type: new GraphQLNonNull(GraphQLString) },
     webhookUrl: { type: GraphQLString },
-    UserId: { type: GraphQLInt },
-    CollectiveId: { type: GraphQLInt },
   }),
 });
 
@@ -170,10 +166,6 @@ export const CollectiveInputType = new GraphQLInputObjectType({
     longDescription: { type: GraphQLString },
     expensePolicy: { type: GraphQLString },
     location: { type: LocationInputType },
-    countryISO: {
-      type: GraphQLString,
-      deprecationReason: 'From 03/20/2019 - use `location.country` instead',
-    },
     startsAt: { type: GraphQLString },
     endsAt: { type: GraphQLString },
     timezone: { type: GraphQLString },
@@ -194,6 +186,7 @@ export const CollectiveInputType = new GraphQLInputObjectType({
     email: { type: GraphQLString },
     firstName: { type: GraphQLString },
     lastName: { type: GraphQLString },
+    isIncognito: { type: GraphQLBoolean },
   }),
 });
 
@@ -225,16 +218,13 @@ export const CollectiveAttributesInputType = new GraphQLInputObjectType({
     twitterHandle: { type: GraphQLString },
     githubHandle: { type: GraphQLString },
     location: { type: LocationInputType },
-    countryISO: {
-      type: GraphQLString,
-      deprecationReason: 'From 03/20/2019 - use `location.country` instead',
-    },
     startsAt: { type: GraphQLString },
     endsAt: { type: GraphQLString },
     timezone: { type: GraphQLString },
     maxAmount: { type: GraphQLInt },
     currency: { type: GraphQLString },
     settings: { type: GraphQLJSON },
+    isIncognito: { type: GraphQLBoolean },
     tags: { type: new GraphQLList(GraphQLString) },
   }),
 });
@@ -335,10 +325,12 @@ export const OrderInputType = new GraphQLInputObjectType({
     matchingFund: {
       type: GraphQLString,
       description: 'The first part of the UUID of the PaymentMethod that can be used to match the donation',
+      deprecationReason: '2019-08-19: Matching funds are not supported anymore',
     },
     referral: {
       type: CollectiveAttributesInputType,
       description: 'The referral collective',
+      deprecationReason: '2019-08-22: Referals are not supported anymore',
     },
     user: { type: UserInputType },
     fromCollective: { type: CollectiveAttributesInputType },
@@ -360,6 +352,14 @@ export const OrderInputType = new GraphQLInputObjectType({
       type: GraphQLString,
       description: 'User tax ID number',
     },
+  }),
+});
+
+export const ConfirmOrderInputType = new GraphQLInputObjectType({
+  name: 'ConfirmOrderInputType',
+  description: 'Input type for ConfirmOrderType',
+  fields: () => ({
+    id: { type: GraphQLInt },
   }),
 });
 
@@ -439,6 +439,7 @@ export const ExpenseInputType = new GraphQLInputObjectType({
       description: { type: GraphQLString },
       category: { type: GraphQLString },
       status: { type: GraphQLString },
+      type: { type: GraphQLString },
       payoutMethod: {
         type: GraphQLString,
         description: 'Can be paypal, donation, manual, other',

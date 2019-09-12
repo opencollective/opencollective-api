@@ -115,24 +115,6 @@ export default function(Sequelize, DataTypes) {
         onUpdate: 'CASCADE',
       },
 
-      MatchingPaymentMethodId: {
-        type: DataTypes.INTEGER,
-        references: { model: 'PaymentMethods', key: 'id' },
-        onDelete: 'SET NULL',
-        onUpdate: 'CASCADE',
-        allowNull: true,
-        description: 'References the PaymentMethod used to match',
-      },
-
-      ReferralCollectiveId: {
-        type: DataTypes.INTEGER,
-        references: { model: 'Collectives', key: 'id' },
-        onDelete: 'SET NULL',
-        onUpdate: 'CASCADE',
-        allowNull: true,
-        description: 'Referral',
-      },
-
       processedAt: DataTypes.DATE,
 
       status: {
@@ -145,6 +127,11 @@ export default function(Sequelize, DataTypes) {
             msg: `Must be in ${Object.keys(status)}`,
           },
         },
+      },
+
+      interval: {
+        type: DataTypes.STRING,
+        allowNull: true,
       },
 
       data: {

@@ -43,7 +43,9 @@ jobs:
       - run: npm ci --ignore-scripts
       - <<: *persist_cache
       - run: npm run lint
-  prettier:
+      - run: npm run prettier:check
+
+  typescript:
     docker:
       - image: circleci/node:11.8.0
     environment:
@@ -53,7 +55,7 @@ jobs:
       - <<: *restore_cache
       - run: npm ci --ignore-scripts
       - <<: *persist_cache
-      - run: npm run prettier:check
+      - run: npm run type:check
 
   test:
     docker:
@@ -71,7 +73,6 @@ jobs:
       - run: npm run db:setup
       - <<: *persist_cache
       - run: npm run test
-      - run: npm run test:coverage
       - store_test_results:
           path: /tmp/circleci-test-results
 
@@ -81,7 +82,7 @@ workflows:
     jobs:
       - lint:
           <<: *test_filters
-      - prettier:
+      - typescript:
           <<: *test_filters
       - test:
           <<: *test_filters

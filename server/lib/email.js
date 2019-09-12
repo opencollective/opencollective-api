@@ -11,11 +11,11 @@ import { isArray, pick, get, merge, includes } from 'lodash';
 import models from '../models';
 import logger from './logger';
 import templates from './emailTemplates';
-import { isEmailInternal, md5 } from './utils';
+import { md5 } from './utils';
 
 const debug = debugLib('email');
 
-const getMailer = () => {
+export const getMailer = () => {
   if (process.env.MAILDEV) {
     return nodemailer.createTransport({
       ignoreTLS: true,
@@ -58,7 +58,7 @@ const render = (template, data) => {
 };
 
 const generateUnsubscribeToken = (email, collectiveSlug, type) => {
-  const uid = `${email}.${collectiveSlug || 'any'}.${type}.${config.keys.opencollective.jwtSecret}`;
+  const uid = `${email}.${collectiveSlug || 'any'}.${type}.${config.keys.opencollective.emailUnsubscribeSecret}`;
   const token = md5(uid);
   return token;
 };
@@ -96,11 +96,6 @@ const sendMessage = (recipients, subject, html, options = {}) => {
   recipients = recipients.filter(recipient => {
     if (!recipient || !recipient.match(/.+@.+\..+/)) {
       debug(`${recipient} is an invalid email address, skipping`);
-      return false;
-    }
-    // if not in production, only send out emails to bcc'd opencollective address
-    if (config.env !== 'production' && !isEmailInternal(recipient)) {
-      debug(`${recipient} is an external email address, skipping in development environment`);
       return false;
     } else {
       return true;
@@ -145,7 +140,8 @@ const sendMessage = (recipients, subject, html, options = {}) => {
     to = process.env.ONLY;
   } else if (config.env !== 'production') {
     if (!to) {
-      return Promise.reject(new Error('emailLib.sendMessage error: No recipient defined'));
+      debug('emailLib.sendMessage error: No recipient defined');
+      return Promise.resolve();
     }
     let sendToBcc = true;
     // Don't send to BCC if sendEvenIfNotProduction and NOT in testing env
@@ -251,9 +247,6 @@ const generateEmailFromTemplate = (template, recipient, data = {}, options = {})
   if (template.match(/^host\.(monthly|yearly)report$/)) {
     template = 'host.report';
   }
-  if (template === 'donationmatched') {
-    if (slug.match(/wwcode/)) template += '.wwcode';
-  }
   if (template === 'thankyou') {
     if (slug.match(/wwcode/)) template += '.wwcode';
 
@@ -342,6 +335,7 @@ const emailLib = {
   render,
   getTemplateAttributes,
   sendMessage,
+  generateUnsubscribeToken,
   generateEmailFromTemplate,
   send: generateEmailFromTemplateAndSend,
 };

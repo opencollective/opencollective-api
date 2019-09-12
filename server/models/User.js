@@ -3,7 +3,7 @@ import config from 'config';
 import Promise from 'bluebird';
 import slugify from 'limax';
 import debugLib from 'debug';
-import { extend, defaults, intersection } from 'lodash';
+import { defaults, intersection } from 'lodash';
 import { Op } from 'sequelize';
 
 import logger from '../lib/logger';
@@ -64,8 +64,6 @@ export default (Sequelize, DataTypes) => {
       emailConfirmationToken: {
         type: DataTypes.STRING,
       },
-
-      billingAddress: DataTypes.STRING, // Used for the invoices, we should create a separate table for addresses (billing/shipping)
 
       paypalEmail: {
         type: DataTypes.STRING,
@@ -244,20 +242,17 @@ export default (Sequelize, DataTypes) => {
     },
   );
 
+  /** Instance Methods */
+
   /**
-   * Instance Methods
+   * Generate a JWT for user.
+   *
+   * @param {object} `payload` - data to attach to the token
+   * @param {Number} `expiration` - expiration period in seconds
    */
   User.prototype.jwt = function(payload, expiration) {
     expiration = expiration || auth.TOKEN_EXPIRATION_LOGIN;
-
-    // We are sending too much data (large jwt) but the app and website
-    // need the id and email. We will refactor that progressively to
-    // have a smaller token.
-    const data = extend({}, payload, {
-      id: this.id,
-      email: this.email,
-    });
-    return auth.createJwt(this.id, data, expiration);
+    return auth.createJwt(this.id, payload, expiration);
   };
 
   User.prototype.generateLoginLink = function(redirect = '/', websiteUrl) {
@@ -306,6 +301,10 @@ export default (Sequelize, DataTypes) => {
     });
   };
 
+  User.prototype.getIncognitoProfile = function() {
+    return models.Collective.findOne({ where: { isIncognito: true, CreatedByUserId: this.id } });
+  };
+
   User.prototype.populateRoles = async function() {
     if (this.rolesByCollectiveId) {
       debug('roles already populated');
@@ -313,9 +312,12 @@ export default (Sequelize, DataTypes) => {
     }
     const rolesByCollectiveId = {};
     const adminOf = [];
-    const memberships = await models.Member.findAll({
-      where: { MemberCollectiveId: this.CollectiveId },
-    });
+    const where = { MemberCollectiveId: this.CollectiveId };
+    const incognitoProfile = await this.getIncognitoProfile();
+    if (incognitoProfile) {
+      where.MemberCollectiveId = { [Op.in]: [this.CollectiveId, incognitoProfile.id] };
+    }
+    const memberships = await models.Member.findAll({ where });
     memberships.map(m => {
       rolesByCollectiveId[m.CollectiveId] = rolesByCollectiveId[m.CollectiveId] || [];
       rolesByCollectiveId[m.CollectiveId].push(m.role);
@@ -477,60 +479,52 @@ export default (Sequelize, DataTypes) => {
     });
   };
 
-  User.createUserWithCollective = (userData, transaction) => {
+  User.createUserWithCollective = async (userData, transaction) => {
     if (!userData) return Promise.reject(new Error('Cannot create a user: no user data provided'));
 
     const sequelizeParams = transaction ? { transaction } : undefined;
-    let user;
     debug('createUserWithCollective', userData);
-    return User.create(userData, sequelizeParams)
-      .then(u => {
-        user = u;
-        let name = userData.firstName;
-        if (name && userData.lastName) {
-          name += ` ${userData.lastName}`;
-        }
+    const user = await User.create(userData, sequelizeParams);
+    let name = userData.firstName;
+    if (name && userData.lastName) {
+      name += ` ${userData.lastName}`;
+    }
 
-        // If user doesn't provide a name, set it to "anonymous". If we cannot
-        // slugify it (for example firstName="------") then fallback on "user".
-        let collectiveName = userData.name || name;
-        if (!collectiveName || collectiveName.trim().length === 0) {
-          collectiveName = 'anonymous';
-        } else if (slugify(collectiveName).length === 0) {
-          collectiveName = 'user';
-        }
+    // If user doesn't provide a name, set it to "incognito". If we cannot
+    // slugify it (for example firstName="------") then fallback on "user".
+    let collectiveName = userData.name || name;
+    if (!collectiveName || collectiveName.trim().length === 0) {
+      collectiveName = 'incognito';
+    } else if (slugify(collectiveName).length === 0) {
+      collectiveName = 'user';
+    }
 
-        const userCollective = {
-          type: 'USER',
-          name: collectiveName,
-          image: userData.image,
-          mission: userData.mission,
-          description: userData.description,
-          longDescription: userData.longDescription,
-          website: userData.website,
-          twitterHandle: userData.twitterHandle,
-          githubHandle: userData.githubHandle,
-          currency: userData.currency,
-          hostFeePercent: userData.hostFeePercent,
-          isActive: true,
-          CreatedByUserId: userData.CreatedByUserId || user.id,
-          data: { UserId: user.id },
-        };
-        return models.Collective.create(userCollective, sequelizeParams);
-      })
-      .tap(collective => {
-        // It's difficult to predict when the image will be updated by findImageForUser
-        // So we skip that in test environment to make it more predictable
-        if (config.env !== 'test' && config.env !== 'circleci') {
-          collective.findImageForUser(user);
-        }
-        user.CollectiveId = collective.id;
-        return user.save(sequelizeParams);
-      })
-      .then(collective => {
-        user.collective = collective;
-        return user;
-      });
+    const userCollectiveData = {
+      type: 'USER',
+      name: collectiveName,
+      image: userData.image,
+      mission: userData.mission,
+      description: userData.description,
+      longDescription: userData.longDescription,
+      website: userData.website,
+      twitterHandle: userData.twitterHandle,
+      githubHandle: userData.githubHandle,
+      currency: userData.currency,
+      hostFeePercent: userData.hostFeePercent,
+      isActive: true,
+      CreatedByUserId: userData.CreatedByUserId || user.id,
+      data: { UserId: user.id },
+    };
+    user.collective = await models.Collective.create(userCollectiveData, sequelizeParams);
+
+    // It's difficult to predict when the image will be updated by findImageForUser
+    // So we skip that in test environment to make it more predictable
+    if (config.env !== 'test' && config.env !== 'circleci') {
+      user.collective.findImageForUser(user);
+    }
+    user.CollectiveId = user.collective.id;
+    await user.save(sequelizeParams);
+    return user;
   };
 
   User.splitName = name => {

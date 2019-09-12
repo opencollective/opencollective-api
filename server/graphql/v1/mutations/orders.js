@@ -1,7 +1,6 @@
 import moment from 'moment';
 import uuidv4 from 'uuid/v4';
 import debugLib from 'debug';
-import md5 from 'md5';
 import Promise from 'bluebird';
 import { pick, omit, get, isNil } from 'lodash';
 import config from 'config';
@@ -12,15 +11,16 @@ import * as errors from '../../errors';
 import cache from '../../../lib/cache';
 import * as github from '../../../lib/github';
 import recaptcha from '../../../lib/recaptcha';
-import slackLib from '../../../lib/slack';
 import * as libPayments from '../../../lib/payments';
-import { capitalize, pluralize, formatCurrency } from '../../../lib/utils';
+import { setupCreditCard } from '../../../paymentProviders/stripe/creditcard';
+import { capitalize, pluralize, formatCurrency, md5 } from '../../../lib/utils';
 import { getNextChargeAndPeriodStartDates, getChargeRetryCount } from '../../../lib/subscriptions';
 
 import roles from '../../../constants/roles';
 import status from '../../../constants/order_status';
 import activities from '../../../constants/activities';
 import { types } from '../../../constants/collectives';
+import { VAT_OPTIONS } from '../../../constants/vat';
 
 const oneHourInSeconds = 60 * 60;
 
@@ -118,9 +118,12 @@ async function checkRecaptcha(order, remoteUser, reqIp) {
 }
 
 export async function createOrder(order, loaders, remoteUser, reqIp) {
+  // console.log(order);
   debug('Beginning creation of order', order);
   await checkOrdersLimit(order, remoteUser, reqIp);
   const recaptchaResponse = await checkRecaptcha(order, remoteUser, reqIp);
+
+  let orderCreated;
   try {
     // ---- Set defaults ----
     order.quantity = order.quantity || 1;
@@ -152,9 +155,9 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
             message: 'We could not verify the GitHub repository',
           });
         }
-        if (repo.stargazers_count < 100) {
+        if (repo.stargazers_count < config.githubFlow.minNbStars) {
           throw new errors.ValidationFailed({
-            message: 'The repository need at least 100 GitHub stars to be pledged.',
+            message: `The repository need at least ${config.githubFlow.minNbStars} GitHub stars to be pledged.`,
           });
         }
       } else {
@@ -166,10 +169,10 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
           });
         }
         const allRepos = await github.getAllOrganizationPublicRepos(githubHandle).catch(() => null);
-        const repoWith100stars = allRepos.find(repo => repo.stargazers_count >= 100);
+        const repoWith100stars = allRepos.find(repo => repo.stargazers_count >= config.githubFlow.minNbStars);
         if (!repoWith100stars) {
           throw new errors.ValidationFailed({
-            message: 'The organization need at least one repository with 100 GitHub stars to be pledged.',
+            message: `The organization need at least one repository with ${config.githubFlow.minNbStars} GitHub stars to be pledged.`,
           });
         }
       }
@@ -303,22 +306,6 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
       fromCollective = await models.Collective.createOrganization(order.fromCollective, user, remoteUser);
     }
 
-    let matchingFund;
-    if (order.matchingFund) {
-      matchingFund = await models.PaymentMethod.getMatchingFund(order.matchingFund, { ForCollectiveId: collective.id });
-      const canBeUsedForOrder = await matchingFund.canBeUsedForOrder(order, user);
-
-      if (!canBeUsedForOrder) {
-        matchingFund = null;
-      }
-    }
-
-    if (matchingFund) {
-      order.matchingFund = matchingFund;
-      order.MatchingPaymentMethodId = matchingFund.id;
-      order.referral = { id: matchingFund.CollectiveId }; // if there is a matching fund, we force the referral to be the owner of the fund
-    }
-
     const currency = (tier && tier.currency) || collective.currency;
     if (order.currency && order.currency !== currency) {
       throw new Error(`Invalid currency. Expected ${currency}.`);
@@ -327,23 +314,37 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
     // ---- Taxes (VAT) ----
     let taxFromCountry = null;
     let taxPercent = 0;
+    let vatSettings = {};
 
     // Load tax info from DB, ignore if amount is 0
     if (order.totalAmount !== 0 && tier && LibTaxes.isTierTypeSubjectToVAT(tier.type)) {
       let hostCollective = null;
+      let parentCollective = null;
 
-      // Load host
+      // Load host and parent collective
       if (collective.HostCollectiveId) {
         hostCollective = await loaders.collective.findById.load(collective.HostCollectiveId);
-      } else if (collective.ParentCollectiveId) {
-        const parentCollective = await loaders.collective.findById.load(collective.ParentCollectiveId);
-        if (parentCollective) {
+      }
+
+      if (collective.ParentCollectiveId) {
+        parentCollective = await loaders.collective.findById.load(collective.ParentCollectiveId);
+        if (parentCollective && !hostCollective) {
           hostCollective = await loaders.collective.findById.load(parentCollective.HostCollectiveId);
         }
       }
 
-      const hostCountry = get(hostCollective, 'countryISO');
-      taxFromCountry = LibTaxes.getVatOriginCountry(tier.type, hostCountry, collective.countryISO);
+      // Check if VAT is enabled
+      const vatType = get(collective, 'settings.VAT.type') || get(parentCollective, 'settings.VAT.type');
+      const baseCountry = collective.countryISO || get(parentCollective, 'countryISO');
+      if (vatType === VAT_OPTIONS.OWN) {
+        taxFromCountry = LibTaxes.getVatOriginCountry(tier.type, baseCountry, baseCountry);
+        vatSettings = { ...get(parentCollective, 'settings.VAT'), ...get(collective, 'settings.VAT') };
+      } else if (vatType === VAT_OPTIONS.HOST) {
+        const hostCountry = get(hostCollective, 'countryISO');
+        taxFromCountry = LibTaxes.getVatOriginCountry(tier.type, hostCountry, baseCountry);
+        vatSettings = get(hostCollective, 'settings.VAT') || {};
+      }
+
       // Adapt tax based on country / tax ID number
       if (taxFromCountry) {
         if (!order.countryISO) {
@@ -426,7 +427,6 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
       publicMessage: order.publicMessage, // deprecated: '2019-07-03: This info is now stored at the Member level'
       privateMessage: order.privateMessage,
       processedAt: paymentRequired || !collective.isActive ? null : new Date(),
-      MatchingPaymentMethodId: order.MatchingPaymentMethodId,
       data: {
         reqIp,
         recaptchaResponse,
@@ -436,8 +436,10 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
           taxedCountry: order.countryISO,
           percentage: taxPercent,
           taxIDNumber: order.taxIDNumber,
+          taxIDNumberFrom: vatSettings.number,
         },
         customData: order.customData,
+        savePaymentMethod: Boolean(order.paymentMethod && order.paymentMethod.save),
       },
       status: status.PENDING, // default status, will get updated after the order is processed
     };
@@ -447,40 +449,25 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
       orderData.status = order.interval ? status.ACTIVE : status.PAID;
     }
 
-    if (order.referral && get(order, 'referral.id') !== orderData.FromCollectiveId) {
-      orderData.ReferralCollectiveId = order.referral.id;
-    }
-
-    // using var so the scope is shared with the catch block below
-    // eslint-disable-next-line no-var
-    var orderCreated = await models.Order.create(orderData);
-    orderCreated.interval = order.interval;
-    orderCreated.matchingFund = order.matchingFund;
-
-    if (order.paymentMethod && order.paymentMethod.save) {
-      order.paymentMethod.CollectiveId = orderCreated.FromCollectiveId;
-    }
+    orderCreated = await models.Order.create(orderData);
 
     if (paymentRequired) {
       if (get(order, 'paymentMethod.type') === 'manual') {
         orderCreated.paymentMethod = order.paymentMethod;
       } else {
+        // Ideally, we should always save CollectiveId
+        // but this is breaking some conventions elsewhere
+        if (orderCreated.data.savePaymentMethod) {
+          order.paymentMethod.CollectiveId = orderCreated.FromCollectiveId;
+        }
         await orderCreated.setPaymentMethod(order.paymentMethod);
       }
       // also adds the user as a BACKER of collective
-      try {
-        await libPayments.executeOrder(
-          remoteUser || user,
-          orderCreated,
-          pick(order, ['hostFeePercent', 'platformFeePercent']),
-        );
-      } catch (e) {
-        // Don't save new card for user if order failed
-        if (!order.paymentMethod.id && !order.paymentMethod.uuid) {
-          await orderCreated.paymentMethod.update({ CollectiveId: null });
-        }
-        throw e;
-      }
+      await libPayments.executeOrder(
+        remoteUser || user,
+        orderCreated,
+        pick(order, ['hostFeePercent', 'platformFeePercent']),
+      );
     } else if (!paymentRequired && order.interval && collective.type === types.COLLECTIVE) {
       // create inactive subscription to hold the interval info for the pledge
       const subscription = await models.Subscription.create({
@@ -508,56 +495,97 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
 
     order = await models.Order.findByPk(orderCreated.id);
 
-    // If there was a referral for this order, we add it as a FUNDRAISER role
-    if (order.ReferralCollectiveId && order.ReferralCollectiveId !== user.CollectiveId) {
-      collective.addUserWithRole({ id: user.id, CollectiveId: order.ReferralCollectiveId }, roles.FUNDRAISER);
-    }
-
-    // Share suspicious transactions on Slack
-    if (recaptchaResponse && recaptchaResponse.score && recaptchaResponse.score <= 0.5) {
-      slackLib
-        .postActivityOnPublicChannel(
-          {
-            type: activities.ORDERS_SUSPICIOUS,
-            data: {
-              order,
-              user,
-              fromCollective,
-              collective,
-              recaptchaResponse,
-            },
-          },
-          config.slack.webhookUrl,
-          {
-            channel: config.slack.abuseChannel,
-          },
-        )
-        .catch(console.log);
-    }
-
     return order;
   } catch (error) {
-    debug('createOrder mutation error: ', error);
-    if (orderCreated && !orderCreated.processedAt) {
-      // TODO: Order should be updated with data JSON field to store the error to review later
-      orderCreated.update({ status: status.ERROR });
+    if (orderCreated) {
+      if (!orderCreated.processedAt) {
+        if (error.stripeResponse) {
+          orderCreated.status = status.PENDING;
+        } else {
+          orderCreated.status = status.ERROR;
+        }
+        orderCreated.data.error = { message: error.message };
+        orderCreated.save();
+      }
+
+      if (!error.stripeResponse) {
+        throw error;
+      }
+
+      orderCreated.stripeError = {
+        message: error.message,
+        account: error.stripeAccount,
+        response: error.stripeResponse,
+      };
+
+      return orderCreated;
     }
+
     throw error;
   }
 }
 
-/**
- * Update the non-sensitive information of an order, like the public message
- * @deprecated: '2019-07-03: Public message is now stored at the Member level'
- */
-export async function updateOrderInfo(req, orderParams) {
-  const order = await models.Order.findByPk(orderParams.id);
-  if (!order || !req.remoteUser || !req.remoteUser.isAdmin(order.FromCollectiveId)) {
-    throw Error("This order does not exists or you don't have the permission to edit it");
+export async function confirmOrder(order, remoteUser) {
+  if (!remoteUser) {
+    throw new errors.Unauthorized({ message: 'You need to be logged in to confirm an order' });
   }
 
-  // Update order with a field whitelist
-  return order.update(pick(orderParams, ['publicMessage']));
+  order = await models.Order.findOne({
+    where: {
+      id: order.id,
+    },
+    include: [
+      { model: models.Collective, as: 'collective' },
+      { model: models.Collective, as: 'fromCollective' },
+      { model: models.PaymentMethod, as: 'paymentMethod' },
+      { model: models.Subscription, as: 'Subscription' },
+    ],
+  });
+
+  if (!order) {
+    throw new errors.NotFound({ message: 'Order not found' });
+  }
+  if (!remoteUser.isAdmin(order.FromCollectiveId)) {
+    throw new errors.Unauthorized({ message: "You don't have permission to confirm this order" });
+  }
+  if (order.status !== status.ERROR && order.status !== status.PENDING) {
+    throw new Error('Order can only be confirmed if its status is ERROR or PENDING.');
+  }
+
+  try {
+    // If it's a first order -> executeOrder
+    // If it's a recurring subscription and not the initial order -> processOrder
+    if (!order.processedAt) {
+      await libPayments.executeOrder(remoteUser, order);
+      // executeOrder is updating the order to PAID
+    } else {
+      await libPayments.processOrder(order);
+
+      order.status = status.ACTIVE;
+      order.Subscription = Object.assign(order.Subscription, getNextChargeAndPeriodStartDates('success', order));
+      order.Subscription.chargeRetryCount = getChargeRetryCount('success', order);
+      if (order.Subscription.chargeNumber !== null) {
+        order.Subscription.chargeNumber += 1;
+      }
+
+      await order.Subscription.save();
+      await order.save();
+    }
+
+    return order;
+  } catch (error) {
+    if (!error.stripeResponse) {
+      throw error;
+    }
+
+    order.stripeError = {
+      message: error.message,
+      account: error.stripeAccount,
+      response: error.stripeResponse,
+    };
+
+    return order;
+  }
 }
 
 export async function completePledge(remoteUser, order) {
@@ -705,34 +733,49 @@ export async function updateSubscription(remoteUser, args) {
     // TODO: Would be even better if we could charge you here directly
     // before letting you proceed
 
-    // means it's an existing paymentMethod
-    if (paymentMethod.uuid && paymentMethod.uuid.length === 36) {
-      newPm = await models.PaymentMethod.findOne({
-        where: { uuid: paymentMethod.uuid },
-      });
-      if (!newPm) {
-        throw new Error('Payment method not found with this uuid', paymentMethod.uuid);
+    try {
+      // means it's an existing paymentMethod
+      if (paymentMethod.uuid && paymentMethod.uuid.length === 36) {
+        newPm = await models.PaymentMethod.findOne({
+          where: { uuid: paymentMethod.uuid },
+        });
+        if (!newPm) {
+          throw new Error('Payment method not found with this uuid', paymentMethod.uuid);
+        }
+      } else {
+        // means it's a new paymentMethod
+        const newPMData = Object.assign(paymentMethod, {
+          CollectiveId: order.FromCollectiveId,
+        });
+
+        newPm = await models.PaymentMethod.create(newPMData);
+        newPm = await setupCreditCard(newPm, {
+          user: remoteUser,
+        });
       }
-    } else {
-      // means it's a new paymentMethod
-      const newPMData = Object.assign(paymentMethod, {
-        CollectiveId: order.FromCollectiveId,
-      });
-      newPm = await models.PaymentMethod.createFromStripeSourceToken(newPMData);
+
+      // determine if this order was pastdue
+      if (order.Subscription.chargeRetryCount > 0) {
+        const updatedDates = getNextChargeAndPeriodStartDates('updated', order);
+        const chargeRetryCount = getChargeRetryCount('updated', order);
+
+        await order.Subscription.update({
+          nextChargeDate: updatedDates.nextChargeDate,
+          chargeRetryCount,
+        });
+      }
+
+      order = await order.update({ PaymentMethodId: newPm.id });
+    } catch (error) {
+      if (!error.stripeResponse) {
+        throw error;
+      }
+
+      order.stripeError = {
+        message: error.message,
+        response: error.stripeResponse,
+      };
     }
-
-    // determine if this order was pastdue
-    if (order.Subscription.chargeRetryCount > 0) {
-      const updatedDates = getNextChargeAndPeriodStartDates('updated', order);
-      const chargeRetryCount = getChargeRetryCount('updated', order);
-
-      await order.Subscription.update({
-        nextChargeDate: updatedDates.nextChargeDate,
-        chargeRetryCount,
-      });
-    }
-
-    order = await order.update({ PaymentMethodId: newPm.id });
   }
 
   if (amount !== undefined) {

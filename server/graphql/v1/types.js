@@ -30,7 +30,7 @@ import orderStatus from '../../constants/order_status';
 import { maxInteger } from '../../constants/math';
 import intervals from '../../constants/intervals';
 import roles from '../../constants/roles';
-import { isUserTaxFormRequiredBeforePayment } from '../../lib/taxForms';
+import { isUserTaxFormRequiredBeforePayment } from '../../lib/tax-forms';
 
 /**
  * Take a graphql type and return a wrapper type that adds pagination. The pagination
@@ -140,13 +140,16 @@ export const UserType = new GraphQLObjectType({
       email: {
         type: GraphQLString,
         resolve(user, args, req) {
-          return user.getPersonalDetails(req.remoteUser).then(user => user.email);
+          return user.getPersonalDetails && user.getPersonalDetails(req.remoteUser).then(user => user.email);
         },
       },
       emailWaitingForValidation: {
         type: GraphQLString,
         resolve(user, args, req) {
-          return user.getPersonalDetails(req.remoteUser).then(user => user.emailWaitingForValidation);
+          return (
+            user.getPersonalDetails &&
+            user.getPersonalDetails(req.remoteUser).then(user => user.emailWaitingForValidation)
+          );
         },
       },
       memberOf: {
@@ -158,16 +161,10 @@ export const UserType = new GraphQLObjectType({
           });
         },
       },
-      billingAddress: {
-        type: GraphQLString,
-        resolve(user) {
-          return user.billingAddress; // TODO: shouldn't this be behind a login check like email and paypalEmail?
-        },
-      },
       paypalEmail: {
         type: GraphQLString,
         resolve(user, args, req) {
-          return user.getPersonalDetails(req.remoteUser).then(user => user.paypalEmail);
+          return user.getPersonalDetails && user.getPersonalDetails(req.remoteUser).then(user => user.paypalEmail);
         },
       },
     };
@@ -228,14 +225,9 @@ export const StatsMemberType = new GraphQLObjectType({
       totalRaised: {
         type: GraphQLInt,
         description: 'total amount raised by this member',
-        resolve(member, args, req) {
-          return (
-            member.totalRaised ||
-            req.loaders.members.totalAmountRaised.load({
-              ReferralCollectiveId: member.MemberCollectiveId,
-              CollectiveId: member.CollectiveId,
-            })
-          );
+        deprecationReason: '2019-08-22: Referals are not supported anymore',
+        resolve() {
+          return 0;
         },
       },
     };
@@ -313,7 +305,12 @@ export const MemberType = new GraphQLObjectType({
       member: {
         type: CollectiveInterfaceType,
         resolve(member, args, req) {
-          return member.memberCollective || req.loaders.collective.findById.load(member.MemberCollectiveId);
+          const memberCollective =
+            member.memberCollective || req.loaders.collective.findById.load(member.MemberCollectiveId);
+          if (memberCollective) {
+            memberCollective.inTheContextOfCollectiveId = member.CollectiveId;
+          }
+          return memberCollective;
         },
       },
       role: {
@@ -386,11 +383,18 @@ export const ContributorType = new GraphQLObjectType({
       description: 'All the roles for a given contributor',
       defaultValue: [roles.CONTRIBUTOR],
     },
-    isCore: {
+    isAdmin: {
       type: new GraphQLNonNull(GraphQLBoolean),
-      description: 'True if the contributor is a core contributor (admin)',
+      description: 'True if the contributor is a collective admin',
       resolve(contributor) {
         return contributor.roles.includes(roles.ADMIN);
+      },
+    },
+    isCore: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'True if the contributor is a core contributor',
+      resolve(contributor) {
+        return contributor.roles.some(role => role === roles.MEMBER || role === roles.ADMIN);
       },
     },
     isBacker: {
@@ -419,6 +423,10 @@ export const ContributorType = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLString),
       description: 'Wether the contributor is an individual, an organization...',
     },
+    isIncognito: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Defines if the contributors wants to be incognito (name not displayed)',
+    },
     description: {
       type: GraphQLString,
       description: 'Description of how the member contribute. Will usually be a tier name, or "design" or "code".',
@@ -426,6 +434,10 @@ export const ContributorType = new GraphQLObjectType({
     collectiveSlug: {
       type: GraphQLString,
       description: 'If the contributor has a page on Open Collective, this is the slug to link to it',
+      resolve(contributor) {
+        // Don't return the collective slug if the contributor wants to be incognito
+        return contributor.isIncognito ? null : contributor.collectiveSlug;
+      },
     },
     image: {
       type: GraphQLString,
@@ -627,6 +639,12 @@ export const ExpenseType = new GraphQLObjectType({
           return expense.status;
         },
       },
+      type: {
+        type: GraphQLString,
+        resolve(expense) {
+          return expense.type;
+        },
+      },
       payoutMethod: {
         type: GraphQLString,
         resolve(expense) {
@@ -676,7 +694,7 @@ export const ExpenseType = new GraphQLObjectType({
           return isUserTaxFormRequiredBeforePayment({
             year: incurredYear,
             invoiceTotalThreshold: 600e2,
-            HostCollectiveId: expense.CollectiveId,
+            expenseCollectiveId: expense.CollectiveId,
             UserId: expense.UserId,
           });
         },
@@ -1071,49 +1089,6 @@ export const NotificationType = new GraphQLObjectType({
   },
 });
 
-export const MembersStatsType = new GraphQLObjectType({
-  name: 'MembersStatsType',
-  description: 'Breakdown of members per type (ANY/USER/ORGANIZATION/COLLECTIVE)',
-  deprecationReason: `
-  2019/06/20 - This endpoint was used for the new tier page and has been replaced
-  by "ContributorsStatsType". It can be deleted as soon as the migration's completed
-  as well as the "members.findByTierId" loader.
-`,
-  fields: () => {
-    return {
-      id: {
-        type: GraphQLInt,
-        description: "We always have to return an id for apollo's caching",
-      },
-      all: {
-        type: GraphQLInt,
-        description: 'Total number of contributors',
-      },
-      users: {
-        type: GraphQLInt,
-        description: 'Number of individuals',
-        resolve(stats) {
-          return stats.USER;
-        },
-      },
-      organizations: {
-        type: GraphQLInt,
-        description: 'Number of organizations',
-        resolve(stats) {
-          return stats.ORGANIZATION;
-        },
-      },
-      collectives: {
-        type: GraphQLInt,
-        description: 'Number of collectives',
-        resolve(stats) {
-          return stats.COLLECTIVE;
-        },
-      },
-    };
-  },
-});
-
 export const ContributorsStatsType = new GraphQLObjectType({
   name: 'ContributorsStats',
   description: 'Breakdown of contributors per type (ANY/USER/ORGANIZATION/COLLECTIVE)',
@@ -1162,18 +1137,6 @@ export const TierStatsType = new GraphQLObjectType({
         type: GraphQLInt,
         resolve(tier) {
           return tier.id;
-        },
-      },
-      members: {
-        type: MembersStatsType,
-        deprecationReason: `
-          2019/06/20 - This endpoint was used for the new tier page and has been replaced
-          by "contributors". It can be deleted as soon as the migration's completed
-          as well as the "members.findByTierId" loader.
-        `,
-        description: 'Breakdown of all the members that belongs to this tier.',
-        resolve(tier, args, req) {
-          return req.loaders.tiers.contributorsStats.load(tier.id);
         },
       },
       contributors: {
@@ -1410,26 +1373,6 @@ export const TierType = new GraphQLObjectType({
           return tier.getOrders(query);
         },
       },
-      members: {
-        type: new GraphQLList(MemberType),
-        description: 'Returns a list of all the members that contributed to this tier',
-        deprecationReason: `
-          2019/06/20 - This endpoint was used for the new tier page and has been replaced
-          by "contributors". It can be deleted as soon as the migration's completed
-          as well as the "members.findByTierId" loader.
-        `,
-        args: {
-          limit: {
-            type: GraphQLInt,
-            description: 'Maximum number of entries to return',
-            defaultValue: 5000,
-          },
-        },
-        async resolve(tier, args, req) {
-          const members = await req.loaders.members.findByTierId.load(tier.id);
-          return members.slice(0, args.limit);
-        },
-      },
       contributors: {
         type: new GraphQLList(ContributorType),
         description: 'Returns a list of all the contributors for this tier',
@@ -1540,7 +1483,10 @@ export const OrderType = new GraphQLObjectType({
       },
       createdByUser: {
         type: UserType,
-        resolve(order) {
+        async resolve(order, args, req) {
+          const fromCollective = await order.getFromCollective();
+          if (fromCollective.isIncognito && (!req.remoteUser || !req.remoteUser.isAdmin(order.CollectiveId))) return {};
+
           return order.getCreatedByUser();
         },
       },
@@ -1569,12 +1515,16 @@ export const OrderType = new GraphQLObjectType({
       fromCollective: {
         description: 'Collective ordering (most of the time it will be the collective of the createdByUser)',
         type: CollectiveInterfaceType,
-        resolve(order, args, req) {
+        async resolve(order, args, req) {
           if (!order.FromCollectiveId) {
             console.warn('There is no FromCollectiveId for order', order.id);
             return null;
           }
-          return req.loaders.collective.findById.load(order.FromCollectiveId);
+          const fromCollective = await req.loaders.collective.findById.load(order.FromCollectiveId);
+          if (fromCollective) {
+            fromCollective.inTheContextOfCollectiveId = order.CollectiveId;
+          }
+          return fromCollective;
         },
       },
       collective: {
@@ -1586,9 +1536,10 @@ export const OrderType = new GraphQLObjectType({
       },
       referral: {
         description: 'Referral user collective',
+        deprecationReason: '2019-08-22: Referals are not supported anymore',
         type: CollectiveInterfaceType,
-        resolve(order, args, req) {
-          return req.loaders.collective.findById.load(order.ReferralCollectiveId);
+        resolve() {
+          return null;
         },
       },
       tier: {
@@ -1610,9 +1561,10 @@ export const OrderType = new GraphQLObjectType({
       },
       matchingFund: {
         description: 'Payment method used if this order was matched by a matching fund.',
+        deprecationReason: '2019-08-19: Matching funds are not supported anymore',
         type: PaymentMethodType,
-        resolve(order) {
-          return order.getMatchingPaymentMethod();
+        resolve() {
+          return null;
         },
       },
       transactions: {
@@ -1690,6 +1642,12 @@ export const OrderType = new GraphQLObjectType({
         description: 'Additional information on order: tax and custom fields',
         resolve(order) {
           return pick(order.data, ['tax', 'customData']) || null;
+        },
+      },
+      stripeError: {
+        type: StripeErrorType,
+        resolve(order) {
+          return order.stripeError;
         },
       },
     };
@@ -1852,8 +1810,9 @@ export const PaymentMethodType = new GraphQLObjectType({
       matching: {
         type: GraphQLInt,
         description: 'Matching factor',
-        resolve(paymentMethod) {
-          return paymentMethod.matching;
+        deprecationReason: '2019-08-19: Matching funds are not supported anymore',
+        resolve() {
+          return 0;
         },
       },
       monthlyLimitPerMember: {
@@ -1941,7 +1900,7 @@ export const PaymentMethodType = new GraphQLObjectType({
           offset: { type: GraphQLInt },
         },
         description:
-          'Get the list of collectives that used this payment method. Useful to select the list of a backers for which the host has manually added funds or to get the list of backers that used a matching fund',
+          'Get the list of collectives that used this payment method. Useful to select the list of a backers for which the host has manually added funds.',
         async resolve(paymentMethod, args) {
           const res = await models.Transaction.findAll({
             attributes: [[sequelize.fn('DISTINCT', sequelize.col('FromCollectiveId')), 'FromCollectiveId']],
@@ -1964,6 +1923,12 @@ export const PaymentMethodType = new GraphQLObjectType({
         type: GraphQLString,
         resolve(paymentMethod) {
           return paymentMethod.currency;
+        },
+      },
+      stripeError: {
+        type: StripeErrorType,
+        resolve(paymentMethod) {
+          return paymentMethod.stripeError;
         },
       },
     };
@@ -2099,5 +2064,31 @@ export const ImageFormatType = new GraphQLEnumType({
     jpg: {},
     gif: {},
     svg: {},
+  },
+});
+
+export const StripeErrorType = new GraphQLObjectType({
+  name: 'StripeError',
+  fields: () => {
+    return {
+      message: {
+        type: GraphQLString,
+        resolve(error) {
+          return error.message;
+        },
+      },
+      account: {
+        type: GraphQLString,
+        resolve(error) {
+          return error.account;
+        },
+      },
+      response: {
+        type: GraphQLJSON,
+        resolve(error) {
+          return error.response;
+        },
+      },
+    };
   },
 });

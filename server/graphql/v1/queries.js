@@ -1,11 +1,12 @@
 import Promise from 'bluebird';
 import { find, get, uniq, pick } from 'lodash';
+import { GraphQLList, GraphQLNonNull, GraphQLString, GraphQLInt, GraphQLBoolean } from 'graphql';
+
 import algolia from '../../lib/algolia';
 import errors from '../../lib/errors';
-import { parseToBoolean } from '../../lib/utils';
-import { fetchLedgerTransactionsGroupedByLegacyIds, parseLedgerTransactions } from '../../lib/ledger';
-
-import { GraphQLList, GraphQLNonNull, GraphQLString, GraphQLInt, GraphQLBoolean } from 'graphql';
+import rawQueries from '../../lib/queries';
+import models, { sequelize, Op } from '../../models';
+import { fetchCollectiveId } from '../../lib/cache';
 
 import {
   CollectiveInterfaceType,
@@ -40,10 +41,6 @@ import {
   PaginatedExpensesType,
   PaymentMethodType,
 } from './types';
-
-import models, { sequelize, Op } from '../../models';
-import rawQueries from '../../lib/queries';
-import { fetchCollectiveId } from '../../lib/cache';
 
 const queries = {
   Collective: {
@@ -81,14 +78,13 @@ const queries = {
   MatchingFund: {
     type: PaymentMethodType,
     description: 'Fetch data about a matching fund from the short version of its UUID (first part)',
+    deprecationReason: '2019-08-19: Matching funds are not supported anymore',
     args: {
       uuid: { type: new GraphQLNonNull(GraphQLString) },
       ForCollectiveId: { type: GraphQLInt },
     },
-    resolve(_, args) {
-      return models.PaymentMethod.getMatchingFund(args.uuid, {
-        ForCollectiveId: args.ForCollectiveId,
-      });
+    resolve() {
+      return null;
     },
   },
 
@@ -393,10 +389,6 @@ const queries = {
         whether we should include the transactions of the collectives of that host(if it's a host collective) */,
     },
     async resolve(_, args) {
-      let fetchDataFromLedger = parseToBoolean(process.env.GET_TRANSACTIONS_FROM_LEDGER);
-      if (Object.prototype.hasOwnProperty.call(args, 'fetchDataFromLedger')) {
-        fetchDataFromLedger = args.fetchDataFromLedger;
-      }
       // Load collective
       const { CollectiveId, collectiveSlug } = args;
       if (!CollectiveId && !collectiveSlug) throw new Error('You must specify a collective ID or a Slug');
@@ -404,32 +396,14 @@ const queries = {
       const collective = await models.Collective.findOne({ where });
       if (!collective) throw new Error('This collective does not exist');
 
-      // returns transactions straight from the api
-      if (!fetchDataFromLedger) {
-        return collective.getTransactions({
-          order: [['createdAt', 'DESC']],
-          type: args.type,
-          limit: args.limit,
-          offset: args.offset,
-          startDate: args.dateFrom,
-          endDate: args.dateTo,
-        });
-      }
-      // otherwise returns data from the ledger
-      const ledgerTransactions = await fetchLedgerTransactionsGroupedByLegacyIds(args);
-      const apiTransactions = await models.Transaction.findAll({
-        attributes: [
-          'id',
-          'uuid', // because the stored invoice pdf in aws uses the uuid as reference
-          'UsingVirtualCardFromCollectiveId', // because virtual cards will only work for wallets and we're skipping wallets in the transactions details for now
-          'HostCollectiveId', // because we're skipping wallets and using host on transactions details for now
-          'RefundTransactionId', // because the ledger refundTransactionId refers to the ledger id and not the legacy one
-        ],
-        where: {
-          id: Object.keys(ledgerTransactions),
-        },
+      return collective.getTransactions({
+        order: [['createdAt', 'DESC']],
+        type: args.type,
+        limit: args.limit,
+        offset: args.offset,
+        startDate: args.dateFrom,
+        endDate: args.dateTo,
       });
-      return parseLedgerTransactions(args.CollectiveId, ledgerTransactions, apiTransactions);
     },
   },
 
@@ -605,7 +579,7 @@ const queries = {
       if (args.category) query.where.category = { [Op.iLike]: args.category };
       if (args.limit) query.limit = args.limit;
       if (args.offset) query.offset = args.offset;
-      query.order = [['id', 'DESC']];
+      query.order = [['createdAt', 'DESC'], ['id', 'DESC']];
       const getCollectiveIds = () => {
         // if is host, we get all the orders across all the hosted collectives
         if (args.includeHostedCollectives) {
@@ -1230,27 +1204,6 @@ const queries = {
       } else {
         return models.Collective.findAll({ where });
       }
-    },
-  },
-
-  /*
-   * Deprecated: Given a prepaid code, return validity and amount
-   */
-  ocPaymentMethod: {
-    type: PaymentMethodType,
-    args: {
-      token: { type: new GraphQLNonNull(GraphQLString) },
-    },
-    resolve(_, args) {
-      return models.PaymentMethod.findOne({
-        where: {
-          token: args.token,
-          expiryDate: {
-            [Op.gt]: new Date(),
-          },
-          archivedAt: null, // archived PMs are assumed to be used or inactive
-        },
-      });
     },
   },
 

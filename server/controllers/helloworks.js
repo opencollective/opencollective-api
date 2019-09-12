@@ -5,6 +5,7 @@ import s3 from '../lib/awsS3';
 import models from '../models';
 import fs from 'fs';
 import logger from '../lib/logger';
+import { encrypt } from '../lib/encryption';
 
 const { User, LegalDocument, RequiredLegalDocument } = models;
 const {
@@ -19,13 +20,14 @@ const HELLO_WORKS_SECRET = get(config, 'helloworks.secret');
 const HELLO_WORKS_WORKFLOW_ID = get(config, 'helloworks.workflowId');
 
 const HELLO_WORKS_S3_BUCKET = get(config, 'helloworks.aws.s3.bucket');
-
-const client = new HelloWorks({
-  apiKeyId: HELLO_WORKS_KEY,
-  apiKeySecret: HELLO_WORKS_SECRET,
-});
+const ENCRYPTION_KEY = get(config, 'helloworks.documentEncryptionKey');
 
 async function callback(req, res) {
+  const client = new HelloWorks({
+    apiKeyId: HELLO_WORKS_KEY,
+    apiKeySecret: HELLO_WORKS_SECRET,
+  });
+
   const {
     body: { status, workflow_id: workflowId, data, id, metadata },
   } = req;
@@ -34,11 +36,15 @@ async function callback(req, res) {
     const { email, year } = metadata;
     const documentId = Object.keys(data)[0];
 
+    logger.info('Completed Tax form. Metadata:', metadata);
     const user = await User.findOne({
       where: {
         email,
       },
     });
+
+    const userCollectiveName = await user.username;
+
     const doc = await LegalDocument.findByTypeYearUser({ year, documentType: US_TAX_FORM, user });
 
     client.workflowInstances
@@ -46,7 +52,8 @@ async function callback(req, res) {
         instanceId: id,
         documentId,
       })
-      .then(UploadToS3({ id: user.id, year, documentType: US_TAX_FORM }))
+      .then(buff => Promise.resolve(encrypt(buff, ENCRYPTION_KEY)))
+      .then(UploadToS3({ id: userCollectiveName, year, documentType: US_TAX_FORM }))
       .then(({ Location: location }) => {
         doc.requestStatus = RECEIVED;
         doc.documentLink = location;
@@ -77,7 +84,7 @@ function UploadToS3({ id, year, documentType }) {
     }
 
     return new Promise((resolve, reject) => {
-      s3.upload({ Body: buffer, bucket, key }, (err, data) => {
+      s3.upload({ Body: buffer, Bucket: bucket, Key: key }, (err, data) => {
         if (err) {
           logger.error('error uploading file to s3: ', err);
           reject();

@@ -423,9 +423,10 @@ export const CollectiveStatsType = new GraphQLObjectType({
       },
       totalAmountRaised: {
         description: 'Total amount raised through referral',
+        deprecationReason: '2019-08-22: Referals are not supported anymore',
         type: GraphQLInt,
-        resolve(collective) {
-          return collective.getTotalAmountRaised();
+        resolve() {
+          return 0;
         },
       },
       yearlyBudget: {
@@ -443,7 +444,7 @@ export const CollectiveStatsType = new GraphQLObjectType({
         resolve(collective) {
           return Promise.all([
             queries.getTopExpenseCategories(collective.id),
-            queries.getTopVendorsForCollective(collective.id),
+            queries.getTopExpenseSubmitters(collective.id),
           ]).then(results => {
             const res = {
               byCategory: results[0],
@@ -508,10 +509,6 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       expensePolicy: { type: GraphQLString },
       mission: { type: GraphQLString },
       tags: { type: new GraphQLList(GraphQLString) },
-      countryISO: {
-        deprecationReason: 'From 03/20/2019 - use `location.country` instead',
-        type: GraphQLString,
-      },
       location: {
         type: LocationType,
         description: 'Name, address, country, lat, long of the location.',
@@ -552,8 +549,10 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       slug: { type: GraphQLString },
       path: { type: GraphQLString },
       isHost: { type: GraphQLBoolean },
+      isIncognito: { type: GraphQLBoolean },
       canApply: { type: GraphQLBoolean },
       isArchived: { type: GraphQLBoolean },
+      isApproved: { type: GraphQLBoolean },
       isDeletable: { type: GraphQLBoolean },
       host: { type: CollectiveInterfaceType },
       hostCollective: { type: CollectiveInterfaceType },
@@ -587,6 +586,11 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
           },
           role: { type: GraphQLString },
           roles: { type: new GraphQLList(GraphQLString) },
+          onlyActiveCollectives: {
+            type: GraphQLBoolean,
+            description: 'Only return memberships for active collectives (that have been approved by the host)',
+            defaultValue: false,
+          },
         },
       },
       contributors: {
@@ -716,6 +720,11 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
             type: PaymentMethodOrderFieldType,
             description: 'Order entries based on given column. Set to null for no ordering.',
           },
+          includeOrganizationCollectivePaymentMethod: {
+            type: GraphQLBoolean,
+            defaultValue: false,
+            description: 'Defines if the organization "collective" payment method should be returned',
+          },
         },
       },
       createdVirtualCards: {
@@ -744,7 +753,12 @@ const CollectiveFields = () => {
     },
     createdByUser: {
       type: UserType,
-      resolve(collective) {
+      resolve(collective, args, req) {
+        if (
+          collective.isIncognito &&
+          (!req.remoteUser || !req.remoteUser.isAdmin(collective.inTheContextOfCollectiveId))
+        )
+          return {};
         return models.User.findByPk(collective.CreatedByUserId);
       },
     },
@@ -806,13 +820,6 @@ const CollectiveFields = () => {
       type: new GraphQLList(GraphQLString),
       resolve(collective) {
         return collective.tags;
-      },
-    },
-    countryISO: {
-      type: GraphQLString,
-      deprecationReason: 'From 03/20/2019 - use `location.country` instead',
-      resolve(collective) {
-        return collective.countryISO;
       },
     },
     location: {
@@ -945,11 +952,25 @@ const CollectiveFields = () => {
         return Boolean(collective.settings && collective.settings.apply);
       },
     },
+    isIncognito: {
+      description: 'Returns whether this collective is incognito',
+      type: GraphQLBoolean,
+      resolve(collective) {
+        return collective.isIncognito;
+      },
+    },
     isArchived: {
       description: 'Returns whether this collective is archived',
       type: GraphQLBoolean,
       resolve(collective) {
         return Boolean(collective.deactivatedAt && !collective.isActive);
+      },
+    },
+    isApproved: {
+      description: 'Returns whether this collective is approved',
+      type: GraphQLBoolean,
+      resolve(collective) {
+        return Boolean(collective.isActive && collective.approvedAt);
       },
     },
     isDeletable: {
@@ -1070,6 +1091,11 @@ const CollectiveFields = () => {
         },
         role: { type: GraphQLString },
         roles: { type: new GraphQLList(GraphQLString) },
+        onlyActiveCollectives: {
+          type: GraphQLBoolean,
+          description: 'Only return memberships for active collectives (that have been approved by the host)',
+          defaultValue: false,
+        },
       },
       resolve(collective, args) {
         const where = { MemberCollectiveId: collective.id };
@@ -1080,6 +1106,9 @@ const CollectiveFields = () => {
         const collectiveConditions = { deletedAt: null };
         if (args.type) {
           collectiveConditions.type = args.type;
+        }
+        if (args.onlyActiveCollectives) {
+          collectiveConditions.isActive = true;
         }
         return models.Member.findAll({
           where,
@@ -1183,7 +1212,13 @@ const CollectiveFields = () => {
         type: { type: GraphQLString },
         active: { type: GraphQLBoolean },
       },
-      resolve(collective, args) {
+      resolve(collective, args, req) {
+        // There's no reason for other people than admins to know about this.
+        // Also the webhooks URL are supposed to be private (can contain tokens).
+        if (!req.remoteUser || !req.remoteUser.isAdmin(collective.id)) {
+          return [];
+        }
+
         const where = { CollectiveId: collective.id };
 
         if (args.channel) {
@@ -1200,6 +1235,7 @@ const CollectiveFields = () => {
           where: where,
           limit: args.limit,
           offset: args.offset,
+          order: [['createdAt', 'ASC']],
         });
       },
     },
@@ -1355,7 +1391,7 @@ const CollectiveFields = () => {
         onlyPublishedUpdates: { type: GraphQLBoolean },
       },
       resolve(collective, args) {
-        const query = { where: { CollectiveId: collective.id } };
+        const query = { where: { CollectiveId: collective.id }, order: [['createdAt', 'DESC']] };
         if (args.limit) query.limit = args.limit;
         if (args.offset) query.offset = args.offset;
         if (args.onlyPublishedUpdates) query.where.publishedAt = { [Op.ne]: null };
@@ -1419,12 +1455,24 @@ const CollectiveFields = () => {
           type: PaymentMethodOrderFieldType,
           defaultValue: 'type',
         },
+        includeOrganizationCollectivePaymentMethod: {
+          type: GraphQLBoolean,
+          defaultValue: false,
+          description: 'Defines if the organization "collective" payment method should be returned',
+        },
       },
       async resolve(collective, args, req) {
         if (!req.remoteUser || !req.remoteUser.isAdmin(collective.id)) {
           return [];
         }
         let paymentMethods = await req.loaders.paymentMethods.findByCollectiveId.load(collective.id);
+        // Filter Payment Methods used by organizations for "Add Funds"
+        if (!args.includeOrganizationCollectivePaymentMethod && collective.type === 'ORGANIZATION') {
+          paymentMethods = paymentMethods.filter(pm => !(pm.service === 'opencollective' && pm.type === 'collective'));
+        }
+        // Filter only "saved" stripe Payment Methods
+        // In the future we should only return the "saved" whatever the service
+        paymentMethods = paymentMethods.filter(pm => pm.service !== 'stripe' || pm.saved);
         if (args.service) {
           paymentMethods = paymentMethods.filter(pm => pm.service === args.service);
         }

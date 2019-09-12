@@ -13,6 +13,7 @@ import {
 } from './mutations/collectives';
 import {
   createOrder,
+  confirmOrder,
   cancelSubscription,
   updateSubscription,
   refundTransaction,
@@ -20,8 +21,8 @@ import {
   addFundsToCollective,
   completePledge,
   markOrderAsPaid,
-  updateOrderInfo,
 } from './mutations/orders';
+
 import { createMember, removeMember, editMembership } from './mutations/members';
 import { editTiers, editTier } from './mutations/tiers';
 import { editConnectedAccount } from './mutations/connectedAccounts';
@@ -31,6 +32,7 @@ import * as paymentMethodsMutation from './mutations/paymentMethods';
 import * as updateMutations from './mutations/updates';
 import * as commentMutations from './mutations/comments';
 import * as applicationMutations from './mutations/applications';
+import * as backyourstackMutations from './mutations/backyourstack';
 import { updateUserEmail, confirmUserEmail } from './mutations/users';
 
 import statuses from '../../constants/expense_status';
@@ -60,6 +62,7 @@ import {
   CollectiveInputType,
   CollectiveAttributesInputType,
   OrderInputType,
+  ConfirmOrderInputType,
   TierInputType,
   ExpenseInputType,
   UpdateInputType,
@@ -394,6 +397,17 @@ const mutations = {
       return createOrder(args.order, req.loaders, req.remoteUser, req.ip);
     },
   },
+  confirmOrder: {
+    type: OrderType,
+    args: {
+      order: {
+        type: new GraphQLNonNull(ConfirmOrderInputType),
+      },
+    },
+    resolve(_, args, req) {
+      return confirmOrder(args.order, req.remoteUser);
+    },
+  },
   addFundsToCollective: {
     type: OrderType,
     args: {
@@ -415,24 +429,6 @@ const mutations = {
     },
     resolve(_, args, req) {
       return completePledge(req.remoteUser, args.order);
-    },
-  },
-  updateOrderInfo: {
-    type: OrderType,
-    description: 'Update the non-sensitive information of an order, like the public message',
-    deprecationReason: '2019-07-03: The public message is now stored at the Member level',
-    args: {
-      id: {
-        type: new GraphQLNonNull(GraphQLInt),
-        description: 'ID of the order to update',
-      },
-      publicMessage: {
-        type: GraphQLString,
-        description: 'Public message to motivate others to contribute',
-      },
-    },
-    resolve: async (_, args, req) => {
-      return updateOrderInfo(req, args);
     },
   },
   createUpdate: {
@@ -788,6 +784,17 @@ const mutations = {
     },
     resolve(_, args, req) {
       return deleteNotification(args, req.remoteUser);
+    },
+  },
+  backyourstackDispatchOrder: {
+    type: new GraphQLList(OrderType),
+    args: {
+      id: {
+        type: new GraphQLNonNull(GraphQLInt),
+      },
+    },
+    resolve(_, args) {
+      return backyourstackMutations.dispatchOrder(args.id);
     },
   },
 };

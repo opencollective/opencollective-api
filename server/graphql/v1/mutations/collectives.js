@@ -1,7 +1,8 @@
 import debug from 'debug';
 import slugify from 'limax';
-import { get, omit } from 'lodash';
+import { get, omit, truncate } from 'lodash';
 import { map } from 'bluebird';
+import config from 'config';
 
 import models, { Op } from '../../../models';
 import * as errors from '../../errors';
@@ -49,6 +50,7 @@ export async function createCollective(_, args, req) {
   }
 
   collectiveData.isActive = false;
+
   if (args.collective.ParentCollectiveId) {
     parentCollective = await req.loaders.collective.findById.load(args.collective.ParentCollectiveId);
     if (!parentCollective) {
@@ -59,6 +61,7 @@ export async function createCollective(_, args, req) {
     collectiveData.HostCollectiveId = parentCollective.HostCollectiveId;
     if (req.remoteUser.hasRole([roles.ADMIN, roles.HOST, roles.MEMBER], parentCollective.id)) {
       collectiveData.isActive = true;
+      collectiveData.approvedAt = new Date();
     }
   }
 
@@ -72,6 +75,7 @@ export async function createCollective(_, args, req) {
 
     if (collectiveData.type === 'EVENT' || req.remoteUser.hasRole([roles.ADMIN, roles.HOST], hostCollective.id)) {
       collectiveData.isActive = true;
+      // NOTE: events are not needing approvedAt
     } else if (!get(hostCollective, 'settings.apply')) {
       throw new errors.Unauthorized({
         message: 'This host does not accept applications for new collectives',
@@ -111,11 +115,14 @@ export async function createCollective(_, args, req) {
   }
 
   const promises = [
-    collective.editTiers(collectiveData.tiers),
     collective.addUserWithRole(req.remoteUser, roles.ADMIN, {
       CreatedByUserId: req.remoteUser.id,
     }),
   ];
+
+  if (collectiveData.tiers) {
+    promises.push(collective.editTiers(collectiveData.tiers));
+  }
 
   if (collectiveData.HostCollectiveId) {
     promises.push(collective.addHost(hostCollective, req.remoteUser));
@@ -202,7 +209,7 @@ export async function createCollectiveFromGithub(_, args, req) {
     const promises = [
       collective.addUserWithRole(user, roles.ADMIN),
       collective.addHost(host, user),
-      collective.update({ isActive: true }),
+      collective.update({ isActive: true, approvedAt: new Date() }),
     ];
 
     await Promise.all(promises);
@@ -234,18 +241,23 @@ export async function createCollectiveFromGithub(_, args, req) {
   if (githubHandle.includes('/')) {
     // A repository GitHub Handle (most common)
     const repo = await github.getRepo(githubHandle, githubAccount.token);
+
     const isGithubRepositoryAdmin = get(repo, 'permissions.admin') === true;
     if (!isGithubRepositoryAdmin) {
       throw new errors.ValidationFailed({
         message: "We could not verify that you're admin of the GitHub repository",
       });
+    } else if (repo.stargazers_count < config.githubFlow.minNbStars) {
+      throw new errors.ValidationFailed({
+        message: `The repository need at least ${config.githubFlow.minNbStars} stars to apply to the Open Source Collective.`,
+      });
     }
+
     collectiveData.tags = repo.topics || [];
     collectiveData.tags.push('open source');
-    collectiveData.description = repo.description;
-    collectiveData.settings = {
-      githubRepo: githubHandle,
-    };
+    collectiveData.description = truncate(repo.description, { length: 255 });
+    collectiveData.longDescription = repo.description;
+    collectiveData.settings = { githubRepo: githubHandle };
   } else {
     // An organization GitHub Handle
     const memberships = await github.getOrgMemberships(githubAccount.token);
@@ -257,9 +269,14 @@ export async function createCollectiveFromGithub(_, args, req) {
         message: "We could not verify that you're admin of the GitHub organization",
       });
     }
-    collectiveData.settings = {
-      githubOrg: githubHandle,
-    };
+    const allRepos = await github.getAllOrganizationPublicRepos(githubHandle).catch(() => null);
+    const repoWith100stars = allRepos.find(repo => repo.stargazers_count >= config.githubFlow.minNbStars);
+    if (!repoWith100stars) {
+      throw new errors.ValidationFailed({
+        message: `The organization need at least one repository with ${config.githubFlow.minNbStars} GitHub stars to be pledged.`,
+      });
+    }
+    collectiveData.settings = { githubOrg: githubHandle };
     // TODO: we sometime still wants to store the main repository
   }
 
@@ -278,7 +295,7 @@ export async function createCollectiveFromGithub(_, args, req) {
   const promises = [
     collective.addUserWithRole(user, roles.ADMIN),
     collective.addHost(host, user, { skipCollectiveApplyActivity: true }),
-    collective.update({ isActive: true }),
+    collective.update({ isActive: true, approvedAt: new Date() }),
   ];
 
   await Promise.all(promises);
@@ -412,6 +429,7 @@ export function editCollective(_, args, req) {
     .then(() =>
       collective.editMembers(args.collective.members, {
         CreatedByUserId: req.remoteUser.id,
+        remoteUserCollectiveId: req.remoteUser.CollectiveId,
       }),
     )
     .then(() => {
@@ -462,7 +480,7 @@ export async function approveCollective(remoteUser, CollectiveId) {
     },
   });
 
-  return collective.update({ isActive: true });
+  return collective.update({ isActive: true, approvedAt: new Date() });
 }
 
 export function deleteEventCollective(_, args, req) {
@@ -622,7 +640,19 @@ export async function archiveCollective(_, args, req) {
     throw new Error('Cannot archive collective with balance > 0');
   }
 
-  return collective.update({ isActive: false, deactivatedAt: Date.now() });
+  const membership = await models.Member.findOne({
+    where: {
+      CollectiveId: collective.id,
+      MemberCollectiveId: collective.HostCollectiveId,
+      role: roles.HOST,
+    },
+  });
+
+  if (membership) {
+    membership.destroy();
+  }
+
+  return collective.update({ isActive: false, deactivatedAt: Date.now(), approvedAt: null, HostCollectiveId: null });
 }
 
 export async function unarchiveCollective(_, args, req) {
@@ -645,7 +675,7 @@ export async function unarchiveCollective(_, args, req) {
     });
   }
 
-  return collective.update({ isActive: true, deactivatedAt: null });
+  return collective.update({ deactivatedAt: null });
 }
 
 export async function deleteCollective(_, args, req) {
@@ -794,18 +824,30 @@ export async function deleteUserCollective(_, args, req) {
     throw new Error('Can not delete user with paid expenses.');
   }
 
-  return models.Member.findAll({
+  const members = await models.Member.findAll({
     where: { MemberCollectiveId: userCollective.id },
-  })
-    .then(members => {
-      return map(
-        members,
-        member => {
-          return member.destroy();
-        },
-        { concurrency: 3 },
-      );
-    })
+    include: [{ model: models.Collective, as: 'collective' }],
+  });
+
+  const adminMembership = members.filter(m => m.role === roles.ADMIN);
+  if (adminMembership.length >= 1) {
+    for (const member of adminMembership) {
+      const admins = await member.collective.getAdmins();
+      if (admins.length === 1) {
+        throw new Error(
+          `Your account cannot be deleted, you're the only admin of ${member.collective.name}, please delete the collective or add a new admin.`,
+        );
+      }
+    }
+  }
+
+  return map(
+    members,
+    member => {
+      return member.destroy();
+    },
+    { concurrency: 3 },
+  )
     .then(() => debugDelete('deleteUserMemberships'))
     .then(async () => {
       const expenses = await models.Expense.findAll({ where: { UserId: user.id } });

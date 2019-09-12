@@ -8,7 +8,21 @@ import debugLib from 'debug';
 import fetch from 'isomorphic-fetch';
 import moment from 'moment';
 import * as ics from 'ics';
-import { get, difference, uniqBy, pick, pickBy, sumBy, keys, omit, defaults, includes, isNull } from 'lodash';
+import {
+  get,
+  difference,
+  differenceBy,
+  uniqBy,
+  pick,
+  pickBy,
+  sumBy,
+  keys,
+  omit,
+  defaults,
+  includes,
+  isNull,
+} from 'lodash';
+import uuid from 'uuid/v4';
 import { isISO31661Alpha2 } from 'validator';
 import { Op } from 'sequelize';
 
@@ -18,8 +32,12 @@ import logger from '../lib/logger';
 import userlib from '../lib/userlib';
 import emailLib from '../lib/email';
 import queries from '../lib/queries';
-import { convertToCurrency } from '../lib/currency';
-import { isBlacklistedCollectiveSlug, collectiveSlugBlacklist } from '../lib/collectivelib';
+import {
+  isBlacklistedCollectiveSlug,
+  collectiveSlugBlacklist,
+  whitelistSettings,
+  validateSettings,
+} from '../lib/collectivelib';
 import { capitalize, flattenArray, getDomain, formatCurrency, cleanTags, md5, strip_tags } from '../lib/utils';
 
 import roles from '../constants/roles';
@@ -27,6 +45,7 @@ import activities from '../constants/activities';
 import { HOST_FEE_PERCENT } from '../constants/transactions';
 import { types } from '../constants/collectives';
 import expenseStatus from '../constants/expense_status';
+import expenseTypes from '../constants/expense_type';
 
 const debug = debugLib('collective');
 const debugcollectiveImage = debugLib('collectiveImage');
@@ -284,6 +303,17 @@ export default function(Sequelize, DataTypes) {
 
       settings: {
         type: DataTypes.JSON,
+        set(value) {
+          this.setDataValue('settings', whitelistSettings(value));
+        },
+        validate: {
+          validate(settings) {
+            const error = validateSettings(settings);
+            if (error) {
+              throw new Error(error);
+            }
+          },
+        },
       },
 
       isPledged: {
@@ -322,6 +352,15 @@ export default function(Sequelize, DataTypes) {
       isActive: {
         type: DataTypes.BOOLEAN,
         defaultValue: false,
+      },
+
+      isIncognito: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+      },
+
+      approvedAt: {
+        type: DataTypes.DATE,
       },
 
       twitterHandle: {
@@ -390,6 +429,12 @@ export default function(Sequelize, DataTypes) {
         get() {
           return `${config.host.website}/${this.get('slug')}`;
         },
+      },
+
+      inTheContextOfCollectiveId: {
+        type: new DataTypes.VIRTUAL(DataTypes.STRING),
+        description:
+          'Variable to keep track of the Parent Collective Id when traversing the graph of collective relationships. This is needed to know if the current logged in user can access the createdByUser of the collective.',
       },
 
       tags: {
@@ -535,6 +580,7 @@ export default function(Sequelize, DataTypes) {
             name: this.name,
             company: this.company,
             website: this.website,
+            isIncognito: this.isIncognito,
             twitterHandle: this.twitterHandle,
             githubHandle: this.githubHandle,
             description: this.description,
@@ -562,14 +608,20 @@ export default function(Sequelize, DataTypes) {
       hooks: {
         beforeValidate: instance => {
           if (instance.slug) return Promise.resolve();
-
-          const potentialSlugs = [
-            instance.slug,
-            instance.image ? userlib.getUsernameFromGithubURL(instance.image) : null,
-            instance.twitterHandle ? instance.twitterHandle.replace(/@/g, '') : null,
-            instance.name ? instance.name.replace(/ /g, '-') : null,
-          ];
-          return Collective.generateSlug(potentialSlugs).then(slug => {
+          let potentialSlugs,
+            useSlugify = true;
+          if (instance.isIncognito) {
+            useSlugify = false;
+            potentialSlugs = [`incognito-${uuid().split('-')[0]}`];
+          } else {
+            potentialSlugs = [
+              instance.slug,
+              instance.image ? userlib.getUsernameFromGithubURL(instance.image) : null,
+              instance.twitterHandle ? instance.twitterHandle.replace(/@/g, '') : null,
+              instance.name ? instance.name.replace(/ /g, '-') : null,
+            ];
+          }
+          return Collective.generateSlug(potentialSlugs, useSlugify).then(slug => {
             if (!slug) {
               return Promise.reject(
                 new Error("We couldn't generate a unique slug for this collective", potentialSlugs),
@@ -746,7 +798,7 @@ export default function(Sequelize, DataTypes) {
     }
 
     if (this.type === 'USER') {
-      if (user && user.email && this.name && this.name !== 'anonymous') {
+      if (user && user.email && this.name && this.name !== 'incognito') {
         const emailHash = md5(user.email.toLowerCase().trim());
         const avatar = `https://www.gravatar.com/avatar/${emailHash}?default=404`;
         return this.checkAndUpdateImage(avatar);
@@ -778,6 +830,7 @@ export default function(Sequelize, DataTypes) {
   };
 
   // run when attaching a Stripe Account to this user/organization collective
+  // this Payment Method will be used for "Add Funds"
   Collective.prototype.becomeHost = function() {
     this.data = this.data || {};
     return models.PaymentMethod.findOne({
@@ -788,7 +841,7 @@ export default function(Sequelize, DataTypes) {
         CollectiveId: this.id,
         service: 'opencollective',
         type: 'collective',
-        name: `${capitalize(this.name)} Collective`,
+        name: `${capitalize(this.name)} Add Funds`,
         primary: true,
         currency: this.currency,
       });
@@ -1246,11 +1299,7 @@ export default function(Sequelize, DataTypes) {
                   FromCollectiveId: member.MemberCollectiveId,
                   // status: { [Op.in]: ['ACTIVE', 'PAID'] },
                 },
-                include: [
-                  { model: models.Tier },
-                  { model: models.Subscription },
-                  { model: models.Collective, as: 'referral' },
-                ],
+                include: [{ model: models.Tier }, { model: models.Subscription }],
                 order: [['createdAt', 'DESC']],
               },
               sequelizeParams,
@@ -1271,9 +1320,6 @@ export default function(Sequelize, DataTypes) {
                 },
               },
             };
-            if (order && order.referral) {
-              data.order.referral = order.referral.minimal;
-            }
             return models.Activity.create(
               {
                 CollectiveId: this.id,
@@ -1388,17 +1434,21 @@ export default function(Sequelize, DataTypes) {
     };
 
     let isActive = false;
+    let approvedAt = null;
     if (creatorUser.isAdmin) {
       if (this.ParentCollectiveId && creatorUser.isAdmin(this.ParentCollectiveId)) {
         isActive = true;
+        approvedAt = new Date();
       } else if (creatorUser.isAdmin(hostCollective.id)) {
         isActive = true;
+        approvedAt = new Date();
       }
     }
     const updatedValues = {
       HostCollectiveId: hostCollective.id,
       hostFeePercent: hostCollective.hostFeePercent,
       isActive,
+      approvedAt,
     };
 
     // events should take the currency of their parent collective, not necessarily the host of their host.
@@ -1529,7 +1579,8 @@ export default function(Sequelize, DataTypes) {
       membership.destroy();
     }
     this.HostCollectiveId = null;
-    this.isActive = false; // we should rename isActive to isApproved (by the host)
+    this.isActive = false;
+    this.approvedAt = null;
     if (newHostCollectiveId) {
       const newHostCollective = await models.Collective.findByPk(newHostCollectiveId);
       if (!newHostCollective) {
@@ -1545,18 +1596,31 @@ export default function(Sequelize, DataTypes) {
   // edit the list of members and admins of this collective (create/update/remove)
   // creates a User and a UserCollective if needed
   Collective.prototype.editMembers = function(members, defaultAttributes = {}) {
-    if (!members) return Promise.resolve();
+    if (!members || members.length === 0) {
+      return Promise.resolve();
+    }
+    if (members.filter(m => m.role === roles.ADMIN).length === 0) {
+      throw new Error('There must always be at least one collective admin');
+    }
     return this.getMembers({
       where: { role: { [Op.in]: [roles.ADMIN, roles.MEMBER] } },
     })
       .then(oldMembers => {
         // remove the members that are not present anymore
-        const diff = difference(oldMembers.map(t => t.id), members.map(t => t.id));
+        const diff = differenceBy(oldMembers, members, 'id');
         if (diff.length === 0) {
           return null;
         } else {
           debug('editMembers', 'delete', diff);
-          return models.Member.update({ deletedAt: new Date() }, { where: { id: { [Op.in]: diff } } });
+          const diffMemberIds = diff.map(m => m.id);
+          const diffMemberCollectiveIds = diff.map(m => m.MemberCollectiveId);
+          const { remoteUserCollectiveId } = defaultAttributes;
+          if (remoteUserCollectiveId && diffMemberCollectiveIds.indexOf(remoteUserCollectiveId) !== -1) {
+            throw new Error(
+              'You cannot remove yourself as a Collective admin. If you are the only admin, please add a new one and ask them to remove you.',
+            );
+          }
+          return models.Member.update({ deletedAt: new Date() }, { where: { id: { [Op.in]: diffMemberIds } } });
         }
       })
       .then(() => {
@@ -1628,7 +1692,36 @@ export default function(Sequelize, DataTypes) {
       .then(() => this.getTiers());
   };
 
-  Collective.prototype.getExpenses = function(status, startDate, endDate = new Date(), createdByUserId) {
+  // Where `this` collective is a type == ORGANIZATION collective.
+  Collective.prototype.getExpensesForHost = function(
+    status,
+    startDate,
+    endDate = new Date(),
+    createdByUserId,
+    excludedTypes,
+  ) {
+    const where = {
+      createdAt: { [Op.lt]: endDate },
+    };
+    if (status) where.status = status;
+    if (startDate) where.createdAt[Op.gte] = startDate;
+    if (createdByUserId) where.UserId = createdByUserId;
+    if (excludedTypes) where.type = { [Op.or]: [{ [Op.eq]: null }, { [Op.notIn]: excludedTypes }] };
+
+    return models.Expense.findAll({
+      where,
+      order: [['createdAt', 'DESC']],
+      include: [
+        {
+          model: models.Collective,
+          as: 'collective',
+          where: { HostCollectiveId: this.id },
+        },
+      ],
+    });
+  };
+
+  Collective.prototype.getExpenses = function(status, startDate, endDate = new Date(), createdByUserId, excludedTypes) {
     const where = {
       createdAt: { [Op.lt]: endDate },
       CollectiveId: this.id,
@@ -1636,6 +1729,7 @@ export default function(Sequelize, DataTypes) {
     if (status) where.status = status;
     if (startDate) where.createdAt[Op.gte] = startDate;
     if (createdByUserId) where.UserId = createdByUserId;
+    if (excludedTypes) where.type = { [Op.or]: [{ [Op.eq]: null }, { [Op.notIn]: excludedTypes }] };
 
     return models.Expense.findAll({
       where,
@@ -1659,13 +1753,6 @@ export default function(Sequelize, DataTypes) {
 
   Collective.prototype.getTopExpenseCategories = function(startDate, endDate) {
     return queries.getTopExpenseCategories(this.id, {
-      since: startDate,
-      until: endDate,
-    });
-  };
-
-  Collective.prototype.getTopVendors = function(startDate, endDate) {
-    return queries.getTopVendorsForCollective(this.id, {
       since: startDate,
       until: endDate,
     });
@@ -1722,6 +1809,7 @@ export default function(Sequelize, DataTypes) {
         LEFT JOIN "Orders" d ON d.id = t."OrderId"
         LEFT JOIN "Subscriptions" s ON s.id = d."SubscriptionId"
         WHERE t."CollectiveId"=:CollectiveId
+          AND t."RefundTransactionId" IS NULL
           AND s."isActive" IS TRUE
           AND s.interval = 'month'
           AND s."deletedAt" IS NULL
@@ -1735,6 +1823,7 @@ export default function(Sequelize, DataTypes) {
           LEFT JOIN "Orders" d ON t."OrderId" = d.id
           LEFT JOIN "Subscriptions" s ON d."SubscriptionId" = s.id
           WHERE t."CollectiveId" = :CollectiveId
+            AND t."RefundTransactionId" IS NULL
             AND t.type = 'CREDIT'
             AND t."deletedAt" IS NULL
             AND t."createdAt" > (current_date - INTERVAL '12 months')
@@ -1745,6 +1834,7 @@ export default function(Sequelize, DataTypes) {
           LEFT JOIN "Orders" d ON t."OrderId" = d.id
           LEFT JOIN "Subscriptions" s ON d."SubscriptionId" = s.id
           WHERE t."CollectiveId" = :CollectiveId
+            AND t."RefundTransactionId" IS NULL
             AND t.type = 'CREDIT'
             AND t."deletedAt" IS NULL
             AND t."createdAt" > (current_date - INTERVAL '12 months')
@@ -1804,29 +1894,6 @@ export default function(Sequelize, DataTypes) {
         limit: 1,
       })
       .then(res => res.collectives[0] && res.collectives[0].dataValues.monthlySpending);
-  };
-
-  // Get the total amount raised through referral
-  Collective.prototype.getTotalAmountRaised = function() {
-    return models.Order.findAll({
-      attributes: [
-        [Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('totalAmount')), 0), 'total'],
-        [Sequelize.fn('MAX', Sequelize.col('createdAt')), 'createdAt'],
-        [Sequelize.fn('MAX', Sequelize.col('currency')), 'currency'],
-      ],
-      where: {
-        ReferralCollectiveId: this.id,
-        status: 'PAID',
-      },
-      group: ['currency'],
-    })
-      .then(rows => rows.map(r => r.dataValues))
-      .then(amounts => Promise.map(amounts, s => convertToCurrency(s.total, s.currency, this.currency, s.createdAt)))
-      .then(amounts => {
-        let total = 0;
-        amounts.map(a => (total += a));
-        return Math.round(total);
-      });
   };
 
   /**
@@ -2061,10 +2128,19 @@ export default function(Sequelize, DataTypes) {
   };
 
   Collective.prototype.getImageUrl = function(args = {}) {
-    const imageType = this.type === 'USER' ? 'avatar' : 'logo';
-    const imageHeight = args.height ? `/${args.height}` : '';
-    const imageFormat = args.format || 'png';
-    return `${config.host.images}/${this.slug}/${imageType}${imageHeight}.${imageFormat}`;
+    const sections = [config.host.images, this.slug];
+
+    if (this.image) {
+      sections.push(md5(this.image).substring(0, 7));
+    }
+
+    sections.push(this.type === 'USER' ? 'avatar' : 'logo');
+
+    if (args.height) {
+      sections.push(args.height);
+    }
+
+    return `${sections.join('/')}.${args.format || 'png'}`;
   };
 
   Collective.prototype.getBackgroundImageUrl = function(args = {}) {
@@ -2122,7 +2198,9 @@ export default function(Sequelize, DataTypes) {
     const since = moment({ year });
     const until = moment({ year }).add(1, 'y');
     const status = [PENDING, APPROVED, PAID];
-    const expenses = await this.getExpenses(status, since, until, UserId);
+    const excludedTypes = [expenseTypes.RECEIPT];
+
+    const expenses = await this.getExpensesForHost(status, since, until, UserId, excludedTypes);
 
     const userTotal = sumBy(expenses, 'amount');
 
@@ -2134,7 +2212,8 @@ export default function(Sequelize, DataTypes) {
     const since = moment({ year });
     const until = moment({ year }).add(1, 'y');
     const status = [PENDING, APPROVED, PAID];
-    const expenses = await this.getExpenses(status, since, until);
+    const excludedTypes = [expenseTypes.RECEIPT];
+    const expenses = await this.getExpensesForHost(status, since, until, null, excludedTypes);
 
     const userTotals = expenses.reduce((totals, expense) => {
       const { UserId } = expense;
@@ -2168,7 +2247,7 @@ export default function(Sequelize, DataTypes) {
    * If there is a username suggested, we'll check that it's valid or increase it's count
    * Otherwise, we'll suggest something.
    */
-  Collective.generateSlug = suggestions => {
+  Collective.generateSlug = (suggestions, useSlugify = true) => {
     /*
      * Checks a given slug in a list and if found, increments count and recursively checks again
      */
@@ -2181,9 +2260,11 @@ export default function(Sequelize, DataTypes) {
       }
     };
 
-    suggestions = suggestions
-      .filter(slug => (slug ? true : false)) // filter out any nulls
-      .map(slug => slugify(slug)); // Will also trim, lowercase and remove + signs
+    suggestions = suggestions.filter(slug => (slug ? true : false)); // filter out any nulls
+
+    if (useSlugify) {
+      suggestions = suggestions.map(slug => slugify(slug)); // Will also trim, lowercase and remove + signs
+    }
 
     // fetch any matching slugs or slugs for the top choice in the list above
     return Sequelize.query(
@@ -2298,6 +2379,8 @@ export default function(Sequelize, DataTypes) {
     Collective.hasMany(m.Tier, { as: 'tiers' });
     Collective.hasMany(m.LegalDocument);
     Collective.hasMany(m.RequiredLegalDocument, { foreignKey: 'HostCollectiveId' });
+    Collective.hasMany(m.Collective, { as: 'hostedCollectives', foreignKey: 'HostCollectiveId' });
+    Collective.belongsTo(m.Collective, { as: 'HostCollective' });
   };
 
   Historical(Collective, Sequelize);

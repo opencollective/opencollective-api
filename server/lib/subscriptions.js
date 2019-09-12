@@ -11,7 +11,7 @@ import { getRecommendedCollectives } from './data';
 import status from '../constants/order_status';
 
 /** Maximum number of attempts before an order gets cancelled. */
-export const MAX_RETRIES = 3;
+export const MAX_RETRIES = 5;
 
 /** Find all orders with subscriptions that are active & due.
  *
@@ -69,9 +69,11 @@ export async function processOrderWithSubscription(options, order) {
     nextPeriodStartAfter: null,
   };
 
-  let orderProcessedStatus = 'unattempted',
-    collectiveIsArchived = false,
-    transaction;
+  let orderProcessedStatus = 'unattempted';
+  let collectiveIsArchived = false;
+  let creditCardNeedsConfirmation = false;
+  let transaction;
+
   if (!options.dryRun) {
     if (hasReachedQuantity(order)) {
       orderProcessedStatus = 'failure';
@@ -88,16 +90,26 @@ export async function processOrderWithSubscription(options, order) {
         transaction = await paymentsLib.processOrder(order);
         orderProcessedStatus = 'success';
       } catch (error) {
+        if (error.stripeResponse && error.stripeResponse.paymentIntent) {
+          creditCardNeedsConfirmation = true;
+        }
         orderProcessedStatus = 'failure';
         csvEntry.error = error.message;
+        order.status = status.ERROR;
+        order.data = order.data || {};
+        order.data.latestError = error.message;
       }
+
+      order.Subscription.chargeRetryCount = getChargeRetryCount(orderProcessedStatus, order);
       order.Subscription = Object.assign(
         order.Subscription,
         getNextChargeAndPeriodStartDates(orderProcessedStatus, order),
       );
-      order.Subscription.chargeRetryCount = getChargeRetryCount(orderProcessedStatus, order);
-      if (orderProcessedStatus === 'success' && order.Subscription.chargeNumber !== null) {
-        order.Subscription.chargeNumber += 1;
+
+      if (orderProcessedStatus === 'success') {
+        if (order.Subscription.chargeNumber !== null) {
+          order.Subscription.chargeNumber += 1;
+        }
         order.status = status.ACTIVE;
       }
     }
@@ -110,7 +122,13 @@ export async function processOrderWithSubscription(options, order) {
 
   if (!options.dryRun) {
     try {
-      await handleRetryStatus(order, transaction, collectiveIsArchived);
+      if (collectiveIsArchived) {
+        await sendArchivedCollectiveEmail(order);
+      } else if (creditCardNeedsConfirmation) {
+        await sendCreditCardConfirmationEmail(order);
+      } else {
+        await handleRetryStatus(order, transaction);
+      }
     } catch (error) {
       console.log(`Error notifying order #${order.id} ${error}`);
     } finally {
@@ -143,12 +161,7 @@ function dateFormat(date) {
  *   3. WARN_USER: The last attempt failed. Warn user about the
  *      failure and allow them to update the payment method.
  */
-export async function handleRetryStatus(order, transaction, collectiveIsArchived) {
-  if (collectiveIsArchived) {
-    await notifyUserForArchivedCollective(order);
-    return;
-  }
-
+export async function handleRetryStatus(order, transaction) {
   switch (order.Subscription.chargeRetryCount) {
     case 0:
       await sendThankYouEmail(order, transaction);
@@ -189,7 +202,11 @@ export function getNextChargeAndPeriodStartDates(status, order) {
     }
     response.nextPeriodStart = nextChargeDate.toDate();
   } else if (status === 'failure') {
-    nextChargeDate = moment(new Date()).add(2, 'days');
+    if (order.Subscription.chargeRetryCount >= 2) {
+      nextChargeDate = moment(new Date()).add(5, 'days');
+    } else {
+      nextChargeDate = moment(new Date()).add(2, 'days');
+    }
   } else if (status === 'updated') {
     // used when user updates payment method
     nextChargeDate = moment(new Date()); // sets next charge date to now
@@ -266,7 +283,7 @@ export async function cancelSubscriptionAndNotifyUser(order) {
 }
 
 /** Send `archived.collective` email */
-export async function notifyUserForArchivedCollective(order) {
+export async function sendArchivedCollectiveEmail(order) {
   const user = order.createdByUser;
   return emailLib.send(
     'archived.collective',
@@ -322,6 +339,23 @@ export async function sendThankYouEmail(order, transaction) {
       config: { host: config.host },
       interval: order.Subscription.interval,
       subscriptionsLink: `${config.host.website}/${order.fromCollective.slug}/subscriptions`,
+    },
+    {
+      from: `${order.collective.name} <hello@${order.collective.slug}.opencollective.com>`,
+    },
+  );
+}
+
+export async function sendCreditCardConfirmationEmail(order) {
+  const user = order.createdByUser;
+  return emailLib.send(
+    'payment.creditcard.confirmation',
+    user.email,
+    {
+      order: order.info,
+      collective: order.collective.info,
+      fromCollective: order.fromCollective.minimal,
+      confirmOrderLink: `${config.host.website}/orders/${order.id}/confirm`,
     },
     {
       from: `${order.collective.name} <hello@${order.collective.slug}.opencollective.com>`,

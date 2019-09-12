@@ -29,6 +29,7 @@
       "apiKey": "API_KEY",
       "sessionSecret": "SESSION_SECRET",
       "jwtSecret": "JWT_SECRET",
+      "emailUnsubscribeSecret": "EMAIL_UNSUBSCRIBE_SECRET",
       "hashidSalt": "HASHID_SALT"
     }
   },
@@ -128,16 +129,17 @@
     "siteKey": "RECAPTCHA_SITE_KEY",
     "secretKey": "RECAPTCHA_SECRET_KEY"
   },
-  "ledger": {
-    "url": "LEDGER_URL",
-    "transactionUrl": "LEDGER_TRANSACTION_URL"
-  },
-  "ledgerQueue": {
-    "url": "LEDGER_QUEUE_URL",
-    "transactionQueue": "TRANSACTION_QUEUE_NAME"
-  },
   "helloworks": {
     "key": "HELLO_WORKS_KEY",
-    "secret": "HELLO_WORKS_SECRET"
+    "secret": "HELLO_WORKS_SECRET",
+    "documentEncryptionKey": "HELLO_WORKS_DOCUMENT_ENCRYPTION_KEY",
+    "aws": {
+      "s3": {
+        "bucket": "HELLO_WORKS_AWS_S3_BUCKET"
+      }
+    }
+  },
+  "githubFlow": {
+    "minNbStars": "GITHUB_FLOW_MIN_NB_STARS"
   }
 }
