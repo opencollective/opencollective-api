@@ -2,15 +2,17 @@ import models, { sequelize, Op } from '../models';
 import { getListOfAccessibleMembers } from '../lib/auth';
 import { TransactionTypes } from '../constants/transactions';
 import DataLoader from 'dataloader';
-import dataloaderSequelize from 'dataloader-sequelize';
+import {createContext, EXPECTED_OPTIONS_KEY} from 'dataloader-sequelize';
 import { get, groupBy } from 'lodash';
 import debugLib from 'debug';
 import { types as CollectiveType } from '../constants/collectives';
 
-dataloaderSequelize(models.Order);
-dataloaderSequelize(models.Transaction);
-dataloaderSequelize(models.Collective);
-dataloaderSequelize(models.Expense);
+const context = createContext(sequelize);
+
+['Order', 'Transaction', 'Collective', 'Expense'].forEach(async (element) =>{
+  context.prime(await models[element].findAll());
+});
+
 
 const debug = debugLib('loaders');
 
