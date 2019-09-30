@@ -77,7 +77,8 @@ export const AccountStats = new GraphQLObjectType({
         resolve(collective) {
           // If the current collective is a host, we aggregate the yearly budget across all the hosted collectives
           if (collective.id === collective.HostCollectiveId) {
-            return queries.getTotalAnnualBudgetForHost(collective.id);
+            return req.loaders.collective.annualBudgetForHost.load(collective.id)
+            // return queries.getTotalAnnualBudgetForHost(collective.id);
           }
           return {
             value: collective.getYearlyIncome(),

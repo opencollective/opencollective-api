@@ -72,6 +72,64 @@ export const loaders = req => {
           return sortResults(parentIds, collectives, 'ParentCollectiveId', []);
         });
       }),
+
+
+      annualBudgetForHost: new DataLoader(ids => {
+        return sequelize
+        .query(
+          `
+          WITH
+          "collectiveids" AS (
+            SELECT id FROM "Collectives" WHERE "HostCollectiveId"=:HostCollectiveId AND "isActive"=true
+          ),
+          "monthlyOrdersWithAmountInHostCurrency" AS (
+            SELECT o.id, MAX(o."CollectiveId") as "CollectiveId", MAX(t.currency) AS currency, MAX(t."amountInHostCurrency") as "amountInHostCurrency"
+            FROM "Orders" o
+            LEFT JOIN "Subscriptions" s ON o."SubscriptionId" = s.id
+            LEFT JOIN "Transactions" t ON t."OrderId" = o.id
+            WHERE s.interval = 'month' AND s."isActive" = true
+            AND o."CollectiveId" IN (SELECT id FROM collectiveids)
+            AND s."deletedAt" IS NULL
+            GROUP BY o.id
+          ),
+          "yearlyAndOneTimeOrdersWithAmountInHostCurrency" AS (
+            SELECT o.id, MAX(o."CollectiveId") as "CollectiveId", MAX(t.currency) AS currency, MAX(t."amountInHostCurrency") as "amountInHostCurrency"
+            FROM "Orders" o
+            LEFT JOIN "Subscriptions" s ON o."SubscriptionId" = s.id
+            LEFT JOIN "Transactions" t ON t."OrderId" = o.id
+            WHERE ((s.interval = 'year' AND s."isActive" = true) OR s.interval IS NULL)
+            AND o."CollectiveId" IN (SELECT id FROM collectiveids)
+            AND s."deletedAt" IS NULL
+            AND t."createdAt" > (current_date - INTERVAL '12 months')
+            GROUP BY o.id
+          )
+
+          SELECT
+          ( SELECT COALESCE(SUM("amountInHostCurrency") * 12, 0) FROM "monthlyOrdersWithAmountInHostCurrency" t )
+          +
+          ( SELECT COALESCE(SUM("amountInHostCurrency"), 0) FROM "yearlyAndOneTimeOrdersWithAmountInHostCurrency" t )
+          +
+          (SELECT
+            COALESCE(SUM("amountInHostCurrency"),0) FROM "Transactions" t
+            LEFT JOIN "Orders" o on t."OrderId" = o.id
+            LEFT JOIN "Subscriptions" s ON o."SubscriptionId" = s.id
+            WHERE t.type='CREDIT' AND t."CollectiveId" IN (SELECT id FROM collectiveids)
+            AND t."deletedAt" IS NULL
+            AND t."createdAt" > (current_date - INTERVAL '12 months')
+            AND s.interval = 'month' AND s."isActive" IS FALSE AND s."deletedAt" IS NULL)
+            "yearlyIncome"
+            `,
+
+            {
+              replacements: { HostCollectiveId },
+              type: sequelize.QueryTypes.SELECT,
+            },
+          )
+          .then(results => Math.round(parseInt(results[0].yearlyIncome, 10)))
+          .then(results => sortResults(ids, results, 'HostCollectiveId'))
+        }),
+
+
       balance: new DataLoader(ids =>
         models.Transaction.findAll({
           attributes: [
