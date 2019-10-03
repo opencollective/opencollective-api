@@ -87,7 +87,6 @@ export async function createCollective(_, args, req) {
   // we force the slug to be of the form of `${slug}-${ParentCollectiveId}${collective.type.substr(0,2)}`
   const slug = slugify(args.collective.slug || args.collective.name);
   if (collectiveData.ParentCollectiveId) {
-    collectiveData.slug = `${slug}-${parentCollective.id}${collectiveData.type.substr(0, 2)}`.toLowerCase();
     const canCreateEvent = req.remoteUser.hasRole(['ADMIN', 'HOST', 'BACKER'], parentCollective.id);
     if (!canCreateEvent) {
       throw new errors.Unauthorized({
@@ -376,12 +375,6 @@ export function editCollective(_, args, req) {
       }
     })
     .then(() => {
-      if (args.collective.slug && collective.type === 'EVENT') {
-        // To ensure uniqueness of the slug, if the type of collective is not COLLECTIVE (e.g. EVENT)
-        // we force the slug to be of the form of `${slug}-${ParentCollectiveId}${collective.type.substr(0,2)}`
-        const slug = slugify(args.collective.slug.replace(/(\-[0-9]+[a-z]{2})$/i, '') || args.collective.name);
-        newCollectiveData.slug = `${slug}-${parentCollective.id}${collective.type.substr(0, 2)}`.toLowerCase();
-      }
       if (collective.type === 'EVENT') {
         return req.remoteUser.isAdmin(collective.id) || req.remoteUser.isAdmin(parentCollective.id);
       } else {
