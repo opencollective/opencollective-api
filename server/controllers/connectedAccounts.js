@@ -6,6 +6,7 @@ import models, { Op } from '../models';
 import errors from '../lib/errors';
 import paymentProviders from '../paymentProviders';
 import * as github from '../lib/github';
+import { mustBeLoggedInTo } from '../lib/auth';
 
 const { ConnectedAccount, User } = models;
 
@@ -136,18 +137,30 @@ export const disconnect = async (req, res) => {
   const { remoteUser } = req;
 
   try {
+    mustBeLoggedInTo(remoteUser, 'disconnect this connected account');
+
+    if (!remoteUser.isAdmin(CollectiveId)) {
+      throw new errors.Unauthorized({
+        message: 'You are either logged out or not authorized to disconnect this account',
+      });
+    }
+
     const account = await ConnectedAccount.findOne({
       where: { service, CollectiveId },
     });
 
-    await account.delete(remoteUser);
+    await account.delete();
 
     res.send({
       deleted: true,
       service,
     });
   } catch (err) {
-    res.send(err);
+    res.send({
+      error: {
+        message: err.message,
+      },
+    });
   }
 };
 

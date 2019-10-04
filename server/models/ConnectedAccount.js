@@ -1,8 +1,5 @@
 import config from 'config';
 
-import { mustBeLoggedInTo } from '../lib/auth';
-
-import * as errors from '../graphql/errors';
 /**
  * Model.
  */
@@ -75,13 +72,7 @@ export default (Sequelize, DataTypes) => {
     });
   };
 
-  ConnectedAccount.prototype.delete = async function(remoteUser) {
-    mustBeLoggedInTo(remoteUser, 'disconnect this connected account');
-    if (remoteUser.id !== this.CreatedByUserId || !remoteUser.isAdmin(this.CollectiveId)) {
-      throw new errors.Unauthorized({
-        message: 'You are either logged out or not authorized to disconnect this account',
-      });
-    }
+  ConnectedAccount.prototype.delete = async function() {
     return this.destroy();
   };
 
