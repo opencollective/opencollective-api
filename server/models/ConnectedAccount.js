@@ -2,6 +2,7 @@ import config from 'config';
 
 import { mustBeLoggedInTo } from '../lib/auth';
 
+import * as errors from '../graphql/errors';
 /**
  * Model.
  */
