@@ -72,9 +72,5 @@ export default (Sequelize, DataTypes) => {
     });
   };
 
-  ConnectedAccount.prototype.delete = async function() {
-    return this.destroy();
-  };
-
   return ConnectedAccount;
 };

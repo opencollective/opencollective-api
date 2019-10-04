@@ -149,7 +149,9 @@ export const disconnect = async (req, res) => {
       where: { service, CollectiveId },
     });
 
-    await account.delete();
+    if (account) {
+      await account.destroy();
+    }
 
     res.send({
       deleted: true,
