@@ -67,7 +67,7 @@ export function strip_tags(str, allowedTags) {
       img: ['src'],
       iframe: ['src'],
     },
-    allowedIframeHostnames: ['www.youtube.com'],
+    allowedIframeHostnames: ['www.youtube.com', 'www.youtube-nocookie.com'],
   });
 }
 
