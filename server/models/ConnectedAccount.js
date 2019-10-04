@@ -1,5 +1,7 @@
 import config from 'config';
 
+import { mustBeLoggedInTo } from '../lib/auth';
+
 /**
  * Model.
  */
@@ -70,6 +72,16 @@ export default (Sequelize, DataTypes) => {
       foreignKey: 'CollectiveId',
       as: 'collective',
     });
+  };
+
+  ConnectedAccount.prototype.delete = async function(remoteUser) {
+    mustBeLoggedInTo(remoteUser, 'disconnect this connected account');
+    if (remoteUser.id !== this.CreatedByUserId || !remoteUser.isAdmin(this.CollectiveId)) {
+      throw new errors.Unauthorized({
+        message: 'You are either logged out or not authorized to disconnect this account',
+      });
+    }
+    return this.destroy();
   };
 
   return ConnectedAccount;

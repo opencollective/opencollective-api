@@ -131,6 +131,26 @@ export const createOrUpdate = (req, res, next, accessToken, data, emails) => {
   }
 };
 
+export const disconnect = async (req, res) => {
+  const { collectiveId: CollectiveId, service } = req.params;
+  const { remoteUser } = req;
+
+  try {
+    const Account = await ConnectedAccount.findOne({
+      where: { service, CollectiveId },
+    });
+
+    await Account.delete(remoteUser);
+
+    res.send({
+      deleted: true,
+      service,
+    });
+  } catch (err) {
+    res.send(err);
+  }
+};
+
 export const verify = (req, res, next) => {
   const payload = req.jwtPayload;
   const service = req.params.service;
