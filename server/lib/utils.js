@@ -65,7 +65,7 @@ export function strip_tags(str, allowedTags) {
     allowedAttributes: {
       a: ['href', 'name', 'target'],
       img: ['src'],
-      iframe: ['src'],
+      iframe: ['src', 'allowfullscreen'],
     },
     allowedIframeHostnames: ['www.youtube.com', 'www.youtube-nocookie.com'],
   });
