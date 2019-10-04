@@ -136,11 +136,11 @@ export const disconnect = async (req, res) => {
   const { remoteUser } = req;
 
   try {
-    const Account = await ConnectedAccount.findOne({
+    const account = await ConnectedAccount.findOne({
       where: { service, CollectiveId },
     });
 
-    await Account.delete(remoteUser);
+    await account.delete(remoteUser);
 
     res.send({
       deleted: true,
