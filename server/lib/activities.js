@@ -1,6 +1,6 @@
 import activities from '../constants/activities';
 import flatten from 'flat';
-import currencies from '../constants/currencies';
+import { formatCurrency } from './currency';
 import { TransactionTypes } from '../constants/transactions';
 
 export default {
@@ -227,8 +227,11 @@ export default {
         switch (activity.data.transaction.type) {
           case TransactionTypes.CREDIT:
             if (userTwitter) {
+              // let fxRate = ''
+              // currencylib.convertToCurrency(1, 'USD', currency)
+              //   .then(amount => fxRate += amount);
               tweet = encodeURIComponent(
-                `@${userTwitter} thanks for your ${currencies[currency].format(recurringAmount)} donation to ${
+                `@${userTwitter} thanks for your ${formatCurrency(currency)(recurringAmount)} donation to ${
                   collectiveTwitter ? `@${collectiveTwitter}` : collectiveName
                 } 👍 ${publicUrl}`,
               );
@@ -262,7 +265,7 @@ export default {
       case activities.SUBSCRIPTION_CONFIRMED:
         if (userTwitter) {
           tweet = encodeURIComponent(
-            `@${userTwitter} thanks for your ${currencies[currency].format(recurringAmount)} donation to ${
+            `@${userTwitter} thanks for your ${formatCurrency(currency)(recurringAmount)} donation to ${
               collectiveTwitter ? `@${collectiveTwitter}` : collectiveName
             } 👍 ${publicUrl}`,
           );

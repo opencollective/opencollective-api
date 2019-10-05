@@ -3,7 +3,7 @@ import config from 'config';
 import { get, pick } from 'lodash';
 
 import { memoize } from './cache';
-import currencies from '../constants/currencies';
+import { convertToCurrency } from './currency';
 import models, { sequelize, Op } from '../models';
 
 const twoHoursInSeconds = 2 * 60 * 60;
@@ -20,17 +20,10 @@ const generateFXConversionSQL = aggregate => {
     amountColumn = 'SUM("t."netAmountInCollectiveCurrency"")';
   }
 
-  const fxConversion = [];
-  for (const currency in currencies) {
-    fxConversion.push([currency, currencies[currency].fxrate]);
-  }
-
-  let sql = 'CASE ';
-  sql += fxConversion
-    .map(currency => `WHEN ${currencyColumn} = '${currency[0]}' THEN ${amountColumn} / ${currency[1]}`)
-    .join('\n');
-  sql += 'ELSE 0 END';
-
+  let sql = '';
+  convertToCurrency(1, 'USD', currencyColumn).then(
+    amount => (sql += currencyColumn ? `${amountColumn} / ${amount}` : '0'),
+  );
   return sql;
 };
 

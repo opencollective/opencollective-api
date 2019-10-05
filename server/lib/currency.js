@@ -18,6 +18,21 @@ function getDate(date = 'latest') {
   return date;
 }
 
+export function formatCurrency(currency) {
+  const currencyFormats = {
+    AUD: value => `${value} AUD`,
+    CAD: value => `${value} CAD`,
+    EUR: value => `€${value}`,
+    GBP: value => `£${value}`,
+    INR: value => `₹${value}`,
+    MXN: value => `${value} MXN`,
+    SEK: value => `kr ${value}`,
+    USD: value => `$${value}`,
+    UYU: value => `$U ${value}`,
+  };
+  return currencyFormats[currency];
+}
+
 export function getFxRate(fromCurrency, toCurrency, date = 'latest') {
   debug('>>> getFxRate for ', date, fromCurrency, toCurrency);
 
