@@ -2,7 +2,7 @@ import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 import debugLib from 'debug';
 import Promise from 'bluebird';
-import { omit, get, isNil } from 'lodash';
+import { omit, get, isNil, pick } from 'lodash';
 import config from 'config';
 import * as LibTaxes from '@opencollective/taxes';
 
@@ -182,8 +182,10 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
     } else if (order.collective.githubHandle) {
       collective = await models.Collective.findOne({ where: { githubHandle: order.collective.githubHandle } });
       if (!collective) {
+        const allowed = ['slug', 'name', 'company', 'description', 'website', 'twitterHandle', 'githubHandle', 'tags'];
         collective = await models.Collective.create({
-          ...order.collective,
+          ...pick(order.collective, allowed),
+          type: types.COLLECTIVE,
           isPledged: true,
           data: { hasBeenPledged: true },
         });
