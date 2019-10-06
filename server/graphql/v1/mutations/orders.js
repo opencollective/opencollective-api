@@ -194,8 +194,10 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
     } else if (order.collective.githubHandle) {
       collective = await models.Collective.findOne({ where: { githubHandle: order.collective.githubHandle } });
       if (!collective) {
+        const allowed = ['slug', 'name', 'company', 'description', 'website', 'twitterHandle', 'githubHandle', 'tags'];
         collective = await models.Collective.create({
-          ...order.collective,
+          ...pick(order.collective, allowed),
+          type: types.COLLECTIVE,
           isPledged: true,
           data: { hasBeenPledged: true },
         });
