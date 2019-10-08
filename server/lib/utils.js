@@ -79,7 +79,7 @@ export function strip_tags(str, allowedTags) {
         },
       ],
     },
-    allowedIframeHostnames: ['www.youtube.com', 'www.youtube-nocookie.com'],
+    allowedIframeHostnames: ['www.youtube.com', 'www.youtube-nocookie.com', 'player.vimeo.com'],
   });
 }
 
