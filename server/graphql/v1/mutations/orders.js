@@ -975,7 +975,7 @@ export async function addFundsToCollective(order, remoteUser) {
     user = remoteUser;
   }
 
-  if (order.fromCollective.id) {
+  if (order.fromCollective && order.fromCollective.id) {
     fromCollective = await models.Collective.findByPk(order.fromCollective.id);
     if (!fromCollective) {
       throw new Error(`From collective id ${order.fromCollective.id} not found`);
