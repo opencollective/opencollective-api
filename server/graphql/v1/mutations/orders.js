@@ -975,13 +975,18 @@ export async function addFundsToCollective(order, remoteUser) {
     user = remoteUser;
   }
 
-  if (order.fromCollective && order.fromCollective.id) {
-    fromCollective = await models.Collective.findByPk(order.fromCollective.id);
-    if (!fromCollective) {
-      throw new Error(`From collective id ${order.fromCollective.id} not found`);
+  if (order.fromCollective) {
+    if (order.fromCollective.id) {
+      fromCollective = await models.Collective.findByPk(order.fromCollective.id);
+      if (!fromCollective) {
+        throw new Error(`From collective id ${order.fromCollective.id} not found`);
+      }
+    } else if (order.fromCollective.name) {
+      fromCollective = await models.Collective.createOrganization(order.fromCollective, user, remoteUser);
     }
   } else {
-    fromCollective = await models.Collective.createOrganization(order.fromCollective, user, remoteUser);
+    // Use the user collective
+    fromCollective = { id: user.CollectiveId };
   }
 
   const orderData = {
