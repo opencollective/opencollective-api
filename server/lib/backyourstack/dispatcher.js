@@ -87,6 +87,12 @@ export async function dispatchFunds(order) {
       throw new Error('Unable to fetch dependencies, no attached jsonUrl.');
     }
     depRecommendations = await fetchDependencies(order.data.customData.jsonUrl);
+    // check if the order has selected collectives to receive the funds
+    if (depRecommendations && order.data.customData.selectedCollectives) {
+      const selectedCollectives = order.data.customData.selectedCollectives;
+      // filter recommended dependencies based on selected collectives id
+      depRecommendations = depRecommendations.filter(r => selectedCollectives.indexOf(r.opencollective.id) !== -1);
+    }
   } catch (err) {
     debug('Error fetching dependencies', err);
     console.error(err);
