@@ -11,7 +11,7 @@ const twoHoursInSeconds = 2 * 60 * 60;
 /*
  * Hacky way to do currency conversion
  */
-const generateFXConversionSQL = aggregate => {
+const generateFXConversionSQL = async aggregate => {
   let currencyColumn = 't.currency';
   let amountColumn = 't."netAmountInCollectiveCurrency"';
 
@@ -20,11 +20,8 @@ const generateFXConversionSQL = aggregate => {
     amountColumn = 'SUM("t."netAmountInCollectiveCurrency"")';
   }
 
-  let sql = '';
-  convertToCurrency(1, 'USD', currencyColumn).then(
-    amount => (sql += currencyColumn ? `${amountColumn} / ${amount}` : '0'),
-  );
-  return sql;
+  const amount = await convertToCurrency(1, 'USD', currencyColumn);
+  return currencyColumn ? `${amountColumn} / ${amount}` : '0';
 };
 
 const getHosts = async args => {
@@ -124,13 +121,13 @@ const getTotalAnnualBudgetForHost = HostCollectiveId => {
     .then(res => Math.round(parseInt(res[0].yearlyIncome, 10)));
 };
 
-const getTotalAnnualBudget = () => {
+const getTotalAnnualBudget = async () => {
   return sequelize
     .query(
       `
   SELECT
     (SELECT
-      COALESCE(SUM(${generateFXConversionSQL()} * 12),0)
+      COALESCE(SUM(${await generateFXConversionSQL()} * 12),0)
       FROM "Subscriptions" s
       LEFT JOIN "Orders" d ON s.id = d."SubscriptionId"
       LEFT JOIN "Transactions" t
@@ -143,7 +140,7 @@ const getTotalAnnualBudget = () => {
         AND s."deletedAt" IS NULL)
     +
     (SELECT
-      COALESCE(SUM(${generateFXConversionSQL()}),0) FROM "Transactions" t
+      COALESCE(SUM(${await generateFXConversionSQL()}),0) FROM "Transactions" t
       LEFT JOIN "Orders" d ON t."OrderId" = d.id
       LEFT JOIN "Subscriptions" s ON d."SubscriptionId" = s.id
       WHERE t.type='CREDIT' AND t."CollectiveId" != 1
@@ -152,7 +149,7 @@ const getTotalAnnualBudget = () => {
         AND ((s.interval = 'year' AND s."isActive" IS TRUE AND s."deletedAt" IS NULL) OR s.interval IS NULL))
     +
     (SELECT
-      COALESCE(SUM(${generateFXConversionSQL()}),0) FROM "Transactions" t
+      COALESCE(SUM(${await generateFXConversionSQL()}),0) FROM "Transactions" t
       LEFT JOIN "Orders" d on t."OrderId" = d.id
       LEFT JOIN "Subscriptions" s ON d."SubscriptionId" = s.id
       WHERE t.type='CREDIT' AND t."CollectiveId" != 1

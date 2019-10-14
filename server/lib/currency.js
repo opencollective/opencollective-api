@@ -30,7 +30,7 @@ export function formatCurrency(currency) {
     USD: value => `$${value}`,
     UYU: value => `$U ${value}`,
   };
-  return currencyFormats[currency];
+  return currencyFormats[currency] || (value => `${value} ${currency}`);
 }
 
 export function getFxRate(fromCurrency, toCurrency, date = 'latest') {
