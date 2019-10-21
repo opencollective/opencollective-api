@@ -684,6 +684,70 @@ describe('Mutation Tests', () => {
         const membersAfter = await models.Member.count();
         expect(membersBefore - membersAfter).to.equal(1);
       });
+
+      it('deletes a parent collective and member users of an event of that collective do not show as such after', async () => {
+        const createMemberQuery = `
+          mutation createMember {
+            createMember(
+              member: { email: "${user3.email}" },
+              collective: { id: ${event1.id} },
+              role: "FOLLOWER"
+            ) {
+              id,
+              role,
+              member {
+                id,
+                ... on User {
+                  email
+                }
+              },
+              collective {
+                id,
+                slug
+              }
+            }
+          }
+        `;
+        await utils.graphqlQuery(createMemberQuery);
+        const memberOfQuery = `
+          query Collective($id: Int) {
+            Collective(id: $id) {
+              id
+              memberOf {
+                id
+                collective {
+                  id
+                  parentCollective {
+                    id
+                  }
+                }
+              }
+            }
+          }
+      `;
+        let result = await utils.graphqlQuery(memberOfQuery, { id: user3.id });
+        expect(result).to.deep.equal({
+          data: {
+            Collective: { id: 4, memberOf: [{ id: 5, collective: { id: 6, parentCollective: { id: 5 } } }] },
+          },
+        });
+
+        const deleteCollectiveQuery = `
+          mutation deleteCollective($id: Int!) {
+            deleteCollective(id: $id) {
+              id,
+              name
+            }
+          }`;
+
+        let collective = await models.Collective.findByPk(event1.ParentCollectiveId);
+        expect(collective).to.exist;
+        const res = await utils.graphqlQuery(deleteCollectiveQuery, { id: event1.ParentCollectiveId }, user1);
+        collective = await models.Collective.findByPk(event1.ParentCollectiveId);
+        expect(collective).to.not.exist;
+        result = await utils.graphqlQuery(memberOfQuery, { id: user3.id });
+        expect(result.data.Collective.memberOf).to.have.length(0);
+      });
     });
 
     describe('creates an order', () => {
