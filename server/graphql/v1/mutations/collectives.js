@@ -732,8 +732,13 @@ export async function deleteCollective(_, args, req) {
     throw new Error('Can not delete collective with paid expenses.');
   }
 
+  const eventCollectiveIds = await models.Collective.findAll({
+    attributes: ['id'],
+    where: { ParentCollectiveId: collective.id },
+  }).then(collectives => collectives.map(({ id }) => id));
+
   return models.Member.findAll({
-    where: { CollectiveId: collective.id },
+    where: { CollectiveId: [collective.id, ...eventCollectiveIds] },
   })
     .then(members => {
       return map(
