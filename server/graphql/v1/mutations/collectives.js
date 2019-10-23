@@ -734,7 +734,7 @@ export async function deleteCollective(_, args, req) {
 
   const eventCollectiveIds = await models.Collective.findAll({
     attributes: ['id'],
-    where: { ParentCollectiveId: collective.id },
+    where: { ParentCollectiveId: collective.id, type: types.EVENT },
   }).then(collectives => collectives.map(({ id }) => id));
 
   return models.Member.findAll({
