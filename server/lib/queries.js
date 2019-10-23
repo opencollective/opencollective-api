@@ -122,12 +122,14 @@ const getTotalAnnualBudgetForHost = HostCollectiveId => {
 };
 
 const getTotalAnnualBudget = async () => {
+  const fxConversionSQL = await generateFXConversionSQL();
+
   return sequelize
     .query(
       `
   SELECT
     (SELECT
-      COALESCE(SUM(${await generateFXConversionSQL()} * 12),0)
+      COALESCE(SUM(${fxConversionSQL} * 12),0)
       FROM "Subscriptions" s
       LEFT JOIN "Orders" d ON s.id = d."SubscriptionId"
       LEFT JOIN "Transactions" t
@@ -140,7 +142,7 @@ const getTotalAnnualBudget = async () => {
         AND s."deletedAt" IS NULL)
     +
     (SELECT
-      COALESCE(SUM(${await generateFXConversionSQL()}),0) FROM "Transactions" t
+      COALESCE(SUM(${fxConversionSQL}),0) FROM "Transactions" t
       LEFT JOIN "Orders" d ON t."OrderId" = d.id
       LEFT JOIN "Subscriptions" s ON d."SubscriptionId" = s.id
       WHERE t.type='CREDIT' AND t."CollectiveId" != 1
@@ -149,7 +151,7 @@ const getTotalAnnualBudget = async () => {
         AND ((s.interval = 'year' AND s."isActive" IS TRUE AND s."deletedAt" IS NULL) OR s.interval IS NULL))
     +
     (SELECT
-      COALESCE(SUM(${await generateFXConversionSQL()}),0) FROM "Transactions" t
+      COALESCE(SUM(${fxConversionSQL}),0) FROM "Transactions" t
       LEFT JOIN "Orders" d on t."OrderId" = d.id
       LEFT JOIN "Subscriptions" s ON d."SubscriptionId" = s.id
       WHERE t.type='CREDIT' AND t."CollectiveId" != 1

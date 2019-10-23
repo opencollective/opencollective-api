@@ -18,19 +18,17 @@ function getDate(date = 'latest') {
   return date;
 }
 
-export function formatCurrency(currency) {
+export function formatCurrency(currency, value) {
+  const _currency = currency.toUpperCase();
   const currencyFormats = {
-    AUD: value => `${value} AUD`,
-    CAD: value => `${value} CAD`,
-    EUR: value => `€${value}`,
-    GBP: value => `£${value}`,
-    INR: value => `₹${value}`,
-    MXN: value => `${value} MXN`,
-    SEK: value => `kr ${value}`,
-    USD: value => `$${value}`,
-    UYU: value => `$U ${value}`,
+    EUR: `€${value}`,
+    GBP: `£${value}`,
+    INR: `₹${value}`,
+    SEK: `kr ${value}`,
+    USD: `$${value}`,
+    UYU: `$U ${value}`,
   };
-  return currencyFormats[currency] || (value => `${value} ${currency}`);
+  return currencyFormats[_currency] || `${value} ${_currency}`;
 }
 
 export function getFxRate(fromCurrency, toCurrency, date = 'latest') {
