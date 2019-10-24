@@ -80,13 +80,17 @@ export async function dispatchFunds(order) {
   const shareableAmount = transaction.netAmountInCollectiveCurrency;
 
   const collectives = [];
-
   let depRecommendations;
   try {
     if (!order.data.customData.jsonUrl) {
       throw new Error('Unable to fetch dependencies, no attached jsonUrl.');
     }
-    depRecommendations = await fetchDependencies(order.data.customData.jsonUrl);
+    // Skip fetching recommendations for first dispatch
+    if (order.data.customData.firstDispatchRecommendations) {
+      depRecommendations = order.data.customData.firstDispatchRecommendations;
+    } else {
+      depRecommendations = await fetchDependencies(order.data.customData.jsonUrl);
+    }
   } catch (err) {
     debug('Error fetching dependencies', err);
     console.error(err);
@@ -94,13 +98,14 @@ export async function dispatchFunds(order) {
   }
 
   for (const depRecommended of depRecommendations) {
-    const collective = await models.Collective.findOne({ where: { slug: depRecommended.opencollective.slug } });
+    const slug = depRecommended.slug || depRecommended.opencollective.slug;
+    const collective = await models.Collective.findOne({ where: { slug } });
     if (!collective) {
-      debug(`Unable to fetch collective with slug ${depRecommended.opencollective.slug}`);
+      debug(`Unable to fetch collective with slug ${slug}`);
       continue;
     }
     if (collective.HostCollectiveId !== originalCreditTransaction.HostCollectiveId) {
-      debug(`${depRecommended.opencollective.slug} is not hosted by the same host (Open Source Collective).`);
+      debug(`${slug} is not hosted by the same host (Open Source Collective).`);
       continue;
     }
     collective.weight = depRecommended.weight;
@@ -145,6 +150,6 @@ export async function dispatchFunds(order) {
 
       return orderCreated;
     },
-    { concurrency: 3 },
+    { concurrency: 5 },
   );
 }

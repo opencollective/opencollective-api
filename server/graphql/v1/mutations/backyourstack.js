@@ -1,4 +1,6 @@
 import moment from 'moment';
+import { omit } from 'lodash';
+
 import models from '../../../models';
 import { dispatchFunds, getNextDispatchingDate, needsDispatching } from '../../../lib/backyourstack/dispatcher';
 
@@ -39,8 +41,10 @@ export async function dispatchOrder(orderId) {
     subscription.data = {
       nextDispatchDate: getNextDispatchingDate(subscription.interval, currentDispatchDate),
     };
-
+    // Remove firstDispatchRecommendations in custom data after the first dispatch is over
+    order.data = omit(order.data, ['customData.firstDispatchRecommendations']);
     await subscription.save();
+    await order.save();
   }
 
   return dispatchedOrders;
