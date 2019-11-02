@@ -2,7 +2,7 @@ export const currencyFormats = {
   EUR: '€',
   GBP: '£',
   INR: '₹',
-  SEK: 'kr',
+  SEK: 'kr ',
   USD: '$',
-  UYU: '$U',
+  UYU: '$U ',
 };

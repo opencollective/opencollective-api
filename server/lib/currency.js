@@ -24,7 +24,7 @@ export function formatCurrency(currency, value) {
   const currencyStr = currencyFormats[_currency];
 
   if (!currencyStr) return `${value} ${_currency}`;
-  return `${currencyStr} ${value}`;
+  return currencyStr.concat(value);
 }
 
 export function getFxRate(fromCurrency, toCurrency, date = 'latest') {
