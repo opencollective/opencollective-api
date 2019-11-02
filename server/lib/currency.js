@@ -4,6 +4,7 @@ import debugLib from 'debug';
 import Promise from 'bluebird';
 
 import logger from './logger';
+import { currencyFormats } from '../constants/currency_format';
 
 const debug = debugLib('currency');
 const cache = {};
@@ -20,15 +21,10 @@ function getDate(date = 'latest') {
 
 export function formatCurrency(currency, value) {
   const _currency = currency.toUpperCase();
-  const currencyFormats = {
-    EUR: `€${value}`,
-    GBP: `£${value}`,
-    INR: `₹${value}`,
-    SEK: `kr ${value}`,
-    USD: `$${value}`,
-    UYU: `$U ${value}`,
-  };
-  return currencyFormats[_currency] || `${value} ${_currency}`;
+  const currencyStr = currencyFormats[_currency];
+
+  if (!currencyStr) return `${value} ${_currency}`;
+  return `${currencyStr} ${value}`;
 }
 
 export function getFxRate(fromCurrency, toCurrency, date = 'latest') {
