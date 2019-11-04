@@ -81,7 +81,15 @@ describe('server/graphql/v1/tiers', () => {
     sandbox.stub(stripe.customers, 'retrieve').callsFake(() => Promise.resolve({ id: 'cus_B5s4wkqxtUtNyM' }));
 
     /* eslint-disable camelcase */
-    sandbox.stub(stripe.paymentIntents, 'create').callsFake(data =>
+
+    sandbox.stub(stripe.paymentIntents, 'create').callsFake(() =>
+      Promise.resolve({
+        id: 'pi_1F82vtBYycQg1OMfS2Rctiau',
+        status: 'requires_confirmation',
+      }),
+    );
+
+    sandbox.stub(stripe.paymentIntents, 'confirm').callsFake(data =>
       Promise.resolve({
         charges: {
           data: [
@@ -120,6 +128,7 @@ describe('server/graphql/v1/tiers', () => {
       type: 'charge',
     };
     sandbox.stub(stripe.balanceTransactions, 'retrieve').callsFake(() => Promise.resolve(balanceTransaction));
+
     /* eslint-enable camelcase */
   });
 
