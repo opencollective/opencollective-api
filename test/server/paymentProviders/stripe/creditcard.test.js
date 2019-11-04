@@ -68,6 +68,12 @@ describe('server/paymentProviders/stripe/creditcard', () => {
       nock('https://api.stripe.com:443')
         .post('/v1/payment_intents')
         .reply(200, {
+          id: 'pi_1F82vtBYycQg1OMfS2Rctiau',
+          status: 'requires_confirmation',
+        });
+      nock('https://api.stripe.com:443')
+        .post('/v1/payment_intents/pi_1F82vtBYycQg1OMfS2Rctiau/confirm')
+        .reply(200, {
           charges: {
             data: [{ id: 'ch_1B5j91D8MNtzsDcgNMsUgI8L', balance_transaction: 'txn_1B5j92D8MNtzsDcgQzIcmfrn' }],
           },
