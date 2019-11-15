@@ -1,0 +1,33 @@
+version: '3.7'
+
+services:
+  opencollective_api:
+    build:
+      context: . # Build the api image from the Dockerfile
+    command: ${OPENCOLLECTIVE_DOCKER_INIT_CMD:-start} # Use this env var to send pre-defined and custom commands
+    ports:
+      - '3060:3060' # App port
+      - '1080:1080' # Mail gui port
+      - '1025:1025'
+      - '9229:9229' # Debug port
+    volumes:
+      - .:/usr/src/app # Mount the app in the container
+    depends_on:
+      - opencollective_db # Add dependency on the db service
+    environment:
+      - PGHOST=opencollective_db # The db host is the name of the service
+      - PGUSER=postgres
+      - PG_URL=postgres://opencollective@opencollective_db:5432/opencollective_dvl
+      - PG_MAINTENANCE_URL=postgres://opencollective_db:5432/postgres
+
+  opencollective_db:
+    image: mdillon/postgis:9.6
+    volumes:
+      - opencollective-db-data:/var/lib/postgresql/data # Persist data between mounts
+    ports:
+      - '5432:5432' # Export PG port to the host allowing to access the db with a pg client
+    environment:
+      - POSTGRES_USER=postgres # Default user
+
+volumes:
+  opencollective-db-data:
