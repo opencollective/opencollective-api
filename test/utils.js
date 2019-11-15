@@ -47,7 +47,7 @@ export const clearbitStubAfterEach = sandbox => sandbox.restore();
 export const resetCaches = () => cache.clear();
 
 export const resetTestDB = () =>
-  sequelize.sync({ force: true }).catch(e => {
+  sequelize.sync({ force: true, schema: 'public' }).catch(e => {
     console.error("test/utils.js> Sequelize Error: Couldn't recreate the schema", e);
     process.exit(1);
   });

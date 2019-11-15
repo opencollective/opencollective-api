@@ -56,10 +56,13 @@ export const sequelize = new Sequelize(dbConfig.database, dbConfig.username, dbC
   ...config.database.options,
 });
 
-sequelize
-  .createSchema('public')
-  .then(() => {})
-  .catch(e => {});
+const createSchema = async sequelize => {
+  try {
+    await sequelize.createSchema('public');
+  } catch (e) {}
+};
+
+createSchema(sequelize);
 
 const models = setupModels(sequelize);
 
