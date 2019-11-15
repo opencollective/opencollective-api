@@ -111,38 +111,13 @@ export function setupModels(client) {
     as: 'sourcePaymentMethod',
     foreignKey: 'SourcePaymentMethodId',
   });
-  // Transaction.
-  m.Collective.hasMany(m.Transaction, { foreignKey: 'CollectiveId' });
-  m.Transaction.belongsTo(m.Collective, {
-    foreignKey: 'CollectiveId',
-    as: 'collective',
-  });
-  m.Transaction.belongsTo(m.Collective, {
-    foreignKey: 'FromCollectiveId',
-    as: 'fromCollective',
-  });
-  m.Transaction.belongsTo(m.Collective, {
-    foreignKey: 'UsingVirtualCardFromCollectiveId',
-    as: 'usingVirtualCardFromCollective',
-  });
-
-  m.Transaction.belongsTo(m.User, {
-    foreignKey: 'CreatedByUserId',
-    as: 'createdByUser',
-  });
-  m.Transaction.belongsTo(m.Collective, {
-    foreignKey: 'HostCollectiveId',
-    as: 'host',
-  });
-  m.Transaction.belongsTo(m.PaymentMethod);
-  m.PaymentMethod.hasMany(m.Transaction);
 
   // User
   m.User.hasMany(m.Activity);
   m.User.hasMany(m.Notification);
   m.User.hasMany(m.Transaction, {
     foreignKey: 'CreatedByUserId',
-    as: 'transactions',
+    as: 'Transactions',
   });
   m.User.hasMany(m.Order, { foreignKey: 'CreatedByUserId', as: 'orders' });
   m.User.hasMany(m.PaymentMethod, { foreignKey: 'CreatedByUserId' });
@@ -179,6 +154,32 @@ export function setupModels(client) {
 
   m.Notification.belongsTo(m.Collective);
 
+  // Transaction.
+  m.Collective.hasMany(m.Transaction, { foreignKey: 'CollectiveId', as: 'Transactions' });
+  m.Transaction.belongsTo(m.Collective, {
+    foreignKey: 'CollectiveId',
+    as: 'collective',
+  });
+  m.Transaction.belongsTo(m.Collective, {
+    foreignKey: 'FromCollectiveId',
+    as: 'fromCollective',
+  });
+  m.Transaction.belongsTo(m.Collective, {
+    foreignKey: 'UsingVirtualCardFromCollectiveId',
+    as: 'usingVirtualCardFromCollective',
+  });
+
+  m.Transaction.belongsTo(m.User, {
+    foreignKey: 'CreatedByUserId',
+    as: 'createdByUser',
+  });
+  m.Transaction.belongsTo(m.Collective, {
+    foreignKey: 'HostCollectiveId',
+    as: 'host',
+  });
+  m.Transaction.belongsTo(m.PaymentMethod);
+  m.PaymentMethod.hasMany(m.Transaction);
+
   // Expense
   m.Expense.belongsTo(m.User);
   m.Expense.belongsTo(m.Collective, {
@@ -203,8 +204,8 @@ export function setupModels(client) {
   });
   m.Order.belongsTo(m.Tier);
   // m.Collective.hasMany(m.Order); // makes the test `mocha test/graphql.transaction.test.js -g "insensitive" fail
-  m.Collective.hasMany(m.Member, { foreignKey: 'CollectiveId', as: 'members' });
-  m.Collective.hasMany(m.Order, { foreignKey: 'CollectiveId', as: 'orders' });
+  m.Collective.hasMany(m.Member, { foreignKey: 'CollectiveId', as: 'Members' });
+  m.Collective.hasMany(m.Order, { foreignKey: 'CollectiveId', as: 'Orders' });
   m.Transaction.belongsTo(m.Order);
   m.Order.hasMany(m.Transaction);
   m.Tier.hasMany(m.Order);
