@@ -111,6 +111,31 @@ export function setupModels(client) {
     as: 'sourcePaymentMethod',
     foreignKey: 'SourcePaymentMethodId',
   });
+  // Transaction.
+  m.Collective.hasMany(m.Transaction, { foreignKey: 'CollectiveId' });
+  m.Transaction.belongsTo(m.Collective, {
+    foreignKey: 'CollectiveId',
+    as: 'collective',
+  });
+  m.Transaction.belongsTo(m.Collective, {
+    foreignKey: 'FromCollectiveId',
+    as: 'fromCollective',
+  });
+  m.Transaction.belongsTo(m.Collective, {
+    foreignKey: 'UsingVirtualCardFromCollectiveId',
+    as: 'usingVirtualCardFromCollective',
+  });
+
+  m.Transaction.belongsTo(m.User, {
+    foreignKey: 'CreatedByUserId',
+    as: 'createdByUser',
+  });
+  m.Transaction.belongsTo(m.Collective, {
+    foreignKey: 'HostCollectiveId',
+    as: 'host',
+  });
+  m.Transaction.belongsTo(m.PaymentMethod);
+  m.PaymentMethod.hasMany(m.Transaction);
 
   // User
   m.User.hasMany(m.Activity);
@@ -153,32 +178,6 @@ export function setupModels(client) {
   m.Notification.belongsTo(m.User);
 
   m.Notification.belongsTo(m.Collective);
-
-  // Transaction.
-  m.Collective.hasMany(m.Transaction, { foreignKey: 'CollectiveId' });
-  m.Transaction.belongsTo(m.Collective, {
-    foreignKey: 'CollectiveId',
-    as: 'collective',
-  });
-  m.Transaction.belongsTo(m.Collective, {
-    foreignKey: 'FromCollectiveId',
-    as: 'fromCollective',
-  });
-  m.Transaction.belongsTo(m.Collective, {
-    foreignKey: 'UsingVirtualCardFromCollectiveId',
-    as: 'usingVirtualCardFromCollective',
-  });
-
-  m.Transaction.belongsTo(m.User, {
-    foreignKey: 'CreatedByUserId',
-    as: 'createdByUser',
-  });
-  m.Transaction.belongsTo(m.Collective, {
-    foreignKey: 'HostCollectiveId',
-    as: 'host',
-  });
-  m.Transaction.belongsTo(m.PaymentMethod);
-  m.PaymentMethod.hasMany(m.Transaction);
 
   // Expense
   m.Expense.belongsTo(m.User);
