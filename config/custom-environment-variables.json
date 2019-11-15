@@ -21,6 +21,9 @@
       }
     }
   },
+  "maintenancedb": {
+    "url": "PG_MAINTENANCE_URL"
+  },
   "memcache": {
     "servers": "MEMCACHE_SERVERS",
     "username": "MEMCACHE_USERNAME",
