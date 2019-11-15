@@ -163,7 +163,7 @@ export default (Sequelize, DataTypes) => {
     },
     {
       paranoid: true,
-
+      schema: 'public',
       getterMethods: {
         netAmountInHostCurrency() {
           return (
