@@ -17,7 +17,7 @@ export async function createMember(_, args, req) {
     }
   };
 
-  const collective = await req.loaders.collective.findById.load(args.collective.id);
+  const collective = await req.loaders.Collective.byId.load(args.collective.id);
 
   if (!collective) {
     throw new Error(`Collective with id ${args.collective.id} not found`);
