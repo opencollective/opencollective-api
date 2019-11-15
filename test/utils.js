@@ -17,7 +17,7 @@ import stripe from '../server/lib/stripe';
 import schemaV1 from '../server/graphql/v1/schema';
 import schemaV2 from '../server/graphql/v2/schema';
 import { loaders } from '../server/graphql/loaders';
-import { models, sequelize } from '../server/models';
+import models, { sequelize } from '../server/models';
 import cache from '../server/lib/cache';
 import * as libpayments from '../server/lib/payments';
 import * as db_restore from '../scripts/db_restore';
@@ -47,10 +47,34 @@ export const clearbitStubAfterEach = sandbox => sandbox.restore();
 export const resetCaches = () => cache.clear();
 
 export const resetTestDB = async () => {
-  await sequelize.sync({ force: true }).catch(e => {
+  try {
+    await models.User.sync({ force: true });
+    await models.Activity.sync({ force: true });
+    await models.Update.sync({ force: true });
+    await models.Tier.sync({ force: true });
+    await models.Transaction.sync({ force: true });
+    await models.Collective.sync({ force: true });
+    await models.Subscription.sync({ force: true });
+    await models.Session.sync({ force: true });
+    await models.RequiredLegalDocument.sync({ force: true });
+    await models.PaymentMethod.sync({ force: true });
+    await models.Order.sync({ force: true });
+    await models.Notification.sync({ force: true });
+    await models.LegalDocument.sync({ force: true });
+    await models.Expense.sync({ force: true });
+    await models.ConnectedAccount.sync({ force: true });
+    await models.Comment.sync({ force: true });
+    await models.Application.sync({ force: true });
+    await models.Member.sync({ force: true });
+    await sequelize.sync({ force: true });
+  } catch (e) {
     console.error("test/utils.js> Sequelize Error: Couldn't recreate the schema", e);
     process.exit(1);
-  });
+  }
+  // sequelize.sync({ force: true }).catch(e => {
+  //   console.error("test/utils.js> Sequelize Error: Couldn't recreate the schema", e);
+  //   process.exit(1);
+  // });
 };
 
 export async function loadDB(dbname) {
