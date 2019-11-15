@@ -106,9 +106,13 @@ describe('Collective model', () => {
     sendEmailSpy = sandbox.spy(emailLib, 'sendMessage');
   });
 
-  after(() => sandbox.restore());
+  after(async () => {
+    await sandbox.restore();
+  });
 
-  before(() => utils.resetTestDB());
+  before(async () => {
+    await utils.resetTestDB();
+  });
 
   before(() =>
     User.createUserWithCollective(users[0])
