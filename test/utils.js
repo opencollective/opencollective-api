@@ -17,7 +17,7 @@ import stripe from '../server/lib/stripe';
 import schemaV1 from '../server/graphql/v1/schema';
 import schemaV2 from '../server/graphql/v2/schema';
 import { loaders } from '../server/graphql/loaders';
-import { sequelize } from '../server/models';
+import { models, sequelize } from '../server/models';
 import cache from '../server/lib/cache';
 import * as libpayments from '../server/lib/payments';
 import * as db_restore from '../scripts/db_restore';
@@ -46,11 +46,12 @@ export const clearbitStubAfterEach = sandbox => sandbox.restore();
 
 export const resetCaches = () => cache.clear();
 
-export const resetTestDB = () =>
-  sequelize.sync({ force: true, schema: 'public' }).catch(e => {
+export const resetTestDB = async () => {
+  await sequelize.sync({ force: true }).catch(e => {
     console.error("test/utils.js> Sequelize Error: Couldn't recreate the schema", e);
     process.exit(1);
   });
+};
 
 export async function loadDB(dbname) {
   await db_restore.main({ force: true, file: dbname });
