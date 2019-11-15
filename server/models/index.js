@@ -56,6 +56,11 @@ export const sequelize = new Sequelize(dbConfig.database, dbConfig.username, dbC
   ...config.database.options,
 });
 
+sequelize
+  .createSchema('public')
+  .then(() => {})
+  .catch(e => {});
+
 const models = setupModels(sequelize);
 
 export default models;
