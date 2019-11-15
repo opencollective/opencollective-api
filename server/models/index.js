@@ -79,6 +79,7 @@ export function setupModels(client) {
    */
 
   [
+    'User',
     'Activity',
     'Application',
     'ConnectedAccount',
@@ -96,7 +97,6 @@ export function setupModels(client) {
     'Tier',
     'Transaction',
     'Update',
-    'User',
   ].forEach(model => {
     m[model] = client.import(`${__dirname}/${model}`);
   });
