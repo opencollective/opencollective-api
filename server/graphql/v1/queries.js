@@ -795,7 +795,7 @@ const queries = {
   allCollectives: {
     type: CollectiveSearchResultsType,
     args: {
-      renderCollectivesFromList: {
+      slugs: {
         type: new GraphQLList(GraphQLString),
         description: 'Fetch collectives with a list of collective slug',
       },
@@ -863,10 +863,8 @@ const queries = {
         include: [],
       };
 
-      if (args.renderCollectivesFromList) {
-        query.where.id = await Promise.all(
-          args.renderCollectivesFromList.map(async id => (typeof id === 'string' ? await fetchCollectiveId(id) : id)),
-        );
+      if (args.slugs) {
+        query.where.slug = { [Op.in]: args.slugs };
       }
 
       if (args.hostCollectiveSlug) {
