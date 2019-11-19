@@ -795,6 +795,10 @@ const queries = {
   allCollectives: {
     type: CollectiveSearchResultsType,
     args: {
+      renderCollectivesFromList: {
+        type: new GraphQLList(GraphQLString),
+        description: 'Fetch collectives with a list of collective slug',
+      },
       tags: {
         type: new GraphQLList(GraphQLString),
         description: 'Fetch all collectives that match at least one of the tags',
@@ -858,6 +862,12 @@ const queries = {
         limit: args.limit,
         include: [],
       };
+
+      if (args.renderCollectivesFromList) {
+        query.where.id = await Promise.all(
+          args.renderCollectivesFromList.map(async id => (typeof id === 'string' ? await fetchCollectiveId(id) : id)),
+        );
+      }
 
       if (args.hostCollectiveSlug) {
         args.HostCollectiveId = await fetchCollectiveId(args.hostCollectiveSlug);
