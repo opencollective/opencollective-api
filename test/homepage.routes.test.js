@@ -14,7 +14,7 @@ describe('homepage.routes.test.js', () => {
   beforeEach(done => {
     setTimeout(done, 1000);
   });
-  beforeEach(() => utils.resetTestDB());
+  beforeEach(async () => await utils.resetTestDB());
   beforeEach(done => {
     setTimeout(done, 1000);
   });

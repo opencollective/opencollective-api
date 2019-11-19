@@ -21,7 +21,7 @@ describe('Query Tests', () => {
     collective3: no events
   */
 
-  beforeEach(() => utils.resetTestDB());
+  beforeEach(async () => await utils.resetTestDB());
 
   beforeEach(() => models.User.createUserWithCollective(utils.data('user1')).tap(u => (user1 = u)));
 

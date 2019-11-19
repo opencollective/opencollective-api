@@ -12,7 +12,7 @@ describe('graphql.tiers.test', () => {
   let user1, user2, host, collective1, collective2, tier1, tierWithCustomFields, tierProduct, paymentMethod1;
   let sandbox;
 
-  beforeEach(() => utils.resetTestDB());
+  beforeEach(async () => await utils.resetTestDB());
 
   /**
    * Setup:

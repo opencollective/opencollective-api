@@ -14,7 +14,7 @@ describe('graphql.connectedAccounts.test.js', () => {
       }
     }
   `;
-  before(() => utils.resetTestDB());
+  before(async () => await utils.resetTestDB());
 
   before(async () => {
     user = await models.User.createUserWithCollective({ email: randEmail(), name: 'random user' });

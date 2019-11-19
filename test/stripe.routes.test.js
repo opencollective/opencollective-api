@@ -15,7 +15,7 @@ const application = utils.data('application');
 describe('stripe.routes.test.js', () => {
   let host, user, collective;
 
-  beforeEach(() => utils.resetTestDB());
+  beforeEach(async () => await utils.resetTestDB());
 
   beforeEach('create a host', () => models.User.createUserWithCollective(utils.data('host1')).tap(u => (host = u)));
   beforeEach('create a user', () => models.User.createUserWithCollective(utils.data('user1')).tap(u => (user = u)));

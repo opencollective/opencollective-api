@@ -57,7 +57,7 @@ describe('paymentmethods.stripe.creditcard', () => {
   describe('#processOrder()', async () => {
     let secondCallToCreateCustomer;
 
-    beforeEach(() => utils.resetTestDB());
+    beforeEach(async () => await utils.resetTestDB());
 
     beforeEach(() => {
       // Call performed by getOrCreateCustomerOnPlatformAccount

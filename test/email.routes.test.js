@@ -62,7 +62,7 @@ let collective,
 describe('email.routes.test', () => {
   let sandbox;
 
-  before(() => utils.resetTestDB());
+  before(async () => await utils.resetTestDB());
 
   before(initNock);
 

@@ -41,7 +41,7 @@ describe('users.routes.test.js', () => {
 
   afterEach(() => sandbox.restore());
 
-  beforeEach(() => utils.resetTestDB());
+  beforeEach(async () => await utils.resetTestDB());
 
   // create a fake nodemailer transport
   beforeEach(() => {

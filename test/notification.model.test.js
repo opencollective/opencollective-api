@@ -12,7 +12,7 @@ const { User, Collective, Notification, Tier, Order } = models;
 describe('notification.model.test.js', () => {
   let host, collective, hostAdmin, sandbox, emailSendMessageSpy;
 
-  beforeEach(() => utils.resetTestDB());
+  beforeEach(async () => await utils.resetTestDB());
 
   beforeEach(() => {
     sandbox = sinon.createSandbox();

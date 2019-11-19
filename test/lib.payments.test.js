@@ -40,7 +40,7 @@ describe('lib.payments.test.js', () => {
     nock.cleanAll();
   });
 
-  beforeEach(() => utils.resetTestDB());
+  beforeEach(async () => await utils.resetTestDB());
 
   beforeEach(() => {
     sandbox = sinon.createSandbox();

@@ -95,7 +95,7 @@ describe('opencollective.virtualcard', () => {
     describe('#create', async () => {
       let collective1, user1;
 
-      before(() => utils.resetTestDB());
+      before(async () => await utils.resetTestDB());
       before('create collective1(currency USD, No Host)', () =>
         models.Collective.create({
           name: 'collective1',
@@ -220,7 +220,7 @@ describe('opencollective.virtualcard', () => {
     describe('#claim', async () => {
       let collective1, paymentMethod1, user1, virtualCardPaymentMethod;
 
-      before(() => utils.resetTestDB());
+      before(async () => await utils.resetTestDB());
       before('create collective1(currency USD, No Host)', () =>
         models.Collective.create({
           name: 'collective1',
@@ -302,7 +302,7 @@ describe('opencollective.virtualcard', () => {
     describe('#processOrder', async () => {
       let host1, collective1, collective2, paymentMethod1, virtualCardPaymentMethod, user, user1, userCollective;
 
-      before(() => utils.resetTestDB());
+      before(async () => await utils.resetTestDB());
 
       before('create Host 1(USD)', () =>
         models.Collective.create({
@@ -629,7 +629,7 @@ describe('opencollective.virtualcard', () => {
     describe('#create', async () => {
       let collective1, collective2, creditCard2, user1;
 
-      before(() => utils.resetTestDB());
+      before(async () => await utils.resetTestDB());
       before('create collective1(currency USD, No Host)', () =>
         models.Collective.create({
           name: 'collective1',
@@ -737,7 +737,7 @@ describe('opencollective.virtualcard', () => {
     describe('#claim', async () => {
       let collective1, paymentMethod1, virtualCardPaymentMethod, user1;
 
-      before(() => utils.resetTestDB());
+      before(async () => await utils.resetTestDB());
 
       before('create collective1(currency USD, No Host)', () =>
         models.Collective.create({
@@ -901,7 +901,7 @@ describe('opencollective.virtualcard', () => {
         userVirtualCard,
         userVirtualCardCollective;
 
-      before(() => utils.resetTestDB());
+      before(async () => await utils.resetTestDB());
 
       before('create Host 1(USD)', () =>
         models.Collective.create({
@@ -1118,7 +1118,7 @@ describe('opencollective.virtualcard', () => {
     describe('POST /payment-methods to Create a virtual card', async () => {
       let collective1, user1, appKeyData;
 
-      before(() => utils.resetTestDB());
+      before(async () => await utils.resetTestDB());
       before('generating API KEY)', () => models.Application.create({ type: 'oAuth' }).then(key => (appKeyData = key)));
       before('create collective1(currency USD, No Host)', () =>
         models.Collective.create({

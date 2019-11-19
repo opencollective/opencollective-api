@@ -5,7 +5,7 @@ import { randEmail } from './stores';
 
 describe('order.model.test.js', () => {
   let user, collective, tier, order;
-  before(() => utils.resetTestDB());
+  before(async () => await utils.resetTestDB());
   before('create a user', () =>
     models.User.createUserWithCollective({
       email: randEmail(),

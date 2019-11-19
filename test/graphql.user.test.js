@@ -21,7 +21,7 @@ describe('Query Tests', () => {
 
   after(() => sandbox.restore());
 
-  beforeEach(() => utils.resetTestDB());
+  beforeEach(async () => await utils.resetTestDB());
 
   beforeEach(() => models.User.createUserWithCollective(utils.data('user1')).tap(u => (user1 = u)));
   beforeEach(() => models.User.createUserWithCollective(utils.data('user2')).tap(u => (user2 = u)));

@@ -12,7 +12,7 @@ const transactionsData = utils.data('transactions1').transactions;
 describe('transaction model', () => {
   let user, host, collective, defaultTransactionData;
 
-  beforeEach(() => utils.resetTestDB());
+  beforeEach(async () => await utils.resetTestDB());
 
   beforeEach('create user', () => models.User.createUserWithCollective(userData).tap(u => (user = u)));
   beforeEach('create host', () => models.User.createUserWithCollective(utils.data('host1')).tap(u => (host = u)));

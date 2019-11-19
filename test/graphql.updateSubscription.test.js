@@ -50,7 +50,7 @@ describe('graphql.updateSubscription.test.js', () => {
 
   after(() => sandbox.restore());
 
-  beforeEach(() => utils.resetTestDB());
+  beforeEach(async () => await utils.resetTestDB());
 
   beforeEach(() => models.User.createUserWithCollective(utils.data('user1')).tap(u => (user = u)));
 

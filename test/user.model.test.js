@@ -26,7 +26,7 @@ describe('user.model.test.js', () => {
   // Create a stub for clearbit
   beforeEach(() => utils.clearbitStubBeforeEach(sandbox));
 
-  beforeEach(() => utils.resetTestDB());
+  beforeEach(async () => await utils.resetTestDB());
 
   afterEach(() => utils.clearbitStubAfterEach(sandbox));
 
@@ -204,7 +204,7 @@ describe('user.model.test.js', () => {
   });
 
   describe('class methods', () => {
-    beforeEach(() => utils.resetTestDB());
+    beforeEach(async () => await utils.resetTestDB());
     beforeEach(() => User.createUserWithCollective(utils.data('user1')));
 
     it('creates a new user collective and generates a unique slug', () => {

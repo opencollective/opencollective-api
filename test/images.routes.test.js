@@ -15,7 +15,7 @@ const userData = utils.data('user1');
 describe('images.routes.test.js', () => {
   let user;
 
-  beforeEach(() => utils.resetTestDB());
+  beforeEach(async () => await utils.resetTestDB());
 
   /**
    * Create user

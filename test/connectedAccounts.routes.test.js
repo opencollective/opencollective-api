@@ -11,7 +11,7 @@ const application = utils.data('application');
 describe('connectedAccounts.routes.test.js: GIVEN a collective', () => {
   let req, user;
 
-  beforeEach(() => utils.resetTestDB());
+  beforeEach(async () => await utils.resetTestDB());
 
   describe('WHEN calling /connected-accounts/github', () => {
     beforeEach(done => {

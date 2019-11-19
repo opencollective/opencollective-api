@@ -108,7 +108,7 @@ describe('Collective model', () => {
 
   after(() => sandbox.restore());
 
-  before(() => utils.resetTestDB());
+  before(async () => await utils.resetTestDB());
 
   before(() =>
     User.createUserWithCollective(users[0])

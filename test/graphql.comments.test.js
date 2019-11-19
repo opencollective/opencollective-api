@@ -24,7 +24,7 @@ describe('graphql.comments.test', () => {
 
   after(() => sandbox.restore());
 
-  before(() => utils.resetTestDB());
+  before(async () => await utils.resetTestDB());
 
   before(() =>
     models.User.createUserWithCollective({

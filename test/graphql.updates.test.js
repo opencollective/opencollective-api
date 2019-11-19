@@ -26,7 +26,7 @@ describe('graphql.updates.test', () => {
 
   after(() => sandbox.restore());
 
-  before(() => utils.resetTestDB());
+  before(async () => await utils.resetTestDB());
 
   before(() => models.User.createUserWithCollective(utils.data('user1')).tap(u => (user1 = u)));
   before(() => models.User.createUserWithCollective(utils.data('host1')).tap(u => (host = u)));

@@ -39,7 +39,7 @@ describe('Collective model', () => {
     },
   ];
 
-  before(() => utils.resetTestDB());
+  before(async () => await utils.resetTestDB());
 
   before(() =>
     Collective.create(collectiveData)

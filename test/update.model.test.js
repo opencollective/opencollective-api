@@ -10,7 +10,7 @@ describe('update.models.test.js', () => {
   const tomorrow = new Date(today + dateOffset);
 
   let user, collective;
-  before(() => utils.resetTestDB());
+  before(async () => await utils.resetTestDB());
   before('create a user', () =>
     models.User.createUserWithCollective({
       name: 'Xavier',
