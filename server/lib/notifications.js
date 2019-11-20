@@ -106,6 +106,7 @@ async function notifySubscribers(users, activity, options = {}) {
       if (data.host) {
         data.actions = {
           approve: `${config.host.website}/${data.host.slug}/collectives/${data.collective.id}/approve`,
+          reject: `${config.host.website}/${data.host.slug}/collectives/${data.collective.id}/reject`,
         };
       }
       break;
