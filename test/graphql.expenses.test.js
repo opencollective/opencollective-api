@@ -91,15 +91,11 @@ const addFunds = async (user, hostCollective, collective, amount) => {
 
 describe('GraphQL Expenses API', () => {
   beforeEach(async () => {
-    try {
-      await utils.resetTestDB();
-    } catch (e) {}
+    await utils.resetTestDB();
   });
 
   beforeEach(async () => {
-    try {
-      await utils.resetCaches();
-    } catch (e) {}
+    await utils.resetCaches();
   });
 
   describe('#allExpenses', () => {
@@ -1294,18 +1290,27 @@ describe('GraphQL Expenses API', () => {
         ...data,
       });
       // approve the expense
-      const res = await utils.graphqlQuery(approveExpenseQuery, { id: expense.id }, hostAdmin);
-      res.errors && console.log(res.errors);
-      expect(res.errors).to.not.exist;
-      // expect expense to be first approved
-      expect(res.data.approveExpense.status).to.equal('APPROVED');
-      // When the expense is approved by the admin of host
-      const result = await utils.graphqlQuery(unapproveExpenseQuery, { id: expense.id }, hostAdmin);
-      result.errors && console.log(result.errors);
-      // Then there should be no errors in the result
-      expect(result.errors).to.not.exist;
-      // And then the approved expense should be set as PENDING
-      expect(result.data.unapproveExpense.status).to.equal('PENDING');
+      try {
+        const res = await utils.graphqlQuery(approveExpenseQuery, { id: expense.id }, hostAdmin);
+        res.errors && console.log(res.errors);
+        expect(res.errors).to.not.exist;
+        // expect expense to be first approved
+        expect(res.data.approveExpense.status).to.equal('APPROVED');
+      } catch (e) {
+        console.log(1296, e);
+      }
+      try {
+        // When the expense is approved by the admin of host
+        const result = await utils.graphqlQuery(unapproveExpenseQuery, { id: expense.id }, hostAdmin);
+
+        result.errors && console.log(result.errors);
+        // Then there should be no errors in the result
+        expect(result.errors).to.not.exist;
+        // And then the approved expense should be set as PENDING
+        expect(result.data.unapproveExpense.status).to.equal('PENDING');
+      } catch (e) {
+        console.log(1306, e);
+      }
     }); /* End of "successfully unapprove expense" */
   }); /* End of #unapproveExpense */
 }); /* End of "GraphQL Expenses API" */
