@@ -91,11 +91,15 @@ const addFunds = async (user, hostCollective, collective, amount) => {
 
 describe('GraphQL Expenses API', () => {
   beforeEach(async () => {
-    await utils.resetTestDB();
+    try {
+      await utils.resetTestDB();
+    } catch (e) {}
   });
 
   beforeEach(async () => {
-    await utils.resetCaches();
+    try {
+      await utils.resetCaches();
+    } catch (e) {}
   });
 
   describe('#allExpenses', () => {
@@ -1295,7 +1299,6 @@ describe('GraphQL Expenses API', () => {
       expect(res.errors).to.not.exist;
       // expect expense to be first approved
       expect(res.data.approveExpense.status).to.equal('APPROVED');
-      await utils.resetCaches();
       // When the expense is approved by the admin of host
       const result = await utils.graphqlQuery(unapproveExpenseQuery, { id: expense.id }, hostAdmin);
       result.errors && console.log(result.errors);

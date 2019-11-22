@@ -492,10 +492,10 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
         interval: order.interval,
         currency: order.currency,
       });
-      await orderCreated.update({ SubscriptionId: subscription.id });
+      await orderCreated.update({ SubscriptionId: subscription.id }, { returning: true });
     } else if (collective.type === types.EVENT) {
       // Free ticket, mark as processed and add user as an ATTENDEE
-      await orderCreated.update({ status: 'PAID', processedAt: new Date() });
+      await orderCreated.update({ status: 'PAID', processedAt: new Date() }, { returning: true });
       const UserId = remoteUser ? remoteUser.id : user.id;
       await collective.addUserWithRole(user, roles.ATTENDEE, {}, { order: orderCreated });
       await models.Activity.create({
@@ -522,7 +522,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
           orderCreated.status = status.ERROR;
         }
         orderCreated.data.error = { message: error.message };
-        orderCreated.save();
+        orderCreated.save({ returning: true });
       }
 
       if (!error.stripeResponse) {
@@ -585,8 +585,8 @@ export async function confirmOrder(order, remoteUser) {
         order.Subscription.chargeNumber += 1;
       }
 
-      await order.Subscription.save();
-      await order.save();
+      await order.Subscription.save({ returning: true });
+      await order.save({ returning: true });
     }
 
     return order;
@@ -804,7 +804,7 @@ export async function updateSubscription(remoteUser, args) {
     }
     await order.Subscription.deactivate();
     order.status = status.CANCELLED;
-    await order.save();
+    await order.save({ returning: true });
 
     const newSubscriptionDataValues = Object.assign(omit(order.Subscription.dataValues, ['id', 'deactivatedAt']), {
       amount: amount,
@@ -970,7 +970,7 @@ export async function markPendingOrderAsExpired(remoteUser, id) {
   }
 
   order.status = 'EXPIRED';
-  await order.save();
+  await order.save({ returning: true });
   return order;
 }
 
