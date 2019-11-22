@@ -84,7 +84,7 @@ export async function updateExpenseStatus(remoteUser, expenseId, status) {
       }
       break;
   }
-  const res = await expense.update({ status, lastEditedById: remoteUser.id });
+  const res = await expense.update({ status, lastEditedById: remoteUser.id }, { returning: true });
   return res;
 }
 

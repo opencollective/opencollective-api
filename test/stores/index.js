@@ -216,7 +216,8 @@ export async function newCollectiveInHost(name, currency, hostCollective, user =
  * @return {models.Expense} newly created expense instance.
  */
 export async function createExpense(user, expenseData) {
-  return expenses.createExpense(user, expenseData);
+  const expense = await expenses.createExpense(user, expenseData);
+  return expense;
 }
 
 export async function createApprovedExpense(user, expenseData) {
