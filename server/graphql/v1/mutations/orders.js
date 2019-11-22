@@ -492,10 +492,10 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
         interval: order.interval,
         currency: order.currency,
       });
-      await orderCreated.update({ SubscriptionId: subscription.id }, { returning: true });
+      await orderCreated.update({ SubscriptionId: subscription.id });
     } else if (collective.type === types.EVENT) {
       // Free ticket, mark as processed and add user as an ATTENDEE
-      await orderCreated.update({ status: 'PAID', processedAt: new Date() }, { returning: true });
+      await orderCreated.update({ status: 'PAID', processedAt: new Date() });
       const UserId = remoteUser ? remoteUser.id : user.id;
       await collective.addUserWithRole(user, roles.ATTENDEE, {}, { order: orderCreated });
       await models.Activity.create({
