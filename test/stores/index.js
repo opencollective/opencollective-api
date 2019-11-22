@@ -167,7 +167,7 @@ export async function newCollectiveWithHost(name, currency, hostCurrency, hostFe
   if (currency !== hostCurrency) {
     collective.currency = currency;
   }
-  await collective.save({ returning: true });
+  await collective.save();
   if (user) await collective.addUserWithRole(user, 'ADMIN');
   return { hostCollective, hostAdmin, collective, [slug]: collective };
 }

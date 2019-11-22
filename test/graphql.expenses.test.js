@@ -1271,23 +1271,11 @@ describe('GraphQL Expenses API', () => {
   describe('#unapproveExpense', () => {
     it('successfully unapprove expense', async () => {
       // Given that we have a collective
-      var hostAdmin, collective;
-
-      try {
-        var { hostAdmin, collective } = await store.newCollectiveWithHost('rollup', 'USD', 'USD', 10);
-      } catch (e) {
-        console.log(1279, e);
-      }
+      const { hostAdmin, collective } = await store.newCollectiveWithHost('rollup', 'USD', 'USD', 10);
       // And given a user that will file an expense
-      var user;
-      try {
-        var { user } = await store.newUser('an internet user', {
-          paypalEmail: 'testuser@paypal.com',
-        });
-      } catch (e) {
-        console.log(1282, e);
-      }
-
+      const { user } = await store.newUser('an internet user', {
+        paypalEmail: 'testuser@paypal.com',
+      });
       // And given the above collective has one expense (created by
       // the above user)
       const data = {
@@ -1296,17 +1284,11 @@ describe('GraphQL Expenses API', () => {
         privateMessage: 'Private instructions to reimburse this expense',
         collective: { id: collective.id },
       };
-      var expense;
-      try {
-        expense = await store.createExpense(user, {
-          amount: 1000,
-          description: 'Pizza',
-          ...data,
-        });
-      } catch (e) {
-        console.log(1295, e);
-      }
-
+      const expense = await store.createExpense(user, {
+        amount: 1000,
+        description: 'Pizza',
+        ...data,
+      });
       // approve the expense
       const res = await utils.graphqlQuery(approveExpenseQuery, { id: expense.id }, hostAdmin);
       res.errors && console.log(res.errors);

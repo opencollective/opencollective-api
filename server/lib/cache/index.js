@@ -57,7 +57,7 @@ const cache = {
   clear: async () => {
     try {
       debugCache('clear');
-      await getDefaultProvider().clear();
+      return getDefaultProvider().clear();
     } catch (err) {
       logger.warn(`Error while clearing cache: ${err.message}`);
     }
