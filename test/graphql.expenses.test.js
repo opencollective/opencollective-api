@@ -1295,6 +1295,7 @@ describe('GraphQL Expenses API', () => {
       expect(res.errors).to.not.exist;
       // expect expense to be first approved
       expect(res.data.approveExpense.status).to.equal('APPROVED');
+      await utils.resetCaches();
       // When the expense is approved by the admin of host
       const result = await utils.graphqlQuery(unapproveExpenseQuery, { id: expense.id }, hostAdmin);
       result.errors && console.log(result.errors);
