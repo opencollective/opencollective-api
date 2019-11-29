@@ -20,8 +20,16 @@ const generateFXConversionSQL = async aggregate => {
     amountColumn = 'SUM("t."netAmountInCollectiveCurrency"")';
   }
 
-  const amount = await convertToCurrency(1, 'USD', currencyColumn);
-  return currencyColumn ? `${amountColumn} / ${amount}` : '0';
+  const currencies = ['AUD', 'CAD', 'EUR', 'GBP', 'INR', 'MXN', 'SEK', 'USD', 'UYU'];
+
+  const result = await Promise.all(
+    currencies.map(async currency => {
+      const amount = await convertToCurrency(1, 'USD', currency);
+      return `WHEN ${currencyColumn} = '${currency}' THEN ${amountColumn} / ${amount}`;
+    }),
+  );
+
+  return `CASE ${result.join('\n')}ELSE 0 END`;
 };
 
 const getHosts = async args => {
