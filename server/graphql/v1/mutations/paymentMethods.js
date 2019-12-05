@@ -66,6 +66,8 @@ async function createStripeCreditCard(args, remoteUser) {
     throw Error('This collective does not exists');
   }
 
+  console.log('args', args);
+
   const paymentMethodData = {
     ...args,
     type: 'creditcard',
