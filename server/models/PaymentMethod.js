@@ -187,6 +187,7 @@ export default function(Sequelize, DataTypes) {
 
       hooks: {
         beforeCreate: instance => {
+          console.log('instance', instance);
           if (instance.service !== 'opencollective') {
             if (!instance.token) {
               throw new Error(`${instance.service} payment method requires a token`);
@@ -480,6 +481,7 @@ export default function(Sequelize, DataTypes) {
    * @post PaymentMethod { id, uuid, service, token, balance, CollectiveId }
    */
   PaymentMethod.getOrCreate = async (user, paymentMethod) => {
+    console.log('get or create');
     if (!paymentMethod.uuid) {
       // If no UUID provided, we check if this token already exists
       // NOTE: we have to disable this better behavior because it's breaking too many tests
@@ -494,6 +496,7 @@ export default function(Sequelize, DataTypes) {
       }
       */
       // If no UUID provided, we create a new paymentMethod
+      console.log('creating new payment method');
       const paymentMethodData = {
         ...paymentMethod,
         service: paymentMethod.service || 'stripe',

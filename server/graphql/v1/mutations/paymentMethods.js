@@ -74,7 +74,11 @@ async function createStripeCreditCard(args, remoteUser) {
     saved: true,
   };
 
+  console.log('pmdata', paymentMethodData);
+
   let paymentMethod = await models.PaymentMethod.create(paymentMethodData);
+
+  console.log('payment meth', paymentMethod);
 
   try {
     paymentMethod = await setupCreditCard(paymentMethod, {
