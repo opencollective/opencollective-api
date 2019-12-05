@@ -201,3 +201,37 @@ export async function updatePaymentMethod(args, remoteUser) {
 
   return models.PaymentMethod.update(pick(args, allowedFields), { where: { id: paymentMethod.id } });
 }
+
+/** Update payment method with given args */
+export async function replaceCreditCard(args, remoteUser) {
+  const oldPaymentMethod = await models.PaymentMethod.findByPk(args.id);
+  if (!oldPaymentMethod || !remoteUser || !remoteUser.isAdmin(oldPaymentMethod.CollectiveId)) {
+    throw PaymentMethodPermissionError;
+  }
+
+  console.log('old payment method', oldPaymentMethod);
+
+  const { id, ...noOldIdArgs } = args;
+
+  const newPaymentMethod = await createPaymentMethod(
+    { ...noOldIdArgs, service: 'stripe', type: 'creditcard' },
+    remoteUser,
+  );
+
+  console.log('new payment method', newPaymentMethod);
+
+  // Update orders (using Sequelize)
+  // first arg in new thing, second arg is old thing it's replacing
+  await models.Order.update(
+    { PaymentMethodId: newPaymentMethod.id },
+    { where: { PaymentMethodId: oldPaymentMethod.id } },
+  );
+
+  // Delete or hide the old Payment Method (using Sequelize) - destroy instead of delete
+  await oldPaymentMethod.destroy();
+
+  console.log('destroyed');
+
+  // TODO: What should we return? The new Credit Card perhaps
+  return newPaymentMethod;
+}
