@@ -387,17 +387,19 @@ export const loaders = req => {
 
   /** *** PaymentMethod *****/
   // PaymentMethod - findByCollectiveId
-  context.loaders.PaymentMethod.findByCollectiveId = new DataLoader(CollectiveIds =>
-    models.PaymentMethod.findAll({
+  context.loaders.PaymentMethod.findByCollectiveId = new DataLoader(CollectiveIds => {
+    const oneDayInMilliseonds = 86400000;
+    return models.PaymentMethod.findAll({
       where: {
         CollectiveId: { [Op.in]: CollectiveIds },
         name: { [Op.ne]: null },
-        expiryDate: { [Op.or]: [null, { [Op.gte]: new Date() }] },
+        // Also load cards that expired recently (30 days)
+        expiryDate: { [Op.or]: [null, { [Op.gte]: new Date(+new Date() - oneDayInMilliseonds * 30) }] },
         archivedAt: null,
       },
       order: [['id', 'DESC']],
-    }).then(results => sortResults(CollectiveIds, results, 'CollectiveId', [])),
-  );
+    }).then(results => sortResults(CollectiveIds, results, 'CollectiveId', []));
+  });
 
   /** *** Order *****/
   // Order - findByMembership
