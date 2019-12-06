@@ -453,3 +453,30 @@ export const sendReminderPendingOrderEmail = async order => {
     from: `${collective.name} <hello@${collective.slug}.opencollective.com>`,
   });
 };
+
+export const sendExpiringCreditCardUpdateEmail = async card => {
+  console.log('sending email');
+
+  const { id, CollectiveId } = card;
+
+  const collectiveSlug = 'mopsa-piggy';
+  const user = {
+    email: 'kate@katebeard.co',
+  };
+
+  const data = {
+    updateDetailsLink: `${config.host.website}/paymentmethod/${id}/${collectiveSlug}/update`,
+  };
+
+  console.log(id, CollectiveId, collectiveSlug, user.email, data.updateDetailsLink);
+
+  try {
+    console.log('tryin');
+    return emailLib.send('payment.creditcard.expiring', user.email, data, {
+      from: `${collectiveSlug} <hello@${collectiveSlug}.opencollective.com>`,
+    });
+  } catch (e) {
+    console.log(e);
+    return e;
+  }
+};

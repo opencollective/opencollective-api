@@ -230,6 +230,7 @@ const getNotificationLabel = (template, recipients) => {
  * Given a template, recipient and data, generates email.
  */
 const generateEmailFromTemplate = (template, recipient, data = {}, options = {}) => {
+  console.log('generate email from template func line 233');
   const slug = get(options, 'collective.slug') || get(data, 'collective.slug') || 'undefined';
 
   // If we are sending the same email to multiple recipients, it doesn't make sense to allow them to unsubscribe
@@ -307,15 +308,20 @@ const generateEmailFromTemplate = (template, recipient, data = {}, options = {})
     return Promise.reject(new Error(`Invalid email template: ${template}`));
   }
 
+  console.log('line 311 about to render template');
+
   const renderedTemplate = render(template, data);
 
   return Promise.resolve(renderedTemplate);
 };
 
 const isNotificationActive = async (template, data) => {
+  console.log('line 319 is notif active');
   if (data.user && data.user.id) {
+    console.log('data user and data user id');
     return models.Notification.isActive(template, data.user, data.collective);
   } else {
+    console.log('returning true');
     return true;
   }
 };
@@ -324,21 +330,30 @@ const isNotificationActive = async (template, data) => {
  * Given a template, recipient and data, generates email and sends it.
  */
 const generateEmailFromTemplateAndSend = async (template, recipient, data, options = {}) => {
+  console.log(recipient);
+
   if (!recipient) {
     logger.info(`Email with template '${template}' not sent. No recipient.`);
     return;
   }
 
+  console.log('generating email from template');
+
   const notificationIsActive = await isNotificationActive(template, data);
+  console.log('checking notifications');
   if (!notificationIsActive) {
+    console.log('notification is not active');
     logger.info(`Email with template '${template}' not sent. Recipient email notification is not active.`);
     return;
   }
 
   return generateEmailFromTemplate(template, recipient, data, options).then(renderedTemplate => {
+    console.log(renderedTemplate);
     const attributes = getTemplateAttributes(renderedTemplate.html);
+    console.log(attributes);
     options.text = renderedTemplate.text;
     options.tag = template;
+    console.log(options.text);
     return emailLib.sendMessage(recipient, attributes.subject, attributes.body, options);
   });
 };

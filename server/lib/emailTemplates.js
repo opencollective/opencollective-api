@@ -58,6 +58,8 @@ export const templateNames = [
   'payment.failed.text',
   'payment.creditcard.confirmation',
   'payment.creditcard.confirmation.text',
+  'payment.creditcard.expiring',
+  'payment.creditcard.expiring.text',
   'pledge.complete',
   'order.processing',
   'order.new.pendingFinancialContribution',
