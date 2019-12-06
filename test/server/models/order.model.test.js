@@ -1,7 +1,7 @@
 import { expect } from 'chai';
-import * as utils from '../test/utils';
-import models from '../server/models';
-import { randEmail } from './stores';
+import * as utils from '../../../test/utils';
+import models from '../../../server/models';
+import { randEmail } from '../../stores';
 
 describe('order.model.test.js', () => {
   let user, collective, tier, order;

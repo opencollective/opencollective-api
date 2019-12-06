@@ -1,8 +1,8 @@
 import { expect } from 'chai';
-import models from '../server/models';
-import * as utils from '../test/utils';
+import models from '../../../server/models';
+import * as utils from '../../../test/utils';
 import sinon from 'sinon';
-import emailLib from '../server/lib/email';
+import emailLib from '../../../server/lib/email';
 
 const { Transaction, Collective, User } = models;
 

@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { SequelizeValidationError } from 'sequelize';
-import models from '../server/models';
-import * as utils from '../test/utils';
+import models from '../../../server/models';
+import * as utils from '../../../test/utils';
 
 const { Collective, User } = models;
 

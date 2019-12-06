@@ -1,9 +1,9 @@
 import { expect } from 'chai';
-import { processOnBoardingTemplate } from '../server/lib/onboarding';
-import emailLib from '../server/lib/email';
+import { processOnBoardingTemplate } from '../../server/lib/onboarding';
+import emailLib from '../../server/lib/email';
 import sinon from 'sinon';
-import models from '../server/models';
-import * as utils from './utils';
+import models from '../../server/models';
+import * as utils from '../utils';
 import Promise from 'bluebird';
 
 describe('onboarding', () => {

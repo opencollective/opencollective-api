@@ -4,11 +4,11 @@ import { expect } from 'chai';
 import { URL } from 'url';
 import { SequelizeValidationError } from 'sequelize';
 
-import models from '../server/models';
-import * as auth from '../server/lib/auth';
+import models from '../../../server/models';
+import * as auth from '../../../server/lib/auth';
 
-import * as utils from './utils';
-import { randEmail } from './stores';
+import * as utils from '../../utils';
+import { randEmail } from '../../stores';
 
 const userData = utils.data('user1');
 
