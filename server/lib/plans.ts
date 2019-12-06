@@ -7,7 +7,7 @@ const isSubscribeOrUpgrade = (newPlan: string, oldPlan?: string | null): boolean
 };
 
 export async function subscribeOrUpgradePlan(order): Promise<void> {
-  if (!order.collective || !order.fromCollective) await order.populate();
+  if (!order.collective || !order.fromCollective) {await order.populate();}
 
   if (order.tier && order.collective.slug === PLANS_COLLECTIVE_SLUG) {
     const newPlan = get(order, 'tier.slug');
@@ -21,7 +21,7 @@ export async function subscribeOrUpgradePlan(order): Promise<void> {
 }
 
 export async function validatePlanRequest(order): Promise<void> {
-  if (!order.collective || !order.fromCollective) await order.populate();
+  if (!order.collective || !order.fromCollective) {await order.populate();}
 
   if (order.tier && order.tier.data && order.collective.slug === PLANS_COLLECTIVE_SLUG) {
     const hostedCollectives = await order.fromCollective.getHostedCollectivesCount();
