@@ -48,8 +48,20 @@ jobs:
       - name: Checkout (api)
         uses: actions/checkout@v2-beta
 
-      - name: Checkout (frontend)
-        run: ./scripts/ci_checkout_frontend.sh
+      - name: Checkout (frontend - matching branch)
+        uses: actions/checkout@v2-beta
+        with:
+          repository: opencollective/opencollective-frontend
+          path: opencollective-frontend
+          ref: ${{ github.ref }}
+
+      - name: Checkout (frontend - master)
+        if: failure()
+        uses: actions/checkout@v2-beta
+        with:
+          repository: opencollective/opencollective-frontend
+          path: opencollective-frontend
+          ref: master
 
       - name: Setup node
         uses: actions/setup-node@v1
