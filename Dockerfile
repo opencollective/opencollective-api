@@ -19,5 +19,5 @@ RUN chmod +x /usr/local/bin/setup.sh
 # Use setup script as entrypoint
 ENTRYPOINT ["setup.sh"]
 
-# Default commad 'start'. Can by overriden from docker cli.
+# Default command 'start'. Can by overridden from Docker cli.
 CMD [ "start" ]

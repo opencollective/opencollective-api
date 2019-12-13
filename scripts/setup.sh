@@ -7,6 +7,7 @@ installNodeModules() {
   echo "Installing node modules"
   npm install
 }
+
 waitForPostgresToByReady() {
   # Code by https://starkandwayne.com/blog/how-to-know-when-your-postgres-service-is-ready/
   until pg_isready
@@ -15,11 +16,13 @@ waitForPostgresToByReady() {
     sleep 2;
   done
 }
+
 seedDB() {
   echo "Seeding database"
   waitForPostgresToByReady
   npm run postinstall
 }
+
 doesDatabaseExists() {
   # Code by https://stackoverflow.com/a/16783253/5801753
   if psql -lqt | cut -d \| -f 1 | grep -qw $1; then
@@ -28,6 +31,7 @@ doesDatabaseExists() {
     return 1
   fi
 }
+
 setupTestingDB() {
   echo "Setting up testing db"
   waitForPostgresToByReady
@@ -39,6 +43,7 @@ setupTestingDB() {
     psql -d opencollective_test -c 'ALTER USER opencollective WITH SUPERUSER;' || true
   fi
 }
+
 setupEnvironmentIfNodeModulesDoesNotExists() {
   if [ ! -d node_modules ]; then
     setupScriptRan=true
