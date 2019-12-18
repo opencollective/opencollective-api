@@ -231,6 +231,25 @@ export const CollectivesStatsType = new GraphQLObjectType({
   },
 });
 
+export const PlanType = new GraphQLObjectType({
+  name: 'PlanType',
+  description: 'The name of the current plan and its characteristics.',
+  fields: {
+    name: {
+      type: GraphQLString,
+    },
+    collectiveLimit: {
+      type: GraphQLInt,
+    },
+    addFundsLimit: {
+      type: GraphQLInt,
+    },
+    hostDashboard: {
+      type: GraphQLBoolean,
+    },
+  },
+});
+
 export const ExpensesStatsType = new GraphQLObjectType({
   name: 'ExpensesStatsType',
   description: 'Breakdown of expenses per status (ALL/PENDING/APPROVED/PAID/REJECTED)',
@@ -759,6 +778,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
         },
       },
       connectedAccounts: { type: new GraphQLList(ConnectedAccountType) },
+      plan: { type: PlanType },
     };
   },
 });
@@ -1655,6 +1675,12 @@ const CollectiveFields = () => {
       type: new GraphQLList(ConnectedAccountType),
       resolve(collective, args, req) {
         return req.loaders.Collective.connectedAccounts.load(collective.id);
+      },
+    },
+    plan: {
+      type: PlanType,
+      resolve(collective) {
+        return collective.getPlan();
       },
     },
     stats: {
