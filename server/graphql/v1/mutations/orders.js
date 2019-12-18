@@ -998,9 +998,19 @@ export async function addFundsToCollective(order, remoteUser) {
     throw new Error('Orders cannot be created for a collective by that same collective.');
   }
 
-  const HostCollectiveId = await collective.getHostCollectiveId();
-  if (!remoteUser.isAdmin(HostCollectiveId) && !remoteUser.isRoot()) {
+  const host = await collective.getHostCollective();
+  if (!remoteUser.isAdmin(host.id) && !remoteUser.isRoot()) {
     throw new Error('Only an site admin or collective host admin can add fund');
+  }
+
+  // Check limits
+  const hostPlan = host.getPlan();
+  const hostTotalAddedFunds = await host.getTotalAddedFunds();
+  if (hostPlan.addFundsLimit && hostPlan.addFundsLimit <= hostTotalAddedFunds) {
+    throw new errors.PlanLimit({
+      message:
+        'The limit of "Added Funds" for the host has been reached. Please contact support@opencollective.com if you think this is an error.',
+    });
   }
 
   order.collective = collective;
@@ -1025,7 +1035,7 @@ export async function addFundsToCollective(order, remoteUser) {
       throw new Error(`From collective id ${order.fromCollective.id} not found`);
     } else if ([types.COLLECTIVE, types.EVENT].includes(fromCollective.type)) {
       const isAdminOfFromCollective = remoteUser.isRoot() || remoteUser.isAdmin(fromCollective.id);
-      if (!isAdminOfFromCollective && fromCollective.HostCollectiveId !== HostCollectiveId) {
+      if (!isAdminOfFromCollective && fromCollective.HostCollectiveId !== host.id) {
         const fromCollectiveHostId = await fromCollective.getHostCollectiveId();
         if (!remoteUser.isAdmin(fromCollectiveHostId)) {
           throw new Error("You don't have the permission to add funds from collectives you don't own or host.");
