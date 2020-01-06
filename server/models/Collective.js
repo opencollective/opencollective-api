@@ -884,6 +884,23 @@ export default function(Sequelize, DataTypes) {
   };
 
   /**
+   * If the collective is a host, it needs to remove existing hosted collectives before
+   * deactivating it as a host.
+   */
+  Collective.prototype.deactivateAsHost = async function() {
+    const hostedCollectivesCount = await this.getHostedCollectivesCount();
+    if (hostedCollectivesCount >= 1) {
+      throw new Error(
+        `You cannot deactivate your collective while still hosting ${hostedCollectivesCount} other collectives. Please contact support.`,
+      );
+    }
+
+    // TODO unsubscribe from OpenCollective tier plan.
+
+    await this.update({ isHostAccount: false });
+  };
+
+  /**
    * If the collective is a host, this function return true in case it's open to applications.
    * It does **not** check that the collective is indeed a host.
    */

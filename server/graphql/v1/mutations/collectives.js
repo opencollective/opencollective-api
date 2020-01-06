@@ -1102,5 +1102,5 @@ export async function deactivateCollectiveAsHost(_, args, req) {
     });
   }
 
-  return collective.update({ isHostAccount: false });
+  return collective.deactivateAsHost();
 }
