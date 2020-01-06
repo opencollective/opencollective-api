@@ -288,6 +288,7 @@ describe('Collective model', () => {
     it('fails to add another host', async () => {
       try {
         await collective.addHost(newHost, user1);
+        throw new Error("Didn't throw expected error!");
       } catch (e) {
         expect(e.message).to.contain('This collective already has a host');
       }
@@ -296,8 +297,18 @@ describe('Collective model', () => {
     it('fails to change host if there is a pending balance', async () => {
       try {
         await collective.changeHost();
+        throw new Error("Didn't throw expected error!");
       } catch (e) {
         expect(e.message).to.contain('Unable to change host: you still have a balance of $965');
+      }
+    });
+
+    it('fails to deactivate as host if it is hosting any collective', async () => {
+      try {
+        await hostUser.collective.deactivateAsHost();
+        throw new Error("Didn't throw expected error!");
+      } catch (e) {
+        expect(e.message).to.contain('You cannot deactivate your collective while still hosting');
       }
     });
 
