@@ -30,21 +30,29 @@ const plans = {
     collectiveLimit: 99,
     addFundsLimit: null,
     hostDashboard: true,
+    slug: 'network-host-plan',
+    tier: 4,
   },
   large: {
     collectiveLimit: 24,
     addFundsLimit: null,
     hostDashboard: true,
+    slug: 'large-host-plan',
+    tier: 3,
   },
   medium: {
     collectiveLimit: 9,
     addFundsLimit: null,
     hostDashboard: true,
+    slug: 'medium-host-plan',
+    tier: 2,
   },
   small: {
     collectiveLimit: 1,
     addFundsLimit: null,
     hostDashboard: false,
+    slug: 'small-host-plan',
+    tier: 1,
   },
   // Special plan for everyone without a plan
   default: {
@@ -53,5 +61,7 @@ const plans = {
     hostDashboard: false,
   },
 };
+
+export const PLANS_COLLECTIVE_SLUG = 'opencollective';
 
 export default plans;
