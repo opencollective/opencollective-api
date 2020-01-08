@@ -1,3 +1,5 @@
+Testing if CI is triggered on a PR from a fork
+
 # Open Collective API
 
 [![Circle CI](https://circleci.com/gh/opencollective/opencollective-api/tree/master.svg?style=shield)](https://circleci.com/gh/opencollective/opencollective-api/tree/master)
