@@ -3,7 +3,7 @@ import { findKey, get } from 'lodash';
 import plans, { PLANS_COLLECTIVE_SLUG } from '../constants/plans';
 
 const isSubscribeOrUpgrade = (newPlan: string, oldPlan?: string | null): boolean => {
-  return !oldPlan ? true : get(plans, `${newPlan}.tier`) > get(plans, `${oldPlan}.tier`);
+  return !oldPlan ? true : get(plans, `${newPlan}.level`) > get(plans, `${oldPlan}.level`);
 };
 
 export async function subscribeOrUpgradePlan(order): Promise<void> {
