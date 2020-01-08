@@ -664,7 +664,7 @@ export async function archiveCollective(_, args, req) {
 
   if (await collective.isHost()) {
     throw new Error(
-      `You cannot archive your collective while being a host. Please, Desactivate your collective as Host and try again.`,
+      `You can't archive your collective while being a host. Please, Desactivate your collective as Host and try again.`,
     );
   }
 
@@ -728,7 +728,7 @@ export async function deleteCollective(_, args, req) {
 
   if (await collective.isHost()) {
     throw new Error(
-      `You cannot delete your collective while being a host. Please, Desactivate your collective as Host and try again.`,
+      `You can't delete your collective while being a host. Please, Desactivate your collective as Host and try again.`,
     );
   }
 

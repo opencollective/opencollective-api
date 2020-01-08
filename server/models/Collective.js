@@ -891,7 +891,7 @@ export default function(Sequelize, DataTypes) {
     const hostedCollectives = await this.getHostedCollectivesCount();
     if (hostedCollectives >= 1) {
       throw new Error(
-        `You cannot deactivate hosting while still hosting ${hostedCollectives} other collectives. Please contact support: support@opencollective.com.`,
+        `You can't deactivate hosting while still hosting ${hostedCollectives} other collectives. Please contact support: support@opencollective.com.`,
       );
     }
 

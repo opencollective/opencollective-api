@@ -310,7 +310,7 @@ describe('Collective model', () => {
         await hostUser.collective.deactivateAsHost();
         throw new Error("Didn't throw expected error!");
       } catch (e) {
-        expect(e.message).to.contain('You cannot deactivate hosting while still hosting');
+        expect(e.message).to.contain("You can't deactivate hosting while still hosting");
       }
     });
 
