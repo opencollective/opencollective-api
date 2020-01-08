@@ -873,10 +873,10 @@ export default function(Sequelize, DataTypes) {
    * deactivating it as a host.
    */
   Collective.prototype.deactivateAsHost = async function() {
-    const hostedCollectivesCount = await this.getHostedCollectivesCount();
-    if (hostedCollectivesCount >= 1) {
+    const hostedCollectives = await this.getHostedCollectivesCount();
+    if (hostedCollectives >= 1) {
       throw new Error(
-        `You cannot deactivate hosting while still hosting ${hostedCollectivesCount} other collectives. Please contact support: support@opencollective.com.`,
+        `You cannot deactivate hosting while still hosting ${hostedCollectives} other collectives. Please contact support: support@opencollective.com.`,
       );
     }
 
@@ -895,10 +895,8 @@ export default function(Sequelize, DataTypes) {
       return false;
     }
 
-    const hostPlan = this.getPlan();
-    const hostCollectivesCount = await this.getHostedCollectivesCount();
-
-    return !hostPlan.collectiveLimit || hostPlan.collectiveLimit > hostCollectivesCount;
+    const hostPlan = await this.getPlan();
+    return !hostPlan.hostedCollectivesLimit || hostPlan.hostedCollectivesLimit > hostPlan.hostedCollectives;
   };
 
   /**
@@ -2305,14 +2303,16 @@ export default function(Sequelize, DataTypes) {
     return result.total;
   };
 
-  Collective.prototype.getPlan = function() {
+  Collective.prototype.getPlan = async function() {
+    const hostedCollectives = await this.getHostedCollectivesCount();
+    const addedFunds = await this.getTotalAddedFunds();
     if (this.plan) {
       const plan = plans[this.plan];
       if (plan) {
-        return { name: this.plan, ...plan };
+        return { name: this.plan, hostedCollectives, addedFunds, ...plan };
       }
     }
-    return { name: 'default', ...plans.default };
+    return { name: 'default', hostedCollectives, addedFunds, ...plans.default };
   };
 
   /**

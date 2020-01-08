@@ -990,9 +990,8 @@ export async function addFundsToCollective(order, remoteUser) {
   }
 
   // Check limits
-  const hostPlan = host.getPlan();
-  const hostTotalAddedFunds = await host.getTotalAddedFunds();
-  if (hostPlan.addFundsLimit && hostPlan.addFundsLimit <= hostTotalAddedFunds) {
+  const hostPlan = await host.getPlan();
+  if (hostPlan.addedFundsLimit && hostPlan.addedFundsLimit <= hostPlan.addedFunds) {
     throw new errors.PlanLimit({
       message:
         'The limit of "Added Funds" for the host has been reached. Please contact support@opencollective.com if you think this is an error.',

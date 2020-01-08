@@ -4,6 +4,7 @@ import * as utils from '../../utils';
 import sinon from 'sinon';
 import emailLib from '../../../server/lib/email';
 import { roles } from '../../../server/constants';
+import plans from '../../../server/constants/plans';
 
 const { Transaction, Collective, User } = models;
 
@@ -99,6 +100,7 @@ describe('Collective model', () => {
       type: 'CREDIT',
       CreatedByUserId: 2,
       FromCollectiveId: 2,
+      platformFeeInHostCurrency: 0,
     },
   ];
 
@@ -355,6 +357,17 @@ describe('Collective model', () => {
       expect(applyArgs).to.exist;
       expect(applyArgs[0]).to.equal(user1.email);
       expect(applyArgs[3].from).to.equal('hello@wwcode.opencollective.com');
+    });
+
+    it('returns active plan', async () => {
+      const plan = await hostUser.collective.getPlan();
+
+      expect(plan).to.deep.equal({
+        name: 'default',
+        hostedCollectives: 2,
+        addedFunds: 500,
+        ...plans.default,
+      });
     });
   });
 
