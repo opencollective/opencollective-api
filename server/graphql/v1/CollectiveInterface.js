@@ -238,10 +238,16 @@ export const PlanType = new GraphQLObjectType({
     name: {
       type: GraphQLString,
     },
-    collectiveLimit: {
+    hostedCollectives: {
       type: GraphQLInt,
     },
-    addFundsLimit: {
+    hostedCollectivesLimit: {
+      type: GraphQLInt,
+    },
+    addedFunds: {
+      type: GraphQLInt,
+    },
+    addedFundsLimit: {
       type: GraphQLInt,
     },
     hostDashboard: {
