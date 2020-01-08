@@ -31,28 +31,28 @@ const plans = {
     addedFundsLimit: null,
     hostDashboard: true,
     slug: 'network-host-plan',
-    tier: 4,
+    level: 4,
   },
   large: {
     hostedCollectivesLimit: 24,
     addedFundsLimit: null,
     hostDashboard: true,
     slug: 'large-host-plan',
-    tier: 3,
+    level: 3,
   },
   medium: {
     hostedCollectivesLimit: 9,
     addedFundsLimit: null,
     hostDashboard: true,
     slug: 'medium-host-plan',
-    tier: 2,
+    level: 2,
   },
   small: {
     hostedCollectivesLimit: 1,
     addedFundsLimit: null,
     hostDashboard: false,
     slug: 'small-host-plan',
-    tier: 1,
+    level: 1,
   },
   // Special plan for everyone without a plan
   default: {
