@@ -475,9 +475,8 @@ export async function approveCollective(remoteUser, CollectiveId) {
   }
 
   // Check limits
-  const hostPlan = host.getPlan();
-  const hostCollectivesCount = await host.getHostedCollectivesCount();
-  if (hostPlan.collectiveLimit && hostPlan.collectiveLimit <= hostCollectivesCount) {
+  const hostPlan = await host.getPlan();
+  if (hostPlan.hostedCollectivesLimit && hostPlan.hostedCollectivesLimit <= hostPlan.hostedCollectives) {
     throw new errors.PlanLimit({
       message:
         'The limit of collectives for the host has been reached. Please contact support@opencollective.com if you think this is an error.',
