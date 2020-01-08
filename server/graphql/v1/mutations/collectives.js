@@ -654,6 +654,12 @@ export async function archiveCollective(_, args, req) {
     });
   }
 
+  if (await collective.isHost()) {
+    throw new Error(
+      `You cannot archive your collective while being a host. Please, Desactivate your collective as Host and try again.`,
+    );
+  }
+
   const balance = await collective.getBalance();
 
   if (balance > 0) {
@@ -710,6 +716,12 @@ export async function deleteCollective(_, args, req) {
     throw new errors.NotFound({
       message: `Collective with id ${args.id} not found`,
     });
+  }
+
+  if (await collective.isHost()) {
+    throw new Error(
+      `You cannot delete your collective while being a host. Please, Desactivate your collective as Host and try again.`,
+    );
   }
 
   if (!req.remoteUser.isAdmin(collective.id)) {
