@@ -20,7 +20,6 @@ import emailLib from '../../server/lib/email';
 const debug = debugLib('verify-plans');
 
 const REPORT_EMAIL = 'ops@opencollective.com';
-const BATCH_SIZE = 10;
 const EXISTING_PLANS_SLUGS = Object.values(plans)
   .map(p => p.slug)
   .filter(Boolean);
@@ -102,7 +101,7 @@ export async function run() {
 }
 
 const script = async () => {
-  const info = await run({ batch: BATCH_SIZE });
+  const info = await run();
 
   const { LEGACY, DOWNGRADE, CANCEL, EXCEPTION } = groupBy(info, 'level');
   let body = [];
