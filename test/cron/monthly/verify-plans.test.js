@@ -10,7 +10,7 @@ import { run as verifyPlans } from '../../../cron/monthly/verify-plans';
 
 const arrayToJSON = map(a => a.toJSON());
 
-const asserCollectionIsUnchanged = async col => {
+const assertCollectionIsUnchanged = async col => {
   const before = arrayToJSON(col);
   const now = arrayToJSON(await Promise.all(col.map(doc => doc.reload())));
 
@@ -47,7 +47,7 @@ describe('cron/monthly/verify-plans.js', () => {
 
     await verifyPlans();
 
-    await asserCollectionIsUnchanged(otherCollectives);
+    await assertCollectionIsUnchanged(otherCollectives);
     await collective.reload();
     expect(collective.plan).to.equal('legacy-small');
   });
@@ -58,7 +58,7 @@ describe('cron/monthly/verify-plans.js', () => {
 
     await verifyPlans();
 
-    await asserCollectionIsUnchanged(otherCollectives);
+    await assertCollectionIsUnchanged(otherCollectives);
     await collective.reload();
     expect(collective.plan).to.be.null;
   });
@@ -69,7 +69,7 @@ describe('cron/monthly/verify-plans.js', () => {
 
     await verifyPlans();
 
-    await asserCollectionIsUnchanged(otherCollectives);
+    await assertCollectionIsUnchanged(otherCollectives);
     await collective.reload();
     expect(collective.plan).to.equal('small');
   });
