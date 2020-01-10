@@ -2,7 +2,7 @@ import { expect } from 'chai';
 
 import * as utils from '../../utils';
 import models from '../../../server/models';
-import plans, { PLANS_COLLECTIVE_SLUG } from '../../../server/constants/plans';
+import { PLANS_COLLECTIVE_SLUG } from '../../../server/constants/plans';
 import { subscribeOrUpgradePlan } from '../../../server/lib/plans';
 
 describe('lib/plans.ts', () => {
@@ -17,7 +17,7 @@ describe('lib/plans.ts', () => {
     });
     const tier = await models.Tier.create({
       ...utils.data('tier1'),
-      slug: plans['small'].slug,
+      slug: 'small-host-plan',
     });
     order = await models.Order.create({
       CreatedByUserId: user.id,
@@ -32,7 +32,7 @@ describe('lib/plans.ts', () => {
   it('should ignore if it is not an order for opencollective', async () => {
     const tier = await models.Tier.create({
       ...utils.data('tier1'),
-      slug: plans['small'].slug,
+      slug: 'small-host-plan',
     });
     const othercollective = await models.Collective.create(utils.data('collective1'));
     const otherorder = await models.Order.create({
@@ -74,7 +74,7 @@ describe('lib/plans.ts', () => {
     await subscribeOrUpgradePlan(order);
 
     await user.collective.reload();
-    expect(user.collective.plan).to.equal('small');
+    expect(user.collective.plan).to.equal('small-host-plan');
   });
 
   it('should upgrade plan to unlock features', async () => {
@@ -82,7 +82,7 @@ describe('lib/plans.ts', () => {
 
     const tier = await models.Tier.create({
       ...utils.data('tier1'),
-      slug: plans['medium'].slug,
+      slug: 'medium-host-plan',
     });
     const mediumOrder = await models.Order.create({
       CreatedByUserId: user.id,
@@ -95,13 +95,13 @@ describe('lib/plans.ts', () => {
     await subscribeOrUpgradePlan(mediumOrder);
 
     await user.collective.reload();
-    expect(user.collective.plan).to.equal('medium');
+    expect(user.collective.plan).to.equal('medium-host-plan');
   });
 
   it("shouldn't downgrade existing plan", async () => {
     const tier = await models.Tier.create({
       ...utils.data('tier1'),
-      slug: plans['medium'].slug,
+      slug: 'medium-host-plan',
     });
     const mediumOrder = await models.Order.create({
       CreatedByUserId: user.id,
@@ -115,6 +115,6 @@ describe('lib/plans.ts', () => {
     await subscribeOrUpgradePlan(order);
 
     await user.collective.reload();
-    expect(user.collective.plan).to.equal('medium');
+    expect(user.collective.plan).to.equal('medium-host-plan');
   });
 });

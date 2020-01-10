@@ -26,39 +26,35 @@ const plans = {
     addedFundsLimit: null,
     hostDashboard: true,
   },
-  custom: {
+  // These keys must match OpenCollective's existing Tier slugs!
+  'network-host-plan': {
     hostedCollectivesLimit: 100,
     addedFundsLimit: null,
     hostDashboard: true,
-    slug: 'network-host-plan',
     level: 50,
   },
-  large: {
+  'large-host-plan': {
     hostedCollectivesLimit: 25,
     addedFundsLimit: null,
     hostDashboard: true,
-    slug: 'large-host-plan',
     level: 40,
   },
-  medium: {
+  'medium-host-plan': {
     hostedCollectivesLimit: 10,
     addedFundsLimit: null,
     hostDashboard: true,
-    slug: 'medium-host-plan',
     level: 30,
   },
-  small: {
+  'small-host-plan': {
     hostedCollectivesLimit: 5,
     addedFundsLimit: null,
     hostDashboard: false,
-    slug: 'small-host-plan',
     level: 20,
   },
-  single: {
+  'single-host-plan': {
     hostedCollectivesLimit: 1,
     addedFundsLimit: null,
     hostDashboard: false,
-    slug: 'single-host-plan',
     level: 10,
   },
   // Special plan for everyone without a plan
