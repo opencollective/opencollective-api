@@ -8,7 +8,7 @@ import models from '../../../server/models';
 import * as utils from '../../utils';
 import * as payments from '../../../server/lib/payments';
 import * as plansLib from '../../../server/lib/plans';
-import plans, { PLANS_COLLECTIVE_SLUG } from '../../../server/constants/plans';
+import { PLANS_COLLECTIVE_SLUG } from '../../../server/constants/plans';
 import roles from '../../../server/constants/roles';
 import status from '../../../server/constants/order_status';
 import stripe from '../../../server/lib/stripe';
@@ -88,7 +88,7 @@ describe('lib.payments.test.js', () => {
   beforeEach('create an order', async () => {
     const tier = await models.Tier.create({
       ...utils.data('tier1'),
-      slug: plans[PLAN_NAME].slug,
+      slug: PLAN_NAME,
     });
     const o = await models.Order.create({
       CreatedByUserId: user.id,

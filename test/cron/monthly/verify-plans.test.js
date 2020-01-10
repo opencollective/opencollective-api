@@ -29,8 +29,8 @@ describe('cron/monthly/verify-plans.js', () => {
     opencollective = await fakeCollective({ slug: PLANS_COLLECTIVE_SLUG });
   });
 
-  const createPlan = async (collective, plan, orderOptions = {}) => {
-    const tier = await fakeTier({ slug: plan.slug });
+  const createPlan = async (collective, planSlug, orderOptions = {}) => {
+    const tier = await fakeTier({ slug: planSlug, CollectiveId: opencollective.id });
     return await models.Order.create({
       FromCollectiveId: collective.id,
       CollectiveId: opencollective.id,
@@ -53,8 +53,8 @@ describe('cron/monthly/verify-plans.js', () => {
   });
 
   it('should set plan to null if Collective cancelled its subscription', async () => {
-    const collective = await fakeCollective({ plan: 'small' });
-    await createPlan(collective, plans.small, { status: orderStatus.CANCELLED });
+    const collective = await fakeCollective({ plan: 'small-host-plan' });
+    await createPlan(collective, 'small-host-plan', { status: orderStatus.CANCELLED });
 
     await verifyPlans();
 
@@ -64,13 +64,13 @@ describe('cron/monthly/verify-plans.js', () => {
   });
 
   it('should downgrade plan if Collective has hired another subscription', async () => {
-    const collective = await fakeCollective({ plan: 'medium' });
-    await createPlan(collective, plans.small, { status: orderStatus.ACTIVE });
+    const collective = await fakeCollective({ plan: 'medium-host-plan' });
+    await createPlan(collective, 'small-host-plan', { status: orderStatus.ACTIVE });
 
     await verifyPlans();
 
     await assertCollectionIsUnchanged(otherCollectives);
     await collective.reload();
-    expect(collective.plan).to.equal('small');
+    expect(collective.plan).to.equal('small-host-plan');
   });
 });

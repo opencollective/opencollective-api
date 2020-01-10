@@ -9,7 +9,7 @@ if (process.env.NODE_ENV === 'production' && today.getDate() !== 1) {
 }
 
 import { Op } from 'sequelize';
-import { findKey, groupBy } from 'lodash';
+import { groupBy } from 'lodash';
 import debugLib from 'debug';
 
 import models from '../../server/models';
@@ -20,9 +20,6 @@ import emailLib from '../../server/lib/email';
 const debug = debugLib('verify-plans');
 
 const REPORT_EMAIL = 'ops@opencollective.com';
-const EXISTING_PLANS_SLUGS = Object.values(plans)
-  .map(p => p.slug)
-  .filter(Boolean);
 
 const LEVELS = {
   LEGACY: 'LEGACY',
@@ -35,6 +32,11 @@ const LEVELS = {
  * Makes sure all collectives.plan are up-to-date, downgrading and cancelling plans if needed.
  */
 export async function run() {
+  const opencollective = await models.Collective.findOne({
+    where: { slug: PLANS_COLLECTIVE_SLUG },
+    include: [{ model: models.Tier, as: 'tiers', where: { type: 'TIER', deletedAt: null } }],
+  });
+  const existingPlansSlugs = opencollective.tiers.map(tier => tier.slug);
   const collectives = await models.Collective.findAll({ where: { plan: { [Op.ne]: null } } });
   debug(`There is/are ${collectives.length} subscribed to our plans...`);
 
@@ -43,7 +45,7 @@ export async function run() {
   for (const collective of collectives) {
     debug(`Processing collective #${collective.id}...`);
     // Custom or legacy plans, we're ignoring this because this was manually set.
-    if (!plans[collective.plan].slug) {
+    if (!plans[collective.plan]) {
       const message = `${collective.slug} is using legacy plan, ignoring.`;
       debug(message);
       return info.push({
@@ -57,12 +59,12 @@ export async function run() {
         { model: models.Collective, as: 'collective', where: { slug: PLANS_COLLECTIVE_SLUG } },
         { model: models.Collective, as: 'fromCollective', where: { id: collective.id } },
         { model: models.Subscription, as: 'Subscription' },
-        { model: models.Tier, as: 'Tier', where: { slug: { [Op.in]: EXISTING_PLANS_SLUGS } } },
+        { model: models.Tier, as: 'Tier', where: { slug: { [Op.in]: existingPlansSlugs } } },
       ],
       order: [['updatedAt', 'DESC']],
     });
 
-    const lastOrderPlan = findKey(plans, { slug: lastOrder.Tier.slug });
+    const lastOrderPlan = lastOrder.Tier.slug;
     // Last order matches the plan and it is still active.
     if (collective.plan === lastOrderPlan && lastOrder.status === orderStatus.ACTIVE) {
       return;
