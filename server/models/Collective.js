@@ -2388,8 +2388,10 @@ export default function(Sequelize, DataTypes) {
   };
 
   Collective.prototype.getPlan = async function() {
-    const hostedCollectives = await this.getHostedCollectivesCount();
-    const addedFunds = await this.getTotalAddedFunds();
+    const [hostedCollectives, addedFunds] = await Promise.all([
+      this.getHostedCollectivesCount(),
+      this.getTotalAddedFunds(),
+    ]);
     if (this.plan) {
       const plan = plans[this.plan];
       if (plan) {
