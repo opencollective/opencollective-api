@@ -48,7 +48,7 @@ import { HOST_FEE_PERCENT } from '../constants/transactions';
 import { types } from '../constants/collectives';
 import expenseStatus from '../constants/expense_status';
 import expenseTypes from '../constants/expense_type';
-import plans from '../constants/plans';
+import plans, { PLANS_COLLECTIVE_SLUG } from '../constants/plans';
 
 import { getFxRate } from '../lib/currency';
 
@@ -2393,7 +2393,11 @@ export default function(Sequelize, DataTypes) {
       this.getTotalAddedFunds(),
     ]);
     if (this.plan) {
-      const plan = plans[this.plan];
+      const tier = await models.Tier.findOne({
+        where: { slug: this.plan, deletedAt: null },
+        include: [{ model: models.Collective, where: { slug: PLANS_COLLECTIVE_SLUG } }],
+      });
+      const plan = (tier && tier.data) || plans[this.plan];
       if (plan) {
         return { name: this.plan, hostedCollectives, addedFunds, ...plan };
       }
