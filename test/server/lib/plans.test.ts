@@ -1,120 +1,122 @@
 import { expect } from 'chai';
 
 import * as utils from '../../utils';
+import { fakeCollective, fakeUser, fakeTier, multiple } from '../../test-helpers/fake-data';
 import models from '../../../server/models';
 import { PLANS_COLLECTIVE_SLUG } from '../../../server/constants/plans';
-import { subscribeOrUpgradePlan } from '../../../server/lib/plans';
+import { subscribeOrUpgradePlan, validatePlanRequest } from '../../../server/lib/plans';
 
 describe('lib/plans.ts', () => {
-  let collective, user, order;
+  let collective, opencollective, user, order;
 
   beforeEach(utils.resetTestDB);
   beforeEach(async () => {
-    user = await models.User.createUserWithCollective(utils.data('user3'));
-    collective = await models.Collective.create({
-      ...utils.data('collective1'),
+    user = await fakeUser();
+    collective = await fakeCollective({ isHostAccount: true });
+    opencollective = await fakeCollective({
       slug: PLANS_COLLECTIVE_SLUG,
     });
-    const tier = await models.Tier.create({
-      ...utils.data('tier1'),
+    const tier = await fakeTier({
+      CollectiveId: opencollective.id,
       slug: 'small-host-plan',
+      data: {
+        hostedCollectivesLimit: 1,
+      },
     });
     order = await models.Order.create({
       CreatedByUserId: user.id,
-      FromCollectiveId: user.CollectiveId,
-      CollectiveId: collective.id,
+      FromCollectiveId: collective.id,
+      CollectiveId: opencollective.id,
       totalAmount: 1000,
       currency: 'EUR',
       TierId: tier.id,
     });
   });
 
-  it('should ignore if it is not an order for opencollective', async () => {
-    const tier = await models.Tier.create({
-      ...utils.data('tier1'),
-      slug: 'small-host-plan',
-    });
-    const othercollective = await models.Collective.create(utils.data('collective1'));
-    const otherorder = await models.Order.create({
-      CreatedByUserId: user.id,
-      FromCollectiveId: user.CollectiveId,
-      CollectiveId: othercollective.id,
-      totalAmount: 1000,
-      currency: 'EUR',
-      TierId: tier.id,
-    });
+  describe('subscribeOrUpgradePlan', () => {
+    it('should ignore if it is not an order for opencollective', async () => {
+      const tier = await fakeTier({
+        slug: 'small-host-plan',
+      });
+      const othercollective = await fakeCollective();
+      const otherorder = await models.Order.create({
+        CreatedByUserId: user.id,
+        FromCollectiveId: collective.id,
+        CollectiveId: othercollective.id,
+        totalAmount: 1000,
+        currency: 'EUR',
+        TierId: tier.id,
+      });
 
-    await subscribeOrUpgradePlan(otherorder);
+      await subscribeOrUpgradePlan(otherorder);
 
-    await user.collective.reload();
-    expect(user.collective.plan).to.equal(null);
-  });
-
-  it('should ignore if it is not a tier plan', async () => {
-    const tier = await models.Tier.create({
-      ...utils.data('tier1'),
-      slug: 'tshirt',
-    });
-    const otherorder = await models.Order.create({
-      CreatedByUserId: user.id,
-      FromCollectiveId: user.CollectiveId,
-      CollectiveId: collective.id,
-      totalAmount: 1000,
-      currency: 'EUR',
-      TierId: tier.id,
+      await collective.reload();
+      expect(collective.plan).to.equal(null);
     });
 
-    await subscribeOrUpgradePlan(otherorder);
+    it('should ignore if it is not a tier plan', async () => {
+      const tier = await fakeTier({
+        slug: 'tshirt',
+      });
+      const otherorder = await models.Order.create({
+        CreatedByUserId: user.id,
+        FromCollectiveId: collective.id,
+        CollectiveId: opencollective.id,
+        totalAmount: 1000,
+        currency: 'EUR',
+        TierId: tier.id,
+      });
 
-    await user.collective.reload();
-    expect(user.collective.plan).to.equal(null);
-  });
+      await subscribeOrUpgradePlan(otherorder);
 
-  it('should update plan when hiring the first time', async () => {
-    await subscribeOrUpgradePlan(order);
-
-    await user.collective.reload();
-    expect(user.collective.plan).to.equal('small-host-plan');
-  });
-
-  it('should upgrade plan to unlock features', async () => {
-    await subscribeOrUpgradePlan(order);
-
-    const tier = await models.Tier.create({
-      ...utils.data('tier1'),
-      slug: 'medium-host-plan',
+      await collective.reload();
+      expect(collective.plan).to.equal(null);
     });
-    const mediumOrder = await models.Order.create({
-      CreatedByUserId: user.id,
-      FromCollectiveId: user.CollectiveId,
-      CollectiveId: collective.id,
-      totalAmount: 1000,
-      currency: 'EUR',
-      TierId: tier.id,
-    });
-    await subscribeOrUpgradePlan(mediumOrder);
 
-    await user.collective.reload();
-    expect(user.collective.plan).to.equal('medium-host-plan');
-  });
+    it('should update plan when hiring the first time', async () => {
+      await subscribeOrUpgradePlan(order);
 
-  it("shouldn't downgrade existing plan", async () => {
-    const tier = await models.Tier.create({
-      ...utils.data('tier1'),
-      slug: 'medium-host-plan',
+      await collective.reload();
+      expect(collective.plan).to.equal('small-host-plan');
     });
-    const mediumOrder = await models.Order.create({
-      CreatedByUserId: user.id,
-      FromCollectiveId: user.CollectiveId,
-      CollectiveId: collective.id,
-      totalAmount: 1000,
-      currency: 'EUR',
-      TierId: tier.id,
-    });
-    await subscribeOrUpgradePlan(mediumOrder);
-    await subscribeOrUpgradePlan(order);
 
-    await user.collective.reload();
-    expect(user.collective.plan).to.equal('medium-host-plan');
+    it('should upgrade plan to unlock features', async () => {
+      await subscribeOrUpgradePlan(order);
+
+      const tier = await fakeTier({
+        slug: 'medium-host-plan',
+      });
+      const mediumOrder = await models.Order.create({
+        CreatedByUserId: user.id,
+        FromCollectiveId: collective.id,
+        CollectiveId: opencollective.id,
+        totalAmount: 1000,
+        currency: 'EUR',
+        TierId: tier.id,
+      });
+      await subscribeOrUpgradePlan(mediumOrder);
+
+      await collective.reload();
+      expect(collective.plan).to.equal('medium-host-plan');
+    });
+
+    it("shouldn't downgrade existing plan", async () => {
+      const tier = await fakeTier({
+        slug: 'medium-host-plan',
+      });
+      const mediumOrder = await models.Order.create({
+        CreatedByUserId: user.id,
+        FromCollectiveId: collective.id,
+        CollectiveId: opencollective.id,
+        totalAmount: 1000,
+        currency: 'EUR',
+        TierId: tier.id,
+      });
+      await subscribeOrUpgradePlan(mediumOrder);
+      await subscribeOrUpgradePlan(order);
+
+      await collective.reload();
+      expect(collective.plan).to.equal('medium-host-plan');
+    });
   });
 });
