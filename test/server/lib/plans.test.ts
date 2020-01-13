@@ -119,4 +119,27 @@ describe('lib/plans.ts', () => {
       expect(collective.plan).to.equal('medium-host-plan');
     });
   });
+
+  describe('validatePlanRequest', () => {
+    it('should return when hiring a plan matches the currently hosted collectives number', async () => {
+      await fakeCollective({
+        HostCollectiveId: collective.id,
+      });
+
+      await validatePlanRequest(order);
+    });
+
+    it('should throw when hiring a plan that has inferior hostedCollectivesLimit than currently hosted', async () => {
+      await multiple(fakeCollective, 2, {
+        HostCollectiveId: collective.id,
+      });
+
+      try {
+        await validatePlanRequest(order);
+        throw new Error("Didn't throw expected error!");
+      } catch (e) {
+        expect(e.message).to.contain('Requested plan limits is inferior to the current hosted collectives number');
+      }
+    });
+  });
 });
