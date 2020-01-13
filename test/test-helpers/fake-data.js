@@ -14,7 +14,7 @@ import { randEmail, randUrl } from '../stores';
 
 export const randStr = (prefix = '') => `${prefix}${uuid().split('-')[0]}`;
 export const randAmount = (min = 100, max = 10000000) => Math.floor(Math.random() * max) + min;
-export const multiple = (fn, n) => Promise.all([...Array(n).keys()].map(() => fn()));
+export const multiple = (fn, n, args) => Promise.all([...Array(n).keys()].map(() => fn(args)));
 
 /**
  * Creates a fake user. All params are optionals.
