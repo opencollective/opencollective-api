@@ -253,6 +253,9 @@ export const PlanType = new GraphQLObjectType({
     hostDashboard: {
       type: GraphQLBoolean,
     },
+    manualPayments: {
+      type: GraphQLBoolean,
+    },
   },
 });
 
