@@ -64,6 +64,11 @@ export async function run() {
       order: [['updatedAt', 'DESC']],
     });
 
+    if (!lastOrder) {
+      const message = `Collective ${collective.slug} is set to ${collective.plan} but has no order related to that.`;
+      debug(message);
+      return;
+    }
     const lastOrderPlan = lastOrder.Tier.slug;
     // Last order matches the plan and it is still active.
     if (collective.plan === lastOrderPlan && lastOrder.status === orderStatus.ACTIVE) {
