@@ -1687,6 +1687,9 @@ export default function(Sequelize, DataTypes) {
       if (!newHostCollective) {
         throw new Error('Host not found');
       }
+      if (!newHostCollective.isHostAccount) {
+        await newHostCollective.becomeHost();
+      }
       return this.addHost(newHostCollective, creatorUser);
     } else {
       // if we remove the host
