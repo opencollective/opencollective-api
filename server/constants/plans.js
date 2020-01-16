@@ -2,29 +2,36 @@ const plans = {
   // Legacy Plans (automatically set for accounts created before 2020)
   'legacy-custom-host-plan': {
     hostedCollectivesLimit: 100,
-    addedFundsLimit: null,
-    manualPayments: true,
+    addedFundsLimit: 100000, // in dollar cents
+    manualPayments: false,
     hostDashboard: true,
-    level: 50,
+    level: 60,
   },
   'legacy-large-host-plan': {
     hostedCollectivesLimit: 25,
-    addedFundsLimit: null,
-    manualPayments: true,
+    addedFundsLimit: 100000, // in dollar cents
+    manualPayments: false,
     hostDashboard: true,
-    level: 40,
+    level: 50,
   },
   'legacy-medium-host-plan': {
     hostedCollectivesLimit: 10,
-    addedFundsLimit: null,
-    manualPayments: true,
+    addedFundsLimit: 100000, // in dollar cents
+    manualPayments: false,
     hostDashboard: true,
-    level: 30,
+    level: 40,
   },
   'legacy-small-host-plan': {
     hostedCollectivesLimit: 5,
-    addedFundsLimit: null,
-    manualPayments: true,
+    addedFundsLimit: 100000, // in dollar cents
+    manualPayments: false,
+    hostDashboard: true,
+    level: 30,
+  },
+  'legacy-single-host-plan': {
+    hostedCollectivesLimit: 1,
+    addedFundsLimit: 100000, // in dollar cents
+    manualPayments: false,
     hostDashboard: true,
     level: 20,
   },
@@ -36,24 +43,31 @@ const plans = {
     addedFundsLimit: null,
     manualPayments: true,
     hostDashboard: true,
-    level: 50,
+    level: 60,
   },
   'large-host-plan': {
     hostedCollectivesLimit: 25,
     addedFundsLimit: null,
     manualPayments: true,
     hostDashboard: true,
-    level: 40,
+    level: 50,
   },
   'medium-host-plan': {
     hostedCollectivesLimit: 10,
     addedFundsLimit: null,
     manualPayments: true,
-    hostDashboard: true,
-    level: 30,
+    hostDashboard: false,
+    level: 40,
   },
   'small-host-plan': {
     hostedCollectivesLimit: 5,
+    addedFundsLimit: null,
+    manualPayments: true,
+    hostDashboard: false,
+    level: 30,
+  },
+  'single-host-plan': {
+    hostedCollectivesLimit: 1,
     addedFundsLimit: null,
     manualPayments: true,
     hostDashboard: true,

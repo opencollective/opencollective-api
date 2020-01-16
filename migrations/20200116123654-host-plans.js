@@ -2,27 +2,41 @@
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
-    await queryInterface.addColumn('Collectives', 'isHostAccount', {
-      type: Sequelize.BOOLEAN,
-      defaultValue: false,
-      allowNull: false,
+    await queryInterface.describeTable('Collectives').then(async tableDefinition => {
+      if (!tableDefinition.isHostAccount) {
+        await queryInterface.addColumn('Collectives', 'isHostAccount', {
+          type: Sequelize.BOOLEAN,
+          defaultValue: false,
+          allowNull: false,
+        });
+      }
+      if (!tableDefinition.plan) {
+        await queryInterface.addColumn('Collectives', 'plan', {
+          type: Sequelize.STRING,
+          allowNull: true,
+        });
+      }
     });
-    await queryInterface.addColumn('CollectiveHistories', 'isHostAccount', {
-      type: Sequelize.BOOLEAN,
-      defaultValue: false,
-      allowNull: false,
-    });
-    await queryInterface.addColumn('Collectives', 'plan', {
-      type: Sequelize.STRING,
-      allowNull: true,
-    });
-    await queryInterface.addColumn('CollectiveHistories', 'plan', {
-      type: Sequelize.STRING,
-      allowNull: true,
+
+    await queryInterface.describeTable('CollectiveHistories').then(async tableDefinition => {
+      if (!tableDefinition.isHostAccount) {
+        await queryInterface.addColumn('CollectiveHistories', 'isHostAccount', {
+          type: Sequelize.BOOLEAN,
+          defaultValue: false,
+          allowNull: false,
+        });
+      }
+      if (!tableDefinition.plan) {
+        await queryInterface.addColumn('CollectiveHistories', 'plan', {
+          type: Sequelize.STRING,
+          allowNull: true,
+        });
+      }
     });
 
     await queryInterface.sequelize.query(`
       START TRANSACTION;
+
       CREATE TEMP TABLE "Hosts" AS
         SELECT c1."id", c1."slug", c1."type",
           COUNT(DISTINCT c2."id") as "totalHostedCollectives",
@@ -43,10 +57,12 @@ module.exports = {
           AND c2."isActive" = TRUE
           AND c2."type" = 'COLLECTIVE'
           GROUP BY c1."id", c1."slug", c1."type";
+
       UPDATE "Collectives"
         SET "isHostAccount" = TRUE
         FROM "Hosts"
         WHERE "Collectives"."id" = "Hosts"."id";
+
       UPDATE "Collectives"
         SET "plan" = 'legacy-custom-host-plan'
         FROM "Hosts"
@@ -70,7 +86,34 @@ module.exports = {
         FROM "Hosts"
         WHERE "Collectives"."id" = "Hosts"."id"
         AND ("manualPayments" IS TRUE OR "totalAddedFunds" > 1000)
-        AND "totalHostedCollectives" >= 5;
+        AND "totalHostedCollectives" > 1 AND "totalHostedCollectives" <= 5;
+      UPDATE "Collectives"
+        SET "plan" = 'legacy-single-host-plan'
+        FROM "Hosts"
+        WHERE "Collectives"."id" = "Hosts"."id"
+        AND ("manualPayments" IS TRUE OR "totalAddedFunds" > 1000)
+        AND "totalHostedCollectives" = 1;
+
+      UPDATE "Collectives"
+        SET "data" = '{}'::jsonb
+        FROM "Hosts"
+        WHERE "Collectives"."id" = "Hosts"."id"
+        AND "data" is NULL;
+      UPDATE "Collectives"
+        SET "data" = jsonb_set("data"::jsonb, '{plan}', '{}'::jsonb)
+        FROM "Hosts"
+        WHERE "Collectives"."id" = "Hosts"."id";
+      UPDATE "Collectives"
+        SET "data" = jsonb_set("data"::jsonb, '{plan, manualPayments}', 'true'::jsonb)
+        FROM "Hosts"
+        WHERE "Collectives"."id" = "Hosts"."id"
+        AND ("manualPayments" IS TRUE );
+      UPDATE "Collectives"
+        SET "data" = jsonb_set("data"::jsonb, '{plan, addedFundsLimit}', 'null'::jsonb)
+        FROM "Hosts"
+        WHERE "Collectives"."id" = "Hosts"."id"
+        AND ("totalAddedFunds" > 1000);
+
       UPDATE "Collectives"
         SET "plan" = 'owned'
         WHERE "slug" IN ('opensource', 'europe', 'opencollective-host', 'foundation', 'opencollectiveinc');
@@ -78,7 +121,7 @@ module.exports = {
     `);
   },
 
-  down: async (queryInterface, Sequelize) => {
+  down: async queryInterface => {
     await queryInterface.removeColumn('Collectives', 'isHostAccount');
     await queryInterface.removeColumn('CollectiveHistories', 'isHostAccount');
     await queryInterface.removeColumn('Collectives', 'plan');

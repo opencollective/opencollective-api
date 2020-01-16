@@ -2407,7 +2407,8 @@ export default function(Sequelize, DataTypes) {
       });
       const plan = (tier && tier.data) || plans[this.plan];
       if (plan) {
-        return { name: this.plan, hostedCollectives, addedFunds, ...plan };
+        const extraPlanData = get(this.data, 'plan', {});
+        return { name: this.plan, hostedCollectives, addedFunds, ...plan, ...extraPlanData };
       }
     }
     return { name: 'default', hostedCollectives, addedFunds, ...plans.default };
