@@ -22,10 +22,15 @@ const assertCollectionIsUnchanged = async col => {
 describe('cron/monthly/verify-plans.js', () => {
   let opencollective, otherCollectives;
   beforeEach(async () => {
+    console.log('beforeEach');
+    console.log('resetTestDB');
     await utils.resetTestDB();
     // Adds noise
+    console.log('multiple fakeCollective');
     otherCollectives = await multiple(fakeCollective, 5);
+    console.log('otherCollectives reload');
     await Promise.all(otherCollectives.map(c => c.reload()));
+    console.log('opencollective fakeCollective');
     opencollective = await fakeCollective({ slug: PLANS_COLLECTIVE_SLUG });
   });
 
