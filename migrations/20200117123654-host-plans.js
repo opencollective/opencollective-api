@@ -114,11 +114,30 @@ module.exports = {
         WHERE "Collectives"."id" = "Hosts"."id"
         AND ("totalAddedFunds" > 1000);
 
-      UPDATE "Collectives"
-        SET "plan" = 'owned'
-        WHERE "slug" IN ('opensource', 'europe', 'opencollective-host', 'foundation', 'opencollectiveinc');
       COMMIT;
     `);
+
+    await queryInterface.sequelize.query(`
+      UPDATE "Collectives"
+      SET "plan" = 'owned'
+      WHERE "slug" IN ('europe', 'opencollective-host', 'foundation', 'opencollectiveinc');
+    `);
+
+    if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'e2e') {
+      await queryInterface.sequelize.query(`
+        UPDATE "Collectives"
+        SET "plan" = 'owned'
+        WHERE "slug" IN ('opensourceorg');
+     `);
+    }
+
+    if (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging') {
+      await queryInterface.sequelize.query(`
+        UPDATE "Collectives"
+        SET "plan" = 'owned'
+        WHERE "slug" IN ('opensource');
+     `);
+    }
   },
 
   down: async queryInterface => {
