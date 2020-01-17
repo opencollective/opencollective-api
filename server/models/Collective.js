@@ -1514,6 +1514,7 @@ export default function(Sequelize, DataTypes) {
     }
 
     const hostPlan = await hostCollective.getPlan();
+    console.log('addHost', { hostPlan, host: hostCollective, collective: this });
     if (hostPlan.hostedCollectivesLimit && hostPlan.hostedCollectives >= hostPlan.hostedCollectivesLimit) {
       throw new Error('Host is already hosting the maximum amount of collectives its plan allows');
     }
