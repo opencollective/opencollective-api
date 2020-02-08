@@ -500,6 +500,13 @@ export const CollectiveStatsType = new GraphQLObjectType({
           });
         },
       },
+      activeRecurringContributions: {
+        description: 'sums up all the active subscriptions',
+        type: GraphQLJSON,
+        resolve(collective) {
+          // TODO: invoke appropriate query methods
+        },
+      },
     };
   },
 });
