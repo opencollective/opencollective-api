@@ -5,13 +5,14 @@ process.env.PORT = 3066;
 
 import config from 'config';
 import Promise from 'bluebird';
-import debugLib from 'debug';
+import { pick, get, set, uniq } from 'lodash';
+
 import models, { sequelize, Op } from '../../server/models';
 import twitter from '../../server/lib/twitter';
 import slackLib from '../../server/lib/slack';
 import { pluralize } from '../../server/lib/utils';
-import _, { pick, get, set } from 'lodash';
 import { types as collectiveTypes } from '../../server/constants/collectives';
+import logger from '../../server/lib/logger';
 
 const TenMinutesAgo = new Date();
 TenMinutesAgo.setMinutes(TenMinutesAgo.getMinutes() - 10);
@@ -20,7 +21,6 @@ if (process.env.NODE_ENV !== 'production') {
   TenMinutesAgo.setDate(TenMinutesAgo.getDate() - 40);
 }
 
-const debug = debugLib('milestones');
 const startTime = new Date();
 
 const init = () => {
@@ -35,12 +35,12 @@ const init = () => {
     include: [{ model: models.Collective, where: { type: { [Op.ne]: collectiveTypes.EVENT } }, as: 'collective' }],
   })
     .tap(transactionsGroups => {
-      console.log(`${transactionsGroups.length} different collectives got new backers since ${TenMinutesAgo}`);
+      logger.info(`${transactionsGroups.length} different collectives got new backers since ${TenMinutesAgo}`);
     })
     .map(processNewMembersCount)
     .then(() => {
       const timeLapsed = new Date() - startTime;
-      console.log(`Total run time: ${timeLapsed}ms`);
+      logger.info(`Total run time: ${timeLapsed}ms`);
       process.exit(0);
     });
 };
@@ -56,12 +56,14 @@ const notifyCollective = async (CollectiveId, milestone, collective) => {
   const tweet = await compileTweet(collective, milestone, twitterAccount);
 
   if (!twitterAccount) {
-    debug(`${collective.slug}: the collective id ${CollectiveId} doesn't have a twitter account connected, skipping`);
+    logger.info(
+      `${collective.slug}: the collective id ${CollectiveId} doesn't have a twitter account connected, skipping`,
+    );
     await postToSlack(tweet, slackAccount);
     return;
   }
   if (!get(twitterAccount, `settings.${milestone}.active`)) {
-    debug(
+    logger.info(
       `${collective.slug}: the collective id ${CollectiveId} hasn't activated the ${milestone} milestone notification, skipping`,
     );
     await postToSlack(tweet, slackAccount);
@@ -98,7 +100,7 @@ const processNewMembersCount = async newMembersCount => {
   } = newMembersCount;
   const backersCount = await collective.getBackersCount();
   if (backersCount < 10) {
-    debug(`${collective.slug} only has ${backersCount} ${pluralize('backer', backersCount)}, skipping`);
+    logger.info(`${collective.slug} only has ${backersCount} ${pluralize('backer', backersCount)}, skipping`);
     return;
   }
 
@@ -107,19 +109,19 @@ const processNewMembersCount = async newMembersCount => {
     backersCount - count < numberOfBackers && backersCount >= numberOfBackers;
 
   if (hasPassedMilestone(1000)) {
-    console.log(`🎉 ${collective.slug} just passed the 1,000 backers milestone with ${backersCount} backers`);
+    logger.info(`🎉 ${collective.slug} just passed the 1,000 backers milestone with ${backersCount} backers`);
     return await processMilestone('oneThousandBackers', collective);
   }
   if (hasPassedMilestone(100)) {
-    console.log(`🎉 ${collective.slug} just passed the 100 backers milestone with ${backersCount} backers`);
+    logger.info(`🎉 ${collective.slug} just passed the 100 backers milestone with ${backersCount} backers`);
     return await processMilestone('oneHundredBackers', collective);
   }
   if (hasPassedMilestone(50)) {
-    console.log(`🎉 ${collective.slug} just passed the 50 backers milestone with ${backersCount} backers`);
+    logger.info(`🎉 ${collective.slug} just passed the 50 backers milestone with ${backersCount} backers`);
     return await processMilestone('fiftyBackers', collective);
   }
   if (hasPassedMilestone(10)) {
-    console.log(
+    logger.info(
       `🎉 ${collective.slug} got ${count} new ${pluralize(
         'backer',
         count,
@@ -128,7 +130,7 @@ const processNewMembersCount = async newMembersCount => {
     return await processMilestone('tenBackers', collective);
   }
 
-  debug(
+  logger.info(
     `${collective.slug} got ${count} new ${pluralize(
       'backer',
       count,
@@ -139,7 +141,7 @@ const processNewMembersCount = async newMembersCount => {
 const compileTwitterHandles = (userCollectives, total, limit) => {
   const twitterHandles = userCollectives.map(backer => backer.twitterHandle).filter(handle => Boolean(handle));
   const limitToShow = Math.min(twitterHandles.length, limit);
-  let res = _.uniq(twitterHandles)
+  let res = uniq(twitterHandles)
     .map(handle => `@${handle}`)
     .slice(0, limitToShow)
     .join(', ');
@@ -168,13 +170,15 @@ const compileTweet = async (collective, template, twitterAccount) => {
 
 const postSlackMessage = async (message, webhookUrl, options = {}) => {
   if (!webhookUrl) {
-    return console.warn(`slack> no webhookUrl to post ${message}`);
+    logger.warn(`slack> no webhookUrl to post ${message}`);
+    return;
   }
   try {
-    console.log(`slack> posting ${message} to ${webhookUrl}`);
+    logger.info(`slack> posting ${message} to ${webhookUrl}`);
     return await slackLib.postMessage(message, webhookUrl, options);
   } catch (e) {
-    console.warn('Unable to post to slack', e);
+    logger.warn(`Unable to post to slack: ${e.message}`);
+    logger.debug(e);
   }
 };
 
@@ -186,7 +190,8 @@ const postToSlack = async (message, slackAccount) => {
   });
 
   if (!slackAccount) {
-    return console.warn(`No slack account to post ${message}`);
+    logger.warn(`No slack account to post ${message}`);
+    return;
   }
 
   await postSlackMessage(message, slackAccount.webhookUrl, {
@@ -195,7 +200,7 @@ const postToSlack = async (message, slackAccount) => {
 };
 
 const sendTweet = async (tweet, twitterAccount, template) => {
-  console.log('>>> sending tweet:', tweet.length, tweet);
+  logger.info('>>> sending tweet:', tweet.length, tweet);
   if (process.env.NODE_ENV === 'production') {
     try {
       // We thread the tweet with the previous milestone
@@ -209,13 +214,11 @@ const sendTweet = async (tweet, twitterAccount, template) => {
       set(twitterAccount, `settings.${template}.tweetId`, res.id_str);
       set(twitterAccount, `settings.${template}.tweetSentAt`, new Date(res.created_at));
       await twitterAccount.save();
-      if (process.env.DEBUG) {
-        console.log('>>> twitter response: ', JSON.stringify(res));
-      }
       res.url = `https://twitter.com/${res.user.screen_name}/status/${res.id_str}`;
       return res;
     } catch (e) {
-      console.error('Unable to tweet', tweet, e);
+      logger.warn(`Unable to tweet "${tweet}": ${e.message}`);
+      logger.debug(e);
     }
   }
 };
