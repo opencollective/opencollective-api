@@ -2,7 +2,7 @@
 
 import debugLib from 'debug';
 import Promise from 'bluebird';
-import { get, intersection } from 'lodash';
+import { get, intersection, pick } from 'lodash';
 import { Op } from 'sequelize';
 
 import { TransactionTypes } from '../constants/transactions';
@@ -488,7 +488,7 @@ export default function(Sequelize, DataTypes) {
       /*
       if (paymentMethod.token) {
         const paymentMethodWithToken = await models.PaymentMethod.findOne({
-          where: { token: paymentMethod.token },
+          where: { token: paymentMethod.token, CollectiveId: paymentMethod.CollectiveId },
         });
         if (paymentMethodWithToken) {
           return paymentMethodWithToken;
@@ -497,7 +497,7 @@ export default function(Sequelize, DataTypes) {
       */
       // If no UUID provided, we create a new paymentMethod
       const paymentMethodData = {
-        ...paymentMethod,
+        ...pick(paymentMethod, ['token', 'type', 'data', 'name', 'save']),
         service: paymentMethod.service || 'stripe',
         CreatedByUserId: user.id,
         CollectiveId: paymentMethod.CollectiveId, // might be null if the user decided not to save the credit card on file
