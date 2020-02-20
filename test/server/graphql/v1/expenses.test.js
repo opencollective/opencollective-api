@@ -42,9 +42,9 @@ const allExpensesQuery = `
       amount
       category
       user { id email collective { id slug } }
-      collective { id slug } 
+      collective { id slug }
       attachment
-    } 
+    }
   }`;
 
 const expensesQuery = `
@@ -96,8 +96,8 @@ const createExpenseQuery = `
         amount
         description
         incurredAt
-      } 
-    } 
+      }
+    }
   }`;
 
 const editExpenseMutation = `
@@ -114,8 +114,8 @@ const editExpenseMutation = `
         amount
         description
         incurredAt
-      } 
-    } 
+      }
+    }
   }`;
 
 const approveExpenseQuery = `
@@ -1111,7 +1111,8 @@ describe('server/graphql/v1/expenses', () => {
           { id: expense.id, paymentProcessorFeeInCollectiveCurrency },
           hostAdmin,
         );
-        // res.errors && console.log(res.errors);
+        res.errors && console.log(res.errors);
+        expect(res.errors).to.not.exist;
         expect(callPaypal.firstCall.args[0]).to.equal('pay');
         expect(callPaypal.firstCall.args[1].currencyCode).to.equal('EUR');
         expect(callPaypal.firstCall.args[1].memo).to.equal('Reimbursement from WWCode Berlin: Pizza');
