@@ -132,5 +132,11 @@
   "transferwise": {
     "apiUrl": "https://api.sandbox.transferwise.tech"
   },
-  "fixie": {}
+  "fixie": {},
+  "hyperwatch": {
+    "enabled": false,
+    "path": "/_hyperwatch",
+    "realm": null,
+    "username": "opencollective"
+  }
 }
