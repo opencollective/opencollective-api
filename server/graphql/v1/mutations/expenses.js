@@ -560,7 +560,7 @@ export async function payExpense(remoteUser, args) {
 
   // Pay expense based on chosen payout method
   if (payoutMethodType === PayoutMethodTypes.PAYPAL) {
-    const paypalEmail = payoutMethod.data.email;
+    const paypalEmail = payoutMethod && get(payoutMethod.data, 'email');
     let paypalPaymentMethod = null;
     try {
       paypalPaymentMethod = await host.getPaymentMethod({ service: 'paypal' });
