@@ -85,6 +85,8 @@ class Conversation extends Model<Conversation> {
     return conversation;
   };
 
+  static createWithExpense = async function(): Promise<Conversation> {};
+
   static getMostPopularTagsForCollective = async function(
     collectiveId,
     limit = 100,
