@@ -165,6 +165,16 @@ export function setupModels(client) {
   m.Activity.belongsTo(m.User);
   m.Activity.belongsTo(m.Transaction);
 
+  // Conversation
+  m.Conversation.belongsTo(m.Collective, {
+    foreignKey: 'CollectiveId',
+    as: 'collective',
+  });
+  m.Conversation.belongsTo(m.Collective, {
+    foreignKey: 'FromCollectiveId',
+    as: 'fromCollective',
+  });
+
   // Notification.
   m.Notification.belongsTo(m.User);
 
