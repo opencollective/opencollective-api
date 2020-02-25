@@ -1624,7 +1624,7 @@ describe('server/graphql/v1/expenses', () => {
       const result = await utils.graphqlQuery(deleteExpenseQuery, { id: expense.id }, admin);
       expect(result.errors).to.exist;
       // And then the error message should be set accordingly.
-      expect(result.errors[0].message).to.equal('Only rejected expense can be deleted');
+      expect(result.errors[0].message).to.equal("You don't have permission to delete this expense");
     }); /* End of "fails if expense is not rejected" */
 
     it('works if logged in as admin of collective', async () => {

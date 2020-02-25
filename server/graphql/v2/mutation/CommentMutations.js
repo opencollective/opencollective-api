@@ -4,6 +4,7 @@ import { CommentCreateInput } from '../input/CommentCreateInput';
 import { CommentUpdateInput } from '../input/CommentUpdateInput';
 import { editComment, deleteComment, createCommentResolver } from '../../common/comment';
 import { getDecodedId, idDecode, IDENTIFIER_TYPES } from '../identifiers';
+import { fetchExpenseWithReference } from '../input/ExpenseReferenceInput';
 
 const commentMutations = {
   editComment: {
@@ -37,9 +38,17 @@ const commentMutations = {
         type: new GraphQLNonNull(CommentCreateInput),
       },
     },
-    resolve: (entity, args, req) => {
+    resolve: async (entity, args, req) => {
       if (args.comment.ConversationId) {
         args.comment.ConversationId = idDecode(args.comment.ConversationId, IDENTIFIER_TYPES.CONVERSATION);
+      }
+
+      if (args.comment.expense) {
+        const expense = await fetchExpenseWithReference(args.comment.expense, req);
+        if (!expense) {
+          throw new Error('This expense does not exists');
+        }
+        args.comment.ExpenseId = expense.id;
       }
 
       return createCommentResolver(entity, args, req);

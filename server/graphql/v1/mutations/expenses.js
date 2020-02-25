@@ -17,21 +17,9 @@ import FEATURE from '../../../constants/feature';
 import { FeatureNotAllowedForUser, ValidationFailed } from '../../errors';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { types as collectiveTypes } from '../../../constants/collectives';
+import { canUpdateExpenseStatus, canEditExpense, canDeleteExpense } from '../../common/expenses';
 
 const debug = debugLib('expenses');
-
-/**
- * Only admin of expense.collective or of expense.collective.host can approve/reject expenses
- */
-function canUpdateExpenseStatus(remoteUser, expense) {
-  if (remoteUser.hasRole([roles.ADMIN], expense.CollectiveId)) {
-    return true;
-  }
-  if (remoteUser.hasRole([roles.ADMIN], expense.collective.HostCollectiveId)) {
-    return true;
-  }
-  return false;
-}
 
 /**
  * Only admin of expense.collective.host can mark expenses unpaid
@@ -41,21 +29,6 @@ function canMarkExpenseUnpaid(remoteUser, expense) {
     return true;
   }
   return false;
-}
-
-/**
- * Only the author or an admin of the collective or collective.host can edit an expense when it hasn't been paid yet
- */
-function canEditExpense(remoteUser, expense) {
-  if (expense.status === statuses.PAID) {
-    return false;
-  } else if (remoteUser.id === expense.UserId) {
-    return true;
-  } else if (remoteUser.isAdmin(expense.FromCollectiveId)) {
-    return true;
-  } else {
-    return canUpdateExpenseStatus(remoteUser, expense);
-  }
 }
 
 export async function updateExpenseStatus(remoteUser, expenseId, status) {
@@ -395,12 +368,8 @@ export async function deleteExpense(remoteUser, expenseId) {
     throw new errors.NotFound('Expense not found');
   }
 
-  if (!canEditExpense(remoteUser, expense)) {
+  if (!canDeleteExpense(remoteUser, expense)) {
     throw new errors.Unauthorized("You don't have permission to delete this expense");
-  }
-
-  if (expense.status !== statuses.REJECTED) {
-    throw new errors.Unauthorized('Only rejected expense can be deleted');
   }
 
   const res = await expense.destroy();

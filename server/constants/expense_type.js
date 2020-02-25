@@ -6,4 +6,5 @@
 export default {
   INVOICE: 'INVOICE',
   RECEIPT: 'RECEIPT',
+  UNCLASSIFIED: 'UNCLASSIFIED',
 };

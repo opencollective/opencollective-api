@@ -11,5 +11,8 @@ export const ExpenseType = new GraphQLEnumType({
     [expenseType.RECEIPT]: {
       description: 'Receipt: Charge for your time or get paid in advance',
     },
+    [expenseType.UNCLASSIFIED]: {
+      description: 'Unclassified expense',
+    },
   },
 });
