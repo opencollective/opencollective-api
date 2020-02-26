@@ -88,7 +88,7 @@ export const searchCollectivesInDB = async (term, offset = 0, limit = 100, types
 
   if (term && term.length > 0) {
     term = term.replace(/(_|%|\\)/g, ' ').trim();
-    dynamicConditions += `AND (${tsVector} @@ to_tsquery('simple', :vectorizedTerm) OR name ILIKE '%' || :term || '%' OR slug ILIKE '%' || :term || '%') `;
+    dynamicConditions += `AND (${tsVector} @@ plainto_tsquery('simple', :vectorizedTerm) OR name ILIKE '%' || :term || '%' OR slug ILIKE '%' || :term || '%') `;
   } else {
     term = '';
   }
@@ -103,7 +103,7 @@ export const searchCollectivesInDB = async (term, offset = 0, limit = 100, types
         CASE WHEN (slug = :slugifiedTerm OR name ILIKE :term) THEN
           1
         ELSE
-          ts_rank(${tsVector}, to_tsquery('simple', :vectorizedTerm))
+          ts_rank(${tsVector}, plainto_tsquery('simple', :vectorizedTerm))
         END
       ) AS __rank__
     FROM "Collectives" c
