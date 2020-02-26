@@ -77,6 +77,8 @@ export const searchCollectivesInDB = async (term, offset = 0, limit = 100, types
     to_tsvector('simple', c.name)
     || to_tsvector('simple', c.slug)
     || to_tsvector('simple', COALESCE(c.description, ''))
+    || to_tsvector('simple', COALESCE(c."longDescription", ''))
+    || COALESCE(array_to_tsvector(tags), '')
   `;
 
   // Build dynamic conditions based on arguments

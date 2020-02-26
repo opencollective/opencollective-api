@@ -3,7 +3,7 @@ import config from 'config';
 import { CollectiveType } from '../../../server/graphql/v1/CollectiveInterface';
 import { searchCollectivesInDB, searchCollectivesByEmail } from '../../../server/lib/search';
 import { newUser } from '../../stores';
-import { fakeUser } from '../../test-helpers/fake-data';
+import { fakeUser, fakeCollective } from '../../test-helpers/fake-data';
 
 describe('server/lib/search', () => {
   describe('Search in DB', () => {
@@ -20,12 +20,34 @@ describe('server/lib/search', () => {
       expect(results.find(collective => collective.id === userCollective.id)).to.exist;
     });
 
+    it('By long description', async () => {
+      const longDescription = 'Wow thats AVeryUniqueDescription I swear!!!';
+      const collective = await fakeCollective({ longDescription });
+      const [results] = await searchCollectivesInDB('AVeryUniqueDescription');
+      expect(results.find(c => c.id === collective.id)).to.exist;
+    });
+
+    it('By tag', async () => {
+      const tags = ['open source', 'stuff', 'potatoes'];
+      const collective = await fakeCollective({ tags });
+      const [results] = await searchCollectivesInDB('potatoes');
+      expect(results.find(c => c.id === collective.id)).to.exist;
+    });
+
     it("Doesn't return items with the wrong type", async () => {
       const typeFilter = [CollectiveType.ORGANIZATION];
       const { userCollective } = await newUser();
       const [results, count] = await searchCollectivesInDB(userCollective.slug, 0, 10000, typeFilter);
       expect(results.length).to.eq(0);
       expect(count).to.eq(0);
+    });
+
+    it('Does not break if submitting strange input', async () => {
+      const longDescription = 'Wow thats&&}{\'" !%|wow AVeryUniqueDescriptionZZZzzz I swear!!!';
+      const tags = ['\'"{}[]!&|dsa🔥️das'];
+      const collective = await fakeCollective({ longDescription, tags });
+      const [results] = await searchCollectivesInDB('!%|wow🔥️🔥️ AVeryUniqueDescriptionZZZzzz!! &&}{\'"');
+      expect(results.find(c => c.id === collective.id)).to.exist;
     });
 
     describe('By email', async () => {
