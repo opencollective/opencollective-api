@@ -1799,7 +1799,7 @@ export const UserCollectiveType = new GraphQLObjectType({
         type: new GraphQLList(ApplicationType),
         resolve(userCollective) {
           return models.Application.findAll({
-            where: { CreatedByUserId: userCollective.CreatedByUserId },
+            where: { CollectiveId: userCollective.CollectiveId },
           });
         },
       },
