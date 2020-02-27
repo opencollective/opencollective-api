@@ -41,3 +41,4 @@ output/
 
 
 *.swp
+build/config.gypi

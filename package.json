@@ -176,7 +176,7 @@
     "lint:fix": "npm run lint -- --fix",
     "maildev": "maildev",
     "postdb:migrate:dev": "npm run db:clean",
-    "postinstall": "./scripts/postinstall.sh || exit 0",
+    "postinstall": "./scripts/postinstall.sh",
     "prettier": "prettier \"**/*.@(js|json|md)\" --ignore-path .eslintignore",
     "prettier:check": "npm run prettier -- --check",
     "prettier:write": "npm run prettier -- --write",
