@@ -3,11 +3,10 @@ import sinon from 'sinon';
 
 import * as utils from '../../../utils';
 import { fakeCollective, fakeConnectedAccount, fakeExpense, fakePayoutMethod } from '../../../test-helpers/fake-data';
-import transferwise, { blackListedCurrencies } from '../../../../server/paymentProviders/transferwise';
+import transferwise from '../../../../server/paymentProviders/transferwise';
 import * as transferwiseLib from '../../../../server/lib/transferwise';
 import cache from '../../../../server/lib/cache';
 import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
-import { isTestToken } from '../../../../server/lib/stripe';
 
 const sandbox = sinon.createSandbox();
 const quote = {
