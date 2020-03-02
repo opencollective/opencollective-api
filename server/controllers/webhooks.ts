@@ -9,7 +9,11 @@ export async function stripeWebhook(req: Request, res: Response, next: NextFunct
     .catch(next);
 }
 
-export async function transferwiseWebhook(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function transferwiseWebhook(
+  req: Request & { rawBody: string },
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
   await transferwiseWebhookHandler(req)
     .then(() => res.sendStatus(200))
     .catch(next);
