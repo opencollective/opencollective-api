@@ -369,7 +369,9 @@ export async function deleteExpense(remoteUser, expenseId) {
   }
 
   if (!canDeleteExpense(remoteUser, expense)) {
-    throw new errors.Unauthorized("You don't have permission to delete this expense");
+    throw new errors.Unauthorized(
+      "You don't have permission to delete this expense or it needs to be rejected before being deleted",
+    );
   }
 
   const res = await expense.destroy();
