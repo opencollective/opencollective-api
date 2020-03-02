@@ -162,7 +162,7 @@ td.tdpadding {
             <td>-{{{currency paymentProcessorFeeInHostCurrency currency=@root.host.currency precision=2}}}</td>
           </tr>
           <tr><th nowrap>Net amount in {{@root.host.currency}}</th><td></td><td>{{{currency netAmountInHostCurrency currency=@root.host.currency precision=2}}}{{#if note}}*{{/if}}</td></tr>
-          <tr><th nowrap>Payout method</th><td></td><td nowrap>{{Expense.payoutMethod}}</td></tr>
+          <tr><th nowrap>Payout method</th><td></td><td nowrap>{{Expense.legacyPayoutMethod}}</td></tr>
           <tr><th>Recipient</th><td></td><td nowrap><a href="https://opencollective.com/{{Expense.fromCollective.slug}}">{{Expense.fromCollective.name}}</a></td></tr>
         </table>
         <table class="expenseTitleDescription">
