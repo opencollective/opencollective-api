@@ -37,7 +37,17 @@ export default function(app) {
   }
 
   // Body parser.
-  app.use(bodyParser.json({ limit: '50mb' }));
+  app.use(
+    bodyParser.json({
+      limit: '50mb',
+      verify(req, res, buf) {
+        const url = req.originalUrl;
+        if (url.startsWith('/webhooks/transferwise')) {
+          req.rawBody = buf.toString();
+        }
+      },
+    }),
+  );
   app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 
   // Slow requests if enabled (default false)
