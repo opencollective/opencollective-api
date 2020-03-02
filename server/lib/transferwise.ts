@@ -1,10 +1,14 @@
 import Axios, { AxiosError } from 'axios';
 import config from 'config';
+import crypto from 'crypto';
+import { Request } from 'express';
+import fs from 'fs';
 import { omitBy, isNull, toInteger } from 'lodash';
+import path from 'path';
 import url from 'url';
 
 import logger from './logger';
-import { Quote, RecipientAccount } from '../types/transferwise';
+import { Quote, RecipientAccount, WebhookEvent } from '../types/transferwise';
 
 const fixieUrl = config.fixie.url && new url.URL(config.fixie.url);
 const proxyOptions = fixieUrl
@@ -215,4 +219,27 @@ export const getCurrencyPairs = async (token: string): Promise<any> => {
     logger.error(`Unable to get currency pairs data: ${getAxiosError(e)}`);
     throw new Error('An unknown error happened with Transferwise. Please contact support@opencollective.com.');
   }
+};
+
+const isProduction = process.env.NODE_ENV === 'production';
+const publicKey = fs.readFileSync(
+  path.join(
+    __dirname,
+    '..',
+    '..',
+    'data',
+    isProduction ? 'transferwise.webhook.live.pub' : 'transferwise.webhook.sandbox.pub',
+  ),
+  { encoding: 'utf-8' },
+);
+
+export const verifyEvent = (req: Request & { rawBody: string }): WebhookEvent => {
+  const signature = req.headers['x-signature'] as string;
+  const sig = crypto.createVerify('RSA-SHA1');
+  sig.update(req.rawBody);
+  const verified = sig.verify(publicKey, signature, 'base64');
+  if (!verified) {
+    throw new Error('Could not verify event signature');
+  }
+  return req.body;
 };

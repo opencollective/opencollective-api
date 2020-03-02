@@ -77,3 +77,36 @@ export type RecipientAccount = {
     BIC?: string;
   };
 };
+
+export type TransferStatus =
+  | 'incoming_payment_waiting'
+  | 'waiting_recipient_input_to_proceed'
+  | 'processing'
+  | 'funds_converted'
+  | 'outgoing_payment_sent'
+  | 'cancelled'
+  | 'funds_refunded'
+  | 'bounced_back';
+
+export interface WebhookEvent {
+  data: Record<string, any>;
+  subscription_id: string;
+  event_type: string;
+  schema_version: '2.0.0';
+  sent_at: string;
+}
+
+export interface TransferStateChangeEvent extends WebhookEvent {
+  data: {
+    resource: {
+      id: number;
+      profile_id: number;
+      account_id: number;
+      type: 'transfer';
+    };
+    current_state: TransferStatus;
+    previous_state: TransferStatus;
+    occurred_at: string;
+  };
+  event_type: 'transfers#state-change';
+}
