@@ -105,7 +105,7 @@ export const templateNames = [
   'deactivated.collective.as.host',
   'hostedCollectives.freePlan.limit.reached',
   'hostedCollectives.otherPlans.limit.reached',
-  'hostPlan.renewal.thankyou',
+  'hostplan.renewal.thankyou',
   'hostplan.first.subscription.confirmation',
   'hostplan.upgrade.subscription.confirmation',
 ];

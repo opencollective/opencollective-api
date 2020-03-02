@@ -347,7 +347,7 @@ export async function sendThankYouEmail(order, transaction) {
 
   if (orderPlan) {
     return emailLib.send(
-      'hostPlan.renewal.thankyou',
+      'hostplan.renewal.thankyou',
       user.email,
       { plan: orderPlan },
       {
