@@ -101,6 +101,13 @@ export const templateNames = [
   'user.yearlyreport.text',
   'backyourstack.dispatch.confirmed',
   'added.fund.to.org',
+  'activated.collective.as.host',
+  'deactivated.collective.as.host',
+  'hostedCollectives.freePlan.limit.reached',
+  'hostedCollectives.otherPlans.limit.reached',
+  'hostPlan.renewal.thankyou',
+  'hostplan.first.subscription.confirmation',
+  'hostplan.upgrade.subscription.confirmation',
 ];
 
 const templatesPath = `${__dirname}/../../templates`;

@@ -1,0 +1,32 @@
+Subject: Plan reaches Limit
+
+<style>
+  .button {
+    background: linear-gradient(rgb(24, 105, 245) 0%, rgb(22, 89, 225) 100%);
+    font-weight: 500;
+    font-size: 12px;
+    line-height: 14px;
+    color: rgb(255, 255, 255);
+    border-radius: 100px;
+    padding: 5px 14px;
+  }
+</style>
+
+{{> header}}
+
+<p>Hi!</p>
+
+<p>
+  You’ve reached the free Starter Plan $1,000 limit. To add more funds manually or using bank transfers, you’ll need to upgrade your plan. Payments via credit card (through Stripe) do not count toward the $1,000 limit and you can continue to receive them.
+</p>
+
+<img src="{{config.host.website}}/static/images/pricing-table-screenshot.png" alt="Pricing table">
+
+<p>Upgrade your plan now <a class="button" href="https://opencollective.com/pricing">Upgrade</a></p>
+
+<p>Let us know if we can help out in any way by emailing <a href="mailto:support@opencollective.com">support@opencollective.com</a>.</p>
+
+<p>Best,</p>
+<p>Pía &amp; the Open Collective Team</p>
+
+{{> footer}}
