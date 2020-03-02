@@ -37,6 +37,8 @@ export default {
   ORDERS_SUSPICIOUS: 'orders.suspicious',
   BACKYOURSTACK_DISPATCH_CONFIRMED: 'backyourstack.dispatch.confirmed',
   ADDED_FUND_TO_ORG: 'added.fund.to.org',
+  ACTIVATED_COLLECTIVE_AS_HOST: 'activated.collective.as.host',
+  DEACTIVATED_COLLECTIVE_AS_HOST: 'deactivated.collective.as.host',
 
   // Not used anymore, leaving for historical reference
   COLLECTIVE_TRANSACTION_PAID: 'collective.transaction.paid', // replaced with COLLECTIVE_EXPENSE_PAID

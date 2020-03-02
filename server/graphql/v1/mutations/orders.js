@@ -23,6 +23,7 @@ import { types } from '../../../constants/collectives';
 import { VAT_OPTIONS } from '../../../constants/vat';
 import { canUseFeature } from '../../../lib/user-permissions';
 import FEATURE from '../../../constants/feature';
+import { notifyAdminsOfCollective } from '../../../lib/notifications';
 
 const oneHourInSeconds = 60 * 60;
 
@@ -228,8 +229,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
       const hostPlan = await host.getPlan();
       if (hostPlan.bankTransfersLimit && hostPlan.bankTransfers > hostPlan.bankTransfersLimit) {
         throw new errors.PlanLimit({
-          message:
-            'The limit of "Bank Transfers" for the host has been reached. Please contact support@opencollective.com if you think this is an error.',
+          message: `${host.name} can’t receive Bank Transfers right now via Open Collective because they’ve reached their free plan limit. Once they upgrade to a paid plan, Bank Transfers will be available again.`,
         });
       }
     }
@@ -981,11 +981,11 @@ export async function addFundsToCollective(order, remoteUser) {
   }
 
   // Check limits
-  const hostPlan = await host.getPlan();
+  let hostPlan = await host.getPlan();
   if (hostPlan.addedFundsLimit && hostPlan.addedFunds > hostPlan.addedFundsLimit) {
     throw new errors.PlanLimit({
       message:
-        'The limit of "Added Funds" for the host has been reached. Please contact support@opencollective.com if you think this is an error.',
+        'You’ve reached the free Starter Plan $1,000 limit. To add more funds manually or using bank transfers, you’ll need to upgrade your plan. Payments via credit card (through Stripe) do not count toward the $1,000 limit and you can continue to receive them.',
     });
   }
 
@@ -1047,6 +1047,15 @@ export async function addFundsToCollective(order, remoteUser) {
 
   try {
     await libPayments.executeOrder(remoteUser || user, orderCreated);
+
+    // Check if the maximum fund limit has been reached after execution
+    hostPlan = await host.getPlan();
+    if (hostPlan.addedFundsLimit && hostPlan.addedFundsLimit <= hostPlan.addedFunds) {
+      notifyAdminsOfCollective(host.id, {
+        type: 'hostedCollectives.freePlan.limit.reached',
+        data: { name: host.name },
+      });
+    }
   } catch (e) {
     // Don't save new card for user if order failed
     if (!order.paymentMethod.id && !order.paymentMethod.uuid) {
