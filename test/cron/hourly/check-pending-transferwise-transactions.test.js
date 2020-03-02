@@ -72,7 +72,6 @@ describe('cron/hourly/check-pending-transferwise-transactions.js', () => {
     await checkPendingTransfers();
 
     await expense.reload();
-
     expect(expense).to.have.property('status', status.PAID);
   });
 
@@ -81,7 +80,8 @@ describe('cron/hourly/check-pending-transferwise-transactions.js', () => {
     await checkPendingTransfers();
 
     await expense.reload();
-
     expect(expense).to.have.property('status', status.ERROR);
+    const transactions = await expense.getTransactions();
+    expect(transactions).to.be.empty;
   });
 });
