@@ -476,7 +476,9 @@ async function payExpenseWithTransferwise(host, payoutMethod, expense, fees) {
   }
 
   const data = await paymentProviders.transferwise.payExpense(connectedAccount, payoutMethod, expense);
-  return createTransactions(host, expense, fees, data);
+  const transactions = await createTransactions(host, expense, fees, data);
+  await expense.createActivity(activities.COLLECTIVE_EXPENSE_PROCESSING);
+  return transactions;
 }
 
 /**

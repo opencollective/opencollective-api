@@ -1,0 +1,20 @@
+Subject: Expense from {{collective.name}} for {{expense.description}} is being Processed
+
+{{> header}}
+
+<center>
+  <h3>Hi there!</h3>
+  <p>
+    Just a quick note to let you know that your expense <b><a
+        href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{expense.description}}</a></b> that
+    you filed on {{{moment expense.createdAt}}} to the <a
+      href="{{config.host.website}}/{{collective.slug}}">{{collective.name}} collective</a> is currently being processed
+    by TransferWise and should be paid soon.
+  </p>
+  <br /><br />
+  <a href="{{config.host.website}}/{{collective.slug}}/expenses" class="btn">
+    <div>View All Expenses</div>
+  </a>
+</center>
+
+{{> footer}}

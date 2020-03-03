@@ -28,6 +28,7 @@ export const templateNames = [
   'collective.expense.approved',
   'collective.expense.approved.for.host',
   'collective.expense.created',
+  'collective.expense.processing',
   'collective.expense.paid',
   'collective.expense.paid.for.host',
   'collective.member.created',

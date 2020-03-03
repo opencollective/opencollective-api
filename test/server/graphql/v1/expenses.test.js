@@ -1167,6 +1167,7 @@ describe('server/graphql/v1/expenses', () => {
           status: expenseStatus.APPROVED,
           amount: 1000000,
           CollectiveId: collective.id,
+          UserId: user.id,
           currency: 'USD',
           PayoutMethodId: payoutMethod.id,
           category: 'Engineering',
@@ -1191,6 +1192,20 @@ describe('server/graphql/v1/expenses', () => {
 
         await expense.reload();
         expect(expense.status).to.equal(expenseStatus.PROCESSING);
+      });
+
+      it('should send a notification email to the payee', async () => {
+        emailSendMessageSpy.resetHistory();
+
+        await utils.graphqlQuery(payExpenseQuery, { id: expense.id }, hostAdmin);
+
+        await utils.waitForCondition(() => emailSendMessageSpy.callCount === 1);
+        console.log(emailSendMessageSpy.firstCall);
+        console.log(emailSendMessageSpy.secondCall);
+        expect(emailSendMessageSpy.args[0][0]).to.equal(user.email);
+        expect(emailSendMessageSpy.args[0][1]).to.contain(
+          'Expense from WWCode Berlin for January Invoice is being Processed',
+        );
       });
     });
 
