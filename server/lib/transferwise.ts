@@ -95,7 +95,7 @@ interface CreateTransfer {
   accountId: number;
   quoteId: number;
   uuid: string;
-  details: {
+  details?: {
     reference?: string;
     transferPurpose?: string;
     sourceOfFunds?: string;
