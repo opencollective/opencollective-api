@@ -7,8 +7,8 @@ import { omitBy, isNull, toInteger } from 'lodash';
 import path from 'path';
 import url from 'url';
 
-import logger from './logger';
-import { Quote, RecipientAccount, WebhookEvent } from '../types/transferwise';
+import logger from '../logger';
+import { CurrencyPair, Profile, Quote, RecipientAccount, Transfer, WebhookEvent } from '../../types/transferwise';
 
 const fixieUrl = config.fixie.url && new url.URL(config.fixie.url);
 const proxyOptions = fixieUrl
@@ -108,7 +108,7 @@ interface CreateTransfer {
 export const createTransfer = async (
   token: string,
   { accountId: targetAccount, quoteId: quote, uuid: customerTransactionId, details }: CreateTransfer,
-): Promise<any> => {
+): Promise<Transfer> => {
   const data = { targetAccount, quote, customerTransactionId, details };
   try {
     const response = await axios.post(`/v1/transfers`, data, {
@@ -144,7 +144,7 @@ export const fundTransfer = async (
   }
 };
 
-export const getProfiles = async (token: string): Promise<any> => {
+export const getProfiles = async (token: string): Promise<Profile[]> => {
   try {
     const response = await axios.get(`/v1/profiles`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -185,7 +185,7 @@ export const getTemporaryQuote = async (
   }
 };
 
-export const getTransfer = async (token: string, transferId: number): Promise<any> => {
+export const getTransfer = async (token: string, transferId: number): Promise<Transfer> => {
   try {
     const response = await axios.get(`/v1/transfers/${transferId}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -209,7 +209,7 @@ export const getAccountRequirements = async (token: string, quoteId: number): Pr
   }
 };
 
-export const getCurrencyPairs = async (token: string): Promise<any> => {
+export const getCurrencyPairs = async (token: string): Promise<{ sourceCurrencies: CurrencyPair[] }> => {
   try {
     const response = await axios.get(`/v1/currency-pairs`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -223,13 +223,7 @@ export const getCurrencyPairs = async (token: string): Promise<any> => {
 
 const isProduction = process.env.NODE_ENV === 'production';
 const publicKey = fs.readFileSync(
-  path.join(
-    __dirname,
-    '..',
-    '..',
-    'data',
-    isProduction ? 'transferwise.webhook.live.pub' : 'transferwise.webhook.sandbox.pub',
-  ),
+  path.join(__dirname, isProduction ? 'transferwise.webhook.live.pub' : 'transferwise.webhook.sandbox.pub'),
   { encoding: 'utf-8' },
 );
 

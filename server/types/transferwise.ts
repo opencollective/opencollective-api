@@ -78,6 +78,41 @@ export type RecipientAccount = {
   };
 };
 
+export type PersonalProfile = {
+  id: number;
+  type: 'personal' | 'business';
+  details: {
+    firstName: string;
+    lastName: string;
+    dateOfBirth: string; // YYYY-MM-DD
+    phoneNumber: string;
+    avatar: string;
+    occupation: string;
+    primaryAddress: number | string | null;
+  };
+};
+
+export type BusinessProfile = {
+  id: number;
+  type: 'business';
+  details: {
+    name: string;
+    registrationNumber: string;
+    acn: string | null;
+    abn: string | null;
+    arbn: string | null;
+    companyType: string;
+    companyRole: string;
+    descriptionOfBusiness: string;
+    webpage: string;
+    primaryAddress: number | string | null;
+    businessCategory: string;
+    businessSubCategory: string;
+  };
+};
+
+export type Profile = PersonalProfile | BusinessProfile;
+
 export type TransferStatus =
   | 'incoming_payment_waiting'
   | 'waiting_recipient_input_to_proceed'
@@ -110,3 +145,36 @@ export interface TransferStateChangeEvent extends WebhookEvent {
   };
   event_type: 'transfers#state-change';
 }
+
+export type Transfer = {
+  id: number;
+  user: number;
+  targetAccount: number;
+  sourceAccount: null | number;
+  quote: number;
+  status: string;
+  reference?: string;
+  rate: number;
+  created: string;
+  business: number;
+  transferRequest: null | number;
+  details: {
+    reference?: string;
+  };
+  hasActiveIssues: boolean;
+  sourceCurrency: string;
+  sourceValue: number;
+  targetCurrency: string;
+  targetValue: number;
+  customerTransactionId: string;
+};
+
+export type CurrencyPair = {
+  currencyCode: string;
+  maxInvoiceAmount: number;
+  targetCurrencies: {
+    currencyCode: string;
+    minInvoiceAmount: number;
+    fixedTargetPaymentAllowed: boolean;
+  }[];
+};
