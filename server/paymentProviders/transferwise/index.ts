@@ -64,9 +64,6 @@ async function payExpense(connectedAccount, payoutMethod, expense): Promise<any>
     accountId: recipient.id,
     quoteId: quote.id,
     uuid: uuid(),
-    details: {
-      reference: `Expense ${expense.id}`,
-    },
   });
 
   const fund = await transferwise.fundTransfer(connectedAccount.token, {
