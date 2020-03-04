@@ -4,13 +4,14 @@ import config from 'config';
 import moment from 'moment';
 import { Op } from 'sequelize';
 
+import { get } from 'lodash';
 import models from '../models';
 import emailLib from './email';
 import * as paymentsLib from './payments';
 import { getRecommendedCollectives } from './data';
 import status from '../constants/order_status';
 import intervals from '../constants/intervals';
-import { PLANS_COLLECTIVE_SLUG } from '../constants/plans';
+import plans, { PLANS_COLLECTIVE_SLUG } from '../constants/plans';
 
 /** Maximum number of attempts before an order gets cancelled. */
 export const MAX_RETRIES = 5;
@@ -51,9 +52,10 @@ function hasReachedQuantity(order) {
   return order.Subscription.chargeNumber !== null && order.Subscription.chargeNumber === order.Subscription.quantity;
 }
 
-function getOrderPlan(order) {
-  if (order.collective.slug === PLANS_COLLECTIVE_SLUG && order.Tier.data) {
-    return order.Tier.slug;
+function getOrderTierPlanName(order) {
+  const plan = get(order, 'Tier.slug');
+  if (order.collective.slug === PLANS_COLLECTIVE_SLUG && plan && plans[plan]) {
+    return get(order, 'Tier.name');
   }
   return null;
 }
@@ -343,13 +345,13 @@ export async function sendThankYouEmail(order, transaction) {
   const relatedCollectives = await order.collective.getRelatedCollectives(3, 0);
   const recommendedCollectives = await getRecommendedCollectives(order.collective, 3);
   const user = order.createdByUser;
-  const orderPlan = getOrderPlan(order);
+  const tierPlanName = getOrderTierPlanName(order);
 
-  if (orderPlan) {
+  if (tierPlanName) {
     return emailLib.send(
       'hostplan.renewal.thankyou',
       user.email,
-      { plan: orderPlan },
+      { plan: tierPlanName },
       {
         from: `${order.collective.name} <hello@${order.collective.slug}.opencollective.com>`,
       },

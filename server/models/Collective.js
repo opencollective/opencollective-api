@@ -57,7 +57,9 @@ import {
   notifyTeamAboutPreventedCollectiveCreate,
 } from '../lib/spam';
 import { canUseFeature } from '../lib/user-permissions';
+import { notifyAdminsOfCollective } from '../lib/notifications';
 import FEATURE from '../constants/feature';
+import * as errors from '../graphql/errors';
 
 const debug = debugLib('models:Collective');
 
@@ -917,6 +919,12 @@ export default function(Sequelize, DataTypes) {
         currency: this.currency,
       });
     }
+
+    await models.Activity.create({
+      type: activities.ACTIVATED_COLLECTIVE_AS_HOST,
+      CollectiveId: this.id,
+      data: {},
+    });
   };
 
   /**
@@ -934,6 +942,11 @@ export default function(Sequelize, DataTypes) {
     // TODO unsubscribe from OpenCollective tier plan.
 
     await this.update({ isHostAccount: false });
+    await models.Activity.create({
+      type: activities.DEACTIVATED_COLLECTIVE_AS_HOST,
+      CollectiveId: this.id,
+      data: {},
+    });
   };
 
   /**
@@ -1546,7 +1559,14 @@ export default function(Sequelize, DataTypes) {
     if (this.type === types.COLLECTIVE) {
       const hostPlan = await hostCollective.getPlan();
       if (hostPlan.hostedCollectivesLimit && hostPlan.hostedCollectives >= hostPlan.hostedCollectivesLimit) {
-        throw new Error('Host is already hosting the maximum amount of collectives its plan allows');
+        notifyAdminsOfCollective(hostCollective.id, {
+          type: 'hostedCollectives.otherPlans.limit.reached',
+          data: { name: hostCollective.name },
+        });
+
+        throw new errors.PlanLimit({
+          message: `This host, ${hostCollective.name}, has reached the maximum number of Collectives for their plan on Open Collective. They need to upgrade to a new plan to host your collective.`,
+        });
       }
     }
 

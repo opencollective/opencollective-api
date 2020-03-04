@@ -384,20 +384,6 @@ export function editCollective(_, args, req) {
         newCollectiveData.HostCollectiveId !== undefined &&
         newCollectiveData.HostCollectiveId !== collective.HostCollectiveId
       ) {
-        if (newCollectiveData.HostCollectiveId) {
-          const host = await models.Collective.findByPk(newCollectiveData.HostCollectiveId);
-          const hostPlan = await host.getPlan();
-
-          if (hostPlan.hostedCollectivesLimit && hostPlan.hostedCollectivesLimit <= hostPlan.hostedCollectives) {
-            notifyAdminsOfCollective(host.id, {
-              type: 'hostedCollectives.otherPlans.limit.reached',
-              data: { name: host.name },
-            });
-            throw new errors.PlanLimit({
-              message: `This host, ${host.name}, has reached the maximum number of Collectives for their plan on Open Collective. They need to upgrade to a new plan to host your collective.`,
-            });
-          }
-        }
         return collective.changeHost(newCollectiveData.HostCollectiveId, req.remoteUser);
       }
     })
@@ -1067,14 +1053,6 @@ export async function activateCollectiveAsHost(_, args, req) {
     });
   }
 
-  await models.Activity.create({
-    type: activities.ACTIVATED_COLLECTIVE_AS_HOST,
-    CollectiveId: collective.id,
-    data: {
-      collective,
-    },
-  });
-
   return collective.becomeHost();
 }
 
@@ -1097,14 +1075,6 @@ export async function deactivateCollectiveAsHost(_, args, req) {
       message: 'You need to be logged in as an Admin.',
     });
   }
-
-  await models.Activity.create({
-    type: activities.DEACTIVATED_COLLECTIVE_AS_HOST,
-    CollectiveId: collective.id,
-    data: {
-      collective,
-    },
-  });
 
   return collective.deactivateAsHost();
 }
