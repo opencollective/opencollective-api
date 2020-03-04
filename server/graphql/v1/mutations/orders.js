@@ -120,13 +120,6 @@ async function checkRecaptcha(order, remoteUser, reqIp) {
   return response;
 }
 
-function fundExceededLimit(addedFunds, addedFundsLimit) {
-  if (addedFundsLimit && addedFunds > addedFundsLimit) {
-    return true;
-  }
-  return false;
-}
-
 export async function createOrder(order, loaders, remoteUser, reqIp) {
   debug('Beginning creation of order', order);
   if (!remoteUser) {
@@ -989,7 +982,7 @@ export async function addFundsToCollective(order, remoteUser) {
 
   // Check limits
   let hostPlan = await host.getPlan();
-  if (fundExceededLimit(hostPlan.addedFunds, hostPlan.addedFundsLimit)) {
+  if (hostPlan.addedFundsLimit && hostPlan.addedFunds > hostPlan.addedFundsLimit) {
     throw new errors.PlanLimit({
       message:
         'You’ve reached the free Starter Plan $1,000 limit. To add more funds manually or using bank transfers, you’ll need to upgrade your plan. Payments via credit card (through Stripe) do not count toward the $1,000 limit and you can continue to receive them.',
@@ -1057,7 +1050,7 @@ export async function addFundsToCollective(order, remoteUser) {
 
     // Check if the maximum fund limit has been reached after execution
     hostPlan = await host.getPlan();
-    if (fundExceededLimit(hostPlan.addedFunds, hostPlan.addedFundsLimit)) {
+    if (hostPlan.addedFundsLimit && hostPlan.addedFundsLimit <= hostPlan.addedFunds) {
       notifyAdminsOfCollective(host.id, {
         type: 'hostedCollectives.freePlan.limit.reached',
         data: { name: host.name },
