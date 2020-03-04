@@ -4,7 +4,7 @@ import { find } from 'lodash';
 import * as transferwise from '../../lib/transferwise';
 import cache from '../../lib/cache';
 import models from '../../models';
-import { Quote } from '../../types/transferwise';
+import { Quote, RecipientAccount, Transfer } from '../../types/transferwise';
 
 export const blackListedCurrencies = [
   /** Only private customers sending payments to private recipients. Business customers and business recipients are not supported yet. */
@@ -20,7 +20,9 @@ async function populateProfileId(connectedAccount): Promise<void> {
   if (!connectedAccount.data.profile) {
     const profiles = await transferwise.getProfiles(connectedAccount.token);
     const profile =
-      profiles.find(p => p.type === connectedAccount.type) || profiles.find(p => p.type === 'business') || profiles[0];
+      profiles.find(p => p.type === connectedAccount.data.type) ||
+      profiles.find(p => p.type === 'business') ||
+      profiles[0];
     if (profile) {
       await connectedAccount.update({ data: { ...connectedAccount.data, ...profile } });
     }
@@ -52,7 +54,16 @@ async function quoteExpense(connectedAccount, payoutMethod, expense): Promise<Qu
   return quote;
 }
 
-async function payExpense(connectedAccount, payoutMethod, expense): Promise<any> {
+async function payExpense(
+  connectedAccount,
+  payoutMethod,
+  expense,
+): Promise<{
+  quote: Quote;
+  recipient: RecipientAccount;
+  fund: { status: string; errorCode: string };
+  transfer: Transfer;
+}> {
   const quote = await quoteExpense(connectedAccount, payoutMethod, expense);
 
   const recipient = await transferwise.createRecipientAccount(connectedAccount.token, {
@@ -77,7 +88,7 @@ async function payExpense(connectedAccount, payoutMethod, expense): Promise<any>
   return { quote, recipient, transfer, fund };
 }
 
-async function getAvailableCurrencies(host: any): Promise<any> {
+async function getAvailableCurrencies(host: any): Promise<{ code: string; minInvoiceAmount: number }[]> {
   const cacheKey = `transferwise_available_currencies_${host.id}`;
   const fromCache = await cache.get(cacheKey);
   if (fromCache) {

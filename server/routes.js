@@ -13,7 +13,7 @@ import * as connectedAccounts from './controllers/connectedAccounts';
 import uploadImage from './controllers/images';
 import { createPaymentMethod } from './controllers/paymentMethods';
 import * as users from './controllers/users';
-import stripeWebhook from './controllers/webhooks';
+import { stripeWebhook, transferwiseWebhook } from './controllers/webhooks';
 import * as email from './controllers/services/email';
 
 import required from './middleware/required_param';
@@ -155,6 +155,7 @@ export default app => {
    * Webhooks that should bypass api key check
    */
   app.post('/webhooks/stripe', stripeWebhook); // when it gets a new subscription invoice
+  app.post('/webhooks/transferwise', transferwiseWebhook); // when it gets a new subscription invoice
   app.post('/webhooks/mailgun', email.webhook); // when receiving an email
   app.get('/connected-accounts/:service/callback', aN.authenticateServiceCallback); // oauth callback
   app.delete('/connected-accounts/:service/disconnect/:collectiveId', aN.authenticateServiceDisconnect);

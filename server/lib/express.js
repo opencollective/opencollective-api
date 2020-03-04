@@ -37,7 +37,19 @@ export default function(app) {
   }
 
   // Body parser.
-  app.use(bodyParser.json({ limit: '50mb' }));
+  app.use(
+    bodyParser.json({
+      limit: '50mb',
+      // If the request is routed to our /webhooks/transferwise endpoint, we add
+      // the request body buffer to a new property called `rawBody` so we can
+      // calculate the checksum to verify if the request is authentic.
+      verify(req, res, buf) {
+        if (req.originalUrl.startsWith('/webhooks/transferwise')) {
+          req.rawBody = buf.toString();
+        }
+      },
+    }),
+  );
   app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 
   // Slow requests if enabled (default false)
