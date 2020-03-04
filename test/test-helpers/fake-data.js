@@ -343,3 +343,19 @@ export const fakeTransaction = async (transactionData = {}) => {
     CollectiveId,
   });
 };
+
+/**
+ * Creates a fake member. All params are optionals.
+ */
+export const fakeMember = async data => {
+  const collective = data.CollectiveId ? await models.Collective.findByPk(data.CollectiveId) : await fakeCollective();
+  const memberCollective = data.MemberCollectiveId
+    ? await models.Collective.findByPk(data.MemberCollectiveId)
+    : await fakeCollective();
+  return models.Member.create({
+    CollectiveId: collective.id,
+    MemberCollectiveId: memberCollective.id,
+    role: data.role || roles.ADMIN,
+    CreatedByUserId: collective.CreatedByUserId,
+  });
+};
