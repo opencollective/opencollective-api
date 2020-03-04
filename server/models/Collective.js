@@ -923,7 +923,7 @@ export default function(Sequelize, DataTypes) {
     await models.Activity.create({
       type: activities.ACTIVATED_COLLECTIVE_AS_HOST,
       CollectiveId: this.id,
-      data: {},
+      data: { collective: this.info },
     });
   };
 
@@ -945,7 +945,7 @@ export default function(Sequelize, DataTypes) {
     await models.Activity.create({
       type: activities.DEACTIVATED_COLLECTIVE_AS_HOST,
       CollectiveId: this.id,
-      data: {},
+      data: { collective: this.info },
     });
   };
 
