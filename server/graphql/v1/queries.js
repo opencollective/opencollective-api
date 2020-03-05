@@ -165,6 +165,7 @@ const queries = {
 
   Invoice: {
     type: InvoiceType,
+    deprecationReason: '2020-03-09: This field was deprecated after introducing InvoiceByDateRange',
     args: {
       invoiceSlug: {
         type: new GraphQLNonNull(GraphQLString),
@@ -263,6 +264,7 @@ const queries = {
       if (!host) {
         throw new errors.NotFound('Host not found');
       }
+
       if (!req.remoteUser || !req.remoteUser.isAdmin(fromCollective.id)) {
         throw new errors.Unauthorized("You don't have permission to access invoices for this user");
       }
@@ -286,28 +288,23 @@ const queries = {
       };
 
       const order = [['createdAt', 'DESC']];
-      const transactions = await models.Transaction.findAll({ where, order });
-      if (transactions.length === 0) {
-        throw new errors.NotFound('No transactions found');
-      }
+      const transactions = await models.Transaction.findAll({ where, order, logging: console.log });
 
       const invoice = {
         title: get(host, 'settings.invoiceTitle'),
         HostCollectiveId: host.id,
+        FromCollectiveId: fromCollective.id,
         dateFrom: dateFrom,
         dateTo: dateTo,
+        currency: host.currency,
+        totalAmount: 0,
+        transactions: transactions,
       };
 
-      const totalAmount = transactions.reduce((total, transaction) => {
+      transactions.forEach(transaction => {
         invoice.currency = transaction.hostCurrency;
-        total += transaction.amountInHostCurrency;
-        return total;
-      }, 0);
-
-      invoice.FromCollectiveId = fromCollective.id;
-      invoice.totalAmount = totalAmount;
-      invoice.currency = invoice.currency || host.currency;
-      invoice.transactions = transactions;
+        invoice.totalAmount += transaction.amountInHostCurrency;
+      });
 
       return invoice;
     },
