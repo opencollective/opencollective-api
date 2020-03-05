@@ -207,7 +207,7 @@ export function setupModels(client) {
     foreignKey: 'FromCollectiveId',
     as: 'fromCollective',
   });
-  m.Expense.hasMany(m.ExpenseAttachment);
+  m.Expense.hasMany(m.ExpenseAttachment, { as: 'attachments' });
   m.Expense.hasMany(m.Transaction);
   m.Transaction.belongsTo(m.Expense);
   m.Transaction.belongsTo(m.Order);

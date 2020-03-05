@@ -267,7 +267,25 @@ async function HostReport(year, month, hostId) {
       })
       .then(() =>
         getTransactions(Object.keys(collectivesById), startDate, endDate, {
-          include: [{ model: models.Expense }, { model: models.User, as: 'createdByUser' }],
+          include: [
+            {
+              model: models.Expense,
+              include: [
+                'fromCollective',
+                {
+                  model: models.ExpenseAttachment,
+                  as: 'attachments',
+                  where: {
+                    url: { [Op.not]: null },
+                  },
+                },
+              ],
+            },
+            {
+              model: models.User,
+              as: 'createdByUser',
+            },
+          ],
         }),
       )
       .tap(transactions => {

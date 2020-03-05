@@ -90,6 +90,11 @@ td.tdpadding {
   color: #333;
   font-size: 9pt;
 }
+
+.no-attachmentsblack {
+  color: #4e4e4e;
+  font-style: italic;
+}
 </style>
 
 <div id="document">
@@ -157,8 +162,8 @@ td.tdpadding {
             <td>-{{{currency paymentProcessorFeeInHostCurrency currency=@root.host.currency precision=2}}}</td>
           </tr>
           <tr><th nowrap>Net amount in {{@root.host.currency}}</th><td></td><td>{{{currency netAmountInHostCurrency currency=@root.host.currency precision=2}}}{{#if note}}*{{/if}}</td></tr>
-          <tr><th nowrap>Payout method</th><td></td><td nowrap>{{Expense.payoutMethod}}</td></tr>
-          <tr><th>Recipient</th><td></td><td nowrap>{{createdByUser.firstName}} {{createdByUser.lastName}} &lt;{{createdByUser.email}}&gt;</td></tr>
+          <tr><th nowrap>Payout method</th><td></td><td nowrap>{{Expense.legacyPayoutMethod}}</td></tr>
+          <tr><th>Recipient</th><td></td><td nowrap><a href="https://opencollective.com/{{Expense.fromCollective.slug}}">{{Expense.fromCollective.name}}</a></td></tr>
         </table>
         <table class="expenseTitleDescription">
           <tr>
@@ -176,7 +181,13 @@ td.tdpadding {
         </table>
       </div>
 
-      <div class="preview" style="z-index:0; background-size: contain; background-image: url('https://res.cloudinary.com/opencollective/image/fetch/w_640,f_jpg/{{Expense.attachment}}')"></div>
+      {{#each Expense.attachments}}
+        <div class="preview" style="z-index:0; background-size: contain; background-image: url('https://res.cloudinary.com/opencollective/image/fetch/w_640,f_jpg/{{this.url}}')"></div>
+      {{else}}
+        <div class="no-attachments">
+          There's no file attached to this expense.
+        </div>
+      {{/each}}
 
       <div class="footer">{{@root.host.name}} - {{@root.month}} {{@root.year}} expense receipts - expense {{page}}/{{@root.stats.numberPaidExpenses}} - <a href="https://opencollective.com/{{collective.slug}}/expenses/{{Expense.id}}">opencollective.com/{{collective.slug}}/expenses/{{Expense.id}}</a></div>
 
