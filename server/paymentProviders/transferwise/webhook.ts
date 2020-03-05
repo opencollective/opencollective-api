@@ -25,6 +25,7 @@ async function handleTransferStateChange(event: TransferStateChangeEvent): Promi
     logger.info(`Transfer failed, setting status to Error and deleting existing transactions.`, event);
     await models.Transaction.destroy({ where: { ExpenseId: expense.id } });
     await expense.setError(expense.lastEditedById);
+    await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR);
   }
 }
 

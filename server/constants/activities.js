@@ -18,6 +18,8 @@ export default {
   COLLECTIVE_EXPENSE_REJECTED: 'collective.expense.rejected',
   COLLECTIVE_EXPENSE_APPROVED: 'collective.expense.approved',
   COLLECTIVE_EXPENSE_PAID: 'collective.expense.paid',
+  COLLECTIVE_EXPENSE_PROCESSING: 'collective.expense.processing',
+  COLLECTIVE_EXPENSE_ERROR: 'collective.expense.error',
   COLLECTIVE_MEMBER_CREATED: 'collective.member.created',
   COLLECTIVE_TRANSACTION_CREATED: 'collective.transaction.created',
   COLLECTIVE_UPDATE_CREATED: 'collective.update.created',

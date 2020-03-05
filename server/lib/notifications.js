@@ -305,6 +305,26 @@ async function notifyByEmail(activity) {
       }
       break;
 
+    case activityType.COLLECTIVE_EXPENSE_ERROR:
+      activity.data.actions = {
+        viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
+      };
+      notifyUserId(activity.data.expense.UserId, activity);
+      if (get(activity, 'data.host.id')) {
+        notifyAdminsOfCollective(activity.data.host.id, activity, {
+          template: 'collective.expense.error.for.host',
+          collective: activity.data.host,
+        });
+      }
+      break;
+
+    case activityType.COLLECTIVE_EXPENSE_PROCESSING:
+      activity.data.actions = {
+        viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
+      };
+      notifyUserId(activity.data.expense.UserId, activity);
+      break;
+
     case activityType.COLLECTIVE_APPROVED:
       notifyAdminsOfCollective(activity.data.collective.id, activity);
       break;

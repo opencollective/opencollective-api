@@ -1,0 +1,26 @@
+Subject: 🚨 Transaction failed on {{collective.name}} {{{currency transaction.netAmountInCollectiveCurrency currency=transaction.currency}}} for {{expense.description}}
+
+{{> header}}
+
+<center>
+  <h3>
+    Hi there! Just a note to let you know that a TransferWise payment failed for an expense submitted to
+    {{collective.name}}.
+  </h3>
+  <h2>{{{currency transaction.netAmountInCollectiveCurrency currency=transaction.currency precision=2}}}</h2>
+  <div>{{expense.description}}</div>
+  <div>To: {{fromCollective.name}}</div>
+  <div>
+    Please, make sure you check in TransferWise what happened exactly, you might need to create this transaction
+    manually and mark as paid.<br />
+    If you think this error shouldn't happen again, you can also try to use our "Pay with TransferWise" button again.
+  </div>
+
+  <br /><br />
+  <a href="{{config.host.website}}/{{collective.slug}}/expenses" class="btn">
+    <div>View Latest Expenses</div>
+  </a>
+
+</center>
+
+{{> footer}}

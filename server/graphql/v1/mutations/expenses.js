@@ -49,6 +49,9 @@ export async function updateExpenseStatus(remoteUser, expenseId, status) {
   if (!expense) {
     throw new errors.Unauthorized('Expense not found');
   }
+  if (expense.status === statuses.PROCESSING) {
+    throw new errors.Unauthorized("You can't update the status of an expense being processed");
+  }
 
   if (!canUpdateExpenseStatus(remoteUser, expense)) {
     throw new errors.Unauthorized("You don't have permission to approve this expense");
@@ -447,7 +450,9 @@ async function payExpenseWithTransferwise(host, payoutMethod, expense, fees) {
   }
 
   const data = await paymentProviders.transferwise.payExpense(connectedAccount, payoutMethod, expense);
-  return createTransactions(host, expense, fees, data);
+  const transactions = await createTransactions(host, expense, fees, data);
+  await expense.createActivity(activities.COLLECTIVE_EXPENSE_PROCESSING);
+  return transactions;
 }
 
 /**
