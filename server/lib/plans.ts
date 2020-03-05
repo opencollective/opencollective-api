@@ -52,3 +52,11 @@ export async function validatePlanRequest(order): Promise<void> {
     }
   }
 }
+
+export function isHostPlan (order): boolean {
+  const plan = get(order, 'Tier.slug');
+  if (order.collective.slug === PLANS_COLLECTIVE_SLUG && plan && plans[plan]) {
+    return true;
+  }
+  return false;
+}

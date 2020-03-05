@@ -11,7 +11,7 @@ import * as paymentsLib from './payments';
 import { getRecommendedCollectives } from './data';
 import status from '../constants/order_status';
 import intervals from '../constants/intervals';
-import plans, { PLANS_COLLECTIVE_SLUG } from '../constants/plans';
+import { isHostPlan } from './plans';
 
 /** Maximum number of attempts before an order gets cancelled. */
 export const MAX_RETRIES = 5;
@@ -50,14 +50,6 @@ export async function ordersWithPendingCharges({ limit } = {}) {
 
 function hasReachedQuantity(order) {
   return order.Subscription.chargeNumber !== null && order.Subscription.chargeNumber === order.Subscription.quantity;
-}
-
-function getOrderTierPlanName(order) {
-  const plan = get(order, 'Tier.slug');
-  if (order.collective.slug === PLANS_COLLECTIVE_SLUG && plan && plans[plan]) {
-    return get(order, 'Tier.name');
-  }
-  return null;
 }
 
 /** Process order and trigger result handlers.
@@ -345,13 +337,12 @@ export async function sendThankYouEmail(order, transaction) {
   const relatedCollectives = await order.collective.getRelatedCollectives(3, 0);
   const recommendedCollectives = await getRecommendedCollectives(order.collective, 3);
   const user = order.createdByUser;
-  const tierPlanName = getOrderTierPlanName(order);
 
-  if (tierPlanName) {
+  if (isHostPlan(order)) {
     return emailLib.send(
       'hostplan.renewal.thankyou',
       user.email,
-      { plan: tierPlanName },
+      { plan: get(order, 'Tier.name') },
       {
         from: `${order.collective.name} <hello@${order.collective.slug}.opencollective.com>`,
       },
