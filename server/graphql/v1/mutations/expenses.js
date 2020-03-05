@@ -76,6 +76,9 @@ export async function updateExpenseStatus(remoteUser, expenseId, status) {
   if (!expense) {
     throw new errors.Unauthorized('Expense not found');
   }
+  if (expense.status === statuses.PROCESSING) {
+    throw new errors.Unauthorized("You can't update the status of an expense being processed");
+  }
 
   if (!canUpdateExpenseStatus(remoteUser, expense)) {
     throw new errors.Unauthorized("You don't have permission to approve this expense");
