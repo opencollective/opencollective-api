@@ -1535,7 +1535,9 @@ describe('server/graphql/v1/expenses', () => {
       // Then there should be an error
       expect(result.errors).to.exist;
       // And then the error message should be set accordingly.
-      expect(result.errors[0].message).to.equal("You don't have permission to delete this expense");
+      expect(result.errors[0].message).to.equal(
+        "You don't have permission to delete this expense or it needs to be rejected before being deleted",
+      );
     }); /* End of "fails if not logged in as author, admin or host" */
 
     it('fails if logged in as backer of collective', async () => {
@@ -1567,7 +1569,9 @@ describe('server/graphql/v1/expenses', () => {
       // Then there should be an error
       expect(result.errors).to.exist;
       // And then the error message should be set accordingly.
-      expect(result.errors[0].message).to.equal("You don't have permission to delete this expense");
+      expect(result.errors[0].message).to.equal(
+        "You don't have permission to delete this expense or it needs to be rejected before being deleted",
+      );
     }); /* End of "fails if logged in as backer of collective" */
 
     it('works if logged in as author', async () => {
@@ -1624,7 +1628,9 @@ describe('server/graphql/v1/expenses', () => {
       const result = await utils.graphqlQuery(deleteExpenseQuery, { id: expense.id }, admin);
       expect(result.errors).to.exist;
       // And then the error message should be set accordingly.
-      expect(result.errors[0].message).to.equal('Only rejected expense can be deleted');
+      expect(result.errors[0].message).to.equal(
+        "You don't have permission to delete this expense or it needs to be rejected before being deleted",
+      );
     }); /* End of "fails if expense is not rejected" */
 
     it('works if logged in as admin of collective', async () => {

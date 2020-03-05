@@ -1,4 +1,5 @@
 import { ExpenseAttachment } from '../../models/ExpenseAttachment';
+import { roles, expenseStatus } from '../../constants';
 
 const isOwner = async (req, expense): Promise<boolean> => {
   return req.remoteUser.isAdmin(expense.FromCollectiveId) || req.remoteUser.id === expense.UserId;
@@ -61,4 +62,48 @@ export const canSeeExpensePayeeLocation = async (req, expense): Promise<boolean>
  */
 export const getExpenseAttachments = async (expenseId, req): Promise<ExpenseAttachment[]> => {
   return req.loaders.ExpenseAttachment.byExpenseId.load(expenseId);
+};
+
+/**
+ * Only admin of expense.collective or of expense.collective.host can approve/reject expenses
+ */
+export const canUpdateExpenseStatus = (remoteUser, expense): boolean => {
+  if (!remoteUser) {
+    return false;
+  } else if (remoteUser.hasRole([roles.ADMIN], expense.CollectiveId)) {
+    return true;
+  } else if (remoteUser.hasRole([roles.ADMIN], expense.collective.HostCollectiveId)) {
+    return true;
+  } else {
+    return false;
+  }
+};
+
+/**
+ * Only the author or an admin of the collective or collective.host can edit an expense when it hasn't been paid yet
+ */
+export const canEditExpense = (remoteUser, expense): boolean => {
+  if (!remoteUser) {
+    return false;
+  } else if (expense.status === expenseStatus.PAID) {
+    return false;
+  } else if (remoteUser.id === expense.UserId) {
+    return true;
+  } else if (remoteUser.isAdmin(expense.FromCollectiveId)) {
+    return true;
+  } else {
+    return canUpdateExpenseStatus(remoteUser, expense);
+  }
+};
+
+/**
+ * Only the author or an admin of the collective or collective.host can delete an expense,
+ * and only when its status is REJECTED.
+ */
+export const canDeleteExpense = (remoteUser, expense): boolean => {
+  if (canEditExpense(remoteUser, expense) && expense.status === expenseStatus.REJECTED) {
+    return true;
+  } else {
+    return false;
+  }
 };

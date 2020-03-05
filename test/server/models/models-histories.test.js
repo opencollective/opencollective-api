@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import { sequelize } from '../../../server/models';
+import { resetTestDB } from '../../utils';
 
 const getTableInfo = tableName => {
   return sequelize.query(
@@ -21,6 +22,10 @@ const getHistoryTableName = tableName => {
 const tablesWithHistory = ['Collectives', 'Comments', 'Expenses', 'Subscriptions', 'Updates'];
 
 describe('server/models/models-histories', () => {
+  before(async () => {
+    await resetTestDB();
+  });
+
   describe('Ensure "Histories" tables match their corresponding model', () => {
     tablesWithHistory.map(tableName =>
       describe(`for ${tableName}`, () => {
@@ -93,9 +98,17 @@ describe('server/models/models-histories', () => {
               const differences = Object.keys(column).filter(k => {
                 if (!diffedFields.has(k)) {
                   return false;
-                } else if (k === 'column_default' && column[k] && column[k].startsWith('nextval')) {
-                  // Ignore auto-incremented fields
-                  return false;
+                } else if (k === 'column_default' && column[k]) {
+                  if (column[k].startsWith('nextval')) {
+                    // Ignore auto-incremented fields
+                    return false;
+                  } else if (column[k].includes('::"enum_')) {
+                    // sequelize-temporal creates a new type for Enums, ie. enum_Expenses_type -> enum_ExpenseHistories_type
+                    const cleanValue = historyEquivalent[k].replace('Histories_type', 's_type');
+                    if (cleanValue === column[k]) {
+                      return false;
+                    }
+                  }
                 } else if (column.column_name === 'id' && k === 'is_nullable') {
                   // ID are nullables in history tables
                   return false;
@@ -115,5 +128,9 @@ describe('server/models/models-histories', () => {
         });
       }),
     );
+  });
+
+  describe('Ensure enums & other datatypes have the same entries', () => {
+    // Todo
   });
 });
