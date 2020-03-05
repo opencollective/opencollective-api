@@ -7,8 +7,8 @@ import { omitBy, isNull, toInteger } from 'lodash';
 import path from 'path';
 import url from 'url';
 
-import logger from '../logger';
-import { CurrencyPair, Profile, Quote, RecipientAccount, Transfer, WebhookEvent } from '../../types/transferwise';
+import logger from './logger';
+import { CurrencyPair, Profile, Quote, RecipientAccount, Transfer, WebhookEvent } from '../types/transferwise';
 
 const fixieUrl = config.fixie.url && new url.URL(config.fixie.url);
 const proxyOptions = fixieUrl
@@ -223,7 +223,7 @@ export const getCurrencyPairs = async (token: string): Promise<{ sourceCurrencie
 
 const isProduction = process.env.NODE_ENV === 'production';
 const publicKey = fs.readFileSync(
-  path.join(__dirname, isProduction ? 'transferwise.webhook.live.pub' : 'transferwise.webhook.sandbox.pub'),
+  path.join(__dirname, '..', '..', 'keys', isProduction ? 'transferwise.webhook.live.pub' : 'transferwise.webhook.sandbox.pub'),
   { encoding: 'utf-8' },
 );
 
