@@ -77,12 +77,15 @@ async function payExpense(
     uuid: uuid(),
   });
 
-  const fund = await transferwise.fundTransfer(connectedAccount.token, {
-    profileId: connectedAccount.data.id,
-    transferId: transfer.id,
-  });
-  if (fund.status === 'REJECTED') {
-    throw new Error(`Transferwise could not fund transfer: ${fund.errorCode}`);
+  let fund;
+  try {
+    fund = await transferwise.fundTransfer(connectedAccount.token, {
+      profileId: connectedAccount.data.id,
+      transferId: transfer.id,
+    });
+  } catch (e) {
+    await transferwise.cancelTransfer(connectedAccount.token, transfer.id);
+    throw e;
   }
 
   return { quote, recipient, transfer, fund };

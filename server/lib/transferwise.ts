@@ -30,11 +30,13 @@ const axios = Axios.create({
 const compactRecipientDetails = <T>(object: T): Partial<T> => omitBy(object, isNull);
 const getData = <T extends { data?: object }>(obj: T | undefined): T['data'] | undefined => obj && obj.data;
 
-const getAxiosError = (error: AxiosError): string => {
-  if (error.response) {
+const getErrorCode = (error: AxiosError): string => {
+  if (error.response?.data?.errorCode) {
+    return error.response.data.errorCode;
+  } else if (error.response?.status) {
     // The request was made and the server responded with a status code
     // that falls out of the range of 2xx
-    return `${error.response.status}: ${JSON.stringify(error.response.data)}`;
+    return `${error.response.status}: ${JSON.stringify(error.response.data.errorCode)}`;
   } else {
     return error.toString();
   }
@@ -66,7 +68,7 @@ export const createQuote = async (
     });
     return getData(response);
   } catch (e) {
-    logger.error(`Unable to create quote: ${getAxiosError(e)}`, data);
+    logger.error(`Unable to create quote: ${getErrorCode(e)}`, data);
     throw new Error(`Sorry, we can't make transfers to ${targetCurrency}.`);
   }
 };
@@ -89,7 +91,7 @@ export const createRecipientAccount = async (
       details: compactRecipientDetails(response.data.details),
     };
   } catch (e) {
-    const message = `Unable to create recipient account: ${getAxiosError(e)}`;
+    const message = `Unable to create recipient account: ${getErrorCode(e)}`;
     logger.error(message);
     throw new Error(message);
   }
@@ -116,7 +118,24 @@ export const createTransfer = async (
     });
     return getData(response);
   } catch (e) {
-    const message = `Unable to create transfer: ${getAxiosError(e)}`;
+    const message = `Unable to create transfer: ${getErrorCode(e)}`;
+    logger.error(message);
+    throw new Error(message);
+  }
+};
+
+export const cancelTransfer = async (token: string, transferId: string | number): Promise<Transfer> => {
+  try {
+    const response = await axios.put(
+      `/v1/transfers/${transferId}/cancel`,
+      {},
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    );
+    return getData(response);
+  } catch (e) {
+    const message = `Unable to cancel transfer: ${getErrorCode(e)}`;
     logger.error(message);
     throw new Error(message);
   }
@@ -138,7 +157,7 @@ export const fundTransfer = async (
     );
     return getData(response);
   } catch (e) {
-    const message = `Unable to fund transfer: ${getAxiosError(e)}`;
+    const message = `Unable to fund transfer: ${getErrorCode(e)}`;
     logger.error(message, { transferId });
     throw new Error(message);
   }
@@ -151,7 +170,7 @@ export const getProfiles = async (token: string): Promise<Profile[]> => {
     });
     return getData(response);
   } catch (e) {
-    const message = `Unable to get profiles: ${getAxiosError(e)}`;
+    const message = `Unable to get profiles: ${getErrorCode(e)}`;
     logger.error(message);
     throw new Error(message);
   }
@@ -180,7 +199,7 @@ export const getTemporaryQuote = async (
     });
     return getData(response);
   } catch (e) {
-    logger.error(`Unable to get temporary quote: ${getAxiosError(e)}`, params);
+    logger.error(`Unable to get temporary quote: ${getErrorCode(e)}`, params);
     throw new Error('An unknown error happened with Transferwise. Please contact support@opencollective.com.');
   }
 };
@@ -192,7 +211,7 @@ export const getTransfer = async (token: string, transferId: number): Promise<Tr
     });
     return getData(response);
   } catch (e) {
-    logger.error(`Unable to get transfer data: ${getAxiosError(e)}`, { transferId });
+    logger.error(`Unable to get transfer data: ${getErrorCode(e)}`, { transferId });
     throw new Error('An unknown error happened with Transferwise. Please contact support@opencollective.com.');
   }
 };
@@ -204,7 +223,7 @@ export const getAccountRequirements = async (token: string, quoteId: number): Pr
     });
     return getData(response);
   } catch (e) {
-    logger.error(`Unable to get account requirements data: ${getAxiosError(e)}`, { quoteId });
+    logger.error(`Unable to get account requirements data: ${getErrorCode(e)}`, { quoteId });
     throw new Error('An unknown error happened with Transferwise. Please contact support@opencollective.com.');
   }
 };
@@ -216,14 +235,20 @@ export const getCurrencyPairs = async (token: string): Promise<{ sourceCurrencie
     });
     return getData(response);
   } catch (e) {
-    logger.error(`Unable to get currency pairs data: ${getAxiosError(e)}`);
+    logger.error(`Unable to get currency pairs data: ${getErrorCode(e)}`);
     throw new Error('An unknown error happened with Transferwise. Please contact support@opencollective.com.');
   }
 };
 
 const isProduction = process.env.NODE_ENV === 'production';
 const publicKey = fs.readFileSync(
-  path.join(__dirname, '..', '..', 'keys', isProduction ? 'transferwise.webhook.live.pub' : 'transferwise.webhook.sandbox.pub'),
+  path.join(
+    __dirname,
+    '..',
+    '..',
+    'keys',
+    isProduction ? 'transferwise.webhook.live.pub' : 'transferwise.webhook.sandbox.pub',
+  ),
   { encoding: 'utf-8' },
 );
 
