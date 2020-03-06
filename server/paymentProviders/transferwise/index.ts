@@ -66,6 +66,14 @@ async function payExpense(
 }> {
   const quote = await quoteExpense(connectedAccount, payoutMethod, expense);
 
+  const account = await transferwise.getBorderlessAccount(connectedAccount.token, connectedAccount.data.id);
+  const balance = account.balances.find(b => b.currency === quote.source);
+  if (!balance || balance.amount.value < quote.sourceAmount) {
+    throw new Error(
+      `You don't have enough funds in your ${quote.source} balance. Please top up your account and try again.`,
+    );
+  }
+
   const recipient = await transferwise.createRecipientAccount(connectedAccount.token, {
     profileId: connectedAccount.data.id,
     ...payoutMethod.data,

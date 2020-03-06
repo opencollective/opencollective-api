@@ -8,7 +8,15 @@ import path from 'path';
 import url from 'url';
 
 import logger from './logger';
-import { CurrencyPair, Profile, Quote, RecipientAccount, Transfer, WebhookEvent } from '../types/transferwise';
+import {
+  BorderlessAccount,
+  CurrencyPair,
+  Profile,
+  Quote,
+  RecipientAccount,
+  Transfer,
+  WebhookEvent,
+} from '../types/transferwise';
 
 const fixieUrl = config.fixie.url && new url.URL(config.fixie.url);
 const proxyOptions = fixieUrl
@@ -236,6 +244,19 @@ export const getCurrencyPairs = async (token: string): Promise<{ sourceCurrencie
     return getData(response);
   } catch (e) {
     logger.error(`Unable to get currency pairs data: ${getErrorCode(e)}`);
+    throw new Error('An unknown error happened with Transferwise. Please contact support@opencollective.com.');
+  }
+};
+
+export const getBorderlessAccount = async (token: string, profileId: string | number): Promise<BorderlessAccount> => {
+  try {
+    const response = await axios.get(`/v1/borderless-accounts?profileId=${profileId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const accounts: BorderlessAccount[] = getData(response);
+    return accounts.find(a => a.profileId === profileId);
+  } catch (e) {
+    logger.error(`Unable to get balances: ${getErrorCode(e)}`);
     throw new Error('An unknown error happened with Transferwise. Please contact support@opencollective.com.');
   }
 };
