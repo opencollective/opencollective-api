@@ -1,6 +1,6 @@
 import config from 'config';
 import { Octokit } from '@octokit/rest';
-import { createAppAuth } from '@octokit/auth-app';
+import { createSimpleOAuthAppAuth } from '@opencollective/auth-simple-oauth-app';
 import { get, has, pick } from 'lodash';
 
 import cache from './cache';
@@ -13,7 +13,6 @@ const compactRepo = repo => {
     'description', // (1)
     'owner', // (1) (4)
     'stargazers_count', // (1) (2) (4)
-    'topics', // (1)
     'fork', // (3)
   ]);
   repo.owner = pick(repo.owner, [
@@ -31,12 +30,10 @@ const compactRepo = repo => {
 export function getOctokit(accessToken) {
   const octokitParams = {};
 
-  octokitParams.previews = ['mercy-preview'];
-
   if (accessToken) {
     octokitParams.auth = `token ${accessToken}`;
   } else if (has(config, 'github.clientID') && has(config, 'github.clientSecret')) {
-    octokitParams.authStrategy = createAppAuth;
+    octokitParams.authStrategy = createSimpleOAuthAppAuth;
     octokitParams.auth = {
       clientId: get(config, 'github.clientID'),
       clientSecret: get(config, 'github.clientSecret'),
