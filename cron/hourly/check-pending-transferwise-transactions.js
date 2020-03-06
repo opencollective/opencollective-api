@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 import '../../server/env';
 
+import { Op } from 'sequelize';
+import moment from 'moment';
+
 import models from '../../server/models';
-import statuses from '../../server/constants/expense_status';
+import status from '../../server/constants/expense_status';
 import * as transferwiseLib from '../../server/lib/transferwise';
 import activities from '../../server/constants/activities';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
@@ -42,14 +45,28 @@ async function processExpense(expense) {
  */
 export async function run() {
   const expenses = await models.Expense.findAll({
-    where: { status: statuses.PROCESSING, deletedAt: null },
+    where: {
+      [Op.or]: [
+        // Pending expenses
+        { status: status.PROCESSING },
+        // Expense might bounce back in the last month
+        {
+          status: status.PAID,
+          updatedAt: {
+            [Op.gte]: moment()
+              .subtract(30, 'days')
+              .toDate(),
+          },
+        },
+      ],
+    },
     include: [
       { model: models.Collective, as: 'collective' },
       { model: models.Transaction },
       { model: models.PayoutMethod, as: 'PayoutMethod', where: { type: PayoutMethodTypes.BANK_ACCOUNT } },
     ],
   });
-  console.log(`There are ${expenses.length} pending Transferwise transactions...`);
+  console.log(`There are ${expenses.length} TransferWise transactions to verify...`);
 
   for (const expense of expenses) {
     await processExpense(expense).catch(console.error);
