@@ -48,7 +48,7 @@ export const ApplicationType = new GraphQLObjectType({
       apiKey: {
         type: GraphQLString,
         resolve(application, args, req) {
-          if (req.remoteUser && req.remoteUser.id === application.CreatedByUserId) {
+          if (req.remoteUser && req.remoteUser.CollectiveId === application.CollectiveId) {
             return application.apiKey;
           }
         },
@@ -56,7 +56,7 @@ export const ApplicationType = new GraphQLObjectType({
       clientId: {
         type: GraphQLString,
         resolve(application, args, req) {
-          if (req.remoteUser && req.remoteUser.id === application.CreatedByUserId) {
+          if (req.remoteUser && req.remoteUser.CollectiveId === application.CollectiveId) {
             return application.clientId;
           }
         },
@@ -64,7 +64,7 @@ export const ApplicationType = new GraphQLObjectType({
       clientSecret: {
         type: GraphQLString,
         resolve(application, args, req) {
-          if (req.remoteUser && req.remoteUser.id === application.CreatedByUserId) {
+          if (req.remoteUser && req.remoteUser.CollectiveId === application.CollectiveId) {
             return application.clientSecret;
           }
         },
@@ -72,7 +72,7 @@ export const ApplicationType = new GraphQLObjectType({
       callbackUrl: {
         type: GraphQLString,
         resolve(application, args, req) {
-          if (req.remoteUser && req.remoteUser.id === application.CreatedByUserId) {
+          if (req.remoteUser && req.remoteUser.CollectiveId === application.CollectiveId) {
             return application.callbackUrl;
           }
         },
