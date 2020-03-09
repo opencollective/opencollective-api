@@ -1797,10 +1797,12 @@ export const UserCollectiveType = new GraphQLObjectType({
       },
       applications: {
         type: new GraphQLList(ApplicationType),
-        resolve(userCollective) {
-          return models.Application.findAll({
-            where: { CollectiveId: userCollective.CollectiveId },
-          });
+        resolve(userCollective, _, req) {
+          if (req.remoteUser && req.remoteUser.isAdmin(userCollective.id)) {
+            return models.Application.findAll({
+              where: { CollectiveId: userCollective.id },
+            });
+          }
         },
       },
     };
