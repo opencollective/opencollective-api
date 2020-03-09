@@ -29,7 +29,7 @@ async function processExpense(expense) {
   const transfer = await transferwiseLib.getTransfer(connectedAccount.token, transaction.data.transfer.id);
   if (transfer.status === 'processing') {
     console.warn(`Transfer is still being processed, nothing to do but wait.`);
-  } else if (transfer.status === 'outgoing_payment_sent') {
+  } else if (expense.status === status.PROCESSING && transfer.status === 'outgoing_payment_sent') {
     console.log(`Transfer sent, marking expense as paid.`);
     await expense.setPaid(expense.lastEditedById);
     await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID);
@@ -49,12 +49,12 @@ export async function run() {
       [Op.or]: [
         // Pending expenses
         { status: status.PROCESSING },
-        // Expense might bounce back in the last month
+        // Expense might bounce back in the last week
         {
           status: status.PAID,
           updatedAt: {
             [Op.gte]: moment()
-              .subtract(30, 'days')
+              .subtract(7, 'days')
               .toDate(),
           },
         },
