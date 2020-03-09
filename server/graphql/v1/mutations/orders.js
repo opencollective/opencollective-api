@@ -120,6 +120,16 @@ async function checkRecaptcha(order, remoteUser, reqIp) {
   return response;
 }
 
+async function handleHostPlanLimit(host) {
+  const hostPlan = await host.getPlan();
+  if (hostPlan.addedFundsLimit && hostPlan.addedFundsLimit <= hostPlan.addedFunds) {
+    notifyAdminsOfCollective(host.id, {
+      type: 'hostedCollectives.freePlan.limit.reached',
+      data: { name: host.name },
+    });
+  }
+}
+
 export async function createOrder(order, loaders, remoteUser, reqIp) {
   debug('Beginning creation of order', order);
   if (!remoteUser) {
@@ -981,7 +991,7 @@ export async function addFundsToCollective(order, remoteUser) {
   }
 
   // Check limits
-  let hostPlan = await host.getPlan();
+  const hostPlan = await host.getPlan();
   if (hostPlan.addedFundsLimit && hostPlan.addedFunds > hostPlan.addedFundsLimit) {
     throw new errors.PlanLimit({
       message:
@@ -1049,13 +1059,7 @@ export async function addFundsToCollective(order, remoteUser) {
     await libPayments.executeOrder(remoteUser || user, orderCreated);
 
     // Check if the maximum fund limit has been reached after execution
-    hostPlan = await host.getPlan();
-    if (hostPlan.addedFundsLimit && hostPlan.addedFundsLimit <= hostPlan.addedFunds) {
-      notifyAdminsOfCollective(host.id, {
-        type: 'hostedCollectives.freePlan.limit.reached',
-        data: { name: host.name },
-      });
-    }
+    await handleHostPlanLimit(host);
   } catch (e) {
     // Don't save new card for user if order failed
     if (!order.paymentMethod.id && !order.paymentMethod.uuid) {
