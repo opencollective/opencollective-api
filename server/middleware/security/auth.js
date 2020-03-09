@@ -76,7 +76,7 @@ export function authorizeClientApp(req, res, next) {
       method: 'GET',
       regex: /^\/collectives\/[0-9]+\/transactions\/[0-9]+\/callback\?token=.+/,
     }, // PayPal callback
-    { method: 'POST', regex: /^\/webhooks\/(mailgun|stripe)/ },
+    { method: 'POST', regex: /^\/webhooks\/(mailgun|stripe|transferwise)/ },
     {
       method: 'GET',
       regex: /^\/connected-accounts\/(stripe|paypal)\/callback/,

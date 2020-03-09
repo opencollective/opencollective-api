@@ -1,14 +1,36 @@
 import { Request } from 'express';
+import moment from 'moment';
+import { Op } from 'sequelize';
 
 import activities from '../../constants/activities';
-import models from '../../models';
+import status from '../../constants/expense_status';
 import logger from '../../lib/logger';
 import { verifyEvent } from '../../lib/transferwise';
+import models from '../../models';
+import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import { TransferStateChangeEvent } from '../../types/transferwise';
 
 async function handleTransferStateChange(event: TransferStateChangeEvent): Promise<void> {
   const expense = await models.Expense.findOne({
-    include: [{ model: models.Transaction, where: { data: { transfer: { id: event.data.resource.id } } } }],
+    where: {
+      [Op.or]: [
+        // Pending expenses
+        { status: status.PROCESSING },
+        // Expense might bounce back in the past month
+        {
+          status: status.PAID,
+          updatedAt: {
+            [Op.gte]: moment()
+              .subtract(7, 'days')
+              .toDate(),
+          },
+        },
+      ],
+    },
+    include: [
+      { model: models.PayoutMethod, as: 'PayoutMethod', where: { type: PayoutMethodTypes.BANK_ACCOUNT } },
+      { model: models.Transaction, where: { data: { transfer: { id: event.data.resource.id } } } },
+    ],
   });
 
   if (!expense) {
