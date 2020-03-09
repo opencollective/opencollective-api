@@ -135,7 +135,7 @@ export default function(Sequelize, DataTypes) {
       },
 
       data: {
-        type: DataTypes.JSON,
+        type: DataTypes.JSONB,
         allowNull: true,
       },
 

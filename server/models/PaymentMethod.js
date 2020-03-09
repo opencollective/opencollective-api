@@ -101,7 +101,7 @@ export default function(Sequelize, DataTypes) {
         },
       },
 
-      data: DataTypes.JSON,
+      data: DataTypes.JSONB,
 
       createdAt: {
         type: DataTypes.DATE,

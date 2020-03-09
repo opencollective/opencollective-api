@@ -197,11 +197,11 @@ export default function(Sequelize, DataTypes) {
       },
 
       customFields: {
-        type: DataTypes.JSON,
+        type: DataTypes.JSONB,
       },
 
       data: {
-        type: DataTypes.JSON,
+        type: DataTypes.JSONB,
       },
 
       startsAt: {

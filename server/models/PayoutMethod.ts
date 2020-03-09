@@ -148,7 +148,7 @@ export default (sequelize, DataTypes): typeof PayoutMethod => {
         },
       },
       data: {
-        type: DataTypes.JSON,
+        type: DataTypes.JSONB,
         allowNull: false,
         validate: {
           isValidValue(value): void {
