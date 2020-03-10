@@ -40,6 +40,14 @@ import {
   getCollectiveAvatarUrl,
 } from '../lib/collectivelib';
 import { invalidateContributorsCache } from '../lib/contributors';
+import { getFxRate } from '../lib/currency';
+import {
+  notifyTeamAboutSuspiciousCollective,
+  collectiveSpamCheck,
+  notifyTeamAboutPreventedCollectiveCreate,
+} from '../lib/spam';
+import { canUseFeature } from '../lib/user-permissions';
+import { handleHostCollectivesLimit } from '../lib/plans';
 import { capitalize, flattenArray, getDomain, formatCurrency, cleanTags, md5, strip_tags } from '../lib/utils';
 
 import roles, { MemberRoleLabels } from '../constants/roles';
@@ -49,17 +57,7 @@ import { types } from '../constants/collectives';
 import expenseStatus from '../constants/expense_status';
 import expenseTypes from '../constants/expense_type';
 import plans, { PLANS_COLLECTIVE_SLUG } from '../constants/plans';
-
-import { getFxRate } from '../lib/currency';
-import {
-  notifyTeamAboutSuspiciousCollective,
-  collectiveSpamCheck,
-  notifyTeamAboutPreventedCollectiveCreate,
-} from '../lib/spam';
-import { canUseFeature } from '../lib/user-permissions';
-import { notifyAdminsOfCollective } from '../lib/notifications';
 import FEATURE from '../constants/feature';
-import * as errors from '../graphql/errors';
 
 const debug = debugLib('models:Collective');
 
@@ -1558,17 +1556,8 @@ export default function(Sequelize, DataTypes) {
     }
 
     if (this.type === types.COLLECTIVE) {
-      const hostPlan = await hostCollective.getPlan();
-      if (hostPlan.hostedCollectivesLimit && hostPlan.hostedCollectives >= hostPlan.hostedCollectivesLimit) {
-        notifyAdminsOfCollective(hostCollective.id, {
-          type: 'hostedCollectives.otherPlans.limit.reached',
-          data: { name: hostCollective.name },
-        });
-
-        throw new errors.PlanLimit({
-          message: `This host, ${hostCollective.name}, has reached the maximum number of Collectives for their plan on Open Collective. They need to upgrade to a new plan to host your collective.`,
-        });
-      }
+      // Check limits
+      await handleHostCollectivesLimit(hostCollective, { throwException: true, notifyAdmins: true });
     }
 
     const member = {

@@ -8,6 +8,7 @@ import * as LibTaxes from '@opencollective/taxes';
 
 import models from '../../../models';
 import * as errors from '../../errors';
+
 import cache from '../../../lib/cache';
 import * as github from '../../../lib/github';
 import recaptcha from '../../../lib/recaptcha';
@@ -15,15 +16,15 @@ import * as libPayments from '../../../lib/payments';
 import { setupCreditCard } from '../../../paymentProviders/stripe/creditcard';
 import { capitalize, pluralize, formatCurrency, md5 } from '../../../lib/utils';
 import { getNextChargeAndPeriodStartDates, getChargeRetryCount } from '../../../lib/subscriptions';
+import { canUseFeature } from '../../../lib/user-permissions';
+import { handleHostPlanAddedFundsLimit, handleHostPlanBankTransfersLimit } from '../../../lib/plans';
 
 import roles from '../../../constants/roles';
 import status from '../../../constants/order_status';
 import activities from '../../../constants/activities';
 import { types } from '../../../constants/collectives';
 import { VAT_OPTIONS } from '../../../constants/vat';
-import { canUseFeature } from '../../../lib/user-permissions';
 import FEATURE from '../../../constants/feature';
-import { notifyAdminsOfCollective } from '../../../lib/notifications';
 
 const oneHourInSeconds = 60 * 60;
 
@@ -118,16 +119,6 @@ async function checkRecaptcha(order, remoteUser, reqIp) {
   // TODO: check response and throw an error if needed
 
   return response;
-}
-
-async function handleHostPlanLimit(host) {
-  const hostPlan = await host.getPlan();
-  if (hostPlan.addedFundsLimit && hostPlan.addedFundsLimit <= hostPlan.addedFunds) {
-    notifyAdminsOfCollective(host.id, {
-      type: 'hostedCollectives.freePlan.limit.reached',
-      data: { name: host.name },
-    });
-  }
 }
 
 export async function createOrder(order, loaders, remoteUser, reqIp) {
@@ -236,12 +227,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
       throw new Error('This order requires a payment method');
     }
     if (paymentRequired && order.paymentMethod && order.paymentMethod.type === 'manual') {
-      const hostPlan = await host.getPlan();
-      if (hostPlan.bankTransfersLimit && hostPlan.bankTransfers > hostPlan.bankTransfersLimit) {
-        throw new errors.PlanLimit({
-          message: `${host.name} can’t receive Bank Transfers right now via Open Collective because they’ve reached their free plan limit. Once they upgrade to a paid plan, Bank Transfers will be available again.`,
-        });
-      }
+      await handleHostPlanBankTransfersLimit(host, { throwException: true });
     }
 
     if (tier && tier.maxQuantityPerUser > 0 && order.quantity > tier.maxQuantityPerUser) {
@@ -991,13 +977,7 @@ export async function addFundsToCollective(order, remoteUser) {
   }
 
   // Check limits
-  const hostPlan = await host.getPlan();
-  if (hostPlan.addedFundsLimit && hostPlan.addedFunds > hostPlan.addedFundsLimit) {
-    throw new errors.PlanLimit({
-      message:
-        'You’ve reached the free Starter Plan $1,000 limit. To add more funds manually or keep using bank transfers, you’ll need to upgrade your plan. Payments via credit card (through Stripe) do not count toward the $1,000 limit and you can continue to receive them.',
-    });
-  }
+  await handleHostPlanAddedFundsLimit(host, { throwException: true });
 
   order.collective = collective;
   let fromCollective, user;
@@ -1059,7 +1039,7 @@ export async function addFundsToCollective(order, remoteUser) {
     await libPayments.executeOrder(remoteUser || user, orderCreated);
 
     // Check if the maximum fund limit has been reached after execution
-    await handleHostPlanLimit(host);
+    await handleHostPlanAddedFundsLimit(host, { notifyAdmins: true });
   } catch (e) {
     // Don't save new card for user if order failed
     if (!order.paymentMethod.id && !order.paymentMethod.uuid) {
