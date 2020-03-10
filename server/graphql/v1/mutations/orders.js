@@ -995,7 +995,7 @@ export async function addFundsToCollective(order, remoteUser) {
   if (hostPlan.addedFundsLimit && hostPlan.addedFunds > hostPlan.addedFundsLimit) {
     throw new errors.PlanLimit({
       message:
-        'You’ve reached the free Starter Plan $1,000 limit. To add more funds manually or using bank transfers, you’ll need to upgrade your plan. Payments via credit card (through Stripe) do not count toward the $1,000 limit and you can continue to receive them.',
+        'You’ve reached the free Starter Plan $1,000 limit. To add more funds manually or keep using bank transfers, you’ll need to upgrade your plan. Payments via credit card (through Stripe) do not count toward the $1,000 limit and you can continue to receive them.',
     });
   }
 

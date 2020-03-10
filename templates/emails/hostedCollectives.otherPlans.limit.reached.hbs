@@ -4,11 +4,11 @@ Subject: Plan reaches Limit
   .button {
     background: linear-gradient(rgb(24, 105, 245) 0%, rgb(22, 89, 225) 100%);
     font-weight: 500;
-    font-size: 12px;
-    line-height: 14px;
+    font-size: 16px;
+    line-height: 18px;
     color: rgb(255, 255, 255);
     border-radius: 100px;
-    padding: 5px 14px;
+    padding: 10px 16px;
   }
 </style>
 
@@ -17,12 +17,14 @@ Subject: Plan reaches Limit
 <p>Hello,</p>
 
 <p>
-  Your host, {{name}}, has reached the maximum number of Collectives for your plan on Open Collective. If you want to host more Collectives, please upgrade your plan.
+  We hope you are well! {{name}}, has reached the maximum number of Collectives for your plan on Open Collective. If you want to host more Collectives, please upgrade your plan. Please see below our plan options.
 </p>
 
-<img src="{{config.host.website}}/static/images/pricing-table-screenshot.png" alt="Pricing table">
+<p>
+  <img src="{{config.host.website}}/static/images/pricing-table-screenshot.png" alt="Pricing table">
+</p>
 
-<p>Upgrade your plan now <a class="button" href="https://opencollective.com/pricing">Upgrade</a></p>
+<p><center><a class="button" href="https://opencollective.com/pricing">Upgrade plan</a></center></p>
 
 <p>Let us know if we can help out in any way by emailing <a href="mailto:support@opencollective.com">support@opencollective.com</a>.</p>
 
