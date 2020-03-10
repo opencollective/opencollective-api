@@ -44,7 +44,7 @@ const getErrorCode = (error: AxiosError): string => {
   } else if (error.response?.status) {
     // The request was made and the server responded with a status code
     // that falls out of the range of 2xx
-    return `${error.response.status}: ${JSON.stringify(error.response.data.errorCode)}`;
+    return `${error.response.status}: ${JSON.stringify(error.response.data)}`;
   } else {
     return error.toString();
   }

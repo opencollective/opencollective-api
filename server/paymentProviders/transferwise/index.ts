@@ -67,6 +67,11 @@ async function payExpense(
   const quote = await quoteExpense(connectedAccount, payoutMethod, expense);
 
   const account = await transferwise.getBorderlessAccount(connectedAccount.token, connectedAccount.data.id);
+  if (!account) {
+    throw new Error(
+      `We can't retrieve your Transferwise borderless account. Please re-connect or contact support at support@opencollective.com.`,
+    );
+  }
   const balance = account.balances.find(b => b.currency === quote.source);
   if (!balance || balance.amount.value < quote.sourceAmount) {
     throw new Error(

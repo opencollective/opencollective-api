@@ -180,12 +180,8 @@ describe('paymentMethods.transferwise', () => {
         ],
       });
 
-      try {
-        await transferwise.payExpense(connectedAccount, payoutMethod, expense);
-        throw Error('Unexpected Error');
-      } catch (e) {
-        expect(e.toString()).to.contain("You don't have enough funds");
-      }
+      const payExpensePromise = transferwise.payExpense(connectedAccount, payoutMethod, expense);
+      await expect(payExpensePromise).to.be.eventually.rejectedWith(Error, "You don't have enough funds");
     });
   });
 
