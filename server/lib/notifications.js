@@ -145,6 +145,7 @@ async function notifyUserId(UserId, activity, options = {}) {
 export async function notifyAdminsOfCollective(CollectiveId, activity, options = {}) {
   debug('notify admins of CollectiveId', CollectiveId);
   const collective = await models.Collective.findByPk(CollectiveId);
+
   if (!collective) {
     throw new Error(
       `notifyAdminsOfCollective> can't notify ${activity.type}: no collective found with id ${CollectiveId}`,
@@ -216,6 +217,10 @@ async function notifyByEmail(activity) {
 
     case activityType.COLLECTIVE_MEMBER_CREATED:
       twitter.tweetActivity(activity);
+      if (activity.data.member.CreatedByUserId) {
+        const userAdmin = await models.User.findByPk(activity.data.member.CreatedByUserId);
+        activity.data.member.memberCollective.email = userAdmin.email;
+      }
       notifyAdminsOfCollective(activity.data.collective.id, activity);
       break;
 
