@@ -19,13 +19,27 @@ describe('paymentMethods.transferwise', () => {
     rate: 0.9044,
     fee: 1.14,
   };
-  let createQuote, createRecipientAccount, createTransfer, fundTransfer, getAccountRequirements, cacheSpy;
+  let createQuote,
+    createRecipientAccount,
+    createTransfer,
+    fundTransfer,
+    getAccountRequirements,
+    cacheSpy,
+    getBorderlessAccount;
   let connectedAccount, collective, host, payoutMethod, expense;
 
   after(sandbox.restore);
   before(utils.resetTestDB);
   before(() => {
     createQuote = sandbox.stub(transferwiseLib, 'createQuote').resolves(quote);
+    getBorderlessAccount = sandbox.stub(transferwiseLib, 'getBorderlessAccount').resolves({
+      balances: [
+        {
+          currency: 'USD',
+          amount: { value: 100000 },
+        },
+      ],
+    });
     sandbox.stub(transferwiseLib, 'getTemporaryQuote').resolves(quote);
     sandbox.stub(transferwiseLib, 'getProfiles').resolves([
       {
@@ -137,6 +151,10 @@ describe('paymentMethods.transferwise', () => {
       expect(data).to.have.nested.property('quote');
     });
 
+    it('should check for existing balance', () => {
+      expect(getBorderlessAccount.called).to.be.true;
+    });
+
     it('should create recipient account and update data.recipient', () => {
       expect(createRecipientAccount.called).to.be.true;
       expect(data).to.have.nested.property('recipient');
@@ -150,6 +168,20 @@ describe('paymentMethods.transferwise', () => {
     it('should fund transfer account and update data.fund', () => {
       expect(fundTransfer.called).to.be.true;
       expect(data).to.have.nested.property('fund');
+    });
+
+    it('should throw if balance is not enough to cover the transfer', async () => {
+      getBorderlessAccount.resolves({
+        balances: [
+          {
+            currency: 'USD',
+            amount: { value: 0 },
+          },
+        ],
+      });
+
+      const payExpensePromise = transferwise.payExpense(connectedAccount, payoutMethod, expense);
+      await expect(payExpensePromise).to.be.eventually.rejectedWith(Error, "You don't have enough funds");
     });
   });
 

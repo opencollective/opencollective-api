@@ -66,6 +66,19 @@ async function payExpense(
 }> {
   const quote = await quoteExpense(connectedAccount, payoutMethod, expense);
 
+  const account = await transferwise.getBorderlessAccount(connectedAccount.token, connectedAccount.data.id);
+  if (!account) {
+    throw new Error(
+      `We can't retrieve your Transferwise borderless account. Please re-connect or contact support at support@opencollective.com.`,
+    );
+  }
+  const balance = account.balances.find(b => b.currency === quote.source);
+  if (!balance || balance.amount.value < quote.sourceAmount) {
+    throw new Error(
+      `You don't have enough funds in your ${quote.source} balance. Please top up your account and try again.`,
+    );
+  }
+
   const recipient = await transferwise.createRecipientAccount(connectedAccount.token, {
     profileId: connectedAccount.data.id,
     ...payoutMethod.data,
@@ -77,12 +90,15 @@ async function payExpense(
     uuid: uuid(),
   });
 
-  const fund = await transferwise.fundTransfer(connectedAccount.token, {
-    profileId: connectedAccount.data.id,
-    transferId: transfer.id,
-  });
-  if (fund.status === 'REJECTED') {
-    throw new Error(`Transferwise could not fund transfer: ${fund.errorCode}`);
+  let fund;
+  try {
+    fund = await transferwise.fundTransfer(connectedAccount.token, {
+      profileId: connectedAccount.data.id,
+      transferId: transfer.id,
+    });
+  } catch (e) {
+    await transferwise.cancelTransfer(connectedAccount.token, transfer.id);
+    throw e;
   }
 
   return { quote, recipient, transfer, fund };
