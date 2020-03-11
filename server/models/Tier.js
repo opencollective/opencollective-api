@@ -276,8 +276,6 @@ export default function(Sequelize, DataTypes) {
     },
   );
 
-  Tier.schema('public');
-
   /**
    * Instance Methods
    */

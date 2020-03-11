@@ -238,6 +238,5 @@ export default function(Sequelize, DataTypes) {
     });
   };
 
-  Conversation.schema('public');
   return Conversation;
 }

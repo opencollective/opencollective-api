@@ -113,8 +113,6 @@ export default function(Sequelize, DataTypes) {
     },
   );
 
-  Member.schema('public');
-
   /**
    * Returns false if member is part of a tier with an interval and last donation is out of interval
    * @param {*} member { tier: { interval }, lastDonation}

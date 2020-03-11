@@ -32,7 +32,5 @@ export default function(Sequelize, DataTypes) {
     },
   );
 
-  Session.schema('public');
-
   return Session;
 }
