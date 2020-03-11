@@ -1731,7 +1731,14 @@ export default function(Sequelize, DataTypes) {
 
   // edit the list of members and admins of this collective (create/update/remove)
   // creates a User and a UserCollective if needed
-  Collective.prototype.editMembers = async function(members, defaultAttributes = {}) {
+  Collective.prototype.editMembers = async function(members, { remoteUser, deleteMissing = true } = {}) {
+    const defaultAttributes = {};
+
+    if (remoteUser) {
+      defaultAttributes['CreatedByUserId'] = remoteUser;
+      defaultAttributes['remoteUserCollectiveId'] = remoteUser.CollectiveId;
+    }
+
     if (!members || members.length === 0) {
       return null;
     }
@@ -1747,46 +1754,47 @@ export default function(Sequelize, DataTypes) {
       }
     });
 
-    // Load existing data
-    const [oldMembers, oldInvitations] = await Promise.all([
-      this.getMembers({ where: { role: { [Op.in]: [roles.ADMIN, roles.MEMBER] } } }),
-      models.MemberInvitation.findAll({
-        where: { CollectiveId: this.id, role: { [Op.in]: [roles.ADMIN, roles.MEMBER] } },
-      }),
-    ]);
+    if (deleteMissing) {
+      // Load existing data
+      const [oldMembers, oldInvitations] = await Promise.all([
+        this.getMembers({ where: { role: { [Op.in]: [roles.ADMIN, roles.MEMBER] } } }),
+        models.MemberInvitation.findAll({
+          where: { CollectiveId: this.id, role: { [Op.in]: [roles.ADMIN, roles.MEMBER] } },
+        }),
+      ]);
 
-    // remove the members that are not present anymore
-    const diff = differenceBy(oldMembers, members, 'id');
-    if (diff.length > 0) {
-      debug('editMembers', 'delete', diff);
-      const diffMemberIds = diff.map(m => m.id);
-      const diffMemberCollectiveIds = diff.map(m => m.MemberCollectiveId);
-      const { remoteUserCollectiveId } = defaultAttributes;
-      if (remoteUserCollectiveId && diffMemberCollectiveIds.indexOf(remoteUserCollectiveId) !== -1) {
-        throw new Error(
-          'You cannot remove yourself as a Collective admin. If you are the only admin, please add a new one and ask them to remove you.',
+      // Remove the members that are not present anymore
+      const diff = differenceBy(oldMembers, members, 'id');
+      if (diff.length > 0) {
+        debug('editMembers', 'delete', diff);
+        const diffMemberIds = diff.map(m => m.id);
+        const diffMemberCollectiveIds = diff.map(m => m.MemberCollectiveId);
+        const { remoteUserCollectiveId } = defaultAttributes;
+        if (remoteUserCollectiveId && diffMemberCollectiveIds.indexOf(remoteUserCollectiveId) !== -1) {
+          throw new Error(
+            'You cannot remove yourself as a Collective admin. If you are the only admin, please add a new one and ask them to remove you.',
+          );
+        }
+        await models.Member.update({ deletedAt: new Date() }, { where: { id: { [Op.in]: diffMemberIds } } });
+      }
+
+      // Remove the invitations that are not present anymore
+      const invitationsDiff = oldInvitations.filter(invitation => {
+        return !members.some(
+          m => !m.id && m.member && m.member.id === invitation.MemberCollectiveId && m.role === invitation.role,
+        );
+      });
+      if (invitationsDiff.length > 0) {
+        await models.MemberInvitation.update(
+          { deletedAt: new Date() },
+          {
+            where: {
+              id: { [Op.in]: invitationsDiff.map(i => i.id) },
+              CollectiveId: this.id,
+            },
+          },
         );
       }
-      await models.Member.update({ deletedAt: new Date() }, { where: { id: { [Op.in]: diffMemberIds } } });
-    }
-
-    // Remove the invitations that are not present anymore
-    const invitationsDiff = oldInvitations.filter(invitation => {
-      return !members.some(
-        m => !m.id && m.member && m.member.id === invitation.MemberCollectiveId && m.role === invitation.role,
-      );
-    });
-
-    if (invitationsDiff.length > 0) {
-      await models.MemberInvitation.update(
-        { deletedAt: new Date() },
-        {
-          where: {
-            id: { [Op.in]: invitationsDiff.map(i => i.id) },
-            CollectiveId: this.id,
-          },
-        },
-      );
     }
 
     // Add new members
@@ -1837,6 +1845,7 @@ export default function(Sequelize, DataTypes) {
     }
 
     invalidateContributorsCache(this.id);
+
     return this.getMembers({
       where: { role: { [Op.in]: [roles.ADMIN, roles.MEMBER] } },
     });

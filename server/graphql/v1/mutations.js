@@ -465,10 +465,7 @@ const mutations = {
       } else if (!req.remoteUser || !req.remoteUser.isAdmin(collective.id)) {
         throw new errors.Unauthorized();
       } else {
-        await collective.editMembers(args.members, {
-          CreatedByUserId: req.remoteUser.id,
-          remoteUserCollectiveId: req.remoteUser.CollectiveId,
-        });
+        await collective.editMembers(args.members, { remoteUser: req.remoteUser });
         return collective;
       }
     },

@@ -674,7 +674,7 @@ describe('server/models/Collective', () => {
             },
           },
         ],
-        { CreatedByUserId: user1.id },
+        { remoteUser: user1 },
       );
 
       // Invitation needs to be approved before admins can access the email
@@ -718,7 +718,7 @@ describe('server/models/Collective', () => {
             },
           },
         ],
-        { CreatedByUserId: user1.id },
+        { remoteUser: user1 },
       );
 
       expect(members.length).to.equal(0);

@@ -142,7 +142,7 @@ export async function createCollective(_, args, req) {
       }
     });
   } else if (collectiveData.members) {
-    collective.editMembers(collectiveData.members, { CreatedByUserId: req.remoteUser.id });
+    collective.editMembers(collectiveData.members, { remoteUser: req.remoteUser });
   } else {
     promises.push(collective.addUserWithRole(req.remoteUser, roles.ADMIN, { CreatedByUserId: req.remoteUser.id }));
   }
@@ -400,10 +400,7 @@ export function editCollective(_, args, req) {
     .then(() => {
       // @deprecated since 2019-10-21: now using dedicated `editCoreContributors` endpoint
       if (args.collective.members) {
-        return collective.editMembers(args.collective.members, {
-          CreatedByUserId: req.remoteUser.id,
-          remoteUserCollectiveId: req.remoteUser.CollectiveId,
-        });
+        return collective.editMembers(args.collective.members, { remoteUser: req.remoteUser });
       }
     })
     .then(() => {
