@@ -43,6 +43,13 @@ export default (Sequelize, DataTypes) => {
     {
       paranoid: true,
 
+      indexes: [
+        {
+          unique: true,
+          fields: ['service', 'token'],
+        },
+      ],
+
       getterMethods: {
         info() {
           return {
