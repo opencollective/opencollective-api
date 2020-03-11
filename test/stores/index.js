@@ -280,22 +280,6 @@ export async function newOrder(opt) {
 
 /* -- STRIPE METHODS -- */
 
-/** Create a stripe account for a host collective
- *
- * @param {Number} hostId is the id of the host collective that the
- *  newly created connected account object will be associated to.
- * @return {models.ConnectedAccount} the newly created connected
- *  account instance.
- */
-export async function stripeConnectedAccount(hostId) {
-  return models.ConnectedAccount.create({
-    service: 'stripe',
-    token: 'sk_test_XOFJ9lGbErcK5akcfdYM1D7j',
-    username: 'acct_198T7jD8MNtzsDcg',
-    CollectiveId: hostId,
-  });
-}
-
 /** Create a one time donation.
  *
  * This function creates an order for a one time donation.

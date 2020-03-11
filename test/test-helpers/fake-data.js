@@ -316,6 +316,7 @@ export const fakeConnectedAccount = async (connectedAccountData = {}) => {
 
   return models.ConnectedAccount.create({
     service,
+    token: randStr(),
     ...connectedAccountData,
     CollectiveId,
   });

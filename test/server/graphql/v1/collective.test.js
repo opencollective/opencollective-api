@@ -8,7 +8,7 @@ import * as expenses from '../../../../server/graphql/v1/mutations/expenses';
 
 import * as utils from '../../../utils';
 import * as store from '../../../stores';
-import { fakeUser } from '../../../test-helpers/fake-data';
+import { fakeConnectedAccount, fakeUser } from '../../../test-helpers/fake-data';
 
 describe('server/graphql/v1/collective', () => {
   beforeEach(async () => {
@@ -52,7 +52,7 @@ describe('server/graphql/v1/collective', () => {
     // await apex.addUserWithRole(user, 'BACKER');
     await apex.update({ website: 'http://apex.run' });
     // And given the host has a stripe account
-    await store.stripeConnectedAccount(hostCollective.id);
+    await await fakeConnectedAccount({ service: 'stripe', CollectiveId: hostCollective.id });
     // And given a donation from an organization
     const org0 = await store.newOrganization({ name: 'org0', currency }, orgadm0);
     await store.stripeOneTimeDonation({
@@ -412,7 +412,7 @@ describe('server/graphql/v1/collective', () => {
       isActive: true,
     });
     // And given the host has a stripe account
-    await store.stripeConnectedAccount(hostCollective.id);
+    await fakeConnectedAccount({ service: 'stripe', CollectiveId: hostCollective.id });
     // And given some purchases from users to the collective
     await store.stripeOneTimeDonation({
       remoteUser: theuser0,
@@ -592,8 +592,8 @@ describe('server/graphql/v1/collective', () => {
       );
 
       brusselsTogetherHostAdmin = hostAdmin;
-      await store.stripeConnectedAccount(hostCollective.id);
-      await store.stripeConnectedAccount(newCollectiveWithHostInUSD.hostCollective.id);
+      await fakeConnectedAccount({ service: 'stripe', CollectiveId: hostCollective.id });
+      await fakeConnectedAccount({ service: 'stripe', CollectiveId: newCollectiveWithHostInUSD.hostCollective.id });
       // And given some purchases
       await store.stripeOneTimeDonation({
         remoteUser: user,
@@ -969,7 +969,7 @@ describe('server/graphql/v1/collective', () => {
     });
     afterEach(() => sandbox.restore());
     it('edits public message', async () => {
-      await store.stripeConnectedAccount(pubnubHostCollective.id);
+      await fakeConnectedAccount({ service: 'stripe', CollectiveId: pubnubHostCollective.id });
       await store.stripeOneTimeDonation({
         remoteUser: pubnubAdmin,
         collective: pubnubCollective,
@@ -1009,7 +1009,7 @@ describe('server/graphql/v1/collective', () => {
       expect(cacheDelSpy.firstCall.args[0]).to.equal(`collective_contributors_${pubnubCollective.id}`);
     });
     it('deletes public message', async () => {
-      await store.stripeConnectedAccount(pubnubHostCollective.id);
+      await fakeConnectedAccount({ service: 'stripe', CollectiveId: pubnubHostCollective.id });
       await store.stripeOneTimeDonation({
         remoteUser: pubnubAdmin,
         collective: pubnubCollective,

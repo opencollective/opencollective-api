@@ -16,7 +16,7 @@ import { maxInteger } from '../../../../server/constants/math';
 import * as utils from '../../../utils';
 import * as store from '../../../stores';
 import initNock from '../../../nocks/paymentMethods.opencollective.virtualcard.nock';
-import { fakeOrder } from '../../../test-helpers/fake-data';
+import { fakeConnectedAccount, fakeOrder } from '../../../test-helpers/fake-data';
 
 const ORDER_TOTAL_AMOUNT = 5000;
 const STRIPE_FEE_STUBBED_VALUE = 300;
@@ -314,7 +314,7 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
         }).then(c => {
           host1 = c;
           // Create stripe connected account to host
-          return store.stripeConnectedAccount(host1.id);
+          return fakeConnectedAccount({ service: 'stripe', CollectiveId: host1.id });
         }),
       );
 
@@ -578,7 +578,7 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
           currency: CURRENCY,
           isActive: true,
         });
-        await store.stripeConnectedAccount(hostCollective.id);
+        await fakeConnectedAccount({ service: 'stripe', CollectiveId: hostCollective.id });
       });
 
       before(async () => {
@@ -940,7 +940,7 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
         }).then(c => {
           host1 = c;
           // Create stripe connected account to host
-          return store.stripeConnectedAccount(host1.id);
+          return fakeConnectedAccount({ service: 'stripe', CollectiveId: host1.id });
         }),
       );
       before('create Host 2(USD)', () =>
@@ -951,7 +951,7 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
         }).then(c => {
           host2 = c;
           // Create stripe connected account to host
-          return store.stripeConnectedAccount(host2.id);
+          return fakeConnectedAccount({ service: 'stripe', CollectiveId: host2.id });
         }),
       );
       before('create collective1', () =>

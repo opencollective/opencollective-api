@@ -6,6 +6,7 @@ import CollectivePaymentProvider from '../../../../server/paymentProviders/openc
 
 import * as utils from '../../../utils';
 import * as store from '../../../stores';
+import { fakeConnectedAccount } from '../../../test-helpers/fake-data';
 
 const ORDER_TOTAL_AMOUNT = 1000;
 const STRIPE_FEE_STUBBED_VALUE = 300;
@@ -135,16 +136,17 @@ describe('server/paymentProviders/opencollective/collective', () => {
       models.Collective.create({ name: 'pubnub', currency: 'USD' }).then(o => (organization = o)),
     );
 
-    before('create a payment method', async () =>
-      models.PaymentMethod.create({
+    before('create a payment method', async () => {
+      await await fakeConnectedAccount({ service: 'stripe', CollectiveId: collective1.HostCollectiveId });
+      await models.PaymentMethod.create({
         name: '4242',
         service: 'stripe',
         type: 'creditcard',
         token: 'tok_123456781234567812345678',
         CollectiveId: organization.id,
         monthlyLimitPerMember: 10000,
-      }).then(pm => (stripePaymentMethod = pm)),
-    );
+      }).then(pm => (stripePaymentMethod = pm));
+    });
 
     beforeEach('create transactions for 3 donations from organization to collective1', async () => {
       transactions = [
@@ -304,8 +306,6 @@ describe('server/paymentProviders/opencollective/collective', () => {
         role: 'ADMIN',
       });
 
-      // Create stripe connected account to host of collective1
-      await store.stripeConnectedAccount(collective1.HostCollectiveId);
       // Add credit card to collective1
       await models.PaymentMethod.create({
         name: '4242',
@@ -352,8 +352,6 @@ describe('server/paymentProviders/opencollective/collective', () => {
         role: 'ADMIN',
       });
 
-      // Create stripe connected account to host of collective1
-      await store.stripeConnectedAccount(collective1.HostCollectiveId);
       // Add credit card to collective1
       await models.PaymentMethod.create({
         name: '4242',

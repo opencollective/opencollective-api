@@ -9,6 +9,7 @@ import * as libtransactions from '../../../server/lib/transactions';
 
 import * as utils from '../../utils';
 import * as store from '../../stores';
+import { fakeConnectedAccount } from '../../test-helpers/fake-data';
 
 describe('server/lib/transactions', () => {
   beforeEach(utils.resetTestDB);
@@ -18,8 +19,10 @@ describe('server/lib/transactions', () => {
     const currency = 'USD';
     const { collective } = await store.newCollectiveWithHost('apex', currency, currency, 10);
     const { user } = await store.newUser('a new user');
+
+    await fakeConnectedAccount({ service: 'stripe', CollectiveId: collective.HostCollectiveId });
+
     // And given some transactions
-    await store.stripeConnectedAccount(collective.HostCollectiveId);
     await store.stripeOneTimeDonation({
       remoteUser: user,
       collective,

@@ -9,6 +9,7 @@ import models from '../../../../server/models';
 
 import * as utils from '../../../utils';
 import * as store from '../../../stores';
+import { fakeConnectedAccount } from '../../../test-helpers/fake-data';
 
 describe('server/graphql/v1/transaction', () => {
   before(async () => {
@@ -20,7 +21,7 @@ describe('server/graphql/v1/transaction', () => {
       isActive: true,
     });
     // And given the host has a stripe account
-    await store.stripeConnectedAccount(hostCollective.id);
+    await fakeConnectedAccount({ service: 'stripe', CollectiveId: hostCollective.id });
     // And given that we have 5 users making one purchase each
     const userNames = ['Craft Work', 'Geoff Frey', 'Holly Day', 'Max Point', 'Praxent'];
     // Not using Promise.all because I want the entries to be created

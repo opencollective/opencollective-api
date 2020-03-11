@@ -42,7 +42,7 @@ describe('server/paymentProviders/paypal/payment', () => {
        the PayPal url `/v1/oauth2/token'. Which is pretty much
        everything besides `paypalUrl` and`retrieveOAuthToken`. */
 
-    before(utils.resetTestDB);
+    beforeEach(utils.resetTestDB);
 
     let configStub;
     before(() => {

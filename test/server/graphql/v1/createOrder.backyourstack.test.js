@@ -8,6 +8,7 @@ import models from '../../../../server/models';
 
 import * as utils from '../../../utils';
 import * as store from '../../../stores';
+import { fakeConnectedAccount } from '../../../test-helpers/fake-data';
 
 import { dispatch } from '../../../../server/lib/backyourstack/dispatcher';
 import initNock from '../../../nocks/graphql.createOrder.backyourstack.nock';
@@ -105,7 +106,7 @@ describe('server/graphql/v1/createOrder.backyourstack', () => {
     const newCollectiveInHost = await store.newCollectiveInHost('backyourstack', 'USD', hostCollective, xdamman);
     backyourstackCollective = newCollectiveInHost.backyourstack;
     // And the above collective's host has a stripe account
-    await store.stripeConnectedAccount(backyourstackCollective.HostCollectiveId);
+    await fakeConnectedAccount({ service: 'stripe', CollectiveId: backyourstackCollective.HostCollectiveId });
 
     // This add a new tier and removes the "sponsors" tier
     backyourstackCollective.editTiers([

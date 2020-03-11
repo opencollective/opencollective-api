@@ -9,7 +9,7 @@ import models from '../../../../server/models';
 import twitter from '../../../../server/lib/twitter';
 import emailLib from '../../../../server/lib/email';
 import { maxInteger } from '../../../../server/constants/math';
-import { fakeTier } from '../../../test-helpers/fake-data';
+import { fakeConnectedAccount, fakeTier } from '../../../test-helpers/fake-data';
 
 import * as utils from '../../../utils';
 import * as store from '../../../stores';
@@ -117,7 +117,7 @@ describe('server/graphql/v1/createOrder', () => {
     // Given a collective (with a host)
     ({ fearlesscitiesbrussels } = await store.newCollectiveWithHost('fearlesscitiesbrussels', 'EUR', 'EUR', 5));
     // And the above collective's host has a stripe account
-    await store.stripeConnectedAccount(fearlesscitiesbrussels.HostCollectiveId);
+    await fakeConnectedAccount({ service: 'stripe', CollectiveId: fearlesscitiesbrussels.HostCollectiveId });
     // And given that the above collective is active
     await fearlesscitiesbrussels.update({ isActive: true });
     // And given that the endpoint for creating customers on Stripe
@@ -780,7 +780,7 @@ describe('server/graphql/v1/createOrder', () => {
       // Given a host collective and its admin
       ({ hostAdmin, hostCollective } = await store.newHost('host-collective', 'USD', 10));
       // And the above collective's host has a stripe account
-      await store.stripeConnectedAccount(hostCollective.id);
+      await fakeConnectedAccount({ service: 'stripe', CollectiveId: hostCollective.id });
       // And given two collectives in that host
       const fromCollective = (await store.newCollectiveInHost('opensource', 'USD', hostCollective)).collective;
       await fromCollective.update({ isActive: true });

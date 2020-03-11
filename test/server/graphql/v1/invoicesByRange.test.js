@@ -13,6 +13,7 @@ moment.suppressDeprecationWarnings = true;
 /* Test utilities */
 import * as utils from '../../../utils';
 import * as store from '../../../stores';
+import { fakeConnectedAccount } from '../../../test-helpers/fake-data';
 
 const startOctober2017ISOString = moment('2017-10-01').toISOString(true);
 const startNovember2017ISOString = moment('2017-11-01').toISOString(true);
@@ -27,7 +28,7 @@ const startNovember2017ISOString = moment('2017-11-01').toISOString(true);
 async function donate(user, currency, amount, createdAt, collective) {
   const timer = sinon.useFakeTimers(new Date(createdAt).getTime());
   try {
-    await store.stripeConnectedAccount(collective.HostCollectiveId);
+    await fakeConnectedAccount({ service: 'stripe', CollectiveId: collective.HostCollectiveId });
     await store.stripeOneTimeDonation({
       remoteUser: user,
       collective,

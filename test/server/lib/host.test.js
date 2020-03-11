@@ -7,6 +7,7 @@ import { Op } from '../../../server/models';
 
 import * as utils from '../../utils';
 import * as store from '../../stores';
+import { fakeConnectedAccount } from '../../test-helpers/fake-data';
 
 async function donation(collective, user, amount, currency, createdAt) {
   return store.stripeOneTimeDonation({
@@ -40,7 +41,7 @@ describe('server/lib/host', () => {
     const { hostCollective } = await store.newHost('Open Source Collective', currency, 10);
 
     // Add stripe accounts to the newly created host colective
-    await store.stripeConnectedAccount(hostCollective.id);
+    await fakeConnectedAccount({ service: 'stripe', CollectiveId: hostCollective.id });
 
     // And a few collectives
     const { apex } = await store.newCollectiveInHost('apex', currency, hostCollective);
