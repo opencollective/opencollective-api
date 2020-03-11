@@ -1532,6 +1532,16 @@ export default function(Sequelize, DataTypes) {
     return this;
   };
 
+  Collective.prototype.updateCurrency = async function(currency, remoteUser) {
+    if (typeof currency === undefined || !remoteUser || currency === this.currency || !remoteUser.isAdmin(this.id)) {
+      return;
+    }
+    if ([types.COLLECTIVE, types.EVENT].includes(this.type) || (await this.isHost())) {
+      throw new Error('Only Users and Organisation that are not hosts can update currency');
+    }
+    return this.update({ currency });
+  };
+
   /**
    * Add the host in the Members table and updates HostCollectiveId
    * @param {*} hostCollective instanceof models.Collective

@@ -395,7 +395,13 @@ export function editCollective(_, args, req) {
         return collective.updateHostFee(newCollectiveData.hostFeePercent, req.remoteUser);
       }
     })
-    .then(() => collective.update(omit(newCollectiveData, ['HostCollectiveId', 'hostFeePercent']))) // we omit those attributes that have already been updated above
+    .then(() => {
+      // if we try to change the `currency`
+      if (newCollectiveData.currency !== undefined && newCollectiveData.currency !== collective.currency) {
+        return collective.updateCurrency(newCollectiveData.currency, req.remoteUser);
+      }
+    })
+    .then(() => collective.update(omit(newCollectiveData, ['HostCollectiveId', 'hostFeePercent', 'currency']))) // we omit those attributes that have already been updated above
     .then(() => collective.editTiers(args.collective.tiers))
     .then(() => {
       // @deprecated since 2019-10-21: now using dedicated `editCoreContributors` endpoint
