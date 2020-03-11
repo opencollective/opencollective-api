@@ -111,7 +111,7 @@ export const createOrUpdate = (req, res, next, accessToken, data, emails) => {
           collective.website = collective.website || profile.url;
           collective.locationName = collective.locationName || profile.location;
           collective.twitterHandle = profile.screen_name;
-          collective.save();
+          return collective.save();
         })
         .then(() => createConnectedAccountForCollective(req.query.CollectiveId, service))
         .then(ca =>
@@ -150,7 +150,7 @@ export const disconnect = async (req, res) => {
     });
 
     if (account) {
-      await account.destroy();
+      await account.destroy({ force: true });
     }
 
     res.send({
@@ -242,10 +242,15 @@ export const getOrgMemberships = async (req, res, next) => {
   }
 };
 
-function createConnectedAccountForCollective(CollectiveId, service) {
-  const attrs = { service };
-  return models.Collective.findByPk(CollectiveId)
-    .then(collective => (attrs.CollectiveId = collective.id))
-    .then(() => ConnectedAccount.findOne({ where: attrs }))
-    .then(ca => ca || ConnectedAccount.create(attrs));
+async function createConnectedAccountForCollective(CollectiveId, service) {
+  const collective = await models.Collective.findByPk(CollectiveId);
+  if (collective) {
+    const attrs = { service, CollectiveId: collective.id };
+    const connectedAccount = await ConnectedAccount.findOne({ where: attrs });
+    if (connectedAccount) {
+      return connectedAccount;
+    } else {
+      return await ConnectedAccount.create(attrs);
+    }
+  }
 }
