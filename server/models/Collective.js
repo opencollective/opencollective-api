@@ -1536,10 +1536,17 @@ export default function(Sequelize, DataTypes) {
     if (typeof currency === undefined || !remoteUser || currency === this.currency || !remoteUser.isAdmin(this.id)) {
       return;
     }
-    if ([types.COLLECTIVE, types.EVENT].includes(this.type) || (await this.isHost())) {
-      throw new Error('Only Users and Organisation that are not hosts can update currency');
+    const error = 'Only Users and Organisation that are not hosts can update currency';
+    if (this.type === types.USER || this.type === types.ORGANIZATION) {
+      const isHost = await this.isHost();
+      if (isHost) {
+        throw new Error(error);
+      }
+      this.update({ currency });
+    } else {
+      throw new Error(error);
     }
-    return this.update({ currency });
+    return this;
   };
 
   /**
