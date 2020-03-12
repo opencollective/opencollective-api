@@ -24,7 +24,7 @@ export async function createApplication(_, args, req) {
 
   const numberOfAppsForThisUser = await Application.count({
     where: {
-      CreatedByUserId: req.remoteUser.id,
+      CollectiveId: req.remoteUser.CollectiveId,
     },
   });
 
@@ -53,7 +53,7 @@ export async function deleteApplication(_, args, req) {
     throw new errors.NotFound({
       message: `Application with id ${args.id} not found`,
     });
-  } else if (req.remoteUser.id !== app.CreatedByUserId) {
+  } else if (req.remoteUser.CollectiveId !== app.CollectiveId) {
     throw new errors.Forbidden('Authenticated user is not the application owner.');
   }
 
