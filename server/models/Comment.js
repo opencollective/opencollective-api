@@ -192,8 +192,6 @@ export default function(Sequelize, DataTypes) {
     },
   );
 
-  Comment.schema('public');
-
   Comment.prototype._internalDestroy = Comment.prototype.destroy;
   Comment.prototype._internalUpdate = Comment.prototype.update;
 

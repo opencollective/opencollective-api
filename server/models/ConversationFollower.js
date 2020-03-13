@@ -115,6 +115,5 @@ export default function(Sequelize, DataTypes) {
     });
   };
 
-  ConversationFollower.schema('public');
   return ConversationFollower;
 }

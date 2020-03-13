@@ -67,8 +67,6 @@ export default function(Sequelize, DataTypes) {
     },
   );
 
-  LegalDocument.schema('public');
-
   LegalDocument.findByTypeYearUser = ({ documentType, year, user }) => {
     return user.getCollective().then(collective => {
       if (collective) {

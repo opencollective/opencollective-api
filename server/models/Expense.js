@@ -234,8 +234,6 @@ export default function(Sequelize, DataTypes) {
     });
   };
 
-  Expense.schema('public');
-
   Expense.prototype.setApproved = function(lastEditedById) {
     if (this.status === status.PAID) {
       throw new Error("Can't approve an expense that is PAID");

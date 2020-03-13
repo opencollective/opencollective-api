@@ -50,8 +50,6 @@ export default (Sequelize, DataTypes) => {
     },
   );
 
-  Subscription.schema('public');
-
   Subscription.prototype.activate = function() {
     this.isActive = true;
     this.activatedAt = new Date();

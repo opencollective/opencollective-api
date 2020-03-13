@@ -1842,8 +1842,6 @@ export default function(Sequelize, DataTypes) {
     });
   };
 
-  Collective.schema('public');
-
   // edit the tiers of this collective (create/update/remove)
   Collective.prototype.editTiers = function(tiers) {
     if (!tiers) {

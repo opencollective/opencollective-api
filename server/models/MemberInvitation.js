@@ -225,6 +225,5 @@ export default function(Sequelize, DataTypes) {
     });
   };
 
-  MemberInvitation.schema('public');
   return MemberInvitation;
 }
