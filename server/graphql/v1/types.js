@@ -671,8 +671,12 @@ export const InvoiceType = new GraphQLObjectType({
       },
       fromCollective: {
         type: CollectiveInterfaceType,
-        resolve(invoice, args, req) {
-          return req.loaders.Collective.byId.load(invoice.FromCollectiveId);
+        async resolve(invoice, args, req) {
+          const fromCollective = await req.loaders.Collective.byId.load(invoice.FromCollectiveId);
+          if (fromCollective) {
+            fromCollective.inTheContextOfCollectiveId = invoice.FromCollectiveId;
+          }
+          return fromCollective;
         },
       },
       transactions: {
