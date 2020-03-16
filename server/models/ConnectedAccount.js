@@ -27,8 +27,8 @@ export default (Sequelize, DataTypes) => {
       token: DataTypes.STRING,
       refreshToken: DataTypes.STRING, // used for Stripe
 
-      data: DataTypes.JSON, // Extra service provider specific data, e.g. Stripe: { publishableKey, scope, tokenType }
-      settings: DataTypes.JSON, // configuration settings, e.g. defining templates for auto-tweeting
+      data: DataTypes.JSONB, // Extra service provider specific data, e.g. Stripe: { publishableKey, scope, tokenType }
+      settings: DataTypes.JSONB, // configuration settings, e.g. defining templates for auto-tweeting
 
       createdAt: {
         type: DataTypes.DATE,

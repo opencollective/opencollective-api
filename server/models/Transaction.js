@@ -138,7 +138,7 @@ export default (Sequelize, DataTypes) => {
       taxAmount: { type: DataTypes.INTEGER },
       netAmountInCollectiveCurrency: DataTypes.INTEGER, // stores the net amount received by the collective (after fees) or removed from the collective (including fees)
 
-      data: DataTypes.JSON,
+      data: DataTypes.JSONB,
 
       // Note: Not a foreign key, should have been lower case t, 'transactionGroup`
       TransactionGroup: {

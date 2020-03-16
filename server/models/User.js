@@ -130,7 +130,7 @@ export default (Sequelize, DataTypes) => {
       },
 
       data: {
-        type: DataTypes.JSON,
+        type: DataTypes.JSONB,
         allowNull: true,
       },
     },

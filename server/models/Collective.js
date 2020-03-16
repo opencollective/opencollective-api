@@ -313,7 +313,7 @@ export default function(Sequelize, DataTypes) {
       geoLocationLatLong: DataTypes.GEOMETRY('POINT'),
 
       settings: {
-        type: DataTypes.JSON,
+        type: DataTypes.JSONB,
         set(value) {
           this.setDataValue('settings', whitelistSettings(value));
         },
@@ -334,7 +334,7 @@ export default function(Sequelize, DataTypes) {
       },
 
       data: {
-        type: DataTypes.JSON,
+        type: DataTypes.JSONB,
         allowNull: true,
       },
 

@@ -37,7 +37,7 @@ export default (Sequelize, DataTypes) => {
 
       chargeNumber: DataTypes.INTEGER,
 
-      data: DataTypes.JSON,
+      data: DataTypes.JSONB,
 
       stripeSubscriptionId: DataTypes.STRING,
 
