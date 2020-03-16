@@ -1,6 +1,6 @@
 import config from 'config';
 import { Octokit } from '@octokit/rest';
-import { createSimpleOAuthAppAuth } from '@opencollective/auth-simple-oauth-app';
+import { createOAuthAppAuth } from '@octokit/auth-oauth-app';
 import { get, has, pick } from 'lodash';
 
 import cache from './cache';
@@ -33,7 +33,7 @@ export function getOctokit(accessToken) {
   if (accessToken) {
     octokitParams.auth = `token ${accessToken}`;
   } else if (has(config, 'github.clientID') && has(config, 'github.clientSecret')) {
-    octokitParams.authStrategy = createSimpleOAuthAppAuth;
+    octokitParams.authStrategy = createOAuthAppAuth;
     octokitParams.auth = {
       clientId: get(config, 'github.clientID'),
       clientSecret: get(config, 'github.clientSecret'),
