@@ -246,14 +246,6 @@ const generateEmailFromTemplate = (template, recipient, data = {}, options = {})
     if (slug === 'fearlesscitiesbrussels') {
       template += '.fearlesscitiesbrussels';
     }
-
-    if (slug === 'drupalatx') {
-      const eventSlug = get(data, 'event.slug');
-
-      if (eventSlug === 'texas-camp-2019-19178ev') {
-        template += '.drupalatx.texas-camp-2019-19178ev';
-      }
-    }
   }
   if (template.match(/^host\.(monthly|yearly)report$/)) {
     template = 'host.report';

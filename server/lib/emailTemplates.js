@@ -74,8 +74,6 @@ export const templateNames = [
   'ticket.confirmed',
   'ticket.confirmed.text',
   'ticket.confirmed.fearlesscitiesbrussels',
-  'ticket.confirmed.drupalatx.texas-camp-2019-19178ev',
-  'ticket.confirmed.drupalatx.texas-camp-2019-19178ev.text',
   'thankyou',
   'thankyou.chsf',
   'thankyou.sustainoss',
