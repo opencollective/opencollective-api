@@ -85,13 +85,16 @@ export const checkJwtExpiry = (req, res, next) => {
  */
 export const _authenticateUserByJwt = async (req, res, next) => {
   if (!req.jwtPayload) {
-    return next();
+    next();
+    return;
   }
 
   const userId = Number(req.jwtPayload.sub);
   const user = await User.findByPk(userId);
   if (!user) {
-    throw errors.Unauthorized(`User id ${userId} not found`);
+    logger.warn(`User id ${userId} not found`);
+    next();
+    return;
   }
 
   /**
