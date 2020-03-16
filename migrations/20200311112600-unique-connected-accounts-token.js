@@ -16,7 +16,13 @@ module.exports = {
         ORDER BY token, service, username, id desc
       );
     `);
+    await queryInterface.addIndex('ConnectedAccounts', ['service', 'token'], {
+      indexName: 'UniqueToken',
+      indicesType: 'UNIQUE',
+    });
   },
 
-  down: async () => {},
+  down: async () => {
+    await queryInterface.removeIndex('ConnectedAccounts', 'UniqueToken');
+  },
 };
