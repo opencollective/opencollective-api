@@ -8,7 +8,7 @@ installNodeModules() {
   npm install
 }
 
-waitForPostgresToByReady() {
+waitForPostgresToBeReady() {
   # Code by https://starkandwayne.com/blog/how-to-know-when-your-postgres-service-is-ready/
   until pg_isready
   do
@@ -19,7 +19,7 @@ waitForPostgresToByReady() {
 
 seedDB() {
   echo "Seeding database"
-  waitForPostgresToByReady
+  waitForPostgresToBeReady
   npm run postinstall
 }
 
@@ -34,7 +34,7 @@ doesDatabaseExists() {
 
 setupTestingDB() {
   echo "Setting up testing db"
-  waitForPostgresToByReady
+  waitForPostgresToBeReady
   if ! doesDatabaseExists "opencollective_test"; then
     npm run db:setup
     createdb opencollective_test || true
@@ -68,7 +68,7 @@ case $1 in
     echo "Starting in e2e mode"
     setupEnvironmentIfNodeModulesDoesNotExists
     if ! $setupScriptRan; then
-      waitForPostgresToByReady
+      waitForPostgresToBeReady
       npm run db:restore && npm run db:migrate
     fi
     npm run build
