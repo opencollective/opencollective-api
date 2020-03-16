@@ -16,7 +16,6 @@ export const TransactionCollection = new GraphQLObjectType({
       nodes: {
         type: new GraphQLList(Transaction),
         resolve(result) {
-          console.log(result.rows);
           return result.rows;
         },
       },

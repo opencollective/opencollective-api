@@ -1200,8 +1200,6 @@ describe('server/graphql/v1/expenses', () => {
         await utils.graphqlQuery(payExpenseQuery, { id: expense.id }, hostAdmin);
 
         await utils.waitForCondition(() => emailSendMessageSpy.callCount === 1);
-        console.log(emailSendMessageSpy.firstCall);
-        console.log(emailSendMessageSpy.secondCall);
         expect(emailSendMessageSpy.args[0][0]).to.equal(user.email);
         expect(emailSendMessageSpy.args[0][1]).to.contain(
           'Expense from WWCode Berlin for January Invoice is being Processed',
