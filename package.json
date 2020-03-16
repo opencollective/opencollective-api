@@ -18,7 +18,7 @@
     "@octokit/auth-oauth-app": "3.0.1",
     "@octokit/rest": "17.1.0",
     "@opencollective/taxes": "2.3.0",
-    "algoliasearch": "3.35.1",
+    "algoliasearch": "4.1.0",
     "apollo-errors": "1.9.0",
     "apollo-server-express": "2.11.0",
     "argparse": "1.0.10",
