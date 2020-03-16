@@ -8,6 +8,7 @@ import * as LibTaxes from '@opencollective/taxes';
 
 import models from '../../../models';
 import * as errors from '../../errors';
+
 import cache from '../../../lib/cache';
 import * as github from '../../../lib/github';
 import recaptcha from '../../../lib/recaptcha';
@@ -15,13 +16,14 @@ import * as libPayments from '../../../lib/payments';
 import { setupCreditCard } from '../../../paymentProviders/stripe/creditcard';
 import { capitalize, pluralize, formatCurrency, md5 } from '../../../lib/utils';
 import { getNextChargeAndPeriodStartDates, getChargeRetryCount } from '../../../lib/subscriptions';
+import { canUseFeature } from '../../../lib/user-permissions';
+import { handleHostPlanAddedFundsLimit, handleHostPlanBankTransfersLimit } from '../../../lib/plans';
 
 import roles from '../../../constants/roles';
 import status from '../../../constants/order_status';
 import activities from '../../../constants/activities';
 import { types } from '../../../constants/collectives';
 import { VAT_OPTIONS } from '../../../constants/vat';
-import { canUseFeature } from '../../../lib/user-permissions';
 import FEATURE from '../../../constants/feature';
 
 const oneHourInSeconds = 60 * 60;
@@ -225,13 +227,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
       throw new Error('This order requires a payment method');
     }
     if (paymentRequired && order.paymentMethod && order.paymentMethod.type === 'manual') {
-      const hostPlan = await host.getPlan();
-      if (hostPlan.bankTransfersLimit && hostPlan.bankTransfers > hostPlan.bankTransfersLimit) {
-        throw new errors.PlanLimit({
-          message:
-            'The limit of "Bank Transfers" for the host has been reached. Please contact support@opencollective.com if you think this is an error.',
-        });
-      }
+      await handleHostPlanBankTransfersLimit(host, { throwException: true });
     }
 
     if (tier && tier.maxQuantityPerUser > 0 && order.quantity > tier.maxQuantityPerUser) {
@@ -981,13 +977,7 @@ export async function addFundsToCollective(order, remoteUser) {
   }
 
   // Check limits
-  const hostPlan = await host.getPlan();
-  if (hostPlan.addedFundsLimit && hostPlan.addedFunds > hostPlan.addedFundsLimit) {
-    throw new errors.PlanLimit({
-      message:
-        'The limit of "Added Funds" for the host has been reached. Please contact support@opencollective.com if you think this is an error.',
-    });
-  }
+  await handleHostPlanAddedFundsLimit(host, { throwException: true });
 
   order.collective = collective;
   let fromCollective, user;
@@ -1047,6 +1037,9 @@ export async function addFundsToCollective(order, remoteUser) {
 
   try {
     await libPayments.executeOrder(remoteUser || user, orderCreated);
+
+    // Check if the maximum fund limit has been reached after execution
+    await handleHostPlanAddedFundsLimit(host, { notifyAdmins: true });
   } catch (e) {
     // Don't save new card for user if order failed
     if (!order.paymentMethod.id && !order.paymentMethod.uuid) {

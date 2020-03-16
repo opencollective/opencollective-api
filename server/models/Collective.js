@@ -40,6 +40,14 @@ import {
   getCollectiveAvatarUrl,
 } from '../lib/collectivelib';
 import { invalidateContributorsCache } from '../lib/contributors';
+import { getFxRate } from '../lib/currency';
+import {
+  notifyTeamAboutSuspiciousCollective,
+  collectiveSpamCheck,
+  notifyTeamAboutPreventedCollectiveCreate,
+} from '../lib/spam';
+import { canUseFeature } from '../lib/user-permissions';
+import { handleHostCollectivesLimit } from '../lib/plans';
 import { capitalize, flattenArray, getDomain, formatCurrency, cleanTags, md5, strip_tags } from '../lib/utils';
 
 import roles, { MemberRoleLabels } from '../constants/roles';
@@ -49,14 +57,6 @@ import { types } from '../constants/collectives';
 import expenseStatus from '../constants/expense_status';
 import expenseTypes from '../constants/expense_type';
 import plans, { PLANS_COLLECTIVE_SLUG } from '../constants/plans';
-
-import { getFxRate } from '../lib/currency';
-import {
-  notifyTeamAboutSuspiciousCollective,
-  collectiveSpamCheck,
-  notifyTeamAboutPreventedCollectiveCreate,
-} from '../lib/spam';
-import { canUseFeature } from '../lib/user-permissions';
 import FEATURE from '../constants/feature';
 
 const debug = debugLib('models:Collective');
@@ -917,6 +917,12 @@ export default function(Sequelize, DataTypes) {
         currency: this.currency,
       });
     }
+
+    await models.Activity.create({
+      type: activities.ACTIVATED_COLLECTIVE_AS_HOST,
+      CollectiveId: this.id,
+      data: { collective: this.info },
+    });
   };
 
   /**
@@ -934,6 +940,12 @@ export default function(Sequelize, DataTypes) {
     // TODO unsubscribe from OpenCollective tier plan.
 
     await this.update({ isHostAccount: false });
+
+    await models.Activity.create({
+      type: activities.DEACTIVATED_COLLECTIVE_AS_HOST,
+      CollectiveId: this.id,
+      data: { collective: this.info },
+    });
   };
 
   /**
@@ -1561,10 +1573,8 @@ export default function(Sequelize, DataTypes) {
     }
 
     if (this.type === types.COLLECTIVE) {
-      const hostPlan = await hostCollective.getPlan();
-      if (hostPlan.hostedCollectivesLimit && hostPlan.hostedCollectives >= hostPlan.hostedCollectivesLimit) {
-        throw new Error('Host is already hosting the maximum amount of collectives its plan allows');
-      }
+      // Check limits
+      await handleHostCollectivesLimit(hostCollective, { throwException: true, notifyAdmins: true });
     }
 
     const member = {

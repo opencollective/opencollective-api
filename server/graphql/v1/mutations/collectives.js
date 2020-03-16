@@ -8,15 +8,17 @@ import sequelize from 'sequelize';
 
 import models, { Op } from '../../../models';
 import * as errors from '../../errors';
+
 import emailLib from '../../../lib/email';
 import * as github from '../../../lib/github';
 import { defaultHostCollective } from '../../../lib/utils';
+import { purgeCacheForPage } from '../../../lib/cloudflare';
+import { canUseFeature } from '../../../lib/user-permissions';
+import { handleHostCollectivesLimit } from '../../../lib/plans';
 
 import roles from '../../../constants/roles';
 import activities from '../../../constants/activities';
 import { types } from '../../../constants/collectives';
-import { purgeCacheForPage } from '../../../lib/cloudflare';
-import { canUseFeature } from '../../../lib/user-permissions';
 import FEATURE from '../../../constants/feature';
 
 const DEFAULT_COLLECTIVE_SETTINGS = {
@@ -377,7 +379,7 @@ export function editCollective(_, args, req) {
         return Promise.reject(new errors.Unauthorized({ message: errorMsg }));
       }
     })
-    .then(() => {
+    .then(async () => {
       // If we try to change the host
       if (
         newCollectiveData.HostCollectiveId !== undefined &&
@@ -448,13 +450,7 @@ export async function approveCollective(remoteUser, CollectiveId) {
   }
 
   // Check limits
-  const hostPlan = await host.getPlan();
-  if (hostPlan.hostedCollectivesLimit && hostPlan.hostedCollectivesLimit <= hostPlan.hostedCollectives) {
-    throw new errors.PlanLimit({
-      message:
-        'The limit of collectives for the host has been reached. Please contact support@opencollective.com if you think this is an error.',
-    });
-  }
+  await handleHostCollectivesLimit(host, { throwHostException: true, notifyAdmins: true });
 
   models.Activity.create({
     type: activities.COLLECTIVE_APPROVED,
