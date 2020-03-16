@@ -1,43 +1,32 @@
 import { Request } from 'express';
-import moment from 'moment';
 import { Op } from 'sequelize';
+import moment from 'moment';
 
 import activities from '../../constants/activities';
-import status from '../../constants/expense_status';
 import logger from '../../lib/logger';
 import { verifyEvent } from '../../lib/transferwise';
 import models from '../../models';
-import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import { TransferStateChangeEvent } from '../../types/transferwise';
 
 async function handleTransferStateChange(event: TransferStateChangeEvent): Promise<void> {
-  const expense = await models.Expense.findOne({
+  const transaction = await models.Transaction.findOne({
     where: {
-      [Op.or]: [
-        // Pending expenses
-        { status: status.PROCESSING },
-        // Expense might bounce back in the past month
-        {
-          status: status.PAID,
-          updatedAt: {
-            [Op.gte]: moment()
-              .subtract(7, 'days')
-              .toDate(),
-          },
-        },
-      ],
+      data: { transfer: { id: event.data.resource.id } },
+      updatedAt: {
+        [Op.gte]: moment()
+          .subtract(10, 'days')
+          .toDate(),
+      },
     },
-    include: [
-      { model: models.PayoutMethod, as: 'PayoutMethod', where: { type: PayoutMethodTypes.BANK_ACCOUNT } },
-      { model: models.Transaction, where: { data: { transfer: { id: event.data.resource.id } } } },
-    ],
+    include: [{ model: models.Expense, as: 'Expense' }],
   });
 
-  if (!expense) {
+  if (!transaction || !transaction.Expense) {
     // This is probably some other transfer not executed through our platform.
     logger.debug('Ignoring transferwise event.', event);
     return;
   }
+  const expense = transaction.Expense;
 
   if (event.data.current_state === 'outgoing_payment_sent') {
     logger.info(`Transfer sent, marking expense as paid.`, event);
