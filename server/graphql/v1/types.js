@@ -42,7 +42,7 @@ import {
 } from '../common/expenses';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 
-import { idEncode } from '../v2/identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
 
 /**
  * Take a graphql type and return a wrapper type that adds pagination. The pagination
@@ -742,6 +742,12 @@ export const ExpenseType = new GraphQLObjectType({
         type: GraphQLInt,
         resolve(expense) {
           return expense.id;
+        },
+      },
+      idV2: {
+        type: GraphQLString,
+        resolve(expense) {
+          return idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE);
         },
       },
       amount: {
