@@ -117,6 +117,7 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
       customer: hostStripeCustomer.id,
       description: order.description,
       confirm: false,
+      confirmation_method: 'manual',
       metadata: {
         from: `${config.host.website}/${order.fromCollective.slug}`,
         to: `${config.host.website}/${order.collective.slug}`,
@@ -144,14 +145,8 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
     });
   }
 
-  const confirmPayload = { confirmation_method: 'manual' };
-  if (order.interval) {
-    confirmPayload.setup_future_usage = 'off_session';
-  } else if (!order.processedAt && order.data.savePaymentMethod) {
-    confirmPayload.setup_future_usage = 'on_session';
-  }
-  paymentIntent = await stripe.paymentIntents.confirm(paymentIntent.id, confirmPayload, {
-    stripe_account: hostStripeAccount.username,
+  paymentIntent = await stripe.paymentIntents.confirm(paymentIntent.id, {
+    stripeAccount: hostStripeAccount.username,
   });
 
   /* eslint-enable camelcase */
