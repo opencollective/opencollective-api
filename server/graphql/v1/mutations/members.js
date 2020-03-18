@@ -1,5 +1,6 @@
 import models from '../../../models';
 import errors from '../../../lib/errors';
+import { invalidateContributorsCache } from '../../../lib/contributors';
 
 /** A mutation to edit the public message of all matching members. */
 export async function editPublicMessage(_, { FromCollectiveId, CollectiveId, message }, req) {
@@ -22,5 +23,11 @@ export async function editPublicMessage(_, { FromCollectiveId, CollectiveId, mes
     throw new errors.NotFound('No member found');
   }
 
+  /**
+   * After updating the public message it is necessary to update the cache
+   * used in the collective page. Member's `afterUpdate` hook is not triggered here
+   * because we don't update the model directly (we use Model.update(..., {where})).
+   */
+  invalidateContributorsCache(CollectiveId);
   return updatedMembers;
 }
