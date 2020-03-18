@@ -662,10 +662,11 @@ export async function unarchiveCollective(_, args, req) {
   }
 
   if (collective.type === types.EVENT) {
+    const parentCollective = await models.Collective.findByPk(collective.ParentCollectiveId);
     return collective.update({
       deactivatedAt: null,
       isActive: true,
-      HostCollectiveId: collective.ParentCollectiveId,
+      HostCollectiveId: parentCollective.HostCollectiveId,
       approvedAt: Date.now(),
     });
   }
