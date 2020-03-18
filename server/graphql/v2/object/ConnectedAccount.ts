@@ -13,11 +13,11 @@ export const ConnectedAccount = new GraphQLObjectType({
     },
     createdAt: {
       type: new GraphQLNonNull(GraphQLDateTime),
-      description: 'The date on which the attachment was created',
+      description: 'The date on which the ConnectedAccount was created',
     },
     updatedAt: {
       type: new GraphQLNonNull(GraphQLDateTime),
-      description: 'The date on which the attachment was last updated',
+      description: 'The date on which the ConnectedAccount was last updated',
     },
     settings: { type: GraphQLJSON },
     service: { type: new GraphQLNonNull(ConnectedAccountService) },

@@ -8,14 +8,34 @@ import { ConnectedAccountService } from '../enum/ConnectedAccountService';
 const ConnectedAccountCreateInput = new GraphQLInputObjectType({
   name: 'ConnectedAccountCreateInput',
   fields: {
-    clientId: { type: GraphQLString },
-    data: { type: GraphQLJSON },
-    id: { type: GraphQLString },
-    refreshToken: { type: GraphQLString },
-    settings: { type: GraphQLJSON },
-    token: { type: GraphQLString },
-    service: { type: ConnectedAccountService },
-    username: { type: GraphQLString },
+    clientId: {
+      type: GraphQLString,
+      description: 'Optional Client ID for the token or secret',
+    },
+    data: {
+      type: GraphQLJSON,
+      description: 'Private data related to the connected account',
+    },
+    refreshToken: {
+      type: GraphQLString,
+      description: 'Refresh token for the connected account',
+    },
+    settings: {
+      type: GraphQLJSON,
+      description: 'Public data related to the connected account',
+    },
+    token: {
+      type: GraphQLString,
+      description: 'Secret token used to call service',
+    },
+    service: {
+      type: ConnectedAccountService,
+      description: 'Service which the connected account belongs to',
+    },
+    username: {
+      type: GraphQLString,
+      description: 'Optional username for the connected account',
+    },
   },
 });
 

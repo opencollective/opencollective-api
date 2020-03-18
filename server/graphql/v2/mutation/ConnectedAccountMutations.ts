@@ -10,15 +10,15 @@ import * as errors from '../../errors';
 const connectedAccountMutations = {
   createConnectedAccount: {
     type: ConnectedAccount,
-    description: 'Submit an expense to a collective',
+    description: 'Connect external account to Open Collective Account',
     args: {
       connectedAccount: {
         type: new GraphQLNonNull(ConnectedAccountCreateInput),
-        description: 'Expense data',
+        description: 'Connected Account data',
       },
       account: {
         type: new GraphQLNonNull(AccountReferenceInput),
-        description: 'Account where the expense will be created',
+        description: 'Account where the external account will be connected',
       },
     },
     async resolve(_, args, req): Promise<object> {
