@@ -1081,6 +1081,7 @@ export const UpdateType = new GraphQLObjectType({
       },
       comments: {
         type: CommentListType,
+        deprecationReason: 'Deprecated since 2020-03-18: This field has never been active and will be removed soon.',
         args: {
           limit: { type: GraphQLInt },
           offset: { type: GraphQLInt },

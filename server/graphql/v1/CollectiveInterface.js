@@ -766,6 +766,12 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
             type: GraphQLBoolean,
             defaultValue: false,
             description: 'Defines if the organization "collective" payment method should be returned',
+            deprecationReason: '2019-12-20: Replaced by includeHostCollectivePaymentMethod',
+          },
+          includeHostCollectivePaymentMethod: {
+            type: GraphQLBoolean,
+            defaultValue: false,
+            description: 'Defines if the host "collective" payment method should be returned',
           },
         },
       },
