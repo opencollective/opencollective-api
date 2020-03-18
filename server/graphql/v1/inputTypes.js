@@ -382,20 +382,6 @@ export const CommentAttributesInputType = new GraphQLInputObjectType({
     id: { type: GraphQLInt },
     markdown: { type: GraphQLString },
     html: { type: GraphQLString },
-    /** @deprecated since 2019-11-25: This field is not editable. */
-    FromCollectiveId: {
-      type: GraphQLInt,
-      description: 'Deprecated since 2019-11-25: This field is not editable.',
-    },
-    /** @deprecated since 2019-11-25: This field is not editable. */
-    CollectiveId: {
-      type: GraphQLInt,
-      description: 'Deprecated since 2019-11-25: This field is not editable.',
-    },
-    ExpenseId: {
-      type: GraphQLInt,
-      deprecationReason: '2019-11-25: Not editable.',
-    },
     UpdateId: { type: GraphQLInt },
   }),
 });

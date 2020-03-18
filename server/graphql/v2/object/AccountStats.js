@@ -61,17 +61,6 @@ export const AccountStats = new GraphQLObjectType({
           };
         },
       },
-      totalAmountRaised: {
-        description: 'Total amount raised through referral',
-        deprecationReason: '2019-08-22: Referals are not supported anymore',
-        type: Amount,
-        resolve() {
-          return {
-            value: 0,
-            currency: 'USD',
-          };
-        },
-      },
       yearlyBudget: {
         type: Amount,
         resolve(collective) {

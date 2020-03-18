@@ -276,14 +276,6 @@ export const StatsMemberType = new GraphQLObjectType({
           );
         },
       },
-      totalRaised: {
-        type: GraphQLInt,
-        description: 'total amount raised by this member',
-        deprecationReason: '2019-08-22: Referals are not supported anymore',
-        resolve() {
-          return 0;
-        },
-      },
     };
   },
 });

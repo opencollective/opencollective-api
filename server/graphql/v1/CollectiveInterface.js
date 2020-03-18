@@ -459,14 +459,6 @@ export const CollectiveStatsType = new GraphQLObjectType({
           return collective.getTotalAmountReceived();
         },
       },
-      totalAmountRaised: {
-        description: 'Total amount raised through referral',
-        deprecationReason: '2019-08-22: Referals are not supported anymore',
-        type: GraphQLInt,
-        resolve() {
-          return 0;
-        },
-      },
       yearlyBudget: {
         type: GraphQLInt,
         resolve(collective) {
