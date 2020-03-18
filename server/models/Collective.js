@@ -39,7 +39,6 @@ import {
   validateSettings,
   getCollectiveAvatarUrl,
 } from '../lib/collectivelib';
-import { invalidateContributorsCache } from '../lib/contributors';
 import { getFxRate } from '../lib/currency';
 import {
   notifyTeamAboutSuspiciousCollective,
@@ -1405,7 +1404,6 @@ export default function(Sequelize, DataTypes) {
 
       case roles.MEMBER:
       case roles.ADMIN:
-        invalidateContributorsCache(this.id);
         await this.sendNewMemberEmail(user, role, member, sequelizeParams);
         break;
     }
@@ -1863,7 +1861,6 @@ export default function(Sequelize, DataTypes) {
       }
     }
 
-    invalidateContributorsCache(this.id);
     return this.getMembers({
       where: { role: { [Op.in]: [roles.ADMIN, roles.MEMBER] } },
     });

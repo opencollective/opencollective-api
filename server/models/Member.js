@@ -1,7 +1,15 @@
 import roles from '../constants/roles';
 import { days } from '../lib/utils';
+import { invalidateContributorsCache } from '../lib/contributors';
 
 export default function(Sequelize, DataTypes) {
+  const invalidateContributorsCacheUsingInstance = instance => {
+    if (instance.role !== roles.FOLLOWER) {
+      invalidateContributorsCache(instance.CollectiveId);
+    }
+    return null;
+  };
+
   const Member = Sequelize.define(
     'Member',
     {
@@ -109,6 +117,10 @@ export default function(Sequelize, DataTypes) {
             since: this.since,
           };
         },
+      },
+      hooks: {
+        afterCreate: instance => invalidateContributorsCacheUsingInstance(instance),
+        afterUpdate: instance => invalidateContributorsCacheUsingInstance(instance),
       },
     },
   );
