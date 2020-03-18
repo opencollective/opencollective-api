@@ -661,6 +661,15 @@ export async function unarchiveCollective(_, args, req) {
     });
   }
 
+  if (collective.type === types.EVENT) {
+    return collective.update({
+      deactivatedAt: null,
+      isActive: true,
+      HostCollectiveId: collective.ParentCollectiveId,
+      approvedAt: Date.now(),
+    });
+  }
+
   return collective.update({ deactivatedAt: null });
 }
 
