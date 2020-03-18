@@ -638,6 +638,10 @@ export async function archiveCollective(_, args, req) {
     membership.destroy();
   }
 
+  if (collective.type === types.EVENT) {
+    return collective.update({ isActive: false, deactivatedAt: Date.now() });
+  }
+
   return collective.update({ isActive: false, deactivatedAt: Date.now(), approvedAt: null, HostCollectiveId: null });
 }
 
@@ -665,9 +669,9 @@ export async function unarchiveCollective(_, args, req) {
     const parentCollective = await models.Collective.findByPk(collective.ParentCollectiveId);
     return collective.update({
       deactivatedAt: null,
-      isActive: true,
+      isActive: parentCollective.isActive,
       HostCollectiveId: parentCollective.HostCollectiveId,
-      approvedAt: Date.now(),
+      approvedAt: collective.approvedAt || Date.now(),
     });
   }
 
