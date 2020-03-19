@@ -459,14 +459,6 @@ export const CollectiveStatsType = new GraphQLObjectType({
           return collective.getTotalAmountReceived();
         },
       },
-      totalAmountRaised: {
-        description: 'Total amount raised through referral',
-        deprecationReason: '2019-08-22: Referals are not supported anymore',
-        type: GraphQLInt,
-        resolve() {
-          return 0;
-        },
-      },
       yearlyBudget: {
         type: GraphQLInt,
         resolve(collective) {
@@ -774,6 +766,12 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
             type: GraphQLBoolean,
             defaultValue: false,
             description: 'Defines if the organization "collective" payment method should be returned',
+            deprecationReason: '2019-12-20: Replaced by includeHostCollectivePaymentMethod',
+          },
+          includeHostCollectivePaymentMethod: {
+            type: GraphQLBoolean,
+            defaultValue: false,
+            description: 'Defines if the host "collective" payment method should be returned',
           },
         },
       },
