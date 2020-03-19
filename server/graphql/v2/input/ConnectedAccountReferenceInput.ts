@@ -16,12 +16,14 @@ export const ConnectedAccountReferenceInput = new GraphQLInputObjectType({
     legacyId: {
       type: GraphQLInt,
       description: 'The internal id of the account (ie: 580)',
-      deprecationReason: '2020-01-01: should only be used during the transition to GraphQL API v2.',
     },
   },
 });
 
-export const fetchConnectedAccountWithReference = async (input, { throwIfMissing } = {}) => {
+export const fetchConnectedAccountWithReference = async (
+  input,
+  { throwIfMissing } = { throwIfMissing: false },
+): Promise<any> => {
   let connectedAccount;
   if (input.id) {
     const id = idDecode(input.id, IDENTIFIER_TYPES.CONNECTED_ACCOUNT);
