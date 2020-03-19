@@ -3,9 +3,11 @@ import GraphQLJSON from 'graphql-type-json';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { Account } from '../interface/Account';
 import { Unauthorized, Forbidden } from '../../errors';
+import AccountSettingsKey from '../enum/AccountSettingsKey';
+import { sequelize } from '../../../models';
 
 const accountMutations = {
-  editAccountSettings: {
+  editAccountSetting: {
     type: new GraphQLNonNull(Account),
     description: 'Edit the settings for the given account',
     args: {
@@ -13,9 +15,13 @@ const accountMutations = {
         type: new GraphQLNonNull(AccountReferenceInput),
         description: 'Account where the settings will be updated',
       },
-      settings: {
+      key: {
+        type: new GraphQLNonNull(AccountSettingsKey),
+        description: 'The key that you want to edit in settings',
+      },
+      value: {
         type: new GraphQLNonNull(GraphQLJSON),
-        description: 'Settings to set for this account',
+        description: 'The value to set for this key',
       },
     },
     async resolve(_, args, req): Promise<object> {
@@ -23,13 +29,20 @@ const accountMutations = {
         throw new Unauthorized();
       }
 
-      const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
+      return sequelize.transaction(async transaction => {
+        const account = await fetchAccountWithReference(args.account, {
+          dbTransaction: transaction,
+          lock: true,
+          throwIfMissing: true,
+        });
 
-      if (!req.remoteUser.isAdmin(account.id)) {
-        throw new Forbidden();
-      }
+        if (!req.remoteUser.isAdmin(account.id)) {
+          throw new Forbidden();
+        }
 
-      return account.update({ settings: args.settings });
+        const settings = { ...account.settings, [args.key]: args.value };
+        return account.update({ settings }, { transaction });
+      });
     },
   },
 };
