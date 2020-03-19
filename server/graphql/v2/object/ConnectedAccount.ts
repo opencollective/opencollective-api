@@ -5,7 +5,7 @@ import { ConnectedAccountService } from '../enum/ConnectedAccountService';
 
 export const ConnectedAccount = new GraphQLObjectType({
   name: 'ConnectedAccount',
-  description: 'Fields for an connected account',
+  description: 'Fields for a connected account',
   fields: {
     id: {
       type: new GraphQLNonNull(GraphQLString),

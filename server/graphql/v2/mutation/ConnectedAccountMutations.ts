@@ -27,7 +27,7 @@ const connectedAccountMutations = {
     },
     async resolve(_, args, req): Promise<object> {
       if (!req.remoteUser) {
-        throw new errors.Unauthorized('You need to be logged in to edit a connected account');
+        throw new errors.Unauthorized('You need to be logged in to create a connected account');
       }
 
       const collective = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
@@ -62,10 +62,12 @@ const connectedAccountMutations = {
     },
     async resolve(_, args, req): Promise<object> {
       if (!req.remoteUser) {
-        throw new errors.Unauthorized('You need to be logged in to edit a connected account');
+        throw new errors.Unauthorized('You need to be logged in to delete a connected account');
       }
 
-      const connectedAccount = await fetchConnectedAccountWithReference(args.connectedAccount);
+      const connectedAccount = await fetchConnectedAccountWithReference(args.connectedAccount, {
+        throwIfMissing: true,
+      });
       if (!req.remoteUser.isAdmin(connectedAccount.CollectiveId)) {
         throw new errors.Unauthorized("You don't have permission to edit this collective");
       }
