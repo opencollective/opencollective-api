@@ -1,4 +1,4 @@
-import bodyParser from 'body-parser';
+import express from 'express';
 import config from 'config';
 import connectRedis from 'connect-redis';
 import cookieParser from 'cookie-parser';
@@ -38,7 +38,7 @@ export default function(app) {
 
   // Body parser.
   app.use(
-    bodyParser.json({
+    express.json({
       limit: '50mb',
       // If the request is routed to our /webhooks/transferwise endpoint, we add
       // the request body buffer to a new property called `rawBody` so we can
@@ -50,7 +50,7 @@ export default function(app) {
       },
     }),
   );
-  app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
+  app.use(express.urlencoded({ limit: '50mb' }));
 
   // Slow requests if enabled (default false)
   if (get(config, 'log.slowRequest')) {
