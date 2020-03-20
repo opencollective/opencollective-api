@@ -97,6 +97,18 @@ export const fakeCollective = async (collectiveData = {}) => {
       // Ignore if host is already linked
     }
   }
+  if (collectiveData.admin) {
+    try {
+      await models.Member.create({
+        CollectiveId: collective.id,
+        MemberCollectiveId: collectiveData.admin.id,
+        role: roles.ADMIN,
+        CreatedByUserId: collectiveData.admin.CreatedByUserId,
+      });
+    } catch {
+      // Ignore if host is already linked
+    }
+  }
 
   return collective;
 };
