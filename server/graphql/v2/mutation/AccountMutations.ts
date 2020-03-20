@@ -1,9 +1,10 @@
 import { GraphQLNonNull } from 'graphql';
 import GraphQLJSON from 'graphql-type-json';
+import { set, cloneDeep } from 'lodash';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { Account } from '../interface/Account';
+import AccountSettingsKey from '../scalar/AccountSettingsKey';
 import { Unauthorized, Forbidden } from '../../errors';
-import AccountSettingsKey from '../enum/AccountSettingsKey';
 import { sequelize } from '../../../models';
 
 const accountMutations = {
@@ -40,7 +41,8 @@ const accountMutations = {
           throw new Forbidden();
         }
 
-        const settings = { ...account.settings, [args.key]: args.value };
+        const settings = account.settings ? cloneDeep(account.settings) : {};
+        set(settings, args.key, args.value);
         return account.update({ settings }, { transaction });
       });
     },
