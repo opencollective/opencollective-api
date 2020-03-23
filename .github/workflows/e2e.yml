@@ -17,6 +17,8 @@ env:
   CYPRESS_VIDEO: false
   CYPRESS_VIDEO_UPLOAD_ON_PASSES: false
   CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }}
+  FOREST_AUTH_SECRET: ${{ secrets.FOREST_AUTH_SECRET }}
+  FOREST_ENV_SECRET: ${{ secrets.FOREST_ENV_SECRET }}
   API_FOLDER: /home/runner/work/opencollective-api/opencollective-api
   FRONTEND_FOLDER: /home/runner/work/opencollective-api/opencollective-api/opencollective-frontend
   IMAGES_FOLDER: /home/runner/work/opencollective-api/opencollective-api/opencollective-images
