@@ -51,7 +51,7 @@ import { capitalize, flattenArray, getDomain, formatCurrency, cleanTags, md5, st
 
 import roles, { MemberRoleLabels } from '../constants/roles';
 import activities from '../constants/activities';
-import { HOST_FEE_PERCENT } from '../constants/transactions';
+import { HOST_FEE_PERCENT, OC_FEE_PERCENT } from '../constants/transactions';
 import { types } from '../constants/collectives';
 import expenseStatus from '../constants/expense_status';
 import expenseTypes from '../constants/expense_type';
@@ -235,6 +235,15 @@ export default function(Sequelize, DataTypes) {
       hostFeePercent: {
         type: DataTypes.FLOAT,
         defaultValue: HOST_FEE_PERCENT,
+        validate: {
+          min: 0,
+          max: 100,
+        },
+      },
+
+      platformFeePercent: {
+        type: DataTypes.INTEGER,
+        defaultValue: OC_FEE_PERCENT,
         validate: {
           min: 0,
           max: 100,
