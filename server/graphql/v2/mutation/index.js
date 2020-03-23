@@ -3,6 +3,7 @@ import connectedAccountMutations from './ConnectedAccountMutations';
 import conversationMutations from './ConversationMutations';
 import createCollectiveMutations from './CreateCollectiveMutations';
 import expenseMutations from './ExpenseMutations';
+import accountMutations from './AccountMutations';
 
 const mutation = {
   ...commentMutations,
@@ -10,6 +11,7 @@ const mutation = {
   ...conversationMutations,
   ...createCollectiveMutations,
   ...expenseMutations,
+  ...accountMutations,
 };
 
 export default mutation;
