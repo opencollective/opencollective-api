@@ -22,7 +22,7 @@ import cacheMiddleware from '../middleware/cache';
 import { loadersMiddleware } from '../graphql/loaders';
 import { sanitizeForLogs } from './utils';
 
-export default function(app) {
+export default function (app) {
   app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal'].concat(cloudflareIps));
 
   app.use(helmet());
@@ -58,7 +58,7 @@ export default function(app) {
       req.startAt = new Date();
       const temp = res.end;
 
-      res.end = function() {
+      res.end = function () {
         const timeElapsed = new Date() - req.startAt;
         if (timeElapsed > get(config, 'log.slowRequestThreshold', 1000)) {
           if (req.body && req.body.query) {

@@ -516,10 +516,7 @@ const getTemplateAttributes = str => {
     }
   } while (tokens);
 
-  attributes.body = lines
-    .slice(index)
-    .join('\n')
-    .trim();
+  attributes.body = lines.slice(index).join('\n').trim();
   return attributes;
 };
 

@@ -121,7 +121,7 @@ export const sanitizeForLogs = obj => {
   return sanitizeObject(cloneDeep(obj), Object.keys(obj), sanitizer);
 };
 
-String.prototype.trunc = function(n, useWordBoundary) {
+String.prototype.trunc = function (n, useWordBoundary) {
   if (this.length <= n) {
     return this;
   }
@@ -589,11 +589,7 @@ export const cleanTags = tags => {
   return cleanTagsList.length > 0 ? cleanTagsList : null;
 };
 
-export const md5 = value =>
-  crypto
-    .createHash('md5')
-    .update(value)
-    .digest('hex');
+export const md5 = value => crypto.createHash('md5').update(value).digest('hex');
 
 /**
  * Filter `list` with `filterFunc` until `conditionFunc` returns true.

@@ -50,14 +50,14 @@ export default (Sequelize, DataTypes) => {
     },
   );
 
-  Subscription.prototype.activate = function() {
+  Subscription.prototype.activate = function () {
     this.isActive = true;
     this.activatedAt = new Date();
 
     return this.save();
   };
 
-  Subscription.prototype.deactivate = function() {
+  Subscription.prototype.deactivate = function () {
     this.isActive = false;
     this.deactivatedAt = new Date();
 

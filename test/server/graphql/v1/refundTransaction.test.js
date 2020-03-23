@@ -102,19 +102,15 @@ function initStripeNock({ amount, fee, fee_details, net }) {
     balance_transaction: 'txn_1Bvu79LzdXg9xKNSWEVCLSUu',
   };
 
-  nock('https://api.stripe.com:443')
-    .post('/v1/refunds')
-    .reply(200, refund);
+  nock('https://api.stripe.com:443').post('/v1/refunds').reply(200, refund);
 
-  nock('https://api.stripe.com:443')
-    .get('/v1/balance_transactions/txn_1Bvu79LzdXg9xKNSWEVCLSUu')
-    .reply(200, {
-      id: 'txn_1Bvu79LzdXg9xKNSWEVCLSUu',
-      amount,
-      fee,
-      fee_details,
-      net,
-    });
+  nock('https://api.stripe.com:443').get('/v1/balance_transactions/txn_1Bvu79LzdXg9xKNSWEVCLSUu').reply(200, {
+    id: 'txn_1Bvu79LzdXg9xKNSWEVCLSUu',
+    amount,
+    fee,
+    fee_details,
+    net,
+  });
 
   nock('https://api.stripe.com:443')
     .get('/v1/charges/ch_1Bs9ECBYycQg1OMfGIYoPFvk')

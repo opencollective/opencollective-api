@@ -58,7 +58,7 @@ export default app => {
       app,
       client,
     )({
-      lookup: function(req, res, opts, next) {
+      lookup: function (req, res, opts, next) {
         if (req.clientApp) {
           opts.lookup = 'clientApp.id';
           // 100 requests / minute for registered API Key
@@ -72,12 +72,12 @@ export default app => {
         }
         return next();
       },
-      whitelist: function(req) {
+      whitelist: function (req) {
         const apiKey = req.query.api_key || req.body.api_key;
         // No limit with internal API Key
         return apiKey === config.keys.opencollective.apiKey;
       },
-      onRateLimited: function(req, res) {
+      onRateLimited: function (req, res) {
         let message;
         if (req.clientApp) {
           message = 'Rate limit exceeded. Contact-us to get higher limits.';

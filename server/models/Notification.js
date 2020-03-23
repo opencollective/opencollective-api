@@ -7,7 +7,7 @@ import channels from '../constants/channels';
 
 const debug = debugLib('models:Notification');
 
-export default function(Sequelize, DataTypes) {
+export default function (Sequelize, DataTypes) {
   const { models } = Sequelize;
 
   const Notification = Sequelize.define(
@@ -81,7 +81,7 @@ export default function(Sequelize, DataTypes) {
     },
   );
 
-  Notification.prototype.getUser = function() {
+  Notification.prototype.getUser = function () {
     return models.User.findByPk(this.UserId);
   };
 

@@ -12,11 +12,7 @@ import { types as collectiveTypes } from '../../server/constants/collectives';
 
 const debug = debugLib('clean_search_index');
 
-const yesterday = moment()
-  .tz('America/New_York')
-  .startOf('day')
-  .subtract(1, 'days')
-  .format();
+const yesterday = moment().tz('America/New_York').startOf('day').subtract(1, 'days').format();
 
 const done = error => {
   if (error) {

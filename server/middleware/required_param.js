@@ -18,7 +18,7 @@ export function required_valid(properties) {
 }
 
 function _required_options(options, properties) {
-  return function(req, res, next) {
+  return function (req, res, next) {
     const missing = {};
     req.required = req.required || {};
 
