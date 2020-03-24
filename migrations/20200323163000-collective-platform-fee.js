@@ -5,11 +5,11 @@ const OC_FEE_PERCENT = 5;
 module.exports = {
   up: async (queryInterface, Sequelize) => {
     await queryInterface.addColumn('Collectives', 'platformFeePercent', {
-      type: Sequelize.INTEGER,
+      type: Sequelize.FLOAT,
       defaultValue: OC_FEE_PERCENT,
     });
     await queryInterface.addColumn('CollectiveHistories', 'platformFeePercent', {
-      type: Sequelize.INTEGER,
+      type: Sequelize.FLOAT,
       defaultValue: OC_FEE_PERCENT,
     });
   },
