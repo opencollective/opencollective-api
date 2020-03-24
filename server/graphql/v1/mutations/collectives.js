@@ -70,6 +70,10 @@ export async function createCollective(_, args, req) {
     // The currency of the new created collective if not specified should be the one of its direct parent or the host (in this order)
     collectiveData.currency = collectiveData.currency || parentCollective.currency;
     collectiveData.HostCollectiveId = parentCollective.HostCollectiveId;
+
+    if (collectiveData.type === types.EVENT) {
+      collectiveData.platformFeePercent = parentCollective.platformFeePercent;
+    }
   }
 
   if (collectiveData.HostCollectiveId) {
