@@ -237,7 +237,6 @@ export default function (Sequelize, DataTypes) {
 
       platformFeePercent: {
         type: DataTypes.INTEGER,
-        defaultValue: OC_FEE_PERCENT,
         validate: {
           min: 0,
           max: 100,
@@ -679,6 +678,15 @@ export default function (Sequelize, DataTypes) {
 
             // Prevent collective creation
             throw new Error('Collective creation failed');
+          }
+
+          // Set default platformFeePercent
+          if (!instance.platformFeePercent) {
+            if (instance.type === 'USER' || instance.type === 'ORGANIZATION') {
+              instance.platformFeePercent = null;
+            } else {
+              instance.platformFeePercent = OC_FEE_PERCENT;
+            }
           }
         },
         afterCreate: async instance => {
