@@ -134,7 +134,7 @@ const validTypes = ['USER', 'COLLECTIVE', 'ORGANIZATION', 'EVENT', 'BOT'];
  * - User: Collective with only one ADMIN
  * - Event: Time based collective with a parent collective
  */
-export default function(Sequelize, DataTypes) {
+export default function (Sequelize, DataTypes) {
   const { models } = Sequelize;
 
   const Collective = Sequelize.define(
@@ -163,13 +163,7 @@ export default function(Sequelize, DataTypes) {
         allowNull: false,
         set(slug) {
           if (slug && slug.toLowerCase) {
-            this.setDataValue(
-              'slug',
-              slug
-                .toLowerCase()
-                .replace(/ /g, '-')
-                .replace(/\./g, ''),
-            );
+            this.setDataValue('slug', slug.toLowerCase().replace(/ /g, '-').replace(/\./g, ''));
           }
         },
         validate: {
@@ -718,7 +712,7 @@ export default function(Sequelize, DataTypes) {
    * Returns the next goal with the progress and how much is missing (as one-time or monthly donation)
    * Used for the monthly reports to backers
    */
-  Collective.prototype.getNextGoal = async function(until) {
+  Collective.prototype.getNextGoal = async function (until) {
     const goals = get(this, 'settings.goals');
     if (!goals) {
       return null;
@@ -769,7 +763,7 @@ export default function(Sequelize, DataTypes) {
     return nextGoal;
   };
 
-  Collective.prototype.getParentCollective = function() {
+  Collective.prototype.getParentCollective = function () {
     if (!this.ParentCollectiveId) {
       return Promise.resolve(null);
     }
@@ -779,19 +773,15 @@ export default function(Sequelize, DataTypes) {
     return models.Collective.findByPk(this.ParentCollectiveId);
   };
 
-  Collective.prototype.getICS = function() {
+  Collective.prototype.getICS = function () {
     if (this.type !== 'EVENT') {
       throw new Error('Can only generate ICS for collectives of type EVENT');
     }
     return new Promise(resolve => {
       return this.getParentCollective().then(parentCollective => {
         const url = `${config.host.website}/${parentCollective.slug}/events/${this.slug}`;
-        const start = moment(this.startsAt)
-          .format('YYYY-M-D-H-m')
-          .split('-');
-        const end = moment(this.endsAt)
-          .format('YYYY-M-D-H-m')
-          .split('-');
+        const start = moment(this.startsAt).format('YYYY-M-D-H-m').split('-');
+        const end = moment(this.endsAt).format('YYYY-M-D-H-m').split('-');
         let description = this.description || '';
         if (this.longDescription) {
           description += `\n\n${this.longDescription}`;
@@ -847,7 +837,7 @@ export default function(Sequelize, DataTypes) {
   };
 
   // If no image has been provided, try to find an image using clearbit and save it
-  Collective.prototype.findImage = function() {
+  Collective.prototype.findImage = function () {
     if (this.getDataValue('image')) {
       return;
     }
@@ -861,7 +851,7 @@ export default function(Sequelize, DataTypes) {
   };
 
   // If no image has been provided, try to find an image using gravatar and save it
-  Collective.prototype.findImageForUser = function(user) {
+  Collective.prototype.findImageForUser = function (user) {
     if (this.getDataValue('image')) {
       return;
     }
@@ -878,7 +868,7 @@ export default function(Sequelize, DataTypes) {
   };
 
   // Save image it if it returns 200
-  Collective.prototype.checkAndUpdateImage = async function(image) {
+  Collective.prototype.checkAndUpdateImage = async function (image) {
     try {
       const response = await fetch(image);
       if (response.status !== 200) {
@@ -896,7 +886,7 @@ export default function(Sequelize, DataTypes) {
 
   // run when attaching a Stripe Account to this user/organization collective
   // this Payment Method will be used for "Add Funds"
-  Collective.prototype.becomeHost = async function() {
+  Collective.prototype.becomeHost = async function () {
     if (this.type !== 'USER' && this.type !== 'ORGANIZATION') {
       return;
     }
@@ -928,7 +918,7 @@ export default function(Sequelize, DataTypes) {
    * If the collective is a host, it needs to remove existing hosted collectives before
    * deactivating it as a host.
    */
-  Collective.prototype.deactivateAsHost = async function() {
+  Collective.prototype.deactivateAsHost = async function () {
     const hostedCollectives = await this.getHostedCollectivesCount();
     if (hostedCollectives >= 1) {
       throw new Error(
@@ -951,14 +941,14 @@ export default function(Sequelize, DataTypes) {
    * If the collective is a host, this function return true in case it's open to applications.
    * It does **not** check that the collective is indeed a host.
    */
-  Collective.prototype.canApply = async function() {
+  Collective.prototype.canApply = async function () {
     return Boolean(this.settings && this.settings.apply);
   };
 
   /**
    *  Checks if the collective can be contacted.
    */
-  Collective.prototype.canContact = async function() {
+  Collective.prototype.canContact = async function () {
     if (!this.isActive) {
       return false;
     } else {
@@ -971,7 +961,7 @@ export default function(Sequelize, DataTypes) {
    * This function will throw if you try to call it with an event, as you should check the
    * `isApproved` of the `parentCollective` instead.
    */
-  Collective.prototype.isApproved = function() {
+  Collective.prototype.isApproved = function () {
     if (this.type === types.EVENT) {
       throw new Error("isApproved must be called on event's parent collective");
     } else {
@@ -981,7 +971,7 @@ export default function(Sequelize, DataTypes) {
 
   // This is quite ugly, and only needed for events.
   // I'd argue that we should store the event slug as `${parentCollectiveSlug}/events/${eventSlug}`
-  Collective.prototype.getUrlPath = function() {
+  Collective.prototype.getUrlPath = function () {
     if (this.type === types.EVENT) {
       return models.Collective.findByPk(this.ParentCollectiveId, {
         attributes: ['id', 'slug'],
@@ -998,7 +988,7 @@ export default function(Sequelize, DataTypes) {
   };
 
   // Returns the User model of the User that created this collective
-  Collective.prototype.getUser = function() {
+  Collective.prototype.getUser = function () {
     switch (this.type) {
       case types.USER:
       case types.ORGANIZATION:
@@ -1012,7 +1002,7 @@ export default function(Sequelize, DataTypes) {
    * Returns all the users of a collective (admins, members, backers, followers, attendees, ...)
    * including all the admins of the organizations that are members/backers of this collective
    */
-  Collective.prototype.getUsers = function() {
+  Collective.prototype.getUsers = function () {
     debug('getUsers for ', this.id);
     return models.Member.findAll({
       where: { CollectiveId: this.id },
@@ -1035,7 +1025,7 @@ export default function(Sequelize, DataTypes) {
       });
   };
 
-  Collective.prototype.getAdmins = function() {
+  Collective.prototype.getAdmins = function () {
     return models.Member.findAll({
       where: {
         CollectiveId: this.id,
@@ -1048,7 +1038,7 @@ export default function(Sequelize, DataTypes) {
   /**
    * Get the admin users { id, email } of this collective
    */
-  Collective.prototype.getAdminUsers = async function() {
+  Collective.prototype.getAdminUsers = async function () {
     if (this.type === 'USER') {
       return [await this.getUser()];
     }
@@ -1069,11 +1059,11 @@ export default function(Sequelize, DataTypes) {
   /**
    * Get the email addresses of the admins of this collective
    */
-  Collective.prototype.getEmails = async function() {
+  Collective.prototype.getEmails = async function () {
     return this.getAdminUsers().then(users => users.map(u => u && u.email));
   };
 
-  Collective.prototype.getEvents = function(query = {}) {
+  Collective.prototype.getEvents = function (query = {}) {
     return Collective.findAll({
       ...query,
       where: {
@@ -1090,7 +1080,7 @@ export default function(Sequelize, DataTypes) {
    *  - stats.backers.previousMonth: number of backers by startDate
    *  - stats.backers.new: the number of backers whose first donation was after startDate
    */
-  Collective.prototype.getBackersStats = function(startDate, endDate) {
+  Collective.prototype.getBackersStats = function (startDate, endDate) {
     const getBackersUntil = until =>
       models.Member.count({
         where: {
@@ -1116,7 +1106,7 @@ export default function(Sequelize, DataTypes) {
    * @param {*} startDate beginning of the time period
    * @param {*} endDate end of the time period
    */
-  Collective.prototype.getNewOrders = async function(startDate = 0, endDate = new Date(), where = {}) {
+  Collective.prototype.getNewOrders = async function (startDate = 0, endDate = new Date(), where = {}) {
     const orders = await models.Order.findAll({
       where: {
         CollectiveId: this.id,
@@ -1141,7 +1131,7 @@ export default function(Sequelize, DataTypes) {
    * @param {*} startDate beginning of the time period
    * @param {*} endDate end of the time period
    */
-  Collective.prototype.getCancelledOrders = async function(startDate = 0, endDate = new Date()) {
+  Collective.prototype.getCancelledOrders = async function (startDate = 0, endDate = new Date()) {
     const orders = await models.Order.findAll({
       where: {
         CollectiveId: this.id,
@@ -1184,7 +1174,7 @@ export default function(Sequelize, DataTypes) {
    * type: COLLECTIVE/USER/ORGANIZATION or an array of types
    * until: date till when to count the number of backers
    */
-  Collective.prototype.getBackersCount = function(options = {}) {
+  Collective.prototype.getBackersCount = function (options = {}) {
     const query = {
       attributes: [[Sequelize.fn('COUNT', Sequelize.fn('DISTINCT', Sequelize.col('FromCollectiveId'))), 'count']],
       where: {
@@ -1258,7 +1248,7 @@ export default function(Sequelize, DataTypes) {
     });
   };
 
-  Collective.prototype.getIncomingOrders = function(options) {
+  Collective.prototype.getIncomingOrders = function (options) {
     const query = deepmerge(
       {
         where: { CollectiveId: this.id },
@@ -1269,7 +1259,7 @@ export default function(Sequelize, DataTypes) {
     return models.Order.findAll(query);
   };
 
-  Collective.prototype.getOutgoingOrders = function(options) {
+  Collective.prototype.getOutgoingOrders = function (options) {
     const query = deepmerge(
       {
         where: { FromCollectiveId: this.id },
@@ -1280,7 +1270,7 @@ export default function(Sequelize, DataTypes) {
     return models.Order.findAll(query);
   };
 
-  Collective.prototype.getRoleForMemberCollective = function(MemberCollectiveId) {
+  Collective.prototype.getRoleForMemberCollective = function (MemberCollectiveId) {
     if (!MemberCollectiveId) {
       return null;
     }
@@ -1296,7 +1286,7 @@ export default function(Sequelize, DataTypes) {
    *  { name: 'backer', users: [ {UserObject}, {UserObject} ], range: [], ... }
    * ]
    */
-  Collective.prototype.getTiersWithUsers = function(
+  Collective.prototype.getTiersWithUsers = function (
     options = {
       active: false,
       attributes: ['id', 'username', 'image', 'firstDonation', 'lastDonation', 'totalDonations', 'website'],
@@ -1355,7 +1345,7 @@ export default function(Sequelize, DataTypes) {
    * Get the Tier object of a user
    * @param {*} user
    */
-  Collective.prototype.getBackerTier = function(backerCollective) {
+  Collective.prototype.getBackerTier = function (backerCollective) {
     if (backerCollective.role && backerCollective.role !== 'BACKER') {
       return backerCollective;
     }
@@ -1375,7 +1365,13 @@ export default function(Sequelize, DataTypes) {
    * @param {*} role
    * @param {*} defaultAttributes
    */
-  Collective.prototype.addUserWithRole = async function(user, role, defaultAttributes = {}, context = {}, transaction) {
+  Collective.prototype.addUserWithRole = async function (
+    user,
+    role,
+    defaultAttributes = {},
+    context = {},
+    transaction,
+  ) {
     if (role === roles.HOST) {
       return logger.info('Please use Collective.addHost(hostCollective, remoteUser);');
     }
@@ -1411,7 +1407,7 @@ export default function(Sequelize, DataTypes) {
     return member;
   };
 
-  Collective.prototype.createMemberCreatedActivity = async function(member, context, sequelizeParams) {
+  Collective.prototype.createMemberCreatedActivity = async function (member, context, sequelizeParams) {
     // We refetch to preserve historic behavior and make sure it's up to date
     let order;
     if (context.order) {
@@ -1448,7 +1444,7 @@ export default function(Sequelize, DataTypes) {
     );
   };
 
-  Collective.prototype.sendNewMemberEmail = async function(user, role, member, sequelizeParams) {
+  Collective.prototype.sendNewMemberEmail = async function (user, role, member, sequelizeParams) {
     const remoteUser = await models.User.findByPk(
       member.CreatedByUserId,
       { include: [{ model: models.Collective, as: 'collective' }] },
@@ -1495,7 +1491,7 @@ export default function(Sequelize, DataTypes) {
    * Used when creating a transactin to add a user to the collective as a backer if needed.
    * A new membership is registered for each `defaultAttributes.TierId`.
    */
-  Collective.prototype.findOrAddUserWithRole = function(user, role, defaultAttributes, context, transaction) {
+  Collective.prototype.findOrAddUserWithRole = function (user, role, defaultAttributes, context, transaction) {
     return models.Member.findOne({
       where: {
         role,
@@ -1512,7 +1508,7 @@ export default function(Sequelize, DataTypes) {
     });
   };
 
-  Collective.prototype.updateHostFee = async function(hostFeePercent, remoteUser) {
+  Collective.prototype.updateHostFee = async function (hostFeePercent, remoteUser) {
     if (typeof hostFeePercent === undefined || !remoteUser || hostFeePercent === this.hostFeePercent) {
       return;
     }
@@ -1542,7 +1538,7 @@ export default function(Sequelize, DataTypes) {
     return this;
   };
 
-  Collective.prototype.updateCurrency = async function(currency, remoteUser) {
+  Collective.prototype.updateCurrency = async function (currency, remoteUser) {
     if (typeof currency === undefined || !remoteUser || currency === this.currency || !remoteUser.isAdmin(this.id)) {
       return;
     }
@@ -1565,7 +1561,7 @@ export default function(Sequelize, DataTypes) {
    * @param {*} creatorUser { id } (optional, falls back to hostCollective.CreatedByUserId)
    * @param {object} [options] (optional, to peform specific actions)
    */
-  Collective.prototype.addHost = async function(hostCollective, creatorUser, options) {
+  Collective.prototype.addHost = async function (hostCollective, creatorUser, options) {
     if (this.HostCollectiveId) {
       throw new Error(`This collective already has a host (HostCollectiveId: ${this.HostCollectiveId})`);
     }
@@ -1717,7 +1713,7 @@ export default function(Sequelize, DataTypes) {
    * @param {*} newHostCollective: { id }
    * @param {*} creatorUser { id }
    */
-  Collective.prototype.changeHost = async function(newHostCollectiveId, creatorUser) {
+  Collective.prototype.changeHost = async function (newHostCollectiveId, creatorUser) {
     if (newHostCollectiveId === this.id) {
       // do nothing
       return;
@@ -1756,7 +1752,7 @@ export default function(Sequelize, DataTypes) {
 
   // edit the list of members and admins of this collective (create/update/remove)
   // creates a User and a UserCollective if needed
-  Collective.prototype.editMembers = async function(members, defaultAttributes = {}) {
+  Collective.prototype.editMembers = async function (members, defaultAttributes = {}) {
     if (!members || members.length === 0) {
       return null;
     }
@@ -1867,7 +1863,7 @@ export default function(Sequelize, DataTypes) {
   };
 
   // edit the tiers of this collective (create/update/remove)
-  Collective.prototype.editTiers = function(tiers) {
+  Collective.prototype.editTiers = function (tiers) {
     if (!tiers) {
       return this.getTiers();
     }
@@ -1900,7 +1896,7 @@ export default function(Sequelize, DataTypes) {
   };
 
   // Where `this` collective is a type == ORGANIZATION collective.
-  Collective.prototype.getExpensesForHost = function(
+  Collective.prototype.getExpensesForHost = function (
     status,
     startDate,
     endDate = new Date(),
@@ -1936,7 +1932,13 @@ export default function(Sequelize, DataTypes) {
     });
   };
 
-  Collective.prototype.getExpenses = function(status, startDate, endDate = new Date(), createdByUserId, excludedTypes) {
+  Collective.prototype.getExpenses = function (
+    status,
+    startDate,
+    endDate = new Date(),
+    createdByUserId,
+    excludedTypes,
+  ) {
     const where = {
       createdAt: { [Op.lt]: endDate },
       CollectiveId: this.id,
@@ -1960,7 +1962,7 @@ export default function(Sequelize, DataTypes) {
     });
   };
 
-  Collective.prototype.getUpdates = function(status, startDate = 0, endDate = new Date()) {
+  Collective.prototype.getUpdates = function (status, startDate = 0, endDate = new Date()) {
     const where = {
       createdAt: { [Op.lt]: endDate },
       CollectiveId: this.id,
@@ -1978,7 +1980,7 @@ export default function(Sequelize, DataTypes) {
     });
   };
 
-  Collective.prototype.getTopExpenseCategories = function(startDate, endDate) {
+  Collective.prototype.getTopExpenseCategories = function (startDate, endDate) {
     return queries.getTopExpenseCategories(this.id, {
       since: startDate,
       until: endDate,
@@ -1986,7 +1988,7 @@ export default function(Sequelize, DataTypes) {
   };
 
   // Returns the last payment method that has been confirmed attached to this collective
-  Collective.prototype.getPaymentMethod = async function(where, mustBeConfirmed = true) {
+  Collective.prototype.getPaymentMethod = async function (where, mustBeConfirmed = true) {
     const query = {
       where: {
         ...where,
@@ -2008,7 +2010,7 @@ export default function(Sequelize, DataTypes) {
     });
   };
 
-  Collective.prototype.getBalance = function(until) {
+  Collective.prototype.getBalance = function (until) {
     until = until || new Date();
     return models.Transaction.findOne({
       attributes: [
@@ -2021,7 +2023,7 @@ export default function(Sequelize, DataTypes) {
     }).then(result => Promise.resolve(parseInt(result.toJSON().total, 10)));
   };
 
-  Collective.prototype.getYearlyIncome = function() {
+  Collective.prototype.getYearlyIncome = function () {
     /*
       Three cases:
       1) All active monthly subscriptions. Multiply by 12
@@ -2075,7 +2077,7 @@ export default function(Sequelize, DataTypes) {
     ).then(result => Promise.resolve(parseInt(result[0].yearlyIncome, 10)));
   };
 
-  Collective.prototype.getTotalAmountReceived = function(startDate, endDate) {
+  Collective.prototype.getTotalAmountReceived = function (startDate, endDate) {
     endDate = endDate || new Date();
     const where = {
       amount: { [Op.gt]: 0 },
@@ -2095,7 +2097,7 @@ export default function(Sequelize, DataTypes) {
    * Get the total amount spent by this collective, either directly or by
    * others through generated VirtualCards.
    */
-  Collective.prototype.getTotalAmountSpent = function(startDate, endDate) {
+  Collective.prototype.getTotalAmountSpent = function (startDate, endDate) {
     endDate = endDate || new Date();
     const createdAt = startDate ? { [Op.lt]: endDate, [Op.gte]: startDate } : { [Op.lt]: endDate };
 
@@ -2129,7 +2131,7 @@ export default function(Sequelize, DataTypes) {
   };
 
   // Get the average monthly spending based on last 90 days
-  Collective.prototype.getMonthlySpending = function() {
+  Collective.prototype.getMonthlySpending = function () {
     return queries
       .getCollectivesOrderedByMonthlySpending({
         where: { id: this.id },
@@ -2147,7 +2149,7 @@ export default function(Sequelize, DataTypes) {
    * @param {bool} includeUsedVirtualCardsEmittedByOthers will remove transactions using virtual
    *  cards from other collectives when set to false.
    */
-  Collective.prototype.transactionsWhereQuery = function(includeUsedVirtualCardsEmittedByOthers = true) {
+  Collective.prototype.transactionsWhereQuery = function (includeUsedVirtualCardsEmittedByOthers = true) {
     const debitTransactionOrQuery = includeUsedVirtualCardsEmittedByOthers
       ? // Include all transactions made by this collective or using one of its
         // virtual cards
@@ -2179,7 +2181,7 @@ export default function(Sequelize, DataTypes) {
   /**
    * Get all transactions for this collective.
    */
-  Collective.prototype.getTransactions = function({
+  Collective.prototype.getTransactions = function ({
     HostCollectiveId,
     startDate,
     endDate,
@@ -2239,7 +2241,7 @@ export default function(Sequelize, DataTypes) {
     return models.Transaction.findAll(query);
   };
 
-  Collective.prototype.getTotalTransactions = function(
+  Collective.prototype.getTotalTransactions = function (
     startDate,
     endDate,
     type,
@@ -2271,7 +2273,7 @@ export default function(Sequelize, DataTypes) {
    * @param {*} until
    * @param {*} tags if not null, only takes into account donations made to collectives that contains one of those tags
    */
-  Collective.prototype.getLatestTransactions = function(since, until, tags) {
+  Collective.prototype.getLatestTransactions = function (since, until, tags) {
     const conditionOnCollective = {};
     if (tags) {
       conditionOnCollective.tags = { [Op.overlap]: tags };
@@ -2292,7 +2294,7 @@ export default function(Sequelize, DataTypes) {
     });
   };
 
-  Collective.prototype.isHost = function() {
+  Collective.prototype.isHost = function () {
     if (this.isHostAccount) {
       return Promise.resolve(true);
     }
@@ -2304,13 +2306,18 @@ export default function(Sequelize, DataTypes) {
     return models.Member.findOne({ where: { MemberCollectiveId: this.id, role: 'HOST' } }).then(r => Boolean(r));
   };
 
-  Collective.prototype.isHostOf = function(CollectiveId) {
+  Collective.prototype.isHostOf = function (CollectiveId) {
     return models.Collective.findOne({
       where: { id: CollectiveId, HostCollectiveId: this.id },
     }).then(r => Boolean(r));
   };
 
-  Collective.prototype.getRelatedCollectives = function(limit = 3, minTotalDonationInCents = 10000, orderBy, orderDir) {
+  Collective.prototype.getRelatedCollectives = function (
+    limit = 3,
+    minTotalDonationInCents = 10000,
+    orderBy,
+    orderDir,
+  ) {
     return Collective.getCollectivesSummaryByTag(
       this.tags,
       limit,
@@ -2323,7 +2330,7 @@ export default function(Sequelize, DataTypes) {
   };
 
   // get the host of the parent collective if any, or of this collective
-  Collective.prototype.getHostCollective = function() {
+  Collective.prototype.getHostCollective = function () {
     if (this.HostCollectiveId) {
       return models.Collective.findByPk(this.HostCollectiveId);
     }
@@ -2339,7 +2346,7 @@ export default function(Sequelize, DataTypes) {
     });
   };
 
-  Collective.prototype.getHostCollectiveId = function() {
+  Collective.prototype.getHostCollectiveId = function () {
     if (this.HostCollectiveId) {
       return Promise.resolve(this.HostCollectiveId);
     }
@@ -2349,7 +2356,7 @@ export default function(Sequelize, DataTypes) {
     });
   };
 
-  Collective.prototype.getHostStripeAccount = function() {
+  Collective.prototype.getHostStripeAccount = function () {
     let HostCollectiveId;
     return this.getHostCollectiveId()
       .then(id => {
@@ -2379,7 +2386,7 @@ export default function(Sequelize, DataTypes) {
       });
   };
 
-  Collective.prototype.setStripeAccount = function(stripeAccount) {
+  Collective.prototype.setStripeAccount = function (stripeAccount) {
     if (!stripeAccount) {
       return Promise.resolve(null);
     }
@@ -2395,7 +2402,7 @@ export default function(Sequelize, DataTypes) {
     }
   };
 
-  Collective.prototype.getTopBackers = function(since, until, limit) {
+  Collective.prototype.getTopBackers = function (since, until, limit) {
     return queries
       .getMembersWithTotalDonations({ CollectiveId: this.id, role: 'BACKER' }, { since, until, limit })
       .tap(backers =>
@@ -2406,11 +2413,11 @@ export default function(Sequelize, DataTypes) {
       );
   };
 
-  Collective.prototype.getImageUrl = function(args = {}) {
+  Collective.prototype.getImageUrl = function (args = {}) {
     return getCollectiveAvatarUrl(this.slug, this.type, this.image, args);
   };
 
-  Collective.prototype.getBackgroundImageUrl = function(args = {}) {
+  Collective.prototype.getBackgroundImageUrl = function (args = {}) {
     if (!this.backgroundImage) {
       return null;
     }
@@ -2428,7 +2435,7 @@ export default function(Sequelize, DataTypes) {
     return `${sections.join('/')}.${args.format || 'png'}`;
   };
 
-  Collective.prototype.getHostedCollectivesCount = function() {
+  Collective.prototype.getHostedCollectivesCount = function () {
     // This method is intended for hosts
     if (!this.isHostAccount) {
       return Promise.resolve(null);
@@ -2438,7 +2445,7 @@ export default function(Sequelize, DataTypes) {
     });
   };
 
-  Collective.prototype.getTotalAddedFunds = async function() {
+  Collective.prototype.getTotalAddedFunds = async function () {
     // This method is intended for hosts
     if (!this.isHostAccount) {
       return Promise.resolve(null);
@@ -2474,7 +2481,7 @@ export default function(Sequelize, DataTypes) {
     return result.total;
   };
 
-  Collective.prototype.getTotalBankTransfers = async function() {
+  Collective.prototype.getTotalBankTransfers = async function () {
     // This method is intended for hosts
     if (!this.isHostAccount) {
       return Promise.resolve(null);
@@ -2501,7 +2508,7 @@ export default function(Sequelize, DataTypes) {
     return result.total;
   };
 
-  Collective.prototype.getPlan = async function() {
+  Collective.prototype.getPlan = async function () {
     const [hostedCollectives, addedFunds, bankTransfers] = await Promise.all([
       this.getHostedCollectivesCount(),
       this.getTotalAddedFunds(),
@@ -2568,7 +2575,7 @@ export default function(Sequelize, DataTypes) {
     );
   };
 
-  Collective.prototype.doesUserHaveTotalExpensesOverThreshold = async function({ threshold, year, UserId }) {
+  Collective.prototype.doesUserHaveTotalExpensesOverThreshold = async function ({ threshold, year, UserId }) {
     const { PENDING, APPROVED, PAID } = expenseStatus;
     const since = moment({ year });
     const until = moment({ year }).add(1, 'y');
@@ -2582,7 +2589,7 @@ export default function(Sequelize, DataTypes) {
     return userTotal >= threshold;
   };
 
-  Collective.prototype.getUsersWhoHaveTotalExpensesOverThreshold = async function({ threshold, year }) {
+  Collective.prototype.getUsersWhoHaveTotalExpensesOverThreshold = async function ({ threshold, year }) {
     const { PENDING, APPROVED, PAID } = expenseStatus;
     const since = moment({ year });
     const until = moment({ year }).add(1, 'y');

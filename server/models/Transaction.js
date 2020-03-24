@@ -215,17 +215,17 @@ export default (Sequelize, DataTypes) => {
   /**
    * Instance Methods
    */
-  Transaction.prototype.getUser = function() {
+  Transaction.prototype.getUser = function () {
     return models.User.findByPk(this.CreatedByUserId);
   };
 
-  Transaction.prototype.getVirtualCardEmitterCollective = function() {
+  Transaction.prototype.getVirtualCardEmitterCollective = function () {
     if (this.UsingVirtualCardFromCollectiveId) {
       return models.Collective.findByPk(this.UsingVirtualCardFromCollectiveId);
     }
   };
 
-  Transaction.prototype.getHostCollective = async function() {
+  Transaction.prototype.getHostCollective = async function () {
     let HostCollectiveId = this.HostCollectiveId;
     // if the transaction is from the perspective of the fromCollective
     if (!HostCollectiveId) {
@@ -235,7 +235,7 @@ export default (Sequelize, DataTypes) => {
     return models.Collective.findByPk(HostCollectiveId);
   };
 
-  Transaction.prototype.getSource = function() {
+  Transaction.prototype.getSource = function () {
     if (this.OrderId) {
       return this.getOrder({ paranoid: false });
     }
@@ -249,14 +249,14 @@ export default (Sequelize, DataTypes) => {
    * either the virtual card provider if using a virtual card or
    * `CollectiveId` otherwise.
    */
-  Transaction.prototype.paymentMethodProviderCollectiveId = function() {
+  Transaction.prototype.paymentMethodProviderCollectiveId = function () {
     if (this.UsingVirtualCardFromCollectiveId) {
       return this.UsingVirtualCardFromCollectiveId;
     }
     return this.type === 'DEBIT' ? this.CollectiveId : this.FromCollectiveId;
   };
 
-  Transaction.prototype.getDetailsForUser = function(user) {
+  Transaction.prototype.getDetailsForUser = function (user) {
     const sourceCollective = this.paymentMethodProviderCollectiveId();
     return user.populateRoles().then(() => {
       if (
@@ -272,7 +272,7 @@ export default (Sequelize, DataTypes) => {
     });
   };
 
-  Transaction.prototype.getRefundTransaction = function() {
+  Transaction.prototype.getRefundTransaction = function () {
     if (!this.RefundTransactionId) {
       return null;
     }

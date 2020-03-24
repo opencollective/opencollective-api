@@ -14,7 +14,7 @@ import errors from '../../lib/errors';
  * Confirms that the preapprovalKey has been approved by PayPal
  * and updates the paymentMethod
  */
-const getPreapprovalDetailsAndUpdatePaymentMethod = async function(paymentMethod) {
+const getPreapprovalDetailsAndUpdatePaymentMethod = async function (paymentMethod) {
   if (!paymentMethod) {
     return Promise.reject(new Error('No payment method provided to getPreapprovalDetailsAndUpdatePaymentMethod'));
   }

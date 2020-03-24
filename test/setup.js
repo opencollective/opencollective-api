@@ -16,7 +16,7 @@ before(() => {
   chaiJestSnapshot.resetSnapshotRegistry();
 });
 
-beforeEach(function() {
+beforeEach(function () {
   chaiJestSnapshot.configureUsingMochaContext(this);
 });
 
@@ -48,7 +48,7 @@ chai.util.addMethod(chai.Assertion.prototype, 'eqInAnyOrder', function equalInAn
 /**
  * Custom chai assertion to ensure that sequelize object is soft deleted
  */
-chai.util.addProperty(chai.Assertion.prototype, 'softDeleted', async function() {
+chai.util.addProperty(chai.Assertion.prototype, 'softDeleted', async function () {
   // Make sure we are working with a sequelize model
   new chai.Assertion(this._obj).to.be.instanceOf(Sequelize.Model, 'softDeleted');
 

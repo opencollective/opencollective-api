@@ -1,6 +1,6 @@
 import notify from '../lib/notifications';
 
-export default function(Sequelize, DataTypes) {
+export default function (Sequelize, DataTypes) {
   const Activity = Sequelize.define(
     'Activity',
     {

@@ -2,7 +2,7 @@ import roles from '../constants/roles';
 import { days } from '../lib/utils';
 import { invalidateContributorsCache } from '../lib/contributors';
 
-export default function(Sequelize, DataTypes) {
+export default function (Sequelize, DataTypes) {
   const invalidateContributorsCacheUsingInstance = instance => {
     if (instance.role !== roles.FOLLOWER) {
       invalidateContributorsCache(instance.CollectiveId);

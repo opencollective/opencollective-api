@@ -73,11 +73,7 @@ describe('server/routes/webhooks.stripe', () => {
       const stripeMock = _.cloneDeep(originalStripeMock);
 
       sandbox.stub(stripe.events, 'retrieve').callsFake(() => Promise.resolve(stripeMock.event_source_chargeable));
-      request(app)
-        .post('/webhooks/stripe')
-        .send(stripeMock.webhook_source_chargeable)
-        .expect(400)
-        .end(done);
+      request(app).post('/webhooks/stripe').send(stripeMock.webhook_source_chargeable).expect(400).end(done);
     });
 
     it('returns an error if the event is `source.chargeable`', done => {
