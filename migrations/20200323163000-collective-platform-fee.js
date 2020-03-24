@@ -8,6 +8,12 @@ module.exports = {
     await queryInterface.addColumn('CollectiveHistories', 'platformFeePercent', {
       type: Sequelize.FLOAT,
     });
+    await queryInterface.sequelize.query(`
+      UPDATE "Collectives"
+      SET "platformFeePercent" = 5
+      WHERE "type" = 'COLLECTIVE'
+      OR "type" = 'EVENT';
+    `);
   },
 
   down: async queryInterface => {
