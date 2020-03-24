@@ -97,7 +97,9 @@ const getOrCreateCustomerOnHostAccount = async (hostStripeAccount, { paymentMeth
  * See: Shared Customers: https://stripe.com/docs/connect/shared-customers
  */
 const createChargeAndTransactions = async (hostStripeAccount, { order, hostStripeCustomer }) => {
-  const platformFeePercent = get(order, 'data.platformFeePercent', order.collective.platformFeePercent);
+  const defaultPlatformFee =
+    order.collective.platformFeePercent === null ? constants.OC_FEE_PERCENT : order.collective.platformFeePercent;
+  const platformFeePercent = get(order, 'data.platformFeePercent', defaultPlatformFee);
   const platformFee = isNaN(order.platformFee)
     ? parseInt((order.totalAmount * platformFeePercent) / 100, 10)
     : order.platformFee;
