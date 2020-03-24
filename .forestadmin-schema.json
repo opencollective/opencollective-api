@@ -835,6 +835,21 @@
           "validations": []
         },
         {
+          "field": "isHostAccount",
+          "type": "Boolean",
+          "defaultValue": false,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": []
+        },
+        {
           "field": "isIncognito",
           "type": "Boolean",
           "defaultValue": false,
@@ -974,6 +989,42 @@
           "reference": null,
           "inverseOf": null,
           "validations": []
+        },
+        {
+          "field": "plan",
+          "type": "String",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": []
+        },
+        {
+          "field": "platformFeePercent",
+          "type": "Number",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": [
+            {
+              "message": null,
+              "type": "is less than",
+              "value": 100
+            }
+          ]
         },
         {
           "field": "settings",
@@ -1551,6 +1602,308 @@
       "actions": []
     },
     {
+      "name": "Conversation",
+      "nameOld": "Conversation",
+      "icon": null,
+      "integration": null,
+      "isReadOnly": false,
+      "isSearchable": true,
+      "isVirtual": false,
+      "onlyForRelationships": false,
+      "paginationType": "page",
+      "fields": [
+        {
+          "field": "RootCommentId",
+          "type": "Number",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": []
+        },
+        {
+          "field": "collective",
+          "type": "Number",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": "Collective.CollectiveId",
+          "inverseOf": null,
+          "relationship": "BelongsTo",
+          "validations": []
+        },
+        {
+          "field": "createdAt",
+          "type": "Date",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": []
+        },
+        {
+          "field": "deletedAt",
+          "type": "Date",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": []
+        },
+        {
+          "field": "fromCollective",
+          "type": "Number",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": "Collective.FromCollectiveId",
+          "inverseOf": null,
+          "relationship": "BelongsTo",
+          "validations": []
+        },
+        {
+          "field": "id",
+          "type": "Number",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": []
+        },
+        {
+          "field": "summary",
+          "type": "String",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": true,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": [
+            {
+              "message": null,
+              "type": "is present",
+              "value": null
+            }
+          ]
+        },
+        {
+          "field": "tags",
+          "type": ["String"],
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": []
+        },
+        {
+          "field": "title",
+          "type": "String",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": true,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": [
+            {
+              "message": null,
+              "type": "is present",
+              "value": null
+            },
+            {
+              "message": null,
+              "type": "is longer than",
+              "value": 3
+            },
+            {
+              "message": null,
+              "type": "is shorter than",
+              "value": 255
+            }
+          ]
+        },
+        {
+          "field": "updatedAt",
+          "type": "Date",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": []
+        }
+      ],
+      "segments": [],
+      "actions": []
+    },
+    {
+      "name": "ConversationFollowers",
+      "nameOld": "ConversationFollowers",
+      "icon": null,
+      "integration": null,
+      "isReadOnly": false,
+      "isSearchable": true,
+      "isVirtual": false,
+      "onlyForRelationships": false,
+      "paginationType": "page",
+      "fields": [
+        {
+          "field": "conversation",
+          "type": "Number",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": "Conversation.ConversationId",
+          "inverseOf": null,
+          "relationship": "BelongsTo",
+          "validations": []
+        },
+        {
+          "field": "createdAt",
+          "type": "Date",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": []
+        },
+        {
+          "field": "id",
+          "type": "Number",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": []
+        },
+        {
+          "field": "isActive",
+          "type": "Boolean",
+          "defaultValue": true,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": true,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": [
+            {
+              "message": null,
+              "type": "is present",
+              "value": null
+            }
+          ]
+        },
+        {
+          "field": "updatedAt",
+          "type": "Date",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": []
+        },
+        {
+          "field": "user",
+          "type": "Number",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": "User.UserId",
+          "inverseOf": null,
+          "relationship": "BelongsTo",
+          "validations": []
+        }
+      ],
+      "segments": [],
+      "actions": []
+    },
+    {
       "name": "Expense",
       "nameOld": "Expense",
       "icon": null,
@@ -1561,6 +1914,38 @@
       "onlyForRelationships": false,
       "paginationType": "page",
       "fields": [
+        {
+          "field": "PayoutMethod",
+          "type": "Number",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": "PayoutMethod.PayoutMethodId",
+          "inverseOf": null,
+          "relationship": "BelongsTo",
+          "validations": []
+        },
+        {
+          "field": "Transactions",
+          "type": ["Number"],
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": "Transaction.ExpenseId",
+          "inverseOf": null,
+          "relationship": "HasMany",
+          "validations": []
+        },
         {
           "field": "User",
           "type": "Number",
@@ -1604,8 +1989,8 @@
           ]
         },
         {
-          "field": "attachment",
-          "type": "String",
+          "field": "attachments",
+          "type": ["Number"],
           "defaultValue": null,
           "enums": null,
           "integration": null,
@@ -1614,8 +1999,9 @@
           "isRequired": false,
           "isSortable": true,
           "isVirtual": false,
-          "reference": null,
+          "reference": "ExpenseAttachment.ExpenseId",
           "inverseOf": null,
+          "relationship": "HasMany",
           "validations": []
         },
         {
@@ -1738,6 +2124,22 @@
           ]
         },
         {
+          "field": "fromCollective",
+          "type": "Number",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": "Collective.FromCollectiveId",
+          "inverseOf": null,
+          "relationship": "BelongsTo",
+          "validations": []
+        },
+        {
           "field": "id",
           "type": "Number",
           "defaultValue": null,
@@ -1774,7 +2176,22 @@
           ]
         },
         {
-          "field": "payoutMethod",
+          "field": "invoiceInfo",
+          "type": "String",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": []
+        },
+        {
+          "field": "legacyPayoutMethod",
           "type": "String",
           "defaultValue": "manual",
           "enums": null,
@@ -1833,8 +2250,8 @@
         {
           "field": "type",
           "type": "Enum",
-          "defaultValue": null,
-          "enums": ["INVOICE", "RECEIPT"],
+          "defaultValue": "UNCLASSIFIED",
+          "enums": ["INVOICE", "RECEIPT", "UNCLASSIFIED"],
           "integration": null,
           "isFilterable": true,
           "isReadOnly": false,
@@ -1869,6 +2286,168 @@
         {
           "field": "vat",
           "type": "Number",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": []
+        }
+      ],
+      "segments": [],
+      "actions": []
+    },
+    {
+      "name": "ExpenseAttachment",
+      "nameOld": "ExpenseAttachment",
+      "icon": null,
+      "integration": null,
+      "isReadOnly": false,
+      "isSearchable": true,
+      "isVirtual": false,
+      "onlyForRelationships": false,
+      "paginationType": "page",
+      "fields": [
+        {
+          "field": "Expense",
+          "type": "Number",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": "Expense.ExpenseId",
+          "inverseOf": null,
+          "relationship": "BelongsTo",
+          "validations": []
+        },
+        {
+          "field": "amount",
+          "type": "Number",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": true,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": [
+            {
+              "message": null,
+              "type": "is present",
+              "value": null
+            },
+            {
+              "message": null,
+              "type": "is greater than",
+              "value": 1
+            }
+          ]
+        },
+        {
+          "field": "createdAt",
+          "type": "Date",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": []
+        },
+        {
+          "field": "deletedAt",
+          "type": "Date",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": []
+        },
+        {
+          "field": "description",
+          "type": "String",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": []
+        },
+        {
+          "field": "id",
+          "type": "Number",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": []
+        },
+        {
+          "field": "incurredAt",
+          "type": "Date",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": []
+        },
+        {
+          "field": "updatedAt",
+          "type": "Date",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": []
+        },
+        {
+          "field": "url",
+          "type": "String",
           "defaultValue": null,
           "enums": null,
           "integration": null,
@@ -2207,6 +2786,196 @@
           "isVirtual": false,
           "reference": null,
           "inverseOf": null,
+          "validations": []
+        },
+        {
+          "field": "role",
+          "type": "String",
+          "defaultValue": "member",
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": true,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": [
+            {
+              "message": null,
+              "type": "is present",
+              "value": null
+            }
+          ]
+        },
+        {
+          "field": "since",
+          "type": "Date",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": []
+        },
+        {
+          "field": "updatedAt",
+          "type": "Date",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": []
+        }
+      ],
+      "segments": [],
+      "actions": []
+    },
+    {
+      "name": "MemberInvitation",
+      "nameOld": "MemberInvitation",
+      "icon": null,
+      "integration": null,
+      "isReadOnly": false,
+      "isSearchable": true,
+      "isVirtual": false,
+      "onlyForRelationships": false,
+      "paginationType": "page",
+      "fields": [
+        {
+          "field": "Tier",
+          "type": "Number",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": "Tier.TierId",
+          "inverseOf": null,
+          "relationship": "BelongsTo",
+          "validations": []
+        },
+        {
+          "field": "collective",
+          "type": "Number",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": "Collective.CollectiveId",
+          "inverseOf": null,
+          "relationship": "BelongsTo",
+          "validations": []
+        },
+        {
+          "field": "createdAt",
+          "type": "Date",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": []
+        },
+        {
+          "field": "createdByUser",
+          "type": "Number",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": "User.CreatedByUserId",
+          "inverseOf": null,
+          "relationship": "BelongsTo",
+          "validations": []
+        },
+        {
+          "field": "deletedAt",
+          "type": "Date",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": []
+        },
+        {
+          "field": "description",
+          "type": "String",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": []
+        },
+        {
+          "field": "id",
+          "type": "Number",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": []
+        },
+        {
+          "field": "memberCollective",
+          "type": "Number",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": "Collective.MemberCollectiveId",
+          "inverseOf": null,
+          "relationship": "BelongsTo",
           "validations": []
         },
         {
@@ -2871,6 +3640,21 @@
           "validations": []
         },
         {
+          "field": "batch",
+          "type": "String",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": []
+        },
+        {
           "field": "confirmedAt",
           "type": "Date",
           "defaultValue": null,
@@ -3220,6 +4004,170 @@
         {
           "field": "uuid",
           "type": "String",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": []
+        }
+      ],
+      "segments": [],
+      "actions": []
+    },
+    {
+      "name": "PayoutMethod",
+      "nameOld": "PayoutMethod",
+      "icon": null,
+      "integration": null,
+      "isReadOnly": false,
+      "isSearchable": true,
+      "isVirtual": false,
+      "onlyForRelationships": false,
+      "paginationType": "page",
+      "fields": [
+        {
+          "field": "Collective",
+          "type": "Number",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": "Collective.CollectiveId",
+          "inverseOf": null,
+          "relationship": "BelongsTo",
+          "validations": []
+        },
+        {
+          "field": "createdAt",
+          "type": "Date",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": []
+        },
+        {
+          "field": "createdByUser",
+          "type": "Number",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": "User.CreatedByUserId",
+          "inverseOf": null,
+          "relationship": "BelongsTo",
+          "validations": []
+        },
+        {
+          "field": "data",
+          "type": "Json",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": true,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": [
+            {
+              "message": null,
+              "type": "is present",
+              "value": null
+            }
+          ]
+        },
+        {
+          "field": "deletedAt",
+          "type": "Date",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": []
+        },
+        {
+          "field": "id",
+          "type": "Number",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": []
+        },
+        {
+          "field": "name",
+          "type": "String",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": []
+        },
+        {
+          "field": "type",
+          "type": "Enum",
+          "defaultValue": null,
+          "enums": ["PAYPAL", "BANK_ACCOUNT", "OTHER"],
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": true,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": [
+            {
+              "message": null,
+              "type": "is present",
+              "value": null
+            }
+          ]
+        },
+        {
+          "field": "updatedAt",
+          "type": "Date",
           "defaultValue": null,
           "enums": null,
           "integration": null,
@@ -4171,7 +5119,18 @@
           "isVirtual": false,
           "reference": null,
           "inverseOf": null,
-          "validations": []
+          "validations": [
+            {
+              "message": null,
+              "type": "is longer than",
+              "value": 1
+            },
+            {
+              "message": null,
+              "type": "is shorter than",
+              "value": 255
+            }
+          ]
         },
         {
           "field": "startsAt",
@@ -4986,7 +5945,7 @@
         {
           "field": "_salt",
           "type": "String",
-          "defaultValue": "$2b$10$DMR4gz6lVP4Mkj.W5deR3O",
+          "defaultValue": "$2b$10$gFqMwjgr9Rm9G2N2Muuvxe",
           "enums": null,
           "integration": null,
           "isFilterable": true,
@@ -5017,6 +5976,21 @@
         {
           "field": "createdAt",
           "type": "Date",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": []
+        },
+        {
+          "field": "data",
+          "type": "Json",
           "defaultValue": null,
           "enums": null,
           "integration": null,
@@ -5151,6 +6125,21 @@
           "validations": []
         },
         {
+          "field": "lastLoginAt",
+          "type": "Date",
+          "defaultValue": null,
+          "enums": null,
+          "integration": null,
+          "isFilterable": true,
+          "isReadOnly": false,
+          "isRequired": false,
+          "isSortable": true,
+          "isVirtual": false,
+          "reference": null,
+          "inverseOf": null,
+          "validations": []
+        },
+        {
           "field": "lastName",
           "type": "String",
           "defaultValue": null,
@@ -5202,35 +6191,9 @@
           "validations": []
         },
         {
-          "field": "paypalEmail",
-          "type": "String",
-          "defaultValue": null,
-          "enums": null,
-          "integration": null,
-          "isFilterable": true,
-          "isReadOnly": false,
-          "isRequired": false,
-          "isSortable": true,
-          "isVirtual": false,
-          "reference": null,
-          "inverseOf": null,
-          "validations": [
-            {
-              "message": "Email must be between 6 and 128 characters in length",
-              "type": "is longer than",
-              "value": 6
-            },
-            {
-              "message": "Email must be between 6 and 128 characters in length",
-              "type": "is shorter than",
-              "value": 128
-            }
-          ]
-        },
-        {
           "field": "refresh_token",
           "type": "String",
-          "defaultValue": "$2b$10$y6MzqPJPE0QEz/pdqmixIO",
+          "defaultValue": "$2b$10$WvXnB6m35rmgaphB3mvl3O",
           "enums": null,
           "integration": null,
           "isFilterable": true,
@@ -5260,36 +6223,6 @@
         {
           "field": "resetPasswordTokenHash",
           "type": "String",
-          "defaultValue": null,
-          "enums": null,
-          "integration": null,
-          "isFilterable": true,
-          "isReadOnly": false,
-          "isRequired": false,
-          "isSortable": true,
-          "isVirtual": false,
-          "reference": null,
-          "inverseOf": null,
-          "validations": []
-        },
-        {
-          "field": "seenAt",
-          "type": "Date",
-          "defaultValue": null,
-          "enums": null,
-          "integration": null,
-          "isFilterable": true,
-          "isReadOnly": false,
-          "isRequired": false,
-          "isSortable": true,
-          "isVirtual": false,
-          "reference": null,
-          "inverseOf": null,
-          "validations": []
-        },
-        {
-          "field": "lastLoginAt",
-          "type": "Date",
           "defaultValue": null,
           "enums": null,
           "integration": null,
@@ -5397,7 +6330,11 @@
   "meta": {
     "database_type": "postgres",
     "liana": "forest-express-sequelize",
-    "liana_version": "4.0.2",
-    "orm_version": "5.21.1"
+    "liana_version": "5.7.0",
+    "engine": "nodejs",
+    "engine_version": "12.13.1",
+    "framework": "express",
+    "framework_version": "4.17.1",
+    "orm_version": "5.21.5"
   }
 }
