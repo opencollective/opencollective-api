@@ -83,6 +83,15 @@ const plans = {
     hostDashboard: true,
     level: 20,
   },
+  // Special plan for COVID-19 hosts
+  'covid-host-plan': {
+    hostedCollectivesLimit: 5,
+    addedFundsLimit: null,
+    bankTransfersLimit: null,
+    manualPayments: true,
+    hostDashboard: true,
+    level: 20,
+  },
   // Special plan for everyone without a plan
   default: {
     hostedCollectivesLimit: null,
