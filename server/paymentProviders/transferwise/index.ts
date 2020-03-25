@@ -17,10 +17,10 @@ export const blackListedCurrencies = [
 ];
 
 async function populateProfileId(connectedAccount): Promise<void> {
-  if (!connectedAccount.data.profile) {
+  if (!connectedAccount.data?.id) {
     const profiles = await transferwise.getProfiles(connectedAccount.token);
     const profile =
-      profiles.find(p => p.type === connectedAccount.data.type) ||
+      profiles.find(p => p.type === connectedAccount.data?.type) ||
       profiles.find(p => p.type === 'business') ||
       profiles[0];
     if (profile) {
@@ -117,6 +117,7 @@ async function getAvailableCurrencies(host: any): Promise<{ code: string; minInv
   if (!connectedAccount) {
     throw new Error('Host is not connected to Transferwise');
   }
+  await populateProfileId(connectedAccount);
 
   const pairs = await transferwise.getCurrencyPairs(connectedAccount.token);
   const source = pairs.sourceCurrencies.find(sc => sc.currencyCode === host.currency);
@@ -140,6 +141,7 @@ async function getRequiredBankInformation(host: any, currency: string): Promise<
   if (!connectedAccount) {
     throw new Error('Host is not connected to Transferwise');
   }
+  await populateProfileId(connectedAccount);
 
   const currencyInfo = find(await getAvailableCurrencies(host), { code: currency });
   if (!currencyInfo) {
