@@ -681,8 +681,11 @@ export default function (Sequelize, DataTypes) {
           }
 
           // Set default platformFeePercent
-          if (!instance.platformFeePercent) {
-            if (instance.type === 'USER' || instance.type === 'ORGANIZATION') {
+          if (instance.platformFeePercent === null || instance.platformFeePercent === undefined) {
+            // Automatically waive fees for collectives created under the COVID-19 category
+            if (instance.tags?.includes('covid-19')) {
+              instance.platformFeePercent = 0;
+            } else if (instance.type === 'USER' || instance.type === 'ORGANIZATION') {
               instance.platformFeePercent = null;
             } else {
               instance.platformFeePercent = OC_FEE_PERCENT;
