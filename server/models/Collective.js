@@ -2458,7 +2458,7 @@ export default function (Sequelize, DataTypes) {
       return Promise.resolve(null);
     }
     return models.Collective.count({
-      where: { HostCollectiveId: this.id, type: types.COLLECTIVE },
+      where: { HostCollectiveId: this.id, type: types.COLLECTIVE, isActive: true },
     });
   };
 
