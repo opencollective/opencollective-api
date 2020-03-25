@@ -31,9 +31,16 @@ import graphqlSchemaV2 from './graphql/v2/schema';
 
 import helloworks from './controllers/helloworks';
 
+import { Sentry, sentryMiddleware } from './sentry/sentry'
+
 const upload = multer();
 
 export default app => {
+  /**
+   * Sentry requestHandler
+   */
+  app.use(Sentry.Handlers.requestHandler());
+
   /**
    * Status.
    */
@@ -126,6 +133,8 @@ export default app => {
     schema: graphqlSchemaV1,
     pretty: isDevelopment,
     graphiql: isDevelopment,
+    // Add sentry graphql middleware
+    middlewares: [sentryMiddleware]
   });
 
   app.use('/graphql/v1', graphqlServerV1);
@@ -141,6 +150,8 @@ export default app => {
     context: ({ req }) => {
       return req;
     },
+    // Add sentry graphql middleware
+    middlewares: [sentryMiddleware]
   });
 
   graphqlServerV2.applyMiddleware({ app, path: '/graphql/v2' });
@@ -213,6 +224,11 @@ export default app => {
    * Override default 404 handler to make sure to obfuscate api_key visible in URL
    */
   app.use((req, res) => res.sendStatus(404));
+
+  /**
+   * Sentry errorHandler
+   */
+  app.use(Sentry.Handlers.errorHandler());
 
   /**
    * Error handler.
