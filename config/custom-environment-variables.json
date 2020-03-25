@@ -1,0 +1,150 @@
+{
+  "port": "PORT",
+  "env": "NODE_ENV",
+  "maildev": {
+    "client": "MAILDEV_CLIENT",
+    "server": "MAILDEV_SERVER"
+  },
+  "database": {
+    "url": "PG_URL",
+    "override": {
+      "database": "PG_DATABASE",
+      "username": "PG_USERNAME",
+      "password": "PG_PASSWORD",
+      "host": "PG_HOST",
+      "port": "PG_PORT"
+    },
+    "options": {
+      "pool": {
+        "min": "PG_MIN_CONNECTIONS",
+        "max": "PG_MAX_CONNECTIONS"
+      }
+    }
+  },
+  "memcache": {
+    "servers": "MEMCACHE_SERVERS",
+    "username": "MEMCACHE_USERNAME",
+    "password": "MEMCACHE_PASSWORD"
+  },
+  "redis": {
+    "serverUrl": "REDIS_URL"
+  },
+  "keys": {
+    "opencollective": {
+      "apiKey": "API_KEY",
+      "sessionSecret": "SESSION_SECRET",
+      "jwtSecret": "JWT_SECRET",
+      "emailUnsubscribeSecret": "EMAIL_UNSUBSCRIBE_SECRET",
+      "hashidSalt": "HASHID_SALT"
+    }
+  },
+  "cache": {
+    "middleware": "CACHE_MIDDLEWARE"
+  },
+  "log": {
+    "level": "LOG_LEVEL",
+    "accessLogs": "ACCESS_LOGS",
+    "slowRequest": "SLOW_REQUEST",
+    "slowRequestThreshold": "SLOW_REQUEST_THRESHOLD"
+  },
+  "stripe": {
+    "secret": "STRIPE_SECRET",
+    "key": "STRIPE_KEY",
+    "clientId": "STRIPE_CLIENT_ID"
+  },
+  "aws": {
+    "s3": {
+      "key": "AWS_KEY",
+      "secret": "AWS_SECRET",
+      "bucket": "AWS_S3_BUCKET",
+      "region": "AWS_S3_REGION",
+      "apiVersion": "AWS_S3_API_VERSION"
+    }
+  },
+  "cloudflare": {
+    "key": "CLOUDFLARE_KEY",
+    "email": "CLOUDFLARE_EMAIL",
+    "zone": "CLOUDFLARE_ZONE"
+  },
+  "paypal": {
+    "classic": {
+      "email": "PAYPAL_EMAIL",
+      "appId": "PAYPAL_APP_ID",
+      "userId": "PAYPAL_USER_ID",
+      "password": "PAYPAL_PASSWORD",
+      "signature": "PAYPAL_SIGNATURE"
+    },
+    "payment": {
+      "environment": "PAYPAL_ENVIRONMENT",
+      "clientId": "PAYPAL_CLIENT_ID",
+      "clientSecret": "PAYPAL_CLIENT_SECRET"
+    }
+  },
+  "mailgun": {
+    "user": "MAILGUN_USER",
+    "password": "MAILGUN_PASSWORD",
+    "apiKey": "MAILGUN_API_KEY"
+  },
+  "host": {
+    "api": "API_URL",
+    "images": "IMAGES_URL",
+    "frontend": "FRONTEND_URL",
+    "website": "WEBSITE_URL",
+    "invoices": "INVOICES_URL"
+  },
+  "limits": {
+    "ordersPerHour": {
+      "perAccount": "ORDERS_LIMIT_ACCOUNT",
+      "perAccountForCollective": "ORDERS_LIMIT_ACCOUNT_COLLECTIVE",
+      "perEmail": "ORDERS_LIMIT_EMAIL",
+      "perEmailForCollective": "ORDERS_LIMIT_EMAIL_COLLECTIVE",
+      "perIp": "ORDERS_LIMIT_IP"
+    }
+  },
+  "slack": {
+    "webhookUrl": "SLACK_HOOK_URL"
+  },
+  "github": {
+    "clientID": "GITHUB_CLIENT_ID",
+    "clientSecret": "GITHUB_CLIENT_SECRET"
+  },
+  "meetup": {
+    "clientID": "MEETUP_CLIENT_ID",
+    "clientSecret": "MEETUP_CLIENT_SECRET"
+  },
+  "twitter": {
+    "consumerKey": "TWITTER_CONSUMER_KEY",
+    "consumerSecret": "TWITTER_CONSUMER_SECRET"
+  },
+  "algolia": {
+    "appId": "ALGOLIA_APP_ID",
+    "appKey": "ALGOLIA_KEY",
+    "index": "ALGOLIA_INDEX"
+  },
+  "fixer": {
+    "accessKey": "FIXER_ACCESS_KEY"
+  },
+  "recaptcha": {
+    "siteKey": "RECAPTCHA_SITE_KEY",
+    "secretKey": "RECAPTCHA_SECRET_KEY"
+  },
+  "helloworks": {
+    "key": "HELLO_WORKS_KEY",
+    "secret": "HELLO_WORKS_SECRET",
+    "documentEncryptionKey": "HELLO_WORKS_DOCUMENT_ENCRYPTION_KEY",
+    "aws": {
+      "s3": {
+        "bucket": "HELLO_WORKS_AWS_S3_BUCKET"
+      }
+    }
+  },
+  "githubFlow": {
+    "minNbStars": "GITHUB_FLOW_MIN_NB_STARS"
+  },
+  "transferwise": {
+    "apiUrl": "TRANSFERWISE_API_URL"
+  },
+  "fixie": {
+    "url": "FIXIE_URL"
+  }
+}

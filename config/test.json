@@ -1,0 +1,20 @@
+{
+  "database": {
+    "url": "postgres://opencollective@127.0.0.1:5432/opencollective_test"
+  },
+  "log": {
+    "level": "warn"
+  },
+  "aws": {
+    "s3": {
+      "bucket": "opencollective-test"
+    }
+  },
+  "mailgun": {
+    "user": "",
+    "password": ""
+  },
+  "fixer": {
+    "accessKey": "UNDEFINED_FIXER_ACCESS_KEY"
+  }
+}

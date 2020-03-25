@@ -1,0 +1,138 @@
+{
+  "port": "3060",
+  "maildev": {
+    "client": false,
+    "server": false
+  },
+  "database": {
+    "url": "postgres://opencollective@127.0.0.1:5432/opencollective_dvl",
+    "options": {
+      "pool": {
+        "min": 5,
+        "max": 10,
+        "acquire": 1200000
+      },
+      "logging": false
+    }
+  },
+  "maintenancedb": {
+    "url": "postgres://127.0.0.1:5432/postgres"
+  },
+  "keys": {
+    "opencollective": {
+      "apiKey": "dvl-1510egmf4a23d80342403fb599qd",
+      "sessionSecret": "mei0ieD3ahli9fengie7teeceeCaicho",
+      "jwtSecret": "vieneixaGhahk2aej2pohsh2aeB1oa6o",
+      "emailUnsubscribeSecret": "vieneixaGhahk2aej2pohsh2aeB1oa6o",
+      "hashidSalt": "aiwiurohyohleevoo4ohraigi3auTohz"
+    }
+  },
+  "host": {
+    "api": "http://localhost:3060",
+    "website": "http://localhost:3000",
+    "images": "https://images-staging.opencollective.com",
+    "invoices": "https://invoices-staging.opencollective.com"
+  },
+  "limits": {
+    "ordersPerHour": {
+      "perAccount": 10,
+      "perAccountForCollective": 2,
+      "perEmail": 10,
+      "perEmailForCollective": 2,
+      "perIp": 5
+    },
+    "virtualCards": {
+      "maxPerDay": 100,
+      "maxAmountPerDay": 500000
+    },
+    "changeEmailPerHour": {
+      "update": 10,
+      "confirmToken": 15
+    },
+    "maxNumberOfAppsPerUser": 15,
+    "maxWebhooksPerUserPerCollective": 50,
+    "searchEmailPerHour": 150,
+    "searchEmailPerHourPerIp": 50,
+    "collectiveEmailMessagePerHour": 5,
+    "maxMemberInvitationsPerCollective": 20
+  },
+  "email": {
+    "from": "Open Collective <info@opencollective.com>"
+  },
+  "cache": {
+    "middleware": false
+  },
+  "log": {
+    "level": "info",
+    "accessLogs": false,
+    "slowRequest": false,
+    "slowRequestThreshold": 1000
+  },
+  "aws": {
+    "s3": {
+      "bucket": "opencollective-test",
+      "region": "us-west-1",
+      "apiVersion": "2006-03-01"
+    }
+  },
+  "paypal": {
+    "classic": {
+      "email": "xdamman+opencollective-facilitator@gmail.com",
+      "appId": "APP-80W284485P519543T",
+      "userId": "xdamman+opencollective-facilitator_api1.gmail.com",
+      "password": "UYRFFTDG3TYML68L",
+      "signature": "AknyGVnC4ahUBjab.T2H-YVkWGCqAW-ZI2s7gMVZKRdZpFO7kWEOorjv"
+    },
+    "rest": {
+      "mode": "sandbox"
+    },
+    "feeOC": 5,
+    "payment": {
+      "environment": "sandbox"
+    }
+  },
+  "github": {
+    "clientID": "UNDEFINED_GITHUB_CLIENT_ID",
+    "clientSecret": "UNDEFINED_GITHUB_CLIENT_SECRET"
+  },
+  "algolia": {
+    "index": "dvl_collectives"
+  },
+  "stripe": {
+    "accountId": "acct_15vekcDjPFcHOcTm",
+    "clientId": "ca_68FQcZXEcV66Kjg7egLnR1Ce87cqwoue",
+    "key": "pk_test_VgSB4VSg2wb5LdAkz7p38Gw8",
+    "secret": "sk_test_o3A3GoHbeb113oq1aZbDJNJe",
+    "redirectUri": "http://localhost:3060/connected-accounts/stripe/callback"
+  },
+  "slack": {
+    "privateActivityChannel": "#activity-private-test",
+    "publicActivityChannel": "#activity-public-test",
+    "abuseChannel": "#abuse"
+  },
+  "recaptcha": {
+    "siteKey": "6LcyeXoUAAAAAFtdHDZfsxncFUkD9NqydqbIFcCK",
+    "secretKey": "6LcyeXoUAAAAACqNaR6EZJ_LG0V0N35uNkab3ibj"
+  },
+  "helloworks": {
+    "key": "RO7aWNLJx6CzhRix",
+    "secret": "FanG4FjeV3aGHjpS2A1YckyWuhvxfKHoZN5Q5bHO",
+    "workflowId": "qdUbX5nw8sMZzykz",
+    "callbackPath": "/helloworks/callback",
+    "documentEncryptionKey": "Pz/LnMPzhxQqsbXZ0SCb3sP0uhw8dCxspoAXLXO4CV8=",
+    "aws": {
+      "s3": {
+        "bucket": "opencollective-staging-us-tax-forms",
+        "region": "us-west-1",
+        "apiVersion": "2006-03-01"
+      }
+    }
+  },
+  "githubFlow": {
+    "minNbStars": 100
+  },
+  "transferwise": {
+    "apiUrl": "https://api.sandbox.transferwise.tech"
+  },
+  "fixie": {}
+}

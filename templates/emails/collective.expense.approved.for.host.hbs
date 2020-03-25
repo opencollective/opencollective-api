@@ -1,0 +1,33 @@
+Subject: New expense approved on {{collective.name}}: {{{currency expense.amount currency=expense.currency precision=2}}} for {{expense.description}}
+
+{{> header}}
+
+<center>
+  <h1>{{{currency expense.amount currency=expense.currency precision=2}}}</h1>
+  <div>{{expense.description}}</div>
+</center>
+
+<br />
+<br />
+
+<table>
+  <tr><th>Submitted by:</th><td><a href="{{config.host.website}}/{{fromCollective.slug}}">{{fromCollective.name}}</a></td></tr>
+  <tr><th>Payout method:</th><td>{{expense.payoutMethodLabel}}</td></tr>
+  {{#if expense.privateMessage}}
+    <tr><th valign="top">Private instructions:</th><td>{{expense.privateMessage}}</td></tr>
+  {{/if}}
+</table>
+
+<br />
+<br />
+
+<center>
+  <a href="{{actions.view}}">
+    <img src="https://res.cloudinary.com/opencollective/image/fetch/w_640,f_jpg/{{expense.attachment}}" width="100%" />
+  </a>
+
+  <br /><br />
+  <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}" class="btn"><div>View Expense</div></a>
+</center>
+
+{{> footer}}

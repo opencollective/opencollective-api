@@ -1,0 +1,44 @@
+Subject: {{update.title}}
+
+{{> header}}
+
+<style>
+  .byline {
+    text-align: center;
+    font-size: 10pt;
+    margin-top: -10px;
+  }
+
+  .updateHtml {
+    margin-top: 2rem;
+  }
+</style>
+
+<center>
+  <p><a href="{{url}}" style="font-size: 10pt;">view online</a></p>
+</center>
+
+{{#if collective.previewImage}}
+  <center>
+    <a href="{{config.host.website}}/{{collective.slug}}">
+      <img src="{{collective.previewImage}}" height="96" border=0 alt="{{collective.name}} logo" />
+    </a>
+  </center>
+{{/if}}
+
+<center>
+  <a href="{{config.host.website}}/{{collective.slug}}">
+    <h3>{{collective.name}}</h3>
+  </a>
+</center>
+
+<br />
+
+<h2>{{update.title}}</h2>
+<div class="byline">by <a href="{{config.host.website}}/{{update.fromCollective.slug}}">{{update.fromCollective.name}}</a></div>
+
+<div class="updateHtml">
+  {{{update.html}}}
+</div>
+
+{{> footer}}

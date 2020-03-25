@@ -1,0 +1,58 @@
+{{#if reminder}}
+Subject: Reminder: your {{brand}} ending in {{name}} is about to expire
+{{else}}
+Subject: Your {{brand}} ending in {{name}} is about to expire
+{{/if}}
+
+<style>
+  code {
+    display: inline-block;
+    border: 1px solid #ccc;
+    background: #ddd;
+    padding: 1px 3px;
+    margin: 0px 1px;
+  }
+</style>
+
+{{> header}}
+
+{{#if collectiveName}}
+<p>Dear {{collectiveName}},</p>
+{{else}}
+<p>Hello,</p>
+{{/if}}
+
+
+{{#if reminder}}
+<p>
+  Just a quick reminder: your {{brand}} ending in {{name}} is about to expire.
+</p>
+{{else}}
+<p>
+  Your {{brand}} ending in {{name}} is about to expire.
+</p>
+{{/if}}
+
+<p>To continue your subscriptions without interruption, you should update this card before the end of the month.</p>
+
+<p>Add a new credit card <a href="{{updateDetailsLink}}">here</a> to keep your subscriptions going.</p>
+
+<p>If you have any questions, please contact <a href="https://opencollective.com/support">Open Collective support</a>.
+</p>
+
+<p>Warmly,</p>
+
+<p>
+  – Team Open Collective
+</p>
+
+{{> footer}}
+
+<p
+  style="text-align:center;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;box-sizing:border-box;font-size:12px;color:#999;">
+  OpenCollective, Inc.<br />
+  EIN: 47-3896707<br />
+  340 S LEMON AVE #3717<br />
+  Walnut CA 91789<br />
+  USA
+</p>

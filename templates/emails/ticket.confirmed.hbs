@@ -1,0 +1,32 @@
+Subject: {{ order.quantity }} {{{pluralize "ticket" n=order.quantity}}} confirmed for {{ event.name }}
+
+{{> header}}
+{{> eventsnippet}}
+
+{{> toplogo}}
+
+{{#if recipient.name}}
+<p>Dear {{recipient.name}},</p>
+{{else}}
+<p>Hi!</p>
+{{/if}}
+
+<p>This confirms your {{ order.quantity }} {{{pluralize "ticket" n=order.quantity}}}{{#if order.totalAmount}} for a total of {{{currency order.totalAmount currency=order.currency}}}{{/if}}. </p>
+
+<p>We are excited that you'll be joining us at <a href="{{config.host.website}}/{{collective.slug}}/events/{{event.slug}}">{{ event.name }}</a> on {{ moment event.startsAt timezone=event.timezone format="MMMM Do YYYY" }} at {{ moment event.startsAt timezone=event.timezone format="h:mma" }} at {{ event.locationName }} ({{event.address}}).</p>
+
+<p>Warmly,</p>
+
+<p>
+  – The {{event.name}} organizers
+</p>
+
+
+<section>
+  <h2>Questions about the event?</h2>
+  <p>Reply to this email to contact the organizers.</p>
+</section>
+
+{{> eventdata}}
+
+{{> footer}}

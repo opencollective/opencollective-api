@@ -1,0 +1,19 @@
+Subject: Please confirm the creation of your {{collective.name}} collective
+
+{{> header}}
+
+<center>
+  <h1>Almost done!</h1>
+  <p>We just need you to confirm that you wish to create a collective for {{collective.name}}. We will then review your application and get in touch shortly if we have any questions.</p>
+  <a href="{{confirmation_url}}" class="btn blue"><div>Confirm</div></a>
+</center>
+
+<div itemscope itemtype="http://schema.org/EmailMessage">
+  <div itemprop="potentialAction" itemscope itemtype="http://schema.org/ViewAction">
+    <link itemprop="url" content="{{loginLink}}"/>
+    <meta itemprop="name" content="confirm"/>
+  </div>
+  <meta itemprop="description" content="Confirm the creation of your collective"/>
+</div>
+
+{{> footer}}

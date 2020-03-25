@@ -1,0 +1,8 @@
+export default {
+  TICKET: 'TICKET',
+  TIER: 'TIER',
+  MEMBERSHIP: 'MEMBERSHIP',
+  PRODUCT: 'PRODUCT',
+  SERVICE: 'SERVICE',
+  DONATION: 'DONATION',
+};

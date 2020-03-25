@@ -1,0 +1,29 @@
+{
+  "database": {
+    "options": {
+      "logging": true,
+      "pool": {
+        "min": 4,
+        "max": 10,
+        "acquire": 60000
+      },
+      "dialectOptions": {
+        "ssl": true
+      }
+    }
+  },
+  "host": {
+    "api": "https://api-staging.opencollective.com",
+    "frontend": "https://frontend-staging.opencollective.com",
+    "website": "https://staging.opencollective.com"
+  },
+  "log": {
+    "slowRequest": true
+  },
+  "stripe": {
+    "redirectUri": "https://api-staging.opencollective.com/connected-accounts/stripe/callback"
+  },
+  "githubFlow": {
+    "minNbStars": 0
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "presets": [
+    "@babel/preset-typescript",
+    [
+      "@babel/preset-env",
+      {
+        "targets": {
+          "node": true
+        }
+      }
+    ]
+  ],
+  "plugins": [
+    "add-module-exports",
+    "lodash",
+    "@babel/plugin-proposal-class-properties",
+    [
+      "@babel/plugin-transform-async-to-generator",
+      {
+        "module": "bluebird",
+        "method": "coroutine"
+      }
+    ]
+  ]
+}
