@@ -31,7 +31,7 @@ import graphqlSchemaV2 from './graphql/v2/schema';
 
 import helloworks from './controllers/helloworks';
 
-import { Sentry, sentryMiddleware } from './sentry/sentry'
+import { Sentry } from './sentry'
 
 const upload = multer();
 
@@ -124,18 +124,27 @@ export default app => {
   /**
    * GraphQL v1
    */
-  const graphqlServerV1 = GraphHTTP({
+  const graphqlServerV1 = GraphHTTP(req =>({
     customFormatErrorFn: error => {
       logger.error(`GraphQL v1 error: ${error.message}`);
       logger.debug(error);
+      
+      Sentry.withScope((scope) => {
+        scope.setTag('error-type', 'GraphQl V1')
+        scope.setTag('code',req.res.statusCode)
+        scope.setExtras({'params':req.params})
+        scope.setExtras({'ip': req.ip});
+        scope.setExtras({'headers': req.headers,})
+        scope.setExtras({'body':req.body})
+        Sentry.captureMessage(error)
+      })
+      
       return formatError(error);
     },
     schema: graphqlSchemaV1,
     pretty: isDevelopment,
     graphiql: isDevelopment,
-    // Add sentry graphql middleware
-    middlewares: [sentryMiddleware]
-  });
+    }));
 
   app.use('/graphql/v1', graphqlServerV1);
 
@@ -150,8 +159,6 @@ export default app => {
     context: ({ req }) => {
       return req;
     },
-    // Add sentry graphql middleware
-    middlewares: [sentryMiddleware]
   });
 
   graphqlServerV2.applyMiddleware({ app, path: '/graphql/v2' });
