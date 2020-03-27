@@ -30,12 +30,19 @@ const { Activity, Collective, Expense, PaymentMethod, Transaction } = models;
  *     with the week of Wednesday June 30th till Tuesday July 5 (technically till Wednesday July 6 not included)
  */
 const lastWeek = [
-  moment(process.env.START_DATE).tz('UTC').startOf('isoWeek').subtract(1, 'week'),
-  moment(process.env.START_DATE).tz('UTC').startOf('isoWeek'),
+  moment(process.env.START_DATE)
+    .tz('UTC')
+    .startOf('isoWeek')
+    .subtract(1, 'week'),
+  moment(process.env.START_DATE)
+    .tz('UTC')
+    .startOf('isoWeek'),
 ];
 const sameDatesLastMonth = [
   moment(lastWeek[0]).subtract(1, 'month'),
-  moment(lastWeek[0]).subtract(1, 'month').add(7, 'days'),
+  moment(lastWeek[0])
+    .subtract(1, 'month')
+    .add(7, 'days'),
 ];
 
 const createdLastWeek = getTimeFrame('createdAt', lastWeek);

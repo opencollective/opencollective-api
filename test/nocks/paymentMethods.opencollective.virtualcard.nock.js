@@ -1,6 +1,6 @@
 import nock from 'nock';
 
-export default function () {
+export default function() {
   nock('https://data.fixer.io', { encodedQueryParams: true })
     .get('/latest')
     .times(2)

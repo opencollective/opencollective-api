@@ -40,7 +40,9 @@ async function HostReport(year, month, hostId) {
     endDate = new Date(d.getFullYear() + 1, 0, 1);
   }
 
-  const endDateIncluded = moment(endDate).subtract(1, 'days').toDate();
+  const endDateIncluded = moment(endDate)
+    .subtract(1, 'days')
+    .toDate();
 
   const dateRange = {
     createdAt: { [Op.gte]: startDate, [Op.lt]: endDate },

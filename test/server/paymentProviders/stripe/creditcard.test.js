@@ -61,11 +61,17 @@ describe('server/paymentProviders/stripe/creditcard', () => {
 
     beforeEach(() => {
       // Call performed by getOrCreateCustomerOnPlatformAccount
-      nock('https://api.stripe.com:443').post('/v1/customers').reply(200, {});
+      nock('https://api.stripe.com:443')
+        .post('/v1/customers')
+        .reply(200, {});
 
       // Calls performed by getOrCreateCustomerIdForHost
-      nock('https://api.stripe.com:443').post('/v1/tokens').reply(200, {});
-      secondCallToCreateCustomer = nock('https://api.stripe.com:443').post('/v1/customers').reply(200, {});
+      nock('https://api.stripe.com:443')
+        .post('/v1/tokens')
+        .reply(200, {});
+      secondCallToCreateCustomer = nock('https://api.stripe.com:443')
+        .post('/v1/customers')
+        .reply(200, {});
 
       // Calls performed by createChargeAndTransactions
       nock('https://api.stripe.com:443')

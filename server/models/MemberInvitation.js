@@ -6,7 +6,7 @@ import roles, { MemberRoleLabels } from '../constants/roles';
 import emailLib from '../lib/email';
 import models from '.';
 
-export default function (Sequelize, DataTypes) {
+export default function(Sequelize, DataTypes) {
   const MemberInvitation = Sequelize.define(
     'MemberInvitation',
     {
@@ -110,7 +110,7 @@ export default function (Sequelize, DataTypes) {
 
   // ---- Instance methods ----
 
-  MemberInvitation.prototype.accept = async function () {
+  MemberInvitation.prototype.accept = async function() {
     const existingMember = await models.Member.findOne({
       where: {
         MemberCollectiveId: this.MemberCollectiveId,
@@ -152,13 +152,13 @@ export default function (Sequelize, DataTypes) {
     return this.destroy();
   };
 
-  MemberInvitation.prototype.decline = async function () {
+  MemberInvitation.prototype.decline = async function() {
     return this.destroy();
   };
 
   // ---- Static methods ----
 
-  MemberInvitation.invite = async function (collective, memberParams) {
+  MemberInvitation.invite = async function(collective, memberParams) {
     // Check params
     if (![roles.ADMIN, roles.MEMBER].includes(memberParams.role)) {
       throw new Error('Can only invite users as admins or members');

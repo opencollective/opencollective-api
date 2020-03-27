@@ -21,7 +21,9 @@ describe('server/routes/connectedAccounts', () => {
 
     describe('WHEN calling /connected-accounts/github with API key', () => {
       beforeEach(done => {
-        req = request(app).get('/connected-accounts/github?utm_source=mm').send({ api_key: application.api_key });
+        req = request(app)
+          .get('/connected-accounts/github?utm_source=mm')
+          .send({ api_key: application.api_key });
         done();
       });
 

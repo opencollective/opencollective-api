@@ -90,5 +90,8 @@ function expectPayload(expectedPayload) {
 }
 
 function callSlackLib(done, msg, webhookUrl, options) {
-  slackLib.postMessage(msg, webhookUrl, options).then(done).catch(done);
+  slackLib
+    .postMessage(msg, webhookUrl, options)
+    .then(done)
+    .catch(done);
 }

@@ -1,6 +1,6 @@
 import nock from 'nock';
 
-export default function () {
+export default function() {
   nock('http://api.meetup.com:80')
     .get('/opencollective/events')
     .query({ key: '620459537f4174273a5d4g535321445' })

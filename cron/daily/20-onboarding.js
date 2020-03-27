@@ -11,7 +11,7 @@ const XDaysAgo = days => {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate() - days);
 };
 
-Date.prototype.toString = function () {
+Date.prototype.toString = function() {
   const mm = this.getMonth() + 1; // getMonth() is zero-based
   const dd = this.getDate();
 

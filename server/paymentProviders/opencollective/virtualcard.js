@@ -358,7 +358,11 @@ function getCreateParams(args, collective, sourcePaymentMethod, remoteUser) {
   }
 
   // Set a default expirity date to 2 years by default
-  const expiryDate = args.expiryDate ? moment(args.expiryDate).format() : moment().add(24, 'months').format();
+  const expiryDate = args.expiryDate
+    ? moment(args.expiryDate).format()
+    : moment()
+        .add(24, 'months')
+        .format();
 
   // If monthlyLimitPerMember is defined, we ignore the amount field and
   // consider monthlyLimitPerMember times the months from now until the expiry date

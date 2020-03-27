@@ -1,21 +1,23 @@
 import nock from 'nock';
 
-nock('https://api.mailgun.net:443').get('/v3/lists').reply(
-  200,
-  { items: [], total_count: 11 },
-  {
-    server: 'nginx',
-    date: 'Fri, 29 Jul 2016 14:40:32 GMT',
-    'content-type': 'application/json',
-    'content-length': '38',
-    connection: 'close',
-    'content-disposition': 'inline',
-    'access-control-allow-origin': '*',
-    'access-control-max-age': '600',
-    'access-control-allow-methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'access-control-allow-headers': 'Content-Type, x-requested-with',
-  },
-);
+nock('https://api.mailgun.net:443')
+  .get('/v3/lists')
+  .reply(
+    200,
+    { items: [], total_count: 11 },
+    {
+      server: 'nginx',
+      date: 'Fri, 29 Jul 2016 14:40:32 GMT',
+      'content-type': 'application/json',
+      'content-length': '38',
+      connection: 'close',
+      'content-disposition': 'inline',
+      'access-control-allow-origin': '*',
+      'access-control-max-age': '600',
+      'access-control-allow-methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'access-control-allow-headers': 'Content-Type, x-requested-with',
+    },
+  );
 
 nock('https://api.mailgun.net:443')
   .post(
@@ -49,25 +51,27 @@ nock('https://api.mailgun.net:443')
     },
   );
 
-nock('https://api.mailgun.net:443').delete('/v3/lists/backers@testcollective.opencollective.com').reply(
-  200,
-  {
-    address: 'backers@testcollective.opencollective.com',
-    message: 'Mailing list has been removed',
-  },
-  {
-    server: 'nginx',
-    date: 'Fri, 29 Jul 2016 14:40:33 GMT',
-    'content-type': 'application/json',
-    'content-length': '106',
-    connection: 'close',
-    'content-disposition': 'inline',
-    'access-control-allow-origin': '*',
-    'access-control-max-age': '600',
-    'access-control-allow-methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'access-control-allow-headers': 'Content-Type, x-requested-with',
-  },
-);
+nock('https://api.mailgun.net:443')
+  .delete('/v3/lists/backers@testcollective.opencollective.com')
+  .reply(
+    200,
+    {
+      address: 'backers@testcollective.opencollective.com',
+      message: 'Mailing list has been removed',
+    },
+    {
+      server: 'nginx',
+      date: 'Fri, 29 Jul 2016 14:40:33 GMT',
+      'content-type': 'application/json',
+      'content-length': '106',
+      connection: 'close',
+      'content-disposition': 'inline',
+      'access-control-allow-origin': '*',
+      'access-control-max-age': '600',
+      'access-control-allow-methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'access-control-allow-headers': 'Content-Type, x-requested-with',
+    },
+  );
 
 nock('https://api.mailgun.net:443')
   .post(
@@ -131,25 +135,27 @@ nock('https://api.mailgun.net:443')
     },
   );
 
-nock('https://api.mailgun.net:443').delete('/v3/lists/backers@testcollective.opencollective.com').reply(
-  200,
-  {
-    address: 'backers@testcollective.opencollective.com',
-    message: 'Mailing list has been removed',
-  },
-  {
-    server: 'nginx',
-    date: 'Fri, 29 Jul 2016 14:40:33 GMT',
-    'content-type': 'application/json',
-    'content-length': '106',
-    connection: 'close',
-    'content-disposition': 'inline',
-    'access-control-allow-origin': '*',
-    'access-control-max-age': '600',
-    'access-control-allow-methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'access-control-allow-headers': 'Content-Type, x-requested-with',
-  },
-);
+nock('https://api.mailgun.net:443')
+  .delete('/v3/lists/backers@testcollective.opencollective.com')
+  .reply(
+    200,
+    {
+      address: 'backers@testcollective.opencollective.com',
+      message: 'Mailing list has been removed',
+    },
+    {
+      server: 'nginx',
+      date: 'Fri, 29 Jul 2016 14:40:33 GMT',
+      'content-type': 'application/json',
+      'content-length': '106',
+      connection: 'close',
+      'content-disposition': 'inline',
+      'access-control-allow-origin': '*',
+      'access-control-max-age': '600',
+      'access-control-allow-methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'access-control-allow-headers': 'Content-Type, x-requested-with',
+    },
+  );
 
 nock('https://api.mailgun.net:443')
   .post(
@@ -399,62 +405,68 @@ nock('https://api.mailgun.net:443')
     },
   );
 
-nock('https://api.mailgun.net:443').delete('/v3/lists/backers@testcollective.opencollective.com').reply(
-  200,
-  {
-    address: 'backers@testcollective.opencollective.com',
-    message: 'Mailing list has been removed',
-  },
-  {
-    server: 'nginx',
-    date: 'Fri, 29 Jul 2016 14:40:33 GMT',
-    'content-type': 'application/json',
-    'content-length': '106',
-    connection: 'close',
-    'content-disposition': 'inline',
-    'access-control-allow-origin': '*',
-    'access-control-max-age': '600',
-    'access-control-allow-methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'access-control-allow-headers': 'Content-Type, x-requested-with',
-  },
-);
+nock('https://api.mailgun.net:443')
+  .delete('/v3/lists/backers@testcollective.opencollective.com')
+  .reply(
+    200,
+    {
+      address: 'backers@testcollective.opencollective.com',
+      message: 'Mailing list has been removed',
+    },
+    {
+      server: 'nginx',
+      date: 'Fri, 29 Jul 2016 14:40:33 GMT',
+      'content-type': 'application/json',
+      'content-length': '106',
+      connection: 'close',
+      'content-disposition': 'inline',
+      'access-control-allow-origin': '*',
+      'access-control-max-age': '600',
+      'access-control-allow-methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'access-control-allow-headers': 'Content-Type, x-requested-with',
+    },
+  );
 
-nock('https://api.mailgun.net:443').delete('/v3/lists/organizers@testcollective.opencollective.com').reply(
-  200,
-  {
-    address: 'organizers@testcollective.opencollective.com',
-    message: 'Mailing list has been removed',
-  },
-  {
-    server: 'nginx',
-    date: 'Fri, 29 Jul 2016 14:40:33 GMT',
-    'content-type': 'application/json',
-    'content-length': '106',
-    connection: 'close',
-    'content-disposition': 'inline',
-    'access-control-allow-origin': '*',
-    'access-control-max-age': '600',
-    'access-control-allow-methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'access-control-allow-headers': 'Content-Type, x-requested-with',
-  },
-);
+nock('https://api.mailgun.net:443')
+  .delete('/v3/lists/organizers@testcollective.opencollective.com')
+  .reply(
+    200,
+    {
+      address: 'organizers@testcollective.opencollective.com',
+      message: 'Mailing list has been removed',
+    },
+    {
+      server: 'nginx',
+      date: 'Fri, 29 Jul 2016 14:40:33 GMT',
+      'content-type': 'application/json',
+      'content-length': '106',
+      connection: 'close',
+      'content-disposition': 'inline',
+      'access-control-allow-origin': '*',
+      'access-control-max-age': '600',
+      'access-control-allow-methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'access-control-allow-headers': 'Content-Type, x-requested-with',
+    },
+  );
 
-nock('https://api.mailgun.net:443').delete('/v3/lists/sponsors@testcollective.opencollective.com').reply(
-  200,
-  {
-    address: 'sponsors@testcollective.opencollective.com',
-    message: 'Mailing list has been removed',
-  },
-  {
-    server: 'nginx',
-    date: 'Fri, 29 Jul 2016 14:40:34 GMT',
-    'content-type': 'application/json',
-    'content-length': '107',
-    connection: 'close',
-    'content-disposition': 'inline',
-    'access-control-allow-origin': '*',
-    'access-control-max-age': '600',
-    'access-control-allow-methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'access-control-allow-headers': 'Content-Type, x-requested-with',
-  },
-);
+nock('https://api.mailgun.net:443')
+  .delete('/v3/lists/sponsors@testcollective.opencollective.com')
+  .reply(
+    200,
+    {
+      address: 'sponsors@testcollective.opencollective.com',
+      message: 'Mailing list has been removed',
+    },
+    {
+      server: 'nginx',
+      date: 'Fri, 29 Jul 2016 14:40:34 GMT',
+      'content-type': 'application/json',
+      'content-length': '107',
+      connection: 'close',
+      'content-disposition': 'inline',
+      'access-control-allow-origin': '*',
+      'access-control-max-age': '600',
+      'access-control-allow-methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'access-control-allow-headers': 'Content-Type, x-requested-with',
+    },
+  );

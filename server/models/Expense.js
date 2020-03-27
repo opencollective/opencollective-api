@@ -9,7 +9,7 @@ import { reduceArrayToCurrency } from '../lib/currency';
 import models, { Op } from './';
 import { PayoutMethodTypes } from './PayoutMethod';
 
-export default function (Sequelize, DataTypes) {
+export default function(Sequelize, DataTypes) {
   const Expense = Sequelize.define(
     'Expense',
     {
@@ -205,7 +205,7 @@ export default function (Sequelize, DataTypes) {
   /**
    * Instance Methods
    */
-  Expense.prototype.createActivity = async function (type) {
+  Expense.prototype.createActivity = async function(type) {
     const user = this.user || (await models.User.findByPk(this.UserId));
     const userCollective = await models.Collective.findByPk(user.CollectiveId);
     if (!this.collective) {
@@ -234,7 +234,7 @@ export default function (Sequelize, DataTypes) {
     });
   };
 
-  Expense.prototype.setApproved = function (lastEditedById) {
+  Expense.prototype.setApproved = function(lastEditedById) {
     if (this.status === status.PAID) {
       throw new Error("Can't approve an expense that is PAID");
     }
@@ -243,7 +243,7 @@ export default function (Sequelize, DataTypes) {
     return this.save();
   };
 
-  Expense.prototype.setRejected = function (lastEditedById) {
+  Expense.prototype.setRejected = function(lastEditedById) {
     if (this.status === status.PAID) {
       throw new Error("Can't reject an expense that is PAID");
     }
@@ -252,19 +252,19 @@ export default function (Sequelize, DataTypes) {
     return this.save();
   };
 
-  Expense.prototype.setPaid = function (lastEditedById) {
+  Expense.prototype.setPaid = function(lastEditedById) {
     this.status = status.PAID;
     this.lastEditedById = lastEditedById;
     return this.save();
   };
 
-  Expense.prototype.setProcessing = function (lastEditedById) {
+  Expense.prototype.setProcessing = function(lastEditedById) {
     this.status = status.PROCESSING;
     this.lastEditedById = lastEditedById;
     return this.save();
   };
 
-  Expense.prototype.setError = function (lastEditedById) {
+  Expense.prototype.setError = function(lastEditedById) {
     this.status = status.ERROR;
     this.lastEditedById = lastEditedById;
     return this.save();
@@ -273,7 +273,7 @@ export default function (Sequelize, DataTypes) {
   /**
    * Returns the PayoutMethod.type based on the legacy `payoutMethod`
    */
-  Expense.prototype.getPayoutMethodTypeFromLegacy = function () {
+  Expense.prototype.getPayoutMethodTypeFromLegacy = function() {
     return Expense.getPayoutMethodTypeFromLegacy(this.legacyPayoutMethod);
   };
 
@@ -286,7 +286,7 @@ export default function (Sequelize, DataTypes) {
    * @param {*} since
    * @param {*} until
    */
-  Expense.getTotalExpensesFromUserIdInBaseCurrency = async function (userId, baseCurrency, since, until = new Date()) {
+  Expense.getTotalExpensesFromUserIdInBaseCurrency = async function(userId, baseCurrency, since, until = new Date()) {
     const userExpenses = await Expense.findAll({
       attributes: ['currency', 'amount', 'status', 'updatedAt'],
       where: {
@@ -316,7 +316,7 @@ export default function (Sequelize, DataTypes) {
   /**
    * Returns the legacy `payoutMethod` based on the new `PayoutMethod` type
    */
-  Expense.getLegacyPayoutMethodTypeFromPayoutMethod = function (payoutMethod) {
+  Expense.getLegacyPayoutMethodTypeFromPayoutMethod = function(payoutMethod) {
     if (payoutMethod && payoutMethod.type === PayoutMethodTypes.PAYPAL) {
       return 'paypal';
     } else {
@@ -327,7 +327,7 @@ export default function (Sequelize, DataTypes) {
   /**
    * Returns the PayoutMethod.type based on the legacy `payoutMethod`
    */
-  Expense.getPayoutMethodTypeFromLegacy = function (legacyPayoutMethod) {
+  Expense.getPayoutMethodTypeFromLegacy = function(legacyPayoutMethod) {
     return legacyPayoutMethod === 'paypal' ? PayoutMethodTypes.PAYPAL : PayoutMethodTypes.OTHER;
   };
 

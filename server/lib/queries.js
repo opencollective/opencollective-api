@@ -625,10 +625,16 @@ const getMembersWithTotalDonations = (where, options = {}) => {
   const untilCondition = table => {
     let condition = '';
     if (options.since) {
-      condition += `AND ${table}."createdAt" >= '${options.since.toISOString().toString().substr(0, 10)}'`;
+      condition += `AND ${table}."createdAt" >= '${options.since
+        .toISOString()
+        .toString()
+        .substr(0, 10)}'`;
     }
     if (options.until) {
-      condition += `AND ${table}."createdAt" < '${options.until.toISOString().toString().substr(0, 10)}'`;
+      condition += `AND ${table}."createdAt" < '${options.until
+        .toISOString()
+        .toString()
+        .substr(0, 10)}'`;
     }
     return condition;
   };
@@ -738,7 +744,12 @@ const getMembersWithTotalDonations = (where, options = {}) => {
 const getMembersWithBalance = (where, options = {}) => {
   const { until } = options;
   const untilCondition = table =>
-    until ? `AND ${table}."createdAt" < '${until.toISOString().toString().substr(0, 10)}'` : '';
+    until
+      ? `AND ${table}."createdAt" < '${until
+          .toISOString()
+          .toString()
+          .substr(0, 10)}'`
+      : '';
   const roleCond = where.role ? `AND member.role = '${where.role}'` : '';
 
   let types,

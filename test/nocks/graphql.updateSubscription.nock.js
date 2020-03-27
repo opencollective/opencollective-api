@@ -1,6 +1,6 @@
 import nock from 'nock';
 
-export default function () {
+export default function() {
   nock('https://api.stripe.com:443', { encodedQueryParams: true })
     .post('/v1/customers', 'source=tok_1BvCA5DjPFcHOcTmg1234567&email=user1%40opencollective.com')
     .reply(200, {

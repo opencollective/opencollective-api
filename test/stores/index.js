@@ -27,7 +27,9 @@ import * as utils from '../utils';
  */
 export function randEmail(email = 'test-user@emailprovider.com') {
   const [user, domain] = email.replace(/\s/g, '-').split('@');
-  const rand = Math.random().toString(36).substring(2, 15);
+  const rand = Math.random()
+    .toString(36)
+    .substring(2, 15);
   return `${user}-${rand}@${domain}`;
 }
 

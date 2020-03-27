@@ -866,7 +866,9 @@ export async function addFundsToOrg(args, remoteUser) {
     currency: hostCollective.currency,
     CollectiveId: args.CollectiveId,
     customerId: fromCollective.slug,
-    expiryDate: moment().add(1, 'year').format(),
+    expiryDate: moment()
+      .add(1, 'year')
+      .format(),
     uuid: uuid(),
     data: { HostCollectiveId: args.HostCollectiveId },
     service: 'opencollective',

@@ -21,7 +21,7 @@ const markdownConverter = new showdown.Converter();
 /**
  * Update Model.
  */
-export default function (Sequelize, DataTypes) {
+export default function(Sequelize, DataTypes) {
   const { models } = Sequelize;
 
   const Update = Sequelize.define(
@@ -39,7 +39,13 @@ export default function (Sequelize, DataTypes) {
         allowNull: false,
         set(slug) {
           if (slug && slug.toLowerCase) {
-            this.setDataValue('slug', slug.toLowerCase().replace(/ /g, '-').replace(/\./g, ''));
+            this.setDataValue(
+              'slug',
+              slug
+                .toLowerCase()
+                .replace(/ /g, '-')
+                .replace(/\./g, ''),
+            );
           }
         },
       },
@@ -219,7 +225,7 @@ export default function (Sequelize, DataTypes) {
    */
 
   // Edit an update
-  Update.prototype.edit = async function (remoteUser, newUpdateData) {
+  Update.prototype.edit = async function(remoteUser, newUpdateData) {
     mustHaveRole(remoteUser, 'ADMIN', this.CollectiveId, 'edit this update');
     if (newUpdateData.TierId) {
       const tier = await models.Tier.findByPk(newUpdateData.TierId);
@@ -251,7 +257,7 @@ export default function (Sequelize, DataTypes) {
   };
 
   // Publish update
-  Update.prototype.publish = async function (remoteUser) {
+  Update.prototype.publish = async function(remoteUser) {
     mustHaveRole(remoteUser, 'ADMIN', this.CollectiveId, 'publish this update');
     this.publishedAt = new Date();
     this.collective = this.collective || (await models.Collective.findByPk(this.CollectiveId));
@@ -269,19 +275,19 @@ export default function (Sequelize, DataTypes) {
   };
 
   // Unpublish update
-  Update.prototype.unpublish = async function (remoteUser) {
+  Update.prototype.unpublish = async function(remoteUser) {
     mustHaveRole(remoteUser, 'ADMIN', this.CollectiveId, 'unpublish this update');
     this.publishedAt = null;
     return await this.save();
   };
 
-  Update.prototype.delete = async function (remoteUser) {
+  Update.prototype.delete = async function(remoteUser) {
     mustHaveRole(remoteUser, 'ADMIN', this.CollectiveId, 'delete this update');
     return this.destroy();
   };
 
   // Returns the User model of the User that created this Update
-  Update.prototype.getUser = function () {
+  Update.prototype.getUser = function() {
     return models.User.findByPk(this.CreatedByUserId);
   };
 
@@ -289,7 +295,7 @@ export default function (Sequelize, DataTypes) {
    * If there is a username suggested, we'll check that it's valid or increase it's count
    * Otherwise, we'll suggest something.
    */
-  Update.prototype.generateSlug = function () {
+  Update.prototype.generateSlug = function() {
     if (!this.title) {
       return;
     }
@@ -326,7 +332,7 @@ export default function (Sequelize, DataTypes) {
       });
   };
 
-  Update.makeUpdatesPublic = function () {
+  Update.makeUpdatesPublic = function() {
     const today = new Date().setUTCHours(0, 0, 0, 0);
     return models.Update.update(
       {

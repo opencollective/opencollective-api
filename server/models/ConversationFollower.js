@@ -1,6 +1,6 @@
 import { sequelize } from '.';
 
-export default function (Sequelize, DataTypes) {
+export default function(Sequelize, DataTypes) {
   const ConversationFollower = Sequelize.define(
     'ConversationFollowers',
     {

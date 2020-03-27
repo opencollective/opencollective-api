@@ -146,13 +146,17 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
         expect(paymentMethod.service).to.be.equal('opencollective');
         expect(paymentMethod.type).to.be.equal('virtualcard');
         expect(moment(paymentMethod.expiryDate).format('YYYY-MM-DD')).to.be.equal(
-          moment().add(24, 'months').format('YYYY-MM-DD'),
+          moment()
+            .add(24, 'months')
+            .format('YYYY-MM-DD'),
         );
         expect(paymentMethod.description).to.be.equal(args.description);
       }); /** End Of "should create a U$100 virtual card payment method" */
 
       it('should create a U$100 virtual card payment method defining an expiry date', async () => {
-        const expiryDate = moment().add(6, 'months').format('YYYY-MM-DD');
+        const expiryDate = moment()
+          .add(6, 'months')
+          .format('YYYY-MM-DD');
         const args = {
           CollectiveId: collective1.id,
           amount: 10000,
@@ -182,7 +186,9 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
         expect(paymentMethod.service).to.be.equal('opencollective');
         expect(paymentMethod.type).to.be.equal('virtualcard');
         expect(moment(paymentMethod.expiryDate).format('YYYY-MM-DD')).to.be.equal(
-          moment().add(24, 'months').format('YYYY-MM-DD'),
+          moment()
+            .add(24, 'months')
+            .format('YYYY-MM-DD'),
         );
         expect(paymentMethod.monthlyLimitPerMember).to.be.equal(args.monthlyLimitPerMember);
         // if there is a monthlyLimitPerMember balance must not exist
@@ -191,7 +197,9 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
       }); /** End Of "should create a virtual card with monthly limit member of U$100 per month" */
 
       it('should create a virtual card with monthly limit member of U$100 per month defining an expiry date', async () => {
-        const expiryDate = moment().add(6, 'months').format('YYYY-MM-DD');
+        const expiryDate = moment()
+          .add(6, 'months')
+          .format('YYYY-MM-DD');
         const args = {
           description: 'virtual card test',
           CollectiveId: collective1.id,
@@ -733,7 +741,9 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
         expect(paymentMethod.service).to.be.equal('opencollective');
         expect(paymentMethod.type).to.be.equal('virtualcard');
         expect(moment(paymentMethod.expiryDate).format('YYYY-MM-DD')).to.be.equal(
-          moment().add(24, 'months').format('YYYY-MM-DD'),
+          moment()
+            .add(24, 'months')
+            .format('YYYY-MM-DD'),
         );
       }); /** End of "should create a U$100 virtual card payment method" */
 
@@ -1179,7 +1189,10 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
           amount: 10000,
           currency: 'USD',
         };
-        return request(app).post('/v1/payment-methods').send(args).expect(400);
+        return request(app)
+          .post('/v1/payment-methods')
+          .send(args)
+          .expect(400);
       }); /** End Of "should Get 400 because there is no user authenticated" */
 
       it('should fail creating a virtual card without a currency defined', () => {
@@ -1242,7 +1255,9 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
             expect(paymentMethod.limitedToTags[0]).to.be.equal(args.limitedToTags[0]);
             expect(paymentMethod.limitedToHostCollectiveIds[0]).to.be.equal(args.limitedToHostCollectiveIds[0]);
             expect(moment(paymentMethod.expiryDate).format('YYYY-MM-DD')).to.be.equal(
-              moment().add(24, 'months').format('YYYY-MM-DD'),
+              moment()
+                .add(24, 'months')
+                .format('YYYY-MM-DD'),
             );
             expect(paymentMethod.monthlyLimitPerMember).to.be.equal(args.monthlyLimitPerMember);
             // if there is a monthlyLimitPerMember balance must not exist

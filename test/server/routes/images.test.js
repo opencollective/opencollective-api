@@ -16,7 +16,7 @@ const userData = utils.data('user1');
 describe('server/routes/images', () => {
   let user;
 
-  before(function () {
+  before(function() {
     if (!config.aws.s3.key) {
       this.skip();
     }

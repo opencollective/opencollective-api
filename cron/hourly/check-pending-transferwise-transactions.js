@@ -53,7 +53,9 @@ export async function run() {
         {
           status: status.PAID,
           updatedAt: {
-            [Op.gte]: moment().subtract(7, 'days').toDate(),
+            [Op.gte]: moment()
+              .subtract(7, 'days')
+              .toDate(),
           },
         },
       ],

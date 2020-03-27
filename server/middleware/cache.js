@@ -55,7 +55,7 @@ export default () => {
       }
     }
 
-    res.end = function (data) {
+    res.end = function(data) {
       if (req.cached && req.checksum) {
         req.cached.status = 'finished';
         req.cached.response = data;

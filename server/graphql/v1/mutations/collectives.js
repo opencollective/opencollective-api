@@ -954,7 +954,10 @@ export async function sendMessageToCollective(_, args, req) {
   }
 
   const subject =
-    args.subject && sanitize(args.subject, { allowedTags: [], allowedAttributes: {} }).trim().slice(0, 60);
+    args.subject &&
+    sanitize(args.subject, { allowedTags: [], allowedAttributes: {} })
+      .trim()
+      .slice(0, 60);
 
   // User sending the email must have an associated collective
   const fromCollective = await models.Collective.findByPk(req.remoteUser.CollectiveId);

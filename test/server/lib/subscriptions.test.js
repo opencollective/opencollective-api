@@ -235,7 +235,10 @@ describe('server/lib/subscriptions', () => {
 
       // And given that we expect the method send from the mock to be
       // called
-      emailMock.expects('send').once().withArgs('thankyou', 'test@oc.com');
+      emailMock
+        .expects('send')
+        .once()
+        .withArgs('thankyou', 'test@oc.com');
 
       // When the status of the order is handled
       await handleRetryStatus(order, {});
@@ -352,7 +355,10 @@ describe('server/lib/subscriptions', () => {
         const { order } = await createOrderWithSubscription('month', '2018-01-27');
 
         // And given that an email should be sent afterwards
-        emailMock.expects('send').once().withArgs('thankyou');
+        emailMock
+          .expects('send')
+          .once()
+          .withArgs('thankyou');
 
         // And that the payments library will return a transaction (to
         // be included in the email)
@@ -380,7 +386,10 @@ describe('server/lib/subscriptions', () => {
         const { order } = await createOrderWithSubscription('year', '2018-01-27');
 
         // And given that an email should be sent afterwards
-        emailMock.expects('send').once().withArgs('thankyou');
+        emailMock
+          .expects('send')
+          .once()
+          .withArgs('thankyou');
 
         // And that the payments library will return a transaction (to
         // be included in the email)
@@ -408,7 +417,10 @@ describe('server/lib/subscriptions', () => {
         const { order } = await createOrderWithSubscription('year', '2018-01-27');
 
         // And given that an email should be sent afterwards
-        emailMock.expects('send').once().withArgs('payment.failed');
+        emailMock
+          .expects('send')
+          .once()
+          .withArgs('payment.failed');
 
         // And that the payments library will throw an error
         paymentsStub.rejects('TypeError -- Whatever');
