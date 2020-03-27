@@ -344,7 +344,7 @@ export const AccountFields = {
         query.where.tags = { [Op.contains]: [tag] };
       }
       const result = await models.Conversation.findAndCountAll(query);
-      return { nodes: result.rows, total: result.count, limit, offset };
+      return { nodes: result.rows, totalCount: result.count, limit, offset };
     },
   },
   conversationsTags: {
