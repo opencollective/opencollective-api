@@ -281,13 +281,23 @@ export default {
         hostStripeCustomer,
       });
     } catch (error) {
-      if (error.message !== 'Payment Intent require action') {
-        logger.error(`Stripe Payment Error: ${error.message}`);
-        logger.error(error);
-        logger.error(error.stack);
-        throw new Error(UNKNOWN_ERROR_MSG);
+      const knownErrors = [
+        'Your card has insufficient funds.',
+        'Your card was declined.',
+        'Your card does not support this type of purchase.',
+        'Your card has expired.',
+        'Payment Intent require action',
+      ];
+
+      if (knownErrors.includes(error.message)) {
+        throw error;
       }
-      throw error;
+
+      logger.error(`Unknown Stripe Payment Error: ${error.message}`);
+      logger.error(error);
+      logger.error(error.stack);
+
+      throw new Error(UNKNOWN_ERROR_MSG);
     }
 
     await order.paymentMethod.update({ confirmedAt: new Date() });
