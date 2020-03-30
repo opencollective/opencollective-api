@@ -14,6 +14,7 @@ import { get, has, sortBy } from 'lodash';
 
 import queries from '../../lib/queries';
 import { hostResolver } from '../common/collective';
+import { getContextPermission, PERMISSION_TYPE } from '../common/context-permissions';
 
 import {
   LocationType,
@@ -1769,6 +1770,7 @@ export const UserCollectiveType = new GraphQLObjectType({
       ...CollectiveFields(),
       firstName: {
         type: GraphQLString,
+        deprecationReason: '2020-03-27: These field are now deprecated in favor of collective.name',
         resolve(userCollective, args, req) {
           return (
             userCollective && req.loaders.getUserDetailsByCollectiveId.load(userCollective.id).then(u => u.firstName)
@@ -1777,6 +1779,7 @@ export const UserCollectiveType = new GraphQLObjectType({
       },
       lastName: {
         type: GraphQLString,
+        deprecationReason: '2020-03-27: These field are now deprecated in favor of collective.name',
         resolve(userCollective, args, req) {
           return (
             userCollective && req.loaders.getUserDetailsByCollectiveId.load(userCollective.id).then(u => u.lastName)
@@ -1788,10 +1791,16 @@ export const UserCollectiveType = new GraphQLObjectType({
         resolve(userCollective, args, req) {
           if (!req.remoteUser) {
             return null;
+          } else if (userCollective.isIncognito) {
+            if (getContextPermission(req, PERMISSION_TYPE.SEE_INCOGNITO_ACCOUNT_DETAILS, userCollective.id)) {
+              return req.loaders.User.byId.load(userCollective.CreatedByUserId).then(u => u.email);
+            }
+          } else {
+            return (
+              userCollective &&
+              req.loaders.getUserDetailsByCollectiveId.load(userCollective.id).then(user => user.email)
+            );
           }
-          return (
-            userCollective && req.loaders.getUserDetailsByCollectiveId.load(userCollective.id).then(user => user.email)
-          );
         },
       },
       applications: {
