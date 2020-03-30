@@ -18,6 +18,7 @@ import { FeatureNotAllowedForUser, ValidationFailed } from '../../errors';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { types as collectiveTypes } from '../../../constants/collectives';
 import { canUpdateExpenseStatus, canEditExpense, canDeleteExpense } from '../../common/expenses';
+import moment from 'moment';
 
 const debug = debugLib('expenses');
 
@@ -489,8 +490,8 @@ export async function payExpense(remoteUser, args) {
   if (!remoteUser.isAdmin(expense.collective.HostCollectiveId)) {
     throw new errors.Unauthorized("You don't have permission to pay this expense");
   }
-  const host = await expense.collective.getHostCollective();
 
+  const host = await expense.collective.getHostCollective();
   if (expense.legacyPayoutMethod === 'donation') {
     throw new Error('"In kind" donations are not supported anymore');
   }
@@ -509,6 +510,14 @@ export async function payExpense(remoteUser, args) {
   const fxrate = await getFxRate(expense.collective.currency, host.currency);
   const payoutMethod = await expense.getPayoutMethod();
   const payoutMethodType = payoutMethod ? payoutMethod.type : expense.getPayoutMethodTypeFromLegacy();
+
+  if (
+    expense.lastEditedById === remoteUser.id &&
+    moment.duration(moment().diff(expense.updatedAt)).asHours() < 24 &&
+    (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT || payoutMethodType === PayoutMethodTypes.PAYPAL)
+  ) {
+    throw new Error("For your security, you can't approve and pay the same expense within a timeframe of 24 hours.");
+  }
 
   if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT) {
     const [connectedAccount] = await host.getConnectedAccounts({

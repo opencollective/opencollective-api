@@ -1050,6 +1050,50 @@ describe('server/graphql/v1/expenses', () => {
       );
     }); /* End of "fails if not enough funds to cover the fees" */
 
+    it('fails if expense was approved by the same user in less than 24 hours ago', async () => {
+      const { hostAdmin, hostCollective, collective } = await store.newCollectiveWithHost(
+        'WWCode Berlin',
+        'EUR',
+        'USD',
+        10,
+      );
+      // And given a user to file expenses
+      const { user } = await store.newUser('someone cool');
+      await addFunds(user, hostCollective, collective, 15000000);
+      const payoutMethod = await fakePayoutMethod({
+        type: PayoutMethodTypes.BANK_ACCOUNT,
+        data: {
+          accountHolderName: 'Leo Kewitz',
+          currency: 'EUR',
+          type: 'iban',
+          legalType: 'PRIVATE',
+          details: {
+            IBAN: 'DE89370400440532013000',
+          },
+        },
+      });
+      const expense = await fakeExpense({
+        payoutMethod: 'transferwise',
+        status: expenseStatus.APPROVED,
+        amount: 1000000,
+        CollectiveId: collective.id,
+        UserId: user.id,
+        currency: 'USD',
+        category: 'Engineering',
+        type: 'INVOICE',
+        description: 'January Invoice',
+        lastEditedById: hostAdmin.id,
+        PayoutMethodId: payoutMethod.id,
+      });
+
+      const { errors } = await utils.graphqlQuery(payExpenseQuery, { id: expense.id }, hostAdmin);
+      expect(errors).to.be.an('array').of.length(1);
+      expect(errors[0]).to.have.property(
+        'message',
+        "For your security, you can't approve and pay the same expense within a timeframe of 24 hours.",
+      );
+    });
+
     describe('pay with paypal', () => {
       let hostAdmin, hostCollective, collective, expense, user, callPaypal;
 
