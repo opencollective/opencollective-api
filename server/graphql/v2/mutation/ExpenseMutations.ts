@@ -8,7 +8,7 @@ import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
 const expenseMutations = {
   createExpense: {
-    type: Expense,
+    type: new GraphQLNonNull(Expense),
     description: 'Submit an expense to a collective',
     args: {
       expense: {
@@ -23,7 +23,7 @@ const expenseMutations = {
     async resolve(_, args, req): Promise<object> {
       const payoutMethod = args.expense.payoutMethod;
       if (payoutMethod.id) {
-        payoutMethod.id = idDecode(payoutMethod.id, IDENTIFIER_TYPES.EXPENSE);
+        payoutMethod.id = idDecode(payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD);
       }
 
       // Right now this endpoint uses the old mutation by adapting the data for it. Once we get rid
