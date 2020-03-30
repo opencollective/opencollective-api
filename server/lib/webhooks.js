@@ -1,5 +1,7 @@
 import { pick } from 'lodash';
+
 import { activities } from '../constants';
+
 import { formatCurrency } from './utils';
 
 /**

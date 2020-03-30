@@ -2,11 +2,11 @@ import { expect } from 'chai';
 import { describe, it } from 'mocha';
 import sinon from 'sinon';
 
-import * as utils from '../../../utils';
-import models from '../../../../server/models';
 import roles from '../../../../server/constants/roles';
 import emailLib from '../../../../server/lib/email';
 import twitterLib from '../../../../server/lib/twitter';
+import models from '../../../../server/models';
+import * as utils from '../../../utils';
 
 let host, user1, user2, collective1, event1, update1;
 let sandbox, sendEmailSpy, sendTweetSpy;

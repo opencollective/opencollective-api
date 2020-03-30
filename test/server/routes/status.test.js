@@ -1,6 +1,7 @@
-import app from '../../../server/index';
 import { expect } from 'chai';
 import request from 'supertest';
+
+import app from '../../../server/index';
 
 describe('server/routes/status', () => {
   describe('GET /status', () => {

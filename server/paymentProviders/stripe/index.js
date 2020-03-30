@@ -1,15 +1,17 @@
-import config from 'config';
-import jwt from 'jsonwebtoken';
-import axios from 'axios';
-import debugLib from 'debug';
-import { get } from 'lodash';
 import { URLSearchParams } from 'url';
 
-import models from '../../models';
+import axios from 'axios';
+import config from 'config';
+import debugLib from 'debug';
+import jwt from 'jsonwebtoken';
+import { get } from 'lodash';
+
 import errors from '../../lib/errors';
-import creditcard from './creditcard';
-import { addParamsToUrl } from '../../lib/utils';
 import stripe from '../../lib/stripe';
+import { addParamsToUrl } from '../../lib/utils';
+import models from '../../models';
+
+import creditcard from './creditcard';
 
 const debug = debugLib('stripe');
 

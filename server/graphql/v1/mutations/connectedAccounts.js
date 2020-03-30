@@ -1,6 +1,7 @@
+import { pick } from 'lodash';
+
 import errors from '../../../lib/errors';
 import models from '../../../models';
-import { pick } from 'lodash';
 
 const ediableAttributes = ['settings'];
 

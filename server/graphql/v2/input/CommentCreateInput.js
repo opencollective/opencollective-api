@@ -1,4 +1,5 @@
 import { GraphQLString, GraphQLInt, GraphQLInputObjectType } from 'graphql';
+
 import { ExpenseReferenceInput } from './ExpenseReferenceInput';
 
 /**

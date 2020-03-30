@@ -1,77 +1,18 @@
 import config from 'config';
+import { GraphQLNonNull, GraphQLList, GraphQLString, GraphQLInt, GraphQLBoolean, GraphQLObjectType } from 'graphql';
 import { pick } from 'lodash';
 
-import {
-  claimCollective,
-  createCollective,
-  editCollective,
-  deleteEventCollective,
-  deleteCollective,
-  deleteUserCollective,
-  approveCollective,
-  createCollectiveFromGithub,
-  archiveCollective,
-  unarchiveCollective,
-  sendMessageToCollective,
-  rejectCollective,
-  activateCollectiveAsHost,
-  deactivateCollectiveAsHost,
-} from './mutations/collectives';
-import {
-  createOrder,
-  confirmOrder,
-  cancelSubscription,
-  updateSubscription,
-  refundTransaction,
-  addFundsToOrg,
-  addFundsToCollective,
-  completePledge,
-  markOrderAsPaid,
-  markPendingOrderAsExpired,
-} from './mutations/orders';
-
-import { editPublicMessage } from './mutations/members';
-import { editTiers, editTier } from './mutations/tiers';
-import { editConnectedAccount } from './mutations/connectedAccounts';
-import { createWebhook, deleteNotification, editWebhooks } from './mutations/notifications';
-import {
-  createExpense,
-  editExpense,
-  updateExpenseStatus,
-  payExpense,
-  deleteExpense,
-  markExpenseAsUnpaid,
-} from './mutations/expenses';
-import * as paymentMethodsMutation from './mutations/paymentMethods';
-import * as updateMutations from './mutations/updates';
-import * as commentMutations from './mutations/comments';
-import * as applicationMutations from './mutations/applications';
-import * as backyourstackMutations from './mutations/backyourstack';
-import { updateUserEmail, confirmUserEmail } from './mutations/users';
-
 import statuses from '../../constants/expense_status';
-
-import { GraphQLNonNull, GraphQLList, GraphQLString, GraphQLInt, GraphQLBoolean, GraphQLObjectType } from 'graphql';
-
-import {
-  OrderType,
-  TierType,
-  MemberType,
-  ExpenseType,
-  UpdateType,
-  CommentType,
-  ConnectedAccountType,
-  PaymentMethodType,
-  UserType,
-  NotificationType,
-} from './types';
-
-import { CollectiveInterfaceType } from './CollectiveInterface';
-
-import { TransactionInterfaceType } from './TransactionInterface';
+import roles from '../../constants/roles';
+import emailLib from '../../lib/email';
+import errors from '../../lib/errors';
+import logger from '../../lib/logger';
+import models, { sequelize } from '../../models';
+import { createVirtualCardsForEmails, bulkCreateVirtualCards } from '../../paymentProviders/opencollective/virtualcard';
+import { Unauthorized, ValidationFailed, Forbidden } from '../errors';
 
 import { ApplicationType, ApplicationInputType } from './Application';
-
+import { CollectiveInterfaceType } from './CollectiveInterface';
 import {
   CollectiveInputType,
   OrderInputType,
@@ -90,13 +31,65 @@ import {
   NotificationInputType,
   MemberInputType,
 } from './inputTypes';
-import { createVirtualCardsForEmails, bulkCreateVirtualCards } from '../../paymentProviders/opencollective/virtualcard';
-import models, { sequelize } from '../../models';
-import emailLib from '../../lib/email';
-import logger from '../../lib/logger';
-import roles from '../../constants/roles';
-import errors from '../../lib/errors';
-import { Unauthorized, ValidationFailed, Forbidden } from '../errors';
+import * as applicationMutations from './mutations/applications';
+import * as backyourstackMutations from './mutations/backyourstack';
+import {
+  claimCollective,
+  createCollective,
+  editCollective,
+  deleteEventCollective,
+  deleteCollective,
+  deleteUserCollective,
+  approveCollective,
+  createCollectiveFromGithub,
+  archiveCollective,
+  unarchiveCollective,
+  sendMessageToCollective,
+  rejectCollective,
+  activateCollectiveAsHost,
+  deactivateCollectiveAsHost,
+} from './mutations/collectives';
+import * as commentMutations from './mutations/comments';
+import { editConnectedAccount } from './mutations/connectedAccounts';
+import {
+  createExpense,
+  editExpense,
+  updateExpenseStatus,
+  payExpense,
+  deleteExpense,
+  markExpenseAsUnpaid,
+} from './mutations/expenses';
+import { editPublicMessage } from './mutations/members';
+import { createWebhook, deleteNotification, editWebhooks } from './mutations/notifications';
+import {
+  createOrder,
+  confirmOrder,
+  cancelSubscription,
+  updateSubscription,
+  refundTransaction,
+  addFundsToOrg,
+  addFundsToCollective,
+  completePledge,
+  markOrderAsPaid,
+  markPendingOrderAsExpired,
+} from './mutations/orders';
+import * as paymentMethodsMutation from './mutations/paymentMethods';
+import { editTiers, editTier } from './mutations/tiers';
+import * as updateMutations from './mutations/updates';
+import { updateUserEmail, confirmUserEmail } from './mutations/users';
+import { TransactionInterfaceType } from './TransactionInterface';
+import {
+  OrderType,
+  TierType,
+  MemberType,
+  ExpenseType,
+  UpdateType,
+  CommentType,
+  ConnectedAccountType,
+  PaymentMethodType,
+  UserType,
+  NotificationType,
+} from './types';
 
 const mutations = {
   createCollective: {

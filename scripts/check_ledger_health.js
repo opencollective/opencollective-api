@@ -6,11 +6,12 @@ import '../server/env';
  */
 
 import Promise from 'bluebird';
+
 // import { parse as json2csv } from 'json2csv';
-import models, { sequelize, Op } from '../server/models';
 import emailLib from '../server/lib/email';
 // import * as transactionsLib from '../../server/lib/transactions';
 import { formatCurrency } from '../server/lib/utils';
+import models, { sequelize, Op } from '../server/models';
 // import moment from 'moment';
 
 const VERBOSE = true;

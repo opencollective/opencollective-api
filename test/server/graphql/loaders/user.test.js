@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+
 import { generateCanSeeUserPrivateInfoLoader } from '../../../../server/graphql/loaders/user.ts';
 import { fakeUser, fakeCollective } from '../../../test-helpers/fake-data';
 

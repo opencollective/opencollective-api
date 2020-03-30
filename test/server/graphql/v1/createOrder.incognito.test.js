@@ -4,8 +4,8 @@ import { expect } from 'chai';
 import * as libpayments from '../../../../server/lib/payments';
 
 /* Test tools */
-import * as utils from '../../../utils';
 import * as store from '../../../stores';
+import * as utils from '../../../utils';
 
 const getCollectiveQuery = `
 query Collective($slug: String) {

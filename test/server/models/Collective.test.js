@@ -1,11 +1,12 @@
 import { expect } from 'chai';
-import models, { Op } from '../../../server/models';
-import * as utils from '../../utils';
 import sinon from 'sinon';
-import emailLib from '../../../server/lib/email';
+
 import { roles } from '../../../server/constants';
 import plans from '../../../server/constants/plans';
+import emailLib from '../../../server/lib/email';
+import models, { Op } from '../../../server/models';
 import { fakeUser } from '../../test-helpers/fake-data';
+import * as utils from '../../utils';
 
 const { Transaction, Collective, User } = models;
 

@@ -2,8 +2,8 @@
 import '../../server/env';
 
 import logger from '../../server/lib/logger';
-import models from '../../server/models';
 import * as libPayments from '../../server/lib/payments';
+import models from '../../server/models';
 
 // Run on the 7th and 21st of the month
 const today = new Date();

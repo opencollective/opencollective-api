@@ -3,12 +3,13 @@
  */
 
 import config from 'config';
-import { sortBy, get } from 'lodash';
 import slugify from 'limax';
+import { sortBy, get } from 'lodash';
 
 import { CollectiveTypesList } from '../constants/collectives';
 import { RateLimitExceeded } from '../graphql/errors';
 import models, { Op, sequelize } from '../models';
+
 import algolia from './algolia';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from './rate-limit';
 

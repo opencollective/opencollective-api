@@ -1,7 +1,8 @@
 import { expect } from 'chai';
-import { graphqlQueryV2 } from '../../../../utils';
-import { fakeCollective, fakeUser } from '../../../../test-helpers/fake-data';
+
 import { randEmail } from '../../../../stores';
+import { fakeCollective, fakeUser } from '../../../../test-helpers/fake-data';
+import { graphqlQueryV2 } from '../../../../utils';
 
 const createExpenseMutation = `
 mutation createExpense($expense: ExpenseCreateInput!, $account: AccountReferenceInput!) {

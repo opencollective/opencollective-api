@@ -1,17 +1,16 @@
-import sinon from 'sinon';
 import { expect } from 'chai';
 import HelloWorks from 'helloworks-sdk';
-import models from '../../../server/models';
-import * as utils from '../../utils';
 import moment from 'moment';
+import sinon from 'sinon';
 
+import expenseTypes from '../../../server/constants/expense_type';
 import {
   findUsersThatNeedToBeSentTaxForm,
   SendHelloWorksTaxForm,
   isUserTaxFormRequiredBeforePayment,
 } from '../../../server/lib/tax-forms';
-
-import expenseTypes from '../../../server/constants/expense_type';
+import models from '../../../server/models';
+import * as utils from '../../utils';
 const { RECEIPT, INVOICE } = expenseTypes;
 
 const { RequiredLegalDocument, LegalDocument, Collective, User, Expense } = models;

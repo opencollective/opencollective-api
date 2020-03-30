@@ -1,6 +1,6 @@
-import redis from 'redis';
-import debug from 'debug';
 import Promise from 'bluebird';
+import debug from 'debug';
+import redis from 'redis';
 
 const asyncRedis = Promise.promisifyAll(redis);
 

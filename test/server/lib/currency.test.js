@@ -1,7 +1,8 @@
 import { expect } from 'chai';
-import * as currencylib from '../../../server/lib/currency';
-import nock from 'nock';
 import config from 'config';
+import nock from 'nock';
+
+import * as currencylib from '../../../server/lib/currency';
 
 describe('server/lib/currency', () => {
   const startDate = '2017-02-01';

@@ -1,10 +1,10 @@
-import models, { Op, sequelize } from '../models';
-import { PayoutMethodTypes } from '../models/PayoutMethod';
-import errors from '../lib/errors';
 import { TransactionTypes } from '../constants/transactions';
 import { getFxRate } from '../lib/currency';
-import { exportToCSV } from '../lib/utils';
+import errors from '../lib/errors';
 import { toNegative } from '../lib/math';
+import { exportToCSV } from '../lib/utils';
+import models, { Op, sequelize } from '../models';
+import { PayoutMethodTypes } from '../models/PayoutMethod';
 
 /**
  * Export transactions as CSV

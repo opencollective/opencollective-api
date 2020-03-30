@@ -1,7 +1,8 @@
 import { GraphQLString, GraphQLInt, GraphQLInputObjectType } from 'graphql';
+
 import models from '../../../models';
-import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { NotFound } from '../../errors';
+import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
 /**
  * An input for referencing ConnectedAccounts.

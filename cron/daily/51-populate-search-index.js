@@ -5,11 +5,11 @@ import Promise from 'bluebird';
 import debugLib from 'debug';
 import { Op } from 'sequelize';
 
+import { types as collectiveTypes } from '../../server/constants/collectives';
 import algolia from '../../server/lib/algolia';
 import emailLib from '../../server/lib/email';
-import models from '../../server/models';
 import { chunkArray } from '../../server/lib/utils';
-import { types as collectiveTypes } from '../../server/constants/collectives';
+import models from '../../server/models';
 
 const debug = debugLib('populate_search_index');
 

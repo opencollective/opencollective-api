@@ -4,22 +4,23 @@
  * expenses. */
 
 /* Test libraries */
-import sinon from 'sinon';
 import { expect } from 'chai';
 
 /* Test utilities */
 import { pick } from 'lodash';
-import * as utils from '../../../utils';
-import * as store from '../../../stores';
+import sinon from 'sinon';
 
 /* Support code */
-import models from '../../../../server/models';
-import emailLib from '../../../../server/lib/email';
+
+import { roles } from '../../../../server/constants';
+import expenseStatus from '../../../../server/constants/expense_status';
 import { getFxRate } from '../../../../server/lib/currency';
-
-import paypalAdaptive from '../../../../server/paymentProviders/paypal/adaptiveGateway';
+import emailLib from '../../../../server/lib/email';
+import models from '../../../../server/models';
+import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
 import paymentProviders from '../../../../server/paymentProviders';
-
+import paypalAdaptive from '../../../../server/paymentProviders/paypal/adaptiveGateway';
+import * as store from '../../../stores';
 import {
   fakeConnectedAccount,
   fakeExpense,
@@ -29,9 +30,7 @@ import {
   randStr,
   fakePayoutMethod,
 } from '../../../test-helpers/fake-data';
-import { roles } from '../../../../server/constants';
-import expenseStatus from '../../../../server/constants/expense_status';
-import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
+import * as utils from '../../../utils';
 
 /* Queries used throughout these tests */
 const allExpensesQuery = `

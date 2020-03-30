@@ -1,14 +1,15 @@
-import Temporal from 'sequelize-temporal';
 import Promise from 'bluebird';
-import { defaults } from 'lodash';
 import debugLib from 'debug';
 import slugify from 'limax';
+import { defaults } from 'lodash';
 import { Op } from 'sequelize';
+import Temporal from 'sequelize-temporal';
 
-import CustomDataTypes from './DataTypes';
 import { maxInteger } from '../constants/math';
 import { capitalize, days, formatCurrency, strip_tags } from '../lib/utils';
 import { isSupportedVideoProvider, supportedVideoProviders } from '../lib/validators';
+
+import CustomDataTypes from './DataTypes';
 
 const debug = debugLib('models:Tier');
 

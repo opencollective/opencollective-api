@@ -10,9 +10,9 @@ import {
   GraphQLError,
   GraphQLEnumType,
 } from 'graphql';
-
 import GraphQLJSON from 'graphql-type-json';
 import { Kind } from 'graphql/language';
+
 import { IsoDateString, DateString, PayoutMethodTypeEnum } from './types';
 
 const EmailType = new GraphQLScalarType({

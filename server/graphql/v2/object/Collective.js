@@ -1,7 +1,7 @@
 import { GraphQLObjectType, GraphQLInt, GraphQLBoolean } from 'graphql';
 
-import { Account, AccountFields } from '../interface/Account';
 import { hostResolver } from '../../common/collective';
+import { Account, AccountFields } from '../interface/Account';
 
 export const Collective = new GraphQLObjectType({
   name: 'Collective',

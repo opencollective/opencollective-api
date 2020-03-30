@@ -3,16 +3,13 @@ import {
   GraphQLString,
   GraphQLInterfaceType,
 } from 'graphql';
-
 import { GraphQLDateTime } from 'graphql-iso-date';
 
+import { TransactionType } from '../enum/TransactionType';
 import { idEncode } from '../identifiers';
-
-import { Account } from './Account';
-
 import { Amount } from '../object/Amount';
 
-import { TransactionType } from '../enum/TransactionType';
+import { Account } from './Account';
 
 export const Transaction = new GraphQLInterfaceType({
   name: 'Transaction',

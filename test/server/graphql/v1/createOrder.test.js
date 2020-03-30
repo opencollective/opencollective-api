@@ -1,18 +1,17 @@
+import { expect } from 'chai';
 import config from 'config';
+import { cloneDeep } from 'lodash';
 import nock from 'nock';
 import sinon from 'sinon';
-import { expect } from 'chai';
-import { cloneDeep } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
-import models from '../../../../server/models';
-import twitter from '../../../../server/lib/twitter';
-import emailLib from '../../../../server/lib/email';
 import { maxInteger } from '../../../../server/constants/math';
-import { fakeTier } from '../../../test-helpers/fake-data';
-
-import * as utils from '../../../utils';
+import emailLib from '../../../../server/lib/email';
+import twitter from '../../../../server/lib/twitter';
+import models from '../../../../server/models';
 import * as store from '../../../stores';
+import { fakeTier } from '../../../test-helpers/fake-data';
+import * as utils from '../../../utils';
 
 const baseOrder = Object.freeze({
   quantity: 1,

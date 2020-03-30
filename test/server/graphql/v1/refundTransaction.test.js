@@ -1,14 +1,14 @@
 // Test tools
+import { expect } from 'chai';
 import nock from 'nock';
 import sinon from 'sinon';
-import { expect } from 'chai';
-import * as utils from '../../../utils';
 
 // Code components used for setting up the tests
-import models from '../../../../server/models';
 import * as constants from '../../../../server/constants/transactions';
 import * as paymentsLib from '../../../../server/lib/payments';
 import { extractFees } from '../../../../server/lib/stripe';
+import models from '../../../../server/models';
+import * as utils from '../../../utils';
 
 // The GraphQL query that will refund a transaction (it returns the
 // transaction being refunded)

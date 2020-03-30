@@ -1,5 +1,5 @@
-import { get } from 'lodash';
 import DataLoader from 'dataloader';
+import { get } from 'lodash';
 
 /** A default getter that returns item's id */
 const defaultKeyGetter = (item): number | string => item.id;

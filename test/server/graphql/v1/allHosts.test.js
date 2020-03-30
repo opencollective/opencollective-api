@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { describe, it } from 'mocha';
-import models from '../../../../server/models';
 
+import models from '../../../../server/models';
 import * as utils from '../../../utils';
 
 describe('server/graphql/v1/allHosts', () => {

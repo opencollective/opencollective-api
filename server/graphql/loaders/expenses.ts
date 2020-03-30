@@ -1,6 +1,8 @@
 import DataLoader from 'dataloader';
+
 import models, { Op } from '../../models';
 import { ExpenseAttachment } from '../../models/ExpenseAttachment';
+
 import { sortResultsArray } from './helpers';
 
 /**

@@ -3,12 +3,11 @@ import { GraphQLString, GraphQLObjectType } from 'graphql';
 
 import { GraphQLDateTime } from 'graphql-iso-date';
 
+import { MemberRole } from '../enum/MemberRole';
+import { idEncode } from '../identifiers';
 import { Account } from '../interface/Account';
 import { Amount } from '../object/Amount';
 import { Tier } from '../object/Tier';
-import { MemberRole } from '../enum/MemberRole';
-
-import { idEncode } from '../identifiers';
 
 const MemberFields = {
   // _internal_id: {

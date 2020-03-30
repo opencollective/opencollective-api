@@ -1,15 +1,15 @@
 // testing libraries
-import config from 'config';
-import sinon from 'sinon';
+import Index from 'algoliasearch/src/Index';
 import { expect } from 'chai';
+import config from 'config';
 import { describe, it } from 'mocha';
+import sinon from 'sinon';
 
 // class containing 'search' method to stub
-import Index from 'algoliasearch/src/Index';
 
 // Internal testing tools
-import * as utils from '../../../utils';
 import * as store from '../../../stores';
+import * as utils from '../../../utils';
 
 describe('server/graphql/v1/search', () => {
   let sandbox;

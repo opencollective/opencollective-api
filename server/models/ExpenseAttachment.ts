@@ -1,7 +1,8 @@
-import { Model, Transaction } from 'sequelize';
 import { pick } from 'lodash';
-import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
+import { Model, Transaction } from 'sequelize';
+
 import { diffDBEntries } from '../lib/data';
+import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
 
 /**
  * Sequelize model to represent an ExpenseAttachment, linked to the `ExpenseAttachments` table.

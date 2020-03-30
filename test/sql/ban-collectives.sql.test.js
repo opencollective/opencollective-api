@@ -1,6 +1,8 @@
 import path from 'path';
-import { readFileSync } from 'fs-extra';
+
 import { expect } from 'chai';
+import { readFileSync } from 'fs-extra';
+
 import { sequelize } from '../../server/models';
 import { fakeUser, fakeCollective, fakeEvent, fakeUpdate } from '../test-helpers/fake-data';
 

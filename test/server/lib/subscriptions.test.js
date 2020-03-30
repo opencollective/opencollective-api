@@ -1,18 +1,13 @@
+import { expect } from 'chai';
 import config from 'config';
 
 // Testing tools
 import sinon from 'sinon';
-import { expect } from 'chai';
-import * as utils from '../../utils';
 
 // Supporting libraries
-import models from '../../../server/models';
+import status from '../../../server/constants/order_status';
 import emailLib from '../../../server/lib/email';
 import * as paymentsLib from '../../../server/lib/payments';
-import status from '../../../server/constants/order_status';
-import { randEmail } from '../../stores';
-
-// What's being tested
 import {
   MAX_RETRIES,
   handleRetryStatus,
@@ -22,6 +17,11 @@ import {
   processOrderWithSubscription,
   groupProcessedOrders,
 } from '../../../server/lib/subscriptions';
+import models from '../../../server/models';
+import { randEmail } from '../../stores';
+
+// What's being tested
+import * as utils from '../../utils';
 
 async function createOrderWithSubscription(interval, date, quantity = 1) {
   const payment = { amount: 1000, currency: 'USD', interval };

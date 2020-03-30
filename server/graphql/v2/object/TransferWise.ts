@@ -1,7 +1,7 @@
 import { GraphQLNonNull, GraphQLList, GraphQLObjectType, GraphQLString, GraphQLBoolean, GraphQLInt } from 'graphql';
 
-import { TransferWiseCurrency } from '../enum/Currency';
 import transferwise from '../../../paymentProviders/transferwise';
+import { TransferWiseCurrency } from '../enum/Currency';
 
 const TransferWiseFieldGroupValuesAllowed = new GraphQLObjectType({
   name: 'TransferWiseFieldVatvkluesAllowed',

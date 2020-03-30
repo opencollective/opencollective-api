@@ -1,6 +1,6 @@
-import config from 'config';
-import { Octokit } from '@octokit/rest';
 import { createOAuthAppAuth } from '@octokit/auth-oauth-app';
+import { Octokit } from '@octokit/rest';
+import config from 'config';
 import { get, has, pick } from 'lodash';
 
 import cache from './cache';

@@ -1,16 +1,16 @@
-import moment from 'moment';
-import { v4 as uuid } from 'uuid';
-import { get, times, isEmpty } from 'lodash';
 import config from 'config';
+import { get, times, isEmpty } from 'lodash';
+import moment from 'moment';
 import sanitize from 'sanitize-html';
+import { v4 as uuid } from 'uuid';
 
-import models, { Op, sequelize } from '../../models';
-import * as libpayments from '../../lib/payments';
-import * as currency from '../../lib/currency';
-import { formatCurrency, isValidEmail } from '../../lib/utils';
-import emailLib from '../../lib/email';
-import cache from '../../lib/cache';
 import { ValidationFailed } from '../../graphql/errors';
+import cache from '../../lib/cache';
+import * as currency from '../../lib/currency';
+import emailLib from '../../lib/email';
+import * as libpayments from '../../lib/payments';
+import { formatCurrency, isValidEmail } from '../../lib/utils';
+import models, { Op, sequelize } from '../../models';
 
 /**
  * Virtual Card Payment method - This payment Method works basically as an alias

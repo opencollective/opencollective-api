@@ -1,7 +1,8 @@
+import config from 'config';
+import { get } from 'lodash';
+
 import models from '../../../models';
 import * as errors from '../../errors';
-import { get } from 'lodash';
-import config from 'config';
 
 const { Application } = models;
 

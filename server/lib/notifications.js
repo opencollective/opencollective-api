@@ -1,19 +1,19 @@
 import axios from 'axios';
-import config from 'config';
 import Promise from 'bluebird';
+import config from 'config';
 import debugLib from 'debug';
 import { get, remove } from 'lodash';
 
+import { channels } from '../constants';
+import activityType from '../constants/activities';
 import activitiesLib from '../lib/activities';
+import emailLib from '../lib/email';
+import models from '../models';
+import { PayoutMethodTypes } from '../models/PayoutMethod';
+
 import slackLib from './slack';
 import twitter from './twitter';
-import emailLib from '../lib/email';
-import activityType from '../constants/activities';
-import models from '../models';
-
-import { channels } from '../constants';
 import { sanitizeActivity, enrichActivity } from './webhooks';
-import { PayoutMethodTypes } from '../models/PayoutMethod';
 
 const debug = debugLib('notifications');
 

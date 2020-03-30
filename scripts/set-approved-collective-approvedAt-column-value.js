@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import '../server/env';
 import { map } from 'bluebird';
+
 import { sequelize } from '../server/models';
 
 /**

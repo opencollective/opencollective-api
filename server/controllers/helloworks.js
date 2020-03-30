@@ -1,11 +1,13 @@
-import { get } from 'lodash';
+import fs from 'fs';
+
 import config from 'config';
 import HelloWorks from 'helloworks-sdk';
+import { get } from 'lodash';
+
 import s3 from '../lib/awsS3';
-import models from '../models';
-import fs from 'fs';
-import logger from '../lib/logger';
 import { encrypt } from '../lib/encryption';
+import logger from '../lib/logger';
+import models from '../models';
 
 const { User, LegalDocument, RequiredLegalDocument } = models;
 const {

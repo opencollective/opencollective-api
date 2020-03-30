@@ -7,8 +7,8 @@ import '../server/env';
 import config from 'config';
 import juice from 'juice';
 
-import libEmailTemplates from '../server/lib/emailTemplates';
 import { getMailer } from '../server/lib/email';
+import libEmailTemplates from '../server/lib/emailTemplates';
 
 const templateName = process.argv[2];
 const data = {};

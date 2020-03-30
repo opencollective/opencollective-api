@@ -1,19 +1,17 @@
-import debugLib from 'debug';
 import Promise from 'bluebird';
+import debugLib from 'debug';
 import { get, intersection } from 'lodash';
 import { Op } from 'sequelize';
 
+import { maxInteger } from '../constants/math';
 import { TransactionTypes } from '../constants/transactions';
-
-import { sumTransactions } from '../lib/hostlib';
-import { formatCurrency, formatArrayToString, cleanTags } from '../lib/utils';
 import { getFxRate } from '../lib/currency';
-
-import CustomDataTypes from './DataTypes';
+import { sumTransactions } from '../lib/hostlib';
 import * as libpayments from '../lib/payments';
 import { isTestToken } from '../lib/stripe';
+import { formatCurrency, formatArrayToString, cleanTags } from '../lib/utils';
 
-import { maxInteger } from '../constants/math';
+import CustomDataTypes from './DataTypes';
 
 const debug = debugLib('models:PaymentMethod');
 

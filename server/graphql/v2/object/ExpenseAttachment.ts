@@ -1,5 +1,6 @@
 import { GraphQLString, GraphQLInt, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
+
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 
 const ExpenseAttachment = new GraphQLObjectType({

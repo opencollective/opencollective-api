@@ -1,5 +1,6 @@
 import { GraphQLObjectType, GraphQLSchema } from 'graphql';
 
+import { ApplicationType, ApplicationInputType } from './Application';
 import {
   CollectiveInterfaceType,
   CollectiveSearchResultsType,
@@ -9,13 +10,9 @@ import {
   OrganizationCollectiveType,
   EventCollectiveType,
 } from './CollectiveInterface';
-
-import { TransactionInterfaceType, TransactionOrderType, TransactionExpenseType } from './TransactionInterface';
-
-import { ApplicationType, ApplicationInputType } from './Application';
-
-import query from './queries';
 import mutation from './mutations';
+import query from './queries';
+import { TransactionInterfaceType, TransactionOrderType, TransactionExpenseType } from './TransactionInterface';
 
 const Query = new GraphQLObjectType({
   name: 'Query',

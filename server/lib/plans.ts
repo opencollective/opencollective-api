@@ -1,6 +1,7 @@
 import { get } from 'lodash';
 
 import plans, { PLANS_COLLECTIVE_SLUG } from '../constants/plans';
+
 import { notifyAdminsOfCollective } from './notifications';
 
 const isSubscribeOrUpgrade = (newPlan: string, oldPlan?: string | null): boolean => {

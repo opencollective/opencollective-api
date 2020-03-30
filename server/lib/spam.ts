@@ -1,5 +1,6 @@
-import { clamp } from 'lodash';
 import config from 'config';
+import { clamp } from 'lodash';
+
 import slackLib from '../lib/slack';
 
 /** Return type when running a spam analysis */

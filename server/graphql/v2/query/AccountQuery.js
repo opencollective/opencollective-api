@@ -1,9 +1,9 @@
 import { GraphQLString, GraphQLBoolean } from 'graphql';
 
-import { Account } from '../interface/Account';
 import models from '../../../models';
-import { idDecode } from '../identifiers';
 import { NotFound } from '../../errors';
+import { idDecode } from '../identifiers';
+import { Account } from '../interface/Account';
 
 const AccountQuery = {
   type: Account,

@@ -1,8 +1,9 @@
 #!/usr/bin/env ./node_modules/.bin/babel-node
 import '../server/env';
 import { get, last } from 'lodash';
-import models from '../server/models';
+
 import stripe from '../server/lib/stripe';
+import models from '../server/models';
 
 if (process.argv.length < 3) {
   console.error(

@@ -1,14 +1,14 @@
+import { expect } from 'chai';
 import config from 'config';
 import moment from 'moment';
 import nodemailer from 'nodemailer';
-import request from 'supertest-as-promised';
 import sinon from 'sinon';
-import { expect } from 'chai';
+import request from 'supertest-as-promised';
 
 import app from '../../../server/index';
-import * as utils from '../../utils';
-import models from '../../../server/models';
 import * as auth from '../../../server/lib/auth.js';
+import models from '../../../server/models';
+import * as utils from '../../utils';
 
 /**
  * Variables.

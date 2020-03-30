@@ -1,6 +1,7 @@
 import { GraphQLString, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 import GraphQLJSON from 'graphql-type-json';
+
 import { ConnectedAccountService } from '../enum/ConnectedAccountService';
 
 export const ConnectedAccount = new GraphQLObjectType({

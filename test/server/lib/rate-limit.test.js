@@ -1,6 +1,7 @@
 import { expect } from 'chai';
-import { randStr } from '../../test-helpers/fake-data';
+
 import RateLimit from '../../../server/lib/rate-limit';
+import { randStr } from '../../test-helpers/fake-data';
 
 describe('server/lib/rate-limit', () => {
   it('limits the calls with registerCall', async () => {

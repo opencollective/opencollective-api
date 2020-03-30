@@ -6,13 +6,14 @@
 // This lib is a superset of `utils.data` that generates values that are random and safe
 // to use in loops and repeted tests.
 
-import { v4 as uuid } from 'uuid';
 import { get, sample } from 'lodash';
-import models from '../../server/models';
-import { types as CollectiveType } from '../../server/constants/collectives';
-import { randEmail, randUrl } from '../stores';
-import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
+import { v4 as uuid } from 'uuid';
+
 import { roles } from '../../server/constants';
+import { types as CollectiveType } from '../../server/constants/collectives';
+import models from '../../server/models';
+import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
+import { randEmail, randUrl } from '../stores';
 
 export const randStr = (prefix = '') => `${prefix}${uuid().split('-')[0]}`;
 export const randNumber = (min = 0, max = 10000000) => Math.floor(Math.random() * max) + min;

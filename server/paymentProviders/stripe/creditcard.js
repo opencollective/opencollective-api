@@ -1,11 +1,11 @@
 import config from 'config';
 import { get, result } from 'lodash';
 
-import models from '../../models';
-import logger from '../../lib/logger';
-import stripe, { extractFees } from '../../lib/stripe';
 import * as constants from '../../constants/transactions';
+import logger from '../../lib/logger';
 import * as paymentsLib from '../../lib/payments';
+import stripe, { extractFees } from '../../lib/stripe';
+import models from '../../models';
 
 const UNKNOWN_ERROR_MSG = 'Something went wrong with the payment, please contact support@opencollective.com.';
 

@@ -2,13 +2,13 @@ import config from 'config';
 import debug from 'debug';
 import { get } from 'lodash';
 
+import models from '../../models';
+import logger from '../logger';
+import { md5 } from '../utils';
+
 import makeMemcacheProvider from './memcache';
 import makeMemoryProvider from './memory';
 import makeRedisProvider from './redis';
-
-import logger from '../logger';
-import models from '../../models';
-import { md5 } from '../utils';
 
 export const PROVIDER_TYPES = {
   MEMCACHE: 'MEMCACHE',

@@ -1,11 +1,9 @@
 import { GraphQLInt } from 'graphql';
 
+import models from '../../../models';
 import { TransactionCollection } from '../collection/TransactionCollection';
 import { TransactionType } from '../enum/TransactionType';
-
 import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
-
-import models from '../../../models';
 
 const TransactionsQuery = {
   type: TransactionCollection,

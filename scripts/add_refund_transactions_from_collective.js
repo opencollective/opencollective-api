@@ -13,9 +13,9 @@ import '../server/env';
 import Promise from 'bluebird';
 import debug from 'debug';
 
-import models from '../server/models';
-import * as libPayments from '../server/lib/payments';
 import { purgeCacheForPage } from '../server/lib/cloudflare';
+import * as libPayments from '../server/lib/payments';
+import models from '../server/models';
 
 // the user id of the one who's running this script, will be set on the field `CreatedByUserId`.
 const UPDATER_USER_ID = parseInt(process.env.UPDATER_USER_ID);

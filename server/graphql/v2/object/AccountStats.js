@@ -1,12 +1,9 @@
+import { GraphQLInt, GraphQLObjectType } from 'graphql';
 import { get, has } from 'lodash';
 
-import { GraphQLInt, GraphQLObjectType } from 'graphql';
-
-import { Amount } from '../object/Amount';
-
-import { idEncode } from '../identifiers';
-
 import queries from '../../../lib/queries';
+import { idEncode } from '../identifiers';
+import { Amount } from '../object/Amount';
 
 export const AccountStats = new GraphQLObjectType({
   name: 'AccountStats',

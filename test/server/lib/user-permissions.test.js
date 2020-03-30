@@ -1,6 +1,7 @@
 import { expect } from 'chai';
-import { canUseFeature } from '../../../server/lib/user-permissions';
+
 import FEATURE from '../../../server/constants/feature';
+import { canUseFeature } from '../../../server/lib/user-permissions';
 
 const validUser = {
   id: 1,

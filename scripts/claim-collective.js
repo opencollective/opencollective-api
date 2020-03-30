@@ -2,10 +2,10 @@ import '../server/env';
 
 import debug from 'debug';
 
-import models from '../server/models';
 import roles from '../server/constants/roles';
 import emailLib from '../server/lib/email';
 import { defaultHostCollective } from '../server/lib/utils';
+import models from '../server/models';
 
 const debugClaim = debug('claim');
 

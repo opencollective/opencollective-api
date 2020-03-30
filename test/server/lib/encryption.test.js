@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+
 import { generateKey, encrypt, decrypt } from '../../../server/lib/encryption';
 
 describe('server/lib/encryption', () => {

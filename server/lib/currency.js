@@ -1,11 +1,12 @@
-import fetch from 'isomorphic-fetch';
+import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
+import fetch from 'isomorphic-fetch';
 import { get } from 'lodash';
-import Promise from 'bluebird';
+
+import { currencyFormats } from '../constants/currency_format';
 
 import logger from './logger';
-import { currencyFormats } from '../constants/currency_format';
 
 const debug = debugLib('currency');
 const cache = {};

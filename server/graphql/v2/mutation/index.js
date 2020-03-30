@@ -1,9 +1,9 @@
+import accountMutations from './AccountMutations';
 import commentMutations from './CommentMutations';
 import connectedAccountMutations from './ConnectedAccountMutations';
 import conversationMutations from './ConversationMutations';
 import createCollectiveMutations from './CreateCollectiveMutations';
 import expenseMutations from './ExpenseMutations';
-import accountMutations from './AccountMutations';
 
 const mutation = {
   ...commentMutations,

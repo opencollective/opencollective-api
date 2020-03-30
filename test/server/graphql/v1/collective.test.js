@@ -2,13 +2,12 @@ import { expect } from 'chai';
 import { describe, it } from 'mocha';
 import sinon from 'sinon';
 
-import models, { Op } from '../../../../server/models';
-import cache from '../../../../server/lib/cache';
 import * as expenses from '../../../../server/graphql/v1/mutations/expenses';
-
-import * as utils from '../../../utils';
+import cache from '../../../../server/lib/cache';
+import models, { Op } from '../../../../server/models';
 import * as store from '../../../stores';
 import { fakeUser } from '../../../test-helpers/fake-data';
+import * as utils from '../../../utils';
 
 describe('server/graphql/v1/collective', () => {
   beforeEach(async () => {

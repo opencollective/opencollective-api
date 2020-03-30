@@ -1,13 +1,13 @@
-import Axios, { AxiosError } from 'axios';
-import config from 'config';
 import crypto from 'crypto';
-import { Request } from 'express';
 import fs from 'fs';
-import { omitBy, isNull, toInteger } from 'lodash';
 import path from 'path';
 import url from 'url';
 
-import logger from './logger';
+import Axios, { AxiosError } from 'axios';
+import config from 'config';
+import { Request } from 'express';
+import { omitBy, isNull, toInteger } from 'lodash';
+
 import {
   BorderlessAccount,
   CurrencyPair,
@@ -17,6 +17,8 @@ import {
   Transfer,
   WebhookEvent,
 } from '../types/transferwise';
+
+import logger from './logger';
 
 const fixieUrl = config.fixie.url && new url.URL(config.fixie.url);
 const proxyOptions = fixieUrl

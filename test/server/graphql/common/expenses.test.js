@@ -1,12 +1,13 @@
 import { expect } from 'chai';
-import { fakeExpense, fakeUser, fakeCollective } from '../../../test-helpers/fake-data';
-import { makeRequest } from '../../../utils';
+
 import {
   canSeeExpenseAttachments,
   canSeeExpensePayoutMethod,
   canSeeExpenseInvoiceInfo,
   canSeeExpensePayeeLocation,
 } from '../../../../server/graphql/common/expenses';
+import { fakeExpense, fakeUser, fakeCollective } from '../../../test-helpers/fake-data';
+import { makeRequest } from '../../../utils';
 
 describe('server/graphql/common/expenses', () => {
   let expense, collective, collectiveAdmin, hostAdmin, expenseOwner, randomUser;

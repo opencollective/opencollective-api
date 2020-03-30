@@ -1,6 +1,7 @@
 import path from 'path';
-import { cloneDeep } from 'lodash';
+
 import Liana from 'forest-express-sequelize';
+import { cloneDeep } from 'lodash';
 
 import models, { sequelize, Op } from '../models';
 

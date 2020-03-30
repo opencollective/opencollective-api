@@ -1,5 +1,6 @@
 import handlebars from 'handlebars';
 import moment from 'moment-timezone';
+
 import { resizeImage, capitalize, formatCurrencyObject, pluralize } from './utils';
 
 // from https://stackoverflow.com/questions/8853396/logical-operator-in-a-handlebars-js-if-conditional

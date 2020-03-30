@@ -1,9 +1,9 @@
-import _ from 'lodash';
 import { expect } from 'chai';
-import sinon from 'sinon';
+import _ from 'lodash';
 import Slack from 'node-slack';
-import activitiesLib from '../../../server/lib/activities';
+import sinon from 'sinon';
 
+import activitiesLib from '../../../server/lib/activities';
 import slackLib from '../../../server/lib/slack';
 
 describe('server/lib/slack', () => {

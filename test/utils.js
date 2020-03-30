@@ -1,25 +1,26 @@
-import config from 'config';
-import debug from 'debug';
-import nock from 'nock';
-import { expect } from 'chai';
-
-import Promise from 'bluebird';
-import { graphql } from 'graphql';
-import { isArray, values, get, cloneDeep } from 'lodash';
 import { execSync } from 'child_process';
 
+import Promise from 'bluebird';
+import { expect } from 'chai';
+import config from 'config';
+import debug from 'debug';
+import { graphql } from 'graphql';
+import { isArray, values, get, cloneDeep } from 'lodash';
+import nock from 'nock';
+
 /* Test data */
-import jsonData from './mocks/data';
 
 /* Server code being used */
-import stripe from '../server/lib/stripe';
+import * as db_restore from '../scripts/db_restore';
+import { loaders } from '../server/graphql/loaders';
 import schemaV1 from '../server/graphql/v1/schema';
 import schemaV2 from '../server/graphql/v2/schema';
-import { loaders } from '../server/graphql/loaders';
-import { sequelize } from '../server/models';
 import cache from '../server/lib/cache';
 import * as libpayments from '../server/lib/payments';
-import * as db_restore from '../scripts/db_restore';
+import stripe from '../server/lib/stripe';
+import { sequelize } from '../server/models';
+
+import jsonData from './mocks/data';
 
 if (process.env.RECORD) {
   nock.recorder.rec();

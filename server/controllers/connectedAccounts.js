@@ -1,12 +1,12 @@
 import Promise from 'bluebird';
-import { get } from 'lodash';
 import config from 'config';
+import { get } from 'lodash';
 
-import models, { Op } from '../models';
-import errors from '../lib/errors';
-import paymentProviders from '../paymentProviders';
-import * as github from '../lib/github';
 import { mustBeLoggedInTo } from '../lib/auth';
+import errors from '../lib/errors';
+import * as github from '../lib/github';
+import models, { Op } from '../models';
+import paymentProviders from '../paymentProviders';
 
 const { ConnectedAccount, User } = models;
 

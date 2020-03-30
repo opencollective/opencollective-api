@@ -1,6 +1,8 @@
-import models, { Op } from '../../models';
-import { createDataLoaderWithOptions, sortResults } from './helpers';
 import DataLoader from 'dataloader';
+
+import models, { Op } from '../../models';
+
+import { createDataLoaderWithOptions, sortResults } from './helpers';
 
 export default {
   findAllByAttribute: (_, cache) => (attribute: string): DataLoader<string | number, object> => {

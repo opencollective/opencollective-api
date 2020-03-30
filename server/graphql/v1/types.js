@@ -11,28 +11,25 @@ import {
   GraphQLScalarType,
   GraphQLNonNull,
 } from 'graphql';
-
-import { Kind } from 'graphql/language';
 import GraphQLJSON from 'graphql-type-json';
+import { Kind } from 'graphql/language';
 import he from 'he';
 import { pick, omit, get } from 'lodash';
 import moment from 'moment';
 
-import { CollectiveInterfaceType, CollectiveSearchResultsType } from './CollectiveInterface';
-
-import { TransactionInterfaceType, OrderDirectionType } from './TransactionInterface';
-
-import models, { Op, sequelize } from '../../models';
-import { getContributorsForTier } from '../../lib/contributors';
-import { strip_tags } from '../../lib/utils';
 import status from '../../constants/expense_status';
-import orderStatus from '../../constants/order_status';
-import { maxInteger } from '../../constants/math';
 import intervals from '../../constants/intervals';
+import { maxInteger } from '../../constants/math';
+import orderStatus from '../../constants/order_status';
 import roles from '../../constants/roles';
-import { isUserTaxFormRequiredBeforePayment } from '../../lib/tax-forms';
 import { getCollectiveAvatarUrl } from '../../lib/collectivelib';
+import { getContributorsForTier } from '../../lib/contributors';
+import { isUserTaxFormRequiredBeforePayment } from '../../lib/tax-forms';
+import { strip_tags } from '../../lib/utils';
+import models, { Op, sequelize } from '../../models';
+import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import * as commonComment from '../common/comment';
+import { allowContextPermission, PERMISSION_TYPE } from '../common/context-permissions';
 import {
   getExpenseAttachments,
   canSeeExpensePayoutMethod,
@@ -40,10 +37,10 @@ import {
   canSeeExpensePayeeLocation,
   canSeeExpenseAttachments,
 } from '../common/expenses';
-import { PayoutMethodTypes } from '../../models/PayoutMethod';
-
 import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
-import { allowContextPermission, PERMISSION_TYPE } from '../common/context-permissions';
+
+import { CollectiveInterfaceType, CollectiveSearchResultsType } from './CollectiveInterface';
+import { TransactionInterfaceType, OrderDirectionType } from './TransactionInterface';
 
 /**
  * Take a graphql type and return a wrapper type that adds pagination. The pagination

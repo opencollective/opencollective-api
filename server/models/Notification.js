@@ -1,6 +1,6 @@
 import Promise from 'bluebird';
-import { defaults } from 'lodash';
 import debugLib from 'debug';
+import { defaults } from 'lodash';
 import { Op } from 'sequelize';
 
 import channels from '../constants/channels';

@@ -3,11 +3,11 @@ import fs from 'fs';
 import path from 'path';
 import { URL } from 'url';
 
-import config from 'config';
 import Promise from 'bluebird';
+import config from 'config';
 import pdf from 'html-pdf';
-import sanitizeHtml from 'sanitize-html';
 import { get, cloneDeep, isEqual } from 'lodash';
+import sanitizeHtml from 'sanitize-html';
 
 import handlebars from './handlebars';
 

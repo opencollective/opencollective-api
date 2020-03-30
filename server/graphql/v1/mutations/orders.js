@@ -1,30 +1,28 @@
+import * as LibTaxes from '@opencollective/taxes';
+import Promise from 'bluebird';
+import config from 'config';
+import debugLib from 'debug';
+import { omit, get, isNil, pick } from 'lodash';
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
-import debugLib from 'debug';
-import Promise from 'bluebird';
-import { omit, get, isNil, pick } from 'lodash';
-import config from 'config';
-import * as LibTaxes from '@opencollective/taxes';
 
-import models from '../../../models';
-import * as errors from '../../errors';
-
-import cache from '../../../lib/cache';
-import * as github from '../../../lib/github';
-import recaptcha from '../../../lib/recaptcha';
-import * as libPayments from '../../../lib/payments';
-import { setupCreditCard } from '../../../paymentProviders/stripe/creditcard';
-import { capitalize, pluralize, formatCurrency, md5 } from '../../../lib/utils';
-import { getNextChargeAndPeriodStartDates, getChargeRetryCount } from '../../../lib/subscriptions';
-import { canUseFeature } from '../../../lib/user-permissions';
-import { handleHostPlanAddedFundsLimit, handleHostPlanBankTransfersLimit } from '../../../lib/plans';
-
-import roles from '../../../constants/roles';
-import status from '../../../constants/order_status';
 import activities from '../../../constants/activities';
 import { types } from '../../../constants/collectives';
-import { VAT_OPTIONS } from '../../../constants/vat';
 import FEATURE from '../../../constants/feature';
+import status from '../../../constants/order_status';
+import roles from '../../../constants/roles';
+import { VAT_OPTIONS } from '../../../constants/vat';
+import cache from '../../../lib/cache';
+import * as github from '../../../lib/github';
+import * as libPayments from '../../../lib/payments';
+import { handleHostPlanAddedFundsLimit, handleHostPlanBankTransfersLimit } from '../../../lib/plans';
+import recaptcha from '../../../lib/recaptcha';
+import { getNextChargeAndPeriodStartDates, getChargeRetryCount } from '../../../lib/subscriptions';
+import { canUseFeature } from '../../../lib/user-permissions';
+import { capitalize, pluralize, formatCurrency, md5 } from '../../../lib/utils';
+import models from '../../../models';
+import { setupCreditCard } from '../../../paymentProviders/stripe/creditcard';
+import * as errors from '../../errors';
 
 const oneHourInSeconds = 60 * 60;
 

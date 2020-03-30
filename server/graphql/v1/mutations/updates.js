@@ -1,9 +1,10 @@
+import { get } from 'lodash';
+
+import { mustHaveRole } from '../../../lib/auth';
+import { purgeCacheForPage } from '../../../lib/cloudflare';
+import { strip_tags } from '../../../lib/utils';
 import models from '../../../models';
 import * as errors from '../../errors';
-import { mustHaveRole } from '../../../lib/auth';
-import { get } from 'lodash';
-import { strip_tags } from '../../../lib/utils';
-import { purgeCacheForPage } from '../../../lib/cloudflare';
 
 function require(args, path) {
   if (!get(args, path)) {

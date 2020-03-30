@@ -1,7 +1,8 @@
 import { expect } from 'chai';
+
 import models from '../../../server/models';
-import * as utils from '../../utils';
 import { randEmail } from '../../stores';
+import * as utils from '../../utils';
 
 describe('server/models/Update', () => {
   const dateOffset = 24 * 60 * 60 * 1000;

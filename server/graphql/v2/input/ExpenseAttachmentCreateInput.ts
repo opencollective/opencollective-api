@@ -1,4 +1,5 @@
 import { GraphQLString, GraphQLInt, GraphQLInputObjectType, GraphQLNonNull } from 'graphql';
+
 import { DateString } from '../../v1/types';
 
 /**

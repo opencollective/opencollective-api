@@ -1,13 +1,12 @@
 import { expect } from 'chai';
-import { describe, it } from 'mocha';
 import config from 'config';
+import { describe, it } from 'mocha';
 
-import models from '../../../../server/models';
-import channels from '../../../../server/constants/channels';
 import { activities, roles } from '../../../../server/constants';
-
-import * as utils from '../../../utils';
+import channels from '../../../../server/constants/channels';
+import models from '../../../../server/models';
 import { randUrl } from '../../../stores';
+import * as utils from '../../../utils';
 
 describe('server/graphql/v1/notifications', () => {
   let user1, user2, collective1, notification;

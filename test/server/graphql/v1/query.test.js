@@ -1,10 +1,10 @@
 import { expect } from 'chai';
-import { describe, it } from 'mocha';
-import schema from '../../../../server/graphql/v1/schema';
 import { graphql } from 'graphql';
+import { describe, it } from 'mocha';
 
-import * as utils from '../../../utils';
+import schema from '../../../../server/graphql/v1/schema';
 import models from '../../../../server/models';
+import * as utils from '../../../utils';
 
 describe('server/graphql/v1/query', () => {
   let user1, user2, user3, collective1, collective2, collective3, event1, event2, ticket1, ticket2;

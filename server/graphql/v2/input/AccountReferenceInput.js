@@ -1,8 +1,8 @@
 import { GraphQLInt, GraphQLString, GraphQLInputObjectType } from 'graphql';
 
 import models from '../../../models';
-import { idDecode } from '../identifiers';
 import { NotFound } from '../../errors';
+import { idDecode } from '../identifiers';
 
 export const AccountReferenceInput = new GraphQLInputObjectType({
   name: 'AccountReferenceInput',

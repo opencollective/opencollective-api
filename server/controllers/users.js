@@ -2,10 +2,10 @@ import config from 'config';
 
 import * as auth from '../lib/auth';
 import emailLib from '../lib/email';
-import models from '../models';
 import logger from '../lib/logger';
-import { isValidEmail } from '../lib/utils';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../lib/rate-limit';
+import { isValidEmail } from '../lib/utils';
+import models from '../models';
 
 /**
  *

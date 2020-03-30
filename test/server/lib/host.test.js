@@ -1,12 +1,11 @@
-import sinon from 'sinon';
 import { expect } from 'chai';
+import sinon from 'sinon';
 
-import * as libhost from '../../../server/lib/hostlib';
 import * as libcurrency from '../../../server/lib/currency';
+import * as libhost from '../../../server/lib/hostlib';
 import { Op } from '../../../server/models';
-
-import * as utils from '../../utils';
 import * as store from '../../stores';
+import * as utils from '../../utils';
 
 async function donation(collective, user, amount, currency, createdAt) {
   return store.stripeOneTimeDonation({

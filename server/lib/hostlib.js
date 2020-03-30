@@ -1,7 +1,8 @@
-import models, { sequelize, Op } from '../models';
-import _ from 'lodash';
-import { convertToCurrency } from '../lib/currency';
 import Promise from 'bluebird';
+import _ from 'lodash';
+
+import { convertToCurrency } from '../lib/currency';
+import models, { sequelize, Op } from '../models';
 
 export function getHostedCollectives(hostid, endDate = new Date()) {
   return sequelize.query(

@@ -1,7 +1,8 @@
 import path from 'path';
+
 import fs from 'fs-extra';
-import { Op, Model } from 'sequelize';
 import { differenceBy } from 'lodash';
+import { Op, Model } from 'sequelize';
 
 import models from '../models';
 

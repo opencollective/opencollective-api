@@ -1,6 +1,7 @@
-import * as errors from '../../errors';
 import { get } from 'lodash';
+
 import * as common from '../../common/comment';
+import * as errors from '../../errors';
 
 function require(args, path) {
   if (!get(args, path)) {

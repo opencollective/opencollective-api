@@ -1,9 +1,10 @@
+import Promise from 'bluebird';
 import config from 'config';
 import jwt from 'jsonwebtoken';
 import moment from 'moment';
-import models, { Op } from '../models';
-import Promise from 'bluebird';
+
 import * as errors from '../graphql/errors';
+import models, { Op } from '../models';
 
 // Helper
 const daysToSeconds = days => moment.duration({ days }).asSeconds();

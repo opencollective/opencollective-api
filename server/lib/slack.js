@@ -2,11 +2,12 @@
  * Slack message sending logic
  */
 
-import Slack from 'node-slack';
 import config from 'config';
 import debug from 'debug';
-import activitiesLib from '../lib/activities';
+import Slack from 'node-slack';
+
 import constants from '../constants/activities';
+import activitiesLib from '../lib/activities';
 
 const debugSlack = debug('slack');
 

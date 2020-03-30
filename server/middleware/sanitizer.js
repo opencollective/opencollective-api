@@ -1,5 +1,5 @@
-import sanitize from 'sanitize-html';
 import { forEach as lodashEach } from 'lodash';
+import sanitize from 'sanitize-html';
 
 export default () => {
   return (req, res, next) => {

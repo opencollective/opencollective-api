@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import { SequelizeUniqueConstraintError } from 'sequelize';
+
 import models from '../../../server/models';
 import { randEmail, newCollectiveWithHost } from '../../stores';
 

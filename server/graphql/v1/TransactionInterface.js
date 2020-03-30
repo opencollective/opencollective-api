@@ -1,5 +1,3 @@
-import { get } from 'lodash';
-import models from '../../models';
 import {
   GraphQLInt,
   GraphQLFloat,
@@ -10,13 +8,14 @@ import {
   GraphQLEnumType,
   GraphQLInputObjectType,
 } from 'graphql';
+import { get } from 'lodash';
+
+import models from '../../models';
+import { getExpenseAttachments, canSeeExpenseAttachments } from '../common/expenses';
+import { idEncode } from '../v2/identifiers';
 
 import { CollectiveInterfaceType, UserCollectiveType } from './CollectiveInterface';
-
 import { SubscriptionType, OrderType, PaymentMethodType, UserType, DateString, ExpenseType } from './types';
-import { getExpenseAttachments, canSeeExpenseAttachments } from '../common/expenses';
-
-import { idEncode } from '../v2/identifiers';
 
 export const TransactionInterfaceType = new GraphQLInterfaceType({
   name: 'Transaction',

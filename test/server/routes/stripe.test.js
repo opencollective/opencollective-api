@@ -1,13 +1,13 @@
+import { expect } from 'chai';
 import config from 'config';
+import jwt from 'jsonwebtoken';
 import nock from 'nock';
 import request from 'supertest';
-import jwt from 'jsonwebtoken';
-import { expect } from 'chai';
 
-import * as utils from '../../utils';
+import roles from '../../../server/constants/roles';
 import app from '../../../server/index';
 import models from '../../../server/models';
-import roles from '../../../server/constants/roles';
+import * as utils from '../../utils';
 
 const application = utils.data('application');
 

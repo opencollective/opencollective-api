@@ -1,16 +1,17 @@
-import debugLib from 'debug';
-import config from 'config';
-import jwt from 'jsonwebtoken';
-import passport from 'passport';
-import request from 'request-promise';
-import { get, omitBy, isNil } from 'lodash';
 import { URLSearchParams } from 'url';
 
-import models from '../models';
+import config from 'config';
+import debugLib from 'debug';
+import jwt from 'jsonwebtoken';
+import { get, omitBy, isNil } from 'lodash';
+import passport from 'passport';
+import request from 'request-promise';
+
+import * as connectedAccounts from '../controllers/connectedAccounts';
 import errors from '../lib/errors';
 import logger from '../lib/logger';
+import models from '../models';
 import paymentProviders from '../paymentProviders';
-import * as connectedAccounts from '../controllers/connectedAccounts';
 
 const { User } = models;
 

@@ -1,4 +1,5 @@
 import { GraphQLEnumType } from 'graphql';
+
 import { Service } from '../../../constants/connected_account';
 
 export const ConnectedAccountService = new GraphQLEnumType({

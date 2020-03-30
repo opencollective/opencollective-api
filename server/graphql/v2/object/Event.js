@@ -1,7 +1,7 @@
 import { GraphQLObjectType, GraphQLBoolean, GraphQLInt } from 'graphql';
 
-import { Account, AccountFields } from '../interface/Account';
 import { hostResolver } from '../../common/collective';
+import { Account, AccountFields } from '../interface/Account';
 
 export const Event = new GraphQLObjectType({
   name: 'Event',

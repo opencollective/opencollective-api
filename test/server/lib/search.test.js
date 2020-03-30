@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import config from 'config';
+
 import { CollectiveType } from '../../../server/graphql/v1/CollectiveInterface';
 import { searchCollectivesInDB, searchCollectivesByEmail } from '../../../server/lib/search';
 import { newUser } from '../../stores';

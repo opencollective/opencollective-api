@@ -1,11 +1,9 @@
 import { GraphQLInt, GraphQLString, GraphQLList, GraphQLObjectType } from 'graphql';
 
-import { OrderStatus } from '../enum/OrderStatus';
-import { OrderCollection } from '../collection/OrderCollection';
-
-import { idEncode } from '../identifiers';
-
 import models, { Op } from '../../../models';
+import { OrderCollection } from '../collection/OrderCollection';
+import { OrderStatus } from '../enum/OrderStatus';
+import { idEncode } from '../identifiers';
 
 export const Tier = new GraphQLObjectType({
   name: 'Tier',

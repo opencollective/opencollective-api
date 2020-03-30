@@ -1,13 +1,13 @@
 // Test tools
 import { expect } from 'chai';
 import nock from 'nock';
-import * as utils from '../../../utils';
 
 // Components needed for writing the test
 import models from '../../../../server/models';
 
 // What's being tested
 import creditcard from '../../../../server/paymentProviders/stripe/creditcard';
+import * as utils from '../../../utils';
 
 async function createOrderWithPaymentMethod(paymentMethodName, orderParams = {}) {
   const user = await models.User.createUserWithCollective({

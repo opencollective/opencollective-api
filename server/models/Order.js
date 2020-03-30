@@ -1,11 +1,12 @@
 import Promise from 'bluebird';
-import Temporal from 'sequelize-temporal';
 import debugLib from 'debug';
 import { get } from 'lodash';
+import Temporal from 'sequelize-temporal';
 
-import CustomDataTypes from './DataTypes';
 import status from '../constants/order_status';
 import { TransactionTypes } from '../constants/transactions';
+
+import CustomDataTypes from './DataTypes';
 
 const debug = debugLib('models:Order');
 

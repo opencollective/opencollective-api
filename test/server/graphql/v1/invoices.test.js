@@ -3,12 +3,12 @@
  * This tests all the GraphQL API methods that interact with user
  * invoices. */
 
-import sinon from 'sinon';
 import { expect } from 'chai';
+import sinon from 'sinon';
 
 /* Test utilities */
-import * as utils from '../../../utils';
 import * as store from '../../../stores';
+import * as utils from '../../../utils';
 
 /** Create host, collective, payment method and make a donation
  *

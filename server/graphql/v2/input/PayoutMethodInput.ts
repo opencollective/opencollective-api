@@ -1,5 +1,6 @@
 import { GraphQLString, GraphQLInputObjectType, GraphQLBoolean } from 'graphql';
 import GraphQLJSON from 'graphql-type-json';
+
 import PayoutMethodType from '../enum/PayoutMethodType';
 
 /**

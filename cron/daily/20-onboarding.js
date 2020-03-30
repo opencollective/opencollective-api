@@ -2,9 +2,10 @@
 import '../../server/env';
 
 import Promise from 'bluebird';
-import models, { Op } from '../../server/models';
 import { get } from 'lodash';
+
 import { processOnBoardingTemplate } from '../../server/lib/onboarding';
+import models, { Op } from '../../server/models';
 
 const XDaysAgo = days => {
   const d = new Date();

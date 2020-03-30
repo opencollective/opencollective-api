@@ -1,17 +1,17 @@
-import { pick } from 'lodash';
 import { GraphQLNonNull } from 'graphql';
+import { pick } from 'lodash';
 
-import { ConnectedAccount } from '../object/ConnectedAccount';
+import { Service } from '../../../constants/connected_account';
+import * as transferwise from '../../../lib/transferwise';
+import models from '../../../models';
+import * as errors from '../../errors';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { ConnectedAccountCreateInput } from '../input/ConnectedAccountCreateInput';
-import models from '../../../models';
-import * as transferwise from '../../../lib/transferwise';
-import * as errors from '../../errors';
-import { Service } from '../../../constants/connected_account';
 import {
   ConnectedAccountReferenceInput,
   fetchConnectedAccountWithReference,
 } from '../input/ConnectedAccountReferenceInput';
+import { ConnectedAccount } from '../object/ConnectedAccount';
 
 const connectedAccountMutations = {
   createConnectedAccount: {

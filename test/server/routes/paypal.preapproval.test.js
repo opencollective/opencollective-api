@@ -1,13 +1,13 @@
 import Promise from 'bluebird';
-import request from 'supertest';
-import sinon from 'sinon';
 import { expect } from 'chai';
+import sinon from 'sinon';
+import request from 'supertest';
 
-import * as utils from '../../utils';
 import app from '../../../server/index';
 import models from '../../../server/models';
-import paypalMock from '../../mocks/paypal';
 import paypalAdaptive from '../../../server/paymentProviders/paypal/adaptiveGateway';
+import paypalMock from '../../mocks/paypal';
+import * as utils from '../../utils';
 
 const application = utils.data('application');
 
