@@ -45,7 +45,6 @@ import { types } from '../../constants/collectives';
 import models, { Op } from '../../models';
 import roles from '../../constants/roles';
 import { getContributorsForCollective } from '../../lib/contributors';
-import { PERMISSION_TYPE, getContextPermission } from '../common/context-permissions';
 
 export const TypeOfCollectiveType = new GraphQLEnumType({
   name: 'TypeOfCollective',
