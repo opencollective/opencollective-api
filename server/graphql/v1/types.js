@@ -43,6 +43,7 @@ import {
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 
 import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
+import { allowContextPermission, PERMISSION_TYPE } from '../common/context-permissions';
 
 /**
  * Take a graphql type and return a wrapper type that adds pagination. The pagination
@@ -353,8 +354,8 @@ export const MemberType = new GraphQLObjectType({
         resolve(member, args, req) {
           const memberCollective =
             member.memberCollective || req.loaders.Collective.byId.load(member.MemberCollectiveId);
-          if (memberCollective) {
-            memberCollective.inTheContextOfCollectiveId = member.CollectiveId;
+          if (memberCollective && req.remoteUser && req.remoteUser.isAdmin(member.CollectiveId)) {
+            allowContextPermission(req, PERMISSION_TYPE.SEE_INCOGNITO_ACCOUNT_DETAILS, memberCollective.id);
           }
           return memberCollective;
         },
@@ -665,8 +666,8 @@ export const InvoiceType = new GraphQLObjectType({
         type: CollectiveInterfaceType,
         async resolve(invoice, args, req) {
           const fromCollective = await req.loaders.Collective.byId.load(invoice.FromCollectiveId);
-          if (fromCollective) {
-            fromCollective.inTheContextOfCollectiveId = invoice.FromCollectiveId;
+          if (fromCollective && req.remoteUser.isAdmin(fromCollective.id)) {
+            allowContextPermission(req, PERMISSION_TYPE.SEE_INCOGNITO_ACCOUNT_DETAILS, fromCollective.id);
           }
           return fromCollective;
         },
@@ -1715,8 +1716,8 @@ export const OrderType = new GraphQLObjectType({
             return null;
           }
           const fromCollective = await req.loaders.Collective.byId.load(order.FromCollectiveId);
-          if (fromCollective) {
-            fromCollective.inTheContextOfCollectiveId = order.CollectiveId;
+          if (req.remoteUser && req.remoteUser.isAdmin(order.CollectiveId)) {
+            allowContextPermission(req, PERMISSION_TYPE.SEE_INCOGNITO_ACCOUNT_DETAILS, fromCollective.id);
           }
           return fromCollective;
         },
