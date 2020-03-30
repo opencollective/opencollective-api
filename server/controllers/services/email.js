@@ -270,7 +270,7 @@ export const webhook = async (req, res, next) => {
           body: email['body-html'] || email['body-plain'],
           subscribers,
           latestSubscribers: subscribers.slice(0, 15),
-          approve_url: `${
+          approveUrl: `${
             config.host.website
           }/api/services/email/approve?mailserver=${mailserver}&messageId=${messageId}&approver=${encodeURIComponent(
             user.email,

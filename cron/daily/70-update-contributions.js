@@ -47,7 +47,7 @@ const getAllContributors = async repo => {
 
   const octokit = github.getOctokit();
 
-  const fetchParameters = { page: 1, per_page: 100 };
+  const fetchParameters = { page: 1, per_page: 100 }; // eslint-disable-line camelcase
 
   let contributors = [];
   let fetchContributors;

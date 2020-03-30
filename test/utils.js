@@ -19,7 +19,7 @@ import { loaders } from '../server/graphql/loaders';
 import { sequelize } from '../server/models';
 import cache from '../server/lib/cache';
 import * as libpayments from '../server/lib/payments';
-import * as db_restore from '../scripts/db_restore';
+import * as dbRestore from '../scripts/db_restore';
 
 if (process.env.RECORD) {
   nock.recorder.rec();
@@ -27,7 +27,7 @@ if (process.env.RECORD) {
 
 jsonData.application = {
   name: 'client',
-  api_key: config.keys.opencollective.apiKey,
+  api_key: config.keys.opencollective.apiKey, // eslint-disable-line camelcase
 };
 
 const debugWaitForCondition = debug('waitForCondition');
@@ -49,7 +49,7 @@ export const resetTestDB = async () => {
 };
 
 export async function loadDB(dbname) {
-  await db_restore.main({ force: true, file: dbname });
+  await dbRestore.main({ force: true, file: dbname });
 }
 
 export const stringify = json => {
@@ -202,8 +202,8 @@ export const createStripeToken = async () => {
     .create({
       card: {
         number: '4242424242424242',
-        exp_month: 12,
-        exp_year: 2028,
+        exp_month: 12, // eslint-disable-line camelcase
+        exp_year: 2028, // eslint-disable-line camelcase
         cvc: 222,
       },
     })
@@ -241,13 +241,13 @@ export function stubStripeCreate(sandbox, overloadDefaults) {
 }
 
 export function stubStripeBalance(sandbox, amount, currency, applicationFee = 0, stripeFee = 0) {
-  const fee_details = [];
+  const feeDetails = [];
   const fee = applicationFee + stripeFee;
   if (applicationFee && applicationFee > 0) {
-    fee_details.push({ type: 'application_fee', amount: applicationFee });
+    feeDetails.push({ type: 'application_fee', amount: applicationFee });
   }
   if (stripeFee && stripeFee > 0) {
-    fee_details.push({ type: 'stripe_fee', amount: stripeFee });
+    feeDetails.push({ type: 'stripe_fee', amount: stripeFee });
   }
 
   const balanceTransaction = {
@@ -256,7 +256,7 @@ export function stubStripeBalance(sandbox, amount, currency, applicationFee = 0,
     amount,
     currency: currency.toLowerCase(),
     fee,
-    fee_details,
+    fee_details: feeDetails, // eslint-disable-line camelcase
     net: amount - fee,
     status: 'pending',
     type: 'charge',

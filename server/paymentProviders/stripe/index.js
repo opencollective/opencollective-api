@@ -16,6 +16,7 @@ const debug = debugLib('stripe');
 const AUTHORIZE_URI = 'https://connect.stripe.com/oauth/authorize';
 const TOKEN_URI = 'https://connect.stripe.com/oauth/token';
 
+/* eslint-disable camelcase */
 const getToken = code => () =>
   axios
     .post(TOKEN_URI, {
@@ -25,6 +26,7 @@ const getToken = code => () =>
       code,
     })
     .then(res => res.data);
+/* eslint-enable camelcase */
 
 const getAccountInformation = data => {
   return new Promise((resolve, reject) => {
@@ -64,6 +66,7 @@ export default {
         },
       );
 
+      /* eslint-disable camelcase */
       const params = new URLSearchParams({
         response_type: 'code',
         scope: 'read_write',
@@ -71,6 +74,8 @@ export default {
         redirect_uri: config.stripe.redirectUri,
         state,
       });
+      /* eslint-enable camelcase */
+
       return Promise.resolve(`${AUTHORIZE_URI}?${params.toString()}`);
     },
 

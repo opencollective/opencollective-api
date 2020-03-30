@@ -50,7 +50,7 @@ export default {
     const slackOptions = {
       text: msg,
       username: 'OpenCollective Activity Bot',
-      icon_url: 'https://opencollective.com/favicon.ico',
+      icon_url: 'https://opencollective.com/favicon.ico', // eslint-disable-line camelcase
       attachments: options.attachments || [],
     };
 

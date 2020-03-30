@@ -2,7 +2,7 @@ import { pick } from 'lodash';
 import models from '../../models';
 import * as errors from '../errors';
 import { mustBeLoggedInTo } from '../../lib/auth';
-import { strip_tags } from '../../lib/utils';
+import { stripTags } from '../../lib/utils';
 
 /**
  * Return the collective ID for the given comment based on it's association (conversation,
@@ -123,7 +123,7 @@ function fromCollectiveResolver({ FromCollectiveId }, _, { loaders }) {
  * Returns a resolver function that strip tags from the object prop.
  * @param {string} prop - prop to look in the object of the resolver first argument.
  */
-const getStripTagsResolver = prop => obj => strip_tags(obj[prop] || '');
+const getStripTagsResolver = prop => obj => stripTags(obj[prop] || '');
 
 export {
   editComment,

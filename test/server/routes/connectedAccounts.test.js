@@ -21,6 +21,7 @@ describe('server/routes/connectedAccounts', () => {
 
     describe('WHEN calling /connected-accounts/github with API key', () => {
       beforeEach(done => {
+        // eslint-disable-next-line camelcase
         req = request(app).get('/connected-accounts/github?utm_source=mm').send({ api_key: application.api_key });
         done();
       });
@@ -49,7 +50,7 @@ describe('server/routes/connectedAccounts', () => {
 
     describe('WHEN calling with invalid API key', () => {
       beforeEach(done => {
-        req = req.send({ api_key: 'bla' });
+        req = req.send({ api_key: 'bla' }); // eslint-disable-line camelcase
         done();
       });
 
@@ -58,7 +59,7 @@ describe('server/routes/connectedAccounts', () => {
 
     describe('WHEN calling with valid API key', () => {
       beforeEach(done => {
-        req = req.send({ api_key: application.api_key });
+        req = req.send({ api_key: application.api_key }); // eslint-disable-line camelcase
         done();
       });
 
@@ -97,7 +98,7 @@ describe('server/routes/connectedAccounts', () => {
 
     describe('WHEN providing API key but no token', () => {
       beforeEach(done => {
-        req = req.send({ api_key: application.api_key });
+        req = req.send({ api_key: application.api_key }); // eslint-disable-line camelcase
         done();
       });
 
@@ -108,7 +109,7 @@ describe('server/routes/connectedAccounts', () => {
       beforeEach(done => {
         req = req
           .set('Authorization', `Bearer ${user.jwt({ scope: 'github' })}`)
-          .send({ api_key: application.api_key });
+          .send({ api_key: application.api_key }); // eslint-disable-line camelcase
         done();
       });
 
@@ -126,7 +127,7 @@ describe('server/routes/connectedAccounts', () => {
               connectedAccountId: 1,
             })}`,
           )
-          .send({ api_key: application.api_key });
+          .send({ api_key: application.api_key }); // eslint-disable-line camelcase
         done();
       });
 

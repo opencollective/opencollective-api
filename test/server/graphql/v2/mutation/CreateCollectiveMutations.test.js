@@ -78,7 +78,7 @@ describe('server/graphql/v2/mutation/CreateCollectiveMutations', () => {
         .get('/repos/backyourstack/backyourstack')
         .reply(200, {
           name: 'backyourstack',
-          stargazers_count: 102,
+          stargazers_count: 102, // eslint-disable-line camelcase
           permissions: { admin: false, push: true, pull: true },
         });
 
@@ -109,7 +109,7 @@ describe('server/graphql/v2/mutation/CreateCollectiveMutations', () => {
         .times(2)
         .reply(200, {
           name: 'backyourstack',
-          stargazers_count: 102,
+          stargazers_count: 102, // eslint-disable-line camelcase
           permissions: { admin: true, push: true, pull: true },
         });
 
@@ -144,7 +144,7 @@ describe('server/graphql/v2/mutation/CreateCollectiveMutations', () => {
 
       nock('https://api.github.com:443', { encodedQueryParams: true })
         .get('/user/memberships/orgs')
-        .query({ page: '1', per_page: '100' })
+        .query({ page: '1', per_page: '100' }) // eslint-disable-line camelcase
         .reply(200, [{ organization: { login: 'backyourstack' }, state: 'active', role: 'member' }]);
 
       const result = await utils.graphqlQueryV2(
@@ -177,7 +177,7 @@ describe('server/graphql/v2/mutation/CreateCollectiveMutations', () => {
       nock('https://api.github.com:443', { encodedQueryParams: true })
         .get('/orgs/backyourstack/repos')
         .query(true)
-        .reply(200, [{ name: 'backyourstack', stargazers_count: 102 }]);
+        .reply(200, [{ name: 'backyourstack', stargazers_count: 102 }]); // eslint-disable-line camelcase
 
       const result = await utils.graphqlQueryV2(
         createCollectiveQuery,

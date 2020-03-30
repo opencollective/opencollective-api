@@ -109,6 +109,7 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
 
   let paymentIntent;
   if (!order.data || !order.data.paymentIntent) {
+    /* eslint-disable camelcase */
     const payload = {
       amount: order.totalAmount,
       currency: order.currency,
@@ -138,6 +139,8 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
       logger.info('paymentMethod is missing in hostStripeCustomer to pass to Payment Intent.');
       logger.info(JSON.stringify(hostStripeCustomer));
     }
+    /* eslint-enable camelcase */
+
     paymentIntent = await stripe.paymentIntents.create(payload, {
       stripeAccount: hostStripeAccount.username,
     });
@@ -237,7 +240,7 @@ export const setupCreditCard = async (paymentMethod, { user, collective } = {}) 
   if (!setupIntent) {
     setupIntent = await stripe.setupIntents.create({
       customer: platformStripeCustomer.id,
-      payment_method: paymentMethodId,
+      payment_method: paymentMethodId, // eslint-disable-line camelcase
       confirm: true,
     });
   }
@@ -308,7 +311,7 @@ export default {
 
     /* Refund both charge & application fee */
     const refund = await stripe.refunds.create(
-      { charge: chargeId, refund_application_fee: true },
+      { charge: chargeId, refund_application_fee: true }, // eslint-disable-line camelcase
       { stripeAccount: hostStripeAccount.username },
     );
     const charge = await stripe.charges.retrieve(chargeId, { stripeAccount: hostStripeAccount.username });

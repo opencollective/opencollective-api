@@ -47,7 +47,7 @@ import {
 } from '../lib/spam';
 import { canUseFeature } from '../lib/user-permissions';
 import { handleHostCollectivesLimit } from '../lib/plans';
-import { capitalize, flattenArray, getDomain, formatCurrency, cleanTags, md5, strip_tags } from '../lib/utils';
+import { capitalize, flattenArray, getDomain, formatCurrency, cleanTags, md5, stripTags } from '../lib/utils';
 
 import roles, { MemberRoleLabels } from '../constants/roles';
 import activities from '../constants/activities';
@@ -250,7 +250,7 @@ export default function (Sequelize, DataTypes) {
         type: DataTypes.TEXT,
         set(longDescription) {
           if (longDescription) {
-            this.setDataValue('longDescription', strip_tags(longDescription));
+            this.setDataValue('longDescription', stripTags(longDescription));
           } else {
             this.setDataValue('longDescription', null);
           }

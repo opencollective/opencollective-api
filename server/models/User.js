@@ -77,11 +77,16 @@ export default (Sequelize, DataTypes) => {
         type: DataTypes.STRING,
         defaultValue: bcrypt.genSaltSync(SALT_WORK_FACTOR),
       },
+
+      // eslint-disable-next-line camelcase
       refresh_token: {
         type: DataTypes.STRING,
         defaultValue: bcrypt.genSaltSync(SALT_WORK_FACTOR),
       },
+
+      // eslint-disable-next-line camelcase
       password_hash: DataTypes.STRING,
+
       password: {
         type: DataTypes.VIRTUAL,
         set(val) {

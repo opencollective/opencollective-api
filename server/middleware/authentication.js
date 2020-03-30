@@ -235,9 +235,11 @@ export const authenticateServiceDisconnect = (req, res) => {
 };
 
 function getOAuthCallbackUrl(req) {
+  // eslint-disable-next-line camelcase
   const { utm_source, CollectiveId, access_token, redirect } = req.query;
   const { service } = req.params;
 
+  // eslint-disable-next-line camelcase
   const params = new URLSearchParams(omitBy({ access_token, redirect, CollectiveId, utm_source }, isNil));
 
   return `${config.host.website}/api/connected-accounts/${service}/callback?${params.toString()}`;
@@ -246,7 +248,7 @@ function getOAuthCallbackUrl(req) {
 function getGithubEmails(accessToken) {
   return request({
     uri: 'https://api.github.com/user/emails',
-    qs: { access_token: accessToken },
+    qs: { access_token: accessToken }, // eslint-disable-line camelcase
     headers: { 'User-Agent': 'OpenCollective' },
     json: true,
   }).then(json => json.map(entry => entry.email));

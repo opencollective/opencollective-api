@@ -198,10 +198,10 @@ const sendTweet = async (tweet, twitterAccount, template) => {
   console.log('>>> sending tweet:', tweet.length, tweet);
   if (process.env.NODE_ENV === 'production') {
     try {
-      // We thread the tweet with the previous milestone
-      const in_reply_to_status_id = get(twitterAccount, 'settings.milestones.lastTweetId');
       const res = await twitter.tweetStatus(twitterAccount, tweet, null, {
-        in_reply_to_status_id,
+        // We thread the tweet with the previous milestone
+        // eslint-disable-next-line camelcase
+        in_reply_to_status_id: get(twitterAccount, 'settings.milestones.lastTweetId'),
       });
 
       set(twitterAccount, 'settings.milestones.tweetId', res.id_str);
