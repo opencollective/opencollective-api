@@ -1,6 +1,7 @@
 import { GraphQLString, GraphQLInt, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
+import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
 const ExpenseAttachment = new GraphQLObjectType({
   name: 'ExpenseAttachment',
@@ -9,6 +10,7 @@ const ExpenseAttachment = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this expense attachment',
+      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.EXPENSE_ATTACHMENT),
     },
     amount: {
       type: new GraphQLNonNull(GraphQLInt),

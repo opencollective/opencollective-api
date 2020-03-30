@@ -1,17 +1,21 @@
-import { GraphQLString, GraphQLInputObjectType, GraphQLList, GraphQLNonNull } from 'graphql';
+import { GraphQLString, GraphQLInputObjectType, GraphQLNonNull, GraphQLList } from 'graphql';
 import { ExpenseType } from '../enum/ExpenseType';
-import { ExpenseAttachmentCreateInput } from './ExpenseAttachmentCreateInput';
 import { PayoutMethodInput } from './PayoutMethodInput';
+import { ExpenseAttachmentInput } from './ExpenseAttachmentInput';
 import { AccountReferenceInput } from './AccountReferenceInput';
 
 /**
- * Input type to use as the type for the expense input in createExpense mutation.
+ * Input type to use as the type for the comment input in editComment mutation.
  */
-export const ExpenseCreateInput = new GraphQLInputObjectType({
-  name: 'ExpenseCreateInput',
+export const ExpenseUpdateInput = new GraphQLInputObjectType({
+  name: 'ExpenseUpdateInput',
   fields: {
-    description: {
+    id: {
       type: new GraphQLNonNull(GraphQLString),
+      description: 'ID of the expense that you are trying to edit',
+    },
+    description: {
+      type: GraphQLString,
       description: 'Main title of the expense',
     },
     tags: {
@@ -19,7 +23,7 @@ export const ExpenseCreateInput = new GraphQLInputObjectType({
       description: 'Tags associated to the expense (ie. Food, Engineering...)',
     },
     type: {
-      type: new GraphQLNonNull(ExpenseType),
+      type: ExpenseType,
       description: 'The type of the expense',
     },
     privateMessage: {
@@ -31,15 +35,15 @@ export const ExpenseCreateInput = new GraphQLInputObjectType({
       description: 'Tax ID, VAT number...etc This information will be printed on your invoice.',
     },
     payoutMethod: {
-      type: new GraphQLNonNull(PayoutMethodInput),
+      type: PayoutMethodInput,
       description: 'The payout method that will be used to reimburse the expense',
     },
     attachments: {
-      type: new GraphQLNonNull(new GraphQLList(ExpenseAttachmentCreateInput)),
+      type: new GraphQLList(ExpenseAttachmentInput),
       description: 'The list of attachments for this expense. Total amount will be computed from them.',
     },
     payee: {
-      type: new GraphQLNonNull(AccountReferenceInput),
+      type: AccountReferenceInput,
       description: 'Account to reimburse',
     },
   },

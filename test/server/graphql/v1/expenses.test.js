@@ -1352,6 +1352,8 @@ describe('server/graphql/v1/expenses', () => {
   }); /* End of #payExpense */
 
   describe('#editExpense', () => {
+    // New expense flow covered in test/server/graphql/v2/mutation/ExpenseMutations.test.js
+    // Should be removed once we remove the old expense flow
     describe('goes back to pending if editing critical fields', () => {
       it('Amount', async () => {
         const expense = await fakeExpense({ status: 'APPROVED', amount: 1000 });
