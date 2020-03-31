@@ -10,6 +10,7 @@ import models, { sequelize, Op } from '../../models';
 import { fetchCollectiveId } from '../../lib/cache';
 import { searchCollectivesByEmail, searchCollectivesOnAlgolia, searchCollectivesInDB } from '../../lib/search';
 import Algolia from '../../lib/algolia';
+import { toIsoDateStr } from '../../lib/utils';
 
 import {
   CollectiveInterfaceType,
@@ -343,11 +344,12 @@ const queries = {
       const totalAmountInHostCurrency =
         transaction.type === 'CREDIT' ? transaction.amount : transaction.netAmountInCollectiveCurrency * -1;
 
+      const createdAtString = toIsoDateStr(transaction.createdAt ? new Date(transaction.createdAt) : new Date());
       // Generate invoice
       const invoice = {
         title: get(transaction.host, 'settings.invoiceTitle'),
         HostCollectiveId: get(transaction.host, 'id'),
-        slug: `transaction-${args.transactionUuid}`,
+        slug: `${transaction.host.name}_${createdAtString}_${args.transactionUuid}`,
         currency: transaction.hostCurrency,
         FromCollectiveId: fromCollectiveId,
         totalAmount: totalAmountInHostCurrency,
