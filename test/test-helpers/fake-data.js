@@ -10,8 +10,10 @@ import { v4 as uuid } from 'uuid';
 import { get, sample } from 'lodash';
 import models from '../../server/models';
 import { types as CollectiveType } from '../../server/constants/collectives';
+import { services as paymentMethods, types as paymentTypes } from '../../server/constants/paymentMethod';
 import { randEmail, randUrl } from '../stores';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
+
 import { roles } from '../../server/constants';
 
 export const randStr = (prefix = '') => `${prefix}${uuid().split('-')[0]}`;
@@ -369,5 +371,18 @@ export const fakeMember = async data => {
     MemberCollectiveId: memberCollective.id,
     role: data.role || roles.ADMIN,
     CreatedByUserId: collective.CreatedByUserId,
+  });
+};
+
+/**
+ * Creates a fake Payment Method. All params are optionals.
+ */
+export const fakePaymentMethod = async data => {
+  return models.PaymentMethod.create({
+    ...data,
+    type: data.type || sample(paymentTypes),
+    service: data.service || sample(paymentMethods),
+    CollectiveId: data.CollectiveId || (await fakeCollective().then(c => c.id)),
+    currency: data.currency || 'USD',
   });
 };
