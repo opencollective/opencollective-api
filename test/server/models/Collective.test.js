@@ -3,6 +3,7 @@ import models, { Op } from '../../../server/models';
 import * as utils from '../../utils';
 import sinon from 'sinon';
 import emailLib from '../../../server/lib/email';
+import { getFxRate } from '../../../server/lib/currency';
 import { roles } from '../../../server/constants';
 import plans from '../../../server/constants/plans';
 import { fakeCollective, fakeOrder, fakeTransaction, fakeUser, fakePaymentMethod } from '../../test-helpers/fake-data';
@@ -876,8 +877,9 @@ describe('server/models/Collective', () => {
         OrderId: order.id,
       });
 
+      const fx = await getFxRate('EUR', 'USD');
       const totalBankTransfers = await collective.getTotalBankTransfers();
-      expect(totalBankTransfers).to.equals(100000 + 100000 * 1.1);
+      expect(totalBankTransfers).to.equals(100000 + 100000 * fx);
     });
   });
 
@@ -949,8 +951,9 @@ describe('server/models/Collective', () => {
         OrderId: order.id,
       });
 
+      const fx = await getFxRate('EUR', 'USD');
       const totalAddedFunds = await collective.getTotalAddedFunds();
-      expect(totalAddedFunds).to.equals(100000 + 100000 * 1.1);
+      expect(totalAddedFunds).to.equals(100000 + 100000 * fx);
     });
   });
 });
