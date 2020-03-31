@@ -2470,34 +2470,65 @@ export default function (Sequelize, DataTypes) {
       return Promise.resolve(null);
     }
 
-    const result = await models.Transaction.findOne({
-      attributes: [[Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('Order.totalAmount')), 0), 'total']],
-      where: { HostCollectiveId: this.id, type: 'CREDIT' },
-      include: [
-        {
-          model: models.Order,
-          attributes: [],
-          where: { status: 'PAID' },
-          include: [
-            {
-              model: models.PaymentMethod,
-              as: 'paymentMethod',
-              attributes: [],
-              // This is the main chracateristic of Added Funds
-              // Some older usage before 2017 doesn't have it but it's ok
-              where: {
-                service: 'opencollective',
-                type: 'collective',
-                CollectiveId: this.id,
-              },
+    const include = [
+      {
+        model: models.Order,
+        attributes: [],
+        where: { status: 'PAID' },
+        include: [
+          {
+            model: models.PaymentMethod,
+            as: 'paymentMethod',
+            attributes: [],
+            // This is the main chracateristic of Added Funds
+            // Some older usage before 2017 doesn't have it but it's ok
+            where: {
+              service: 'opencollective',
+              type: 'collective',
+              CollectiveId: this.id,
             },
-          ],
-        },
-      ],
-      raw: true,
-    });
+          },
+        ],
+      },
+    ];
 
-    return result.total;
+    const [usd, usdHost, otherCurrencies] = await Promise.all([
+      models.Transaction.findOne({
+        attributes: [[Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('Order.totalAmount')), 0), 'total']],
+        where: { HostCollectiveId: this.id, type: 'CREDIT', currency: 'USD' },
+        include,
+        raw: true,
+      }),
+      models.Transaction.findOne({
+        attributes: [
+          [Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('amountInHostCurrency')), 0), 'total'],
+        ],
+        where: { HostCollectiveId: this.id, type: 'CREDIT', currency: { [Op.ne]: 'USD' }, hostCurrency: 'USD' },
+        include,
+        raw: true,
+      }),
+      models.Transaction.findAll({
+        attributes: [
+          [Sequelize.col('Transaction.currency'), 'currency'],
+          [Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('amount')), 0), 'total'],
+        ],
+        group: [Sequelize.col('Transaction.currency')],
+        where: {
+          HostCollectiveId: this.id,
+          type: 'CREDIT',
+          currency: { [Op.ne]: 'USD' },
+          hostCurrency: { [Op.ne]: 'USD' },
+        },
+        include,
+        raw: true,
+      }),
+    ]);
+
+    const processOtherCurrency = async t => {
+      const fx = await getFxRate(t.currency, 'USD');
+      return Math.round(t.total * fx);
+    };
+    return (await Promise.all(otherCurrencies.map(processOtherCurrency)).then(sum)) + usd.total + usdHost.total;
   };
 
   Collective.prototype.getTotalBankTransfers = async function () {
