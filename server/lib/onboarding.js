@@ -1,9 +1,10 @@
 import Promise from 'bluebird';
 
+import logger from '../lib/logger';
+import models, { Op } from '../models';
+
 import emailLib from './email';
 import { templateNames } from './emailTemplates';
-import models, { Op } from '../models';
-import logger from '../lib/logger';
 
 const emailOptions = {
   from: 'Open Collective <support@opencollective.com>',

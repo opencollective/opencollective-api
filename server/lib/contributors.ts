@@ -7,9 +7,10 @@
  * contributors should surface only unique collectives.
  */
 
-import cache from './cache';
-import { sequelize } from '../models';
 import MemberRoles from '../constants/roles';
+import { sequelize } from '../models';
+
+import cache from './cache';
 import { filterUntil } from './utils';
 
 /**

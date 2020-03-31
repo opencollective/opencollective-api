@@ -3,41 +3,38 @@ import {
   GraphQLEnumType,
   GraphQLError,
   GraphQLFloat,
-  GraphQLInt,
   GraphQLInputObjectType,
+  GraphQLInt,
   GraphQLList,
-  GraphQLObjectType,
-  GraphQLString,
-  GraphQLScalarType,
   GraphQLNonNull,
+  GraphQLObjectType,
+  GraphQLScalarType,
+  GraphQLString,
 } from 'graphql';
-
-import { Kind } from 'graphql/language';
 import GraphQLJSON from 'graphql-type-json';
+import { Kind } from 'graphql/language';
 import he from 'he';
-import { pick, omit, get } from 'lodash';
+import { get, omit, pick } from 'lodash';
 import moment from 'moment';
 
-import { CollectiveInterfaceType, CollectiveSearchResultsType } from './CollectiveInterface';
-
-import { TransactionInterfaceType, OrderDirectionType } from './TransactionInterface';
-
-import models, { Op, sequelize } from '../../models';
-import { getContributorsForTier } from '../../lib/contributors';
-import { stripTags } from '../../lib/utils';
 import status from '../../constants/expense_status';
-import orderStatus from '../../constants/order_status';
-import { maxInteger } from '../../constants/math';
 import intervals from '../../constants/intervals';
+import { maxInteger } from '../../constants/math';
+import orderStatus from '../../constants/order_status';
 import roles from '../../constants/roles';
-import { isUserTaxFormRequiredBeforePayment } from '../../lib/tax-forms';
 import { getCollectiveAvatarUrl } from '../../lib/collectivelib';
-import * as commonComment from '../common/comment';
-import { getExpenseItems, canSeeExpensePayoutMethod, canSeeExpenseAttachments } from '../common/expenses';
+import { getContributorsForTier } from '../../lib/contributors';
+import { isUserTaxFormRequiredBeforePayment } from '../../lib/tax-forms';
+import { stripTags } from '../../lib/utils';
+import models, { Op, sequelize } from '../../models';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
-
-import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
+import * as commonComment from '../common/comment';
 import { allowContextPermission, PERMISSION_TYPE } from '../common/context-permissions';
+import { canSeeExpenseAttachments, canSeeExpensePayoutMethod, getExpenseItems } from '../common/expenses';
+import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
+
+import { CollectiveInterfaceType, CollectiveSearchResultsType } from './CollectiveInterface';
+import { OrderDirectionType, TransactionInterfaceType } from './TransactionInterface';
 
 /**
  * Take a graphql type and return a wrapper type that adds pagination. The pagination

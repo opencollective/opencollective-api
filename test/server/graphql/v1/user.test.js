@@ -4,9 +4,8 @@ import sinon from 'sinon';
 
 import * as payments from '../../../../server/lib/payments';
 import models from '../../../../server/models';
-
-import * as utils from '../../../utils';
 import * as store from '../../../stores';
+import * as utils from '../../../utils';
 
 describe('server/graphql/v1/user', () => {
   let user1, user2, host, collective1, collective2, tier1, ticket1, sandbox;

@@ -1,7 +1,8 @@
 import _ from 'lodash';
-import models from '../models';
+
 import errors from '../lib/errors';
 import { isUUID } from '../lib/utils';
+import models from '../models';
 
 const { User, Collective, Transaction, Expense } = models;
 

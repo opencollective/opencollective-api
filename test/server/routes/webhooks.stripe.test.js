@@ -1,10 +1,11 @@
 import { expect } from 'chai';
-import request from 'supertest';
 import _ from 'lodash';
 import sinon from 'sinon';
+import request from 'supertest';
+
 import app from '../../../server/index';
-import originalStripeMock from '../../mocks/stripe';
 import stripe from '../../../server/lib/stripe';
+import originalStripeMock from '../../mocks/stripe';
 
 describe('server/routes/webhooks.stripe', () => {
   let sandbox;

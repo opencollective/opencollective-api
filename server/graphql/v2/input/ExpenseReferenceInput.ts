@@ -1,4 +1,5 @@
-import { GraphQLInt, GraphQLString, GraphQLInputObjectType } from 'graphql';
+import { GraphQLInputObjectType,GraphQLInt, GraphQLString } from 'graphql';
+
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
 const ExpenseReferenceInput = new GraphQLInputObjectType({

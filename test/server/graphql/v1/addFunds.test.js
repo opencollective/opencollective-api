@@ -1,11 +1,8 @@
 import { expect } from 'chai';
 
-/* Support code */
 import models from '../../../../server/models';
-
-/* Test tools */
-import * as utils from '../../../utils';
 import * as store from '../../../stores';
+import * as utils from '../../../utils';
 
 const addFundsToOrgQuery = `
   mutation addFundsToOrg($totalAmount: Int!, $CollectiveId: Int!, $HostCollectiveId: Int!, $description: String) {

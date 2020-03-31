@@ -1,17 +1,16 @@
-import { GraphQLNonNull, GraphQLBoolean } from 'graphql';
+import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
 import { get, pick } from 'lodash';
 
-import { Collective } from '../object/Collective';
-import { CollectiveCreateInput } from '../input/CollectiveCreateInput';
-import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
-
-import * as errors from '../../errors';
-import models from '../../../models';
-import roles from '../../../constants/roles';
 import activities from '../../../constants/activities';
-import * as github from '../../../lib/github';
+import roles from '../../../constants/roles';
 import { purgeCacheForPage } from '../../../lib/cloudflare';
+import * as github from '../../../lib/github';
 import { defaultHostCollective } from '../../../lib/utils';
+import models from '../../../models';
+import * as errors from '../../errors';
+import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
+import { CollectiveCreateInput } from '../input/CollectiveCreateInput';
+import { Collective } from '../object/Collective';
 
 const DEFAULT_COLLECTIVE_SETTINGS = {
   features: { conversations: true },

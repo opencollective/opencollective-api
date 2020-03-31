@@ -1,5 +1,5 @@
-import Stripe from 'stripe';
 import config from 'config';
+import Stripe from 'stripe';
 
 export default Stripe(config.stripe.secret);
 

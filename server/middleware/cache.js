@@ -1,8 +1,9 @@
+import { EventEmitter } from 'events';
+
 import debug from 'debug';
 import LRUCache from 'lru-cache';
 
 import { hashCode } from '../lib/utils';
-import { EventEmitter } from 'events';
 
 const debugCache = debug('cacheMiddleware');
 

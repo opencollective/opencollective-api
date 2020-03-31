@@ -1,9 +1,10 @@
 import { expect } from 'chai';
 import config from 'config';
+
 import { CollectiveType } from '../../../server/graphql/v1/CollectiveInterface';
-import { searchCollectivesInDB, searchCollectivesByEmail } from '../../../server/lib/search';
+import { searchCollectivesByEmail, searchCollectivesInDB } from '../../../server/lib/search';
 import { newUser } from '../../stores';
-import { fakeUser, fakeCollective } from '../../test-helpers/fake-data';
+import { fakeCollective, fakeUser } from '../../test-helpers/fake-data';
 
 describe('server/lib/search', () => {
   describe('Search in DB', () => {

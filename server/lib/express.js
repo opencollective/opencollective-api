@@ -1,25 +1,25 @@
-import express from 'express';
+import cloudflareIps from 'cloudflare-ip/ips.json';
 import config from 'config';
 import connectRedis from 'connect-redis';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import errorHandler from 'errorhandler';
+import express from 'express';
+import session from 'express-session';
 import helmet from 'helmet';
+import { get, has } from 'lodash';
 import morgan from 'morgan';
 import passport from 'passport';
-import redis from 'redis';
-import session from 'express-session';
-
-import cloudflareIps from 'cloudflare-ip/ips.json';
 import { Strategy as GitHubStrategy } from 'passport-github';
-import { Strategy as TwitterStrategy } from 'passport-twitter';
 import { Strategy as MeetupStrategy } from 'passport-meetup-oauth2';
-import { has, get } from 'lodash';
+import { Strategy as TwitterStrategy } from 'passport-twitter';
+import redis from 'redis';
 
-import logger from './logger';
-import forest from './forest';
-import cacheMiddleware from '../middleware/cache';
 import { loadersMiddleware } from '../graphql/loaders';
+import cacheMiddleware from '../middleware/cache';
+
+import forest from './forest';
+import logger from './logger';
 import { sanitizeForLogs } from './utils';
 
 export default function (app) {

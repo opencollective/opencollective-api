@@ -1,6 +1,8 @@
 import debugLib from 'debug';
 import { graphql } from 'graphql';
+
 import { loaders } from '../loaders';
+
 import schema from './schema';
 
 const debug = debugLib('graphql');

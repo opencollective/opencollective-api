@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 import '../../server/env';
 
-import { Op } from 'sequelize';
 import moment from 'moment';
+import { Op } from 'sequelize';
 
-import models from '../../server/models';
+import activities from '../../server/constants/activities';
 import status from '../../server/constants/expense_status';
 import * as transferwiseLib from '../../server/lib/transferwise';
-import activities from '../../server/constants/activities';
+import models from '../../server/models';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 
 async function processExpense(expense) {

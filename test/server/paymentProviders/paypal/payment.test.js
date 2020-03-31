@@ -1,17 +1,16 @@
-import config from 'config';
-import { v4 as uuid } from 'uuid';
-import nock from 'nock';
-import request from 'supertest';
-import sinon from 'sinon';
 import { expect } from 'chai';
+import config from 'config';
+import nock from 'nock';
+import sinon from 'sinon';
+import request from 'supertest';
+import { v4 as uuid } from 'uuid';
 
 import app from '../../../../server/index';
 import models from '../../../../server/models';
 import * as paypalPayment from '../../../../server/paymentProviders/paypal/payment';
-
-import * as utils from '../../../utils';
 import * as store from '../../../stores';
 import { fakeCollective } from '../../../test-helpers/fake-data';
+import * as utils from '../../../utils';
 
 const application = utils.data('application');
 

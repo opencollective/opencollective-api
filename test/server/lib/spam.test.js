@@ -1,10 +1,11 @@
 import { expect } from 'chai';
 import sinon from 'sinon';
+
 import slackLib from '../../../server/lib/slack';
 import {
   collectiveSpamCheck,
-  notifyTeamAboutSuspiciousCollective,
   notifyTeamAboutPreventedCollectiveCreate,
+  notifyTeamAboutSuspiciousCollective,
 } from '../../../server/lib/spam';
 import { fakeCollective } from '../../test-helpers/fake-data';
 

@@ -1,10 +1,12 @@
-import { pick } from 'lodash';
-import config from 'config';
 import * as LibTaxes from '@opencollective/taxes';
-import { VAT_OPTIONS } from '../constants/vat';
-import { md5 } from './utils';
+import config from 'config';
+import { pick } from 'lodash';
+
 import { types as CollectiveTypes } from '../constants/collectives';
+import { VAT_OPTIONS } from '../constants/vat';
+
 import logger from './logger';
+import { md5 } from './utils';
 
 /**
  * Returns an URL for the given collective params

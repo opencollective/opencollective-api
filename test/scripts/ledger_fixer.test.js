@@ -1,5 +1,6 @@
-import sinon from 'sinon';
 import { expect } from 'chai';
+import sinon from 'sinon';
+
 import { Migration } from '../../scripts/ledger_fixer';
 
 describe('scripts/ledger_fixer', () => {

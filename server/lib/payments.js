@@ -1,23 +1,24 @@
 /** @module lib/payments */
-import config from 'config';
 import Promise from 'bluebird';
-import { includes, pick, get, find } from 'lodash';
+import config from 'config';
+import debugLib from 'debug';
+import { find, get, includes, pick } from 'lodash';
 import { Op } from 'sequelize';
 
-import models from '../models';
-import emailLib from './email';
+import activities from '../constants/activities';
 import status from '../constants/order_status';
 import roles from '../constants/roles';
 import tiers from '../constants/tiers';
-import activities from '../constants/activities';
+import { createGiftCardPrepaidPaymentMethod, isGiftCardPrepaidBudgetOrder } from '../lib/gift-cards';
+import { formatCurrency } from '../lib/utils';
+import models from '../models';
 import paymentProviders from '../paymentProviders';
+
+import { getRecommendedCollectives } from './data';
+import emailLib from './email';
 import { subscribeOrUpgradePlan, validatePlanRequest } from './plans';
 import * as libsubscription from './subscriptions';
 import * as libtransactions from './transactions';
-import { getRecommendedCollectives } from './data';
-import { formatCurrency } from '../lib/utils';
-import { isGiftCardPrepaidBudgetOrder, createGiftCardPrepaidPaymentMethod } from '../lib/gift-cards';
-import debugLib from 'debug';
 
 const debug = debugLib('payments');
 

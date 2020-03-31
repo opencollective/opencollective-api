@@ -1,5 +1,5 @@
-import LibSanitize from 'sanitize-html';
 import { truncate } from 'lodash';
+import LibSanitize from 'sanitize-html';
 
 interface AllowedContentType {
   /** Allows titles  supported by RichTextEditor (`h3` only) */

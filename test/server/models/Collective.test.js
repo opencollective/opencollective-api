@@ -1,21 +1,22 @@
 import { expect } from 'chai';
-import models, { Op } from '../../../server/models';
-import * as utils from '../../utils';
 import sinon from 'sinon';
-import emailLib from '../../../server/lib/email';
-import { getFxRate } from '../../../server/lib/currency';
+
 import { roles } from '../../../server/constants';
 import plans from '../../../server/constants/plans';
+import { getFxRate } from '../../../server/lib/currency';
+import emailLib from '../../../server/lib/email';
+import models, { Op } from '../../../server/models';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 import {
   fakeCollective,
   fakeExpense,
   fakeOrder,
-  fakeTransaction,
-  fakeUser,
   fakePaymentMethod,
   fakePayoutMethod,
+  fakeTransaction,
+  fakeUser,
 } from '../../test-helpers/fake-data';
+import * as utils from '../../utils';
 
 const { Transaction, Collective, User } = models;
 

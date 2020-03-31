@@ -1,16 +1,14 @@
-import sinon from 'sinon';
-import nock from 'nock';
-import moment from 'moment';
 import { expect } from 'chai';
 import { cloneDeep } from 'lodash';
-
-import models from '../../../../server/models';
-
-import * as utils from '../../../utils';
-import * as store from '../../../stores';
+import moment from 'moment';
+import nock from 'nock';
+import sinon from 'sinon';
 
 import { dispatch } from '../../../../server/lib/backyourstack/dispatcher';
+import models from '../../../../server/models';
 import initNock from '../../../nocks/graphql.createOrder.backyourstack.nock';
+import * as store from '../../../stores';
+import * as utils from '../../../utils';
 
 const baseOrder = Object.freeze({
   quantity: 1,

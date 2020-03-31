@@ -1,7 +1,8 @@
-import * as utils from '../../../utils';
-import models from '../../../../server/models';
 import { expect } from 'chai';
+
+import models from '../../../../server/models';
 import { randEmail } from '../../../stores';
+import * as utils from '../../../utils';
 
 describe('server/graphql/v1/connectedAccounts', () => {
   let user, admin, backer, collective, connectedAccount, connectedAccountData;

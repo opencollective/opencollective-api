@@ -1,6 +1,7 @@
-import app from '../../../server/index';
 import { expect } from 'chai';
 import request from 'supertest-as-promised';
+
+import app from '../../../server/index';
 import * as utils from '../../utils';
 
 const application = utils.data('application');

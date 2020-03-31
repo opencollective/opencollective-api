@@ -1,9 +1,10 @@
 import { pick } from 'lodash';
-import { Unauthorized, FeatureNotSupportedForCollective, NotFound, FeatureNotAllowedForUser } from '../errors';
-import models from '../../models';
+
+import FEATURE from '../../constants/feature';
 import hasFeature from '../../lib/allowed-features';
 import { canUseFeature } from '../../lib/user-permissions';
-import FEATURE from '../../constants/feature';
+import models from '../../models';
+import { FeatureNotAllowedForUser,FeatureNotSupportedForCollective, NotFound, Unauthorized } from '../errors';
 
 /** Params given to create a new conversation */
 interface CreateConversationParams {

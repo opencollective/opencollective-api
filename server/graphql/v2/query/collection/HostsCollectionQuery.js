@@ -2,9 +2,8 @@ import { GraphQLList, GraphQLString } from 'graphql';
 import { pick } from 'lodash';
 
 import rawQueries from '../../../../lib/queries';
-
-import { CollectionArgs } from '../../interface/Collection';
 import { HostCollection } from '../../collection/HostCollection';
+import { CollectionArgs } from '../../interface/Collection';
 
 const HostsCollectionQuery = {
   type: HostCollection,

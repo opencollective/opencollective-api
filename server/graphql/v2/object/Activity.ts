@@ -1,9 +1,11 @@
-import { GraphQLString, GraphQLNonNull, GraphQLObjectType } from 'graphql';
+import { GraphQLNonNull, GraphQLObjectType,GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
+
 import { ActivityType } from '../enum';
-import { Account } from '../interface/Account';
-import { Individual } from './Individual';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { Account } from '../interface/Account';
+
+import { Individual } from './Individual';
 
 export const Activity = new GraphQLObjectType({
   name: 'Activity',

@@ -1,7 +1,8 @@
 import { expect } from 'chai';
 import sinon from 'sinon';
-import * as utils from '../../utils';
+
 import models from '../../../server/models';
+import * as utils from '../../utils';
 
 const { Transaction } = models;
 

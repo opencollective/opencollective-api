@@ -1,7 +1,7 @@
 import { GraphQLString } from 'graphql';
 
-import { Expense } from '../object/Expense';
 import { ExpenseReferenceInput, fetchExpenseWithReference } from '../input/ExpenseReferenceInput';
+import { Expense } from '../object/Expense';
 
 const ExpenseQuery = {
   type: Expense,

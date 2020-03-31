@@ -1,4 +1,5 @@
 import { GraphQLEnumType } from 'graphql';
+
 import ACTIVITY from '../../../constants/activities';
 
 export const ActivityType = new GraphQLEnumType({

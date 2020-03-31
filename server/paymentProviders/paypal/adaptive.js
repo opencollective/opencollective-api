@@ -1,9 +1,11 @@
-import paypalAdaptive from './adaptiveGateway';
-import { get, isNil } from 'lodash';
 import config from 'config';
+import { get, isNil } from 'lodash';
 import { v1 as uuid } from 'uuid';
-import logger from '../../lib/logger';
+
 import errors from '../../lib/errors';
+import logger from '../../lib/logger';
+
+import paypalAdaptive from './adaptiveGateway';
 
 /**
  * PayPal paymentProvider

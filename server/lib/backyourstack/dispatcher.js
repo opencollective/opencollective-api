@@ -1,13 +1,13 @@
+import { map } from 'bluebird';
+import debugLib from 'debug';
+import { pick } from 'lodash';
+import moment from 'moment';
 import fetch from 'node-fetch';
 import { v4 as uuid } from 'uuid';
-import debugLib from 'debug';
-import moment from 'moment';
-import { map } from 'bluebird';
-import { pick } from 'lodash';
 
-import models from '../../models';
-import status from '../../constants/order_status';
 import activities from '../../constants/activities';
+import status from '../../constants/order_status';
+import models from '../../models';
 import * as paymentsLib from '../payments';
 
 const debug = debugLib('backyourstack');

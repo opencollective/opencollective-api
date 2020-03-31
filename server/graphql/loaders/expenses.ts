@@ -1,9 +1,11 @@
 import DataLoader from 'dataloader';
+
 import ACTIVITY from '../../constants/activities';
 import models, { Op } from '../../models';
-import { ExpenseItem } from '../../models/ExpenseItem';
-import { sortResultsArray } from './helpers';
 import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile';
+import { ExpenseItem } from '../../models/ExpenseItem';
+
+import { sortResultsArray } from './helpers';
 
 /**
  * Loader for expense's items.

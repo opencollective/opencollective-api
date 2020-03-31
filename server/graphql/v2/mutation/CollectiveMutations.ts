@@ -1,8 +1,7 @@
 import { GraphQLNonNull } from 'graphql';
 
-import { Unauthorized, NotFound } from '../../errors';
 import { types as collectiveTypes } from '../../../constants/collectives';
-
+import { NotFound,Unauthorized } from '../../errors';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { Collective } from '../object/Collective';
 

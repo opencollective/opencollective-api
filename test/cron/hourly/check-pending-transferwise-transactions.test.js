@@ -1,22 +1,22 @@
 import { expect } from 'chai';
 import sinon from 'sinon';
 
+import { run as checkPendingTransfers } from '../../../cron/hourly/check-pending-transferwise-transactions.js';
+import { roles } from '../../../server/constants';
+import status from '../../../server/constants/expense_status';
+import emailLib from '../../../server/lib/email';
+import * as transferwiseLib from '../../../server/lib/transferwise';
+import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 import {
   fakeCollective,
   fakeConnectedAccount,
   fakeExpense,
+  fakeMember,
   fakePayoutMethod,
   fakeTransaction,
-  fakeMember,
   fakeUser,
 } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
-import { run as checkPendingTransfers } from '../../../cron/hourly/check-pending-transferwise-transactions.js';
-import * as transferwiseLib from '../../../server/lib/transferwise';
-import emailLib from '../../../server/lib/email';
-import status from '../../../server/constants/expense_status';
-import { roles } from '../../../server/constants';
-import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 
 describe('cron/hourly/check-pending-transferwise-transactions.js', () => {
   const sandbox = sinon.createSandbox();

@@ -1,6 +1,7 @@
 import { assert } from 'chai';
-import { has } from 'lodash';
 import config from 'config';
+import { has } from 'lodash';
+
 import { getProvider, PROVIDER_TYPES } from '../../../../server/lib/cache';
 
 const providersToTest = [PROVIDER_TYPES.MEMORY];

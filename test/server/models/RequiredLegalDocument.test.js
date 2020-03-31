@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+
 import models from '../../../server/models';
 import * as utils from '../../utils';
 

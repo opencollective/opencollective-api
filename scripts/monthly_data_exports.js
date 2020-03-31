@@ -1,8 +1,10 @@
-import models, { sequelize } from '../server/models';
-import { parse as json2csv } from 'json2csv';
 import fs from 'fs';
+
 import Promise from 'bluebird';
+import { parse as json2csv } from 'json2csv';
 import moment from 'moment';
+
+import models, { sequelize } from '../server/models';
 
 const GoogleDrivePath = process.env.OC_GOOGLE_DRIVE || `${process.env.HOME}/Google\ Drive/Open\ Collective`;
 

@@ -1,8 +1,8 @@
 import moment from 'moment';
-import models from '../../../models';
-import { dispatch, needsDispatching } from '../../../lib/backyourstack/dispatcher';
 
 import status from '../../../constants/order_status';
+import { dispatch, needsDispatching } from '../../../lib/backyourstack/dispatcher';
+import models from '../../../models';
 
 export async function dispatchOrder(orderId) {
   const order = await models.Order.findByPk(orderId);

@@ -1,9 +1,8 @@
-import { v4 as uuid } from 'uuid';
 import { expect } from 'chai';
+import { v4 as uuid } from 'uuid';
 
 import models from '../../../../server/models';
 import prepaid from '../../../../server/paymentProviders/opencollective/prepaid';
-
 import { randEmail } from '../../../stores';
 
 describe('server/paymentProviders/opencollective/prepaid', () => {

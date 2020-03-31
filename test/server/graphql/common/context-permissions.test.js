@@ -1,10 +1,11 @@
 import { expect } from 'chai';
-import { makeRequest } from '../../../utils';
+
 import {
   allowContextPermission,
   getContextPermission,
   PERMISSION_TYPE,
 } from '../../../../server/graphql/common/context-permissions';
+import { makeRequest } from '../../../utils';
 
 describe('server/graphql/common/context-permissions', () => {
   let req;

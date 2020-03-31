@@ -1,22 +1,21 @@
-import { get } from 'lodash';
-import models from '../../models';
 import {
-  GraphQLInt,
-  GraphQLFloat,
-  GraphQLString,
-  GraphQLInterfaceType,
-  GraphQLObjectType,
-  GraphQLList,
   GraphQLEnumType,
+  GraphQLFloat,
   GraphQLInputObjectType,
+  GraphQLInt,
+  GraphQLInterfaceType,
+  GraphQLList,
+  GraphQLObjectType,
+  GraphQLString,
 } from 'graphql';
+import { get } from 'lodash';
+
+import models from '../../models';
+import { canSeeExpenseAttachments, getExpenseItems } from '../common/expenses';
+import { idEncode } from '../v2/identifiers';
 
 import { CollectiveInterfaceType, UserCollectiveType } from './CollectiveInterface';
-
-import { SubscriptionType, OrderType, PaymentMethodType, UserType, DateString, ExpenseType } from './types';
-import { getExpenseItems, canSeeExpenseAttachments } from '../common/expenses';
-
-import { idEncode } from '../v2/identifiers';
+import { DateString, ExpenseType, OrderType, PaymentMethodType, SubscriptionType, UserType } from './types';
 
 export const TransactionInterfaceType = new GraphQLInterfaceType({
   name: 'Transaction',

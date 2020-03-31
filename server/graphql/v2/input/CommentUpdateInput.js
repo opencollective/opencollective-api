@@ -1,4 +1,4 @@
-import { GraphQLString, GraphQLInputObjectType, GraphQLNonNull } from 'graphql';
+import { GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
 
 /**
  * Input type to use as the type for the comment input in editComment mutation.

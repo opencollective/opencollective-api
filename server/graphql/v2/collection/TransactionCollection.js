@@ -1,7 +1,7 @@
 import { GraphQLList, GraphQLObjectType } from 'graphql';
 
-import { Transaction } from '../interface/Transaction';
 import { Collection, CollectionFields } from '../interface/Collection';
+import { Transaction } from '../interface/Transaction';
 
 export const TransactionCollection = new GraphQLObjectType({
   name: 'TransactionCollection',

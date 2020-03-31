@@ -1,8 +1,8 @@
-import nock from 'nock';
 import { expect } from 'chai';
+import nock from 'nock';
 
-import * as utils from '../../../../utils';
 import models from '../../../../../server/models';
+import * as utils from '../../../../utils';
 
 const createCollectiveQuery = `
     mutation createCollective($collective: CollectiveCreateInput!, $host: AccountReferenceInput, $automateApprovalWithGithub: Boolean) {

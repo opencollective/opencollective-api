@@ -1,10 +1,10 @@
-import pg from 'pg';
-import Sequelize from 'sequelize';
 import config from 'config';
 import debugLib from 'debug';
+import pg from 'pg';
+import Sequelize from 'sequelize';
 
-import logger from '../lib/logger';
 import { getDBConf } from '../lib/db';
+import logger from '../lib/logger';
 
 // this is needed to prevent sequelize from converting integers to strings, when model definition isn't clear
 // like in case of the key totalOrders and raw query (like User.getTopBackers())

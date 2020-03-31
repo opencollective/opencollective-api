@@ -1,10 +1,10 @@
 import fs from 'fs';
 import path from 'path';
 
-import config from 'config';
-import request from 'supertest';
-import fetch from 'node-fetch';
 import { expect } from 'chai';
+import config from 'config';
+import fetch from 'node-fetch';
+import request from 'supertest';
 
 import app from '../../../server/index';
 import models from '../../../server/models';

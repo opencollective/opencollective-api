@@ -1,13 +1,13 @@
 import Promise from 'bluebird';
 import { get } from 'lodash';
 
-import logger from '../../lib/logger';
-import models, { sequelize } from '../../models';
+import { maxInteger } from '../../constants/math';
 import { TransactionTypes } from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
+import logger from '../../lib/logger';
 import * as paymentsLib from '../../lib/payments';
 import { formatCurrency } from '../../lib/utils';
-import { maxInteger } from '../../constants/math';
+import models, { sequelize } from '../../models';
 
 const paymentMethodProvider = {};
 

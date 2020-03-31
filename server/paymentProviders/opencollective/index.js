@@ -1,9 +1,9 @@
 /** @module paymentProviders/opencollective */
 
 import collective from './collective';
+import manual from './manual';
 import prepaid from './prepaid';
 import virtualcard from './virtualcard';
-import manual from './manual';
 
 /** Process orders from Open Collective payment method types */
 async function processOrder(order) {

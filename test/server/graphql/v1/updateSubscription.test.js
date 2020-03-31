@@ -1,12 +1,12 @@
-import sinon from 'sinon';
-import nodemailer from 'nodemailer';
 import { expect } from 'chai';
 import config from 'config';
+import nodemailer from 'nodemailer';
+import sinon from 'sinon';
 
-import * as utils from '../../../utils';
-import models from '../../../../server/models';
 import ORDER_STATUS from '../../../../server/constants/order_status';
+import models from '../../../../server/models';
 import initNock from '../../../nocks/graphql.updateSubscription.nock';
+import * as utils from '../../../utils';
 
 const ordersData = utils.data('orders');
 const updateSubscriptionQuery = `

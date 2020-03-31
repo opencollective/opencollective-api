@@ -121,6 +121,7 @@
     "eslint-plugin-mocha": "6.3.0",
     "eslint-plugin-node": "^11.1.0",
     "eslint-plugin-react": "^7.19.0",
+    "eslint-plugin-simple-import-sort": "^5.0.2",
     "husky": "^4.2.3",
     "lint-staged": "^10.1.2",
     "maildev": "^1.1.0",

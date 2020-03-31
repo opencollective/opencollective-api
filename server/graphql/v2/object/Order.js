@@ -1,15 +1,12 @@
-import { GraphQLString, GraphQLObjectType } from 'graphql';
+import { GraphQLObjectType, GraphQLString } from 'graphql';
 // import { GraphQLInt } from 'graphql';
-
 import { GraphQLDateTime } from 'graphql-iso-date';
 
+import { OrderFrequency, OrderStatus } from '../enum';
+import { idEncode } from '../identifiers';
 import { Account } from '../interface/Account';
 import { Amount } from '../object/Amount';
 import { Tier } from '../object/Tier';
-
-import { OrderFrequency, OrderStatus } from '../enum';
-
-import { idEncode } from '../identifiers';
 
 export const Order = new GraphQLObjectType({
   name: 'Order',

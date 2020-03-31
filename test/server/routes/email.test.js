@@ -1,19 +1,19 @@
-import { expect } from 'chai';
-import app from '../../../server/index';
-import request from 'supertest';
 import Promise from 'bluebird';
-import sinon from 'sinon';
-import models from '../../../server/models';
-import emailLib from '../../../server/lib/email';
-import { md5 } from '../../../server/lib/utils';
-
-import webhookBodyPayload from '../../mocks/mailgun.webhook.payload';
-import webhookBodyApprove from '../../mocks/mailgun.webhook.approve';
-import * as utils from '../../utils';
+import { expect } from 'chai';
 import config from 'config';
 import nock from 'nock';
+import sinon from 'sinon';
+import request from 'supertest';
+
+import app from '../../../server/index';
+import emailLib from '../../../server/lib/email';
+import { md5 } from '../../../server/lib/utils';
+import models from '../../../server/models';
+import webhookBodyApprove from '../../mocks/mailgun.webhook.approve';
+import webhookBodyPayload from '../../mocks/mailgun.webhook.payload';
 import initNock from '../../nocks/email.routes.test.nock.js';
 import { fakeCollective, fakeUser } from '../../test-helpers/fake-data';
+import * as utils from '../../utils';
 
 const generateToken = (email, slug, template) => {
   const uid = `${email}.${slug}.${template}.${config.keys.opencollective.jwtSecret}`;

@@ -1,7 +1,9 @@
-import activities from '../constants/activities';
 import flatten from 'flat';
-import { formatCurrency } from './currency';
+
+import activities from '../constants/activities';
 import { TransactionTypes } from '../constants/transactions';
+
+import { formatCurrency } from './currency';
 
 export default {
   /*

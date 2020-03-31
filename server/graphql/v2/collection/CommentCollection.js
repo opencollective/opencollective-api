@@ -1,7 +1,7 @@
 import { GraphQLList, GraphQLObjectType } from 'graphql';
 
-import { Comment } from '../object/Comment';
 import { Collection, CollectionFields } from '../interface/Collection';
+import { Comment } from '../object/Comment';
 
 const CommentCollection = new GraphQLObjectType({
   name: 'CommentCollection',

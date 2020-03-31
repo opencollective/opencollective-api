@@ -1,6 +1,8 @@
-import models, { sequelize } from '../../models';
-import { sortResultsSimple } from './helpers';
 import DataLoader from 'dataloader';
+
+import models, { sequelize } from '../../models';
+
+import { sortResultsSimple } from './helpers';
 
 export default {
   /**

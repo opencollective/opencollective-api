@@ -1,9 +1,10 @@
-import { pick } from 'lodash';
 import config from 'config';
+import { pick } from 'lodash';
 
 import { types } from '../constants/collectives';
 import roles, { MemberRoleLabels } from '../constants/roles';
 import emailLib from '../lib/email';
+
 import models from '.';
 
 export default function (Sequelize, DataTypes) {

@@ -1,50 +1,47 @@
-import sequelize from 'sequelize';
-import SqlString from 'sequelize/lib/sql-string';
 import {
-  GraphQLInt,
-  GraphQLList,
-  GraphQLString,
   GraphQLBoolean,
-  GraphQLInterfaceType,
-  GraphQLObjectType,
   GraphQLEnumType,
+  GraphQLInt,
+  GraphQLInterfaceType,
+  GraphQLList,
+  GraphQLObjectType,
+  GraphQLString,
 } from 'graphql';
 import GraphQLJSON from 'graphql-type-json';
 import { get, has, sortBy } from 'lodash';
+import sequelize from 'sequelize';
+import SqlString from 'sequelize/lib/sql-string';
 
+import { types } from '../../constants/collectives';
+import roles from '../../constants/roles';
+import { getContributorsForCollective } from '../../lib/contributors';
 import queries from '../../lib/queries';
+import models, { Op } from '../../models';
 import { hostResolver } from '../common/collective';
 import { getContextPermission, PERMISSION_TYPE } from '../common/context-permissions';
 
-import {
-  LocationType,
-  UserType,
-  OrderType,
-  MemberType,
-  TierType,
-  PaymentMethodType,
-  ConnectedAccountType,
-  ExpenseType,
-  OrderStatusType,
-  PaginatedPaymentMethodsType,
-  ImageFormatType,
-  NotificationType,
-  DateString,
-  ContributorType,
-  UpdateType,
-  ContributorRoleEnum,
-  PaymentMethodBatchInfo,
-  PayoutMethodType,
-} from './types';
-
-import { OrderDirectionType, TransactionInterfaceType } from './TransactionInterface';
-
 import { ApplicationType } from './Application';
-
-import { types } from '../../constants/collectives';
-import models, { Op } from '../../models';
-import roles from '../../constants/roles';
-import { getContributorsForCollective } from '../../lib/contributors';
+import { OrderDirectionType, TransactionInterfaceType } from './TransactionInterface';
+import {
+  ConnectedAccountType,
+  ContributorRoleEnum,
+  ContributorType,
+  DateString,
+  ExpenseType,
+  ImageFormatType,
+  LocationType,
+  MemberType,
+  NotificationType,
+  OrderStatusType,
+  OrderType,
+  PaginatedPaymentMethodsType,
+  PaymentMethodBatchInfo,
+  PaymentMethodType,
+  PayoutMethodType,
+  TierType,
+  UpdateType,
+  UserType,
+} from './types';
 
 export const TypeOfCollectiveType = new GraphQLEnumType({
   name: 'TypeOfCollective',

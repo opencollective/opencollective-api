@@ -1,9 +1,11 @@
-import { GraphQLString, GraphQLInputObjectType, GraphQLList, GraphQLNonNull } from 'graphql';
+import { GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+
 import { ExpenseType } from '../enum/ExpenseType';
-import { ExpenseItemCreateInput } from './ExpenseItemCreateInput';
-import { PayoutMethodInput } from './PayoutMethodInput';
+
 import { AccountReferenceInput } from './AccountReferenceInput';
 import { ExpenseAttachedFileInput } from './ExpenseAttachedFileInput';
+import { ExpenseItemCreateInput } from './ExpenseItemCreateInput';
+import { PayoutMethodInput } from './PayoutMethodInput';
 
 /**
  * Input type to use as the type for the expense input in createExpense mutation.

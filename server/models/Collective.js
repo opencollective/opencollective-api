@@ -1,64 +1,63 @@
-import Temporal from 'sequelize-temporal';
-import config from 'config';
-import deepmerge from 'deepmerge';
-import prependHttp from 'prepend-http';
-import slugify from 'limax';
 import Promise from 'bluebird';
+import config from 'config';
 import debugLib from 'debug';
-import fetch from 'isomorphic-fetch';
-import moment from 'moment';
+import deepmerge from 'deepmerge';
 import * as ics from 'ics';
+import fetch from 'isomorphic-fetch';
+import slugify from 'limax';
 import {
-  get,
+  defaults,
   difference,
   differenceBy,
-  uniqBy,
-  pick,
-  pickBy,
-  sumBy,
-  keys,
-  omit,
-  sum,
-  defaults,
+  get,
   includes,
   isNull,
+  keys,
+  omit,
+  pick,
+  pickBy,
+  sum,
+  sumBy,
+  uniqBy,
 } from 'lodash';
+import moment from 'moment';
+import prependHttp from 'prepend-http';
+import { Op } from 'sequelize';
+import Temporal from 'sequelize-temporal';
 import { v4 as uuid } from 'uuid';
 import { isISO31661Alpha2 } from 'validator';
-import { Op } from 'sequelize';
 
-import CustomDataTypes from './DataTypes';
-
-import logger from '../lib/logger';
-import userlib from '../lib/userlib';
-import emailLib from '../lib/email';
-import queries from '../lib/queries';
-import {
-  isBlacklistedCollectiveSlug,
-  collectiveSlugBlacklist,
-  whitelistSettings,
-  validateSettings,
-  getCollectiveAvatarUrl,
-} from '../lib/collectivelib';
-import { getFxRate } from '../lib/currency';
-import {
-  notifyTeamAboutSuspiciousCollective,
-  collectiveSpamCheck,
-  notifyTeamAboutPreventedCollectiveCreate,
-} from '../lib/spam';
-import { canUseFeature } from '../lib/user-permissions';
-import { handleHostCollectivesLimit } from '../lib/plans';
-import { capitalize, flattenArray, getDomain, formatCurrency, cleanTags, md5, stripTags } from '../lib/utils';
-
-import roles, { MemberRoleLabels } from '../constants/roles';
 import activities from '../constants/activities';
-import { HOST_FEE_PERCENT, OC_FEE_PERCENT } from '../constants/transactions';
 import { types } from '../constants/collectives';
 import expenseStatus from '../constants/expense_status';
 import expenseTypes from '../constants/expense_type';
-import plans, { PLANS_COLLECTIVE_SLUG } from '../constants/plans';
 import FEATURE from '../constants/feature';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
+import plans, { PLANS_COLLECTIVE_SLUG } from '../constants/plans';
+import roles, { MemberRoleLabels } from '../constants/roles';
+import { HOST_FEE_PERCENT, OC_FEE_PERCENT } from '../constants/transactions';
+import {
+  collectiveSlugBlacklist,
+  getCollectiveAvatarUrl,
+  isBlacklistedCollectiveSlug,
+  validateSettings,
+  whitelistSettings,
+} from '../lib/collectivelib';
+import { getFxRate } from '../lib/currency';
+import emailLib from '../lib/email';
+import logger from '../lib/logger';
+import { handleHostCollectivesLimit } from '../lib/plans';
+import queries from '../lib/queries';
+import {
+  collectiveSpamCheck,
+  notifyTeamAboutPreventedCollectiveCreate,
+  notifyTeamAboutSuspiciousCollective,
+} from '../lib/spam';
+import { canUseFeature } from '../lib/user-permissions';
+import userlib from '../lib/userlib';
+import { capitalize, cleanTags, flattenArray, formatCurrency, getDomain, md5, stripTags } from '../lib/utils';
+
+import CustomDataTypes from './DataTypes';
 import { PayoutMethodTypes } from './PayoutMethod';
 
 const debug = debugLib('models:Collective');

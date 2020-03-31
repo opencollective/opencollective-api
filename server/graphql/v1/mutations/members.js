@@ -1,6 +1,6 @@
-import models from '../../../models';
-import errors from '../../../lib/errors';
 import { invalidateContributorsCache } from '../../../lib/contributors';
+import errors from '../../../lib/errors';
+import models from '../../../models';
 
 /** A mutation to edit the public message of all matching members. */
 export async function editPublicMessage(_, { FromCollectiveId, CollectiveId, message }, req) {

@@ -4,10 +4,10 @@ import '../../server/env';
 import { filter } from 'bluebird';
 import { Op } from 'sequelize';
 
-import models from '../../server/models';
-import status from '../../server/constants/order_status';
 import activities from '../../server/constants/activities';
+import status from '../../server/constants/order_status';
 import { dispatchFunds, needsDispatching } from '../../server/lib/backyourstack/dispatcher';
+import models from '../../server/models';
 
 async function run() {
   const tiers = await models.Tier.findAll({

@@ -1,25 +1,23 @@
-import slugify from 'limax';
-import { get, omit, truncate } from 'lodash';
 import { map } from 'bluebird';
 import config from 'config';
-import { v4 as uuid } from 'uuid';
+import slugify from 'limax';
+import { get, omit, truncate } from 'lodash';
 import sanitize from 'sanitize-html';
 import sequelize from 'sequelize';
+import { v4 as uuid } from 'uuid';
 
-import models, { Op } from '../../../models';
-import * as errors from '../../errors';
-
-import emailLib from '../../../lib/email';
-import * as github from '../../../lib/github';
-import { defaultHostCollective } from '../../../lib/utils';
-import { purgeCacheForPage } from '../../../lib/cloudflare';
-import { canUseFeature } from '../../../lib/user-permissions';
-import { handleHostCollectivesLimit } from '../../../lib/plans';
-
-import roles from '../../../constants/roles';
 import activities from '../../../constants/activities';
 import { types } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
+import roles from '../../../constants/roles';
+import { purgeCacheForPage } from '../../../lib/cloudflare';
+import emailLib from '../../../lib/email';
+import * as github from '../../../lib/github';
+import { handleHostCollectivesLimit } from '../../../lib/plans';
+import { canUseFeature } from '../../../lib/user-permissions';
+import { defaultHostCollective } from '../../../lib/utils';
+import models, { Op } from '../../../models';
+import * as errors from '../../errors';
 
 const DEFAULT_COLLECTIVE_SETTINGS = {
   features: { conversations: true },

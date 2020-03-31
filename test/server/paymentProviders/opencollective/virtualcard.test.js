@@ -1,18 +1,17 @@
-import sinon from 'sinon';
+import { expect } from 'chai';
 import moment from 'moment';
 import nock from 'nock';
-import { expect } from 'chai';
+import sinon from 'sinon';
 
+import { maxInteger } from '../../../../server/constants/math';
+import emailLib from '../../../../server/lib/email';
 import models from '../../../../server/models';
 import virtualcard from '../../../../server/paymentProviders/opencollective/virtualcard';
 import creditCardLib from '../../../../server/paymentProviders/stripe/creditcard';
-import emailLib from '../../../../server/lib/email';
-import { maxInteger } from '../../../../server/constants/math';
-
-import * as utils from '../../../utils';
-import * as store from '../../../stores';
 import initNock from '../../../nocks/paymentMethods.opencollective.virtualcard.nock';
+import * as store from '../../../stores';
 import { fakeOrder } from '../../../test-helpers/fake-data';
+import * as utils from '../../../utils';
 
 const ORDER_TOTAL_AMOUNT = 5000;
 const STRIPE_FEE_STUBBED_VALUE = 300;

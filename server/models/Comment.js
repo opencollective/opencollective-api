@@ -1,14 +1,16 @@
 /**
  * Dependencies.
  */
+import Promise from 'bluebird';
 import _ from 'lodash';
 import Temporal from 'sequelize-temporal';
-import activities from '../constants/activities';
-import Promise from 'bluebird';
 import showdown from 'showdown';
+
+import activities from '../constants/activities';
 const markdownConverter = new showdown.Converter();
 
 import { buildSanitizerOptions, sanitizeHTML, stripHTML } from '../lib/sanitize-html';
+
 import { sequelize } from '.';
 
 // Options for sanitizing comment's body

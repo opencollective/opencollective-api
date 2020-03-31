@@ -1,10 +1,11 @@
-import config from 'config';
-import sinon from 'sinon';
 import { expect } from 'chai';
+import config from 'config';
 import nock from 'nock';
-import * as utils from '../../utils';
+import sinon from 'sinon';
+
 import models from '../../../server/models';
 import { randEmail } from '../../stores';
+import * as utils from '../../utils';
 
 describe('server/models/PaymentMethod', () => {
   let timer, user, collective, organization, paymentMethod;
