@@ -5,7 +5,7 @@ import sinon from 'sinon';
 import emailLib from '../../../server/lib/email';
 import { roles } from '../../../server/constants';
 import plans from '../../../server/constants/plans';
-import { fakeUser } from '../../test-helpers/fake-data';
+import { fakeCollective, fakeOrder, fakeTransaction, fakeUser } from '../../test-helpers/fake-data';
 
 const { Transaction, Collective, User } = models;
 
@@ -816,6 +816,68 @@ describe('server/models/Collective', () => {
 
       expect(usersOverThreshold.length).to.eq(1);
       expect(usersOverThreshold[0].email).to.eq(users[1].email);
+    });
+  });
+
+  describe('getTotalBankTransfers', () => {
+    let collective, order;
+    beforeEach(async () => {
+      await utils.resetTestDB();
+
+      collective = await fakeCollective({ isHostAccount: true });
+      order = await fakeOrder({ status: 'PAID', PaymentMethodId: null, totalAmount: 100000, processedAt: new Date() });
+      await fakeTransaction({
+        amount: 100000,
+        HostCollectiveId: collective.id,
+        currency: 'USD',
+        OrderId: order.id,
+      });
+    });
+
+    it('should return the sum of all bank transfers', async () => {
+      const totalBankTransfers = await collective.getTotalBankTransfers();
+      expect(totalBankTransfers).to.equals(100000);
+    });
+
+    it('should consider the amountInHostCurrency if host currency is USD', async () => {
+      order = await fakeOrder({
+        status: 'PAID',
+        currency: 'BRL',
+        PaymentMethodId: null,
+        totalAmount: 20000,
+        processedAt: new Date(),
+      });
+      await fakeTransaction({
+        amount: 100000,
+        HostCollectiveId: collective.id,
+        currency: 'BRL',
+        hostCurrency: 'USD',
+        amountInHostCurrency: 20000,
+        OrderId: order.id,
+      });
+
+      const totalBankTransfers = await collective.getTotalBankTransfers();
+      expect(totalBankTransfers).to.equals(100000 + 20000);
+    });
+
+    it('should consider the fx rate if another currency', async () => {
+      order = await fakeOrder({
+        status: 'PAID',
+        currency: 'EUR',
+        PaymentMethodId: null,
+        totalAmount: 20000,
+        processedAt: new Date(),
+      });
+      await fakeTransaction({
+        amount: 100000,
+        HostCollectiveId: collective.id,
+        currency: 'EUR',
+        hostCurrency: 'GBP',
+        OrderId: order.id,
+      });
+
+      const totalBankTransfers = await collective.getTotalBankTransfers();
+      expect(totalBankTransfers).to.equals(100000 + 100000 * 1.1);
     });
   });
 });
