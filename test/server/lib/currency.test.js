@@ -11,7 +11,7 @@ describe('server/lib/currency', () => {
     nock('https://data.fixer.io')
       .get(`/${startDate}`)
       .query({
-        access_key: config.fixer.accessKey,
+        access_key: config.fixer.accessKey, // eslint-disable-line camelcase
         base: 'EUR',
         symbols: 'USD',
       })
@@ -20,7 +20,7 @@ describe('server/lib/currency', () => {
     nock('https://data.fixer.io')
       .get(`/${endDate}`)
       .query({
-        access_key: config.fixer.accessKey,
+        access_key: config.fixer.accessKey, // eslint-disable-line camelcase
         base: 'EUR',
         symbols: 'USD',
       })
@@ -29,7 +29,7 @@ describe('server/lib/currency', () => {
     nock('https://data.fixer.io')
       .get(`/${endDate}`)
       .query({
-        access_key: config.fixer.accessKey,
+        access_key: config.fixer.accessKey, // eslint-disable-line camelcase
         base: 'INR',
         symbols: 'USD',
       })

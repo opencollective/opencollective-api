@@ -43,6 +43,7 @@ describe('server/routes/webhooks.stripe', () => {
     it('returns an error if the event does not exist', done => {
       const stripeMock = _.cloneDeep(originalStripeMock);
 
+      // eslint-disable-next-line camelcase
       stripeMock.event_payment_succeeded = {
         error: {
           type: 'invalid_request_error',

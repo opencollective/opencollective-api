@@ -99,12 +99,14 @@ const tweetStatus = (twitterAccount, status, url, options = {}) => {
 
   debug('tweeting status: ', status, 'with options:', options);
   if (has(config, 'twitter.consumerKey') && has(config, 'twitter.consumerSecret')) {
+    /* eslint-disable camelcase */
     const client = new Twitter({
       consumer_key: get(config, 'twitter.consumerKey'),
       consumer_secret: get(config, 'twitter.consumerSecret'),
       access_token_key: twitterAccount.clientId,
       access_token_secret: twitterAccount.token,
     });
+    /* eslint-enable camelcase */
 
     return client.post('statuses/update', { status, ...options }).catch(err => {
       err = Array.isArray(err) ? err.shift() : err;

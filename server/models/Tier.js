@@ -7,7 +7,7 @@ import { Op } from 'sequelize';
 
 import CustomDataTypes from './DataTypes';
 import { maxInteger } from '../constants/math';
-import { capitalize, days, formatCurrency, strip_tags } from '../lib/utils';
+import { capitalize, days, formatCurrency, stripTags } from '../lib/utils';
 import { isSupportedVideoProvider, supportedVideoProviders } from '../lib/validators';
 
 const debug = debugLib('models:Tier');
@@ -87,7 +87,7 @@ export default function (Sequelize, DataTypes) {
           if (!content) {
             this.setDataValue('longDescription', null);
           } else {
-            this.setDataValue('longDescription', strip_tags(content));
+            this.setDataValue('longDescription', stripTags(content));
           }
         },
       },

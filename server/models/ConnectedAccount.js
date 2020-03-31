@@ -54,8 +54,8 @@ export default (Sequelize, DataTypes) => {
 
         paypalConfig() {
           return {
-            client_id: this.clientId,
-            client_secret: this.token,
+            client_id: this.clientId, // eslint-disable-line camelcase
+            client_secret: this.token, // eslint-disable-line camelcase
             mode: config.paypal.rest.mode,
           };
         },

@@ -80,6 +80,7 @@ describe('server/graphql/v1/tiers', () => {
     sandbox.stub(stripe.customers, 'create').callsFake(() => Promise.resolve({ id: 'cus_B5s4wkqxtUtNyM' }));
     sandbox.stub(stripe.customers, 'retrieve').callsFake(() => Promise.resolve({ id: 'cus_B5s4wkqxtUtNyM' }));
 
+    /* eslint-disable camelcase */
     sandbox.stub(stripe.paymentIntents, 'create').callsFake(data =>
       Promise.resolve({
         charges: {
@@ -119,6 +120,7 @@ describe('server/graphql/v1/tiers', () => {
       type: 'charge',
     };
     sandbox.stub(stripe.balanceTransactions, 'retrieve').callsFake(() => Promise.resolve(balanceTransaction));
+    /* eslint-enable camelcase */
   });
 
   describe('graphql.tiers.test.js', () => {

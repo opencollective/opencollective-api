@@ -43,6 +43,7 @@ async function setupTestObjects() {
     CollectiveId: collective.id,
     PaymentMethodId: paymentMethod.id,
   });
+  /* eslint-disable camelcase */
   const charge = {
     id: 'ch_1Bs9ECBYycQg1OMfGIYoPFvk',
     object: 'charge',
@@ -70,6 +71,7 @@ async function setupTestObjects() {
     status: 'pending',
     type: 'charge',
   };
+  /* eslint-enable camelcase */
   const fees = extractFees(balanceTransaction);
   const payload = {
     CreatedByUserId: user.id,
@@ -95,6 +97,7 @@ async function setupTestObjects() {
   return { user, host, collective, tier, paymentMethod, order, transaction };
 }
 
+/* eslint-disable camelcase */
 function initStripeNock({ amount, fee, fee_details, net }) {
   const refund = {
     id: 're_1Bvu79LzdXg9xKNSFNBqv7Jn',
@@ -125,6 +128,7 @@ function initStripeNock({ amount, fee, fee_details, net }) {
       },
     });
 }
+/* eslint-enable camelcase */
 
 describe('server/graphql/v1/refundTransaction', () => {
   /* All the tests will touch the database, so resetting it is the
@@ -168,6 +172,7 @@ describe('server/graphql/v1/refundTransaction', () => {
     });
     afterEach(() => userStub.restore());
 
+    // eslint-disable-next-line camelcase
     beforeEach(() => initStripeNock({ amount: -5000, fee: 0, fee_details: [], net: -5000 }));
 
     afterEach(nock.cleanAll);
@@ -222,7 +227,7 @@ describe('server/graphql/v1/refundTransaction', () => {
       initStripeNock({
         amount: -5000,
         fee: -175,
-        fee_details: [{ amount: -175, type: 'stripe_fee' }],
+        fee_details: [{ amount: -175, type: 'stripe_fee' }], // eslint-disable-line camelcase
         net: -4825,
       }),
     );
@@ -320,6 +325,7 @@ describe('server/graphql/v1/refundTransaction', () => {
     });
     afterEach(() => userStub.restore());
 
+    // eslint-disable-next-line camelcase
     beforeEach(() => initStripeNock({ amount: -5000, fee: 0, fee_details: [], net: -5000 }));
 
     afterEach(nock.cleanAll);

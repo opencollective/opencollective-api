@@ -62,6 +62,7 @@ export async function getAllUserPublicRepos(accessToken) {
 
   const octokit = getOctokit(accessToken);
 
+  // eslint-disable-next-line camelcase
   const parameters = { page: 1, per_page: 100, visibility: 'public' };
 
   let repos = [];
@@ -95,6 +96,7 @@ export async function getAllOrganizationPublicRepos(org, accessToken) {
 
   const octokit = getOctokit(accessToken);
 
+  // eslint-disable-next-line camelcase
   const parameters = { org, page: 1, per_page: 100, type: 'public' };
 
   let repos = [];
@@ -133,6 +135,7 @@ export async function getOrgMemberships(accessToken) {
   const octokit = getOctokit(accessToken);
   // https://octokit.github.io/rest.js/#api-Orgs-listMemberships
   // https://developer.github.com/v3/orgs/members/#list-your-organization-memberships
+  // eslint-disable-next-line camelcase
   return octokit.orgs.listMemberships({ page: 1, per_page: 100 }).then(getData);
 }
 

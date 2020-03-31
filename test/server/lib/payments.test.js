@@ -32,7 +32,7 @@ describe('server/lib/payments', () => {
       .get('/latest')
       .times(19)
       .query({
-        access_key: config.fixer.accessKey,
+        access_key: config.fixer.accessKey, // eslint-disable-line camelcase
         base: 'EUR',
         symbols: 'USD',
       })

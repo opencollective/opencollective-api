@@ -56,7 +56,7 @@ describe('server/paymentProviders/paypal/payment', () => {
         .persist()
         .post('/v1/oauth2/token')
         .basicAuth({ user: 'my-client-id', pass: 'my-client-secret' })
-        .reply(200, { access_token: 'dat-token' });
+        .reply(200, { access_token: 'dat-token' }); // eslint-disable-line camelcase
     }); /* End of "before()" */
 
     const secrets = {
@@ -173,6 +173,7 @@ describe('server/paymentProviders/paypal/payment', () => {
         order.collective = collective;
         order.paymentMethod = paymentMethod;
 
+        /* eslint-disable camelcase */
         const paymentInfo = {
           transactions: [
             {
@@ -185,6 +186,7 @@ describe('server/paymentProviders/paypal/payment', () => {
             },
           ],
         };
+        /* eslint-enable camelcase */
 
         const tr = await paypalPayment.createTransaction(order, paymentInfo);
 
@@ -230,6 +232,7 @@ describe('server/paymentProviders/paypal/payment', () => {
         order.collective = collective;
         order.paymentMethod = paymentMethod;
 
+        /* eslint-disable camelcase */
         const genPaymentInfo = fee => ({
           transactions: [
             {
@@ -242,6 +245,7 @@ describe('server/paymentProviders/paypal/payment', () => {
             },
           ],
         });
+        /* eslint-enable camelcase */
 
         let tr = await paypalPayment.createTransaction(order, genPaymentInfo('0.28'));
         expect(tr.paymentProcessorFeeInHostCurrency).to.equal(-28);

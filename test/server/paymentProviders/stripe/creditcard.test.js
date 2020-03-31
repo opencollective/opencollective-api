@@ -59,6 +59,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
 
     beforeEach(() => utils.resetTestDB());
 
+    /* eslint-disable camelcase */
     beforeEach(() => {
       // Call performed by getOrCreateCustomerOnPlatformAccount
       nock('https://api.stripe.com:443').post('/v1/customers').reply(200, {});
@@ -80,6 +81,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
         .get('/v1/balance_transactions/txn_1B5j92D8MNtzsDcgQzIcmfrn')
         .reply(200, { amount: 1000, fee: 0, fee_details: [] });
     });
+    /* eslint-enable camelcase */
 
     afterEach(() => nock.cleanAll());
 

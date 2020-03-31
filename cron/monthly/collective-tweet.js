@@ -180,11 +180,11 @@ const sendTweet = async (twitterAccount, data) => {
   const template = stats.totalReceived === 0 ? 'monthlyStatsNoNewDonation' : 'monthlyStats';
   const tweet = twitter.compileTweet(template, replacements);
 
-  // We thread the tweet with the previous monthly stats
-  const in_reply_to_status_id = get(twitterAccount, 'settings.monthlyStats.lastTweetId');
   try {
     const res = await twitter.tweetStatus(twitterAccount, tweet, `https://opencollective.com/${data.collective.slug}`, {
-      in_reply_to_status_id,
+      // We thread the tweet with the previous monthly stats
+      // eslint-disable-next-line camelcase
+      in_reply_to_status_id: get(twitterAccount, 'settings.monthlyStats.lastTweetId'),
     });
     const tweetUrl = `https://twitter.com/${res.user.screen_name}/status/${res.id_str}`;
     // publish to slack.opencollective.com

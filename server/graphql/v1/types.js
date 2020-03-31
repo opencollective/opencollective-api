@@ -24,7 +24,7 @@ import { TransactionInterfaceType, OrderDirectionType } from './TransactionInter
 
 import models, { Op, sequelize } from '../../models';
 import { getContributorsForTier } from '../../lib/contributors';
-import { strip_tags } from '../../lib/utils';
+import { stripTags } from '../../lib/utils';
 import status from '../../constants/expense_status';
 import orderStatus from '../../constants/order_status';
 import { maxInteger } from '../../constants/math';
@@ -1037,7 +1037,7 @@ export const UpdateType = new GraphQLObjectType({
             return null;
           }
 
-          return strip_tags(update.html || '');
+          return stripTags(update.html || '');
         },
       },
       markdown: {
@@ -1047,7 +1047,7 @@ export const UpdateType = new GraphQLObjectType({
             return null;
           }
 
-          return strip_tags(update.markdown || '');
+          return stripTags(update.markdown || '');
         },
       },
       tags: {

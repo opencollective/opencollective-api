@@ -59,7 +59,7 @@ export function getDomain(url = '') {
 /**
  * @deprecated Please use the functions in `server/lib/sanitize-html.js`
  */
-export function strip_tags(str, allowedTags) {
+export function stripTags(str, allowedTags) {
   return sanitizeHtml(str, {
     allowedTags: allowedTags || sanitizeHtml.defaults.allowedTags.concat(['img', 'h1', 'h2', 'h3']),
     allowedAttributes: {
@@ -84,7 +84,7 @@ export function strip_tags(str, allowedTags) {
 }
 
 export const sanitizeObject = (obj, attributes, sanitizerFn) => {
-  const sanitizer = typeof sanitizerFn === 'function' ? sanitizerFn : strip_tags;
+  const sanitizer = typeof sanitizerFn === 'function' ? sanitizerFn : stripTags;
 
   attributes.forEach(attr => {
     if (!obj[attr]) {

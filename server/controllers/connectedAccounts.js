@@ -11,7 +11,7 @@ import { mustBeLoggedInTo } from '../lib/auth';
 const { ConnectedAccount, User } = models;
 
 export const createOrUpdate = (req, res, next, accessToken, data, emails) => {
-  const { utm_source, redirect } = req.query;
+  const { utm_source: utmSource, redirect } = req.query;
   const { service } = req.params;
   const attrs = { service };
 
@@ -75,7 +75,7 @@ export const createOrUpdate = (req, res, next, accessToken, data, emails) => {
           const token = user.generateConnectedAccountVerifiedToken(caId, data.profile.username);
           const newLocation = redirect
             ? `${redirect}?token=${token}`
-            : `${config.host.website}/github/apply/${token}?utm_source=${utm_source}`;
+            : `${config.host.website}/github/apply/${token}?utm_source=${utmSource}`;
 
           res.redirect(newLocation);
         })
