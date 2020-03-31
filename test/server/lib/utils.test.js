@@ -1,4 +1,4 @@
-import { expect, assert } from 'chai';
+import { assert, expect } from 'chai';
 import { exportToPDF, sanitizeForLogs } from '../../../server/lib/utils';
 
 describe('server/lib/utils', () => {

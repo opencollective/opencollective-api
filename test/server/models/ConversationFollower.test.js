@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { SequelizeUniqueConstraintError } from 'sequelize';
 import models from '../../../server/models';
-import { randEmail, newCollectiveWithHost } from '../../stores';
+import { newCollectiveWithHost, randEmail } from '../../stores';
 
 describe('server/models/ConversationFollower', () => {
   let collective, user, conversation;

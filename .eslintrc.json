@@ -17,7 +17,9 @@
     // relaxing because we have many errors
     "require-atomic-updates": "off",
     // typescript
-    "node/no-missing-import": ["error", { "tryExtensions": [".js", ".ts"] }]
+    "node/no-missing-import": ["error", { "tryExtensions": [".js", ".ts"] }],
+    // sort import
+    "sort-imports": "warn"
   },
   // Disable typescript checks in JS
   "overrides": [

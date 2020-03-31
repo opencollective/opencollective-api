@@ -14,7 +14,7 @@ import cloudflareIps from 'cloudflare-ip/ips.json';
 import { Strategy as GitHubStrategy } from 'passport-github';
 import { Strategy as TwitterStrategy } from 'passport-twitter';
 import { Strategy as MeetupStrategy } from 'passport-meetup-oauth2';
-import { has, get } from 'lodash';
+import { get, has } from 'lodash';
 
 import logger from './logger';
 import forest from './forest';

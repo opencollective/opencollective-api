@@ -7,7 +7,7 @@ import config from 'config';
 import Promise from 'bluebird';
 import pdf from 'html-pdf';
 import sanitizeHtml from 'sanitize-html';
-import { get, cloneDeep, isEqual } from 'lodash';
+import { cloneDeep, get, isEqual } from 'lodash';
 
 import handlebars from './handlebars';
 

@@ -1,5 +1,5 @@
 import { Model, Transaction } from 'sequelize';
-import { pick, get } from 'lodash';
+import { get, pick } from 'lodash';
 import { isEmail } from 'validator';
 import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
 import { objHasOnlyKeys } from '../lib/utils';

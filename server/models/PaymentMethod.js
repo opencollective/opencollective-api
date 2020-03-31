@@ -6,7 +6,7 @@ import { Op } from 'sequelize';
 import { TransactionTypes } from '../constants/transactions';
 
 import { sumTransactions } from '../lib/hostlib';
-import { formatCurrency, formatArrayToString, cleanTags } from '../lib/utils';
+import { cleanTags, formatArrayToString, formatCurrency } from '../lib/utils';
 import { getFxRate } from '../lib/currency';
 
 import CustomDataTypes from './DataTypes';

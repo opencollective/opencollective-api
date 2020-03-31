@@ -3,7 +3,7 @@ import config from 'config';
 import crypto from 'crypto';
 import { Request } from 'express';
 import fs from 'fs';
-import { omitBy, isNull, toInteger } from 'lodash';
+import { isNull, omitBy, toInteger } from 'lodash';
 import path from 'path';
 import url from 'url';
 

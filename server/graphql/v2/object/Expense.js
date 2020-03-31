@@ -1,4 +1,4 @@
-import { GraphQLString, GraphQLObjectType, GraphQLInt, GraphQLNonNull, GraphQLList } from 'graphql';
+import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import models, { Op } from '../../../models';
 
 import { PERMISSION_TYPE, allowContextPermission } from '../../common/context-permissions';
@@ -6,7 +6,7 @@ import * as ExpensePermissionsLib from '../../common/expenses';
 import { CommentCollection } from '../collection/CommentCollection';
 import { Account } from '../interface/Account';
 import { CollectionArgs } from '../interface/Collection';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { IDENTIFIER_TYPES, getIdEncodeResolver } from '../identifiers';
 
 import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
 import PayoutMethod from './PayoutMethod';

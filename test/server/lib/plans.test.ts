@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 
 import * as utils from '../../utils';
-import { fakeCollective, fakeUser, fakeTier, multiple } from '../../test-helpers/fake-data';
+import { fakeCollective, fakeTier, fakeUser, multiple } from '../../test-helpers/fake-data';
 import models from '../../../server/models';
 import { PLANS_COLLECTIVE_SLUG } from '../../../server/constants/plans';
 import { subscribeOrUpgradePlan, validatePlanRequest } from '../../../server/lib/plans';

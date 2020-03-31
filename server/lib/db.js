@@ -11,7 +11,7 @@ import pgConnectionString from 'pg-connection-string';
 import format from 'pg-format';
 import { promisify } from 'util';
 import { exec } from 'child_process';
-import { has, get } from 'lodash';
+import { get, has } from 'lodash';
 
 /** Load a dump file into the current database.
  *

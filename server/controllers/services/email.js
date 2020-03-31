@@ -2,9 +2,9 @@ import Promise from 'bluebird';
 import config from 'config';
 import request from 'request-promise';
 import debug from 'debug';
-import { pick, get } from 'lodash';
+import { get, pick } from 'lodash';
 
-import models, { sequelize, Op } from '../../models';
+import models, { Op, sequelize } from '../../models';
 import errors from '../../lib/errors';
 import emailLib from '../../lib/email';
 

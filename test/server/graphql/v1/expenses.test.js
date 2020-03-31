@@ -21,13 +21,13 @@ import paypalAdaptive from '../../../../server/paymentProviders/paypal/adaptiveG
 import paymentProviders from '../../../../server/paymentProviders';
 
 import {
+  fakeCollective,
   fakeConnectedAccount,
   fakeExpense,
-  fakeUser,
   fakeExpenseAttachment,
-  fakeCollective,
-  randStr,
   fakePayoutMethod,
+  fakeUser,
+  randStr,
 } from '../../../test-helpers/fake-data';
 import { roles } from '../../../../server/constants';
 import expenseStatus from '../../../../server/constants/expense_status';

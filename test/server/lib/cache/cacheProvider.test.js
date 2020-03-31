@@ -1,7 +1,7 @@
 import { assert } from 'chai';
 import { has } from 'lodash';
 import config from 'config';
-import { getProvider, PROVIDER_TYPES } from '../../../../server/lib/cache';
+import { PROVIDER_TYPES, getProvider } from '../../../../server/lib/cache';
 
 const providersToTest = [PROVIDER_TYPES.MEMORY];
 if (has(config, 'memcache.servers')) {

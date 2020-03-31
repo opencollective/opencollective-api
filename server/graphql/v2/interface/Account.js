@@ -1,6 +1,6 @@
 import { invert } from 'lodash';
 
-import { GraphQLInt, GraphQLString, GraphQLList, GraphQLInterfaceType } from 'graphql';
+import { GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLString } from 'graphql';
 import GraphQLJSON from 'graphql-type-json';
 import { GraphQLDateTime } from 'graphql-iso-date';
 

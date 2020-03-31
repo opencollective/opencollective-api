@@ -3,7 +3,7 @@ import config from 'config';
 import Promise from 'bluebird';
 import slugify from 'limax';
 import debugLib from 'debug';
-import { defaults, intersection, pick, get } from 'lodash';
+import { defaults, get, intersection, pick } from 'lodash';
 import { Op } from 'sequelize';
 import { isEmailBurner } from 'burner-email-providers';
 

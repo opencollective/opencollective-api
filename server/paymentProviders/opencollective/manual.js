@@ -2,7 +2,7 @@ import { get, pick } from 'lodash';
 import models from '../../models';
 import { TransactionTypes } from '../../constants/transactions';
 import { maxInteger } from '../../constants/math';
-import { createRefundTransaction, associateTransactionRefundId } from '../../lib/payments';
+import { associateTransactionRefundId, createRefundTransaction } from '../../lib/payments';
 
 /**
  * Manual Payment method

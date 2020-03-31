@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import models from '../../../server/models';
-import { randEmail, newCollectiveWithHost } from '../../stores';
+import { newCollectiveWithHost, randEmail } from '../../stores';
 import { sleep } from '../../../server/lib/utils';
 
 let collective, user, validCommentParams, validConversationParams;

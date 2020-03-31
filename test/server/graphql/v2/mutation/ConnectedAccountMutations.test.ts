@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import sinon from 'sinon';
 
 import { graphqlQueryV2 } from '../../../../utils';
-import { fakeCollective, fakeUser, fakeConnectedAccount } from '../../../../test-helpers/fake-data';
+import { fakeCollective, fakeConnectedAccount, fakeUser } from '../../../../test-helpers/fake-data';
 import * as transferwise from '../../../../../server/lib/transferwise';
 import * as utils from '../../../../utils';
 import models from '../../../../../server/models';

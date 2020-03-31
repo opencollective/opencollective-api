@@ -1,49 +1,49 @@
 import Promise from 'bluebird';
-import { get, uniq, pick } from 'lodash';
-import { GraphQLList, GraphQLNonNull, GraphQLString, GraphQLInt, GraphQLBoolean } from 'graphql';
+import { get, pick, uniq } from 'lodash';
+import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { isEmail } from 'validator';
 
 import errors from '../../lib/errors';
 import rawQueries from '../../lib/queries';
 import { types as CollectiveTypes } from '../../constants/collectives';
-import models, { sequelize, Op } from '../../models';
+import models, { Op, sequelize } from '../../models';
 import { fetchCollectiveId } from '../../lib/cache';
-import { searchCollectivesByEmail, searchCollectivesOnAlgolia, searchCollectivesInDB } from '../../lib/search';
+import { searchCollectivesByEmail, searchCollectivesInDB, searchCollectivesOnAlgolia } from '../../lib/search';
 import Algolia from '../../lib/algolia';
 
 import {
   CollectiveInterfaceType,
-  CollectiveSearchResultsType,
-  TypeOfCollectiveType,
   CollectiveOrderFieldType,
+  CollectiveSearchResultsType,
   HostCollectiveOrderFieldType,
+  TypeOfCollectiveType,
 } from './CollectiveInterface';
 
 import { InvoiceInputType } from './inputTypes';
 
 import {
+  OrderDirectionType,
   PaginatedTransactionsType,
   TransactionInterfaceType,
-  TransactionType,
   TransactionOrder,
-  OrderDirectionType,
+  TransactionType,
 } from './TransactionInterface';
 
 import { ApplicationType } from './Application';
 
 import {
-  UserType,
-  TierType,
   ExpenseStatusType,
   ExpenseType,
   InvoiceType,
-  UpdateType,
+  MemberInvitationType,
   MemberType,
   OrderByType,
   OrderType,
   PaginatedExpensesType,
   PaymentMethodType,
-  MemberInvitationType,
+  TierType,
+  UpdateType,
+  UserType,
 } from './types';
 import { Forbidden, ValidationFailed } from '../errors';
 

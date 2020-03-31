@@ -25,7 +25,7 @@ import fs from 'fs';
 import moment from 'moment';
 import { ArgumentParser } from 'argparse';
 import { promisify } from 'util';
-import { result, includes } from 'lodash';
+import { includes, result } from 'lodash';
 
 import models, { sequelize } from '../server/models';
 import * as transactionsLib from '../server/lib/transactions';

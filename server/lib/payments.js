@@ -1,7 +1,7 @@
 /** @module lib/payments */
 import config from 'config';
 import Promise from 'bluebird';
-import { includes, pick, get, find } from 'lodash';
+import { find, get, includes, pick } from 'lodash';
 import { Op } from 'sequelize';
 
 import models from '../models';

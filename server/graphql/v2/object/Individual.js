@@ -1,9 +1,9 @@
-import { GraphQLString, GraphQLObjectType, GraphQLNonNull, GraphQLBoolean } from 'graphql';
+import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
-import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
+import { PERMISSION_TYPE, getContextPermission } from '../../common/context-permissions';
 import { Account, AccountFields } from '../interface/Account';
 import models from '../../../models';
-import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
+import { IDENTIFIER_TYPES, idDecode } from '../identifiers';
 
 export const Individual = new GraphQLObjectType({
   name: 'Individual',

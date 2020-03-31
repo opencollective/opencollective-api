@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import config from 'config';
 import models from '../../../models';
-import { Unauthorized, ValidationFailed, InvalidToken, RateLimitExceeded } from '../../errors';
+import { InvalidToken, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 import cache from '../../../lib/cache';
 import emailLib from '../../../lib/email';
 

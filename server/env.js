@@ -1,6 +1,6 @@
 import debug from 'debug';
 import dotenv from 'dotenv';
-import { has, get } from 'lodash';
+import { get, has } from 'lodash';
 
 if (!process.env.NODE_ENV) {
   process.env.NODE_ENV = 'development';

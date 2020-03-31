@@ -1,20 +1,20 @@
 import { get } from 'lodash';
 import models from '../../models';
 import {
-  GraphQLInt,
-  GraphQLFloat,
-  GraphQLString,
-  GraphQLInterfaceType,
-  GraphQLObjectType,
-  GraphQLList,
   GraphQLEnumType,
+  GraphQLFloat,
   GraphQLInputObjectType,
+  GraphQLInt,
+  GraphQLInterfaceType,
+  GraphQLList,
+  GraphQLObjectType,
+  GraphQLString,
 } from 'graphql';
 
 import { CollectiveInterfaceType, UserCollectiveType } from './CollectiveInterface';
 
-import { SubscriptionType, OrderType, PaymentMethodType, UserType, DateString, ExpenseType } from './types';
-import { getExpenseAttachments, canSeeExpenseAttachments } from '../common/expenses';
+import { DateString, ExpenseType, OrderType, PaymentMethodType, SubscriptionType, UserType } from './types';
+import { canSeeExpenseAttachments, getExpenseAttachments } from '../common/expenses';
 
 import { idEncode } from '../v2/identifiers';
 

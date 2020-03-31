@@ -15,12 +15,12 @@ import { randEmail } from '../../stores';
 // What's being tested
 import {
   MAX_RETRIES,
-  handleRetryStatus,
-  getNextChargeAndPeriodStartDates,
   getChargeRetryCount,
+  getNextChargeAndPeriodStartDates,
+  groupProcessedOrders,
+  handleRetryStatus,
   ordersWithPendingCharges,
   processOrderWithSubscription,
-  groupProcessedOrders,
 } from '../../../server/lib/subscriptions';
 
 async function createOrderWithSubscription(interval, date, quantity = 1) {

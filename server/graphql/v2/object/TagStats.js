@@ -1,4 +1,4 @@
-import { GraphQLObjectType, GraphQLInt, GraphQLString, GraphQLNonNull } from 'graphql';
+import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 export const TagStats = new GraphQLObjectType({
   name: 'TagStat',

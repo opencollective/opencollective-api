@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { SequelizeValidationError } from 'sequelize';
 import models from '../../../server/models';
 import * as utils from '../../utils';
-import { randEmail, newCollectiveWithHost } from '../../stores';
+import { newCollectiveWithHost, randEmail } from '../../stores';
 
 const { Collective, User } = models;
 

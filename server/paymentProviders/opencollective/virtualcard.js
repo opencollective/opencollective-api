@@ -1,6 +1,6 @@
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
-import { get, times, isEmpty } from 'lodash';
+import { get, isEmpty, times } from 'lodash';
 import config from 'config';
 import sanitize from 'sanitize-html';
 

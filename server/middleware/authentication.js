@@ -3,7 +3,7 @@ import config from 'config';
 import jwt from 'jsonwebtoken';
 import passport from 'passport';
 import request from 'request-promise';
-import { get, omitBy, isNil } from 'lodash';
+import { get, isNil, omitBy } from 'lodash';
 import { URLSearchParams } from 'url';
 
 import models from '../models';

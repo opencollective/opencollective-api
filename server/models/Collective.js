@@ -9,18 +9,18 @@ import fetch from 'isomorphic-fetch';
 import moment from 'moment';
 import * as ics from 'ics';
 import {
-  get,
+  defaults,
   difference,
   differenceBy,
-  uniqBy,
+  get,
+  includes,
+  isNull,
+  keys,
+  omit,
   pick,
   pickBy,
   sumBy,
-  keys,
-  omit,
-  defaults,
-  includes,
-  isNull,
+  uniqBy,
 } from 'lodash';
 import { v4 as uuid } from 'uuid';
 import { isISO31661Alpha2 } from 'validator';
@@ -33,21 +33,21 @@ import userlib from '../lib/userlib';
 import emailLib from '../lib/email';
 import queries from '../lib/queries';
 import {
-  isBlacklistedCollectiveSlug,
   collectiveSlugBlacklist,
-  whitelistSettings,
-  validateSettings,
   getCollectiveAvatarUrl,
+  isBlacklistedCollectiveSlug,
+  validateSettings,
+  whitelistSettings,
 } from '../lib/collectivelib';
 import { getFxRate } from '../lib/currency';
 import {
-  notifyTeamAboutSuspiciousCollective,
   collectiveSpamCheck,
   notifyTeamAboutPreventedCollectiveCreate,
+  notifyTeamAboutSuspiciousCollective,
 } from '../lib/spam';
 import { canUseFeature } from '../lib/user-permissions';
 import { handleHostCollectivesLimit } from '../lib/plans';
-import { capitalize, flattenArray, getDomain, formatCurrency, cleanTags, md5, strip_tags } from '../lib/utils';
+import { capitalize, cleanTags, flattenArray, formatCurrency, getDomain, md5, strip_tags } from '../lib/utils';
 
 import roles, { MemberRoleLabels } from '../constants/roles';
 import activities from '../constants/activities';

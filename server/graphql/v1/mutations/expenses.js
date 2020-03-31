@@ -1,4 +1,4 @@
-import { get, omit, pick, flatten } from 'lodash';
+import { flatten, get, omit, pick } from 'lodash';
 import errors from '../../../lib/errors';
 import roles from '../../../constants/roles';
 import expenseType from '../../../constants/expense_type';
@@ -17,7 +17,7 @@ import FEATURE from '../../../constants/feature';
 import { FeatureNotAllowedForUser, ValidationFailed } from '../../errors';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { types as collectiveTypes } from '../../../constants/collectives';
-import { canUpdateExpenseStatus, canEditExpense, canDeleteExpense } from '../../common/expenses';
+import { canDeleteExpense, canEditExpense, canUpdateExpenseStatus } from '../../common/expenses';
 
 const debug = debugLib('expenses');
 

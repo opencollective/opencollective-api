@@ -1,9 +1,9 @@
 import slugify from 'limax';
 
 import { activities } from '../constants';
-import { stripHTML, generateSummaryForHTML } from '../lib/sanitize-html';
+import { generateSummaryForHTML, stripHTML } from '../lib/sanitize-html';
 import models, { sequelize } from '.';
-import { idEncode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
+import { IDENTIFIER_TYPES, idEncode } from '../graphql/v2/identifiers';
 
 export default function (Sequelize, DataTypes) {
   const Conversation = Sequelize.define(

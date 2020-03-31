@@ -1,5 +1,5 @@
 import { pick } from 'lodash';
-import { Unauthorized, FeatureNotSupportedForCollective, NotFound, FeatureNotAllowedForUser } from '../errors';
+import { FeatureNotAllowedForUser, FeatureNotSupportedForCollective, NotFound, Unauthorized } from '../errors';
 import models from '../../models';
 import hasFeature from '../../lib/allowed-features';
 import { canUseFeature } from '../../lib/user-permissions';

@@ -4,7 +4,7 @@ import { get, pick } from 'lodash';
 
 import { memoize } from './cache';
 import { convertToCurrency } from './currency';
-import models, { sequelize, Op } from '../models';
+import models, { Op, sequelize } from '../models';
 
 const twoHoursInSeconds = 2 * 60 * 60;
 

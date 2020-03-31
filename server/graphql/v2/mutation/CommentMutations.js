@@ -2,8 +2,8 @@ import { GraphQLNonNull, GraphQLString } from 'graphql';
 import { Comment } from '../object/Comment';
 import { CommentCreateInput } from '../input/CommentCreateInput';
 import { CommentUpdateInput } from '../input/CommentUpdateInput';
-import { editComment, deleteComment, createCommentResolver } from '../../common/comment';
-import { getDecodedId, idDecode, IDENTIFIER_TYPES } from '../identifiers';
+import { createCommentResolver, deleteComment, editComment } from '../../common/comment';
+import { IDENTIFIER_TYPES, getDecodedId, idDecode } from '../identifiers';
 import { fetchExpenseWithReference } from '../input/ExpenseReferenceInput';
 
 const commentMutations = {

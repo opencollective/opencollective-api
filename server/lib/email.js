@@ -6,7 +6,7 @@ import debugLib from 'debug';
 import fs from 'fs';
 import path from 'path';
 import he from 'he';
-import { isArray, pick, get, merge, includes } from 'lodash';
+import { get, includes, isArray, merge, pick } from 'lodash';
 
 import models from '../models';
 import logger from './logger';

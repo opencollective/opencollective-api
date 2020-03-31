@@ -1,7 +1,7 @@
-import { GraphQLNonNull, GraphQLString, GraphQLList, GraphQLBoolean } from 'graphql';
+import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import Conversation from '../object/Conversation';
 import { createConversation, editConversation } from '../../common/conversations';
-import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
+import { IDENTIFIER_TYPES, idDecode } from '../identifiers';
 import { Unauthorized } from '../../errors';
 import models from '../../../models';
 

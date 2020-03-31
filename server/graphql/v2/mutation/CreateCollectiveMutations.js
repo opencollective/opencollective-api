@@ -1,4 +1,4 @@
-import { GraphQLNonNull, GraphQLBoolean } from 'graphql';
+import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
 import { get, pick } from 'lodash';
 
 import { Collective } from '../object/Collective';

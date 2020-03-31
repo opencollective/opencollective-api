@@ -1,11 +1,11 @@
 import { expect } from 'chai';
-import { fakeExpense, fakeUser, fakeCollective } from '../../../test-helpers/fake-data';
+import { fakeCollective, fakeExpense, fakeUser } from '../../../test-helpers/fake-data';
 import { makeRequest } from '../../../utils';
 import {
   canSeeExpenseAttachments,
-  canSeeExpensePayoutMethod,
   canSeeExpenseInvoiceInfo,
   canSeeExpensePayeeLocation,
+  canSeeExpensePayoutMethod,
 } from '../../../../server/graphql/common/expenses';
 
 describe('server/graphql/common/expenses', () => {

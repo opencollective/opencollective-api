@@ -17,7 +17,7 @@ import debugLib from 'debug';
 import models from '../../server/models';
 import slackLib from '../../server/lib/slack';
 import twitter from '../../server/lib/twitter';
-import _, { pick, get, set } from 'lodash';
+import _, { get, pick, set } from 'lodash';
 const d = new Date();
 d.setMonth(d.getMonth() - 1);
 const month = moment(d).format('MMMM');

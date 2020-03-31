@@ -1,4 +1,4 @@
-import { GraphQLNonNull, GraphQLList, GraphQLObjectType, GraphQLString, GraphQLBoolean, GraphQLInt } from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import { TransferWiseCurrency } from '../enum/Currency';
 import transferwise from '../../../paymentProviders/transferwise';

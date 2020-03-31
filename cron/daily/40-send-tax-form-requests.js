@@ -6,7 +6,7 @@ import HelloWorks from 'helloworks-sdk';
 import moment from 'moment';
 import pThrottle from 'p-throttle';
 
-import { findUsersThatNeedToBeSentTaxForm, SendHelloWorksTaxForm } from '../../server/lib/tax-forms';
+import { SendHelloWorksTaxForm, findUsersThatNeedToBeSentTaxForm } from '../../server/lib/tax-forms';
 import { sequelize } from '../../server/models';
 
 const MAX_REQUESTS_PER_SECOND = 1;

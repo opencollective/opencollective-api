@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { sanitizeActivity, enrichActivity } from '../../../server/lib/webhooks';
+import { enrichActivity, sanitizeActivity } from '../../../server/lib/webhooks';
 import { activities } from '../../../server/constants';
 
 describe('server/lib/webhooks', () => {

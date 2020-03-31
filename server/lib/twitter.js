@@ -3,7 +3,7 @@ import Promise from 'bluebird';
 import Twitter from 'twitter';
 import IntlMessageFormat from 'intl-messageformat';
 import debugLib from 'debug';
-import { has, get } from 'lodash';
+import { get, has } from 'lodash';
 
 import models from '../models';
 import logger from './logger';

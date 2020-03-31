@@ -6,8 +6,8 @@ import * as utils from '../../utils';
 import moment from 'moment';
 
 import {
-  findUsersThatNeedToBeSentTaxForm,
   SendHelloWorksTaxForm,
+  findUsersThatNeedToBeSentTaxForm,
   isUserTaxFormRequiredBeforePayment,
 } from '../../../server/lib/tax-forms';
 

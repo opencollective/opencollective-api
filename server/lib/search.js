@@ -3,7 +3,7 @@
  */
 
 import config from 'config';
-import { sortBy, get } from 'lodash';
+import { get, sortBy } from 'lodash';
 import slugify from 'limax';
 
 import { CollectiveTypesList } from '../constants/collectives';

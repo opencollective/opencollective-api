@@ -1,7 +1,7 @@
 import models, { Op } from '../../models';
 import * as libpayments from '../../lib/payments';
 import * as currency from '../../lib/currency';
-import { TransactionTypes, OC_FEE_PERCENT } from '../../constants/transactions';
+import { OC_FEE_PERCENT, TransactionTypes } from '../../constants/transactions';
 import { get } from 'lodash';
 
 /** Get the balance of a prepaid credit card

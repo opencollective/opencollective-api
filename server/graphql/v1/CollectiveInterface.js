@@ -1,40 +1,40 @@
 import sequelize from 'sequelize';
 import SqlString from 'sequelize/lib/sql-string';
 import {
-  GraphQLInt,
-  GraphQLList,
-  GraphQLString,
   GraphQLBoolean,
-  GraphQLInterfaceType,
-  GraphQLObjectType,
   GraphQLEnumType,
+  GraphQLInt,
+  GraphQLInterfaceType,
+  GraphQLList,
+  GraphQLObjectType,
+  GraphQLString,
 } from 'graphql';
 import GraphQLJSON from 'graphql-type-json';
 import { get, has, sortBy } from 'lodash';
 
 import queries from '../../lib/queries';
 import { hostResolver } from '../common/collective';
-import { getContextPermission, PERMISSION_TYPE } from '../common/context-permissions';
+import { PERMISSION_TYPE, getContextPermission } from '../common/context-permissions';
 
 import {
-  LocationType,
-  UserType,
-  OrderType,
-  MemberType,
-  TierType,
-  PaymentMethodType,
   ConnectedAccountType,
-  ExpenseType,
-  OrderStatusType,
-  PaginatedPaymentMethodsType,
-  ImageFormatType,
-  NotificationType,
-  DateString,
-  ContributorType,
-  UpdateType,
   ContributorRoleEnum,
+  ContributorType,
+  DateString,
+  ExpenseType,
+  ImageFormatType,
+  LocationType,
+  MemberType,
+  NotificationType,
+  OrderStatusType,
+  OrderType,
+  PaginatedPaymentMethodsType,
   PaymentMethodBatchInfo,
+  PaymentMethodType,
   PayoutMethodType,
+  TierType,
+  UpdateType,
+  UserType,
 } from './types';
 
 import { OrderDirectionType, TransactionInterfaceType } from './TransactionInterface';

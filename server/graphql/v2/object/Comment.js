@@ -1,4 +1,4 @@
-import { GraphQLString, GraphQLObjectType } from 'graphql';
+import { GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 import { Account } from '../interface/Account';
 import { getIdEncodeResolver } from '../identifiers';

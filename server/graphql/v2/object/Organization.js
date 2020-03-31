@@ -1,6 +1,6 @@
-import { GraphQLString, GraphQLObjectType } from 'graphql';
+import { GraphQLObjectType, GraphQLString } from 'graphql';
 
-import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
+import { PERMISSION_TYPE, getContextPermission } from '../../common/context-permissions';
 import { Account, AccountFields } from '../interface/Account';
 
 export const Organization = new GraphQLObjectType({

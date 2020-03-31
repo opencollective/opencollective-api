@@ -10,7 +10,7 @@ if (process.env.NODE_ENV === 'production' && today.getDate() !== 1 && !process.e
 
 process.env.PORT = 3066;
 
-import { get, pick, uniq, groupBy } from 'lodash';
+import { get, groupBy, pick, uniq } from 'lodash';
 import moment from 'moment';
 import config from 'config';
 import Promise from 'bluebird';
@@ -20,7 +20,7 @@ import models, { Op } from '../../server/models';
 import emailLib from '../../server/lib/email';
 import roles from '../../server/constants/roles';
 import ORDER_STATUS from '../../server/constants/order_status';
-import { formatCurrencyObject, formatArrayToString } from '../../server/lib/utils';
+import { formatArrayToString, formatCurrencyObject } from '../../server/lib/utils';
 import { convertToCurrency } from '../../server/lib/currency';
 import path from 'path';
 import fs from 'fs';

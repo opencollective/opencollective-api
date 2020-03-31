@@ -22,7 +22,7 @@
  * }
  */
 
-import { get, set, has, isNil } from 'lodash';
+import { get, has, isNil, set } from 'lodash';
 
 /**
  * Context permissions types to use with `setContextPermission` and `getContextPermission`

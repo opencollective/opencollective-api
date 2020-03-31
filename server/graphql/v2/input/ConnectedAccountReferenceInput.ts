@@ -1,6 +1,6 @@
-import { GraphQLString, GraphQLInt, GraphQLInputObjectType } from 'graphql';
+import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 import models from '../../../models';
-import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
+import { IDENTIFIER_TYPES, idDecode } from '../identifiers';
 import { NotFound } from '../../errors';
 
 /**

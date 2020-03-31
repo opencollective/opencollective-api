@@ -2,12 +2,12 @@ import _ from 'lodash';
 import moment from 'moment';
 import Promise from 'bluebird';
 import debugLib from 'debug';
-import models, { sequelize, Op } from '../server/models';
+import models, { Op, sequelize } from '../server/models';
 import emailLib from '../server/lib/email';
 import config from 'config';
 import { exportToPDF } from '../server/lib/utils';
 import { getTransactions } from '../server/lib/transactions';
-import { getHostedCollectives, getBackersStats, sumTransactions } from '../server/lib/hostlib';
+import { getBackersStats, getHostedCollectives, sumTransactions } from '../server/lib/hostlib';
 
 const debug = debugLib('hostreport');
 

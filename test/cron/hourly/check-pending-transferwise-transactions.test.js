@@ -5,9 +5,9 @@ import {
   fakeCollective,
   fakeConnectedAccount,
   fakeExpense,
+  fakeMember,
   fakePayoutMethod,
   fakeTransaction,
-  fakeMember,
   fakeUser,
 } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';

@@ -1,4 +1,4 @@
-import { GraphQLObjectType, GraphQLInt, GraphQLBoolean } from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLObjectType } from 'graphql';
 
 import { Account, AccountFields } from '../interface/Account';
 import { hostResolver } from '../../common/collective';

@@ -7,13 +7,13 @@ import { maxInteger } from '../../constants/math';
 import { TransactionTypes } from '../../constants/transactions';
 import { getListOfAccessibleMembers } from '../../lib/auth';
 import models, { Op, sequelize } from '../../models';
-import { sortResults, createDataLoaderWithOptions } from './helpers';
+import { createDataLoaderWithOptions, sortResults } from './helpers';
 
 // Loaders generators
 import commentsLoader from './comments';
 import conversationLoaders from './conversation';
 import { generateExpenseAttachmentsLoader } from './expenses';
-import { generateCollectivePaypalPayoutMethodsLoader, generateCollectivePayoutMethodsLoader } from './payout-method';
+import { generateCollectivePayoutMethodsLoader, generateCollectivePaypalPayoutMethodsLoader } from './payout-method';
 import { generateCanSeeUserPrivateInfoLoader } from './user';
 
 export const loaders = req => {

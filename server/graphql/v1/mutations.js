@@ -2,101 +2,101 @@ import config from 'config';
 import { pick } from 'lodash';
 
 import {
+  activateCollectiveAsHost,
+  approveCollective,
+  archiveCollective,
   claimCollective,
   createCollective,
-  editCollective,
-  deleteEventCollective,
-  deleteCollective,
-  deleteUserCollective,
-  approveCollective,
   createCollectiveFromGithub,
-  archiveCollective,
-  unarchiveCollective,
-  sendMessageToCollective,
-  rejectCollective,
-  activateCollectiveAsHost,
   deactivateCollectiveAsHost,
+  deleteCollective,
+  deleteEventCollective,
+  deleteUserCollective,
+  editCollective,
+  rejectCollective,
+  sendMessageToCollective,
+  unarchiveCollective,
 } from './mutations/collectives';
 import {
-  createOrder,
-  confirmOrder,
-  cancelSubscription,
-  updateSubscription,
-  refundTransaction,
-  addFundsToOrg,
   addFundsToCollective,
+  addFundsToOrg,
+  cancelSubscription,
   completePledge,
+  confirmOrder,
+  createOrder,
   markOrderAsPaid,
   markPendingOrderAsExpired,
+  refundTransaction,
+  updateSubscription,
 } from './mutations/orders';
 
 import { editPublicMessage } from './mutations/members';
-import { editTiers, editTier } from './mutations/tiers';
+import { editTier, editTiers } from './mutations/tiers';
 import { editConnectedAccount } from './mutations/connectedAccounts';
 import { createWebhook, deleteNotification, editWebhooks } from './mutations/notifications';
 import {
   createExpense,
-  editExpense,
-  updateExpenseStatus,
-  payExpense,
   deleteExpense,
+  editExpense,
   markExpenseAsUnpaid,
+  payExpense,
+  updateExpenseStatus,
 } from './mutations/expenses';
 import * as paymentMethodsMutation from './mutations/paymentMethods';
 import * as updateMutations from './mutations/updates';
 import * as commentMutations from './mutations/comments';
 import * as applicationMutations from './mutations/applications';
 import * as backyourstackMutations from './mutations/backyourstack';
-import { updateUserEmail, confirmUserEmail } from './mutations/users';
+import { confirmUserEmail, updateUserEmail } from './mutations/users';
 
 import statuses from '../../constants/expense_status';
 
-import { GraphQLNonNull, GraphQLList, GraphQLString, GraphQLInt, GraphQLBoolean, GraphQLObjectType } from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import {
-  OrderType,
-  TierType,
-  MemberType,
-  ExpenseType,
-  UpdateType,
   CommentType,
   ConnectedAccountType,
-  PaymentMethodType,
-  UserType,
+  ExpenseType,
+  MemberType,
   NotificationType,
+  OrderType,
+  PaymentMethodType,
+  TierType,
+  UpdateType,
+  UserType,
 } from './types';
 
 import { CollectiveInterfaceType } from './CollectiveInterface';
 
 import { TransactionInterfaceType } from './TransactionInterface';
 
-import { ApplicationType, ApplicationInputType } from './Application';
+import { ApplicationInputType, ApplicationType } from './Application';
 
 import {
   CollectiveInputType,
-  OrderInputType,
-  ConfirmOrderInputType,
-  TierInputType,
-  ExpenseInputType,
-  UpdateInputType,
-  UpdateAttributesInputType,
-  CommentInputType,
   CommentAttributesInputType,
+  CommentInputType,
+  ConfirmOrderInputType,
   ConnectedAccountInputType,
-  PaymentMethodInputType,
-  PaymentMethodDataVirtualCardInputType,
-  UserInputType,
-  StripeCreditCardDataInputType,
-  NotificationInputType,
+  ExpenseInputType,
   MemberInputType,
+  NotificationInputType,
+  OrderInputType,
+  PaymentMethodDataVirtualCardInputType,
+  PaymentMethodInputType,
+  StripeCreditCardDataInputType,
+  TierInputType,
+  UpdateAttributesInputType,
+  UpdateInputType,
+  UserInputType,
 } from './inputTypes';
-import { createVirtualCardsForEmails, bulkCreateVirtualCards } from '../../paymentProviders/opencollective/virtualcard';
+import { bulkCreateVirtualCards, createVirtualCardsForEmails } from '../../paymentProviders/opencollective/virtualcard';
 import models, { sequelize } from '../../models';
 import emailLib from '../../lib/email';
 import logger from '../../lib/logger';
 import roles from '../../constants/roles';
 import errors from '../../lib/errors';
-import { Unauthorized, ValidationFailed, Forbidden } from '../errors';
+import { Forbidden, Unauthorized, ValidationFailed } from '../errors';
 
 const mutations = {
   createCollective: {

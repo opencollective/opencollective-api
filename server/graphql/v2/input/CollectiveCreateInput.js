@@ -1,4 +1,4 @@
-import { GraphQLString, GraphQLNonNull, GraphQLList, GraphQLInputObjectType } from 'graphql';
+import { GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 
 export const CollectiveCreateInput = new GraphQLInputObjectType({
   name: 'CollectiveCreateInput',

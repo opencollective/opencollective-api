@@ -12,7 +12,7 @@ import activityType from '../constants/activities';
 import models from '../models';
 
 import { channels } from '../constants';
-import { sanitizeActivity, enrichActivity } from './webhooks';
+import { enrichActivity, sanitizeActivity } from './webhooks';
 import { PayoutMethodTypes } from '../models/PayoutMethod';
 
 const debug = debugLib('notifications');

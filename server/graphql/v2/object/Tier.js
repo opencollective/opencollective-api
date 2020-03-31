@@ -1,4 +1,4 @@
-import { GraphQLInt, GraphQLString, GraphQLList, GraphQLObjectType } from 'graphql';
+import { GraphQLInt, GraphQLList, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import { OrderStatus } from '../enum/OrderStatus';
 import { OrderCollection } from '../collection/OrderCollection';

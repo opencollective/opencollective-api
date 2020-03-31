@@ -6,11 +6,11 @@ process.env.PORT = 3066;
 import config from 'config';
 import Promise from 'bluebird';
 import debugLib from 'debug';
-import models, { sequelize, Op } from '../../server/models';
+import models, { Op, sequelize } from '../../server/models';
 import twitter from '../../server/lib/twitter';
 import slackLib from '../../server/lib/slack';
 import { pluralize } from '../../server/lib/utils';
-import _, { pick, get, set } from 'lodash';
+import _, { get, pick, set } from 'lodash';
 import { types as collectiveTypes } from '../../server/constants/collectives';
 
 const TenMinutesAgo = new Date();

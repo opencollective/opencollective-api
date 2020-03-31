@@ -3,16 +3,16 @@ import { GraphQLObjectType, GraphQLSchema } from 'graphql';
 import {
   CollectiveInterfaceType,
   CollectiveSearchResultsType,
-  CollectiveType,
   CollectiveStatsType,
-  UserCollectiveType,
-  OrganizationCollectiveType,
+  CollectiveType,
   EventCollectiveType,
+  OrganizationCollectiveType,
+  UserCollectiveType,
 } from './CollectiveInterface';
 
-import { TransactionInterfaceType, TransactionOrderType, TransactionExpenseType } from './TransactionInterface';
+import { TransactionExpenseType, TransactionInterfaceType, TransactionOrderType } from './TransactionInterface';
 
-import { ApplicationType, ApplicationInputType } from './Application';
+import { ApplicationInputType, ApplicationType } from './Application';
 
 import query from './queries';
 import mutation from './mutations';

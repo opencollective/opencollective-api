@@ -1,4 +1,4 @@
-import { GraphQLString, GraphQLInputObjectType, GraphQLList, GraphQLNonNull } from 'graphql';
+import { GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { ExpenseType } from '../enum/ExpenseType';
 import { ExpenseAttachmentCreateInput } from './ExpenseAttachmentCreateInput';
 import { PayoutMethodInput } from './PayoutMethodInput';

@@ -1,6 +1,6 @@
 import moment from 'moment';
 import debugLib from 'debug';
-import models, { sequelize, Op } from '../server/models';
+import models, { Op, sequelize } from '../server/models';
 import emailLib from '../server/lib/email';
 import { getBackersStats } from '../server/lib/hostlib';
 import { reduceArrayToCurrency } from '../server/lib/currency';

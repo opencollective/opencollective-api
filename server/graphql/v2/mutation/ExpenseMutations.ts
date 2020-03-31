@@ -4,7 +4,7 @@ import { Expense } from '../object/Expense';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { ExpenseCreateInput } from '../input/ExpenseCreateInput';
 import { createExpense as createExpenseLegacy } from '../../v1/mutations/expenses';
-import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
+import { IDENTIFIER_TYPES, idDecode } from '../identifiers';
 
 const expenseMutations = {
   createExpense: {

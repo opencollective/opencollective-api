@@ -5,7 +5,7 @@ import { expect } from 'chai';
 
 import Promise from 'bluebird';
 import { graphql } from 'graphql';
-import { isArray, values, get, cloneDeep } from 'lodash';
+import { cloneDeep, get, isArray, values } from 'lodash';
 import { execSync } from 'child_process';
 
 /* Test data */

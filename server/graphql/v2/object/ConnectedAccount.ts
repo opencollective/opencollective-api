@@ -1,4 +1,4 @@
-import { GraphQLString, GraphQLNonNull, GraphQLObjectType } from 'graphql';
+import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 import GraphQLJSON from 'graphql-type-json';
 import { ConnectedAccountService } from '../enum/ConnectedAccountService';

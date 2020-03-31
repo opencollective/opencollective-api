@@ -1,10 +1,10 @@
-import { GraphQLString, GraphQLObjectType, GraphQLNonNull, GraphQLList, GraphQLInt } from 'graphql';
+import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 import models, { Op } from '../../../models';
 import { Account } from '../interface/Account';
 import { CommentCollection } from '../collection/CommentCollection';
 import { Comment } from './Comment';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { IDENTIFIER_TYPES, getIdEncodeResolver } from '../identifiers';
 import { AccountCollection } from '../collection/AccountCollection';
 
 const Conversation = new GraphQLObjectType({

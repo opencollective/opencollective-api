@@ -1,4 +1,4 @@
-import { GraphQLString, GraphQLBoolean } from 'graphql';
+import { GraphQLBoolean, GraphQLString } from 'graphql';
 
 import { Account } from '../interface/Account';
 import models from '../../../models';

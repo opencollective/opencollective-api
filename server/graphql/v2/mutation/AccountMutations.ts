@@ -1,10 +1,10 @@
 import { GraphQLNonNull } from 'graphql';
 import GraphQLJSON from 'graphql-type-json';
-import { set, cloneDeep } from 'lodash';
+import { cloneDeep, set } from 'lodash';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { Account } from '../interface/Account';
 import AccountSettingsKey from '../scalar/AccountSettingsKey';
-import { Unauthorized, Forbidden } from '../../errors';
+import { Forbidden, Unauthorized } from '../../errors';
 import { sequelize } from '../../../models';
 
 const accountMutations = {

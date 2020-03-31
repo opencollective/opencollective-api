@@ -2,7 +2,7 @@ import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 import debugLib from 'debug';
 import Promise from 'bluebird';
-import { omit, get, isNil, pick } from 'lodash';
+import { get, isNil, omit, pick } from 'lodash';
 import config from 'config';
 import * as LibTaxes from '@opencollective/taxes';
 
@@ -14,8 +14,8 @@ import * as github from '../../../lib/github';
 import recaptcha from '../../../lib/recaptcha';
 import * as libPayments from '../../../lib/payments';
 import { setupCreditCard } from '../../../paymentProviders/stripe/creditcard';
-import { capitalize, pluralize, formatCurrency, md5 } from '../../../lib/utils';
-import { getNextChargeAndPeriodStartDates, getChargeRetryCount } from '../../../lib/subscriptions';
+import { capitalize, formatCurrency, md5, pluralize } from '../../../lib/utils';
+import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../lib/subscriptions';
 import { canUseFeature } from '../../../lib/user-permissions';
 import { handleHostPlanAddedFundsLimit, handleHostPlanBankTransfersLimit } from '../../../lib/plans';
 

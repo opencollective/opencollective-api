@@ -9,9 +9,9 @@ import emailLib from '../../server/lib/email';
 import { promiseSeq } from '../../server/lib/utils';
 import { sequelize } from '../../server/models';
 import {
+  groupProcessedOrders,
   ordersWithPendingCharges,
   processOrderWithSubscription,
-  groupProcessedOrders,
 } from '../../server/lib/subscriptions';
 
 const REPORT_EMAIL = 'ops@opencollective.com';
