@@ -23,7 +23,6 @@ import {
 } from './CollectiveInterface';
 import { InvoiceInputType } from './inputTypes';
 import {
-  OrderDirectionType,
   PaginatedTransactionsType,
   TransactionInterfaceType,
   TransactionOrder,
@@ -36,6 +35,7 @@ import {
   MemberInvitationType,
   MemberType,
   OrderByType,
+  OrderDirectionType,
   OrderType,
   PaginatedExpensesType,
   PaymentMethodType,

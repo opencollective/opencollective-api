@@ -21,7 +21,7 @@ import { hostResolver } from '../common/collective';
 import { getContextPermission, PERMISSION_TYPE } from '../common/context-permissions';
 
 import { ApplicationType } from './Application';
-import { OrderDirectionType, TransactionInterfaceType } from './TransactionInterface';
+import { TransactionInterfaceType } from './TransactionInterface';
 import {
   ConnectedAccountType,
   ContributorRoleEnum,
@@ -32,6 +32,7 @@ import {
   LocationType,
   MemberType,
   NotificationType,
+  OrderDirectionType,
   OrderStatusType,
   OrderType,
   PaginatedPaymentMethodsType,

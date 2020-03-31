@@ -34,7 +34,7 @@ import { canSeeExpenseAttachments, canSeeExpensePayoutMethod, getExpenseItems } 
 import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
 
 import { CollectiveInterfaceType, CollectiveSearchResultsType } from './CollectiveInterface';
-import { OrderDirectionType, TransactionInterfaceType } from './TransactionInterface';
+import { TransactionInterfaceType } from './TransactionInterface';
 
 /**
  * Take a graphql type and return a wrapper type that adds pagination. The pagination
@@ -2216,6 +2216,15 @@ export const UserInputType = new GraphQLInputObjectType({
       type: GraphQLString,
       description: 'User last name',
     },
+  },
+});
+
+export const OrderDirectionType = new GraphQLEnumType({
+  name: 'OrderDirection',
+  description: 'Possible directions in which to order a list of items when provided an orderBy argument.',
+  values: {
+    ASC: {},
+    DESC: {},
   },
 });
 

@@ -15,7 +15,15 @@ import { canSeeExpenseAttachments, getExpenseItems } from '../common/expenses';
 import { idEncode } from '../v2/identifiers';
 
 import { CollectiveInterfaceType, UserCollectiveType } from './CollectiveInterface';
-import { DateString, ExpenseType, OrderType, PaymentMethodType, SubscriptionType, UserType } from './types';
+import {
+  DateString,
+  ExpenseType,
+  OrderDirectionType,
+  OrderType,
+  PaymentMethodType,
+  SubscriptionType,
+  UserType,
+} from './types';
 
 export const TransactionInterfaceType = new GraphQLInterfaceType({
   name: 'Transaction',
@@ -401,15 +409,6 @@ export const TransactionType = new GraphQLEnumType({
   values: {
     CREDIT: {},
     DEBIT: {},
-  },
-});
-
-export const OrderDirectionType = new GraphQLEnumType({
-  name: 'OrderDirection',
-  description: 'Possible directions in which to order a list of items when provided an orderBy argument.',
-  values: {
-    ASC: {},
-    DESC: {},
   },
 });
 
