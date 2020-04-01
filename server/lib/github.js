@@ -140,17 +140,26 @@ export async function getOrgMemberships(accessToken) {
 }
 
 export async function checkGithubExists(githubHandle, accessToken) {
-  if (githubHandle.includes('/')) {
+  const isRepo = githubHandle.includes('/');
+  const invalidOrgMsg = 'We could not verify the GitHub organization exists';
+  const invalidRepoMsg = 'We could not verify the GitHub repository exists';
+
+  // On CI, only throw if the repo name doesn't start with "valid"
+  if (process.env.NODE_ENV === 'ci') {
+    if (!githubHandle.startsWith('valid')) {
+      throw new Error(isRepo ? invalidRepoMsg : invalidOrgMsg);
+    }
+  } else if (isRepo) {
     // A repository GitHub Handle (most common)
     const repo = await getRepo(githubHandle, accessToken).catch(() => null);
     if (!repo) {
-      throw new Error('We could not verify the GitHub repository exists');
+      throw new Error(invalidRepoMsg);
     }
   } else {
     // An organization GitHub Handle
     const org = await getOrg(githubHandle, accessToken).catch(() => null);
     if (!org) {
-      throw new Error('We could not verify the GitHub organization exists');
+      throw new Error(invalidOrgMsg);
     }
   }
 }
@@ -176,7 +185,10 @@ export async function checkGithubAdmin(githubHandle, accessToken) {
 }
 
 export async function checkGithubStars(githubHandle, accessToken) {
-  if (githubHandle.includes('/')) {
+  // On CI, bypass the validation if repo starts with "valid"
+  if (process.env.NODE_ENV === 'ci' && githubHandle.startsWith('valid')) {
+    return;
+  } else if (githubHandle.includes('/')) {
     // A repository GitHub Handle (most common)
     const repo = await getRepo(githubHandle, accessToken);
     if (repo.stargazers_count < config.githubFlow.minNbStars) {
