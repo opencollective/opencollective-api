@@ -5,7 +5,7 @@ import sinon from 'sinon';
 import emailLib from '../../../server/lib/email';
 import { roles } from '../../../server/constants';
 import plans from '../../../server/constants/plans';
-import { fakeUser } from '../../test-helpers/fake-data';
+import { fakeCollective, fakeUser } from '../../test-helpers/fake-data';
 
 const { Transaction, Collective, User } = models;
 
@@ -651,6 +651,11 @@ describe('server/models/Collective', () => {
           expect(tiers[1].name).to.equal('super backer');
         })
         .finally(done);
+    });
+
+    it('ignores if empty tiers are provided', async () => {
+      const newCollective = await fakeCollective();
+      await newCollective.editTiers([{}]);
     });
   });
 

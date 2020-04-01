@@ -21,6 +21,7 @@ import {
   defaults,
   includes,
   isNull,
+  isEmpty,
 } from 'lodash';
 import { v4 as uuid } from 'uuid';
 import { isISO31661Alpha2 } from 'validator';
@@ -1877,40 +1878,42 @@ export default function (Sequelize, DataTypes) {
   };
 
   // edit the tiers of this collective (create/update/remove)
-  Collective.prototype.editTiers = function (tiers) {
+  Collective.prototype.editTiers = async function (tiers) {
     if (this.type !== types.COLLECTIVE && this.type !== types.EVENT) {
       return [];
     }
-
-    if (!tiers) {
+    const sanitizedTiers = tiers.filter(tier => !isEmpty(tier));
+    if (!sanitizedTiers) {
       return this.getTiers();
     }
 
-    return this.getTiers()
-      .then(oldTiers => {
-        // remove the tiers that are not present anymore in the updated collective
-        const diff = difference(
-          oldTiers.map(t => t.id),
-          tiers.map(t => t.id),
-        );
-        return models.Tier.update({ deletedAt: new Date() }, { where: { id: { [Op.in]: diff } } });
-      })
-      .then(() => {
-        return Promise.map(tiers, tier => {
-          if (tier.amountType === 'FIXED') {
-            tier.presets = null;
-            tier.minimumAmount = null;
-          }
-          if (tier.id) {
-            return models.Tier.update(tier, { where: { id: tier.id, CollectiveId: this.id } });
-          } else {
-            tier.CollectiveId = this.id;
-            tier.currency = tier.currency || this.currency;
-            return models.Tier.create(tier);
-          }
-        });
-      })
-      .then(() => this.getTiers());
+    const existingTiers = await this.getTiers();
+    // remove the tiers that are not present anymore in the updated collective
+    const diff = difference(
+      existingTiers.map(t => t.id),
+      sanitizedTiers.map(t => t.id),
+    );
+    if (diff.length === 0) {
+      return [];
+    }
+
+    const newTiers = await models.Tier.update({ deletedAt: new Date() }, { where: { id: { [Op.in]: diff } } });
+    await Promise.all(
+      newTiers.map(tier => {
+        if (tier.amountType === 'FIXED') {
+          tier.presets = null;
+          tier.minimumAmount = null;
+        }
+        if (tier.id) {
+          return models.Tier.update(tier, { where: { id: tier.id, CollectiveId: this.id } });
+        } else {
+          tier.CollectiveId = this.id;
+          tier.currency = tier.currency || this.currency;
+          return models.Tier.create(tier);
+        }
+      }),
+    );
+    return this.getTiers();
   };
 
   // Where `this` collective is a type == ORGANIZATION collective.
