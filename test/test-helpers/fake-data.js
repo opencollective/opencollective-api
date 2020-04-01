@@ -10,7 +10,7 @@ import { v4 as uuid } from 'uuid';
 import { get, sample } from 'lodash';
 import models from '../../server/models';
 import { types as CollectiveType } from '../../server/constants/collectives';
-import { services as paymentMethods, types as paymentTypes } from '../../server/constants/paymentMethod';
+import { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPES } from '../../server/constants/paymentMethods';
 import { randEmail, randUrl } from '../stores';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 
@@ -380,8 +380,8 @@ export const fakeMember = async data => {
 export const fakePaymentMethod = async data => {
   return models.PaymentMethod.create({
     ...data,
-    type: data.type || sample(paymentTypes),
-    service: data.service || sample(paymentMethods),
+    type: data.type || sample(PAYMENT_METHOD_TYPES),
+    service: data.service || sample(PAYMENT_METHOD_SERVICES),
     CollectiveId: data.CollectiveId || (await fakeCollective().then(c => c.id)),
     currency: data.currency || 'USD',
   });

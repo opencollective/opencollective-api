@@ -58,6 +58,7 @@ import expenseStatus from '../constants/expense_status';
 import expenseTypes from '../constants/expense_type';
 import plans, { PLANS_COLLECTIVE_SLUG } from '../constants/plans';
 import FEATURE from '../constants/feature';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 
 const debug = debugLib('models:Collective');
 
@@ -2483,8 +2484,8 @@ export default function (Sequelize, DataTypes) {
             // This is the main chracateristic of Added Funds
             // Some older usage before 2017 doesn't have it but it's ok
             where: {
-              service: 'opencollective',
-              type: 'collective',
+              service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+              type: PAYMENT_METHOD_TYPE.COLLECTIVE,
               CollectiveId: this.id,
             },
           },
