@@ -1,3 +1,4 @@
+import { padStart } from 'lodash';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -614,4 +615,14 @@ export const objHasOnlyKeys = (obj, keys) => {
   const sortedObjKeys = Object.keys(obj).sort();
   const sortedKeys = [...keys].sort();
   return isEqual(sortedObjKeys, sortedKeys);
+};
+
+/**
+ * Format a datetime object to an ISO date like `YYYY-MM-DD`
+ */
+export const toIsoDateStr = date => {
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const day = date.getUTCDate();
+  return `${year}-${padStart(month.toString(), 2, '0')}-${padStart(day.toString(), 2, '0')}`;
 };
