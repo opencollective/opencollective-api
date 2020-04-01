@@ -840,27 +840,6 @@ describe('server/models/Collective', () => {
       expect(totalBankTransfers).to.equals(100000);
     });
 
-    it('should consider the amountInHostCurrency if host currency is USD', async () => {
-      order = await fakeOrder({
-        status: 'PAID',
-        currency: 'BRL',
-        PaymentMethodId: null,
-        totalAmount: 20000,
-        processedAt: new Date(),
-      });
-      await fakeTransaction({
-        amount: 100000,
-        HostCollectiveId: collective.id,
-        currency: 'BRL',
-        hostCurrency: 'USD',
-        amountInHostCurrency: 20000,
-        OrderId: order.id,
-      });
-
-      const totalBankTransfers = await collective.getTotalBankTransfers();
-      expect(totalBankTransfers).to.equals(100000 + 20000);
-    });
-
     it('should consider the fx rate if another currency', async () => {
       order = await fakeOrder({
         status: 'PAID',
@@ -912,27 +891,6 @@ describe('server/models/Collective', () => {
     it('should return the sum of all bank transfers', async () => {
       const totalAddedFunds = await collective.getTotalAddedFunds();
       expect(totalAddedFunds).to.equals(100000);
-    });
-
-    it('should consider the amountInHostCurrency if host currency is USD', async () => {
-      order = await fakeOrder({
-        status: 'PAID',
-        currency: 'BRL',
-        PaymentMethodId: paymentMethod.id,
-        totalAmount: 20000,
-        processedAt: new Date(),
-      });
-      await fakeTransaction({
-        amount: 100000,
-        HostCollectiveId: collective.id,
-        currency: 'BRL',
-        hostCurrency: 'USD',
-        amountInHostCurrency: 20000,
-        OrderId: order.id,
-      });
-
-      const totalAddedFunds = await collective.getTotalAddedFunds();
-      expect(totalAddedFunds).to.equals(100000 + 20000);
     });
 
     it('should consider the fx rate if another currency', async () => {
