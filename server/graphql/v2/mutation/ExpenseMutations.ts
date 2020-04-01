@@ -6,6 +6,12 @@ import { ExpenseCreateInput } from '../input/ExpenseCreateInput';
 import { createExpense as createExpenseLegacy, editExpense as editExpenseLegacy } from '../../v1/mutations/expenses';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { ExpenseUpdateInput } from '../input/ExpenseUpdateInput';
+import { ExpenseReferenceInput, getDatabaseIdFromExpenseReference } from '../input/ExpenseReferenceInput';
+import { Unauthorized, FeatureNotAllowedForUser, NotFound } from '../../errors';
+import FEATURE from '../../../constants/feature';
+import { canUseFeature } from '../../../lib/user-permissions';
+import models from '../../../models';
+import { canDeleteExpense } from '../../common/expenses';
 
 const expenseMutations = {
   createExpense: {
@@ -73,6 +79,39 @@ const expenseMutations = {
         })),
         fromCollective: null, // TODO payee
       });
+    },
+  },
+  deleteExpense: {
+    type: new GraphQLNonNull(Expense),
+    description: `Delete an expense. Only work if the expense is rejected - please check permissions.canDelete.`,
+    args: {
+      expense: {
+        type: new GraphQLNonNull(ExpenseReferenceInput),
+        description: 'Reference of the expense to delete',
+      },
+    },
+    async resolve(_, args, { remoteUser }): Promise<typeof Expense> {
+      if (!remoteUser) {
+        throw new Unauthorized();
+      } else if (!canUseFeature(remoteUser, FEATURE.EXPENSES)) {
+        throw new FeatureNotAllowedForUser();
+      }
+
+      const expenseId = getDatabaseIdFromExpenseReference(args.expense);
+      const expense = await models.Expense.findByPk(expenseId, {
+        // Need to load the collective because canDeleteExpense checks expense.collective.HostCollectiveId
+        include: [{ model: models.Collective, as: 'collective' }],
+      });
+
+      if (!expense) {
+        throw new NotFound({ message: 'Expense not found' });
+      } else if (!canDeleteExpense(remoteUser, expense)) {
+        throw new Unauthorized({
+          message: "You don't have permission to delete this expense or it needs to be rejected before being deleted",
+        });
+      }
+
+      return expense.destroy();
     },
   },
 };
