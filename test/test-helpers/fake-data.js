@@ -207,7 +207,7 @@ export const fakeExpense = async (expenseData = {}) => {
   const expense = await models.Expense.create({
     amount: randAmount(),
     currency: 'USD',
-    category: 'Engineering',
+    tags: ['Engineering'],
     description: randStr('Test expense '),
     incurredAt: new Date(),
     ...expenseData,

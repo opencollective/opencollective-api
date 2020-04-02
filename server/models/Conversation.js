@@ -2,6 +2,7 @@ import slugify from 'limax';
 
 import { activities } from '../constants';
 import { stripHTML, generateSummaryForHTML } from '../lib/sanitize-html';
+import { validateTags } from '../lib/tags';
 import models, { sequelize } from '.';
 import { idEncode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
 
@@ -79,27 +80,7 @@ export default function (Sequelize, DataTypes) {
             this.setDataValue('tags', Array.from(new Set(tags)));
           }
         },
-        validate: {
-          validateTags(tags) {
-            if (tags) {
-              // Limit to max 30 tags
-              if (tags.length > 30) {
-                throw new Error(
-                  `Conversations cannot have more than 30 tags. Please remove ${30 - tags.length} tag(s).`,
-                );
-              }
-
-              // Validate each individual tags
-              tags.forEach(tag => {
-                if (tag.length === 0) {
-                  throw new Error("Can't add empty tags");
-                } else if (tag.length > 32) {
-                  throw new Error(`Tag ${tag} is too long, must me shorter than 32 characters`);
-                }
-              });
-            }
-          },
-        },
+        validate: { validateTags },
       },
       CollectiveId: {
         type: DataTypes.INTEGER,

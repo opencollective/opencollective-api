@@ -5,6 +5,8 @@ import status from '../constants/expense_status';
 import expenseType from '../constants/expense_type';
 import CustomDataTypes from '../models/DataTypes';
 import { reduceArrayToCurrency } from '../lib/currency';
+import { stripHTML } from '../lib/sanitize-html';
+import { validateTags } from '../lib/tags';
 import models, { Op } from './';
 import { PayoutMethodTypes } from './PayoutMethod';
 
@@ -89,7 +91,6 @@ export default function (Sequelize, DataTypes) {
 
       privateMessage: DataTypes.STRING,
       invoiceInfo: DataTypes.TEXT,
-      category: DataTypes.STRING,
       vat: DataTypes.INTEGER,
 
       lastEditedById: {
@@ -139,6 +140,32 @@ export default function (Sequelize, DataTypes) {
 
       deletedAt: {
         type: DataTypes.DATE,
+      },
+
+      tags: {
+        type: DataTypes.ARRAY(DataTypes.STRING),
+        set(tags) {
+          if (tags) {
+            tags = tags
+              .map(tag => {
+                if (tag) {
+                  const upperCase = tag.toUpperCase();
+                  const cleanTag = upperCase.trim().replace(/\s+/g, ' ');
+                  return stripHTML(cleanTag);
+                }
+              })
+              .filter(tag => {
+                return tag && tag.length > 0;
+              });
+          }
+
+          if (!tags || tags.length === 0) {
+            this.setDataValue('tags', null);
+          } else if (tags) {
+            this.setDataValue('tags', Array.from(new Set(tags)));
+          }
+        },
+        validate: { validateTags },
       },
     },
     {
