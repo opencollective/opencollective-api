@@ -18,6 +18,7 @@ import {
   sumBy,
   keys,
   omit,
+  sum,
   defaults,
   includes,
   isNull,
@@ -57,6 +58,7 @@ import expenseStatus from '../constants/expense_status';
 import expenseTypes from '../constants/expense_type';
 import plans, { PLANS_COLLECTIVE_SLUG } from '../constants/plans';
 import FEATURE from '../constants/feature';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 
 const debug = debugLib('models:Collective');
 
@@ -2469,9 +2471,16 @@ export default function (Sequelize, DataTypes) {
       return Promise.resolve(null);
     }
 
-    const result = await models.Transaction.findOne({
-      attributes: [[Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('Order.totalAmount')), 0), 'total']],
-      where: { HostCollectiveId: this.id, type: 'CREDIT' },
+    const transactions = await models.Transaction.findAll({
+      attributes: [
+        [Sequelize.col('Transaction.currency'), 'currency'],
+        [Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('amount')), 0), 'total'],
+      ],
+      group: [Sequelize.col('Transaction.currency')],
+      where: {
+        HostCollectiveId: this.id,
+        type: 'CREDIT',
+      },
       include: [
         {
           model: models.Order,
@@ -2485,8 +2494,8 @@ export default function (Sequelize, DataTypes) {
               // This is the main chracateristic of Added Funds
               // Some older usage before 2017 doesn't have it but it's ok
               where: {
-                service: 'opencollective',
-                type: 'collective',
+                service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+                type: PAYMENT_METHOD_TYPE.COLLECTIVE,
                 CollectiveId: this.id,
               },
             },
@@ -2496,7 +2505,12 @@ export default function (Sequelize, DataTypes) {
       raw: true,
     });
 
-    return result.total;
+    const processOtherCurrency = async t => {
+      const fx = await getFxRate(t.currency, 'USD');
+      return Math.round(t.total * fx);
+    };
+    const total = sum(await Promise.all(transactions.map(processOtherCurrency)));
+    return total;
   };
 
   Collective.prototype.getTotalBankTransfers = async function () {
@@ -2505,9 +2519,16 @@ export default function (Sequelize, DataTypes) {
       return Promise.resolve(null);
     }
 
-    const result = await models.Transaction.findOne({
-      attributes: [[Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('Order.totalAmount')), 0), 'total']],
-      where: { HostCollectiveId: this.id, type: 'CREDIT' },
+    const transactions = await models.Transaction.findAll({
+      attributes: [
+        [Sequelize.col('Transaction.currency'), 'currency'],
+        [Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('amount')), 0), 'total'],
+      ],
+      group: [Sequelize.col('Transaction.currency')],
+      where: {
+        HostCollectiveId: this.id,
+        type: 'CREDIT',
+      },
       include: [
         {
           model: models.Order,
@@ -2523,7 +2544,12 @@ export default function (Sequelize, DataTypes) {
       raw: true,
     });
 
-    return result.total;
+    const processTransaction = async t => {
+      const fx = await getFxRate(t.currency, 'USD');
+      return Math.round(t.total * fx);
+    };
+    const total = sum(await Promise.all(transactions.map(processTransaction)));
+    return total;
   };
 
   Collective.prototype.getPlan = async function () {

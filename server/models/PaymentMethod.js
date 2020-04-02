@@ -14,15 +14,12 @@ import * as libpayments from '../lib/payments';
 import { isTestToken } from '../lib/stripe';
 
 import { maxInteger } from '../constants/math';
+import { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPES } from '../constants/paymentMethods';
 
 const debug = debugLib('models:PaymentMethod');
 
 export default function (Sequelize, DataTypes) {
   const { models } = Sequelize;
-
-  const payoutMethods = ['paypal', 'stripe', 'opencollective', 'prepaid'];
-
-  const payoutTypes = ['creditcard', 'prepaid', 'payment', 'collective', 'adaptive', 'virtualcard'];
 
   const PaymentMethod = Sequelize.define(
     'PaymentMethod',
@@ -85,8 +82,8 @@ export default function (Sequelize, DataTypes) {
         defaultValue: 'stripe',
         validate: {
           isIn: {
-            args: [payoutMethods],
-            msg: `Must be in ${payoutMethods}`,
+            args: [PAYMENT_METHOD_SERVICES],
+            msg: `Must be in ${PAYMENT_METHOD_SERVICES}`,
           },
         },
       },
@@ -95,8 +92,8 @@ export default function (Sequelize, DataTypes) {
         type: DataTypes.STRING,
         validate: {
           isIn: {
-            args: [payoutTypes],
-            msg: `Must be in ${payoutTypes}`,
+            args: [PAYMENT_METHOD_TYPES],
+            msg: `Must be in ${PAYMENT_METHOD_TYPES}`,
           },
         },
       },
@@ -236,7 +233,7 @@ export default function (Sequelize, DataTypes) {
     },
   );
 
-  PaymentMethod.payoutMethods = payoutMethods;
+  PaymentMethod.payoutMethods = PAYMENT_METHOD_SERVICES;
 
   /**
    * Instance Methods
