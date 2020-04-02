@@ -609,7 +609,6 @@ export const InvoiceType = new GraphQLObjectType({
         description:
           'Title for the invoice. Depending on the type of legal entity, a host should issue an Invoice or a Receipt.',
         resolve(invoice) {
-          console.log(invoice);
           return invoice.title;
         },
       },
@@ -969,12 +968,6 @@ export const UpdateType = new GraphQLObjectType({
         type: GraphQLString,
         resolve(update) {
           return update.title;
-        },
-      },
-      extraInfo: {
-        type: GraphQLString,
-        resolve(update) {
-          return update.extraInfo;
         },
       },
       createdAt: {
