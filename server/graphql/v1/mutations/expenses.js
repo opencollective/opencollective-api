@@ -249,7 +249,8 @@ export async function createExpense(remoteUser, expenseData) {
 /** Returns true if the expense should by put back to PENDING after this update */
 export const changesRequireStatusUpdate = (expense, newExpenseData, hasAttachmentsChanges, hasPayoutChanges) => {
   const updatedValues = { ...expense.dataValues, ...newExpenseData };
-  return hasAttachmentsChanges || updatedValues.amount !== expense.amount || hasPayoutChanges;
+  const hasAmountChanges = typeof updatedValues.amount !== 'undefined' && updatedValues.amount !== expense.amount;
+  return hasAttachmentsChanges || hasAmountChanges || hasPayoutChanges;
 };
 
 /** Returns infos about the changes made to attachments */
