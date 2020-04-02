@@ -422,12 +422,7 @@ export default function (Sequelize, DataTypes) {
         type: DataTypes.STRING,
         get() {
           const website = this.getDataValue('website');
-          if (website) {
-            return prependHttp(website);
-          }
-          return this.getDataValue('twitterHandle')
-            ? `https://twitter.com/${this.getDataValue('twitterHandle')}`
-            : null;
+          return website ? prependHttp(website) : null;
         },
         set(url) {
           if (url) {
