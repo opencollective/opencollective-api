@@ -4,7 +4,7 @@ const plans = {
     hostedCollectivesLimit: 100,
     addedFundsLimit: 100000, // in dollar cents
     bankTransfersLimit: 100000, // in dollar cents
-    payedWithTransferWiseLimit: 100000, // in dollar cents
+    transferwisePayoutLimit: 100000, // in dollar cents
     manualPayments: true,
     hostDashboard: true,
     level: 60,
@@ -13,7 +13,7 @@ const plans = {
     hostedCollectivesLimit: 25,
     addedFundsLimit: 100000, // in dollar cents
     bankTransfersLimit: 100000, // in dollar cents
-    payedWithTransferWiseLimit: 100000, // in dollar cents
+    transferwisePayoutLimit: 100000, // in dollar cents
     manualPayments: true,
     hostDashboard: true,
     level: 50,
@@ -22,7 +22,7 @@ const plans = {
     hostedCollectivesLimit: 10,
     addedFundsLimit: 100000, // in dollar cents
     bankTransfersLimit: 100000, // in dollar cents
-    payedWithTransferWiseLimit: 100000, // in dollar cents
+    transferwisePayoutLimit: 100000, // in dollar cents
     manualPayments: true,
     hostDashboard: true,
     level: 40,
@@ -31,7 +31,7 @@ const plans = {
     hostedCollectivesLimit: 5,
     addedFundsLimit: 100000, // in dollar cents
     bankTransfersLimit: 100000, // in dollar cents
-    payedWithTransferWiseLimit: 100000, // in dollar cents
+    transferwisePayoutLimit: 100000, // in dollar cents
     manualPayments: true,
     hostDashboard: true,
     level: 30,
@@ -40,7 +40,7 @@ const plans = {
     hostedCollectivesLimit: 1,
     addedFundsLimit: 100000, // in dollar cents
     bankTransfersLimit: 100000, // in dollar cents
-    payedWithTransferWiseLimit: 100000, // in dollar cents
+    transferwisePayoutLimit: 100000, // in dollar cents
     manualPayments: true,
     hostDashboard: true,
     level: 20,
@@ -52,7 +52,7 @@ const plans = {
     hostedCollectivesLimit: 100,
     addedFundsLimit: null,
     bankTransfersLimit: null,
-    payedWithTransferWiseLimit: null,
+    transferwisePayoutLimit: null,
     manualPayments: true,
     hostDashboard: true,
     level: 60,
@@ -61,7 +61,7 @@ const plans = {
     hostedCollectivesLimit: 25,
     addedFundsLimit: null,
     bankTransfersLimit: null,
-    payedWithTransferWiseLimit: null,
+    transferwisePayoutLimit: null,
     manualPayments: true,
     hostDashboard: true,
     level: 50,
@@ -70,7 +70,7 @@ const plans = {
     hostedCollectivesLimit: 10,
     addedFundsLimit: null,
     bankTransfersLimit: null,
-    payedWithTransferWiseLimit: null,
+    transferwisePayoutLimit: null,
     manualPayments: true,
     hostDashboard: false,
     level: 40,
@@ -79,7 +79,7 @@ const plans = {
     hostedCollectivesLimit: 5,
     addedFundsLimit: null,
     bankTransfersLimit: null,
-    payedWithTransferWiseLimit: null,
+    transferwisePayoutLimit: null,
     manualPayments: true,
     hostDashboard: false,
     level: 30,
@@ -88,7 +88,7 @@ const plans = {
     hostedCollectivesLimit: 1,
     addedFundsLimit: null,
     bankTransfersLimit: null,
-    payedWithTransferWiseLimit: null,
+    transferwisePayoutLimit: null,
     manualPayments: true,
     hostDashboard: true,
     level: 20,
@@ -98,7 +98,7 @@ const plans = {
     hostedCollectivesLimit: 5,
     addedFundsLimit: null,
     bankTransfersLimit: null,
-    payedWithTransferWiseLimit: null,
+    transferwisePayoutLimit: null,
     manualPayments: true,
     hostDashboard: true,
     level: 20,
@@ -108,7 +108,7 @@ const plans = {
     hostedCollectivesLimit: null,
     addedFundsLimit: 100000, // in dollar cents
     bankTransfersLimit: 100000, // in dollar cents
-    payedWithTransferWiseLimit: 100000, // in dollar cents
+    transferwisePayoutLimit: 100000, // in dollar cents
     manualPayments: true,
     hostDashboard: true,
     level: 10,
@@ -118,7 +118,7 @@ const plans = {
     hostedCollectivesLimit: null,
     addedFundsLimit: null,
     bankTransfersLimit: null,
-    payedWithTransferWiseLimit: null,
+    transferwisePayoutLimit: null,
     manualPayments: true,
     hostDashboard: true,
     level: 100,

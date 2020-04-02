@@ -407,7 +407,7 @@ describe('server/models/Collective', () => {
         hostedCollectives: 2,
         addedFunds: 0,
         bankTransfers: 0,
-        payedWithTransferWise: 0,
+        transferwisePayout: 0,
         ...plans.default,
       });
     });
@@ -925,7 +925,7 @@ describe('server/models/Collective', () => {
     });
   });
 
-  describe('getTotalPayedWithTransferWise', () => {
+  describe('getTotalTransferwisePayout', () => {
     let collective, expense, payoutMethod;
     beforeEach(async () => {
       await utils.resetTestDB();
@@ -949,7 +949,7 @@ describe('server/models/Collective', () => {
     });
 
     it('should return the sum of all bank transfers', async () => {
-      const totalAddedFunds = await collective.getTotalPayedWithTransferWise();
+      const totalAddedFunds = await collective.getTotalTransferwisePayout();
       expect(totalAddedFunds).to.equals(100000);
     });
 
@@ -968,7 +968,7 @@ describe('server/models/Collective', () => {
       });
 
       const fx = await getFxRate('EUR', 'USD');
-      const totalAddedFunds = await collective.getTotalPayedWithTransferWise();
+      const totalAddedFunds = await collective.getTotalTransferwisePayout();
       expect(totalAddedFunds).to.equals(100000 + 50000 * fx);
     });
   });
