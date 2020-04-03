@@ -1616,6 +1616,10 @@ export default function (Sequelize, DataTypes) {
       ...(shouldAutomaticallyApprove ? { isActive: true, approvedAt: new Date() } : null),
     };
 
+    if (hostCollective.platformFeePercent !== null) {
+      updatedValues.platformFeePercent = hostCollective.platformFeePercent;
+    }
+
     // events should take the currency of their parent collective, not necessarily the host of their host.
     if (this.type === 'COLLECTIVE') {
       updatedValues.currency = hostCollective.currency;
