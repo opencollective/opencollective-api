@@ -15,18 +15,26 @@ const ExpenseReferenceInput = new GraphQLInputObjectType({
   },
 });
 
-/**
- * Retrieve an expense from an `ExpenseReferenceInput`
- */
-const fetchExpenseWithReference = async (input: object, { loaders }): Promise<any> => {
+const getDatabaseIdFromExpenseReference = (input: object): number => {
   if (input['id']) {
-    const id = idDecode(input['id'], IDENTIFIER_TYPES.EXPENSE);
-    return loaders.Expense.byId.load(id);
+    return idDecode(input['id'], IDENTIFIER_TYPES.EXPENSE);
   } else if (input['legacyId']) {
-    return loaders.Expense.byId.load(input['legacyId']);
+    return input['legacyId'];
   } else {
     return null;
   }
 };
 
-export { ExpenseReferenceInput, fetchExpenseWithReference };
+/**
+ * Retrieve an expense from an `ExpenseReferenceInput`
+ */
+const fetchExpenseWithReference = async (input: object, { loaders }): Promise<any> => {
+  const dbId = getDatabaseIdFromExpenseReference(input);
+  if (dbId) {
+    return loaders.Expense.byId.load(dbId);
+  } else {
+    return null;
+  }
+};
+
+export { ExpenseReferenceInput, fetchExpenseWithReference, getDatabaseIdFromExpenseReference };
