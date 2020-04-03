@@ -790,7 +790,13 @@ export const ExpenseType = new GraphQLObjectType({
       category: {
         type: GraphQLString,
         resolve(expense) {
-          return expense.category;
+          return expense.tags?.[0] || null;
+        },
+      },
+      tags: {
+        type: new GraphQLList(GraphQLString),
+        resolve(expense) {
+          return expense.tags;
         },
       },
       status: {

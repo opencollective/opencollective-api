@@ -89,6 +89,8 @@ const createExpenseQuery = `
       status
       user { id name collective { id name slug } }
       amount
+      tags
+      category
       attachment
       attachments {
         id
@@ -107,6 +109,8 @@ const editExpenseMutation = `
       status
       user { id name collective { id name slug } }
       amount
+      tags
+      category
       attachment
       attachments {
         id
@@ -335,7 +339,7 @@ describe('server/graphql/v1/expenses', () => {
       await store.createExpense(hostAdmin, {
         attachments: [{ url: store.randUrl(), amount: 1000 }],
         amount: 1000,
-        category: 'legal',
+        category: 'LEGAL',
         description: 'Pizza',
         ...data,
       });
@@ -352,7 +356,7 @@ describe('server/graphql/v1/expenses', () => {
       await store.createExpense(hostAdmin, {
         attachments: [{ url: store.randUrl(), amount: 3000 }],
         amount: 3000,
-        category: 'legal',
+        category: 'LEGAL',
         description: 'Banner',
         ...data,
       });
@@ -365,7 +369,7 @@ describe('server/graphql/v1/expenses', () => {
       });
       // When we retrieve all the expenses of the host
       const result = await utils.graphqlQuery(allExpensesQuery, {
-        category: 'legal',
+        category: 'LEGAL',
         CollectiveId: hostCollective.id,
         limit: 5,
         includeHostedCollectives: true,
@@ -377,7 +381,7 @@ describe('server/graphql/v1/expenses', () => {
       // counting expenses from the two collectives hosted by
       // `hostCollective` that are under the `legal` category.
       expect(result.data.allExpenses).to.have.length(2);
-      result.data.allExpenses.forEach(e => expect(e.category).to.equal('legal'));
+      result.data.allExpenses.forEach(e => expect(e.category).to.equal('LEGAL'));
     }); /* End of "gets the latest expenses from all the hosted collectives for one category" */
 
     it('gets the latest expenses from all the hosted collectives for one author', async () => {
@@ -396,7 +400,7 @@ describe('server/graphql/v1/expenses', () => {
       await store.createExpense(xdamman, {
         attachments: [{ url: store.randUrl(), amount: 1000 }],
         amount: 1000,
-        category: 'legal',
+        category: 'LEGAL',
         description: 'Pizza',
         ...data,
       });
@@ -732,6 +736,30 @@ describe('server/graphql/v1/expenses', () => {
       expect(result.errors[0].message).to.equal(
         "The sum of all attachments must be equal to the total expense's amount. Expense's total is 500, but the total of attachments was 650.",
       );
+    });
+
+    it('is backward compatible with category', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective();
+      const expenseData = {
+        amount: 250,
+        description: 'Bought some potatoes',
+        type: 'RECEIPT',
+        category: 'food',
+        collective: { id: collective.id },
+        attachments: [
+          {
+            amount: 250,
+            description: 'Burger',
+            url: store.randUrl(),
+            incurredAt: new Date('2000-01-01T00:00:00'),
+          },
+        ],
+      };
+
+      const result = await utils.graphqlQuery(createExpenseQuery, { expense: expenseData }, user);
+      expect(result.data.createExpense.category).to.equal(expenseData.category.toUpperCase());
+      expect(result.data.createExpense.tags[0]).to.equal(expenseData.category.toUpperCase());
     });
   }); /* End of "#createExpense" */
 
@@ -1493,6 +1521,18 @@ describe('server/graphql/v1/expenses', () => {
       expect(returnedAttachments.find(a => a.id === attachments[1].id)).to.exist;
       expect(returnedAttachments.find(a => a.id === attachments[2].id)).to.not.exist;
       expect(returnedAttachments.find(a => a.id === attachments[1].id).amount).to.equal(7000);
+    });
+
+    it('is backward compatible with category', async () => {
+      const expense = await fakeExpense({ amount: 10000, category: 'BOAT' });
+      const updatedExpenseData = {
+        id: expense.id,
+        category: 'KUNF-FU',
+      };
+
+      const result = await utils.graphqlQuery(editExpenseMutation, { expense: updatedExpenseData }, expense.User);
+      expect(result.data.editExpense.category).to.equal(updatedExpenseData.category);
+      expect(result.data.editExpense.tags[0]).to.equal(updatedExpenseData.category);
     });
   }); /* End of "#editExpense" */
 
