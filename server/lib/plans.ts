@@ -95,7 +95,7 @@ export async function handleHostPlanBankTransfersLimit(host, { throwException = 
   }
 }
 
-export async function handleTransferWisePaymentLimit(host, expense, { throwException = false }): Promise<void> {
+export async function handleTransferwisePaymentLimit(host, expense, { throwException = false }): Promise<void> {
   const hostPlan = await host.getPlan();
   if (
     throwException &&
