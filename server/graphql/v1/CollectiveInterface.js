@@ -264,6 +264,12 @@ export const PlanType = new GraphQLObjectType({
     bankTransfersLimit: {
       type: GraphQLInt,
     },
+    transferwisePayout: {
+      type: GraphQLInt,
+    },
+    transferwisePayoutLimit: {
+      type: GraphQLInt,
+    },
   },
 });
 
