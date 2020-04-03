@@ -611,6 +611,14 @@ export const InvoiceType = new GraphQLObjectType({
           return invoice.title;
         },
       },
+      extraInfo: {
+        type: GraphQLString,
+        description:
+          'more info about the invoice, which is then printed on receipts that go to financial contributors.',
+        resolve(invoice) {
+          return invoice.extraInfo;
+        },
+      },
       dateFrom: {
         type: IsoDateString,
         description:
