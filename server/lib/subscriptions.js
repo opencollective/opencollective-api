@@ -4,12 +4,14 @@ import config from 'config';
 import moment from 'moment';
 import { Op } from 'sequelize';
 
+import { get } from 'lodash';
 import models from '../models';
 import emailLib from './email';
 import * as paymentsLib from './payments';
 import { getRecommendedCollectives } from './data';
 import status from '../constants/order_status';
 import intervals from '../constants/intervals';
+import { isHostPlan } from './plans';
 
 /** Maximum number of attempts before an order gets cancelled. */
 export const MAX_RETRIES = 5;
@@ -31,6 +33,7 @@ export async function ordersWithPendingCharges({ limit } = {}) {
       { model: models.Collective, as: 'collective' },
       { model: models.Collective, as: 'fromCollective' },
       { model: models.PaymentMethod, as: 'paymentMethod' },
+      { model: models.Tier, as: 'Tier' },
       {
         model: models.Subscription,
         where: {
@@ -334,6 +337,18 @@ export async function sendThankYouEmail(order, transaction) {
   const relatedCollectives = await order.collective.getRelatedCollectives(3, 0);
   const recommendedCollectives = await getRecommendedCollectives(order.collective, 3);
   const user = order.createdByUser;
+
+  if (isHostPlan(order)) {
+    return emailLib.send(
+      'hostplan.renewal.thankyou',
+      user.email,
+      { plan: get(order, 'Tier.name') },
+      {
+        from: `${order.collective.name} <hello@${order.collective.slug}.opencollective.com>`,
+      },
+    );
+  }
+
   return emailLib.send(
     'thankyou',
     user.email,

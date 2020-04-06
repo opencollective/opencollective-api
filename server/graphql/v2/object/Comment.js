@@ -40,7 +40,7 @@ const Comment = new GraphQLObjectType({
       collective: {
         type: Account,
         resolve: collectiveResolver,
-        deprecationReason: '2020-02-25: Please use fromAccount',
+        deprecationReason: '2020-02-25: Please use account',
       },
     };
   },

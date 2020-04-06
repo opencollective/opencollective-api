@@ -35,13 +35,14 @@ import PayoutMethod from '../object/PayoutMethod';
 import { Location } from '../object/Location';
 
 const accountFieldsDefinition = () => ({
-  // _internal_id: {
-  //   type: GraphQLInt,
-  //   description: 'The internal database identifier (should not be public)',
-  // },
   id: {
     type: GraphQLString,
     description: 'The public id identifying the account (ie: 5v08jk63-w4g9nbpz-j7qmyder-p7ozax5g)',
+  },
+  legacyId: {
+    type: GraphQLInt,
+    description: 'The internal database identifier of the collective (ie: 580)',
+    deprecationReason: '2020-01-01: should only be used during the transition to GraphQL API v2.',
   },
   slug: {
     type: GraphQLString,
@@ -287,6 +288,12 @@ export const AccountFields = {
       return idEncode(collective.id, 'account');
     },
   },
+  legacyId: {
+    type: GraphQLInt,
+    resolve(collective) {
+      return collective.id;
+    },
+  },
   type: {
     type: AccountType,
     resolve(collective) {
@@ -337,7 +344,7 @@ export const AccountFields = {
         query.where.tags = { [Op.contains]: [tag] };
       }
       const result = await models.Conversation.findAndCountAll(query);
-      return { nodes: result.rows, total: result.count, limit, offset };
+      return { nodes: result.rows, totalCount: result.count, limit, offset };
     },
   },
   conversationsTags: {

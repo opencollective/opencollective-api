@@ -17,10 +17,10 @@ export const blackListedCurrencies = [
 ];
 
 async function populateProfileId(connectedAccount): Promise<void> {
-  if (!connectedAccount.data.profile) {
+  if (!connectedAccount.data?.id) {
     const profiles = await transferwise.getProfiles(connectedAccount.token);
     const profile =
-      profiles.find(p => p.type === connectedAccount.data.type) ||
+      profiles.find(p => p.type === connectedAccount.data?.type) ||
       profiles.find(p => p.type === 'business') ||
       profiles[0];
     if (profile) {
@@ -66,6 +66,19 @@ async function payExpense(
 }> {
   const quote = await quoteExpense(connectedAccount, payoutMethod, expense);
 
+  const account = await transferwise.getBorderlessAccount(connectedAccount.token, connectedAccount.data.id);
+  if (!account) {
+    throw new Error(
+      `We can't retrieve your Transferwise borderless account. Please re-connect or contact support at support@opencollective.com.`,
+    );
+  }
+  const balance = account.balances.find(b => b.currency === quote.source);
+  if (!balance || balance.amount.value < quote.sourceAmount) {
+    throw new Error(
+      `You don't have enough funds in your ${quote.source} balance. Please top up your account and try again.`,
+    );
+  }
+
   const recipient = await transferwise.createRecipientAccount(connectedAccount.token, {
     profileId: connectedAccount.data.id,
     ...payoutMethod.data,
@@ -77,12 +90,15 @@ async function payExpense(
     uuid: uuid(),
   });
 
-  const fund = await transferwise.fundTransfer(connectedAccount.token, {
-    profileId: connectedAccount.data.id,
-    transferId: transfer.id,
-  });
-  if (fund.status === 'REJECTED') {
-    throw new Error(`Transferwise could not fund transfer: ${fund.errorCode}`);
+  let fund;
+  try {
+    fund = await transferwise.fundTransfer(connectedAccount.token, {
+      profileId: connectedAccount.data.id,
+      transferId: transfer.id,
+    });
+  } catch (e) {
+    await transferwise.cancelTransfer(connectedAccount.token, transfer.id);
+    throw e;
   }
 
   return { quote, recipient, transfer, fund };
@@ -101,6 +117,7 @@ async function getAvailableCurrencies(host: any): Promise<{ code: string; minInv
   if (!connectedAccount) {
     throw new Error('Host is not connected to Transferwise');
   }
+  await populateProfileId(connectedAccount);
 
   const pairs = await transferwise.getCurrencyPairs(connectedAccount.token);
   const source = pairs.sourceCurrencies.find(sc => sc.currencyCode === host.currency);
@@ -124,6 +141,7 @@ async function getRequiredBankInformation(host: any, currency: string): Promise<
   if (!connectedAccount) {
     throw new Error('Host is not connected to Transferwise');
   }
+  await populateProfileId(connectedAccount);
 
   const currencyInfo = find(await getAvailableCurrencies(host), { code: currency });
   if (!currencyInfo) {

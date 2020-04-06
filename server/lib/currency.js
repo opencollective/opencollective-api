@@ -62,7 +62,7 @@ export function getFxRate(fromCurrency, toCurrency, date = 'latest') {
 
   return new Promise((resolve, reject) => {
     const params = {
-      access_key: config.fixer.accessKey,
+      access_key: config.fixer.accessKey, // eslint-disable-line camelcase
       base: fromCurrency,
       symbols: toCurrency,
     };

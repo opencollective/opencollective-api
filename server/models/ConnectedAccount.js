@@ -1,11 +1,9 @@
 import config from 'config';
-
+import { supportedServices } from '../constants/connected_account';
 /**
  * Model.
  */
 export default (Sequelize, DataTypes) => {
-  const supportedServices = ['paypal', 'stripe', 'github', 'twitter', 'meetup', 'transferwise'];
-
   const ConnectedAccount = Sequelize.define(
     'ConnectedAccount',
     {
@@ -27,8 +25,8 @@ export default (Sequelize, DataTypes) => {
       token: DataTypes.STRING,
       refreshToken: DataTypes.STRING, // used for Stripe
 
-      data: DataTypes.JSON, // Extra service provider specific data, e.g. Stripe: { publishableKey, scope, tokenType }
-      settings: DataTypes.JSON, // configuration settings, e.g. defining templates for auto-tweeting
+      data: DataTypes.JSONB, // Extra service provider specific data, e.g. Stripe: { publishableKey, scope, tokenType }
+      settings: DataTypes.JSONB, // configuration settings, e.g. defining templates for auto-tweeting
 
       createdAt: {
         type: DataTypes.DATE,
@@ -56,16 +54,14 @@ export default (Sequelize, DataTypes) => {
 
         paypalConfig() {
           return {
-            client_id: this.clientId,
-            client_secret: this.token,
+            client_id: this.clientId, // eslint-disable-line camelcase
+            client_secret: this.token, // eslint-disable-line camelcase
             mode: config.paypal.rest.mode,
           };
         },
       },
     },
   );
-
-  ConnectedAccount.schema('public');
 
   ConnectedAccount.associate = m => {
     ConnectedAccount.belongsTo(m.Collective, {

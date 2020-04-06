@@ -22,7 +22,7 @@
  * }
  */
 
-import { get, set, has } from 'lodash';
+import { get, set, has, isNil } from 'lodash';
 
 /**
  * Context permissions types to use with `setContextPermission` and `getContextPermission`
@@ -31,6 +31,7 @@ export enum PERMISSION_TYPE {
   SEE_ACCOUNT_LOCATION = 'SEE_ACCOUNT_LOCATION',
   SEE_EXPENSE_ATTACHMENTS_URL = 'SEE_EXPENSE_ATTACHMENTS_URL',
   SEE_PAYOUT_METHOD_DATA = 'SEE_PAYOUT_METHOD_DATA',
+  SEE_INCOGNITO_ACCOUNT_DETAILS = 'SEE_INCOGNITO_ACCOUNT_DETAILS',
 }
 
 /**
@@ -59,7 +60,9 @@ export const allowContextPermission = (
   entityId: string | number,
 ): void => {
   checkPermissionType(permissionType);
-  set(req, buildKey(permissionType, entityId), true);
+  if (!isNil(entityId)) {
+    set(req, buildKey(permissionType, entityId), true);
+  }
 };
 
 /**

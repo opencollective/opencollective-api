@@ -89,7 +89,7 @@ describe('server/graphql/v1/createOrder', () => {
       .get(/20[0-9]{2}\-[0-9]{2}\-[0-9]{2}/)
       .times(5)
       .query({
-        access_key: config.fixer.accessKey,
+        access_key: config.fixer.accessKey, // eslint-disable-line camelcase
         base: 'EUR',
         symbols: 'USD',
       })
@@ -99,7 +99,7 @@ describe('server/graphql/v1/createOrder', () => {
       .get('/latest')
       .times(5)
       .query({
-        access_key: config.fixer.accessKey,
+        access_key: config.fixer.accessKey, // eslint-disable-line camelcase
         base: 'EUR',
         symbols: 'USD',
       })

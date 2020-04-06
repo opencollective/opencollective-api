@@ -7,7 +7,6 @@ import { ExpenseReferenceInput } from './ExpenseReferenceInput';
 export const CommentCreateInput = new GraphQLInputObjectType({
   name: 'CommentCreateInput',
   fields: () => ({
-    markdown: { type: GraphQLString, deprecationReason: '2020-02-26: Please use html' },
     html: { type: GraphQLString },
     expense: {
       type: ExpenseReferenceInput,

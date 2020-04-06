@@ -977,6 +977,7 @@ describe('server/graphql/v1/collective', () => {
         amount: 20000,
       });
       const message = 'I am happy to support this collective!';
+      cacheDelSpy.resetHistory();
       const res = await utils.graphqlQuery(
         QUERY,
         {
@@ -1030,6 +1031,7 @@ describe('server/graphql/v1/collective', () => {
         },
       );
       expect(quantityUpdated).to.equal(2);
+      cacheDelSpy.resetHistory();
       const res = await utils.graphqlQuery(
         QUERY,
         {

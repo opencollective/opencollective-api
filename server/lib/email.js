@@ -70,10 +70,7 @@ const getTemplateAttributes = str => {
     }
   } while (tokens);
 
-  attributes.body = lines
-    .slice(index)
-    .join('\n')
-    .trim();
+  attributes.body = lines.slice(index).join('\n').trim();
   return attributes;
 };
 
@@ -245,14 +242,6 @@ const generateEmailFromTemplate = (template, recipient, data = {}, options = {})
   if (template === 'ticket.confirmed') {
     if (slug === 'fearlesscitiesbrussels') {
       template += '.fearlesscitiesbrussels';
-    }
-
-    if (slug === 'drupalatx') {
-      const eventSlug = get(data, 'event.slug');
-
-      if (eventSlug === 'texas-camp-2019-19178ev') {
-        template += '.drupalatx.texas-camp-2019-19178ev';
-      }
     }
   }
   if (template.match(/^host\.(monthly|yearly)report$/)) {

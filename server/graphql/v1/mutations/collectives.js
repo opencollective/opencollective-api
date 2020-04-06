@@ -8,15 +8,17 @@ import sequelize from 'sequelize';
 
 import models, { Op } from '../../../models';
 import * as errors from '../../errors';
+
 import emailLib from '../../../lib/email';
 import * as github from '../../../lib/github';
 import { defaultHostCollective } from '../../../lib/utils';
+import { purgeCacheForPage } from '../../../lib/cloudflare';
+import { canUseFeature } from '../../../lib/user-permissions';
+import { handleHostCollectivesLimit } from '../../../lib/plans';
 
 import roles from '../../../constants/roles';
 import activities from '../../../constants/activities';
 import { types } from '../../../constants/collectives';
-import { purgeCacheForPage } from '../../../lib/cloudflare';
-import { canUseFeature } from '../../../lib/user-permissions';
 import FEATURE from '../../../constants/feature';
 
 const DEFAULT_COLLECTIVE_SETTINGS = {
@@ -68,6 +70,10 @@ export async function createCollective(_, args, req) {
     // The currency of the new created collective if not specified should be the one of its direct parent or the host (in this order)
     collectiveData.currency = collectiveData.currency || parentCollective.currency;
     collectiveData.HostCollectiveId = parentCollective.HostCollectiveId;
+
+    if (collectiveData.type === types.EVENT) {
+      collectiveData.platformFeePercent = parentCollective.platformFeePercent;
+    }
   }
 
   if (collectiveData.HostCollectiveId) {
@@ -377,7 +383,7 @@ export function editCollective(_, args, req) {
         return Promise.reject(new errors.Unauthorized({ message: errorMsg }));
       }
     })
-    .then(() => {
+    .then(async () => {
       // If we try to change the host
       if (
         newCollectiveData.HostCollectiveId !== undefined &&
@@ -395,7 +401,13 @@ export function editCollective(_, args, req) {
         return collective.updateHostFee(newCollectiveData.hostFeePercent, req.remoteUser);
       }
     })
-    .then(() => collective.update(omit(newCollectiveData, ['HostCollectiveId', 'hostFeePercent']))) // we omit those attributes that have already been updated above
+    .then(() => {
+      // if we try to change the `currency`
+      if (newCollectiveData.currency !== undefined && newCollectiveData.currency !== collective.currency) {
+        return collective.updateCurrency(newCollectiveData.currency, req.remoteUser);
+      }
+    })
+    .then(() => collective.update(omit(newCollectiveData, ['HostCollectiveId', 'hostFeePercent', 'currency']))) // we omit those attributes that have already been updated above
     .then(() => collective.editTiers(args.collective.tiers))
     .then(() => {
       // @deprecated since 2019-10-21: now using dedicated `editCoreContributors` endpoint
@@ -442,13 +454,7 @@ export async function approveCollective(remoteUser, CollectiveId) {
   }
 
   // Check limits
-  const hostPlan = await host.getPlan();
-  if (hostPlan.hostedCollectivesLimit && hostPlan.hostedCollectivesLimit <= hostPlan.hostedCollectives) {
-    throw new errors.PlanLimit({
-      message:
-        'The limit of collectives for the host has been reached. Please contact support@opencollective.com if you think this is an error.',
-    });
-  }
+  await handleHostCollectivesLimit(host, { throwHostException: true, notifyAdmins: true });
 
   models.Activity.create({
     type: activities.COLLECTIVE_APPROVED,
@@ -555,6 +561,7 @@ export async function claimCollective(_, args, req) {
   collective = await collective.update({
     CreatedByUserId: req.remoteUser.id,
     LastEditedByUserId: req.remoteUser.id,
+    isPledged: false,
   });
 
   // add opensource collective as host
@@ -636,6 +643,10 @@ export async function archiveCollective(_, args, req) {
     membership.destroy();
   }
 
+  if (collective.type === types.EVENT) {
+    return collective.update({ isActive: false, deactivatedAt: Date.now() });
+  }
+
   return collective.update({ isActive: false, deactivatedAt: Date.now(), approvedAt: null, HostCollectiveId: null });
 }
 
@@ -656,6 +667,16 @@ export async function unarchiveCollective(_, args, req) {
   if (!req.remoteUser.isAdmin(collective.id)) {
     throw new errors.Unauthorized({
       message: 'You need to be logged in as an Admin.',
+    });
+  }
+
+  if (collective.type === types.EVENT) {
+    const parentCollective = await models.Collective.findByPk(collective.ParentCollectiveId);
+    return collective.update({
+      deactivatedAt: null,
+      isActive: parentCollective.isActive,
+      HostCollectiveId: parentCollective.HostCollectiveId,
+      approvedAt: collective.approvedAt || Date.now(),
     });
   }
 
@@ -933,10 +954,7 @@ export async function sendMessageToCollective(_, args, req) {
   }
 
   const subject =
-    args.subject &&
-    sanitize(args.subject, { allowedTags: [], allowedAttributes: {} })
-      .trim()
-      .slice(0, 60);
+    args.subject && sanitize(args.subject, { allowedTags: [], allowedAttributes: {} }).trim().slice(0, 60);
 
   // User sending the email must have an associated collective
   const fromCollective = await models.Collective.findByPk(req.remoteUser.CollectiveId);

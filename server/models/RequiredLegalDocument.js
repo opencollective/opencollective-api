@@ -1,4 +1,4 @@
-export default function(Sequelize, DataTypes) {
+export default function (Sequelize, DataTypes) {
   const US_TAX_FORM = 'US_TAX_FORM';
 
   const RequiredLegalDocument = Sequelize.define('RequiredLegalDocument', {
@@ -35,8 +35,6 @@ export default function(Sequelize, DataTypes) {
       allowNull: false,
     },
   });
-
-  RequiredLegalDocument.schema('public');
 
   RequiredLegalDocument.documentType = {};
   RequiredLegalDocument.documentType.US_TAX_FORM = US_TAX_FORM;

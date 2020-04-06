@@ -85,6 +85,7 @@ export async function createPayment(req, res) {
   if (!hostCollective) {
     throw new Error("Couldn't find host collective");
   }
+  /* eslint-disable camelcase */
   const paymentParams = {
     intent: 'sale',
     payer: { payment_method: 'paypal' },
@@ -97,6 +98,7 @@ export async function createPayment(req, res) {
       cancel_url: 'https://opencollective.com',
     },
   };
+  /* eslint-enable camelcase */
   const payment = await paypalRequest('payments/payment', paymentParams, hostCollective);
   return res.json({ id: payment.id });
 }
@@ -112,7 +114,7 @@ export async function executePayment(order) {
   return paypalRequest(
     `payments/payment/${paymentID}/execute`,
     {
-      payer_id: payerID,
+      payer_id: payerID, // eslint-disable-line camelcase
     },
     hostCollective,
   );
@@ -128,7 +130,10 @@ export async function createTransaction(order, paymentInfo) {
   const currencyFromPayPal = transaction.amount.currency;
 
   const hostFeeInHostCurrency = libpayments.calcFee(amountFromPayPalInCents, order.collective.hostFeePercent);
-  const platformFeeInHostCurrency = libpayments.calcFee(amountFromPayPalInCents, constants.OC_FEE_PERCENT);
+  const defaultPlatformFee =
+    order.collective.platformFeePercent === null ? constants.OC_FEE_PERCENT : order.collective.platformFeePercent;
+  const platformFeePercent = get(order, 'data.platformFeePercent', defaultPlatformFee);
+  const platformFeeInHostCurrency = libpayments.calcFee(amountFromPayPalInCents, platformFeePercent);
 
   const payload = {
     CreatedByUserId: order.createdByUser.id,

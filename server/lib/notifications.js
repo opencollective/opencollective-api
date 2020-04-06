@@ -379,5 +379,17 @@ async function notifyByEmail(activity) {
       notifyAdminsOfCollective(activity.data.collective.id, activity, {
         template: 'added.fund.to.org',
       });
+      break;
+
+    case activityType.ACTIVATED_COLLECTIVE_AS_HOST:
+      notifyAdminsOfCollective(activity.data.collective.id, activity, {
+        template: 'activated.collective.as.host',
+      });
+      break;
+
+    case activityType.DEACTIVATED_COLLECTIVE_AS_HOST:
+      notifyAdminsOfCollective(activity.data.collective.id, activity, {
+        template: 'deactivated.collective.as.host',
+      });
   }
 }

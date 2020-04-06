@@ -11,14 +11,12 @@ import { get } from 'lodash';
 
 import * as connectedAccounts from './controllers/connectedAccounts';
 import uploadImage from './controllers/images';
-import { createPaymentMethod } from './controllers/paymentMethods';
 import * as users from './controllers/users';
 import { stripeWebhook, transferwiseWebhook } from './controllers/webhooks';
 import * as email from './controllers/services/email';
 
 import required from './middleware/required_param';
-import * as aN from './middleware/security/authentication';
-import * as auth from './middleware/security/auth';
+import * as authentication from './middleware/authentication';
 import errorHandler from './middleware/error_handler';
 import * as params from './middleware/params';
 import sanitizer from './middleware/sanitizer';
@@ -48,9 +46,9 @@ export default app => {
     next();
   });
 
-  app.use('*', auth.checkClientApp);
+  app.use('*', authentication.checkClientApp);
 
-  app.use('*', auth.authorizeClientApp);
+  app.use('*', authentication.authorizeClientApp);
 
   // Setup rate limiter
   if (get(config, 'redis.serverUrl')) {
@@ -59,7 +57,7 @@ export default app => {
       app,
       client,
     )({
-      lookup: function(req, res, opts, next) {
+      lookup: function (req, res, opts, next) {
         if (req.clientApp) {
           opts.lookup = 'clientApp.id';
           // 100 requests / minute for registered API Key
@@ -73,12 +71,12 @@ export default app => {
         }
         return next();
       },
-      whitelist: function(req) {
+      whitelist: function (req) {
         const apiKey = req.query.api_key || req.body.api_key;
         // No limit with internal API Key
         return apiKey === config.keys.opencollective.apiKey;
       },
-      onRateLimited: function(req, res) {
+      onRateLimited: function (req, res) {
         let message;
         if (req.clientApp) {
           message = 'Rate limit exceeded. Contact-us to get higher limits.';
@@ -95,13 +93,13 @@ export default app => {
    * User reset password or new token flow (no jwt verification)
    */
   app.post('/users/signin', required('user'), users.signin);
-  app.post('/users/update-token', auth.mustBeLoggedIn, users.updateToken);
+  app.post('/users/update-token', authentication.mustBeLoggedIn, users.updateToken);
 
   /**
    * Moving forward, all requests will try to authenticate the user if there is a JWT token provided
    * (an error will be returned if the JWT token is invalid, if not present it will simply continue)
    */
-  app.use('*', aN.authenticateUser); // populate req.remoteUser if JWT token provided in the request
+  app.use('*', authentication.authenticateUser); // populate req.remoteUser if JWT token provided in the request
 
   /**
    * Parameters.
@@ -157,8 +155,8 @@ export default app => {
   app.post('/webhooks/stripe', stripeWebhook); // when it gets a new subscription invoice
   app.post('/webhooks/transferwise', transferwiseWebhook); // when it gets a new subscription invoice
   app.post('/webhooks/mailgun', email.webhook); // when receiving an email
-  app.get('/connected-accounts/:service/callback', aN.authenticateServiceCallback); // oauth callback
-  app.delete('/connected-accounts/:service/disconnect/:collectiveId', aN.authenticateServiceDisconnect);
+  app.get('/connected-accounts/:service/callback', authentication.authenticateServiceCallback); // oauth callback
+  app.delete('/connected-accounts/:service/disconnect/:collectiveId', authentication.authenticateServiceDisconnect);
 
   app.use(sanitizer()); // note: this break /webhooks/mailgun /graphiql
 
@@ -168,13 +166,6 @@ export default app => {
   app.get('/users/exists', required('email'), users.exists); // Checks the existence of a user based on email.
 
   /**
-   * Create a payment method.
-   *
-   *  Let's assume for now a paymentMethod is linked to a user.
-   */
-  app.post('/v1/payment-methods', createPaymentMethod);
-
-  /**
    * Separate route for uploading images to S3
    */
   app.post('/images', upload.single('file'), uploadImage);
@@ -182,9 +173,12 @@ export default app => {
   /**
    * Generic OAuth (ConnectedAccounts)
    */
-  app.get('/connected-accounts/:service(github)', aN.authenticateService); // backward compatibility
-  app.get('/connected-accounts/:service(github|twitter|meetup|stripe|paypal)/oauthUrl', aN.authenticateService);
-  app.get('/connected-accounts/:service/verify', aN.parseJwtNoExpiryCheck, connectedAccounts.verify);
+  app.get('/connected-accounts/:service(github)', authentication.authenticateService); // backward compatibility
+  app.get(
+    '/connected-accounts/:service(github|twitter|meetup|stripe|paypal)/oauthUrl',
+    authentication.authenticateService,
+  );
+  app.get('/connected-accounts/:service/verify', authentication.parseJwtNoExpiryCheck, connectedAccounts.verify);
 
   /* PayPal Payment Method Helpers */
   app.post('/services/paypal/create-payment', paypal.createPayment);

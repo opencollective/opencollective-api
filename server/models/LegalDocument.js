@@ -1,4 +1,4 @@
-export default function(Sequelize, DataTypes) {
+export default function (Sequelize, DataTypes) {
   const NOT_REQUESTED = 'NOT_REQUESTED';
   const REQUESTED = 'REQUESTED';
   const RECEIVED = 'RECEIVED';
@@ -66,8 +66,6 @@ export default function(Sequelize, DataTypes) {
       paranoid: true,
     },
   );
-
-  LegalDocument.schema('public');
 
   LegalDocument.findByTypeYearUser = ({ documentType, year, user }) => {
     return user.getCollective().then(collective => {

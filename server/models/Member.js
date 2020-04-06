@@ -1,7 +1,15 @@
 import roles from '../constants/roles';
 import { days } from '../lib/utils';
+import { invalidateContributorsCache } from '../lib/contributors';
 
-export default function(Sequelize, DataTypes) {
+export default function (Sequelize, DataTypes) {
+  const invalidateContributorsCacheUsingInstance = instance => {
+    if (instance.role !== roles.FOLLOWER) {
+      invalidateContributorsCache(instance.CollectiveId);
+    }
+    return null;
+  };
+
   const Member = Sequelize.define(
     'Member',
     {
@@ -110,10 +118,12 @@ export default function(Sequelize, DataTypes) {
           };
         },
       },
+      hooks: {
+        afterCreate: instance => invalidateContributorsCacheUsingInstance(instance),
+        afterUpdate: instance => invalidateContributorsCacheUsingInstance(instance),
+      },
     },
   );
-
-  Member.schema('public');
 
   /**
    * Returns false if member is part of a tier with an interval and last donation is out of interval

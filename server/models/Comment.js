@@ -22,7 +22,7 @@ const sanitizeOptions = buildSanitizerOptions({
 /**
  * Comment Model.
  */
-export default function(Sequelize, DataTypes) {
+export default function (Sequelize, DataTypes) {
   const { models } = Sequelize;
 
   const Comment = Sequelize.define(
@@ -192,12 +192,10 @@ export default function(Sequelize, DataTypes) {
     },
   );
 
-  Comment.schema('public');
-
   Comment.prototype._internalDestroy = Comment.prototype.destroy;
   Comment.prototype._internalUpdate = Comment.prototype.update;
 
-  Comment.prototype.destroy = async function() {
+  Comment.prototype.destroy = async function () {
     // If comment is the root comment of a conversation, we delete the conversation and all linked comments
     if (this.ConversationId) {
       const conversation = await models.Conversation.findOne({ where: { RootCommentId: this.id } });
@@ -211,7 +209,7 @@ export default function(Sequelize, DataTypes) {
     return this._internalDestroy(...arguments);
   };
 
-  Comment.prototype.update = async function(values, sequelizeOpts, ...args) {
+  Comment.prototype.update = async function (values, sequelizeOpts, ...args) {
     if (!this.ConversationId) {
       return this._internalUpdate(values, sequelizeOpts, ...args);
     }
@@ -231,7 +229,7 @@ export default function(Sequelize, DataTypes) {
   };
 
   // Returns the User model of the User that created this Update
-  Comment.prototype.getUser = function() {
+  Comment.prototype.getUser = function () {
     return models.User.findByPk(this.CreatedByUserId);
   };
 

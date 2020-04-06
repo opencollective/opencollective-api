@@ -10,9 +10,18 @@ import { AccountReferenceInput } from './AccountReferenceInput';
 export const ExpenseCreateInput = new GraphQLInputObjectType({
   name: 'ExpenseCreateInput',
   fields: {
-    description: { type: new GraphQLNonNull(GraphQLString) },
-    tags: { type: new GraphQLList(GraphQLString) },
-    type: { type: new GraphQLNonNull(ExpenseType) },
+    description: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: 'Main title of the expense',
+    },
+    tags: {
+      type: new GraphQLList(GraphQLString),
+      description: 'Tags associated to the expense (ie. Food, Engineering...)',
+    },
+    type: {
+      type: new GraphQLNonNull(ExpenseType),
+      description: 'The type of the expense',
+    },
     privateMessage: {
       type: GraphQLString,
       description: 'A private note that will be attached to your invoice',

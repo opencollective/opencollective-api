@@ -16,6 +16,8 @@ export const IDENTIFIER_TYPES = {
   CONVERSATION: 'conversation',
   PAYOUT_METHOD: 'payout-method',
   EXPENSE: 'expense',
+  CONNECTED_ACCOUNT: 'connected-account',
+  EXPENSE_ATTACHMENT: 'expense-attachment',
 };
 
 const getDefaultInstance = type => {

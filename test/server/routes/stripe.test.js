@@ -1,3 +1,5 @@
+/* eslint-disable camelcase */
+
 import config from 'config';
 import nock from 'nock';
 import request from 'supertest';
@@ -30,10 +32,7 @@ describe('server/routes/stripe', () => {
 
   describe('authorize', () => {
     it('should return an error if the user is not logged in', done => {
-      request(app)
-        .get('/connected-accounts/stripe/oauthUrl?api_key=${application.api_key}')
-        .expect(401)
-        .end(done);
+      request(app).get('/connected-accounts/stripe/oauthUrl?api_key=${application.api_key}').expect(401).end(done);
     });
 
     it('should fail if not logged in as an admin of the collective', done => {
@@ -132,10 +131,7 @@ describe('server/routes/stripe', () => {
     });
 
     it('should fail if the state is empty', done => {
-      request(app)
-        .get(`/connected-accounts/stripe/callback?api_key=${application.api_key}`)
-        .expect(400)
-        .end(done);
+      request(app).get(`/connected-accounts/stripe/callback?api_key=${application.api_key}`).expect(400).end(done);
     });
 
     it('should fail if the state is not a valid JWT', done => {

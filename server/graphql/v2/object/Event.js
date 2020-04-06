@@ -2,6 +2,7 @@ import { GraphQLObjectType, GraphQLBoolean, GraphQLInt } from 'graphql';
 
 import { Account, AccountFields } from '../interface/Account';
 import { hostResolver } from '../../common/collective';
+import { Collective } from './Collective';
 
 export const Event = new GraphQLObjectType({
   name: 'Event',
@@ -27,11 +28,22 @@ export const Event = new GraphQLObjectType({
         description: 'Returns whether this collective is approved',
         type: GraphQLBoolean,
         async resolve(event, _, req) {
-          if (event.ParentCollectiveId) {
+          if (!event.ParentCollectiveId) {
             return false;
           } else {
             const parentCollective = await req.loaders.Collective.byId.load(event.ParentCollectiveId);
             return parentCollective && parentCollective.isApproved();
+          }
+        },
+      },
+      parentCollective: {
+        description: 'The collective hosting this event',
+        type: Collective,
+        async resolve(event, _, req) {
+          if (!event.ParentCollectiveId) {
+            return null;
+          } else {
+            return req.loaders.Collective.byId.load(event.ParentCollectiveId);
           }
         },
       },

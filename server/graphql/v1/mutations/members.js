@@ -25,7 +25,8 @@ export async function editPublicMessage(_, { FromCollectiveId, CollectiveId, mes
 
   /**
    * After updating the public message it is necessary to update the cache
-   * used in the collective page.
+   * used in the collective page. Member's `afterUpdate` hook is not triggered here
+   * because we don't update the model directly (we use Model.update(..., {where})).
    */
   invalidateContributorsCache(CollectiveId);
   return updatedMembers;

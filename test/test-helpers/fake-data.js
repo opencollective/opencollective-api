@@ -10,8 +10,10 @@ import { v4 as uuid } from 'uuid';
 import { get, sample } from 'lodash';
 import models from '../../server/models';
 import { types as CollectiveType } from '../../server/constants/collectives';
+import { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPES } from '../../server/constants/paymentMethods';
 import { randEmail, randUrl } from '../stores';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
+
 import { roles } from '../../server/constants';
 
 export const randStr = (prefix = '') => `${prefix}${uuid().split('-')[0]}`;
@@ -92,6 +94,18 @@ export const fakeCollective = async (collectiveData = {}) => {
         MemberCollectiveId: collective.host.id,
         role: roles.HOST,
         CreatedByUserId: collective.CreatedByUserId,
+      });
+    } catch {
+      // Ignore if host is already linked
+    }
+  }
+  if (collectiveData.admin) {
+    try {
+      await models.Member.create({
+        CollectiveId: collective.id,
+        MemberCollectiveId: collectiveData.admin.id,
+        role: roles.ADMIN,
+        CreatedByUserId: collectiveData.admin.CreatedByUserId,
       });
     } catch {
       // Ignore if host is already linked
@@ -357,5 +371,18 @@ export const fakeMember = async data => {
     MemberCollectiveId: memberCollective.id,
     role: data.role || roles.ADMIN,
     CreatedByUserId: collective.CreatedByUserId,
+  });
+};
+
+/**
+ * Creates a fake Payment Method. All params are optionals.
+ */
+export const fakePaymentMethod = async data => {
+  return models.PaymentMethod.create({
+    ...data,
+    type: data.type || sample(PAYMENT_METHOD_TYPES),
+    service: data.service || sample(PAYMENT_METHOD_SERVICES),
+    CollectiveId: data.CollectiveId || (await fakeCollective().then(c => c.id)),
+    currency: data.currency || 'USD',
   });
 };

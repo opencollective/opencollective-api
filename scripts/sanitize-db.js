@@ -15,7 +15,7 @@ const testStripeAccounts = {
     },
     CollectiveId: 11004,
   },
-  opensource_dvl: {
+  opensourceDvl: {
     // legacy for opencollective_dvl.pgsql
     service: 'stripe',
     username: 'acct_18KWlTLzdXg9xKNS',
@@ -59,7 +59,7 @@ const createConnectedAccount = hostname => {
 const replaceHostStripeTokens = () => {
   return models.ConnectedAccount.destroy({ where: { service: 'stripe' }, force: true })
     .then(() => createConnectedAccount('opensource'))
-    .then(() => createConnectedAccount('opensource_dvl'))
+    .then(() => createConnectedAccount('opensourceDvl'))
     .then(() => createConnectedAccount('other'))
     .then(() => createConnectedAccount('brussesltogether'))
     .catch(e => console.error('There was an error replacing the hosts stripe tokens. Please do it manually', e));

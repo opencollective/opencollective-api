@@ -1,3 +1,4 @@
+import { padStart } from 'lodash';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -59,7 +60,7 @@ export function getDomain(url = '') {
 /**
  * @deprecated Please use the functions in `server/lib/sanitize-html.js`
  */
-export function strip_tags(str, allowedTags) {
+export function stripTags(str, allowedTags) {
   return sanitizeHtml(str, {
     allowedTags: allowedTags || sanitizeHtml.defaults.allowedTags.concat(['img', 'h1', 'h2', 'h3']),
     allowedAttributes: {
@@ -84,7 +85,7 @@ export function strip_tags(str, allowedTags) {
 }
 
 export const sanitizeObject = (obj, attributes, sanitizerFn) => {
-  const sanitizer = typeof sanitizerFn === 'function' ? sanitizerFn : strip_tags;
+  const sanitizer = typeof sanitizerFn === 'function' ? sanitizerFn : stripTags;
 
   attributes.forEach(attr => {
     if (!obj[attr]) {
@@ -121,7 +122,7 @@ export const sanitizeForLogs = obj => {
   return sanitizeObject(cloneDeep(obj), Object.keys(obj), sanitizer);
 };
 
-String.prototype.trunc = function(n, useWordBoundary) {
+String.prototype.trunc = function (n, useWordBoundary) {
   if (this.length <= n) {
     return this;
   }
@@ -589,11 +590,7 @@ export const cleanTags = tags => {
   return cleanTagsList.length > 0 ? cleanTagsList : null;
 };
 
-export const md5 = value =>
-  crypto
-    .createHash('md5')
-    .update(value)
-    .digest('hex');
+export const md5 = value => crypto.createHash('md5').update(value).digest('hex');
 
 /**
  * Filter `list` with `filterFunc` until `conditionFunc` returns true.
@@ -618,4 +615,14 @@ export const objHasOnlyKeys = (obj, keys) => {
   const sortedObjKeys = Object.keys(obj).sort();
   const sortedKeys = [...keys].sort();
   return isEqual(sortedObjKeys, sortedKeys);
+};
+
+/**
+ * Format a datetime object to an ISO date like `YYYY-MM-DD`
+ */
+export const toIsoDateStr = date => {
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const day = date.getUTCDate();
+  return `${year}-${padStart(month.toString(), 2, '0')}-${padStart(day.toString(), 2, '0')}`;
 };

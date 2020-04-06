@@ -40,9 +40,7 @@ async function HostReport(year, month, hostId) {
     endDate = new Date(d.getFullYear() + 1, 0, 1);
   }
 
-  const endDateIncluded = moment(endDate)
-    .subtract(1, 'days')
-    .toDate();
+  const endDateIncluded = moment(endDate).subtract(1, 'days').toDate();
 
   const dateRange = {
     createdAt: { [Op.gte]: startDate, [Op.lt]: endDate },
@@ -51,8 +49,8 @@ async function HostReport(year, month, hostId) {
   const emailTemplate = yearlyReport ? 'host.yearlyreport' : 'host.monthlyreport'; // NOTE: this will be later converted to 'host.report'
   const reportName = yearlyReport ? `${year} Yearly Host Report` : `${year}/${month + 1} Monthly Host Report`;
   const dateFormat = yearlyReport ? 'YYYY' : 'YYYYMM';
-  const csv_filename = `${moment(d).format(dateFormat)}-transactions.csv`;
-  const pdf_filename = `${moment(d).format(dateFormat)}-expenses.pdf`;
+  const csvFilename = `${moment(d).format(dateFormat)}-transactions.csv`;
+  const pdfFilename = `${moment(d).format(dateFormat)}-expenses.pdf`;
   console.log('startDate', startDate, 'endDate', endDate);
 
   year = year || startDate.getFullYear();
@@ -298,7 +296,7 @@ async function HostReport(year, month, hostId) {
       .tap(transactions => {
         const csv = models.Transaction.exportCSV(transactions, collectivesById);
         attachments.push({
-          filename: `${host.slug}-${csv_filename}`,
+          filename: `${host.slug}-${csvFilename}`,
           content: csv,
         });
       })
@@ -315,7 +313,7 @@ async function HostReport(year, month, hostId) {
       .then(pdf => {
         if (pdf) {
           attachments.push({
-            filename: `${host.slug}-${pdf_filename}`,
+            filename: `${host.slug}-${pdfFilename}`,
             content: pdf,
           });
           data.expensesPdf = true;

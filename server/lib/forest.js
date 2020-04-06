@@ -205,7 +205,6 @@ export default app => {
 
   app.post('/forest/actions/delete-user-and-merge', Liana.ensureAuthenticated, async (req, res) => {
     const data = req.body.data;
-    console.log(data);
     const id = data.attributes.ids[0];
     const mergeIntoUserId = data.attributes.values['User ID'];
     try {

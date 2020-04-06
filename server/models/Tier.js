@@ -7,12 +7,12 @@ import { Op } from 'sequelize';
 
 import CustomDataTypes from './DataTypes';
 import { maxInteger } from '../constants/math';
-import { capitalize, days, formatCurrency, strip_tags } from '../lib/utils';
+import { capitalize, days, formatCurrency, stripTags } from '../lib/utils';
 import { isSupportedVideoProvider, supportedVideoProviders } from '../lib/validators';
 
 const debug = debugLib('models:Tier');
 
-export default function(Sequelize, DataTypes) {
+export default function (Sequelize, DataTypes) {
   const { models } = Sequelize;
 
   const Tier = Sequelize.define(
@@ -87,7 +87,7 @@ export default function(Sequelize, DataTypes) {
           if (!content) {
             this.setDataValue('longDescription', null);
           } else {
-            this.setDataValue('longDescription', strip_tags(content));
+            this.setDataValue('longDescription', stripTags(content));
           }
         },
       },
@@ -197,11 +197,11 @@ export default function(Sequelize, DataTypes) {
       },
 
       customFields: {
-        type: DataTypes.JSON,
+        type: DataTypes.JSONB,
       },
 
       data: {
-        type: DataTypes.JSON,
+        type: DataTypes.JSONB,
       },
 
       startsAt: {
@@ -276,8 +276,6 @@ export default function(Sequelize, DataTypes) {
     },
   );
 
-  Tier.schema('public');
-
   /**
    * Instance Methods
    */
@@ -288,7 +286,7 @@ export default function(Sequelize, DataTypes) {
    * If this tier has an interval, returns true if the membership started within the month/year
    * or if the last transaction happened wihtin the month/year
    */
-  Tier.prototype.isBackerActive = function(backerCollective, until = new Date()) {
+  Tier.prototype.isBackerActive = function (backerCollective, until = new Date()) {
     return models.Member.findOne({
       where: {
         CollectiveId: this.CollectiveId,
@@ -340,7 +338,7 @@ export default function(Sequelize, DataTypes) {
   };
 
   // TODO: Check for maxQuantityPerUser
-  Tier.prototype.availableQuantity = function() {
+  Tier.prototype.availableQuantity = function () {
     if (!this.maxQuantity) {
       return Promise.resolve(maxInteger);
     }
@@ -362,7 +360,7 @@ export default function(Sequelize, DataTypes) {
     });
   };
 
-  Tier.prototype.checkAvailableQuantity = function(quantityNeeded = 1) {
+  Tier.prototype.checkAvailableQuantity = function (quantityNeeded = 1) {
     return this.availableQuantity().then(available => available - quantityNeeded >= 0);
   };
 

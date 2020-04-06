@@ -5,7 +5,7 @@ import { stripHTML, generateSummaryForHTML } from '../lib/sanitize-html';
 import models, { sequelize } from '.';
 import { idEncode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
 
-export default function(Sequelize, DataTypes) {
+export default function (Sequelize, DataTypes) {
   const Conversation = Sequelize.define(
     'Conversation',
     {
@@ -133,7 +133,7 @@ export default function(Sequelize, DataTypes) {
 
   // ---- Static methods ----
 
-  Conversation.createWithComment = async function(user, collective, title, html, tags = null) {
+  Conversation.createWithComment = async function (user, collective, title, html, tags = null) {
     // Use a transaction to make sure conversation is not created if comment creation fails
     const conversation = await sequelize.transaction(async t => {
       // Create conversation
@@ -192,7 +192,7 @@ export default function(Sequelize, DataTypes) {
     return conversation;
   };
 
-  Conversation.getMostPopularTagsForCollective = async function(collectiveId, limit = 100) {
+  Conversation.getMostPopularTagsForCollective = async function (collectiveId, limit = 100) {
     return Sequelize.query(
       `
       SELECT UNNEST(tags) AS id, UNNEST(tags) AS tag, COUNT(id)
@@ -216,7 +216,7 @@ export default function(Sequelize, DataTypes) {
    * - Collective admins who haven't unsubscribed from the conversation
    * - Conversation followers
    */
-  Conversation.prototype.getUsersFollowing = async function() {
+  Conversation.prototype.getUsersFollowing = async function () {
     const followers = await models.ConversationFollower.findAll({
       include: ['user'],
       where: { ConversationId: this.id, isActive: true },
@@ -238,6 +238,5 @@ export default function(Sequelize, DataTypes) {
     });
   };
 
-  Conversation.schema('public');
   return Conversation;
 }

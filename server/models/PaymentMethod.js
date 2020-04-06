@@ -14,15 +14,12 @@ import * as libpayments from '../lib/payments';
 import { isTestToken } from '../lib/stripe';
 
 import { maxInteger } from '../constants/math';
+import { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPES } from '../constants/paymentMethods';
 
 const debug = debugLib('models:PaymentMethod');
 
-export default function(Sequelize, DataTypes) {
+export default function (Sequelize, DataTypes) {
   const { models } = Sequelize;
-
-  const payoutMethods = ['paypal', 'stripe', 'opencollective', 'prepaid'];
-
-  const payoutTypes = ['creditcard', 'prepaid', 'payment', 'collective', 'adaptive', 'virtualcard'];
 
   const PaymentMethod = Sequelize.define(
     'PaymentMethod',
@@ -85,8 +82,8 @@ export default function(Sequelize, DataTypes) {
         defaultValue: 'stripe',
         validate: {
           isIn: {
-            args: [payoutMethods],
-            msg: `Must be in ${payoutMethods}`,
+            args: [PAYMENT_METHOD_SERVICES],
+            msg: `Must be in ${PAYMENT_METHOD_SERVICES}`,
           },
         },
       },
@@ -95,13 +92,13 @@ export default function(Sequelize, DataTypes) {
         type: DataTypes.STRING,
         validate: {
           isIn: {
-            args: [payoutTypes],
-            msg: `Must be in ${payoutTypes}`,
+            args: [PAYMENT_METHOD_TYPES],
+            msg: `Must be in ${PAYMENT_METHOD_TYPES}`,
           },
         },
       },
 
-      data: DataTypes.JSON,
+      data: DataTypes.JSONB,
 
       createdAt: {
         type: DataTypes.DATE,
@@ -236,9 +233,7 @@ export default function(Sequelize, DataTypes) {
     },
   );
 
-  PaymentMethod.schema('public');
-
-  PaymentMethod.payoutMethods = payoutMethods;
+  PaymentMethod.payoutMethods = PAYMENT_METHOD_SERVICES;
 
   /**
    * Instance Methods
@@ -250,7 +245,7 @@ export default function(Sequelize, DataTypes) {
    * @param {Object} order { totalAmount, currency }
    * @param {Object} user instanceof models.User
    */
-  PaymentMethod.prototype.canBeUsedForOrder = async function(order, user) {
+  PaymentMethod.prototype.canBeUsedForOrder = async function (order, user) {
     // if the user is trying to reuse an existing payment method,
     // we make sure it belongs to the logged in user or to a collective that the user is an admin of
     if (!user) {
@@ -364,7 +359,7 @@ export default function(Sequelize, DataTypes) {
   /**
    * Updates the paymentMethod.data with the balance on the preapproved paypal card
    */
-  PaymentMethod.prototype.updateBalance = async function() {
+  PaymentMethod.prototype.updateBalance = async function () {
     if (this.service !== 'paypal') {
       throw new Error('Can only update balance for paypal preapproved cards');
     }
@@ -379,7 +374,7 @@ export default function(Sequelize, DataTypes) {
    * - the monthlyLimitPerMember if any and if the user is a member
    * - the available balance on the paykey for PayPal (not implemented yet)
    */
-  PaymentMethod.prototype.getBalanceForUser = async function(user) {
+  PaymentMethod.prototype.getBalanceForUser = async function (user) {
     if (user && !(user instanceof models.User)) {
       throw new Error('Internal error at PaymentMethod.getBalanceForUser(user): user is not an instance of User');
     }
@@ -453,7 +448,7 @@ export default function(Sequelize, DataTypes) {
    * Returns the sum of the children PaymenMethod values (aka the virtual cards which
    * have `sourcePaymentMethod` set to this PM).
    */
-  PaymentMethod.prototype.getChildrenPMTotalSum = async function() {
+  PaymentMethod.prototype.getChildrenPMTotalSum = async function () {
     return models.PaymentMethod.findAll({
       attributes: ['initialBalance', 'monthlyLimitPerMember'],
       where: { SourcePaymentMethodId: this.id },
@@ -468,7 +463,7 @@ export default function(Sequelize, DataTypes) {
    * Check if virtual card is claimed.
    * Always return true for other payment methods.
    */
-  PaymentMethod.prototype.isConfirmed = function() {
+  PaymentMethod.prototype.isConfirmed = function () {
     return this.type !== 'virtualcard' || this.confirmedAt !== null;
   };
 

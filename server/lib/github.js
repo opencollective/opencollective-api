@@ -1,6 +1,6 @@
 import config from 'config';
 import { Octokit } from '@octokit/rest';
-import { createSimpleOAuthAppAuth } from '@opencollective/auth-simple-oauth-app';
+import { createOAuthAppAuth } from '@octokit/auth-oauth-app';
 import { get, has, pick } from 'lodash';
 
 import cache from './cache';
@@ -33,7 +33,7 @@ export function getOctokit(accessToken) {
   if (accessToken) {
     octokitParams.auth = `token ${accessToken}`;
   } else if (has(config, 'github.clientID') && has(config, 'github.clientSecret')) {
-    octokitParams.authStrategy = createSimpleOAuthAppAuth;
+    octokitParams.authStrategy = createOAuthAppAuth;
     octokitParams.auth = {
       clientId: get(config, 'github.clientID'),
       clientSecret: get(config, 'github.clientSecret'),
@@ -62,6 +62,7 @@ export async function getAllUserPublicRepos(accessToken) {
 
   const octokit = getOctokit(accessToken);
 
+  // eslint-disable-next-line camelcase
   const parameters = { page: 1, per_page: 100, visibility: 'public' };
 
   let repos = [];
@@ -95,6 +96,7 @@ export async function getAllOrganizationPublicRepos(org, accessToken) {
 
   const octokit = getOctokit(accessToken);
 
+  // eslint-disable-next-line camelcase
   const parameters = { org, page: 1, per_page: 100, type: 'public' };
 
   let repos = [];
@@ -133,6 +135,7 @@ export async function getOrgMemberships(accessToken) {
   const octokit = getOctokit(accessToken);
   // https://octokit.github.io/rest.js/#api-Orgs-listMemberships
   // https://developer.github.com/v3/orgs/members/#list-your-organization-memberships
+  // eslint-disable-next-line camelcase
   return octokit.orgs.listMemberships({ page: 1, per_page: 100 }).then(getData);
 }
 

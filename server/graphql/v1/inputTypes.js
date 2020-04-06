@@ -356,6 +356,7 @@ export const ConfirmOrderInputType = new GraphQLInputObjectType({
 export const CommentInputType = new GraphQLInputObjectType({
   name: 'CommentInputType',
   description: 'Input type for CommentType',
+  deprecationReason: 'Comments are now fully supported by API V2',
   fields: () => ({
     id: { type: GraphQLInt },
     markdown: { type: GraphQLString, deprecationReason: 'Markdown editor is deprecated, please use html instead.' },
@@ -369,9 +370,18 @@ export const CommentInputType = new GraphQLInputObjectType({
       deprecationReason:
         '2019-11-28: This field is not used by the query. Collective ID is automatically guessed from linked entity (expense, update or conversation)',
     },
-    ExpenseId: { type: GraphQLInt },
-    UpdateId: { type: GraphQLInt },
-    ConversationId: { type: GraphQLInt },
+    ExpenseId: {
+      type: GraphQLInt,
+      deprecationReason: '2020-03-18: Comments on expenses must use API V2',
+    },
+    UpdateId: {
+      type: GraphQLInt,
+      deprecationReason: '2020-03-18: Comments on updates are not yet supported',
+    },
+    ConversationId: {
+      type: GraphQLInt,
+      deprecationReason: '2020-03-18: Comments on conversations must use API V2',
+    },
   }),
 });
 
@@ -380,23 +390,15 @@ export const CommentAttributesInputType = new GraphQLInputObjectType({
   description: 'Input type for CommentType',
   fields: () => ({
     id: { type: GraphQLInt },
-    markdown: { type: GraphQLString },
+    markdown: {
+      deprecationReason: 'Deprecated since 2020-03-18: Please use html.',
+      type: GraphQLString,
+    },
     html: { type: GraphQLString },
-    /** @deprecated since 2019-11-25: This field is not editable. */
-    FromCollectiveId: {
+    UpdateId: {
+      deprecationReason: 'Deprecated since 2020-03-18: This field has never been active and will be removed soon.',
       type: GraphQLInt,
-      description: 'Deprecated since 2019-11-25: This field is not editable.',
     },
-    /** @deprecated since 2019-11-25: This field is not editable. */
-    CollectiveId: {
-      type: GraphQLInt,
-      description: 'Deprecated since 2019-11-25: This field is not editable.',
-    },
-    ExpenseId: {
-      type: GraphQLInt,
-      deprecationReason: '2019-11-25: Not editable.',
-    },
-    UpdateId: { type: GraphQLInt },
   }),
 });
 
@@ -483,7 +485,6 @@ export const ExpenseInputType = new GraphQLInputObjectType({
         deprecationReason: '2020-21-01: Please use PayoutMethod',
       },
       PayoutMethod: {
-        id: { type: GraphQLInt },
         type: PayoutMethodInputType,
       },
       privateMessage: { type: GraphQLString },

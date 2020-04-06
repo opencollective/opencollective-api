@@ -1,3 +1,5 @@
+/* eslint-disable camelcase */
+
 import { expect } from 'chai';
 import sinon from 'sinon';
 import request from 'supertest';
@@ -98,10 +100,7 @@ describe('paymentMethods/transferwise/webhook.ts', () => {
   });
 
   it('assigns rawBody to request and verifies the event signature', async () => {
-    await api
-      .post('/webhooks/transferwise')
-      .send(event)
-      .expect(200);
+    await api.post('/webhooks/transferwise').send(event).expect(200);
 
     sinon.assert.calledOnce(verifyEvent);
     const { args } = verifyEvent.getCall(0);
@@ -109,10 +108,7 @@ describe('paymentMethods/transferwise/webhook.ts', () => {
   });
 
   it('should complete processing transactions if transfer was sent', async () => {
-    await api
-      .post('/webhooks/transferwise')
-      .send(event)
-      .expect(200);
+    await api.post('/webhooks/transferwise').send(event).expect(200);
 
     await expense.reload();
     expect(expense).to.have.property('status', status.PAID);
@@ -122,10 +118,7 @@ describe('paymentMethods/transferwise/webhook.ts', () => {
     const refundEvent = { ...event, data: { ...event.data, current_state: 'funds_refunded' } };
     verifyEvent.returns(refundEvent);
 
-    await api
-      .post('/webhooks/transferwise')
-      .send(event)
-      .expect(200);
+    await api.post('/webhooks/transferwise').send(event).expect(200);
 
     await expense.reload();
     expect(expense).to.have.property('status', status.ERROR);
@@ -139,10 +132,7 @@ describe('paymentMethods/transferwise/webhook.ts', () => {
     const refundEvent = { ...event, data: { ...event.data, current_state: 'funds_refunded' } };
     verifyEvent.returns(refundEvent);
 
-    await api
-      .post('/webhooks/transferwise')
-      .send(event)
-      .expect(200);
+    await api.post('/webhooks/transferwise').send(event).expect(200);
 
     await utils.waitForCondition(() => sendMessage.callCount === 2);
 
@@ -160,9 +150,6 @@ describe('paymentMethods/transferwise/webhook.ts', () => {
     const refundEvent = { ...event, data: { ...event.data, resource: { id: 0 } } };
     verifyEvent.returns(refundEvent);
 
-    await api
-      .post('/webhooks/transferwise')
-      .send(event)
-      .expect(200);
+    await api.post('/webhooks/transferwise').send(event).expect(200);
   });
 });

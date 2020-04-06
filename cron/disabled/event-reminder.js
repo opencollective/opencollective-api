@@ -7,7 +7,7 @@ import { get } from 'lodash';
 
 let totalEvents = 0;
 
-Date.prototype.toString = function() {
+Date.prototype.toString = function () {
   const mm = this.getMonth() + 1; // getMonth() is zero-based
   const dd = this.getDate();
   const hours = this.getHours();

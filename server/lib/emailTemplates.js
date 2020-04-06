@@ -74,8 +74,6 @@ export const templateNames = [
   'ticket.confirmed',
   'ticket.confirmed.text',
   'ticket.confirmed.fearlesscitiesbrussels',
-  'ticket.confirmed.drupalatx.texas-camp-2019-19178ev',
-  'ticket.confirmed.drupalatx.texas-camp-2019-19178ev.text',
   'thankyou',
   'thankyou.chsf',
   'thankyou.sustainoss',
@@ -101,6 +99,13 @@ export const templateNames = [
   'user.yearlyreport.text',
   'backyourstack.dispatch.confirmed',
   'added.fund.to.org',
+  'activated.collective.as.host',
+  'deactivated.collective.as.host',
+  'hostedCollectives.freePlan.limit.reached',
+  'hostedCollectives.otherPlans.limit.reached',
+  'hostplan.renewal.thankyou',
+  'hostplan.first.subscription.confirmation',
+  'hostplan.upgrade.subscription.confirmation',
 ];
 
 const templatesPath = `${__dirname}/../../templates`;

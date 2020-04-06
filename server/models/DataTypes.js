@@ -1,4 +1,4 @@
-export default function(DataTypes) {
+export default function (DataTypes) {
   return {
     // 3 letter international code (in uppercase) of the currency (e.g. USD, EUR, MXN, GBP, ...)
     currency: {

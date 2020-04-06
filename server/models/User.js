@@ -49,7 +49,7 @@ export default (Sequelize, DataTypes) => {
           isEmail: {
             msg: 'Email must be valid',
           },
-          isBurnerEmail: function(val) {
+          isBurnerEmail: function (val) {
             if (isEmailBurner(val.toLowerCase()) && !emailLib.isWhitelistedDomain(val.toLowerCase())) {
               throw new Error(
                 'This email provider is not allowed on Open Collective. If you think that it should be, please email us at support@opencollective.com.',
@@ -77,11 +77,16 @@ export default (Sequelize, DataTypes) => {
         type: DataTypes.STRING,
         defaultValue: bcrypt.genSaltSync(SALT_WORK_FACTOR),
       },
+
+      // eslint-disable-next-line camelcase
       refresh_token: {
         type: DataTypes.STRING,
         defaultValue: bcrypt.genSaltSync(SALT_WORK_FACTOR),
       },
+
+      // eslint-disable-next-line camelcase
       password_hash: DataTypes.STRING,
+
       password: {
         type: DataTypes.VIRTUAL,
         set(val) {
@@ -130,7 +135,7 @@ export default (Sequelize, DataTypes) => {
       },
 
       data: {
-        type: DataTypes.JSON,
+        type: DataTypes.JSONB,
         allowNull: true,
       },
     },
@@ -229,8 +234,6 @@ export default (Sequelize, DataTypes) => {
     },
   );
 
-  User.schema('public');
-
   /** Instance Methods */
 
   /**
@@ -239,12 +242,12 @@ export default (Sequelize, DataTypes) => {
    * @param {object} `payload` - data to attach to the token
    * @param {Number} `expiration` - expiration period in seconds
    */
-  User.prototype.jwt = function(payload, expiration) {
+  User.prototype.jwt = function (payload, expiration) {
     expiration = expiration || auth.TOKEN_EXPIRATION_LOGIN;
     return auth.createJwt(this.id, payload, expiration);
   };
 
-  User.prototype.generateLoginLink = function(redirect = '/', websiteUrl) {
+  User.prototype.generateLoginLink = function (redirect = '/', websiteUrl) {
     const lastLoginAt = this.lastLoginAt ? this.lastLoginAt.getTime() : null;
     const token = this.jwt({ scope: 'login', lastLoginAt });
     // if a different websiteUrl is passed
@@ -256,7 +259,7 @@ export default (Sequelize, DataTypes) => {
     }
   };
 
-  User.prototype.generateConnectedAccountVerifiedToken = function(connectedAccountId, username) {
+  User.prototype.generateConnectedAccountVerifiedToken = function (connectedAccountId, username) {
     const payload = {
       scope: 'connected-account',
       connectedAccountId,
@@ -265,7 +268,7 @@ export default (Sequelize, DataTypes) => {
     return this.jwt(payload, auth.TOKEN_EXPIRATION_CONNECTED_ACCOUNT);
   };
 
-  User.prototype.getMemberships = function(options = {}) {
+  User.prototype.getMemberships = function (options = {}) {
     const query = {
       where: {
         MemberCollectiveId: this.CollectiveId,
@@ -275,7 +278,7 @@ export default (Sequelize, DataTypes) => {
     return models.Member.findAll(query);
   };
 
-  User.prototype.unsubscribe = function(CollectiveId, type, channel = 'email') {
+  User.prototype.unsubscribe = function (CollectiveId, type, channel = 'email') {
     const notification = {
       UserId: this.id,
       CollectiveId,
@@ -292,11 +295,11 @@ export default (Sequelize, DataTypes) => {
     });
   };
 
-  User.prototype.getIncognitoProfile = function() {
+  User.prototype.getIncognitoProfile = function () {
     return models.Collective.findOne({ where: { isIncognito: true, CreatedByUserId: this.id } });
   };
 
-  User.prototype.populateRoles = async function() {
+  User.prototype.populateRoles = async function () {
     if (this.rolesByCollectiveId) {
       debug('roles already populated');
       return Promise.resolve(this);
@@ -334,7 +337,7 @@ export default (Sequelize, DataTypes) => {
     return this;
   };
 
-  User.prototype.hasRole = function(roles, CollectiveId) {
+  User.prototype.hasRole = function (roles, CollectiveId) {
     if (!CollectiveId) {
       return false;
     }
@@ -355,19 +358,19 @@ export default (Sequelize, DataTypes) => {
   };
 
   // Adding some sugars
-  User.prototype.isAdmin = function(CollectiveId) {
+  User.prototype.isAdmin = function (CollectiveId) {
     const result = this.CollectiveId === Number(CollectiveId) || this.hasRole([roles.HOST, roles.ADMIN], CollectiveId);
     debug('isAdmin of CollectiveId', CollectiveId, '?', result);
     return result;
   };
 
-  User.prototype.isRoot = function() {
+  User.prototype.isRoot = function () {
     const result = this.hasRole([roles.ADMIN], 1);
     debug('isRoot?', result);
     return result;
   };
 
-  User.prototype.isMember = function(CollectiveId) {
+  User.prototype.isMember = function (CollectiveId) {
     const result =
       this.CollectiveId === CollectiveId || this.hasRole([roles.HOST, roles.ADMIN, roles.MEMBER], CollectiveId);
     debug('isMember of CollectiveId', CollectiveId, '?', result);
@@ -375,7 +378,7 @@ export default (Sequelize, DataTypes) => {
   };
 
   // Determines whether a user can see updates for a collective based on their roles.
-  User.prototype.canSeeUpdates = function(CollectiveId) {
+  User.prototype.canSeeUpdates = function (CollectiveId) {
     const result =
       this.CollectiveId === CollectiveId ||
       this.hasRole([roles.HOST, roles.ADMIN, roles.MEMBER, roles.CONTRIBUTOR, roles.BACKER], CollectiveId);
@@ -383,7 +386,7 @@ export default (Sequelize, DataTypes) => {
     return result;
   };
 
-  User.prototype.getPersonalDetails = function(remoteUser) {
+  User.prototype.getPersonalDetails = function (remoteUser) {
     if (!remoteUser) {
       return Promise.resolve(this.public);
     }
@@ -422,7 +425,7 @@ export default (Sequelize, DataTypes) => {
    * Limit the user account, preventing most actions on the platoform
    * @param spamReport: an optional spam report to attach to the account limitation. See `server/lib/spam.ts`.
    */
-  User.prototype.limitAcount = async function(spamReport = null) {
+  User.prototype.limitAcount = async function (spamReport = null) {
     const newData = { ...this.data, features: { ...get(this.data, 'features'), ALL: false } };
     if (spamReport) {
       newData.spamReports = [...get(this.data, 'spamReports', []), spamReport];

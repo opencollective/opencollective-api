@@ -23,15 +23,38 @@ export const AccountReferenceInput = new GraphQLInputObjectType({
   }),
 });
 
-export const fetchAccountWithReference = async (input, { loaders, throwIfMissing } = {}) => {
+/**
+ * Retrieves an account
+ *
+ * @param {string|number} input - slug or id of the collective
+ * @param {object} params
+ *    - dbTransaction: An SQL transaction to run the query. Will skip `loaders`
+ *    - lock: If true and `dbTransaction` is set, the row will be locked
+ */
+export const fetchAccountWithReference = async (
+  input,
+  { loaders = null, throwIfMissing = false, dbTransaction = undefined, lock = false } = {},
+) => {
+  // Load collective by ID using GQL loaders if we're not using a transaction & loaders are available
+  const loadCollectiveById = id => {
+    if (!loaders || dbTransaction) {
+      return models.Collective.findByPk(id, { transaction: dbTransaction, lock });
+    } else {
+      return loaders.Collective.byId.load(id);
+    }
+  };
+
   let collective;
   if (input.id) {
     const id = idDecode(input.id, 'account');
-    collective = await loaders.Collective.byId.load(id);
+    collective = await loadCollectiveById(id);
   } else if (input.legacyId) {
-    collective = await loaders.Collective.byId.load(input.legacyId);
+    collective = await loadCollectiveById(input.legacyId);
   } else if (input.slug) {
-    collective = await models.Collective.findOne({ where: { slug: input.slug.toLowerCase() } });
+    collective = await models.Collective.findOne(
+      { where: { slug: input.slug.toLowerCase() } },
+      { transaction: dbTransaction, lock },
+    );
   } else {
     throw new Error('Please provide an id or a slug');
   }

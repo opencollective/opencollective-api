@@ -123,6 +123,7 @@ export type TransferStatus =
   | 'funds_refunded'
   | 'bounced_back';
 
+/* eslint-disable camelcase */
 export interface WebhookEvent {
   data: Record<string, any>;
   subscription_id: string;
@@ -145,6 +146,7 @@ export interface TransferStateChangeEvent extends WebhookEvent {
   };
   event_type: 'transfers#state-change';
 }
+/* eslint-enable camelcase */
 
 export type Transfer = {
   id: number;
@@ -177,4 +179,45 @@ export type CurrencyPair = {
     minInvoiceAmount: number;
     fixedTargetPaymentAllowed: boolean;
   }[];
+};
+
+export type Balance = {
+  balanceType: string;
+  currency: string;
+  amount: {
+    value: number;
+    currency: string;
+  };
+  reservedAmount: {
+    value: number;
+    currency: string;
+  };
+  bankDetails: null | {
+    id: number;
+    currency: string;
+    bankCode: string | null;
+    accountNumber: string | null;
+    swift: string | null;
+    iban: string | null;
+    bankName: string | null;
+    accountHolderName: string | null;
+    bankAddress: {
+      addressFirstLine: string | null;
+      postCode: string | null;
+      city: string | null;
+      country: string | null;
+      stateCode: string | null;
+    };
+  };
+};
+
+export type BorderlessAccount = {
+  id: number;
+  profileId: number;
+  recipientId: number;
+  creationTime: string;
+  modificationTime: string;
+  active: boolean;
+  eligible: boolean;
+  balances: Balance[];
 };

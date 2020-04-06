@@ -1,3 +1,5 @@
+/* eslint-disable camelcase */
+
 import path from 'path';
 import { readFileSync } from 'fs-extra';
 import { expect } from 'chai';

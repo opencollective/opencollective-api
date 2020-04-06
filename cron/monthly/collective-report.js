@@ -181,7 +181,7 @@ const processCollective = collective => {
 
   let emailData = {};
   const options = {};
-  const csv_filename = `${collective.slug}-${moment(d).format(dateFormat)}-transactions.csv`;
+  const csvFilename = `${collective.slug}-${moment(d).format(dateFormat)}-transactions.csv`;
 
   return Promise.all(promises)
     .then(results => {
@@ -226,7 +226,7 @@ const processCollective = collective => {
 
           options.attachments = [
             {
-              filename: csv_filename,
+              filename: csvFilename,
               content: csv,
             },
           ];

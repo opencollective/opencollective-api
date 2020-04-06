@@ -36,6 +36,10 @@ const Expense = new GraphQLObjectType({
         type: new GraphQLNonNull(GraphQLString),
         description: 'Title/main description for this expense',
       },
+      amount: {
+        type: new GraphQLNonNull(GraphQLInt),
+        description: 'Total amount of the expense (sum of the attachments).',
+      },
       currency: {
         type: new GraphQLNonNull(Currency),
         description: 'Currency that should be used for the payout',
