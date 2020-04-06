@@ -326,7 +326,13 @@ async function notifyByEmail(activity) {
       break;
 
     case activityType.COLLECTIVE_APPROVED:
-      notifyAdminsOfCollective(activity.data.collective.id, activity);
+      if (get(activity, 'data.host.slug') === 'the-social-change-agency') {
+        notifyAdminsOfCollective(activity.data.collective.id, activity, {
+          template: 'collective.approved.the-social-change-agency',
+        });
+      } else {
+        notifyAdminsOfCollective(activity.data.collective.id, activity);
+      }
       break;
 
     case activityType.COLLECTIVE_REJECTED:
@@ -354,6 +360,10 @@ async function notifyByEmail(activity) {
       if ((get(activity, 'data.collective.tags') || []).includes('meetup')) {
         notifyAdminsOfCollective(activity.data.collective.id, activity, {
           template: 'collective.created.meetup',
+        });
+      } else if (get(activity, 'data.host.slug') === 'the-social-change-agency') {
+        notifyAdminsOfCollective(activity.data.collective.id, activity, {
+          template: 'collective.created.the-social-change-agency',
         });
       } else {
         notifyAdminsOfCollective(activity.data.collective.id, activity);
