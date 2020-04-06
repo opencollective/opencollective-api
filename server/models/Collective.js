@@ -1433,12 +1433,14 @@ export default function (Sequelize, DataTypes) {
 
     const urlPath = await this.getUrlPath();
     const memberCollective = await models.Collective.findByPk(member.MemberCollectiveId, sequelizeParams);
+    const memberCollectiveUser = await models.User.findByPk(member.CreatedByUserId, sequelizeParams);
 
     const data = {
       collective: { ...this.minimal, urlPath },
       member: {
         ...member.info,
         memberCollective: memberCollective.activity,
+        memberCollectiveUser: memberCollectiveUser.info,
       },
       order: order && {
         ...order.activity,
