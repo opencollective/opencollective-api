@@ -16,6 +16,7 @@ import * as libsubscription from './subscriptions';
 import * as libtransactions from './transactions';
 import { getRecommendedCollectives } from './data';
 import { formatCurrency } from '../lib/utils';
+import { isGiftCardPrepaidBudgetOrder, createGiftCardPrepaidPaymentMethod } from '../lib/gift-cards';
 import debugLib from 'debug';
 
 const debug = debugLib('payments');
@@ -310,6 +311,11 @@ export const executeOrder = async (user, order, options) => {
 
     // Update collective plan if subscribing to opencollective's tier plans
     await subscribeOrUpgradePlan(order);
+
+    // Create a Pre-Paid Payment Method for the Gift Card budget
+    if (isGiftCardPrepaidBudgetOrder(order)) {
+      await createGiftCardPrepaidPaymentMethod(transaction);
+    }
   }
 
   // If the user asked for it, mark the payment method as saved for future financial contributions
