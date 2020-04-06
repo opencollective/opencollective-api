@@ -19,7 +19,11 @@ const ExpensePermissions = new GraphQLObjectType({
     canDelete: {
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Whether the current user can edit the expense',
-      resolve(expense, _, req): boolean {
+      async resolve(expense, _, req): Promise<boolean> {
+        if (!expense.collective) {
+          expense.collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
+        }
+
         return ExpensePermissionsLib.canDeleteExpense(req.remoteUser, expense);
       },
     },
