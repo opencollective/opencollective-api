@@ -1,7 +1,6 @@
 import { get, pick } from 'lodash';
 import Temporal from 'sequelize-temporal';
 import { TransactionTypes } from '../constants/transactions';
-import activities from '../constants/activities';
 import status from '../constants/expense_status';
 import expenseType from '../constants/expense_type';
 import CustomDataTypes from '../models/DataTypes';
@@ -189,12 +188,6 @@ export default function (Sequelize, DataTypes) {
         },
       },
       hooks: {
-        async afterUpdate(expense) {
-          switch (expense.status) {
-            case status.APPROVED:
-              return await expense.createActivity(activities.COLLECTIVE_EXPENSE_APPROVED);
-          }
-        },
         afterDestroy(expense) {
           return models.ExpenseAttachment.destroy({ where: { ExpenseId: expense.id } });
         },
@@ -205,9 +198,16 @@ export default function (Sequelize, DataTypes) {
   /**
    * Instance Methods
    */
-  Expense.prototype.createActivity = async function (type) {
-    const user = this.user || (await models.User.findByPk(this.UserId));
-    const userCollective = await models.Collective.findByPk(user.CollectiveId);
+
+  /**
+   * Create an activity to describe an expense update.
+   * @param {string} type: type of the activity, see `constants/activities.js`
+   * @param {object} user: the user who triggered the activity. Leave blank for system activities.
+   */
+  Expense.prototype.createActivity = async function (type, user) {
+    const submittedByUser = this.user || (await models.User.findByPk(this.UserId));
+    const submittedByUserCollective = await models.Collective.findByPk(submittedByUser.CollectiveId);
+    const fromCollective = this.fromCollective || (await models.Collective.findByPk(this.FromCollectiveId));
     if (!this.collective) {
       this.collective = await this.getCollective();
     }
@@ -220,13 +220,13 @@ export default function (Sequelize, DataTypes) {
       }));
     await models.Activity.create({
       type,
-      UserId: this.UserId,
+      UserId: user?.id,
       CollectiveId: this.collective.id,
       data: {
         host: get(host, 'minimal'),
         collective: { ...this.collective.minimal, isActive: this.collective.isActive },
-        user: user.minimal,
-        fromCollective: userCollective.minimal,
+        user: submittedByUserCollective.minimal,
+        fromCollective: fromCollective.minimal,
         expense: this.info,
         transaction: transaction.info,
         payoutMethod: payoutMethod && pick(payoutMethod.dataValues, ['id', 'type', 'data']),
