@@ -18,7 +18,6 @@ import {
   archiveCollective,
   claimCollective,
   createCollective,
-  createCollectiveFromGithub,
   deactivateCollectiveAsHost,
   deleteCollective,
   deleteEventCollective,
@@ -98,15 +97,6 @@ const mutations = {
     },
     resolve(_, args, req) {
       return createCollective(_, args, req);
-    },
-  },
-  createCollectiveFromGithub: {
-    type: CollectiveInterfaceType,
-    args: {
-      collective: { type: new GraphQLNonNull(CollectiveInputType) },
-    },
-    resolve(_, args, req) {
-      return createCollectiveFromGithub(_, args, req);
     },
   },
   editCollective: {

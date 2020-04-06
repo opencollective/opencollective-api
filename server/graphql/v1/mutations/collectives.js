@@ -1,7 +1,7 @@
 import { map } from 'bluebird';
 import config from 'config';
 import slugify from 'limax';
-import { get, omit, truncate } from 'lodash';
+import { get, omit } from 'lodash';
 import sanitize from 'sanitize-html';
 import sequelize from 'sequelize';
 import { v4 as uuid } from 'uuid';
@@ -183,123 +183,6 @@ export async function createCollective(_, args, req) {
         email: req.remoteUser.email,
         collective: remoteUserCollective.info,
       },
-    },
-  });
-
-  return collective;
-}
-
-export async function createCollectiveFromGithub(_, args, req) {
-  if (!req.remoteUser) {
-    throw new Unauthorized('You need to be logged in to create a collective');
-  }
-
-  if (!args.collective.name) {
-    throw new ValidationFailed('collective.name required');
-  }
-
-  let collective;
-  const user = req.remoteUser;
-  const githubHandle = args.collective.githubHandle;
-  const collectiveData = {
-    ...args.collective,
-    settings: { ...DEFAULT_COLLECTIVE_SETTINGS, ...args.collective.settings },
-  };
-
-  // For e2e testing, we enable testuser+(admin|member)@opencollective.com to create collective without github validation
-  if (process.env.NODE_ENV !== 'production' && user.email.match(/.*test.*@opencollective.com$/)) {
-    const existingCollective = models.Collective.findOne({
-      where: { slug: collectiveData.slug.toLowerCase() },
-    });
-    if (existingCollective) {
-      collectiveData.slug = `${collectiveData.slug}-${Math.floor(Math.random() * 1000 + 1)}`;
-    }
-    collectiveData.currency = 'USD';
-    collectiveData.CreatedByUserId = user.id;
-    collectiveData.LastEditedByUserId = user.id;
-    collective = await models.Collective.create(collectiveData);
-    const host = await models.Collective.findByPk(defaultHostCollective('opensource').CollectiveId);
-    const promises = [
-      collective.addUserWithRole(user, roles.ADMIN),
-      collective.addHost(host, user, { shouldAutomaticallyApprove: true }),
-      collective.update({ isActive: true, approvedAt: new Date() }),
-    ];
-
-    await Promise.all(promises);
-    return collective;
-  }
-
-  const existingCollective = await models.Collective.findOne({
-    where: { slug: collectiveData.slug.toLowerCase() },
-  });
-
-  if (existingCollective) {
-    throw new Error(
-      `The slug ${
-        collectiveData.slug
-      } is already taken. Please use another slug for your ${collectiveData.type.toLowerCase()}.`,
-    );
-  }
-
-  const githubAccount = await models.ConnectedAccount.findOne({
-    where: { CollectiveId: req.remoteUser.CollectiveId, service: 'github' },
-  });
-  if (!githubAccount) {
-    throw new Error('You must have a connected GitHub Account to create a collective with GitHub.');
-  }
-
-  try {
-    await github.checkGithubAdmin(githubHandle, githubAccount.token);
-    await github.checkGithubStars(githubHandle, githubAccount.token);
-    if (githubHandle.includes('/')) {
-      const repo = await github.getRepo(githubHandle, githubAccount.token);
-      collectiveData.tags = repo.topics || [];
-      collectiveData.tags.push('open source');
-      collectiveData.description = truncate(repo.description, { length: 255 });
-      collectiveData.longDescription = repo.description;
-      collectiveData.settings.githubRepo = githubHandle;
-    } else {
-      collectiveData.settings.githubOrg = githubHandle;
-    }
-  } catch (error) {
-    throw new ValidationFailed(error.message);
-  }
-
-  collectiveData.currency = 'USD';
-  collectiveData.CreatedByUserId = user.id;
-  collectiveData.LastEditedByUserId = user.id;
-
-  try {
-    collective = await models.Collective.create(collectiveData);
-  } catch (err) {
-    throw new Error(err.message);
-  }
-
-  const host = await models.Collective.findByPk(defaultHostCollective('opensource').CollectiveId);
-  const promises = [
-    collective.addUserWithRole(user, roles.ADMIN),
-    collective.addHost(host, user, { skipCollectiveApplyActivity: true }),
-    collective.update({ isActive: true, approvedAt: new Date() }),
-  ];
-
-  await Promise.all(promises);
-
-  const data = {
-    firstName: user.firstName,
-    lastName: user.lastName,
-    collective: collective.info,
-  };
-
-  await emailLib.send('github.signup', user.email, data);
-
-  models.Activity.create({
-    type: activities.COLLECTIVE_CREATED_GITHUB,
-    UserId: user.id,
-    CollectiveId: collective.id,
-    data: {
-      collective: collective.info,
-      host: host.info,
-      user: user.info,
     },
   });
 

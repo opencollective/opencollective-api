@@ -366,12 +366,6 @@ async function notifyByEmail(activity) {
       }
       break;
 
-    case activityType.COLLECTIVE_CREATED_GITHUB:
-      notifyAdminsOfCollective(activity.data.collective.id, activity, {
-        template: 'collective.created.opensource',
-      });
-      break;
-
     case activityType.BACKYOURSTACK_DISPATCH_CONFIRMED:
       for (const order of activity.data.orders) {
         const collective = await models.Collective.findByPk(order.CollectiveId);
