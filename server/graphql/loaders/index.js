@@ -12,7 +12,8 @@ import { sortResults, createDataLoaderWithOptions } from './helpers';
 // Loaders generators
 import commentsLoader from './comments';
 import conversationLoaders from './conversation';
-import { generateExpenseAttachmentsLoader } from './expenses';
+import collectiveLoaders from './collective';
+import { generateExpenseAttachmentsLoader, generateExpenseActivitiesLoader } from './expenses';
 import { generateCollectivePaypalPayoutMethodsLoader, generateCollectivePayoutMethodsLoader } from './payout-method';
 import { generateCanSeeUserPrivateInfoLoader } from './user';
 
@@ -29,6 +30,7 @@ export const loaders = req => {
   context.loaders.Conversation.commentsCount = conversationLoaders.commentsCount(req, cache);
 
   // Expense
+  context.loaders.Expense.activities = generateExpenseActivitiesLoader(req, cache);
   context.loaders.ExpenseAttachment.byExpenseId = generateExpenseAttachmentsLoader(req, cache);
 
   // Payout method
@@ -39,6 +41,9 @@ export const loaders = req => {
   context.loaders.User.canSeeUserPrivateInfo = generateCanSeeUserPrivateInfoLoader(req, cache);
 
   /** *** Collective *****/
+
+  // Collective - by UserId
+  context.loaders.Collective.byUserId = collectiveLoaders.byUserId(req, cache);
 
   // Collective - ChildCollectives
   context.loaders.Collective.childCollectives = new DataLoader(parentIds =>
