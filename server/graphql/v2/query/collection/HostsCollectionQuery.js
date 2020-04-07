@@ -4,10 +4,10 @@ import { pick } from 'lodash';
 import rawQueries from '../../../../lib/queries';
 
 import { CollectionArgs } from '../../interface/Collection';
-import { AccountCollection } from '../../collection/AccountCollection';
+import { HostCollection } from '../../collection/HostCollection';
 
 const HostsCollectionQuery = {
-  type: AccountCollection,
+  type: HostCollection,
   args: {
     ...CollectionArgs,
     tags: {
@@ -19,7 +19,7 @@ const HostsCollectionQuery = {
     const { collectives, total } = await rawQueries.getHosts({
       ...pick(args, ['limit', 'offset', 'tags']),
       onlyOpenHosts: true,
-      minNbCollectivesHosted: 1,
+      minNbCollectivesHosted: 0,
       orderBy: 'collectives',
       orderDirection: 'DESC',
     });

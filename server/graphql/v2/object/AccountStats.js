@@ -22,55 +22,64 @@ export const AccountStats = new GraphQLObjectType({
       balance: {
         description: 'Amount of money in cents in the currency of the collective currently available to spend',
         type: Amount,
-        resolve(collective, args, req) {
+        async resolve(collective, args, req) {
           return {
-            value: req.loaders.Collective.balance.load(collective.id),
-            currency: 'USD',
+            value: await req.loaders.Collective.balance.load(collective.id),
+            currency: collective.currency,
           };
         },
       },
       monthlySpending: {
         description: 'Average amount spent per month based on the last 90 days',
         type: Amount,
-        resolve(collective) {
+        async resolve(collective) {
           // if we fetched the collective with the raw query to sort them by their monthly spending we don't need to recompute it
           if (has(collective, 'dataValues.monthlySpending')) {
-            return get(collective, 'dataValues.monthlySpending');
+            return {
+              value: get(collective, 'dataValues.monthlySpending'),
+              currency: collective.currency,
+            };
           } else {
-            return collective.getMonthlySpending();
+            return {
+              value: await collective.getMonthlySpending(),
+              currency: collective.currency,
+            };
           }
         },
       },
       totalAmountSpent: {
         description: 'Total amount spent',
         type: Amount,
-        resolve(collective) {
+        async resolve(collective) {
           return {
-            value: collective.getTotalAmountSpent(),
-            currency: 'USD',
+            value: await collective.getTotalAmountSpent(),
+            currency: collective.currency,
           };
         },
       },
       totalAmountReceived: {
         description: 'Net amount received',
         type: Amount,
-        resolve(collective) {
+        async resolve(collective) {
           return {
-            value: collective.getTotalAmountReceived(),
-            currency: 'USD',
+            value: await collective.getTotalAmountReceived(),
+            currency: collective.currency,
           };
         },
       },
       yearlyBudget: {
         type: Amount,
-        resolve(collective) {
-          // If the current collective is a host, we aggregate the yearly budget across all the hosted collectives
-          if (collective.id === collective.HostCollectiveId) {
-            return queries.getTotalAnnualBudgetForHost(collective.id);
+        async resolve(collective) {
+          // If the current account is a host, we aggregate the yearly budget across all the hosted collectives
+          if (collective.isHostAccount) {
+            return {
+              value: await queries.getTotalAnnualBudgetForHost(collective.id),
+              currency: collective.currency,
+            };
           }
           return {
-            value: collective.getYearlyIncome(),
-            currency: 'USD',
+            value: await collective.getYearlyIncome(),
+            currency: collective.currency,
           };
         },
       },

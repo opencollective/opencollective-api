@@ -33,6 +33,7 @@ import { TagStats } from '../object/TagStats';
 import { TransferWise } from '../object/TransferWise';
 import PayoutMethod from '../object/PayoutMethod';
 import { Location } from '../object/Location';
+import { AccountStats } from '../object/AccountStats';
 
 const accountFieldsDefinition = () => ({
   id: {
@@ -93,9 +94,6 @@ const accountFieldsDefinition = () => ({
     type: GraphQLDateTime,
     description: 'The time of last update',
   },
-  // stats: {
-  //   type: AccountStats,
-  // },
   members: {
     type: MemberCollection,
     args: {
@@ -188,6 +186,12 @@ const accountFieldsDefinition = () => ({
   location: {
     type: Location,
     description: 'The address associated to this account. This field is always public for collectives and events.',
+  },
+  stats: {
+    type: AccountStats,
+    resolve(collective) {
+      return collective;
+    },
   },
 });
 
