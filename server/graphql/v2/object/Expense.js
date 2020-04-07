@@ -15,6 +15,7 @@ import { Currency } from '../enum';
 import ExpenseAttachment from './ExpenseAttachment';
 import ExpensePermissions from './ExpensePermissions';
 import ExpenseStatus from '../enum/ExpenseStatus';
+import { Activity } from './Activity';
 
 const Expense = new GraphQLObjectType({
   name: 'Expense',
@@ -158,6 +159,13 @@ const Expense = new GraphQLObjectType({
         description: 'The permissions given to current logged in user for this expense',
         async resolve(expense) {
           return expense; // Individual fields are set by ExpensePermissions's resolvers
+        },
+      },
+      activities: {
+        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Activity))),
+        description: 'The list of activities (ie. approved, edited, etc) for this expense ordered by date ascending',
+        resolve(expense, _, req) {
+          return req.loaders.Expense.activities.load(expense.id);
         },
       },
     };
