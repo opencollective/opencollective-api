@@ -37,8 +37,16 @@ const CollectionFields = {
  * that implement the Collection interface.
  */
 const CollectionArgs = {
-  limit: { type: GraphQLInt },
-  offset: { type: GraphQLInt },
+  limit: {
+    type: GraphQLInt,
+    description: 'The number of results to fetch (default 10, max 1000)',
+    defaultValue: 10,
+  },
+  offset: {
+    type: GraphQLInt,
+    description: 'The offset to use to fetch',
+    defaultValue: 0,
+  },
 };
 
 export { Collection, CollectionFields, CollectionArgs };

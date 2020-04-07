@@ -15,7 +15,7 @@ export const IsMemberOfFields = {
       role: { type: new GraphQLList(MemberRole) },
       accountType: { type: new GraphQLList(AccountType) },
     },
-    resolve(collective, args) {
+    async resolve(collective, args) {
       const where = { MemberCollectiveId: collective.id };
 
       if (args.role && args.role.length > 0) {
@@ -27,7 +27,7 @@ export const IsMemberOfFields = {
           [Op.in]: args.accountType.map(value => AccountTypeToModelMapping[value]),
         };
       }
-      return models.Member.findAndCountAll({
+      const result = await models.Member.findAndCountAll({
         where,
         limit: args.limit,
         offset: args.offset,
@@ -39,6 +39,8 @@ export const IsMemberOfFields = {
           },
         ],
       });
+
+      return { nodes: result.rows, totalCount: result.count, limit: args.limit, offset: args.offset };
     },
   },
 };

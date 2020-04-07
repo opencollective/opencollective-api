@@ -42,7 +42,7 @@ export const HasMembersFields = {
         ],
       });
 
-      return { limit: args.limit, offset: args.offset, ...result };
+      return { nodes: result.rows, totalCount: result.count, limit: args.limit, offset: args.offset };
     },
   },
 };

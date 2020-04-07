@@ -222,7 +222,7 @@ const accountTransactions = {
       order: [[args.orderBy.field, args.orderBy.direction]],
     });
 
-    return { limit: args.limit, offset: args.offset, ...result };
+    return { nodes: result.rows, totalCount: result.count, limit: args.limit, offset: args.offset };
   },
 };
 
@@ -276,7 +276,7 @@ const accountOrders = {
       order: [[args.orderBy.field, args.orderBy.direction]],
     });
 
-    return { limit: args.limit, offset: args.offset, ...result };
+    return { nodes: result.rows, totalCount: result.count, limit: args.limit, offset: args.offset };
   },
 };
 

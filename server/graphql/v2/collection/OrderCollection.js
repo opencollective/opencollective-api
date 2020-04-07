@@ -1,35 +1,17 @@
-import { GraphQLInt, GraphQLList, GraphQLObjectType } from 'graphql';
+import { GraphQLList, GraphQLObjectType } from 'graphql';
 
+import { Collection, CollectionFields } from '../interface/Collection';
 import { Order } from '../object/Order';
 
 export const OrderCollection = new GraphQLObjectType({
   name: 'OrderCollection',
+  interfaces: [Collection],
   description: 'A collection of "Orders"',
   fields: () => {
     return {
-      offset: {
-        type: GraphQLInt,
-        resolve(result) {
-          return result.offset;
-        },
-      },
-      limit: {
-        type: GraphQLInt,
-        resolve(result) {
-          return result.limit;
-        },
-      },
-      totalCount: {
-        type: GraphQLInt,
-        resolve(result) {
-          return result.count;
-        },
-      },
+      ...CollectionFields,
       nodes: {
         type: new GraphQLList(Order),
-        resolve(result) {
-          return result.rows;
-        },
       },
     };
   },
