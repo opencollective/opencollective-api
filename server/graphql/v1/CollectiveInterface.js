@@ -1617,6 +1617,9 @@ const CollectiveFields = () => {
         // In the future we should only return the "saved" whatever the service
         paymentMethods = paymentMethods.filter(pm => pm.service !== 'stripe' || pm.saved);
 
+        // Adaptive paymentMethods are for internal use and should never be returned
+        paymentMethods = paymentMethods.filter(pm => !(pm.service === 'paypal' && pm.type === 'adaptive'));
+
         paymentMethods = paymentMethods.filter(pm => !(pm.data && pm.data.hidden));
 
         if (args.service) {
