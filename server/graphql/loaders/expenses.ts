@@ -3,6 +3,7 @@ import ACTIVITY from '../../constants/activities';
 import models, { Op } from '../../models';
 import { ExpenseAttachment } from '../../models/ExpenseAttachment';
 import { sortResultsArray } from './helpers';
+import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile';
 
 /**
  * Loader for expense's attachments.
@@ -57,5 +58,18 @@ export const generateExpenseActivitiesLoader = (req): DataLoader<number, object>
     });
 
     return sortResultsArray(expenseIDs, activities, activity => activity.data.expense.id);
+  });
+};
+
+/**
+ * Loader for expense's attachedFiles.
+ */
+export const attachedFiles = (): DataLoader<number, ExpenseAttachedFile[]> => {
+  return new DataLoader(async (expenseIds: number[]) => {
+    const attachedFiles = await models.ExpenseAttachedFile.findAll({
+      where: { ExpenseId: { [Op.in]: expenseIds } },
+    });
+
+    return sortResultsArray(expenseIds, attachedFiles, file => file.ExpenseId);
   });
 };

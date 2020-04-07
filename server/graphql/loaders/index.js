@@ -13,7 +13,7 @@ import { sortResults, createDataLoaderWithOptions } from './helpers';
 import commentsLoader from './comments';
 import conversationLoaders from './conversation';
 import collectiveLoaders from './collective';
-import { generateExpenseAttachmentsLoader, generateExpenseActivitiesLoader } from './expenses';
+import * as expenseLoaders from './expenses';
 import { generateCollectivePaypalPayoutMethodsLoader, generateCollectivePayoutMethodsLoader } from './payout-method';
 import { generateCanSeeUserPrivateInfoLoader } from './user';
 
@@ -30,8 +30,9 @@ export const loaders = req => {
   context.loaders.Conversation.commentsCount = conversationLoaders.commentsCount(req, cache);
 
   // Expense
-  context.loaders.Expense.activities = generateExpenseActivitiesLoader(req, cache);
-  context.loaders.ExpenseAttachment.byExpenseId = generateExpenseAttachmentsLoader(req, cache);
+  context.loaders.Expense.activities = expenseLoaders.generateExpenseActivitiesLoader(req, cache);
+  context.loaders.Expense.attachedFiles = expenseLoaders.attachedFiles(req, cache);
+  context.loaders.ExpenseAttachment.byExpenseId = expenseLoaders.generateExpenseAttachmentsLoader(req, cache);
 
   // Payout method
   context.loaders.PayoutMethod.paypalByCollectiveId = generateCollectivePaypalPayoutMethodsLoader(req, cache);

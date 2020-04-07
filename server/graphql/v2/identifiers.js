@@ -18,6 +18,7 @@ export const IDENTIFIER_TYPES = {
   PAYOUT_METHOD: 'payout-method',
   EXPENSE: 'expense',
   CONNECTED_ACCOUNT: 'connected-account',
+  EXPENSE_ATTACHED_FILE: 'expense-attached-file',
   EXPENSE_ATTACHMENT: 'expense-attachment',
 };
 
