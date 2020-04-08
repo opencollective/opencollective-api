@@ -224,7 +224,7 @@ export async function createExpense(remoteUser, expenseData) {
       {
         ...pick(expenseData, EXPENSE_EDITABLE_FIELDS),
         currency: collective.currency,
-        tags: expenseData.category ? [expenseData.category] : null,
+        tags: expenseData.category ? [expenseData.category] : expenseData.tags,
         status: statuses.PENDING,
         CollectiveId: collective.id,
         FromCollectiveId: fromCollective.id,
