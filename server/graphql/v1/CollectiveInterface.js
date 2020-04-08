@@ -264,10 +264,10 @@ export const PlanType = new GraphQLObjectType({
     bankTransfersLimit: {
       type: GraphQLInt,
     },
-    transferwisePayout: {
+    transferwisePayouts: {
       type: GraphQLInt,
     },
-    transferwisePayoutLimit: {
+    transferwisePayoutsLimit: {
       type: GraphQLInt,
     },
   },

@@ -95,7 +95,7 @@ export async function handleHostPlanBankTransfersLimit(host): Promise<void> {
 
 export async function handleTransferwisePayoutsLimit(host): Promise<void> {
   const hostPlan = await host.getPlan();
-  if (hostPlan.transferwisePayoutLimit !== null && hostPlan.transferwisePayout >= hostPlan.transferwisePayoutLimit) {
+  if (hostPlan.transferwisePayoutsLimit !== null && hostPlan.transferwisePayouts >= hostPlan.transferwisePayoutsLimit) {
     throw new Error(
       `You can't pay this expense with TransferWise because you’ve reached your free plan limit. Once you upgrade to a paid plan payments with TransferWise will be available again.`,
     );

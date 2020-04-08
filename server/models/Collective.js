@@ -2513,7 +2513,7 @@ export default function (Sequelize, DataTypes) {
     return total;
   };
 
-  Collective.prototype.getTotalTransferwisePayout = async function () {
+  Collective.prototype.getTotalTransferwisePayouts = async function () {
     // This method is intended for hosts
     if (!this.isHostAccount) {
       return Promise.resolve(null);
@@ -2596,11 +2596,11 @@ export default function (Sequelize, DataTypes) {
   };
 
   Collective.prototype.getPlan = async function () {
-    const [hostedCollectives, addedFunds, bankTransfers, transferwisePayout] = await Promise.all([
+    const [hostedCollectives, addedFunds, bankTransfers, transferwisePayouts] = await Promise.all([
       this.getHostedCollectivesCount(),
       this.getTotalAddedFunds(),
       this.getTotalBankTransfers(),
-      this.getTotalTransferwisePayout(),
+      this.getTotalTransferwisePayouts(),
     ]);
     if (this.plan) {
       const tier = await models.Tier.findOne({
@@ -2615,14 +2615,14 @@ export default function (Sequelize, DataTypes) {
           hostedCollectives,
           addedFunds,
           bankTransfers,
-          transferwisePayout,
+          transferwisePayouts,
           ...plan,
           ...extraPlanData,
         };
       }
     }
 
-    return { name: 'default', hostedCollectives, addedFunds, bankTransfers, transferwisePayout, ...plans.default };
+    return { name: 'default', hostedCollectives, addedFunds, bankTransfers, transferwisePayouts, ...plans.default };
   };
 
   /**
