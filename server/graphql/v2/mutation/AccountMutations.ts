@@ -68,7 +68,7 @@ const accountMutations = {
     },
     async resolve(_, args, req): Promise<object> {
       if (!req.remoteUser) {
-        throw new Unauthorized();
+        throw new Unauthorized({ message: 'You need to be logged in' });
       }
 
       const collective = await fetchAccountWithReference(args.collective);
@@ -77,6 +77,9 @@ const accountMutations = {
       }
       if (collective.type !== COLLECTIVE) {
         throw new Error('Account not a Collective');
+      }
+      if (!req.remoteUser.isAdmin(collective.id)) {
+        throw new Unauthorized({ message: 'You need to be an Admin of the Collective' });
       }
 
       const host = await fetchAccountWithReference(args.host);
