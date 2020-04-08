@@ -789,6 +789,7 @@ export const ExpenseType = new GraphQLObjectType({
       },
       category: {
         type: GraphQLString,
+        deprecationReason: '2020-04-01 - Please use tags',
         resolve(expense) {
           return expense.tags?.[0] || null;
         },
