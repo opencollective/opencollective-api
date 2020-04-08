@@ -1,8 +1,8 @@
 # Developing with Emails
 
-## Receving Emails
+## Receiving Emails
 
-- By default, [MailDev](https://danfarrelly.nyc/MailDev/) is configured in development environment
+- By default, [MailDev](https://github.com/maildev/maildev) is configured in development environment
 - Open `http://localhost:1080` to browse outgoing emails
 
 ## Email Templates
