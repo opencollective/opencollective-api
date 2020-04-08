@@ -675,7 +675,7 @@ const queries = {
         query.where.status = args.status;
       }
       if (args.category) {
-        query.where[Op.and] = [sequelize.literal(`tags[1] ILIKE ${sequelize.escape(args.category)}`)];
+        query.where[Op.and] = [sequelize.literal(`${sequelize.escape(args.category)} ILIKE ANY(tags)`)];
       }
       if (args.limit) {
         query.limit = args.limit;
