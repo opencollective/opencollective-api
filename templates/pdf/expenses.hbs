@@ -181,7 +181,7 @@ td.tdpadding {
         </table>
       </div>
 
-      {{#each Expense.attachments}}
+      {{#each Expense.items}}
         <div class="preview" style="z-index:0; background-size: contain; background-image: url('https://res.cloudinary.com/opencollective/image/fetch/w_640,f_jpg/{{this.url}}')"></div>
       {{else}}
         <div class="no-attachments">

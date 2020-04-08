@@ -1989,7 +1989,7 @@
           ]
         },
         {
-          "field": "attachments",
+          "field": "items",
           "type": ["Number"],
           "defaultValue": null,
           "enums": null,
@@ -1999,7 +1999,7 @@
           "isRequired": false,
           "isSortable": true,
           "isVirtual": false,
-          "reference": "ExpenseAttachment.ExpenseId",
+          "reference": "ExpenseItem.ExpenseId",
           "inverseOf": null,
           "relationship": "HasMany",
           "validations": []
@@ -2303,8 +2303,8 @@
       "actions": []
     },
     {
-      "name": "ExpenseAttachment",
-      "nameOld": "ExpenseAttachment",
+      "name": "ExpenseItem",
+      "nameOld": "ExpenseItem",
       "icon": null,
       "integration": null,
       "isReadOnly": false,

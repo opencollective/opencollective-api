@@ -81,7 +81,7 @@ export function setupModels(client) {
     'ConversationFollower',
     'Expense',
     'ExpenseAttachedFile',
-    'ExpenseAttachment',
+    'ExpenseItem',
     'LegalDocument',
     'Member',
     'MemberInvitation',
@@ -209,13 +209,13 @@ export function setupModels(client) {
     as: 'fromCollective',
   });
   m.Expense.hasMany(m.ExpenseAttachedFile, { as: 'attachedFiles' });
-  m.Expense.hasMany(m.ExpenseAttachment, { as: 'attachments' });
+  m.Expense.hasMany(m.ExpenseItem, { as: 'items' });
   m.Expense.hasMany(m.Transaction);
   m.Transaction.belongsTo(m.Expense);
   m.Transaction.belongsTo(m.Order);
 
-  // Expense attachments
-  m.ExpenseAttachment.belongsTo(m.Expense);
+  // Expense items
+  m.ExpenseItem.belongsTo(m.Expense);
 
   // Expense attached files
   m.ExpenseAttachedFile.belongsTo(m.Expense);

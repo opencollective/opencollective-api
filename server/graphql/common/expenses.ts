@@ -1,4 +1,4 @@
-import { ExpenseAttachment } from '../../models/ExpenseAttachment';
+import { ExpenseItem } from '../../models/ExpenseItem';
 import { roles, expenseStatus } from '../../constants';
 
 const isOwner = async (req, expense): Promise<boolean> => {
@@ -37,7 +37,7 @@ const checkExpensePermissions = async (req, expense, conditions): Promise<boolea
   return false;
 };
 
-/** Checks if the user can see expense's attachments */
+/** Checks if the user can see expense's attachments (items URLs, attached files) */
 export const canSeeExpenseAttachments = async (req, expense): Promise<boolean> => {
   return checkExpensePermissions(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin]);
 };
@@ -58,10 +58,10 @@ export const canSeeExpensePayeeLocation = async (req, expense): Promise<boolean>
 };
 
 /**
- * Returns the list of attachments for this expense.
+ * Returns the list of items for this expense.
  */
-export const getExpenseAttachments = async (expenseId, req): Promise<ExpenseAttachment[]> => {
-  return req.loaders.ExpenseAttachment.byExpenseId.load(expenseId);
+export const getExpenseItems = async (expenseId, req): Promise<ExpenseItem[]> => {
+  return req.loaders.Expense.items.load(expenseId);
 };
 
 /**

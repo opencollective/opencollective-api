@@ -3,7 +3,7 @@ import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 
 const ExpensePermissions = new GraphQLObjectType({
   name: 'ExpensePermissions',
-  description: 'Fields for an expense attachment',
+  description: 'Fields for the user permissions on an expense',
   fields: {
     canEdit: {
       type: new GraphQLNonNull(GraphQLBoolean),

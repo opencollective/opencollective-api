@@ -1,7 +1,7 @@
 import { GraphQLString, GraphQLInputObjectType, GraphQLNonNull, GraphQLList } from 'graphql';
 import { ExpenseType } from '../enum/ExpenseType';
 import { PayoutMethodInput } from './PayoutMethodInput';
-import { ExpenseAttachmentInput } from './ExpenseAttachmentInput';
+import { ExpenseItemInput } from './ExpenseItemInput';
 import { AccountReferenceInput } from './AccountReferenceInput';
 import { ExpenseAttachedFileInput } from './ExpenseAttachedFileInput';
 
@@ -40,8 +40,13 @@ export const ExpenseUpdateInput = new GraphQLInputObjectType({
       description: 'The payout method that will be used to reimburse the expense',
     },
     attachments: {
-      type: new GraphQLList(ExpenseAttachmentInput),
-      description: 'The list of attachments for this expense. Total amount will be computed from them.',
+      type: new GraphQLList(ExpenseItemInput),
+      description:
+        '@deprecated 2020-04-08: Please use the items field - The list of items for this expense. Total amount will be computed from them.',
+    },
+    items: {
+      type: new GraphQLList(ExpenseItemInput),
+      description: 'The list of items for this expense. Total amount will be computed from them.',
     },
     attachedFiles: {
       type: new GraphQLList(new GraphQLNonNull(ExpenseAttachedFileInput)),

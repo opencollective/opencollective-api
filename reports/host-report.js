@@ -271,8 +271,8 @@ async function HostReport(year, month, hostId) {
               include: [
                 'fromCollective',
                 {
-                  model: models.ExpenseAttachment,
-                  as: 'attachments',
+                  model: models.ExpenseItem,
+                  as: 'items',
                   where: {
                     url: { [Op.not]: null },
                   },

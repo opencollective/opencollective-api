@@ -2,14 +2,14 @@ import { GraphQLString, GraphQLInt, GraphQLInputObjectType } from 'graphql';
 import { DateString } from '../../v1/types';
 
 /**
- * To create or edit an expense attachment
+ * To create or edit an expense item
  */
-export const ExpenseAttachmentInput = new GraphQLInputObjectType({
-  name: 'ExpenseAttachmentInput',
+export const ExpenseItemInput = new GraphQLInputObjectType({
+  name: 'ExpenseItemInput',
   fields: {
     id: {
       type: GraphQLString,
-      description: 'ID of the attachment',
+      description: 'ID of the item',
     },
     amount: {
       type: GraphQLInt,
@@ -17,11 +17,11 @@ export const ExpenseAttachmentInput = new GraphQLInputObjectType({
     },
     description: {
       type: GraphQLString,
-      description: 'What is this attachment about?',
+      description: 'What is this item about?',
     },
     url: {
       type: GraphQLString,
-      description: 'URL of the file linked to this attachment. Must be provided if the expense type is RECEIPT.',
+      description: 'URL of the file linked to this item. Must be provided if the expense type is RECEIPT.',
     },
     incurredAt: {
       type: DateString,

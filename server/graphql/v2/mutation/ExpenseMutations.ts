@@ -33,20 +33,16 @@ const expenseMutations = {
         payoutMethod.id = idDecode(payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD);
       }
 
+      // Support deprecated `attachments` field
+      const items = args.expense.items || args.expense.attachments || [];
+
       // Right now this endpoint uses the old mutation by adapting the data for it. Once we get rid
       // of the `createExpense` endpoint in V1, the actual code to create the expense should be moved
       // here and cleaned.
       return createExpenseLegacy(req.remoteUser, {
-        ...pick(args.expense, [
-          'description',
-          'tags',
-          'type',
-          'privateMessage',
-          'attachments',
-          'attachedFiles',
-          'invoiceInfo',
-        ]),
-        amount: args.expense.attachments.reduce((total, attachment) => total + attachment.amount, 0),
+        ...pick(args.expense, ['description', 'tags', 'type', 'privateMessage', 'attachedFiles', 'invoiceInfo']),
+        items,
+        amount: items.reduce((total, item) => total + item.amount, 0),
         PayoutMethod: payoutMethod,
         collective: await fetchAccountWithReference(args.account, req),
         fromCollective: args.expense.payee,
@@ -63,6 +59,9 @@ const expenseMutations = {
       },
     },
     async resolve(_, { expense }, req): Promise<object> {
+      // Support deprecated `attachments` field
+      const items = expense.items || expense.attachments;
+
       return editExpenseLegacy(req.remoteUser, {
         id: idDecode(expense.id, IDENTIFIER_TYPES.EXPENSE),
         description: expense.description,
@@ -70,7 +69,7 @@ const expenseMutations = {
         type: expense.type,
         privateMessage: expense.privateMessage,
         invoiceInfo: expense.invoiceInfo,
-        amount: expense.attachments?.reduce((total, att) => total + att.amount, 0),
+        amount: items?.reduce((total, att) => total + att.amount, 0),
         PayoutMethod: expense.payoutMethod && {
           id: expense.payoutMethod.id && idDecode(expense.payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD),
           data: expense.payoutMethod.data,
@@ -78,15 +77,15 @@ const expenseMutations = {
           isSaved: expense.payoutMethod.isSaved,
           type: expense.payoutMethod.type,
         },
-        attachments: expense.attachments?.map(attachment => ({
-          id: attachment.id && idDecode(attachment.id, IDENTIFIER_TYPES.EXPENSE_ATTACHMENT),
-          url: attachment.url,
-          amount: attachment.amount,
-          incurredAt: attachment.incurredAt,
-          description: attachment.description,
+        items: items?.map(item => ({
+          id: item.id && idDecode(item.id, IDENTIFIER_TYPES.EXPENSE_ITEM),
+          url: item.url,
+          amount: item.amount,
+          incurredAt: item.incurredAt,
+          description: item.description,
         })),
         attachedFiles: expense.attachedFiles?.map(attachedFile => ({
-          id: attachedFile.id && idDecode(attachedFile.id, IDENTIFIER_TYPES.EXPENSE_ATTACHMENT),
+          id: attachedFile.id && idDecode(attachedFile.id, IDENTIFIER_TYPES.EXPENSE_ITEM),
           url: attachedFile.url,
         })),
         fromCollective: null, // TODO payee

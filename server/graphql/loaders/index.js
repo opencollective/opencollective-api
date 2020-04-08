@@ -32,7 +32,7 @@ export const loaders = req => {
   // Expense
   context.loaders.Expense.activities = expenseLoaders.generateExpenseActivitiesLoader(req, cache);
   context.loaders.Expense.attachedFiles = expenseLoaders.attachedFiles(req, cache);
-  context.loaders.ExpenseAttachment.byExpenseId = expenseLoaders.generateExpenseAttachmentsLoader(req, cache);
+  context.loaders.Expense.items = expenseLoaders.generateExpenseItemsLoader(req, cache);
 
   // Payout method
   context.loaders.PayoutMethod.paypalByCollectiveId = generateCollectivePaypalPayoutMethodsLoader(req, cache);
