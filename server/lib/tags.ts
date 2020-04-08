@@ -2,7 +2,7 @@ export const validateTags = (tags: string[]): void => {
   if (tags) {
     // Limit to max 30 tags
     if (tags.length > 30) {
-      throw new Error(`Conversations cannot have more than 30 tags. Please remove ${30 - tags.length} tag(s).`);
+      throw new Error(`Sorry, you can't add more than 30 tags. Please remove ${30 - tags.length} tag(s).`);
     }
 
     // Validate each individual tags
