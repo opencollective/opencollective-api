@@ -135,7 +135,7 @@ const checkExpenseAttachments = (expenseData, attachments) => {
   }
 };
 
-const EXPENSE_EDITABLE_FIELDS = ['amount', 'description', 'category', 'type', 'privateMessage', 'invoiceInfo'];
+const EXPENSE_EDITABLE_FIELDS = ['amount', 'description', 'category', 'type', 'tags', 'privateMessage', 'invoiceInfo'];
 
 const getPaypalPaymentMethodFromExpenseData = async (expenseData, remoteUser, fromCollective, dbTransaction) => {
   if (expenseData.PayoutMethod) {
@@ -224,6 +224,7 @@ export async function createExpense(remoteUser, expenseData) {
       {
         ...pick(expenseData, EXPENSE_EDITABLE_FIELDS),
         currency: collective.currency,
+        tags: expenseData.category ? [expenseData.category] : expenseData.tags,
         status: statuses.PENDING,
         CollectiveId: collective.id,
         FromCollectiveId: fromCollective.id,
@@ -355,6 +356,11 @@ export async function editExpense(remoteUser, expenseData) {
       PayoutMethodId !== expense.PayoutMethodId,
     );
 
+    const existingTags = expense.tags || [];
+    let tags = cleanExpenseData.tags;
+    if (cleanExpenseData.category) {
+      tags = [cleanExpenseData.category, ...existingTags];
+    }
     return expense.update(
       {
         ...cleanExpenseData,
@@ -363,6 +369,7 @@ export async function editExpense(remoteUser, expenseData) {
         status: shouldUpdateStatus ? 'PENDING' : expense.status,
         PayoutMethodId: PayoutMethodId,
         legacyPayoutMethod: models.Expense.getLegacyPayoutMethodTypeFromPayoutMethod(payoutMethod),
+        tags,
       },
       { transaction: t },
     );

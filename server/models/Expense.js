@@ -5,6 +5,7 @@ import status from '../constants/expense_status';
 import expenseType from '../constants/expense_type';
 import CustomDataTypes from '../models/DataTypes';
 import { reduceArrayToCurrency } from '../lib/currency';
+import { validateTags, setTags } from '../lib/tags';
 import models, { Op } from './';
 import { PayoutMethodTypes } from './PayoutMethod';
 
@@ -89,7 +90,6 @@ export default function (Sequelize, DataTypes) {
 
       privateMessage: DataTypes.STRING,
       invoiceInfo: DataTypes.TEXT,
-      category: DataTypes.STRING,
       vat: DataTypes.INTEGER,
 
       lastEditedById: {
@@ -139,6 +139,12 @@ export default function (Sequelize, DataTypes) {
 
       deletedAt: {
         type: DataTypes.DATE,
+      },
+
+      tags: {
+        type: DataTypes.ARRAY(DataTypes.STRING),
+        set: setTags,
+        validate: { validateTags },
       },
     },
     {

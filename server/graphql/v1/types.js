@@ -789,8 +789,15 @@ export const ExpenseType = new GraphQLObjectType({
       },
       category: {
         type: GraphQLString,
+        deprecationReason: '2020-04-01 - Please use tags',
         resolve(expense) {
-          return expense.category;
+          return expense.tags?.[0] || null;
+        },
+      },
+      tags: {
+        type: new GraphQLList(GraphQLString),
+        resolve(expense) {
+          return expense.tags;
         },
       },
       status: {

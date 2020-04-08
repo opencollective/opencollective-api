@@ -1,6 +1,5 @@
 import { GraphQLNonNull, GraphQLList, GraphQLObjectType, GraphQLString, GraphQLBoolean, GraphQLInt } from 'graphql';
 
-import { TransferWiseCurrency } from '../enum/Currency';
 import transferwise from '../../../paymentProviders/transferwise';
 
 const TransferWiseFieldGroupValuesAllowed = new GraphQLObjectType({
@@ -52,7 +51,7 @@ export const TransferWise = new GraphQLObjectType({
     requiredFields: {
       args: {
         currency: {
-          type: new GraphQLNonNull(TransferWiseCurrency),
+          type: new GraphQLNonNull(GraphQLString),
           description: 'The 3 letter code identifying the currency you want to receive (ie: USD, EUR, BRL, GBP)',
         },
       },
@@ -66,7 +65,7 @@ export const TransferWise = new GraphQLObjectType({
       },
     },
     availableCurrencies: {
-      type: new GraphQLList(TransferWiseCurrency),
+      type: new GraphQLList(GraphQLString),
       async resolve(host) {
         if (host) {
           const availableCurrencies = await transferwise.getAvailableCurrencies(host);

@@ -55,6 +55,7 @@ mutation editExpense($expense: ExpenseUpdateInput!) {
       incurredAt
       description
     }
+    tags
   }
 }`;
 
@@ -196,6 +197,13 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, expense.User);
       expect(result.data.editExpense.privateMessage).to.equal(updatedExpenseData.privateMessage);
       expect(result.data.editExpense.description).to.equal(expense.description);
+    });
+
+    it('updates the tags', async () => {
+      const expense = await fakeExpense({ tags: [randStr()] });
+      const updatedExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), tags: ['FAKE', 'TAGS'] };
+      const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, expense.User);
+      expect(result.data.editExpense.tags).to.deep.equal(updatedExpenseData.tags);
     });
   });
 

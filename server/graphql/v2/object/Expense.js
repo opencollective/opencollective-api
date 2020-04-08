@@ -168,6 +168,12 @@ const Expense = new GraphQLObjectType({
           return req.loaders.Expense.activities.load(expense.id);
         },
       },
+      tags: {
+        type: new GraphQLNonNull(new GraphQLList(GraphQLString)),
+        resolve(expense) {
+          return expense.tags || [];
+        },
+      },
     };
   },
 });
