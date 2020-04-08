@@ -18,6 +18,7 @@ import { FeatureNotAllowedForUser, ValidationFailed } from '../../errors';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { types as collectiveTypes } from '../../../constants/collectives';
 import { canUpdateExpenseStatus, canEditExpense, canDeleteExpense } from '../../common/expenses';
+import { expenseStatus } from '../../../constants';
 
 const debug = debugLib('expenses');
 
@@ -55,7 +56,10 @@ export async function updateExpenseStatus(remoteUser, expenseId, status) {
 
   if (!canUpdateExpenseStatus(remoteUser, expense)) {
     throw new errors.Unauthorized("You don't have permission to approve this expense");
+  } else if (expense.status === status) {
+    return expense;
   }
+
   switch (status) {
     case statuses.APPROVED:
       if (expense.status === statuses.PAID) {
@@ -73,8 +77,19 @@ export async function updateExpenseStatus(remoteUser, expenseId, status) {
       }
       break;
   }
-  const res = await expense.update({ status, lastEditedById: remoteUser.id });
-  return res;
+
+  const updatedExpense = await expense.update({ status, lastEditedById: remoteUser.id });
+
+  // Create activity based on status change
+  if (status === expenseStatus.APPROVED) {
+    await expense.createActivity(activities.COLLECTIVE_EXPENSE_APPROVED, remoteUser);
+  } else if (status === expenseStatus.REJECTED) {
+    await expense.createActivity(activities.COLLECTIVE_EXPENSE_REJECTED, remoteUser);
+  } else if (status === expenseStatus.PENDING) {
+    await expense.createActivity(activities.COLLECTIVE_EXPENSE_UNAPPROVED, remoteUser);
+  }
+
+  return updatedExpense;
 }
 
 /** Compute the total amount of expense from attachments */
@@ -242,7 +257,7 @@ export async function createExpense(remoteUser, expenseData) {
 
   expense.user = remoteUser;
   expense.collective = collective;
-  await expense.createActivity(activities.COLLECTIVE_EXPENSE_CREATED);
+  await expense.createActivity(activities.COLLECTIVE_EXPENSE_CREATED, remoteUser);
   return expense;
 }
 
@@ -353,7 +368,7 @@ export async function editExpense(remoteUser, expenseData) {
     );
   });
 
-  await updatedExpense.createActivity(activities.COLLECTIVE_EXPENSE_UPDATED);
+  await updatedExpense.createActivity(activities.COLLECTIVE_EXPENSE_UPDATED, remoteUser);
   return updatedExpense;
 }
 
@@ -383,10 +398,10 @@ export async function deleteExpense(remoteUser, expenseId) {
 }
 
 /** Helper that finishes the process of paying an expense */
-async function markExpenseAsPaid(expense, userId) {
+async function markExpenseAsPaid(expense, remoteUser) {
   debug('update expense status to PAID', expense.id);
-  await expense.setPaid(userId);
-  await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID);
+  await expense.setPaid(remoteUser.id);
+  await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID, remoteUser);
   return expense;
 }
 
@@ -440,7 +455,7 @@ async function payExpenseWithPayPal(remoteUser, expense, host, paymentMethod, to
   }
 }
 
-async function payExpenseWithTransferwise(host, payoutMethod, expense, fees) {
+async function payExpenseWithTransferwise(host, payoutMethod, expense, fees, remoteUser) {
   debug('payExpenseWithTransferwise', expense.id);
   const [connectedAccount] = await host.getConnectedAccounts({
     where: { service: 'transferwise', deletedAt: null },
@@ -452,7 +467,7 @@ async function payExpenseWithTransferwise(host, payoutMethod, expense, fees) {
 
   const data = await paymentProviders.transferwise.payExpense(connectedAccount, payoutMethod, expense);
   const transactions = await createTransactions(host, expense, fees, data);
-  await expense.createActivity(activities.COLLECTIVE_EXPENSE_PROCESSING);
+  await expense.createActivity(activities.COLLECTIVE_EXPENSE_PROCESSING, remoteUser);
   return transactions;
 }
 
@@ -576,7 +591,7 @@ export async function payExpense(remoteUser, args) {
       throw new Error('No Paypal account linked, please reconnect Paypal or pay manually');
     }
   } else if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT) {
-    await payExpenseWithTransferwise(host, payoutMethod, expense, feesInHostCurrency);
+    await payExpenseWithTransferwise(host, payoutMethod, expense, feesInHostCurrency, remoteUser);
     await expense.setProcessing(remoteUser.id);
     // Early return, we'll only mark as Paid when the transaction completes.
     return;
@@ -585,7 +600,7 @@ export async function payExpense(remoteUser, args) {
     await createTransactions(host, expense, feesInHostCurrency);
   }
 
-  return markExpenseAsPaid(expense, remoteUser.id);
+  return markExpenseAsPaid(expense, remoteUser);
 }
 
 export async function markExpenseAsUnpaid(remoteUser, ExpenseId, processorFeeRefunded) {
@@ -633,5 +648,7 @@ export async function markExpenseAsUnpaid(remoteUser, ExpenseId, processorFeeRef
   );
   await libPayments.associateTransactionRefundId(transaction, refundedTransaction);
 
-  return expense.update({ status: statuses.APPROVED, lastEditedById: remoteUser.id });
+  const updatedExpense = await expense.update({ status: statuses.APPROVED, lastEditedById: remoteUser.id });
+  await updatedExpense.createActivity(activities.COLLECTIVE_EXPENSE_MARKED_AS_UNPAID, remoteUser);
+  return updatedExpense;
 }

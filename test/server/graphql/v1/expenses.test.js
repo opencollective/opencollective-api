@@ -1272,7 +1272,7 @@ describe('server/graphql/v1/expenses', () => {
           hostFeeInCollectiveCurrency +
           platformFeeInCollectiveCurrency;
         expect(balance).to.equal(initialBalance - expensePlusFees);
-        await utils.waitForCondition(() => emailSendMessageSpy.callCount === 4);
+        await utils.waitForCondition(() => emailSendMessageSpy.callCount === 2);
         const debitTransaction = await models.Transaction.findOne({
           where: {
             type: 'DEBIT',
@@ -1293,16 +1293,11 @@ describe('server/graphql/v1/expenses', () => {
         });
         expect(creditTransaction.netAmountInCollectiveCurrency).to.equal(expense.amount);
         expect(creditTransaction.amount).to.equal(expensePlusFees);
-        expect(emailSendMessageSpy.callCount).to.equal(4);
+        expect(emailSendMessageSpy.callCount).to.equal(2);
         expect(emailSendMessageSpy.args[0][0]).to.equal(user.email);
-        expect(emailSendMessageSpy.args[0][1]).to.contain('Your expense to WWCode Berlin');
-        expect(emailSendMessageSpy.args[0][1]).to.contain('has been approved');
+        expect(emailSendMessageSpy.args[0][1]).to.contain('from WWCode Berlin for Pizza');
         expect(emailSendMessageSpy.args[1][0]).to.equal(hostAdmin.email);
-        expect(emailSendMessageSpy.args[1][1]).to.contain('New expense approved on WWCode Berlin');
-        expect(emailSendMessageSpy.args[2][0]).to.equal(user.email);
-        expect(emailSendMessageSpy.args[2][1]).to.contain('from WWCode Berlin for Pizza');
-        expect(emailSendMessageSpy.args[3][0]).to.equal(hostAdmin.email);
-        expect(emailSendMessageSpy.args[3][1]).to.contain('Expense paid on WWCode Berlin');
+        expect(emailSendMessageSpy.args[1][1]).to.contain('Expense paid on WWCode Berlin');
       }); /* End of "pays the expense manually and reduces the balance of the collective" */
 
       it('Mark expense as paid if expense paypal is the same as host paypal', async () => {
@@ -1346,7 +1341,7 @@ describe('server/graphql/v1/expenses', () => {
         await utils.waitForCondition(() => emailSendMessageSpy.callCount > 0, {
           delay: 500,
         });
-        expect(emailSendMessageSpy.callCount).to.equal(4);
+        expect(emailSendMessageSpy.callCount).to.equal(2);
       });
     });
   }); /* End of #payExpense */
