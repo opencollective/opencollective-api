@@ -356,25 +356,23 @@ export async function editExpense(remoteUser, expenseData) {
       PayoutMethodId !== expense.PayoutMethodId,
     );
 
-    if (cleanExpenseData) {
-      const existingTags = expense.tags || [];
-      let tags = cleanExpenseData.tags;
-      if (cleanExpenseData.category) {
-        tags = [cleanExpenseData.category, ...existingTags];
-      }
-      return expense.update(
-        {
-          ...cleanExpenseData,
-          lastEditedById: remoteUser.id,
-          incurredAt: expenseData.incurredAt || new Date(),
-          status: shouldUpdateStatus ? 'PENDING' : expense.status,
-          PayoutMethodId: PayoutMethodId,
-          legacyPayoutMethod: models.Expense.getLegacyPayoutMethodTypeFromPayoutMethod(payoutMethod),
-          tags,
-        },
-        { transaction: t },
-      );
+    const existingTags = expense.tags || [];
+    let tags = cleanExpenseData.tags;
+    if (cleanExpenseData.category) {
+      tags = [cleanExpenseData.category, ...existingTags];
     }
+    return expense.update(
+      {
+        ...cleanExpenseData,
+        lastEditedById: remoteUser.id,
+        incurredAt: expenseData.incurredAt || new Date(),
+        status: shouldUpdateStatus ? 'PENDING' : expense.status,
+        PayoutMethodId: PayoutMethodId,
+        legacyPayoutMethod: models.Expense.getLegacyPayoutMethodTypeFromPayoutMethod(payoutMethod),
+        tags,
+      },
+      { transaction: t },
+    );
   });
 
   await updatedExpense.createActivity(activities.COLLECTIVE_EXPENSE_UPDATED, remoteUser);
