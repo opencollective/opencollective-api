@@ -49,6 +49,10 @@ jobs:
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
 
     steps:
+      # Don't use azure repositories as they're often unavailable
+      - name: Update repositories
+        run: sudo sed -i 's/azure\.//' /etc/apt/sources.list
+
       - name: Update apt
         run: sudo apt-get update || exit 0
 
