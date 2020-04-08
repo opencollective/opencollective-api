@@ -169,9 +169,9 @@ const Expense = new GraphQLObjectType({
         },
       },
       tags: {
-        type: new GraphQLList(GraphQLString),
+        type: new GraphQLNonNull(new GraphQLList(GraphQLString)),
         resolve(expense) {
-          return expense.tags;
+          return expense.tags || [];
         },
       },
     };
