@@ -84,14 +84,12 @@ export async function handleHostPlanAddedFundsLimit(
   }
 }
 
-export async function handleHostPlanBankTransfersLimit(host, { throwException = false }): Promise<void> {
+export async function handleHostPlanBankTransfersLimit(host): Promise<void> {
   const hostPlan = await host.getPlan();
   if (hostPlan.bankTransfersLimit && hostPlan.bankTransfers >= hostPlan.bankTransfersLimit) {
-    if (throwException) {
-      throw new Error(
-        `${host.name} can’t receive Bank Transfers right now via Open Collective because they’ve reached their free plan limit. Once they upgrade to a paid plan, Bank Transfers will be available again.`,
-      );
-    }
+    throw new Error(
+      `${host.name} can’t receive Bank Transfers right now via Open Collective because they’ve reached their free plan limit. Once they upgrade to a paid plan, Bank Transfers will be available again.`,
+    );
   }
 }
 
