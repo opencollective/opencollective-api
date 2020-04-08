@@ -5,7 +5,7 @@ import status from '../constants/expense_status';
 import expenseType from '../constants/expense_type';
 import CustomDataTypes from '../models/DataTypes';
 import { reduceArrayToCurrency } from '../lib/currency';
-import { validateTags, setTags } from '../lib/tags';
+import { validateTags, sanitizeTags } from '../lib/tags';
 import models, { Op } from './';
 import { PayoutMethodTypes } from './PayoutMethod';
 
@@ -143,7 +143,14 @@ export default function (Sequelize, DataTypes) {
 
       tags: {
         type: DataTypes.ARRAY(DataTypes.STRING),
-        set: setTags,
+        set(tags) {
+          const sanitizedTags = sanitizeTags(tags);
+          if (!tags || sanitizedTags.length === 0) {
+            this.setDataValue('tags', null);
+          } else {
+            this.setDataValue('tags', sanitizedTags);
+          }
+        },
         validate: { validateTags },
       },
     },

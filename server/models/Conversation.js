@@ -2,7 +2,7 @@ import slugify from 'limax';
 
 import { activities } from '../constants';
 import { generateSummaryForHTML } from '../lib/sanitize-html';
-import { validateTags, setTags } from '../lib/tags';
+import { validateTags, sanitizeTags } from '../lib/tags';
 import models, { sequelize } from '.';
 import { idEncode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
 
@@ -59,7 +59,14 @@ export default function (Sequelize, DataTypes) {
       },
       tags: {
         type: DataTypes.ARRAY(DataTypes.STRING),
-        set: setTags,
+        set(tags) {
+          const sanitizedTags = sanitizeTags(tags);
+          if (!tags || sanitizedTags.length === 0) {
+            this.setDataValue('tags', null);
+          } else {
+            this.setDataValue('tags', sanitizedTags);
+          }
+        },
         validate: { validateTags },
       },
       CollectiveId: {

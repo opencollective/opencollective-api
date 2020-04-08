@@ -18,25 +18,17 @@ export const validateTags = (tags: string[]): void => {
   }
 };
 
-export function setTags(tags?: string[]) {
-  if (tags) {
-    tags = uniq(
-      tags
-        .map(tag => {
-          if (tag) {
-            const upperCase = tag.toUpperCase();
-            return upperCase.trim().replace(/\s+/g, ' ');
-          }
-        })
-        .filter(tag => {
-          return tag && tag.length > 0;
-        }),
-    );
-  }
-
-  if (!tags || tags.length === 0) {
-    this.setDataValue('tags', null);
-  } else if (tags) {
-    this.setDataValue('tags', tags);
-  }
-}
+export const sanitizeTags = (tags: string[]): string[] => {
+  return uniq(
+    tags
+      ?.map(tag => {
+        if (tag) {
+          const upperCase = tag.toUpperCase();
+          return upperCase.trim().replace(/\s+/g, ' ');
+        }
+      })
+      .filter(tag => {
+        return tag && tag.length > 0;
+      }),
+  );
+};
