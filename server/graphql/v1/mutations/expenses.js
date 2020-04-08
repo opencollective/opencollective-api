@@ -9,7 +9,7 @@ import paymentProviders from '../../../paymentProviders';
 import * as libPayments from '../../../lib/payments';
 import { formatCurrency } from '../../../lib/utils';
 import { floatAmountToCents } from '../../../lib/math';
-import { handleTransferwisePaymentLimit } from '../../../lib/plans';
+import { handleTransferwisePayoutsLimit } from '../../../lib/plans';
 import { createFromPaidExpense as createTransactionFromPaidExpense } from '../../../lib/transactions';
 import { getFxRate } from '../../../lib/currency';
 import debugLib from 'debug';
@@ -518,7 +518,7 @@ async function payExpenseWithTransferwise(host, payoutMethod, expense, fees, rem
     throw new Error('Host is not connected to Transferwise');
   }
 
-  await handleTransferwisePaymentLimit(host, expense, { throwException: true });
+  await handleTransferwisePayoutsLimit(host);
 
   const data = await paymentProviders.transferwise.payExpense(connectedAccount, payoutMethod, expense);
   const transactions = await createTransactions(host, expense, fees, data);
