@@ -33,6 +33,7 @@ import { TagStats } from '../object/TagStats';
 import { TransferWise } from '../object/TransferWise';
 import PayoutMethod from '../object/PayoutMethod';
 import { Location } from '../object/Location';
+import { AccountStats } from '../object/AccountStats';
 
 const accountFieldsDefinition = () => ({
   id: {
@@ -93,9 +94,6 @@ const accountFieldsDefinition = () => ({
     type: GraphQLDateTime,
     description: 'The time of last update',
   },
-  // stats: {
-  //   type: AccountStats,
-  // },
   members: {
     type: MemberCollection,
     args: {
@@ -189,6 +187,12 @@ const accountFieldsDefinition = () => ({
     type: Location,
     description: 'The address associated to this account. This field is always public for collectives and events.',
   },
+  stats: {
+    type: AccountStats,
+    resolve(collective) {
+      return collective;
+    },
+  },
 });
 
 export const Account = new GraphQLInterfaceType({
@@ -222,7 +226,7 @@ const accountTransactions = {
       order: [[args.orderBy.field, args.orderBy.direction]],
     });
 
-    return { limit: args.limit, offset: args.offset, ...result };
+    return { nodes: result.rows, totalCount: result.count, limit: args.limit, offset: args.offset };
   },
 };
 
@@ -276,7 +280,7 @@ const accountOrders = {
       order: [[args.orderBy.field, args.orderBy.direction]],
     });
 
-    return { limit: args.limit, offset: args.offset, ...result };
+    return { nodes: result.rows, totalCount: result.count, limit: args.limit, offset: args.offset };
   },
 };
 

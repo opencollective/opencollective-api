@@ -3,6 +3,8 @@ import CollectiveQuery from './CollectiveQuery';
 import ExpenseQuery from './ExpenseQuery';
 import ConversationQuery from './ConversationQuery';
 
+import HostsCollectionQuery from './collection/HostsCollectionQuery';
+
 // import TransactionQuery from './TransactionQuery';
 // import TransactionsQuery from './TransactionsQuery';
 
@@ -15,6 +17,7 @@ const query = {
   collective: CollectiveQuery,
   conversation: ConversationQuery,
   expense: ExpenseQuery,
+  hosts: HostsCollectionQuery,
   // transaction: TransactionQuery,
   // transactions: TransactionsQuery,
   loggedInAccount: {

@@ -61,7 +61,7 @@ export const Tier = new GraphQLObjectType({
 
           const result = await models.Order.findAndCountAll({ where, limit: args.limit, offset: args.offset });
 
-          return { limit: args.limit, offset: args.offset, ...result };
+          return { nodes: result.rows, totalCount: result.count, limit: args.limit, offset: args.offset };
         },
       },
     };
