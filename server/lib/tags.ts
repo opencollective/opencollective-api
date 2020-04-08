@@ -1,3 +1,5 @@
+import { uniq } from 'lodash';
+
 export const validateTags = (tags: string[]): void => {
   if (tags) {
     // Limit to max 30 tags
@@ -15,3 +17,26 @@ export const validateTags = (tags: string[]): void => {
     });
   }
 };
+
+export function setTags(tags?: string[]) {
+  if (tags) {
+    tags = uniq(
+      tags
+        .map(tag => {
+          if (tag) {
+            const upperCase = tag.toUpperCase();
+            return upperCase.trim().replace(/\s+/g, ' ');
+          }
+        })
+        .filter(tag => {
+          return tag && tag.length > 0;
+        }),
+    );
+  }
+
+  if (!tags || tags.length === 0) {
+    this.setDataValue('tags', null);
+  } else if (tags) {
+    this.setDataValue('tags', tags);
+  }
+}

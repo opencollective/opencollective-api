@@ -1,8 +1,8 @@
 import slugify from 'limax';
 
 import { activities } from '../constants';
-import { stripHTML, generateSummaryForHTML } from '../lib/sanitize-html';
-import { validateTags } from '../lib/tags';
+import { generateSummaryForHTML } from '../lib/sanitize-html';
+import { validateTags, setTags } from '../lib/tags';
 import models, { sequelize } from '.';
 import { idEncode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
 
@@ -59,27 +59,7 @@ export default function (Sequelize, DataTypes) {
       },
       tags: {
         type: DataTypes.ARRAY(DataTypes.STRING),
-        set(tags) {
-          if (tags) {
-            tags = tags
-              .map(tag => {
-                if (tag) {
-                  const upperCase = tag.toUpperCase();
-                  const cleanTag = upperCase.trim().replace(/\s+/g, ' ');
-                  return stripHTML(cleanTag);
-                }
-              })
-              .filter(tag => {
-                return tag && tag.length > 0;
-              });
-          }
-
-          if (!tags || tags.length === 0) {
-            this.setDataValue('tags', null);
-          } else if (tags) {
-            this.setDataValue('tags', Array.from(new Set(tags)));
-          }
-        },
+        set: setTags,
         validate: { validateTags },
       },
       CollectiveId: {
