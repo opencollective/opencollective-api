@@ -4,6 +4,7 @@ import conversationMutations from './ConversationMutations';
 import createCollectiveMutations from './CreateCollectiveMutations';
 import expenseMutations from './ExpenseMutations';
 import accountMutations from './AccountMutations';
+import collectiveMutations from './CollectiveMutations';
 
 const mutation = {
   ...commentMutations,
@@ -12,6 +13,7 @@ const mutation = {
   ...createCollectiveMutations,
   ...expenseMutations,
   ...accountMutations,
+  ...collectiveMutations,
 };
 
 export default mutation;
