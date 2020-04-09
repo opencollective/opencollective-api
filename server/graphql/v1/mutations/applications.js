@@ -14,7 +14,7 @@ function requireArgs(args, path) {
 
 export async function createApplication(_, args, req) {
   if (!req.remoteUser) {
-    throw new errors.Unauthorized('You need to be authenticated to create an application.');
+    throw new errors.Unauthorized({ message: 'You need to be authenticated to create an application.' });
   }
 
   requireArgs(args, 'application.type');
@@ -46,7 +46,7 @@ export async function createApplication(_, args, req) {
 
 export async function deleteApplication(_, args, req) {
   if (!req.remoteUser) {
-    throw new errors.Unauthorized('You need to be authenticated to delete an application.');
+    throw new errors.Unauthorized({ message: 'You need to be authenticated to delete an application.' });
   }
 
   const app = await Application.findByPk(args.id);
@@ -55,7 +55,7 @@ export async function deleteApplication(_, args, req) {
       message: `Application with id ${args.id} not found`,
     });
   } else if (req.remoteUser.CollectiveId !== app.CollectiveId) {
-    throw new errors.Forbidden('Authenticated user is not the application owner.');
+    throw new errors.Forbidden({ message: 'Authenticated user is not the application owner.' });
   }
 
   return await app.destroy();

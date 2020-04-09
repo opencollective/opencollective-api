@@ -1,4 +1,3 @@
-import { formatError } from 'apollo-errors';
 import { ApolloServer } from 'apollo-server-express';
 import config from 'config';
 import GraphHTTP from 'express-graphql';
@@ -114,7 +113,7 @@ export default app => {
     customFormatErrorFn: error => {
       logger.error(`GraphQL v1 error: ${error.message}`);
       logger.debug(error);
-      return formatError(error);
+      return error;
     },
     schema: graphqlSchemaV1,
     pretty: isDevelopment,

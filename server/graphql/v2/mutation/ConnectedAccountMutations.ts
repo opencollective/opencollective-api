@@ -82,14 +82,14 @@ const connectedAccountMutations = {
     },
     async resolve(_, args, req): Promise<object> {
       if (!req.remoteUser) {
-        throw new errors.Unauthorized('You need to be logged in to delete a connected account');
+        throw new errors.Unauthorized({ message: 'You need to be logged in to delete a connected account' });
       }
 
       const connectedAccount = await fetchConnectedAccountWithReference(args.connectedAccount, {
         throwIfMissing: true,
       });
       if (!req.remoteUser.isAdmin(connectedAccount.CollectiveId)) {
-        throw new errors.Unauthorized("You don't have permission to edit this collective");
+        throw new errors.Unauthorized({ message: "You don't have permission to edit this collective" });
       }
 
       await connectedAccount.destroy({ force: true });
