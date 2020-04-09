@@ -12,7 +12,7 @@ import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
 import PayoutMethod from './PayoutMethod';
 import { ExpenseType } from '../enum/ExpenseType';
 import { Currency } from '../enum';
-import ExpenseAttachment from './ExpenseAttachment';
+import ExpenseItem from './ExpenseItem';
 import ExpensePermissions from './ExpensePermissions';
 import ExpenseStatus from '../enum/ExpenseStatus';
 import { Activity } from './Activity';
@@ -40,7 +40,7 @@ const Expense = new GraphQLObjectType({
       },
       amount: {
         type: new GraphQLNonNull(GraphQLInt),
-        description: 'Total amount of the expense (sum of the attachments).',
+        description: "Total amount of the expense (sum of the item's amounts).",
       },
       currency: {
         type: new GraphQLNonNull(Currency),
@@ -137,13 +137,24 @@ const Expense = new GraphQLObjectType({
         },
       },
       attachments: {
-        type: new GraphQLList(ExpenseAttachment),
+        type: new GraphQLList(ExpenseItem),
+        deprecationReason: '2020-04-08: Field has been renamed to "items"',
         async resolve(expense, _, req) {
           if (await ExpensePermissionsLib.canSeeExpenseAttachments(req, expense)) {
             allowContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_ATTACHMENTS_URL, expense.id);
           }
 
-          return ExpensePermissionsLib.getExpenseAttachments(expense.id, req);
+          return ExpensePermissionsLib.getExpenseItems(expense.id, req);
+        },
+      },
+      items: {
+        type: new GraphQLList(ExpenseItem),
+        async resolve(expense, _, req) {
+          if (await ExpensePermissionsLib.canSeeExpenseAttachments(req, expense)) {
+            allowContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_ATTACHMENTS_URL, expense.id);
+          }
+
+          return ExpensePermissionsLib.getExpenseItems(expense.id, req);
         },
       },
       privateMessage: {

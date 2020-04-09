@@ -33,13 +33,7 @@ import roles from '../../constants/roles';
 import { isUserTaxFormRequiredBeforePayment } from '../../lib/tax-forms';
 import { getCollectiveAvatarUrl } from '../../lib/collectivelib';
 import * as commonComment from '../common/comment';
-import {
-  getExpenseAttachments,
-  canSeeExpensePayoutMethod,
-  canSeeExpenseInvoiceInfo,
-  canSeeExpensePayeeLocation,
-  canSeeExpenseAttachments,
-} from '../common/expenses';
+import { getExpenseItems, canSeeExpensePayoutMethod, canSeeExpenseAttachments } from '../common/expenses';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 
 import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
@@ -707,9 +701,9 @@ export const InvoiceType = new GraphQLObjectType({
   },
 });
 
-export const ExpenseAttachmentType = new GraphQLObjectType({
-  name: 'ExpenseAttachment',
-  description: 'Public fields for an expense attachment',
+export const ExpenseItemType = new GraphQLObjectType({
+  name: 'ExpenseItem',
+  description: 'Public fields for an expense item',
   fields: {
     id: { type: new GraphQLNonNull(GraphQLInt) },
     amount: { type: new GraphQLNonNull(GraphQLInt) },
@@ -719,18 +713,6 @@ export const ExpenseAttachmentType = new GraphQLObjectType({
     deletedAt: { type: IsoDateString },
     description: { type: GraphQLString },
     url: { type: GraphQLString },
-  },
-});
-
-const ExpenseViewPermissions = new GraphQLObjectType({
-  name: 'ExpenseViewPermissions',
-  description:
-    "Returns info about whether user is allowed to see expense's private info, such as attachment's URLS or payout methods.",
-  fields: {
-    attachments: { type: GraphQLBoolean },
-    payoutMethod: { type: GraphQLBoolean },
-    userLocation: { type: GraphQLBoolean },
-    invoiceInfo: { type: GraphQLBoolean },
   },
 });
 
@@ -829,18 +811,6 @@ export const ExpenseType = new GraphQLObjectType({
           }
         },
       },
-      canSeePrivateInfo: {
-        type: ExpenseViewPermissions,
-        description: 'Informs the frontend about what fields are accessible in the expense for current user',
-        async resolve(expense, _, req) {
-          return {
-            attachments: await canSeeExpenseAttachments(req, expense),
-            payoutMethod: await canSeeExpensePayoutMethod(req, expense),
-            userLocation: await canSeeExpensePayeeLocation(req, expense),
-            invoiceInfo: await canSeeExpenseInvoiceInfo(req, expense),
-          };
-        },
-      },
       privateMessage: {
         type: GraphQLString,
         resolve(expense, args, req) {
@@ -866,20 +836,34 @@ export const ExpenseType = new GraphQLObjectType({
           if (!(await canSeeExpenseAttachments(req, expense))) {
             return null;
           } else {
-            const attachments = await getExpenseAttachments(expense.id, req);
+            const attachments = await getExpenseItems(expense.id, req);
             return attachments[0] && attachments[0].url;
           }
         },
       },
       attachments: {
-        type: new GraphQLList(ExpenseAttachmentType),
+        type: new GraphQLList(ExpenseItemType),
+        deprecationReason: '2020-04-09 - Please use items',
         async resolve(expense, _, req) {
           const canSeeAttachments = await canSeeExpenseAttachments(req, expense);
-          return (await getExpenseAttachments(expense.id, req)).map(async attachment => {
+          return (await getExpenseItems(expense.id, req)).map(async item => {
             if (canSeeAttachments) {
-              return attachment;
+              return item;
             } else {
-              return omit(attachment, ['url']);
+              return omit(item, ['url']);
+            }
+          });
+        },
+      },
+      items: {
+        type: new GraphQLList(ExpenseItemType),
+        async resolve(expense, _, req) {
+          const canSeeAttachments = await canSeeExpenseAttachments(req, expense);
+          return (await getExpenseItems(expense.id, req)).map(async item => {
+            if (canSeeAttachments) {
+              return item;
+            } else {
+              return omit(item, ['url']);
             }
           });
         },

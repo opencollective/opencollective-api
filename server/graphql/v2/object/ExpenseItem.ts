@@ -3,26 +3,26 @@ import { GraphQLDateTime } from 'graphql-iso-date';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
-const ExpenseAttachment = new GraphQLObjectType({
-  name: 'ExpenseAttachment',
-  description: 'Fields for an expense attachment',
+const ExpenseItem = new GraphQLObjectType({
+  name: 'ExpenseItem',
+  description: 'Fields for an expense item',
   fields: {
     id: {
       type: new GraphQLNonNull(GraphQLString),
-      description: 'Unique identifier for this expense attachment',
-      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.EXPENSE_ATTACHMENT),
+      description: 'Unique identifier for this expense item',
+      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.EXPENSE_ITEM),
     },
     amount: {
       type: new GraphQLNonNull(GraphQLInt),
-      description: 'Amount of this attachment',
+      description: 'Amount of this item',
     },
     createdAt: {
       type: new GraphQLNonNull(GraphQLDateTime),
-      description: 'The date on which the attachment was created',
+      description: 'The date on which the item was created',
     },
     updatedAt: {
       type: new GraphQLNonNull(GraphQLDateTime),
-      description: 'The date on which the attachment was last updated',
+      description: 'The date on which the item was last updated',
     },
     incurredAt: {
       type: new GraphQLNonNull(GraphQLDateTime),
@@ -30,17 +30,17 @@ const ExpenseAttachment = new GraphQLObjectType({
     },
     description: {
       type: GraphQLString,
-      description: 'A description for this attachment. Enforced for new items, but old expenses may not have one.',
+      description: 'A description for this item. Enforced for new items, but old expenses may not have one.',
     },
     url: {
       type: GraphQLString,
-      resolve(attachment, _, req): string | undefined {
-        if (getContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_ATTACHMENTS_URL, attachment.ExpenseId)) {
-          return attachment.url;
+      resolve(item, _, req): string | undefined {
+        if (getContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_ATTACHMENTS_URL, item.ExpenseId)) {
+          return item.url;
         }
       },
     },
   },
 });
 
-export default ExpenseAttachment;
+export default ExpenseItem;

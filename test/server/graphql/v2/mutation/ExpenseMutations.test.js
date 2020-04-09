@@ -8,7 +8,7 @@ import {
   fakeExpense,
   fakePayoutMethod,
   randStr,
-  fakeExpenseAttachment,
+  fakeExpenseItem,
 } from '../../../../test-helpers/fake-data';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import { expenseStatus } from '../../../../../server/constants';
@@ -48,7 +48,7 @@ mutation editExpense($expense: ExpenseUpdateInput!) {
       name
       type
     }
-    attachments {
+    items {
       id
       url
       amount
@@ -59,16 +59,14 @@ mutation editExpense($expense: ExpenseUpdateInput!) {
   }
 }`;
 
-/** A small helper to prepare an attachment to be submitted to GQLV2 */
-const convertAttachmentId = attachment => {
-  return attachment?.id
-    ? { ...attachment, id: idEncode(attachment.id, IDENTIFIER_TYPES.EXPENSE_ATTACHMENT) }
-    : attachment;
+/** A small helper to prepare an expense item to be submitted to GQLV2 */
+const convertExpenseItemId = item => {
+  return item?.id ? { ...item, id: idEncode(item.id, IDENTIFIER_TYPES.EXPENSE_ITEM) } : item;
 };
 
 describe('server/graphql/v2/mutation/ExpenseMutations', () => {
   describe('createExpense', () => {
-    it('creates the expense with the linked attachments', async () => {
+    it('creates the expense with the linked items', async () => {
       const user = await fakeUser();
       const collective = await fakeCollective();
       const expenseData = {
@@ -77,7 +75,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         invoiceInfo: 'This will be printed on your invoice',
         payee: { legacyId: user.CollectiveId },
         payoutMethod: { type: 'PAYPAL', data: { email: randEmail() } },
-        attachments: [{ description: 'A first attachment', amount: 4200 }],
+        items: [{ description: 'A first item', amount: 4200 }],
       };
 
       const result = await graphqlQueryV2(
@@ -110,11 +108,11 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result2.data.editExpense.status).to.equal('PENDING');
       });
 
-      it('Attachment(s)', async () => {
+      it('Item(s)', async () => {
         const expense = await fakeExpense({ status: 'APPROVED' });
         const newExpenseData = {
           id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
-          attachments: { url: randUrl(), amount: 2000, description: randStr() },
+          items: { url: randUrl(), amount: 2000, description: randStr() },
         };
         const result = await graphqlQueryV2(editExpenseMutation, { expense: newExpenseData }, expense.User);
         expect(result.errors).to.not.exist;
@@ -131,11 +129,11 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       });
     });
 
-    it('replaces expense attachments', async () => {
+    it('replaces expense items', async () => {
       const expense = await fakeExpense({ amount: 3000 });
       const expenseUpdateData = {
         id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
-        attachments: [
+        items: [
           {
             amount: 800,
             description: 'Burger',
@@ -150,45 +148,45 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       };
 
       const result = await graphqlQueryV2(editExpenseMutation, { expense: expenseUpdateData }, expense.User);
-      const attachmentsFromAPI = result.data.editExpense.attachments;
+      const itemsFromAPI = result.data.editExpense.items;
       expect(result.data.editExpense.amount).to.equal(1000);
-      expect(attachmentsFromAPI.length).to.equal(2);
-      expenseUpdateData.attachments.forEach(attachment => {
-        const attachmentFromApi = attachmentsFromAPI.find(a => a.description === attachment.description);
-        expect(attachmentFromApi).to.exist;
-        expect(attachmentFromApi.url).to.equal(attachment.url);
-        expect(attachmentFromApi.amount).to.equal(attachment.amount);
+      expect(itemsFromAPI.length).to.equal(2);
+      expenseUpdateData.items.forEach(item => {
+        const itemFromAPI = itemsFromAPI.find(a => a.description === item.description);
+        expect(itemFromAPI).to.exist;
+        expect(itemFromAPI.url).to.equal(item.url);
+        expect(itemFromAPI.amount).to.equal(item.amount);
       });
     });
 
-    it('updates the attachments', async () => {
-      const expense = await fakeExpense({ amount: 10000, attachments: [] });
-      const attachments = (
+    it('updates the items', async () => {
+      const expense = await fakeExpense({ amount: 10000, items: [] });
+      const items = (
         await Promise.all([
-          fakeExpenseAttachment({ ExpenseId: expense.id, amount: 2000 }),
-          fakeExpenseAttachment({ ExpenseId: expense.id, amount: 3000 }),
-          fakeExpenseAttachment({ ExpenseId: expense.id, amount: 5000 }),
+          fakeExpenseItem({ ExpenseId: expense.id, amount: 2000 }),
+          fakeExpenseItem({ ExpenseId: expense.id, amount: 3000 }),
+          fakeExpenseItem({ ExpenseId: expense.id, amount: 5000 }),
         ])
-      ).map(convertAttachmentId);
+      ).map(convertExpenseItemId);
 
       const updatedExpenseData = {
         id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
-        attachments: [
-          pick(attachments[0], ['id', 'url', 'amount']), // Don't change the first one (value=2000)
-          { ...pick(attachments[1], ['id', 'url']), amount: 7000 }, // Update amount for the second one
+        items: [
+          pick(items[0], ['id', 'url', 'amount']), // Don't change the first one (value=2000)
+          { ...pick(items[1], ['id', 'url']), amount: 7000 }, // Update amount for the second one
           { amount: 1000, url: randUrl() }, // Remove the third one and create another instead
         ],
       };
 
       const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, expense.User);
       expect(result.errors).to.not.exist;
-      const returnedAttachments = result.data.editExpense.attachments;
-      const sumAttachments = returnedAttachments.reduce((total, attachment) => total + attachment.amount, 0);
-      expect(sumAttachments).to.equal(10000);
-      expect(returnedAttachments.find(a => a.id === attachments[0].id)).to.exist;
-      expect(returnedAttachments.find(a => a.id === attachments[1].id)).to.exist;
-      expect(returnedAttachments.find(a => a.id === attachments[2].id)).to.not.exist;
-      expect(returnedAttachments.find(a => a.id === attachments[1].id).amount).to.equal(7000);
+      const returnedItems = result.data.editExpense.items;
+      const sumItems = returnedItems.reduce((total, item) => total + item.amount, 0);
+      expect(sumItems).to.equal(10000);
+      expect(returnedItems.find(a => a.id === items[0].id)).to.exist;
+      expect(returnedItems.find(a => a.id === items[1].id)).to.exist;
+      expect(returnedItems.find(a => a.id === items[2].id)).to.not.exist;
+      expect(returnedItems.find(a => a.id === items[1].id).amount).to.equal(7000);
     });
 
     it('can edit only one field without impacting the others', async () => {

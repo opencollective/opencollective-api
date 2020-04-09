@@ -4,9 +4,9 @@ import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attribut
 import { diffDBEntries } from '../lib/data';
 
 /**
- * Sequelize model to represent an ExpenseAttachment, linked to the `ExpenseAttachments` table.
+ * Sequelize model to represent an ExpenseItem, linked to the `ExpenseItems` table.
  */
-export class ExpenseAttachment extends Model<ExpenseAttachment> {
+export class ExpenseItem extends Model<ExpenseItem> {
   public readonly id!: number;
   public ExpenseId!: number;
   public CreatedByUserId!: number;
@@ -26,52 +26,52 @@ export class ExpenseAttachment extends Model<ExpenseAttachment> {
   }
 
   /**
-   * Based on `diffDBEntries`, diff two attachments list to know which ones where
+   * Based on `diffDBEntries`, diff two items list to know which ones where
    * added, removed or added.
    * @returns [newEntries, removedEntries, updatedEntries]
    */
-  static diffDBEntries = (baseAttachments, attachmentsData): [object[], ExpenseAttachment[], object[]] => {
-    return diffDBEntries(baseAttachments, attachmentsData, ExpenseAttachment.editableFields);
+  static diffDBEntries = (baseItems, itemsData): [object[], ExpenseItem[], object[]] => {
+    return diffDBEntries(baseItems, itemsData, ExpenseItem.editableFields);
   };
 
   /**
-   * Create an attachment from user-submitted data.
-   * @param attachmentData: The (potentially unsafe) user data. Fields will be whitelisted.
-   * @param user: User creating this attachment
+   * Create an expense item from user-submitted data.
+   * @param itemData: The (potentially unsafe) user data. Fields will be whitelisted.
+   * @param user: User creating this item
    * @param expense: The linked expense
    */
   static async createFromData(
-    attachmentData: object,
+    itemData: object,
     user,
     expense,
     dbTransaction: Transaction | null,
-  ): Promise<ExpenseAttachment> {
-    const cleanData = ExpenseAttachment.cleanData(attachmentData);
-    return ExpenseAttachment.create(
+  ): Promise<ExpenseItem> {
+    const cleanData = ExpenseItem.cleanData(itemData);
+    return ExpenseItem.create(
       { ...cleanData, ExpenseId: expense.id, CreatedByUserId: user.id },
       { transaction: dbTransaction },
     );
   }
 
   /**
-   * Updates an attachment from user-submitted data.
-   * @param attachmentData: The (potentially unsafe) user data. Fields will be whitelisted.
+   * Updates an expense item from user-submitted data.
+   * @param itemData: The (potentially unsafe) user data. Fields will be whitelisted.
    */
-  static async updateFromData(attachmentData: object, dbTransaction: Transaction | null): Promise<ExpenseAttachment> {
-    const id = attachmentData['id'];
-    const cleanData = ExpenseAttachment.cleanData(attachmentData);
-    return ExpenseAttachment.update(cleanData, { where: { id }, transaction: dbTransaction });
+  static async updateFromData(itemData: object, dbTransaction: Transaction | null): Promise<ExpenseItem> {
+    const id = itemData['id'];
+    const cleanData = ExpenseItem.cleanData(itemData);
+    return ExpenseItem.update(cleanData, { where: { id }, transaction: dbTransaction });
   }
 
   /** Filters out all the fields that cannot be edited by user */
   private static cleanData(data: object): object {
-    return pick(data, ExpenseAttachment.editableFields);
+    return pick(data, ExpenseItem.editableFields);
   }
 }
 
-export default (sequelize, DataTypes): typeof ExpenseAttachment => {
+export default (sequelize, DataTypes): typeof ExpenseItem => {
   // Link the model to database fields
-  ExpenseAttachment.init(
+  ExpenseItem.init(
     {
       id: {
         type: DataTypes.INTEGER,
@@ -136,9 +136,9 @@ export default (sequelize, DataTypes): typeof ExpenseAttachment => {
     {
       sequelize,
       paranoid: true,
-      tableName: 'ExpenseAttachments',
+      tableName: 'ExpenseItems',
     },
   );
 
-  return ExpenseAttachment;
+  return ExpenseItem;
 };

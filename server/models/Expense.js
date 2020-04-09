@@ -202,7 +202,7 @@ export default function (Sequelize, DataTypes) {
       },
       hooks: {
         afterDestroy(expense) {
-          return models.ExpenseAttachment.destroy({ where: { ExpenseId: expense.id } });
+          return models.ExpenseItem.destroy({ where: { ExpenseId: expense.id } });
         },
       },
     },

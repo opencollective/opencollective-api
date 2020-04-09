@@ -439,9 +439,10 @@ export const UpdateAttributesInputType = new GraphQLInputObjectType({
   }),
 });
 
-export const ExpenseAttachmentInputType = new GraphQLInputObjectType({
-  name: 'ExpenseAttachmentInputType',
-  description: 'Fields for creating or editing an expense attachment',
+export const ExpenseItemInputType = new GraphQLInputObjectType({
+  name: 'ExpenseItemInputType',
+  description: 'Fields for creating or editing an expense item',
+  deprecationReason: '2020-04-08: Please use API V2 to create expenses',
   fields: {
     id: { type: GraphQLInt },
     url: { type: GraphQLString },
@@ -492,7 +493,11 @@ export const ExpenseInputType = new GraphQLInputObjectType({
         type: GraphQLString,
         deprecationReason: '2020-01-13 - Expenses now support multiple attachments. Please use attachments instead.',
       },
-      attachments: { type: new GraphQLList(ExpenseAttachmentInputType) },
+      attachments: {
+        type: new GraphQLList(ExpenseItemInputType),
+        deprecationReason: '2020-04-08 - Please use items instead.',
+      },
+      items: { type: new GraphQLList(ExpenseItemInputType) },
       user: {
         type: UserInputType,
         deprecationReason: '2020-21-01: Please use PayoutMethod to pass the paypal email',

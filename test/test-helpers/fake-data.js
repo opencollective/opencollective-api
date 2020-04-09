@@ -147,15 +147,15 @@ export const fakeUpdate = async (updateData = {}) => {
 };
 
 /**
- * Creates a fake expense attachment
+ * Creates a fake expense item
  */
-export const fakeExpenseAttachment = async (attachmentData = {}) => {
-  return models.ExpenseAttachment.create({
+export const fakeExpenseItem = async (attachmentData = {}) => {
+  return models.ExpenseItem.create({
     amount: randAmount(),
     url: `${randUrl()}.pdf`,
     description: randStr(),
     ...attachmentData,
-    ExpenseId: attachmentData.ExpenseId || (await fakeExpense({ attachments: [] })).id,
+    ExpenseId: attachmentData.ExpenseId || (await fakeExpense({ items: [] })).id,
     CreatedByUserId: attachmentData.CreatedByUserId || (await fakeUser()).id,
   });
 };
@@ -219,16 +219,16 @@ export const fakeExpense = async (expenseData = {}) => {
     legacyPayoutMethod,
   });
 
-  if (!expenseData || typeof expenseData.attachments === 'undefined') {
-    // Helper to generate an attachment. Ensures that attachments match expense amount
+  if (!expenseData || typeof expenseData.items === 'undefined') {
+    // Helper to generate an attachment. Ensures that items match expense amount
     const generateAttachment = (idx, nbItems) => {
       const baseAmount = Math.floor(expense.amount / nbItems);
       const remainder = expense.amount % nbItems;
       const realAmount = idx !== nbItems - 1 ? baseAmount : baseAmount + remainder;
-      return fakeExpenseAttachment({ ExpenseId: expense.id, amount: realAmount });
+      return fakeExpenseItem({ ExpenseId: expense.id, amount: realAmount });
     };
 
-    expense.attachments = await Promise.all(randArray(generateAttachment, 1, 5));
+    expense.items = await Promise.all(randArray(generateAttachment, 1, 5));
   }
 
   expense.User = await models.User.findByPk(expense.UserId);

@@ -1,20 +1,20 @@
 import DataLoader from 'dataloader';
 import ACTIVITY from '../../constants/activities';
 import models, { Op } from '../../models';
-import { ExpenseAttachment } from '../../models/ExpenseAttachment';
+import { ExpenseItem } from '../../models/ExpenseItem';
 import { sortResultsArray } from './helpers';
 import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile';
 
 /**
- * Loader for expense's attachments.
+ * Loader for expense's items.
  */
-export const generateExpenseAttachmentsLoader = (): DataLoader<number, ExpenseAttachment[]> => {
+export const generateExpenseItemsLoader = (): DataLoader<number, ExpenseItem[]> => {
   return new DataLoader(async (expenseIds: number[]) => {
-    const attachments = await models.ExpenseAttachment.findAll({
+    const items = await models.ExpenseItem.findAll({
       where: { ExpenseId: { [Op.in]: expenseIds } },
     });
 
-    return sortResultsArray(expenseIds, attachments, attachment => attachment.ExpenseId);
+    return sortResultsArray(expenseIds, items, item => item.ExpenseId);
   });
 };
 

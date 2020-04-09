@@ -92,44 +92,44 @@ export async function updateExpenseStatus(remoteUser, expenseId, status) {
   return updatedExpense;
 }
 
-/** Compute the total amount of expense from attachments */
-const getTotalAmountFromAttachments = attachments => {
-  if (!attachments) {
+/** Compute the total amount of expense from expense items */
+const getTotalAmountFromItems = items => {
+  if (!items) {
     return 0;
   } else {
-    return attachments.reduce((total, attachment) => {
-      return total + attachment.amount;
+    return items.reduce((total, item) => {
+      return total + item.amount;
     }, 0);
   }
 };
 
-/** Check expense's attachments values, throw if something's wrong */
-const checkExpenseAttachments = (expenseData, attachments) => {
-  // Check the number of attachments
-  if (!attachments || attachments.length === 0) {
-    throw new ValidationFailed({ message: 'Your expense needs to have at least one attachment' });
-  } else if (attachments.length > 100) {
-    throw new ValidationFailed({ message: 'Expenses cannot have more than 100 attachments' });
+/** Check expense's items values, throw if something's wrong */
+const checkExpenseItems = (expenseData, items) => {
+  // Check the number of items
+  if (!items || items.length === 0) {
+    throw new ValidationFailed({ message: 'Your expense needs to have at least one item' });
+  } else if (items.length > 100) {
+    throw new ValidationFailed({ message: 'Expenses cannot have more than 100 items' });
   }
 
   // Check amounts
-  const sumAttachments = getTotalAmountFromAttachments(attachments);
-  if (sumAttachments !== expenseData.amount) {
+  const sumItems = getTotalAmountFromItems(items);
+  if (sumItems !== expenseData.amount) {
     throw new ValidationFailed({
-      message: `The sum of all attachments must be equal to the total expense's amount. Expense's total is ${expenseData.amount}, but the total of attachments was ${sumAttachments}.`,
+      message: `The sum of all items must be equal to the total expense's amount. Expense's total is ${expenseData.amount}, but the total of items was ${sumItems}.`,
     });
-  } else if (!sumAttachments) {
+  } else if (!sumItems) {
     throw new ValidationFailed({
-      message: `The sum of all attachments must be above 0`,
+      message: `The sum of all items must be above 0`,
     });
   }
 
   // If expense is a receipt (not an invoice) then files must be attached
   if (expenseData.type === expenseType.RECEIPT) {
-    const hasMissingFiles = attachments.some(a => !a.url);
+    const hasMissingFiles = items.some(a => !a.url);
     if (hasMissingFiles) {
       throw new ValidationFailed({
-        message: 'Some attachments are missing a file',
+        message: 'Some items are missing a file',
       });
     }
   }
@@ -208,15 +208,17 @@ export async function createExpense(remoteUser, expenseData) {
     throw new errors.Unauthorized('Missing expense.collective.id');
   }
 
-  let attachmentsData = expenseData.attachments;
-  if (expenseData.attachment && expenseData.attachments) {
-    throw new ValidationFailed({ message: 'Fields "attachment" and "attachments" are exclusive, please use only one' });
+  let itemsData = expenseData.items || expenseData.attachments;
+  if (expenseData.attachment && itemsData) {
+    throw new ValidationFailed({
+      message: 'Fields "attachment" and "attachments"/"items" are exclusive, please use only one',
+    });
   } else if (expenseData.attachment) {
     // @deprecated Convert legacy attachment param to new format
-    attachmentsData = [{ amount: expenseData.amount, url: expenseData.attachment }];
+    itemsData = [{ amount: expenseData.amount, url: expenseData.attachment }];
   }
 
-  checkExpenseAttachments(expenseData, attachmentsData);
+  checkExpenseItems(expenseData, itemsData);
 
   if (size(expenseData.attachedFiles) > 15) {
     throw new ValidationFailed({ message: 'The number of files that you can attach to an expense is limited to 15' });
@@ -250,15 +252,15 @@ export async function createExpense(remoteUser, expenseData) {
         incurredAt: expenseData.incurredAt || new Date(),
         PayoutMethodId: payoutMethod && payoutMethod.id,
         legacyPayoutMethod: models.Expense.getLegacyPayoutMethodTypeFromPayoutMethod(payoutMethod),
-        amount: expenseData.amount || getTotalAmountFromAttachments(attachmentsData),
+        amount: expenseData.amount || getTotalAmountFromItems(itemsData),
       },
       { transaction: t },
     );
 
-    // Create attachments
-    createdExpense.attachments = await Promise.all(
-      attachmentsData.map(attachmentData => {
-        return models.ExpenseAttachment.createFromData(attachmentData, remoteUser, createdExpense, t);
+    // Create items
+    createdExpense.items = await Promise.all(
+      itemsData.map(attachmentData => {
+        return models.ExpenseItem.createFromData(attachmentData, remoteUser, createdExpense, t);
       }),
     );
 
@@ -283,31 +285,33 @@ export async function createExpense(remoteUser, expenseData) {
 }
 
 /** Returns true if the expense should by put back to PENDING after this update */
-export const changesRequireStatusUpdate = (expense, newExpenseData, hasAttachmentsChanges, hasPayoutChanges) => {
+export const changesRequireStatusUpdate = (expense, newExpenseData, hasItemsChanges, hasPayoutChanges) => {
   const updatedValues = { ...expense.dataValues, ...newExpenseData };
   const hasAmountChanges = typeof updatedValues.amount !== 'undefined' && updatedValues.amount !== expense.amount;
-  return hasAttachmentsChanges || hasAmountChanges || hasPayoutChanges;
+  return hasItemsChanges || hasAmountChanges || hasPayoutChanges;
 };
 
-/** Returns infos about the changes made to attachments */
-export const getAttachmentsChanges = async (expense, expenseData) => {
-  let attachmentsData = expenseData.attachments;
-  let attachmentsDiff = [[], [], []];
-  let hasAttachmentsChanges = false;
-  if (expenseData.attachment && expenseData.attachments) {
-    throw new ValidationFailed({ message: 'Fields "attachment" and "attachments" are exclusive, please use only one' });
+/** Returns infos about the changes made to items */
+export const getItemsChanges = async (expense, expenseData) => {
+  let itemsData = expenseData.items || expenseData.attachments;
+  let itemsDiff = [[], [], []];
+  let hasItemChanges = false;
+  if (expenseData.attachment && itemsData) {
+    throw new ValidationFailed({
+      message: 'Fields "attachment" and "attachments"/"items" are exclusive, please use only one',
+    });
   } else if (expenseData.attachment) {
     // Convert legacy attachment param to new format
-    attachmentsData = [{ amount: expenseData.amount || expense.amount, url: expenseData.attachment }];
+    itemsData = [{ amount: expenseData.amount || expense.amount, url: expenseData.attachment }];
   }
 
-  if (attachmentsData) {
-    const baseAttachments = await models.ExpenseAttachment.findAll({ where: { ExpenseId: expense.id } });
-    attachmentsDiff = models.ExpenseAttachment.diffDBEntries(baseAttachments, attachmentsData);
-    hasAttachmentsChanges = flatten(attachmentsDiff).length > 0;
+  if (itemsData) {
+    const baseItems = await models.ExpenseItem.findAll({ where: { ExpenseId: expense.id } });
+    itemsDiff = models.ExpenseItem.diffDBEntries(baseItems, itemsData);
+    hasItemChanges = flatten(itemsDiff).length > 0;
   }
 
-  return [hasAttachmentsChanges, attachmentsData, attachmentsDiff];
+  return [hasItemChanges, itemsData, itemsDiff];
 };
 
 export async function editExpense(remoteUser, expenseData) {
@@ -350,23 +354,23 @@ export async function editExpense(remoteUser, expenseData) {
       payoutMethod = await getPaypalPaymentMethodFromExpenseData(expenseData, remoteUser, fromCollective, t);
     }
 
-    // Update attachments
-    const [hasAttachmentsChanges, attachmentsData, attachmentsDiff] = await getAttachmentsChanges(expense, expenseData);
-    if (hasAttachmentsChanges) {
-      checkExpenseAttachments({ ...expense.dataValues, ...cleanExpenseData }, attachmentsData);
-      const [newAttachmentsData, oldAttachments, attachmentsToUpdate] = attachmentsDiff;
+    // Update items
+    const [hasItemChanges, itemsData, itemsDiff] = await getItemsChanges(expense, expenseData);
+    if (hasItemChanges) {
+      checkExpenseItems({ ...expense.dataValues, ...cleanExpenseData }, itemsData);
+      const [newItemsData, oldItems, itemsToUpdate] = itemsDiff;
       await Promise.all([
         // Delete
-        ...oldAttachments.map(attachment => {
-          return attachment.destroy({ transaction: t });
+        ...oldItems.map(item => {
+          return item.destroy({ transaction: t });
         }),
         // Create
-        ...newAttachmentsData.map(attachmentData => {
-          return models.ExpenseAttachment.createFromData(attachmentData, remoteUser, expense, t);
+        ...newItemsData.map(itemData => {
+          return models.ExpenseItem.createFromData(itemData, remoteUser, expense, t);
         }),
         // Update
-        ...attachmentsToUpdate.map(data => {
-          return models.ExpenseAttachment.updateFromData(data, t);
+        ...itemsToUpdate.map(itemData => {
+          return models.ExpenseItem.updateFromData(itemData, t);
         }),
       ]);
     }
@@ -377,7 +381,7 @@ export async function editExpense(remoteUser, expenseData) {
     const shouldUpdateStatus = changesRequireStatusUpdate(
       expense,
       expenseData,
-      hasAttachmentsChanges,
+      hasItemChanges,
       PayoutMethodId !== expense.PayoutMethodId,
     );
 
