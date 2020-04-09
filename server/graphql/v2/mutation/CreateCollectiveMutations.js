@@ -22,7 +22,7 @@ async function createCollective(_, args, req) {
   const { remoteUser, loaders } = req;
 
   if (!remoteUser) {
-    throw new errors.Unauthorized({ message: 'You need to be logged in to create a collective' });
+    throw new errors.Unauthorized('You need to be logged in to create a collective');
   }
 
   const collectiveData = {
@@ -55,7 +55,7 @@ async function createCollective(_, args, req) {
       await github.checkGithubStars(githubHandle, githubAccount.token);
       shouldAutomaticallyApprove = true;
     } catch (error) {
-      throw new errors.ValidationFailed({ message: error.message });
+      throw new errors.ValidationFailed(error.message);
     }
     if (githubHandle.includes('/')) {
       collectiveData.settings.githubRepo = githubHandle;
@@ -69,10 +69,10 @@ async function createCollective(_, args, req) {
   } else if (args.host) {
     host = await fetchAccountWithReference(args.host, { loaders });
     if (!host) {
-      throw new errors.ValidationFailed({ message: 'Host Not Found' });
+      throw new errors.ValidationFailed('Host Not Found');
     }
     if (!host.isHostAccount) {
-      throw new errors.ValidationFailed({ message: 'Host account is not activated as Host.' });
+      throw new errors.ValidationFailed('Host account is not activated as Host.');
     }
   }
 

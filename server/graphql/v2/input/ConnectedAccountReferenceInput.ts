@@ -35,7 +35,7 @@ export const fetchConnectedAccountWithReference = async (
     throw new Error('Please provide an id or a legacyId');
   }
   if (!connectedAccount && throwIfMissing) {
-    throw new NotFound({ message: 'ConnectedAccount Not Found' });
+    throw new NotFound('ConnectedAccount Not Found');
   }
   return connectedAccount;
 };

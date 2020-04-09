@@ -116,11 +116,9 @@ const expenseMutations = {
       });
 
       if (!expense) {
-        throw new NotFound({ message: 'Expense not found' });
+        throw new NotFound('Expense not found');
       } else if (!canDeleteExpense(remoteUser, expense)) {
-        throw new Unauthorized({
-          message: "You don't have permission to delete this expense or it needs to be rejected before being deleted",
-        });
+        throw new Unauthorized("You don't have permission to delete this expense or it needs to be rejected before being deleted");
       }
 
       return expense.destroy();

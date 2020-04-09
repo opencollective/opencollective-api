@@ -147,9 +147,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
     const { id, githubHandle } = order.collective;
 
     if (!id && !githubHandle) {
-      throw new errors.ValidationFailed({
-        message: 'An Open Collective id or a GitHub handle is mandatory.',
-      });
+      throw new errors.ValidationFailed('An Open Collective id or a GitHub handle is mandatory.');
     }
 
     // Pledge to a GitHub organization or project
@@ -160,7 +158,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
         // Check Stars
         await github.checkGithubStars(githubHandle);
       } catch (error) {
-        throw new errors.ValidationFailed({ message: error.message });
+        throw new errors.ValidationFailed(error.message);
       }
     }
 
@@ -514,7 +512,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
 
 export async function confirmOrder(order, remoteUser) {
   if (!remoteUser) {
-    throw new errors.Unauthorized({ message: 'You need to be logged in to confirm an order' });
+    throw new errors.Unauthorized('You need to be logged in to confirm an order');
   } else if (!canUseFeature(remoteUser, FEATURE.ORDER)) {
     return new errors.FeatureNotAllowedForUser();
   }
@@ -532,10 +530,10 @@ export async function confirmOrder(order, remoteUser) {
   });
 
   if (!order) {
-    throw new errors.NotFound({ message: 'Order not found' });
+    throw new errors.NotFound('Order not found');
   }
   if (!remoteUser.isAdmin(order.FromCollectiveId)) {
-    throw new errors.Unauthorized({ message: "You don't have permission to confirm this order" });
+    throw new errors.Unauthorized("You don't have permission to confirm this order");
   }
   if (order.status !== status.ERROR && order.status !== status.PENDING) {
     throw new Error('Order can only be confirmed if its status is ERROR or PENDING.');
@@ -587,11 +585,11 @@ export async function completePledge(remoteUser, order) {
   });
 
   if (!existingOrder) {
-    throw new errors.NotFound({ message: "This order doesn't exist" });
+    throw new errors.NotFound("This order doesn't exist");
   } else if (!remoteUser || !remoteUser.isAdmin(existingOrder.FromCollectiveId)) {
-    throw new errors.Unauthorized({ message: "You don't have the permissions to edit this order" });
+    throw new errors.Unauthorized("You don't have the permissions to edit this order");
   } else if (existingOrder.status !== status.PENDING) {
-    throw new errors.NotFound({ message: 'This pledge has already been completed' });
+    throw new errors.NotFound('This pledge has already been completed');
   } else if (!canUseFeature(remoteUser, FEATURE.ORDER)) {
     return new errors.FeatureNotAllowedForUser();
   }
@@ -632,9 +630,7 @@ export async function completePledge(remoteUser, order) {
  */
 export async function cancelSubscription(remoteUser, orderId) {
   if (!remoteUser) {
-    throw new errors.Unauthorized({
-      message: 'You need to be logged in to cancel a subscription',
-    });
+    throw new errors.Unauthorized('You need to be logged in to cancel a subscription');
   }
 
   const query = {
@@ -654,9 +650,7 @@ export async function cancelSubscription(remoteUser, orderId) {
     throw new Error('Subscription not found');
   }
   if (!remoteUser.isAdmin(order.FromCollectiveId)) {
-    throw new errors.Unauthorized({
-      message: "You don't have permission to cancel this subscription",
-    });
+    throw new errors.Unauthorized("You don't have permission to cancel this subscription");
   }
   if (!order.Subscription.isActive && order.status === status.CANCELLED) {
     throw new Error('Subscription already canceled');
@@ -681,9 +675,7 @@ export async function cancelSubscription(remoteUser, orderId) {
 
 export async function updateSubscription(remoteUser, args) {
   if (!remoteUser) {
-    throw new errors.Unauthorized({
-      message: 'You need to be logged in to update a subscription',
-    });
+    throw new errors.Unauthorized('You need to be logged in to update a subscription');
   } else if (!canUseFeature(remoteUser, FEATURE.ORDER)) {
     return new errors.FeatureNotAllowedForUser();
   }
@@ -703,9 +695,7 @@ export async function updateSubscription(remoteUser, args) {
     throw new Error('Subscription not found');
   }
   if (!remoteUser.isAdmin(order.FromCollectiveId)) {
-    throw new errors.Unauthorized({
-      message: "You don't have permission to update this subscription",
-    });
+    throw new errors.Unauthorized("You don't have permission to update this subscription");
   }
   if (!order.Subscription.isActive) {
     throw new Error('Subscription must be active to be updated');
@@ -805,7 +795,7 @@ export async function refundTransaction(_, args, req) {
   });
 
   if (!transaction) {
-    throw new errors.NotFound({ message: 'Transaction not found' });
+    throw new errors.NotFound('Transaction not found');
   }
 
   const collective = await models.Collective.findByPk(transaction.CollectiveId);
@@ -821,7 +811,7 @@ export async function refundTransaction(_, args, req) {
     !req.remoteUser.isAdmin(HostCollectiveId) &&
     !req.remoteUser.isRoot() /* && !req.remoteUser.isAdmin(collective.id) */
   ) {
-    throw new errors.Unauthorized({ message: 'Not a site admin or host collective admin' });
+    throw new errors.Unauthorized('Not a site admin or host collective admin');
   }
 
   // 2. Refund via payment method
@@ -896,18 +886,14 @@ export async function markOrderAsPaid(remoteUser, id) {
   // fetch the order
   const order = await models.Order.findByPk(id);
   if (!order) {
-    throw new errors.NotFound({ message: 'Order not found' });
+    throw new errors.NotFound('Order not found');
   }
   if (order.status !== 'PENDING') {
-    throw new errors.ValidationFailed({
-      message: "The order's status must be PENDING",
-    });
+    throw new errors.ValidationFailed("The order's status must be PENDING");
   }
   const HostCollectiveId = await models.Collective.getHostCollectiveId(order.CollectiveId);
   if (!remoteUser.isAdmin(HostCollectiveId)) {
-    throw new errors.Unauthorized({
-      message: 'You must be logged in as an admin of the host of the collective',
-    });
+    throw new errors.Unauthorized('You must be logged in as an admin of the host of the collective');
   }
 
   order.paymentMethod = {
@@ -934,20 +920,16 @@ export async function markPendingOrderAsExpired(remoteUser, id) {
   // fetch the order
   const order = await models.Order.findByPk(id);
   if (!order) {
-    throw new errors.NotFound({ message: 'Order not found' });
+    throw new errors.NotFound('Order not found');
   }
 
   if (order.status !== 'PENDING') {
-    throw new errors.ValidationFailed({
-      message: "The order's status must be PENDING",
-    });
+    throw new errors.ValidationFailed("The order's status must be PENDING");
   }
 
   const HostCollectiveId = await models.Collective.getHostCollectiveId(order.CollectiveId);
   if (!remoteUser.isAdmin(HostCollectiveId)) {
-    throw new errors.Unauthorized({
-      message: 'You must be logged in as an admin of the host of the collective',
-    });
+    throw new errors.Unauthorized('You must be logged in as an admin of the host of the collective');
   }
 
   order.status = 'EXPIRED';

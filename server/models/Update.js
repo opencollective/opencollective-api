@@ -223,12 +223,10 @@ export default function (Sequelize, DataTypes) {
     if (newUpdateData.TierId) {
       const tier = await models.Tier.findByPk(newUpdateData.TierId);
       if (!tier) {
-        throw new errors.ValidationFailed({ message: 'Tier not found' });
+        throw new errors.ValidationFailed('Tier not found');
       }
       if (tier.CollectiveId !== this.CollectiveId) {
-        throw new errors.ValidationFailed({
-          message: "Cannot link this update to a Tier that doesn't belong to this collective",
-        });
+        throw new errors.ValidationFailed("Cannot link this update to a Tier that doesn't belong to this collective");
       }
     }
     const editableAttributes = [

@@ -46,7 +46,7 @@ const AccountQuery = {
       return new Error('Please provide a slug or an id');
     }
     if (!collective && args.throwIfMissing) {
-      throw new NotFound({ message: 'Account Not Found' });
+      throw new NotFound('Account Not Found');
     }
     return collective;
   },

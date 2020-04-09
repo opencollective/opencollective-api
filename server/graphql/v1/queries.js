@@ -247,9 +247,9 @@ const queries = {
       const { dateFrom, dateTo, fromCollectiveSlug, collectiveSlug } = args.invoiceInputType;
 
       if (!dateFrom || !dateTo) {
-        throw new ValidationFailed({ message: 'A valid date range must be provided' });
+        throw new ValidationFailed('A valid date range must be provided');
       } else if (!fromCollectiveSlug || !collectiveSlug) {
-        throw new ValidationFailed({ message: 'You must provide a collective and a fromCollective' });
+        throw new ValidationFailed('You must provide a collective and a fromCollective');
       }
 
       const fromCollective = await models.Collective.findOne({
@@ -1283,17 +1283,17 @@ const queries = {
     },
     resolve(collective, args, { remoteUser }) {
       if (!remoteUser) {
-        new Forbidden({ message: 'Only collective admins can see pending invitations' });
+        new Forbidden('Only collective admins can see pending invitations');
       }
       if (!args.CollectiveId && !args.MemberCollectiveId) {
-        throw new ValidationFailed({ message: 'You must either provide a CollectiveId or a MemberCollectiveId' });
+        throw new ValidationFailed('You must either provide a CollectiveId or a MemberCollectiveId');
       }
 
       // Must be an admin to see pending invitations
       const isAdminOfCollective = args.CollectiveId && remoteUser.isAdmin(args.CollectiveId);
       const isAdminOfMemberCollective = args.MemberCollectiveId && remoteUser.isAdmin(args.MemberCollectiveId);
       if (!isAdminOfCollective && !isAdminOfMemberCollective) {
-        new Forbidden({ message: 'Only collective admins can see pending invitations' });
+        new Forbidden('Only collective admins can see pending invitations');
       }
 
       const where = {};

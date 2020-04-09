@@ -109,30 +109,26 @@ const getTotalAmountFromItems = items => {
 const checkExpenseItems = (expenseData, items) => {
   // Check the number of items
   if (!items || items.length === 0) {
-    throw new ValidationFailed({ message: 'Your expense needs to have at least one item' });
+    throw new ValidationFailed('Your expense needs to have at least one item');
   } else if (items.length > 100) {
-    throw new ValidationFailed({ message: 'Expenses cannot have more than 100 items' });
+    throw new ValidationFailed('Expenses cannot have more than 100 items');
   }
 
   // Check amounts
   const sumItems = getTotalAmountFromItems(items);
   if (sumItems !== expenseData.amount) {
-    throw new ValidationFailed({
-      message: `The sum of all items must be equal to the total expense's amount. Expense's total is ${expenseData.amount}, but the total of items was ${sumItems}.`,
-    });
+    throw new ValidationFailed(
+      `The sum of all items must be equal to the total expense's amount. Expense's total is ${expenseData.amount}, but the total of items was ${sumItems}.`,
+    );
   } else if (!sumItems) {
-    throw new ValidationFailed({
-      message: `The sum of all items must be above 0`,
-    });
+    throw new ValidationFailed(`The sum of all items must be above 0`);
   }
 
   // If expense is a receipt (not an invoice) then files must be attached
   if (expenseData.type === expenseType.RECEIPT) {
     const hasMissingFiles = items.some(a => !a.url);
     if (hasMissingFiles) {
-      throw new ValidationFailed({
-        message: 'Some items are missing a file',
-      });
+      throw new ValidationFailed('Some items are missing a file');
     }
   }
 };
@@ -171,12 +167,12 @@ const getPaypalPaymentMethodFromExpenseData = async (expenseData, remoteUser, fr
         where: { CollectiveId: fromCollective.id },
       });
       if (paypalPms.length === 0) {
-        throw new ValidationFailed({ message: 'No PayPal payout method configured for this account' });
+        throw new ValidationFailed('No PayPal payout method configured for this account');
       } else if (paypalPms.length > 1) {
         // Make sure we're not linking to a wrong PayPal account
-        throw new ValidationFailed({
-          message: 'Multiple PayPal payout method found for this account. Please select the one you want to use.',
-        });
+        throw new ValidationFailed(
+          'Multiple PayPal payout method found for this account. Please select the one you want to use.',
+        );
       } else {
         return paypalPms[0];
       }
@@ -212,9 +208,7 @@ export async function createExpense(remoteUser, expenseData) {
 
   let itemsData = expenseData.items || expenseData.attachments;
   if (expenseData.attachment && itemsData) {
-    throw new ValidationFailed({
-      message: 'Fields "attachment" and "attachments"/"items" are exclusive, please use only one',
-    });
+    throw new ValidationFailed('Fields "attachment" and "attachments"/"items" are exclusive, please use only one');
   } else if (expenseData.attachment) {
     // @deprecated Convert legacy attachment param to new format
     itemsData = [{ amount: expenseData.amount, url: expenseData.attachment }];
@@ -223,7 +217,7 @@ export async function createExpense(remoteUser, expenseData) {
   checkExpenseItems(expenseData, itemsData);
 
   if (size(expenseData.attachedFiles) > 15) {
-    throw new ValidationFailed({ message: 'The number of files that you can attach to an expense is limited to 15' });
+    throw new ValidationFailed('The number of files that you can attach to an expense is limited to 15');
   }
 
   const collective = await models.Collective.findByPk(expenseData.collective.id);
@@ -236,9 +230,9 @@ export async function createExpense(remoteUser, expenseData) {
   // Load the payee profile
   const fromCollective = expenseData.fromCollective || (await remoteUser.getCollective());
   if (!remoteUser.isAdmin(fromCollective.id)) {
-    throw new ValidationFailed({ message: 'You must be an admin of the account to submit an expense in its name' });
+    throw new ValidationFailed('You must be an admin of the account to submit an expense in its name');
   } else if (!fromCollective.canBeUsedAsPayoutProfile()) {
-    throw new ValidationFailed({ message: 'This account cannot be used for payouts' });
+    throw new ValidationFailed('This account cannot be used for payouts');
   }
 
   const expense = await sequelize.transaction(async t => {
@@ -304,9 +298,7 @@ export const getItemsChanges = async (expense, expenseData) => {
   let itemsDiff = [[], [], []];
   let hasItemChanges = false;
   if (expenseData.attachment && itemsData) {
-    throw new ValidationFailed({
-      message: 'Fields "attachment" and "attachments"/"items" are exclusive, please use only one',
-    });
+    throw new ValidationFailed('Fields "attachment" and "attachments"/"items" are exclusive, please use only one');
   } else if (expenseData.attachment) {
     // Convert legacy attachment param to new format
     itemsData = [{ amount: expenseData.amount || expense.amount, url: expenseData.attachment }];
@@ -346,15 +338,15 @@ export async function editExpense(remoteUser, expenseData) {
   }
 
   if (size(expenseData.attachedFiles) > 15) {
-    throw new ValidationFailed({ message: 'The number of files that you can attach to an expense is limited to 15' });
+    throw new ValidationFailed('The number of files that you can attach to an expense is limited to 15');
   }
 
   // Load the payee profile
   const fromCollective = expenseData.fromCollective || expense.fromCollective;
   if (!remoteUser.isAdmin(fromCollective.id)) {
-    throw new ValidationFailed({ message: 'You must be an admin of the account to submit an expense in its name' });
+    throw new ValidationFailed('You must be an admin of the account to submit an expense in its name');
   } else if (!fromCollective.canBeUsedAsPayoutProfile()) {
-    throw new ValidationFailed({ message: 'This account cannot be used for payouts' });
+    throw new ValidationFailed('This account cannot be used for payouts');
   }
 
   const cleanExpenseData = pick(expenseData, EXPENSE_EDITABLE_FIELDS);

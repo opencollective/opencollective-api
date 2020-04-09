@@ -254,7 +254,7 @@ const accountOrders = {
       const tierSlug = args.tierSlug.toLowerCase();
       const tier = await models.Tier.findOne({ where: { CollectiveId: collective.id, slug: tierSlug } });
       if (!tier) {
-        throw new NotFound({ message: 'TierSlug Not Found' });
+        throw new NotFound('TierSlug Not Found');
       }
       where.TierId = tier.id;
     }

@@ -47,7 +47,7 @@ const CollectiveQuery = {
     }
 
     if (args.throwIfMissing && (!collective || collective.type !== 'COLLECTIVE')) {
-      throw new NotFound({ message: 'Collective Not Found' });
+      throw new NotFound('Collective Not Found');
     }
     return collective;
   },

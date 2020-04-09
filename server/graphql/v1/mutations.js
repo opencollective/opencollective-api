@@ -908,13 +908,9 @@ const mutations = {
 
       const invitation = await models.MemberInvitation.findByPk(args.invitationId);
       if (!invitation) {
-        return new ValidationFailed({
-          message: "This invitation doesn't exist or a reply has already been given to it",
-        });
+        return new ValidationFailed("This invitation doesn't exist or a reply has already been given to it");
       } else if (!req.remoteUser.isAdmin(invitation.MemberCollectiveId)) {
-        return new Forbidden({
-          message: 'Only admin of the invited collective can reply to the invitation',
-        });
+        return new Forbidden('Only admin of the invited collective can reply to the invitation');
       }
 
       if (args.accept) {

@@ -150,9 +150,9 @@ export async function claimPaymentMethod(args, remoteUser) {
 }
 
 /** Archive the given payment method */
-const PaymentMethodPermissionError = new Forbidden({
-  message: "This payment method does not exist or you don't have the permission to edit it.",
-});
+const PaymentMethodPermissionError = new Forbidden(
+  "This payment method does not exist or you don't have the permission to edit it.",
+);
 
 export async function removePaymentMethod(paymentMethodId, remoteUser) {
   if (!remoteUser) {
@@ -178,9 +178,8 @@ export async function removePaymentMethod(paymentMethodId, remoteUser) {
   });
 
   if (subscriptions.length > 0) {
-    throw new ValidationFailed({
-      message: 'The payment method has active subscriptions',
-      data: { errorId: 'PM.Remove.HasActiveSubscriptions' },
+    throw new ValidationFailed('The payment method has active subscriptions', {
+      errorId: 'PM.Remove.HasActiveSubscriptions',
     });
   }
 

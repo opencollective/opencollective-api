@@ -22,7 +22,7 @@ const TransactionQuery = {
       return new Error('Please provide an id');
     }
     if (!transaction) {
-      throw new NotFound({ message: 'Transaction Not Found' });
+      throw new NotFound('Transaction Not Found');
     }
     return transaction;
   },
