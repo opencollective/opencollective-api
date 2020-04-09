@@ -1,10 +1,10 @@
 import config from 'config';
 
 /**
- * Returns true if image is a valid OC image uploaded in our S3 bucket.
+ * Returns true if image is a valid image uploaded in our S3 bucket.
  * Allow any image on non-production environments
  */
-export const isValidOCImage = (url: string): boolean => {
+export const isValidUploadedImage = (url: string): boolean => {
   if (config.env !== 'production') {
     return true;
   } else {

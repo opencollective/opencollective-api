@@ -1,7 +1,7 @@
 import { Model, Transaction } from 'sequelize';
 import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
 import { diffDBEntries } from '../lib/data';
-import { isValidOCImage } from '../lib/images';
+import { isValidUploadedImage } from '../lib/images';
 
 /**
  * Sequelize model to represent an ExpenseAttachedFile, linked to the `ExpenseAttachedFiles` table.
@@ -75,7 +75,7 @@ export default (sequelize, DataTypes): typeof ExpenseAttachedFile => {
         validate: {
           isUrl: true,
           isValidImage(url: string): void {
-            if (url && !isValidOCImage(url)) {
+            if (url && !isValidUploadedImage(url)) {
               throw new Error('The attached file URL is not valid');
             }
           },
