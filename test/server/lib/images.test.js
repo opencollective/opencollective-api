@@ -17,6 +17,7 @@ describe('server/lib/images', () => {
       beforeEach(() => {
         // Simulate a production environment during the test
         sandbox.stub(config, 'env').value('production');
+        sandbox.stub(config, 'aws').value({ s3: { bucket: 'valid-bucket' } });
       });
 
       afterEach(() => {
@@ -24,7 +25,7 @@ describe('server/lib/images', () => {
       });
 
       it('returns true for valid images based on S3 bucket', () => {
-        expect(isValidUploadedImage('https://opencollective-staging.s3-us-west-1.amazonaws.com/image.jpg')).to.be.true;
+        expect(isValidUploadedImage('https://valid-bucket.s3-us-west-1.amazonaws.com/image.jpg')).to.be.true;
       });
 
       it('returns false for invalid images', () => {
