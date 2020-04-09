@@ -37,7 +37,15 @@ const expenseMutations = {
       // of the `createExpense` endpoint in V1, the actual code to create the expense should be moved
       // here and cleaned.
       return createExpenseLegacy(req.remoteUser, {
-        ...pick(args.expense, ['description', 'tags', 'type', 'privateMessage', 'attachments', 'invoiceInfo']),
+        ...pick(args.expense, [
+          'description',
+          'tags',
+          'type',
+          'privateMessage',
+          'attachments',
+          'attachedFiles',
+          'invoiceInfo',
+        ]),
         amount: args.expense.attachments.reduce((total, attachment) => total + attachment.amount, 0),
         PayoutMethod: payoutMethod,
         collective: await fetchAccountWithReference(args.account, req),
@@ -76,6 +84,10 @@ const expenseMutations = {
           amount: attachment.amount,
           incurredAt: attachment.incurredAt,
           description: attachment.description,
+        })),
+        attachedFiles: expense.attachedFiles?.map(attachedFile => ({
+          id: attachedFile.id && idDecode(attachedFile.id, IDENTIFIER_TYPES.EXPENSE_ATTACHMENT),
+          url: attachedFile.url,
         })),
         fromCollective: null, // TODO payee
       });

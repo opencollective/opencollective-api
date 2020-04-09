@@ -16,6 +16,7 @@ import ExpenseAttachment from './ExpenseAttachment';
 import ExpensePermissions from './ExpensePermissions';
 import ExpenseStatus from '../enum/ExpenseStatus';
 import { Activity } from './Activity';
+import ExpenseAttachedFile from './ExpenseAttachedFile';
 
 const Expense = new GraphQLObjectType({
   name: 'Expense',
@@ -123,6 +124,15 @@ const Expense = new GraphQLObjectType({
             }
 
             return req.loaders.PayoutMethod.byId.load(expense.PayoutMethodId);
+          }
+        },
+      },
+      attachedFiles: {
+        type: new GraphQLList(new GraphQLNonNull(ExpenseAttachedFile)),
+        description: '(Optional) files attached to the expense',
+        async resolve(expense, _, req) {
+          if (await ExpensePermissionsLib.canSeeExpenseAttachments(req, expense)) {
+            return req.loaders.Expense.attachedFiles.load(expense.id);
           }
         },
       },

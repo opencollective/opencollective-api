@@ -1,4 +1,4 @@
-import { get, omit, pick, flatten } from 'lodash';
+import { get, omit, pick, flatten, size } from 'lodash';
 import errors from '../../../lib/errors';
 import roles from '../../../constants/roles';
 import expenseType from '../../../constants/expense_type';
@@ -184,6 +184,19 @@ const getPaypalPaymentMethodFromExpenseData = async (expenseData, remoteUser, fr
   }
 };
 
+/** Creates attached files for the given expense */
+const createAttachedFiles = async (expense, attachedFilesData, remoteUser, transaction) => {
+  if (size(attachedFilesData) > 0) {
+    return Promise.all(
+      attachedFilesData.map(attachedFile => {
+        return models.ExpenseAttachedFile.createFromData(attachedFile.url, remoteUser, expense, transaction);
+      }),
+    );
+  } else {
+    return [];
+  }
+};
+
 export async function createExpense(remoteUser, expenseData) {
   if (!remoteUser) {
     throw new errors.Unauthorized('You need to be logged in to create an expense');
@@ -204,6 +217,10 @@ export async function createExpense(remoteUser, expenseData) {
   }
 
   checkExpenseAttachments(expenseData, attachmentsData);
+
+  if (size(expenseData.attachedFiles) > 15) {
+    throw new ValidationFailed({ message: 'The number of files that you can attach to an expense is limited to 15' });
+  }
 
   const collective = await models.Collective.findByPk(expenseData.collective.id);
   if (!collective) {
@@ -244,6 +261,9 @@ export async function createExpense(remoteUser, expenseData) {
         return models.ExpenseAttachment.createFromData(attachmentData, remoteUser, createdExpense, t);
       }),
     );
+
+    // Create attached files
+    createdExpense.attachedFiles = await createAttachedFiles(createdExpense, expenseData.attachedFiles, remoteUser, t);
 
     return createdExpense;
   });
@@ -303,6 +323,7 @@ export async function editExpense(remoteUser, expenseData) {
     include: [
       { model: models.Collective, as: 'collective' },
       { model: models.Collective, as: 'fromCollective' },
+      { model: models.ExpenseAttachedFile, as: 'attachedFiles' },
       { model: models.PayoutMethod },
     ],
   });
@@ -311,6 +332,10 @@ export async function editExpense(remoteUser, expenseData) {
     throw new errors.Unauthorized('Expense not found');
   } else if (!canEditExpense(remoteUser, expense)) {
     throw new errors.Unauthorized("You don't have permission to edit this expense");
+  }
+
+  if (size(expenseData.attachedFiles) > 15) {
+    throw new ValidationFailed({ message: 'The number of files that you can attach to an expense is limited to 15' });
   }
 
   const cleanExpenseData = pick(expenseData, EXPENSE_EDITABLE_FIELDS);
@@ -361,6 +386,23 @@ export async function editExpense(remoteUser, expenseData) {
     if (cleanExpenseData.category) {
       tags = [cleanExpenseData.category, ...existingTags];
     }
+
+    // Update attached files
+    if (expenseData.attachedFiles) {
+      const [newAttachedFiles, removedAttachedFiles, updatedAttachedFiles] = models.ExpenseAttachedFile.diffDBEntries(
+        expense.attachedFiles,
+        expenseData.attachedFiles,
+      );
+
+      await createAttachedFiles(expense, newAttachedFiles, remoteUser, t);
+      await Promise.all(removedAttachedFiles.map(file => file.destroy()));
+      await Promise.all(
+        updatedAttachedFiles.map(file =>
+          models.ExpenseAttachedFile.update({ url: file.url }, { where: { id: file.id, ExpenseId: expense.id } }),
+        ),
+      );
+    }
+
     return expense.update(
       {
         ...cleanExpenseData,

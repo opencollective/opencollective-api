@@ -3,6 +3,7 @@ import { ExpenseType } from '../enum/ExpenseType';
 import { ExpenseAttachmentCreateInput } from './ExpenseAttachmentCreateInput';
 import { PayoutMethodInput } from './PayoutMethodInput';
 import { AccountReferenceInput } from './AccountReferenceInput';
+import { ExpenseAttachedFileInput } from './ExpenseAttachedFileInput';
 
 /**
  * Input type to use as the type for the expense input in createExpense mutation.
@@ -37,6 +38,10 @@ export const ExpenseCreateInput = new GraphQLInputObjectType({
     attachments: {
       type: new GraphQLNonNull(new GraphQLList(ExpenseAttachmentCreateInput)),
       description: 'The list of attachments for this expense. Total amount will be computed from them.',
+    },
+    attachedFiles: {
+      type: new GraphQLList(new GraphQLNonNull(ExpenseAttachedFileInput)),
+      description: '(Optional) A list of files that you want to attach to this expense',
     },
     payee: {
       type: new GraphQLNonNull(AccountReferenceInput),
