@@ -627,6 +627,12 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
             description: 'Only return memberships for active collectives (that have been approved by the host)',
             defaultValue: false,
           },
+          includeIncognito: {
+            type: GraphQLBoolean,
+            defaultValue: true,
+            description:
+              'Wether incognito profiles should be included in the result. Only works if requesting user is an admin of the account.',
+          },
         },
       },
       contributors: {
@@ -1190,8 +1196,14 @@ const CollectiveFields = () => {
           description: 'Only return memberships for active collectives (that have been approved by the host)',
           defaultValue: false,
         },
+        includeIncognito: {
+          type: GraphQLBoolean,
+          defaultValue: true,
+          description:
+            'Wether incognito profiles should be included in the result. Only works if requesting user is an admin of the account.',
+        },
       },
-      resolve(collective, args) {
+      resolve(collective, args, req) {
         const where = { MemberCollectiveId: collective.id };
         const roles = args.roles || (args.role && [args.role]);
         if (roles && roles.length > 0) {
@@ -1203,6 +1215,9 @@ const CollectiveFields = () => {
         }
         if (args.onlyActiveCollectives) {
           collectiveConditions.isActive = true;
+        }
+        if (!args.includeIncognito || !req.remoteUser?.isAdmin(collective.id)) {
+          collectiveConditions.isIncognito = false;
         }
         return models.Member.findAll({
           where,
