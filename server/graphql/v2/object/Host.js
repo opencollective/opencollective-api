@@ -9,6 +9,12 @@ export const Host = new GraphQLObjectType({
   fields: () => {
     return {
       ...AccountFields,
+      hostFeePercent: {
+        type: GraphQLInt,
+        resolve(collective) {
+          return collective.hostFeePercent;
+        },
+      },
       totalHostedCollectives: {
         type: GraphQLInt,
         resolve(collective) {
