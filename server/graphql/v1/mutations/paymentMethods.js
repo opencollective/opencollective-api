@@ -178,9 +178,7 @@ export async function removePaymentMethod(paymentMethodId, remoteUser) {
   });
 
   if (subscriptions.length > 0) {
-    throw new ValidationFailed('The payment method has active subscriptions', {
-      errorId: 'PM.Remove.HasActiveSubscriptions',
-    });
+    throw new ValidationFailed('The payment method has active subscriptions', 'PM.Remove.HasActiveSubscriptions');
   }
 
   return paymentMethod.destroy();
