@@ -15,6 +15,7 @@ export const Event = new GraphQLObjectType({
       ...AccountFields,
       balance: {
         description: 'Amount of money in cents in the currency of the collective currently available to spend',
+        deprecationReason: '2020/04/09 - Should not have been introduced. Use stats.balance.value',
         type: GraphQLInt,
         resolve(collective, _, req) {
           return req.loaders.Collective.balance.load(collective.id);
