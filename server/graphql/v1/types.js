@@ -733,6 +733,20 @@ export const ExpenseItemType = new GraphQLObjectType({
   },
 });
 
+const ExpenseAttachedFile = new GraphQLObjectType({
+  name: 'ExpenseAttachedFile',
+  description: "Fields for an expense's attached file",
+  fields: {
+    id: {
+      type: new GraphQLNonNull(GraphQLInt),
+      description: 'Unique identifier for this file',
+    },
+    url: {
+      type: GraphQLString,
+    },
+  },
+});
+
 export const ExpenseType = new GraphQLObjectType({
   name: 'ExpenseType',
   description: 'This represents an Expense',
@@ -883,6 +897,14 @@ export const ExpenseType = new GraphQLObjectType({
               return omit(item, ['url']);
             }
           });
+        },
+      },
+      attachedFiles: {
+        type: new GraphQLList(new GraphQLNonNull(ExpenseAttachedFile)),
+        async resolve(expense, _, req) {
+          if (await canSeeExpenseAttachments(req, expense)) {
+            return req.loaders.Expense.attachedFiles.load(expense.id);
+          }
         },
       },
       userTaxFormRequiredBeforePayment: {
