@@ -97,6 +97,24 @@ export default function (Sequelize, DataTypes) {
     },
     {
       paranoid: true,
+      getterMethods: {
+        info() {
+          return {
+            id: this.id,
+            title: this.title,
+            slug: this.slug,
+            summary: this.summary,
+            createdAt: this.createdAt,
+            updatedAt: this.updatedAt,
+            deletedAt: this.deletedAt,
+            tags: this.tags,
+            CollectiveId: this.CollectiveId,
+            CreatedByUserId: this.CreatedByUserId,
+            FromCollectiveId: this.FromCollectiveId,
+            RootCommentId: this.RootCommentId,
+          };
+        },
+      },
     },
   );
 

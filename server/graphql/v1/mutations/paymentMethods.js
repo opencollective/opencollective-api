@@ -142,7 +142,7 @@ export async function claimPaymentMethod(args, remoteUser) {
       name,
       currency,
       expiryDate,
-      emitter,
+      emitter: emitter.info,
     });
   }
 

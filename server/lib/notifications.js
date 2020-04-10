@@ -187,6 +187,7 @@ async function notifyMembersOfCollective(CollectiveId, activity, options) {
 
 async function notifyByEmail(activity) {
   debug('notifyByEmail', activity.type);
+  let collective, conversation;
   switch (activity.type) {
     case activityType.TICKET_CONFIRMED:
       notifyUserId(activity.data.UserId, activity);
@@ -201,6 +202,7 @@ async function notifyByEmail(activity) {
       activity.data.update = await models.Update.findByPk(activity.data.update.id, {
         include: [{ model: models.Collective, as: 'fromCollective' }],
       });
+      activity.data.update = activity.data.update.info;
       notifyMembersOfCollective(activity.data.update.CollectiveId, activity, {
         from: `${activity.data.collective.name}
         <hello@${activity.data.collective.slug}.opencollective.com>`,
@@ -232,27 +234,32 @@ async function notifyByEmail(activity) {
       notifyAdminsOfCollective(activity.data.conversation.CollectiveId, activity, { exclude: [activity.UserId] });
       break;
     case activityType.COLLECTIVE_COMMENT_CREATED:
-      activity.data.collective = await models.Collective.findByPk(activity.CollectiveId);
+      collective = await models.Collective.findByPk(activity.CollectiveId);
+      activity.data.collective = collective.info;
       activity.data.fromCollective = await models.Collective.findByPk(activity.data.FromCollectiveId);
+      activity.data.fromCollective = activity.data.fromCollective.info;
       if (activity.data.ExpenseId) {
         activity.data.expense = await models.Expense.findByPk(activity.data.ExpenseId);
+        activity.data.expense = activity.data.expense.info;
         activity.data.UserId = activity.data.expense.UserId;
         activity.data.path = `/${activity.data.collective.slug}/expenses/${activity.data.expense.id}`;
       } else if (activity.data.UpdateId) {
         activity.data.update = await models.Update.findByPk(activity.data.UpdateId);
+        activity.data.update = activity.data.update.info;
         activity.data.UserId = activity.data.update.CreatedByUserId;
         activity.data.path = `/${activity.data.collective.slug}/updates/${activity.data.update.slug}`;
       } else if (activity.data.ConversationId) {
-        activity.data.conversation = await models.Conversation.findByPk(activity.data.ConversationId);
+        conversation = await models.Conversation.findByPk(activity.data.ConversationId);
+        activity.data.conversation = conversation.info;
         activity.data.UserId = get(activity.data.conversation, 'CreatedByUserId');
         activity.data.path = `/${activity.data.collective.slug}/conversations/${activity.data.conversation.slug}-${activity.data.conversation.hashId}`;
       }
 
       if (activity.data.conversation) {
-        notififyConversationFollowers(activity.data.conversation, activity, { exclude: [activity.UserId] });
+        notififyConversationFollowers(conversation, activity, { exclude: [activity.UserId] });
       } else if (activity.UserId === activity.data.UserId) {
         // if the author of the comment is the one who submitted the expense
-        const HostCollectiveId = await activity.data.collective.getHostCollectiveId();
+        const HostCollectiveId = await collective.getHostCollectiveId();
         // then, if the expense was already approved, we notify the admins of the host
         if (get(activity, 'data.expense.status') === 'APPROVED') {
           notifyAdminsOfCollective(HostCollectiveId, activity, {
@@ -368,7 +375,8 @@ async function notifyByEmail(activity) {
 
     case activityType.BACKYOURSTACK_DISPATCH_CONFIRMED:
       for (const order of activity.data.orders) {
-        order.collective = await models.Collective.findByPk(order.CollectiveId);
+        const collective = await models.Collective.findByPk(order.CollectiveId);
+        order.collective = collective.info;
       }
       notifyAdminsOfCollective(activity.data.collective.id, activity, {
         template: 'backyourstack.dispatch.confirmed',

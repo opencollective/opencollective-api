@@ -240,7 +240,7 @@ const processBacker = async FromCollectiveId => {
         fromCollective: backerCollective,
         collectives: collectivesWithOrders,
         manageSubscriptionsUrl: `${config.host.website}/subscriptions`,
-        relatedCollectives,
+        relatedCollectives: relatedCollectives.map(collectives => collectives.info),
         stats,
         tags: stats.allTags || {},
       };

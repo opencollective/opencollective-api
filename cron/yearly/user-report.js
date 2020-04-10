@@ -208,7 +208,7 @@ const processCollective = collective => {
     })
     .then(data => {
       return getUsers(collective).then(users => {
-        data.collective = collective;
+        data.collective = collective.info;
         data.platformStats = platformStats;
         data.recipients = users.map(u => u.email);
         if (data.recipients.length > 1) {
