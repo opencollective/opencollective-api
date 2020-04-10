@@ -6,7 +6,16 @@ import emailLib from '../../../server/lib/email';
 import { getFxRate } from '../../../server/lib/currency';
 import { roles } from '../../../server/constants';
 import plans from '../../../server/constants/plans';
-import { fakeCollective, fakeOrder, fakeTransaction, fakeUser, fakePaymentMethod } from '../../test-helpers/fake-data';
+import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
+import {
+  fakeCollective,
+  fakeExpense,
+  fakeOrder,
+  fakeTransaction,
+  fakeUser,
+  fakePaymentMethod,
+  fakePayoutMethod,
+} from '../../test-helpers/fake-data';
 
 const { Transaction, Collective, User } = models;
 
@@ -398,6 +407,7 @@ describe('server/models/Collective', () => {
         hostedCollectives: 2,
         addedFunds: 0,
         bankTransfers: 0,
+        transferwisePayouts: 0,
         ...plans.default,
       });
     });
@@ -912,6 +922,54 @@ describe('server/models/Collective', () => {
       const fx = await getFxRate('EUR', 'USD');
       const totalAddedFunds = await collective.getTotalAddedFunds();
       expect(totalAddedFunds).to.equals(100000 + 100000 * fx);
+    });
+  });
+
+  describe('getTotalTransferwisePayouts', () => {
+    let collective, expense, payoutMethod;
+    beforeEach(async () => {
+      await utils.resetTestDB();
+
+      collective = await fakeCollective({ isHostAccount: true });
+      payoutMethod = await fakePayoutMethod({
+        type: PayoutMethodTypes.BANK_ACCOUNT,
+      });
+      expense = await fakeExpense({
+        status: 'PAID',
+        amount: 100000,
+        PayoutMethodId: payoutMethod.id,
+      });
+      await fakeTransaction({
+        amount: 100000,
+        HostCollectiveId: collective.id,
+        currency: 'USD',
+        ExpenseId: expense.id,
+        type: 'DEBIT',
+      });
+    });
+
+    it('should return the sum of all bank transfers', async () => {
+      const totalAddedFunds = await collective.getTotalTransferwisePayouts();
+      expect(totalAddedFunds).to.equals(100000);
+    });
+
+    it('should consider the fx rate if another currency', async () => {
+      await fakeExpense({
+        status: 'PAID',
+        amount: 50000,
+        PayoutMethodId: payoutMethod.id,
+      });
+      await fakeTransaction({
+        amount: 50000,
+        HostCollectiveId: collective.id,
+        currency: 'EUR',
+        ExpenseId: expense.id,
+        type: 'DEBIT',
+      });
+
+      const fx = await getFxRate('EUR', 'USD');
+      const totalAddedFunds = await collective.getTotalTransferwisePayouts();
+      expect(totalAddedFunds).to.equals(100000 + 50000 * fx);
     });
   });
 });

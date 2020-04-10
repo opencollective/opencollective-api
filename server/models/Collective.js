@@ -59,6 +59,7 @@ import expenseTypes from '../constants/expense_type';
 import plans, { PLANS_COLLECTIVE_SLUG } from '../constants/plans';
 import FEATURE from '../constants/feature';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
+import { PayoutMethodTypes } from './PayoutMethod';
 
 const debug = debugLib('models:Collective');
 
@@ -2512,6 +2513,49 @@ export default function (Sequelize, DataTypes) {
     return total;
   };
 
+  Collective.prototype.getTotalTransferwisePayouts = async function () {
+    // This method is intended for hosts
+    if (!this.isHostAccount) {
+      return Promise.resolve(null);
+    }
+
+    const transactions = await models.Transaction.findAll({
+      attributes: [
+        [Sequelize.col('Transaction.currency'), 'currency'],
+        [Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('Transaction.amount')), 0), 'total'],
+      ],
+      group: [Sequelize.col('Transaction.currency')],
+      where: {
+        HostCollectiveId: this.id,
+        type: 'DEBIT',
+      },
+      include: [
+        {
+          model: models.Expense,
+          attributes: [],
+          where: { status: 'PAID' },
+          include: [
+            {
+              model: models.PayoutMethod,
+              attributes: [],
+              where: {
+                type: PayoutMethodTypes.BANK_ACCOUNT,
+              },
+            },
+          ],
+        },
+      ],
+      raw: true,
+    });
+
+    const processTransaction = async t => {
+      const fx = await getFxRate(t.currency, 'USD');
+      return Math.round(t.total * fx);
+    };
+    const total = sum(await Promise.all(transactions.map(processTransaction)));
+    return total;
+  };
+
   Collective.prototype.getTotalBankTransfers = async function () {
     // This method is intended for hosts
     if (!this.isHostAccount) {
@@ -2552,10 +2596,11 @@ export default function (Sequelize, DataTypes) {
   };
 
   Collective.prototype.getPlan = async function () {
-    const [hostedCollectives, addedFunds, bankTransfers] = await Promise.all([
+    const [hostedCollectives, addedFunds, bankTransfers, transferwisePayouts] = await Promise.all([
       this.getHostedCollectivesCount(),
       this.getTotalAddedFunds(),
       this.getTotalBankTransfers(),
+      this.getTotalTransferwisePayouts(),
     ]);
     if (this.plan) {
       const tier = await models.Tier.findOne({
@@ -2565,11 +2610,19 @@ export default function (Sequelize, DataTypes) {
       const plan = (tier && tier.data) || plans[this.plan];
       if (plan) {
         const extraPlanData = get(this.data, 'plan', {});
-        return { name: this.plan, hostedCollectives, addedFunds, bankTransfers, ...plan, ...extraPlanData };
+        return {
+          name: this.plan,
+          hostedCollectives,
+          addedFunds,
+          bankTransfers,
+          transferwisePayouts,
+          ...plan,
+          ...extraPlanData,
+        };
       }
     }
 
-    return { name: 'default', hostedCollectives, addedFunds, bankTransfers, ...plans.default };
+    return { name: 'default', hostedCollectives, addedFunds, bankTransfers, transferwisePayouts, ...plans.default };
   };
 
   /**

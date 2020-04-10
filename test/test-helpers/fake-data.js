@@ -169,6 +169,13 @@ export const fakePayoutMethod = async (data = {}) => {
       return { email: randEmail() };
     } else if (type === PayoutMethodTypes.OTHER) {
       return { content: randStr() };
+    } else if (type === PayoutMethodTypes.BANK_ACCOUNT) {
+      return {
+        accountHolderName: 'Jesse Pinkman',
+        currency: 'EUR',
+        type: 'iban',
+        details: { iban: 'DE1237812738192OK' },
+      };
     } else {
       return null;
     }

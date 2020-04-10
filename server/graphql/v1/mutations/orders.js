@@ -233,7 +233,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
       throw new Error('This order requires a payment method');
     }
     if (paymentRequired && order.paymentMethod && order.paymentMethod.type === 'manual') {
-      await handleHostPlanBankTransfersLimit(host, { throwException: true });
+      await handleHostPlanBankTransfersLimit(host);
     }
 
     if (tier && tier.maxQuantityPerUser > 0 && order.quantity > tier.maxQuantityPerUser) {
