@@ -8,6 +8,7 @@ export const isValidUploadedImage = (url: string): boolean => {
   if (config.env !== 'production') {
     return true;
   } else {
-    return url.startsWith(`https://${config.aws.s3.bucket}.s3-us-west-1.amazonaws.com/`);
+    const regex = new RegExp(`^https://${config.aws.s3.bucket}\\.s3[.-]us-west-1.amazonaws.com/`);
+    return regex.test(url);
   }
 };
