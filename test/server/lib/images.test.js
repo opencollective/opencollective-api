@@ -26,11 +26,16 @@ describe('server/lib/images', () => {
 
       it('returns true for valid images based on S3 bucket', () => {
         expect(isValidUploadedImage('https://valid-bucket.s3-us-west-1.amazonaws.com/image.jpg')).to.be.true;
+        expect(isValidUploadedImage('https://valid-bucket.s3.us-west-1.amazonaws.com/image.jpg')).to.be.true;
       });
 
       it('returns false for invalid images', () => {
         expect(isValidUploadedImage('test')).to.be.false;
         expect(isValidUploadedImage('https://malicious-bucket.s3-us-west-1.amazonaws.com/image.jpg')).to.be.false;
+        expect(isValidUploadedImage('https://valid-bucket.not-realy.s3.us-west-1.amazonaws.com/image.jpg')).to.be.false;
+        expect(isValidUploadedImage('https://valid-bucket.s3.us-west-1.amazonaws.com.fake.com/img.jpg')).to.be.false;
+        expect(isValidUploadedImage('https://valid-bucket.s3xus-west-1.amazonaws.com/image.jpg')).to.be.false;
+        expect(isValidUploadedImage('https://valid-bucketxs3.us-west-1.amazonaws.com/image.jpg')).to.be.false;
       });
     });
   });
