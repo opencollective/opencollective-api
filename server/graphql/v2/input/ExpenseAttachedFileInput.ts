@@ -1,5 +1,7 @@
 import { GraphQLInputObjectType, GraphQLNonNull,GraphQLString } from 'graphql';
 
+import URL from '../scalar/URL';
+
 /**
  * To create or edit an optional expense file attachment
  */
@@ -11,7 +13,7 @@ export const ExpenseAttachedFileInput = new GraphQLInputObjectType({
       description: 'ID of the file',
     },
     url: {
-      type: new GraphQLNonNull(GraphQLString),
+      type: new GraphQLNonNull(URL),
       description: 'URL of the file',
     },
   },

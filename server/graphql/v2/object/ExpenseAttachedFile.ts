@@ -1,6 +1,7 @@
 import { GraphQLNonNull, GraphQLObjectType,GraphQLString } from 'graphql';
 
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import URL from '../scalar/URL';
 
 const ExpenseAttachedFile = new GraphQLObjectType({
   name: 'ExpenseAttachedFile',
@@ -12,7 +13,7 @@ const ExpenseAttachedFile = new GraphQLObjectType({
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.EXPENSE_ATTACHED_FILE),
     },
     url: {
-      type: GraphQLString,
+      type: URL,
     },
   },
 });
