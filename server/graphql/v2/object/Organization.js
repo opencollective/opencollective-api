@@ -1,4 +1,4 @@
-import { GraphQLString, GraphQLObjectType } from 'graphql';
+import { GraphQLObjectType, GraphQLString } from 'graphql';
 
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { Account, AccountFields } from '../interface/Account';

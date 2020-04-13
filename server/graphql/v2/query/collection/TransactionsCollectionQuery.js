@@ -1,9 +1,8 @@
 import models from '../../../../models';
-
-import { CollectionArgs } from '../../interface/Collection';
 import { TransactionCollection } from '../../collection/TransactionCollection';
 import { TransactionType } from '../../enum/TransactionType';
 import { ChronologicalOrderInput } from '../../input/ChronologicalOrderInput';
+import { CollectionArgs } from '../../interface/Collection';
 
 const TransactionsQuery = {
   type: TransactionCollection,

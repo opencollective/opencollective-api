@@ -1,5 +1,5 @@
-import { v4 as uuid } from 'uuid';
 import { pick } from 'lodash';
+import { v4 as uuid } from 'uuid';
 
 import models from '../models';
 

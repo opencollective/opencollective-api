@@ -1,12 +1,12 @@
 import { expect } from 'chai';
 import sinon from 'sinon';
 
-import * as utils from '../../../utils';
-import { fakeCollective, fakeConnectedAccount, fakeExpense, fakePayoutMethod } from '../../../test-helpers/fake-data';
-import transferwise from '../../../../server/paymentProviders/transferwise';
-import * as transferwiseLib from '../../../../server/lib/transferwise';
 import cache from '../../../../server/lib/cache';
+import * as transferwiseLib from '../../../../server/lib/transferwise';
 import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
+import transferwise from '../../../../server/paymentProviders/transferwise';
+import { fakeCollective, fakeConnectedAccount, fakeExpense, fakePayoutMethod } from '../../../test-helpers/fake-data';
+import * as utils from '../../../utils';
 
 describe('paymentMethods.transferwise', () => {
   const sandbox = sinon.createSandbox();

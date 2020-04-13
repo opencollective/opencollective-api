@@ -1,4 +1,5 @@
 import { GraphQLEnumType } from 'graphql';
+
 import expenseStatus from '../../../constants/expense_status';
 
 const ExpenseStatus = new GraphQLEnumType({

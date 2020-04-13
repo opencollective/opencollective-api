@@ -1,11 +1,12 @@
+import Promise from 'bluebird';
 import { expect } from 'chai';
 import { describe, it } from 'mocha';
-import models from '../../../../server/models';
-import Promise from 'bluebird';
-import * as utils from '../../../utils';
-import emailLib from '../../../../server/lib/email';
 import sinon from 'sinon';
+
+import emailLib from '../../../../server/lib/email';
+import models from '../../../../server/models';
 import { randEmail } from '../../../stores';
+import * as utils from '../../../utils';
 
 describe('server/graphql/v1/orders', () => {
   const backers = [],

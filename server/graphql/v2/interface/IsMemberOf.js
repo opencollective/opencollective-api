@@ -1,10 +1,9 @@
-import { GraphQLInt, GraphQLList, GraphQLBoolean } from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLList } from 'graphql';
 
+import models, { Op } from '../../../models';
 import { MemberOfCollection } from '../collection/MemberCollection';
 import { AccountType, AccountTypeToModelMapping } from '../enum/AccountType';
 import { MemberRole } from '../enum/MemberRole';
-
-import models, { Op } from '../../../models';
 
 export const IsMemberOfFields = {
   memberOf: {

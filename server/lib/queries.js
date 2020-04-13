@@ -2,9 +2,10 @@ import Promise from 'bluebird';
 import config from 'config';
 import { get, pick } from 'lodash';
 
+import models, { Op, sequelize } from '../models';
+
 import { memoize } from './cache';
 import { convertToCurrency } from './currency';
-import models, { sequelize, Op } from '../models';
 
 const twoHoursInSeconds = 2 * 60 * 60;
 

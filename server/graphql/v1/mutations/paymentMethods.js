@@ -1,11 +1,12 @@
-import { pick } from 'lodash';
 import { URLSearchParams } from 'url';
 
-import virtualcard from '../../../paymentProviders/opencollective/virtualcard';
-import { setupCreditCard } from '../../../paymentProviders/stripe/creditcard';
+import { pick } from 'lodash';
+
 import emailLib from '../../../lib/email';
 import logger from '../../../lib/logger';
 import models, { Op } from '../../../models';
+import virtualcard from '../../../paymentProviders/opencollective/virtualcard';
+import { setupCreditCard } from '../../../paymentProviders/stripe/creditcard';
 import { Forbidden, ValidationFailed } from '../../errors';
 
 /** Create a Payment Method through a collective(organization or user)

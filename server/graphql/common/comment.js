@@ -1,8 +1,9 @@
 import { pick } from 'lodash';
-import models from '../../models';
-import * as errors from '../errors';
+
 import { mustBeLoggedInTo } from '../../lib/auth';
 import { stripTags } from '../../lib/utils';
+import models from '../../models';
+import * as errors from '../errors';
 
 /**
  * Return the collective ID for the given comment based on it's association (conversation,

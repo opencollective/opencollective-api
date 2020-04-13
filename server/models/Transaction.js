@@ -1,14 +1,15 @@
 import Promise from 'bluebird';
-import moment from 'moment';
-import { v4 as uuid } from 'uuid';
 import debugLib from 'debug';
 import { get, isUndefined } from 'lodash';
+import moment from 'moment';
+import { v4 as uuid } from 'uuid';
 
 import activities from '../constants/activities';
 import { TransactionTypes } from '../constants/transactions';
-import CustomDataTypes from './DataTypes';
 import { toNegative } from '../lib/math';
 import { exportToCSV } from '../lib/utils';
+
+import CustomDataTypes from './DataTypes';
 
 const debug = debugLib('models:Transaction');
 

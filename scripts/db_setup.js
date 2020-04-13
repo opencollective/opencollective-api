@@ -13,7 +13,6 @@ import '../server/env';
  *
  * More info here https://github.com/brianc/node-postgres/issues/1337
  */
-
 import format from 'pg-format';
 
 import * as libdb from '../server/lib/db';

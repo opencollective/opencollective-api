@@ -1,4 +1,4 @@
-import { GraphQLObjectType, GraphQLInt } from 'graphql';
+import { GraphQLInt, GraphQLObjectType } from 'graphql';
 
 import { Account, AccountFields } from '../interface/Account';
 

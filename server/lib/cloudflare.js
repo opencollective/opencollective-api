@@ -1,5 +1,5 @@
-import config from 'config';
 import cloudflare from 'cloudflare';
+import config from 'config';
 
 import logger from './logger';
 

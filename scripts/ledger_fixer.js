@@ -22,16 +22,17 @@ import '../server/env';
  * don't block the database for other transactions.
  */
 import fs from 'fs';
-import moment from 'moment';
-import { ArgumentParser } from 'argparse';
 import { promisify } from 'util';
-import { result, includes } from 'lodash';
 
-import models, { sequelize } from '../server/models';
+import { ArgumentParser } from 'argparse';
+import { includes, result } from 'lodash';
+import moment from 'moment';
+
+import libemail from '../server/lib/email';
+import { toNegative } from '../server/lib/math';
 import * as transactionsLib from '../server/lib/transactions';
 import { sleep } from '../server/lib/utils';
-import { toNegative } from '../server/lib/math';
-import libemail from '../server/lib/email';
+import models, { sequelize } from '../server/models';
 
 const REPORT_EMAIL = 'ops@opencollective.com';
 

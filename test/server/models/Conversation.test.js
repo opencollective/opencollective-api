@@ -1,7 +1,8 @@
 import { expect } from 'chai';
-import models from '../../../server/models';
-import { randEmail, newCollectiveWithHost } from '../../stores';
 import { SequelizeValidationError } from 'sequelize';
+
+import models from '../../../server/models';
+import { newCollectiveWithHost, randEmail } from '../../stores';
 
 describe('server/models/Conversation', () => {
   let collective, user, validConversationParams;

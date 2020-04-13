@@ -1,6 +1,7 @@
-import config from 'config';
 import { expect } from 'chai';
+import config from 'config';
 import sinon from 'sinon';
+
 import { isValidUploadedImage } from '../../../server/lib/images';
 
 const sandbox = sinon.createSandbox();

@@ -1,12 +1,8 @@
-// dependencies
-import jwt from 'jsonwebtoken';
-import config from 'config';
-
-// testing tools
-import sinon from 'sinon';
 import { expect } from 'chai';
+import config from 'config';
+import jwt from 'jsonwebtoken';
+import sinon from 'sinon';
 
-// what's being tested
 import * as auth from '../../../server/lib/auth';
 
 describe('server/lib/auth', () => {

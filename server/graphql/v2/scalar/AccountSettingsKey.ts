@@ -1,4 +1,5 @@
 import { GraphQLScalarType } from 'graphql';
+
 import { COLLECTIVE_SETTINGS_KEYS_LIST } from '../../../lib/collectivelib';
 import { ValidationFailed } from '../../errors';
 

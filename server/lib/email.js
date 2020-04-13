@@ -1,18 +1,20 @@
-import config from 'config';
-import Promise from 'bluebird';
-import juice from 'juice';
-import nodemailer from 'nodemailer';
-import debugLib from 'debug';
 import fs from 'fs';
 import path from 'path';
+
+import Promise from 'bluebird';
+import config from 'config';
+import debugLib from 'debug';
 import he from 'he';
-import { isArray, pick, get, merge, includes } from 'lodash';
+import juice from 'juice';
+import { get, includes, isArray, merge, pick } from 'lodash';
+import nodemailer from 'nodemailer';
 
 import models from '../models';
-import logger from './logger';
+
 import templates from './emailTemplates';
-import whiteListDomains from './whiteListDomains';
+import logger from './logger';
 import { md5 } from './utils';
+import whiteListDomains from './whiteListDomains';
 
 const debug = debugLib('email');
 

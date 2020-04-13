@@ -1,52 +1,48 @@
 import Promise from 'bluebird';
-import { get, uniq, pick } from 'lodash';
-import { GraphQLList, GraphQLNonNull, GraphQLString, GraphQLInt, GraphQLBoolean } from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import { get, pick, uniq } from 'lodash';
 import { isEmail } from 'validator';
 
+import { types as CollectiveTypes } from '../../constants/collectives';
+import Algolia from '../../lib/algolia';
+import { fetchCollectiveId } from '../../lib/cache';
 import errors from '../../lib/errors';
 import rawQueries from '../../lib/queries';
-import { types as CollectiveTypes } from '../../constants/collectives';
-import models, { sequelize, Op } from '../../models';
-import { fetchCollectiveId } from '../../lib/cache';
-import { searchCollectivesByEmail, searchCollectivesOnAlgolia, searchCollectivesInDB } from '../../lib/search';
-import Algolia from '../../lib/algolia';
+import { searchCollectivesByEmail, searchCollectivesInDB, searchCollectivesOnAlgolia } from '../../lib/search';
 import { toIsoDateStr } from '../../lib/utils';
+import models, { Op, sequelize } from '../../models';
+import { Forbidden, ValidationFailed } from '../errors';
 
+import { ApplicationType } from './Application';
 import {
   CollectiveInterfaceType,
-  CollectiveSearchResultsType,
-  TypeOfCollectiveType,
   CollectiveOrderFieldType,
+  CollectiveSearchResultsType,
   HostCollectiveOrderFieldType,
+  TypeOfCollectiveType,
 } from './CollectiveInterface';
-
 import { InvoiceInputType } from './inputTypes';
-
 import {
   PaginatedTransactionsType,
   TransactionInterfaceType,
-  TransactionType,
   TransactionOrder,
-  OrderDirectionType,
+  TransactionType,
 } from './TransactionInterface';
-
-import { ApplicationType } from './Application';
-
 import {
-  UserType,
-  TierType,
   ExpenseStatusType,
   ExpenseType,
   InvoiceType,
-  UpdateType,
+  MemberInvitationType,
   MemberType,
   OrderByType,
+  OrderDirectionType,
   OrderType,
   PaginatedExpensesType,
   PaymentMethodType,
-  MemberInvitationType,
+  TierType,
+  UpdateType,
+  UserType,
 } from './types';
-import { Forbidden, ValidationFailed } from '../errors';
 
 const queries = {
   Collective: {
@@ -1421,7 +1417,7 @@ const queries = {
         type: GraphQLBoolean,
         defaultValue: true,
         description: `
-          If set to false, an internal query will be used to search the collective rather than Algolia. 
+          If set to false, an internal query will be used to search the collective rather than Algolia.
           You **must** set this to false when searching for users/organizations.
         `,
       },

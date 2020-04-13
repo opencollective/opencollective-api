@@ -1,5 +1,5 @@
+import { expenseStatus, roles } from '../../constants';
 import { ExpenseItem } from '../../models/ExpenseItem';
-import { roles, expenseStatus } from '../../constants';
 
 const isOwner = async (req, expense): Promise<boolean> => {
   return req.remoteUser.isAdmin(expense.FromCollectiveId) || req.remoteUser.id === expense.UserId;

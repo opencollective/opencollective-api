@@ -1,15 +1,16 @@
-import debug from 'debug';
 import config from 'config';
+import debug from 'debug';
+import { get } from 'lodash';
 import moment from 'moment';
 
-import models, { Op } from '../../models';
-import errors from '../../lib/errors';
-import paypalAdaptive from './adaptiveGateway';
 import { convertToCurrency } from '../../lib/currency';
+import errors from '../../lib/errors';
 import { formatCurrency } from '../../lib/utils';
+import models, { Op } from '../../models';
+
 import adaptive from './adaptive';
+import paypalAdaptive from './adaptiveGateway';
 import payment from './payment';
-import { get } from 'lodash';
 
 const debugPaypal = debug('paypal');
 

@@ -1,9 +1,10 @@
-import sinon from 'sinon';
-import nodemailer from 'nodemailer';
 import { assert, expect } from 'chai';
 import config from 'config';
-import * as utils from '../../../utils';
+import nodemailer from 'nodemailer';
+import sinon from 'sinon';
+
 import models from '../../../../server/models';
+import * as utils from '../../../utils';
 
 const ordersData = utils.data('orders');
 

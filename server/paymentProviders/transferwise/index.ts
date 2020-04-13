@@ -1,8 +1,8 @@
-import { v4 as uuid } from 'uuid';
 import { find } from 'lodash';
+import { v4 as uuid } from 'uuid';
 
-import * as transferwise from '../../lib/transferwise';
 import cache from '../../lib/cache';
+import * as transferwise from '../../lib/transferwise';
 import models from '../../models';
 import { Quote, RecipientAccount, Transfer } from '../../types/transferwise';
 

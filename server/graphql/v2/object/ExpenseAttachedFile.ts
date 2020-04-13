@@ -1,4 +1,5 @@
-import { GraphQLString, GraphQLNonNull, GraphQLObjectType } from 'graphql';
+import { GraphQLNonNull, GraphQLObjectType,GraphQLString } from 'graphql';
+
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
 const ExpenseAttachedFile = new GraphQLObjectType({

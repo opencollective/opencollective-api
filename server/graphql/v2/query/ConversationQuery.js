@@ -1,7 +1,8 @@
-import { GraphQLString, GraphQLNonNull } from 'graphql';
+import { GraphQLNonNull, GraphQLString } from 'graphql';
+
 import models from '../../../models';
-import Conversation from '../object/Conversation';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
+import Conversation from '../object/Conversation';
 
 const ConversationQuery = {
   type: Conversation,

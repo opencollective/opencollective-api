@@ -4,14 +4,14 @@ import '../server/env';
 /*
  * This script runs through a few checks and lets us know if something is off
  */
-
 import Promise from 'bluebird';
+
 // import { parse as json2csv } from 'json2csv';
-import models, { sequelize, Op } from '../server/models';
+// import moment from 'moment';
 import emailLib from '../server/lib/email';
 // import * as transactionsLib from '../../server/lib/transactions';
 import { formatCurrency } from '../server/lib/utils';
-// import moment from 'moment';
+import models, { Op, sequelize } from '../server/models';
 
 const VERBOSE = true;
 const attachments = [];

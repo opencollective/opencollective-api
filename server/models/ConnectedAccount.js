@@ -1,4 +1,5 @@
 import config from 'config';
+
 import { supportedServices } from '../constants/connected_account';
 /**
  * Model.

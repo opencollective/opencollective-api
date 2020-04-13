@@ -1,19 +1,19 @@
 import {
-  GraphQLInt,
-  GraphQLFloat,
   GraphQLBoolean,
-  GraphQLList,
-  GraphQLInputObjectType,
-  GraphQLNonNull,
-  GraphQLString,
-  GraphQLScalarType,
-  GraphQLError,
   GraphQLEnumType,
+  GraphQLError,
+  GraphQLFloat,
+  GraphQLInputObjectType,
+  GraphQLInt,
+  GraphQLList,
+  GraphQLNonNull,
+  GraphQLScalarType,
+  GraphQLString,
 } from 'graphql';
-
 import GraphQLJSON from 'graphql-type-json';
 import { Kind } from 'graphql/language';
-import { IsoDateString, DateString, PayoutMethodTypeEnum } from './types';
+
+import { DateString, IsoDateString, PayoutMethodTypeEnum } from './types';
 
 const EmailType = new GraphQLScalarType({
   name: 'Email',

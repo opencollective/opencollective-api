@@ -1,13 +1,15 @@
 import { get, pick } from 'lodash';
 import Temporal from 'sequelize-temporal';
-import { TransactionTypes } from '../constants/transactions';
+
 import status from '../constants/expense_status';
 import expenseType from '../constants/expense_type';
-import CustomDataTypes from '../models/DataTypes';
+import { TransactionTypes } from '../constants/transactions';
 import { reduceArrayToCurrency } from '../lib/currency';
-import { validateTags, sanitizeTags } from '../lib/tags';
-import models, { Op } from './';
+import { sanitizeTags, validateTags } from '../lib/tags';
+import CustomDataTypes from '../models/DataTypes';
+
 import { PayoutMethodTypes } from './PayoutMethod';
+import models, { Op } from './';
 
 export default function (Sequelize, DataTypes) {
   const Expense = Sequelize.define(

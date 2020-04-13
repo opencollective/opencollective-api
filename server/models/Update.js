@@ -1,20 +1,19 @@
 /**
  * Dependencies.
  */
-import config from 'config';
-import Temporal from 'sequelize-temporal';
-import { Op } from 'sequelize';
-import slugify from 'limax';
 import Promise from 'bluebird';
-import showdown from 'showdown';
+import config from 'config';
+import slugify from 'limax';
 import { defaults, pick } from 'lodash';
+import { Op } from 'sequelize';
+import Temporal from 'sequelize-temporal';
+import showdown from 'showdown';
 
-import * as errors from '../graphql/errors';
 import activities from '../constants/activities';
-import { sanitizeObject } from '../lib/utils';
+import * as errors from '../graphql/errors';
 import { mustHaveRole } from '../lib/auth';
-
 import logger from '../lib/logger';
+import { sanitizeObject } from '../lib/utils';
 
 const markdownConverter = new showdown.Converter();
 

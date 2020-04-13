@@ -3,35 +3,29 @@
  * This tests all the GraphQL API methods that interact with
  * expenses. */
 
-/* Test libraries */
-import sinon from 'sinon';
 import { expect } from 'chai';
-
-/* Test utilities */
 import { pick } from 'lodash';
-import * as utils from '../../../utils';
-import * as store from '../../../stores';
+import sinon from 'sinon';
 
-/* Support code */
-import models from '../../../../server/models';
-import emailLib from '../../../../server/lib/email';
-import { getFxRate } from '../../../../server/lib/currency';
-
-import paypalAdaptive from '../../../../server/paymentProviders/paypal/adaptiveGateway';
-import paymentProviders from '../../../../server/paymentProviders';
-
-import {
-  fakeConnectedAccount,
-  fakeExpense,
-  fakeUser,
-  fakeExpenseItem,
-  fakeCollective,
-  randStr,
-  fakePayoutMethod,
-} from '../../../test-helpers/fake-data';
 import { roles } from '../../../../server/constants';
 import expenseStatus from '../../../../server/constants/expense_status';
+import { getFxRate } from '../../../../server/lib/currency';
+import emailLib from '../../../../server/lib/email';
+import models from '../../../../server/models';
 import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
+import paymentProviders from '../../../../server/paymentProviders';
+import paypalAdaptive from '../../../../server/paymentProviders/paypal/adaptiveGateway';
+import * as store from '../../../stores';
+import {
+  fakeCollective,
+  fakeConnectedAccount,
+  fakeExpense,
+  fakeExpenseItem,
+  fakePayoutMethod,
+  fakeUser,
+  randStr,
+} from '../../../test-helpers/fake-data';
+import * as utils from '../../../utils';
 
 /* Queries used throughout these tests */
 const allExpensesQuery = `
@@ -42,9 +36,9 @@ const allExpensesQuery = `
       amount
       category
       user { id email collective { id slug } }
-      collective { id slug } 
+      collective { id slug }
       attachment
-    } 
+    }
   }`;
 
 const expensesQuery = `
@@ -98,8 +92,8 @@ const createExpenseQuery = `
         amount
         description
         incurredAt
-      } 
-    } 
+      }
+    }
   }`;
 
 const editExpenseMutation = `
@@ -118,8 +112,8 @@ const editExpenseMutation = `
         amount
         description
         incurredAt
-      } 
-    } 
+      }
+    }
   }`;
 
 const approveExpenseQuery = `

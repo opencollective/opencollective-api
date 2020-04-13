@@ -1,5 +1,6 @@
-import * as ExpensePermissionsLib from '../../common/expenses';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType } from 'graphql';
+
+import * as ExpensePermissionsLib from '../../common/expenses';
 
 const ExpensePermissions = new GraphQLObjectType({
   name: 'ExpensePermissions',

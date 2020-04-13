@@ -1,7 +1,8 @@
 import { expect } from 'chai';
-import { graphqlQueryV2 } from '../../../../utils';
-import { fakeCollective, fakeUser } from '../../../../test-helpers/fake-data';
+
 import { roles } from '../../../../../server/constants';
+import { fakeCollective, fakeUser } from '../../../../test-helpers/fake-data';
+import { graphqlQueryV2 } from '../../../../utils';
 
 const ACCOUNT_QUERY = `
   query account($slug: String!) {

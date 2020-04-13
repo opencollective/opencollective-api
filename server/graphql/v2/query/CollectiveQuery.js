@@ -1,9 +1,9 @@
-import { GraphQLString, GraphQLBoolean } from 'graphql';
+import { GraphQLBoolean, GraphQLString } from 'graphql';
 
-import { Collective } from '../object/Collective';
 import models from '../../../models';
-import { idDecode } from '../identifiers';
 import { NotFound } from '../../errors';
+import { idDecode } from '../identifiers';
+import { Collective } from '../object/Collective';
 
 const CollectiveQuery = {
   type: Collective,

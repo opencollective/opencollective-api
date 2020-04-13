@@ -1,11 +1,10 @@
-import sinon from 'sinon';
 import { expect } from 'chai';
+import sinon from 'sinon';
 
 import models from '../../../../server/models';
 import CollectivePaymentProvider from '../../../../server/paymentProviders/opencollective/collective';
-
-import * as utils from '../../../utils';
 import * as store from '../../../stores';
+import * as utils from '../../../utils';
 
 const ORDER_TOTAL_AMOUNT = 1000;
 const STRIPE_FEE_STUBBED_VALUE = 300;

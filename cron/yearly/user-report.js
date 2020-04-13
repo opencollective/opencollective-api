@@ -10,12 +10,13 @@ if (process.env.NODE_ENV === 'production' && today.getDate() !== 1 && today.getM
 
 process.env.PORT = 3066;
 
-import models, { sequelize, Op } from '../../server/models';
-import _ from 'lodash';
 import Promise from 'bluebird';
-import { formatCurrency, formatArrayToString, formatCurrencyObject } from '../../server/lib/utils';
+import _ from 'lodash';
+
 import emailLib from '../../server/lib/email';
 import queries from '../../server/lib/queries';
+import { formatArrayToString, formatCurrency, formatCurrencyObject } from '../../server/lib/utils';
+import models, { Op, sequelize } from '../../server/models';
 
 const d = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date();
 const startDate = new Date(`${d.getFullYear() - 1}`);

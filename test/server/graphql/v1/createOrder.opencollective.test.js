@@ -1,15 +1,10 @@
 import { expect } from 'chai';
 
-/* Support code */
-import models from '../../../../server/models';
 import * as libpayments from '../../../../server/lib/payments';
-
-/* Test tools */
-import * as utils from '../../../utils';
-import * as store from '../../../stores';
-
-/* What's being tested */
+import models from '../../../../server/models';
 import prepaid from '../../../../server/paymentProviders/opencollective/prepaid';
+import * as store from '../../../stores';
+import * as utils from '../../../utils';
 
 describe('server/graphql/v1/createOrder.opencollective', () => {
   describe('prepaid', () => {

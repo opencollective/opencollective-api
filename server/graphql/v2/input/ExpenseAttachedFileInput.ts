@@ -1,4 +1,4 @@
-import { GraphQLString, GraphQLInputObjectType, GraphQLNonNull } from 'graphql';
+import { GraphQLInputObjectType, GraphQLNonNull,GraphQLString } from 'graphql';
 
 /**
  * To create or edit an optional expense file attachment

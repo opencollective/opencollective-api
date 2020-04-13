@@ -1,9 +1,10 @@
-import { GraphQLNonNull, GraphQLString, GraphQLList, GraphQLBoolean } from 'graphql';
-import Conversation from '../object/Conversation';
-import { createConversation, editConversation } from '../../common/conversations';
-import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
-import { Unauthorized } from '../../errors';
+import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+
 import models from '../../../models';
+import { createConversation, editConversation } from '../../common/conversations';
+import { Unauthorized } from '../../errors';
+import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
+import Conversation from '../object/Conversation';
 
 const conversationMutations = {
   createConversation: {

@@ -1,12 +1,13 @@
 import './env';
 
 import os from 'os';
+
 import config from 'config';
 import express from 'express';
 
-import routes from './routes';
 import expressLib from './lib/express';
 import logger from './lib/logger';
+import routes from './routes';
 
 const app = express();
 

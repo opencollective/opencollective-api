@@ -1,20 +1,19 @@
 import Promise from 'bluebird';
-import nock from 'nock';
-import config from 'config';
 import { expect } from 'chai';
+import config from 'config';
+import nock from 'nock';
 import sinon from 'sinon';
 
-import models from '../../../server/models';
-import * as utils from '../../utils';
-import * as payments from '../../../server/lib/payments';
-import * as plansLib from '../../../server/lib/plans';
+import status from '../../../server/constants/order_status';
 import { PLANS_COLLECTIVE_SLUG } from '../../../server/constants/plans';
 import roles from '../../../server/constants/roles';
-import status from '../../../server/constants/order_status';
-import stripe from '../../../server/lib/stripe';
 import emailLib from '../../../server/lib/email';
-
+import * as payments from '../../../server/lib/payments';
+import * as plansLib from '../../../server/lib/plans';
+import stripe from '../../../server/lib/stripe';
+import models from '../../../server/models';
 import stripeMocks from '../../mocks/stripe';
+import * as utils from '../../utils';
 
 const AMOUNT = 1099;
 const AMOUNT2 = 199;

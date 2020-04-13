@@ -2,11 +2,11 @@ import { expect } from 'chai';
 import { describe, it } from 'mocha';
 import sinon from 'sinon';
 
-import * as utils from '../../../utils';
-import models from '../../../../server/models';
 import roles from '../../../../server/constants/roles';
-import emailLib from '../../../../server/lib/email';
 import { idEncode } from '../../../../server/graphql/v2/identifiers';
+import emailLib from '../../../../server/lib/email';
+import models from '../../../../server/models';
+import * as utils from '../../../utils';
 
 let host,
   collectiveAdmin,

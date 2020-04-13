@@ -1,6 +1,8 @@
 import DataLoader from 'dataloader';
+
 import models, { Op } from '../../models';
 import { ExpenseItem } from '../../models/ExpenseItem';
+
 import { sortResultsArray } from './helpers';
 
 /**

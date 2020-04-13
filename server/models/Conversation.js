@@ -1,10 +1,11 @@
 import slugify from 'limax';
 
 import { activities } from '../constants';
-import { generateSummaryForHTML } from '../lib/sanitize-html';
-import { validateTags, sanitizeTags } from '../lib/tags';
-import models, { sequelize } from '.';
 import { idEncode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
+import { generateSummaryForHTML } from '../lib/sanitize-html';
+import { sanitizeTags, validateTags } from '../lib/tags';
+
+import models, { sequelize } from '.';
 
 export default function (Sequelize, DataTypes) {
   const Conversation = Sequelize.define(

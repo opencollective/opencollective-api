@@ -1,9 +1,10 @@
 import path from 'path';
-import { v1 as uuid } from 'uuid';
-import config from 'config';
 
-import errors from '../lib/errors';
+import config from 'config';
+import { v1 as uuid } from 'uuid';
+
 import s3 from '../lib/awsS3';
+import errors from '../lib/errors';
 
 // Use a 2 minutes timeout for image upload requests as the default 25 seconds
 // often leads to failing requests.

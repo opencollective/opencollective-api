@@ -1,18 +1,14 @@
+import { GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLString } from 'graphql';
+import { GraphQLDateTime } from 'graphql-iso-date';
+import GraphQLJSON from 'graphql-type-json';
 import { invert } from 'lodash';
 
-import { GraphQLInt, GraphQLString, GraphQLList, GraphQLInterfaceType } from 'graphql';
-import GraphQLJSON from 'graphql-type-json';
-import { GraphQLDateTime } from 'graphql-iso-date';
-
-import { idEncode } from '../identifiers';
-
-import { HasMembersFields } from '../interface/HasMembers';
-import { IsMemberOfFields } from '../interface/IsMemberOf';
-
+import models, { Op } from '../../../models';
+import { NotFound } from '../../errors';
+import { ConversationCollection } from '../collection/ConversationCollection';
 import { MemberCollection, MemberOfCollection } from '../collection/MemberCollection';
-import { TransactionCollection } from '../collection/TransactionCollection';
 import { OrderCollection } from '../collection/OrderCollection';
-
+import { TransactionCollection } from '../collection/TransactionCollection';
 import {
   AccountOrdersFilter,
   AccountType,
@@ -22,18 +18,15 @@ import {
   OrderStatus,
   TransactionType,
 } from '../enum';
-
+import { idEncode } from '../identifiers';
 import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
-
-import { NotFound } from '../../errors';
-
-import models, { Op } from '../../../models';
-import { ConversationCollection } from '../collection/ConversationCollection';
+import { HasMembersFields } from '../interface/HasMembers';
+import { IsMemberOfFields } from '../interface/IsMemberOf';
+import { AccountStats } from '../object/AccountStats';
+import { Location } from '../object/Location';
+import PayoutMethod from '../object/PayoutMethod';
 import { TagStats } from '../object/TagStats';
 import { TransferWise } from '../object/TransferWise';
-import PayoutMethod from '../object/PayoutMethod';
-import { Location } from '../object/Location';
-import { AccountStats } from '../object/AccountStats';
 
 const accountFieldsDefinition = () => ({
   id: {

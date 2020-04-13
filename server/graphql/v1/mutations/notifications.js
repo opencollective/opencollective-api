@@ -1,11 +1,10 @@
 import Promise from 'bluebird';
-import { pick } from 'lodash';
 import config from 'config';
+import { pick } from 'lodash';
 
-import models, { Op } from '../../../models';
 import { channels } from '../../../constants';
 import { diffDBEntries } from '../../../lib/data';
-
+import models, { Op } from '../../../models';
 import { Forbidden, NotFound, Unauthorized } from '../../errors';
 
 const NotificationPermissionError = new Forbidden({

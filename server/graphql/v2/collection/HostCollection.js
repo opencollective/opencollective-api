@@ -1,7 +1,7 @@
 import { GraphQLList, GraphQLObjectType } from 'graphql';
 
-import { Host } from '../object/Host';
 import { Collection, CollectionFields } from '../interface/Collection';
+import { Host } from '../object/Host';
 
 const HostCollection = new GraphQLObjectType({
   name: 'HostCollection',

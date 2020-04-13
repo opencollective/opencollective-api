@@ -3,16 +3,15 @@
  * This tests all the GraphQL API methods that interact with user
  * invoices. */
 
-import sinon from 'sinon';
 import { expect } from 'chai';
 import moment from 'moment';
+import sinon from 'sinon';
+
+import * as store from '../../../stores';
+import * as utils from '../../../utils';
 
 // The tests pass invalid ISO strings to moment and this gives an annoying deprecation warning.
 moment.suppressDeprecationWarnings = true;
-
-/* Test utilities */
-import * as utils from '../../../utils';
-import * as store from '../../../stores';
 
 const startOctober2017ISOString = moment('2017-10-01').toISOString(true);
 const startNovember2017ISOString = moment('2017-11-01').toISOString(true);

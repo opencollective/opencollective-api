@@ -1,9 +1,10 @@
-import sinon from 'sinon';
-import nodemailer from 'nodemailer';
 import { expect } from 'chai';
+import config from 'config';
+import nodemailer from 'nodemailer';
+import sinon from 'sinon';
+
 import emailLib from '../../../server/lib/email';
 import * as utils from '../../utils';
-import config from 'config';
 
 const emailData = utils.data('emailData');
 

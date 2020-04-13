@@ -1,7 +1,8 @@
 import { expect } from 'chai';
 import { pick } from 'lodash';
-import { fakeExpense, fakeCollective, fakeUser } from '../../test-helpers/fake-data';
+
 import models from '../../../server/models';
+import { fakeCollective, fakeExpense, fakeUser } from '../../test-helpers/fake-data';
 
 describe('test/server/models/Expense', () => {
   describe('Create', () => {

@@ -1,9 +1,10 @@
 import { expect } from 'chai';
+
 import {
-  stripHTML,
-  sanitizeHTML,
   buildSanitizerOptions,
   generateSummaryForHTML,
+  sanitizeHTML,
+  stripHTML,
 } from '../../../server/lib/sanitize-html';
 
 const fullContent = `

@@ -1,34 +1,28 @@
-import serverStatus from 'express-server-status';
-import GraphHTTP from 'express-graphql';
-import multer from 'multer';
-import config from 'config';
-
-import redis from 'redis';
-import expressLimiter from 'express-limiter';
-import { ApolloServer } from 'apollo-server-express';
 import { formatError } from 'apollo-errors';
+import { ApolloServer } from 'apollo-server-express';
+import config from 'config';
+import GraphHTTP from 'express-graphql';
+import expressLimiter from 'express-limiter';
+import serverStatus from 'express-server-status';
 import { get } from 'lodash';
+import multer from 'multer';
+import redis from 'redis';
 
 import * as connectedAccounts from './controllers/connectedAccounts';
+import helloworks from './controllers/helloworks';
 import uploadImage from './controllers/images';
+import * as email from './controllers/services/email';
 import * as users from './controllers/users';
 import { stripeWebhook, transferwiseWebhook } from './controllers/webhooks';
-import * as email from './controllers/services/email';
-
-import required from './middleware/required_param';
+import graphqlSchemaV1 from './graphql/v1/schema';
+import graphqlSchemaV2 from './graphql/v2/schema';
+import logger from './lib/logger';
 import * as authentication from './middleware/authentication';
 import errorHandler from './middleware/error_handler';
 import * as params from './middleware/params';
+import required from './middleware/required_param';
 import sanitizer from './middleware/sanitizer';
-
 import * as paypal from './paymentProviders/paypal/payment';
-
-import logger from './lib/logger';
-
-import graphqlSchemaV1 from './graphql/v1/schema';
-import graphqlSchemaV2 from './graphql/v2/schema';
-
-import helloworks from './controllers/helloworks';
 
 const upload = multer();
 

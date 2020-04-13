@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 import '../server/env';
 
-import { Op } from 'sequelize';
 import debugLib from 'debug';
+import { Op } from 'sequelize';
 
+import { types as collectiveTypes } from '../server/constants/collectives';
 import algolia from '../server/lib/algolia';
 import emailLib from '../server/lib/email';
 import models from '../server/models';
-import { types as collectiveTypes } from '../server/constants/collectives';
 
 const debug = debugLib('collectives_archived_search_index_cleanup');
 

@@ -1,15 +1,15 @@
-import config from 'config';
 import Promise from 'bluebird';
-import Twitter from 'twitter';
-import IntlMessageFormat from 'intl-messageformat';
+import config from 'config';
 import debugLib from 'debug';
-import { has, get } from 'lodash';
-
-import models from '../models';
-import logger from './logger';
-import { formatCurrency } from './utils';
+import IntlMessageFormat from 'intl-messageformat';
+import { get, has } from 'lodash';
+import Twitter from 'twitter';
 
 import activityType from '../constants/activities';
+import models from '../models';
+
+import logger from './logger';
+import { formatCurrency } from './utils';
 
 const debug = debugLib('twitter');
 

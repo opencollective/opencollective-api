@@ -1,16 +1,17 @@
 /** @module lib/subscriptions */
 
 import config from 'config';
+import { get } from 'lodash';
 import moment from 'moment';
 import { Op } from 'sequelize';
 
-import { get } from 'lodash';
+import intervals from '../constants/intervals';
+import status from '../constants/order_status';
 import models from '../models';
+
+import { getRecommendedCollectives } from './data';
 import emailLib from './email';
 import * as paymentsLib from './payments';
-import { getRecommendedCollectives } from './data';
-import status from '../constants/order_status';
-import intervals from '../constants/intervals';
 import { isHostPlan } from './plans';
 
 /** Maximum number of attempts before an order gets cancelled. */

@@ -1,14 +1,14 @@
-import sinon from 'sinon';
-import config from 'config';
-import { expect } from 'chai';
 import { URL } from 'url';
+
+import { expect } from 'chai';
+import config from 'config';
 import { SequelizeValidationError } from 'sequelize';
+import sinon from 'sinon';
 
-import models from '../../../server/models';
 import * as auth from '../../../server/lib/auth';
-
-import * as utils from '../../utils';
+import models from '../../../server/models';
 import { randEmail } from '../../stores';
+import * as utils from '../../utils';
 
 const userData = utils.data('user1');
 

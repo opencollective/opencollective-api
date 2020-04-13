@@ -8,14 +8,14 @@ if (process.env.NODE_ENV === 'production' && today.getDate() !== 1) {
   process.exit();
 }
 
-import { Op } from 'sequelize';
-import { groupBy } from 'lodash';
 import debugLib from 'debug';
+import { groupBy } from 'lodash';
+import { Op } from 'sequelize';
 
-import models from '../../server/models';
-import plans, { PLANS_COLLECTIVE_SLUG } from '../../server/constants/plans';
 import orderStatus from '../../server/constants/order_status';
+import plans, { PLANS_COLLECTIVE_SLUG } from '../../server/constants/plans';
 import emailLib from '../../server/lib/email';
+import models from '../../server/models';
 
 const debug = debugLib('verify-plans');
 

@@ -1,4 +1,5 @@
-import { expect, assert } from 'chai';
+import { assert, expect } from 'chai';
+
 import * as identifiers from '../../../../server/graphql/v2/identifiers';
 
 describe('server/graphql/v2/identifiers', () => {

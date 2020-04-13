@@ -10,14 +10,15 @@ if (process.env.NODE_ENV === 'production' && today.getDate() !== 1) {
 
 process.env.PORT = 3066;
 
+import Promise from 'bluebird';
+import config from 'config';
+import debugLib from 'debug';
 import _ from 'lodash';
 import moment from 'moment';
-import config from 'config';
-import Promise from 'bluebird';
-import debugLib from 'debug';
+
+import { notifyAdminsOfCollective } from '../../server/lib/notifications';
 import { getTiersStats } from '../../server/lib/utils';
 import models, { Op } from '../../server/models';
-import { notifyAdminsOfCollective } from '../../server/lib/notifications';
 
 const d = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date();
 d.setMonth(d.getMonth() - 1);

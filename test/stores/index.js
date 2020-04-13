@@ -7,11 +7,10 @@
 import sinon from 'sinon';
 import { v4 as uuid } from 'uuid';
 
-/* Libraries that create the objects */
-import models from '../../server/models';
 import * as expenses from '../../server/graphql/v1/mutations/expenses';
 import * as libpayments from '../../server/lib/payments';
-
+/* Libraries that create the objects */
+import models from '../../server/models';
 import * as utils from '../utils';
 
 /** Randomize email since it's a unique key in the database
