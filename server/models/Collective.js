@@ -957,6 +957,13 @@ export default function (Sequelize, DataTypes) {
   };
 
   /**
+   * Returns true if the collective can be used as a payout profile for an expense
+   */
+  Collective.prototype.canBeUsedAsPayoutProfile = function () {
+    return !this.isIncognito && !this.isHostAccount && [types.USER, types.ORGANIZATION].includes(this.type);
+  };
+
+  /**
    *  Checks if the collective can be contacted.
    */
   Collective.prototype.canContact = async function () {
