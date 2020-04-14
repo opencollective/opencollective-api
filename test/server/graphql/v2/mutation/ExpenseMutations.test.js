@@ -20,6 +20,10 @@ mutation createExpense($expense: ExpenseCreateInput!, $account: AccountReference
     id
     legacyId
     invoiceInfo
+    amount
+    payee {
+      legacyId
+    }
   }
 }`;
 
@@ -67,17 +71,19 @@ const convertExpenseItemId = item => {
 
 describe('server/graphql/v2/mutation/ExpenseMutations', () => {
   describe('createExpense', () => {
+    const getValidExpenseData = () => ({
+      description: 'A valid expense',
+      type: 'INVOICE',
+      invoiceInfo: 'This will be printed on your invoice',
+      payoutMethod: { type: 'PAYPAL', data: { email: randEmail() } },
+      items: [{ description: 'A first item', amount: 4200 }],
+    });
+
     it('creates the expense with the linked items', async () => {
       const user = await fakeUser();
       const collective = await fakeCollective();
-      const expenseData = {
-        description: 'A valid expense',
-        type: 'INVOICE',
-        invoiceInfo: 'This will be printed on your invoice',
-        payee: { legacyId: user.CollectiveId },
-        payoutMethod: { type: 'PAYPAL', data: { email: randEmail() } },
-        items: [{ description: 'A first item', amount: 4200 }],
-      };
+      const payee = await fakeCollective({ type: 'ORGANIZATION', admin: user.collective });
+      const expenseData = { ...getValidExpenseData(), payee: { legacyId: payee.id } };
 
       const result = await graphqlQueryV2(
         createExpenseMutation,
@@ -92,6 +98,24 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
       const createdExpense = result.data.createExpense;
       expect(createdExpense.invoiceInfo).to.eq(expenseData.invoiceInfo);
+      expect(createdExpense.amount).to.eq(4200);
+      expect(createdExpense.payee.legacyId).to.eq(payee.id);
+    });
+
+    it('must be an admin to submit expense as another account', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective();
+      const payee = await fakeCollective({ type: 'ORGANIZATION' });
+      const expenseData = { ...getValidExpenseData(), payee: { legacyId: payee.id } };
+
+      const result = await graphqlQueryV2(
+        createExpenseMutation,
+        { expense: expenseData, account: { legacyId: collective.id } },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('You must be an admin of the account to submit an expense in its name');
     });
   });
 

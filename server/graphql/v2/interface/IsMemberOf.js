@@ -1,4 +1,5 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList } from 'graphql';
+import { isNil } from 'lodash';
 
 import models, { Op } from '../../../models';
 import { MemberOfCollection } from '../collection/MemberCollection';
@@ -13,6 +14,10 @@ export const IsMemberOfFields = {
       offset: { type: GraphQLInt },
       role: { type: new GraphQLList(MemberRole) },
       accountType: { type: new GraphQLList(AccountType) },
+      isHostAccount: {
+        type: GraphQLBoolean,
+        description: 'Filter on whether the account is a host or not',
+      },
       includeIncognito: {
         type: GraphQLBoolean,
         defaultValue: true,
@@ -34,6 +39,9 @@ export const IsMemberOfFields = {
       }
       if (!args.includeIncognito || !req.remoteUser?.isAdmin(collective.id)) {
         collectiveConditions.isIncognito = false;
+      }
+      if (!isNil(args.isHost)) {
+        collectiveConditions.isHostAccount = args.isHostAccount;
       }
       const result = await models.Member.findAndCountAll({
         where,

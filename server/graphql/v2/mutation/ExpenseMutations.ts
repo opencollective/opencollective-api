@@ -46,7 +46,7 @@ const expenseMutations = {
         amount: items.reduce((total, item) => total + item.amount, 0),
         PayoutMethod: payoutMethod,
         collective: await fetchAccountWithReference(args.account, req),
-        fromCollective: args.expense.payee,
+        fromCollective: await fetchAccountWithReference(args.expense.payee, { throwIfMissing: true }),
       });
     },
   },
@@ -89,7 +89,7 @@ const expenseMutations = {
           id: attachedFile.id && idDecode(attachedFile.id, IDENTIFIER_TYPES.EXPENSE_ITEM),
           url: attachedFile.url,
         })),
-        fromCollective: null, // TODO payee
+        fromCollective: expense.payee && (await fetchAccountWithReference(expense.payee, { throwIfMissing: true })),
       });
     },
   },

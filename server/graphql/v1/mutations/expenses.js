@@ -233,8 +233,13 @@ export async function createExpense(remoteUser, expenseData) {
     throw new errors.ValidationFailed('Expenses can only be submitted to collectives and events');
   }
 
-  // For now we only add expenses from user's collectives
-  const fromCollective = await remoteUser.getCollective();
+  // Load the payee profile
+  const fromCollective = expenseData.fromCollective || (await remoteUser.getCollective());
+  if (!remoteUser.isAdmin(fromCollective.id)) {
+    throw new ValidationFailed({ message: 'You must be an admin of the account to submit an expense in its name' });
+  } else if (!fromCollective.canBeUsedAsPayoutProfile()) {
+    throw new ValidationFailed({ message: 'This account cannot be used for payouts' });
+  }
 
   const expense = await sequelize.transaction(async t => {
     // Get or create payout method
@@ -344,8 +349,15 @@ export async function editExpense(remoteUser, expenseData) {
     throw new ValidationFailed({ message: 'The number of files that you can attach to an expense is limited to 15' });
   }
 
+  // Load the payee profile
+  const fromCollective = expenseData.fromCollective || expense.fromCollective;
+  if (!remoteUser.isAdmin(fromCollective.id)) {
+    throw new ValidationFailed({ message: 'You must be an admin of the account to submit an expense in its name' });
+  } else if (!fromCollective.canBeUsedAsPayoutProfile()) {
+    throw new ValidationFailed({ message: 'This account cannot be used for payouts' });
+  }
+
   const cleanExpenseData = pick(expenseData, EXPENSE_EDITABLE_FIELDS);
-  const fromCollective = expense.fromCollective;
   let payoutMethod = await expense.getPayoutMethod();
   const updatedExpense = await sequelize.transaction(async t => {
     // Update payout method if we get new data from one of the param for it
@@ -415,6 +427,7 @@ export async function editExpense(remoteUser, expenseData) {
         lastEditedById: remoteUser.id,
         incurredAt: expenseData.incurredAt || new Date(),
         status: shouldUpdateStatus ? 'PENDING' : expense.status,
+        FromCollectiveId: fromCollective.id,
         PayoutMethodId: PayoutMethodId,
         legacyPayoutMethod: models.Expense.getLegacyPayoutMethodTypeFromPayoutMethod(payoutMethod),
         tags,
