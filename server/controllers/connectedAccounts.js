@@ -140,9 +140,7 @@ export const disconnect = async (req, res) => {
     mustBeLoggedInTo(remoteUser, 'disconnect this connected account');
 
     if (!remoteUser.isAdmin(CollectiveId)) {
-      throw new errors.Unauthorized({
-        message: 'You are either logged out or not authorized to disconnect this account',
-      });
+      throw new errors.Unauthorized('You are either logged out or not authorized to disconnect this account');
     }
 
     const account = await ConnectedAccount.findOne({

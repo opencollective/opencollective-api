@@ -86,7 +86,7 @@ describe('server/graphql/v2/mutation/ConnectedAccountMutations', () => {
       );
 
       expect(result.errors).to.exist;
-      expect(result.errors[0].originalError.name).to.equal('ValidationFailed');
+      expect(result.errors[0].extensions.code).to.equal('ValidationFailed');
       expect(result.errors[0].message).to.include('This token is already being used');
     });
 
@@ -108,7 +108,7 @@ describe('server/graphql/v2/mutation/ConnectedAccountMutations', () => {
       );
 
       expect(result.errors).to.exist;
-      expect(result.errors[0].originalError.name).to.equal('ValidationFailed');
+      expect(result.errors[0].extensions.code).to.equal('ValidationFailed');
       expect(result.errors[0].message).to.include('The token is not a valid TransferWise token');
     });
   });

@@ -29,10 +29,10 @@ const IndividualQuery = {
       return new Error('Please provide a slug or an id');
     }
     if (!collective) {
-      throw new NotFound({ message: 'Individual Not Found' });
+      throw new NotFound('Individual Not Found');
     }
     if (collective.type !== 'USER') {
-      throw new NotFound({ message: 'Not an Individual Account ' });
+      throw new NotFound('Not an Individual Account ');
     }
     return collective;
   },

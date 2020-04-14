@@ -9,7 +9,7 @@ const AccountSettingsKey = new GraphQLScalarType({
   parseValue(value: string): string {
     const baseKey = value.split('.')[0];
     if (!COLLECTIVE_SETTINGS_KEYS_LIST.includes(baseKey)) {
-      throw new ValidationFailed({ message: `Not a valid setting key: ${baseKey}` });
+      throw new ValidationFailed(`Not a valid setting key: ${baseKey}`);
     }
 
     return value;

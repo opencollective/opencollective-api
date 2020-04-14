@@ -59,7 +59,7 @@ export const fetchAccountWithReference = async (
     throw new Error('Please provide an id or a slug');
   }
   if (!collective && throwIfMissing) {
-    throw new NotFound({ message: 'Account Not Found' });
+    throw new NotFound('Account Not Found');
   }
   return collective;
 };

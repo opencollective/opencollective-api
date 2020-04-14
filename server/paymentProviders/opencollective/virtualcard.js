@@ -483,7 +483,7 @@ async function claim(args, remoteUser) {
   if (!sourcePaymentMethod || sourcePaymentMethod.CollectiveId !== virtualCardPaymentMethod.CollectiveId) {
     throw Error('Gift Card already redeemed');
   } else if (virtualCardPaymentMethod.expiryDate < new Date()) {
-    throw new ValidationFailed({ message: `This gift card has expired` });
+    throw new ValidationFailed(`This gift card has expired`);
   }
 
   // find or creating a user with its collective

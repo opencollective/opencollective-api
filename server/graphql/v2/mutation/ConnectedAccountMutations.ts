@@ -29,28 +29,28 @@ const connectedAccountMutations = {
     },
     async resolve(_, args, req): Promise<object> {
       if (!req.remoteUser) {
-        throw new errors.Unauthorized({ message: 'You need to be logged in to create a connected account' });
+        throw new errors.Unauthorized('You need to be logged in to create a connected account');
       }
 
       const collective = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
       if (!req.remoteUser.isAdmin(collective.id)) {
-        throw new errors.Unauthorized({ message: "You don't have permission to edit this collective" });
+        throw new errors.Unauthorized("You don't have permission to edit this collective");
       }
 
       if (args.connectedAccount.service === Service.TRANSFERWISE) {
         if (!args.connectedAccount.token) {
-          throw new errors.ValidationFailed({ message: 'A token is required for TransferWise accounts' });
+          throw new errors.ValidationFailed('A token is required for TransferWise accounts');
         }
         const sameTokenCount = await models.ConnectedAccount.count({
           where: { service: Service.TRANSFERWISE, token: args.connectedAccount.token },
         });
         if (sameTokenCount > 0) {
-          throw new errors.ValidationFailed({ message: 'This token is already being used' });
+          throw new errors.ValidationFailed('This token is already being used');
         }
         try {
           await transferwise.getProfiles(args.connectedAccount.token);
         } catch (e) {
-          throw new errors.ValidationFailed({ message: 'The token is not a valid TransferWise token' });
+          throw new errors.ValidationFailed('The token is not a valid TransferWise token');
         }
       }
 

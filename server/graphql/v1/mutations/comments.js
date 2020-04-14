@@ -5,7 +5,7 @@ import * as errors from '../../errors';
 
 function require(args, path) {
   if (!get(args, path)) {
-    throw new errors.ValidationFailed({ message: `${path} required` });
+    throw new errors.ValidationFailed(`${path} required`);
   }
 }
 

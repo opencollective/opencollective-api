@@ -63,17 +63,13 @@ export function getListOfAccessibleMembers(remoteUser, CollectiveIds) {
 
 export function mustBeLoggedInTo(remoteUser, action = 'do this') {
   if (!remoteUser) {
-    throw new errors.Unauthorized({
-      message: `You must be logged in to ${action}`,
-    });
+    throw new errors.Unauthorized(`You must be logged in to ${action}`);
   }
 }
 
 export function mustHaveRole(remoteUser, roles, CollectiveId, action = 'perform this action') {
   mustBeLoggedInTo(remoteUser, action);
   if (!CollectiveId || !remoteUser.hasRole(roles, CollectiveId)) {
-    throw new errors.Unauthorized({
-      message: `You don't have sufficient permissions to ${action}`,
-    });
+    throw new errors.Unauthorized(`You don't have sufficient permissions to ${action}`);
   }
 }

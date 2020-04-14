@@ -7,13 +7,11 @@ import { diffDBEntries } from '../../../lib/data';
 import models, { Op } from '../../../models';
 import { Forbidden, NotFound, Unauthorized } from '../../errors';
 
-const NotificationPermissionError = new Forbidden({
-  message: "This notification does not exist or you don't have the permission to edit it.",
-});
+const NotificationPermissionError = new Forbidden(
+  "This notification does not exist or you don't have the permission to edit it.",
+);
 
-const MaxWebhooksExceededError = new Forbidden({
-  message: 'You have reached the webhooks limit for this collective.',
-});
+const MaxWebhooksExceededError = new Forbidden('You have reached the webhooks limit for this collective.');
 
 /**
  * Edits (by replacing) the admin-level webhooks for a collective.
@@ -81,15 +79,15 @@ export async function editWebhooks(args, remoteUser) {
  */
 export async function createWebhook(args, remoteUser) {
   if (!remoteUser) {
-    throw new Unauthorized({ message: 'You need to be logged in to create a webhook.' });
+    throw new Unauthorized('You need to be logged in to create a webhook.');
   }
 
   // Load collective
   const collective = await models.Collective.findOne({ where: { slug: args.collectiveSlug } });
   if (!collective) {
-    throw new NotFound({ message: `Collective with slug: ${args.collectiveSlug} not found.` });
+    throw new NotFound(`Collective with slug: ${args.collectiveSlug} not found.`);
   } else if (!remoteUser.isAdmin(collective.id)) {
-    throw new Unauthorized({ message: 'You do not have permissions to create webhooks for this collective.' });
+    throw new Unauthorized('You do not have permissions to create webhooks for this collective.');
   }
 
   // Check limits
@@ -115,14 +113,14 @@ export async function createWebhook(args, remoteUser) {
  */
 export async function deleteNotification(args, remoteUser) {
   if (!remoteUser) {
-    throw new Unauthorized({ message: 'You need to be logged in as admin to delete a notification.' });
+    throw new Unauthorized('You need to be logged in as admin to delete a notification.');
   }
 
   const notification = await models.Notification.findOne({ where: { id: args.id } });
   if (!notification) {
-    throw new NotFound({ message: `Notification with ID ${args.id} not found.` });
+    throw new NotFound(`Notification with ID ${args.id} not found.`);
   } else if (!remoteUser.isAdmin(notification.CollectiveId)) {
-    throw new Unauthorized({ message: 'You need to be logged in as admin to delete this notification.' });
+    throw new Unauthorized('You need to be logged in as admin to delete this notification.');
   }
 
   await notification.destroy();

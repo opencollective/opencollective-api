@@ -23,23 +23,23 @@ const collectiveMutations = {
     },
     async resolve(_, args, req): Promise<object> {
       if (!req.remoteUser) {
-        throw new Unauthorized({ message: 'You need to be logged in' });
+        throw new Unauthorized('You need to be logged in');
       }
 
       const collective = await fetchAccountWithReference(args.collective);
       if (!collective) {
-        throw new NotFound({ message: 'Collective not found' });
+        throw new NotFound('Collective not found');
       }
       if (collective.type !== COLLECTIVE) {
         throw new Error('Account not a Collective');
       }
       if (!req.remoteUser.isAdmin(collective.id)) {
-        throw new Unauthorized({ message: 'You need to be an Admin of the Collective' });
+        throw new Unauthorized('You need to be an Admin of the Collective');
       }
 
       const host = await fetchAccountWithReference(args.host);
       if (!host) {
-        throw new NotFound({ message: 'Host not found' });
+        throw new NotFound('Host not found');
       }
       const isHost = await host.isHost();
       if (!isHost) {

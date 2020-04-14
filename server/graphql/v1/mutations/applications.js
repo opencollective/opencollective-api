@@ -8,7 +8,7 @@ const { Application } = models;
 
 function requireArgs(args, path) {
   if (!get(args, path)) {
-    throw new errors.ValidationFailed({ message: `${path} required` });
+    throw new errors.ValidationFailed(`${path} required`);
   }
 }
 
@@ -30,9 +30,7 @@ export async function createApplication(_, args, req) {
   });
 
   if (numberOfAppsForThisUser >= config.limits.maxNumberOfAppsPerUser) {
-    throw new errors.RateLimitExceeded({
-      message: 'You have reached the maximum number of applications for this user',
-    });
+    throw new errors.RateLimitExceeded('You have reached the maximum number of applications for this user');
   }
 
   const app = await Application.create({
@@ -51,9 +49,7 @@ export async function deleteApplication(_, args, req) {
 
   const app = await Application.findByPk(args.id);
   if (!app) {
-    throw new errors.NotFound({
-      message: `Application with id ${args.id} not found`,
-    });
+    throw new errors.NotFound(`Application with id ${args.id} not found`);
   } else if (req.remoteUser.CollectiveId !== app.CollectiveId) {
     throw new errors.Forbidden('Authenticated user is not the application owner.');
   }
