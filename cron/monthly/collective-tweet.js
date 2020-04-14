@@ -173,6 +173,7 @@ const sendTweet = async (twitterAccount, data) => {
         ? 'none'
         : stats.topExpenseCategories
             .slice(0, 2)
+            // Notice: this category property is virtual, it actually corresponds to the first tag of the expense.
             .map(ec => ec.category)
             .join(' & ')
             .toLowerCase(),

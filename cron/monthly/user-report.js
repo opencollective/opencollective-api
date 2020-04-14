@@ -457,16 +457,16 @@ const computeStats = async (collectives, currency = 'USD') => {
       stats.expenses += expenses.length;
       await Promise.map(expenses, async expense => {
         const amountInBackerCurrency = await convertToCurrency(expense.amount, expense.currency, currency);
-        categories[expense.category] = categories[expense.category] || {
+        categories[expense.tags?.[0]] = categories[expense.tags?.[0]] || {
           occurences: 0,
           totalAmountPerCurrency: {},
           totalAmountInBackerCurrency: 0,
         };
-        categories[expense.category].occurences++;
-        categories[expense.category].totalAmountPerCurrency[expense.currency] =
-          categories[expense.category].totalAmountPerCurrency[expense.currency] || 0;
-        categories[expense.category].totalAmountPerCurrency[expense.currency] += expense.amount;
-        categories[expense.category].totalAmountInBackerCurrency += amountInBackerCurrency;
+        categories[expense.tags?.[0]].occurences++;
+        categories[expense.tags?.[0]].totalAmountPerCurrency[expense.currency] =
+          categories[expense.tags?.[0]].totalAmountPerCurrency[expense.currency] || 0;
+        categories[expense.tags?.[0]].totalAmountPerCurrency[expense.currency] += expense.amount;
+        categories[expense.tags?.[0]].totalAmountInBackerCurrency += amountInBackerCurrency;
         stats.totalSpentPerCurrency[expense.currency] = stats.totalSpentPerCurrency[expense.currency] || 0;
         stats.totalSpentPerCurrency[expense.currency] += expense.amount;
       });
