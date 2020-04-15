@@ -286,7 +286,7 @@ const queries = {
       };
 
       const order = [['createdAt', 'DESC']];
-      const transactions = await models.Transaction.findAll({ where, order, logging: console.log });
+      const transactions = await models.Transaction.findAll({ where, order });
 
       const invoice = {
         title: get(host, 'settings.invoiceTitle'),
