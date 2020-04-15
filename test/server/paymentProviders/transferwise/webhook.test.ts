@@ -21,9 +21,15 @@ import {
 } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
-describe('paymentMethods/transferwise/webhook.ts', () => {
+describe('server/paymentProviders/transferwise/webhook', () => {
+  let expressApp, api;
+  before(async () => {
+    expressApp = await app();
+    api = request(expressApp) as any;
+  });
+
   const sandbox = sinon.createSandbox();
-  const api = request(app) as any;
+
   /* eslint-disable @typescript-eslint/camelcase */
   const event = {
     data: {
