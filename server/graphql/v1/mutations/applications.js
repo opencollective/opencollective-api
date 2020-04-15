@@ -2,19 +2,19 @@ import config from 'config';
 import { get } from 'lodash';
 
 import models from '../../../models';
-import * as errors from '../../errors';
+import { Forbidden, NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 
 const { Application } = models;
 
 function requireArgs(args, path) {
   if (!get(args, path)) {
-    throw new errors.ValidationFailed(`${path} required`);
+    throw new ValidationFailed(`${path} required`);
   }
 }
 
 export async function createApplication(_, args, req) {
   if (!req.remoteUser) {
-    throw new errors.Unauthorized('You need to be authenticated to create an application.');
+    throw new Unauthorized('You need to be authenticated to create an application.');
   }
 
   requireArgs(args, 'application.type');
@@ -30,7 +30,7 @@ export async function createApplication(_, args, req) {
   });
 
   if (numberOfAppsForThisUser >= config.limits.maxNumberOfAppsPerUser) {
-    throw new errors.RateLimitExceeded('You have reached the maximum number of applications for this user');
+    throw new RateLimitExceeded('You have reached the maximum number of applications for this user');
   }
 
   const app = await Application.create({
@@ -44,14 +44,14 @@ export async function createApplication(_, args, req) {
 
 export async function deleteApplication(_, args, req) {
   if (!req.remoteUser) {
-    throw new errors.Unauthorized('You need to be authenticated to delete an application.');
+    throw new Unauthorized('You need to be authenticated to delete an application.');
   }
 
   const app = await Application.findByPk(args.id);
   if (!app) {
-    throw new errors.NotFound(`Application with id ${args.id} not found`);
+    throw new NotFound(`Application with id ${args.id} not found`);
   } else if (req.remoteUser.CollectiveId !== app.CollectiveId) {
-    throw new errors.Forbidden('Authenticated user is not the application owner.');
+    throw new Forbidden('Authenticated user is not the application owner.');
   }
 
   return await app.destroy();

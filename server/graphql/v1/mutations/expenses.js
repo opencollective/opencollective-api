@@ -9,7 +9,6 @@ import expenseType from '../../../constants/expense_type';
 import FEATURE from '../../../constants/feature';
 import roles from '../../../constants/roles';
 import { getFxRate } from '../../../lib/currency';
-import errors from '../../../lib/errors';
 import { floatAmountToCents } from '../../../lib/math';
 import * as libPayments from '../../../lib/payments';
 import { handleTransferwisePayoutsLimit } from '../../../lib/plans';
@@ -20,7 +19,7 @@ import models, { sequelize } from '../../../models';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import paymentProviders from '../../../paymentProviders';
 import { canDeleteExpense, canEditExpense, canUpdateExpenseStatus } from '../../common/expenses';
-import { FeatureNotAllowedForUser, ValidationFailed } from '../../errors';
+import { BadRequest, FeatureNotAllowedForUser, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 
 const debug = debugLib('expenses');
 
@@ -36,13 +35,13 @@ function canMarkExpenseUnpaid(remoteUser, expense) {
 
 export async function updateExpenseStatus(remoteUser, expenseId, status) {
   if (!remoteUser) {
-    throw new errors.Unauthorized('You need to be logged in to update the status of an expense');
+    throw new Unauthorized('You need to be logged in to update the status of an expense');
   } else if (!canUseFeature(remoteUser, FEATURE.EXPENSES)) {
     throw new FeatureNotAllowedForUser();
   }
 
   if (Object.keys(statuses).indexOf(status) === -1) {
-    throw new errors.ValidationFailed('Invalid status, status must be one of ', Object.keys(statuses).join(', '));
+    throw new ValidationFailed('Invalid status, status must be one of ', Object.keys(statuses).join(', '));
   }
 
   const expense = await models.Expense.findByPk(expenseId, {
@@ -50,14 +49,14 @@ export async function updateExpenseStatus(remoteUser, expenseId, status) {
   });
 
   if (!expense) {
-    throw new errors.Unauthorized('Expense not found');
+    throw new Unauthorized('Expense not found');
   }
   if (expense.status === statuses.PROCESSING) {
-    throw new errors.Unauthorized("You can't update the status of an expense being processed");
+    throw new Unauthorized("You can't update the status of an expense being processed");
   }
 
   if (!canUpdateExpenseStatus(remoteUser, expense)) {
-    throw new errors.Unauthorized("You don't have permission to approve this expense");
+    throw new Unauthorized("You don't have permission to approve this expense");
   } else if (expense.status === status) {
     return expense;
   }
@@ -65,17 +64,17 @@ export async function updateExpenseStatus(remoteUser, expenseId, status) {
   switch (status) {
     case statuses.APPROVED:
       if (expense.status === statuses.PAID) {
-        throw new errors.Unauthorized("You can't approve an expense that is already paid");
+        throw new Unauthorized("You can't approve an expense that is already paid");
       }
       break;
     case statuses.REJECTED:
       if (expense.status === statuses.PAID) {
-        throw new errors.Unauthorized("You can't reject an expense that is already paid");
+        throw new Unauthorized("You can't reject an expense that is already paid");
       }
       break;
     case statuses.PAID:
       if (expense.status !== statuses.APPROVED) {
-        throw new errors.Unauthorized('The expense must be approved before you can set it to paid');
+        throw new Unauthorized('The expense must be approved before you can set it to paid');
       }
       break;
   }
@@ -197,13 +196,13 @@ const createAttachedFiles = async (expense, attachedFilesData, remoteUser, trans
 
 export async function createExpense(remoteUser, expenseData) {
   if (!remoteUser) {
-    throw new errors.Unauthorized('You need to be logged in to create an expense');
+    throw new Unauthorized('You need to be logged in to create an expense');
   } else if (!canUseFeature(remoteUser, FEATURE.EXPENSES)) {
     throw new FeatureNotAllowedForUser();
   }
 
   if (!get(expenseData, 'collective.id')) {
-    throw new errors.Unauthorized('Missing expense.collective.id');
+    throw new Unauthorized('Missing expense.collective.id');
   }
 
   let itemsData = expenseData.items || expenseData.attachments;
@@ -222,9 +221,9 @@ export async function createExpense(remoteUser, expenseData) {
 
   const collective = await models.Collective.findByPk(expenseData.collective.id);
   if (!collective) {
-    throw new errors.ValidationFailed('Collective not found');
+    throw new ValidationFailed('Collective not found');
   } else if (![collectiveTypes.COLLECTIVE, collectiveTypes.EVENT].includes(collective.type)) {
-    throw new errors.ValidationFailed('Expenses can only be submitted to collectives and events');
+    throw new ValidationFailed('Expenses can only be submitted to collectives and events');
   }
 
   // Load the payee profile
@@ -315,7 +314,7 @@ export const getItemsChanges = async (expense, expenseData) => {
 
 export async function editExpense(remoteUser, expenseData) {
   if (!remoteUser) {
-    throw new errors.Unauthorized('You need to be logged in to edit an expense');
+    throw new Unauthorized('You need to be logged in to edit an expense');
   } else if (!canUseFeature(remoteUser, FEATURE.EXPENSES)) {
     throw new FeatureNotAllowedForUser();
   } else if (expenseData.payoutMethod && expenseData.PayoutMethod) {
@@ -332,9 +331,9 @@ export async function editExpense(remoteUser, expenseData) {
   });
 
   if (!expense) {
-    throw new errors.Unauthorized('Expense not found');
+    throw new NotFound('Expense not found');
   } else if (!canEditExpense(remoteUser, expense)) {
-    throw new errors.Unauthorized("You don't have permission to edit this expense");
+    throw new Unauthorized("You don't have permission to edit this expense");
   }
 
   if (size(expenseData.attachedFiles) > 15) {
@@ -434,7 +433,7 @@ export async function editExpense(remoteUser, expenseData) {
 
 export async function deleteExpense(remoteUser, expenseId) {
   if (!remoteUser) {
-    throw new errors.Unauthorized('You need to be logged in to delete an expense');
+    throw new Unauthorized('You need to be logged in to delete an expense');
   } else if (!canUseFeature(remoteUser, FEATURE.EXPENSES)) {
     throw new FeatureNotAllowedForUser();
   }
@@ -444,11 +443,11 @@ export async function deleteExpense(remoteUser, expenseId) {
   });
 
   if (!expense) {
-    throw new errors.NotFound('Expense not found');
+    throw new NotFound('Expense not found');
   }
 
   if (!canDeleteExpense(remoteUser, expense)) {
-    throw new errors.Unauthorized(
+    throw new Unauthorized(
       "You don't have permission to delete this expense or it needs to be rejected before being deleted",
     );
   }
@@ -506,11 +505,11 @@ async function payExpenseWithPayPal(remoteUser, expense, host, paymentMethod, to
     if (
       err.message.indexOf('The total amount of all payments exceeds the maximum total amount for all payments') !== -1
     ) {
-      throw new errors.BadRequest(
+      throw new ValidationFailed(
         'Not enough funds in your existing Paypal preapproval. Please refill your PayPal payment balance.',
       );
     } else {
-      throw new errors.BadRequest(err.message);
+      throw new BadRequest(err.message);
     }
   }
 }
@@ -542,7 +541,7 @@ export async function payExpense(remoteUser, args) {
   const fees = omit(args, ['id', 'forceManual']);
 
   if (!remoteUser) {
-    throw new errors.Unauthorized('You need to be logged in to pay an expense');
+    throw new Unauthorized('You need to be logged in to pay an expense');
   } else if (!canUseFeature(remoteUser, FEATURE.EXPENSES)) {
     throw new FeatureNotAllowedForUser();
   }
@@ -550,21 +549,21 @@ export async function payExpense(remoteUser, args) {
     include: [{ model: models.Collective, as: 'collective' }],
   });
   if (!expense) {
-    throw new errors.Unauthorized('Expense not found');
+    throw new Unauthorized('Expense not found');
   }
   if (expense.status === statuses.PAID) {
-    throw new errors.Unauthorized('Expense has already been paid');
+    throw new Unauthorized('Expense has already been paid');
   }
   if (expense.status === statuses.PROCESSING) {
-    throw new errors.Unauthorized(
+    throw new Unauthorized(
       'Expense is currently being processed, this means someone already started the payment process',
     );
   }
   if (expense.status !== statuses.APPROVED) {
-    throw new errors.Unauthorized(`Expense needs to be approved. Current status of the expense: ${expense.status}.`);
+    throw new Unauthorized(`Expense needs to be approved. Current status of the expense: ${expense.status}.`);
   }
   if (!remoteUser.isAdmin(expense.collective.HostCollectiveId)) {
-    throw new errors.Unauthorized("You don't have permission to pay this expense");
+    throw new Unauthorized("You don't have permission to pay this expense");
   }
   const host = await expense.collective.getHostCollective();
 
@@ -574,7 +573,7 @@ export async function payExpense(remoteUser, args) {
 
   const balance = await expense.collective.getBalance();
   if (expense.amount > balance) {
-    throw new errors.Unauthorized(
+    throw new Unauthorized(
       `You don't have enough funds to pay this expense. Current balance: ${formatCurrency(
         balance,
         expense.collective.currency,
@@ -666,7 +665,7 @@ export async function payExpense(remoteUser, args) {
 
 export async function markExpenseAsUnpaid(remoteUser, ExpenseId, processorFeeRefunded) {
   if (!remoteUser) {
-    throw new errors.Unauthorized('You need to be logged in to unpay an expense');
+    throw new Unauthorized('You need to be logged in to unpay an expense');
   } else if (!canUseFeature(remoteUser, FEATURE.EXPENSES)) {
     throw new FeatureNotAllowedForUser();
   }
@@ -680,19 +679,19 @@ export async function markExpenseAsUnpaid(remoteUser, ExpenseId, processorFeeRef
   });
 
   if (!expense) {
-    throw new errors.NotFound('No expense found');
+    throw new NotFound('No expense found');
   }
 
   if (!canMarkExpenseUnpaid(remoteUser, expense)) {
-    throw new errors.Unauthorized("You don't have permission to mark this expense as unpaid");
+    throw new Unauthorized("You don't have permission to mark this expense as unpaid");
   }
 
   if (expense.status !== statuses.PAID) {
-    throw new errors.Unauthorized('Expense has not been paid yet');
+    throw new Unauthorized('Expense has not been paid yet');
   }
 
   if (expense.legacyPayoutMethod !== 'other') {
-    throw new errors.Unauthorized('Only expenses with "other" payout method can be marked as unpaid');
+    throw new Unauthorized('Only expenses with "other" payout method can be marked as unpaid');
   }
 
   const transaction = await models.Transaction.findOne({

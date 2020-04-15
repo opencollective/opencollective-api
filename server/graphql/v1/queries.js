@@ -6,12 +6,11 @@ import { isEmail } from 'validator';
 import { types as CollectiveTypes } from '../../constants/collectives';
 import Algolia from '../../lib/algolia';
 import { fetchCollectiveId } from '../../lib/cache';
-import errors from '../../lib/errors';
 import rawQueries from '../../lib/queries';
 import { searchCollectivesByEmail, searchCollectivesInDB, searchCollectivesOnAlgolia } from '../../lib/search';
 import { toIsoDateStr } from '../../lib/utils';
 import models, { Op, sequelize } from '../../models';
-import { Forbidden, ValidationFailed } from '../errors';
+import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../errors';
 
 import { ApplicationType } from './Application';
 import {
@@ -66,7 +65,7 @@ const queries = {
         return new Error('Please provide a slug or an id');
       }
       if (!collective && args.throwIfMissing) {
-        throw new errors.NotFound('Collective not found');
+        throw new NotFound('Collective not found');
       }
       return collective;
     },
@@ -106,10 +105,10 @@ const queries = {
         where: { slug: args.fromCollectiveSlug },
       });
       if (!fromCollective) {
-        throw new errors.NotFound('User or organization not found');
+        throw new NotFound('User or organization not found');
       }
       if (!req.remoteUser || !req.remoteUser.isAdmin(fromCollective.id)) {
-        throw new errors.Unauthorized("You don't have permission to access invoices for this user");
+        throw new Unauthorized("You don't have permission to access invoices for this user");
       }
 
       const transactions = await models.Transaction.findAll({
@@ -175,7 +174,7 @@ const queries = {
       const hostSlug = args.invoiceSlug.substring(7, args.invoiceSlug.lastIndexOf('.'));
       const fromCollectiveSlug = args.invoiceSlug.substr(args.invoiceSlug.lastIndexOf('.') + 1);
       if (!hostSlug || year < 2015 || month < 1 || month > 12) {
-        throw new errors.ValidationFailed(
+        throw new ValidationFailed(
           'Invalid invoiceSlug format. Should be :year:2digitMonth.:hostSlug.:fromCollectiveSlug',
         );
       }
@@ -183,14 +182,14 @@ const queries = {
         where: { slug: fromCollectiveSlug },
       });
       if (!fromCollective) {
-        throw new errors.NotFound(`User or organization not found for slug ${fromCollectiveSlug}`);
+        throw new NotFound(`User or organization not found for slug ${fromCollectiveSlug}`);
       }
       const host = await models.Collective.findBySlug(hostSlug);
       if (!host) {
-        throw new errors.NotFound('Host not found');
+        throw new NotFound('Host not found');
       }
       if (!req.remoteUser || !req.remoteUser.isAdmin(fromCollective.id)) {
-        throw new errors.Unauthorized("You don't have permission to access invoices for this user");
+        throw new Unauthorized("You don't have permission to access invoices for this user");
       }
 
       const startsAt = new Date(`${year}-${month}-01`);
@@ -210,7 +209,7 @@ const queries = {
       const order = [['createdAt', 'DESC']];
       const transactions = await models.Transaction.findAll({ where, order });
       if (transactions.length === 0) {
-        throw new errors.NotFound('No transactions found');
+        throw new NotFound('No transactions found');
       }
 
       const invoice = {
@@ -256,23 +255,19 @@ const queries = {
         where: { slug: fromCollectiveSlug },
       });
       if (!fromCollective) {
-        throw new errors.NotFound(`User or organization not found for slug ${args.fromCollective}`);
+        throw new NotFound(`User or organization not found for slug ${args.fromCollective}`);
       }
       const host = await models.Collective.findBySlug(collectiveSlug);
       if (!host) {
-        throw new errors.NotFound('Host not found');
+        throw new NotFound('Host not found');
       }
 
       if (!req.remoteUser || !req.remoteUser.isAdmin(fromCollective.id)) {
-        throw new errors.Unauthorized("You don't have permission to access invoices for this user");
+        throw new Unauthorized("You don't have permission to access invoices for this user");
       }
 
       if (dateTo < dateFrom) {
-        throw new errors.ValidationFailed(
-          'validation_failed',
-          ['InvoiceDateType'],
-          'Invalid date object. dateFrom must be before dateTo',
-        );
+        throw new ValidationFailed('Invalid date object. dateFrom must be before dateTo');
       }
 
       const where = {
@@ -329,7 +324,7 @@ const queries = {
       });
 
       if (!transaction) {
-        throw new errors.NotFound(`Transaction ${args.transactionUuid} doesn't exists`);
+        throw new NotFound(`Transaction ${args.transactionUuid} doesn't exists`);
       }
 
       // If using a virtualcard, then billed collective will be the emitter
@@ -1092,7 +1087,7 @@ const queries = {
     },
     async resolve(_, args) {
       if (!args.id && !(args.MemberCollectiveId && (args.CollectiveId || args.TierId))) {
-        throw new errors.ValidationFailed(
+        throw new ValidationFailed(
           'Must provide either an id, a pair of MemberCollectiveId/CollectiveId or a pair of MemberCollectiveId/TierId',
         );
       }

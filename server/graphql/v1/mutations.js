@@ -5,11 +5,10 @@ import { pick } from 'lodash';
 import statuses from '../../constants/expense_status';
 import roles from '../../constants/roles';
 import emailLib from '../../lib/email';
-import errors from '../../lib/errors';
 import logger from '../../lib/logger';
 import models, { sequelize } from '../../models';
 import { bulkCreateVirtualCards, createVirtualCardsForEmails } from '../../paymentProviders/opencollective/virtualcard';
-import { Forbidden, Unauthorized, ValidationFailed } from '../errors';
+import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../errors';
 
 import * as applicationMutations from './mutations/applications';
 import * as backyourstackMutations from './mutations/backyourstack';
@@ -454,9 +453,9 @@ const mutations = {
     async resolve(_, args, req) {
       const collective = await models.Collective.findByPk(args.collectiveId);
       if (!collective) {
-        throw new errors.NotFound();
+        throw new NotFound();
       } else if (!req.remoteUser || !req.remoteUser.isAdmin(collective.id)) {
-        throw new errors.Unauthorized();
+        throw new Unauthorized();
       } else {
         await collective.editMembers(args.members, {
           CreatedByUserId: req.remoteUser.id,

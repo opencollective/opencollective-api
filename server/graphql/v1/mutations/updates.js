@@ -4,11 +4,11 @@ import { mustHaveRole } from '../../../lib/auth';
 import { purgeCacheForPage } from '../../../lib/cloudflare';
 import { stripTags } from '../../../lib/utils';
 import models from '../../../models';
-import * as errors from '../../errors';
+import { NotFound, ValidationFailed } from '../../errors';
 
 function require(args, path) {
   if (!get(args, path)) {
-    throw new errors.ValidationFailed(`${path} required`);
+    throw new ValidationFailed(`${path} required`);
   }
 }
 
@@ -44,7 +44,7 @@ export async function createUpdate(_, args, req) {
 async function fetchUpdate(id) {
   const update = await models.Update.findByPk(id);
   if (!update) {
-    throw new errors.NotFound(`Update with id ${id} not found`);
+    throw new NotFound(`Update with id ${id} not found`);
   }
   return update;
 }

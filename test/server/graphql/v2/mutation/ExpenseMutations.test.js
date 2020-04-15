@@ -113,7 +113,6 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         { expense: expenseData, account: { legacyId: collective.id } },
         user,
       );
-      console.log(result.errors[0]);
 
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.eq('You must be an admin of the account to submit an expense in its name');
