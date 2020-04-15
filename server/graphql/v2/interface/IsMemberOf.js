@@ -40,7 +40,7 @@ export const IsMemberOfFields = {
       if (!args.includeIncognito || !req.remoteUser?.isAdmin(collective.id)) {
         collectiveConditions.isIncognito = false;
       }
-      if (!isNil(args.isHost)) {
+      if (!isNil(args.isHostAccount)) {
         collectiveConditions.isHostAccount = args.isHostAccount;
       }
       const result = await models.Member.findAndCountAll({
