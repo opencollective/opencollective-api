@@ -78,7 +78,7 @@ async function payExpense(
   if (!balance || balance.amount.value < quote.sourceAmount) {
     throw new TransferwiseError(
       `You don't have enough funds in your ${quote.source} balance. Please top up your account and try again.`,
-      'transferwise.error.insufficientfunds',
+      'transferwise.error.insufficientFunds',
       { currency: quote.source },
     );
   }
@@ -119,7 +119,7 @@ async function getAvailableCurrencies(host: any): Promise<{ code: string; minInv
     where: { service: 'transferwise', CollectiveId: host.id },
   });
   if (!connectedAccount) {
-    throw new TransferwiseError('Host is not connected to Transferwise', 'transferwise.error.notconnected');
+    throw new TransferwiseError('Host is not connected to Transferwise', 'transferwise.error.notConnected');
   }
   await populateProfileId(connectedAccount);
 
@@ -143,13 +143,13 @@ async function getRequiredBankInformation(host: any, currency: string): Promise<
     where: { service: 'transferwise', CollectiveId: host.id },
   });
   if (!connectedAccount) {
-    throw new TransferwiseError('Host is not connected to Transferwise', 'transferwise.error.notconnected');
+    throw new TransferwiseError('Host is not connected to Transferwise', 'transferwise.error.notConnected');
   }
   await populateProfileId(connectedAccount);
 
   const currencyInfo = find(await getAvailableCurrencies(host), { code: currency });
   if (!currencyInfo) {
-    throw new TransferwiseError('This currency is not supported', 'transferwise.error.currencynotsupported');
+    throw new TransferwiseError('This currency is not supported', 'transferwise.error.currencyNotSupported');
   }
 
   const quote = await transferwise.createQuote(connectedAccount.token, {
