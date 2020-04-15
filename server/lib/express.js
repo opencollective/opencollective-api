@@ -50,7 +50,7 @@ export default function (app) {
       },
     }),
   );
-  app.use(express.urlencoded({ limit: '50mb' }));
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
   // Slow requests if enabled (default false)
   if (get(config, 'log.slowRequest')) {
