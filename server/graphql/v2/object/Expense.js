@@ -1,4 +1,5 @@
 import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLDateTime } from 'graphql-iso-date';
 
 import models, { Op } from '../../../models';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
@@ -41,6 +42,10 @@ const Expense = new GraphQLObjectType({
       amount: {
         type: new GraphQLNonNull(GraphQLInt),
         description: "Total amount of the expense (sum of the item's amounts).",
+      },
+      createdAt: {
+        type: new GraphQLNonNull(GraphQLDateTime),
+        description: 'The time of creation',
       },
       currency: {
         type: new GraphQLNonNull(Currency),
