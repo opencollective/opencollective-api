@@ -1,5 +1,5 @@
 import { GraphQLInt, GraphQLObjectType } from 'graphql';
-import { get, has } from 'lodash';
+import { get, has, isEmpty } from 'lodash';
 
 import queries from '../../../lib/queries';
 import { idEncode } from '../identifiers';
@@ -78,6 +78,17 @@ export const AccountStats = new GraphQLObjectType({
             value: await collective.getYearlyIncome(),
             currency: collective.currency,
           };
+        },
+      },
+      totalFinancialContributors: {
+        description: 'Total members with role as Backer',
+        type: GraphQLInt,
+        async resolve(collective) {
+          const totalFinancialContributors = await collective.getTopBackers();
+          if (isEmpty(totalFinancialContributors)) {
+            return 0;
+          }
+          return totalFinancialContributors.length;
         },
       },
     };

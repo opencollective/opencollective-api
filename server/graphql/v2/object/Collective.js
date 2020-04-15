@@ -1,4 +1,5 @@
-import { GraphQLBoolean, GraphQLInt, GraphQLObjectType } from 'graphql';
+import { GraphQLObjectType, GraphQLInt, GraphQLBoolean } from 'graphql';
+import { GraphQLDateTime } from 'graphql-iso-date';
 
 import { hostResolver } from '../../common/collective';
 import { Account, AccountFields } from '../interface/Account';
@@ -28,6 +29,20 @@ export const Collective = new GraphQLObjectType({
         type: GraphQLBoolean,
         resolve(collective) {
           return collective.isApproved();
+        },
+      },
+      isArchived: {
+        description: 'Returns whether this collective is archived',
+        type: GraphQLBoolean,
+        resolve(collective) {
+          return Boolean(collective.deactivatedAt && !collective.isActive);
+        },
+      },
+      approvedAt: {
+        description: 'Return this collective approved date',
+        type: GraphQLDateTime,
+        resolve(collective) {
+          return collective.approvedAt;
         },
       },
     };
