@@ -9,33 +9,40 @@ import expressLib from './lib/express';
 import logger from './lib/logger';
 import routes from './routes';
 
-const app = express();
+async function init() {
+  const expressApp = express();
 
-expressLib(app);
+  await expressLib(expressApp);
 
-/**
- * Routes.
- */
+  /**
+   * Routes.
+   */
+  routes(expressApp);
 
-routes(app);
+  /**
+   * Start server
+   */
+  const server = expressApp.listen(config.port, () => {
+    const host = os.hostname();
+    logger.info(
+      'Open Collective API listening at http://%s:%s in %s environment.\n',
+      host,
+      server.address().port,
+      config.env,
+    );
+    if (config.maildev.server) {
+      const maildev = require('./maildev'); // eslint-disable-line @typescript-eslint/no-var-requires
+      maildev.listen();
+    }
+  });
 
-/**
- * Start server
- */
-const server = app.listen(config.port, () => {
-  const host = os.hostname();
-  logger.info(
-    'Open Collective API listening at http://%s:%s in %s environment.\n',
-    host,
-    server.address().port,
-    config.env,
-  );
-  if (config.maildev.server) {
-    const maildev = require('./maildev'); // eslint-disable-line @typescript-eslint/no-var-requires
-    maildev.listen();
-  }
-});
+  server.timeout = 25000; // sets timeout to 25 seconds
 
-server.timeout = 25000; // sets timeout to 25 seconds
+  return expressApp;
+}
 
-export default app;
+const app = init();
+
+export default async function () {
+  return app;
+}

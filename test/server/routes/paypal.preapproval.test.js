@@ -12,7 +12,11 @@ import * as utils from '../../utils';
 const application = utils.data('application');
 
 describe('server/routes/paypal.preapproval', () => {
-  let user, user2;
+  let user, user2, expressApp;
+
+  before(async () => {
+    expressApp = await app();
+  });
 
   beforeEach(() => {
     sinon.stub(paypalAdaptive, 'preapproval').callsFake(() => Promise.resolve(paypalMock.adaptive.preapproval));
@@ -33,7 +37,7 @@ describe('server/routes/paypal.preapproval', () => {
    */
   describe('#getPreapprovalKey', () => {
     it('should fail if not the logged-in user', done => {
-      request(app)
+      request(expressApp)
         .get(
           `/connected-accounts/paypal/oauthUrl?api_key=${application.api_key}&CollectiveId=${user.CollectiveId}&redirect=https://`,
         )
@@ -43,7 +47,7 @@ describe('server/routes/paypal.preapproval', () => {
     });
 
     it('should get a preapproval key', done => {
-      request(app)
+      request(expressApp)
         .get(
           `/connected-accounts/paypal/oauthUrl?api_key=${application.api_key}&CollectiveId=${
             user.CollectiveId
@@ -76,7 +80,7 @@ describe('server/routes/paypal.preapproval', () => {
     const preapprovalkey = paypalMock.adaptive.preapproval.preapprovalKey;
 
     beforeEach('get preapproval key', done => {
-      request(app)
+      request(expressApp)
         .get(
           `/connected-accounts/paypal/oauthUrl?api_key=${application.api_key}&CollectiveId=${
             user.CollectiveId
@@ -99,7 +103,7 @@ describe('server/routes/paypal.preapproval', () => {
       });
 
       it('should fail with an unknown preapproval key', done => {
-        request(app)
+        request(expressApp)
           .get('/connected-accounts/paypal/callback?preapprovalKey=abc&paypalApprovalStatus=success')
           .set('Authorization', `Bearer ${user.jwt()}`)
           .end((e, res) => {
@@ -112,7 +116,7 @@ describe('server/routes/paypal.preapproval', () => {
 
       it('should confirm the payment of a transaction', done => {
         const mock = paypalMock.adaptive.preapprovalDetails;
-        request(app)
+        request(expressApp)
           .get(`/connected-accounts/paypal/callback?preapprovalKey=${preapprovalkey}&paypalApprovalStatus=success`)
           .set('Authorization', `Bearer ${user.jwt()}`)
           .expect(302)
@@ -154,7 +158,7 @@ describe('server/routes/paypal.preapproval', () => {
       });
 
       it('should return an error if the preapproval is not completed', done => {
-        request(app)
+        request(expressApp)
           .get(`/connected-accounts/paypal/callback?preapprovalKey=${preapprovalkey}&paypalApprovalStatus=success`)
           .set('Authorization', `Bearer ${user.jwt()}`)
           .end((e, res) => {
@@ -178,7 +182,7 @@ describe('server/routes/paypal.preapproval', () => {
       });
 
       it('should return an error if paypal returns one', done => {
-        request(app)
+        request(expressApp)
           .get(`/connected-accounts/paypal/callback?preapprovalKey=${preapprovalkey}&paypalApprovalStatus=success`)
           .set('Authorization', `Bearer ${user.jwt()}`)
           .end((e, res) => {
@@ -202,7 +206,7 @@ describe('server/routes/paypal.preapproval', () => {
       });
 
       it('should return the preapproval details', done => {
-        request(app)
+        request(expressApp)
           .get(`/connected-accounts/paypal/verify?preapprovalKey=${preapprovalkey}&api_key=${application.api_key}`)
           .set('Authorization', `Bearer ${user.jwt()}`)
           .expect(200)
@@ -213,7 +217,7 @@ describe('server/routes/paypal.preapproval', () => {
       });
 
       it('should not be able to check another user preapproval details', done => {
-        request(app)
+        request(expressApp)
           .get(`/connected-accounts/paypal/verify?preapprovalKey=${preapprovalkey}&api_key=${application.api_key}`)
           .set('Authorization', `Bearer ${user2.jwt()}`)
           .expect(401)
@@ -244,7 +248,7 @@ describe('server/routes/paypal.preapproval', () => {
       });
 
       it('should delete all other paymentMethods entries in the database to clean up', done => {
-        request(app)
+        request(expressApp)
           .get(`/connected-accounts/paypal/callback?preapprovalKey=${preapprovalkey}&paypalApprovalStatus=success`)
           .set('Authorization', `Bearer ${user.jwt()}`)
           .expect(302)

@@ -22,7 +22,7 @@ import forest from './forest';
 import logger from './logger';
 import { sanitizeForLogs } from './utils';
 
-export default function (app) {
+export default async function (app) {
   app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal'].concat(cloudflareIps));
 
   app.use(helmet());
@@ -86,7 +86,7 @@ export default function (app) {
   }
 
   // Forest
-  forest(app);
+  await forest(app);
 
   // Cors.
   app.use(cors());

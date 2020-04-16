@@ -61,7 +61,11 @@ let collective,
   users = [];
 
 describe('server/routes/email', () => {
-  let sandbox;
+  let sandbox, expressApp;
+
+  before(async () => {
+    expressApp = await app();
+  });
 
   before(() => utils.resetTestDB());
 
@@ -112,7 +116,7 @@ describe('server/routes/email', () => {
     const users = await Promise.all([fakeUser(), fakeUser(), fakeUser()]);
     await Promise.all(users.map(user => collective.addUserWithRole(user, 'ADMIN')));
 
-    return request(app)
+    return request(expressApp)
       .post('/webhooks/mailgun')
       .send(
         Object.assign({}, webhookBodyPayload, {
@@ -132,7 +136,7 @@ describe('server/routes/email', () => {
     const collective = await fakeCollective({ settings: { features: { forwardEmails: false } } });
     const user = await fakeUser();
     await collective.addUserWithRole(user, 'ADMIN');
-    const endpoint = request(app).post('/webhooks/mailgun');
+    const endpoint = request(expressApp).post('/webhooks/mailgun');
     const res = await endpoint.send(
       Object.assign({}, webhookBodyPayload, {
         recipient: `info@${collective.slug}.opencollective.com`,
@@ -145,7 +149,7 @@ describe('server/routes/email', () => {
 
   it('forwards the email for approval to the core members', () => {
     const spy = sandbox.spy(emailLib, 'send');
-    return request(app)
+    return request(expressApp)
       .post('/webhooks/mailgun')
       .send(webhookBodyPayload)
       .then(res => {
@@ -176,7 +180,7 @@ describe('server/routes/email', () => {
   it('skip the email if already processed', () => {
     const spy = sandbox.spy(emailLib, 'send');
 
-    return request(app)
+    return request(expressApp)
       .post('/webhooks/mailgun')
       .send(webhookBodyApprove)
       .then(res => {
@@ -190,7 +194,7 @@ describe('server/routes/email', () => {
       recipient: 'unknown@testcollective.opencollective.com',
     });
 
-    return request(app)
+    return request(expressApp)
       .post('/webhooks/mailgun')
       .send(unknownMailingListWebhook)
       .then(res => {
@@ -204,7 +208,7 @@ describe('server/routes/email', () => {
   it('approves the email', () => {
     const spy = sandbox.spy(emailLib, 'send');
 
-    return request(app)
+    return request(expressApp)
       .get(
         `/services/email/approve?messageId=eyJwIjpmYWxzZSwiayI6Ijc3NjFlZTBjLTc1NGQtNGIwZi05ZDlkLWU1NTgxODJkMTlkOSIsInMiOiI2NDhjZDg1ZTE1IiwiYyI6InNhb3JkIn0=&approver=${encodeURIComponent(
           usersData[1].email,
@@ -228,7 +232,7 @@ describe('server/routes/email', () => {
   it('return 404 if message not found', () => {
     const messageId =
       'eyJwIjpmYWxzZSwiayI6IjY5MTdlYTZlLWVhNzctNGQzOC04OGUxLWMzMTQwMzdmNGRhNiIsInMiOiIwMjNjMzgwYWFlIiwiYyI6InNhaWFkIn0=';
-    return request(app)
+    return request(expressApp)
       .get(`/services/email/approve?messageId=${messageId}&approver=xdamman%40gmail.com&mailserver=so`)
       .then(res => {
         expect(res.statusCode).to.equal(404);
@@ -266,7 +270,7 @@ describe('server/routes/email', () => {
 
     it('send please approve email when sending email to eventSlug@parentCollectiveSlug.opencollective.com', async () => {
       spy = sandbox.spy(emailLib, 'sendMessage');
-      return request(app)
+      return request(expressApp)
         .post('/webhooks/mailgun')
         .send(
           Object.assign({}, webhookBodyPayload, {
@@ -284,7 +288,7 @@ describe('server/routes/email', () => {
 
     it('approves an email sent to eventSlug@parentCollectiveSlug.opencollective.com', () => {
       spy = sandbox.spy(emailLib, 'send');
-      return request(app)
+      return request(expressApp)
         .get(
           `/services/email/approve?messageId=abJwIjpmYWxzZSwiayI6Ijc3NjFlZTBjLTc1NGQtNGIwZi05ZDlkLWU1NTgxODJkMTlkOSIsInMiOiI2NDhjZDg1ZTE1IiwiYyI6InNhb3JkIn0=&approver=${encodeURIComponent(
             usersData[1].email,
@@ -306,7 +310,7 @@ describe('server/routes/email', () => {
     };
 
     it('returns an error if invalid token', () => {
-      return request(app)
+      return request(expressApp)
         .get(
           `/services/email/unsubscribe/${encodeURIComponent(usersData[0].email)}/${
             collectiveData.slug
@@ -321,7 +325,7 @@ describe('server/routes/email', () => {
     it('sends the unsubscribe link in the footer of the email', () => {
       const spy = sandbox.stub(emailLib, 'sendMessage');
 
-      return request(app)
+      return request(expressApp)
         .get(
           `/services/email/approve?messageId=eyJwIjpmYWxzZSwiayI6Ijc3NjFlZTBjLTc1NGQtNGIwZi05ZDlkLWU1NTgxODJkMTlkOSIsInMiOiI2NDhjZDg1ZTE1IiwiYyI6InNhb3JkIn0=&approver=${encodeURIComponent(
             usersData[1].email,
@@ -344,7 +348,7 @@ describe('server/routes/email', () => {
         active: true,
       };
 
-      return request(app)
+      return request(expressApp)
         .get(generateUnsubscribeUrl(users[0].email))
         .then(() => models.Notification.count({ where }))
         .then(count => expect(count).to.equal(0));

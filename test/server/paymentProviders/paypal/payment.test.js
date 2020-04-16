@@ -15,6 +15,12 @@ import * as utils from '../../../utils';
 const application = utils.data('application');
 
 describe('server/paymentProviders/paypal/payment', () => {
+  let expressApp;
+
+  before(async () => {
+    expressApp = await app();
+  });
+
   describe('#paypalUrl', () => {
     let configStub;
 
@@ -111,7 +117,7 @@ describe('server/paymentProviders/paypal/payment', () => {
       }); /* End of "before()" */
 
       it('should call payments/payment endpoint of the PayPal API', async () => {
-        const output = await request(app)
+        const output = await request(expressApp)
           .post(`/services/paypal/create-payment?api_key=${application.api_key}`)
           .send({ amount: '50', currency: 'USD', hostId: host.id })
           .expect(200);

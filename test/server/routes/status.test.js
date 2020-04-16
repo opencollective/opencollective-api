@@ -4,9 +4,15 @@ import request from 'supertest';
 import app from '../../../server/index';
 
 describe('server/routes/status', () => {
+  let expressApp;
+
+  before(async () => {
+    expressApp = await app();
+  });
+
   describe('GET /status', () => {
     it('responds with status information', done => {
-      request(app)
+      request(expressApp)
         .get('/status')
         .expect(200)
         .end((e, res) => {

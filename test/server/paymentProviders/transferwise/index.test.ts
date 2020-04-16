@@ -8,7 +8,7 @@ import transferwise from '../../../../server/paymentProviders/transferwise';
 import { fakeCollective, fakeConnectedAccount, fakeExpense, fakePayoutMethod } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
-describe('paymentMethods.transferwise', () => {
+describe('server/paymentProviders/transferwise/index', () => {
   const sandbox = sinon.createSandbox();
   const quote = {
     id: 1234,

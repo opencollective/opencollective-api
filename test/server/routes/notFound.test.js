@@ -8,10 +8,14 @@ const application = utils.data('application');
 
 describe('server/routes/notFound', () => {
   describe('WHEN calling unknown route', () => {
-    let req;
+    let req, expressApp;
+
+    before(async () => {
+      expressApp = await app();
+    });
 
     beforeEach(() => {
-      req = request(app).get(`/blablabla?api_key=${application.api_key}`);
+      req = request(expressApp).get(`/blablabla?api_key=${application.api_key}`);
     });
 
     it('THEN returns 404', () =>

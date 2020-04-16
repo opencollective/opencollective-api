@@ -5,8 +5,8 @@ import { cloneDeep } from 'lodash';
 
 import models, { Op, sequelize } from '../models';
 
-export const init = () =>
-  Liana.init({
+export async function init() {
+  return Liana.init({
     modelsDir: path.resolve(__dirname, '../models'),
     configDir: path.resolve(__dirname, '../forest'),
     envSecret: process.env.FOREST_ENV_SECRET,
@@ -14,13 +14,16 @@ export const init = () =>
     connections: [{ models: getForestModels(), options: sequelize.options }],
     sequelize: sequelize.Sequelize,
   });
+}
 
-export default app => {
+export default async function (app) {
   if (!process.env.FOREST_ENV_SECRET || !process.env.FOREST_AUTH_SECRET) {
     return;
   }
 
-  app.use(init());
+  const forestMiddleware = await init();
+
+  app.use(forestMiddleware);
 
   app.post('/forest/actions/activate-subscription', Liana.ensureAuthenticated, (req, res) => {
     const data = req.body.data;
@@ -292,7 +295,7 @@ export default app => {
       });
     }
   });
-};
+}
 
 function getForestModels() {
   const m = cloneDeep(models);

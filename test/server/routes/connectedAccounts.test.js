@@ -10,20 +10,25 @@ const clientId = config.github.clientID;
 const application = utils.data('application');
 
 describe('server/routes/connectedAccounts', () => {
-  let req, user;
+  let req, user, expressApp;
+
+  before(async () => {
+    expressApp = await app();
+  });
 
   beforeEach(() => utils.resetTestDB());
 
   describe('WHEN calling /connected-accounts/github', () => {
     beforeEach(done => {
-      req = request(app).get('/connected-accounts/github');
+      req = request(expressApp).get('/connected-accounts/github');
       done();
     });
 
     describe('WHEN calling /connected-accounts/github with API key', () => {
       beforeEach(done => {
-        // eslint-disable-next-line camelcase
-        req = request(app).get('/connected-accounts/github?utm_source=mm').send({ api_key: application.api_key });
+        req = request(expressApp)
+          .get('/connected-accounts/github?utm_source=mm')
+          .send({ api_key: application.api_key }); // eslint-disable-line camelcase
         done();
       });
 
@@ -45,7 +50,7 @@ describe('server/routes/connectedAccounts', () => {
 
   describe('WHEN calling /connected-accounts/github/callback', () => {
     beforeEach(done => {
-      req = request(app).get('/connected-accounts/github/callback');
+      req = request(expressApp).get('/connected-accounts/github/callback');
       done();
     });
 
@@ -83,7 +88,7 @@ describe('server/routes/connectedAccounts', () => {
     beforeEach(() => models.User.create(utils.data('user1')).tap(u => (user = u)));
 
     beforeEach(done => {
-      req = request(app).get('/connected-accounts/github/verify');
+      req = request(expressApp).get('/connected-accounts/github/verify');
       done();
     });
 

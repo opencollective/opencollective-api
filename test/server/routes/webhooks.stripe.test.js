@@ -8,7 +8,11 @@ import stripe from '../../../server/lib/stripe';
 import originalStripeMock from '../../mocks/stripe';
 
 describe('server/routes/webhooks.stripe', () => {
-  let sandbox;
+  let sandbox, expressApp;
+
+  before(async () => {
+    expressApp = await app();
+  });
 
   it('returns 200 if the event is not livemode in production', done => {
     const stripeMock = _.cloneDeep(originalStripeMock);
@@ -21,7 +25,7 @@ describe('server/routes/webhooks.stripe', () => {
     const env = process.env.NODE_ENV;
     process.env.NODE_ENV = 'production';
 
-    request(app)
+    request(expressApp)
       .post('/webhooks/stripe')
       .send(event)
       .expect(200)
@@ -56,7 +60,7 @@ describe('server/routes/webhooks.stripe', () => {
 
       sandbox.stub(stripe.events, 'retrieve').callsFake(() => Promise.resolve(stripeMock.event_payment_succeeded));
 
-      request(app)
+      request(expressApp)
         .post('/webhooks/stripe')
         .send({
           id: 123,
@@ -75,7 +79,7 @@ describe('server/routes/webhooks.stripe', () => {
       const stripeMock = _.cloneDeep(originalStripeMock);
 
       sandbox.stub(stripe.events, 'retrieve').callsFake(() => Promise.resolve(stripeMock.event_source_chargeable));
-      request(app).post('/webhooks/stripe').send(stripeMock.webhook_source_chargeable).expect(400).end(done);
+      request(expressApp).post('/webhooks/stripe').send(stripeMock.webhook_source_chargeable).expect(400).end(done);
     });
 
     it('returns an error if the event is `source.chargeable`', done => {
@@ -84,7 +88,7 @@ describe('server/routes/webhooks.stripe', () => {
 
       sandbox.stub(stripe.events, 'retrieve').callsFake(() => Promise.resolve(stripeMock.event_source_chargeable));
 
-      request(app)
+      request(expressApp)
         .post('/webhooks/stripe')
         .send(stripeMock.webhook_payment_succeeded)
         .expect(400, {
