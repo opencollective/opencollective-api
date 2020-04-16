@@ -32,6 +32,12 @@ export class ValidationFailed extends ApolloError {
   }
 }
 
+export class BadRequest extends ApolloError {
+  constructor(message?: string, code?: string, additionalProperties?: Record<string, any>) {
+    super(message || 'Please verify the input data', code || 'BadRequest', additionalProperties);
+  }
+}
+
 export class NotFound extends ApolloError {
   constructor(message?: string, code?: string, additionalProperties?: Record<string, any>) {
     super(message || 'Item not found', code || 'NotFound', additionalProperties);

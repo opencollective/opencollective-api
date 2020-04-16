@@ -3,7 +3,7 @@ import { pick } from 'lodash';
 import { mustBeLoggedInTo } from '../../lib/auth';
 import { stripTags } from '../../lib/utils';
 import models from '../../models';
-import * as errors from '../errors';
+import { NotFound, Unauthorized, ValidationFailed } from '../errors';
 
 /**
  * Return the collective ID for the given comment based on it's association (conversation,
@@ -32,12 +32,12 @@ async function editComment(commentData, remoteUser) {
 
   const comment = await models.Comment.findByPk(commentData.id);
   if (!comment) {
-    throw new errors.NotFound(`This comment does not exist or has been deleted.`);
+    throw new NotFound(`This comment does not exist or has been deleted.`);
   }
 
   // Check permissions
   if (remoteUser.id !== comment.CreatedByUserId && !remoteUser.isAdmin(comment.CollectiveId)) {
-    throw new errors.Unauthorized('You must be the author or an admin of this collective to edit this comment');
+    throw new Unauthorized('You must be the author or an admin of this collective to edit this comment');
   }
 
   // Prepare args and update
@@ -54,12 +54,12 @@ async function deleteComment(id, remoteUser) {
   mustBeLoggedInTo(remoteUser, 'delete this comment');
   const comment = await models.Comment.findByPk(id);
   if (!comment) {
-    throw new errors.NotFound(`This comment does not exist or has been deleted.`);
+    throw new NotFound(`This comment does not exist or has been deleted.`);
   }
 
   // Check permissions
   if (remoteUser.id !== comment.CreatedByUserId && !remoteUser.isAdmin(comment.CollectiveId)) {
-    throw new errors.Unauthorized('You need to be logged in as a core contributor or as a host to delete this comment');
+    throw new Unauthorized('You need to be logged in as a core contributor or as a host to delete this comment');
   }
 
   return comment.destroy();
@@ -69,20 +69,20 @@ async function createCommentResolver(_, { comment: commentData }, { remoteUser }
   mustBeLoggedInTo(remoteUser, 'create a comment');
 
   if (!commentData.markdown && !commentData.html) {
-    throw new errors.ValidationFailed('comment.markdown or comment.html required');
+    throw new ValidationFailed('comment.markdown or comment.html required');
   }
 
   const { ConversationId, ExpenseId, UpdateId, markdown, html } = commentData;
 
   // Ensure at least (and only) one entity to comment is specified
   if ([ConversationId, ExpenseId, UpdateId].filter(Boolean).length !== 1) {
-    throw new errors.ValidationFailed('You must specify one entity to comment');
+    throw new ValidationFailed('You must specify one entity to comment');
   }
 
   // Load entity and its collective id
   const CollectiveId = await getCollectiveIdForCommentEntity(commentData);
   if (!CollectiveId) {
-    throw new errors.ValidationFailed("The item you're trying to comment doesn't exist or has been deleted.");
+    throw new ValidationFailed("The item you're trying to comment doesn't exist or has been deleted.");
   }
 
   // Create comment

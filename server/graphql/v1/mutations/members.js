@@ -1,11 +1,11 @@
 import { invalidateContributorsCache } from '../../../lib/contributors';
-import errors from '../../../lib/errors';
 import models from '../../../models';
+import { NotFound, Unauthorized } from '../../errors';
 
 /** A mutation to edit the public message of all matching members. */
 export async function editPublicMessage(_, { FromCollectiveId, CollectiveId, message }, req) {
   if (!req.remoteUser || !req.remoteUser.isAdmin(FromCollectiveId)) {
-    throw new errors.Unauthorized("You don't have the permission to edit member public message");
+    throw new Unauthorized("You don't have the permission to edit member public message");
   }
   const [quantityUpdated, updatedMembers] = await models.Member.update(
     {
@@ -20,7 +20,7 @@ export async function editPublicMessage(_, { FromCollectiveId, CollectiveId, mes
     },
   );
   if (quantityUpdated === 0) {
-    throw new errors.NotFound('No member found');
+    throw new NotFound('No member found');
   }
 
   /**
