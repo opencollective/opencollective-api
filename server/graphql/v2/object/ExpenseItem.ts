@@ -3,6 +3,7 @@ import { GraphQLDateTime } from 'graphql-iso-date';
 
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import URL from '../scalar/URL';
 
 const ExpenseItem = new GraphQLObjectType({
   name: 'ExpenseItem',
@@ -34,7 +35,7 @@ const ExpenseItem = new GraphQLObjectType({
       description: 'A description for this item. Enforced for new items, but old expenses may not have one.',
     },
     url: {
-      type: GraphQLString,
+      type: URL,
       resolve(item, _, req): string | undefined {
         if (getContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_ATTACHMENTS_URL, item.ExpenseId)) {
           return item.url;
