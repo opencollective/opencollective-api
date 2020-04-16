@@ -343,10 +343,12 @@ export async function editExpense(remoteUser, expenseData) {
 
   // Load the payee profile
   const fromCollective = expenseData.fromCollective || expense.fromCollective;
-  if (!remoteUser.isAdmin(fromCollective.id)) {
-    throw new ValidationFailed('You must be an admin of the account to submit an expense in its name');
-  } else if (!fromCollective.canBeUsedAsPayoutProfile()) {
-    throw new ValidationFailed('This account cannot be used for payouts');
+  if (expenseData.fromCollective && expenseData.fromCollective.id !== expense.fromCollective.id) {
+    if (!remoteUser.isAdmin(fromCollective.id)) {
+      throw new ValidationFailed('You must be an admin of the account to submit an expense in its name');
+    } else if (!fromCollective.canBeUsedAsPayoutProfile()) {
+      throw new ValidationFailed('This account cannot be used for payouts');
+    }
   }
 
   const cleanExpenseData = pick(expenseData, EXPENSE_EDITABLE_FIELDS);
