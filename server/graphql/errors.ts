@@ -1,5 +1,7 @@
 import { ApolloError } from 'apollo-server-express';
 
+export { ApolloError };
+
 export class Unauthorized extends ApolloError {
   constructor(message?: string, code?: string, additionalProperties?: Record<string, any>) {
     super(
@@ -77,6 +79,16 @@ export class PlanLimit extends ApolloError {
       message ||
         "You're not allowed to perform this action before of the plan limits. Please contact support@opencollective.com if you think this is an error.",
       code || 'PlanLimit',
+      additionalProperties,
+    );
+  }
+}
+
+export class TransferwiseError extends ApolloError {
+  constructor(message?: string, code?: string, additionalProperties?: Record<string, any>) {
+    super(
+      message || 'An unknown error happened with TransferWise. Please contact support@opencollective.com.',
+      code || 'transferwise.error.default',
       additionalProperties,
     );
   }

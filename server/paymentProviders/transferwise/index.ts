@@ -5,6 +5,7 @@ import cache from '../../lib/cache';
 import * as transferwise from '../../lib/transferwise';
 import models from '../../models';
 import { Quote, RecipientAccount, Transfer } from '../../types/transferwise';
+import { TransferwiseError } from '../../graphql/errors';
 
 export const blackListedCurrencies = [
   /** Only private customers sending payments to private recipients. Business customers and business recipients are not supported yet. */
@@ -68,14 +69,17 @@ async function payExpense(
 
   const account = await transferwise.getBorderlessAccount(connectedAccount.token, connectedAccount.data.id);
   if (!account) {
-    throw new Error(
+    throw new TransferwiseError(
       `We can't retrieve your Transferwise borderless account. Please re-connect or contact support at support@opencollective.com.`,
+      'transferwise.error.accountnotfound',
     );
   }
   const balance = account.balances.find(b => b.currency === quote.source);
   if (!balance || balance.amount.value < quote.sourceAmount) {
-    throw new Error(
+    throw new TransferwiseError(
       `You don't have enough funds in your ${quote.source} balance. Please top up your account and try again.`,
+      'transferwise.error.insufficientFunds',
+      { currency: quote.source },
     );
   }
 
@@ -115,7 +119,7 @@ async function getAvailableCurrencies(host: any): Promise<{ code: string; minInv
     where: { service: 'transferwise', CollectiveId: host.id },
   });
   if (!connectedAccount) {
-    throw new Error('Host is not connected to Transferwise');
+    throw new TransferwiseError('Host is not connected to Transferwise', 'transferwise.error.notConnected');
   }
   await populateProfileId(connectedAccount);
 
@@ -139,13 +143,13 @@ async function getRequiredBankInformation(host: any, currency: string): Promise<
     where: { service: 'transferwise', CollectiveId: host.id },
   });
   if (!connectedAccount) {
-    throw new Error('Host is not connected to Transferwise');
+    throw new TransferwiseError('Host is not connected to Transferwise', 'transferwise.error.notConnected');
   }
   await populateProfileId(connectedAccount);
 
   const currencyInfo = find(await getAvailableCurrencies(host), { code: currency });
   if (!currencyInfo) {
-    throw new Error('This currency is not supported');
+    throw new TransferwiseError('This currency is not supported', 'transferwise.error.currencyNotSupported');
   }
 
   const quote = await transferwise.createQuote(connectedAccount.token, {
