@@ -1,4 +1,4 @@
-import { GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 import GraphQLJSON from 'graphql-type-json';
 import { invert } from 'lodash';
@@ -86,6 +86,10 @@ const accountFieldsDefinition = () => ({
   updatedAt: {
     type: GraphQLDateTime,
     description: 'The time of last update',
+  },
+  isArchived: {
+    type: GraphQLBoolean,
+    description: 'Returns whether this account is archived',
   },
   members: {
     type: MemberCollection,
@@ -313,6 +317,13 @@ export const AccountFields = {
     type: GraphQLDateTime,
     resolve(collective) {
       return collective.updatedAt || collective.createdAt;
+    },
+  },
+  isArchived: {
+    type: GraphQLBoolean,
+    description: 'Returns whether this account is archived',
+    resolve(collective) {
+      return Boolean(collective.deactivatedAt);
     },
   },
   ...HasMembersFields,
