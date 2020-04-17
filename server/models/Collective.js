@@ -1799,12 +1799,12 @@ export default function (Sequelize, DataTypes) {
     ]);
 
     // remove the members that are not present anymore
+    const { remoteUserCollectiveId } = defaultAttributes;
     const diff = differenceBy(oldMembers, members, 'id');
     if (diff.length > 0) {
       debug('editMembers', 'delete', diff);
       const diffMemberIds = diff.map(m => m.id);
       const diffMemberCollectiveIds = diff.map(m => m.MemberCollectiveId);
-      const { remoteUserCollectiveId } = defaultAttributes;
       if (remoteUserCollectiveId && diffMemberCollectiveIds.indexOf(remoteUserCollectiveId) !== -1) {
         throw new Error(
           'You cannot remove yourself as a Collective admin. If you are the only admin, please add a new one and ask them to remove you.',
@@ -1852,10 +1852,17 @@ export default function (Sequelize, DataTypes) {
             role: { [Op.in]: [roles.ADMIN, roles.MEMBER] },
           },
         });
-      } else if (member.member && member.member.id) {
+      } else if (remoteUserCollectiveId && member.member?.id === remoteUserCollectiveId) {
+        // When users try to add themselves (ie. when creating a collective) we don't need to send an invitation
+        await models.Member.create({
+          ...memberAttributes,
+          MemberCollectiveId: member.member.id,
+          CollectiveId: this.id,
+        });
+      } else if (member.member?.id) {
         // Create new membership invitation
         await models.MemberInvitation.invite(this, { ...memberAttributes, MemberCollectiveId: member.member.id });
-      } else if (member.member && member.member.email) {
+      } else if (member.member?.email) {
         // Add user by email
         const user = await models.User.findOne({
           include: { model: models.Collective, as: 'collective', where: { type: types.USER, isIncognito: false } },

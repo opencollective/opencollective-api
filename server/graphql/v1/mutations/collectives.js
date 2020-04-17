@@ -142,7 +142,12 @@ export async function createCollective(_, args, req) {
       }
     });
   } else if (collectiveData.members) {
-    collective.editMembers(collectiveData.members, { CreatedByUserId: req.remoteUser.id });
+    promises.push(
+      collective.editMembers(collectiveData.members, {
+        CreatedByUserId: req.remoteUser.id,
+        remoteUserCollectiveId: req.remoteUser.CollectiveId,
+      }),
+    );
   } else {
     promises.push(collective.addUserWithRole(req.remoteUser, roles.ADMIN, { CreatedByUserId: req.remoteUser.id }));
   }
