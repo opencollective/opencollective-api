@@ -35,12 +35,20 @@ export PGHOST=localhost
 export PGUSER=postgres
 ```
 
-You'll also need to have Postgres client tools like `psql`, `dropdb`, `createuser` locally available to run our scripts. In macOS you can install those using Homebrew with:
+You'll also need to have Postgres client tools like `psql`, `dropdb`, `createuser` locally available to run our scripts.
+
+#### MacOS
+
+In macOS you can install those using Homebrew with:
 
 ```
 brew install libpq
 echo 'export PATH="/usr/local/opt/libpq/bin:$PATH"' >> ~/.bash_profile
 ```
+
+#### Linux
+
+##### Debian Based Distributions
 
 For Ubuntu 16.04 and above you can execute the following to install Postgres client tools:
 
