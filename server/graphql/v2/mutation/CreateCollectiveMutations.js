@@ -32,7 +32,10 @@ async function createCollective(_, args, req) {
     settings: { ...DEFAULT_COLLECTIVE_SETTINGS },
   };
 
-  const collectiveWithSlug = await models.Collective.findOne({ where: { slug: collectiveData.slug.toLowerCase() } });
+  const collectiveWithSlug = await models.Collective.findOne({
+    where: { slug: collectiveData.slug.toLowerCase() },
+    paranoid: false,
+  });
   if (collectiveWithSlug) {
     throw new Error(`The slug ${collectiveData.slug} is already taken. Please use another slug for your collective.`);
   }

@@ -200,6 +200,7 @@ export async function createCollectiveFromGithub(_, args, req) {
   if (process.env.NODE_ENV !== 'production' && user.email.match(/.*test.*@opencollective.com$/)) {
     const existingCollective = models.Collective.findOne({
       where: { slug: collectiveData.slug.toLowerCase() },
+      paranoid: false,
     });
     if (existingCollective) {
       collectiveData.slug = `${collectiveData.slug}-${Math.floor(Math.random() * 1000 + 1)}`;
@@ -221,6 +222,7 @@ export async function createCollectiveFromGithub(_, args, req) {
 
   const existingCollective = await models.Collective.findOne({
     where: { slug: collectiveData.slug.toLowerCase() },
+    paranoid: false,
   });
 
   if (existingCollective) {
