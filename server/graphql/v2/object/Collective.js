@@ -1,6 +1,7 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLObjectType } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 
+import { types as collectiveTypes } from '../../../constants/collectives';
 import { hostResolver } from '../../common/collective';
 import { AccountType } from '../enum/AccountType';
 import { Account, AccountFields } from '../interface/Account';
@@ -9,7 +10,7 @@ export const Collective = new GraphQLObjectType({
   name: 'Collective',
   description: 'This represents a Collective account',
   interfaces: () => [Account],
-  isTypeOf: collective => collective.type === 'COLLECTIVE',
+  isTypeOf: collective => collective.type === collectiveTypes.COLLECTIVE,
   fields: () => {
     return {
       ...AccountFields,
