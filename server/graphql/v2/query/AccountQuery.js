@@ -5,25 +5,25 @@ import { NotFound } from '../../errors';
 import { idDecode } from '../identifiers';
 import { Account } from '../interface/Account';
 
-const AccountQuery = {
-  type: Account,
+export const buildAccountQuery = ({ objectType }) => ({
+  type: objectType,
   args: {
     id: {
       type: GraphQLString,
-      description: 'The public id identifying the account (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
+      description: `The public id identifying the ${objectType.name} (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)`,
     },
     slug: {
       type: GraphQLString,
-      description: 'The slug identifying the account (ie: babel for https://opencollective.com/babel)',
+      description: `The slug identifying the ${objectType.name} (ie: babel for https://opencollective.com/babel)`,
     },
     githubHandle: {
       type: GraphQLString,
-      description: 'The githubHandle attached to the account (ie: babel for https://opencollective.com/babel)',
+      description: `The githubHandle attached to the ${objectType.name} (ie: babel for https://opencollective.com/babel)`,
     },
     throwIfMissing: {
       type: GraphQLBoolean,
       defaultValue: true,
-      description: 'If false, will return null instead of an error if collective is not found',
+      description: `If false, will return null instead of an error if the ${objectType.name} is not found`,
     },
   },
   async resolve(_, args) {
@@ -45,11 +45,19 @@ const AccountQuery = {
     } else {
       return new Error('Please provide a slug or an id');
     }
-    if (!collective && args.throwIfMissing) {
-      throw new NotFound('Account Not Found');
+
+    if (!collective || (objectType.isTypeOf && !objectType.isTypeOf(collective))) {
+      if (args.throwIfMissing) {
+        throw new NotFound(`${objectType.name} Not Found`);
+      } else {
+        return null;
+      }
     }
+
     return collective;
   },
-};
+});
+
+const AccountQuery = buildAccountQuery({ objectType: Account });
 
 export default AccountQuery;

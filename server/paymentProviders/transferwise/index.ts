@@ -1,11 +1,11 @@
 import { find } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
+import { TransferwiseError } from '../../graphql/errors';
 import cache from '../../lib/cache';
 import * as transferwise from '../../lib/transferwise';
 import models from '../../models';
 import { Quote, RecipientAccount, Transfer } from '../../types/transferwise';
-import { TransferwiseError } from '../../graphql/errors';
 
 export const blackListedCurrencies = [
   /** Only private customers sending payments to private recipients. Business customers and business recipients are not supported yet. */
