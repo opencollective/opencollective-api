@@ -22,16 +22,10 @@ import * as params from './middleware/params';
 import required from './middleware/required_param';
 import sanitizer from './middleware/sanitizer';
 import * as paypal from './paymentProviders/paypal/payment';
-import { ErrorTrackingExtension, Sentry, sentryErrorReport } from './sentry';
 
 const upload = multer();
 
 export default app => {
-  /**
-   * Sentry requestHandler
-   */
-  app.use(Sentry.Handlers.requestHandler());
-
   /**
    * Status.
    */
@@ -115,19 +109,16 @@ export default app => {
   /**
    * GraphQL v1
    */
-  const graphqlServerV1 = GraphHTTP(req => ({
+  const graphqlServerV1 = GraphHTTP({
     customFormatErrorFn: error => {
       logger.error(`GraphQL v1 error: ${error.message}`);
       logger.debug(error);
-      // report error with sentry
-      sentryErrorReport(req, error, 'V1');
-
       return error;
     },
     schema: graphqlSchemaV1,
     pretty: isDevelopment,
     graphiql: isDevelopment,
-  }));
+  });
 
   app.use('/graphql/v1', graphqlServerV1);
 
@@ -135,23 +126,12 @@ export default app => {
    * GraphQL v2
    */
   const graphqlServerV2 = new ApolloServer({
-    // Add error tracking extension
-    extensions: [() => new ErrorTrackingExtension()],
     schema: graphqlSchemaV2,
     introspection: true,
     playground: isDevelopment,
     // Align with behavior from express-graphql
     context: ({ req }) => {
-      return {
-        req,
-        trackErrors(errors) {
-          errors.forEach(error => {
-            logger.error(`GraphQL v2 error: ${error.message}`);
-            logger.debug(error);
-            sentryErrorReport(req, error, 'V2');
-          });
-        },
-      };
+      return req;
     },
   });
 
@@ -218,11 +198,6 @@ export default app => {
    * Override default 404 handler to make sure to obfuscate api_key visible in URL
    */
   app.use((req, res) => res.sendStatus(404));
-
-  /**
-   * Sentry errorHandler
-   */
-  app.use(Sentry.Handlers.errorHandler());
 
   /**
    * Error handler.

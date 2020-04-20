@@ -18,11 +18,7 @@
     "module": "commonjs",
     "noUnusedLocals": true,
     "outDir": "dist",
-    "skipLibCheck": true,
-    // Configure for SourceMaps upload to sentry
-    "sourceMap": true,
-    "inlineSources": true,
-    "sourceRoot": "/"
+    "skipLibCheck": true
   },
   "include": ["server"]
 }
