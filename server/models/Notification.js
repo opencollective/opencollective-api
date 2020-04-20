@@ -1,9 +1,10 @@
 import Promise from 'bluebird';
 import debugLib from 'debug';
-import { defaults } from 'lodash';
+import { defaults, isNil } from 'lodash';
 import { Op } from 'sequelize';
 
 import channels from '../constants/channels';
+import { ValidationFailed } from '../graphql/errors';
 
 const debug = debugLib('models:Notification');
 
@@ -78,6 +79,14 @@ export default function (Sequelize, DataTypes) {
           type: 'unique',
         },
       ],
+      hooks: {
+        beforeCreate(instance) {
+          console.log(instance);
+          if (instance.channel === channels.WEBHOOK && isNil(instance.webhookUrl)) {
+            throw new ValidationFailed('Webhook URL can not be undefined');
+          }
+        },
+      },
     },
   );
 
