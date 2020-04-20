@@ -47,14 +47,12 @@ export async function editWebhooks(args, remoteUser) {
   // Create
   if (toCreate.length > 0) {
     promises.push(
-      models.Notification.bulkCreate(
-        toCreate.map(notification => {
-          return {
-            ...pick(notification, allowedFields),
-            CollectiveId: args.collectiveId,
-            UserId: remoteUser.id,
-            channel: channels.WEBHOOK,
-          };
+      toCreate.map(notification =>
+        models.Notification.create({
+          ...pick(notification, allowedFields),
+          CollectiveId: args.collectiveId,
+          UserId: remoteUser.id,
+          channel: channels.WEBHOOK,
         }),
       ),
     );
