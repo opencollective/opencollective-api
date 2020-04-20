@@ -607,16 +607,16 @@ describe('server/models/Collective', () => {
     const shouldBeUsableAsPayout = account => expect(account.canBeUsedAsPayoutProfile()).to.be.true;
     const shouldNotBeUsableAsPayout = account => expect(account.canBeUsedAsPayoutProfile()).to.be.false;
 
-    it('is true for users and organizations', async () => {
+    it('is true for users and organizations (even if host)', async () => {
       shouldBeUsableAsPayout(await fakeCollective({ type: 'USER' }));
       shouldBeUsableAsPayout(await fakeCollective({ type: 'ORGANIZATION' }));
+      shouldBeUsableAsPayout(await fakeCollective({ type: 'ORGANIZATION', isHostAccount: true }));
     });
 
-    it('is false for incognito profiles, collectives, events and hosts', async () => {
+    it('is false for incognito profiles, collectives and events', async () => {
       shouldNotBeUsableAsPayout(await fakeCollective({ type: 'USER', isIncognito: true }));
       shouldNotBeUsableAsPayout(await fakeCollective({ type: 'COLLECTIVE' }));
       shouldNotBeUsableAsPayout(await fakeCollective({ type: 'EVENT' }));
-      shouldNotBeUsableAsPayout(await fakeCollective({ type: 'ORGANIZATION', isHostAccount: true }));
     });
   });
 
