@@ -1298,7 +1298,14 @@ const queries = {
       if (args.MemberCollectiveId) {
         where.MemberCollectiveId = args.MemberCollectiveId;
       }
-      return models.MemberInvitation.findAll({ where });
+
+      return models.MemberInvitation.findAll({
+        where,
+        include: [
+          { association: 'collective', required: true, attributes: [] },
+          { association: 'memberCollective', required: true, attributes: [] },
+        ],
+      });
     },
   },
 
