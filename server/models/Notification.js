@@ -81,7 +81,6 @@ export default function (Sequelize, DataTypes) {
       ],
       hooks: {
         beforeCreate(instance) {
-          console.log(instance);
           if (instance.channel === channels.WEBHOOK && isNil(instance.webhookUrl)) {
             throw new ValidationFailed('Webhook URL can not be undefined');
           }
