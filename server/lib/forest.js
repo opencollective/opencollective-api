@@ -116,8 +116,6 @@ export default async function (app) {
           });
         });
         // Delete Collective
-        const newSlug = `${collective.slug}-${Date.now()}`;
-        await collective.update({ slug: newSlug });
         await collective.destroy();
       })
       .then(() => {
