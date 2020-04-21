@@ -18,22 +18,13 @@ import { formatCurrency } from '../../../lib/utils';
 import models, { sequelize } from '../../../models';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import paymentProviders from '../../../paymentProviders';
-import { canDeleteExpense, canEditExpense, canUpdateExpenseStatus } from '../../common/expenses';
+import * as ExpenseLib from '../../common/expenses';
 import { BadRequest, FeatureNotAllowedForUser, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 
 const debug = debugLib('expenses');
 
-/**
- * Only admin of expense.collective.host can mark expenses unpaid
- */
-function canMarkExpenseUnpaid(remoteUser, expense) {
-  if (remoteUser.hasRole([roles.ADMIN], expense.collective.HostCollectiveId)) {
-    return true;
-  }
-  return false;
-}
-
-export async function updateExpenseStatus(remoteUser, expenseId, status) {
+export async function updateExpenseStatus(req, expenseId, status) {
+  const { remoteUser } = req;
   if (!remoteUser) {
     throw new Unauthorized('You need to be logged in to update the status of an expense');
   } else if (!canUseFeature(remoteUser, FEATURE.EXPENSES)) {
@@ -55,7 +46,7 @@ export async function updateExpenseStatus(remoteUser, expenseId, status) {
     throw new Unauthorized("You can't update the status of an expense being processed");
   }
 
-  if (!canUpdateExpenseStatus(remoteUser, expense)) {
+  if (!(await ExpenseLib.canUpdateExpenseStatus(req, expense))) {
     throw new Unauthorized("You don't have permission to approve this expense");
   } else if (expense.status === status) {
     return expense;
@@ -312,7 +303,8 @@ export const getItemsChanges = async (expense, expenseData) => {
   return [hasItemChanges, itemsData, itemsDiff];
 };
 
-export async function editExpense(remoteUser, expenseData) {
+export async function editExpense(req, expenseData) {
+  const { remoteUser } = req;
   if (!remoteUser) {
     throw new Unauthorized('You need to be logged in to edit an expense');
   } else if (!canUseFeature(remoteUser, FEATURE.EXPENSES)) {
@@ -332,7 +324,7 @@ export async function editExpense(remoteUser, expenseData) {
 
   if (!expense) {
     throw new NotFound('Expense not found');
-  } else if (!canEditExpense(remoteUser, expense)) {
+  } else if (!(await ExpenseLib.canEditExpense(req, expense))) {
     throw new Unauthorized("You don't have permission to edit this expense");
   }
 
@@ -433,7 +425,8 @@ export async function editExpense(remoteUser, expenseData) {
   return updatedExpense;
 }
 
-export async function deleteExpense(remoteUser, expenseId) {
+export async function deleteExpense(req, expenseId) {
+  const { remoteUser } = req;
   if (!remoteUser) {
     throw new Unauthorized('You need to be logged in to delete an expense');
   } else if (!canUseFeature(remoteUser, FEATURE.EXPENSES)) {
@@ -448,7 +441,7 @@ export async function deleteExpense(remoteUser, expenseId) {
     throw new NotFound('Expense not found');
   }
 
-  if (!canDeleteExpense(remoteUser, expense)) {
+  if (!(await ExpenseLib.canDeleteExpense(req, expense))) {
     throw new Unauthorized(
       "You don't have permission to delete this expense or it needs to be rejected before being deleted",
     );
@@ -538,7 +531,8 @@ async function payExpenseWithTransferwise(host, payoutMethod, expense, fees, rem
  * @PRE: fees { id, paymentProcessorFeeInCollectiveCurrency, hostFeeInCollectiveCurrency, platformFeeInCollectiveCurrency }
  * Note: some payout methods like PayPal will automatically define `paymentProcessorFeeInCollectiveCurrency`
  */
-export async function payExpense(remoteUser, args) {
+export async function payExpense(req, args) {
+  const { remoteUser } = req;
   const expenseId = args.id;
   const fees = omit(args, ['id', 'forceManual']);
 
@@ -564,7 +558,7 @@ export async function payExpense(remoteUser, args) {
   if (expense.status !== statuses.APPROVED) {
     throw new Unauthorized(`Expense needs to be approved. Current status of the expense: ${expense.status}.`);
   }
-  if (!remoteUser.isAdmin(expense.collective.HostCollectiveId)) {
+  if (!(await ExpenseLib.canPayExpense(req, expense))) {
     throw new Unauthorized("You don't have permission to pay this expense");
   }
   const host = await expense.collective.getHostCollective();
@@ -665,7 +659,8 @@ export async function payExpense(remoteUser, args) {
   return markExpenseAsPaid(expense, remoteUser);
 }
 
-export async function markExpenseAsUnpaid(remoteUser, ExpenseId, processorFeeRefunded) {
+export async function markExpenseAsUnpaid(req, ExpenseId, processorFeeRefunded) {
+  const { remoteUser } = req;
   if (!remoteUser) {
     throw new Unauthorized('You need to be logged in to unpay an expense');
   } else if (!canUseFeature(remoteUser, FEATURE.EXPENSES)) {
@@ -684,7 +679,7 @@ export async function markExpenseAsUnpaid(remoteUser, ExpenseId, processorFeeRef
     throw new NotFound('No expense found');
   }
 
-  if (!canMarkExpenseUnpaid(remoteUser, expense)) {
+  if (!(await ExpenseLib.canMarkAsUnpaid(req, expense))) {
     throw new Unauthorized("You don't have permission to mark this expense as unpaid");
   }
 

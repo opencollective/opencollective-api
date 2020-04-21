@@ -328,7 +328,7 @@ const mutations = {
       id: { type: new GraphQLNonNull(GraphQLInt) },
     },
     resolve(_, args, req) {
-      return updateExpenseStatus(req.remoteUser, args.id, statuses.APPROVED);
+      return updateExpenseStatus(req, args.id, statuses.APPROVED);
     },
   },
   unapproveExpense: {
@@ -337,7 +337,7 @@ const mutations = {
       id: { type: new GraphQLNonNull(GraphQLInt) },
     },
     resolve(_, args, req) {
-      return updateExpenseStatus(req.remoteUser, args.id, statuses.PENDING);
+      return updateExpenseStatus(req, args.id, statuses.PENDING);
     },
   },
   rejectExpense: {
@@ -346,7 +346,7 @@ const mutations = {
       id: { type: new GraphQLNonNull(GraphQLInt) },
     },
     resolve(_, args, req) {
-      return updateExpenseStatus(req.remoteUser, args.id, statuses.REJECTED);
+      return updateExpenseStatus(req, args.id, statuses.REJECTED);
     },
   },
   payExpense: {
@@ -362,7 +362,7 @@ const mutations = {
       },
     },
     resolve(_, args, req) {
-      return payExpense(req.remoteUser, args);
+      return payExpense(req, args);
     },
   },
   markOrderAsPaid: {
@@ -398,7 +398,7 @@ const mutations = {
       expense: { type: new GraphQLNonNull(ExpenseInputType) },
     },
     resolve(_, args, req) {
-      return editExpense(req.remoteUser, args.expense);
+      return editExpense(req, args.expense);
     },
   },
   deleteExpense: {
@@ -407,7 +407,7 @@ const mutations = {
       id: { type: new GraphQLNonNull(GraphQLInt) },
     },
     resolve(_, args, req) {
-      return deleteExpense(req.remoteUser, args.id);
+      return deleteExpense(req, args.id);
     },
   },
   markExpenseAsUnpaid: {
@@ -417,7 +417,7 @@ const mutations = {
       processorFeeRefunded: { type: new GraphQLNonNull(GraphQLBoolean) },
     },
     resolve(_, args, req) {
-      return markExpenseAsUnpaid(req.remoteUser, args.id, args.processorFeeRefunded);
+      return markExpenseAsUnpaid(req, args.id, args.processorFeeRefunded);
     },
   },
   editTier: {

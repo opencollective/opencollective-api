@@ -1,6 +1,6 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 
-import * as ExpensePermissionsLib from '../../common/expenses';
+import * as ExpenseLib from '../../common/expenses';
 
 const ExpensePermissions = new GraphQLObjectType({
   name: 'ExpensePermissions',
@@ -10,29 +10,56 @@ const ExpensePermissions = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Whether the current user can edit the expense',
       async resolve(expense, _, req): Promise<boolean> {
-        if (!expense.collective) {
-          expense.collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
-        }
-
-        return ExpensePermissionsLib.canEditExpense(req.remoteUser, expense);
+        return ExpenseLib.canEditExpense(req, expense);
       },
     },
     canDelete: {
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Whether the current user can edit the expense',
-      async resolve(expense, _, req): Promise<boolean> {
-        if (!expense.collective) {
-          expense.collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
-        }
-
-        return ExpensePermissionsLib.canDeleteExpense(req.remoteUser, expense);
+      resolve(expense, _, req): Promise<boolean> {
+        return ExpenseLib.canDeleteExpense(req, expense);
       },
     },
     canSeeInvoiceInfo: {
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Whether the current user can the the invoice info for this expense',
       resolve(expense, _, req): Promise<boolean> {
-        return ExpensePermissionsLib.canSeeExpenseInvoiceInfo(req, expense);
+        return ExpenseLib.canSeeExpenseInvoiceInfo(req, expense);
+      },
+    },
+    canPay: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can trigger the payment for this expense',
+      async resolve(expense, _, req): Promise<boolean> {
+        return ExpenseLib.canPayExpense(req, expense);
+      },
+    },
+    canApprove: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can approve this expense',
+      async resolve(expense, _, req): Promise<boolean> {
+        return ExpenseLib.canApprove(req, expense);
+      },
+    },
+    canUnapprove: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can unapprove this expense',
+      async resolve(expense, _, req): Promise<boolean> {
+        return ExpenseLib.canUnapprove(req, expense);
+      },
+    },
+    canReject: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can reject this expense',
+      async resolve(expense, _, req): Promise<boolean> {
+        return ExpenseLib.canReject(req, expense);
+      },
+    },
+    canMarkAsUnpaid: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can mark this expense as unpaid',
+      async resolve(expense, _, req): Promise<boolean> {
+        return ExpenseLib.canMarkAsUnpaid(req, expense);
       },
     },
   },
