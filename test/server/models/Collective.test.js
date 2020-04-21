@@ -228,6 +228,15 @@ describe('server/models/Collective', () => {
     });
   });
 
+  it('frees up current slug when deleted', async () => {
+    const slug = 'hi-this-is-an-unique-slug';
+    const collective = await fakeCollective({ slug });
+    await collective.destroy();
+
+    expect(slug).to.not.be.equal(collective.slug);
+    expect(/-\d+$/.test(collective.slug)).to.be.true;
+  });
+
   it('prevents collective creation and limit user if spam is detected', async () => {
     const user = await fakeUser();
     const spamCollectiveData = {

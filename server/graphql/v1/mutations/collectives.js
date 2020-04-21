@@ -762,12 +762,6 @@ export async function deleteCollective(_, args, req) {
         { concurrency: 3 },
       );
     })
-
-    .then(() => {
-      // Update collective slug to free the current slug for future
-      const newSlug = `${collective.slug}-${Date.now()}`;
-      return collective.update({ slug: newSlug });
-    })
     .then(() => collective.destroy())
     .then(() => collective);
 }

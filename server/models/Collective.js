@@ -648,6 +648,10 @@ export default function (Sequelize, DataTypes) {
             return Promise.resolve();
           });
         },
+        beforeDestroy: async instance => {
+          const newSlug = `${instance.slug}-${Date.now()}`;
+          await instance.update({ slug: newSlug });
+        },
         beforeCreate: async instance => {
           // Make sure user is not prevented from creating collectives
           const user = instance.CreatedByUserId && (await models.User.findByPk(instance.CreatedByUserId));
