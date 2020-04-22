@@ -9,7 +9,6 @@ import intervals from '../constants/intervals';
 import status from '../constants/order_status';
 import models from '../models';
 
-import { getRecommendedCollectives } from './data';
 import emailLib from './email';
 import * as paymentsLib from './payments';
 import { isHostPlan } from './plans';
@@ -336,7 +335,6 @@ export async function sendFailedEmail(order, lastAttempt) {
 /** Send `thankyou` email */
 export async function sendThankYouEmail(order, transaction) {
   const relatedCollectives = await order.collective.getRelatedCollectives(3, 0);
-  const recommendedCollectives = await getRecommendedCollectives(order.collective, 3);
   const user = order.createdByUser;
 
   if (isHostPlan(order)) {
@@ -361,7 +359,6 @@ export async function sendThankYouEmail(order, transaction) {
       collective: order.collective.info,
       fromCollective: order.fromCollective.minimal,
       relatedCollectives,
-      recommendedCollectives,
       config: { host: config.host },
       interval: order.Subscription.interval,
       subscriptionsLink: `${config.host.website}/${order.fromCollective.slug}/subscriptions`,
