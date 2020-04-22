@@ -123,7 +123,7 @@ module.exports = {
       WHERE "slug" IN ('europe', 'opencollective-host', 'foundation', 'opencollectiveinc');
     `);
 
-    if (['development', 'e2e', 'ci', 'circleci'].includes(process.env.NODE_ENV) || process.env.E2E_TEST) {
+    if (['development', 'e2e', 'ci'].includes(process.env.NODE_ENV) || process.env.E2E_TEST) {
       await queryInterface.sequelize.query(`
         UPDATE "Collectives"
         SET "plan" = 'owned'
