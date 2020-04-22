@@ -29,7 +29,7 @@ const oneHourInSeconds = 60 * 60;
 const debug = debugLib('orders');
 
 async function checkOrdersLimit(order, remoteUser, reqIp) {
-  if (['ci', 'circleci', 'test'].includes(config.env)) {
+  if (['ci', 'test'].includes(config.env)) {
     return;
   }
 
@@ -96,7 +96,7 @@ async function checkOrdersLimit(order, remoteUser, reqIp) {
 }
 
 async function checkRecaptcha(order, remoteUser, reqIp) {
-  if (['ci', 'circleci', 'test'].includes(config.env)) {
+  if (['ci', 'test'].includes(config.env)) {
     return;
   }
 
