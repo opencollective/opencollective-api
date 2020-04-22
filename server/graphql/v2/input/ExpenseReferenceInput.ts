@@ -1,5 +1,7 @@
-import { GraphQLInputObjectType,GraphQLInt, GraphQLString } from 'graphql';
+import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
+import models from '../../../models';
+import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
 const ExpenseReferenceInput = new GraphQLInputObjectType({
@@ -29,13 +31,21 @@ const getDatabaseIdFromExpenseReference = (input: object): number => {
 /**
  * Retrieve an expense from an `ExpenseReferenceInput`
  */
-const fetchExpenseWithReference = async (input: object, { loaders }): Promise<any> => {
+const fetchExpenseWithReference = async (
+  input: object,
+  { loaders = null, throwIfMissing = false } = {},
+): Promise<any> => {
   const dbId = getDatabaseIdFromExpenseReference(input);
+  let expense = null;
   if (dbId) {
-    return loaders.Expense.byId.load(dbId);
-  } else {
-    return null;
+    expense = await (loaders ? loaders.Expense.byId.load(dbId) : models.Expense.findByPk(dbId));
   }
+
+  if (!expense && throwIfMissing) {
+    throw new NotFound();
+  }
+
+  return expense;
 };
 
 export { ExpenseReferenceInput, fetchExpenseWithReference, getDatabaseIdFromExpenseReference };
