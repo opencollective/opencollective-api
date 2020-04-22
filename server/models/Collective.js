@@ -1530,6 +1530,19 @@ export default function (Sequelize, DataTypes) {
     });
   };
 
+  /**
+   * Get Hosted Collectives
+   *
+   * It's expected that child Collectives like EVENTS are returned
+   */
+  Collective.prototype.getHostedCollectives = async function () {
+    const hostedCollectives = await models.Member.findAll({
+      where: { MemberCollectiveId: this.id, role: roles.HOST },
+    });
+    const hostedCollectiveIds = hostedCollectives.map(m => m.CollectiveId);
+    return models.Collective.findAll({ where: { id: { [Op.in]: hostedCollectiveIds } } });
+  };
+
   Collective.prototype.updateHostFee = async function (hostFeePercent, remoteUser) {
     if (typeof hostFeePercent === undefined || !remoteUser || hostFeePercent === this.hostFeePercent) {
       return;
@@ -1546,11 +1559,7 @@ export default function (Sequelize, DataTypes) {
         if (!remoteUser.isAdmin(this.id)) {
           throw new Error('You must be an admin of this host to change the host fee');
         }
-        const hostedCollectives = await models.Member.findAll({
-          where: { MemberCollectiveId: this.id, role: roles.HOST },
-        });
-        const hostedCollectiveIds = hostedCollectives.map(m => m.CollectiveId);
-        const collectives = await models.Collective.findAll({ where: { id: { [Op.in]: hostedCollectiveIds } } });
+        const collectives = await this.getHostedCollectives();
         // for some reason models.Collective.update({ hostFeePercent } , { where: { id: { [Op.in]: hostedCollectivesIds }}}) doesn't work :-/
         const promises = collectives.map(c => c.update({ hostFeePercent }));
         await Promise.all(promises);
@@ -1560,21 +1569,55 @@ export default function (Sequelize, DataTypes) {
     return this;
   };
 
+  /**
+   * Update the currency of a "Collective" row (account)
+   *
+   * This is a safe version that can only be used by Users and Organizations that are not hosts
+   */
   Collective.prototype.updateCurrency = async function (currency, remoteUser) {
     if (typeof currency === undefined || !remoteUser || currency === this.currency || !remoteUser.isAdmin(this.id)) {
       return;
     }
+
     const error = 'Only Users and Organisation that are not hosts can update currency';
-    if (this.type === types.USER || this.type === types.ORGANIZATION) {
-      const isHost = await this.isHost();
-      if (isHost) {
-        throw new Error(error);
-      }
-      this.update({ currency });
-    } else {
+    if (![types.USER, types.ORGANIZATION].includes(this.type)) {
       throw new Error(error);
     }
-    return this;
+    const isHost = await this.isHost();
+    if (isHost) {
+      throw new Error(error);
+    }
+
+    return this.setCurrency(currency);
+  };
+
+  /**
+   * Set the currency of a "Collective" row (account)
+   *
+   * This is meant to be used internally, no access control.
+   */
+  Collective.prototype.setCurrency = async function (currency) {
+    const isHost = await this.isHost();
+    if (isHost) {
+      // We only expect currency change at the beginning of the history of the Host
+      const transactionCount = await models.Transaction.count({ where: { HostCollectiveId: this.id } });
+      if (transactionCount > 0) {
+        throw new Error(
+          'You cannot change the currency of an Host with transactions. Please contact support@opencollective.com.',
+        );
+      }
+      const collectives = await this.getHostedCollectives();
+      // We use setCurrency so that it will cascade to Tiers
+      await Promise.map(collectives, collective => collective.setCurrency(currency), { concurrency: 3 });
+    }
+
+    // This is currently for COLLECTIVE and EVENTS but we make it generic
+    const tiers = await this.getTiers();
+    if (tiers.length > 0) {
+      await Promise.map(tiers, tier => tier.update({ currency }), { concurrency: 3 });
+    }
+
+    return this.update({ currency });
   };
 
   /**
