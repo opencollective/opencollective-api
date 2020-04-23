@@ -165,6 +165,7 @@ export default function (Sequelize, DataTypes) {
             publishedAt: this.publishedAt,
             slug: this.slug,
             tags: this.tags,
+            CollectiveId: this.CollectiveId,
           };
         },
         minimal() {
