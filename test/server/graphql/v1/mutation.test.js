@@ -98,6 +98,7 @@ describe('server/graphql/v1/mutation', () => {
         id
         slug
         currency
+        hostFeePercent
         host {
           id
           currency
@@ -164,8 +165,12 @@ describe('server/graphql/v1/mutation', () => {
         );
       });
 
-      it('creates an event with multiple tiers, uses the currency of parent collective', async () => {
-        await host.collective.update({ currency: 'CAD', settings: { apply: true } });
+      it('creates an event with multiple tiers, uses the currency of parent collective and inherit fees', async () => {
+        await host.collective.update({
+          currency: 'CAD',
+          settings: { apply: true },
+          hostFeePercent: 10,
+        });
         const event = getEventData(collective1);
 
         const result = await utils.graphqlQuery(createCollectiveQuery, { collective: event }, user1);
@@ -173,6 +178,7 @@ describe('server/graphql/v1/mutation', () => {
         const createdEvent = result.data.createCollective;
         expect(createdEvent.slug).to.contain('brusselstogether-meetup');
         expect(createdEvent.tiers.length).to.equal(event.tiers.length);
+        expect(createdEvent.hostFeePercent).to.equal(10);
         expect(createdEvent.isActive).to.be.true;
         event.id = createdEvent.id;
         event.tiers = createdEvent.tiers;
