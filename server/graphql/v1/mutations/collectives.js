@@ -1,7 +1,7 @@
 import { map } from 'bluebird';
 import config from 'config';
 import slugify from 'limax';
-import { get, omit, truncate } from 'lodash';
+import { get, isNil, omit, truncate } from 'lodash';
 import sanitize from 'sanitize-html';
 import sequelize from 'sequelize';
 import { v4 as uuid } from 'uuid';
@@ -98,7 +98,7 @@ export async function createCollective(_, args, req) {
   }
 
   try {
-    collective = await models.Collective.create(omit(collectiveData, ['HostCollectiveId', 'hostFeePercent']));
+    collective = await models.Collective.create(omit(collectiveData, ['HostCollectiveId']));
   } catch (e) {
     let msg;
     switch (e.name) {
@@ -160,6 +160,11 @@ export async function createCollective(_, args, req) {
   }
   if (hostCollective) {
     purgeCacheForPage(`/${hostCollective.slug}`);
+  }
+
+  // If event, inherit fees from parent collective after setting its host
+  if (collectiveData.type === types.EVENT && !isNil(parentCollective.hostFeePercent)) {
+    await collective.update({ hostFeePercent: parentCollective.hostFeePercent });
   }
 
   // if the type of collective is an organization or an event, we don't notify the host
