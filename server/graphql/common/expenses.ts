@@ -1,29 +1,46 @@
 import { expenseStatus, roles } from '../../constants';
+import FEATURE from '../../constants/feature';
+import { canUseFeature } from '../../lib/user-permissions';
 import { ExpenseItem } from '../../models/ExpenseItem';
 
 const isOwner = async (req, expense): Promise<boolean> => {
+  if (!req.remoteUser) {
+    return false;
+  }
+
   return req.remoteUser.isAdmin(expense.FromCollectiveId) || req.remoteUser.id === expense.UserId;
 };
 
 const isCollectiveAdmin = async (req, expense): Promise<boolean> => {
-  if (req.remoteUser.isAdmin(expense.CollectiveId)) {
+  if (!req.remoteUser) {
+    return false;
+  } else if (req.remoteUser.isAdmin(expense.CollectiveId)) {
     return true;
+  } else {
+    if (!expense.collective) {
+      expense.collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
+    }
+    return req.remoteUser.isAdmin(expense.collective.ParentCollectiveId);
   }
-
-  const collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
-  return req.remoteUser.isAdmin(collective.ParentCollectiveId);
 };
 
 const isHostAdmin = async (req, expense): Promise<boolean> => {
-  const collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
-  return req.remoteUser.isAdmin(collective.HostCollectiveId);
+  if (!req.remoteUser) {
+    return false;
+  }
+
+  if (!expense.collective) {
+    expense.collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
+  }
+
+  return req.remoteUser.isAdmin(expense.collective?.HostCollectiveId);
 };
 
 /**
  * Returns true if the expense meets at least one condition.
  * Always returns false for unkauthenticated requests.
  */
-const checkExpensePermissions = async (req, expense, conditions): Promise<boolean> => {
+const remoteUserMeetsOneCondition = async (req, expense, conditions): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
   }
@@ -39,22 +56,22 @@ const checkExpensePermissions = async (req, expense, conditions): Promise<boolea
 
 /** Checks if the user can see expense's attachments (items URLs, attached files) */
 export const canSeeExpenseAttachments = async (req, expense): Promise<boolean> => {
-  return checkExpensePermissions(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin]);
+  return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin]);
 };
 
 /** Checks if the user can see expense's payout method */
 export const canSeeExpensePayoutMethod = async (req, expense): Promise<boolean> => {
-  return checkExpensePermissions(req, expense, [isOwner, isHostAdmin]);
+  return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin]);
 };
 
 /** Checks if the user can see expense's payout method */
 export const canSeeExpenseInvoiceInfo = async (req, expense): Promise<boolean> => {
-  return checkExpensePermissions(req, expense, [isOwner, isHostAdmin]);
+  return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin]);
 };
 
 /** Checks if the user can see expense's payout method */
 export const canSeeExpensePayeeLocation = async (req, expense): Promise<boolean> => {
-  return checkExpensePermissions(req, expense, [isOwner, isHostAdmin]);
+  return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin]);
 };
 
 /**
@@ -66,33 +83,35 @@ export const getExpenseItems = async (expenseId, req): Promise<ExpenseItem[]> =>
 
 /**
  * Only admin of expense.collective or of expense.collective.host can approve/reject expenses
+ * @deprecated: Please use more specific helpers like `canEdit`, `canDelete`, etc.
  */
-export const canUpdateExpenseStatus = (remoteUser, expense): boolean => {
+export const canUpdateExpenseStatus = async (req, expense): Promise<boolean> => {
+  const { remoteUser } = req;
   if (!remoteUser) {
+    return false;
+  } else if (!canUseFeature(req.remoteUser, FEATURE.EXPENSES)) {
     return false;
   } else if (remoteUser.hasRole([roles.ADMIN], expense.CollectiveId)) {
     return true;
-  } else if (remoteUser.hasRole([roles.ADMIN], expense.collective.HostCollectiveId)) {
-    return true;
   } else {
-    return false;
+    if (!expense.collective) {
+      expense.collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
+    }
+
+    return remoteUser.isAdmin(expense.collective.HostCollectiveId);
   }
 };
 
 /**
  * Only the author or an admin of the collective or collective.host can edit an expense when it hasn't been paid yet
  */
-export const canEditExpense = (remoteUser, expense): boolean => {
-  if (!remoteUser) {
+export const canEditExpense = async (req, expense): Promise<boolean> => {
+  if (expense.status === expenseStatus.PAID || expense.status === expenseStatus.PROCESSING) {
     return false;
-  } else if (expense.status === expenseStatus.PAID) {
+  } else if (!canUseFeature(req.remoteUser, FEATURE.EXPENSES)) {
     return false;
-  } else if (remoteUser.id === expense.UserId) {
-    return true;
-  } else if (remoteUser.isAdmin(expense.FromCollectiveId)) {
-    return true;
   } else {
-    return canUpdateExpenseStatus(remoteUser, expense);
+    return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin]);
   }
 };
 
@@ -100,10 +119,77 @@ export const canEditExpense = (remoteUser, expense): boolean => {
  * Only the author or an admin of the collective or collective.host can delete an expense,
  * and only when its status is REJECTED.
  */
-export const canDeleteExpense = (remoteUser, expense): boolean => {
-  if (canEditExpense(remoteUser, expense) && expense.status === expenseStatus.REJECTED) {
-    return true;
-  } else {
+export const canDeleteExpense = async (req, expense): Promise<boolean> => {
+  if (expense.status !== expenseStatus.REJECTED) {
     return false;
+  } else if (!canUseFeature(req.remoteUser, FEATURE.EXPENSES)) {
+    return false;
+  } else {
+    return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin]);
+  }
+};
+
+/**
+ * Returns true if expense can be paid by user
+ */
+export const canPayExpense = async (req, expense): Promise<boolean> => {
+  if (![expenseStatus.APPROVED, expenseStatus.ERROR].includes(expense.status)) {
+    return false;
+  } else if (!canUseFeature(req.remoteUser, FEATURE.EXPENSES)) {
+    return false;
+  } else {
+    return isHostAdmin(req, expense);
+  }
+};
+
+/**
+ * Returns true if expense can be approved by user
+ */
+export const canApprove = async (req, expense): Promise<boolean> => {
+  if (![expenseStatus.PENDING, expenseStatus.REJECTED].includes(expense.status)) {
+    return false;
+  } else if (!canUseFeature(req.remoteUser, FEATURE.EXPENSES)) {
+    return false;
+  } else {
+    return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin]);
+  }
+};
+
+/**
+ * Returns true if expense can be rejected by user
+ */
+export const canReject = async (req, expense): Promise<boolean> => {
+  if (expense.status !== expenseStatus.PENDING) {
+    return false;
+  } else if (!canUseFeature(req.remoteUser, FEATURE.EXPENSES)) {
+    return false;
+  } else {
+    return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin]);
+  }
+};
+
+/**
+ * Returns true if expense can be unapproved by user
+ */
+export const canUnapprove = async (req, expense): Promise<boolean> => {
+  if (expense.status !== expenseStatus.APPROVED) {
+    return false;
+  } else if (!canUseFeature(req.remoteUser, FEATURE.EXPENSES)) {
+    return false;
+  } else {
+    return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin]);
+  }
+};
+
+/**
+ * Returns true if expense can be marked as unpaid by user
+ */
+export const canMarkAsUnpaid = async (req, expense): Promise<boolean> => {
+  if (expense.status !== expenseStatus.PAID) {
+    return false;
+  } else if (!canUseFeature(req.remoteUser, FEATURE.EXPENSES)) {
+    return false;
+  } else {
+    return isHostAdmin(req, expense);
   }
 };

@@ -81,7 +81,7 @@ describe('server/graphql/v1/collective', () => {
         items: [{ amount: 100 * (i + 1), url: store.randUrl() }],
         collective: { id: apex.id },
       });
-      await expenses.payExpense(hostAdmin, { id: expense.id });
+      await expenses.payExpense(utils.makeRequest(hostAdmin), { id: expense.id });
     }
 
     // When the following query is executed

@@ -1,11 +1,9 @@
 import { GraphQLNonNull } from 'graphql';
 import { pick } from 'lodash';
 
-import FEATURE from '../../../constants/feature';
-import { canUseFeature } from '../../../lib/user-permissions';
 import models from '../../../models';
 import { canDeleteExpense } from '../../common/expenses';
-import { FeatureNotAllowedForUser, NotFound, Unauthorized } from '../../errors';
+import { NotFound, Unauthorized } from '../../errors';
 import { createExpense as createExpenseLegacy, editExpense as editExpenseLegacy } from '../../v1/mutations/expenses';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
@@ -63,7 +61,7 @@ const expenseMutations = {
       // Support deprecated `attachments` field
       const items = expense.items || expense.attachments;
 
-      return editExpenseLegacy(req.remoteUser, {
+      return editExpenseLegacy(req, {
         id: idDecode(expense.id, IDENTIFIER_TYPES.EXPENSE),
         description: expense.description,
         tags: expense.tags,
@@ -102,11 +100,9 @@ const expenseMutations = {
         description: 'Reference of the expense to delete',
       },
     },
-    async resolve(_, args, { remoteUser }): Promise<typeof Expense> {
-      if (!remoteUser) {
+    async resolve(_, args, req): Promise<typeof Expense> {
+      if (!req.remoteUser) {
         throw new Unauthorized();
-      } else if (!canUseFeature(remoteUser, FEATURE.EXPENSES)) {
-        throw new FeatureNotAllowedForUser();
       }
 
       const expenseId = getDatabaseIdFromExpenseReference(args.expense);
@@ -117,8 +113,10 @@ const expenseMutations = {
 
       if (!expense) {
         throw new NotFound('Expense not found');
-      } else if (!canDeleteExpense(remoteUser, expense)) {
-        throw new Unauthorized("You don't have permission to delete this expense or it needs to be rejected before being deleted");
+      } else if (!(await canDeleteExpense(req, expense))) {
+        throw new Unauthorized(
+          "You don't have permission to delete this expense or it needs to be rejected before being deleted",
+        );
       }
 
       return expense.destroy();
