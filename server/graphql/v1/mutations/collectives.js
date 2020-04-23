@@ -1,7 +1,7 @@
 import { map } from 'bluebird';
 import config from 'config';
 import slugify from 'limax';
-import { get, isNil, omit, truncate } from 'lodash';
+import { get, omit, truncate } from 'lodash';
 import sanitize from 'sanitize-html';
 import sequelize from 'sequelize';
 import { v4 as uuid } from 'uuid';
@@ -162,8 +162,8 @@ export async function createCollective(_, args, req) {
     purgeCacheForPage(`/${hostCollective.slug}`);
   }
 
-  // If event, inherit fees from parent collective after setting its host
-  if (collectiveData.type === types.EVENT && !isNil(parentCollective.hostFeePercent)) {
+  // Inherit fees from parent collective after setting its host (events)
+  if (parentCollective && parentCollective.hostFeePercent !== collective.hostFeePercent) {
     await collective.update({ hostFeePercent: parentCollective.hostFeePercent });
   }
 
@@ -467,13 +467,7 @@ export async function approveCollective(remoteUser, CollectiveId) {
   });
 
   // Approve all events created by this collective under this host
-  models.Collective.findAll({
-    where: {
-      type: types.EVENT,
-      HostCollectiveId: host.id,
-      ParentCollectiveId: collective.id,
-    },
-  }).then(events => {
+  collective.getEvents({ where: { HostCollectiveId: host.id } }).then(events => {
     events.map(event => {
       event.update({ isActive: true, approvedAt: new Date() });
     });

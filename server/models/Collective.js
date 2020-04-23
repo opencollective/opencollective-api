@@ -1772,7 +1772,7 @@ export default function (Sequelize, DataTypes) {
     // Prepare events to receive a new host
     const events = await this.getEvents();
     if (events?.length > 0) {
-      await Promise.all(events.map(e => e.update({ HostCollectiveId: null })));
+      await Promise.all(events.map(e => e.changeHost(null)));
     }
 
     if (newHostCollectiveId) {
