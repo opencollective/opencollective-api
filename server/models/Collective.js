@@ -910,22 +910,31 @@ export default function (Sequelize, DataTypes) {
       await this.update({ isHostAccount: true });
     }
 
-    const pm = await models.PaymentMethod.findOne({ where: { service: 'opencollective', CollectiveId: this.id } });
-    if (!pm) {
-      await models.PaymentMethod.create({
-        CollectiveId: this.id,
-        service: 'opencollective',
-        type: 'collective',
-        name: `${this.name} (Host)`,
-        primary: true,
-        currency: this.currency,
-      });
-    }
+    await this.getOrCreateHostPaymentMethod();
 
     await models.Activity.create({
       type: activities.ACTIVATED_COLLECTIVE_AS_HOST,
       CollectiveId: this.id,
       data: { collective: this.info },
+    });
+  };
+
+  Collective.prototype.getOrCreateHostPaymentMethod = async function () {
+    const hostPaymentMethod = await models.PaymentMethod.findOne({
+      where: { service: 'opencollective', type: 'collective', CollectiveId: this.id },
+    });
+
+    if (hostPaymentMethod) {
+      return hostPaymentMethod;
+    }
+
+    return models.PaymentMethod.create({
+      CollectiveId: this.id,
+      service: 'opencollective',
+      type: 'collective',
+      name: `${this.name} (Host)`,
+      primary: true,
+      currency: this.currency,
     });
   };
 
