@@ -9,7 +9,9 @@ import models, { Op } from '../../../server/models';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 import {
   fakeCollective,
+  fakeEvent,
   fakeExpense,
+  fakeHost,
   fakeOrder,
   fakePaymentMethod,
   fakePayoutMethod,
@@ -407,6 +409,27 @@ describe('server/models/Collective', () => {
       expect(applyArgs).to.exist;
       expect(applyArgs[0]).to.equal(user1.email);
       expect(applyArgs[3].from).to.equal('hello@wwcode.opencollective.com');
+    });
+
+    it('updates hostFeePercent for collective and events when adding or changing host', async () => {
+      const collective = await fakeCollective({ hostFeePercent: 0, HostCollectiveId: null });
+      const event = await fakeEvent({
+        ParentCollectiveId: collective.id,
+        hostFeePercent: 0,
+      });
+      const host = await fakeHost({ hostFeePercent: 3 });
+      // Adding new host
+      await collective.addHost(host, user2);
+      await Promise.all([event.reload(), collective.reload()]);
+      expect(collective.hostFeePercent).to.be.equal(3);
+      expect(event.hostFeePercent).to.be.equal(3);
+
+      // Changing hosts
+      const newHost = await fakeHost({ hostFeePercent: 30 });
+      await collective.changeHost(newHost.id, user2);
+      await Promise.all([event.reload(), collective.reload()]);
+      expect(collective.hostFeePercent).to.be.equal(30);
+      expect(event.hostFeePercent).to.be.equal(30);
     });
 
     it('returns active plan', async () => {
