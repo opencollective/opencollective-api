@@ -466,12 +466,13 @@ export async function approveCollective(remoteUser, CollectiveId) {
     },
   });
 
-  // Approve all events created by this collective under this host
-  collective.getEvents({ where: { HostCollectiveId: host.id } }).then(events => {
+  // Approve all events created by this collective
+  const events = await collective.getEvents();
+  await Promise.all(
     events.map(event => {
       event.update({ isActive: true, approvedAt: new Date() });
-    });
-  });
+    }),
+  );
 
   // Approve the collective and return it
   return collective.update({ isActive: true, approvedAt: new Date() });
