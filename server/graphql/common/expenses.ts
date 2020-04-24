@@ -113,7 +113,7 @@ export const canEditExpense = async (req, expense): Promise<boolean> => {
   } else if (!canUseFeature(req.remoteUser, FEATURE.EXPENSES)) {
     return false;
   } else {
-    return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin]);
+    return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isCollectiveAdmin]);
   }
 };
 
