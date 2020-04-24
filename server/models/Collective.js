@@ -1781,6 +1781,12 @@ export default function (Sequelize, DataTypes) {
 
     await Promise.all(promises);
 
+    // Cascade host update to events
+    const events = await this.getEvents();
+    if (events?.length > 0) {
+      await Promise.all(events.map(e => e.addHost(hostCollective, creatorUser)));
+    }
+
     return this;
   };
 
@@ -1810,9 +1816,17 @@ export default function (Sequelize, DataTypes) {
     if (membership) {
       membership.destroy();
     }
+
+    // Prepare collective to receive a new host
     this.HostCollectiveId = null;
     this.isActive = false;
     this.approvedAt = null;
+    // Prepare events to receive a new host
+    const events = await this.getEvents();
+    if (events?.length > 0) {
+      await Promise.all(events.map(e => e.changeHost(null)));
+    }
+
     if (newHostCollectiveId) {
       const newHostCollective = await models.Collective.findByPk(newHostCollectiveId);
       if (!newHostCollective) {
