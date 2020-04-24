@@ -23,6 +23,7 @@ import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
 import { HasMembersFields } from '../interface/HasMembers';
 import { IsMemberOfFields } from '../interface/IsMemberOf';
 import { AccountStats } from '../object/AccountStats';
+import { ConnectedAccount } from '../object/ConnectedAccount';
 import { Location } from '../object/Location';
 import PayoutMethod from '../object/PayoutMethod';
 import { TagStats } from '../object/TagStats';
@@ -179,6 +180,10 @@ const accountFieldsDefinition = () => ({
   payoutMethods: {
     type: new GraphQLList(PayoutMethod),
     description: 'The list of payout methods that this collective can use to get paid',
+  },
+  connectedAccounts: {
+    type: new GraphQLList(ConnectedAccount),
+    description: 'The list of connected accounts (Stripe, Twitter, etc ...)',
   },
   location: {
     type: Location,
@@ -373,6 +378,18 @@ export const AccountFields = {
         return null;
       } else {
         return req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
+      }
+    },
+  },
+  connectedAccounts: {
+    type: new GraphQLList(ConnectedAccount),
+    description: 'The list of connected accounts (Stripe, Twitter, etc ...)',
+    // Only for admins, no pagination
+    async resolve(collective, _, req) {
+      if (!req.remoteUser || !req.remoteUser.isAdmin(collective.id)) {
+        return null;
+      } else {
+        return req.loaders.Collective.connectedAccounts.load(collective.id);
       }
     },
   },
