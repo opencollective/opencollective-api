@@ -13,7 +13,6 @@ import {
 } from 'graphql';
 import GraphQLJSON from 'graphql-type-json';
 import { Kind } from 'graphql/language';
-import he from 'he';
 import { get, omit, pick } from 'lodash';
 import moment from 'moment';
 
@@ -1048,21 +1047,7 @@ export const UpdateType = new GraphQLObjectType({
             return null;
           }
 
-          if (update.html.substr(0, 3) === '<p>') {
-            // we only keep the first paragraph
-            return he
-              .decode(update.html)
-              .replace('<p><br /></p>', '')
-              .replace(/<\/p>.*/g, '')
-              .replace('<p>', '');
-          }
-
-          if (update.markdown) {
-            // we only keep the first paragraph (up to 255 chars)
-            return update.markdown.replace(/\n.*/g, '').trunc(255, true);
-          }
-
-          return '';
+          return update.summary || '';
         },
       },
       html: {
