@@ -1,7 +1,9 @@
-import { expenseStatus, roles } from '../../constants';
+import { expenseStatus, roles, activities } from '../../constants';
 import FEATURE from '../../constants/feature';
 import { canUseFeature } from '../../lib/user-permissions';
 import { ExpenseItem } from '../../models/ExpenseItem';
+import models from '../../models';
+import { Forbidden } from '../errors';
 
 const isOwner = async (req, expense): Promise<boolean> => {
   if (!req.remoteUser) {
@@ -111,7 +113,7 @@ export const canEditExpense = async (req, expense): Promise<boolean> => {
   } else if (!canUseFeature(req.remoteUser, FEATURE.EXPENSES)) {
     return false;
   } else {
-    return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin]);
+    return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isCollectiveAdmin]);
   }
 };
 
@@ -192,4 +194,42 @@ export const canMarkAsUnpaid = async (req, expense): Promise<boolean> => {
   } else {
     return isHostAdmin(req, expense);
   }
+};
+
+// ---- Expense actions ----
+
+export const approveExpense = async (req, expense): Promise<typeof models.Expense> => {
+  if (expense.status === expenseStatus.APPROVED) {
+    return expense;
+  } else if (!(await canApprove(req, expense))) {
+    throw new Forbidden();
+  }
+
+  const updatedExpense = await expense.update({ status: expenseStatus.APPROVED, lastEditedById: req.remoteUser.id });
+  await expense.createActivity(activities.COLLECTIVE_EXPENSE_APPROVED, req.remoteUser);
+  return updatedExpense;
+};
+
+export const unapproveExpense = async (req, expense): Promise<typeof models.Expense> => {
+  if (expense.status === expenseStatus.PENDING) {
+    return expense;
+  } else if (!(await canUnapprove(req, expense))) {
+    throw new Forbidden();
+  }
+
+  const updatedExpense = await expense.update({ status: expenseStatus.PENDING, lastEditedById: req.remoteUser.id });
+  await expense.createActivity(activities.COLLECTIVE_EXPENSE_UNAPPROVED, req.remoteUser);
+  return updatedExpense;
+};
+
+export const rejectExpense = async (req, expense): Promise<typeof models.Expense> => {
+  if (expense.status === expenseStatus.REJECTED) {
+    return expense;
+  } else if (!(await canReject(req, expense))) {
+    throw new Forbidden();
+  }
+
+  const updatedExpense = await expense.update({ status: expenseStatus.REJECTED, lastEditedById: req.remoteUser.id });
+  await expense.createActivity(activities.COLLECTIVE_EXPENSE_APPROVED, req.remoteUser);
+  return updatedExpense;
 };

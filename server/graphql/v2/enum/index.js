@@ -3,6 +3,7 @@ export { AccountType, AccountTypeToModelMapping } from './AccountType';
 export { ActivityType } from './ActivityType';
 export { Currency, TransferWiseCurrency } from './Currency';
 export { DateTimeField } from './DateTimeField';
+export { ExpenseProcessAction } from './ExpenseProcessAction';
 export { ImageFormat } from './ImageFormat';
 export { MemberRole } from './MemberRole';
 export { OrderDirectionType } from './OrderDirectionType';

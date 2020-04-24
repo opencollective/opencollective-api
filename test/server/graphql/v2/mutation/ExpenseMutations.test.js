@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import { pick } from 'lodash';
 
 import { expenseStatus } from '../../../../../server/constants';
+import { payExpense } from '../../../../../server/graphql/v1/mutations/expenses.js';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import { randEmail, randUrl } from '../../../../stores';
 import {
@@ -9,10 +10,11 @@ import {
   fakeExpense,
   fakeExpenseItem,
   fakePayoutMethod,
+  fakeTransaction,
   fakeUser,
   randStr,
 } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2 } from '../../../../utils';
+import { graphqlQueryV2, makeRequest } from '../../../../utils';
 
 const createExpenseMutation = `
 mutation createExpense($expense: ExpenseCreateInput!, $account: AccountReferenceInput!) {
@@ -61,6 +63,15 @@ mutation editExpense($expense: ExpenseUpdateInput!) {
       description
     }
     tags
+  }
+}`;
+
+const processExpenseMutation = `
+mutation processExpense($expenseId: Int!, $action: ExpenseProcessAction!, $paymentParams: ProcessExpensePaymentParams) {
+  processExpense(expense: { legacyId: $expenseId }, action: $action, paymentParams: $paymentParams) {
+    id
+    legacyId
+    status
   }
 }`;
 
@@ -303,6 +314,273 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.errors[0].message).to.eq(
           "You don't have permission to delete this expense or it needs to be rejected before being deleted",
         );
+      });
+    });
+  });
+
+  describe('processExpense', () => {
+    let collective, collectiveAdmin, hostAdmin;
+
+    before(async () => {
+      hostAdmin = await fakeUser();
+      collectiveAdmin = await fakeUser();
+      const host = await fakeCollective({ admin: hostAdmin.collective });
+      collective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdmin.collective });
+    });
+
+    describe('APPROVE', () => {
+      it('Needs to be authenticated', async () => {
+        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'PENDING' });
+        const mutationParams = { expenseId: expense.id, action: 'APPROVE' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('You need to be authenticated to perform this action');
+      });
+
+      it('User cannot approve their own expenses', async () => {
+        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'PENDING' });
+        const mutationParams = { expenseId: expense.id, action: 'APPROVE' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, expense.User);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('You are authenticated but forbidden to perform this action');
+      });
+
+      it('Approves the expense', async () => {
+        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'PENDING' });
+        const mutationParams = { expenseId: expense.id, action: 'APPROVE' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, collectiveAdmin);
+        expect(result.data.processExpense.status).to.eq('APPROVED');
+      });
+
+      it('Expense needs to be pending', async () => {
+        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'PAID' });
+        const mutationParams = { expenseId: expense.id, action: 'APPROVE' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, collectiveAdmin);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('You are authenticated but forbidden to perform this action');
+      });
+
+      it("Doesn't crash for already-approved expenses", async () => {
+        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'APPROVED' });
+        const mutationParams = { expenseId: expense.id, action: 'APPROVE' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, collectiveAdmin);
+        expect(result.data.processExpense.status).to.eq('APPROVED');
+      });
+    });
+
+    describe('UNAPPROVE', () => {
+      it('Needs to be authenticated', async () => {
+        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'APPROVED' });
+        const mutationParams = { expenseId: expense.id, action: 'UNAPPROVE' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('You need to be authenticated to perform this action');
+      });
+
+      it('User cannot unapprove their own expenses', async () => {
+        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'APPROVED' });
+        const mutationParams = { expenseId: expense.id, action: 'UNAPPROVE' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, expense.User);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('You are authenticated but forbidden to perform this action');
+      });
+
+      it('Unapproves the expense', async () => {
+        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'APPROVED' });
+        const mutationParams = { expenseId: expense.id, action: 'UNAPPROVE' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, collectiveAdmin);
+        expect(result.data.processExpense.status).to.eq('PENDING');
+      });
+
+      it('Expense needs to be approved', async () => {
+        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'PAID' });
+        const mutationParams = { expenseId: expense.id, action: 'APPROVE' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, collectiveAdmin);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('You are authenticated but forbidden to perform this action');
+      });
+
+      it("Doesn't crash for already-pending expenses", async () => {
+        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'PENDING' });
+        const mutationParams = { expenseId: expense.id, action: 'UNAPPROVE' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, collectiveAdmin);
+        expect(result.data.processExpense.status).to.eq('PENDING');
+      });
+    });
+
+    describe('REJECT', () => {
+      it('Needs to be authenticated', async () => {
+        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'PENDING' });
+        const mutationParams = { expenseId: expense.id, action: 'REJECT' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('You need to be authenticated to perform this action');
+      });
+
+      it('User cannot reject their own expenses', async () => {
+        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'PENDING' });
+        const mutationParams = { expenseId: expense.id, action: 'REJECT' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, expense.User);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('You are authenticated but forbidden to perform this action');
+      });
+
+      it('Rejects the expense', async () => {
+        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'PENDING' });
+        const mutationParams = { expenseId: expense.id, action: 'REJECT' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, collectiveAdmin);
+        expect(result.data.processExpense.status).to.eq('REJECTED');
+      });
+
+      it('Expense needs to be pending', async () => {
+        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'PAID' });
+        const mutationParams = { expenseId: expense.id, action: 'REJECT' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, collectiveAdmin);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('You are authenticated but forbidden to perform this action');
+      });
+
+      it("Doesn't crash for already-rejected expenses", async () => {
+        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'REJECTED' });
+        const mutationParams = { expenseId: expense.id, action: 'REJECT' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, collectiveAdmin);
+        expect(result.data.processExpense.status).to.eq('REJECTED');
+      });
+    });
+
+    describe('PAY', () => {
+      it('Needs to be authenticated', async () => {
+        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'APPROVED' });
+        const mutationParams = { expenseId: expense.id, action: 'PAY' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('You need to be authenticated to perform this action');
+      });
+
+      it('User cannot pay their own expenses', async () => {
+        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'APPROVED' });
+        const mutationParams = { expenseId: expense.id, action: 'PAY' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, expense.User);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq("You don't have permission to pay this expense");
+      });
+
+      it('Collective admins cannot pay expenses', async () => {
+        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'APPROVED' });
+        const mutationParams = { expenseId: expense.id, action: 'PAY' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, collectiveAdmin);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq("You don't have permission to pay this expense");
+      });
+
+      it('Expense needs to be approved', async () => {
+        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'REJECTED' });
+        const mutationParams = { expenseId: expense.id, action: 'PAY' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq(
+          'Expense needs to be approved. Current status of the expense: REJECTED.',
+        );
+      });
+
+      it('Pays the expense', async () => {
+        const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+        const expense = await fakeExpense({
+          amount: 1000,
+          CollectiveId: collective.id,
+          status: 'APPROVED',
+          PayoutMethodId: payoutMethod.id,
+        });
+
+        // Updates the collective balance and pay the expense
+        await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: expense.amount });
+        const mutationParams = { expenseId: expense.id, action: 'PAY' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+        expect(result.data.processExpense.status).to.eq('PAID');
+      });
+
+      it('Cannot double-pay', async () => {
+        const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+        const expense = await fakeExpense({
+          amount: 1000,
+          CollectiveId: collective.id,
+          status: 'APPROVED',
+          PayoutMethodId: payoutMethod.id,
+        });
+
+        // Updates the collective balance and pay the expense
+        await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: expense.amount });
+        const mutationParams = { expenseId: expense.id, action: 'PAY' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+        const result2 = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+        expect(result.data.processExpense.status).to.eq('PAID');
+        expect(result2.errors).to.exist;
+        expect(result2.errors[0].message).to.eq('Expense has already been paid');
+      });
+    });
+
+    describe('MARK_AS_UNPAID', () => {
+      it('Needs to be authenticated', async () => {
+        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'PAID' });
+        const mutationParams = { expenseId: expense.id, action: 'MARK_AS_UNPAID' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('You need to be authenticated to perform this action');
+      });
+
+      it('User cannot mark as unpaid their own expenses', async () => {
+        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'PAID' });
+        const mutationParams = { expenseId: expense.id, action: 'MARK_AS_UNPAID' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, expense.User);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq("You don't have permission to mark this expense as unpaid");
+      });
+
+      it('Collective admins cannot mark expenses as unpaid', async () => {
+        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'PAID' });
+        const mutationParams = { expenseId: expense.id, action: 'MARK_AS_UNPAID' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, collectiveAdmin);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq("You don't have permission to mark this expense as unpaid");
+      });
+
+      it('Only when the payout method type is "Other"', async () => {
+        const payoutMethod = await fakePayoutMethod({ type: 'PAYPAL' });
+        const expense = await fakeExpense({
+          CollectiveId: collective.id,
+          status: 'PAID',
+          PayoutMethodId: payoutMethod.id,
+        });
+        const mutationParams = { expenseId: expense.id, action: 'MARK_AS_UNPAID' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('Only expenses with "other" payout method can be marked as unpaid');
+      });
+
+      it('Marks the expense as unpaid', async () => {
+        const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+        const expense = await fakeExpense({
+          amount: 1000,
+          CollectiveId: collective.id,
+          status: 'APPROVED',
+          PayoutMethodId: payoutMethod.id,
+        });
+
+        // Updates the collective balance and pay the expense
+        await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: expense.amount });
+        await payExpense(makeRequest(hostAdmin), { id: expense.id });
+
+        const mutationParams = { expenseId: expense.id, action: 'MARK_AS_UNPAID' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+        expect(result.data.processExpense.status).to.eq('APPROVED');
+      });
+
+      it('Expense needs to be paid', async () => {
+        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'REJECTED' });
+        const mutationParams = { expenseId: expense.id, action: 'MARK_AS_UNPAID' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq("You don't have permission to mark this expense as unpaid");
       });
     });
   });
