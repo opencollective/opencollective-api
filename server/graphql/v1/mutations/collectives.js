@@ -982,7 +982,7 @@ export async function rejectCollective(_, args, req) {
     },
   });
 
-  return collective.update({ HostCollectiveId: null });
+  return collective.changeHost(null, req.remoteUser);
 }
 
 export async function activateCollectiveAsHost(_, args, req) {
