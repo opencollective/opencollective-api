@@ -1074,7 +1074,7 @@ const queries = {
   },
 
   /**
-   * Find a specific member. If multiple members match the given criterias, only
+   * Find a specific member. If multiple members match the given criteria, only
    * one will be returned.
    */
   member: {
