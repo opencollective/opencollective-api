@@ -77,7 +77,7 @@ async function run() {
           });
         })
         .catch(error => {
-          console.log(`Error occured processing and dispatching order ${order.id}`);
+          console.log(`Error occurred processing and dispatching order ${order.id}`);
           console.error(error);
         });
     },
