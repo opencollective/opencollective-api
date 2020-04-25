@@ -3,7 +3,7 @@ import { Model } from 'sequelize';
 
 /**
  * Diff two lists of DB objects and returns which ones where created, removed and updated.
- * Usefull for places where we update an attribute by providing a list.
+ * Useful for places where we update an attribute by providing a list.
  *
  * @param {Array} oldEntries: Existing entries
  * @param {Array} newEntries: New entries to update with
