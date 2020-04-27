@@ -59,6 +59,7 @@ import { capitalize, cleanTags, flattenArray, formatCurrency, getDomain, md5, st
 
 import CustomDataTypes from './DataTypes';
 import { PayoutMethodTypes } from './PayoutMethod';
+import { isValidUploadedImage } from '../lib/images';
 
 const debug = debugLib('models:Collective');
 
@@ -265,6 +266,14 @@ export default function (Sequelize, DataTypes) {
 
       image: {
         type: DataTypes.STRING,
+        validate: {
+          isUrl: true,
+          isValidImage(url) {
+            if (url && !isValidUploadedImage(url)) {
+              throw new Error('The image URL is not valid');
+            }
+          },
+        },
         get() {
           const image = this.getDataValue('image');
           // Warning: some tests really want that value to be undefined and not null
@@ -276,6 +285,14 @@ export default function (Sequelize, DataTypes) {
 
       backgroundImage: {
         type: DataTypes.STRING,
+        validate: {
+          isUrl: true,
+          isValidImage(url) {
+            if (url && !isValidUploadedImage(url)) {
+              throw new Error('The background image URL is not valid');
+            }
+          },
+        },
         get() {
           return this.getDataValue('backgroundImage');
         },
