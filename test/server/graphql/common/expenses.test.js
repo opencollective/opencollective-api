@@ -13,7 +13,8 @@ import {
   canSeeExpensePayoutMethod,
   canUnapprove,
 } from '../../../../server/graphql/common/expenses';
-import { fakeCollective, fakeExpense, fakeUser } from '../../../test-helpers/fake-data';
+import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
+import { fakeCollective, fakeExpense, fakePayoutMethod, fakeUser } from '../../../test-helpers/fake-data';
 import { makeRequest } from '../../../utils';
 
 describe('server/graphql/common/expenses', () => {
@@ -27,7 +28,12 @@ describe('server/graphql/common/expenses', () => {
     limitedHostAdmin = await fakeUser();
     expenseOwner = await fakeUser();
     collective = await fakeCollective();
-    expense = await fakeExpense({ CollectiveId: collective.id, FromCollectiveId: expenseOwner.CollectiveId });
+    const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
+    expense = await fakeExpense({
+      CollectiveId: collective.id,
+      FromCollectiveId: expenseOwner.CollectiveId,
+      PayoutMethodId: payoutMethod.id,
+    });
     await collective.addUserWithRole(collectiveAdmin, 'ADMIN');
     await collective.host.addUserWithRole(hostAdmin, 'ADMIN');
 
@@ -275,6 +281,17 @@ describe('server/graphql/common/expenses', () => {
       expect(await canMarkAsUnpaid(hostAdminReq, expense)).to.be.true;
       expect(await canMarkAsUnpaid(expenseOwnerReq, expense)).to.be.false;
       expect(await canMarkAsUnpaid(limitedHostAdminReq, expense)).to.be.false;
+    });
+
+    it('only if payout method type is OTHER', async () => {
+      const paypalPM = await fakePayoutMethod({ type: PayoutMethodTypes.PAYPAL });
+      const testExpense = await fakeExpense({
+        status: 'PAID',
+        CollectiveId: collective.id,
+        PayoutMethodId: paypalPM.id,
+      });
+      const result = await canMarkAsUnpaid(hostAdminReq, testExpense);
+      expect(result).to.be.false;
     });
   });
 });

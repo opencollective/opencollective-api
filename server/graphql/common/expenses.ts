@@ -1,8 +1,9 @@
-import { expenseStatus, roles, activities } from '../../constants';
+import { activities, expenseStatus, roles } from '../../constants';
 import FEATURE from '../../constants/feature';
 import { canUseFeature } from '../../lib/user-permissions';
-import { ExpenseItem } from '../../models/ExpenseItem';
 import models from '../../models';
+import { ExpenseItem } from '../../models/ExpenseItem';
+import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import { Forbidden } from '../errors';
 
 const isOwner = async (req, expense): Promise<boolean> => {
@@ -191,8 +192,14 @@ export const canMarkAsUnpaid = async (req, expense): Promise<boolean> => {
     return false;
   } else if (!canUseFeature(req.remoteUser, FEATURE.EXPENSES)) {
     return false;
+  } else if (!(await isHostAdmin(req, expense))) {
+    return false;
   } else {
-    return isHostAdmin(req, expense);
+    if (!expense.payoutMethod && expense.PayoutMethodId) {
+      expense.payoutMethod = await req.loaders.PayoutMethod.byId.load(expense.PayoutMethodId);
+    }
+
+    return !expense.payoutMethod || expense.payoutMethod.type === PayoutMethodTypes.OTHER;
   }
 };
 
