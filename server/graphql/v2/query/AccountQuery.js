@@ -31,6 +31,7 @@ export const buildAccountQuery = ({ objectType }) => ({
     if (args.slug) {
       const slug = args.slug.toLowerCase();
       collective = await models.Collective.findBySlug(slug, null, args.throwIfMissing);
+      console.log(slug, collective);
     } else if (args.id) {
       const id = idDecode(args.id, 'account');
       collective = await models.Collective.findByPk(id);
