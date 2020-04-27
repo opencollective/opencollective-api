@@ -179,7 +179,7 @@ export const canUnapprove = async (req, expense): Promise<boolean> => {
   } else if (!canUseFeature(req.remoteUser, FEATURE.EXPENSES)) {
     return false;
   } else {
-    return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin]);
+    return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin, isCollectiveAdmin]);
   }
 };
 
