@@ -249,7 +249,7 @@ export const createSubscription = async order => {
   order.Subscription.nextPeriodStart = updatedDates.nextPeriodStart || order.Subscription.nextPeriodStart;
 
   // Both subscriptions and one time donations are charged
-  // immediatelly and there won't be a better time to update
+  // immediately and there won't be a better time to update
   // this field after this. Please notice that it will change
   // when the issue #729 is tackled.
   // https://github.com/opencollective/opencollective/issues/729

@@ -392,11 +392,11 @@ const getTopKeysFromObject = (obj, valueAttr, limit = 3) => {
   Object.keys(obj).map(t => {
     values.push({
       value: t,
-      occurences: valueAttr ? obj[t][valueAttr] : obj[t],
+      occurrences: valueAttr ? obj[t][valueAttr] : obj[t],
     });
   });
   values.sort((a, b) => {
-    if (a.occurences > b.occurences) {
+    if (a.occurrences > b.occurrences) {
       return -1;
     } else {
       return 1;
@@ -458,11 +458,11 @@ const computeStats = async (collectives, currency = 'USD') => {
       await Promise.map(expenses, async expense => {
         const amountInBackerCurrency = await convertToCurrency(expense.amount, expense.currency, currency);
         categories[expense.tags?.[0]] = categories[expense.tags?.[0]] || {
-          occurences: 0,
+          occurrences: 0,
           totalAmountPerCurrency: {},
           totalAmountInBackerCurrency: 0,
         };
-        categories[expense.tags?.[0]].occurences++;
+        categories[expense.tags?.[0]].occurrences++;
         categories[expense.tags?.[0]].totalAmountPerCurrency[expense.currency] =
           categories[expense.tags?.[0]].totalAmountPerCurrency[expense.currency] || 0;
         categories[expense.tags?.[0]].totalAmountPerCurrency[expense.currency] += expense.amount;

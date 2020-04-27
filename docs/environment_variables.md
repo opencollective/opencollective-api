@@ -1,4 +1,4 @@
-# Enviroment Variables
+# Environment Variables
 
 | Environment Variable                | Config Name(name on the `config` file)      | Description                                                                    |
 | ----------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------ |

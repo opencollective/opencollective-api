@@ -10,7 +10,7 @@
  *
  * This small helper stores this information in a standardized way within the GraphQl context.
  * It works as an opt-in for all permissions: everything is forbidden by default and you need
- * to explicitely set the flag to true with `allowContextPermission` to allow something.
+ * to explicitly set the flag to true with `allowContextPermission` to allow something.
  *
  * Permissions are stored inside the `req` as an object that looks like:
  * {
