@@ -554,7 +554,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const mutationParams = { expenseId: expense.id, action: 'MARK_AS_UNPAID' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
         expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.eq('Only expenses with "other" payout method can be marked as unpaid');
+        expect(result.errors[0].message).to.eq("You don't have permission to mark this expense as unpaid");
       });
 
       it('Marks the expense as unpaid', async () => {
