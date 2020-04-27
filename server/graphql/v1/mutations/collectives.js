@@ -762,6 +762,20 @@ export async function deleteCollective(_, args, req) {
         { concurrency: 3 },
       );
     })
+
+    .then(async () => {
+      const memberInvitations = await models.MemberInvitation.findAll({
+        where: { CollectiveId: collective.id },
+      });
+      return map(
+        memberInvitations,
+        memberInvitation => {
+          return memberInvitation.destroy();
+        },
+        { concurrency: 3 },
+      );
+    })
+
     .then(() => collective.destroy())
     .then(() => collective);
 }
