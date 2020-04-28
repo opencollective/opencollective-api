@@ -4,7 +4,7 @@ module.exports = {
   up: (queryInterface, Sequelize) => {
     return queryInterface.sequelize.query(`
       UPDATE  "Members"
-      SET     "role" = 'RELATED_COLLECTIVE'
+      SET     "role" = 'CONNECTED_COLLECTIVE'
       WHERE   "role" = 'SUB_COLLECTIVE'
     `);
   },
@@ -13,7 +13,7 @@ module.exports = {
     return queryInterface.sequelize.query(`
       UPDATE  "Members"
       SET     "role" = 'SUB_COLLECTIVE'
-      WHERE   "role" = 'RELATED_COLLECTIVE'
+      WHERE   "role" = 'CONNECTED_COLLECTIVE'
     `);
   },
 };
