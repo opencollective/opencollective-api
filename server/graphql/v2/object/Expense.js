@@ -124,7 +124,7 @@ const Expense = new GraphQLObjectType({
         description: 'The payout method to use for this expense',
         async resolve(expense, _, req) {
           if (expense.PayoutMethodId) {
-            if (await ExpensePermissionsLib.canSeeExpensePayoutMethod(expense, req)) {
+            if (await ExpensePermissionsLib.canSeeExpensePayoutMethod(req, expense)) {
               allowContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DATA, expense.PayoutMethodId);
             }
 
