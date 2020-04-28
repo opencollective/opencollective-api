@@ -5,6 +5,7 @@ import { ExpenseType } from '../enum/ExpenseType';
 import { AccountReferenceInput } from './AccountReferenceInput';
 import { ExpenseAttachedFileInput } from './ExpenseAttachedFileInput';
 import { ExpenseItemCreateInput } from './ExpenseItemCreateInput';
+import { LocationInput } from './LocationInput';
 import { PayoutMethodInput } from './PayoutMethodInput';
 
 /**
@@ -53,6 +54,10 @@ export const ExpenseCreateInput = new GraphQLInputObjectType({
     payee: {
       type: new GraphQLNonNull(AccountReferenceInput),
       description: 'Account to reimburse',
+    },
+    payeeLocation: {
+      type: LocationInput,
+      description: 'The address of the payee',
     },
   },
 });

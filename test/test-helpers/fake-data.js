@@ -30,7 +30,7 @@ export const randArray = (generateFunc, min = 1, max = 1) => {
 /**
  * Creates a fake user. All params are optionals.
  */
-export const fakeUser = async userData => {
+export const fakeUser = async (userData, collectiveData) => {
   const user = await models.User.create({
     email: randEmail(),
     firstName: randStr('FirstName '),
@@ -45,6 +45,7 @@ export const fakeUser = async userData => {
     data: { UserId: user.id },
     HostCollectiveId: null,
     CreatedByUserId: user.id,
+    ...collectiveData,
   });
 
   await user.update({ CollectiveId: userCollective.id });

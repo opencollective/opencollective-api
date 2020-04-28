@@ -15,20 +15,19 @@
  * Permissions are stored inside the `req` as an object that looks like:
  * {
  *    // Action type as the key
- *    SEE_ACCOUNT_LOCATION: {
+ *    SEE_PAYOUT_METHOD_DATA: {
  *      // [EntityId (ie. UserId, CollectiveId)]: hasAccess
  *      45: true
  *    }
  * }
  */
 
-import { get, has, isNil,set } from 'lodash';
+import { get, has, isNil, set } from 'lodash';
 
 /**
  * Context permissions types to use with `setContextPermission` and `getContextPermission`
  */
 export enum PERMISSION_TYPE {
-  SEE_ACCOUNT_LOCATION = 'SEE_ACCOUNT_LOCATION',
   SEE_EXPENSE_ATTACHMENTS_URL = 'SEE_EXPENSE_ATTACHMENTS_URL',
   SEE_PAYOUT_METHOD_DATA = 'SEE_PAYOUT_METHOD_DATA',
   SEE_INCOGNITO_ACCOUNT_DETAILS = 'SEE_INCOGNITO_ACCOUNT_DETAILS',

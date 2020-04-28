@@ -123,7 +123,16 @@ const checkExpenseItems = (expenseData, items) => {
   }
 };
 
-const EXPENSE_EDITABLE_FIELDS = ['amount', 'description', 'category', 'type', 'tags', 'privateMessage', 'invoiceInfo'];
+const EXPENSE_EDITABLE_FIELDS = [
+  'amount',
+  'description',
+  'category',
+  'type',
+  'tags',
+  'privateMessage',
+  'invoiceInfo',
+  'payeeLocation',
+];
 
 const getPaypalPaymentMethodFromExpenseData = async (expenseData, remoteUser, fromCollective, dbTransaction) => {
   if (expenseData.PayoutMethod) {
@@ -223,6 +232,17 @@ export async function createExpense(remoteUser, expenseData) {
     throw new ValidationFailed('You must be an admin of the account to submit an expense in its name');
   } else if (!fromCollective.canBeUsedAsPayoutProfile()) {
     throw new ValidationFailed('This account cannot be used for payouts');
+  }
+
+  // Update payee's location
+  if (!expenseData.payeeLocation?.address && fromCollective.location) {
+    expenseData.payeeLocation = pick(fromCollective.location, ['address', 'country']);
+  } else if (expenseData.payeeLocation?.address && !fromCollective.location.address) {
+    // Let's take the opportunity to update collective's location
+    await fromCollective.update({
+      address: expenseData.payeeLocation.address,
+      countryISO: expenseData.payeeLocation.country,
+    });
   }
 
   const expense = await sequelize.transaction(async t => {
@@ -340,6 +360,14 @@ export async function editExpense(req, expenseData) {
     } else if (!fromCollective.canBeUsedAsPayoutProfile()) {
       throw new ValidationFailed('This account cannot be used for payouts');
     }
+  }
+
+  // Let's take the opportunity to update collective's location
+  if (expenseData.payeeLocation?.address && !fromCollective.location.address) {
+    await fromCollective.update({
+      address: expenseData.payeeLocation.address,
+      countryISO: expenseData.payeeLocation.country,
+    });
   }
 
   const cleanExpenseData = pick(expenseData, EXPENSE_EDITABLE_FIELDS);
