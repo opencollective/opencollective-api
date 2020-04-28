@@ -261,6 +261,7 @@ export function setupModels(client) {
   // Payout method
   m.PayoutMethod.belongsTo(m.User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
   m.PayoutMethod.belongsTo(m.Collective);
+  m.Collective.hasMany(m.PayoutMethod);
 
   // Tier
   m.Tier.belongsTo(m.Collective);
