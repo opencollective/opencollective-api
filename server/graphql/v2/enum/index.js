@@ -1,6 +1,7 @@
 export { AccountOrdersFilter } from './AccountOrdersFilter';
 export { AccountType, AccountTypeToModelMapping } from './AccountType';
 export { ActivityType } from './ActivityType';
+export { CountryISO } from './CountryISO';
 export { Currency, TransferWiseCurrency } from './Currency';
 export { DateTimeField } from './DateTimeField';
 export { ExpenseProcessAction } from './ExpenseProcessAction';

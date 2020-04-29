@@ -26,6 +26,10 @@ mutation createExpense($expense: ExpenseCreateInput!, $account: AccountReference
     payee {
       legacyId
     }
+    payeeLocation {
+      address
+      country
+    }
   }
 }`;
 
@@ -54,6 +58,10 @@ mutation editExpense($expense: ExpenseUpdateInput!) {
       data
       name
       type
+    }
+    payeeLocation {
+      address
+      country
     }
     items {
       id
@@ -88,12 +96,13 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       invoiceInfo: 'This will be printed on your invoice',
       payoutMethod: { type: 'PAYPAL', data: { email: randEmail() } },
       items: [{ description: 'A first item', amount: 4200 }],
+      payeeLocation: { address: '123 Potatoes street', country: 'BE' },
     });
 
     it('creates the expense with the linked items', async () => {
       const user = await fakeUser();
       const collective = await fakeCollective();
-      const payee = await fakeCollective({ type: 'ORGANIZATION', admin: user.collective });
+      const payee = await fakeCollective({ type: 'ORGANIZATION', admin: user.collective, address: null });
       const expenseData = { ...getValidExpenseData(), payee: { legacyId: payee.id } };
 
       const result = await graphqlQueryV2(
@@ -111,6 +120,35 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(createdExpense.invoiceInfo).to.eq(expenseData.invoiceInfo);
       expect(createdExpense.amount).to.eq(4200);
       expect(createdExpense.payee.legacyId).to.eq(payee.id);
+      expect(createdExpense.payeeLocation).to.deep.equal(expenseData.payeeLocation);
+
+      // Updates collective location
+      await payee.reload();
+      expect(payee.address).to.eq('123 Potatoes street');
+      expect(payee.countryISO).to.eq('BE');
+    });
+
+    it("use collective's location if not provided", async () => {
+      const user = await fakeUser({}, { address: '123 Potatoes Street', countryISO: 'BE' });
+      const collective = await fakeCollective();
+      const expenseData = {
+        ...getValidExpenseData(),
+        payee: { legacyId: user.collective.id },
+        payeeLocation: undefined,
+      };
+      const result = await graphqlQueryV2(
+        createExpenseMutation,
+        { expense: expenseData, account: { legacyId: collective.id } },
+        user,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      const createdExpense = result.data.createExpense;
+      expect(createdExpense.payeeLocation).to.deep.equal({
+        address: '123 Potatoes Street',
+        country: 'BE',
+      });
     });
 
     it('must be an admin to submit expense as another account', async () => {
@@ -238,6 +276,15 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       const updatedExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), tags: ['FAKE', 'TAGS'] };
       const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, expense.User);
       expect(result.data.editExpense.tags).to.deep.equal(updatedExpenseData.tags);
+    });
+
+    it('updates the location', async () => {
+      const expense = await fakeExpense({ payeeLocation: { address: 'Base address', country: 'FR' } });
+      const newLocation = { address: 'New address', country: 'BE' };
+      const updatedExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), payeeLocation: newLocation };
+      const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, expense.User);
+      result.errors && console.error(result.errors);
+      expect(result.data.editExpense.payeeLocation).to.deep.equal(updatedExpenseData.payeeLocation);
     });
   });
 

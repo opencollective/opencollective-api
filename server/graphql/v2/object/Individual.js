@@ -2,7 +2,6 @@ import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from
 
 import { types as collectiveTypes } from '../../../constants/collectives';
 import models from '../../../models';
-import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { Account, AccountFields } from '../interface/Account';
 
@@ -69,12 +68,9 @@ export const Individual = new GraphQLObjectType({
             - Users can see their own address
             - Hosts can see the address of users submitting expenses to their collectives
         `,
-        resolve(individual, _, req) {
-          if (
-            individual.isHost ||
-            (req.remoteUser && req.remoteUser.isAdmin(individual.id)) ||
-            getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_LOCATION, individual.id)
-          ) {
+        async resolve(individual, _, req) {
+          const canSeeLocation = req.remoteUser?.isAdmin(individual.id) || (await individual.isHost());
+          if (canSeeLocation) {
             return individual.location;
           }
         },

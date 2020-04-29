@@ -1,5 +1,6 @@
 import { get, pick } from 'lodash';
 import Temporal from 'sequelize-temporal';
+import { isISO31661Alpha2 } from 'validator';
 
 import status from '../constants/expense_status';
 import expenseType from '../constants/expense_type';
@@ -38,6 +39,31 @@ export default function (Sequelize, DataTypes) {
         onDelete: 'SET NULL', // Collective deletion will fail if it has expenses
         onUpdate: 'CASCADE',
         allowNull: false,
+      },
+
+      payeeLocation: {
+        type: DataTypes.JSONB,
+        allowNull: true,
+        validate: {
+          isValidLocation(value) {
+            if (!value) {
+              return true;
+            }
+
+            // Validate keys
+            const validKeys = ['address', 'country', 'name', 'lat', 'long'];
+            Object.keys(value).forEach(key => {
+              if (!validKeys.includes(key)) {
+                throw new Error(`Invalid location key: ${key}`);
+              }
+            });
+
+            // Validate values
+            if (value.country && !isISO31661Alpha2(value.country)) {
+              throw new Error('Invalid Country ISO');
+            }
+          },
+        },
       },
 
       CollectiveId: {

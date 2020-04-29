@@ -49,7 +49,15 @@ const expenseMutations = {
       // of the `createExpense` endpoint in V1, the actual code to create the expense should be moved
       // here and cleaned.
       return createExpenseLegacy(req.remoteUser, {
-        ...pick(args.expense, ['description', 'tags', 'type', 'privateMessage', 'attachedFiles', 'invoiceInfo']),
+        ...pick(args.expense, [
+          'description',
+          'tags',
+          'type',
+          'privateMessage',
+          'attachedFiles',
+          'invoiceInfo',
+          'payeeLocation',
+        ]),
         items,
         amount: items.reduce((total, item) => total + item.amount, 0),
         PayoutMethod: payoutMethod,
@@ -76,6 +84,7 @@ const expenseMutations = {
         description: expense.description,
         tags: expense.tags,
         type: expense.type,
+        payeeLocation: expense.payeeLocation,
         privateMessage: expense.privateMessage,
         invoiceInfo: expense.invoiceInfo,
         amount: items?.reduce((total, att) => total + att.amount, 0),

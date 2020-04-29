@@ -1,6 +1,5 @@
 import { GraphQLObjectType, GraphQLString } from 'graphql';
 
-import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { Account, AccountFields } from '../interface/Account';
 
 export const Organization = new GraphQLObjectType({
@@ -29,12 +28,9 @@ export const Organization = new GraphQLObjectType({
             - Users can see the addresses of the collectives they're admin of
             - Hosts can see the address of organizations submitting expenses to their collectives
         `,
-        resolve(organization, _, req) {
-          if (
-            organization.isHost ||
-            (req.remoteUser && req.remoteUser.isAdmin(organization.id)) ||
-            getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_LOCATION, organization.id)
-          ) {
+        async resolve(organization, _, req) {
+          const canSeeLocation = req.remoteUser?.isAdmin(organization.id) || (await organization.isHost());
+          if (canSeeLocation) {
             return organization.location;
           }
         },

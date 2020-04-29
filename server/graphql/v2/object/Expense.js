@@ -17,6 +17,7 @@ import { Activity } from './Activity';
 import ExpenseAttachedFile from './ExpenseAttachedFile';
 import ExpenseItem from './ExpenseItem';
 import ExpensePermissions from './ExpensePermissions';
+import { Location } from './Location';
 import PayoutMethod from './PayoutMethod';
 
 const Expense = new GraphQLObjectType({
@@ -96,14 +97,15 @@ const Expense = new GraphQLObjectType({
         type: new GraphQLNonNull(Account),
         description: 'The account being paid by this expense',
         async resolve(expense, _, req) {
-          // Set the permissions for account's fields
-          const canSeeLocation = await ExpensePermissionsLib.canSeeExpensePayeeLocation(req, expense);
-          if (canSeeLocation) {
-            allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_LOCATION, expense.FromCollectiveId, true);
-          }
-
-          // Return fromCollective
           return req.loaders.Collective.byId.load(expense.FromCollectiveId);
+        },
+      },
+      payeeLocation: {
+        type: Location,
+        description: 'The address of the payee',
+        async resolve(expense, _, req) {
+          const canSeeLocation = await ExpensePermissionsLib.canSeeExpensePayeeLocation(req, expense);
+          return !canSeeLocation ? null : expense.payeeLocation;
         },
       },
       createdByAccount: {
