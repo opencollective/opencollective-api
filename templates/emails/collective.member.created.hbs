@@ -11,7 +11,8 @@ Subject: {{member.memberCollective.name}} joined {{collective.name}} as {{{toLow
 {{/if}}
 
 <p>Just a quick note to let you know that {{#if member.memberCollective.isIncognito}}someone (incognito){{else}}<a
-    href="{{config.host.website}}/{{member.memberCollective.slug}}">{{member.memberCollective.name}} </a> with email: {{member.memberCollective.email}} {{/if}} is now a
+    href="{{config.host.website}}/{{member.memberCollective.slug}}">{{member.memberCollective.name}} </a>{{/if}} 
+    {{#if member.memberCollectiveAdmin.email}} with email: {{member.memberCollectiveAdmin.email}} {{/if}} is now a
   {{{toLowerCase member.role}}} of <a href="{{config.host.website}}{{collective.urlPath}}">{{collective.name}}</a>.</p>
 
 {{#if order.publicMessage}}

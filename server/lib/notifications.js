@@ -217,10 +217,6 @@ async function notifyByEmail(activity) {
 
     case activityType.COLLECTIVE_MEMBER_CREATED:
       twitter.tweetActivity(activity);
-      if (activity.data.member.CreatedByUserId) {
-        const userAdmin = await models.User.findByPk(activity.data.member.CreatedByUserId);
-        activity.data.member.memberCollective.email = userAdmin.email;
-      }
       notifyAdminsOfCollective(activity.data.collective.id, activity);
       break;
 
