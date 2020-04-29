@@ -51,8 +51,15 @@ export const updateUserEmail = async (user, newEmail) => {
     });
   }
 
+  const data = {
+    user: {
+      ...user.info,
+      emailConfirmationToken: user.emailConfirmationToken,
+    },
+  };
+
   // Send the email and return updated user
-  await emailLib.send('user.changeEmail', user.emailWaitingForValidation, { user });
+  await emailLib.send('user.changeEmail', user.emailWaitingForValidation, data);
 
   // Update the cache
   cache.set(countCacheKey, existingCount + 1, oneHourInSeconds);

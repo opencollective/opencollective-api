@@ -1,7 +1,7 @@
 import { GraphQLNonNull } from 'graphql';
 
 import { types as collectiveTypes } from '../../../constants/collectives';
-import { NotFound,Unauthorized } from '../../errors';
+import { NotFound, Unauthorized } from '../../errors';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { Collective } from '../object/Collective';
 
@@ -41,16 +41,8 @@ const collectiveMutations = {
       if (!host) {
         throw new NotFound('Host not found');
       }
-      const isHost = await host.isHost();
-      if (!isHost) {
-        throw new Error('Account is not an host');
-      }
-      const canApply = await host.canApply();
-      if (!canApply) {
-        throw new Error('Host is not open to applications');
-      }
 
-      // No need to check the balance, this is being handled in changeHost
+      // No need to check the balance, this is being handled in changeHost, along with most other checks
 
       return collective.changeHost(host.id, req.remoteUser);
     },

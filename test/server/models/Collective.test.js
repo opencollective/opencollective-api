@@ -9,7 +9,9 @@ import models, { Op } from '../../../server/models';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 import {
   fakeCollective,
+  fakeEvent,
   fakeExpense,
+  fakeHost,
   fakeOrder,
   fakePaymentMethod,
   fakePayoutMethod,
@@ -228,6 +230,15 @@ describe('server/models/Collective', () => {
     });
   });
 
+  it('frees up current slug when deleted', async () => {
+    const slug = 'hi-this-is-an-unique-slug';
+    const collective = await fakeCollective({ slug });
+    await collective.destroy();
+
+    expect(slug).to.not.be.equal(collective.slug);
+    expect(/-\d+$/.test(collective.slug)).to.be.true;
+  });
+
   it('prevents collective creation and limit user if spam is detected', async () => {
     const user = await fakeUser();
     const spamCollectiveData = {
@@ -398,6 +409,27 @@ describe('server/models/Collective', () => {
       expect(applyArgs).to.exist;
       expect(applyArgs[0]).to.equal(user1.email);
       expect(applyArgs[3].from).to.equal('hello@wwcode.opencollective.com');
+    });
+
+    it('updates hostFeePercent for collective and events when adding or changing host', async () => {
+      const collective = await fakeCollective({ hostFeePercent: 0, HostCollectiveId: null });
+      const event = await fakeEvent({
+        ParentCollectiveId: collective.id,
+        hostFeePercent: 0,
+      });
+      const host = await fakeHost({ hostFeePercent: 3 });
+      // Adding new host
+      await collective.addHost(host, user2);
+      await Promise.all([event.reload(), collective.reload()]);
+      expect(collective.hostFeePercent).to.be.equal(3);
+      expect(event.hostFeePercent).to.be.equal(3);
+
+      // Changing hosts
+      const newHost = await fakeHost({ hostFeePercent: 30 });
+      await collective.changeHost(newHost.id, user2);
+      await Promise.all([event.reload(), collective.reload()]);
+      expect(collective.hostFeePercent).to.be.equal(30);
+      expect(event.hostFeePercent).to.be.equal(30);
     });
 
     it('returns active plan', async () => {
@@ -607,16 +639,16 @@ describe('server/models/Collective', () => {
     const shouldBeUsableAsPayout = account => expect(account.canBeUsedAsPayoutProfile()).to.be.true;
     const shouldNotBeUsableAsPayout = account => expect(account.canBeUsedAsPayoutProfile()).to.be.false;
 
-    it('is true for users and organizations', async () => {
+    it('is true for users and organizations (even if host)', async () => {
       shouldBeUsableAsPayout(await fakeCollective({ type: 'USER' }));
       shouldBeUsableAsPayout(await fakeCollective({ type: 'ORGANIZATION' }));
+      shouldBeUsableAsPayout(await fakeCollective({ type: 'ORGANIZATION', isHostAccount: true }));
     });
 
-    it('is false for incognito profiles, collectives, events and hosts', async () => {
+    it('is false for incognito profiles, collectives and events', async () => {
       shouldNotBeUsableAsPayout(await fakeCollective({ type: 'USER', isIncognito: true }));
       shouldNotBeUsableAsPayout(await fakeCollective({ type: 'COLLECTIVE' }));
       shouldNotBeUsableAsPayout(await fakeCollective({ type: 'EVENT' }));
-      shouldNotBeUsableAsPayout(await fakeCollective({ type: 'ORGANIZATION', isHostAccount: true }));
     });
   });
 

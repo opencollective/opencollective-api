@@ -1,16 +1,24 @@
-import { GraphQLNonNull } from 'graphql';
+import { GraphQLBoolean, GraphQLInputObjectType, GraphQLInt, GraphQLNonNull } from 'graphql';
 import { pick } from 'lodash';
 
-import FEATURE from '../../../constants/feature';
-import { canUseFeature } from '../../../lib/user-permissions';
 import models from '../../../models';
-import { canDeleteExpense } from '../../common/expenses';
-import { FeatureNotAllowedForUser, NotFound, Unauthorized } from '../../errors';
-import { createExpense as createExpenseLegacy, editExpense as editExpenseLegacy } from '../../v1/mutations/expenses';
+import { approveExpense, canDeleteExpense, rejectExpense, unapproveExpense } from '../../common/expenses';
+import { NotFound, Unauthorized } from '../../errors';
+import {
+  createExpense as createExpenseLegacy,
+  editExpense as editExpenseLegacy,
+  markExpenseAsUnpaid as markExpenseAsUnpaidLegacy,
+  payExpense as payExpenseLegacy,
+} from '../../v1/mutations/expenses';
+import { ExpenseProcessAction } from '../enum/ExpenseProcessAction';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { ExpenseCreateInput } from '../input/ExpenseCreateInput';
-import { ExpenseReferenceInput, getDatabaseIdFromExpenseReference } from '../input/ExpenseReferenceInput';
+import {
+  ExpenseReferenceInput,
+  fetchExpenseWithReference,
+  getDatabaseIdFromExpenseReference,
+} from '../input/ExpenseReferenceInput';
 import { ExpenseUpdateInput } from '../input/ExpenseUpdateInput';
 import { Expense } from '../object/Expense';
 
@@ -63,7 +71,7 @@ const expenseMutations = {
       // Support deprecated `attachments` field
       const items = expense.items || expense.attachments;
 
-      return editExpenseLegacy(req.remoteUser, {
+      return editExpenseLegacy(req, {
         id: idDecode(expense.id, IDENTIFIER_TYPES.EXPENSE),
         description: expense.description,
         tags: expense.tags,
@@ -102,11 +110,9 @@ const expenseMutations = {
         description: 'Reference of the expense to delete',
       },
     },
-    async resolve(_, args, { remoteUser }): Promise<typeof Expense> {
-      if (!remoteUser) {
+    async resolve(_, args, req): Promise<typeof Expense> {
+      if (!req.remoteUser) {
         throw new Unauthorized();
-      } else if (!canUseFeature(remoteUser, FEATURE.EXPENSES)) {
-        throw new FeatureNotAllowedForUser();
       }
 
       const expenseId = getDatabaseIdFromExpenseReference(args.expense);
@@ -117,11 +123,70 @@ const expenseMutations = {
 
       if (!expense) {
         throw new NotFound('Expense not found');
-      } else if (!canDeleteExpense(remoteUser, expense)) {
-        throw new Unauthorized("You don't have permission to delete this expense or it needs to be rejected before being deleted");
+      } else if (!(await canDeleteExpense(req, expense))) {
+        throw new Unauthorized(
+          "You don't have permission to delete this expense or it needs to be rejected before being deleted",
+        );
       }
 
       return expense.destroy();
+    },
+  },
+  processExpense: {
+    type: new GraphQLNonNull(Expense),
+    description: 'Process the expense with the given action',
+    args: {
+      expense: {
+        type: new GraphQLNonNull(ExpenseReferenceInput),
+        description: 'Reference of the expense to process',
+      },
+      action: {
+        type: new GraphQLNonNull(ExpenseProcessAction),
+        description: 'The action to trigger',
+      },
+      paymentParams: {
+        description: 'If action is related to a payment, this object used for the payment parameters',
+        type: new GraphQLInputObjectType({
+          name: 'ProcessExpensePaymentParams',
+          description: 'Parameters for paying an expense',
+          fields: {
+            paymentProcessorFee: {
+              type: GraphQLInt,
+              description:
+                'The fee charged by payment processor in collective currency, or the fee refunded when used with MARK_AS_UNPAID',
+            },
+            forceManual: {
+              type: GraphQLBoolean,
+              description: 'Bypass automatic integrations (ie. PayPal, Transferwise) to process the expense manually',
+            },
+          },
+        }),
+      },
+    },
+    async resolve(_, args, req): Promise<typeof Expense> {
+      if (!req.remoteUser) {
+        throw new Unauthorized();
+      }
+
+      const expense = await fetchExpenseWithReference(args.expense, { loaders: req.loaders, throwIfMissing: true });
+      switch (args.action) {
+        case 'APPROVE':
+          return approveExpense(req, expense);
+        case 'UNAPPROVE':
+          return unapproveExpense(req, expense);
+        case 'REJECT':
+          return rejectExpense(req, expense);
+        case 'MARK_AS_UNPAID':
+          return markExpenseAsUnpaidLegacy(req, expense.id, args.paymentParams?.paymentProcessorFee);
+        case 'PAY':
+          return payExpenseLegacy(req, {
+            id: expense.id,
+            paymentProcessorFeeInCollectiveCurrency: args.paymentParams?.paymentProcessorFee,
+            forceManual: args.paymentParams?.forceManual,
+          });
+        default:
+          return expense;
+      }
     },
   },
 };

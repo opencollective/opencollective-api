@@ -3,7 +3,7 @@ import cache from './cache';
 export const ONE_HOUR_IN_SECONDS = 60 * 60;
 
 /**
- * A small wrapper arround the cache specialized to handle rate limitings.
+ * A small wrapper around the cache specialized to handle rate limitings.
  */
 export default class RateLimit {
   private cacheKey: string;

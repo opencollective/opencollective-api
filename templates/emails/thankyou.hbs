@@ -47,10 +47,8 @@ Subject: Thank you for your {{{currency order.totalAmount currency=order.currenc
   – The {{collective.name}} open collective
 </p>
 
-{{#if recommendedCollectives.length}}
-  {{> recommendedcollectives}}
-{{else if relatedCollectives.length}}
-  {{> relatedcollectives}}
+{{#if relatedCollectives.length}}
+{{> relatedcollectives}}
 {{/if}}
 
 {{> footer}}

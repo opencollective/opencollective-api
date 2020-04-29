@@ -1,5 +1,6 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
+import { types as collectiveTypes } from '../../../constants/collectives';
 import models from '../../../models';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
@@ -9,7 +10,7 @@ export const Individual = new GraphQLObjectType({
   name: 'Individual',
   description: 'This represents an Individual account',
   interfaces: () => [Account],
-  isTypeOf: collective => collective.type === 'USER',
+  isTypeOf: collective => collective.type === collectiveTypes.USER,
   fields: () => {
     return {
       ...AccountFields,

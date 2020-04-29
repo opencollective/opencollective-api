@@ -71,13 +71,13 @@ async function run() {
             CollectiveId: order.fromCollective.id,
             data: {
               orders: dispatchedOrders,
-              collective: order.fromCollective,
+              collective: order.fromCollective.info,
               recurringDispatch: true,
             },
           });
         })
         .catch(error => {
-          console.log(`Error occured processing and dispatching order ${order.id}`);
+          console.log(`Error occurred processing and dispatching order ${order.id}`);
           console.error(error);
         });
     },

@@ -14,7 +14,6 @@ import { formatCurrency } from '../lib/utils';
 import models from '../models';
 import paymentProviders from '../paymentProviders';
 
-import { getRecommendedCollectives } from './data';
 import emailLib from './email';
 import { subscribeOrUpgradePlan, validatePlanRequest } from './plans';
 import * as libsubscription from './subscriptions';
@@ -250,7 +249,7 @@ export const createSubscription = async order => {
   order.Subscription.nextPeriodStart = updatedDates.nextPeriodStart || order.Subscription.nextPeriodStart;
 
   // Both subscriptions and one time donations are charged
-  // immediatelly and there won't be a better time to update
+  // immediately and there won't be a better time to update
   // this field after this. Please notice that it will change
   // when the issue #729 is tackled.
   // https://github.com/opencollective/opencollective/issues/729
@@ -373,7 +372,6 @@ const sendOrderConfirmedEmail = async order => {
   } else {
     // normal order
     const relatedCollectives = await order.collective.getRelatedCollectives(3, 0);
-    const recommendedCollectives = await getRecommendedCollectives(order.collective, 3);
     const emailOptions = {
       from: `${collective.name} <hello@${collective.slug}.opencollective.com>`,
     };
@@ -385,7 +383,6 @@ const sendOrderConfirmedEmail = async order => {
       fromCollective: fromCollective.minimal,
       interval,
       relatedCollectives,
-      recommendedCollectives,
       monthlyInterval: interval === 'month',
       firstPayment: true,
       subscriptionsLink: interval && `${config.host.website}/${fromCollective.slug}/subscriptions`,

@@ -42,6 +42,12 @@ brew install libpq
 echo 'export PATH="/usr/local/opt/libpq/bin:$PATH"' >> ~/.bash_profile
 ```
 
+For Ubuntu 16.04 and above you can execute the following to install Postgres client tools:
+
+```
+sudo apt-get install postgresql-client
+```
+
 ## Setup
 
 #### Development

@@ -112,7 +112,7 @@ export async function createFromPaidExpense(
     hostCurrencyFxRate = 1 / parseFloat(currencyConversion.exchangeRate); // paypal returns a float from host.currency to expense.currency
     paymentProcessorFeeInHostCurrency = Math.round(hostCurrencyFxRate * paymentProcessorFeeInCollectiveCurrency);
   } else if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT) {
-    // Notice this is the FX rate between Host and Collective, the user is not involved here and that's why TransferWise quote rate is irrelavant here.
+    // Notice this is the FX rate between Host and Collective, the user is not involved here and that's why TransferWise quote rate is irrelevant here.
     hostCurrencyFxRate = await getFxRate(expense.currency, host.currency);
     paymentProcessorFeeInHostCurrency = Math.round(transactionData.quote.fee * 100);
     paymentProcessorFeeInCollectiveCurrency = Math.round((1 / hostCurrencyFxRate) * paymentProcessorFeeInHostCurrency);

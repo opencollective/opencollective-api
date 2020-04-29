@@ -29,7 +29,7 @@ const oneHourInSeconds = 60 * 60;
 const debug = debugLib('orders');
 
 async function checkOrdersLimit(order, remoteUser, reqIp) {
-  if (['ci', 'circleci', 'test'].includes(config.env)) {
+  if (['ci', 'test'].includes(config.env)) {
     return;
   }
 
@@ -96,7 +96,7 @@ async function checkOrdersLimit(order, remoteUser, reqIp) {
 }
 
 async function checkRecaptcha(order, remoteUser, reqIp) {
-  if (['ci', 'circleci', 'test'].includes(config.env)) {
+  if (['ci', 'test'].includes(config.env)) {
     return;
   }
 
@@ -1017,20 +1017,13 @@ export async function addFundsToCollective(order, remoteUser) {
 
   const orderCreated = await models.Order.create(orderData);
 
-  await orderCreated.setPaymentMethod(order.paymentMethod);
+  const hostPaymentMethod = await host.getOrCreateHostPaymentMethod();
+  await orderCreated.setPaymentMethod({ uuid: hostPaymentMethod.uuid });
 
-  try {
-    await libPayments.executeOrder(remoteUser || user, orderCreated);
+  await libPayments.executeOrder(remoteUser || user, orderCreated);
 
-    // Check if the maximum fund limit has been reached after execution
-    await handleHostPlanAddedFundsLimit(host, { notifyAdmins: true });
-  } catch (e) {
-    // Don't save new card for user if order failed
-    if (!order.paymentMethod.id && !order.paymentMethod.uuid) {
-      await orderCreated.paymentMethod.destroy();
-    }
-    throw e;
-  }
+  // Check if the maximum fund limit has been reached after execution
+  await handleHostPlanAddedFundsLimit(host, { notifyAdmins: true });
 
   return models.Order.findByPk(orderCreated.id);
 }

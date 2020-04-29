@@ -98,7 +98,7 @@ export async function createCollective(_, args, req) {
   }
 
   try {
-    collective = await models.Collective.create(omit(collectiveData, ['HostCollectiveId', 'hostFeePercent']));
+    collective = await models.Collective.create(omit(collectiveData, ['HostCollectiveId']));
   } catch (e) {
     let msg;
     switch (e.name) {
@@ -160,6 +160,11 @@ export async function createCollective(_, args, req) {
   }
   if (hostCollective) {
     purgeCacheForPage(`/${hostCollective.slug}`);
+  }
+
+  // Inherit fees from parent collective after setting its host (events)
+  if (parentCollective && parentCollective.hostFeePercent !== collective.hostFeePercent) {
+    await collective.update({ hostFeePercent: parentCollective.hostFeePercent });
   }
 
   // if the type of collective is an organization or an event, we don't notify the host
@@ -461,18 +466,13 @@ export async function approveCollective(remoteUser, CollectiveId) {
     },
   });
 
-  // Approve all events created by this collective under this host
-  models.Collective.findAll({
-    where: {
-      type: types.EVENT,
-      HostCollectiveId: host.id,
-      ParentCollectiveId: collective.id,
-    },
-  }).then(events => {
+  // Approve all events created by this collective
+  const events = await collective.getEvents();
+  await Promise.all(
     events.map(event => {
       event.update({ isActive: true, approvedAt: new Date() });
-    });
-  });
+    }),
+  );
 
   // Approve the collective and return it
   return collective.update({ isActive: true, approvedAt: new Date() });
@@ -763,11 +763,19 @@ export async function deleteCollective(_, args, req) {
       );
     })
 
-    .then(() => {
-      // Update collective slug to free the current slug for future
-      const newSlug = `${collective.slug}-${Date.now()}`;
-      return collective.update({ slug: newSlug });
+    .then(async () => {
+      const memberInvitations = await models.MemberInvitation.findAll({
+        where: { CollectiveId: collective.id },
+      });
+      return map(
+        memberInvitations,
+        memberInvitation => {
+          return memberInvitation.destroy();
+        },
+        { concurrency: 3 },
+      );
     })
+
     .then(() => collective.destroy())
     .then(() => collective);
 }
@@ -988,7 +996,7 @@ export async function rejectCollective(_, args, req) {
     },
   });
 
-  return collective.update({ HostCollectiveId: null });
+  return collective.changeHost(null, req.remoteUser);
 }
 
 export async function activateCollectiveAsHost(_, args, req) {

@@ -81,7 +81,7 @@ export default function (Sequelize, DataTypes) {
       longDescription: {
         type: DataTypes.TEXT,
         validate: {
-          // Max length for arround 1_000_000 characters ~4MB of text
+          // Max length for around 1_000_000 characters ~4MB of text
           len: [0, 1000000],
         },
         set(content) {

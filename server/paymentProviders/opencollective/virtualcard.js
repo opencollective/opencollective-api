@@ -175,7 +175,7 @@ async function create(args, remoteUser) {
 
   const createParams = getCreateParams(args, collective, sourcePaymentMethod, remoteUser);
   const virtualCard = await models.PaymentMethod.create(createParams);
-  sendVirtualCardCreatedEmail(virtualCard, collective);
+  sendVirtualCardCreatedEmail(virtualCard, collective.info);
   registerCreateInCache(args.CollectiveId, 1, totalAmount);
   return virtualCard;
 }
@@ -246,7 +246,7 @@ export async function createVirtualCardsForEmails(args, remoteUser, emails, cust
     return getCreateParams(createArgs, collective, sourcePaymentMethod, remoteUser);
   });
   const virtualCards = models.PaymentMethod.bulkCreate(virtualCardsParams);
-  virtualCards.map(vc => sendVirtualCardCreatedEmail(vc, collective));
+  virtualCards.map(vc => sendVirtualCardCreatedEmail(vc, collective.info));
   registerCreateInCache(args.CollectiveId, virtualCards.length, totalAmount);
   return virtualCards;
 }

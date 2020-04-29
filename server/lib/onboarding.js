@@ -38,7 +38,7 @@ export async function processCollective(collective, template) {
 
   logger.info(`>>> Sending ${template} email to the ${recipients.length} admin(s) of`, collective.slug);
   return Promise.map(recipients, recipient =>
-    emailLib.send(template, recipient, { collective }, emailOptions).catch(e => {
+    emailLib.send(template, recipient, { collective: collective.info }, emailOptions).catch(e => {
       logger.warn('Unable to send email to ', collective.slug, recipient, 'error:', e);
     }),
   );

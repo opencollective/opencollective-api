@@ -13,6 +13,7 @@ import activities from '../constants/activities';
 import * as errors from '../graphql/errors';
 import { mustHaveRole } from '../lib/auth';
 import logger from '../lib/logger';
+import { generateSummaryForHTML } from '../lib/sanitize-html';
 import { sanitizeObject } from '../lib/utils';
 
 const markdownConverter = new showdown.Converter();
@@ -113,6 +114,10 @@ export default function (Sequelize, DataTypes) {
             ? markdownConverter.makeHtml(this.getDataValue('markdown'))
             : this.getDataValue('html');
         },
+        set(html) {
+          this.setDataValue('html', html);
+          this.setDataValue('summary', generateSummaryForHTML(html, 240));
+        },
       },
 
       image: DataTypes.STRING,
@@ -148,6 +153,10 @@ export default function (Sequelize, DataTypes) {
         type: DataTypes.DATE,
         defaultValue: null,
       },
+
+      summary: {
+        type: DataTypes.STRING,
+      },
     },
     {
       paranoid: true,
@@ -165,6 +174,7 @@ export default function (Sequelize, DataTypes) {
             publishedAt: this.publishedAt,
             slug: this.slug,
             tags: this.tags,
+            CollectiveId: this.CollectiveId,
           };
         },
         minimal() {

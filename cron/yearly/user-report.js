@@ -3,7 +3,7 @@ import '../../server/env';
 
 // Only run on the first of the year
 const today = new Date();
-if (process.env.NODE_ENV === 'production' && today.getDate() !== 1 && today.getMonth() !== 0) {
+if (process.env.NODE_ENV === 'production' && today.getDate() !== 1 && today.getMonth() !== 0 && !process.env.OFFCYCLE) {
   console.log('NODE_ENV is production and today is not the first of year, script aborted!');
   process.exit();
 }
@@ -208,7 +208,7 @@ const processCollective = collective => {
     })
     .then(data => {
       return getUsers(collective).then(users => {
-        data.collective = collective;
+        data.collective = collective.info;
         data.platformStats = platformStats;
         data.recipients = users.map(u => u.email);
         if (data.recipients.length > 1) {

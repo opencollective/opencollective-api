@@ -59,6 +59,7 @@ import { capitalize, cleanTags, flattenArray, formatCurrency, getDomain, md5, st
 
 import CustomDataTypes from './DataTypes';
 import { PayoutMethodTypes } from './PayoutMethod';
+import { isValidUploadedImage } from '../lib/images';
 
 const debug = debugLib('models:Collective');
 
@@ -265,6 +266,14 @@ export default function (Sequelize, DataTypes) {
 
       image: {
         type: DataTypes.STRING,
+        validate: {
+          isUrl: true,
+          isValidImage(url) {
+            if (url && !isValidUploadedImage(url)) {
+              throw new Error('The image URL is not valid');
+            }
+          },
+        },
         get() {
           const image = this.getDataValue('image');
           // Warning: some tests really want that value to be undefined and not null
@@ -276,6 +285,14 @@ export default function (Sequelize, DataTypes) {
 
       backgroundImage: {
         type: DataTypes.STRING,
+        validate: {
+          isUrl: true,
+          isValidImage(url) {
+            if (url && !isValidUploadedImage(url)) {
+              throw new Error('The background image URL is not valid');
+            }
+          },
+        },
         get() {
           return this.getDataValue('backgroundImage');
         },
@@ -648,6 +665,10 @@ export default function (Sequelize, DataTypes) {
             return Promise.resolve();
           });
         },
+        beforeDestroy: async instance => {
+          const newSlug = `${instance.slug}-${Date.now()}`;
+          await instance.update({ slug: newSlug });
+        },
         beforeCreate: async instance => {
           // Make sure user is not prevented from creating collectives
           const user = instance.CreatedByUserId && (await models.User.findByPk(instance.CreatedByUserId));
@@ -906,22 +927,31 @@ export default function (Sequelize, DataTypes) {
       await this.update({ isHostAccount: true });
     }
 
-    const pm = await models.PaymentMethod.findOne({ where: { service: 'opencollective', CollectiveId: this.id } });
-    if (!pm) {
-      await models.PaymentMethod.create({
-        CollectiveId: this.id,
-        service: 'opencollective',
-        type: 'collective',
-        name: `${this.name} (Host)`,
-        primary: true,
-        currency: this.currency,
-      });
-    }
+    await this.getOrCreateHostPaymentMethod();
 
     await models.Activity.create({
       type: activities.ACTIVATED_COLLECTIVE_AS_HOST,
       CollectiveId: this.id,
       data: { collective: this.info },
+    });
+  };
+
+  Collective.prototype.getOrCreateHostPaymentMethod = async function () {
+    const hostPaymentMethod = await models.PaymentMethod.findOne({
+      where: { service: 'opencollective', type: 'collective', CollectiveId: this.id },
+    });
+
+    if (hostPaymentMethod) {
+      return hostPaymentMethod;
+    }
+
+    return models.PaymentMethod.create({
+      CollectiveId: this.id,
+      service: 'opencollective',
+      type: 'collective',
+      name: `${this.name} (Host)`,
+      primary: true,
+      currency: this.currency,
     });
   };
 
@@ -960,7 +990,7 @@ export default function (Sequelize, DataTypes) {
    * Returns true if the collective can be used as a payout profile for an expense
    */
   Collective.prototype.canBeUsedAsPayoutProfile = function () {
-    return !this.isIncognito && !this.isHostAccount && [types.USER, types.ORGANIZATION].includes(this.type);
+    return !this.isIncognito && [types.USER, types.ORGANIZATION].includes(this.type);
   };
 
   /**
@@ -1526,6 +1556,19 @@ export default function (Sequelize, DataTypes) {
     });
   };
 
+  /**
+   * Get Hosted Collectives
+   *
+   * It's expected that child Collectives like EVENTS are returned
+   */
+  Collective.prototype.getHostedCollectives = async function () {
+    const hostedCollectives = await models.Member.findAll({
+      where: { MemberCollectiveId: this.id, role: roles.HOST },
+    });
+    const hostedCollectiveIds = hostedCollectives.map(m => m.CollectiveId);
+    return models.Collective.findAll({ where: { id: { [Op.in]: hostedCollectiveIds } } });
+  };
+
   Collective.prototype.updateHostFee = async function (hostFeePercent, remoteUser) {
     if (typeof hostFeePercent === undefined || !remoteUser || hostFeePercent === this.hostFeePercent) {
       return;
@@ -1542,11 +1585,7 @@ export default function (Sequelize, DataTypes) {
         if (!remoteUser.isAdmin(this.id)) {
           throw new Error('You must be an admin of this host to change the host fee');
         }
-        const hostedCollectives = await models.Member.findAll({
-          where: { MemberCollectiveId: this.id, role: roles.HOST },
-        });
-        const hostedCollectiveIds = hostedCollectives.map(m => m.CollectiveId);
-        const collectives = await models.Collective.findAll({ where: { id: { [Op.in]: hostedCollectiveIds } } });
+        const collectives = await this.getHostedCollectives();
         // for some reason models.Collective.update({ hostFeePercent } , { where: { id: { [Op.in]: hostedCollectivesIds }}}) doesn't work :-/
         const promises = collectives.map(c => c.update({ hostFeePercent }));
         await Promise.all(promises);
@@ -1556,21 +1595,55 @@ export default function (Sequelize, DataTypes) {
     return this;
   };
 
+  /**
+   * Update the currency of a "Collective" row (account)
+   *
+   * This is a safe version that can only be used by Users and Organizations that are not hosts
+   */
   Collective.prototype.updateCurrency = async function (currency, remoteUser) {
     if (typeof currency === undefined || !remoteUser || currency === this.currency || !remoteUser.isAdmin(this.id)) {
       return;
     }
+
     const error = 'Only Users and Organisation that are not hosts can update currency';
-    if (this.type === types.USER || this.type === types.ORGANIZATION) {
-      const isHost = await this.isHost();
-      if (isHost) {
-        throw new Error(error);
-      }
-      this.update({ currency });
-    } else {
+    if (![types.USER, types.ORGANIZATION].includes(this.type)) {
       throw new Error(error);
     }
-    return this;
+    const isHost = await this.isHost();
+    if (isHost) {
+      throw new Error(error);
+    }
+
+    return this.setCurrency(currency);
+  };
+
+  /**
+   * Set the currency of a "Collective" row (account)
+   *
+   * This is meant to be used internally, no access control.
+   */
+  Collective.prototype.setCurrency = async function (currency) {
+    const isHost = await this.isHost();
+    if (isHost) {
+      // We only expect currency change at the beginning of the history of the Host
+      const transactionCount = await models.Transaction.count({ where: { HostCollectiveId: this.id } });
+      if (transactionCount > 0) {
+        throw new Error(
+          'You cannot change the currency of an Host with transactions. Please contact support@opencollective.com.',
+        );
+      }
+      const collectives = await this.getHostedCollectives();
+      // We use setCurrency so that it will cascade to Tiers
+      await Promise.map(collectives, collective => collective.setCurrency(currency), { concurrency: 3 });
+    }
+
+    // This is currently for COLLECTIVE and EVENTS but we make it generic
+    const tiers = await this.getTiers();
+    if (tiers.length > 0) {
+      await Promise.map(tiers, tier => tier.update({ currency }), { concurrency: 3 });
+    }
+
+    return this.update({ currency });
   };
 
   /**
@@ -1725,6 +1798,12 @@ export default function (Sequelize, DataTypes) {
 
     await Promise.all(promises);
 
+    // Cascade host update to events
+    const events = await this.getEvents();
+    if (events?.length > 0) {
+      await Promise.all(events.map(e => e.addHost(hostCollective, creatorUser)));
+    }
+
     return this;
   };
 
@@ -1754,9 +1833,17 @@ export default function (Sequelize, DataTypes) {
     if (membership) {
       membership.destroy();
     }
+
+    // Prepare collective to receive a new host
     this.HostCollectiveId = null;
     this.isActive = false;
     this.approvedAt = null;
+    // Prepare events to receive a new host
+    const events = await this.getEvents();
+    if (events?.length > 0) {
+      await Promise.all(events.map(e => e.changeHost(null)));
+    }
+
     if (newHostCollectiveId) {
       const newHostCollective = await models.Collective.findByPk(newHostCollectiveId);
       if (!newHostCollective) {

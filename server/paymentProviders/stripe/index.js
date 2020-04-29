@@ -120,7 +120,7 @@ export default {
        * with the default currency of the bank account connected to the stripe account and legal address
        * @param {*} connectedAccount
        */
-      const updateHost = connectedAccount => {
+      const updateHost = async connectedAccount => {
         if (!connectedAccount) {
           console.error('>>> updateHost: error: no connectedAccount');
         }
@@ -142,9 +142,15 @@ export default {
           addressLines.push(address.country);
           collective.address = addressLines.join('\n');
         }
-        collective.currency = account.default_currency.toUpperCase();
+
+        // Adds the opencollective payment method to enable the host to allocate funds to collectives
+        // Note that it's not expected anymore to connect Stripe if you're not an host
+        await collective.becomeHost();
+
+        await collective.setCurrency(account.default_currency.toUpperCase());
+
         collective.timezone = collective.timezone || account.timezone;
-        collective.becomeHost(); // adds the opencollective payment method to enable the host to allocate funds to collectives
+
         return collective.save();
       };
 

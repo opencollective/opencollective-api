@@ -301,7 +301,7 @@ async function HostReport(year, month, hostId) {
           content: csv,
         });
       })
-      .then(transactions => (data.transactions = transactions))
+      .then(transactions => (data.transactions = transactions.info))
       .then(() => {
         // Don't generate PDF in email if it's the yearly report
         if (yearlyReport) {

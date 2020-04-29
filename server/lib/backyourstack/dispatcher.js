@@ -134,7 +134,7 @@ export async function dispatchFunds(order) {
       try {
         await paymentsLib.executeOrder(order.createdByUser, orderCreated);
       } catch (e) {
-        debug(`Error occured excuting order ${orderCreated.id}`, e);
+        debug(`Error occurred excuting order ${orderCreated.id}`, e);
         throw e;
       }
 
