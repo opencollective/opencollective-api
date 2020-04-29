@@ -145,7 +145,6 @@ async function notifyUserId(UserId, activity, options = {}) {
 export async function notifyAdminsOfCollective(CollectiveId, activity, options = {}) {
   debug('notify admins of CollectiveId', CollectiveId);
   const collective = await models.Collective.findByPk(CollectiveId);
-
   if (!collective) {
     throw new Error(
       `notifyAdminsOfCollective> can't notify ${activity.type}: no collective found with id ${CollectiveId}`,
