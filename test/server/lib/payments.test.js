@@ -13,6 +13,7 @@ import * as plansLib from '../../../server/lib/plans';
 import stripe from '../../../server/lib/stripe';
 import models from '../../../server/models';
 import stripeMocks from '../../mocks/stripe';
+import { fakeCollective, fakeHost, fakeOrder, fakePayoutMethod, PayoutMethodTypes } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
 const AMOUNT = 1099;
@@ -371,4 +372,52 @@ describe('server/lib/payments', () => {
       expect(debitRefundTransaction.data).to.deep.equal({ dataField: 'foo' });
     });
   }); /* createRefundTransaction */
+
+  describe('sendOrderProcessingEmail', () => {
+    let order;
+
+    beforeEach(async () => {
+      const host = await fakeHost({
+        settings: {
+          paymentMethods: {
+            manual: {
+              instructions:
+                'Please make a bank transfer as follows:\n\n<code>\n    Amount: {amount}\n    Reference/Communication: {OrderId}\n    {account}\n</code>\n\nPlease note that it will take a few days to process your payment.',
+            },
+          },
+        },
+      });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      await fakePayoutMethod({
+        CollectiveId: host.id,
+        type: PayoutMethodTypes.BANK_ACCOUNT,
+        data: {
+          type: 'sort_code',
+          accountHolderName: 'John Malkovich',
+          currency: 'GBP',
+          details: {
+            IBAN: 'DE893219828398123',
+            sortCode: '40-30-20',
+            legalType: 'PRIVATE',
+            accountNumber: '12345678',
+            address: {
+              country: 'US',
+              state: 'NY',
+              city: 'New York',
+              zip: '10001',
+            },
+          },
+          isManualBankTransfer: true,
+        },
+      });
+      order = await fakeOrder({ CollectiveId: collective.id });
+    });
+
+    it('should include account information', async () => {
+      await payments.sendOrderProcessingEmail(order);
+
+      expect(emailSendSpy.lastCall.args[2]).to.have.property('account');
+      expect(emailSendSpy.lastCall.args[2].instructions).to.include('IBAN: DE893219828398123');
+    });
+  });
 });

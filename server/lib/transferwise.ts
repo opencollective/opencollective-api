@@ -6,7 +6,7 @@ import url from 'url';
 import Axios, { AxiosError } from 'axios';
 import config from 'config';
 import { Request } from 'express';
-import { isNull, omitBy, toInteger } from 'lodash';
+import { isNull, omitBy, startCase, toInteger, toUpper } from 'lodash';
 
 import { TransferwiseError } from '../graphql/errors';
 import {
@@ -248,4 +248,29 @@ export const verifyEvent = (req: Request & { rawBody: string }): WebhookEvent =>
     throw new Error('Could not verify event signature');
   }
   return req.body;
+};
+
+export const formatAccountDetails = (payoutMethodData: Record<string, any>): string => {
+  const ignoredKeys = ['type', 'isManualBankTransfer'];
+  const formatKey = (s: string): string => {
+    if (toUpper(s) === s) {
+      return s;
+    }
+    return startCase(s);
+  };
+
+  const renderObject = (object: Record<string, any>, prefix = ''): string[] =>
+    Object.entries(object).reduce((acc, [key, value]) => {
+      if (ignoredKeys.includes(key)) {
+        return acc;
+      }
+      if (typeof value === 'object') {
+        return [...acc, formatKey(key), ...renderObject(value, '  ')];
+      }
+      return [...acc, `${prefix}${formatKey(key)}: ${value}`];
+    }, []);
+
+  const { accountHolderName, currency, ...data } = payoutMethodData;
+  const lines = renderObject({ accountHolderName, currency, ...data });
+  return lines.join('\n');
 };
