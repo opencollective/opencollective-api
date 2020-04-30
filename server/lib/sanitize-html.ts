@@ -137,8 +137,17 @@ export const generateSummaryForHTML = (content, maxLength = 255) => {
     .replace(/\s+/g, ' ');
 
   // Truncate
-  const truncated = truncate(trimmed, { length: maxLength });
+  const truncated = truncate(trimmed, { length: maxLength, omission: ''});
 
   // Second sanitize pass: an additional precaution in case someones finds a way to play with the trimmed version
-  return sanitizeHTML(truncated, optsSanitizeSummary);
+  const secondSanitized = sanitizeHTML(truncated, optsSanitizeSummary);
+
+  const isTruncated = trimmed.length > maxLength;
+
+  // Check to see if the second sanitization cuts a html tag in the middle
+  if (isTruncated) {
+    return `${secondSanitized.trim()}...`;
+  } else {
+    return secondSanitized;
+  }
 };
