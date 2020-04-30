@@ -374,6 +374,23 @@ export default function (Sequelize, DataTypes) {
     return legacyPayoutMethod === 'paypal' ? PayoutMethodTypes.PAYPAL : PayoutMethodTypes.OTHER;
   };
 
+  Expense.getMostPopularExpenseTagsForCollective = async function (collectiveId, limit = 100) {
+    return Sequelize.query(
+      `
+      SELECT UNNEST(tags) AS id, UNNEST(tags) AS tag, COUNT(id)
+      FROM "Expenses"
+      WHERE "CollectiveId" = $collectiveId
+      GROUP BY UNNEST(tags)
+      ORDER BY count DESC
+      LIMIT $limit
+    `,
+      {
+        type: Sequelize.QueryTypes.SELECT,
+        bind: { collectiveId, limit },
+      },
+    );
+  };
+
   Temporal(Expense, Sequelize);
 
   return Expense;
