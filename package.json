@@ -13,7 +13,7 @@
     "@babel/node": "7.8.7",
     "@babel/plugin-proposal-class-properties": "7.8.3",
     "@babel/plugin-transform-async-to-generator": "7.8.3",
-    "@babel/preset-env": "7.9.5",
+    "@babel/preset-env": "7.9.6",
     "@babel/preset-typescript": "7.9.0",
     "@octokit/auth-oauth-app": "3.0.2",
     "@octokit/rest": "17.6.0",
