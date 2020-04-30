@@ -167,6 +167,13 @@ const accountFieldsDefinition = () => ({
       limit: { type: GraphQLInt, defaultValue: 30 },
     },
   },
+  expensesTags: {
+    type: new GraphQLList(TagStats),
+    description: 'Returns expense tags for collective sorted by popularity',
+    args: {
+      limit: { type: GraphQLInt, defaultValue: 30 },
+    },
+  },
   transferwise: {
     type: TransferWise,
     async resolve(collective) {
@@ -371,6 +378,16 @@ export const AccountFields = {
     },
     async resolve(collective, _, { limit }) {
       return models.Conversation.getMostPopularTagsForCollective(collective.id, limit);
+    },
+  },
+  expensesTags: {
+    type: new GraphQLList(TagStats),
+    description: 'Returns expense tags for collective sorted by popularity',
+    args: {
+      limit: { type: GraphQLInt, defaultValue: 30 },
+    },
+    async resolve(collective, _, { limit }) {
+      return models.Expense.getMostPopularExpenseTagsForCollective(collective.id, limit);
     },
   },
   payoutMethods: {
