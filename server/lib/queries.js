@@ -50,7 +50,7 @@ const getHosts = async args => {
       SELECT max(c.id) as "HostCollectiveId", count(m.id) as count
       FROM "Collectives" c
       LEFT JOIN "Members" m ON m."MemberCollectiveId" = c.id AND m.role = 'HOST' AND m."deletedAt" IS NULL
-      WHERE c."deletedAt" IS NULL ${hostConditions}
+      WHERE c."deletedAt" IS NULL AND c."isHostAccount" = TRUE ${hostConditions}
       GROUP BY c.id
       HAVING count(m.id) >= $minNbCollectivesHosted
     ) SELECT c.*, (SELECT COUNT(*) FROM all_hosts) AS __hosts_count__, SUM(all_hosts.count) as __members_count__
