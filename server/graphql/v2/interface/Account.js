@@ -53,6 +53,9 @@ const accountFieldsDefinition = () => ({
   description: {
     type: GraphQLString,
   },
+  longDescription: {
+    type: GraphQLString,
+  },
   tags: {
     type: new GraphQLList(GraphQLString),
   },
