@@ -73,7 +73,7 @@ describe('server/graphql/v1/collective', () => {
       });
       // And given some expenses
       const expense = await store.createApprovedExpense(user, {
-        category: 'ENGINEERING',
+        category: 'engineering',
         amount: 100 * (i + 1),
         description: 'test',
         currency,
@@ -213,7 +213,7 @@ describe('server/graphql/v1/collective', () => {
     });
 
     expect(collective.stats.topExpenses).to.deep.equal({
-      byCategory: [{ category: 'ENGINEERING', count: 10, totalExpenses: 5500 }],
+      byCategory: [{ category: 'engineering', count: 10, totalExpenses: 5500 }],
       byCollective: [
         {
           slug: 'testuser9',
