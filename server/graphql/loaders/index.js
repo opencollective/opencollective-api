@@ -159,6 +159,40 @@ export const loaders = req => {
         })
         .then(results => sortResults(ids, results, 'CollectiveId')),
     ),
+    activeRecurringContributions: new DataLoader(ids =>
+      models.Order.findAll({
+        attributes: [
+          'CollectiveId',
+          'interval',
+          [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('totalAmount')), 0), 'total'],
+        ],
+        where: {
+          [Op.and]: [
+            { CollectiveId: { [Op.in]: ids } },
+            { interval: { [Op.not]: null } },
+            { status: { [Op.eq]: 'ACTIVE' } },
+          ],
+        },
+        group: ['interval', 'CollectiveId'],
+      })
+        .then(rows => {
+          const results = groupBy(rows, 'CollectiveId');
+          return Object.keys(results).map(CollectiveId => {
+            const stats = {
+              monthly: 0,
+              yearly: 0,
+            };
+            results[CollectiveId].map(e => e.dataValues).map(stat => {
+              stats[stat.interval === 'month' ? 'monthly' : 'yearly'] += stat.total;
+            });
+            return {
+              CollectiveId: Number(CollectiveId),
+              ...stats,
+            };
+          });
+        })
+        .then(results => sortResults(ids, results, 'CollectiveId', {})),
+    ),
   };
 
   // getUserDetailsByCollectiveId
