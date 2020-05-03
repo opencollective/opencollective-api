@@ -1,7 +1,7 @@
 import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
-import _ from 'lodash';
+import { keyBy, pick } from 'lodash';
 import moment from 'moment';
 
 import emailLib from '../server/lib/email';
@@ -184,8 +184,8 @@ async function HostReport(year, month, hostId) {
     let page = 1;
     let currentPage = 0;
 
-    data.host = host;
-    data.collective = host;
+    data.host = host.info;
+    data.collective = host.info;
     data.reportDate = endDate;
     data.reportName = reportName;
     data.month = !yearlyReport && moment(startDate).format('MMMM');
@@ -193,7 +193,7 @@ async function HostReport(year, month, hostId) {
     data.startDate = startDate;
     data.endDate = endDate;
     data.endDateIncluded = endDateIncluded;
-    data.config = _.pick(config, 'host');
+    data.config = pick(config, 'host');
     data.maxSlugSize = 0;
     data.notes = null;
     data.expensesPerPage = [[]];
@@ -222,7 +222,15 @@ async function HostReport(year, month, hostId) {
     };
 
     const processTransaction = transaction => {
-      const t = transaction;
+      const t = {
+        ...transaction.info,
+        Expense: transaction.Expense
+          ? {
+              ...transaction.Expense.info,
+              items: transaction.Expense.items.map(item => item.dataValues),
+            }
+          : null,
+      };
       t.collective = collectivesById[t.CollectiveId].dataValues;
       t.collective.shortSlug = t.collective.slug.replace(/^wwcode-?(.)/, '$1');
       t.notes = t.Expense && t.Expense.privateMessage;
@@ -259,7 +267,7 @@ async function HostReport(year, month, hostId) {
 
     return getHostedCollectives(host.id, endDate)
       .tap(collectives => {
-        collectivesById = _.keyBy(collectives, 'id');
+        collectivesById = keyBy(collectives, 'id');
         data.stats.totalCollectives = collectives.filter(c => c.type === 'COLLECTIVE').length;
         summary.totalCollectives += data.stats.totalCollectives;
         console.log(`>>> processing ${data.stats.totalCollectives} collectives`);
@@ -301,7 +309,7 @@ async function HostReport(year, month, hostId) {
           content: csv,
         });
       })
-      .then(transactions => (data.transactions = transactions.info))
+      .then(transactions => (data.transactions = transactions))
       .then(() => {
         // Don't generate PDF in email if it's the yearly report
         if (yearlyReport) {
@@ -348,7 +356,7 @@ async function HostReport(year, month, hostId) {
         data.stats = {
           ...data.stats,
           ...stats,
-          totalActiveCollectives: Object.keys(_.keyBy(data.transactions, 'CollectiveId')).length,
+          totalActiveCollectives: Object.keys(keyBy(data.transactions, 'CollectiveId')).length,
           numberTransactions: data.transactions.length,
           numberDonations: data.transactions.length - data.stats.numberPaidExpenses,
         };
