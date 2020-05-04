@@ -23,6 +23,11 @@ if (process.env.DEBUG && process.env.DEBUG.match(/psql/)) {
   config.database.options.logging = true;
 }
 
+if (process.env.PGSSLMODE === 'require') {
+  config.database.options.dialectOptions = config.database.options.dialectOptions || {};
+  config.database.options.dialectOptions = { ssl: { rejectUnauthorized: false } };
+}
+
 if (config.database.options.logging) {
   if (process.env.NODE_ENV === 'production') {
     config.database.options.logging = (query, executionTime) => {
