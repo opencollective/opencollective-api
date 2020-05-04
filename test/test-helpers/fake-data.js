@@ -16,8 +16,6 @@ import models from '../../server/models';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import { randEmail, randUrl } from '../stores';
 
-export { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPES, PayoutMethodTypes };
-
 export const randStr = (prefix = '') => `${prefix}${uuid().split('-')[0]}`;
 export const randNumber = (min = 0, max = 10000000) => Math.floor(Math.random() * max) + min;
 export const randAmount = (min = 100, max = 10000000) => randNumber(min, max);

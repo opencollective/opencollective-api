@@ -50,31 +50,6 @@ const payoutMethodMutations = {
       });
     },
   },
-  // deleteConnectedAccount: {
-  //   type: PayoutM,
-  //   description: 'Delete ConnectedAccount',
-  //   args: {
-  //     connectedAccount: {
-  //       type: new GraphQLNonNull(ConnectedAccountReferenceInput),
-  //       description: 'ConnectedAccount reference containing either id or legacyId',
-  //     },
-  //   },
-  //   async resolve(_, args, req): Promise<object> {
-  //     if (!req.remoteUser) {
-  //       throw new Unauthorized('You need to be logged in to delete a connected account');
-  //     }
-
-  //     const connectedAccount = await fetchConnectedAccountWithReference(args.connectedAccount, {
-  //       throwIfMissing: true,
-  //     });
-  //     if (!req.remoteUser.isAdmin(connectedAccount.CollectiveId)) {
-  //       throw new Unauthorized("You don't have permission to edit this collective");
-  //     }
-
-  //     await connectedAccount.destroy({ force: true });
-  //     return connectedAccount;
-  //   },
-  // },
 };
 
 export default payoutMethodMutations;

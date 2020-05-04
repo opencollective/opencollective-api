@@ -12,8 +12,9 @@ import * as payments from '../../../server/lib/payments';
 import * as plansLib from '../../../server/lib/plans';
 import stripe from '../../../server/lib/stripe';
 import models from '../../../server/models';
+import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 import stripeMocks from '../../mocks/stripe';
-import { fakeCollective, fakeHost, fakeOrder, fakePayoutMethod, PayoutMethodTypes } from '../../test-helpers/fake-data';
+import { fakeCollective, fakeHost, fakeOrder, fakePayoutMethod } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
 const AMOUNT = 1099;
