@@ -16,6 +16,7 @@ import {
   omit,
   pick,
   pickBy,
+  set,
   sum,
   sumBy,
   uniqBy,
@@ -1160,7 +1161,9 @@ export default function (Sequelize, DataTypes) {
         return 1;
       }
     });
-    return orders;
+
+    // Prepare objects to consumption in templates
+    return orders.map(order => set(order.info, 'fromCollective', order.fromCollective.info));
   };
 
   /**
@@ -1202,7 +1205,8 @@ export default function (Sequelize, DataTypes) {
       }
     });
 
-    return orders;
+    // Prepare objects to consumption in templates
+    return orders.map(order => set(order.info, 'fromCollective', order.fromCollective.info));
   };
 
   /**
