@@ -6,6 +6,8 @@ import { hostResolver } from '../../common/collective';
 import { AccountType } from '../enum/AccountType';
 import { Account, AccountFields } from '../interface/Account';
 
+import { Host } from './Host';
+
 export const Collective = new GraphQLObjectType({
   name: 'Collective',
   description: 'This represents a Collective account',
@@ -24,7 +26,7 @@ export const Collective = new GraphQLObjectType({
       },
       host: {
         description: 'Get the host collective that is receiving the money on behalf of this collective',
-        type: Account,
+        type: Host,
         resolve: hostResolver,
       },
       approvedAt: {

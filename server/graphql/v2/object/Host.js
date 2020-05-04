@@ -10,7 +10,6 @@ export const Host = new GraphQLObjectType({
   name: 'Host',
   description: 'This represents an Host account',
   interfaces: () => [Account],
-  isTypeOf: collective => collective.isHostAccount,
   fields: () => {
     return {
       ...AccountFields,
