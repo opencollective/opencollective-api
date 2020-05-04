@@ -312,7 +312,7 @@ async function HostReport(year, month, hostId) {
       .then(transactions => (data.transactions = transactions))
       .then(() => {
         // Don't generate PDF in email if it's the yearly report
-        if (yearlyReport) {
+        if (yearlyReport || process.env.SKIP_PDF) {
           return;
         }
         return exportToPDF('expenses', data, {

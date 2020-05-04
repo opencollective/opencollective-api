@@ -60,7 +60,7 @@ const fetchUserSubscribers = async (notificationType, backerCollective) => {
   );
 
   const admins = await backerCollective.getAdminUsers();
-  const subscribers = admins.filter(a => unsubscribedUserIds.indexOf(a.id) === -1);
+  const subscribers = admins.filter(a => a && unsubscribedUserIds.indexOf(a.id) === -1);
 
   return subscribers;
 };
