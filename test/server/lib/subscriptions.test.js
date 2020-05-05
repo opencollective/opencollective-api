@@ -223,7 +223,10 @@ describe('server/lib/subscriptions', () => {
       // template
       const order = {
         Subscription: { chargeRetryCount: 0 },
-        collective: { getRelatedCollectives: () => Promise.resolve(null) },
+        collective: {
+          getRelatedCollectives: () => Promise.resolve(null),
+          getHostCollective: () => Promise.resolve(null),
+        },
         fromCollective: { slug: 'cslug' },
         createdByUser: { email: 'test@oc.com' },
       };
