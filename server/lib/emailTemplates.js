@@ -88,6 +88,7 @@ export const templateNames = [
   'thankyou.fr',
   'thankyou.laprimaire',
   'thankyou.foundation',
+  'thankyou.opensource',
   'user.card.claimed',
   'user.card.claimed.text',
   'user.card.invited',

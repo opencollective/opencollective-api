@@ -17,16 +17,16 @@ Subject: Thank you for your {{{currency order.totalAmount currency=order.currenc
 {{#if interval}}
   {{#if firstPayment }}
     <p>We would like to thank you for your pledge to give {{{currency order.totalAmount currency=order.currency}}} per {{interval}}.
-      Your first payment was received on {{{moment order.createdAt}}}. Your contribution helps us continue our work.</p>
+      Your first payment was received on {{{moment order.createdAt}}}. As the collective's fiscal sponsor, Open Source Collective, a public recognized tax-exempt organization under IRS Section 501(c)(6), acknowledges your donation.</p>
       {{> charge_date_notice}}
   {{else}}
     <p>We would like to thank you for your continued support. Your latest {{interval}}ly contribution of {{{currency order.totalAmount currency=order.currency}}} was received on {{{moment transaction.createdAt}}}.
-      Your contribution helps us continue our work.</p>
+      As the collective's fiscal sponsor, Open Source Collective, a public recognized tax-exempt organization under IRS Section 501(c)(6), acknowledges your donation.</p>
   {{/if}}
 {{else}}
 
 <p>We would like to thank you for your contribution of {{{currency order.totalAmount currency=order.currency}}} on {{{moment order.createdAt}}}.
-  Your gift will help us continue our work.</p>
+  As the collective's fiscal sponsor, Open Source Collective, a public recognized tax-exempt organization under IRS Section 501(c)(6), acknowledges your donation.</p>
 {{/if}}
 
 <p>You can follow our future activities and how we will be spending the money on our open collective page:
@@ -44,7 +44,11 @@ Subject: Thank you for your {{{currency order.totalAmount currency=order.currenc
 <p>Warmly,</p>
 
 <p>
-  – The {{collective.name}} open collective
+Alanna Irving - Executive Director<br/>
+Open Source Collective<br/>
+340 S. Lemon Ave, #3717<br/>
+Walnut, CA 91789<br/>
+EIN 82-2037583
 </p>
 
 {{#if relatedCollectives.length}}
