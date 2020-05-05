@@ -1,5 +1,18 @@
 import { GraphQLInt, GraphQLInterfaceType } from 'graphql';
 
+/** All the fields Collection interface implementers have to implemented. */
+const CollectionFields = {
+  offset: {
+    type: GraphQLInt,
+  },
+  limit: {
+    type: GraphQLInt,
+  },
+  totalCount: {
+    type: GraphQLInt,
+  },
+};
+
 /**
  * Interface intended to be implemented by every type that returns a
  * collection of types. The implementing type will look like:
@@ -14,23 +27,8 @@ import { GraphQLInt, GraphQLInterfaceType } from 'graphql';
 const Collection = new GraphQLInterfaceType({
   name: 'Collection',
   description: 'Collection interface shared by all collection types',
-  fields() {
-    return { ...CollectionFields };
-  },
+  fields: CollectionFields,
 });
-
-/** All the fields Collection interface implementers have to implemented. */
-const CollectionFields = {
-  offset: {
-    type: GraphQLInt,
-  },
-  limit: {
-    type: GraphQLInt,
-  },
-  totalCount: {
-    type: GraphQLInt,
-  },
-};
 
 /**
  * Types to use as arguments for fields that return types
@@ -48,5 +46,12 @@ const CollectionArgs = {
     defaultValue: 0,
   },
 };
+
+export interface CollectionReturnType {
+  nodes: object[];
+  totalCount: number;
+  limit: number;
+  offset: number;
+}
 
 export { Collection, CollectionFields, CollectionArgs };

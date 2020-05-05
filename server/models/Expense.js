@@ -380,6 +380,7 @@ export default function (Sequelize, DataTypes) {
       SELECT UNNEST(tags) AS id, UNNEST(tags) AS tag, COUNT(id)
       FROM "Expenses"
       WHERE "CollectiveId" = $collectiveId
+      AND "deletedAt" IS NULL
       GROUP BY UNNEST(tags)
       ORDER BY count DESC
       LIMIT $limit

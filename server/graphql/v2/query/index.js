@@ -6,6 +6,7 @@ import AccountQuery from './AccountQuery';
 import CollectiveQuery from './CollectiveQuery';
 import ConversationQuery from './ConversationQuery';
 import ExpenseQuery from './ExpenseQuery';
+import ExpensesQuery from './ExpensesQuery';
 import HostQuery from './HostQuery';
 import IndividualQuery from './IndividualQuery';
 
@@ -15,6 +16,7 @@ const query = {
   host: HostQuery,
   individual: IndividualQuery,
   conversation: ConversationQuery,
+  expenses: ExpensesQuery,
   expense: ExpenseQuery,
   hosts: HostsCollectionQuery,
   // transaction: TransactionQuery,
