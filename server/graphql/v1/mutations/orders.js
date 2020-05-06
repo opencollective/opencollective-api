@@ -199,6 +199,11 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
         throw new Error('Only a root can set a lower platformFeePercent');
       }
     }
+    if (order.platformFee) {
+      if (collective.platformFeePercent && !remoteUser.isRoot()) {
+        throw new Error('Only a root can set a platformFee on a collective with non-zero platformFee');
+      }
+    }
 
     const host = await collective.getHostCollective();
     if (order.hostFeePercent) {
@@ -430,7 +435,9 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
     } else if (tier && tier.data && tier.data.hostFeePercent !== undefined) {
       orderData.data.hostFeePercent = tier.data.hostFeePercent;
     }
-    if (order.platformFeePercent) {
+    if (order.platformFee) {
+      orderData.data.platformFee = order.platformFee;
+    } else if (order.platformFeePercent) {
       orderData.data.platformFeePercent = order.platformFeePercent;
     } else if (tier && tier.data && tier.data.platformFeePercent !== undefined) {
       orderData.data.platformFeePercent = tier.data.platformFeePercent;

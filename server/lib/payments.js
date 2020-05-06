@@ -9,6 +9,7 @@ import activities from '../constants/activities';
 import status from '../constants/order_status';
 import roles from '../constants/roles';
 import tiers from '../constants/tiers';
+import { OC_FEE_PERCENT } from '../constants/transactions';
 import { createGiftCardPrepaidPaymentMethod, isGiftCardPrepaidBudgetOrder } from '../lib/gift-cards';
 import { formatAccountDetails } from '../lib/transferwise';
 import { formatCurrency } from '../lib/utils';
@@ -488,4 +489,18 @@ export const sendExpiringCreditCardUpdateEmail = async data => {
   };
 
   return emailLib.send('payment.creditcard.expiring', data.email, data);
+};
+
+export const getPlatformFee = order => {
+  const orderPlatformFee = get(order, 'data.platformFee');
+  if (!isNaN(orderPlatformFee)) {
+    return orderPlatformFee;
+  }
+
+  const defaultPlatformFeePercent =
+    order.collective.platformFeePercent === null ? OC_FEE_PERCENT : order.collective.platformFeePercent;
+
+  const platformFeePercent = get(order, 'data.platformFeePercent', defaultPlatformFeePercent);
+
+  return parseInt((order.totalAmount * platformFeePercent) / 100, 10);
 };
