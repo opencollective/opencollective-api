@@ -251,8 +251,15 @@ export const verifyEvent = (req: Request & { rawBody: string }): WebhookEvent =>
 };
 
 export const formatAccountDetails = (payoutMethodData: Record<string, any>): string => {
-  const ignoredKeys = ['type', 'isManualBankTransfer'];
+  const ignoredKeys = ['type', 'isManualBankTransfer', 'currency'];
+  const labels = {
+    abartn: 'Routing Number',
+  };
+
   const formatKey = (s: string): string => {
+    if (labels[s]) {
+      return labels[s];
+    }
     if (toUpper(s) === s) {
       return s;
     }
