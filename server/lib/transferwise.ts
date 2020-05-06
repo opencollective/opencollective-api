@@ -251,7 +251,7 @@ export const verifyEvent = (req: Request & { rawBody: string }): WebhookEvent =>
 };
 
 export const formatAccountDetails = (payoutMethodData: Record<string, any>): string => {
-  const ignoredKeys = ['type', 'isManualBankTransfer'];
+  const ignoredKeys = ['type', 'isManualBankTransfer', 'legalType', 'currency'];
   const formatKey = (s: string): string => {
     if (toUpper(s) === s) {
       return s;
@@ -265,12 +265,14 @@ export const formatAccountDetails = (payoutMethodData: Record<string, any>): str
         return acc;
       }
       if (typeof value === 'object') {
-        return [...acc, formatKey(key), ...renderObject(value, '  ')];
+        return [...acc, formatKey(key), ...renderObject(value, '')];
       }
       return [...acc, `${prefix}${formatKey(key)}: ${value}`];
     }, []);
 
+  console.log(payoutMethodData);
   const { accountHolderName, currency, ...data } = payoutMethodData;
   const lines = renderObject({ accountHolderName, currency, ...data });
+  console.log(lines);
   return lines.join('\n');
 };

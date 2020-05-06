@@ -414,6 +414,7 @@ export const sendOrderProcessingEmail = async order => {
     subscriptionsLink: `${config.host.website}/${fromCollective.slug}/subscriptions`,
   };
   const instructions = get(host, 'settings.paymentMethods.manual.instructions');
+  console.log(instructions);
   if (instructions) {
     const formatValues = {
       account,
@@ -432,6 +433,7 @@ export const sendOrderProcessingEmail = async order => {
       return match;
     });
   }
+  console.log(data.instructions);
   return emailLib.send('order.processing', user.email, data, {
     from: `${collective.name} <hello@${collective.slug}.opencollective.com>`,
   });
