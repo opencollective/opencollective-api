@@ -113,16 +113,18 @@ async function notifySubscribers(users, activity, options = {}) {
     debug('ONLY set to ', process.env.ONLY, ' => skipping subscribers');
     return emailLib.send(options.template || activity.type, process.env.ONLY, data, options);
   }
-  return users.map(u => {
-    if (!u) {
-      return;
-    }
-    // skip users that have unsubscribed
-    if (unsubscribedUserIds.indexOf(u.id) === -1) {
-      debug('sendMessageFromActivity', activity.type, 'UserId', u.id);
-      return emailLib.send(options.template || activity.type, u.email, data, options);
-    }
-  });
+  return Promise.all(
+    users.map(u => {
+      if (!u) {
+        return;
+      }
+      // skip users that have unsubscribed
+      if (unsubscribedUserIds.indexOf(u.id) === -1) {
+        debug('sendMessageFromActivity', activity.type, 'UserId', u.id);
+        return emailLib.send(options.template || activity.type, u.email, data, options);
+      }
+    }),
+  );
 }
 
 async function notifyUserId(UserId, activity, options = {}) {
