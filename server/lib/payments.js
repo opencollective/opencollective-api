@@ -10,6 +10,7 @@ import status from '../constants/order_status';
 import roles from '../constants/roles';
 import tiers from '../constants/tiers';
 import { createGiftCardPrepaidPaymentMethod, isGiftCardPrepaidBudgetOrder } from '../lib/gift-cards';
+import { formatAccountDetails } from '../lib/transferwise';
 import { formatCurrency } from '../lib/utils';
 import models from '../models';
 import paymentProviders from '../paymentProviders';
@@ -393,12 +394,18 @@ const sendOrderConfirmedEmail = async order => {
 };
 
 // Assumes one-time payments,
-const sendOrderProcessingEmail = async order => {
+export const sendOrderProcessingEmail = async order => {
   const { collective, fromCollective } = order;
   const user = order.createdByUser;
   const host = await collective.getHostCollective();
   const parentCollective = await collective.getParentCollective();
+  const manualPayoutMethod = await models.PayoutMethod.findOne({
+    where: { CollectiveId: host.id, data: { isManualBankTransfer: true } },
+  });
+  const account = manualPayoutMethod && formatAccountDetails(manualPayoutMethod.data);
+
   const data = {
+    account,
     order: order.info,
     user: user.info,
     collective: collective.info,
@@ -409,7 +416,9 @@ const sendOrderProcessingEmail = async order => {
   const instructions = get(host, 'settings.paymentMethods.manual.instructions');
   if (instructions) {
     const formatValues = {
+      account,
       orderid: order.id,
+      reference: order.id,
       amount: formatCurrency(order.totalAmount, order.currency),
       collective: parentCollective ? `${parentCollective.slug} event` : order.collective.slug,
       tier: get(order, 'tier.slug') || get(order, 'tier.name'),

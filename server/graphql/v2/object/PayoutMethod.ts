@@ -1,4 +1,4 @@
-import { GraphQLBoolean,GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import GraphQLJSON from 'graphql-type-json';
 
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
@@ -24,7 +24,7 @@ const PayoutMethod = new GraphQLObjectType({
       resolve: (payoutMethod, _, req): string => {
         // Only collective admins can see the name of a payout method
         if (req.remoteUser?.isAdmin(payoutMethod.CollectiveId)) {
-          return payoutMethod.isSaved;
+          return payoutMethod.name;
         }
       },
     },
