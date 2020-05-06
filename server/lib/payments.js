@@ -418,6 +418,7 @@ export const sendOrderProcessingEmail = async order => {
     const formatValues = {
       account,
       orderid: order.id,
+      reference: order.id,
       amount: formatCurrency(order.totalAmount, order.currency),
       collective: parentCollective ? `${parentCollective.slug} event` : order.collective.slug,
       tier: get(order, 'tier.slug') || get(order, 'tier.name'),
