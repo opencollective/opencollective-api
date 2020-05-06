@@ -162,10 +162,6 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
       }
     }
 
-    if (order.platformFeePercent && !remoteUser.isRoot()) {
-      throw new Error('Only a root can change the platformFeePercent');
-    }
-
     // Check the existence of the recipient Collective
     let collective;
     if (order.collective.id) {
@@ -196,6 +192,12 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
 
     if (order.fromCollective && order.fromCollective.id === collective.id) {
       throw new Error('Orders cannot be created for a collective by that same collective.');
+    }
+
+    if (order.platformFeePercent && collective.platformFeePercent) {
+      if (order.platformFeePercent < collective.platformFeePercent && !remoteUser.isRoot()) {
+        throw new Error('Only a root can set a lower platformFeePercent');
+      }
     }
 
     const host = await collective.getHostCollective();
