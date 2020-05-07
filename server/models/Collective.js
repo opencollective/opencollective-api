@@ -2773,10 +2773,10 @@ export default function (Sequelize, DataTypes) {
   };
 
   Collective.prototype.doesUserHaveTotalExpensesOverThreshold = async function ({ threshold, year, UserId }) {
-    const { PENDING, APPROVED, PAID } = expenseStatus;
+    const { PENDING, APPROVED, PAID, PROCESSING } = expenseStatus;
     const since = moment({ year });
     const until = moment({ year }).add(1, 'y');
-    const status = [PENDING, APPROVED, PAID];
+    const status = [PENDING, APPROVED, PAID, PROCESSING];
     const excludedTypes = [expenseTypes.RECEIPT];
 
     const expenses = await this.getExpensesForHost(status, since, until, UserId, excludedTypes);
@@ -2787,10 +2787,10 @@ export default function (Sequelize, DataTypes) {
   };
 
   Collective.prototype.getUsersWhoHaveTotalExpensesOverThreshold = async function ({ threshold, year }) {
-    const { PENDING, APPROVED, PAID } = expenseStatus;
+    const { PENDING, APPROVED, PAID, PROCESSING } = expenseStatus;
     const since = moment({ year });
     const until = moment({ year }).add(1, 'y');
-    const status = [PENDING, APPROVED, PAID];
+    const status = [PENDING, APPROVED, PAID, PROCESSING];
     const excludedTypes = [expenseTypes.RECEIPT];
     const expenses = await this.getExpensesForHost(status, since, until, null, excludedTypes);
 

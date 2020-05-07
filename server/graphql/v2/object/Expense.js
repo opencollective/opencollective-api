@@ -1,13 +1,17 @@
 import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
+import moment from 'moment';
 
+import { isUserTaxFormRequiredBeforePayment } from '../../../lib/tax-forms';
 import models, { Op } from '../../../models';
+import { LEGAL_DOCUMENT_TYPE } from '../../../models/LegalDocument';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import * as ExpensePermissionsLib from '../../common/expenses';
 import { CommentCollection } from '../collection/CommentCollection';
 import { Currency } from '../enum';
 import ExpenseStatus from '../enum/ExpenseStatus';
 import { ExpenseType } from '../enum/ExpenseType';
+import { LegalDocumentType } from '../enum/LegalDocumentType';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
 import { Account } from '../interface/Account';
@@ -200,6 +204,21 @@ const Expense = new GraphQLObjectType({
         type: new GraphQLNonNull(new GraphQLList(GraphQLString)),
         resolve(expense) {
           return expense.tags || [];
+        },
+      },
+      requiredLegalDocuments: {
+        type: new GraphQLList(LegalDocumentType),
+        description: 'Returns the list of legal documents required from the payee before the expense can be payed',
+        async resolve(expense) {
+          const incurredYear = moment(expense.incurredAt).year();
+          const isW9FormRequired = isUserTaxFormRequiredBeforePayment({
+            year: incurredYear,
+            invoiceTotalThreshold: 600e2,
+            expenseCollectiveId: expense.CollectiveId,
+            UserId: expense.UserId,
+          });
+
+          return isW9FormRequired ? [LEGAL_DOCUMENT_TYPE.US_TAX_FORM] : [];
         },
       },
     };

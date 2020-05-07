@@ -1,10 +1,12 @@
+export const LEGAL_DOCUMENT_TYPE = {
+  US_TAX_FORM: 'US_TAX_FORM',
+};
+
 export default function (Sequelize, DataTypes) {
   const NOT_REQUESTED = 'NOT_REQUESTED';
   const REQUESTED = 'REQUESTED';
   const RECEIVED = 'RECEIVED';
   const ERROR = 'ERROR';
-
-  const US_TAX_FORM = 'US_TAX_FORM';
 
   const LegalDocument = Sequelize.define(
     'LegalDocument',
@@ -25,9 +27,9 @@ export default function (Sequelize, DataTypes) {
       },
       documentType: {
         type: DataTypes.ENUM,
-        values: [US_TAX_FORM],
+        values: [LEGAL_DOCUMENT_TYPE.US_TAX_FORM],
         allowNull: false,
-        defaultValue: US_TAX_FORM,
+        defaultValue: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
         unique: 'yearTypeCollective',
       },
       documentLink: {
