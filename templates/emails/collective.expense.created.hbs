@@ -5,7 +5,7 @@ Subject: New expense on {{collective.name}}: {{{currency expense.amount currency
 <center>
   <h1>{{{currency expense.amount currency=expense.currency precision=2}}}</h1>
   <div><a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{expense.description}}</a></div>
-  <div>Submitted by: {{fromCollective.name}}</div>
+  <div>Payee: <a href="{{config.host.website}}/{{fromCollective.slug}}">{{fromCollective.name}}</a></div>
   {{#if payoutMethod}}
     {{#ifCond payoutMethod.type '===' 'PAYPAL'}}
       <div>Paypal Email: {{payoutMethod.data.email}}</div>
@@ -14,9 +14,33 @@ Subject: New expense on {{collective.name}}: {{{currency expense.amount currency
   
   <p><font color="#999">{{expense.notes}}</font></p>
 
-  <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">
-    <img src="https://res.cloudinary.com/opencollective/image/fetch/w_640,f_jpg/{{expense.attachment}}" width="100%" />
-  </a>
+  <h3 style="margin: 24px;">Expense items</h3>
+
+  <div>
+    {{#each items}}
+      <div style="display: flex; padding: 12px 0; margin: 0 24px; justify-content: space-between; align-items: center; border-bottom: 1px dotted rgb(196, 199, 204);">
+        <div style="display: flex;">
+          {{#if this.url}}
+            <div style="margin-right: 16px;">
+              <div style="border: 1px solid #dcdee0; width: 48px; height: 48px; padding: 4px;">
+                <a href="{{this.url}}">
+                  <div class="preview" style="width: 100%; height: 100%; z-index:0; background-size: contain; background-image: url('https://res.cloudinary.com/opencollective/image/fetch/w_640,f_jpg/{{this.url}}')"></div>
+                </a>
+              </div>
+            </div>
+          {{/if}}
+          <div style="display: flex; flex-direction: column; text-align: left; justify-content: center;">
+            <span style="margin-bottom: 4px;">{{this.description}}</span>
+            <span style="color: #9D9FA3;">{{moment this.incurredAt}}</span>
+          </div>
+        </div>
+        <p>
+          {{{currency this.amount currency=../expense.currency precision=2}}}
+        </p>
+      </div>
+    {{/each}}
+  </div>
+
   <br />
   <br />
   <br />
