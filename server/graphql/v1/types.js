@@ -186,19 +186,28 @@ export const UserType = new GraphQLObjectType({
       },
       memberOf: {
         type: new GraphQLList(MemberType),
-        includeIncognito: {
-          type: GraphQLBoolean,
-          defaultValue: true,
-          description:
-            'Wether incognito profiles should be included in the result. Only works if requesting user is an admin of the account.',
+        args: {
+          roles: { type: new GraphQLList(GraphQLString) },
+          includeIncognito: {
+            type: GraphQLBoolean,
+            defaultValue: true,
+            description:
+              'Wether incognito profiles should be included in the result. Only works if requesting user is an admin of the account.',
+          },
         },
         resolve(user, args, req) {
+          const where = { MemberCollectiveId: user.CollectiveId };
+          if (args.roles && args.roles.length > 0) {
+            where.role = { [Op.in]: args.roles };
+          }
+
           const collectiveConditions = {};
           if (!args.includeIncognito || !req.remoteUser?.isAdmin(user.CollectiveId)) {
             collectiveConditions.isIncognito = false;
           }
+
           return models.Member.findAll({
-            where: { MemberCollectiveId: user.CollectiveId },
+            where,
             include: [
               {
                 model: models.Collective,
