@@ -114,7 +114,7 @@ export async function createFromPaidExpense(
   } else if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT) {
     // Notice this is the FX rate between Host and Collective, the user is not involved here and that's why TransferWise quote rate is irrelevant here.
     hostCurrencyFxRate = await getFxRate(expense.currency, host.currency);
-    paymentProcessorFeeInHostCurrency = Math.round(transactionData.quote.fee * 100);
+    paymentProcessorFeeInHostCurrency = transactionData ? Math.round(transactionData.quote.fee * 100) : 0;
     paymentProcessorFeeInCollectiveCurrency = Math.round((1 / hostCurrencyFxRate) * paymentProcessorFeeInHostCurrency);
     hostFeeInCollectiveCurrency = Math.round((1 / hostCurrencyFxRate) * hostFeeInHostCurrency);
     platformFeeInCollectiveCurrency = Math.round((1 / hostCurrencyFxRate) * platformFeeInHostCurrency);

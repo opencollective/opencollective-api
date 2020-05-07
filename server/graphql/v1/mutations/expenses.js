@@ -610,7 +610,7 @@ export async function payExpense(req, args) {
   const payoutMethod = await expense.getPayoutMethod();
   const payoutMethodType = payoutMethod ? payoutMethod.type : expense.getPayoutMethodTypeFromLegacy();
 
-  if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT) {
+  if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT && !args.forceManual) {
     const [connectedAccount] = await host.getConnectedAccounts({
       where: { service: 'transferwise', deletedAt: null },
     });
@@ -675,10 +675,15 @@ export async function payExpense(req, args) {
       throw new Error('No Paypal account linked, please reconnect Paypal or pay manually');
     }
   } else if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT) {
-    await payExpenseWithTransferwise(host, payoutMethod, expense, feesInHostCurrency, remoteUser);
-    await expense.setProcessing(remoteUser.id);
-    // Early return, we'll only mark as Paid when the transaction completes.
-    return;
+    if (args.forceManual) {
+      feesInHostCurrency.paymentProcessorFeeInHostCurrency = 0;
+      await createTransactions(host, expense, feesInHostCurrency);
+    } else {
+      await payExpenseWithTransferwise(host, payoutMethod, expense, feesInHostCurrency, remoteUser);
+      await expense.setProcessing(remoteUser.id);
+      // Early return, we'll only mark as Paid when the transaction completes.
+      return;
+    }
   } else if (expense.legacyPayoutMethod === 'manual' || expense.legacyPayoutMethod === 'other') {
     // note: we need to check for manual and other for legacy reasons
     await createTransactions(host, expense, feesInHostCurrency);
