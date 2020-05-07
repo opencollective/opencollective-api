@@ -16,7 +16,7 @@
     "@babel/preset-env": "7.9.6",
     "@babel/preset-typescript": "7.9.0",
     "@octokit/auth-oauth-app": "3.0.2",
-    "@octokit/rest": "17.7.0",
+    "@octokit/rest": "17.8.0",
     "@opencollective/taxes": "2.4.0",
     "algoliasearch": "3.35.1",
     "apollo-server-express": "2.13.0",
