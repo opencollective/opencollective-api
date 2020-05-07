@@ -186,11 +186,13 @@ export const UserType = new GraphQLObjectType({
       },
       memberOf: {
         type: new GraphQLList(MemberType),
-        includeIncognito: {
-          type: GraphQLBoolean,
-          defaultValue: true,
-          description:
-            'Wether incognito profiles should be included in the result. Only works if requesting user is an admin of the account.',
+        args: {
+          includeIncognito: {
+            type: GraphQLBoolean,
+            defaultValue: true,
+            description:
+              'Wether incognito profiles should be included in the result. Only works if requesting user is an admin of the account.',
+          },
         },
         resolve(user, args, req) {
           const collectiveConditions = {};
