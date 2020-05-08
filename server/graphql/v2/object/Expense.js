@@ -211,7 +211,7 @@ const Expense = new GraphQLObjectType({
         description: 'Returns the list of legal documents required from the payee before the expense can be payed',
         async resolve(expense) {
           const incurredYear = moment(expense.incurredAt).year();
-          const isW9FormRequired = isUserTaxFormRequiredBeforePayment({
+          const isW9FormRequired = await isUserTaxFormRequiredBeforePayment({
             year: incurredYear,
             invoiceTotalThreshold: 600e2,
             expenseCollectiveId: expense.CollectiveId,
