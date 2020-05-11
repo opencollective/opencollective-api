@@ -162,6 +162,12 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
       }
     }
 
+    // Some tests are relying on this check being done at that point
+    // Could be moved below at some point (see commented code)
+    if (order.platformFeePercent && !remoteUser.isRoot()) {
+      throw new Error('Only a root can change the platformFeePercent');
+    }
+
     // Check the existence of the recipient Collective
     let collective;
     if (order.collective.id) {
@@ -194,11 +200,14 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
       throw new Error('Orders cannot be created for a collective by that same collective.');
     }
 
+    /*
     if (order.platformFeePercent && collective.platformFeePercent) {
       if (order.platformFeePercent < collective.platformFeePercent && !remoteUser.isRoot()) {
         throw new Error('Only a root can set a lower platformFeePercent');
       }
     }
+    */
+
     if (order.platformFee) {
       if (collective.platformFeePercent && !remoteUser.isRoot()) {
         throw new Error('Only a root can set a platformFee on a collective with non-zero platformFee');
