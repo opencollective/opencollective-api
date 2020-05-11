@@ -37,7 +37,11 @@ async function processOrder(order) {
 
   const hostFeePercent = get(order, 'data.hostFeePercent', order.collective.hostFeePercent);
   const hostFeeInHostCurrency = -Math.round((hostFeePercent / 100) * order.totalAmount);
-  const platformFeeInHostCurrency = 0;
+
+  // Waive fees except if explicitely passed
+  const orderPlatformFee = get(order, 'data.platformFee');
+  const platformFeeInHostCurrency = isNaN(orderPlatformFee) ? 0 : orderPlatformFee;
+
   const paymentProcessorFeeInHostCurrency = 0;
 
   payload.transaction = {

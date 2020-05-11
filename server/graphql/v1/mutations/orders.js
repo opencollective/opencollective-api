@@ -162,6 +162,8 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
       }
     }
 
+    // Some tests are relying on this check being done at that point
+    // Could be moved below at some point (see commented code)
     if (order.platformFeePercent && !remoteUser.isRoot()) {
       throw new Error('Only a root can change the platformFeePercent');
     }
@@ -196,6 +198,20 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
 
     if (order.fromCollective && order.fromCollective.id === collective.id) {
       throw new Error('Orders cannot be created for a collective by that same collective.');
+    }
+
+    /*
+    if (order.platformFeePercent && collective.platformFeePercent) {
+      if (order.platformFeePercent < collective.platformFeePercent && !remoteUser.isRoot()) {
+        throw new Error('Only a root can set a lower platformFeePercent');
+      }
+    }
+    */
+
+    if (order.platformFee) {
+      if (collective.platformFeePercent && !remoteUser.isRoot()) {
+        throw new Error('Only a root can set a platformFee on a collective with non-zero platformFee');
+      }
     }
 
     const host = await collective.getHostCollective();
@@ -428,7 +444,9 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
     } else if (tier && tier.data && tier.data.hostFeePercent !== undefined) {
       orderData.data.hostFeePercent = tier.data.hostFeePercent;
     }
-    if (order.platformFeePercent) {
+    if (order.platformFee) {
+      orderData.data.platformFee = order.platformFee;
+    } else if (order.platformFeePercent) {
       orderData.data.platformFeePercent = order.platformFeePercent;
     } else if (tier && tier.data && tier.data.platformFeePercent !== undefined) {
       orderData.data.platformFeePercent = tier.data.platformFeePercent;
