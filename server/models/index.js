@@ -18,6 +18,7 @@ export function setupModels(client) {
     'ConnectedAccount',
     'Collective',
     'Comment',
+    'CommentReaction',
     'Conversation',
     'ConversationFollower',
     'Expense',

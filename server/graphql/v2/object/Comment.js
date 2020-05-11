@@ -1,5 +1,6 @@
 import { GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
+import { GraphQLJSONObject } from 'graphql-type-json';
 
 import { collectiveResolver, fromCollectiveResolver, getStripTagsResolver } from '../../common/comment';
 import { getIdEncodeResolver } from '../identifiers';
@@ -31,6 +32,17 @@ const Comment = new GraphQLObjectType({
       account: {
         type: Account,
         resolve: collectiveResolver,
+      },
+      reactions: {
+        type: GraphQLJSONObject,
+        async resolve(comment, args, req) {
+          const reactions = await req.loaders.Comment.reactionsByCommentId.load(comment.id);
+          const emojiMap = {};
+          reactions.forEach(item => {
+            emojiMap[item.emoji] = item.count;
+          });
+          return emojiMap;
+        },
       },
       // Deprecated
       fromCollective: {
