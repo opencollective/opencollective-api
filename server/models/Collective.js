@@ -1602,8 +1602,8 @@ export default function (Sequelize, DataTypes) {
    * This is a safe version that can only be used by Users and Organizations that are not hosts
    */
   Collective.prototype.updateCurrency = async function (currency, remoteUser) {
-    if (typeof currency === undefined || !remoteUser || currency === this.currency || !remoteUser.isAdmin(this.id)) {
-      return;
+    if (typeof currency === undefined || !remoteUser || !remoteUser.isAdmin(this.id)) {
+      return this;
     }
 
     const error = 'Only Users and Organisation that are not hosts can update currency';
@@ -1624,6 +1624,10 @@ export default function (Sequelize, DataTypes) {
    * This is meant to be used internally, no access control.
    */
   Collective.prototype.setCurrency = async function (currency) {
+    if (currency === this.currency) {
+      return this;
+    }
+
     const isHost = await this.isHost();
     if (isHost) {
       // We only expect currency change at the beginning of the history of the Host
