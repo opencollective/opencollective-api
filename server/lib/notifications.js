@@ -262,29 +262,23 @@ async function notifyByEmail(activity) {
 
       if (activity.data.conversation) {
         notififyConversationFollowers(conversation, activity, { exclude: [activity.UserId] });
-      } else if (activity.UserId === activity.data.UserId) {
-        // if the author of the comment is the one who submitted the expense
+      } else {
+        // Notifiy the admins of the collective
+        notifyAdminsOfCollective(activity.CollectiveId, activity, { exclude: [activity.UserId] });
+
+        // Notifiy the admins of the host (if any)
         const HostCollectiveId = await collective.getHostCollectiveId();
-        // then, if the expense was already approved, we notify the admins of the host
-        if (get(activity, 'data.expense.status') === 'APPROVED') {
-          notifyAdminsOfCollective(HostCollectiveId, activity, {
-            exclude: [activity.UserId],
-          });
-        } else {
-          // or, if the expense hans't been approved yet, we notifiy the admins of the collective and the admins of the host
-          notifyAdminsOfCollective(HostCollectiveId, activity, {
-            exclude: [activity.UserId],
-          });
-          notifyAdminsOfCollective(activity.CollectiveId, activity, {
-            exclude: [activity.UserId],
-          });
+        if (HostCollectiveId) {
+          notifyAdminsOfCollective(HostCollectiveId, activity, { exclude: [activity.UserId] });
         }
-      } else if (activity.data.UserId) {
-        // if the comment was sent by one of the admins of the collective or the host, we just notify the author of the expense
-        activity.data.recipientIsAuthor = true;
-        notifyUserId(activity.data.UserId, activity);
+
+        // Notify the author of the expense
+        if (activity.UserId !== activity.data.UserId) {
+          activity.data.recipientIsAuthor = true;
+          notifyUserId(activity.data.UserId, activity);
+        }
       }
-      // notify the author of the expense (unless it's their own comment)
+
       break;
 
     case activityType.COLLECTIVE_EXPENSE_APPROVED:

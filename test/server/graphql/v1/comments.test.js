@@ -121,7 +121,7 @@ describe('server/graphql/v1/comments', () => {
       html: 'first comment & "love"',
       ExpenseId: expense1.id,
     });
-    await utils.waitForCondition(() => sendEmailSpy.callCount === 1);
+    await utils.waitForCondition(() => sendEmailSpy.callCount >= 1);
   }
 
   function populateComments() {
