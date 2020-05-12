@@ -682,7 +682,7 @@ export async function payExpense(req, args) {
       await payExpenseWithTransferwise(host, payoutMethod, expense, feesInHostCurrency, remoteUser);
       await expense.setProcessing(remoteUser.id);
       // Early return, we'll only mark as Paid when the transaction completes.
-      return;
+      return expense;
     }
   } else if (expense.legacyPayoutMethod === 'manual' || expense.legacyPayoutMethod === 'other') {
     // note: we need to check for manual and other for legacy reasons
