@@ -368,16 +368,16 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
         order.totalAmount = Math.round(order.quantity * tier.amount * (1 + taxPercent / 100));
       }
 
-      const netAmountForCollective = order.totalAmount - order.taxAmount;
+      const netAmountForCollective = order.totalAmount - order.taxAmount - (order.platformFee || 0);
       const expectedAmountForCollective = order.quantity * tier.amount;
       const expectedTaxAmount = Math.round((expectedAmountForCollective * taxPercent) / 100);
-
       if (netAmountForCollective !== expectedAmountForCollective || order.taxAmount !== expectedTaxAmount) {
         const prettyTotalAmount = formatCurrency(order.totalAmount, currency, 2);
         const prettyExpectedAmount = formatCurrency(expectedAmountForCollective, currency, 2);
         const taxInfo = expectedTaxAmount ? ` + ${formatCurrency(expectedTaxAmount, currency, 2)} tax` : '';
+        const platformFeeInfo = order.platformFee ? ` + ${formatCurrency(order.platformFee, currency, 2)} fees` : '';
         throw new Error(
-          `This tier uses a fixed amount. Order total must be ${prettyExpectedAmount}${taxInfo}. You set: ${prettyTotalAmount}`,
+          `This tier uses a fixed amount. Order total must be ${prettyExpectedAmount}${taxInfo}${platformFeeInfo}. You set: ${prettyTotalAmount}`,
         );
       }
     }
