@@ -1,6 +1,7 @@
 import sinon from 'sinon';
 
-import { checkGithubAdmin, checkGithubStars } from '../../server/lib/github';
+import * as github from '../../server/lib/github';
 
-sinon.stub(checkGithubAdmin).withArgs(['testuseradmingithub', 'faketoken']).resolve();
-sinon.stub(checkGithubStars).withArgs(['testuseradmingithub', 'faketoken']).resolve();
+// Stubs for 20-github-e2e-create-collective
+sinon.stub(github, 'checkGithubAdmin').withArgs('testuseradmingithub', 'faketoken').resolves();
+sinon.stub(github, 'checkGithubStars').withArgs('testuseradmingithub', 'faketoken').resolves();
