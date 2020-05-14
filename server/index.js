@@ -10,8 +10,12 @@ import logger from './lib/logger';
 import routes from './routes';
 
 async function init() {
-  const expressApp = express();
+  // Load stubs for E2E tests
+  if (process.env.E2E_TEST) {
+    require('../test/mocks/e2e');
+  }
 
+  const expressApp = express();
   await expressLib(expressApp);
 
   /**
