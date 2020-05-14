@@ -8,12 +8,15 @@ module.exports = {
     `);
 
     // Create Activity > ExpenseId, add an index and fill column
-    await queryInterface.addColumn('Activities', 'ExpenseId', {
-      type: Sequelize.INTEGER,
-      references: { key: 'id', model: 'Expenses' },
-      onDelete: 'CASCADE',
-      onUpdate: 'CASCADE',
-    });
+    const activitiesDefinition = await queryInterface.describeTable('Activities');
+    if (!activitiesDefinition.ExpenseId) {
+      await queryInterface.addColumn('Activities', 'ExpenseId', {
+        type: Sequelize.INTEGER,
+        references: { key: 'id', model: 'Expenses' },
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE',
+      });
+    }
 
     await queryInterface.sequelize.query(`
       CREATE INDEX IF NOT EXISTS activities__expense_id ON public."Activities" USING btree ("ExpenseId")
@@ -22,7 +25,9 @@ module.exports = {
     await queryInterface.sequelize.query(`
       UPDATE "Activities"
       SET "ExpenseId" = ("data" -> 'expense' ->> 'id')::int
+      FROM "Expenses" e
       WHERE "data" -> 'expense' ->> 'id' IS NOT NULL
+      AND e.id = ("data" -> 'expense' ->> 'id')::int
     `);
   },
 
