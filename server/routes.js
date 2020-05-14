@@ -129,6 +129,9 @@ export default app => {
     schema: graphqlSchemaV2,
     introspection: true,
     playground: isDevelopment,
+    engine: {
+      apiKey: get(config, 'graphql.apolloEngineAPIKey'),
+    },
     // Align with behavior from express-graphql
     context: ({ req }) => {
       return req;

@@ -35,6 +35,9 @@ export const generateExpenseActivitiesLoader = (req): DataLoader<number, object>
         CollectiveId: {
           [Op.in]: collectiveIds,
         },
+        ExpenseId: {
+          [Op.in]: expenseIDs,
+        },
         type: {
           [Op.in]: [
             ACTIVITY.COLLECTIVE_EXPENSE_CREATED,
@@ -48,13 +51,6 @@ export const generateExpenseActivitiesLoader = (req): DataLoader<number, object>
             ACTIVITY.COLLECTIVE_EXPENSE_PROCESSING,
             ACTIVITY.COLLECTIVE_EXPENSE_ERROR,
           ],
-        },
-        data: {
-          expense: {
-            id: {
-              [Op.in]: expenseIDs,
-            },
-          },
         },
       },
     });

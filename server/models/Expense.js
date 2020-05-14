@@ -266,6 +266,7 @@ export default function (Sequelize, DataTypes) {
       type,
       UserId: user?.id,
       CollectiveId: this.collective.id,
+      ExpenseId: this.id,
       data: {
         host: get(host, 'minimal'),
         collective: { ...this.collective.minimal, isActive: this.collective.isActive },

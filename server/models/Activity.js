@@ -8,6 +8,38 @@ export default function (Sequelize, DataTypes) {
 
       data: DataTypes.JSONB,
 
+      CollectiveId: {
+        type: DataTypes.INTEGER,
+        references: {
+          model: 'Collectives',
+          key: 'id',
+        },
+      },
+
+      UserId: {
+        type: DataTypes.INTEGER,
+        references: {
+          model: 'Users',
+          key: 'id',
+        },
+      },
+
+      TransactionId: {
+        type: DataTypes.INTEGER,
+        references: {
+          model: 'Transactions',
+          key: 'id',
+        },
+      },
+
+      ExpenseId: {
+        type: DataTypes.INTEGER,
+        references: {
+          model: 'Expenses',
+          key: 'id',
+        },
+      },
+
       createdAt: {
         type: DataTypes.DATE,
         defaultValue: Sequelize.NOW,
