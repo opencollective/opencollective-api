@@ -1,3 +1,6 @@
+#!/usr/bin/env node
+import '../../../env';
+
 import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
 import { get, pick } from 'lodash';
 
@@ -51,8 +54,11 @@ async function createCollective(_, args, req) {
       if (!githubAccount) {
         throw new Error('You must have a connected GitHub Account to create a collective with GitHub.');
       }
-      await github.checkGithubAdmin(githubHandle, githubAccount.token);
-      await github.checkGithubStars(githubHandle, githubAccount.token);
+      // we skip actual Github verification for the fake test user e2e account since it is not possible to fake
+      if (process.env.NODE_ENV !== 'e2e') {
+        await github.checkGithubAdmin(githubHandle, githubAccount.token);
+        await github.checkGithubStars(githubHandle, githubAccount.token);
+      }
       shouldAutomaticallyApprove = true;
     } catch (error) {
       throw new ValidationFailed(error.message);
