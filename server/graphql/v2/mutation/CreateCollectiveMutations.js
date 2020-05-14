@@ -55,7 +55,7 @@ async function createCollective(_, args, req) {
         throw new Error('You must have a connected GitHub Account to create a collective with GitHub.');
       }
       // we skip actual Github verification for the fake test user e2e account since it is not possible to fake
-      if (process.env.NODE_ENV !== 'e2e') {
+      if (process.env.NODE_ENV !== 'e2e' && process.env.NODE_ENV !== 'ci') {
         await github.checkGithubAdmin(githubHandle, githubAccount.token);
         await github.checkGithubStars(githubHandle, githubAccount.token);
       }
