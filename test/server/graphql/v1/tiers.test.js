@@ -330,6 +330,7 @@ describe('server/graphql/v1/tiers', () => {
       const createOrderQuery = `
         mutation createOrder($order: OrderInputType!) {
           createOrder(order: $order) {
+            id
             taxAmount
             data
             transactions {
@@ -466,6 +467,40 @@ describe('server/graphql/v1/tiers', () => {
         expect(queryResult.errors[0].message).to.equal(
           'This tier uses a fixed amount. Order total must be $50.00 + $10.50 tax. You set: $50.00',
         );
+      });
+
+      it('rejects invalid platform fees', async () => {
+        const order = {
+          description: 'test order with platform fees',
+          collective: { id: collective1.id },
+          tier: { id: tierProduct.id },
+          paymentMethod: { uuid: paymentMethod1.uuid },
+          totalAmount: tierProduct.amount + 1050,
+          taxAmount: 1050,
+          platformFee: 30,
+          countryISO: 'BE',
+        };
+
+        const queryResult = await utils.graphqlQuery(createOrderQuery, { order }, user1);
+        expect(queryResult.errors[0].message).to.equal(
+          'This tier uses a fixed amount. Order total must be $50.00 + $10.50 tax + $0.30 fees. You set: $60.50',
+        );
+      });
+
+      it('works with valid platform fees', async () => {
+        const order = {
+          description: 'test order with platform fees',
+          collective: { id: collective1.id },
+          tier: { id: tierProduct.id },
+          paymentMethod: { uuid: paymentMethod1.uuid },
+          totalAmount: tierProduct.amount + 1050 + 30,
+          taxAmount: 1050,
+          platformFee: 30,
+          countryISO: 'BE',
+        };
+
+        const queryResult = await utils.graphqlQuery(createOrderQuery, { order }, user1);
+        expect(queryResult.data.createOrder.id).to.exist;
       });
     });
   });
