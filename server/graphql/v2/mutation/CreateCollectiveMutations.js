@@ -51,6 +51,7 @@ async function createCollective(_, args, req) {
       if (!githubAccount) {
         throw new Error('You must have a connected GitHub Account to create a collective with GitHub.');
       }
+      // In e2e/CI environment, checkGithubAdmin and checkGithubStars will be stubbed
       await github.checkGithubAdmin(githubHandle, githubAccount.token);
       await github.checkGithubStars(githubHandle, githubAccount.token);
       shouldAutomaticallyApprove = true;
