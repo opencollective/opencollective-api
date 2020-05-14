@@ -12,7 +12,8 @@
         "max": 10,
         "acquire": 1200000
       },
-      "logging": false
+      "logging": false,
+      "benchmark": true
     }
   },
   "maintenancedb": {
