@@ -1,6 +1,3 @@
-#!/usr/bin/env node
-import '../../../env';
-
 import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
 import { get, pick } from 'lodash';
 
