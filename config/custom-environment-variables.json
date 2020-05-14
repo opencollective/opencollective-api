@@ -21,6 +21,9 @@
       }
     }
   },
+  "graphql": {
+    "apolloEngineAPIKey": "APOLLO_ENGINE_API_KEY"
+  },
   "memcache": {
     "servers": "MEMCACHE_SERVERS",
     "username": "MEMCACHE_USERNAME",
