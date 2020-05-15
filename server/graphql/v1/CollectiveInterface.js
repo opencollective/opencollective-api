@@ -9,6 +9,7 @@ import {
 } from 'graphql';
 import GraphQLJSON from 'graphql-type-json';
 import { get, has, sortBy } from 'lodash';
+import moment from 'moment';
 import sequelize from 'sequelize';
 import SqlString from 'sequelize/lib/sql-string';
 
@@ -463,10 +464,20 @@ export const CollectiveStatsType = new GraphQLObjectType({
         args: {
           startDate: { type: DateString },
           endDate: { type: DateString },
+          periodInMonths: {
+            type: GraphQLInt,
+            description: 'Computes contributions from the last x months. Cannot be used with startDate/endDate',
+          },
         },
         resolve(collective, args) {
-          const startDate = args.startDate ? new Date(args.startDate) : null;
-          const endDate = args.endDate ? new Date(args.endDate) : null;
+          let startDate = args.startDate ? new Date(args.startDate) : null;
+          let endDate = args.endDate ? new Date(args.endDate) : null;
+
+          if (args.periodInMonths) {
+            startDate = moment().subtract(args.periodInMonths, 'months').seconds(0).milliseconds(0).toDate();
+            endDate = null;
+          }
+
           return collective.getTotalAmountReceived(startDate, endDate);
         },
       },
