@@ -44,6 +44,16 @@ export default function (Sequelize, DataTypes) {
       payeeLocation: {
         type: DataTypes.JSONB,
         allowNull: true,
+        set(value) {
+          if (!value) {
+            this.setDataValue('payeeLocation', null);
+          } else {
+            this.setDataValue('payeeLocation', {
+              address: value.address?.trim(),
+              country: value.country,
+            });
+          }
+        },
         validate: {
           isValidLocation(value) {
             if (!value) {
@@ -88,6 +98,9 @@ export default function (Sequelize, DataTypes) {
       description: {
         type: DataTypes.STRING,
         allowNull: false,
+        set(value) {
+          this.setDataValue('description', value?.trim());
+        },
       },
 
       /**
@@ -231,6 +244,15 @@ export default function (Sequelize, DataTypes) {
         },
       },
       hooks: {
+        beforeCreate(expense) {
+          if (expense.type === expenseType.INVOICE) {
+            if (!expense.payeeLocation || !expense.payeeLocation.address || !expense.payeeLocation.country) {
+              throw new Error(
+                'Expenses with "Invoice" type must have a valid address and country for payee\'s location',
+              );
+            }
+          }
+        },
         afterDestroy(expense) {
           return models.ExpenseItem.destroy({ where: { ExpenseId: expense.id } });
         },

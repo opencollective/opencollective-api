@@ -218,6 +218,7 @@ export const fakeExpense = async (expenseData = {}) => {
     tags: ['Engineering'],
     description: randStr('Test expense '),
     incurredAt: new Date(),
+    payeeLocation: { country: 'FR', address: randStr() },
     ...expenseData,
     FromCollectiveId: expenseData.FromCollectiveId || user.CollectiveId,
     CollectiveId: expenseData.CollectiveId || (await fakeCollective()).id,
