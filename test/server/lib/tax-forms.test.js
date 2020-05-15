@@ -65,6 +65,7 @@ describe('server/lib/tax-forms', () => {
       createdAt: incurredAt,
       CollectiveId,
       type: type || INVOICE,
+      payeeLocation: { country: 'BE', address: 'A valid address' },
     };
   }
 
