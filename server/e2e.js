@@ -1,5 +1,6 @@
 import './index';
 
+// eslint-disable-next-line node/no-unpublished-import
 import sinon from 'sinon';
 
 import * as github from './lib/github';
