@@ -20,7 +20,7 @@ import cacheMiddleware from '../middleware/cache';
 
 import forest from './forest';
 import logger from './logger';
-import { sanitizeForLogs } from './utils';
+import { parseToBoolean, sanitizeForLogs } from './utils';
 
 export default async function (app) {
   app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal'].concat(cloudflareIps));
@@ -76,7 +76,7 @@ export default async function (app) {
   }
 
   // Cache Middleware
-  if (get(config, 'cache.middleware')) {
+  if (parseToBoolean(get(config, 'cache.middleware'))) {
     app.use(cacheMiddleware());
   }
 
