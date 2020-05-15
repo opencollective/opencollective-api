@@ -269,18 +269,16 @@ const generateEmailFromTemplate = (template, recipient, data = {}, options = {})
 
   if (template === 'thankyou') {
     if (slug.match(/wwcode/)) {
-      template += '.wwcode';
-    }
-
-    if (includes(['chsf', 'kendraio', 'brusselstogether', 'sustainoss', 'ispcwa'], slug)) {
+      template = 'thankyou.wwcode';
+    } else if (['foundation'].includes(hostSlug)) {
+      template = `thankyou.${hostSlug}`;
+    } else if (includes(['chsf', 'kendraio', 'brusselstogether', 'sustainoss', 'ispcwa'], slug)) {
       template = `thankyou.${slug}`;
-    }
-
-    if (includes(['laprimaire', 'lesbarbares', 'nuitdebout', 'enmarchebe', 'monnaie-libre'], slug)) {
-      template += '.fr';
-
+    } else if (includes(['laprimaire', 'lesbarbares', 'nuitdebout', 'enmarchebe', 'monnaie-libre'], slug)) {
       if (slug === 'laprimaire') {
         template = 'thankyou.laprimaire';
+      } else {
+        template = 'thankyou.fr';
       }
 
       // xdamman: hack
