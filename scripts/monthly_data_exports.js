@@ -1,3 +1,6 @@
+#!/usr/bin/env node
+import '../server/env';
+
 import fs from 'fs';
 
 import Promise from 'bluebird';
@@ -6,14 +9,14 @@ import moment from 'moment';
 
 import models, { sequelize } from '../server/models';
 
-const GoogleDrivePath = process.env.OC_GOOGLE_DRIVE || `${process.env.HOME}/Google\ Drive/Open\ Collective`;
+// const GoogleDrivePath = process.env.OC_GOOGLE_DRIVE || `${process.env.HOME}/Google\ Drive/Open\ Collective`;
 
-if (!fs.existsSync(GoogleDrivePath)) {
-  console.error('error');
-  console.log(`Please make sure the Open Collective Drive is synchronized locally to ${GoogleDrivePath}.`);
-  console.log('You can override the default location with the env variable OC_GOOGLE_DRIVE');
-  process.exit(0);
-}
+// if (!fs.existsSync(GoogleDrivePath)) {
+//   console.error('error');
+//   console.log(`Please make sure the Open Collective Drive is synchronized locally to ${GoogleDrivePath}.`);
+//   console.log('You can override the default location with the env variable OC_GOOGLE_DRIVE');
+//   process.exit(0);
+// }
 
 const queries = [
   {
@@ -102,7 +105,9 @@ if (month < 10) {
   month = `0${month}`;
 }
 
-const path = `${GoogleDrivePath}/Open Data/${startDate.getFullYear()}-${month}`;
+// const path = `${GoogleDrivePath}/Open Data/${startDate.getFullYear()}-${month}`;
+const path = `${startDate.getFullYear()}-${month}`;
+
 try {
   console.log('>>> mkdir', path);
   fs.mkdirSync(path);
