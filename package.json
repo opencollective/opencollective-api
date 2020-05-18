@@ -83,7 +83,7 @@
     "passport-twitter": "1.0.4",
     "paypal-adaptive": "0.4.2",
     "pg": "8.2.1",
-    "pg-connection-string": "2.2.2",
+    "pg-connection-string": "2.2.3",
     "pg-format": "1.0.4",
     "prepend-http": "3.0.1",
     "redis": "3.0.2",
