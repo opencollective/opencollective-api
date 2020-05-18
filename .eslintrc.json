@@ -22,7 +22,7 @@
     "camelcase": "error",
     // simple-import-sort
     "simple-import-sort/sort": [
-      "warn",
+      "error",
       {
         "groups": [
           // Side effect imports.
