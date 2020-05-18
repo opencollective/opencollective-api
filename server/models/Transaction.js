@@ -7,6 +7,7 @@ import { v4 as uuid } from 'uuid';
 import activities from '../constants/activities';
 import { TransactionTypes } from '../constants/transactions';
 import { toNegative } from '../lib/math';
+import { calcFee } from '../lib/payments';
 import { exportToCSV } from '../lib/utils';
 
 import CustomDataTypes from './DataTypes';
@@ -528,5 +529,35 @@ export default (Sequelize, DataTypes) => {
         )
     );
   };
+
+  Transaction.creditHost = (order, collective) => {
+    // Special Case, adding funds to itself
+    const amount = order.totalAmount;
+    const platformFeePercent = get(order, 'data.platformFeePercent', 0);
+    const platformFee = calcFee(order.totalAmount, platformFeePercent);
+    const payload = {
+      type: 'CREDIT',
+      amount,
+      description: order.description,
+      currency: order.currency,
+      CollectiveId: order.CollectiveId,
+      FromCollectiveId: null,
+      CreatedByUserId: order.CreatedByUserId,
+      PaymentMethodId: order.PaymentMethodId,
+      OrderId: order.id,
+      platformFeeInHostCurrency: -platformFee,
+      hostFeeInHostCurrency: 0,
+      paymentProcessorFeeInHostCurrency: 0,
+      HostCollectiveId: collective.id,
+      hostCurrency: collective.currency,
+      hostCurrencyFxRate: 1,
+      amountInHostCurrency: amount,
+      netAmountInCollectiveCurrency: amount - platformFee,
+      TransactionGroup: uuid(),
+    };
+
+    return models.Transaction.create(payload);
+  };
+
   return Transaction;
 };

@@ -222,8 +222,12 @@ export async function createExpense(remoteUser, expenseData) {
   const collective = await models.Collective.findByPk(expenseData.collective.id);
   if (!collective) {
     throw new ValidationFailed('Collective not found');
-  } else if (![collectiveTypes.COLLECTIVE, collectiveTypes.EVENT].includes(collective.type)) {
-    throw new ValidationFailed('Expenses can only be submitted to collectives and events');
+  }
+
+  const isCollectiveOrEvent = [collectiveTypes.COLLECTIVE, collectiveTypes.EVENT].includes(collective.type);
+  const isActiveHost = collective.type === collectiveTypes.ORGANIZATION && collective.isActive;
+  if (!isCollectiveOrEvent && !isActiveHost) {
+    throw new ValidationFailed('Expenses can only be submitted to collectives, events or active hosts.');
   }
 
   // Load the payee profile

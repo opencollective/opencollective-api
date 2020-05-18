@@ -95,6 +95,14 @@ const accountFieldsDefinition = () => ({
     type: GraphQLBoolean,
     description: 'Returns whether this account is archived',
   },
+  isActive: {
+    type: GraphQLBoolean,
+    description: 'Returns whether the account accepts financial contributions.',
+  },
+  isHost: {
+    type: GraphQLBoolean,
+    description: 'Returns whether the account is setup to Host collectives.',
+  },
   members: {
     type: MemberCollection,
     args: {
@@ -339,6 +347,13 @@ export const AccountFields = {
     description: 'Returns whether this account is archived',
     resolve(collective) {
       return Boolean(collective.deactivatedAt);
+    },
+  },
+  isHost: {
+    type: GraphQLBoolean,
+    description: 'Returns whether the account is setup to Host collectives.',
+    resolve(collective) {
+      return Boolean(collective.isHostAccount);
     },
   },
   ...HasMembersFields,
