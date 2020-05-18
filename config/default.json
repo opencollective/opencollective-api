@@ -60,9 +60,6 @@
   "email": {
     "from": "Open Collective <info@opencollective.com>"
   },
-  "cache": {
-    "middleware": false
-  },
   "log": {
     "level": "info",
     "accessLogs": false,

@@ -516,21 +516,6 @@ export function isUUID(str) {
   return str.length === 36 && str.match(/^[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i);
 }
 
-export function hashCode(str) {
-  let hash = 0,
-    i,
-    chr;
-  if (str.length === 0) {
-    return hash;
-  }
-  for (i = 0; i < str.length; i++) {
-    chr = str.charCodeAt(i);
-    hash = (hash << 5) - hash + chr;
-    hash |= 0; // Convert to 32bit integer
-  }
-  return hash;
-}
-
 /** Sleeps for MS milliseconds */
 export function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
