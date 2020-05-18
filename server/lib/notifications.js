@@ -287,6 +287,10 @@ async function notifyByEmail(activity) {
       };
       if (get(activity.data, 'payoutMethod.type') === PayoutMethodTypes.PAYPAL) {
         activity.data.expense.payoutMethodLabel = `PayPal (${get(activity.data, 'payoutMethod.data.email')})`;
+      } else if (get(activity.data, 'payoutMethod.type') === PayoutMethodTypes.BANK_ACCOUNT) {
+        activity.data.expense.payoutMethodLabel = 'Wire Transfer';
+      } else {
+        activity.data.expense.payoutMethodLabel = 'Other';
       }
       notifyUserId(activity.data.expense.UserId, activity);
       // We only notify the admins of the host if the collective is active (ie. has been approved by the host)
