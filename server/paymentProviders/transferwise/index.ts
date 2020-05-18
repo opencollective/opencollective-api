@@ -15,6 +15,14 @@ export const blackListedCurrencies = [
   /** Incomplete requiredFields API or MVP form support */
   'UYU',
   'KRW',
+  'GHS',
+  'HKD',
+  'ILS',
+  'INR',
+  'JPY',
+  'LKR',
+  'SGD',
+  'VND',
 ];
 
 async function populateProfileId(connectedAccount): Promise<void> {
