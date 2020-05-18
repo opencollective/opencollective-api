@@ -34,7 +34,7 @@ export const Order = new GraphQLObjectType({
       amount: {
         type: Amount,
         resolve(order) {
-          return { value: order.totalAmount };
+          return { value: order.totalAmount, currency: order.currency };
         },
       },
       status: {
@@ -94,13 +94,14 @@ export const Order = new GraphQLObjectType({
       },
       totalDonations: {
         type: Amount,
-        description: 'UNSUPPORTED: Total amount donated between collectives',
+        description:
+          'WARNING: Total amount donated between collectives, though there will be edge cases especially when looking on the Order level, as the order id is not used in calculating this.',
         async resolve(order, args, req) {
           const value = await req.loaders.Transaction.totalAmountDonatedFromTo.load({
             FromCollectiveId: order.FromCollectiveId,
             CollectiveId: order.CollectiveId,
           });
-          return { value };
+          return { value, currency: order.currency };
         },
       },
     };
