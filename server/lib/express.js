@@ -16,11 +16,10 @@ import { Strategy as TwitterStrategy } from 'passport-twitter';
 import redis from 'redis';
 
 import { loadersMiddleware } from '../graphql/loaders';
-import cacheMiddleware from '../middleware/cache';
 
 import forest from './forest';
 import logger from './logger';
-import { parseToBoolean, sanitizeForLogs } from './utils';
+import { sanitizeForLogs } from './utils';
 
 export default async function (app) {
   app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal'].concat(cloudflareIps));
@@ -73,11 +72,6 @@ export default async function (app) {
       };
       next();
     });
-  }
-
-  // Cache Middleware
-  if (parseToBoolean(get(config, 'cache.middleware'))) {
-    app.use(cacheMiddleware());
   }
 
   // Error handling.
