@@ -81,6 +81,7 @@ describe('cron/hourly/check-pending-transferwise-transactions.js', () => {
   });
 
   it('should ignore expenses manually marked as paid', async () => {
+    getTransfer.resolves({ status: 'outgoing_payment_sent' });
     const manualExpense = await fakeExpense({
       status: status.PAID,
       amount: 10000,
