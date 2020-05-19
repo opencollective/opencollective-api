@@ -43,6 +43,13 @@ export const Collective = new GraphQLObjectType({
           return collective.isApproved();
         },
       },
+      isActive: {
+        description: 'Returns whether this collective is active',
+        type: GraphQLBoolean,
+        resolve(collective) {
+          return Boolean(collective.isActive);
+        },
+      },
       totalFinancialContributors: {
         description: 'Number of unique financial contributors of the collective.',
         type: GraphQLInt,
