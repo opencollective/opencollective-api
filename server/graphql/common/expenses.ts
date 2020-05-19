@@ -237,6 +237,6 @@ export const rejectExpense = async (req, expense): Promise<typeof models.Expense
   }
 
   const updatedExpense = await expense.update({ status: expenseStatus.REJECTED, lastEditedById: req.remoteUser.id });
-  await expense.createActivity(activities.COLLECTIVE_EXPENSE_APPROVED, req.remoteUser);
+  await expense.createActivity(activities.COLLECTIVE_EXPENSE_REJECTED, req.remoteUser);
   return updatedExpense;
 };
