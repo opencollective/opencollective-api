@@ -336,6 +336,7 @@ export async function sendFailedEmail(order, lastAttempt) {
 export async function sendThankYouEmail(order, transaction) {
   const relatedCollectives = await order.collective.getRelatedCollectives(3, 0);
   const user = order.createdByUser;
+  const host = await order.collective.getHostCollective();
 
   if (isHostPlan(order)) {
     return emailLib.send(
@@ -357,6 +358,7 @@ export async function sendThankYouEmail(order, transaction) {
       user: user.info,
       firstPayment: false,
       collective: order.collective.info,
+      host: host ? host.info : {},
       fromCollective: order.fromCollective.minimal,
       relatedCollectives,
       config: { host: config.host },

@@ -359,6 +359,7 @@ const validatePayment = payment => {
 const sendOrderConfirmedEmail = async order => {
   const { collective, tier, interval, fromCollective } = order;
   const user = order.createdByUser;
+  const host = await collective.getHostCollective();
 
   if (tier && tier.type === tiers.TICKET) {
     return models.Activity.create({
@@ -369,6 +370,7 @@ const sendOrderConfirmedEmail = async order => {
         recipient: { name: fromCollective.name },
         order: pick(order, ['totalAmount', 'currency', 'createdAt', 'quantity']),
         tier: tier && tier.info,
+        host: host ? host.info : {},
       },
     });
   } else {
@@ -382,6 +384,7 @@ const sendOrderConfirmedEmail = async order => {
       transaction: pick(order.transaction, ['createdAt', 'uuid']),
       user: user.info,
       collective: collective.info,
+      host: host ? host.info : {},
       fromCollective: fromCollective.minimal,
       interval,
       relatedCollectives,
