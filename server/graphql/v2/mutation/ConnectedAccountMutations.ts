@@ -2,6 +2,7 @@ import { GraphQLNonNull } from 'graphql';
 import { pick } from 'lodash';
 
 import { Service } from '../../../constants/connected_account';
+import * as paypal from '../../../lib/paypal';
 import * as transferwise from '../../../lib/transferwise';
 import models from '../../../models';
 import { Unauthorized, ValidationFailed } from '../../errors';
@@ -37,20 +38,29 @@ const connectedAccountMutations = {
         throw new Unauthorized("You don't have permission to edit this collective");
       }
 
-      if (args.connectedAccount.service === Service.TRANSFERWISE) {
+      if ([Service.TRANSFERWISE, Service.PAYPAL].includes(args.connectedAccount.service)) {
         if (!args.connectedAccount.token) {
-          throw new ValidationFailed('A token is required for TransferWise accounts');
+          throw new ValidationFailed('A token is required');
         }
         const sameTokenCount = await models.ConnectedAccount.count({
-          where: { service: Service.TRANSFERWISE, token: args.connectedAccount.token },
+          where: { token: args.connectedAccount.token },
         });
         if (sameTokenCount > 0) {
           throw new ValidationFailed('This token is already being used');
         }
-        try {
-          await transferwise.getProfiles(args.connectedAccount.token);
-        } catch (e) {
-          throw new ValidationFailed('The token is not a valid TransferWise token');
+
+        if (args.connectedAccount.service === Service.TRANSFERWISE) {
+          try {
+            await transferwise.getProfiles(args.connectedAccount.token);
+          } catch (e) {
+            throw new ValidationFailed('The token is not a valid TransferWise token');
+          }
+        } else if (args.connectedAccount.service === Service.PAYPAL) {
+          try {
+            await paypal.validateConnectedAccount(args.connectedAccount);
+          } catch (e) {
+            throw new ValidationFailed('The Client ID and Token are not a valid combination');
+          }
         }
       }
 
