@@ -29,6 +29,7 @@ export default {
   COLLECTIVE_USER_ADDED: 'collective.user.added',
   COLLECTIVE_CONTACT: 'collective.contact',
   ORGANIZATION_COLLECTIVE_CREATED: 'organization.collective.created',
+  SUBSCRIPTION_ACTIVATED: 'subscription.activated',
   SUBSCRIPTION_CONFIRMED: 'subscription.confirmed',
   SUBSCRIPTION_CANCELED: 'subscription.canceled',
   TICKET_CONFIRMED: 'ticket.confirmed',
