@@ -270,7 +270,7 @@ const generateEmailFromTemplate = (template, recipient, data = {}, options = {})
   if (template === 'thankyou') {
     if (slug.match(/wwcode/)) {
       template = 'thankyou.wwcode';
-    } else if (['foundation'].includes(hostSlug)) {
+    } else if (['foundation', 'opensource'].includes(hostSlug)) {
       template = `thankyou.${hostSlug}`;
     } else if (includes(['chsf', 'kendraio', 'brusselstogether', 'sustainoss', 'ispcwa'], slug)) {
       template = `thankyou.${slug}`;
