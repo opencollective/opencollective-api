@@ -17,7 +17,7 @@ Subject: Thank you for your {{{currency order.totalAmount currency=order.currenc
 {{#if interval}}
   {{#if firstPayment }}
     <p>We would like to thank you for your pledge to give {{{currency order.totalAmount currency=order.currency}}} per {{interval}}.
-      Your first payment was received on {{{moment order.createdAt}}}. As the collective's fiscal sponsor, Open Source Collective, a public recognized tax-exempt organization under IRS Section 501(c)(6), acknowledges your donation.</p>
+      Your first payment was received on {{{moment order.createdAt}}}. As the collective's fiscal sponsor, Open Source Collective, a public recognized tax-exempt organization under IRS Section 501(c)6, acknowledges your donation.</p>
       {{> charge_date_notice}}
   {{else}}
     <p>We would like to thank you for your continued support. Your latest {{interval}}ly contribution of {{{currency order.totalAmount currency=order.currency}}} was received on {{{moment transaction.createdAt}}}.
