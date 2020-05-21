@@ -188,6 +188,7 @@ export const Currency = new GraphQLEnumType({
     'JPY',
     'NZD',
     'NGN',
+    'CZK',
   ]),
 });
 
