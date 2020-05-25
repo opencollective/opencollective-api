@@ -43,7 +43,7 @@ const connectedAccountMutations = {
           throw new ValidationFailed('A token is required');
         }
         const sameTokenCount = await models.ConnectedAccount.count({
-          where: { token: args.connectedAccount.token },
+          where: { token: args.connectedAccount.token, service: args.connectedAccount.service },
         });
         if (sameTokenCount > 0) {
           throw new ValidationFailed('This token is already being used');

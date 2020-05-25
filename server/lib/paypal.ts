@@ -16,7 +16,5 @@ const getPayPalClient = ({ token, clientId }: ConnectedAccount) => {
 
 export const validateConnectedAccount = async ({ token, clientId }: ConnectedAccount): Promise<void> => {
   const paypal = getPayPalClient({ token, clientId });
-  console.log(paypal.execute);
-  const t = await paypal.fetchAccessToken();
-  console.log('token', t);
+  await paypal.fetchAccessToken();
 };
