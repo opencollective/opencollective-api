@@ -64,17 +64,17 @@ export const canSeeExpenseAttachments = async (req, expense): Promise<boolean> =
 
 /** Checks if the user can see expense's payout method */
 export const canSeeExpensePayoutMethod = async (req, expense): Promise<boolean> => {
-  return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin]);
+  return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin]);
 };
 
 /** Checks if the user can see expense's payout method */
 export const canSeeExpenseInvoiceInfo = async (req, expense): Promise<boolean> => {
-  return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin]);
+  return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin]);
 };
 
 /** Checks if the user can see expense's payout method */
 export const canSeeExpensePayeeLocation = async (req, expense): Promise<boolean> => {
-  return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin]);
+  return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin]);
 };
 
 /**

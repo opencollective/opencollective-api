@@ -18,11 +18,12 @@ const EXPENSE_QUERY = `
 
 describe('server/graphql/v2/query/ExpenseQuery', () => {
   describe('Payout method', () => {
-    it('can only see data if owner or host admin', async () => {
+    it('can only see data if owner, or collective/host admin', async () => {
       // Create data
       const ownerUser = await fakeUser();
       const hostAdminuser = await fakeUser();
       const collectiveAdminUser = await fakeUser();
+      const randomUser = await fakeUser();
       const host = await fakeCollective({ admin: hostAdminuser.collective });
       const collective = await fakeCollective({ admin: collectiveAdminUser.collective, HostCollectiveId: host.id });
       const payoutMethod = await fakePayoutMethod({ type: 'OTHER', data: { content: 'Test content' } });
@@ -38,10 +39,12 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
       const resultAsOwner = await graphqlQueryV2(EXPENSE_QUERY, queryParams, ownerUser);
       const resultAsCollectiveAdmin = await graphqlQueryV2(EXPENSE_QUERY, queryParams, collectiveAdminUser);
       const resultAsHostAdmin = await graphqlQueryV2(EXPENSE_QUERY, queryParams, hostAdminuser);
+      const resultAsRandomUser = await graphqlQueryV2(EXPENSE_QUERY, queryParams, randomUser);
 
       // Check results
       expect(resultUnauthenticated.data.expense.payoutMethod.data).to.be.null;
-      expect(resultAsCollectiveAdmin.data.expense.payoutMethod.data).to.be.null;
+      expect(resultAsRandomUser.data.expense.payoutMethod.data).to.be.null;
+      expect(resultAsCollectiveAdmin.data.expense.payoutMethod.data).to.deep.equal(payoutMethod.data);
       expect(resultAsOwner.data.expense.payoutMethod.data).to.deep.equal(payoutMethod.data);
       expect(resultAsHostAdmin.data.expense.payoutMethod.data).to.deep.equal(payoutMethod.data);
     });
