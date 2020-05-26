@@ -3,8 +3,12 @@
  *
  * pending -> rejected
  * pending -> approved -> paid
- * pending -> approved -> processing -> paid [On async transfers like TransferWise]
- * pending -> approved -> processing -> error [On async transfers like TransferWise]
+ * TransferWise:
+ * pending -> approved -> processing -> paid
+ * pending -> approved -> processing -> error
+ * PayPal Payouts:
+ * pending -> approved -> scheduled_for_payment -> paid
+ * pending -> approved -> scheduled_for_payment -> error
  */
 
 export default {
@@ -14,4 +18,5 @@ export default {
   PROCESSING: 'PROCESSING',
   ERROR: 'ERROR',
   PAID: 'PAID',
+  SCHEDULED_FOR_PAYMENT: 'SCHEDULED_FOR_PAYMENT',
 };

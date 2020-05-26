@@ -2,7 +2,13 @@ import { GraphQLBoolean, GraphQLInputObjectType, GraphQLInt, GraphQLNonNull } fr
 import { pick } from 'lodash';
 
 import models from '../../../models';
-import { approveExpense, canDeleteExpense, rejectExpense, unapproveExpense } from '../../common/expenses';
+import {
+  approveExpense,
+  canDeleteExpense,
+  rejectExpense,
+  scheduleExpenseForPayment,
+  unapproveExpense,
+} from '../../common/expenses';
 import { NotFound, Unauthorized } from '../../errors';
 import {
   createExpense as createExpenseLegacy,
@@ -187,6 +193,8 @@ const expenseMutations = {
           return rejectExpense(req, expense);
         case 'MARK_AS_UNPAID':
           return markExpenseAsUnpaidLegacy(req, expense.id, args.paymentParams?.paymentProcessorFee);
+        case 'SCHEDULE_FOR_PAYMENT':
+          return scheduleExpenseForPayment(req, expense);
         case 'PAY':
           return payExpenseLegacy(req, {
             id: expense.id,

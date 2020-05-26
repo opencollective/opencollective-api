@@ -630,5 +630,69 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.errors[0].message).to.eq("You don't have permission to mark this expense as unpaid");
       });
     });
+
+    describe('SCHEDULE_FOR_PAYMENT', () => {
+      it('Needs to be authenticated', async () => {
+        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'APPROVED' });
+        const mutationParams = { expenseId: expense.id, action: 'SCHEDULE_FOR_PAYMENT' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('You need to be authenticated to perform this action');
+      });
+
+      it('User cannot schedule their own expenses for payment', async () => {
+        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'APPROVED' });
+        const mutationParams = { expenseId: expense.id, action: 'SCHEDULE_FOR_PAYMENT' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, expense.User);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq("You're authenticated but you can't schedule this expense for payment");
+      });
+
+      it('Collective admins cannot schedule expenses for payment', async () => {
+        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'APPROVED' });
+        const mutationParams = { expenseId: expense.id, action: 'SCHEDULE_FOR_PAYMENT' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, collectiveAdmin);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq("You're authenticated but you can't schedule this expense for payment");
+      });
+
+      it('Expense needs to be approved', async () => {
+        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'REJECTED' });
+        const mutationParams = { expenseId: expense.id, action: 'SCHEDULE_FOR_PAYMENT' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq("You're authenticated but you can't schedule this expense for payment");
+      });
+
+      it('Schedules the expense for payment', async () => {
+        const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+        const expense = await fakeExpense({
+          amount: 1000,
+          CollectiveId: collective.id,
+          status: 'APPROVED',
+          PayoutMethodId: payoutMethod.id,
+        });
+
+        const mutationParams = { expenseId: expense.id, action: 'SCHEDULE_FOR_PAYMENT' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+        expect(result.data.processExpense.status).to.eq('SCHEDULED_FOR_PAYMENT');
+      });
+
+      it('Cannot scheduled for payment twice', async () => {
+        const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+        const expense = await fakeExpense({
+          amount: 1000,
+          CollectiveId: collective.id,
+          status: 'SCHEDULED_FOR_PAYMENT',
+          PayoutMethodId: payoutMethod.id,
+        });
+
+        // Updates the collective balance and pay the expense
+        const mutationParams = { expenseId: expense.id, action: 'SCHEDULE_FOR_PAYMENT' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('Expense is already scheduled for payment');
+      });
+    });
   });
 });

@@ -4,7 +4,7 @@ import { canUseFeature } from '../../lib/user-permissions';
 import models from '../../models';
 import { ExpenseItem } from '../../models/ExpenseItem';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
-import { Forbidden } from '../errors';
+import { BadRequest, Forbidden } from '../errors';
 
 const isOwner = async (req, expense): Promise<boolean> => {
   if (!req.remoteUser) {
@@ -238,5 +238,20 @@ export const rejectExpense = async (req, expense): Promise<typeof models.Expense
 
   const updatedExpense = await expense.update({ status: expenseStatus.REJECTED, lastEditedById: req.remoteUser.id });
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_REJECTED, req.remoteUser);
+  return updatedExpense;
+};
+
+export const scheduleExpenseForPayment = async (req, expense): Promise<typeof models.Expense> => {
+  if (expense.status === expenseStatus.SCHEDULED_FOR_PAYMENT) {
+    throw new BadRequest('Expense is already scheduled for payment');
+  } else if (!(await canPayExpense(req, expense))) {
+    throw new Forbidden("You're authenticated but you can't schedule this expense for payment");
+  }
+
+  const updatedExpense = await expense.update({
+    status: expenseStatus.SCHEDULED_FOR_PAYMENT,
+    lastEditedById: req.remoteUser.id,
+  });
+  await expense.createActivity(activities.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT, req.remoteUser);
   return updatedExpense;
 };

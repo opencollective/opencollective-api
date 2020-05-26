@@ -21,6 +21,7 @@ export default {
   COLLECTIVE_EXPENSE_PAID: 'collective.expense.paid',
   COLLECTIVE_EXPENSE_MARKED_AS_UNPAID: 'collective.expense.unpaid',
   COLLECTIVE_EXPENSE_PROCESSING: 'collective.expense.processing',
+  COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT: 'collective.expense.scheduledForPayment',
   COLLECTIVE_EXPENSE_ERROR: 'collective.expense.error',
   COLLECTIVE_MEMBER_CREATED: 'collective.member.created',
   COLLECTIVE_TRANSACTION_CREATED: 'collective.transaction.created',
