@@ -285,6 +285,7 @@ export default {
         'Your card was declined.',
         'Your card does not support this type of purchase.',
         'Your card has expired.',
+        "Your card's security code is incorrect",
         'Payment Intent require action',
       ];
 
