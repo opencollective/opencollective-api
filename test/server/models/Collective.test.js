@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import sinon from 'sinon';
 
-import { roles } from '../../../server/constants';
+import { expenseStatus, roles } from '../../../server/constants';
 import plans from '../../../server/constants/plans';
 import { getFxRate } from '../../../server/lib/currency';
 import emailLib from '../../../server/lib/email';
@@ -504,6 +504,30 @@ describe('server/models/Collective', () => {
       expect(balance).to.equal(sum);
       done();
     });
+  });
+
+  it('computes the balance deducting expenses scheduled for payment', async () => {
+    const collective = await fakeCollective();
+    await fakeTransaction({
+      createdAt: new Date(),
+      CollectiveId: collective.id,
+      amount: 500,
+      amountInHostCurrency: 50000,
+      netAmountInCollectiveCurrency: 45000,
+      currency: 'USD',
+      type: 'CREDIT',
+      CreatedByUserId: 2,
+      FromCollectiveId: 2,
+      platformFeeInHostCurrency: 0,
+    });
+    await fakeExpense({
+      CollectiveId: collective.id,
+      status: expenseStatus.SCHEDULED_FOR_PAYMENT,
+      amount: 20000,
+    });
+
+    const balance = await collective.getBalance();
+    expect(balance).to.equal(45000 - 20000);
   });
 
   it('computes the number of backers', () =>
