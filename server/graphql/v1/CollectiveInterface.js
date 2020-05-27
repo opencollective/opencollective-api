@@ -1111,7 +1111,8 @@ const CollectiveFields = () => {
         } else if (collective.type === types.EVENT) {
           const ParentCollectiveId = collective.ParentCollectiveId;
           const parentCollective = ParentCollectiveId && (await req.loaders.Collective.byId.load(ParentCollectiveId));
-          return parentCollective && parentCollective.isApproved();
+          // In the future, we should make it possible to directly read the approvedAt of the event
+          return parentCollective && (parentCollective.isHostAccount || parentCollective.isApproved());
         } else {
           return collective.isApproved();
         }

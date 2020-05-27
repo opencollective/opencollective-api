@@ -1985,9 +1985,7 @@ export default function (Sequelize, DataTypes) {
 
   // edit the tiers of this collective (create/update/remove)
   Collective.prototype.editTiers = function (tiers) {
-    if (this.type !== types.COLLECTIVE && this.type !== types.EVENT) {
-      return [];
-    }
+    // All kind of accounts can have Tiers
 
     if (!tiers) {
       return this.getTiers();

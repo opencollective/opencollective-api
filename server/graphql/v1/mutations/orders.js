@@ -969,10 +969,6 @@ export async function addFundsToCollective(order, remoteUser) {
     throw new Error(`No collective found: ${order.collective.id}`);
   }
 
-  if (order.fromCollective && order.fromCollective.id === collective.id) {
-    throw new Error('Orders cannot be created for a collective by that same collective.');
-  }
-
   const host = await collective.getHostCollective();
   if (!remoteUser.isAdmin(host.id) && !remoteUser.isRoot()) {
     throw new Error('Only an site admin or collective host admin can add fund');
@@ -1038,7 +1034,12 @@ export async function addFundsToCollective(order, remoteUser) {
   const hostPaymentMethod = await host.getOrCreateHostPaymentMethod();
   await orderCreated.setPaymentMethod({ uuid: hostPaymentMethod.uuid });
 
-  await libPayments.executeOrder(remoteUser || user, orderCreated);
+  if (fromCollective.isHostAccount && fromCollective.id === collective.id) {
+    // Special Case, adding funds to itself
+    await models.Transaction.creditHost(orderCreated, collective);
+  } else {
+    await libPayments.executeOrder(remoteUser || user, orderCreated);
+  }
 
   // Check if the maximum fund limit has been reached after execution
   await handleHostPlanAddedFundsLimit(host, { notifyAdmins: true });

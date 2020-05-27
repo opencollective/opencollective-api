@@ -187,6 +187,7 @@ export const CollectiveInputType = new GraphQLInputObjectType({
     firstName: { type: GraphQLString },
     lastName: { type: GraphQLString },
     isIncognito: { type: GraphQLBoolean },
+    isActive: { type: GraphQLBoolean },
   }),
 });
 
