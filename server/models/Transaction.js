@@ -541,7 +541,7 @@ export default (Sequelize, DataTypes) => {
       description: order.description,
       currency: order.currency,
       CollectiveId: order.CollectiveId,
-      FromCollectiveId: null,
+      FromCollectiveId: order.CollectiveId,
       CreatedByUserId: order.CreatedByUserId,
       PaymentMethodId: order.PaymentMethodId,
       OrderId: order.id,
