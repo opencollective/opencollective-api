@@ -162,36 +162,37 @@ export const loaders = req => {
     activeRecurringContributions: new DataLoader(ids =>
       models.Order.findAll({
         attributes: [
-          'CollectiveId',
-          'interval',
-          [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('totalAmount')), 0), 'total'],
+          'Order.CollectiveId',
+          'Subscription.interval',
+          [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('Subscription.amount')), 0), 'total'],
         ],
         where: {
-          [Op.and]: [
-            { CollectiveId: { [Op.in]: ids } },
-            { interval: { [Op.not]: null } },
-            { status: { [Op.eq]: 'ACTIVE' } },
-          ],
+          CollectiveId: { [Op.in]: ids },
+          status: 'ACTIVE',
         },
-        group: ['interval', 'CollectiveId'],
-      })
-        .then(rows => {
-          const results = groupBy(rows, 'CollectiveId');
-          return Object.keys(results).map(CollectiveId => {
-            const stats = {
-              monthly: 0,
-              yearly: 0,
-            };
-            results[CollectiveId].map(e => e.dataValues).map(stat => {
+        group: ['Subscription.interval', 'CollectiveId'],
+        include: [
+          {
+            model: models.Subscription,
+            attributes: [],
+            where: { isActive: true },
+          },
+        ],
+        raw: true,
+      }).then(rows => {
+        const results = groupBy(rows, 'CollectiveId');
+        return ids.map(collectiveId => {
+          const stats = { CollectiveId: Number(collectiveId), monthly: 0, yearly: 0 };
+
+          if (results[collectiveId]) {
+            results[collectiveId].forEach(stat => {
               stats[stat.interval === 'month' ? 'monthly' : 'yearly'] += stat.total;
             });
-            return {
-              CollectiveId: Number(CollectiveId),
-              ...stats,
-            };
-          });
-        })
-        .then(results => sortResults(ids, results, 'CollectiveId', {})),
+          }
+
+          return stats;
+        });
+      }),
     ),
   };
 
