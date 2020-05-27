@@ -131,7 +131,8 @@ const run = async () => {
   logger.info(`Found ${collectives.length} total collective(s)`);
 
   collectives = collectives.filter(
-    collective => get(collective, 'settings.githubOrg') || get(collective, 'settings.githubRepo'),
+    collective =>
+      get(collective, 'settings.githubOrg') || get(collective, 'settings.githubRepo') || collective.githubHandle,
   );
 
   logger.info(`Found ${collectives.length} collective(s) with GitHub settings`);
