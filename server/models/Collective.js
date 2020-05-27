@@ -36,6 +36,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymen
 import plans, { PLANS_COLLECTIVE_SLUG } from '../constants/plans';
 import roles, { MemberRoleLabels } from '../constants/roles';
 import { HOST_FEE_PERCENT, OC_FEE_PERCENT } from '../constants/transactions';
+import cache from '../lib/cache';
 import {
   collectiveSlugBlacklist,
   getCollectiveAvatarUrl,
@@ -2699,33 +2700,51 @@ export default function (Sequelize, DataTypes) {
   };
 
   Collective.prototype.getPlan = async function () {
+    const cacheKey = `plan_${this.id}`;
+    const fromCache = await cache.get(cacheKey);
+    if (fromCache) {
+      return fromCache;
+    }
+
     const [hostedCollectives, addedFunds, bankTransfers, transferwisePayouts] = await Promise.all([
       this.getHostedCollectivesCount(),
       this.getTotalAddedFunds(),
       this.getTotalBankTransfers(),
       this.getTotalTransferwisePayouts(),
     ]);
+
     if (this.plan) {
       const tier = await models.Tier.findOne({
         where: { slug: this.plan, deletedAt: null },
         include: [{ model: models.Collective, where: { slug: PLANS_COLLECTIVE_SLUG } }],
       });
-      const plan = (tier && tier.data) || plans[this.plan];
-      if (plan) {
+      const planData = (tier && tier.data) || plans[this.plan];
+      if (planData) {
         const extraPlanData = get(this.data, 'plan', {});
-        return {
+        const plan = {
           name: this.plan,
           hostedCollectives,
           addedFunds,
           bankTransfers,
           transferwisePayouts,
-          ...plan,
+          ...planData,
           ...extraPlanData,
         };
+        await cache.set(cacheKey, plan, 5 * 60 /* 5 minutes */);
+        return plan;
       }
     }
 
-    return { name: 'default', hostedCollectives, addedFunds, bankTransfers, transferwisePayouts, ...plans.default };
+    const plan = {
+      name: 'default',
+      hostedCollectives,
+      addedFunds,
+      bankTransfers,
+      transferwisePayouts,
+      ...plans.default,
+    };
+    await cache.set(cacheKey, plan, 5 * 60 /* 5 minutes */);
+    return plan;
   };
 
   /**

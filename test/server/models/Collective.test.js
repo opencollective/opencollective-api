@@ -118,6 +118,10 @@ describe('server/models/Collective', () => {
     },
   ];
 
+  beforeEach(async () => {
+    await utils.resetCaches();
+  });
+
   before(() => {
     sandbox = sinon.createSandbox();
     sendEmailSpy = sandbox.spy(emailLib, 'sendMessage');
