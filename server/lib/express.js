@@ -18,6 +18,7 @@ import redis from 'redis';
 import { loadersMiddleware } from '../graphql/loaders';
 
 import forest from './forest';
+import { middleware as hyperwatchMiddleware } from './hyperwatch';
 import logger from './logger';
 import { sanitizeForLogs } from './utils';
 
@@ -50,6 +51,9 @@ export default async function (app) {
     }),
   );
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+  // Register Hyperwatch middleware
+  app.use(hyperwatchMiddleware);
 
   // Slow requests if enabled (default false)
   if (get(config, 'log.slowRequest')) {
