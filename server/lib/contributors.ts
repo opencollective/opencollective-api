@@ -112,6 +112,7 @@ const loadContributors = async (collectiveId: number): Promise<ContributorsCache
         FROM        "Collectives" c
         INNER JOIN  "Members" m ON m."MemberCollectiveId" = c.id
         WHERE       m."CollectiveId" = :collectiveId
+        AND         c."id" != :collectiveId
         AND         m."deletedAt" IS NULL AND c."deletedAt" IS NULL
         GROUP BY    c.id
       ) SELECT

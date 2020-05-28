@@ -81,6 +81,11 @@ export const AccountStats = new GraphQLObjectType({
               value: await queries.getTotalAnnualBudgetForHost(collective.id),
               currency: collective.currency,
             };
+          } else {
+            return {
+              value: 0,
+              currency: collective.currency,
+            };
           }
         },
       },

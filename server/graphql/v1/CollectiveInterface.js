@@ -490,9 +490,10 @@ export const CollectiveStatsType = new GraphQLObjectType({
       yearlyBudgetManaged: {
         type: GraphQLInt,
         resolve(collective) {
-          // If the current collective is a host, we aggregate the yearly budget across all the hosted collectives
           if (collective.isHostAccount) {
             return queries.getTotalAnnualBudgetForHost(collective.id);
+          } else {
+            return 0;
           }
         },
       },
