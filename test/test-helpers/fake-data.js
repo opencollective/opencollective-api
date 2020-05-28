@@ -72,8 +72,8 @@ export const fakeCollective = async (collectiveData = {}) => {
   const type = collectiveData.type || CollectiveType.COLLECTIVE;
   const collective = await models.Collective.create({
     type,
-    name: randStr('Test Collective '),
-    slug: randStr('collective-'),
+    name: collectiveData.isHostAccount ? randStr('Test Host ') : randStr('Test Collective '),
+    slug: collectiveData.isHostAccount ? randStr('host-') : randStr('collective-'),
     description: randStr('Description '),
     currency: 'USD',
     twitterHandle: randStr('twitter'),
