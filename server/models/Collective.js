@@ -2136,31 +2136,42 @@ export default function (Sequelize, DataTypes) {
 
   Collective.prototype.getBalance = async function (until) {
     until = until || new Date();
-    const transactions = await models.Transaction.findOne({
-      attributes: [
-        [Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('netAmountInCollectiveCurrency')), 0), 'total'],
-      ],
-      where: {
-        CollectiveId: this.id,
-        createdAt: { [Op.lt]: until },
-      },
-      raw: true,
-    });
-    const transactionSum = parseInt(transactions.total, 10);
+    const result = await this.sequelize.query(
+      `
+        WITH "blockedFunds" AS (
+          SELECT
+            e."CollectiveId", COALESCE(sum(e.amount), 0) as sum
+          FROM
+            "Expenses" e
+          WHERE
+            e."CollectiveId" = :id
+            AND e."createdAt" < :until
+            AND (
+              e.status = 'SCHEDULED_FOR_PAYMENT'
+              OR (
+                e.status = 'PROCESSING' AND e.data ->> 'payout_batch_id' IS NOT NULL
+              )
+            )
+          GROUP BY
+            e."CollectiveId"
+        )
 
-    // Subtract expenses scheduled for payment
-    const expenses = await models.Expense.findOne({
-      attributes: [[Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('amount')), 0), 'total']],
-      where: {
-        CollectiveId: this.id,
-        status: expenseStatus.SCHEDULED_FOR_PAYMENT,
-        createdAt: { [Op.lt]: until },
-      },
-      raw: true,
-    });
-    const expensesSum = parseInt(expenses.total, 10) || 0;
+        SELECT
+          t."CollectiveId",
+          COALESCE(sum(t."netAmountInCollectiveCurrency") - COALESCE(max(bf.sum), 0), 0) AS "balance"
+        FROM
+          "Transactions" t
+        LEFT JOIN "blockedFunds" bf ON t."CollectiveId" = bf."CollectiveId"
+        WHERE
+          t."CollectiveId" = :id
+          AND t."createdAt" < :until
+        GROUP BY
+          t."CollectiveId";
+      `,
+      { type: this.sequelize.QueryTypes.SELECT, replacements: { id: this.id, until } },
+    );
 
-    return transactionSum - expensesSum;
+    return get(result, '[0].balance') || 0;
   };
 
   Collective.prototype.getYearlyIncome = function () {

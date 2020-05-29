@@ -54,16 +54,40 @@ export const loaders = req => {
 
   // Collective - Balance
   context.loaders.Collective.balance = new DataLoader(ids =>
-    models.Transaction.findAll({
-      attributes: [
-        'CollectiveId',
-        [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('netAmountInCollectiveCurrency')), 0), 'balance'],
-      ],
-      where: { CollectiveId: { [Op.in]: ids } },
-      group: ['CollectiveId'],
-    })
+    sequelize
+      .query(
+        `
+        WITH "blockedFunds" AS (
+          SELECT
+            e."CollectiveId", COALESCE(sum(e.amount), 0) as sum
+          FROM
+            "Expenses" e
+          WHERE
+            e."CollectiveId" IN (:ids)
+            AND (
+              e.status = 'SCHEDULED_FOR_PAYMENT'
+              OR (
+                e.status = 'PROCESSING' AND e.data ->> 'payout_batch_id' IS NOT NULL
+              )
+          )
+          GROUP BY
+            e."CollectiveId"
+        )
+        SELECT
+          t."CollectiveId",
+          COALESCE(sum(t."netAmountInCollectiveCurrency") - COALESCE(max(bf.sum), 0), 0) AS "balance"
+        FROM
+          "Transactions" t
+        LEFT JOIN "blockedFunds" bf ON t."CollectiveId" = bf."CollectiveId"
+        WHERE
+          t."CollectiveId" IN (:ids)
+        GROUP BY
+          t."CollectiveId";
+      `,
+        { type: sequelize.QueryTypes.SELECT, replacements: { ids } },
+      )
       .then(results => sortResults(ids, results, 'CollectiveId'))
-      .map(result => get(result, 'dataValues.balance') || 0),
+      .map(result => get(result, 'balance') || 0),
   );
 
   // Collective - ConnectedAccounts
