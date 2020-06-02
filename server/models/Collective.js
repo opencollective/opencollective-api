@@ -2144,8 +2144,9 @@ export default function (Sequelize, DataTypes) {
         CollectiveId: this.id,
         createdAt: { [Op.lt]: until },
       },
+      raw: true,
     });
-    const transactionSum = parseInt(transactions.toJSON().total, 10);
+    const transactionSum = parseInt(transactions.total, 10);
 
     // Subtract expenses scheduled for payment
     const expenses = await models.Expense.findOne({
@@ -2155,8 +2156,9 @@ export default function (Sequelize, DataTypes) {
         status: expenseStatus.SCHEDULED_FOR_PAYMENT,
         createdAt: { [Op.lt]: until },
       },
+      raw: true,
     });
-    const expensesSum = parseInt(expenses.toJSON().total, 10) || 0;
+    const expensesSum = parseInt(expenses.total, 10) || 0;
 
     return transactionSum - expensesSum;
   };
