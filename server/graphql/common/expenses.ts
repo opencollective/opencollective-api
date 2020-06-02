@@ -1,10 +1,11 @@
 import { activities, expenseStatus, roles } from '../../constants';
 import FEATURE from '../../constants/feature';
 import { canUseFeature } from '../../lib/user-permissions';
+import { formatCurrency } from '../../lib/utils';
 import models from '../../models';
 import { ExpenseItem } from '../../models/ExpenseItem';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
-import { BadRequest, Forbidden } from '../errors';
+import { BadRequest, Forbidden, Unauthorized } from '../errors';
 
 const isOwner = async (req, expense): Promise<boolean> => {
   if (!req.remoteUser) {
@@ -246,6 +247,16 @@ export const scheduleExpenseForPayment = async (req, expense): Promise<typeof mo
     throw new BadRequest('Expense is already scheduled for payment');
   } else if (!(await canPayExpense(req, expense))) {
     throw new Forbidden("You're authenticated but you can't schedule this expense for payment");
+  }
+
+  const balance = await expense.collective.getBalance();
+  if (expense.amount > balance) {
+    throw new Unauthorized(
+      `You don't have enough funds to pay this expense. Current balance: ${formatCurrency(
+        balance,
+        expense.collective.currency,
+      )}, Expense amount: ${formatCurrency(expense.amount, expense.collective.currency)}`,
+    );
   }
 
   const updatedExpense = await expense.update({
