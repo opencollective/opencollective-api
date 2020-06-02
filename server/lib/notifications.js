@@ -335,6 +335,9 @@ async function notifyByEmail(activity) {
       notifyUserId(activity.data.expense.UserId, activity);
       break;
 
+    case activityType.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT:
+      break;
+
     case activityType.COLLECTIVE_APPROVED:
       notifyAdminsOfCollective(activity.data.collective.id, activity);
       break;

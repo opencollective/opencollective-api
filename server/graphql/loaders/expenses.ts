@@ -50,6 +50,7 @@ export const generateExpenseActivitiesLoader = (req): DataLoader<number, object>
             ACTIVITY.COLLECTIVE_EXPENSE_MARKED_AS_UNPAID,
             ACTIVITY.COLLECTIVE_EXPENSE_PROCESSING,
             ACTIVITY.COLLECTIVE_EXPENSE_ERROR,
+            ACTIVITY.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT,
           ],
         },
       },
