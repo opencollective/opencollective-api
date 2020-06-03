@@ -49,7 +49,7 @@ const plans = {
   // These keys must match OpenCollective's existing Tier slugs and their data
   // should be updated in our Tier database.
   'network-host-plan': {
-    hostedCollectivesLimit: 100,
+    hostedCollectivesLimit: 1000,
     addedFundsLimit: null,
     bankTransfersLimit: null,
     transferwisePayoutsLimit: null,
