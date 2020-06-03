@@ -710,7 +710,7 @@ const queries = {
       CollectiveId: { type: GraphQLInt },
       CollectiveSlug: { type: GraphQLString },
       status: { type: ExpenseStatusType },
-      category: { type: GraphQLString },
+      category: { type: GraphQLString, deprecationReason: '2020-06-03: Expense are now using tags' },
       FromCollectiveId: { type: GraphQLInt },
       FromCollectiveSlug: { type: GraphQLString },
       limit: {
@@ -747,23 +747,13 @@ const queries = {
       };
 
       if (FromCollectiveId || FromCollectiveSlug) {
-        const collectiveUser = await models.User.findOne({
-          attributes: ['id'],
-          where: {
-            CollectiveId: FromCollectiveId || (await fetchCollectiveId(FromCollectiveSlug)),
-          },
-        });
-
-        if (!collectiveUser) {
-          return { expenses: [], limit, offset, total: 0 };
-        }
-
-        query.where.UserId = collectiveUser.id;
+        query.where.FromCollectiveId = FromCollectiveId || (await fetchCollectiveId(FromCollectiveSlug));
       }
 
       if (category) {
-        query.where.category = { [Op.iLike]: category };
+        query.where.tags = { [Op.contains]: [category] };
       }
+
       if (status) {
         query.where.status = status;
       }
