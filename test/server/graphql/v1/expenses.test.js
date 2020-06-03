@@ -640,13 +640,6 @@ describe('server/graphql/v1/expenses', () => {
       expect(result.data.createExpense.attachment).to.equal(data.attachment);
       expect(result.data.createExpense.items[0].url).to.equal(data.attachment);
 
-      // And then the user should become a member of the project
-      const membership = await models.Member.findOne({
-        where: { CollectiveId: collective.id, role: 'CONTRIBUTOR' },
-      });
-      expect(membership).to.exist;
-      expect(membership.MemberCollectiveId).to.equal(user.CollectiveId);
-
       // And then an email should have been sent to the admin. This
       // call to the function `waitForCondition()` is required because
       // notifications are sent asynchronously.
@@ -1365,6 +1358,32 @@ describe('server/graphql/v1/expenses', () => {
           delay: 500,
         });
         expect(emailSendMessageSpy.callCount).to.equal(2);
+      });
+
+      it('makes the expense creator a contributor member of the collective', async () => {
+        emailSendMessageSpy.resetHistory();
+
+        await expense.save();
+
+        // And then add funds to the collective
+        const initialBalance = 1500;
+        await addFunds(user, hostCollective, collective, initialBalance);
+
+        const res = await utils.graphqlQuery(
+          payExpenseQuery,
+          { id: expense.id, paymentProcessorFeeInCollectiveCurrency: 0 },
+          hostAdmin,
+        );
+        res.errors && console.log(res.errors);
+        expect(res.errors).to.not.exist;
+        expect(res.data.payExpense.status).to.equal('PAID');
+
+        // And then the expense creator should become a member of the project
+        const membership = await models.Member.findOne({
+          where: { CollectiveId: collective.id, role: 'CONTRIBUTOR' },
+        });
+        expect(membership).to.exist;
+        expect(membership.MemberCollectiveId).to.equal(expense.FromCollectiveId);
       });
     });
   }); /* End of #payExpense */

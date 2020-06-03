@@ -285,14 +285,6 @@ export async function createExpense(remoteUser, expenseData) {
     return createdExpense;
   });
 
-  collective.addUserWithRole(remoteUser, roles.CONTRIBUTOR).catch(e => {
-    if (e.name === 'SequelizeUniqueConstraintError') {
-      console.log('User ', remoteUser.id, 'is already a contributor');
-    } else {
-      console.error(e);
-    }
-  });
-
   expense.user = remoteUser;
   expense.collective = collective;
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_CREATED, remoteUser);
@@ -487,6 +479,17 @@ export async function deleteExpense(req, expenseId) {
 async function markExpenseAsPaid(expense, remoteUser) {
   debug('update expense status to PAID', expense.id);
   await expense.setPaid(remoteUser.id);
+
+  // Add user as CONTRIBUTOR
+  const contributor = await expense.getUser();
+  expense.collective.addUserWithRole(contributor, roles.CONTRIBUTOR).catch(e => {
+    if (e.name === 'SequelizeUniqueConstraintError') {
+      console.log('User ', remoteUser.id, 'is already a contributor');
+    } else {
+      console.error(e);
+    }
+  });
+
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID, remoteUser);
   return expense;
 }
