@@ -110,9 +110,9 @@ describe('server/routes/email', () => {
       .catch(console.error);
   });
 
-  it('forwards emails sent to info@:slug.opencollective.com', async () => {
+  it('forwards emails sent to info@:slug.opencollective.com if enabled', async () => {
     const spy = sandbox.spy(emailLib, 'sendMessage');
-    const collective = await fakeCollective();
+    const collective = await fakeCollective({ settings: { features: { forwardEmails: true } } });
     const users = await Promise.all([fakeUser(), fakeUser(), fakeUser()]);
     await Promise.all(users.map(user => collective.addUserWithRole(user, 'ADMIN')));
 
@@ -131,9 +131,9 @@ describe('server/routes/email', () => {
       });
   });
 
-  it('do not forwards emails sent to info@:slug.opencollective.com if disabled', async () => {
+  it('do not forwards emails sent to info@:slug.opencollective.com', async () => {
     const spy = sandbox.spy(emailLib, 'sendMessage');
-    const collective = await fakeCollective({ settings: { features: { forwardEmails: false } } });
+    const collective = await fakeCollective();
     const user = await fakeUser();
     await collective.addUserWithRole(user, 'ADMIN');
     const endpoint = request(expressApp).post('/webhooks/mailgun');
@@ -225,7 +225,9 @@ describe('server/routes/email', () => {
         expect(emailsSent[0][1]).to.equal('admins@testcollective.opencollective.com');
         expect(emailsSent[0][2].subject).to.equal('test collective admins');
         expect([emailsSent[0][3].bcc, emailsSent[1][3].bcc]).to.contain(usersData[0].email);
-        expect(emailsSent[0][3].from).to.equal('testcollective collective <hello@testcollective.opencollective.com>');
+        expect(emailsSent[0][3].from).to.equal(
+          'testcollective collective <no-reply@testcollective.opencollective.com>',
+        );
       });
   });
 

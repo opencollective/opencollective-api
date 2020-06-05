@@ -377,7 +377,7 @@ const sendOrderConfirmedEmail = async order => {
     // normal order
     const relatedCollectives = await order.collective.getRelatedCollectives(3, 0);
     const emailOptions = {
-      from: `${collective.name} <hello@${collective.slug}.opencollective.com>`,
+      from: `${collective.name} <no-reply@${collective.slug}.opencollective.com>`,
     };
     const data = {
       order: pick(order, ['totalAmount', 'currency', 'createdAt']),
@@ -438,7 +438,7 @@ export const sendOrderProcessingEmail = async order => {
     });
   }
   return emailLib.send('order.processing', user.email, data, {
-    from: `${collective.name} <hello@${collective.slug}.opencollective.com>`,
+    from: `${collective.name} <no-reply@${collective.slug}.opencollective.com>`,
   });
 };
 
@@ -456,7 +456,7 @@ const sendManualPendingOrderEmail = async order => {
   };
 
   return emailLib.send('order.new.pendingFinancialContribution', user.email, data, {
-    from: `${collective.name} <hello@${collective.slug}.opencollective.com>`,
+    from: `${collective.name} <no-reply@${collective.slug}.opencollective.com>`,
   });
 };
 
