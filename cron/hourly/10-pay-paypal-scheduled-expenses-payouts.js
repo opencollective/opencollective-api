@@ -7,7 +7,7 @@ import { groupBy, values } from 'lodash';
 import status from '../../server/constants/expense_status';
 import models from '../../server/models';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
-import { payExpensesBatch } from '../../server/paymentProviders/paypal/payouts';
+import * as paypal from '../../server/paymentProviders/paypal/payouts';
 
 export async function run() {
   const expenses = await models.Expense.findAll({
@@ -19,9 +19,9 @@ export async function run() {
       { model: models.PayoutMethod, as: 'PayoutMethod', where: { type: PayoutMethodTypes.PAYPAL } },
     ],
   });
-  const batches = values(groupBy(expenses, 'CollectiveId'));
+  const batches = values(groupBy(expenses, 'collective.HostCollectiveId'));
   for (const batch of batches) {
-    await payExpensesBatch(batch).catch(console.error);
+    await paypal.payExpensesBatch(batch).catch(console.error);
   }
 }
 
