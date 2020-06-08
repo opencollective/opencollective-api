@@ -5,6 +5,7 @@ import moment from 'moment';
 
 import activities from '../../constants/activities';
 import status from '../../constants/expense_status';
+import logger from '../../lib/logger';
 import * as paypal from '../../lib/paypal';
 import { createFromPaidExpense as createTransactionFromPaidExpense } from '../../lib/transactions';
 
@@ -109,12 +110,12 @@ export const checkBatchStatus = async (batch: any[]): Promise<any[]> => {
         case 'UNCLAIMED': // Link sent to a non-paypal user, waiting for being claimed.
         case 'PENDING':
         default:
-          console.warn(`Expense is still being processed, nothing to do but wait.`);
+          logger.debug(`Expense ${expense.id} is still being processed, nothing to do but wait.`);
           break;
       }
       return expense;
     } catch (e) {
-      console.error(e);
+      logger.error(e);
     }
   };
 
