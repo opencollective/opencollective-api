@@ -7,6 +7,7 @@ import moment from 'moment';
 import { Op } from 'sequelize';
 
 import status from '../../server/constants/expense_status';
+import logger from '../../server/lib/logger';
 import models from '../../server/models';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import { checkBatchStatus } from '../../server/paymentProviders/paypal/payouts';
@@ -30,9 +31,12 @@ export async function run() {
     ],
   });
   const batches = values(groupBy(expenses, 'data.payout_batch_id'));
+  logger.info(`Checking the status of ${expenses.length} transaction(s) paid using PayPal Payouts...`);
   for (const batch of batches) {
+    logger.info(`Checking host ${batch[0]?.collective?.HostCollectiveId} batch with ${batch.length} expense(s)...`);
     await checkBatchStatus(batch).catch(console.error);
   }
+  logger.info('Done!');
 }
 
 if (require.main === module) {
