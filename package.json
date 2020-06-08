@@ -17,7 +17,7 @@
     "@babel/preset-typescript": "7.10.1",
     "@hyperwatch/hyperwatch": "3.1.5",
     "@octokit/auth-oauth-app": "3.0.3",
-    "@octokit/rest": "17.10.0",
+    "@octokit/rest": "17.11.0",
     "@opencollective/taxes": "2.4.0",
     "@paypal/payouts-sdk": "^1.0.0",
     "algoliasearch": "3.35.1",
