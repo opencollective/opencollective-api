@@ -373,6 +373,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       collectiveAdmin = await fakeUser();
       const host = await fakeCollective({ admin: hostAdmin.collective });
       collective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdmin.collective });
+      await hostAdmin.populateRoles();
     });
 
     describe('APPROVE', () => {
@@ -591,17 +592,26 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.errors[0].message).to.eq("You don't have permission to mark this expense as unpaid");
       });
 
-      it('Only when the payout method type is "Other"', async () => {
+      it('Marks the expense as unpaid (with PayPal)', async () => {
         const payoutMethod = await fakePayoutMethod({ type: 'PAYPAL' });
         const expense = await fakeExpense({
+          amount: 1000,
           CollectiveId: collective.id,
-          status: 'PAID',
+          status: 'APPROVED',
           PayoutMethodId: payoutMethod.id,
         });
+
+        // Updates the collective balance and pay the expense
+        await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: expense.amount });
+        await payExpense(makeRequest(hostAdmin), { id: expense.id, forceManual: true });
+        expect(await collective.getBalance()).to.eq(0);
+
         const mutationParams = { expenseId: expense.id, action: 'MARK_AS_UNPAID' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
-        expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.eq("You don't have permission to mark this expense as unpaid");
+        expect(result.data.processExpense.status).to.eq('APPROVED');
+        expect(await collective.getBalance()).to.eq(expense.amount);
+        await payExpense(makeRequest(hostAdmin), { id: expense.id, forceManual: true });
+        expect(await collective.getBalance()).to.eq(0);
       });
 
       it('Marks the expense as unpaid', async () => {
@@ -616,10 +626,12 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         // Updates the collective balance and pay the expense
         await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: expense.amount });
         await payExpense(makeRequest(hostAdmin), { id: expense.id });
+        expect(await collective.getBalance()).to.eq(0);
 
         const mutationParams = { expenseId: expense.id, action: 'MARK_AS_UNPAID' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
         expect(result.data.processExpense.status).to.eq('APPROVED');
+        expect(await collective.getBalance()).to.eq(expense.amount);
       });
 
       it('Expense needs to be paid', async () => {
