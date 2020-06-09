@@ -170,14 +170,16 @@ const orderMutations = {
         throw new Error('Order must be active to be updated');
       }
 
+      const decodedPMId = getDecodedId(args.paymentMethod.id);
+
       // payment method
       if (paymentMethod !== undefined) {
         // unlike v1 we don't have to check/assign new payment method, that will be taken care of in another mutation
         const newPaymentMethod = await models.PaymentMethod.findOne({
-          where: { id: paymentMethod.legacyId },
+          where: { id: decodedPMId },
         });
         if (!newPaymentMethod) {
-          throw new Error('Payment method not found with this id', paymentMethod.legacyId);
+          throw new Error('Payment method not found with this id', paymentMethod.id);
         }
         if (!req.remoteUser.isAdmin(newPaymentMethod.CollectiveId)) {
           throw new Unauthorized("You don't have permission to use this payment method");
