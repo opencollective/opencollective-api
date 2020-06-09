@@ -2136,31 +2136,8 @@ export default function (Sequelize, DataTypes) {
 
   Collective.prototype.getBalance = async function (until) {
     until = until || new Date();
-    const transactions = await models.Transaction.findOne({
-      attributes: [
-        [Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('netAmountInCollectiveCurrency')), 0), 'total'],
-      ],
-      where: {
-        CollectiveId: this.id,
-        createdAt: { [Op.lt]: until },
-      },
-      raw: true,
-    });
-    const transactionSum = parseInt(transactions.total, 10);
-
-    // Subtract expenses scheduled for payment
-    const expenses = await models.Expense.findOne({
-      attributes: [[Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('amount')), 0), 'total']],
-      where: {
-        CollectiveId: this.id,
-        status: expenseStatus.SCHEDULED_FOR_PAYMENT,
-        createdAt: { [Op.lt]: until },
-      },
-      raw: true,
-    });
-    const expensesSum = parseInt(expenses.total, 10) || 0;
-
-    return transactionSum - expensesSum;
+    const result = await queries.getBalances([this.id], until);
+    return get(result, '[0].balance') || 0;
   };
 
   Collective.prototype.getYearlyIncome = function () {

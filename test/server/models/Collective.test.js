@@ -525,9 +525,16 @@ describe('server/models/Collective', () => {
       status: expenseStatus.SCHEDULED_FOR_PAYMENT,
       amount: 20000,
     });
+    await fakeExpense({
+      CollectiveId: collective.id,
+      status: expenseStatus.PROCESSING,
+      amount: 10000,
+      // eslint-disable-next-line camelcase
+      data: { payout_batch_id: 1 },
+    });
 
     const balance = await collective.getBalance();
-    expect(balance).to.equal(45000 - 20000);
+    expect(balance).to.equal(45000 - 30000);
   });
 
   it('computes the number of backers', () =>

@@ -66,6 +66,8 @@ export default function (Sequelize, DataTypes) {
         },
       },
 
+      data: DataTypes.JSONB,
+
       CollectiveId: {
         type: DataTypes.INTEGER,
         references: {
