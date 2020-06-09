@@ -10,7 +10,8 @@ module.exports = {
     const collectives = await queryInterface.sequelize.query(
       `
         SELECT "id", "longDescription" FROM "Collectives"
-        WHERE LENGTH("longDescription") > 0 AND "longDescription" NOT LIKE '<%';
+        WHERE LENGTH("longDescription") > 0 AND "longDescription" NOT LIKE '<%'
+        AND "deletedAt" IS NULL;
       `,
       { type: Sequelize.QueryTypes.SELECT },
     );
