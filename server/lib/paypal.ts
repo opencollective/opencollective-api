@@ -1,3 +1,4 @@
+/* eslint-disable camelcase, @typescript-eslint/camelcase */
 import paypal from '@paypal/payouts-sdk';
 
 import { PayoutBatchDetails, PayoutRequestBody, PayoutRequestResult } from '../types/paypal';
@@ -10,10 +11,13 @@ const parseError = e => {
   }
 };
 
-interface ConnectedAccount {
+type ConnectedAccount = {
   token: string;
   clientId: string;
-}
+  settings?: {
+    webhookId: string;
+  };
+};
 
 const getPayPalClient = ({ token, clientId }: ConnectedAccount): ReturnType<typeof paypal.core.PayPalHttpClient> => {
   const environment =
@@ -60,6 +64,37 @@ export const getBatchInfo = async (
 export const validateConnectedAccount = async ({ token, clientId }: ConnectedAccount): Promise<void> => {
   const client = getPayPalClient({ token, clientId });
   await client.fetchAccessToken();
+};
+
+export const validateWebhookEvent = async (
+  { token, clientId, settings }: ConnectedAccount,
+  req: any,
+): Promise<void> => {
+  const client = getPayPalClient({ token, clientId });
+  const request = {
+    path: '/v1/notifications/verify-webhook-signature',
+    verb: 'POST',
+    body: {
+      auth_algo: req.get('PAYPAL-AUTH-ALGO'),
+      cert_url: req.get('PAYPAL-CERT-URL'),
+      transmission_id: req.get('PAYPAL-TRANSMISSION-ID'),
+      transmission_sig: req.get('PAYPAL-TRANSMISSION-SIG'),
+      transmission_time: req.get('PAYPAL-TRANSMISSION-TIME'),
+      webhook_id: settings.webhookId,
+      webhook_event: req.body,
+    },
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  };
+  try {
+    const response = await client.execute(request);
+    if (response?.result?.verification_status !== 'SUCCESS') {
+      throw new Error('Invalid webhook request');
+    }
+  } catch (e) {
+    throw new Error(parseError(e));
+  }
 };
 
 export { paypal };

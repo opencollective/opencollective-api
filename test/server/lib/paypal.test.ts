@@ -1,10 +1,18 @@
+/* eslint-disable camelcase, @typescript-eslint/camelcase */
 import paypalPayoutsSDK from '@paypal/payouts-sdk';
 import { expect } from 'chai';
 import sinon from 'sinon';
 
-import { validateConnectedAccount } from '../../../server/lib/paypal';
+import { validateConnectedAccount, validateWebhookEvent } from '../../../server/lib/paypal';
 
 describe('lib/paypal', () => {
+  const connectedAccount = {
+    token: 'faketoken',
+    clientId: 'fakeClientId',
+    settings: {
+      webhookId: 'fakeWebhookId',
+    },
+  };
   const sandbox = sinon.createSandbox();
 
   describe('validateConnectedAccount', () => {
@@ -13,6 +21,9 @@ describe('lib/paypal', () => {
     before(() => {
       fetchAccessToken = sandbox.stub().resolves();
       sandbox.stub(paypalPayoutsSDK.core, 'PayPalHttpClient').returns({ fetchAccessToken });
+    });
+    after(() => {
+      sandbox.restore();
     });
 
     it('should return if validated', async () => {
@@ -31,6 +42,33 @@ describe('lib/paypal', () => {
       });
 
       await expect(promise).to.be.eventually.rejectedWith(Error, 'expected');
+    });
+  });
+
+  describe('validateWebhookEvent', () => {
+    let execute, req;
+
+    before(() => {
+      execute = sandbox.stub().resolves();
+      req = {
+        get: sandbox.stub().returns('fake'),
+        body: { hasBody: true },
+      };
+      sandbox.stub(paypalPayoutsSDK.core, 'PayPalHttpClient').returns({ execute });
+    });
+    after(() => {
+      sandbox.restore();
+    });
+
+    it('returns if webhook is valid', async () => {
+      execute.resolves({ result: { verification_status: 'SUCCESS' } });
+      await validateWebhookEvent(connectedAccount, req);
+    });
+
+    it('throws if webhook is not valid', async () => {
+      execute.resolves({ result: { verification_status: 'FAILURE' } });
+      const promise = validateWebhookEvent(connectedAccount, req);
+      await expect(promise).to.be.eventually.rejectedWith(Error, 'Invalid webhook request');
     });
   });
 });
