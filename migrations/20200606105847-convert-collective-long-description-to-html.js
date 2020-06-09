@@ -34,28 +34,6 @@ module.exports = {
   },
 
   down: async (queryInterface, Sequelize) => {
-    const collectives = await queryInterface.sequelize.query(
-      `
-        SELECT * FROM "Collectives"
-        WHERE LENGTH("longDescription") > 0;
-      `,
-      { type: Sequelize.QueryTypes.SELECT },
-    );
-
-    await Promise.map(collectives, collective =>
-      queryInterface.sequelize.query(
-        `
-        UPDATE "Collectives" c
-        SET "longDescription" = :longDescription
-        WHERE c.id = :id
-      `,
-        {
-          replacements: {
-            longDescription: converter.makeMarkdown(collective.longDescription),
-            id: collective.id,
-          },
-        },
-      ),
-    );
+    // can't rollback this one
   },
 };
