@@ -1,6 +1,5 @@
 'use strict';
 
-import Promise from 'bluebird';
 import showdown from 'showdown';
 
 const converter = new showdown.Converter();
@@ -16,8 +15,8 @@ module.exports = {
       { type: Sequelize.QueryTypes.SELECT },
     );
 
-    await Promise.map(collectives, collective =>
-      queryInterface.sequelize.query(
+    for (const collective of collectives) {
+      await queryInterface.sequelize.query(
         `
         UPDATE "Collectives" c
         SET "longDescription" = :longDescription
@@ -29,11 +28,11 @@ module.exports = {
             id: collective.id,
           },
         },
-      ),
-    );
+      );
+    }
   },
 
-  down: async (queryInterface, Sequelize) => {
+  down: () => {
     // can't rollback this one
   },
 };
