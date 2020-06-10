@@ -58,34 +58,38 @@ export const payExpensesBatch = async (expenses: any[]): Promise<any[]> => {
 };
 
 export const checkBatchItemStatus = async (item: any, expense: any, host: any) => {
-  if (expense.data.sender_batch_id !== item.payout_batch_id) {
+  if (expense.data.payout_batch_id !== item.payout_batch_id) {
     throw new Error(`Item does not belongs to expense it claims it does.`);
   }
 
   const paymentProcessorFeeInHostCurrency = round(toNumber(item.payout_item_fee?.value) * 100);
   switch (item.transaction_status) {
     case 'SUCCESS':
-      await createTransactionFromPaidExpense(
-        host,
-        null,
-        expense,
-        null,
-        expense.UserId,
-        paymentProcessorFeeInHostCurrency,
-        0,
-        0,
-        item,
-      );
-      await expense.setPaid(expense.lastEditedById);
-      await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID);
+      if (expense.status !== status.PAID) {
+        await createTransactionFromPaidExpense(
+          host,
+          null,
+          expense,
+          null,
+          expense.UserId,
+          paymentProcessorFeeInHostCurrency,
+          0,
+          0,
+          item,
+        );
+        await expense.setPaid(expense.lastEditedById);
+        await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID);
+      }
       break;
     case 'FAILED':
     case 'BLOCKED':
     case 'REFUNDED':
     case 'RETURNED':
     case 'REVERSED':
-      await expense.setError(expense.lastEditedById);
-      await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR);
+      if (expense.status !== status.ERROR) {
+        await expense.setError(expense.lastEditedById);
+        await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR);
+      }
       break;
     // Ignore cases
     case 'ONHOLD':
@@ -123,7 +127,7 @@ export const checkBatchStatus = async (batch: any[]): Promise<any[]> => {
       }
       await checkBatchItemStatus(item, expense, host);
     } catch (e) {
-      logger.error(e);
+      console.error(e);
     }
   };
 

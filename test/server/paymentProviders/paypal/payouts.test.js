@@ -9,7 +9,7 @@ import * as paypalPayouts from '../../../../server/paymentProviders/paypal/payou
 import { fakeCollective, fakeConnectedAccount, fakeExpense, fakePayoutMethod } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
-describe('cron/hourly/check-pending-transferwise-transactions.js', () => {
+describe('paymentMethods/paypal/payouts.js', () => {
   const sandbox = sinon.createSandbox();
   let expense, host, collective, payoutMethod;
 
@@ -115,6 +115,7 @@ describe('cron/hourly/check-pending-transferwise-transactions.js', () => {
           {
             transaction_status: 'SUCCESS',
             payout_item: { sender_item_id: expense.id.toString() },
+            payout_batch_id: 'fake-batch-id',
             payout_item_fee: {
               currency: 'USD',
               value: '1.23',
@@ -139,6 +140,7 @@ describe('cron/hourly/check-pending-transferwise-transactions.js', () => {
           items: [
             {
               transaction_status,
+              payout_batch_id: 'fake-batch-id',
               payout_item: { sender_item_id: expense.id.toString() },
             },
           ],

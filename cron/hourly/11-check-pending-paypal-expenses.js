@@ -18,6 +18,7 @@ export async function run() {
       [Op.or]: [
         { status: status.PROCESSING },
         {
+          status: { [Op.notIn]: [status.PAID, status.ERROR] },
           updatedAt: {
             [Op.gte]: moment().subtract(15, 'days').toDate(),
           },
