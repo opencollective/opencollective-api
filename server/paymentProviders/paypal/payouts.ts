@@ -57,6 +57,48 @@ export const payExpensesBatch = async (expenses: any[]): Promise<any[]> => {
   return Promise.all(updateExpenses);
 };
 
+export const checkBatchItemStatus = async (item: any, expense: any, host: any) => {
+  if (expense.data.sender_batch_id !== item.payout_batch_id) {
+    throw new Error(`Item does not belongs to expense it claims it does.`);
+  }
+
+  const paymentProcessorFeeInHostCurrency = round(toNumber(item.payout_item_fee?.value) * 100);
+  switch (item.transaction_status) {
+    case 'SUCCESS':
+      await createTransactionFromPaidExpense(
+        host,
+        null,
+        expense,
+        null,
+        expense.UserId,
+        paymentProcessorFeeInHostCurrency,
+        0,
+        0,
+        item,
+      );
+      await expense.setPaid(expense.lastEditedById);
+      await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID);
+      break;
+    case 'FAILED':
+    case 'BLOCKED':
+    case 'REFUNDED':
+    case 'RETURNED':
+    case 'REVERSED':
+      await expense.setError(expense.lastEditedById);
+      await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR);
+      break;
+    // Ignore cases
+    case 'ONHOLD':
+    case 'UNCLAIMED': // Link sent to a non-paypal user, waiting for being claimed.
+    case 'PENDING':
+    default:
+      logger.debug(`Expense is still being processed, nothing to do but wait.`);
+      break;
+  }
+  await expense.update({ data: item });
+  return expense;
+};
+
 export const checkBatchStatus = async (batch: any[]): Promise<any[]> => {
   const [firstExpense] = batch;
   const host = await firstExpense.collective.getHostCollective();
@@ -79,41 +121,7 @@ export const checkBatchStatus = async (batch: any[]): Promise<any[]> => {
       if (!item) {
         throw new Error('Could not find expense in payouts batch');
       }
-
-      const paymentProcessorFeeInHostCurrency = round(toNumber(item.payout_item_fee?.value) * 100);
-      switch (item.transaction_status) {
-        case 'SUCCESS':
-          await createTransactionFromPaidExpense(
-            host,
-            null,
-            expense,
-            null,
-            expense.UserId,
-            paymentProcessorFeeInHostCurrency,
-            0,
-            0,
-            item,
-          );
-          await expense.setPaid(expense.lastEditedById);
-          await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID);
-          break;
-        case 'FAILED':
-        case 'BLOCKED':
-        case 'REFUNDED':
-        case 'RETURNED':
-        case 'REVERSED':
-          await expense.setError(expense.lastEditedById);
-          await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR);
-          break;
-        // Ignore cases
-        case 'ONHOLD':
-        case 'UNCLAIMED': // Link sent to a non-paypal user, waiting for being claimed.
-        case 'PENDING':
-        default:
-          logger.debug(`Expense ${expense.id} is still being processed, nothing to do but wait.`);
-          break;
-      }
-      return expense;
+      await checkBatchItemStatus(item, expense, host);
     } catch (e) {
       logger.error(e);
     }
