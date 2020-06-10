@@ -724,10 +724,6 @@ export async function markExpenseAsUnpaid(req, ExpenseId, processorFeeRefunded) 
     throw new Unauthorized('Expense has not been paid yet');
   }
 
-  if (expense.legacyPayoutMethod !== 'other') {
-    throw new Unauthorized('Only expenses with "other" payout method can be marked as unpaid');
-  }
-
   const transaction = await models.Transaction.findOne({
     where: { ExpenseId },
     include: [{ model: models.Expense }],

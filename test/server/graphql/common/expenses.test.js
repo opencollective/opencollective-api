@@ -282,16 +282,5 @@ describe('server/graphql/common/expenses', () => {
       expect(await canMarkAsUnpaid(expenseOwnerReq, expense)).to.be.false;
       expect(await canMarkAsUnpaid(limitedHostAdminReq, expense)).to.be.false;
     });
-
-    it('only if payout method type is OTHER', async () => {
-      const paypalPM = await fakePayoutMethod({ type: PayoutMethodTypes.PAYPAL });
-      const testExpense = await fakeExpense({
-        status: 'PAID',
-        CollectiveId: collective.id,
-        PayoutMethodId: paypalPM.id,
-      });
-      const result = await canMarkAsUnpaid(hostAdminReq, testExpense);
-      expect(result).to.be.false;
-    });
   });
 });
