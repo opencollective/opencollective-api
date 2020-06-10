@@ -78,14 +78,8 @@ export const PaymentMethod = new GraphQLObjectType({
 
           const data = paymentMethod.data;
           // white list fields to send back; removes fields like CustomerIdForHost
-          const dataSubset = {
-            fullName: data.fullName,
-            expMonth: data.expMonth,
-            expYear: data.expYear,
-            brand: data.brand,
-            country: data.country,
-            last4: data.last4,
-          };
+          const dataSubset = pick(data, ['fullName', 'expMonth', 'expYear', 'brand', 'country', 'last4']);
+
           return dataSubset;
         },
       },
