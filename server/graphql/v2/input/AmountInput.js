@@ -7,7 +7,7 @@ export const AmountInput = new GraphQLObjectType({
   fields: () => ({
     value: {
       type: GraphQLFloat,
-      description: 'The value in cents',
+      description: 'The value in plain',
     },
     currency: {
       type: Currency,
