@@ -1,5 +1,4 @@
 import { EMOJI_TYPES } from '../constants/emojiTypes';
-import { idDecode } from '../graphql/v2/identifiers';
 
 import models from './index';
 
@@ -73,19 +72,13 @@ export default function (Sequelize, DataTypes) {
     },
   );
 
-  CommentReaction.addReaction = async function (user, comment, fromCollectiveId, reaction) {
+  CommentReaction.addReaction = async function (user, commentId, fromCollectiveId, reaction) {
     return await models.CommentReaction.create({
       UserId: user.id,
-      FromCollectiveId: idDecode(fromCollectiveId.id, 'collective'),
-      CommentId: idDecode(comment.id, 'comment'),
+      FromCollectiveId: fromCollectiveId,
+      CommentId: commentId,
       emoji: reaction,
     });
-  };
-
-  CommentReaction.prototype.removeReaction = async function (id) {
-    const commentReaction = await models.CommentReaction.findOne({ where: { CommentId: id } });
-    await commentReaction.destroy();
-    return commentReaction;
   };
 
   return CommentReaction;

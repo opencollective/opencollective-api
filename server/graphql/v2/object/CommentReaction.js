@@ -1,7 +1,8 @@
-import { GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 
 import { fromCollectiveResolver } from '../../common/comment';
+import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { Account } from '../interface/Account';
 
 const CommentReaction = new GraphQLObjectType({
@@ -10,25 +11,22 @@ const CommentReaction = new GraphQLObjectType({
   fields: () => {
     return {
       id: {
-        type: GraphQLString,
+        type: new GraphQLNonNull(GraphQLString),
         description: 'An unique identifier for this comment reaction',
+        resolve: getIdEncodeResolver(IDENTIFIER_TYPES.COMMENT_REACTION),
       },
       emoji: {
-        type: GraphQLString,
+        type: new GraphQLNonNull(GraphQLString),
         description: 'The emoji associated with this user and comment',
       },
       fromAccount: {
-        type: Account,
-        resolve: fromCollectiveResolver,
+        type: new GraphQLNonNull(Account),
         description: 'The account associated with this reaction',
+        resolve: fromCollectiveResolver,
       },
       createdAt: {
-        type: GraphQLDateTime,
+        type: new GraphQLNonNull(GraphQLDateTime),
         description: 'The time this comment was created',
-      },
-      updatedAt: {
-        type: GraphQLDateTime,
-        description: 'The time this comment reaction was last updated',
       },
     };
   },
