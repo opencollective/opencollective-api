@@ -58,7 +58,7 @@ export const payExpensesBatch = async (expenses: any[]): Promise<any[]> => {
 };
 
 export const checkBatchItemStatus = async (item: any, expense: any, host: any) => {
-  if (expense.data.sender_batch_id !== item.payout_batch_id) {
+  if (expense.data.payout_batch_id !== item.payout_batch_id) {
     throw new Error(`Item does not belongs to expense it claims it does.`);
   }
 
@@ -123,7 +123,7 @@ export const checkBatchStatus = async (batch: any[]): Promise<any[]> => {
       }
       await checkBatchItemStatus(item, expense, host);
     } catch (e) {
-      logger.error(e);
+      console.error(e);
     }
   };
 
