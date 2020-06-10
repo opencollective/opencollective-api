@@ -924,6 +924,7 @@ const getBalances = async (collectiveIds, until = new Date()) =>
             "Expenses" e
           WHERE
             e."CollectiveId" IN (:ids)
+            AND e."deletedAt" IS NULL
             AND e."createdAt" < :until
             AND (
               e.status = 'SCHEDULED_FOR_PAYMENT'
@@ -942,6 +943,7 @@ const getBalances = async (collectiveIds, until = new Date()) =>
         LEFT JOIN "blockedFunds" bf ON t."CollectiveId" = bf."CollectiveId"
         WHERE
           t."CollectiveId" IN (:ids)
+          AND t."deletedAt" IS NULL
           AND t."createdAt" < :until
         GROUP BY
           t."CollectiveId";
