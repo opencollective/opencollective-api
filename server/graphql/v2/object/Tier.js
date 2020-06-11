@@ -1,9 +1,11 @@
-import { GraphQLInt, GraphQLList, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import models, { Op } from '../../../models';
 import { OrderCollection } from '../collection/OrderCollection';
-import { OrderStatus } from '../enum/OrderStatus';
+import { OrderStatus, TierAmountType, TierInterval } from '../enum';
 import { idEncode } from '../identifiers';
+
+import { Amount } from './Amount';
 
 export const Tier = new GraphQLObjectType({
   name: 'Tier',
@@ -24,9 +26,6 @@ export const Tier = new GraphQLObjectType({
       },
       slug: {
         type: GraphQLString,
-        resolve(tier) {
-          return tier.slug;
-        },
       },
       name: {
         type: GraphQLString,
@@ -36,9 +35,6 @@ export const Tier = new GraphQLObjectType({
       },
       description: {
         type: GraphQLString,
-        resolve(tier) {
-          return tier.description;
-        },
       },
       orders: {
         description: 'Get all orders',
@@ -60,6 +56,27 @@ export const Tier = new GraphQLObjectType({
           const result = await models.Order.findAndCountAll({ where, limit: args.limit, offset: args.offset });
 
           return { nodes: result.rows, totalCount: result.count, limit: args.limit, offset: args.offset };
+        },
+      },
+      amount: {
+        type: Amount,
+        resolve(tier) {
+          return { value: tier.amount, currency: tier.currency };
+        },
+      },
+      interval: {
+        type: TierInterval,
+      },
+      presets: {
+        type: new GraphQLList(GraphQLInt),
+      },
+      amountType: {
+        type: new GraphQLNonNull(TierAmountType),
+      },
+      minimumAmount: {
+        type: Amount,
+        resolve(tier) {
+          return { value: tier.minimumAmount };
         },
       },
     };
