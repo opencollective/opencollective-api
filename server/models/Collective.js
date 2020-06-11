@@ -1776,6 +1776,7 @@ export default function (Sequelize, DataTypes) {
             'website',
             'tags',
             'data',
+            'settings',
           ]),
           user: {
             email: creatorUser.email,

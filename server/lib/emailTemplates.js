@@ -44,6 +44,8 @@ export const templateNames = [
   'event.newmember',
   'event.reminder.1d',
   'event.reminder.7d',
+  'fund.created.foundation',
+  'fund.approved.foundation',
   'host.report',
   'host.report.text',
   'host.report.summary',
