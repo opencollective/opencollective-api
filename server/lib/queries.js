@@ -2,12 +2,12 @@ import Promise from 'bluebird';
 import config from 'config';
 import { get, pick } from 'lodash';
 
-import models, { Op, sequelize } from '../models';
-
 import { memoize } from './cache';
 import { convertToCurrency } from './currency';
+import sequelize, { Op } from './sequelize';
 
 const twoHoursInSeconds = 2 * 60 * 60;
+const models = sequelize.models;
 
 /*
  * Hacky way to do currency conversion
@@ -914,6 +914,43 @@ const getCollectivesWithMinBackersQuery = async ({
   return { total, collectives };
 };
 
+const getBalances = async (collectiveIds, until = new Date()) =>
+  sequelize.query(
+    `
+        WITH "blockedFunds" AS (
+          SELECT
+            e."CollectiveId", COALESCE(sum(e.amount), 0) as sum
+          FROM
+            "Expenses" e
+          WHERE
+            e."CollectiveId" IN (:ids)
+            AND e."deletedAt" IS NULL
+            AND e."createdAt" < :until
+            AND (
+              e.status = 'SCHEDULED_FOR_PAYMENT'
+              OR (
+                e.status = 'PROCESSING' AND e.data ->> 'payout_batch_id' IS NOT NULL
+              )
+          )
+          GROUP BY
+            e."CollectiveId"
+        )
+        SELECT
+          t."CollectiveId",
+          COALESCE(sum(t."netAmountInCollectiveCurrency") - COALESCE(max(bf.sum), 0), 0) AS "balance"
+        FROM
+          "Transactions" t
+        LEFT JOIN "blockedFunds" bf ON t."CollectiveId" = bf."CollectiveId"
+        WHERE
+          t."CollectiveId" IN (:ids)
+          AND t."deletedAt" IS NULL
+          AND t."createdAt" < :until
+        GROUP BY
+          t."CollectiveId";
+      `,
+    { type: sequelize.QueryTypes.SELECT, replacements: { ids: collectiveIds, until } },
+  );
+
 const serializeCollectivesResult = JSON.stringify;
 
 const unserializeCollectivesResult = string => {
@@ -938,6 +975,7 @@ const getCollectivesWithMinBackers = memoize(getCollectivesWithMinBackersQuery, 
 
 const queries = {
   getHosts,
+  getBalances,
   getCollectivesOrderedByMonthlySpending,
   getCollectivesOrderedByMonthlySpendingQuery,
   getTotalDonationsByCollectiveType,

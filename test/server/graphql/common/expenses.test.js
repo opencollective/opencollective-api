@@ -66,7 +66,7 @@ describe('server/graphql/common/expenses', () => {
     it('can see only if owner or host admin', async () => {
       expect(await canSeeExpensePayoutMethod(publicReq, expense)).to.be.false;
       expect(await canSeeExpensePayoutMethod(randomUserReq, expense)).to.be.false;
-      expect(await canSeeExpensePayoutMethod(collectiveAdminReq, expense)).to.be.false;
+      expect(await canSeeExpensePayoutMethod(collectiveAdminReq, expense)).to.be.true;
       expect(await canSeeExpensePayoutMethod(hostAdminReq, expense)).to.be.true;
       expect(await canSeeExpensePayoutMethod(expenseOwnerReq, expense)).to.be.true;
       expect(await canSeeExpensePayoutMethod(limitedHostAdminReq, expense)).to.be.false;
@@ -77,7 +77,7 @@ describe('server/graphql/common/expenses', () => {
     it('can see only if owner or host admin', async () => {
       expect(await canSeeExpenseInvoiceInfo(publicReq, expense)).to.be.false;
       expect(await canSeeExpenseInvoiceInfo(randomUserReq, expense)).to.be.false;
-      expect(await canSeeExpenseInvoiceInfo(collectiveAdminReq, expense)).to.be.false;
+      expect(await canSeeExpenseInvoiceInfo(collectiveAdminReq, expense)).to.be.true;
       expect(await canSeeExpenseInvoiceInfo(hostAdminReq, expense)).to.be.true;
       expect(await canSeeExpenseInvoiceInfo(expenseOwnerReq, expense)).to.be.true;
       expect(await canSeeExpenseInvoiceInfo(limitedHostAdminReq, expense)).to.be.false;
@@ -88,7 +88,7 @@ describe('server/graphql/common/expenses', () => {
     it('can see only if owner or host admin', async () => {
       expect(await canSeeExpensePayeeLocation(publicReq, expense)).to.be.false;
       expect(await canSeeExpensePayeeLocation(randomUserReq, expense)).to.be.false;
-      expect(await canSeeExpensePayeeLocation(collectiveAdminReq, expense)).to.be.false;
+      expect(await canSeeExpensePayeeLocation(collectiveAdminReq, expense)).to.be.true;
       expect(await canSeeExpensePayeeLocation(hostAdminReq, expense)).to.be.true;
       expect(await canSeeExpensePayeeLocation(expenseOwnerReq, expense)).to.be.true;
       expect(await canSeeExpensePayeeLocation(limitedHostAdminReq, expense)).to.be.false;
@@ -281,17 +281,6 @@ describe('server/graphql/common/expenses', () => {
       expect(await canMarkAsUnpaid(hostAdminReq, expense)).to.be.true;
       expect(await canMarkAsUnpaid(expenseOwnerReq, expense)).to.be.false;
       expect(await canMarkAsUnpaid(limitedHostAdminReq, expense)).to.be.false;
-    });
-
-    it('only if payout method type is OTHER', async () => {
-      const paypalPM = await fakePayoutMethod({ type: PayoutMethodTypes.PAYPAL });
-      const testExpense = await fakeExpense({
-        status: 'PAID',
-        CollectiveId: collective.id,
-        PayoutMethodId: paypalPM.id,
-      });
-      const result = await canMarkAsUnpaid(hostAdminReq, testExpense);
-      expect(result).to.be.false;
     });
   });
 });

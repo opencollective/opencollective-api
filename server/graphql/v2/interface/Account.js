@@ -25,6 +25,7 @@ import { IsMemberOfFields } from '../interface/IsMemberOf';
 import { AccountStats } from '../object/AccountStats';
 import { ConnectedAccount } from '../object/ConnectedAccount';
 import { Location } from '../object/Location';
+import { PaymentMethod } from '../object/PaymentMethod';
 import PayoutMethod from '../object/PayoutMethod';
 import { TagStats } from '../object/TagStats';
 import { TransferWise } from '../object/TransferWise';
@@ -94,6 +95,14 @@ const accountFieldsDefinition = () => ({
   isArchived: {
     type: GraphQLBoolean,
     description: 'Returns whether this account is archived',
+  },
+  isActive: {
+    type: GraphQLBoolean,
+    description: 'Returns whether the account accepts financial contributions.',
+  },
+  isHost: {
+    type: GraphQLBoolean,
+    description: 'Returns whether the account is setup to Host collectives.',
   },
   members: {
     type: MemberCollection,
@@ -190,6 +199,16 @@ const accountFieldsDefinition = () => ({
   payoutMethods: {
     type: new GraphQLList(PayoutMethod),
     description: 'The list of payout methods that this collective can use to get paid',
+  },
+  paymentMethods: {
+    type: new GraphQLList(PaymentMethod),
+    args: {
+      types: {
+        type: new GraphQLList(GraphQLString),
+        description: 'Filter on given types (creditcard, virtualcard...)',
+      },
+    },
+    description: 'The list of payment methods that this collective can use to pay for Orders',
   },
   connectedAccounts: {
     type: new GraphQLList(ConnectedAccount),
@@ -341,6 +360,13 @@ export const AccountFields = {
       return Boolean(collective.deactivatedAt);
     },
   },
+  isHost: {
+    type: GraphQLBoolean,
+    description: 'Returns whether the account is setup to Host collectives.',
+    resolve(collective) {
+      return Boolean(collective.isHostAccount);
+    },
+  },
   ...HasMembersFields,
   ...IsMemberOfFields,
   transactions: accountTransactions,
@@ -399,6 +425,27 @@ export const AccountFields = {
       } else {
         return req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
       }
+    },
+  },
+  paymentMethods: {
+    type: new GraphQLList(PaymentMethod),
+    args: {
+      types: { type: new GraphQLList(GraphQLString) },
+    },
+    description: 'The list of payment methods that this collective can use to pay for Orders',
+    async resolve(collective, args, req) {
+      let paymentMethods = await req.loaders.PaymentMethod.findByCollectiveId.load(collective.id);
+
+      // Filter only "saved" stripe Payment Methods
+      paymentMethods = paymentMethods.filter(pm => pm.service !== 'stripe' || pm.saved);
+
+      paymentMethods = paymentMethods.filter(pm => !(pm.data && pm.data.hidden));
+
+      if (args.types) {
+        paymentMethods = paymentMethods.filter(pm => args.types.includes(pm.type));
+      }
+
+      return paymentMethods;
     },
   },
   connectedAccounts: {

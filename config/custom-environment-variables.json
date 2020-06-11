@@ -149,5 +149,12 @@
   },
   "fixie": {
     "url": "FIXIE_URL"
+  },
+  "hyperwatch": {
+    "enabled": "HYPERWATCH_ENABLED",
+    "path": "HYPERWATCH_PATH",
+    "realm": "HYPERWATCH_REALM",
+    "username": "HYPERWATCH_USERNAME",
+    "secret": "HYPERWATCH_SECRET"
   }
 }

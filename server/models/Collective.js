@@ -36,6 +36,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymen
 import plans, { PLANS_COLLECTIVE_SLUG } from '../constants/plans';
 import roles, { MemberRoleLabels } from '../constants/roles';
 import { HOST_FEE_PERCENT, OC_FEE_PERCENT } from '../constants/transactions';
+import cache from '../lib/cache';
 import {
   collectiveSlugBlacklist,
   getCollectiveAvatarUrl,
@@ -1775,6 +1776,7 @@ export default function (Sequelize, DataTypes) {
             'website',
             'tags',
             'data',
+            'settings',
           ]),
           user: {
             email: creatorUser.email,
@@ -1985,9 +1987,7 @@ export default function (Sequelize, DataTypes) {
 
   // edit the tiers of this collective (create/update/remove)
   Collective.prototype.editTiers = function (tiers) {
-    if (this.type !== types.COLLECTIVE && this.type !== types.EVENT) {
-      return [];
-    }
+    // All kind of accounts can have Tiers
 
     if (!tiers) {
       return this.getTiers();
@@ -2135,17 +2135,10 @@ export default function (Sequelize, DataTypes) {
     });
   };
 
-  Collective.prototype.getBalance = function (until) {
+  Collective.prototype.getBalance = async function (until) {
     until = until || new Date();
-    return models.Transaction.findOne({
-      attributes: [
-        [Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('netAmountInCollectiveCurrency')), 0), 'total'],
-      ],
-      where: {
-        CollectiveId: this.id,
-        createdAt: { [Op.lt]: until },
-      },
-    }).then(result => Promise.resolve(parseInt(result.toJSON().total, 10)));
+    const result = await queries.getBalances([this.id], until);
+    return get(result, '[0].balance') || 0;
   };
 
   Collective.prototype.getYearlyIncome = function () {
@@ -2701,33 +2694,51 @@ export default function (Sequelize, DataTypes) {
   };
 
   Collective.prototype.getPlan = async function () {
+    const cacheKey = `plan_${this.id}`;
+    const fromCache = await cache.get(cacheKey);
+    if (fromCache) {
+      return fromCache;
+    }
+
     const [hostedCollectives, addedFunds, bankTransfers, transferwisePayouts] = await Promise.all([
       this.getHostedCollectivesCount(),
       this.getTotalAddedFunds(),
       this.getTotalBankTransfers(),
       this.getTotalTransferwisePayouts(),
     ]);
+
     if (this.plan) {
       const tier = await models.Tier.findOne({
         where: { slug: this.plan, deletedAt: null },
         include: [{ model: models.Collective, where: { slug: PLANS_COLLECTIVE_SLUG } }],
       });
-      const plan = (tier && tier.data) || plans[this.plan];
-      if (plan) {
+      const planData = (tier && tier.data) || plans[this.plan];
+      if (planData) {
         const extraPlanData = get(this.data, 'plan', {});
-        return {
+        const plan = {
           name: this.plan,
           hostedCollectives,
           addedFunds,
           bankTransfers,
           transferwisePayouts,
-          ...plan,
+          ...planData,
           ...extraPlanData,
         };
+        await cache.set(cacheKey, plan, 5 * 60 /* 5 minutes */);
+        return plan;
       }
     }
 
-    return { name: 'default', hostedCollectives, addedFunds, bankTransfers, transferwisePayouts, ...plans.default };
+    const plan = {
+      name: 'default',
+      hostedCollectives,
+      addedFunds,
+      bankTransfers,
+      transferwisePayouts,
+      ...plans.default,
+    };
+    await cache.set(cacheKey, plan, 5 * 60 /* 5 minutes */);
+    return plan;
   };
 
   /**

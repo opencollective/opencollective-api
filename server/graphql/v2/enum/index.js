@@ -10,4 +10,5 @@ export { MemberRole } from './MemberRole';
 export { OrderDirectionType } from './OrderDirectionType';
 export { OrderFrequency } from './OrderFrequency';
 export { OrderStatus } from './OrderStatus';
+export { PaymentMethodType } from './PaymentMethodType';
 export { TransactionType } from './TransactionType';

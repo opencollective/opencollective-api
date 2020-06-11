@@ -67,17 +67,26 @@ export const AccountStats = new GraphQLObjectType({
       yearlyBudget: {
         type: Amount,
         async resolve(collective) {
-          // If the current account is a host, we aggregate the yearly budget across all the hosted collectives
+          return {
+            value: await collective.getYearlyIncome(),
+            currency: collective.currency,
+          };
+        },
+      },
+      yearlyBudgetManaged: {
+        type: Amount,
+        async resolve(collective) {
           if (collective.isHostAccount) {
             return {
               value: await queries.getTotalAnnualBudgetForHost(collective.id),
               currency: collective.currency,
             };
+          } else {
+            return {
+              value: 0,
+              currency: collective.currency,
+            };
           }
-          return {
-            value: await collective.getYearlyIncome(),
-            currency: collective.currency,
-          };
         },
       },
     };

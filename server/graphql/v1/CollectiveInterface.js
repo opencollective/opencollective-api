@@ -484,11 +484,17 @@ export const CollectiveStatsType = new GraphQLObjectType({
       yearlyBudget: {
         type: GraphQLInt,
         resolve(collective) {
-          // If the current collective is a host, we aggregate the yearly budget across all the hosted collectives
-          if (collective.id === collective.HostCollectiveId) {
-            return queries.getTotalAnnualBudgetForHost(collective.id);
-          }
           return collective.getYearlyIncome();
+        },
+      },
+      yearlyBudgetManaged: {
+        type: GraphQLInt,
+        resolve(collective) {
+          if (collective.isHostAccount) {
+            return queries.getTotalAnnualBudgetForHost(collective.id);
+          } else {
+            return 0;
+          }
         },
       },
       topExpenses: {
@@ -1111,7 +1117,8 @@ const CollectiveFields = () => {
         } else if (collective.type === types.EVENT) {
           const ParentCollectiveId = collective.ParentCollectiveId;
           const parentCollective = ParentCollectiveId && (await req.loaders.Collective.byId.load(ParentCollectiveId));
-          return parentCollective && parentCollective.isApproved();
+          // In the future, we should make it possible to directly read the approvedAt of the event
+          return parentCollective && (parentCollective.isHostAccount || parentCollective.isApproved());
         } else {
           return collective.isApproved();
         }

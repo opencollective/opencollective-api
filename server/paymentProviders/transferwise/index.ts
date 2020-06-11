@@ -23,6 +23,7 @@ export const blackListedCurrencies = [
   'LKR',
   'SGD',
   'VND',
+  'BWP',
 ];
 
 async function populateProfileId(connectedAccount): Promise<void> {

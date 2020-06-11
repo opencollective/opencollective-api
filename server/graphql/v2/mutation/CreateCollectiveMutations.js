@@ -29,7 +29,7 @@ async function createCollective(_, args, req) {
     ...pick(args.collective, ['name', 'slug', 'description', 'tags']),
     isActive: false,
     CreatedByUserId: remoteUser.id,
-    settings: { ...DEFAULT_COLLECTIVE_SETTINGS },
+    settings: { ...DEFAULT_COLLECTIVE_SETTINGS, ...args.collective.settings },
   };
 
   const collectiveWithSlug = await models.Collective.findOne({ where: { slug: collectiveData.slug.toLowerCase() } });

@@ -1,11 +1,12 @@
 import { GraphQLObjectType, GraphQLString } from 'graphql';
-// import { GraphQLInt } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 
+import models from '../../../models';
 import { OrderFrequency, OrderStatus } from '../enum';
 import { idEncode } from '../identifiers';
 import { Account } from '../interface/Account';
 import { Amount } from '../object/Amount';
+import { PaymentMethod } from '../object/PaymentMethod';
 import { Tier } from '../object/Tier';
 
 export const Order = new GraphQLObjectType({
@@ -102,6 +103,13 @@ export const Order = new GraphQLObjectType({
             CollectiveId: order.CollectiveId,
           });
           return { value, currency: order.currency };
+        },
+      },
+      // needed for recurring contributions work, but we should update to encoded id and write v2 payment method object soon
+      paymentMethod: {
+        type: PaymentMethod,
+        resolve(order) {
+          return models.PaymentMethod.findByPk(order.PaymentMethodId);
         },
       },
     };

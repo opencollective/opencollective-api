@@ -55,7 +55,7 @@
     "searchEmailPerHour": 150,
     "searchEmailPerHourPerIp": 50,
     "collectiveEmailMessagePerHour": 5,
-    "maxMemberInvitationsPerCollective": 20
+    "maxMemberInvitationsPerCollective": 50
   },
   "email": {
     "from": "Open Collective <info@opencollective.com>"
@@ -132,5 +132,11 @@
   "transferwise": {
     "apiUrl": "https://api.sandbox.transferwise.tech"
   },
-  "fixie": {}
+  "fixie": {},
+  "hyperwatch": {
+    "enabled": false,
+    "path": "/_hyperwatch",
+    "realm": null,
+    "username": "opencollective"
+  }
 }

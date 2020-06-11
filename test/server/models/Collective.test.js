@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import sinon from 'sinon';
 
-import { roles } from '../../../server/constants';
+import { expenseStatus, roles } from '../../../server/constants';
 import plans from '../../../server/constants/plans';
 import { getFxRate } from '../../../server/lib/currency';
 import emailLib from '../../../server/lib/email';
@@ -117,6 +117,10 @@ describe('server/models/Collective', () => {
       platformFeeInHostCurrency: 0,
     },
   ];
+
+  beforeEach(async () => {
+    await utils.resetCaches();
+  });
 
   before(() => {
     sandbox = sinon.createSandbox();
@@ -500,6 +504,37 @@ describe('server/models/Collective', () => {
       expect(balance).to.equal(sum);
       done();
     });
+  });
+
+  it('computes the balance deducting expenses scheduled for payment', async () => {
+    const collective = await fakeCollective();
+    await fakeTransaction({
+      createdAt: new Date(),
+      CollectiveId: collective.id,
+      amount: 500,
+      amountInHostCurrency: 50000,
+      netAmountInCollectiveCurrency: 45000,
+      currency: 'USD',
+      type: 'CREDIT',
+      CreatedByUserId: 2,
+      FromCollectiveId: 2,
+      platformFeeInHostCurrency: 0,
+    });
+    await fakeExpense({
+      CollectiveId: collective.id,
+      status: expenseStatus.SCHEDULED_FOR_PAYMENT,
+      amount: 20000,
+    });
+    await fakeExpense({
+      CollectiveId: collective.id,
+      status: expenseStatus.PROCESSING,
+      amount: 10000,
+      // eslint-disable-next-line camelcase
+      data: { payout_batch_id: 1 },
+    });
+
+    const balance = await collective.getBalance();
+    expect(balance).to.equal(45000 - 30000);
   });
 
   it('computes the number of backers', () =>

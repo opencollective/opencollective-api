@@ -134,7 +134,7 @@ const EXPENSE_EDITABLE_FIELDS = [
   'payeeLocation',
 ];
 
-const getPaypalPaymentMethodFromExpenseData = async (expenseData, remoteUser, fromCollective, dbTransaction) => {
+const getPayoutMethodFromExpenseData = async (expenseData, remoteUser, fromCollective, dbTransaction) => {
   if (expenseData.PayoutMethod) {
     if (expenseData.PayoutMethod.id) {
       const pm = await models.PayoutMethod.findByPk(expenseData.PayoutMethod.id);
@@ -222,8 +222,12 @@ export async function createExpense(remoteUser, expenseData) {
   const collective = await models.Collective.findByPk(expenseData.collective.id);
   if (!collective) {
     throw new ValidationFailed('Collective not found');
-  } else if (![collectiveTypes.COLLECTIVE, collectiveTypes.EVENT].includes(collective.type)) {
-    throw new ValidationFailed('Expenses can only be submitted to collectives and events');
+  }
+
+  const isCollectiveOrEvent = [collectiveTypes.COLLECTIVE, collectiveTypes.EVENT].includes(collective.type);
+  const isActiveHost = collective.type === collectiveTypes.ORGANIZATION && collective.isActive;
+  if (!isCollectiveOrEvent && !isActiveHost) {
+    throw new ValidationFailed('Expenses can only be submitted to collectives, events or active hosts.');
   }
 
   // Load the payee profile
@@ -247,7 +251,7 @@ export async function createExpense(remoteUser, expenseData) {
 
   const expense = await sequelize.transaction(async t => {
     // Get or create payout method
-    const payoutMethod = await getPaypalPaymentMethodFromExpenseData(expenseData, remoteUser, fromCollective, t);
+    const payoutMethod = await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, t);
 
     // Create expense
     const createdExpense = await models.Expense.create(
@@ -378,7 +382,7 @@ export async function editExpense(req, expenseData) {
       (expenseData.payoutMethod !== undefined && expenseData.payoutMethod !== expense.legacyPayoutMethod) ||
       (expenseData.PayoutMethod !== undefined && expenseData.PayoutMethod.id !== expense.PayoutMethodId)
     ) {
-      payoutMethod = await getPaypalPaymentMethodFromExpenseData(expenseData, remoteUser, fromCollective, t);
+      payoutMethod = await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, t);
     }
 
     // Update items
@@ -718,10 +722,6 @@ export async function markExpenseAsUnpaid(req, ExpenseId, processorFeeRefunded) 
 
   if (expense.status !== statuses.PAID) {
     throw new Unauthorized('Expense has not been paid yet');
-  }
-
-  if (expense.legacyPayoutMethod !== 'other') {
-    throw new Unauthorized('Only expenses with "other" payout method can be marked as unpaid');
   }
 
   const transaction = await models.Transaction.findOne({

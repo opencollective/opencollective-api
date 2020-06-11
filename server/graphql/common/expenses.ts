@@ -1,10 +1,10 @@
 import { activities, expenseStatus, roles } from '../../constants';
 import FEATURE from '../../constants/feature';
 import { canUseFeature } from '../../lib/user-permissions';
+import { formatCurrency } from '../../lib/utils';
 import models from '../../models';
 import { ExpenseItem } from '../../models/ExpenseItem';
-import { PayoutMethodTypes } from '../../models/PayoutMethod';
-import { Forbidden } from '../errors';
+import { BadRequest, Forbidden, Unauthorized } from '../errors';
 
 const isOwner = async (req, expense): Promise<boolean> => {
   if (!req.remoteUser) {
@@ -64,17 +64,17 @@ export const canSeeExpenseAttachments = async (req, expense): Promise<boolean> =
 
 /** Checks if the user can see expense's payout method */
 export const canSeeExpensePayoutMethod = async (req, expense): Promise<boolean> => {
-  return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin]);
+  return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin]);
 };
 
 /** Checks if the user can see expense's payout method */
 export const canSeeExpenseInvoiceInfo = async (req, expense): Promise<boolean> => {
-  return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin]);
+  return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin]);
 };
 
 /** Checks if the user can see expense's payout method */
 export const canSeeExpensePayeeLocation = async (req, expense): Promise<boolean> => {
-  return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin]);
+  return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin]);
 };
 
 /**
@@ -192,14 +192,8 @@ export const canMarkAsUnpaid = async (req, expense): Promise<boolean> => {
     return false;
   } else if (!canUseFeature(req.remoteUser, FEATURE.EXPENSES)) {
     return false;
-  } else if (!(await isHostAdmin(req, expense))) {
-    return false;
   } else {
-    if (!expense.payoutMethod && expense.PayoutMethodId) {
-      expense.payoutMethod = await req.loaders.PayoutMethod.byId.load(expense.PayoutMethodId);
-    }
-
-    return !expense.payoutMethod || expense.payoutMethod.type === PayoutMethodTypes.OTHER;
+    return isHostAdmin(req, expense);
   }
 };
 
@@ -238,5 +232,30 @@ export const rejectExpense = async (req, expense): Promise<typeof models.Expense
 
   const updatedExpense = await expense.update({ status: expenseStatus.REJECTED, lastEditedById: req.remoteUser.id });
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_REJECTED, req.remoteUser);
+  return updatedExpense;
+};
+
+export const scheduleExpenseForPayment = async (req, expense): Promise<typeof models.Expense> => {
+  if (expense.status === expenseStatus.SCHEDULED_FOR_PAYMENT) {
+    throw new BadRequest('Expense is already scheduled for payment');
+  } else if (!(await canPayExpense(req, expense))) {
+    throw new Forbidden("You're authenticated but you can't schedule this expense for payment");
+  }
+
+  const balance = await expense.collective.getBalance();
+  if (expense.amount > balance) {
+    throw new Unauthorized(
+      `You don't have enough funds to pay this expense. Current balance: ${formatCurrency(
+        balance,
+        expense.collective.currency,
+      )}, Expense amount: ${formatCurrency(expense.amount, expense.collective.currency)}`,
+    );
+  }
+
+  const updatedExpense = await expense.update({
+    status: expenseStatus.SCHEDULED_FOR_PAYMENT,
+    lastEditedById: req.remoteUser.id,
+  });
+  await expense.createActivity(activities.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT, req.remoteUser);
   return updatedExpense;
 };

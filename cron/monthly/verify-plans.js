@@ -14,6 +14,7 @@ import { Op } from 'sequelize';
 
 import orderStatus from '../../server/constants/order_status';
 import plans, { PLANS_COLLECTIVE_SLUG } from '../../server/constants/plans';
+import cache from '../../server/lib/cache';
 import emailLib from '../../server/lib/email';
 import models from '../../server/models';
 
@@ -79,6 +80,7 @@ export async function run() {
       const message = `Collective ${collective.slug} cancelled ${collective.plan}.`;
       debug(message);
       await collective.update({ plan: null });
+      await cache.del(`plan_${collective.id}`);
       return info.push({
         level: LEVELS.CANCEL,
         message,
@@ -90,6 +92,7 @@ export async function run() {
       const message = `Collective ${collective.slug} downgraded from ${collective.plan} to ${lastOrderPlan}.`;
       debug(message);
       await collective.update({ plan: lastOrderPlan });
+      await cache.del(`plan_${collective.id}`);
       return info.push({
         level: LEVELS.DOWNGRADE,
         message,
