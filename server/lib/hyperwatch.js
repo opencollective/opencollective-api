@@ -34,7 +34,7 @@ const load = async app => {
   app.use((req, res, next) => {
     req.startAt = new Date();
 
-    res.on('finish', () => {
+    res.on('finish', async () => {
       const { success, reject } = expressInput;
       req.endAt = new Date();
       try {
@@ -54,13 +54,13 @@ const load = async app => {
 
         if (req.remoteUser) {
           log = log.setIn(['opencollective', 'user', 'id'], req.remoteUser.id);
-          log = log.setIn(['opencollective', 'user', 'email'], req.remoteUser.email);
-          const collective = req.remoteUser.userCollective;
+          log = log.setIn(['opencollective', 'collective', 'id'], req.remoteUser.CollectiveId);
+          const collective = await req.loaders.Collective.byId.load(req.remoteUser.CollectiveId);
           if (collective) {
-            log = log.setIn(['opencollective', 'collective', 'id'], collective.id);
             log = log.setIn(['opencollective', 'collective', 'slug'], collective.slug);
           }
         }
+
         success(log);
       } catch (err) {
         reject(err);
