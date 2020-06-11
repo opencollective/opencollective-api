@@ -9,7 +9,7 @@ export const PaymentMethodReferenceInput = new GraphQLInputObjectType({
   fields: () => ({
     id: {
       type: GraphQLString,
-      description: 'The encrypted id assigned to the payment method',
+      description: 'The id assigned to the payment method',
     },
   }),
 });
@@ -22,17 +22,10 @@ export const PaymentMethodReferenceInput = new GraphQLInputObjectType({
  *    - dbTransaction: An SQL transaction to run the query. Will skip `loaders`
  *    - lock: If true and `dbTransaction` is set, the row will be locked
  */
-export const fetchPaymentMethodWithReference = async (
-  input,
-  { loaders = null, throwIfMissing = false, dbTransaction = undefined, lock = false } = {},
-) => {
+export const fetchPaymentMethodWithReference = async (input, { throwIfMissing = false } = {}) => {
   // Load payment by ID using GQL loaders if we're not using a transaction & loaders are available
   const loadPaymentById = id => {
-    if (!loaders || dbTransaction) {
-      return models.PaymentMethod.findByPk(id, { transaction: dbTransaction, lock });
-    } else {
-      return loaders.PaymentMethod.byId.load(id);
-    }
+    return models.PaymentMethod.findByPk(id);
   };
 
   let paymentMethod;

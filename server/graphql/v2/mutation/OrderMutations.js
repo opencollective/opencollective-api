@@ -186,6 +186,22 @@ const orderMutations = {
 
       let tierInfo;
 
+      // amount
+      if (amount !== undefined) {
+        if (amount !== order.totalAmount) {
+          if (amount < 100) {
+            throw new Error('Invalid amount.');
+          }
+
+          // If using a named tier, amount can never be less than the minimum amount
+          if (tierInfo && tierInfo.amountType === 'FLEXIBLE' && amount < tierInfo.minimumAmount) {
+            throw new Error('Amount is less than minimum value allowed for this Tier.');
+          }
+
+          order = await order.update({ totalAmount: amount });
+        }
+      }
+
       // tier
       if (tier !== undefined) {
         // get tier info if it's a named tier
@@ -202,22 +218,6 @@ const orderMutations = {
         // check if the tier is different from the previous tier
         if (tier.legacyId !== order.TierId) {
           order = await order.update({ TierId: tier.legacyId });
-        }
-      }
-
-      // amount
-      if (amount !== undefined) {
-        if (amount !== order.totalAmount) {
-          if (amount < 100) {
-            throw new Error('Invalid amount.');
-          }
-
-          // If using a named tier, amount can never be less than the minimum amount
-          if (tierInfo && tierInfo.amountType === 'FLEXIBLE' && amount < tierInfo.minimumAmount) {
-            throw new Error('Amount is less than minimum value allowed for this Tier.');
-          }
-
-          order = await order.update({ totalAmount: amount });
         }
       }
 

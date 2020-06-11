@@ -4,6 +4,7 @@ import { pick } from 'lodash';
 
 import { idEncode } from '../identifiers';
 import { Account } from '../interface/Account';
+import { Amount } from '../object/Amount';
 
 export const PaymentMethod = new GraphQLObjectType({
   name: 'PaymentMethod',
@@ -42,17 +43,11 @@ export const PaymentMethod = new GraphQLObjectType({
         },
       },
       balance: {
-        type: GraphQLInt,
-        description: 'Returns the balance in the currency of this paymentMethod',
+        type: Amount,
+        description: 'Returns the balance amount and the currency of this paymentMethod',
         async resolve(paymentMethod, args, req) {
           const balance = await paymentMethod.getBalanceForUser(req.remoteUser);
-          return balance.amount;
-        },
-      },
-      currency: {
-        type: GraphQLString,
-        resolve(paymentMethod) {
-          return paymentMethod.currency;
+          return { value: balance.amount, currency: paymentMethod.currency };
         },
       },
       account: {
