@@ -6,7 +6,7 @@ import models from '../../../models';
 import { NotFound, Unauthorized } from '../../errors';
 import { getDecodedId } from '../identifiers';
 import { OrderReferenceInput } from '../input/OrderReferenceInput';
-import { PaymentMethodReferenceInput } from '../input/PaymentMethodReferenceInput';
+import { fetchPaymentMethodWithReference, PaymentMethodReferenceInput } from '../input/PaymentMethodReferenceInput';
 import { TierReferenceInput } from '../input/TierReferenceInput';
 import { Order } from '../object/Order';
 
@@ -173,11 +173,9 @@ const orderMutations = {
       // payment method
       if (paymentMethod !== undefined) {
         // unlike v1 we don't have to check/assign new payment method, that will be taken care of in another mutation
-        const newPaymentMethod = await models.PaymentMethod.findOne({
-          where: { id: paymentMethod.legacyId },
-        });
+        const newPaymentMethod = await fetchPaymentMethodWithReference(args.paymentMethod);
         if (!newPaymentMethod) {
-          throw new Error('Payment method not found with this id', paymentMethod.legacyId);
+          throw new Error('Payment method not found with this id', paymentMethod.id);
         }
         if (!req.remoteUser.isAdmin(newPaymentMethod.CollectiveId)) {
           throw new Unauthorized("You don't have permission to use this payment method");
@@ -186,34 +184,41 @@ const orderMutations = {
         order = await order.update({ PaymentMethodId: newPaymentMethod.id });
       }
 
-      // tier
       let tierInfo;
-      // get tier info if it's a named tier
-      if (tier.legacyId !== null) {
-        tierInfo = await models.Tier.findByPk(tier.legacyId);
-        if (!tierInfo) {
-          throw new Error(`No tier found with tier id: ${tier.legacyId} for collective ${order.CollectiveId}`);
-        } else if (tierInfo.CollectiveId !== order.CollectiveId) {
-          throw new Error(`This tier (#${tierInfo.id}) doesn't belong to the given Collective #${order.CollectiveId}`);
-        }
-      }
-      // check if the tier is different from the previous tier
-      if (tier.legacyId !== order.TierId) {
-        order = await order.update({ TierId: tier.legacyId });
-      }
 
       // amount
-      if (amount !== order.totalAmount) {
-        if (amount < 100) {
-          throw new Error('Invalid amount.');
-        }
+      if (amount !== undefined) {
+        if (amount !== order.totalAmount) {
+          if (amount < 100) {
+            throw new Error('Invalid amount.');
+          }
 
-        // If using a named tier, amount can never be less than the minimum amount
-        if (tierInfo && tierInfo.amountType === 'FLEXIBLE' && amount < tierInfo.minimumAmount) {
-          throw new Error('Amount is less than minimum value allowed for this Tier.');
-        }
+          // If using a named tier, amount can never be less than the minimum amount
+          if (tierInfo && tierInfo.amountType === 'FLEXIBLE' && amount < tierInfo.minimumAmount) {
+            throw new Error('Amount is less than minimum value allowed for this Tier.');
+          }
 
-        order = await order.update({ totalAmount: amount });
+          order = await order.update({ totalAmount: amount });
+        }
+      }
+
+      // tier
+      if (tier !== undefined) {
+        // get tier info if it's a named tier
+        if (tier.legacyId !== null) {
+          tierInfo = await models.Tier.findByPk(tier.legacyId);
+          if (!tierInfo) {
+            throw new Error(`No tier found with tier id: ${tier.legacyId} for collective ${order.CollectiveId}`);
+          } else if (tierInfo.CollectiveId !== order.CollectiveId) {
+            throw new Error(
+              `This tier (#${tierInfo.id}) doesn't belong to the given Collective #${order.CollectiveId}`,
+            );
+          }
+        }
+        // check if the tier is different from the previous tier
+        if (tier.legacyId !== order.TierId) {
+          order = await order.update({ TierId: tier.legacyId });
+        }
       }
 
       return order;

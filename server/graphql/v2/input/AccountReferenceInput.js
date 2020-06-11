@@ -35,7 +35,6 @@ export const fetchAccountWithReference = async (
   input,
   { loaders = null, throwIfMissing = false, dbTransaction = undefined, lock = false } = {},
 ) => {
-  // Load collective by ID using GQL loaders if we're not using a transaction & loaders are available
   const loadCollectiveById = id => {
     if (!loaders || dbTransaction) {
       return models.Collective.findByPk(id, { transaction: dbTransaction, lock });
