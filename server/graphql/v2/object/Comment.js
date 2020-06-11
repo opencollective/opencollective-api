@@ -1,4 +1,4 @@
-import { GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLList, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 import { GraphQLJSONObject } from 'graphql-type-json';
 
@@ -35,13 +35,18 @@ const Comment = new GraphQLObjectType({
       },
       reactions: {
         type: GraphQLJSONObject,
+        description: 'Returns a map of reactions counts for this comment',
         async resolve(comment, args, req) {
-          const reactions = await req.loaders.Comment.reactionsByCommentId.load(comment.id);
-          const emojiMap = {};
-          reactions.forEach(item => {
-            emojiMap[item.emoji] = item.count;
-          });
-          return emojiMap;
+          return await req.loaders.Comment.reactionsByCommentId.load(comment.id);
+        },
+      },
+      userReactions: {
+        type: new GraphQLList(GraphQLString),
+        description: 'Returns the list of reactions added to this comment by logged in user',
+        async resolve(comment, args, req) {
+          if (req.remoteUser) {
+            return req.loaders.Comment.remoteUserReactionsByCommentId.load(comment.id);
+          }
         },
       },
       // Deprecated

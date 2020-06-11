@@ -4,7 +4,6 @@ import { mustBeLoggedInTo } from '../../../lib/auth';
 import models from '../../../models';
 import { NotFound, Unauthorized } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
-import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { CommentReferenceInput } from '../input/CommentReferenceInput';
 import { Comment } from '../object/Comment';
 
@@ -20,26 +19,14 @@ const commentReactionMutations = {
         type: new GraphQLNonNull(CommentReferenceInput),
         description: 'A unique identifier for the comment id associated with this comment reaction',
       },
-      fromAccount: {
-        type: new GraphQLNonNull(AccountReferenceInput),
-        description: 'A unique identifier for the account associated with this reaction',
-      },
     },
     resolve: async (entity, args, req) => {
       if (!req.remoteUser) {
         throw new Unauthorized();
       }
 
-      const fromAccount = await fetchAccountWithReference(args.fromAccount, {
-        throwIfMissing: true,
-        loaders: req.loaders,
-      });
-      if (!req.remoteUser.isAdmin(fromAccount.id)) {
-        throw new Unauthorized();
-      }
-
       const commentId = idDecode(args.comment.id, IDENTIFIER_TYPES.COMMENT);
-      const reaction = await models.CommentReaction.addReaction(req.remoteUser, commentId, fromAccount.id, args.emoji);
+      const reaction = await models.CommentReaction.addReaction(req.remoteUser, commentId, args.emoji);
       return req.loaders.Comment.byId.load(reaction.CommentId);
     },
   },
@@ -47,14 +34,23 @@ const commentReactionMutations = {
   removeCommentReaction: {
     type: new GraphQLNonNull(Comment),
     args: {
-      id: {
+      comment: {
+        type: new GraphQLNonNull(CommentReferenceInput),
+      },
+      emoji: {
         type: new GraphQLNonNull(GraphQLString),
       },
     },
-    resolve: async (_, { id }, { loaders, remoteUser }) => {
+    resolve: async (_, { comment, emoji }, { loaders, remoteUser }) => {
       mustBeLoggedInTo(remoteUser, 'remove this comment reaction');
-      const decodedId = decodedId(id, IDENTIFIER_TYPES.COMMENT_REACTION);
-      const reaction = await models.CommentReaction.findByPk(id);
+      const commentId = idDecode(comment.id, IDENTIFIER_TYPES.COMMENT);
+      const reaction = await models.CommentReaction.findOne({
+        where: {
+          CommentId: commentId,
+          emoji,
+        },
+      });
+
       if (!reaction) {
         throw new NotFound(`This comment reaction does not exist or has been deleted.`);
       }

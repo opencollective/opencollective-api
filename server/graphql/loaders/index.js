@@ -27,6 +27,7 @@ export const loaders = req => {
 
   // Comment Reactions
   context.loaders.Comment.reactionsByCommentId = commentsLoader.reactionsByCommentId(req, cache);
+  context.loaders.Comment.remoteUserReactionsByCommentId = commentsLoader.remoteUserReactionsByCommentId(req, cache);
 
   // Conversation
   context.loaders.Conversation.followers = conversationLoaders.followers(req, cache);

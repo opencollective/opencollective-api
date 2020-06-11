@@ -1,4 +1,4 @@
-import { EMOJI_TYPES } from '../constants/emojiTypes';
+import { REACTION_EMOJI } from '../constants/reaction-emoji';
 
 import models from './index';
 
@@ -38,8 +38,8 @@ export default function (Sequelize, DataTypes) {
         allowNull: false,
         validate: {
           isIn: {
-            args: [EMOJI_TYPES],
-            msg: `Must be in ${EMOJI_TYPES}`,
+            args: [REACTION_EMOJI],
+            msg: `Must be in ${REACTION_EMOJI}`,
           },
         },
       },
@@ -72,10 +72,10 @@ export default function (Sequelize, DataTypes) {
     },
   );
 
-  CommentReaction.addReaction = async function (user, commentId, fromCollectiveId, reaction) {
+  CommentReaction.addReaction = async function (user, commentId, reaction) {
     return await models.CommentReaction.create({
       UserId: user.id,
-      FromCollectiveId: fromCollectiveId,
+      FromCollectiveId: user.CollectiveId,
       CommentId: commentId,
       emoji: reaction,
     });
