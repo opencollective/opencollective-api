@@ -229,6 +229,7 @@ const isWhitelistedDomain = email => {
 const generateEmailFromTemplate = (template, recipient, data = {}, options = {}) => {
   const slug = get(options, 'collective.slug') || get(data, 'collective.slug') || 'undefined';
   const hostSlug = get(data, 'host.slug');
+  const eventSlug = get(data, 'event.slug');
 
   // If we are sending the same email to multiple recipients, it doesn't make sense to allow them to unsubscribe
   if (!isArray(recipient)) {
@@ -245,6 +246,9 @@ const generateEmailFromTemplate = (template, recipient, data = {}, options = {})
   if (template === 'ticket.confirmed') {
     if (slug === 'fearlesscitiesbrussels') {
       template += '.fearlesscitiesbrussels';
+    }
+    if (eventSlug === 'open-2020-networked-commons-initiatives-9b91f4ca') {
+      template += '.open-2020';
     }
   }
 
