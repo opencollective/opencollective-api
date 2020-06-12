@@ -79,6 +79,7 @@ export const templateNames = [
   'ticket.confirmed',
   'ticket.confirmed.text',
   'ticket.confirmed.fearlesscitiesbrussels',
+  'ticket.confirmed.open-2020',
   'thankyou',
   'thankyou.chsf',
   'thankyou.sustainoss',
