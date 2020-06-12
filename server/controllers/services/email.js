@@ -13,8 +13,8 @@ const debugWebhook = debug('webhook');
 
 export const unsubscribe = (req, res, next) => {
   const { type, email, slug, token } = req.params;
-  const computedToken = emailLib.generateUnsubscribeToken(email, slug, type);
-  if (token !== computedToken) {
+
+  if (!emailLib.isValidUnsubscribeToken(token, email, slug, type)) {
     return next(new errors.BadRequest('Invalid token'));
   }
 
