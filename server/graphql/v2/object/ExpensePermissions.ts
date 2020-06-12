@@ -62,6 +62,13 @@ const ExpensePermissions = new GraphQLObjectType({
         return ExpenseLib.canMarkAsUnpaid(req, expense);
       },
     },
+    canComment: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can comment and see comments for this expense',
+      async resolve(expense, _, req): Promise<boolean> {
+        return ExpenseLib.canComment(req, expense);
+      },
+    },
   },
 });
 

@@ -277,7 +277,7 @@ describe('server/graphql/v1/comments', () => {
       expect(comments[0].html).to.equal('comment 3');
     });
 
-    it('get an expense with associated comments', async () => {
+    it('get an expense with associated comments as unauthenticated', async () => {
       await populateComments();
       const expenseQuery = `
         query Expense($id: Int!, $limit: Int) {
@@ -301,6 +301,37 @@ describe('server/graphql/v1/comments', () => {
       });
       utils.expectNoErrorsFromResult(result);
       const expense = result.data.Expense;
+      expect(expense.comments).to.be.null;
+    });
+
+    it('get an expense with associated comments as collective admin', async () => {
+      await populateComments();
+      const expenseQuery = `
+        query Expense($id: Int!, $limit: Int) {
+          Expense(id: $id) {
+            description
+            amount
+            comments(limit: $limit) {
+              total
+              comments {
+                id
+                markdown
+                html
+              }
+            }
+          }
+        }
+      `;
+      const result = await utils.graphqlQuery(
+        expenseQuery,
+        {
+          id: expense1.id,
+          limit: 5,
+        },
+        collectiveAdmin,
+      );
+      utils.expectNoErrorsFromResult(result);
+      const expense = result.data.Expense;
       expect(expense.comments.total).to.equal(10);
       expect(expense.comments.comments).to.have.length(5);
     });
@@ -322,10 +353,14 @@ describe('server/graphql/v1/comments', () => {
           }
         }
       `;
-      const result = await utils.graphqlQuery(ExpenseQuery, {
-        id: expense1.id,
-        limit: 5,
-      });
+      const result = await utils.graphqlQuery(
+        ExpenseQuery,
+        {
+          id: expense1.id,
+          limit: 5,
+        },
+        collectiveAdmin,
+      );
       utils.expectNoErrorsFromResult(result);
       const expense = result.data.Expense;
       expect(expense.comments.total).to.equal(0);
@@ -371,16 +406,31 @@ describe('server/graphql/v1/comments', () => {
       }
     `;
 
-    it('get an expense with associated comments empty', async () => {
+    it('get an expense with associated comments empty (unauthenticated)', async () => {
       const result = await utils.graphqlQueryV2(expenseQuery, {
         id: `${expense1.id}`,
         limit: 5,
         offset: 0,
       });
       utils.expectNoErrorsFromResult(result);
+      expect(result.data.expense.comments).to.be.null;
+    });
+
+    it('get an expense with associated comments empty', async () => {
+      const result = await utils.graphqlQueryV2(
+        expenseQuery,
+        {
+          id: `${expense1.id}`,
+          limit: 5,
+          offset: 0,
+        },
+        collectiveAdmin,
+      );
+      utils.expectNoErrorsFromResult(result);
       expect(result.data.expense.comments.totalCount).to.equal(0);
       expect(result.data.expense.comments.nodes).to.have.length(0);
     });
+
     it('get expense with associated comments', async () => {
       await populateComments();
       const result = await utils.graphqlQueryV2(expenseQuery, {

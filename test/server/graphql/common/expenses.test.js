@@ -2,6 +2,7 @@ import { expect } from 'chai';
 
 import {
   canApprove,
+  canComment,
   canDeleteExpense,
   canEditExpense,
   canMarkAsUnpaid,
@@ -281,6 +282,18 @@ describe('server/graphql/common/expenses', () => {
       expect(await canMarkAsUnpaid(hostAdminReq, expense)).to.be.true;
       expect(await canMarkAsUnpaid(expenseOwnerReq, expense)).to.be.false;
       expect(await canMarkAsUnpaid(limitedHostAdminReq, expense)).to.be.false;
+    });
+  });
+
+  describe('canComment', () => {
+    it('only if owner, collective admin or host admin', async () => {
+      await expense.update({ status: 'PAID' });
+      expect(await canComment(publicReq, expense)).to.be.false;
+      expect(await canComment(randomUserReq, expense)).to.be.false;
+      expect(await canComment(collectiveAdminReq, expense)).to.be.true;
+      expect(await canComment(hostAdminReq, expense)).to.be.true;
+      expect(await canComment(expenseOwnerReq, expense)).to.be.true;
+      expect(await canComment(limitedHostAdminReq, expense)).to.be.false;
     });
   });
 });

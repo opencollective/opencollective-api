@@ -29,7 +29,7 @@ import models, { Op, sequelize } from '../../models';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import * as commonComment from '../common/comment';
 import { allowContextPermission, PERMISSION_TYPE } from '../common/context-permissions';
-import { canSeeExpenseAttachments, canSeeExpensePayoutMethod, getExpenseItems } from '../common/expenses';
+import { canComment, canSeeExpenseAttachments, canSeeExpensePayoutMethod, getExpenseItems } from '../common/expenses';
 import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
 
 import { CollectiveInterfaceType, CollectiveSearchResultsType } from './CollectiveInterface';
@@ -939,11 +939,16 @@ export const ExpenseType = new GraphQLObjectType({
       },
       comments: {
         type: CommentListType,
+        description: 'Returns the list of comments for this expense, or `null` if user is not allowed to see them',
         args: {
           limit: { type: GraphQLInt },
           offset: { type: GraphQLInt },
         },
-        resolve(expense, args) {
+        async resolve(expense, args, req) {
+          if (!(await canComment(req, expense))) {
+            return null;
+          }
+
           return {
             where: { ExpenseId: expense.id },
             limit: args.limit,
