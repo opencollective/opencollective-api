@@ -196,7 +196,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
       throw new Error(`No collective found: ${order.collective.id || order.collective.website}`);
     }
     if (collective.settings?.disableCustomContributions && !order.tier) {
-      throw new Error(`Custom contributions are disable for the selected collective`);
+      throw new Error(`Custom contributions are disabled for the selected collective`);
     }
 
     if (order.fromCollective && order.fromCollective.id === collective.id) {
