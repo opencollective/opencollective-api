@@ -180,7 +180,7 @@ export const canUnapprove = async (req, expense): Promise<boolean> => {
   } else if (!canUseFeature(req.remoteUser, FEATURE.EXPENSES)) {
     return false;
   } else {
-    return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin, isCollectiveAdmin]);
+    return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin]);
   }
 };
 
@@ -194,6 +194,17 @@ export const canMarkAsUnpaid = async (req, expense): Promise<boolean> => {
     return false;
   } else {
     return isHostAdmin(req, expense);
+  }
+};
+
+/**
+ * Returns true if user can comment and see others comments for this expense
+ */
+export const canComment = async (req, expense): Promise<boolean> => {
+  if (!canUseFeature(req.remoteUser, FEATURE.EXPENSES)) {
+    return false;
+  } else {
+    return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin, isOwner]);
   }
 };
 

@@ -65,7 +65,8 @@ const Expense = new GraphQLObjectType({
         description: 'The state of the expense (pending, approved, paid, rejected...etc)',
       },
       comments: {
-        type: new GraphQLNonNull(CommentCollection),
+        type: CommentCollection,
+        description: 'Returns the list of comments for this expense, or `null` if user is not allowed to see them',
         args: {
           ...CollectionArgs,
           orderBy: {
@@ -73,7 +74,11 @@ const Expense = new GraphQLObjectType({
             defaultValue: { field: 'createdAt', direction: 'ASC' },
           },
         },
-        async resolve(expense, { limit, offset, orderBy }) {
+        async resolve(expense, { limit, offset, orderBy }, req) {
+          if (!(await ExpensePermissionsLib.canComment(req, expense))) {
+            return null;
+          }
+
           const { count, rows } = await models.Comment.findAndCountAll({
             where: {
               ExpenseId: { [Op.eq]: expense.id },
@@ -82,12 +87,8 @@ const Expense = new GraphQLObjectType({
             offset,
             limit,
           });
-          return {
-            offset,
-            limit,
-            totalCount: count,
-            nodes: rows,
-          };
+
+          return { offset, limit, totalCount: count, nodes: rows };
         },
       },
       account: {
