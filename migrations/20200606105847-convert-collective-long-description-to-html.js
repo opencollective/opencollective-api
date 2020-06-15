@@ -32,7 +32,7 @@ module.exports = {
     }
   },
 
-  down: () => {
+  down: async () => {
     // can't rollback this one
   },
 };
