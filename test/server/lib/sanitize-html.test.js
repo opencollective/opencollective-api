@@ -129,19 +129,19 @@ describe('server/lib/sanitize-html', () => {
 
   describe('generateSummaryForHTML', () => {
     it('Sanitizes, trim and truncate', () => {
-      expect(generateSummaryForHTML(fullContent, 4)).to.to.eq('E...');
-      expect(generateSummaryForHTML(fullContent, 32)).to.to.eq('Ergo illi intellegunt quid Ep...');
+      expect(generateSummaryForHTML(fullContent, 4)).to.to.eq('Ergo...');
+      expect(generateSummaryForHTML(fullContent, 32)).to.to.eq('Ergo illi intellegunt quid Epicu...');
       expect(generateSummaryForHTML(fullContent.slice(272), 80)).to.to.eq(
-        'Reges: constructio interrete. <i>Suo genere perveniant ad extremum;</i> Atqui...',
+        'Reges: constructio interrete. <i>Suo genere perveniant ad extremum;</i> Atqui pu...',
       );
       expect(generateSummaryForHTML(fullContent.slice(1000), 1000)).to.to.eq(
-        'Si qua in iis corrigere voluit, deteriora fecit. Nec enim, dum metuit, iustus est, et certe, si metuere destiterit, non erit; Unum nescio, quo modo possit, si luxuriosus sit, finitas cupiditates habere. Illud vero minime consectarium, sed in primis hebes, illorum scilicet, non tuum, gloriatione dignam esse beatam vitam. Entry Header 1 Entry Header 2 Entry Header 3 Entry Line 1 Entry Line 2 Entry Line 3 Quid affers, cur Thorius, cur Caius Postumius, cur omnium horum magister, Orata, non iucundissime vixerit? Non laboro, inquit, de nomine. <i>Ex rebus enim timiditas, non ex vocabulis nascitur.</i> Hoc loco discipulos quaerere videtur, ut, qui asoti esse velint, philosophi ante fiant. <a href="http://loripsum.net/" target="_blank">Dicimus aliquem hilare vivere;</a> Quae quidem sapientes sequuntur duce natura tamquam videntes; Nulla erit controversia. Si verbum sequimur, primum longius verbum praepositum quam bonum. Eorum enim omnium multa praetermittentium, dum eligant aliquid, quod se...',
+        'Si qua in iis corrigere voluit, deteriora fecit. Nec enim, dum metuit, iustus est, et certe, si metuere destiterit, non erit; Unum nescio, quo modo possit, si luxuriosus sit, finitas cupiditates habere. Illud vero minime consectarium, sed in primis hebes, illorum scilicet, non tuum, gloriatione dignam esse beatam vitam. Entry Header 1 Entry Header 2 Entry Header 3 Entry Line 1 Entry Line 2 Entry Line 3 Quid affers, cur Thorius, cur Caius Postumius, cur omnium horum magister, Orata, non iucundissime vixerit? Non laboro, inquit, de nomine. <i>Ex rebus enim timiditas, non ex vocabulis nascitur.</i> Hoc loco discipulos quaerere videtur, ut, qui asoti esse velint, philosophi ante fiant. <a href="http://loripsum.net/" target="_blank">Dicimus aliquem hilare vivere;</a> Quae quidem sapientes sequuntur duce natura tamquam videntes; Nulla erit controversia. Si verbum sequimur, primum longius verbum praepositum quam bonum. Eorum enim omnium multa praetermittentium, dum eligant aliquid, quod sequa...',
       );
     });
 
     it("Doesn't cut anchors", () => {
       expect(generateSummaryForHTML("I'd like to say <strong>Hello World</strong>", 30)).to.to.eq(
-        "I'd like to say <strong>Hel...</strong>",
+        "I'd like to say <strong>Hello </strong>...",
       );
     });
 
@@ -149,6 +149,10 @@ describe('server/lib/sanitize-html', () => {
       expect(generateSummaryForHTML(`<h3>Mene ergo et Triarium</h3><p>Lorem ipsum dolor.</p>`, 150)).to.to.eq(
         'Mene ergo et Triarium · Lorem ipsum dolor.',
       );
+    });
+
+    it('Truncating tags in middle works as expected', () => {
+      expect(generateSummaryForHTML("I'd like to say <strong>Hello World</strong>", 20)).to.to.eq("I'd like to say...");
     });
   });
 });
