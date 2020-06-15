@@ -69,16 +69,38 @@ export default function (Sequelize, DataTypes) {
           };
         },
       },
+      indexes: [
+        {
+          unique: true,
+          fields: ['CommentId', 'FromCollectiveId', 'emoji'],
+        },
+      ],
     },
   );
 
-  CommentReaction.addReaction = async function (user, commentId, reaction) {
-    return await models.CommentReaction.create({
-      UserId: user.id,
-      FromCollectiveId: user.CollectiveId,
-      CommentId: commentId,
-      emoji: reaction,
-    });
+  CommentReaction.addReaction = async function (user, commentId, emoji) {
+    try {
+      return await models.CommentReaction.create({
+        UserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CommentId: commentId,
+        emoji,
+      });
+    } catch (e) {
+      // Don't scream if the reaction already exists
+      if (e.name === 'SequelizeUniqueConstraintError') {
+        return await models.CommentReaction.findOne({
+          where: {
+            UserId: user.id,
+            FromCollectiveId: user.CollectiveId,
+            CommentId: commentId,
+            emoji,
+          },
+        });
+      } else {
+        throw e;
+      }
+    }
   };
 
   return CommentReaction;

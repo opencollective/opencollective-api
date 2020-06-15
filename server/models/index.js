@@ -162,6 +162,10 @@ export function setupModels(client) {
   // Expense attached files
   m.ExpenseAttachedFile.belongsTo(m.Expense);
 
+  // Comment reactions
+  m.CommentReaction.belongsTo(m.Comment);
+  m.CommentReaction.belongsTo(m.User);
+
   // Order.
   m.Order.belongsTo(m.User, {
     foreignKey: 'CreatedByUserId',

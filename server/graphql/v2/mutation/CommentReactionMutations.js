@@ -2,7 +2,8 @@ import { GraphQLNonNull, GraphQLString } from 'graphql';
 
 import { mustBeLoggedInTo } from '../../../lib/auth';
 import models from '../../../models';
-import { NotFound, Unauthorized } from '../../errors';
+import { canComment } from '../../common/expenses';
+import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { CommentReferenceInput } from '../input/CommentReferenceInput';
 import { Comment } from '../object/Comment';
@@ -26,6 +27,17 @@ const commentReactionMutations = {
       }
 
       const commentId = idDecode(args.comment.id, IDENTIFIER_TYPES.COMMENT);
+      const comment = await models.Comment.findByPk(commentId);
+
+      if (!comment) {
+        throw new ValidationFailed('This comment does not exist');
+      } else if (comment.ExpenseId) {
+        const expense = await models.Expense.findByPk(comment.ExpenseId);
+        if (!expense || !(await canComment(req, expense))) {
+          throw new Forbidden('You are not allowed to comment or add reactions on this expense');
+        }
+      }
+
       const reaction = await models.CommentReaction.addReaction(req.remoteUser, commentId, args.emoji);
       return req.loaders.Comment.byId.load(reaction.CommentId);
     },
@@ -57,7 +69,7 @@ const commentReactionMutations = {
 
       // Check permissions
       if (!remoteUser.isAdmin(reaction.FromCollectiveId)) {
-        throw new Unauthorized();
+        throw new Forbidden();
       }
 
       await reaction.destroy();
