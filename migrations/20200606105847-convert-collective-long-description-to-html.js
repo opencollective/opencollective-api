@@ -1,6 +1,7 @@
 'use strict';
 
 import showdown from 'showdown';
+import { buildSanitizerOptions, sanitizeHTML } from '../server/lib/sanitize-html';
 
 const converter = new showdown.Converter();
 
@@ -15,7 +16,19 @@ module.exports = {
       { type: Sequelize.QueryTypes.SELECT },
     );
 
+    const sanitizeOptions = buildSanitizerOptions({
+      titles: true,
+      basicTextFormatting: true,
+      multilineTextFormatting: true,
+      links: true,
+      images: true,
+      videoIframes: true,
+      tables: true,
+    });
+
     for (const collective of collectives) {
+      const htmlContent = converter.makeHtml(collective.longDescription);
+      const sanitizedContent = sanitizeHTML(htmlContent, sanitizeOptions);
       await queryInterface.sequelize.query(
         `
         UPDATE "Collectives" c
@@ -24,7 +37,7 @@ module.exports = {
       `,
         {
           replacements: {
-            longDescription: converter.makeHtml(collective.longDescription),
+            longDescription: sanitizedContent,
             id: collective.id,
           },
         },
