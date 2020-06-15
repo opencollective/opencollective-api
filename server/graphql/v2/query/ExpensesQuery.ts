@@ -37,6 +37,10 @@ const ExpensesQuery = {
       description: 'The order of results',
       defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
     },
+    searchTerm: {
+      type: GraphQLString,
+      description: 'The term to search',
+    }
   },
   async resolve(_, args, req): Promise<CollectionReturnType> {
     const where = {};
@@ -52,6 +56,26 @@ const ExpensesQuery = {
       where['CollectiveId'] = collective.id;
     }
 
+    // Add search filter
+    let include;
+    if (args.searchTerm) {
+      where[Op.or] = [
+        { description: { [Op.like]: `%${args.searchTerm}%` }},
+        { tags: { [Op.overlap]: [args.searchTerm] }},
+        { '$fromCollective.name$': { [Op.like]: `%${args.searchTerm}%` }},
+        { '$items.description$': { [Op.like]: `%${args.searchTerm}%` }}
+      ];
+
+      include = [
+        { model: models.Collective, as: 'fromCollective' },
+        { model: models.ExpenseItem, as: 'items', duplicating: false }
+      ];
+
+      if (!isNaN(args.searchTerm)) {
+        where[Op.or].push({id: args.searchTerm});
+      }
+    }
+
     // Add filters
     if (args.status) {
       where['status'] = args.status;
@@ -65,7 +89,7 @@ const ExpensesQuery = {
 
     const order = [[args.orderBy.field, args.orderBy.direction]];
     const { offset, limit } = args;
-    const result = await models.Expense.findAndCountAll({ where, order, offset, limit });
+    const result = await models.Expense.findAndCountAll({ include, where, order, offset, limit });
     return {
       nodes: result.rows,
       totalCount: result.count,
