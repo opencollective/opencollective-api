@@ -1,6 +1,6 @@
 import { GraphQLList, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
-import { GraphQLJSONObject } from 'graphql-type-json';
+import { GraphQLJSON } from 'graphql-type-json';
 
 import { collectiveResolver, fromCollectiveResolver, getStripTagsResolver } from '../../common/comment';
 import { getIdEncodeResolver } from '../identifiers';
@@ -34,7 +34,7 @@ const Comment = new GraphQLObjectType({
         resolve: collectiveResolver,
       },
       reactions: {
-        type: GraphQLJSONObject,
+        type: GraphQLJSON,
         description: 'Returns a map of reactions counts for this comment',
         async resolve(comment, args, req) {
           return await req.loaders.Comment.reactionsByCommentId.load(comment.id);
