@@ -39,7 +39,7 @@ const commentReactionMutations = {
       }
 
       const reaction = await models.CommentReaction.addReaction(req.remoteUser, commentId, args.emoji);
-      return req.loaders.Comment.byId.load(reaction.CommentId);
+      return models.Comment.findByPk(reaction.CommentId);
     },
   },
 
@@ -53,7 +53,7 @@ const commentReactionMutations = {
         type: new GraphQLNonNull(GraphQLString),
       },
     },
-    resolve: async (_, { comment, emoji }, { loaders, remoteUser }) => {
+    resolve: async (_, { comment, emoji }, { remoteUser }) => {
       mustBeLoggedInTo(remoteUser, 'remove this comment reaction');
       const commentId = idDecode(comment.id, IDENTIFIER_TYPES.COMMENT);
       const reaction = await models.CommentReaction.findOne({
@@ -73,7 +73,7 @@ const commentReactionMutations = {
       }
 
       await reaction.destroy();
-      return loaders.Comment.byId.load(reaction.CommentId);
+      return models.Comment.findByPk(reaction.CommentId);
     },
   },
 };
