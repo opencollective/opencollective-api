@@ -8,6 +8,7 @@ import status from '../../constants/expense_status';
 import logger from '../../lib/logger';
 import * as paypal from '../../lib/paypal';
 import { createFromPaidExpense as createTransactionFromPaidExpense } from '../../lib/transactions';
+import models from '../../models';
 
 export const payExpensesBatch = async (expenses: any[]): Promise<any[]> => {
   const [firstExpense] = expenses;
@@ -52,7 +53,8 @@ export const payExpensesBatch = async (expenses: any[]): Promise<any[]> => {
   const response = await paypal.executePayouts(connectedAccount, requestBody);
   const updateExpenses = expenses.map(async e => {
     await e.update({ data: response.batch_header, status: status.PROCESSING });
-    await e.createActivity(activities.COLLECTIVE_EXPENSE_PROCESSING);
+    const user = await models.User.findByPk(e.lastEditedById);
+    await e.createActivity(activities.COLLECTIVE_EXPENSE_PROCESSING, user);
   });
   return Promise.all(updateExpenses);
 };
@@ -78,7 +80,8 @@ export const checkBatchItemStatus = async (item: any, expense: any, host: any) =
           item,
         );
         await expense.setPaid(expense.lastEditedById);
-        await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID);
+        const user = await models.User.findByPk(expense.lastEditedById);
+        await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID, user);
       }
       break;
     case 'FAILED':
