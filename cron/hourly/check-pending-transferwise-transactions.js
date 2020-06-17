@@ -32,7 +32,8 @@ async function processExpense(expense) {
   } else if (expense.status === status.PROCESSING && transfer.status === 'outgoing_payment_sent') {
     console.log(`Transfer sent, marking expense as paid.`);
     await expense.setPaid(expense.lastEditedById);
-    await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID);
+    const user = await models.User.findByPk(expense.lastEditedById);
+    await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID, user);
   } else if (transfer.status === 'funds_refunded') {
     console.warn(`Transfer ${transfer.status}, setting status to Error and deleting existing transactions.`);
     await models.Transaction.destroy({ where: { ExpenseId: expense.id } });
