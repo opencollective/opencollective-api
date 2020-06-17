@@ -1,4 +1,4 @@
-import { GraphQLFloat, GraphQLInputObjectType, GraphQLInt } from 'graphql';
+import { GraphQLFloat, GraphQLInputObjectType } from 'graphql';
 
 import { Currency } from '../enum/Currency';
 
@@ -13,10 +13,6 @@ export const AmountInput = new GraphQLInputObjectType({
     currency: {
       type: Currency,
       description: 'The currency string',
-    },
-    valueInCents: {
-      type: GraphQLInt,
-      description: 'The value in cents',
     },
   }),
 });

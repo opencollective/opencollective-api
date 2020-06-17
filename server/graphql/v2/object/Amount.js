@@ -18,11 +18,5 @@ export const Amount = new GraphQLObjectType({
         return amount.currency;
       },
     },
-    valueInCents: {
-      type: GraphQLFloat,
-      resolve(amount) {
-        return parseInt(amount.value, 10);
-      },
-    },
   },
 });
