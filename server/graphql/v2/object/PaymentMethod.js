@@ -26,21 +26,12 @@ export const PaymentMethod = new GraphQLObjectType({
       name: {
         // last 4 digit of card number for Stripe
         type: GraphQLString,
-        resolve(paymentMethod) {
-          return paymentMethod.name;
-        },
       },
       service: {
         type: GraphQLString,
-        resolve(paymentMethod) {
-          return paymentMethod.service;
-        },
       },
       type: {
         type: GraphQLString,
-        resolve(paymentMethod) {
-          return paymentMethod.type;
-        },
       },
       balance: {
         type: Amount,

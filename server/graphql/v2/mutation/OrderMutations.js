@@ -1,13 +1,15 @@
-import { GraphQLInt, GraphQLNonNull } from 'graphql';
+import { GraphQLNonNull } from 'graphql';
 
 import activities from '../../../constants/activities';
 import status from '../../../constants/order_status';
+import { floatAmountToCents } from '../../../lib/math';
 import models from '../../../models';
 import { NotFound, Unauthorized } from '../../errors';
 import { getDecodedId } from '../identifiers';
+import { AmountInput } from '../input/AmountInput';
 import { OrderReferenceInput } from '../input/OrderReferenceInput';
 import { fetchPaymentMethodWithReference, PaymentMethodReferenceInput } from '../input/PaymentMethodReferenceInput';
-import { TierReferenceInput } from '../input/TierReferenceInput';
+import { fetchTierWithReference, TierReferenceInput } from '../input/TierReferenceInput';
 import { Order } from '../object/Order';
 
 const modelArray = [
@@ -138,7 +140,7 @@ const orderMutations = {
         description: 'Reference to a Tier to update the order with',
       },
       amount: {
-        type: GraphQLInt,
+        type: AmountInput,
         description: 'An Amount to update the order to',
       },
     },
@@ -148,8 +150,6 @@ const orderMutations = {
       if (!req.remoteUser) {
         throw new Unauthorized('You need to be logged in to update a order');
       }
-
-      const { paymentMethod, amount, tier } = args;
 
       const query = {
         where: {
@@ -171,12 +171,10 @@ const orderMutations = {
       }
 
       // payment method
-      if (paymentMethod !== undefined) {
+      if (args.paymentMethod !== undefined) {
         // unlike v1 we don't have to check/assign new payment method, that will be taken care of in another mutation
         const newPaymentMethod = await fetchPaymentMethodWithReference(args.paymentMethod);
-        if (!newPaymentMethod) {
-          throw new Error('Payment method not found with this id', paymentMethod.id);
-        }
+
         if (!req.remoteUser.isAdmin(newPaymentMethod.CollectiveId)) {
           throw new Unauthorized("You don't have permission to use this payment method");
         }
@@ -184,41 +182,43 @@ const orderMutations = {
         order = await order.update({ PaymentMethodId: newPaymentMethod.id });
       }
 
-      let tierInfo;
+      // amount and tier (will always go together)
+      if (args.amount !== undefined && args.tier !== undefined) {
+        let tierInfo;
 
-      // amount
-      if (amount !== undefined) {
-        if (amount !== order.totalAmount) {
-          if (amount < 100) {
-            throw new Error('Invalid amount.');
-          }
-
-          // If using a named tier, amount can never be less than the minimum amount
-          if (tierInfo && tierInfo.amountType === 'FLEXIBLE' && amount < tierInfo.minimumAmount) {
-            throw new Error('Amount is less than minimum value allowed for this Tier.');
-          }
-
-          order = await order.update({ totalAmount: amount });
-        }
-      }
-
-      // tier
-      if (tier !== undefined) {
         // get tier info if it's a named tier
-        if (tier.legacyId !== null) {
-          tierInfo = await models.Tier.findByPk(tier.legacyId);
+        if (args.tier.id !== null) {
+          tierInfo = await fetchTierWithReference(args.tier);
           if (!tierInfo) {
-            throw new Error(`No tier found with tier id: ${tier.legacyId} for collective ${order.CollectiveId}`);
+            throw new Error(`No tier found with tier id: ${args.tier.id} for collective ${order.CollectiveId}`);
           } else if (tierInfo.CollectiveId !== order.CollectiveId) {
             throw new Error(
               `This tier (#${tierInfo.id}) doesn't belong to the given Collective #${order.CollectiveId}`,
             );
           }
         }
-        // check if the tier is different from the previous tier
-        if (tier.legacyId !== order.TierId) {
-          order = await order.update({ TierId: tier.legacyId });
+
+        const amountInCents = floatAmountToCents(args.amount.value);
+
+        // The amount can never be less than $1.00
+        if (amountInCents < 100) {
+          throw new Error('Invalid amount.');
         }
+
+        // If using a named tier, amount can never be less than the minimum amount
+        if (tierInfo && tierInfo.amountType === 'FLEXIBLE' && amountInCents < tierInfo.minimumAmount) {
+          console.log('error');
+          throw new Error('Amount is less than minimum value allowed for this Tier.');
+        }
+
+        // check if the amount is different from the previous amount
+        if (amountInCents !== order.totalAmount) {
+          order = await order.update({ totalAmount: amountInCents });
+        }
+
+        // Custom contribution is null, named tier will be tierInfo.id
+        const tierToUpdateWith = tierInfo ? tierInfo.id : null;
+        order = await order.update({ TierId: tierToUpdateWith });
       }
 
       return order;

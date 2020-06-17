@@ -18,11 +18,8 @@ export const PaymentMethodReferenceInput = new GraphQLInputObjectType({
  * Retrieves a payment method
  *
  * @param {string|number} input - id of the payment method
- * @param {object} params
- *    - dbTransaction: An SQL transaction to run the query. Will skip `loaders`
- *    - lock: If true and `dbTransaction` is set, the row will be locked
  */
-export const fetchPaymentMethodWithReference = async (input, { throwIfMissing = false } = {}) => {
+export const fetchPaymentMethodWithReference = async input => {
   // Load payment by ID using GQL loaders if we're not using a transaction & loaders are available
   const loadPaymentById = id => {
     return models.PaymentMethod.findByPk(id);
@@ -35,7 +32,7 @@ export const fetchPaymentMethodWithReference = async (input, { throwIfMissing = 
   } else {
     throw new Error('Please provide an id');
   }
-  if (!paymentMethod && throwIfMissing) {
+  if (!paymentMethod) {
     throw new NotFound('Payment Method Not Found');
   }
   return paymentMethod;
