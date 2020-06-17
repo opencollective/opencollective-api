@@ -6,7 +6,7 @@ export const TagStats = new GraphQLObjectType({
   fields: {
     id: {
       type: new GraphQLNonNull(GraphQLString),
-      description: 'An unique identified for this tag',
+      description: 'An unique identifier for this tag',
     },
     tag: {
       type: new GraphQLNonNull(GraphQLString),

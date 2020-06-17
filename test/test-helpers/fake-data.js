@@ -12,6 +12,7 @@ import { v4 as uuid } from 'uuid';
 import { roles } from '../../server/constants';
 import { types as CollectiveType } from '../../server/constants/collectives';
 import { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPES } from '../../server/constants/paymentMethods';
+import { REACTION_EMOJI } from '../../server/constants/reaction-emoji';
 import models from '../../server/models';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import { randEmail, randUrl } from '../stores';
@@ -273,6 +274,37 @@ export const fakeComment = async commentData => {
     CreatedByUserId,
     ExpenseId,
     ConversationId,
+  });
+};
+
+/**
+ * Creates a fake comment reaction. All params are optionals.
+ */
+export const fakeCommentReaction = async (reactionData = {}) => {
+  const UserId = reactionData.UserId || (await fakeUser()).id;
+  const user = await models.User.findByPk(UserId);
+  const FromCollectiveId = reactionData.FromCollectiveId || (await models.Collective.findByPk(user.CollectiveId)).id;
+  const ConversationId = (await fakeConversation()).id;
+  const CommentId = reactionData.CommentId || (await fakeComment({ ConversationId })).id;
+  return models.CommentReaction.create({
+    UserId,
+    FromCollectiveId,
+    CommentId,
+    emoji: sample(REACTION_EMOJI),
+  });
+};
+
+export const fakeConversation = async (conversationData = {}) => {
+  const RootCommentId = conversationData.RootCommentId || (await fakeComment()).id;
+  const rootComment = await models.Comment.findByPk(RootCommentId);
+  return models.Conversation.create({
+    title: randStr('Update '),
+    summary: rootComment.html,
+    FromCollectiveId: conversationData.FromCollectiveId || (await fakeCollective()).id,
+    CollectiveId: conversationData.CollectiveId || (await fakeCollective()).id,
+    CreatedByUserId: conversationData.CreatedByUserId || (await fakeUser()).id,
+    RootCommentId: conversationData.RootCommentId || (await fakeComment()).id,
+    ...conversationData,
   });
 };
 
