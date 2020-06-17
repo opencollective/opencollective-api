@@ -9,9 +9,6 @@ import { Quote, RecipientAccount, Transfer } from '../../types/transferwise';
 
 export const blackListedCurrencies = [
   /** Only private customers sending payments to private recipients. Business customers and business recipients are not supported yet. */
-  'BRL',
-  'BDT',
-  'PKR',
 ];
 
 async function populateProfileId(connectedAccount): Promise<void> {
