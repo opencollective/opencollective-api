@@ -1,10 +1,7 @@
 import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
-import moment from 'moment';
 
-import { isUserTaxFormRequiredBeforePayment } from '../../../lib/tax-forms';
 import models, { Op } from '../../../models';
-import { LEGAL_DOCUMENT_TYPE } from '../../../models/LegalDocument';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import * as ExpensePermissionsLib from '../../common/expenses';
 import { CommentCollection } from '../collection/CommentCollection';
@@ -214,16 +211,7 @@ const Expense = new GraphQLObjectType({
           if (!req.remoteUser?.isAdmin(expense.FromCollectiveId)) {
             return [];
           }
-
-          const incurredYear = moment(expense.incurredAt).year();
-          const isW9FormRequired = await isUserTaxFormRequiredBeforePayment({
-            year: incurredYear,
-            invoiceTotalThreshold: 600e2,
-            expenseCollectiveId: expense.CollectiveId,
-            UserId: expense.UserId,
-          });
-
-          return isW9FormRequired ? [LEGAL_DOCUMENT_TYPE.US_TAX_FORM] : [];
+          return req.loaders.Expense.requiredLegalDocuments.load(expense.id);
         },
       },
     };
