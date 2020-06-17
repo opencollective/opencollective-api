@@ -25,7 +25,8 @@ describe('server/paymentProviders/transferwise/index', () => {
     fundTransfer,
     getAccountRequirements,
     cacheSpy,
-    getBorderlessAccount;
+    getBorderlessAccount,
+    validateAccountRequirements;
   let connectedAccount, collective, host, payoutMethod, expense;
 
   after(sandbox.restore);
@@ -76,6 +77,9 @@ describe('server/paymentProviders/transferwise/index', () => {
       ],
     });
     getAccountRequirements = sandbox.stub(transferwiseLib, 'getAccountRequirements').resolves({ success: true });
+    validateAccountRequirements = sandbox
+      .stub(transferwiseLib, 'validateAccountRequirements')
+      .resolves({ success: true });
     cacheSpy = sandbox.spy(cache);
   });
   before(async () => {
@@ -198,12 +202,26 @@ describe('server/paymentProviders/transferwise/index', () => {
       sinon.assert.calledWithMatch(cacheSpy.set, `transferwise_required_bank_info_${host.id}_to_EUR`);
     });
 
-    it('should create a quote with desired currency', () => {
-      sinon.assert.calledWithMatch(createQuote, connectedAccount.token, {
+    it('should request account requirements with transaction params', () => {
+      sinon.assert.calledWithMatch(getAccountRequirements, connectedAccount.token, {
         sourceCurrency: host.currency,
         targetCurrency: 'EUR',
+        sourceAmount: 20,
       });
-      sinon.assert.calledWithMatch(getAccountRequirements, connectedAccount.token, quote.id);
+    });
+
+    it('should validate account requirements if accountDetails is passed as argument', async () => {
+      await transferwise.getRequiredBankInformation(host, 'EUR', { details: { bankAccount: 'fake' } });
+      sinon.assert.calledWithMatch(
+        validateAccountRequirements,
+        connectedAccount.token,
+        {
+          sourceCurrency: host.currency,
+          targetCurrency: 'EUR',
+          sourceAmount: 20,
+        },
+        { details: { bankAccount: 'fake' } },
+      );
     });
   });
 
@@ -223,10 +241,6 @@ describe('server/paymentProviders/transferwise/index', () => {
 
     it('should return an array of available currencies for host', async () => {
       expect(data).to.deep.include({ code: 'EUR', minInvoiceAmount: 1 });
-    });
-
-    it('should remove blackListed currencies', async () => {
-      expect(data).to.not.deep.include({ code: 'BRL', minInvoiceAmount: 1 });
     });
   });
 });
