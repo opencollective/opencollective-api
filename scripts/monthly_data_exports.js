@@ -1,3 +1,6 @@
+#!/usr/bin/env ./node_modules/.bin/babel-node
+import '../server/env';
+
 import fs from 'fs';
 
 import Promise from 'bluebird';
