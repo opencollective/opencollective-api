@@ -2,7 +2,6 @@ import { expect } from 'chai';
 
 import { loaders } from '../../../../server/graphql/loaders';
 import { requiredLegalDocuments, userTaxFormRequiredBeforePayment } from '../../../../server/graphql/loaders/expenses';
-import models from '../../../../server/models';
 import { fakeCollective, fakeExpense, fakeHostWithRequiredLegalDocument } from '../../../test-helpers/fake-data';
 
 const US_TAX_FORM_THRESHOLD = 600e2;
@@ -22,11 +21,6 @@ describe('server/graphql/loaders/expense', () => {
       });
 
       expenseWithOutUserTaxForm = await fakeExpense();
-      // await models.LegalDocument.create({
-      //   year: '2020',
-      //   requestStatus: 'RECEIVED',
-      //   CollectiveId: expenseWithUserTaxForm.FromCollectiveId
-      // })
     });
 
     it('requires user tax form before payment', async () => {
