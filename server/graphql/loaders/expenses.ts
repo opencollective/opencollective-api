@@ -96,7 +96,7 @@ export const userTaxFormRequiredBeforePayment = (req): DataLoader<number, boolea
       LEFT JOIN "LegalDocuments" ld ON ld."CollectiveId" = e."FromCollectiveId"
                                         AND ld.year = date_part('year', e."incurredAt")
                                         AND ld."documentType" = 'US_TAX_FORM'
-      WHERE e.status IN ('PENDING', 'APPROVED', 'PAID', 'PROCESSING')
+      WHERE e.status IN ('PENDING', 'APPROVED', 'PAID', 'PROCESSING', 'SCHEDULED_FOR_PAYMENT')
       AND e."UserId" IN (SELECT "UserId" FROM "Expenses" WHERE "Expenses".id IN (:expenseIds))
       AND e.type NOT IN ('RECEIPT')
       AND "incurredAt" BETWEEN e."incurredAt" AND (e."incurredAt" + interval '1 year')
