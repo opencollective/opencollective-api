@@ -4,18 +4,18 @@ import commentMutations from './CommentMutations';
 import commentReactionMutations from './CommentReactionMutations';
 import connectedAccountMutations from './ConnectedAccountMutations';
 import conversationMutations from './ConversationMutations';
-import createCollectiveMutations from './CreateCollectiveMutations';
+import createCollectiveMutation from './CreateCollectiveMutation';
 import expenseMutations from './ExpenseMutations';
 import orderMutations from './OrderMutations';
 import paymentMethodMutations from './PaymentMethodMutations';
 import payoutMethodMutations from './PayoutMethodMutations';
 
 const mutation = {
+  createCollective: createCollectiveMutation,
   ...commentMutations,
   ...commentReactionMutations,
   ...connectedAccountMutations,
   ...conversationMutations,
-  ...createCollectiveMutations,
   ...expenseMutations,
   ...accountMutations,
   ...collectiveMutations,

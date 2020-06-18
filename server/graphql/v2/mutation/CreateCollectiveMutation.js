@@ -109,28 +109,26 @@ async function createCollective(_, args, req) {
   return collective;
 }
 
-const createCollectiveMutations = {
-  createCollective: {
-    type: Collective,
-    args: {
-      collective: {
-        description: 'Information about the collective to create (name, slug, description, tags, ...)',
-        type: new GraphQLNonNull(CollectiveCreateInput),
-      },
-      host: {
-        description: 'Reference to the host to apply on creation.',
-        type: AccountReferenceInput,
-      },
-      automateApprovalWithGithub: {
-        description: 'Wether to trigger the automated approval for Open Source collectives with GitHub.',
-        type: GraphQLBoolean,
-        defaultValue: false,
-      },
+const createCollectiveMutation = {
+  type: Collective,
+  args: {
+    collective: {
+      description: 'Information about the collective to create (name, slug, description, tags, ...)',
+      type: new GraphQLNonNull(CollectiveCreateInput),
     },
-    resolve: (_, args, req) => {
-      return createCollective(_, args, req);
+    host: {
+      description: 'Reference to the host to apply on creation.',
+      type: AccountReferenceInput,
     },
+    automateApprovalWithGithub: {
+      description: 'Wether to trigger the automated approval for Open Source collectives with GitHub.',
+      type: GraphQLBoolean,
+      defaultValue: false,
+    },
+  },
+  resolve: (_, args, req) => {
+    return createCollective(_, args, req);
   },
 };
 
-export default createCollectiveMutations;
+export default createCollectiveMutation;
