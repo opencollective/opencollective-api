@@ -439,7 +439,7 @@ export default (Sequelize, DataTypes) => {
     return Promise.mapSeries(transactions, t => Transaction.create(t)).then(results => results[index]);
   };
 
-  Transaction.createFromPayload = ({
+  Transaction.createFromPayload = async ({
     CreatedByUserId,
     FromCollectiveId,
     CollectiveId,
@@ -447,43 +447,43 @@ export default (Sequelize, DataTypes) => {
     PaymentMethodId,
   }) => {
     if (!transaction.amount) {
-      return Promise.reject(new Error('transaction.amount cannot be null or zero'));
+      return new Error('transaction.amount cannot be null or zero');
     }
 
-    return models.Collective.findByPk(CollectiveId)
-      .then(c => c.getHostCollectiveId())
-      .then(HostCollectiveId => {
-        if (!HostCollectiveId && !transaction.HostCollectiveId) {
-          throw new Error(`Cannot create a transaction: collective id ${CollectiveId} doesn't have a host`);
-        }
-        transaction.HostCollectiveId = HostCollectiveId || transaction.HostCollectiveId;
-        // attach other objects manually. Needed for afterCreate hook to work properly
-        transaction.CreatedByUserId = CreatedByUserId;
-        transaction.FromCollectiveId = FromCollectiveId;
-        transaction.CollectiveId = CollectiveId;
-        transaction.PaymentMethodId = transaction.PaymentMethodId || PaymentMethodId;
-        transaction.type = transaction.amount > 0 ? TransactionTypes.CREDIT : TransactionTypes.DEBIT;
-        transaction.platformFeeInHostCurrency = toNegative(transaction.platformFeeInHostCurrency);
-        transaction.hostFeeInHostCurrency = toNegative(transaction.hostFeeInHostCurrency);
-        transaction.taxAmount = toNegative(transaction.taxAmount);
-        transaction.paymentProcessorFeeInHostCurrency = toNegative(transaction.paymentProcessorFeeInHostCurrency);
+    const collective = await models.Collective.findByPk(CollectiveId);
+    const HostCollectiveId = await collective.getHostCollectiveId();
+    if (!HostCollectiveId && !transaction.HostCollectiveId) {
+      throw new Error(`Cannot create a transaction: collective id ${CollectiveId} doesn't have a host`);
+    }
 
-        if (transaction.amount > 0) {
-          // populate netAmountInCollectiveCurrency for donations
-          const fees =
-            (transaction.taxAmount || 0) +
-            transaction.platformFeeInHostCurrency +
-            transaction.hostFeeInHostCurrency +
-            transaction.paymentProcessorFeeInHostCurrency;
-          transaction.netAmountInCollectiveCurrency = transaction.amountInHostCurrency + fees; // `fees` is a negative number
-          if (transaction.hostCurrencyFxRate) {
-            transaction.netAmountInCollectiveCurrency = Math.round(
-              transaction.netAmountInCollectiveCurrency / transaction.hostCurrencyFxRate,
-            );
-          }
-        }
-        return Transaction.createDoubleEntry(transaction);
-      });
+    transaction.HostCollectiveId = HostCollectiveId || transaction.HostCollectiveId;
+    // attach other objects manually. Needed for afterCreate hook to work properly
+    transaction.CreatedByUserId = CreatedByUserId;
+    transaction.FromCollectiveId = FromCollectiveId;
+    transaction.CollectiveId = CollectiveId;
+    transaction.PaymentMethodId = transaction.PaymentMethodId || PaymentMethodId;
+    transaction.type = transaction.amount > 0 ? TransactionTypes.CREDIT : TransactionTypes.DEBIT;
+    transaction.platformFeeInHostCurrency = toNegative(transaction.platformFeeInHostCurrency);
+    transaction.hostFeeInHostCurrency = toNegative(transaction.hostFeeInHostCurrency);
+    transaction.taxAmount = toNegative(transaction.taxAmount);
+    transaction.paymentProcessorFeeInHostCurrency = toNegative(transaction.paymentProcessorFeeInHostCurrency);
+
+    if (transaction.amount > 0) {
+      // populate netAmountInCollectiveCurrency for donations
+      const fees =
+        (transaction.taxAmount || 0) +
+        transaction.platformFeeInHostCurrency +
+        transaction.hostFeeInHostCurrency +
+        transaction.paymentProcessorFeeInHostCurrency;
+      transaction.netAmountInCollectiveCurrency = transaction.amountInHostCurrency + fees; // `fees` is a negative number
+      if (transaction.hostCurrencyFxRate) {
+        transaction.netAmountInCollectiveCurrency = Math.round(
+          transaction.netAmountInCollectiveCurrency / transaction.hostCurrencyFxRate,
+        );
+      }
+    }
+
+    return Transaction.createDoubleEntry(transaction);
   };
 
   Transaction.createActivity = transaction => {
