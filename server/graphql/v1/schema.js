@@ -8,6 +8,7 @@ import {
   CollectiveType,
   EventCollectiveType,
   OrganizationCollectiveType,
+  ProjectCollectiveType,
   UserCollectiveType,
 } from './CollectiveInterface';
 import mutation from './mutations';
@@ -39,6 +40,7 @@ const Schema = new GraphQLSchema({
     UserCollectiveType,
     OrganizationCollectiveType,
     EventCollectiveType,
+    ProjectCollectiveType,
     TransactionInterfaceType,
     TransactionOrderType,
     TransactionExpenseType,

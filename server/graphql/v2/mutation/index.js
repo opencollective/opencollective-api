@@ -5,6 +5,7 @@ import commentReactionMutations from './CommentReactionMutations';
 import connectedAccountMutations from './ConnectedAccountMutations';
 import conversationMutations from './ConversationMutations';
 import createCollectiveMutation from './CreateCollectiveMutation';
+import createProjectMutation from './CreateProjectMutation';
 import expenseMutations from './ExpenseMutations';
 import orderMutations from './OrderMutations';
 import paymentMethodMutations from './PaymentMethodMutations';
@@ -12,6 +13,7 @@ import payoutMethodMutations from './PayoutMethodMutations';
 
 const mutation = {
   createCollective: createCollectiveMutation,
+  createProject: createProjectMutation,
   ...commentMutations,
   ...commentReactionMutations,
   ...connectedAccountMutations,

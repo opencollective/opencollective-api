@@ -127,7 +127,7 @@ export const defaultTiers = (HostCollectiveId, currency) => {
   return tiers;
 };
 
-const validTypes = ['USER', 'COLLECTIVE', 'ORGANIZATION', 'EVENT', 'BOT'];
+const validTypes = ['USER', 'COLLECTIVE', 'ORGANIZATION', 'EVENT', 'PROJECT', 'BOT'];
 
 /**
  * Collective Model.
