@@ -42,11 +42,11 @@ const ExpensesQuery = {
     },
     minAmount: {
       type: GraphQLInt,
-      description: 'Only return expenses where amount is greater than or equal to this value',
+      description: 'Only return expenses where the amount is greater than or equal to this value in cents',
     },
     maxAmount: {
       type: GraphQLInt,
-      description: 'Only return expenses where amount is lower than this value',
+      description: 'Only return expenses where the amount is lower than this value in cents',
     },
     payoutMethodType: {
       type: PayoutMethodType,
