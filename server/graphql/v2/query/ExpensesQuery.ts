@@ -42,11 +42,11 @@ const ExpensesQuery = {
     },
     minAmount: {
       type: GraphQLInt,
-      description: 'Only return expenses where the amount is greater than or equal to this value in cents',
+      description: 'Only return expenses where the amount is greater than or equal to this value (in cents)',
     },
     maxAmount: {
       type: GraphQLInt,
-      description: 'Only return expenses where the amount is lower than this value in cents',
+      description: 'Only return expenses where the amount is lower than or equal to this value (in cents)',
     },
     payoutMethodType: {
       type: PayoutMethodType,
@@ -91,7 +91,7 @@ const ExpensesQuery = {
       where['amount'] = { [Op.gte]: args.minAmount };
     }
     if (args.maxAmount) {
-      where['amount'] = { ...where['amount'], [Op.lt]: args.maxAmount };
+      where['amount'] = { ...where['amount'], [Op.lte]: args.maxAmount };
     }
     if (args.dateFrom) {
       where['createdAt'] = { [Op.gte]: args.dateFrom };
