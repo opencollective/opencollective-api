@@ -62,6 +62,11 @@ const ExpensesQuery = {
     const include = [];
     const fetchAccountParams = { loaders: req.loaders, throwIfMissing: true };
 
+    // Check arguments
+    if (args.limit > 100) {
+      throw new Error('Cannot fetch more than 100 expenses at the same time, please adjust the limit');
+    }
+
     // Load accounts
     if (args.fromAccount) {
       const fromAccount = await fetchAccountWithReference(args.fromAccount, fetchAccountParams);
