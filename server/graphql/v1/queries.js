@@ -1358,6 +1358,11 @@ const queries = {
       if (args.id) {
         return models.PaymentMethod.findByPk(args.id);
       } else if (args.code) {
+        const redeemCodeRegex = /^[a-zA-Z0-9]{8}$/;
+        if (!redeemCodeRegex.test(args.code)) {
+          throw Error(`Code "${args.code}" has invalid format`);
+        }
+
         return models.PaymentMethod.findOne({
           where: sequelize.and(
             sequelize.where(sequelize.cast(sequelize.col('uuid'), 'text'), {
