@@ -13,6 +13,7 @@ import status from '../../../constants/order_status';
 import roles from '../../../constants/roles';
 import { VAT_OPTIONS } from '../../../constants/vat';
 import cache from '../../../lib/cache';
+import { purgeCacheForPage } from '../../../lib/cloudflare';
 import * as github from '../../../lib/github';
 import * as libPayments from '../../../lib/payments';
 import { handleHostPlanAddedFundsLimit, handleHostPlanBankTransfersLimit } from '../../../lib/plans';
@@ -499,8 +500,10 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
       });
     }
 
-    order = await models.Order.findByPk(orderCreated.id);
+    // Invalidate Cloudflare cache for the collective pages
+    purgeCacheForPage([`/${collective.slug}`, `/${fromCollective.slug}`]);
 
+    order = await models.Order.findByPk(orderCreated.id);
     return order;
   } catch (error) {
     if (orderCreated) {
