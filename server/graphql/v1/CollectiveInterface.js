@@ -783,6 +783,13 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
           },
         },
       },
+      projects: {
+        type: new GraphQLList(ProjectCollectiveType),
+        args: {
+          limit: { type: GraphQLInt },
+          offset: { type: GraphQLInt },
+        },
+      },
       childCollectives: {
         type: new GraphQLList(CollectiveType),
         description: "Get all child collectives (with type=COLLECTIVE, doesn't return events)",
@@ -1623,6 +1630,31 @@ const CollectiveFields = () => {
               },
             ],
           };
+        }
+
+        return models.Collective.findAll(query);
+      },
+    },
+    projects: {
+      type: new GraphQLList(ProjectCollectiveType),
+      args: {
+        limit: { type: GraphQLInt },
+        offset: { type: GraphQLInt },
+      },
+      resolve(collective, args) {
+        const query = {
+          where: { type: 'PROJECT', ParentCollectiveId: collective.id },
+          order: [
+            ['startsAt', 'DESC'],
+            ['endsAt', 'DESC'],
+          ],
+        };
+
+        if (args.limit) {
+          query.limit = args.limit;
+        }
+        if (args.offset) {
+          query.offset = args.offset;
         }
 
         return models.Collective.findAll(query);

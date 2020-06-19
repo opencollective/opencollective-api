@@ -543,6 +543,7 @@ export default function (Sequelize, DataTypes) {
             githubHandle: this.githubHandle,
             publicUrl: this.publicUrl,
             hostFeePercent: this.hostFeePercent,
+            platformFeePercent: this.platformFeePercent,
             tags: this.tags,
             HostCollectiveId: this.HostCollectiveId,
             isSupercollective: this.isSupercollective,

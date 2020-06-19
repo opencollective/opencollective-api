@@ -28,7 +28,7 @@ async function createProject(_, args, req) {
   const projectData = {
     type: 'PROJECT',
     ...pick(args.project, ['name', 'slug', 'description']),
-    ...pick(parent, ['currency', 'HostCollectiveId', 'isActive', 'platformFeePercent', 'hostFeePercent']),
+    ...pick(parent.info, ['currency', 'HostCollectiveId', 'isActive', 'platformFeePercent', 'hostFeePercent']),
     approvedAt: parent.isActive ? new Date() : null,
     ParentCollectiveId: parent.id,
     CreatedByUserId: remoteUser.id,

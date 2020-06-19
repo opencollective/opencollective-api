@@ -7,8 +7,9 @@ export const AccountType = new GraphQLEnumType({
     BOT: {},
     COLLECTIVE: {},
     EVENT: {},
-    ORGANIZATION: {},
     INDIVIDUAL: {},
+    ORGANIZATION: {},
+    PROJECT: {},
   },
 });
 
@@ -16,6 +17,7 @@ export const AccountTypeToModelMapping = {
   BOT: 'BOT',
   COLLECTIVE: 'COLLECTIVE',
   EVENT: 'EVENT',
-  ORGANIZATION: 'ORGANIZATION',
   INDIVIDUAL: 'USER',
+  ORGANIZATION: 'ORGANIZATION',
+  PROJECT: 'PROJECT',
 };
