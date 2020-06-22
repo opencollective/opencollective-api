@@ -16,7 +16,7 @@ export async function processCollective(collective, template) {
   logger.info('-', collective.slug);
 
   // Exclude Funds from onboarding
-  if (get(collective, 'settings.fund') === true) {
+  if (collective.type === 'FUND' || get(collective, 'settings.fund') === true) {
     return;
   }
 

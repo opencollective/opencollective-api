@@ -3,6 +3,7 @@ import { get, pick } from 'lodash';
 
 import activities from '../../../constants/activities';
 import roles from '../../../constants/roles';
+import { isBlacklistedCollectiveSlug } from '../../../lib/collectivelib';
 import { purgeCacheForPage } from '../../../lib/cloudflare';
 import * as github from '../../../lib/github';
 import { defaultHostCollective } from '../../../lib/utils';
@@ -26,13 +27,17 @@ async function createCollective(_, args, req) {
   }
 
   const collectiveData = {
-    ...pick(args.collective, ['name', 'slug', 'description', 'tags']),
+    slug: args.collective.slug.toLowerCase(),
+    ...pick(args.collective, ['name', 'description', 'tags']),
     isActive: false,
     CreatedByUserId: remoteUser.id,
     settings: { ...DEFAULT_COLLECTIVE_SETTINGS, ...args.collective.settings },
   };
 
-  const collectiveWithSlug = await models.Collective.findOne({ where: { slug: collectiveData.slug.toLowerCase() } });
+  if (isBlacklistedCollectiveSlug(collectiveData.slug)) {
+    throw new Error(`The slug '${collectiveData.slug}' is not allowed.`);
+  }
+  const collectiveWithSlug = await models.Collective.findOne({ where: { slug: collectiveData.slug } });
   if (collectiveWithSlug) {
     throw new Error(`The slug ${collectiveData.slug} is already taken. Please use another slug for your collective.`);
   }

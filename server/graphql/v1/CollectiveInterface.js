@@ -54,6 +54,7 @@ export const TypeOfCollectiveType = new GraphQLEnumType({
     USER: {},
     BOT: {},
     PROJECT: {},
+    FUND: {},
   },
 });
 
@@ -558,6 +559,9 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
 
       case types.PROJECT:
         return ProjectCollectiveType;
+
+      case types.FUND:
+        return FundCollectiveType;
 
       default:
         return null;
@@ -1932,14 +1936,21 @@ export const OrganizationCollectiveType = new GraphQLObjectType({
 
 export const EventCollectiveType = new GraphQLObjectType({
   name: 'Event',
-  description: 'This represents an Event Collective',
+  description: 'This represents an Event',
   interfaces: [CollectiveInterfaceType],
   fields: CollectiveFields,
 });
 
 export const ProjectCollectiveType = new GraphQLObjectType({
   name: 'Project',
-  description: 'This represents an Project Collective',
+  description: 'This represents a Project',
+  interfaces: [CollectiveInterfaceType],
+  fields: CollectiveFields,
+});
+
+export const FundCollectiveType = new GraphQLObjectType({
+  name: 'Fund',
+  description: 'This represents a Fund',
   interfaces: [CollectiveInterfaceType],
   fields: CollectiveFields,
 });

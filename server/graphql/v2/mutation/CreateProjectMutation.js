@@ -2,6 +2,7 @@ import { GraphQLNonNull } from 'graphql';
 import { pick } from 'lodash';
 
 import roles from '../../../constants/roles';
+import { isBlacklistedCollectiveSlug } from '../../../lib/collectivelib';
 import models from '../../../models';
 import { NotFound, Unauthorized } from '../../errors';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
@@ -27,7 +28,8 @@ async function createProject(_, args, req) {
 
   const projectData = {
     type: 'PROJECT',
-    ...pick(args.project, ['name', 'slug', 'description']),
+    slug: args.project.slug.toLowerCase(),
+    ...pick(args.project, ['name', 'description']),
     ...pick(parent.info, ['currency', 'HostCollectiveId', 'isActive', 'platformFeePercent', 'hostFeePercent']),
     approvedAt: parent.isActive ? new Date() : null,
     ParentCollectiveId: parent.id,
@@ -35,9 +37,12 @@ async function createProject(_, args, req) {
     settings: { ...DEFAULT_PROJECT_SETTINGS, ...args.project.settings },
   };
 
-  const checkSlug = await models.Collective.findOne({ where: { slug: projectData.slug.toLowerCase() } });
+  if (isBlacklistedCollectiveSlug(projectData.slug)) {
+    throw new Error(`The slug '${projectData.slug}' is not allowed.`);
+  }
+  const checkSlug = await models.Collective.findOne({ where: { slug: projectData.slug } });
   if (checkSlug) {
-    throw new Error(`The slug ${projectData.slug} is already taken. Please use another slug for your Project.`);
+    throw new Error(`The slug '${projectData.slug}' is already taken. Please use another slug for your Project.`);
   }
 
   const project = await models.Collective.create(projectData);
