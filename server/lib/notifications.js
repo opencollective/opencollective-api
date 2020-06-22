@@ -138,7 +138,7 @@ async function notifyUserId(UserId, activity, options = {}) {
     options.attachments = [{ filename: `${event.slug}.ics`, content: ics }];
     activity.data.event = event.info;
     activity.data.collective = parentCollective.info;
-    options.from = `${parentCollective.name} <hello@${parentCollective.slug}.opencollective.com>`;
+    options.from = `${parentCollective.name} <no-reply@${parentCollective.slug}.opencollective.com>`;
   }
 
   return emailLib.send(activity.type, user.email, activity.data, options);
@@ -207,13 +207,13 @@ async function notifyByEmail(activity) {
       activity.data.update = activity.data.update.info;
       notifyMembersOfCollective(activity.data.update.CollectiveId, activity, {
         from: `${activity.data.collective.name}
-        <hello@${activity.data.collective.slug}.opencollective.com>`,
+        <no-reply@${activity.data.collective.slug}.opencollective.com>`,
       });
       break;
 
     case activityType.SUBSCRIPTION_CANCELED:
       return notifyUserId(activity.UserId, activity, {
-        bcc: `info@${activity.data.collective.slug}.opencollective.com`,
+        bcc: `no-reply@${activity.data.collective.slug}.opencollective.com`,
       });
 
     case activityType.COLLECTIVE_MEMBER_CREATED:
@@ -364,7 +364,7 @@ async function notifyByEmail(activity) {
         {
           template: 'collective.rejected',
         },
-        { replyTo: `hello@${activity.data.host.slug}.opencollective.com` },
+        { replyTo: `no-reply@${activity.data.host.slug}.opencollective.com` },
       );
       break;
 
@@ -380,7 +380,7 @@ async function notifyByEmail(activity) {
       }
 
       notifyAdminsOfCollective(activity.data.collective.id, activity, {
-        from: `hello@${activity.data.host.slug}.opencollective.com`,
+        from: `no-reply@${activity.data.host.slug}.opencollective.com`,
       });
       break;
 

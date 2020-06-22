@@ -299,7 +299,7 @@ describe('server/models/Collective', () => {
       const ics = await event.getICS();
       expect(ics).to.contain('STATUS:CONFIRMED');
       expect(ics).to.contain('/tipbox/events/sustainoss-london');
-      expect(ics).to.contain('hello@tipbox.opencollective.com');
+      expect(ics).to.contain('no-reply@tipbox.opencollective.com');
     });
   });
 
@@ -412,7 +412,7 @@ describe('server/models/Collective', () => {
       const applyArgs = sendEmailSpy.args.find(callArgs => callArgs[1].includes('Thanks for applying'));
       expect(applyArgs).to.exist;
       expect(applyArgs[0]).to.equal(user1.email);
-      expect(applyArgs[3].from).to.equal('hello@wwcode.opencollective.com');
+      expect(applyArgs[3].from).to.equal('no-reply@wwcode.opencollective.com');
     });
 
     it('updates hostFeePercent for collective and events when adding or changing host', async () => {

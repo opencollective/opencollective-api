@@ -841,7 +841,7 @@ export default function (Sequelize, DataTypes) {
           status: 'CONFIRMED',
           organizer: {
             name: parentCollective.name,
-            email: `hello@${parentCollective.slug}.opencollective.com`,
+            email: `no-reply@${parentCollective.slug}.opencollective.com`,
           },
           alarms,
         };

@@ -308,7 +308,7 @@ export async function sendArchivedCollectiveEmail(order) {
       subscriptionsLink: user.generateLoginLink(`/${order.fromCollective.slug}/subscriptions`),
     },
     {
-      from: `${order.collective.name} <hello@${order.collective.slug}.opencollective.com>`,
+      from: `${order.collective.name} <no-reply@${order.collective.slug}.opencollective.com>`,
     },
   );
 }
@@ -327,7 +327,7 @@ export async function sendFailedEmail(order, lastAttempt) {
       subscriptionsLink: `${config.host.website}/${order.fromCollective.slug}/subscriptions`,
     },
     {
-      from: `${order.collective.name} <hello@${order.collective.slug}.opencollective.com>`,
+      from: `${order.collective.name} <no-reply@${order.collective.slug}.opencollective.com>`,
     },
   );
 }
@@ -344,7 +344,7 @@ export async function sendThankYouEmail(order, transaction) {
       user.email,
       { plan: get(order, 'Tier.name') },
       {
-        from: `${order.collective.name} <hello@${order.collective.slug}.opencollective.com>`,
+        from: `${order.collective.name} <no-reply@${order.collective.slug}.opencollective.com>`,
       },
     );
   }
@@ -366,7 +366,7 @@ export async function sendThankYouEmail(order, transaction) {
       subscriptionsLink: `${config.host.website}/${order.fromCollective.slug}/subscriptions`,
     },
     {
-      from: `${order.collective.name} <hello@${order.collective.slug}.opencollective.com>`,
+      from: `${order.collective.name} <no-reply@${order.collective.slug}.opencollective.com>`,
     },
   );
 }
@@ -383,7 +383,7 @@ export async function sendCreditCardConfirmationEmail(order) {
       confirmOrderLink: `${config.host.website}/orders/${order.id}/confirm`,
     },
     {
-      from: `${order.collective.name} <hello@${order.collective.slug}.opencollective.com>`,
+      from: `${order.collective.name} <no-reply@${order.collective.slug}.opencollective.com>`,
     },
   );
 }

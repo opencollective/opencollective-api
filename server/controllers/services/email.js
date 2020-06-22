@@ -34,7 +34,7 @@ export const unsubscribe = (req, res, next) => {
 const sendEmailToList = (to, email) => {
   debugEmail('sendEmailToList', to, 'email data: ', email);
   const { mailinglist, collectiveSlug, type } = getNotificationType(to);
-  email.from = email.from || `${collectiveSlug} collective <hello@${collectiveSlug}.opencollective.com>`;
+  email.from = email.from || `${collectiveSlug} collective <no-reply@${collectiveSlug}.opencollective.com>`;
   email.collective = email.collective || { slug: collectiveSlug }; // used for the unsubscribe url
 
   return models.Notification.getSubscribersUsers(collectiveSlug, mailinglist)
@@ -197,7 +197,7 @@ export const webhook = async (req, res, next) => {
       return res.send({
         error: { message: `This Collective doesn't exist or can't be emailed directly using this address` },
       });
-    } else if (get(collective.settings, 'features.forwardEmails') === false || !(await collective.canContact())) {
+    } else if (!get(collective.settings, 'features.forwardEmails') || !(await collective.canContact())) {
       return res.send({
         error: { message: `This Collective can't be emailed directly using this address` },
       });
