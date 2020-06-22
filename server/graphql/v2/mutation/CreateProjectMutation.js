@@ -9,7 +9,9 @@ import { AccountReferenceInput, fetchAccountWithReference } from '../input/Accou
 import { ProjectCreateInput } from '../input/ProjectCreateInput';
 import { Project } from '../object/Project';
 
-const DEFAULT_PROJECT_SETTINGS = {};
+const DEFAULT_PROJECT_SETTINGS = {
+  collectivePage: { sections: ['budget', 'about'] },
+};
 
 async function createProject(_, args, req) {
   const { remoteUser } = req;
@@ -45,14 +47,7 @@ async function createProject(_, args, req) {
     throw new Error(`The slug '${projectData.slug}' is already taken. Please use another slug for your Project.`);
   }
 
-  const project = await models.Collective.create(projectData);
-
-  // Add authenticated user as an admin
-  await project.addUserWithRole(remoteUser, roles.ADMIN, { CreatedByUserId: remoteUser.id });
-  // For Events, we usually add admins of the parent collective as admins
-  // Let's try to avoid that
-
-  return project;
+  return models.Collective.create(projectData);
 }
 
 const createProjectMutation = {

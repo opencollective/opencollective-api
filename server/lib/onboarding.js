@@ -15,8 +15,8 @@ const emailOptions = {
 export async function processCollective(collective, template) {
   logger.info('-', collective.slug);
 
-  // Exclude Funds from onboarding
-  if (collective.type === 'FUND' || get(collective, 'settings.fund') === true) {
+  // Exclude Funds from onboarding, Funds MVP, remove me after migration to FUND type
+  if (get(collective, 'settings.fund') === true) {
     return;
   }
 

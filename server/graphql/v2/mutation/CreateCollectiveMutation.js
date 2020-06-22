@@ -3,8 +3,8 @@ import { get, pick } from 'lodash';
 
 import activities from '../../../constants/activities';
 import roles from '../../../constants/roles';
-import { isBlacklistedCollectiveSlug } from '../../../lib/collectivelib';
 import { purgeCacheForPage } from '../../../lib/cloudflare';
+import { isBlacklistedCollectiveSlug } from '../../../lib/collectivelib';
 import * as github from '../../../lib/github';
 import { defaultHostCollective } from '../../../lib/utils';
 import models from '../../../models';

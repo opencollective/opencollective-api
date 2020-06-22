@@ -1705,7 +1705,10 @@ const CollectiveFields = () => {
         if (
           !args.includeOrganizationCollectivePaymentMethod &&
           !args.includeHostCollectivePaymentMethod &&
-          (collective.type === 'ORGANIZATION' || collective.type === 'USER')
+          // Allow for Hosts with budget/balance feature
+          ((collective.type === 'ORGANIZATION' && !collective.isActive) ||
+            // But not for Users yet
+            collective.type === 'USER')
         ) {
           paymentMethods = paymentMethods.filter(pm => !(pm.service === 'opencollective' && pm.type === 'collective'));
         }
