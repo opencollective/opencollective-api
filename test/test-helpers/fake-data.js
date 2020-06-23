@@ -71,6 +71,12 @@ export const fakeHost = async hostData => {
  */
 export const fakeCollective = async (collectiveData = {}) => {
   const type = collectiveData.type || CollectiveType.COLLECTIVE;
+  if (!collectiveData.CreatedByUserId) {
+    collectiveData.CreatedByUserId = (await fakeUser()).id;
+  }
+  if (collectiveData.HostCollectiveId === undefined) {
+    collectiveData.HostCollectiveId = (await fakeHost()).id;
+  }
   const collective = await models.Collective.create({
     type,
     name: collectiveData.isHostAccount ? randStr('Test Host ') : randStr('Test Collective '),
@@ -83,9 +89,6 @@ export const fakeCollective = async (collectiveData = {}) => {
     tags: [randStr(), randStr()],
     isActive: true,
     ...collectiveData,
-    CreatedByUserId: collectiveData.CreatedByUserId || (await fakeUser()).id,
-    HostCollectiveId:
-      collectiveData.HostCollectiveId === undefined ? (await fakeHost()).id : collectiveData.HostCollectiveId,
   });
 
   collective.host = collective.HostCollectiveId && (await models.Collective.findByPk(collective.HostCollectiveId));
