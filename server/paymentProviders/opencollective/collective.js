@@ -36,11 +36,16 @@ paymentMethodProvider.getBalance = paymentMethod => {
     // If the collective is a host (USER or ORGANIZATION)
     if (collective.type === 'ORGANIZATION' || collective.type === 'USER') {
       return collective.isHost().then(isHost => {
+        // If budget is activated, should be the true balance
         if (!isHost) {
           return 0;
         } else {
-          return maxInteger;
-        } // GraphQL doesn't like Infinity
+          if (collective.isActive) {
+            return collective.getBalance();
+          } else {
+            return maxInteger; // GraphQL doesn't like Infinity
+          }
+        }
       });
     }
 
