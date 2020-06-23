@@ -927,8 +927,8 @@ export const ExpenseType = new GraphQLObjectType({
       },
       user: {
         type: UserType,
-        resolve(expense) {
-          return expense.getUser();
+        async resolve(expense, _, req) {
+          return req.loaders.User.byId.load(expense.UserId);
         },
       },
       fromCollective: {
