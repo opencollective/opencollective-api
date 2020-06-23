@@ -72,6 +72,12 @@ const load = async app => {
 
   pipeline.registerInput(expressInput);
 
+  // Configure Pipeline
+
+  pipeline.filter(log => log.has('graphql')).registerNode('graphql');
+
+  pipeline.filter(log => log.get('executionTime') >= config.log.slowRequestThreshold).registerNode('slow');
+
   // Configure logs
 
   const formatRequest = log => {
@@ -94,26 +100,18 @@ const load = async app => {
     return `${operationName} ${JSON.stringify(pick(variables, pickList))}`;
   };
 
-  const htmlFormatter = new lib.formatter.Formatter('html');
-  htmlFormatter.setFormat('request', formatRequest);
-
-  const consoleLogOutput = config.env === 'development' ? 'console' : 'text';
-  const consoleLogFormatter = new lib.formatter.Formatter(consoleLogOutput);
-  consoleLogFormatter.setFormat('request', formatRequest);
-
-  modules.logs.setFormatter(htmlFormatter);
-
-  pipeline.filter(log => log.has('graphql')).registerNode('graphql');
-
-  pipeline.filter(log => log.get('executionTime') >= config.log.slowRequestThreshold).registerNode('slow');
+  lib.logger.defaultFormatter.replaceFormat('request', formatRequest);
 
   // Access Logs
+
+  const consoleLogOutput = config.env === 'development' ? 'console' : 'text';
+
   if (get(config, 'log.accessLogs')) {
-    pipeline.map(log => console.log(consoleLogFormatter.format(log)));
+    pipeline.map(log => console.log(lib.logger.defaultFormatter.format(log, consoleLogOutput)));
   }
   // Or Slow logs
   else if (get(config, 'log.slowRequest')) {
-    pipeline.getNode('slow').map(log => console.log(consoleLogFormatter.format(log)));
+    pipeline.getNode('slow').map(log => console.log(lib.logger.defaultFormatter.format(log, consoleLogOutput)));
   }
 
   // Start
