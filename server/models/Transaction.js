@@ -1,11 +1,12 @@
 import Promise from 'bluebird';
 import debugLib from 'debug';
-import { get, isUndefined } from 'lodash';
+import { defaultsDeep, get, isUndefined } from 'lodash';
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../constants/activities';
-import { TransactionTypes } from '../constants/transactions';
+import { FEES_ON_TOP_TRANSACTION_PROPERTIES, TransactionTypes } from '../constants/transactions';
+import { getFxRate } from '../lib/currency';
 import { toNegative } from '../lib/math';
 import { calcFee } from '../lib/payments';
 import { exportToCSV } from '../lib/utils';
@@ -455,7 +456,6 @@ export default (Sequelize, DataTypes) => {
     if (!HostCollectiveId && !transaction.HostCollectiveId) {
       throw new Error(`Cannot create a transaction: collective id ${CollectiveId} doesn't have a host`);
     }
-
     transaction.HostCollectiveId = HostCollectiveId || transaction.HostCollectiveId;
     // attach other objects manually. Needed for afterCreate hook to work properly
     transaction.CreatedByUserId = CreatedByUserId;
@@ -463,10 +463,42 @@ export default (Sequelize, DataTypes) => {
     transaction.CollectiveId = CollectiveId;
     transaction.PaymentMethodId = transaction.PaymentMethodId || PaymentMethodId;
     transaction.type = transaction.amount > 0 ? TransactionTypes.CREDIT : TransactionTypes.DEBIT;
-    transaction.platformFeeInHostCurrency = toNegative(transaction.platformFeeInHostCurrency);
     transaction.hostFeeInHostCurrency = toNegative(transaction.hostFeeInHostCurrency);
+    transaction.platformFeeInHostCurrency = toNegative(transaction.platformFeeInHostCurrency);
     transaction.taxAmount = toNegative(transaction.taxAmount);
     transaction.paymentProcessorFeeInHostCurrency = toNegative(transaction.paymentProcessorFeeInHostCurrency);
+    // Separate donation transaction and remove platformFee from main transaction
+    if (transaction.data?.isFeesOnTop) {
+      const platformCurrencyFxRate = await getFxRate(transaction.currency, FEES_ON_TOP_TRANSACTION_PROPERTIES.currency);
+      const donationTransaction = defaultsDeep(
+        {},
+        FEES_ON_TOP_TRANSACTION_PROPERTIES,
+        {
+          description: 'Checkout donation to Open Collective',
+          amount: Math.round(Math.abs(transaction.platformFeeInHostCurrency) * platformCurrencyFxRate),
+          amountInHostCurrency: Math.round(Math.abs(transaction.platformFeeInHostCurrency) * platformCurrencyFxRate),
+          platformFeeInHostCurrency: 0,
+          hostFeeInHostCurrency: 0,
+          paymentProcessorFeeInHostCurrency: 0,
+          netAmountInCollectiveCurrency: Math.round(
+            Math.abs(transaction.platformFeeInHostCurrency) * platformCurrencyFxRate,
+          ),
+          hostCurrencyFxRate: platformCurrencyFxRate,
+          data: {
+            hostToPlatformFxRate: await getFxRate(
+              transaction.hostCurrency,
+              FEES_ON_TOP_TRANSACTION_PROPERTIES.currency,
+            ),
+          },
+        },
+        transaction,
+      );
+      await Transaction.createDoubleEntry(donationTransaction);
+      transaction.amountInHostCurrency = transaction.amountInHostCurrency + transaction.platformFeeInHostCurrency;
+      transaction.amount =
+        transaction.amount + transaction.platformFeeInHostCurrency / (transaction.hostCurrencyFxRate || 1);
+      transaction.platformFeeInHostCurrency = 0;
+    }
 
     if (transaction.amount > 0) {
       // populate netAmountInCollectiveCurrency for donations

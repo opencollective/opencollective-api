@@ -195,7 +195,7 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
       paymentProcessorFeeInHostCurrency: fees.stripeFee,
       taxAmount: order.taxAmount,
       description: order.description,
-      data: { charge, balanceTransaction },
+      data: { charge, balanceTransaction, isFeesOnTop: order.data?.isFeesOnTop },
     },
   };
 

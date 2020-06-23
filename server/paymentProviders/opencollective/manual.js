@@ -58,6 +58,9 @@ async function processOrder(order) {
     paymentProcessorFeeInHostCurrency,
     taxAmount: order.taxAmount,
     description: order.description,
+    data: {
+      isFeesOnTop: order.data?.isFeesOnTop,
+    },
   };
 
   const creditTransaction = await models.Transaction.createFromPayload(payload);

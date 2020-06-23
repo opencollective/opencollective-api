@@ -2,35 +2,31 @@ import { expect } from 'chai';
 import sinon from 'sinon';
 
 import models from '../../../server/models';
+import { fakeCollective, fakeHost, fakeOrder, fakeUser } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
 const { Transaction } = models;
 
-const userData = utils.data('user1');
-const collectiveData = utils.data('collective1');
 const transactionsData = utils.data('transactions1').transactions;
 
 describe('server/models/Transaction', () => {
-  let user, host, collective, defaultTransactionData;
+  let user, host, collective, oc, defaultTransactionData;
 
   beforeEach(() => utils.resetTestDB());
 
-  beforeEach('create user', () => models.User.createUserWithCollective(userData).tap(u => (user = u)));
-  beforeEach('create host', () => models.User.createUserWithCollective(utils.data('host1')).tap(u => (host = u)));
-
-  beforeEach('create collective2 and add host', () =>
-    models.Collective.create(collectiveData)
-      .tap(g => (collective = g))
-      .tap(() => {
-        defaultTransactionData = {
-          CreatedByUserId: user.id,
-          FromCollectiveId: user.CollectiveId,
-          CollectiveId: collective.id,
-          HostCollectiveId: host.CollectiveId,
-        };
-      })
-      .then(() => collective.addHost(host.collective, host)),
-  );
+  beforeEach(async () => {
+    user = await fakeUser({}, { id: 10 });
+    const inc = await fakeHost({ id: 8686, slug: 'opencollectiveinc', CreatedByUserId: user.id });
+    oc = await fakeCollective({ id: 1, slug: 'opencollective', CreatedByUserId: user.id, HostCollectiveId: inc.id });
+    host = await fakeHost({ id: 2, CreatedByUserId: user.id });
+    collective = await fakeCollective({ id: 3, HostCollectiveId: host.id, CreatedByUserId: user.id });
+    defaultTransactionData = {
+      CreatedByUserId: user.id,
+      FromCollectiveId: user.CollectiveId,
+      CollectiveId: collective.id,
+      HostCollectiveId: host.id,
+    };
+  });
 
   it('automatically generates uuid', done => {
     Transaction.create({
@@ -51,7 +47,7 @@ describe('server/models/Transaction', () => {
       ...defaultTransactionData,
       amount: 10000,
     }).then(transaction => {
-      expect(transaction.HostCollectiveId).to.equal(host.CollectiveId);
+      expect(transaction.HostCollectiveId).to.equal(host.id);
       done();
     });
   });
@@ -158,5 +154,138 @@ describe('server/models/Transaction', () => {
         expect(transaction.CollectiveId).to.equal(collective.id);
       })
       .catch(done);
+  });
+
+  describe('fees on top', () => {
+    it('should deduct the platform fee from the main transactions', async () => {
+      const transaction = {
+        description: '$100 donation to Merveilles',
+        amount: 10000,
+        amountInHostCurrency: 10000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        hostCurrencyFxRate: 1,
+        platformFeeInHostCurrency: 1000,
+        hostFeeInHostCurrency: 500,
+        paymentProcessorFeeInHostCurrency: 200,
+        type: 'CREDIT',
+        createdAt: '2015-05-29T07:00:00.000Z',
+        PaymentMethodId: 1,
+        data: {
+          isFeesOnTop: true,
+        },
+      };
+
+      const t = await Transaction.createFromPayload({
+        transaction,
+        CreatedByUserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: collective.id,
+      });
+
+      expect(t).to.have.property('platformFeeInHostCurrency').equal(0);
+      expect(t)
+        .to.have.property('netAmountInCollectiveCurrency')
+        .equal(transaction.amount + transaction.hostFeeInHostCurrency + transaction.paymentProcessorFeeInHostCurrency);
+    });
+
+    it('should create an aditional pair of transactions between contributor and Open Collective Inc', async () => {
+      const order = await fakeOrder({
+        CreatedByUserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: collective.id,
+      });
+      const transaction = {
+        description: '$100 donation to Merveilles',
+        amount: 10000,
+        totalAmount: 11000,
+        amountInHostCurrency: 10000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        hostCurrencyFxRate: 1,
+        platformFeeInHostCurrency: 1000,
+        hostFeeInHostCurrency: 500,
+        paymentProcessorFeeInHostCurrency: 200,
+        type: 'CREDIT',
+        createdAt: '2015-05-29T07:00:00.000Z',
+        PaymentMethodId: 1,
+        OrderId: order.id,
+        data: {
+          isFeesOnTop: true,
+        },
+      };
+
+      await Transaction.createFromPayload({
+        transaction,
+        CreatedByUserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: collective.id,
+      });
+
+      const allTransactions = await Transaction.findAll({ where: { OrderId: order.id } });
+      expect(allTransactions).to.have.length(4);
+
+      const donationCredit = allTransactions.find(t => t.CollectiveId === oc.id);
+      expect(donationCredit).to.have.property('type').equal('CREDIT');
+      expect(donationCredit).to.have.property('amount').equal(1000);
+
+      const donationDebit = allTransactions.find(t => t.FromCollectiveId === oc.id);
+      expect(donationDebit).to.have.property('type').equal('DEBIT');
+      expect(donationDebit).to.have.property('amount').equal(-1000);
+    });
+
+    it('should convert the donation transaction to USD and store the FX rate', async () => {
+      const order = await fakeOrder({
+        CreatedByUserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: collective.id,
+        currency: 'EUR',
+      });
+      const transaction = {
+        description: '$100 donation to Merveilles',
+        amount: 10000,
+        totalAmount: 11000,
+        amountInHostCurrency: 10000,
+        currency: 'EUR',
+        hostCurrency: 'EUR',
+        hostCurrencyFxRate: 1,
+        platformFeeInHostCurrency: 1000,
+        hostFeeInHostCurrency: 500,
+        paymentProcessorFeeInHostCurrency: 200,
+        type: 'CREDIT',
+        createdAt: '2015-05-29T07:00:00.000Z',
+        PaymentMethodId: 1,
+        OrderId: order.id,
+        data: {
+          isFeesOnTop: true,
+        },
+      };
+
+      await Transaction.createFromPayload({
+        transaction,
+        CreatedByUserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: collective.id,
+      });
+
+      const allTransactions = await Transaction.findAll({ where: { OrderId: order.id } });
+      expect(allTransactions).to.have.length(4);
+
+      const donationCredit = allTransactions.find(t => t.CollectiveId === oc.id);
+      expect(donationCredit).to.have.property('type').equal('CREDIT');
+      expect(donationCredit).to.have.property('currency').equal('USD');
+      expect(donationCredit).to.have.nested.property('data.hostToPlatformFxRate');
+      expect(donationCredit)
+        .to.have.property('amount')
+        .equal(Math.round(1000 * donationCredit.data.hostToPlatformFxRate));
+
+      const donationDebit = allTransactions.find(t => t.FromCollectiveId === oc.id);
+      expect(donationDebit).to.have.nested.property('data.hostToPlatformFxRate');
+      expect(donationDebit).to.have.property('type').equal('DEBIT');
+      expect(donationDebit).to.have.property('currency').equal('USD');
+      expect(donationDebit)
+        .to.have.property('amount')
+        .equal(Math.round(-1000 * donationDebit.data.hostToPlatformFxRate));
+    });
   });
 });
