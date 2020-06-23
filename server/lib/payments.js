@@ -9,7 +9,7 @@ import activities from '../constants/activities';
 import status from '../constants/order_status';
 import roles from '../constants/roles';
 import tiers from '../constants/tiers';
-import { OC_FEE_PERCENT } from '../constants/transactions';
+import { FEES_ON_TOP_TRANSACTION_PROPERTIES, OC_FEE_PERCENT } from '../constants/transactions';
 import { createGiftCardPrepaidPaymentMethod, isGiftCardPrepaidBudgetOrder } from '../lib/gift-cards';
 import { formatAccountDetails } from '../lib/transferwise';
 import { formatCurrency } from '../lib/utils';
@@ -310,6 +310,16 @@ export const executeOrder = async (user, order, options) => {
       { TierId: get(order, 'tier.id') },
       { order },
     );
+
+    if (order.data?.isFeesOnTop) {
+      const platform = await models.Collective.findByPk(FEES_ON_TOP_TRANSACTION_PROPERTIES.CollectiveId);
+      await platform.findOrAddUserWithRole(
+        { id: user.id, CollectiveId: order.FromCollectiveId },
+        roles.BACKER,
+        {},
+        { order },
+      );
+    }
 
     // Update collective plan if subscribing to opencollective's tier plans
     await subscribeOrUpgradePlan(order);
