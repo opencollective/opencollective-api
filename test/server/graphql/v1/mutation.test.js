@@ -225,7 +225,7 @@ describe('server/graphql/v1/mutation', () => {
         const r3 = await utils.graphqlQuery(updateQuery, { collective: event }, user3);
         expect(r3.errors).to.have.length(1);
         expect(r3.errors[0].message).to.equal(
-          'You must be logged in as the creator of this Event or as an admin of the scouts collective to edit this Event Collective',
+          'You must be logged in as admin of the scouts collective to edit this Event.',
         );
 
         const r4 = await utils.graphqlQuery(updateQuery, { collective: event }, user1);
@@ -415,47 +415,6 @@ describe('server/graphql/v1/mutation', () => {
         hostedCollectives.map(c => {
           expect(c.hostFeePercent).to.equal(9);
         });
-      });
-    });
-  });
-
-  describe('delete Collective', () => {
-    const deleteEventCollectiveQuery = `
-      mutation deleteEventCollective($id: Int!) {
-        deleteEventCollective(id: $id) {
-          id,
-          name
-        }
-      }`;
-
-    it('fails to delete a collective if not logged in', async () => {
-      const result = await utils.graphqlQuery(deleteEventCollectiveQuery, {
-        id: event1.id,
-      });
-      expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.equal('You need to be logged in to delete a collective');
-      return models.Collective.findByPk(event1.id).then(event => {
-        expect(event).to.not.be.null;
-      });
-    });
-
-    it('fails to delete a collective if logged in as another user', async () => {
-      const result = await utils.graphqlQuery(deleteEventCollectiveQuery, { id: event1.id }, user3);
-      expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.equal(
-        'You need to be logged in as a core contributor or as a host to delete this collective',
-      );
-      return models.Collective.findByPk(event1.id).then(event => {
-        expect(event).to.not.be.null;
-      });
-    });
-
-    it('deletes a collective', async () => {
-      const res = await utils.graphqlQuery(deleteEventCollectiveQuery, { id: event1.id }, user1);
-      res.errors && console.error(res.errors[0]);
-      expect(res.errors).to.not.exist;
-      return models.Collective.findByPk(event1.id).then(event => {
-        expect(event).to.be.null;
       });
     });
   });

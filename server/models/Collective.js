@@ -127,7 +127,7 @@ export const defaultTiers = (HostCollectiveId, currency) => {
   return tiers;
 };
 
-const validTypes = ['USER', 'COLLECTIVE', 'ORGANIZATION', 'EVENT', 'BOT'];
+const validTypes = ['USER', 'COLLECTIVE', 'ORGANIZATION', 'EVENT', 'PROJECT', 'FUND', 'BOT'];
 
 /**
  * Collective Model.
@@ -543,6 +543,7 @@ export default function (Sequelize, DataTypes) {
             githubHandle: this.githubHandle,
             publicUrl: this.publicUrl,
             hostFeePercent: this.hostFeePercent,
+            platformFeePercent: this.platformFeePercent,
             tags: this.tags,
             HostCollectiveId: this.HostCollectiveId,
             isSupercollective: this.isSupercollective,
@@ -1728,7 +1729,7 @@ export default function (Sequelize, DataTypes) {
     }
 
     // Create the new payment method with host's currency
-    if ([types.COLLECTIVE, types.EVENT].includes(this.type)) {
+    if ([types.COLLECTIVE, types.FUND, types.EVENT, types.PROJECT].includes(this.type)) {
       promises.push(
         models.PaymentMethod.create({
           CollectiveId: this.id,

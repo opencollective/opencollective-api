@@ -4,6 +4,7 @@ import { get, pick } from 'lodash';
 import activities from '../../../constants/activities';
 import roles from '../../../constants/roles';
 import { purgeCacheForPage } from '../../../lib/cloudflare';
+import { isBlacklistedCollectiveSlug } from '../../../lib/collectivelib';
 import * as github from '../../../lib/github';
 import { defaultHostCollective } from '../../../lib/utils';
 import models from '../../../models';
@@ -26,13 +27,17 @@ async function createCollective(_, args, req) {
   }
 
   const collectiveData = {
-    ...pick(args.collective, ['name', 'slug', 'description', 'tags']),
+    slug: args.collective.slug.toLowerCase(),
+    ...pick(args.collective, ['name', 'description', 'tags']),
     isActive: false,
     CreatedByUserId: remoteUser.id,
     settings: { ...DEFAULT_COLLECTIVE_SETTINGS, ...args.collective.settings },
   };
 
-  const collectiveWithSlug = await models.Collective.findOne({ where: { slug: collectiveData.slug.toLowerCase() } });
+  if (isBlacklistedCollectiveSlug(collectiveData.slug)) {
+    throw new Error(`The slug '${collectiveData.slug}' is not allowed.`);
+  }
+  const collectiveWithSlug = await models.Collective.findOne({ where: { slug: collectiveData.slug } });
   if (collectiveWithSlug) {
     throw new Error(`The slug ${collectiveData.slug} is already taken. Please use another slug for your collective.`);
   }
@@ -109,28 +114,26 @@ async function createCollective(_, args, req) {
   return collective;
 }
 
-const createCollectiveMutations = {
-  createCollective: {
-    type: Collective,
-    args: {
-      collective: {
-        description: 'Information about the collective to create (name, slug, description, tags, ...)',
-        type: new GraphQLNonNull(CollectiveCreateInput),
-      },
-      host: {
-        description: 'Reference to the host to apply on creation.',
-        type: AccountReferenceInput,
-      },
-      automateApprovalWithGithub: {
-        description: 'Wether to trigger the automated approval for Open Source collectives with GitHub.',
-        type: GraphQLBoolean,
-        defaultValue: false,
-      },
+const createCollectiveMutation = {
+  type: Collective,
+  args: {
+    collective: {
+      description: 'Information about the collective to create (name, slug, description, tags, ...)',
+      type: new GraphQLNonNull(CollectiveCreateInput),
     },
-    resolve: (_, args, req) => {
-      return createCollective(_, args, req);
+    host: {
+      description: 'Reference to the host to apply on creation.',
+      type: AccountReferenceInput,
     },
+    automateApprovalWithGithub: {
+      description: 'Wether to trigger the automated approval for Open Source collectives with GitHub.',
+      type: GraphQLBoolean,
+      defaultValue: false,
+    },
+  },
+  resolve: (_, args, req) => {
+    return createCollective(_, args, req);
   },
 };
 
-export default createCollectiveMutations;
+export default createCollectiveMutation;

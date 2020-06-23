@@ -21,7 +21,6 @@ import {
   createCollectiveFromGithub,
   deactivateCollectiveAsHost,
   deleteCollective,
-  deleteEventCollective,
   deleteUserCollective,
   editCollective,
   rejectCollective,
@@ -116,15 +115,6 @@ const mutations = {
     },
     resolve(_, args, req) {
       return editCollective(_, args, req);
-    },
-  },
-  deleteEventCollective: {
-    type: CollectiveInterfaceType,
-    args: {
-      id: { type: new GraphQLNonNull(GraphQLInt) },
-    },
-    resolve(_, args, req) {
-      return deleteEventCollective(_, args, req);
     },
   },
   deleteCollective: {

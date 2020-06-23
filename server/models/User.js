@@ -364,6 +364,15 @@ export default (Sequelize, DataTypes) => {
     return result;
   };
 
+  // Slightly better API than the former
+  User.prototype.isAdminOfCollective = function (collective) {
+    if (collective.type === 'EVENT' || collective.type === 'PROJECT') {
+      return this.isAdmin(collective.id) || this.isAdmin(collective.ParentCollectiveId);
+    } else {
+      return this.isAdmin(collective.id);
+    }
+  };
+
   User.prototype.isRoot = function () {
     const result = this.hasRole([roles.ADMIN], 1);
     debug('isRoot?', result);
