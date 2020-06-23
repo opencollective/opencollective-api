@@ -1,6 +1,5 @@
 {{#if interval }}
-Subject: Thank you for your {{{currency order.totalAmount currency=order.currency}}}/{{interval}} contribution to
-{{collective.name}}
+Subject: Thank you for your {{{currency order.totalAmount currency=order.currency}}}/{{interval}} contribution to {{collective.name}}
 {{else}}
 Subject: Thank you for your {{{currency order.totalAmount currency=order.currency}}} contribution to {{collective.name}}
 {{/if}}
@@ -16,33 +15,24 @@ Subject: Thank you for your {{{currency order.totalAmount currency=order.currenc
 {{/if}}
 
 {{#if interval}}
-{{#if firstPayment }}
-<p>We would like to thank you for your pledge to give {{{currency order.totalAmount currency=order.currency}}} per
-  {{interval}}.
-  Your first payment was received on {{{moment order.createdAt}}}. Your contribution helps us continue our activities.
-</p>
+  {{#if firstPayment }}
+    <p>We would like to thank you for your pledge to give {{{currency order.totalAmount currency=order.currency}}} per {{interval}}.
+      Your first payment was received on {{{moment order.createdAt}}}. Your contribution helps us continue our activities.</p>
+  {{else}}
+    <p>We would like to thank you for your continued support. Your latest {{interval}}ly contribution of {{{currency order.totalAmount currency=order.currency}}} was received on {{{moment transaction.createdAt}}}.
+      Your contribution helps us continue our activities.</p>
+  {{/if}}
+  {{> charge_date_notice }}
 {{else}}
-<p>We would like to thank you for your continued support. Your latest {{interval}}ly contribution of
-  {{{currency order.totalAmount currency=order.currency}}} was received on {{{moment transaction.createdAt}}}.
-  Your contribution helps us continue our activities.</p>
-{{/if}}
-{{> charge_date_notice }}
-{{else}}
-<p>We would like to thank you for your contribution of {{{currency order.totalAmount currency=order.currency}}} on
-  {{{moment order.createdAt}}}.
+<p>We would like to thank you for your contribution of {{{currency order.totalAmount currency=order.currency}}} on {{{moment order.createdAt}}}.
   Your gift will help us continue our activities.</p>
 {{/if}}
 
-<p>Join our <a href="https://facebook.com/collectives/BrusselsTogether">Facebook Group</a> or join the conversation on
-  <a href="https://slack.brusselstogether.org">our slack</a>.
-  And don't forget to use the hashtag #BrusselsTogether whenever you share something on social networks about
-  initiatives that are happening that we need to support together.</p>
+<p>Join our <a href="https://facebook.com/collectives/BrusselsTogether">Facebook Group</a> or join the conversation on <a href="https://slack.brusselstogether.org">our slack</a>.
+And don't forget to use the hashtag #BrusselsTogether whenever you share something on social networks about initiatives that are happening that we need to support together.</p>
 
 <p>
-  P.S: You can download a PDF receipt for your contribution <a
-    href="{{config.host.website}}/{{fromCollective.slug}}/transactions">on your transactions
-    page</a>{{#if subscriptionsLink}}, and you can manage your recurring contributions <a
-    href="{{subscriptionsLink}}">here</a>{{/if}}.
+  P.S: You can download a PDF receipt for your contribution <a href="{{config.host.website}}/{{fromCollective.slug}}/transactions">on your transactions page</a>{{#if subscriptionsLink}}, and you can manage your recurring contributions <a href="{{subscriptionsLink}}">here</a>{{/if}}.
 </p>
 
 <p>Warmly,</p>
@@ -55,9 +45,8 @@ Subject: Thank you for your {{{currency order.totalAmount currency=order.currenc
 
 {{> footer}}
 
-<p
-  style="text-align:center;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;box-sizing:border-box;font-size:12px;color:#999;">
-  BrusselsTogether ASBL/VZW<br />
-  Tax number: 0664932030<br />
-  Rue de l'Industrie, 11<br />
-  1000 Brussels</p>
+<p style="text-align:center;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;box-sizing:border-box;font-size:12px;color:#999;">
+BrusselsTogether ASBL/VZW<br />
+Tax number: 0664932030<br />
+Rue de l'Industrie, 11<br />
+1000 Brussels</p>

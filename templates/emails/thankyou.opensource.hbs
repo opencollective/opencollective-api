@@ -1,6 +1,5 @@
 {{#if interval }}
-Subject: Thank you for your {{{currency order.totalAmount currency=order.currency}}}/{{interval}} contribution to
-{{collective.name}}
+Subject: Thank you for your {{{currency order.totalAmount currency=order.currency}}}/{{interval}} contribution to {{collective.name}}
 {{else}}
 Subject: Thank you for your {{{currency order.totalAmount currency=order.currency}}} contribution to {{collective.name}}
 {{/if}}
@@ -16,24 +15,18 @@ Subject: Thank you for your {{{currency order.totalAmount currency=order.currenc
 {{/if}}
 
 {{#if interval}}
-{{#if firstPayment }}
-<p>We would like to thank you for your pledge to give {{{currency order.totalAmount currency=order.currency}}} per
-  {{interval}}.
-  Your first payment was received on {{{moment order.createdAt}}}. As the collective's fiscal sponsor, Open Source
-  Collective, a public recognized tax-exempt organization under IRS Section 501(c)(6), acknowledges your donation.</p>
-{{> charge_date_notice}}
-{{else}}
-<p>We would like to thank you for your continued support. Your latest {{interval}}ly contribution of
-  {{{currency order.totalAmount currency=order.currency}}} was received on {{{moment transaction.createdAt}}}.
-  As the collective's fiscal sponsor, Open Source Collective, a public recognized tax-exempt organization under IRS
-  Section 501(c)(6), acknowledges your donation.</p>
-{{/if}}
+  {{#if firstPayment }}
+    <p>We would like to thank you for your pledge to give {{{currency order.totalAmount currency=order.currency}}} per {{interval}}.
+      Your first payment was received on {{{moment order.createdAt}}}. As the collective's fiscal sponsor, Open Source Collective, a public recognized tax-exempt organization under IRS Section 501(c)(6), acknowledges your donation.</p>
+      {{> charge_date_notice}}
+  {{else}}
+    <p>We would like to thank you for your continued support. Your latest {{interval}}ly contribution of {{{currency order.totalAmount currency=order.currency}}} was received on {{{moment transaction.createdAt}}}.
+      As the collective's fiscal sponsor, Open Source Collective, a public recognized tax-exempt organization under IRS Section 501(c)(6), acknowledges your donation.</p>
+  {{/if}}
 {{else}}
 
-<p>We would like to thank you for your contribution of {{{currency order.totalAmount currency=order.currency}}} on
-  {{{moment order.createdAt}}}.
-  As the collective's fiscal sponsor, Open Source Collective, a public recognized tax-exempt organization under IRS
-  Section 501(c)(6), acknowledges your donation.</p>
+<p>We would like to thank you for your contribution of {{{currency order.totalAmount currency=order.currency}}} on {{{moment order.createdAt}}}.
+  As the collective's fiscal sponsor, Open Source Collective, a public recognized tax-exempt organization under IRS Section 501(c)(6), acknowledges your donation.</p>
 {{/if}}
 
 <p>You can follow our future activities and how we will be spending the money on our open collective page:
@@ -41,25 +34,21 @@ Subject: Thank you for your {{{currency order.totalAmount currency=order.currenc
 </p>
 
 <h2>Help us raise more money!</h2>
-<p>Share this URL: <a
-    href="https://opencollective.com/{{collective.slug}}/donate">https://opencollective.com/{{collective.slug}}/donate</a>
+<p>Share this URL: <a href="https://opencollective.com/{{collective.slug}}/donate">https://opencollective.com/{{collective.slug}}/donate</a>
 </p>
 
 <p>
-  P.S: You can download a PDF receipt for your contribution <a
-    href="{{config.host.website}}/{{fromCollective.slug}}/transactions">on your transactions
-    page</a>{{#if subscriptionsLink}}, and you can manage your recurring contributions <a
-    href="{{subscriptionsLink}}">here</a>{{/if}}.
+  P.S: You can download a PDF receipt for your contribution <a href="{{config.host.website}}/{{fromCollective.slug}}/transactions">on your transactions page</a>{{#if subscriptionsLink}}, and you can manage your recurring contributions <a href="{{subscriptionsLink}}">here</a>{{/if}}.
 </p>
 
 <p>Warmly,</p>
 
 <p>
-  Alanna Irving - Executive Director<br />
-  Open Source Collective<br />
-  340 S. Lemon Ave, #3717<br />
-  Walnut, CA 91789<br />
-  EIN 82-2037583
+Alanna Irving - Executive Director<br/>
+Open Source Collective<br/>
+340 S. Lemon Ave, #3717<br/>
+Walnut, CA 91789<br/>
+EIN 82-2037583
 </p>
 
 {{#if relatedCollectives.length}}
