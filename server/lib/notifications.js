@@ -340,7 +340,7 @@ async function notifyByEmail(activity) {
 
     case activityType.COLLECTIVE_APPROVED:
       // Funds MVP
-      if (get(activity, 'data.collective.settings.fund') === true) {
+      if (get(activity, 'data.collective.type') === 'FUND' || get(activity, 'data.collective.settings.fund') === true) {
         if (get(activity, 'data.host.slug') === 'foundation') {
           notifyAdminsOfCollective(activity.data.collective.id, activity, {
             template: 'fund.approved.foundation',
@@ -354,7 +354,7 @@ async function notifyByEmail(activity) {
 
     case activityType.COLLECTIVE_REJECTED:
       // Funds MVP
-      if (get(activity, 'data.collective.settings.fund') === true) {
+      if (get(activity, 'data.collective.type') === 'FUND' || get(activity, 'data.collective.settings.fund') === true) {
         break;
       }
 
@@ -375,7 +375,7 @@ async function notifyByEmail(activity) {
       });
 
       // Funds MVP, we assume the info is already sent in COLLECTIVE_CREATED
-      if (get(activity, 'data.collective.settings.fund') === true) {
+      if (get(activity, 'data.collective.type') === 'FUND' || get(activity, 'data.collective.settings.fund') === true) {
         break;
       }
 
@@ -394,7 +394,7 @@ async function notifyByEmail(activity) {
       }
 
       // Funds MVP
-      if (get(activity, 'data.collective.settings.fund') === true) {
+      if (get(activity, 'data.collective.type') === 'FUND' || get(activity, 'data.collective.settings.fund') === true) {
         if (get(activity, 'data.host.slug') === 'foundation') {
           notifyAdminsOfCollective(activity.data.collective.id, activity, {
             template: 'fund.created.foundation',

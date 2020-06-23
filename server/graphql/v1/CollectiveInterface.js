@@ -53,6 +53,8 @@ export const TypeOfCollectiveType = new GraphQLEnumType({
     ORGANIZATION: {},
     USER: {},
     BOT: {},
+    PROJECT: {},
+    FUND: {},
   },
 });
 
@@ -555,6 +557,12 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       case types.EVENT:
         return EventCollectiveType;
 
+      case types.PROJECT:
+        return ProjectCollectiveType;
+
+      case types.FUND:
+        return FundCollectiveType;
+
       default:
         return null;
     }
@@ -777,6 +785,13 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
             defaultValue: false,
             description: 'Include inactive events',
           },
+        },
+      },
+      projects: {
+        type: new GraphQLList(ProjectCollectiveType),
+        args: {
+          limit: { type: GraphQLInt },
+          offset: { type: GraphQLInt },
         },
       },
       childCollectives: {
@@ -1624,6 +1639,31 @@ const CollectiveFields = () => {
         return models.Collective.findAll(query);
       },
     },
+    projects: {
+      type: new GraphQLList(ProjectCollectiveType),
+      args: {
+        limit: { type: GraphQLInt },
+        offset: { type: GraphQLInt },
+      },
+      resolve(collective, args) {
+        const query = {
+          where: { type: 'PROJECT', ParentCollectiveId: collective.id },
+          order: [
+            ['startsAt', 'DESC'],
+            ['endsAt', 'DESC'],
+          ],
+        };
+
+        if (args.limit) {
+          query.limit = args.limit;
+        }
+        if (args.offset) {
+          query.offset = args.offset;
+        }
+
+        return models.Collective.findAll(query);
+      },
+    },
     childCollectives: {
       type: new GraphQLList(CollectiveType),
       description: "Get all child collectives (with type=COLLECTIVE, doesn't return events)",
@@ -1896,7 +1936,21 @@ export const OrganizationCollectiveType = new GraphQLObjectType({
 
 export const EventCollectiveType = new GraphQLObjectType({
   name: 'Event',
-  description: 'This represents an Event Collective',
+  description: 'This represents an Event',
+  interfaces: [CollectiveInterfaceType],
+  fields: CollectiveFields,
+});
+
+export const ProjectCollectiveType = new GraphQLObjectType({
+  name: 'Project',
+  description: 'This represents a Project',
+  interfaces: [CollectiveInterfaceType],
+  fields: CollectiveFields,
+});
+
+export const FundCollectiveType = new GraphQLObjectType({
+  name: 'Fund',
+  description: 'This represents a Fund',
   interfaces: [CollectiveInterfaceType],
   fields: CollectiveFields,
 });

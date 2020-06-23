@@ -368,6 +368,9 @@ export function editCollective(_, args, req) {
           case types.EVENT:
             errorMsg = `You must be logged in as admin of the ${parentCollective.slug} collective to edit this Event.`;
             break;
+          case types.PROJECT:
+            errorMsg = `You must be logged in as admin of the ${parentCollective.slug} collective to edit this Project.`;
+            break;
 
           case types.USER:
             errorMsg = `You must be logged in as ${newCollectiveData.name} to edit this User Collective`;
