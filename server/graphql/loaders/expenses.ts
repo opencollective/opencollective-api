@@ -24,16 +24,16 @@ const userTaxFormRequiredBeforePaymentQuery = `
   FROM "Expenses" e
   INNER JOIN "Collectives" c ON c.id = e."CollectiveId"
   LEFT JOIN "RequiredLegalDocuments" d ON d."HostCollectiveId" = c."HostCollectiveId"
-                                        AND d."documentType" = 'US_TAX_FORM'
+                                      AND d."documentType" = 'US_TAX_FORM'
   LEFT JOIN "LegalDocuments" ld ON ld."CollectiveId" = e."FromCollectiveId"
-                                  AND ld.year = date_part('year', e."incurredAt")
-                                  AND ld."documentType" = 'US_TAX_FORM'
+                                AND ld.year = date_part('year', e."incurredAt")
+                                AND ld."documentType" = 'US_TAX_FORM'
   WHERE e.status IN ('PENDING', 'APPROVED', 'PAID', 'PROCESSING', 'SCHEDULED_FOR_PAYMENT')
-  AND e.id IN (:expenseIds)
   AND e.type NOT IN ('RECEIPT')
-  AND "incurredAt" BETWEEN e."incurredAt" AND (e."incurredAt" + interval '1 year')
   AND e."deletedAt" IS NULL
+  AND "incurredAt" BETWEEN date_trunc('year', e."incurredAt") AND (date_trunc('year', e."incurredAt") + interval '1 year')
   GROUP BY e."UserId"
+  HAVING MAX(e.id) IN (:expenseIds)
 `
 
 

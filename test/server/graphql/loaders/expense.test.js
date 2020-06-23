@@ -54,7 +54,7 @@ describe('server/graphql/loaders/expense', () => {
         });
         const result1 = await loader.load(firstExpense.id);
         const result2 = await loader.load(secondExpense.id);
-        expect(result1).to.be.true;
+        expect(result1).to.be.false;
         expect(result2).to.be.true;
       });
     });
