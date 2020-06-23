@@ -261,7 +261,7 @@ describe('server/lib/subscriptions', () => {
           order: order.info,
           collective: order.collective.info,
           fromCollective: order.fromCollective.minimal,
-          subscriptionsLink: `${config.host.website}/cslug/subscriptions`,
+          subscriptionsLink: `${config.host.website}/cslug/recurring-contributions`,
         });
 
       // When the status of the order is handled
@@ -290,7 +290,7 @@ describe('server/lib/subscriptions', () => {
           order: order.info,
           collective: order.collective.info,
           fromCollective: order.fromCollective.minimal,
-          subscriptionsLink: `${config.host.website}/cslug/subscriptions`,
+          subscriptionsLink: `${config.host.website}/cslug/recurring-contributions`,
         });
 
       // When the status of the order is handled

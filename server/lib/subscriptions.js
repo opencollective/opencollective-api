@@ -305,7 +305,7 @@ export async function sendArchivedCollectiveEmail(order) {
       order: order.info,
       collective: order.collective.info,
       fromCollective: order.fromCollective.minimal,
-      subscriptionsLink: user.generateLoginLink(`/${order.fromCollective.slug}/subscriptions`),
+      subscriptionsLink: user.generateLoginLink(`/${order.fromCollective.slug}/recurring-contributions`),
     },
     {
       from: `${order.collective.name} <no-reply@${order.collective.slug}.opencollective.com>`,
@@ -324,7 +324,7 @@ export async function sendFailedEmail(order, lastAttempt) {
       order: order.info,
       collective: order.collective.info,
       fromCollective: order.fromCollective.minimal,
-      subscriptionsLink: `${config.host.website}/${order.fromCollective.slug}/subscriptions`,
+      subscriptionsLink: `${config.host.website}/${order.fromCollective.slug}/recurring-contributions`,
     },
     {
       from: `${order.collective.name} <no-reply@${order.collective.slug}.opencollective.com>`,
@@ -363,7 +363,7 @@ export async function sendThankYouEmail(order, transaction) {
       relatedCollectives,
       config: { host: config.host },
       interval: order.Subscription.interval,
-      subscriptionsLink: `${config.host.website}/${order.fromCollective.slug}/subscriptions`,
+      subscriptionsLink: `${config.host.website}/${order.fromCollective.slug}/recurring-contributions`,
     },
     {
       from: `${order.collective.name} <no-reply@${order.collective.slug}.opencollective.com>`,

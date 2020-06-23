@@ -1,5 +1,5 @@
 {{#if lastAttempt}}
-Subject: Payment failed: Subscription cancelled to {{collective.name}}
+Subject: Payment failed: Recurring contribution cancelled to {{collective.name}}
 {{else}}
 Subject: Payment failed: Update your info to continue supporting {{collective.name}}
 {{/if}}
@@ -13,7 +13,7 @@ Hi!
 {{#if lastAttempt}}
 
 We wanted to let you know that due to your payment failure, we have
-cancelled your subscription of {{{currency order.totalAmount currency=order.currency}}}
+cancelled your recurring contribution of {{{currency order.totalAmount currency=order.currency}}}
 to {{collective.name}}.
 
 We are sad to see you go. You can resubscribe anytime at
@@ -25,7 +25,7 @@ We are having trouble authorizing your payment of
 {{{ currency order.totalAmount currency=order.currency}}} to
 {{collective.name}}.
 
-Please check your subscriptions and payment info at {{subscriptionsLink}}.
+Please check your recurring contributions and payment info at {{subscriptionsLink}}.
 
 We'll automatically retry your payment in a few days. If you believe
 your payment info is correct, please contact your bank for more

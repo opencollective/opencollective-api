@@ -8,7 +8,7 @@ In {{month}}, you have backed {{stats.collectives}} {{{pluralize "collective" n=
 {{name}} needs {{{currency nextGoal.missing.amount currency=currency}}} more {{#if nextGoal.missing.interval}}per {{nextGoal.missing.interval}}{{/if}} to reach their next goal of {{nextGoal.title}} ({{nextGoal.percentage}} there). 
 {{#if order.Subscription}}
 You are currently contributing {{{currency order.Subscription.amount currency=order.Subscription.currency}}} per {{order.Subscription.interval}}.
-[increase your contribution]({{../config.host.website}}/{{../fromCollective.slug}}/subscriptions)
+[increase your contribution]({{../config.host.website}}/{{../fromCollective.slug}}/recurring-contributions)
 [share their goal](https://twitter.com/intent/tweet?text={{{encodeURIComponent nextGoal.tweet}}})
 {{else}}
 You have contributed {{{order.totalAmount}}}.
@@ -82,6 +82,6 @@ Latest {{{pluralize "expense" n=expenses.length}}}:
 {{/each}}
 
 
-To manage your subscriptions, follow this url: {{manageSubscriptionsUrl}}
+To manage your recurring contributions, follow this url: {{manageSubscriptionsUrl}}
 
 {{>footer.text}}
