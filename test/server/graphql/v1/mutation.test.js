@@ -419,47 +419,6 @@ describe('server/graphql/v1/mutation', () => {
     });
   });
 
-  describe('delete Collective', () => {
-    const deleteEventCollectiveQuery = `
-      mutation deleteEventCollective($id: Int!) {
-        deleteEventCollective(id: $id) {
-          id,
-          name
-        }
-      }`;
-
-    it('fails to delete a collective if not logged in', async () => {
-      const result = await utils.graphqlQuery(deleteEventCollectiveQuery, {
-        id: event1.id,
-      });
-      expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.equal('You need to be logged in to delete a collective');
-      return models.Collective.findByPk(event1.id).then(event => {
-        expect(event).to.not.be.null;
-      });
-    });
-
-    it('fails to delete a collective if logged in as another user', async () => {
-      const result = await utils.graphqlQuery(deleteEventCollectiveQuery, { id: event1.id }, user3);
-      expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.equal(
-        'You need to be logged in as a core contributor or as a host to delete this collective',
-      );
-      return models.Collective.findByPk(event1.id).then(event => {
-        expect(event).to.not.be.null;
-      });
-    });
-
-    it('deletes a collective', async () => {
-      const res = await utils.graphqlQuery(deleteEventCollectiveQuery, { id: event1.id }, user1);
-      res.errors && console.error(res.errors[0]);
-      expect(res.errors).to.not.exist;
-      return models.Collective.findByPk(event1.id).then(event => {
-        expect(event).to.be.null;
-      });
-    });
-  });
-
   describe('createOrder tests', () => {
     beforeEach('create ticket 1', () =>
       models.Tier.create(Object.assign(utils.data('ticket1'), { CollectiveId: event1.id })).tap(t => (ticket1 = t)),

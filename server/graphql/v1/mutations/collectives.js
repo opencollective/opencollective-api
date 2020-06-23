@@ -478,23 +478,6 @@ export async function approveCollective(remoteUser, CollectiveId) {
   return collective.update({ isActive: true, approvedAt: new Date() });
 }
 
-export function deleteEventCollective(_, args, req) {
-  if (!req.remoteUser) {
-    throw new Unauthorized('You need to be logged in to delete a collective');
-  }
-
-  return models.Collective.findByPk(args.id).then(collective => {
-    if (!collective) {
-      throw new NotFound(`Collective with id ${args.id} not found`);
-    }
-    if (!req.remoteUser.isAdmin(collective.id) && !req.remoteUser.isAdmin(collective.ParentCollectiveId)) {
-      throw new Unauthorized('You need to be logged in as a core contributor or as a host to delete this collective');
-    }
-
-    return collective.destroy();
-  });
-}
-
 export async function claimCollective(_, args, req) {
   if (!req.remoteUser) {
     throw new Unauthorized('You need to be logged in to claim a collective');
