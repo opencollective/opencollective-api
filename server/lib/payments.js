@@ -378,7 +378,7 @@ const sendOrderConfirmedEmail = async order => {
         EventCollectiveId: collective.id,
         UserId: user.id,
         recipient: { name: fromCollective.name },
-        order: pick(order, ['totalAmount', 'currency', 'createdAt', 'quantity']),
+        order: order.activity,
         tier: tier && tier.info,
         host: host ? host.info : {},
       },
@@ -390,7 +390,7 @@ const sendOrderConfirmedEmail = async order => {
       from: `${collective.name} <no-reply@${collective.slug}.opencollective.com>`,
     };
     const data = {
-      order: pick(order, ['totalAmount', 'currency', 'createdAt']),
+      order: order.activity,
       transaction: pick(order.transaction, ['createdAt', 'uuid']),
       user: user.info,
       collective: collective.info,
