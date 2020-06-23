@@ -38,7 +38,7 @@ const accountMutations = {
           throwIfMissing: true,
         });
 
-        if (!req.remoteUser.isAdmin(account.id)) {
+        if (!req.remoteUser.isAdminOfCollective(account)) {
           throw new Forbidden();
         }
 

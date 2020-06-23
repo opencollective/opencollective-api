@@ -359,18 +359,14 @@ export function editCollective(_, args, req) {
       }
     })
     .then(() => {
-      if (collective.type === 'EVENT') {
-        return req.remoteUser.isAdmin(collective.id) || req.remoteUser.isAdmin(parentCollective.id);
-      } else {
-        return req.remoteUser.isAdmin(collective.id);
-      }
+      return req.remoteUser.isAdminOfCollective(collective);
     })
     .then(canEditCollective => {
       if (!canEditCollective) {
         let errorMsg;
         switch (collective.type) {
           case types.EVENT:
-            errorMsg = `You must be logged in as the creator of this Event or as an admin of the ${parentCollective.slug} collective to edit this Event Collective`;
+            errorMsg = `You must be logged in as admin of the ${parentCollective.slug} collective to edit this Event.`;
             break;
 
           case types.USER:
@@ -568,7 +564,7 @@ export async function archiveCollective(_, args, req) {
     throw new NotFound(`Collective with id ${args.id} not found`);
   }
 
-  if (!req.remoteUser.isAdmin(collective.id)) {
+  if (!req.remoteUser.isAdminOfCollective(collective)) {
     throw new Unauthorized('You need to be logged in as an Admin.');
   }
 
@@ -613,7 +609,7 @@ export async function unarchiveCollective(_, args, req) {
     throw new NotFound(`Collective with id ${args.id} not found`);
   }
 
-  if (!req.remoteUser.isAdmin(collective.id)) {
+  if (!req.remoteUser.isAdminOfCollective(collective)) {
     throw new Unauthorized('You need to be logged in as an Admin.');
   }
 
@@ -646,7 +642,7 @@ export async function deleteCollective(_, args, req) {
     );
   }
 
-  if (!req.remoteUser.isAdmin(collective.id)) {
+  if (!req.remoteUser.isAdminOfCollective(collective)) {
     throw new Unauthorized('You need to be logged in as an Admin.');
   }
 

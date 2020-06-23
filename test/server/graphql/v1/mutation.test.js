@@ -225,7 +225,7 @@ describe('server/graphql/v1/mutation', () => {
         const r3 = await utils.graphqlQuery(updateQuery, { collective: event }, user3);
         expect(r3.errors).to.have.length(1);
         expect(r3.errors[0].message).to.equal(
-          'You must be logged in as the creator of this Event or as an admin of the scouts collective to edit this Event Collective',
+          'You must be logged in as admin of the scouts collective to edit this Event.',
         );
 
         const r4 = await utils.graphqlQuery(updateQuery, { collective: event }, user1);
