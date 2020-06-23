@@ -16,7 +16,6 @@ import {
   activateCollectiveAsHost,
   approveCollective,
   archiveCollective,
-  claimCollective,
   createCollective,
   createCollectiveFromGithub,
   deactivateCollectiveAsHost,
@@ -43,7 +42,6 @@ import {
   addFundsToCollective,
   addFundsToOrg,
   cancelSubscription,
-  completePledge,
   confirmOrder,
   createOrder,
   markOrderAsPaid,
@@ -133,15 +131,6 @@ const mutations = {
     },
     resolve(_, args, req) {
       return deleteUserCollective(_, args, req);
-    },
-  },
-  claimCollective: {
-    type: CollectiveInterfaceType,
-    args: {
-      id: { type: new GraphQLNonNull(GraphQLInt) },
-    },
-    resolve(...args) {
-      return claimCollective(...args);
     },
   },
   approveCollective: {
@@ -496,18 +485,6 @@ const mutations = {
     },
     resolve(_, args, req) {
       return addFundsToCollective(args.order, req.remoteUser);
-    },
-  },
-  updateOrder: {
-    // TODO: Should be renamed to completePledge.
-    type: OrderType,
-    args: {
-      order: {
-        type: new GraphQLNonNull(OrderInputType),
-      },
-    },
-    resolve(_, args, req) {
-      return completePledge(req.remoteUser, args.order);
     },
   },
   createUpdate: {

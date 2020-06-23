@@ -486,23 +486,6 @@ data['user.monthlyreport'] = {
   ],
 };
 
-data['pledge.complete'] = {
-  collective: {
-    name: 'Johnny Five',
-    slug: 'johnny-five',
-  },
-  fromCollective: {
-    name: 'Jane Doe',
-    slug: 'jane-doe',
-  },
-  interval: 'month',
-  order: {
-    currency: 'USD',
-    id: '123456',
-    totalAmount: 1000,
-  },
-};
-
 const defaultData = {
   config: {
     host: {

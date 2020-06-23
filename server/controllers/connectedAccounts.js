@@ -217,29 +217,6 @@ export const fetchAllRepositories = async (req, res, next) => {
   }
 };
 
-// used in Frontend by claimCollective
-export const getRepo = async (req, res, next) => {
-  const githubAccount = await getGithubAccount(req);
-  try {
-    const repo = await github.getRepo(req.query.name, githubAccount.token);
-    res.send(repo);
-  } catch (e) {
-    next(e);
-  }
-};
-
-// used in Frontend by claimCollective
-export const getOrgMemberships = async (req, res, next) => {
-  const githubAccount = await getGithubAccount(req);
-  try {
-    const memberships = await github.getOrgMemberships(githubAccount.token);
-    res.send(memberships);
-  } catch (e) {
-    console.log(e);
-    next(e);
-  }
-};
-
 function createConnectedAccountForCollective(CollectiveId, service) {
   const attrs = { service };
   return models.Collective.findByPk(CollectiveId)

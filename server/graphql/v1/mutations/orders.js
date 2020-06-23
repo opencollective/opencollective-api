@@ -599,55 +599,6 @@ export async function confirmOrder(order, remoteUser) {
   }
 }
 
-export async function completePledge(remoteUser, order) {
-  const existingOrder = await models.Order.findOne({
-    where: { id: order.id },
-    include: [
-      { model: models.Collective, as: 'collective' },
-      { model: models.Collective, as: 'fromCollective' },
-    ],
-  });
-
-  if (!existingOrder) {
-    throw new NotFound("This order doesn't exist");
-  } else if (!remoteUser || !remoteUser.isAdmin(existingOrder.FromCollectiveId)) {
-    throw new Unauthorized("You don't have the permissions to edit this order");
-  } else if (existingOrder.status !== status.PENDING) {
-    throw new NotFound('This pledge has already been completed');
-  } else if (!canUseFeature(remoteUser, FEATURE.ORDER)) {
-    return new FeatureNotAllowedForUser();
-  }
-
-  const paymentRequired = order.totalAmount > 0 && existingOrder.collective.isActive;
-
-  if (
-    paymentRequired &&
-    (!order.paymentMethod ||
-      !(order.paymentMethod.uuid || order.paymentMethod.token || order.paymentMethod.type === 'manual'))
-  ) {
-    throw new Error('This order requires a payment method');
-  }
-
-  if (order.paymentMethod && order.paymentMethod.save) {
-    order.paymentMethod.CollectiveId = existingOrder.FromCollectiveId;
-  }
-
-  if (paymentRequired) {
-    existingOrder.totalAmount = order.totalAmount;
-    existingOrder.interval = order.interval;
-    existingOrder.currency = order.currency;
-    if (get(order, 'paymentMethod.type') === 'manual') {
-      existingOrder.paymentMethod = order.paymentMethod;
-    } else {
-      await existingOrder.setPaymentMethod(order.paymentMethod);
-    }
-    // also adds the user as a BACKER of collective
-    await libPayments.executeOrder(remoteUser, existingOrder);
-  }
-  await existingOrder.reload();
-  return existingOrder;
-}
-
 /**
  * Cancel user's subscription. We don't prevent this event is user is limited (canUseFeature -> false)
  * because we don't want to prevent users from cancelling their subscriptions.
