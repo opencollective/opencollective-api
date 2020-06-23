@@ -1,5 +1,6 @@
 {{#if interval }}
-Subject: Thank you for your {{{currency order.totalAmount currency=order.currency}}}/{{interval}} contribution to {{collective.name}}
+Subject: Thank you for your {{{currency order.totalAmount currency=order.currency}}}/{{interval}} contribution to
+{{collective.name}}
 {{else}}
 Subject: Thank you for your {{{currency order.totalAmount currency=order.currency}}} contribution to {{collective.name}}
 {{/if}}
@@ -15,45 +16,53 @@ Subject: Thank you for your {{{currency order.totalAmount currency=order.currenc
 {{/if}}
 
 {{#if interval}}
-  {{#if firstPayment }}
-    <p>Thank you so much for your contribution of {{{currency order.totalAmount currency=order.currency}}} per {{interval}} to SustainOSS .
-      Your first payment was received on {{{moment order.createdAt}}}. Your contribution helps us continue growing the SustainOSS ecosystem and projects.</p>
-    {{> charge_date_notice}}
-  {{else}}
-    <p>We would like to thank you for your continued support. Your latest {{interval}}ly contribution of {{{currency order.totalAmount currency=order.currency}}} was received on {{{moment transaction.createdAt}}}.
-      Your contribution helps us continue our activities.</p>
-  {{/if}}
+{{#if firstPayment }}
+<p>Thank you so much for your contribution of {{{currency order.totalAmount currency=order.currency}}} per {{interval}}
+  to SustainOSS .
+  Your first payment was received on {{{moment order.createdAt}}}. Your contribution helps us continue growing the
+  SustainOSS ecosystem and projects.</p>
+{{> charge_date_notice}}
 {{else}}
-<p>Thank you so much for your contribution of {{{currency order.totalAmount currency=order.currency}}} on {{{moment order.createdAt}}} to SustainOSS.</p>
+<p>We would like to thank you for your continued support. Your latest {{interval}}ly contribution of
+  {{{currency order.totalAmount currency=order.currency}}} was received on {{{moment transaction.createdAt}}}.
+  Your contribution helps us continue our activities.</p>
+{{/if}}
+{{else}}
+<p>Thank you so much for your contribution of {{{currency order.totalAmount currency=order.currency}}} on
+  {{{moment order.createdAt}}} to SustainOSS.</p>
 {{/if}}
 
 <p>Next steps:
 <ul>
   <li>You can follow our activities and how we will be spending the money on our open collective page:
-  <a href="https://opencollective.com/{{collective.slug}}">https://opencollective.com/{{collective.slug}}</a>.</li>
+    <a href="https://opencollective.com/{{collective.slug}}">https://opencollective.com/{{collective.slug}}</a>.</li>
   <li>Follow us on <a href="https://twitter.com/sustainoss">Twitter</a></li>
   <li>Open Source with us on <a href="https://github.com/sustainers">GitHub</a></li>
   <li><a href="slack.opencollective.com">Slack</a> with us on #sustain @ Open Collective.</li>
- </p>
+  </p>
 
-<p>
-  P.S: You can download a PDF receipt for your contribution <a href="{{config.host.website}}/{{fromCollective.slug}}/transactions">on your transactions page</a>{{#if subscriptionsLink}}, and you can manage your subscriptions <a href="{{subscriptionsLink}}">here</a>{{/if}}.
-</p>
+  <p>
+    P.S: You can download a PDF receipt for your contribution <a
+      href="{{config.host.website}}/{{fromCollective.slug}}/transactions">on your transactions
+      page</a>{{#if subscriptionsLink}}, and you can manage your recurring contributions <a
+      href="{{subscriptionsLink}}">here</a>{{/if}}.
+  </p>
 
-<p>Warmly,</p>
+  <p>Warmly,</p>
 
-<p>
-  – The {{collective.name}} open collective
-</p>
+  <p>
+    – The {{collective.name}} open collective
+  </p>
 
-{{> relatedcollectives}}
+  {{> relatedcollectives}}
 
-{{> footer}}
+  {{> footer}}
 
-<p style="text-align:center;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;box-sizing:border-box;font-size:12px;color:#999;">
-OpenCollective, Inc.<br />
-EIN: 47-3896707<br />
-340 S LEMON AVE #3717<br />
-Walnut CA 91789<br />
-USA
-</p>
+  <p
+    style="text-align:center;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;box-sizing:border-box;font-size:12px;color:#999;">
+    OpenCollective, Inc.<br />
+    EIN: 47-3896707<br />
+    340 S LEMON AVE #3717<br />
+    Walnut CA 91789<br />
+    USA
+  </p>

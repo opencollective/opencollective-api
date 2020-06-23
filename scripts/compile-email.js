@@ -391,7 +391,7 @@ data['user.monthlyreport'] = {
   recipient: { firstName: 'Xavier' },
   month: 'march',
   year: '2017',
-  manageSubscriptionsUrl: 'https://opencollective.com/subscriptions',
+  manageSubscriptionsUrl: 'https://opencollective.com/recurring-contributions',
   utm: Date.now(),
   fallbackUrl: 'opencollective.com/email/some_id',
   subscriptions: [

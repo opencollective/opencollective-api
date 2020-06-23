@@ -390,7 +390,7 @@ const sendOrderConfirmedEmail = async order => {
       relatedCollectives,
       monthlyInterval: interval === 'month',
       firstPayment: true,
-      subscriptionsLink: interval && `${config.host.website}/${fromCollective.slug}/subscriptions`,
+      subscriptionsLink: interval && `${config.host.website}/${fromCollective.slug}/recurring-contributions`,
     };
 
     return emailLib.send('thankyou', user.email, data, emailOptions);
@@ -415,7 +415,7 @@ export const sendOrderProcessingEmail = async order => {
     collective: collective.info,
     host: host.info,
     fromCollective: fromCollective.activity,
-    subscriptionsLink: `${config.host.website}/${fromCollective.slug}/subscriptions`,
+    subscriptionsLink: `${config.host.website}/${fromCollective.slug}/recurring-contributions`,
   };
   const instructions = get(host, 'settings.paymentMethods.manual.instructions');
   if (instructions) {

@@ -1,31 +1,42 @@
-Subject: {{#ifCond currency '===' 'USD'}}💵 {{/ifCond}}{{#ifCond currency '===' 'EUR'}}💶 {{/ifCond}}{{#ifCond currency '===' 'GBP'}}💷 {{/ifCond}}You received {{{currency initialBalance currency=currency}}} from {{emitter.name}} to donate on Open Collective
+Subject: {{#ifCond currency '===' 'USD'}}💵 {{/ifCond}}{{#ifCond currency '===' 'EUR'}}💶
+{{/ifCond}}{{#ifCond currency '===' 'GBP'}}💷 {{/ifCond}}You received {{{currency initialBalance currency=currency}}}
+from {{emitter.name}} to donate on Open Collective
 
 {{> header}}
 
 
 <table>
   <tr>
-   <td>
-     <center>
-      <h1>{{#ifCond currency '===' 'USD'}}💵{{/ifCond}}{{#ifCond currency '===' 'EUR'}}💶{{/ifCond}}{{#ifCond currency '===' 'GBP'}}💷{{/ifCond}}</h1>
-      <p>The {{{currency initialBalance currency=currency}}} gift card offered by <a href="{{config.host.website}}/{{emitter.slug}}">{{emitter.name}}</a> has been added to your Open Collective account. 🎉</p>
-      <p>&nbsp;</p>
-     </center>
-   </td>
-   <td></td>
-   <td valign="top">
-     {{> collectivecard emitter}}
-   </td>
+    <td>
+      <center>
+        <h1>
+          {{#ifCond currency '===' 'USD'}}💵{{/ifCond}}{{#ifCond currency '===' 'EUR'}}💶{{/ifCond}}{{#ifCond currency '===' 'GBP'}}💷{{/ifCond}}
+        </h1>
+        <p>The {{{currency initialBalance currency=currency}}} gift card offered by <a
+            href="{{config.host.website}}/{{emitter.slug}}">{{emitter.name}}</a> has been added to your Open Collective
+          account. 🎉</p>
+        <p>&nbsp;</p>
+      </center>
+    </td>
+    <td></td>
+    <td valign="top">
+      {{> collectivecard emitter}}
+    </td>
   </tr>
 </table>
 
-<p>Click on the button below to log in, choose the project(s) that you want to support and select <b>{{name}}</b> from the list of available payment methods.</p>
+<p>Click on the button below to log in, choose the project(s) that you want to support and select <b>{{name}}</b> from
+  the list of available payment methods.</p>
 
 <center>
-  <a href="{{loginLink}}" class="btn blue"><div>One-click login</div></a>
+  <a href="{{loginLink}}" class="btn blue">
+    <div>One-click login</div>
+  </a>
 </center>
 
-<p>You can donate the full amount to one project or divide it between several projects. You can also start subscriptions. We will let you know when the gift card runs out. <strong>Hurry up, as this card expires on {{{moment expiryDate}}}</strong>.</p>
+<p>You can donate the full amount to one project or divide it between several projects. You can also start
+  recurring contributions. We will let you know when the gift card runs out. <strong>Hurry up, as this card expires on
+    {{{moment expiryDate}}}</strong>.</p>
 
 
 {{> footer}}
