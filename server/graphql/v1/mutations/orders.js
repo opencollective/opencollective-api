@@ -453,7 +453,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
       // Let's start separating platformFee from feesOnTop, although we charge the contribution as a fee
       // the intent is different and should not be mixed with the actual fee we charge from other contributions.
       // This abstraction should be replicated to the frontend later on.
-      orderData.data.isFeesOnTop = true;
+      orderData.data.isFeesOnTop = order.isFeesOnTop;
     } else if (order.platformFeePercent) {
       orderData.data.platformFeePercent = order.platformFeePercent;
     } else if (tier && tier.data && tier.data.platformFeePercent !== undefined) {
