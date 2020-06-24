@@ -56,6 +56,10 @@ const ExpensesQuery = {
       type: ISODateTime,
       description: 'Only return expenses that were created after this date',
     },
+    searchTerm: {
+      type: GraphQLString,
+      description: 'The term to search',
+    },
   },
   async resolve(_, args, req): Promise<CollectionReturnType> {
     const where = {};
@@ -75,6 +79,29 @@ const ExpensesQuery = {
     if (args.account) {
       const collective = await fetchAccountWithReference(args.account, fetchAccountParams);
       where['CollectiveId'] = collective.id;
+    }
+
+    // Add search filter
+    if (args.searchTerm) {
+      const sanitizedTerm = args.searchTerm.replace(/(_|%|\\)/g, '\\$1');
+      const ilikeQuery = `%${sanitizedTerm}%`;
+      where[Op.or] = [
+        { description: { [Op.iLike]: ilikeQuery } },
+        { tags: { [Op.overlap]: [args.searchTerm.toLowerCase()] } },
+        { '$fromCollective.slug$': { [Op.iLike]: ilikeQuery } },
+        { '$fromCollective.name$': { [Op.iLike]: ilikeQuery } },
+        // { '$items.description$': { [Op.iLike]: ilikeQuery } },
+      ];
+
+      include.push(
+        { association: 'fromCollective', attributes: [] },
+        // One-to-many relationships with limits are broken in Sequelize. Could be fixed by https://github.com/sequelize/sequelize/issues/4376
+        // { association: 'items', duplicating: false, attributes: [], separate: true },
+      );
+
+      if (!isNaN(args.searchTerm)) {
+        where[Op.or].push({ id: args.searchTerm });
+      }
     }
 
     // Add filters
@@ -111,7 +138,7 @@ const ExpensesQuery = {
 
     const order = [[args.orderBy.field, args.orderBy.direction]];
     const { offset, limit } = args;
-    const result = await models.Expense.findAndCountAll({ where, include, order, offset, limit });
+    const result = await models.Expense.findAndCountAll({ include, where, order, offset, limit });
     return {
       nodes: result.rows,
       totalCount: result.count,
