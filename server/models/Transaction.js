@@ -440,6 +440,44 @@ export default (Sequelize, DataTypes) => {
     return Promise.mapSeries(transactions, t => Transaction.create(t)).then(results => results[index]);
   };
 
+  Transaction.createFeesOnTopTransaction = async ({ transaction }) => {
+    if (!transaction.data?.isFeesOnTop) {
+      throw new Error('This transaction does not have fees on top');
+    }
+
+    const platformCurrencyFxRate = await getFxRate(transaction.currency, FEES_ON_TOP_TRANSACTION_PROPERTIES.currency);
+    const donationTransaction = defaultsDeep(
+      {},
+      FEES_ON_TOP_TRANSACTION_PROPERTIES,
+      {
+        description: 'Checkout donation to Open Collective',
+        amount: Math.round(Math.abs(transaction.platformFeeInHostCurrency) * platformCurrencyFxRate),
+        amountInHostCurrency: Math.round(Math.abs(transaction.platformFeeInHostCurrency) * platformCurrencyFxRate),
+        platformFeeInHostCurrency: 0,
+        hostFeeInHostCurrency: 0,
+        paymentProcessorFeeInHostCurrency: 0,
+        netAmountInCollectiveCurrency: Math.round(
+          Math.abs(transaction.platformFeeInHostCurrency) * platformCurrencyFxRate,
+        ),
+        hostCurrencyFxRate: platformCurrencyFxRate,
+        data: {
+          hostToPlatformFxRate: await getFxRate(transaction.hostCurrency, FEES_ON_TOP_TRANSACTION_PROPERTIES.currency),
+        },
+      },
+      transaction,
+    );
+
+    await Transaction.createDoubleEntry(donationTransaction);
+
+    // Remove fees from main transaction
+    transaction.amountInHostCurrency = transaction.amountInHostCurrency + transaction.platformFeeInHostCurrency;
+    transaction.amount =
+      transaction.amount + transaction.platformFeeInHostCurrency / (transaction.hostCurrencyFxRate || 1);
+    transaction.platformFeeInHostCurrency = 0;
+
+    return transaction;
+  };
+
   Transaction.createFromPayload = async ({
     CreatedByUserId,
     FromCollectiveId,
@@ -448,7 +486,7 @@ export default (Sequelize, DataTypes) => {
     PaymentMethodId,
   }) => {
     if (!transaction.amount) {
-      return new Error('transaction.amount cannot be null or zero');
+      throw new Error('transaction.amount cannot be null or zero');
     }
 
     const collective = await models.Collective.findByPk(CollectiveId);
@@ -467,37 +505,10 @@ export default (Sequelize, DataTypes) => {
     transaction.platformFeeInHostCurrency = toNegative(transaction.platformFeeInHostCurrency);
     transaction.taxAmount = toNegative(transaction.taxAmount);
     transaction.paymentProcessorFeeInHostCurrency = toNegative(transaction.paymentProcessorFeeInHostCurrency);
-    // Separate donation transaction and remove platformFee from main transaction
+
+    // Separate donation transaction and remove platformFee from the main transaction
     if (transaction.data?.isFeesOnTop) {
-      const platformCurrencyFxRate = await getFxRate(transaction.currency, FEES_ON_TOP_TRANSACTION_PROPERTIES.currency);
-      const donationTransaction = defaultsDeep(
-        {},
-        FEES_ON_TOP_TRANSACTION_PROPERTIES,
-        {
-          description: 'Checkout donation to Open Collective',
-          amount: Math.round(Math.abs(transaction.platformFeeInHostCurrency) * platformCurrencyFxRate),
-          amountInHostCurrency: Math.round(Math.abs(transaction.platformFeeInHostCurrency) * platformCurrencyFxRate),
-          platformFeeInHostCurrency: 0,
-          hostFeeInHostCurrency: 0,
-          paymentProcessorFeeInHostCurrency: 0,
-          netAmountInCollectiveCurrency: Math.round(
-            Math.abs(transaction.platformFeeInHostCurrency) * platformCurrencyFxRate,
-          ),
-          hostCurrencyFxRate: platformCurrencyFxRate,
-          data: {
-            hostToPlatformFxRate: await getFxRate(
-              transaction.hostCurrency,
-              FEES_ON_TOP_TRANSACTION_PROPERTIES.currency,
-            ),
-          },
-        },
-        transaction,
-      );
-      await Transaction.createDoubleEntry(donationTransaction);
-      transaction.amountInHostCurrency = transaction.amountInHostCurrency + transaction.platformFeeInHostCurrency;
-      transaction.amount =
-        transaction.amount + transaction.platformFeeInHostCurrency / (transaction.hostCurrencyFxRate || 1);
-      transaction.platformFeeInHostCurrency = 0;
+      transaction = await Transaction.createFeesOnTopTransaction({ transaction });
     }
 
     if (transaction.amount > 0) {
