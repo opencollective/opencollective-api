@@ -1474,11 +1474,17 @@ export default function (Sequelize, DataTypes) {
     const urlPath = await this.getUrlPath();
     const memberCollective = await models.Collective.findByPk(member.MemberCollectiveId, sequelizeParams);
 
+    let memberCollectiveUser;
+    if (memberCollective.type === types.USER && !memberCollective.isIncognito) {
+      memberCollectiveUser = await models.User.findOne({ where: { CollectiveId: memberCollective.id } });
+    }
+
     const data = {
       collective: { ...this.minimal, urlPath },
       member: {
         ...member.info,
         memberCollective: memberCollective.activity,
+        memberCollectiveUser: memberCollectiveUser ? memberCollectiveUser.info : undefined,
       },
       order: order && {
         ...order.activity,

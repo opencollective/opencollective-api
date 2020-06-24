@@ -15,7 +15,7 @@ Subject: {{member.memberCollective.name}} joined {{collective.name}} as {{{toLow
   {{{toLowerCase member.role}}} of <a href="{{config.host.website}}{{collective.urlPath}}">{{collective.name}}</a>.</p>
 
 {{#if order.publicMessage}}
-<p class="pullQuote">“{{order.publicMessage}}”<br />- {{member.memberCollective.name}}</p>
+  <p class="pullQuote">“{{order.publicMessage}}”<br />- {{member.memberCollective.name}}</p>
 {{/if}}
 
 {{#if tweet}}
@@ -56,6 +56,11 @@ Subject: {{member.memberCollective.name}} joined {{collective.name}} as {{{toLow
       <br />
       <a
         href="{{config.host.website}}/{{member.memberCollective.slug}}">{{config.host.website}}/{{member.memberCollective.slug}}</a>
+      <br/>
+
+      {{#if member.memberCollectiveUser.email}}
+        <b>Email: </b>{{member.memberCollectiveUser.email}} 
+      {{/if}}
     </td>
   </tr>
 </table>
