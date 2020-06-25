@@ -45,21 +45,33 @@ type TransferwiseErrorCodes = 'balance.payment-option-unavailable' | string;
 const compactRecipientDetails = <T>(object: T): Partial<T> => omitBy(object, isNull);
 const getData = <T extends { data?: object }>(obj: T | undefined): T['data'] | undefined => obj && obj.data;
 const parseError = (
-  error: AxiosError<{ errorCode?: TransferwiseErrorCodes }>,
+  error: AxiosError<{ errorCode?: TransferwiseErrorCodes; errors?: any[] }>,
   defaultMessage?: string,
   defaultCode?: string,
 ): string | Error => {
-  return new TransferwiseError(
-    defaultMessage,
-    error.response?.data?.errorCode ? `transferwise.error.${error.response.data.errorCode}` : defaultCode,
-  );
+  let message = defaultMessage;
+  let code = defaultCode;
+
+  if (error.response?.data?.errorCode) {
+    code = `transferwise.error.${error.response.data.errorCode}`;
+  }
+
+  if (error.response.status === 422) {
+    message = 'TransferWise validation error: ';
+    code = `transferwise.error.validation`;
+    if (error.response?.data?.errors) {
+      message += error.response.data.errors.map(e => e.message).join(' ');
+    }
+  }
+
+  return new TransferwiseError(message, code);
 };
 const requestDataAndThrowParsedError = async (request: Promise<any>, defaultErrorMessage?: string): Promise<any> => {
   try {
     const response = await request;
     return getData(response);
   } catch (e) {
-    debug(e);
+    debug(e.response?.data || e);
     const error = parseError(e, defaultErrorMessage);
     logger.error(error.toString());
     throw error;
