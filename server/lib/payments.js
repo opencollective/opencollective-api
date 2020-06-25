@@ -311,7 +311,7 @@ export const executeOrder = async (user, order, options) => {
       { order },
     );
 
-    if (order.data?.isFeesOnTop) {
+    if (order.data?.isFeesOnTop && order.data?.platformFee) {
       const platform = await models.Collective.findByPk(FEES_ON_TOP_TRANSACTION_PROPERTIES.CollectiveId);
       await platform.findOrAddUserWithRole(
         { id: user.id, CollectiveId: order.FromCollectiveId },

@@ -443,6 +443,8 @@ export default (Sequelize, DataTypes) => {
   Transaction.createFeesOnTopTransaction = async ({ transaction }) => {
     if (!transaction.data?.isFeesOnTop) {
       throw new Error('This transaction does not have fees on top');
+    } else if (!transaction.platformFeeInHostCurrency) {
+      return;
     }
 
     const platformCurrencyFxRate = await getFxRate(transaction.currency, FEES_ON_TOP_TRANSACTION_PROPERTIES.currency);
@@ -450,7 +452,7 @@ export default (Sequelize, DataTypes) => {
       {},
       FEES_ON_TOP_TRANSACTION_PROPERTIES,
       {
-        description: 'Checkout donation to Open Collective',
+        description: 'Financial contribution to Open Collective',
         amount: Math.round(Math.abs(transaction.platformFeeInHostCurrency) * platformCurrencyFxRate),
         amountInHostCurrency: Math.round(Math.abs(transaction.platformFeeInHostCurrency) * platformCurrencyFxRate),
         platformFeeInHostCurrency: 0,
@@ -507,7 +509,7 @@ export default (Sequelize, DataTypes) => {
     transaction.paymentProcessorFeeInHostCurrency = toNegative(transaction.paymentProcessorFeeInHostCurrency);
 
     // Separate donation transaction and remove platformFee from the main transaction
-    if (transaction.data?.isFeesOnTop) {
+    if (transaction.data?.isFeesOnTop && transaction.platformFeeInHostCurrency) {
       transaction = await Transaction.createFeesOnTopTransaction({ transaction });
     }
 

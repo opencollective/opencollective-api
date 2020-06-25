@@ -287,5 +287,43 @@ describe('server/models/Transaction', () => {
         .to.have.property('amount')
         .equal(Math.round(-1000 * donationDebit.data.hostToPlatformFxRate));
     });
+
+    it('should not create transactions if platformFee is 0', async () => {
+      const order = await fakeOrder({
+        CreatedByUserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: collective.id,
+        currency: 'EUR',
+      });
+      const transaction = {
+        description: '$100 donation to Merveilles',
+        amount: 10000,
+        totalAmount: 11000,
+        amountInHostCurrency: 10000,
+        currency: 'EUR',
+        hostCurrency: 'EUR',
+        hostCurrencyFxRate: 1,
+        platformFeeInHostCurrency: 0,
+        hostFeeInHostCurrency: 500,
+        paymentProcessorFeeInHostCurrency: 200,
+        type: 'CREDIT',
+        createdAt: '2015-05-29T07:00:00.000Z',
+        PaymentMethodId: 1,
+        OrderId: order.id,
+        data: {
+          isFeesOnTop: true,
+        },
+      };
+
+      await Transaction.createFromPayload({
+        transaction,
+        CreatedByUserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: collective.id,
+      });
+
+      const allTransactions = await Transaction.findAll({ where: { OrderId: order.id } });
+      expect(allTransactions).to.have.length(2);
+    });
   });
 });
