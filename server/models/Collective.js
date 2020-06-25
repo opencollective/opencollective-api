@@ -1451,7 +1451,9 @@ export default function (Sequelize, DataTypes) {
 
       case roles.MEMBER:
       case roles.ADMIN:
-        await this.sendNewMemberEmail(user, role, member, sequelizeParams);
+        if (![types.FUND, types.PROJECT].includes(this.type)) {
+          await this.sendNewMemberEmail(user, role, member, sequelizeParams);
+        }
         break;
     }
 
@@ -1520,8 +1522,9 @@ export default function (Sequelize, DataTypes) {
     }
 
     // We only send the notification for new member for role MEMBER and ADMIN
+    const template = `${this.type.toLowerCase()}.newmember`;
     return emailLib.send(
-      `${this.type}.newmember`.toLowerCase(),
+      template,
       memberUser.email,
       {
         remoteUser: {

@@ -361,13 +361,18 @@ const generateEmailFromTemplateAndSend = async (template, recipient, data, optio
     return;
   }
 
-  return generateEmailFromTemplate(template, recipient, data, options).then(renderedTemplate => {
-    const attributes = getTemplateAttributes(renderedTemplate.html);
-    options.text = renderedTemplate.text;
-    options.tag = template;
-    debug(`Sending email to: ${recipient} subject: ${attributes.subject}`);
-    return emailLib.sendMessage(recipient, attributes.subject, attributes.body, options);
-  });
+  return generateEmailFromTemplate(template, recipient, data, options)
+    .then(renderedTemplate => {
+      const attributes = getTemplateAttributes(renderedTemplate.html);
+      options.text = renderedTemplate.text;
+      options.tag = template;
+      debug(`Sending email to: ${recipient} subject: ${attributes.subject}`);
+      return emailLib.sendMessage(recipient, attributes.subject, attributes.body, options);
+    })
+    .catch(err => {
+      logger.error(err.message);
+      logger.debug(err);
+    });
 };
 
 const emailLib = {
