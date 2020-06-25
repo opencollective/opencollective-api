@@ -1,11 +1,19 @@
 import config from 'config';
+import crypto from 'crypto-js';
+import speakeasy from 'speakeasy';
 
 import * as auth from '../lib/auth';
 import emailLib from '../lib/email';
+import errors from '../lib/errors';
 import logger from '../lib/logger';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../lib/rate-limit';
 import { isValidEmail } from '../lib/utils';
 import models from '../models';
+
+const { Unauthorized } = errors;
+
+const SECRET_KEY = config.twoFactorAuth.secretKey;
+const CIPHER = config.twoFactorAuth.cipher;
 
 /**
  *
@@ -70,10 +78,40 @@ export const signin = (req, res, next) => {
 
 /**
  * Receive a JWT and generate another one.
- *
- * This can be used right after the first login
+ * This can be used right after the first login.
+ * If an authenticator code is sent, check if
+ * the user has two-factor authentication enabled
+ * on their account, and if they do, we challenge
+ * them to auth with it during the login flow
  */
-export const updateToken = async (req, res) => {
+export const updateToken = async (req, res, next) => {
+  const { twoFactorAuthenticatorCode } = req.body;
+
+  // the first time we try, we need to just check if the user has 2FA
+  if (req.remoteUser.twoFactorAuthToken !== null && !twoFactorAuthenticatorCode) {
+    return next(new Unauthorized('Two-factor authentication is enabled on this account. Please enter the code'));
+  }
+
+  // we process a new token the 1st time if no 2FA, 2nd time if there is
   const token = req.remoteUser.jwt({}, auth.TOKEN_EXPIRATION_SESSION);
-  res.send({ token });
+
+  // if there is a 2FA code we need to verify it before returning the token
+  if (twoFactorAuthenticatorCode) {
+    const encryptedTwoFactorAuthToken = req.remoteUser.twoFactorAuthToken;
+    const decryptedTwoFactorAuthToken = crypto[CIPHER].decrypt(encryptedTwoFactorAuthToken, SECRET_KEY).toString(
+      crypto.enc.Utf8,
+    );
+    const verified = speakeasy.totp.verify({
+      secret: decryptedTwoFactorAuthToken,
+      encoding: 'base32',
+      token: twoFactorAuthenticatorCode,
+    });
+    if (!verified) {
+      return next(new Unauthorized('Two-factor authentication code failed. Please try again'));
+    }
+    res.send({ token: token });
+  } else {
+    // otherwise just send the jwt token back
+    res.send({ token });
+  }
 };

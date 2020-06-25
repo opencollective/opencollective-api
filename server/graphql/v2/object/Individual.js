@@ -75,6 +75,19 @@ export const Individual = new GraphQLObjectType({
           }
         },
       },
+      hasTwoFactorAuth: {
+        type: GraphQLBoolean,
+        async resolve(collective) {
+          const user = await models.User.findOne({
+            where: { CollectiveId: collective.id },
+          });
+          if (user.twoFactorAuthToken) {
+            return true;
+          } else {
+            return false;
+          }
+        },
+      },
     };
   },
 });

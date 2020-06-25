@@ -156,5 +156,9 @@
     "realm": "HYPERWATCH_REALM",
     "username": "HYPERWATCH_USERNAME",
     "secret": "HYPERWATCH_SECRET"
+  },
+  "twoFactorAuth": {
+    "secretKey": "TWO_FACTOR_AUTH_SECRET_KEY",
+    "cipher": "TWO_FACTOR_AUTH_CIPHER"
   }
 }
