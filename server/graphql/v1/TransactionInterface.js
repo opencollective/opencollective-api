@@ -358,45 +358,41 @@ export const TransactionOrderType = new GraphQLObjectType({
       ...TransactionFields(),
       description: {
         type: GraphQLString,
-        resolve(transaction) {
-          // If it's a sequelize model transaction, it means it has the method getOrder
-          // otherwise we return either transaction.description or null
-          const getOrder = transaction.getOrder
-            ? transaction.getOrder().then(order => order && order.description)
-            : null;
-          return transaction.description || getOrder;
-        },
-      },
-      privateMessage: {
-        type: GraphQLString,
-        resolve(transaction) {
-          // If it's a sequelize model transaction, it means it has the method getOrder
-          // otherwise we return null
-          return transaction.getOrder ? transaction.getOrder().then(order => order && order.privateMessage) : null;
+        async resolve(transaction, _, req) {
+          if (transaction.description) {
+            return transaction.description;
+          } else {
+            const order = await req.loaders.Order.byId.load(transaction.OrderId);
+            return order?.description;
+          }
         },
       },
       publicMessage: {
         type: GraphQLString,
-        resolve(transaction) {
-          // If it's a sequelize model transaction, it means it has the method getOrder
-          // otherwise we return null
-          return transaction.getOrder ? transaction.getOrder().then(order => order && order.publicMessage) : null;
+        async resolve(transaction, _, req) {
+          if (transaction.OrderId) {
+            const order = await req.loaders.Order.byId.load(transaction.OrderId);
+            return order?.publicMessage;
+          }
         },
       },
       order: {
         type: OrderType,
-        resolve(transaction) {
-          // If it's a sequelize model transaction, it means it has the method getOrder
-          // otherwise we return null
-          return transaction.getOrder ? transaction.getOrder() : null;
+        resolve(transaction, _, req) {
+          if (transaction.OrderId) {
+            return req.loaders.Order.byId.load(transaction.OrderId);
+          }
         },
       },
       subscription: {
         type: SubscriptionType,
-        resolve(transaction) {
-          // If it's a sequelize model transaction, it means it has the method getOrder
-          // otherwise we return null
-          return transaction.getOrder ? transaction.getOrder().then(order => order && order.getSubscription()) : null;
+        async resolve(transaction, _, req) {
+          if (transaction.OrderId) {
+            const order = await req.loaders.Order.byId.load(transaction.OrderId);
+            if (order?.SubscriptionId) {
+              return req.loaders.Subscription.byId.load(order.SubscriptionId);
+            }
+          }
         },
       },
     };
