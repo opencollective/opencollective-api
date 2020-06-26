@@ -11,8 +11,7 @@
   },
   "limits": {
     "virtualCards": {
-      "maxPerDay": 1000,
-      "maxAmountPerDay": 5000000
+      "maxPerDay": 1000
     }
   },
   "redis": {
