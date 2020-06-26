@@ -6,6 +6,7 @@ import sinon from 'sinon';
 import { VAT_OPTIONS } from '../../../../server/constants/vat';
 import stripe from '../../../../server/lib/stripe';
 import models from '../../../../server/models';
+import { fakeHost, fakeUser } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
 describe('server/graphql/v1/tiers', () => {
@@ -469,38 +470,45 @@ describe('server/graphql/v1/tiers', () => {
         );
       });
 
-      it('rejects invalid platform fees', async () => {
-        const order = {
-          description: 'test order with platform fees',
-          collective: { id: collective1.id },
-          tier: { id: tierProduct.id },
-          paymentMethod: { uuid: paymentMethod1.uuid },
-          totalAmount: tierProduct.amount + 1050,
-          taxAmount: 1050,
-          platformFee: 30,
-          countryISO: 'BE',
-        };
+      describe('feesOnTop', () => {
+        beforeEach(async () => {
+          const user = await fakeUser({}, { id: 10 });
+          await fakeHost({ id: 8686, slug: 'opencollectiveinc', CreatedByUserId: user.id });
+        });
 
-        const queryResult = await utils.graphqlQuery(createOrderQuery, { order }, user1);
-        expect(queryResult.errors[0].message).to.equal(
-          'This tier uses a fixed amount. Order total must be $50.00 + $10.50 tax + $0.30 fees. You set: $60.50',
-        );
-      });
+        it('rejects invalid platform fees', async () => {
+          const order = {
+            description: 'test order with platform fees',
+            collective: { id: collective1.id },
+            tier: { id: tierProduct.id },
+            paymentMethod: { uuid: paymentMethod1.uuid },
+            totalAmount: tierProduct.amount + 1050,
+            taxAmount: 1050,
+            platformFee: 30,
+            countryISO: 'BE',
+          };
 
-      it('works with valid platform fees', async () => {
-        const order = {
-          description: 'test order with platform fees',
-          collective: { id: collective1.id },
-          tier: { id: tierProduct.id },
-          paymentMethod: { uuid: paymentMethod1.uuid },
-          totalAmount: tierProduct.amount + 1050 + 30,
-          taxAmount: 1050,
-          platformFee: 30,
-          countryISO: 'BE',
-        };
+          const queryResult = await utils.graphqlQuery(createOrderQuery, { order }, user1);
+          expect(queryResult.errors[0].message).to.equal(
+            'This tier uses a fixed amount. Order total must be $50.00 + $10.50 tax + $0.30 fees. You set: $60.50',
+          );
+        });
 
-        const queryResult = await utils.graphqlQuery(createOrderQuery, { order }, user1);
-        expect(queryResult.data.createOrder.id).to.exist;
+        it('works with valid platform fees', async () => {
+          const order = {
+            description: 'test order with platform fees',
+            collective: { id: collective1.id },
+            tier: { id: tierProduct.id },
+            paymentMethod: { uuid: paymentMethod1.uuid },
+            totalAmount: tierProduct.amount + 1050 + 30,
+            taxAmount: 1050,
+            platformFee: 30,
+            countryISO: 'BE',
+          };
+
+          const queryResult = await utils.graphqlQuery(createOrderQuery, { order }, user1);
+          expect(queryResult.data.createOrder.id).to.exist;
+        });
       });
     });
   });

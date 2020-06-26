@@ -150,7 +150,10 @@ export async function createTransaction(order, paymentInfo) {
     paymentProcessorFeeInHostCurrency: paypalFeeInCents,
     taxAmount: order.taxAmount,
     description: order.description,
-    data: paymentInfo,
+    data: {
+      ...paymentInfo,
+      isFeesOnTop: order.data?.isFeesOnTop,
+    },
   };
   return models.Transaction.createFromPayload(payload);
 }

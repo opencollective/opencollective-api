@@ -436,6 +436,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
         },
         customData: order.customData,
         savePaymentMethod: Boolean(order.paymentMethod && order.paymentMethod.save),
+        isFeesOnTop: order.isFeesOnTop,
       },
       status: status.PENDING, // default status, will get updated after the order is processed
     };
