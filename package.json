@@ -18,7 +18,7 @@
     "@hyperwatch/hyperwatch": "3.6.0",
     "@octokit/auth-oauth-app": "3.0.4",
     "@octokit/rest": "17.11.0",
-    "@opencollective/taxes": "2.4.0",
+    "@opencollective/taxes": "2.4.1",
     "@paypal/payouts-sdk": "^1.0.0",
     "algoliasearch": "3.35.1",
     "apollo-server-express": "2.15.0",
