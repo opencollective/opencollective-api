@@ -17,24 +17,25 @@ const {
 const userTaxFormRequiredBeforePaymentQuery = `
   SELECT 
     e."UserId" "userId", 
-    MAX(e.id) as "expenseId", 
+    MAX(er.id) as "expenseId",
     MAX(ld."requestStatus") as "legalDocRequestStatus",
     MAX(d."documentType") as "requiredDocument",
-    SUM (amount) AS total
+    SUM (e."amount") AS total
   FROM "Expenses" e
+  INNER JOIN "Expenses" er ON er.id IN (:expenseIds)
   INNER JOIN "Collectives" c ON c.id = e."CollectiveId"
   LEFT JOIN "RequiredLegalDocuments" d ON d."HostCollectiveId" = c."HostCollectiveId"
-                                      AND d."documentType" = 'US_TAX_FORM'
+                                    AND d."documentType" = 'US_TAX_FORM'
   LEFT JOIN "LegalDocuments" ld ON ld."CollectiveId" = e."FromCollectiveId"
                                 AND ld.year = date_part('year', e."incurredAt")
                                 AND ld."documentType" = 'US_TAX_FORM'
-  WHERE e.status IN ('PENDING', 'APPROVED', 'PAID', 'PROCESSING', 'SCHEDULED_FOR_PAYMENT')
+  WHERE e."UserId" = er."UserId"
+  AND e.status IN ('PENDING', 'APPROVED', 'PAID', 'PROCESSING', 'SCHEDULED_FOR_PAYMENT')
   AND e.type NOT IN ('RECEIPT')
   AND e."deletedAt" IS NULL
-  AND "incurredAt" BETWEEN date_trunc('year', e."incurredAt") AND (date_trunc('year', e."incurredAt") + interval '1 year')
+  AND e."incurredAt" BETWEEN date_trunc('year', e."incurredAt") AND (date_trunc('year', e."incurredAt") + interval '1 year')
   GROUP BY e."UserId"
-  HAVING MAX(e.id) IN (:expenseIds)
-`
+`;
 
 
 /**
@@ -115,11 +116,9 @@ export const userTaxFormRequiredBeforePayment = (): DataLoader<number, boolean> 
        replacements: { expenseIds }
     });
     const expenseNeedsTaxForm = {}
-
     expenses.forEach((expense) => {
       expenseNeedsTaxForm[expense.expenseId] = expense.requiredDocument && expense.total >= THRESHOLD && expense.legalDocRequestStatus !== RECEIVED;
     })
-
     return expenseIds.map(id => expenseNeedsTaxForm[id] || false);
   });
 }
