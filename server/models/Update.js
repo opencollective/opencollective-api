@@ -127,6 +127,11 @@ export default function (Sequelize, DataTypes) {
         defaultValue: false,
       },
 
+      notificationAudience: {
+        type: DataTypes.STRING,
+        defaultValue: null,
+      },
+
       tags: {
         type: DataTypes.ARRAY(DataTypes.STRING),
       },
@@ -191,6 +196,8 @@ export default function (Sequelize, DataTypes) {
             id: this.id,
             slug: this.slug,
             title: this.title,
+            html: this.html,
+            notificationAudience: this.notificationAudience,
             CollectiveId: this.CollectiveId,
             FromCollectiveId: this.FromCollectiveId,
             TierId: this.TierId,
@@ -258,10 +265,12 @@ export default function (Sequelize, DataTypes) {
   };
 
   // Publish update
-  Update.prototype.publish = async function (remoteUser) {
+  Update.prototype.publish = async function (remoteUser, notificationAudience) {
     mustHaveRole(remoteUser, 'ADMIN', this.CollectiveId, 'publish this update');
     this.publishedAt = new Date();
+    this.notificationAudience = notificationAudience;
     this.collective = this.collective || (await models.Collective.findByPk(this.CollectiveId));
+
     models.Activity.create({
       type: activities.COLLECTIVE_UPDATE_PUBLISHED,
       UserId: remoteUser.id,

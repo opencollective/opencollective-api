@@ -83,6 +83,7 @@ import {
   OrderType,
   PaymentMethodType,
   TierType,
+  UpdateAudienceTypeEnum,
   UpdateType,
   UserType,
 } from './types';
@@ -514,6 +515,9 @@ const mutations = {
     args: {
       id: {
         type: new GraphQLNonNull(GraphQLInt),
+      },
+      notificationAudience: {
+        type: new GraphQLNonNull(UpdateAudienceTypeEnum),
       },
     },
     resolve(_, args, req) {
