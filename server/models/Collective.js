@@ -36,6 +36,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymen
 import plans, { PLANS_COLLECTIVE_SLUG } from '../constants/plans';
 import roles, { MemberRoleLabels } from '../constants/roles';
 import { HOST_FEE_PERCENT, OC_FEE_PERCENT } from '../constants/transactions';
+import { hasOptedOutOfFeature, isFeatureAllowedForCollectiveType } from '../lib/allowed-features';
 import cache from '../lib/cache';
 import {
   collectiveSlugBlacklist,
@@ -990,8 +991,10 @@ export default function (Sequelize, DataTypes) {
   Collective.prototype.canContact = async function () {
     if (!this.isActive) {
       return false;
+    } else if (hasOptedOutOfFeature(this, FEATURE.CONTACT_FORM)) {
+      return false;
     } else {
-      return [types.COLLECTIVE, types.EVENT].includes(this.type) || (await this.isHost());
+      return isFeatureAllowedForCollectiveType(this.type, FEATURE.CONTACT_FORM) || (await this.isHost());
     }
   };
 
