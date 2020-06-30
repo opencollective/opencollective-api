@@ -26,14 +26,14 @@ export const buildAccountQuery = ({ objectType }) => ({
       description: `If false, will return null instead of an error if the ${objectType.name} is not found`,
     },
   },
-  async resolve(_, args) {
+  async resolve(_, args, req) {
     let collective;
     if (args.slug) {
       const slug = args.slug.toLowerCase();
       collective = await models.Collective.findBySlug(slug, null, args.throwIfMissing);
     } else if (args.id) {
       const id = idDecode(args.id, 'account');
-      collective = await models.Collective.findByPk(id);
+      collective = await req.loaders.Collective.byId.load(id);
     } else if (args.githubHandle) {
       // Try with githubHandle, be it organization/user or repository
       collective = await models.Collective.findOne({ where: { githubHandle: args.githubHandle } });

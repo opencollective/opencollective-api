@@ -23,6 +23,10 @@ const ExpensesQuery = {
       type: AccountReferenceInput,
       description: 'Reference of the account where this expense was submitted',
     },
+    host: {
+      type: AccountReferenceInput,
+      description: 'Return expenses only for this host',
+    },
     status: {
       type: ExpenseStatus,
       description: 'Use this field to filter expenses on their statuses',
@@ -64,7 +68,6 @@ const ExpensesQuery = {
   async resolve(_, args, req): Promise<CollectionReturnType> {
     const where = {};
     const include = [];
-    const fetchAccountParams = { loaders: req.loaders, throwIfMissing: true };
 
     // Check arguments
     if (args.limit > 100) {
@@ -72,13 +75,26 @@ const ExpensesQuery = {
     }
 
     // Load accounts
-    if (args.fromAccount) {
-      const fromAccount = await fetchAccountWithReference(args.fromAccount, fetchAccountParams);
+    const fetchAccountParams = { loaders: req.loaders, throwIfMissing: true };
+    const [fromAccount, account, host] = await Promise.all(
+      [args.fromAccount, args.account, args.host].map(
+        reference => reference && fetchAccountWithReference(reference, fetchAccountParams),
+      ),
+    );
+
+    if (fromAccount) {
       where['FromCollectiveId'] = fromAccount.id;
     }
-    if (args.account) {
-      const collective = await fetchAccountWithReference(args.account, fetchAccountParams);
-      where['CollectiveId'] = collective.id;
+    if (account) {
+      where['CollectiveId'] = account.id;
+    }
+    if (host) {
+      include.push({
+        association: 'collective',
+        attributes: [],
+        required: true,
+        where: { HostCollectiveId: host.id },
+      });
     }
 
     // Add search filter
