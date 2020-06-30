@@ -224,10 +224,17 @@ export async function createExpense(remoteUser, expenseData) {
     throw new ValidationFailed('Collective not found');
   }
 
-  const isCollectiveOrEvent = [collectiveTypes.COLLECTIVE, collectiveTypes.EVENT].includes(collective.type);
+  const isAllowedType = [
+    collectiveTypes.COLLECTIVE,
+    collectiveTypes.EVENT,
+    collectiveTypes.FUND,
+    collectiveTypes.PROJECT,
+  ].includes(collective.type);
   const isActiveHost = collective.type === collectiveTypes.ORGANIZATION && collective.isActive;
-  if (!isCollectiveOrEvent && !isActiveHost) {
-    throw new ValidationFailed('Expenses can only be submitted to collectives, events or active hosts.');
+  if (!isAllowedType && !isActiveHost) {
+    throw new ValidationFailed(
+      'Expenses can only be submitted to Collectives, Events, Funds, Projects and active Hosts.',
+    );
   }
 
   // Load the payee profile
