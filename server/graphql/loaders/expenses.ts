@@ -24,7 +24,7 @@ const userTaxFormRequiredBeforePaymentQuery = `
   FROM "Expenses" e
   INNER JOIN "Expenses" er ON e."UserId" = er."UserId"
   INNER JOIN "Collectives" c ON c.id = e."CollectiveId"
-  LEFT JOIN "RequiredLegalDocuments" d ON d."HostCollectiveId" = c."HostCollectiveId"
+  INNER JOIN "RequiredLegalDocuments" d ON d."HostCollectiveId" = c."HostCollectiveId"
                                     AND d."documentType" = 'US_TAX_FORM'
   LEFT JOIN "LegalDocuments" ld ON ld."CollectiveId" = e."FromCollectiveId"
                                 AND ld.year = date_part('year', e."incurredAt")
