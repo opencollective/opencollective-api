@@ -22,14 +22,14 @@ const userTaxFormRequiredBeforePaymentQuery = `
     MAX(d."documentType") as "requiredDocument",
     SUM (e."amount") AS total
   FROM "Expenses" e
-  INNER JOIN "Expenses" er ON er.id IN (:expenseIds)
+  INNER JOIN "Expenses" er ON e."UserId" = er."UserId"
   INNER JOIN "Collectives" c ON c.id = e."CollectiveId"
   LEFT JOIN "RequiredLegalDocuments" d ON d."HostCollectiveId" = c."HostCollectiveId"
                                     AND d."documentType" = 'US_TAX_FORM'
   LEFT JOIN "LegalDocuments" ld ON ld."CollectiveId" = e."FromCollectiveId"
                                 AND ld.year = date_part('year', e."incurredAt")
                                 AND ld."documentType" = 'US_TAX_FORM'
-  WHERE e."UserId" = er."UserId"
+  WHERE er.id IN (:expenseIds)
   AND e.status IN ('PENDING', 'APPROVED', 'PAID', 'PROCESSING', 'SCHEDULED_FOR_PAYMENT')
   AND e.type NOT IN ('RECEIPT')
   AND e."deletedAt" IS NULL
