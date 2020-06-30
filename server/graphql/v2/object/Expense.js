@@ -171,7 +171,7 @@ const Expense = new GraphQLObjectType({
       },
       privateMessage: {
         type: GraphQLString,
-        description: 'Additional information about the payment. Only visible to user and admins.',
+        description: 'Additional information about the payment as HTML. Only visible to user and admins.',
         async resolve(expense, _, req) {
           if (await ExpensePermissionsLib.canSeeExpensePayoutMethod(req, expense)) {
             return expense.privateMessage;

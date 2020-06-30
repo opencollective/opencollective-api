@@ -32,7 +32,7 @@ export const ExpenseUpdateInput = new GraphQLInputObjectType({
     },
     privateMessage: {
       type: GraphQLString,
-      description: 'A private note that will be attached to your invoice',
+      description: 'A private note that will be attached to your invoice, as HTML',
     },
     invoiceInfo: {
       type: GraphQLString,

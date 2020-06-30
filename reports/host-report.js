@@ -6,6 +6,7 @@ import moment from 'moment';
 
 import emailLib from '../server/lib/email';
 import { getBackersStats, getHostedCollectives, sumTransactions } from '../server/lib/hostlib';
+import { stripHTML } from '../server/lib/sanitize-html';
 import { getTransactions } from '../server/lib/transactions';
 import { exportToPDF } from '../server/lib/utils';
 import models, { Op, sequelize } from '../server/models';
@@ -233,7 +234,7 @@ async function HostReport(year, month, hostId) {
       };
       t.collective = collectivesById[t.CollectiveId].dataValues;
       t.collective.shortSlug = t.collective.slug.replace(/^wwcode-?(.)/, '$1');
-      t.notes = t.Expense && t.Expense.privateMessage;
+      t.notes = t.Expense && t.Expense.privateMessage && stripHTML(t.Expense.privateMessage);
       if (t.data && t.data.fxrateSource) {
         t.notes = t.notes ? `${t.notes} (${note})` : note;
         data.notes = note;

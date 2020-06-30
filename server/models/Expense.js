@@ -6,11 +6,19 @@ import status from '../constants/expense_status';
 import expenseType from '../constants/expense_type';
 import { TransactionTypes } from '../constants/transactions';
 import { reduceArrayToCurrency } from '../lib/currency';
+import { buildSanitizerOptions, sanitizeHTML, stripHTML } from '../lib/sanitize-html';
 import { sanitizeTags, validateTags } from '../lib/tags';
 import CustomDataTypes from '../models/DataTypes';
 
 import { PayoutMethodTypes } from './PayoutMethod';
 import models, { Op } from './';
+
+// Options for sanitizing private messages
+const PRIVATE_MESSAGE_SANITIZE_OPTS = buildSanitizerOptions({
+  basicTextFormatting: true,
+  multilineTextFormatting: true,
+  links: true,
+});
 
 export default function (Sequelize, DataTypes) {
   const Expense = Sequelize.define(
@@ -118,7 +126,18 @@ export default function (Sequelize, DataTypes) {
         allowNull: true,
       },
 
-      privateMessage: DataTypes.STRING,
+      privateMessage: {
+        type: DataTypes.STRING,
+        set(value) {
+          if (value) {
+            const cleanHtml = sanitizeHTML(value, PRIVATE_MESSAGE_SANITIZE_OPTS).trim();
+            this.setDataValue('privateMessage', cleanHtml || null);
+          } else {
+            this.setDataValue('privateMessage', null);
+          }
+        },
+      },
+
       invoiceInfo: DataTypes.TEXT,
       vat: DataTypes.INTEGER,
 
@@ -202,7 +221,7 @@ export default function (Sequelize, DataTypes) {
             tags: this.tags,
             legacyPayoutMethod: this.legacyPayoutMethod,
             vat: this.vat,
-            privateMessage: this.privateMessage,
+            privateMessage: this.privateMessage && stripHTML(this.privateMessage),
             lastEditedById: this.lastEditedById,
             status: this.status,
             incurredAt: this.incurredAt,
