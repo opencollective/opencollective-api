@@ -1,13 +1,15 @@
-import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 import GraphQLJSON from 'graphql-type-json';
 import { invert } from 'lodash';
 
 import models, { Op } from '../../../models';
+import { hostResolver } from '../../common/collective';
 import { NotFound } from '../../errors';
 import { ConversationCollection } from '../collection/ConversationCollection';
 import { MemberCollection, MemberOfCollection } from '../collection/MemberCollection';
 import { OrderCollection } from '../collection/OrderCollection';
+import { TierCollection } from '../collection/TierCollection';
 import { TransactionCollection } from '../collection/TransactionCollection';
 import {
   AccountOrdersFilter,
@@ -24,6 +26,7 @@ import { HasMembersFields } from '../interface/HasMembers';
 import { IsMemberOfFields } from '../interface/IsMemberOf';
 import { AccountStats } from '../object/AccountStats';
 import { ConnectedAccount } from '../object/ConnectedAccount';
+import { Host } from '../object/Host';
 import { Location } from '../object/Location';
 import { PaymentMethod } from '../object/PaymentMethod';
 import PayoutMethod from '../object/PayoutMethod';
@@ -458,6 +461,106 @@ export const AccountFields = {
       } else {
         return req.loaders.Collective.connectedAccounts.load(collective.id);
       }
+    },
+  },
+};
+
+export const CollectiveAndFundFields = {
+  balance: {
+    description: 'Amount of money in cents in the currency of the account currently available to spend',
+    deprecationReason: '2020/04/09 - Should not have been introduced. Use stats.balance.value',
+    type: GraphQLInt,
+    resolve(account, _, req) {
+      return req.loaders.Collective.balance.load(account.id);
+    },
+  },
+  host: {
+    description: 'Returns the Fiscal Host',
+    type: Host,
+    resolve: hostResolver,
+  },
+  approvedAt: {
+    description: 'Date of approval by the Fiscal Host.',
+    type: GraphQLDateTime,
+    resolve(account) {
+      return account.approvedAt;
+    },
+  },
+  isApproved: {
+    description: "Returns whether it's approved by the Fiscal Host",
+    type: GraphQLBoolean,
+    resolve(account) {
+      return account.isApproved();
+    },
+  },
+  isActive: {
+    description: "Returns whether it's active: can accept financial contributions and pay expenses.",
+    type: GraphQLBoolean,
+    resolve(account) {
+      return Boolean(account.isActive);
+    },
+  },
+  totalFinancialContributors: {
+    description: 'Number of unique financial contributors.',
+    type: GraphQLInt,
+    args: {
+      accountType: {
+        type: AccountType,
+        description: 'Type of account (COLLECTIVE/EVENT/ORGANIZATION/INDIVIDUAL)',
+      },
+    },
+    async resolve(account, args, req) {
+      const stats = await req.loaders.Collective.stats.backers.load(account.id);
+      if (!args.accountType) {
+        return stats.all;
+      } else if (args.accountType === 'INDIVIDUAL') {
+        return stats.USER || 0;
+      } else {
+        return stats[args.accountType] || 0;
+      }
+    },
+  },
+  tiers: {
+    type: new GraphQLNonNull(TierCollection),
+    async resolve(account) {
+      const query = { where: { CollectiveId: account.id }, order: [['amount', 'ASC']] };
+      const result = await models.Tier.findAndCountAll(query);
+      return { nodes: result.rows, totalCount: result.count };
+    },
+  },
+};
+
+export const EventAndProjectFields = {
+  balance: {
+    description: 'Amount of money in cents in the currency of the account currently available to spend',
+    deprecationReason: '2020/04/09 - Should not have been introduced. Use stats.balance.value',
+    type: GraphQLInt,
+    resolve(account, _, req) {
+      return req.loaders.Collective.balance.load(account.id);
+    },
+  },
+  host: {
+    description: 'Returns the Fiscal Host',
+    type: Host,
+    resolve: hostResolver,
+  },
+  isApproved: {
+    description: "Returns whether it's approved by the Fiscal Host",
+    type: GraphQLBoolean,
+    async resolve(account, _, req) {
+      if (!account.ParentCollectiveId) {
+        return false;
+      } else {
+        const parent = await req.loaders.Collective.byId.load(account.ParentCollectiveId);
+        return parent && parent.isApproved();
+      }
+    },
+  },
+  isActive: {
+    description: "Returns whether it's active: can accept financial contributions and pay expenses.",
+    type: GraphQLBoolean,
+    resolve(account) {
+      return Boolean(account.isActive);
     },
   },
 };
