@@ -14,7 +14,7 @@
     "@babel/plugin-proposal-class-properties": "7.10.1",
     "@babel/plugin-transform-async-to-generator": "7.10.4",
     "@babel/preset-env": "7.10.3",
-    "@babel/preset-typescript": "7.10.1",
+    "@babel/preset-typescript": "7.10.4",
     "@hyperwatch/hyperwatch": "3.7.0",
     "@octokit/auth-oauth-app": "3.0.4",
     "@octokit/rest": "17.11.0",
