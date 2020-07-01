@@ -1,6 +1,6 @@
 import { GraphQLObjectType } from 'graphql';
 
-import { Account, AccountFields } from '../interface/Account';
+import { Account, AccountFields, CollectiveAndFundFields } from '../interface/Account';
 
 export const Fund = new GraphQLObjectType({
   name: 'Fund',
@@ -10,6 +10,7 @@ export const Fund = new GraphQLObjectType({
   fields: () => {
     return {
       ...AccountFields,
+      ...CollectiveAndFundFields,
     };
   },
 });

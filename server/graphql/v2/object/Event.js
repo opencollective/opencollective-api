@@ -1,10 +1,8 @@
-import { GraphQLBoolean, GraphQLInt, GraphQLObjectType } from 'graphql';
+import { GraphQLObjectType } from 'graphql';
 
-import { hostResolver } from '../../common/collective';
-import { Account, AccountFields } from '../interface/Account';
+import { Account, AccountFields, EventAndProjectFields } from '../interface/Account';
 
 import { Collective } from './Collective';
-import { Host } from './Host';
 
 export const Event = new GraphQLObjectType({
   name: 'Event',
@@ -14,33 +12,21 @@ export const Event = new GraphQLObjectType({
   fields: () => {
     return {
       ...AccountFields,
-      balance: {
-        description: 'Amount of money in cents in the currency of the collective currently available to spend',
-        deprecationReason: '2020/04/09 - Should not have been introduced. Use stats.balance.value',
-        type: GraphQLInt,
-        resolve(collective, _, req) {
-          return req.loaders.Collective.balance.load(collective.id);
-        },
-      },
-      host: {
-        description: 'Get the host collective that is receiving the money on behalf of this collective',
-        type: Host,
-        resolve: hostResolver,
-      },
-      isApproved: {
-        description: 'Returns whether this collective is approved',
-        type: GraphQLBoolean,
+      ...EventAndProjectFields,
+      parent: {
+        description: 'The Collective hosting this Event',
+        type: Collective,
         async resolve(event, _, req) {
           if (!event.ParentCollectiveId) {
-            return false;
+            return null;
           } else {
-            const parentCollective = await req.loaders.Collective.byId.load(event.ParentCollectiveId);
-            return parentCollective && parentCollective.isApproved();
+            return req.loaders.Collective.byId.load(event.ParentCollectiveId);
           }
         },
       },
       parentCollective: {
-        description: 'The collective hosting this event',
+        description: 'The Collective hosting this Event',
+        deprecationReason: '2020/07/01 - Use parent instead.',
         type: Collective,
         async resolve(event, _, req) {
           if (!event.ParentCollectiveId) {

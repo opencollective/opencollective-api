@@ -1,8 +1,8 @@
 import { GraphQLObjectType } from 'graphql';
 
-import { Account, AccountFields } from '../interface/Account';
+import { Account, AccountFields, EventAndProjectFields } from '../interface/Account';
 
-import { Collective } from './Collective';
+import { Fund } from './Fund';
 
 export const Project = new GraphQLObjectType({
   name: 'Project',
@@ -12,14 +12,15 @@ export const Project = new GraphQLObjectType({
   fields: () => {
     return {
       ...AccountFields,
+      ...EventAndProjectFields,
       parent: {
-        description: 'The collective hosting this Project',
-        type: Collective,
-        async resolve(event, _, req) {
-          if (!event.ParentCollectiveId) {
+        description: 'The Fund hosting this Project',
+        type: Fund,
+        async resolve(project, _, req) {
+          if (!project.ParentCollectiveId) {
             return null;
           } else {
-            return req.loaders.Collective.byId.load(event.ParentCollectiveId);
+            return req.loaders.Collective.byId.load(project.ParentCollectiveId);
           }
         },
       },

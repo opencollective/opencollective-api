@@ -699,8 +699,7 @@ export default function (Sequelize, DataTypes) {
         afterCreate: async instance => {
           instance.findImage();
 
-          // We only create an "opencollective" paymentMethod for collectives and events
-          if (instance.type === 'COLLECTIVE' || instance.type === 'EVENT') {
+          if ([types.COLLECTIVE, types.FUND, types.EVENT, types.PROJECT].includes(instance.type)) {
             await models.PaymentMethod.create({
               CollectiveId: instance.id,
               service: 'opencollective',
