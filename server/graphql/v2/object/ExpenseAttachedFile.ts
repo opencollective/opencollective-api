@@ -1,4 +1,4 @@
-import { GraphQLNonNull, GraphQLObjectType,GraphQLString } from 'graphql';
+import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import URL from '../scalar/URL';

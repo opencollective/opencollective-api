@@ -1,4 +1,4 @@
-import { get,pick } from 'lodash';
+import { get, pick } from 'lodash';
 import { Model, Transaction } from 'sequelize';
 import { isEmail } from 'validator';
 

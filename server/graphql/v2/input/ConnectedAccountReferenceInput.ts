@@ -1,4 +1,4 @@
-import { GraphQLInputObjectType,GraphQLInt, GraphQLString } from 'graphql';
+import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
 import models from '../../../models';
 import { NotFound } from '../../errors';

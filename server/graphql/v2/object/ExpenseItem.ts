@@ -1,4 +1,4 @@
-import { GraphQLInt, GraphQLNonNull, GraphQLObjectType,GraphQLString } from 'graphql';
+import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';

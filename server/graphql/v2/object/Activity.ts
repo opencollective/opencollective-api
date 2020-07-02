@@ -1,4 +1,4 @@
-import { GraphQLNonNull, GraphQLObjectType,GraphQLString } from 'graphql';
+import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 
 import { ActivityType } from '../enum';
