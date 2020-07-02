@@ -1,11 +1,42 @@
 import DataLoader from 'dataloader';
 
 import ACTIVITY from '../../constants/activities';
-import models, { Op } from '../../models';
+import models, { Op, sequelize } from '../../models';
 import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile';
 import { ExpenseItem } from '../../models/ExpenseItem';
+import { LEGAL_DOCUMENT_TYPE } from '../../models/LegalDocument';
 
 import { sortResultsArray } from './helpers';
+
+const THRESHOLD = 600e2;
+const {
+  requestStatus: { RECEIVED },
+} = models.LegalDocument;
+
+
+const userTaxFormRequiredBeforePaymentQuery = `
+  SELECT 
+    e."UserId" "userId", 
+    MAX(er.id) as "expenseId",
+    MAX(ld."requestStatus") as "legalDocRequestStatus",
+    MAX(d."documentType") as "requiredDocument",
+    SUM (e."amount") AS total
+  FROM "Expenses" e
+  INNER JOIN "Expenses" er ON e."UserId" = er."UserId"
+  INNER JOIN "Collectives" c ON c.id = e."CollectiveId"
+  INNER JOIN "RequiredLegalDocuments" d ON d."HostCollectiveId" = c."HostCollectiveId"
+                                    AND d."documentType" = 'US_TAX_FORM'
+  LEFT JOIN "LegalDocuments" ld ON ld."CollectiveId" = e."FromCollectiveId"
+                                AND ld.year = date_part('year', e."incurredAt")
+                                AND ld."documentType" = 'US_TAX_FORM'
+  WHERE er.id IN (:expenseIds)
+  AND e.status IN ('PENDING', 'APPROVED', 'PAID', 'PROCESSING', 'SCHEDULED_FOR_PAYMENT')
+  AND e.type NOT IN ('RECEIPT')
+  AND e."deletedAt" IS NULL
+  AND e."incurredAt" BETWEEN date_trunc('year', e."incurredAt") AND (date_trunc('year', e."incurredAt") + interval '1 year')
+  GROUP BY e."UserId"
+`;
+
 
 /**
  * Loader for expense's items.
@@ -72,3 +103,44 @@ export const attachedFiles = (): DataLoader<number, ExpenseAttachedFile[]> => {
     return sortResultsArray(expenseIds, attachedFiles, file => file.ExpenseId);
   });
 };
+
+/**
+ * Expense loader to check if userTaxForm is required before expense payment
+ */
+export const userTaxFormRequiredBeforePayment = (): DataLoader<number, boolean> => {
+  return new DataLoader(async (expenseIds: number[]) => {
+    const expenses = await sequelize.query(userTaxFormRequiredBeforePaymentQuery, {
+       type: sequelize.QueryTypes.SELECT,
+       raw: true,
+       model: models.Expense,
+       replacements: { expenseIds }
+    });
+    const expenseNeedsTaxForm = {}
+    expenses.forEach((expense) => {
+      expenseNeedsTaxForm[expense.expenseId] = expense.requiredDocument && expense.total >= THRESHOLD && expense.legalDocRequestStatus !== RECEIVED;
+    })
+    return expenseIds.map(id => expenseNeedsTaxForm[id] || false);
+  });
+}
+
+/**
+ * Loader for expense's requiredLegalDocuments.
+ */
+export const requiredLegalDocuments = (): DataLoader<number, string[]> => {
+  return new DataLoader(async (expenseIds: number[]) => {
+    const expenses = await sequelize.query(userTaxFormRequiredBeforePaymentQuery, {
+      type: sequelize.QueryTypes.SELECT,
+      raw: true,
+      model: models.Expense,
+      replacements: { expenseIds }
+   });
+
+   const expenseNeedsTaxForm = {}
+
+    expenses.forEach((expense) => {
+      expenseNeedsTaxForm[expense.expenseId] = expense.requiredDocument && expense.total >= THRESHOLD && expense.legalDocRequestStatus !== RECEIVED;
+    })
+
+    return expenseIds.map(id => (expenseNeedsTaxForm[id]) ? [LEGAL_DOCUMENT_TYPE.US_TAX_FORM] : []);
+  });
+}

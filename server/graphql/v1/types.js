@@ -23,7 +23,6 @@ import orderStatus from '../../constants/order_status';
 import roles from '../../constants/roles';
 import { getCollectiveAvatarUrl } from '../../lib/collectivelib';
 import { getContributorsForTier } from '../../lib/contributors';
-import { isUserTaxFormRequiredBeforePayment } from '../../lib/tax-forms';
 import { stripTags } from '../../lib/utils';
 import models, { Op, sequelize } from '../../models';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
@@ -914,15 +913,8 @@ export const ExpenseType = new GraphQLObjectType({
       },
       userTaxFormRequiredBeforePayment: {
         type: GraphQLBoolean,
-        async resolve(expense) {
-          const incurredYear = moment(expense.incurredAt).year();
-
-          return isUserTaxFormRequiredBeforePayment({
-            year: incurredYear,
-            invoiceTotalThreshold: 600e2,
-            expenseCollectiveId: expense.CollectiveId,
-            UserId: expense.UserId,
-          });
+        async resolve(expense, _, req) {
+          return req.loaders.Expense.userTaxFormRequiredBeforePayment.load(expense.id);
         },
       },
       user: {
