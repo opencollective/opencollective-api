@@ -2,6 +2,8 @@ import { GraphQLInt, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import { Account, AccountFields } from '../interface/Account';
 
+import { Host } from './Host';
+
 export const Organization = new GraphQLObjectType({
   name: 'Organization',
   description: 'This represents an Organization account',
@@ -40,6 +42,15 @@ export const Organization = new GraphQLObjectType({
           const canSeeLocation = req.remoteUser?.isAdmin(organization.id) || (await organization.isHost());
           if (canSeeLocation) {
             return organization.location;
+          }
+        },
+      },
+      host: {
+        type: Host,
+        description: 'If the organization if a host account, this will return the matchig Host object',
+        resolve(collective) {
+          if (collective.isHost) {
+            return collective;
           }
         },
       },
