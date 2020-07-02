@@ -180,7 +180,7 @@
     "maildev": "maildev",
     "postdb:migrate:dev": "npm run db:clean",
     "postinstall": "./scripts/postinstall.sh",
-    "prettier": "prettier \"**/*.@(js|json|md)\" --ignore-path .eslintignore",
+    "prettier": "prettier \"**/*.@(js|ts|json|md)\" --ignore-path .eslintignore",
     "prettier:check": "npm run prettier -- --check",
     "prettier:write": "npm run prettier -- --write",
     "refund-transactions": "babel-node --extensions .js,.ts ./scripts/add_refund_transactions_from_collective.js",

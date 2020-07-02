@@ -1,4 +1,4 @@
-import { GraphQLInputObjectType, GraphQLNonNull,GraphQLString } from 'graphql';
+import { GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
 
 import URL from '../scalar/URL';
 
