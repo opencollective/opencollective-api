@@ -186,7 +186,10 @@ export default function (Sequelize, DataTypes) {
         activity() {
           return {
             id: this.id,
-            totalAmount: this.data?.isFeesOnTop ? this.totalAmount - this.data.platformFee : this.totalAmount,
+            totalAmount:
+              this.data?.isFeesOnTop && this.data?.platformFee
+                ? this.totalAmount - this.data.platformFee
+                : this.totalAmount,
             currency: this.currency,
             description: this.description,
             publicMessage: this.publicMessage,
