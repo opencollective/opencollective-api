@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import request from 'supertest-as-promised';
+import request from 'supertest';
 
 import app from '../../../server/index';
 import * as utils from '../../utils';
@@ -18,10 +18,6 @@ describe('server/routes/notFound', () => {
       req = request(expressApp).get(`/blablabla?api_key=${application.api_key}`);
     });
 
-    it('THEN returns 404', () =>
-      req
-        .expect(404)
-        .toPromise()
-        .tap(res => expect(res.error.text).to.equal('Not Found')));
+    it('THEN returns 404', () => req.expect(404).then(res => expect(res.error.text).to.equal('Not Found')));
   });
 });

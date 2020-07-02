@@ -3,7 +3,7 @@ import config from 'config';
 import moment from 'moment';
 import nodemailer from 'nodemailer';
 import sinon from 'sinon';
-import request from 'supertest-as-promised';
+import request from 'supertest';
 
 import app from '../../../server/index';
 import * as auth from '../../../server/lib/auth.js';
