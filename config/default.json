@@ -43,8 +43,7 @@
       "perIp": 5
     },
     "virtualCards": {
-      "maxPerDay": 100,
-      "maxAmountPerDay": 500000
+      "maxPerDay": 100
     },
     "changeEmailPerHour": {
       "update": 10,

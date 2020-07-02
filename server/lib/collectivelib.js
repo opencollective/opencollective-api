@@ -68,7 +68,6 @@ export const COLLECTIVE_SETTINGS_KEYS_LIST = [
   'tos',
   'twitter',
   'VAT',
-  'virtualCardsMaxDailyAmount',
   'virtualCardsMaxDailyCount',
   'W9',
 ];
