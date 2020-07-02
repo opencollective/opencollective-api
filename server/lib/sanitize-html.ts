@@ -104,21 +104,21 @@ const optsSanitizeSummary = buildSanitizerOptions({ links: true, basicTextFormat
  * smart defaults to match our use cases. It works as a whitelist, so by default all
  * tags will be stripped out.
  */
-export function sanitizeHTML(content, options: SanitizeOptions = optsStripAll) {
+export function sanitizeHTML(content, options: SanitizeOptions = optsStripAll): string {
   return LibSanitize(content, options);
 }
 
 /**
  * Will remove all HTML content from the string.
  */
-export const stripHTML = content => sanitizeHTML(content, optsStripAll);
+export const stripHTML = (content: string): string => sanitizeHTML(content, optsStripAll);
 
 /**
  * An helper to generate a summary for an HTML content. A summary is defined as a single
  * line content truncated to a max length, with tags like code blocks removed. It still
  * allows the use of bold, italic and other single-line format options.
  */
-export const generateSummaryForHTML = (content, maxLength = 255) => {
+export const generateSummaryForHTML = (content: string, maxLength = 255): string => {
   if (!content) {
     return null;
   }
@@ -131,13 +131,10 @@ export const generateSummaryForHTML = (content, maxLength = 255) => {
   const sanitized = sanitizeHTML(separatedTitles, optsSanitizeSummary);
 
   // Trim: `<strong> Test with   spaces </strong>` ==> <strong>Test with spaces</strong>
-  const trimmed = sanitized
-    .trim()
-    .replace('\n', ' ')
-    .replace(/\s+/g, ' ');
+  const trimmed = sanitized.trim().replace('\n', ' ').replace(/\s+/g, ' ');
 
   // Truncate
-  const truncated = truncate(trimmed, { length: maxLength, omission: ''});
+  const truncated = truncate(trimmed, { length: maxLength, omission: '' });
 
   // Second sanitize pass: an additional precaution in case someones finds a way to play with the trimmed version
   const secondSanitized = sanitizeHTML(truncated, optsSanitizeSummary);

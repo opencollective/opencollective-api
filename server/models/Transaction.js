@@ -9,6 +9,7 @@ import { FEES_ON_TOP_TRANSACTION_PROPERTIES, TransactionTypes } from '../constan
 import { getFxRate } from '../lib/currency';
 import { toNegative } from '../lib/math';
 import { calcFee } from '../lib/payments';
+import { stripHTML } from '../lib/sanitize-html';
 import { exportToCSV } from '../lib/utils';
 
 import CustomDataTypes from './DataTypes';
@@ -319,11 +320,11 @@ export default (Sequelize, DataTypes) => {
     const processValue = (attr, value) => {
       if (attr === 'CollectiveId') {
         return get(collectivesById[value], 'slug');
-      }
-      if (attr === 'createdAt') {
+      } else if (attr === 'createdAt') {
         return moment(value).format('YYYY-MM-DD');
-      }
-      if (
+      } else if (attr === 'Expense.privateMessage') {
+        return value && stripHTML(value);
+      } else if (
         [
           'amount',
           'netAmountInCollectiveCurrency',
