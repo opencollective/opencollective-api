@@ -192,6 +192,11 @@ export default (sequelize, DataTypes): typeof PayoutMethod => {
         type: DataTypes.STRING,
         allowNull: true,
       },
+      isSaved: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: true,
+      },
       CollectiveId: {
         type: DataTypes.INTEGER,
         references: { model: 'Collectives', key: 'id' },

@@ -1,8 +1,9 @@
-import { GraphQLNonNull } from 'graphql';
+import { GraphQLNonNull, GraphQLString } from 'graphql';
 import { pick } from 'lodash';
 
 import models from '../../../models';
-import { Unauthorized } from '../../errors';
+import { Forbidden, NotFound, Unauthorized } from '../../errors';
+import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { PayoutMethodInput } from '../input/PayoutMethodInput';
 import PayoutMethod from '../object/PayoutMethod';
@@ -48,6 +49,30 @@ const payoutMethodMutations = {
         CollectiveId: collective.id,
         CreatedByUserId: req.remoteUser.id,
       });
+    },
+  },
+  removePayoutMethod: {
+    description: 'Remove the given payout method',
+    type: new GraphQLNonNull(PayoutMethod),
+    args: {
+      payoutMethodId: {
+        type: new GraphQLNonNull(GraphQLString),
+      },
+    },
+    async resolve(_, args, req): Promise<object> {
+      if (!req.remoteUser) {
+        throw new Unauthorized();
+      }
+
+      const pmId = idDecode(args.payoutMethodId, IDENTIFIER_TYPES.PAYOUT_METHOD);
+      const payoutMethod = await req.loaders.PayoutMethod.byId.load(pmId);
+      if (!pmId) {
+        throw new NotFound('This payout method does not exist');
+      } else if (!req.remoteUser.isAdmin(payoutMethod.CollectiveId)) {
+        throw new Forbidden();
+      }
+
+      return payoutMethod.update({ isSaved: false });
     },
   },
 };
