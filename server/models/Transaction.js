@@ -493,7 +493,7 @@ export default (Sequelize, DataTypes) => {
     }
 
     const collective = await models.Collective.findByPk(CollectiveId);
-    const HostCollectiveId = await collective.getHostCollectiveId();
+    const HostCollectiveId = collective.isHostAccount ? collective.id : await collective.getHostCollectiveId();
     if (!HostCollectiveId && !transaction.HostCollectiveId) {
       throw new Error(`Cannot create a transaction: collective id ${CollectiveId} doesn't have a host`);
     }

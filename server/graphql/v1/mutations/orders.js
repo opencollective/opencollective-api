@@ -867,9 +867,17 @@ export async function markOrderAsPaid(remoteUser, id) {
   if (order.status !== 'PENDING') {
     throw new ValidationFailed("The order's status must be PENDING");
   }
-  const HostCollectiveId = await models.Collective.getHostCollectiveId(order.CollectiveId);
-  if (!remoteUser.isAdmin(HostCollectiveId)) {
-    throw new Unauthorized('You must be logged in as an admin of the host of the collective');
+
+  const collective = await models.Collective.findByPk(order.CollectiveId);
+  if (collective.isHostAccount) {
+    if (!remoteUser.isAdmin(collective.id)) {
+      throw new Unauthorized('You must be logged in as an admin of the host of the collective');
+    }
+  } else {
+    const HostCollectiveId = await models.Collective.getHostCollectiveId(order.CollectiveId);
+    if (!remoteUser.isAdmin(HostCollectiveId)) {
+      throw new Unauthorized('You must be logged in as an admin of the host of the collective');
+    }
   }
 
   order.paymentMethod = {
@@ -903,9 +911,16 @@ export async function markPendingOrderAsExpired(remoteUser, id) {
     throw new ValidationFailed("The order's status must be PENDING");
   }
 
-  const HostCollectiveId = await models.Collective.getHostCollectiveId(order.CollectiveId);
-  if (!remoteUser.isAdmin(HostCollectiveId)) {
-    throw new Unauthorized('You must be logged in as an admin of the host of the collective');
+  const collective = await models.Collective.findByPk(order.CollectiveId);
+  if (collective.isHostAccount) {
+    if (!remoteUser.isAdmin(collective.id)) {
+      throw new Unauthorized('You must be logged in as an admin of the host of the collective');
+    }
+  } else {
+    const HostCollectiveId = await models.Collective.getHostCollectiveId(order.CollectiveId);
+    if (!remoteUser.isAdmin(HostCollectiveId)) {
+      throw new Unauthorized('You must be logged in as an admin of the host of the collective');
+    }
   }
 
   order.status = 'EXPIRED';

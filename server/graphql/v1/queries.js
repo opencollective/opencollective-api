@@ -612,15 +612,19 @@ const queries = {
         ['createdAt', 'DESC'],
         ['id', 'DESC'],
       ];
-      const getCollectiveIds = () => {
+      const getCollectiveIds = async () => {
         // if is host, we get all the orders across all the hosted collectives
         if (args.includeHostedCollectives) {
-          return models.Member.findAll({
-            where: {
-              MemberCollectiveId: CollectiveId,
-              role: 'HOST',
-            },
-          }).map(member => member.CollectiveId);
+          return [
+            CollectiveId,
+            ...(await models.Member.findAll({
+              attributes: ['CollectiveId'],
+              where: {
+                MemberCollectiveId: CollectiveId,
+                role: 'HOST',
+              },
+            }).map(member => member.CollectiveId)),
+          ];
         } else {
           return Promise.resolve([CollectiveId]);
         }
