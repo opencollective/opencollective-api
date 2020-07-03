@@ -29,6 +29,8 @@ const userTaxFormRequiredBeforePaymentQuery = `
                                 AND ld.year = date_part('year', e."incurredAt")
                                 AND ld."documentType" = 'US_TAX_FORM'
   WHERE er.id IN (:expenseIds)
+  AND e.type = 'INVOICE'
+  AND er.type = 'INVOICE'
   AND e.status IN ('PENDING', 'APPROVED', 'PAID', 'PROCESSING', 'SCHEDULED_FOR_PAYMENT')
   AND e.type NOT IN ('RECEIPT')
   AND e."deletedAt" IS NULL
