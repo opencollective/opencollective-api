@@ -1,6 +1,9 @@
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
+import GraphQLJSON from 'graphql-type-json';
+import { pick } from 'lodash';
 
+import ACTIVITY from '../../../constants/activities';
 import { ActivityType } from '../enum';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { Account } from '../interface/Account';
@@ -42,6 +45,17 @@ export const Activity = new GraphQLObjectType({
           if (!collective.isIncognito) {
             return collective;
           }
+        }
+      },
+    },
+    data: {
+      type: new GraphQLNonNull(GraphQLJSON),
+      description: 'Data attached to this activity (if any)',
+      resolve(activity): object {
+        if (activity.type === ACTIVITY.COLLECTIVE_EXPENSE_PAID) {
+          return pick(activity.data, ['isManualPayout']);
+        } else {
+          return {};
         }
       },
     },

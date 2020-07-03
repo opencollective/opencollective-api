@@ -268,7 +268,7 @@ export default function (Sequelize, DataTypes) {
    * @param {string} type: type of the activity, see `constants/activities.js`
    * @param {object} user: the user who triggered the activity. Leave blank for system activities.
    */
-  Expense.prototype.createActivity = async function (type, user) {
+  Expense.prototype.createActivity = async function (type, user, data) {
     const submittedByUser = this.user || (await models.User.findByPk(this.UserId));
     const submittedByUserCollective = await models.Collective.findByPk(submittedByUser.CollectiveId);
     const fromCollective = this.fromCollective || (await models.Collective.findByPk(this.FromCollectiveId));
@@ -289,6 +289,7 @@ export default function (Sequelize, DataTypes) {
       CollectiveId: this.collective.id,
       ExpenseId: this.id,
       data: {
+        ...pick(data, ['isManualPayout']),
         host: get(host, 'minimal'),
         collective: { ...this.collective.minimal, isActive: this.collective.isActive },
         user: submittedByUserCollective.minimal,
