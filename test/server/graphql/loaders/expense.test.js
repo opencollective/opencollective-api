@@ -30,6 +30,7 @@ describe('server/graphql/loaders/expense', () => {
         const expenseWithUserTaxForm = await fakeExpense({
           amount: US_TAX_FORM_THRESHOLD + 1,
           CollectiveId: collective.id,
+          type: 'INVOICE',
         });
         const result = await loader.load(expenseWithUserTaxForm.id);
         expect(result).to.be.true;
@@ -65,6 +66,7 @@ describe('server/graphql/loaders/expense', () => {
         const expenseWithOutUserTaxForm = await fakeExpense({
           amount: US_TAX_FORM_THRESHOLD - 100,
           CollectiveId: collective.id,
+          type: 'INVOICE',
         });
         const result = await loader.load(expenseWithOutUserTaxForm.id);
         expect(result).to.be.false;
@@ -78,6 +80,7 @@ describe('server/graphql/loaders/expense', () => {
           CollectiveId: collective.id,
           FromCollectiveId: user.CollectiveId,
           UserId: user.id,
+          type: 'INVOICE',
         });
         await models.LegalDocument.create({
           year: parseInt(new Date().toISOString().split('-')),
@@ -92,9 +95,27 @@ describe('server/graphql/loaders/expense', () => {
 
       it('When host does not have requiredLegalDocument', async () => {
         const loader = userTaxFormRequiredBeforePayment({ loaders: loaders(req) });
-        const expenseWithOutUserTaxForm = await fakeExpense();
+        const expenseWithOutUserTaxForm = await fakeExpense({ type: 'INVOICE' });
         const result = await loader.load(expenseWithOutUserTaxForm.id);
         expect(result).to.be.false;
+      });
+
+      it('When expenses are not INVOICE', async () => {
+        const loader = userTaxFormRequiredBeforePayment({ loaders: loaders(req) });
+        const expense1 = await fakeExpense({
+          type: 'RECEIPT',
+          CollectiveId: collective.id,
+          amount: US_TAX_FORM_THRESHOLD + 100,
+        });
+        const expense2 = await fakeExpense({
+          type: 'UNCLASSIFIED',
+          CollectiveId: collective.id,
+          amount: US_TAX_FORM_THRESHOLD + 100,
+        });
+        const result = await loader.load(expense1.id);
+        expect(result).to.be.false;
+        const result2 = await loader.load(expense2.id);
+        expect(result2).to.be.false;
       });
     });
   });
@@ -112,8 +133,9 @@ describe('server/graphql/loaders/expense', () => {
       expenseWithUserTaxForm = await fakeExpense({
         amount: US_TAX_FORM_THRESHOLD + 100e2,
         CollectiveId: collective.id,
+        type: 'INVOICE',
       });
-      expenseWithOutUserTaxForm = await fakeExpense();
+      expenseWithOutUserTaxForm = await fakeExpense({ type: 'INVOICE' });
     });
 
     it('returns required legal documents', async () => {
