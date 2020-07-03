@@ -497,7 +497,7 @@ async function markExpenseAsPaid(expense, remoteUser) {
     }
   });
 
-  await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID, remoteUser);
+  await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID, remoteUser, { isManualPayout: true });
   return expense;
 }
 
