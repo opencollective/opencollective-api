@@ -2876,14 +2876,12 @@ export default function (Sequelize, DataTypes) {
     }
 
     // fetch any matching slugs or slugs for the top choice in the list above
-    return Sequelize.query(
-      `
-        SELECT slug FROM "Collectives" where slug like '${suggestions[0]}%'
-      `,
-      {
-        type: Sequelize.QueryTypes.SELECT,
-      },
-    )
+    return models.Collective.findAll({
+      attributes: ['slug'],
+      where: { slug: { [Op.startsWith]: suggestions[0] } },
+      paranoid: false,
+      raw: true,
+    })
       .then(userObjectList => userObjectList.map(user => user.slug))
       .then(slugList => slugSuggestionHelper(suggestions[0], slugList, 0));
   };
