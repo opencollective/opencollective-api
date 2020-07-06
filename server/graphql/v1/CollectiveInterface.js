@@ -4,6 +4,7 @@ import {
   GraphQLInt,
   GraphQLInterfaceType,
   GraphQLList,
+  GraphQLNonNull,
   GraphQLObjectType,
   GraphQLString,
 } from 'graphql';
@@ -617,7 +618,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
           },
         },
       },
-      settings: { type: GraphQLJSON },
+      settings: { type: new GraphQLNonNull(GraphQLJSON) },
       isPledged: {
         description: 'Defines if a collective is pledged',
         type: GraphQLBoolean,
@@ -1058,9 +1059,9 @@ const CollectiveFields = () => {
       },
     },
     settings: {
-      type: GraphQLJSON,
+      type: new GraphQLNonNull(GraphQLJSON),
       resolve(collective) {
-        return collective.settings || {};
+        return collective.settings;
       },
     },
     isPledged: {

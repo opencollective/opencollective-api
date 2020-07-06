@@ -159,7 +159,7 @@ const accountFieldsDefinition = () => ({
     },
   },
   settings: {
-    type: GraphQLJSON,
+    type: new GraphQLNonNull(GraphQLJSON),
   },
   conversations: {
     type: ConversationCollection,
