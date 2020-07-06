@@ -2,6 +2,7 @@ import { URLSearchParams } from 'url';
 
 import { pick } from 'lodash';
 
+import ORDER_STATUS from '../../../constants/order_status';
 import emailLib from '../../../lib/email';
 import logger from '../../../lib/logger';
 import models, { Op } from '../../../models';
@@ -168,6 +169,7 @@ export async function removePaymentMethod(paymentMethodId, remoteUser) {
 
   // Block the removal if the payment method has subscriptions linked
   const subscriptions = await paymentMethod.getOrders({
+    where: { status: ORDER_STATUS.ACTIVE },
     include: [
       {
         model: models.Subscription,
