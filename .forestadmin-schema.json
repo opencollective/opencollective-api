@@ -5943,21 +5943,6 @@
       "paginationType": "page",
       "fields": [
         {
-          "field": "_salt",
-          "type": "String",
-          "defaultValue": "$2b$10$gFqMwjgr9Rm9G2N2Muuvxe",
-          "enums": null,
-          "integration": null,
-          "isFilterable": true,
-          "isReadOnly": false,
-          "isRequired": false,
-          "isSortable": true,
-          "isVirtual": false,
-          "reference": null,
-          "inverseOf": null,
-          "validations": []
-        },
-        {
           "field": "collective",
           "type": "Number",
           "defaultValue": null,
@@ -6174,66 +6159,6 @@
               "value": null
             }
           ]
-        },
-        {
-          "field": "password_hash",
-          "type": "String",
-          "defaultValue": null,
-          "enums": null,
-          "integration": null,
-          "isFilterable": true,
-          "isReadOnly": false,
-          "isRequired": false,
-          "isSortable": true,
-          "isVirtual": false,
-          "reference": null,
-          "inverseOf": null,
-          "validations": []
-        },
-        {
-          "field": "refresh_token",
-          "type": "String",
-          "defaultValue": "$2b$10$WvXnB6m35rmgaphB3mvl3O",
-          "enums": null,
-          "integration": null,
-          "isFilterable": true,
-          "isReadOnly": false,
-          "isRequired": false,
-          "isSortable": true,
-          "isVirtual": false,
-          "reference": null,
-          "inverseOf": null,
-          "validations": []
-        },
-        {
-          "field": "resetPasswordSentAt",
-          "type": "Date",
-          "defaultValue": null,
-          "enums": null,
-          "integration": null,
-          "isFilterable": true,
-          "isReadOnly": false,
-          "isRequired": false,
-          "isSortable": true,
-          "isVirtual": false,
-          "reference": null,
-          "inverseOf": null,
-          "validations": []
-        },
-        {
-          "field": "resetPasswordTokenHash",
-          "type": "String",
-          "defaultValue": null,
-          "enums": null,
-          "integration": null,
-          "isFilterable": true,
-          "isReadOnly": false,
-          "isRequired": false,
-          "isSortable": true,
-          "isVirtual": false,
-          "reference": null,
-          "inverseOf": null,
-          "validations": []
         },
         {
           "field": "transactions",

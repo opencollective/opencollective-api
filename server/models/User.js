@@ -1,4 +1,3 @@
-import bcrypt from 'bcrypt';
 import Promise from 'bluebird';
 import { isEmailBurner } from 'burner-email-providers';
 import config from 'config';
@@ -16,11 +15,6 @@ import { isValidEmail } from '../lib/utils';
 const debug = debugLib('models:User');
 
 /**
- * Constants.
- */
-const SALT_WORK_FACTOR = 10;
-
-/**
  * Model.
  */
 export default (Sequelize, DataTypes) => {
@@ -35,7 +29,7 @@ export default (Sequelize, DataTypes) => {
       email: {
         type: DataTypes.STRING,
         allowNull: false,
-        unique: true, // need that? http://stackoverflow.com/questions/16356856/sequelize-js-custom-validator-check-for-unique-username-password
+        unique: true,
         set(val) {
           if (val && val.toLowerCase) {
             this.setDataValue('email', val.toLowerCase());
@@ -72,47 +66,6 @@ export default (Sequelize, DataTypes) => {
       emailConfirmationToken: {
         type: DataTypes.STRING,
       },
-
-      _salt: {
-        type: DataTypes.STRING,
-        defaultValue: bcrypt.genSaltSync(SALT_WORK_FACTOR),
-      },
-
-      // eslint-disable-next-line camelcase
-      refresh_token: {
-        type: DataTypes.STRING,
-        defaultValue: bcrypt.genSaltSync(SALT_WORK_FACTOR),
-      },
-
-      // eslint-disable-next-line camelcase
-      password_hash: DataTypes.STRING,
-
-      password: {
-        type: DataTypes.VIRTUAL,
-        set(val) {
-          const password = String(val);
-          this.setDataValue('password', password);
-          this.setDataValue('password_hash', bcrypt.hashSync(password, this._salt));
-        },
-        validate: {
-          len: {
-            args: [6, 128],
-            msg: 'Password must be between 6 and 128 characters in length',
-          },
-        },
-      },
-
-      resetPasswordTokenHash: DataTypes.STRING,
-      // hash the token to avoid someone with access to the db to generate passwords
-      resetPasswordToken: {
-        type: DataTypes.VIRTUAL,
-        set(val) {
-          this.setDataValue('resetPasswordToken', val);
-          this.setDataValue('resetPasswordTokenHash', bcrypt.hashSync(val, this._salt));
-        },
-      },
-
-      resetPasswordSentAt: DataTypes.DATE,
 
       createdAt: {
         type: DataTypes.DATE,
