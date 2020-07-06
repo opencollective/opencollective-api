@@ -2085,6 +2085,7 @@ export const PaymentMethodType = new GraphQLObjectType({
         resolve(paymentMethod, args) {
           const query = {};
           if (args.hasActiveSubscription) {
+            query.where = { status: orderStatus.ACTIVE };
             query.include = [
               {
                 model: models.Subscription,
