@@ -325,6 +325,9 @@ export default function (Sequelize, DataTypes) {
 
       settings: {
         type: DataTypes.JSONB,
+        get() {
+          return this.getDataValue('settings') || {};
+        },
         set(value) {
           this.setDataValue('settings', whitelistSettings(value));
         },
