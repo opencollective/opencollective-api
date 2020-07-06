@@ -177,24 +177,12 @@ export default function (Sequelize, DataTypes) {
         },
       },
 
-      // Max quantity of tickets per user (0 for unlimited)
-      maxQuantityPerUser: {
-        type: DataTypes.INTEGER,
-        validate: {
-          min: 0,
-        },
-      },
-
       // Goal to reach
       goal: {
         type: DataTypes.INTEGER,
         validate: {
           min: 0,
         },
-      },
-
-      password: {
-        type: DataTypes.STRING,
       },
 
       customFields: {
@@ -338,7 +326,6 @@ export default function (Sequelize, DataTypes) {
     });
   };
 
-  // TODO: Check for maxQuantityPerUser
   Tier.prototype.availableQuantity = function () {
     if (!this.maxQuantity) {
       return Promise.resolve(maxInteger);

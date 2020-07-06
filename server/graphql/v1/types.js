@@ -1529,22 +1529,10 @@ export const TierType = new GraphQLObjectType({
           return tier.maxQuantity;
         },
       },
-      maxQuantityPerUser: {
-        type: GraphQLInt,
-        resolve(tier) {
-          return tier.maxQuantityPerUser;
-        },
-      },
       goal: {
         type: GraphQLInt,
         resolve(tier) {
           return tier.goal;
-        },
-      },
-      password: {
-        type: GraphQLString,
-        resolve(tier) {
-          return tier.password;
         },
       },
       customFields: {

@@ -287,12 +287,10 @@ export const TierInputType = new GraphQLInputObjectType({
     maxQuantity: { type: GraphQLInt },
     minimumAmount: { type: GraphQLInt },
     amountType: { type: GraphQLString },
-    maxQuantityPerUser: { type: GraphQLInt },
     goal: {
       type: GraphQLInt,
       description: 'amount that you are trying to raise with this tier',
     },
-    password: { type: GraphQLString },
     customFields: { type: new GraphQLList(CustomFieldsInputType) },
     startsAt: {
       type: GraphQLString,
