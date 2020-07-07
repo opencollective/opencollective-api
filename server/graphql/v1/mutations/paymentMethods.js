@@ -169,7 +169,7 @@ export async function removePaymentMethod(paymentMethodId, remoteUser) {
 
   // Block the removal if the payment method has subscriptions linked
   const subscriptions = await paymentMethod.getOrders({
-    where: { status: ORDER_STATUS.ACTIVE },
+    where: { status: { [Op.or]: [ORDER_STATUS.ACTIVE, ORDER_STATUS.ERROR] } },
     include: [
       {
         model: models.Subscription,

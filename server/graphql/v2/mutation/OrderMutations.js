@@ -179,7 +179,8 @@ const orderMutations = {
           throw new Unauthorized("You don't have permission to use this payment method");
         }
 
-        order = await order.update({ PaymentMethodId: newPaymentMethod.id });
+        const newStatus = order.status === status.ERROR ? status.ACTIVE : order.status;
+        order = await order.update({ PaymentMethodId: newPaymentMethod.id, status: newStatus });
       }
 
       // amount and tier (will always go together)

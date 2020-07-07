@@ -153,6 +153,10 @@ const accountFieldsDefinition = () => ({
       filter: { type: AccountOrdersFilter },
       status: { type: new GraphQLList(OrderStatus) },
       tierSlug: { type: GraphQLString },
+      onlySubscriptions: {
+        type: GraphQLBoolean,
+        description: 'Only returns orders that have an subscription (monthly/yearly)',
+      },
       orderBy: {
         type: ChronologicalOrderInput,
       },
@@ -272,13 +276,17 @@ const accountOrders = {
     filter: { type: AccountOrdersFilter },
     status: { type: new GraphQLList(OrderStatus) },
     tierSlug: { type: GraphQLString },
+    onlySubscriptions: {
+      type: GraphQLBoolean,
+      description: 'Only returns orders that have an subscription (monthly/yearly)',
+    },
     orderBy: {
       type: ChronologicalOrderInput,
       defaultValue: ChronologicalOrderInput.defaultValue,
     },
   },
   async resolve(collective, args) {
-    let where;
+    let where, include;
     if (args.filter === 'OUTGOING') {
       where = { FromCollectiveId: collective.id };
     } else if (args.filter === 'INCOMING') {
@@ -307,8 +315,13 @@ const accountOrders = {
       args.offset = 0;
     }
 
+    if (args.onlySubscriptions) {
+      include = [{ model: models.Subscription, required: true }];
+    }
+
     const result = await models.Order.findAndCountAll({
       where,
+      include,
       limit: args.limit,
       offset: args.offset,
       order: [[args.orderBy.field, args.orderBy.direction]],
