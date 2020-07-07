@@ -317,7 +317,7 @@ export const executeOrder = async (user, order, options) => {
         { id: user.id, CollectiveId: order.FromCollectiveId },
         roles.BACKER,
         {},
-        { order },
+        { skipActivity: true },
       );
     }
 
