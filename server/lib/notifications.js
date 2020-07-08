@@ -9,7 +9,6 @@ import activityType from '../constants/activities';
 import activitiesLib from '../lib/activities';
 import emailLib from '../lib/email';
 import models from '../models';
-import { PayoutMethodTypes } from '../models/PayoutMethod';
 
 import slackLib from './slack';
 import twitter from './twitter';
@@ -285,13 +284,7 @@ async function notifyByEmail(activity) {
       activity.data.actions = {
         viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
       };
-      if (get(activity.data, 'payoutMethod.type') === PayoutMethodTypes.PAYPAL) {
-        activity.data.expense.payoutMethodLabel = `PayPal (${get(activity.data, 'payoutMethod.data.email')})`;
-      } else if (get(activity.data, 'payoutMethod.type') === PayoutMethodTypes.BANK_ACCOUNT) {
-        activity.data.expense.payoutMethodLabel = 'Wire Transfer';
-      } else {
-        activity.data.expense.payoutMethodLabel = 'Other';
-      }
+      activity.data.expense.payoutMethodLabel = models.PayoutMethod.getLabel(activity.data.payoutMethod);
       notifyUserId(activity.data.expense.UserId, activity);
       // We only notify the admins of the host if the collective is active (ie. has been approved by the host)
       if (get(activity, 'data.host.id') && get(activity, 'data.collective.isActive')) {
@@ -306,6 +299,7 @@ async function notifyByEmail(activity) {
       activity.data.actions = {
         viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
       };
+      activity.data.expense.payoutMethodLabel = models.PayoutMethod.getLabel(activity.data.payoutMethod);
       notifyUserId(activity.data.expense.UserId, activity);
       if (get(activity, 'data.host.id')) {
         notifyAdminsOfCollective(activity.data.host.id, activity, {

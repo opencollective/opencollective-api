@@ -122,6 +122,19 @@ export class PayoutMethod extends Model<PayoutMethod> {
     return PayoutMethod.update(cleanData, { where: { id }, transaction: dbTransaction });
   }
 
+  static getLabel(payoutMethod): string {
+    if (!payoutMethod) {
+      return 'Other';
+    } else if (payoutMethod.type === PayoutMethodTypes.PAYPAL) {
+      const email = payoutMethod.data?.email;
+      return !email ? 'PayPal' : `PayPal (${email})`;
+    } else if (payoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
+      return 'Wire Transfer';
+    } else {
+      return 'Other';
+    }
+  }
+
   /** Filters out all the fields that cannot be edited by user */
   private static cleanData(data: object): object {
     return pick(data, PayoutMethod.editableFields);
