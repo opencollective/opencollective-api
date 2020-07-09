@@ -94,7 +94,6 @@ function publishToSlackPrivateChannel(activity) {
  */
 async function notifySubscribers(users, activity, options = {}) {
   const { data } = activity;
-
   if (!users || users.length === 0) {
     debug('notifySubscribers: no user to notify for activity', activity.type);
     return;
@@ -166,8 +165,7 @@ export async function notifyAdminsOfCollective(CollectiveId, activity, options =
  */
 export async function notifyHostedCollectiveAdmins(CollectiveId, activity, options = {}) {
   const collective = await models.Collective.findByPk(CollectiveId);
-  const adminUsers = collective.getHostedCollectiveAdmins();
-
+  const adminUsers = await collective.getHostedCollectiveAdmins();
   return notifySubscribers(adminUsers, activity, options);
 }
 /**
