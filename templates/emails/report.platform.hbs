@@ -133,9 +133,36 @@ Subject: {{month}} {{year}} Platform Report
         <td align="right">{{{currency platformFeesPaypal currency=currency}}}</td>
       </tr>
       <tr>
-        <th colspan=2>Fees still due:</th>
+        <th colspan=2>Fees on top:</th>
         <td></td>
-        <td align="right">{{{currency platformFeesDue currency=currency}}}</td>
+        <td align="right">{{{currency feesOnTop currency='USD'}}}</td>
+      </tr>
+      <tr>
+        <td></td>
+        <td>Stripe (already paid automatically):</td>
+        <td></td>
+        <td align="right">{{{currency feesOnTopStripe currency='USD'}}}</td>
+      </tr>
+      <tr>
+        <td></td>
+        <td>Manually added funds:</td>
+        <td></td>
+        <td align="right">{{{currency feesOnTopManual currency='USD'}}}</td>
+      </tr>
+      <tr>
+        <td></td>
+        <td>PayPal:</td>
+        <td></td>
+        <td align="right">{{{currency feesOnTopPaypal currency='USD'}}}</td>
+      </tr>
+      <tr>
+        <th colspan=2>Fees still due: (OnTop + Platform)</th>
+        <td></td>
+        {{#if isUSD}}
+        <td align="right">{{{currency totalFeesDue currency=currency}}}</td>
+        {{else}}
+        <td align="right">{{{currency platformFeesDue currency=currency}}} + {{{currency feesOnTopDue currency='USD'}}} </td>
+        {{/if}}
       </tr>
     </table>
     {{/if}}
@@ -151,6 +178,7 @@ Subject: {{month}} {{year}} Platform Report
         <th>total revenue</th>
         <th>host fees</th>
         <th>platform fees</th>
+        <th>fees on top (USD)</th>
       </tr>
       {{#each hosts}}
       <tr>
@@ -160,6 +188,7 @@ Subject: {{month}} {{year}} Platform Report
         <td align="right">{{{currency totalRevenue currency=currency}}}</td>
         <td align="right">{{{currency hostFees currency=currency}}}</td>
         <td align="right">{{{currency platformFees currency=currency}}}</td>
+        <td align="right">{{{currency feesOnTop currency='USD'}}}</td>
       </tr>
       {{/each}}
 

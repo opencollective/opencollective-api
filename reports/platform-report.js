@@ -18,7 +18,15 @@ const query = (query, values) => {
 const getPlatformRevenue = async (startDate, endDate) => {
   const res = await query(
     `
-  SELECT currency, -SUM("platformFeeInHostCurrency") as "amount"
+  SELECT
+    -- In the case this is a fees on top transaction, the currency will already be USD
+    currency,
+    SUM(
+      CASE
+        WHEN (t."data"->>'isFeesOnTop' = 'true' AND t."type" = 'CREDIT' AND t."CollectiveId" = 1) THEN t."amount"
+        ELSE -t."platformFeeInHostCurrency"
+      END
+    ) as "amount"
   FROM "Transactions" t
   WHERE t."deletedAt" IS NULL
     AND t."OrderId" IS NOT NULL
@@ -105,7 +113,7 @@ async function PlatformReport(year, month) {
   const getPlatformStats = async () => {
     console.log('>>> Computing platform stats');
 
-    const hosts = await query(
+    let hosts = await query(
       `
       with "donationsData" as (
         SELECT t."HostCollectiveId",
@@ -137,15 +145,61 @@ async function PlatformReport(year, month) {
           AND t."deletedAt" IS NULL
           AND m."deletedAt" IS NULL
         GROUP BY t."HostCollectiveId"
+      ),
+      "feesOnTopTransactions" AS (
+        SELECT
+          max((CASE WHEN pm."service" = 'paypal' AND t."CollectiveId" = 1 THEN t."amount" ELSE 0 END)::float) as "feeOnTopPaypal",
+          max((CASE WHEN (pm."service" = 'stripe' OR spm.service = 'stripe') AND t."CollectiveId" = 1 THEN t."amount" ELSE 0 END)::float) as "feeOnTopStripe",
+          max((CASE WHEN pm."service" != 'stripe' AND pm."service" != 'paypal' AND (spm.service IS NULL OR spm.service != 'stripe') AND t."CollectiveId" = 1 THEN t."platformFeeInHostCurrency" ELSE 0 END)::float) as "feeOnTopManual",
+          max((CASE WHEN (pm."service" != 'stripe' OR pm.service IS NULL) AND (spm.service IS NULL OR spm.service != 'stripe') AND t."CollectiveId" = 1 THEN t."amount" ELSE 0 END)::float) as "feeOnTopDue",
+          max((CASE WHEN t."CollectiveId" != 1 THEN t."HostCollectiveId" ELSE 0 END)) AS "HostCollectiveId",
+          t."OrderId"
+          FROM "Transactions" t
+          LEFT JOIN "PaymentMethods" pm ON pm.id = t."PaymentMethodId"
+          LEFT JOIN "PaymentMethods" spm ON spm.id = pm."SourcePaymentMethodId"
+          WHERE
+            t."type" = 'CREDIT'
+            AND t."data"->>'isFeesOnTop' = 'true'
+            AND t."createdAt" >= :startDate AND t."createdAt" < :endDate
+          GROUP BY t."OrderId"
+      ),
+      "feesOnTopByHost" AS (
+        SELECT
+          "HostCollectiveId",
+          sum("feeOnTopPaypal") AS "feesOnTopPaypal",
+          sum("feeOnTopManual") AS "feesOnTopManual",
+          sum("feeOnTopStripe") AS "feesOnTopStripe",
+          sum("feeOnTopDue") AS "feesOnTopDue"
+        FROM "feesOnTopTransactions"
+        GROUP BY "HostCollectiveId"
       )
-      SELECT hc.slug as "host", hc.currency, d.*, stats.*
+
+      SELECT
+        hc.slug as "host",
+        hc.currency,
+        d.*,
+        stats.*,
+        fot.*,
+        COALESCE(fot."feesOnTopPaypal", 0) + COALESCE(fot."feesOnTopManual", 0) + COALESCE(fot."feesOnTopStripe", 0) as "feesOnTop" 
       FROM "donationsData" d
       LEFT JOIN "hostedCollectivesStats" stats ON d."HostCollectiveId" = stats."HostCollectiveId"
+      LEFT JOIN "feesOnTopByHost" fot ON fot."HostCollectiveId" = d."HostCollectiveId"
       LEFT JOIN "Collectives" hc ON hc.id = d."HostCollectiveId"
       WHERE d."platformFees" > 0
       ORDER BY d."totalRevenue" DESC
     `,
       { startDate, endDate },
+    );
+
+    hosts = await Promise.all(
+      hosts.map(async host => {
+        const isUSD = host.currency === 'USD';
+        return {
+          ...host,
+          isUSD,
+          totalFeesDue: isUSD ? (host.feesOnTopDue || 0) + host.platformFeesDue : null,
+        };
+      }),
     );
 
     const activeHosts = await getNumberOfActiveHosts(startDate, endDate);
