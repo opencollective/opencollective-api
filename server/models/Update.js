@@ -270,12 +270,14 @@ export default function (Sequelize, DataTypes) {
     this.publishedAt = new Date();
     this.notificationAudience = notificationAudience;
     this.collective = this.collective || (await models.Collective.findByPk(this.CollectiveId));
+    this.fromCollective = this.fromCollective || (await models.Collective.findByPk(this.FromCollectiveId));
 
     models.Activity.create({
       type: activities.COLLECTIVE_UPDATE_PUBLISHED,
       UserId: remoteUser.id,
       CollectiveId: this.CollectiveId,
       data: {
+        fromCollective: this.fromCollective.activity,
         collective: this.collective.activity,
         update: this.activity,
         url: `${config.host.website}/${this.collective.slug}/updates/${this.slug}`,

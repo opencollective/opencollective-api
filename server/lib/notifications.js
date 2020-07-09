@@ -211,6 +211,7 @@ async function notifyByEmail(activity) {
     case activityType.COLLECTIVE_UPDATE_PUBLISHED:
       twitter.tweetActivity(activity);
 
+      activity.data.fromCollective = (await models.Collective.findByPk(activity.data.fromCollective.id))?.info;
       activity.data.collective = await models.Collective.findByPk(activity.data.collective.id);
       activity.data.collective = activity.data.collective.info;
       activity.data.fromEmail = `${activity.data.collective.name}<no-reply@${activity.data.collective.slug}.opencollective.com>`;
