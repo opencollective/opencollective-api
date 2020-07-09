@@ -473,6 +473,7 @@ export async function approveCollective(remoteUser, CollectiveId) {
     }),
   );
 
+  purgeCacheForPage(`/${collective.slug}`);
   // Approve the collective and return it
   return collective.update({ isActive: true, approvedAt: new Date() });
 }
@@ -898,6 +899,7 @@ export async function rejectCollective(_, args, req) {
     },
   });
 
+  purgeCacheForPage(`/${collective.slug}`);
   return collective.changeHost(null, req.remoteUser);
 }
 
