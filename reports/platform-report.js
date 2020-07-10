@@ -191,16 +191,14 @@ async function PlatformReport(year, month) {
       { startDate, endDate },
     );
 
-    hosts = await Promise.all(
-      hosts.map(async host => {
-        const isUSD = host.currency === 'USD';
-        return {
-          ...host,
-          isUSD,
-          totalFeesDue: isUSD ? (host.feesOnTopDue || 0) + host.platformFeesDue : null,
-        };
-      }),
-    );
+    hosts = hosts.map(host => {
+      const isUSD = host.currency === 'USD';
+      return {
+        ...host,
+        isUSD,
+        totalFeesDue: isUSD ? (host.feesOnTopDue || 0) + host.platformFeesDue : null,
+      };
+    });
 
     const activeHosts = await getNumberOfActiveHosts(startDate, endDate);
     const previousActiveHosts = await getNumberOfActiveHosts(previousStartDate, startDate);
