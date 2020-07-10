@@ -15,7 +15,7 @@ const {
 
 const userTaxFormRequiredBeforePaymentQuery = `
   SELECT 
-    all_expenses."FromCollectiveId",
+  analyzed_expenses."FromCollectiveId",
     analyzed_expenses.id as "expenseId",
     MAX(ld."requestStatus") as "legalDocRequestStatus",
     d."documentType" as "requiredDocument",
@@ -25,14 +25,14 @@ const userTaxFormRequiredBeforePaymentQuery = `
   INNER JOIN "Expenses" all_expenses
     ON all_expenses."FromCollectiveId" = analyzed_expenses."FromCollectiveId"
   INNER JOIN "Collectives" from_collective
-    ON from_collective.id = all_expenses."FromCollectiveId"
+    ON from_collective.id = analyzed_expenses."FromCollectiveId"
   INNER JOIN "Collectives" c
-    ON c.id = all_expenses."CollectiveId"
+    ON c.id = analyzed_expenses."CollectiveId"
   INNER JOIN "RequiredLegalDocuments" d
     ON d."HostCollectiveId" = c."HostCollectiveId"
     AND d."documentType" = 'US_TAX_FORM'
   LEFT JOIN "LegalDocuments" ld
-    ON ld."CollectiveId" = all_expenses."FromCollectiveId"
+    ON ld."CollectiveId" = analyzed_expenses."FromCollectiveId"
     AND ld.year = date_part('year', all_expenses."incurredAt")
     AND ld."documentType" = 'US_TAX_FORM'
   WHERE analyzed_expenses.id IN (:expenseIds)
@@ -44,7 +44,7 @@ const userTaxFormRequiredBeforePaymentQuery = `
   AND all_expenses.status NOT IN ('ERROR', 'REJECTED')
   AND all_expenses."deletedAt" IS NULL
   AND all_expenses."incurredAt" BETWEEN date_trunc('year', all_expenses."incurredAt") AND (date_trunc('year', all_expenses."incurredAt") + interval '1 year')
-  GROUP BY analyzed_expenses.id, all_expenses."FromCollectiveId", d."documentType"
+  GROUP BY analyzed_expenses.id, analyzed_expenses."FromCollectiveId", d."documentType"
 `;
 
 /**
