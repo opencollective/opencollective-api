@@ -106,11 +106,14 @@ const ExpensesQuery = {
         { tags: { [Op.overlap]: [args.searchTerm.toLowerCase()] } },
         { '$fromCollective.slug$': { [Op.iLike]: ilikeQuery } },
         { '$fromCollective.name$': { [Op.iLike]: ilikeQuery } },
+        { '$User.collective.slug$': { [Op.iLike]: ilikeQuery } },
+        { '$User.collective.name$': { [Op.iLike]: ilikeQuery } },
         // { '$items.description$': { [Op.iLike]: ilikeQuery } },
       ];
 
       include.push(
         { association: 'fromCollective', attributes: [] },
+        { association: 'User', attributes: [], include: [{ association: 'collective', attributes: [] }] },
         // One-to-many relationships with limits are broken in Sequelize. Could be fixed by https://github.com/sequelize/sequelize/issues/4376
         // { association: 'items', duplicating: false, attributes: [], separate: true },
       );
