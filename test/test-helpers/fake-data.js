@@ -66,18 +66,6 @@ export const fakeHost = async hostData => {
   });
 };
 
-/** Create a fake host */
-export const fakeHostWithRequiredLegalDocument = async (hostData = {}) => {
-  const host = await fakeHost(hostData);
-  const requiredDoc = {
-    HostCollectiveId: host.id,
-    documentType: 'US_TAX_FORM',
-  };
-
-  await models.RequiredLegalDocument.create(requiredDoc);
-  return host;
-};
-
 /**
  * Creates a fake collective. All params are optionals.
  */

@@ -4,14 +4,21 @@ import { loaders } from '../../../../server/graphql/loaders';
 import { requiredLegalDocuments, userTaxFormRequiredBeforePayment } from '../../../../server/graphql/loaders/expenses';
 import models from '../../../../server/models';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../server/models/LegalDocument';
-import {
-  fakeCollective,
-  fakeExpense,
-  fakeHostWithRequiredLegalDocument,
-  fakeUser,
-} from '../../../test-helpers/fake-data';
+import { fakeCollective, fakeExpense, fakeHost, fakeUser } from '../../../test-helpers/fake-data';
 
 const US_TAX_FORM_THRESHOLD = 600e2;
+
+/** Create a fake host */
+const fakeHostWithRequiredLegalDocument = async (hostData = {}) => {
+  const host = await fakeHost(hostData);
+  const requiredDoc = {
+    HostCollectiveId: host.id,
+    documentType: 'US_TAX_FORM',
+  };
+
+  await models.RequiredLegalDocument.create(requiredDoc);
+  return host;
+};
 
 describe('server/graphql/loaders/expense', () => {
   describe('userTaxFormRequiredBeforePayment', () => {
@@ -57,6 +64,27 @@ describe('server/graphql/loaders/expense', () => {
         const result2 = await loader.load(secondExpense.id);
         expect(result1).to.be.true;
         expect(result2).to.be.true;
+      });
+
+      it('when the form was submitted for past year', async () => {
+        const user = await fakeUser();
+        const loader = userTaxFormRequiredBeforePayment({ loaders: loaders(req) });
+        const expenseWithUserTaxForm = await fakeExpense({
+          amount: US_TAX_FORM_THRESHOLD + 100e2,
+          CollectiveId: collective.id,
+          FromCollectiveId: user.CollectiveId,
+          UserId: user.id,
+          type: 'INVOICE',
+        });
+        await models.LegalDocument.create({
+          year: parseInt(new Date().toISOString().split('-')) - 1,
+          documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
+          documentLink: 'https://opencollective.com/tos',
+          requestStatus: 'RECEIVED',
+          CollectiveId: user.CollectiveId,
+        });
+        const result = await loader.load(expenseWithUserTaxForm.id);
+        expect(result).to.be.true;
       });
     });
 
