@@ -41,6 +41,7 @@ describe('server/graphql/v1/updates', () => {
       CollectiveId: collective1.id,
       FromCollectiveId: user1.CollectiveId,
       CreatedByUserId: user1.id,
+      notificationAudience: 'FINANCIAL_CONTRIBUTORS',
       title: 'first update & "love"',
       html: 'long text for the update #1 <a href="https://google.com">here is a link</a>',
     }).then(u => (update1 = u));
@@ -101,8 +102,8 @@ describe('server/graphql/v1/updates', () => {
 
   describe('publish an update', () => {
     const publishUpdateQuery = `
-    mutation publishUpdate($id: Int!) {
-      publishUpdate(id: $id) {
+    mutation publishUpdate($id: Int!, $notificationAudience: UpdateAudienceTypeEnum!) {
+      publishUpdate(id: $id, notificationAudience: $notificationAudience) {
         id
         slug
         publishedAt
@@ -113,13 +114,18 @@ describe('server/graphql/v1/updates', () => {
     it('fails if not authenticated', async () => {
       const result = await utils.graphqlQuery(publishUpdateQuery, {
         id: update1.id,
+        notificationAudience: update1.notificationAudience,
       });
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal('You must be logged in to publish this update');
     });
 
     it('fails if not authenticated as admin of collective', async () => {
-      const result = await utils.graphqlQuery(publishUpdateQuery, { id: update1.id }, user2);
+      const result = await utils.graphqlQuery(
+        publishUpdateQuery,
+        { id: update1.id, notificationAudience: update1.notificationAudience },
+        user2,
+      );
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal("You don't have sufficient permissions to publish this update");
     });
@@ -129,7 +135,7 @@ describe('server/graphql/v1/updates', () => {
       await models.Update.update({ publishedAt: new Date() }, { where: { id: update1.id } });
       const result = await utils.graphqlQuery(
         publishUpdateQuery.replace(/publish\(/g, 'unpublish('),
-        { id: update1.id },
+        { id: update1.id, notificationAudience: update1.notificationAudience },
         user1,
       );
       expect(result.errors).to.not.exist;
@@ -168,7 +174,11 @@ describe('server/graphql/v1/updates', () => {
           service: 'twitter',
           settings: { updatePublished: { active: true } },
         });
-        result = await utils.graphqlQuery(publishUpdateQuery, { id: update1.id }, user1);
+        result = await utils.graphqlQuery(
+          publishUpdateQuery,
+          { id: update1.id, notificationAudience: update1.notificationAudience },
+          user1,
+        );
       });
 
       it('published the update successfully', async () => {

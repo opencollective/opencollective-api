@@ -90,6 +90,22 @@ export const PayoutMethodTypeEnum = new GraphQLEnumType({
   }, {}),
 });
 
+export const UpdateAudienceTypeEnum = new GraphQLEnumType({
+  name: 'UpdateAudienceTypeEnum',
+  description: 'Defines targets for an update',
+  values: {
+    ALL: {
+      description: 'Will be sent to collective admins and financial contributors',
+    },
+    COLLECTIVE_ADMINS: {
+      description: 'Will be sent to collective admins',
+    },
+    FINANCIAL_CONTRIBUTORS: {
+      description: 'Will be sent to financial contributors',
+    },
+  },
+});
+
 export const PayoutMethodType = new GraphQLObjectType({
   name: 'PayoutMethod',
   description: 'A payout method for expenses',
@@ -1004,6 +1020,12 @@ export const UpdateType = new GraphQLObjectType({
         type: GraphQLBoolean,
         resolve(update) {
           return update.isPrivate;
+        },
+      },
+      notificationAudience: {
+        type: UpdateAudienceTypeEnum,
+        resolve(update) {
+          return update.notificationAudience;
         },
       },
       makePublicOn: {

@@ -539,6 +539,7 @@ export default function (Sequelize, DataTypes) {
             createdAt: this.createdAt,
             updatedAt: this.updatedAt,
             isActive: this.isActive,
+            isHostAccount: this.isHostAccount,
             slug: this.slug,
             tiers: this.tiers,
             settings: this.settings,
@@ -1584,6 +1585,22 @@ export default function (Sequelize, DataTypes) {
     });
     const hostedCollectiveIds = hostedCollectives.map(m => m.CollectiveId);
     return models.Collective.findAll({ where: { id: { [Op.in]: hostedCollectiveIds } } });
+  };
+
+  Collective.prototype.getHostedCollectiveAdmins = async function () {
+    const adminMembersIds = await models.Member.findAll({
+      where: { MemberCollectiveId: this.id, role: roles.HOST },
+    }).then(async collectives => {
+      const hostedCollectiveIds = collectives.map(c => c.CollectiveId);
+      return models.Member.findAll({
+        where: {
+          CollectiveId: { [Op.in]: hostedCollectiveIds },
+          role: roles.ADMIN,
+        },
+      }).then(admins => admins.map(a => a.MemberCollectiveId));
+    });
+
+    return models.User.findAll({ where: { CollectiveId: { [Op.in]: adminMembersIds } } });
   };
 
   Collective.prototype.updateHostFee = async function (hostFeePercent, remoteUser) {

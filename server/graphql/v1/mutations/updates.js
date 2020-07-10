@@ -60,7 +60,7 @@ export async function editUpdate(_, args, req) {
 
 export async function publishUpdate(_, args, req) {
   let update = await fetchUpdate(args.id);
-  update = await update.publish(req.remoteUser);
+  update = await update.publish(req.remoteUser, args.notificationAudience);
   const collective = await models.Collective.findByPk(update.CollectiveId);
   purgeCacheForPage(`/${collective.slug}`);
   return update;

@@ -93,7 +93,6 @@ function publishToSlackPrivateChannel(activity) {
  */
 async function notifySubscribers(users, activity, options = {}) {
   const { data } = activity;
-
   if (!users || users.length === 0) {
     debug('notifySubscribers: no user to notify for activity', activity.type);
     return;
@@ -161,6 +160,14 @@ export async function notifyAdminsOfCollective(CollectiveId, activity, options =
 }
 
 /**
+ * Notify all admins of hosted collectives
+ */
+export async function notifyHostedCollectiveAdmins(CollectiveId, activity, options = {}) {
+  const collective = await models.Collective.findByPk(CollectiveId);
+  const adminUsers = await collective.getHostedCollectiveAdmins();
+  return notifySubscribers(adminUsers, activity, options);
+}
+/**
  * Notify all the followers of the conversation.
  */
 export async function notififyConversationFollowers(conversation, activity, options = {}) {
@@ -200,14 +207,40 @@ async function notifyByEmail(activity) {
 
     case activityType.COLLECTIVE_UPDATE_PUBLISHED:
       twitter.tweetActivity(activity);
-      activity.data.update = await models.Update.findByPk(activity.data.update.id, {
-        include: [{ model: models.Collective, as: 'fromCollective' }],
-      });
-      activity.data.update = activity.data.update.info;
-      notifyMembersOfCollective(activity.data.update.CollectiveId, activity, {
-        from: `${activity.data.collective.name}
-        <no-reply@${activity.data.collective.slug}.opencollective.com>`,
-      });
+
+      activity.data.fromCollective = (await models.Collective.findByPk(activity.data.fromCollective.id))?.info;
+      activity.data.collective = await models.Collective.findByPk(activity.data.collective.id);
+      activity.data.collective = activity.data.collective.info;
+      activity.data.fromEmail = `${activity.data.collective.name}<no-reply@${activity.data.collective.slug}.opencollective.com>`;
+      if (activity.data.collective.isHostAccount) {
+        switch (activity.data.update.notificationAudience) {
+          case 'COLLECTIVE_ADMINS':
+            notifyHostedCollectiveAdmins(activity.data.update.CollectiveId, activity, {
+              from: activity.data.fromEmail,
+            });
+            break;
+
+          case 'FINANCIAL_CONTRIBUTORS':
+            notifyMembersOfCollective(activity.data.update.CollectiveId, activity, {
+              from: activity.data.fromEmail,
+            });
+            break;
+
+          case 'ALL':
+            notifyHostedCollectiveAdmins(activity.data.update.CollectiveId, activity, {
+              from: activity.data.fromEmail,
+            });
+
+            notifyMembersOfCollective(activity.data.update.CollectiveId, activity, {
+              from: activity.data.fromEmail,
+            });
+            break;
+        }
+      } else {
+        notifyMembersOfCollective(activity.data.update.CollectiveId, activity, {
+          from: activity.data.fromEmail,
+        });
+      }
       break;
 
     case activityType.SUBSCRIPTION_CANCELED:
