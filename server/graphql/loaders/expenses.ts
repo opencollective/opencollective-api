@@ -104,22 +104,27 @@ export const attachedFiles = (): DataLoader<number, ExpenseAttachedFile[]> => {
   });
 };
 
+const loadTaxFormsRequiredForExpenses = async (expenseIds: number[]): Promise<object> => {
+  const expenses = await sequelize.query(userTaxFormRequiredBeforePaymentQuery, {
+    type: sequelize.QueryTypes.SELECT,
+    raw: true,
+    model: models.Expense,
+    replacements: { expenseIds },
+  });
+  const expenseNeedsTaxForm = {};
+  expenses.forEach(expense => {
+    expenseNeedsTaxForm[expense.expenseId] =
+      expense.requiredDocument && expense.total >= THRESHOLD && expense.legalDocRequestStatus !== RECEIVED;
+  });
+  return expenseNeedsTaxForm;
+};
+
 /**
  * Expense loader to check if userTaxForm is required before expense payment
  */
 export const userTaxFormRequiredBeforePayment = (): DataLoader<number, boolean> => {
   return new DataLoader(async (expenseIds: number[]) => {
-    const expenses = await sequelize.query(userTaxFormRequiredBeforePaymentQuery, {
-      type: sequelize.QueryTypes.SELECT,
-      raw: true,
-      model: models.Expense,
-      replacements: { expenseIds },
-    });
-    const expenseNeedsTaxForm = {};
-    expenses.forEach(expense => {
-      expenseNeedsTaxForm[expense.expenseId] =
-        expense.requiredDocument && expense.total >= THRESHOLD && expense.legalDocRequestStatus !== RECEIVED;
-    });
+    const expenseNeedsTaxForm = await loadTaxFormsRequiredForExpenses(expenseIds);
     return expenseIds.map(id => expenseNeedsTaxForm[id] || false);
   });
 };
@@ -129,20 +134,7 @@ export const userTaxFormRequiredBeforePayment = (): DataLoader<number, boolean> 
  */
 export const requiredLegalDocuments = (): DataLoader<number, string[]> => {
   return new DataLoader(async (expenseIds: number[]) => {
-    const expenses = await sequelize.query(userTaxFormRequiredBeforePaymentQuery, {
-      type: sequelize.QueryTypes.SELECT,
-      raw: true,
-      model: models.Expense,
-      replacements: { expenseIds },
-    });
-
-    const expenseNeedsTaxForm = {};
-
-    expenses.forEach(expense => {
-      expenseNeedsTaxForm[expense.expenseId] =
-        expense.requiredDocument && expense.total >= THRESHOLD && expense.legalDocRequestStatus !== RECEIVED;
-    });
-
+    const expenseNeedsTaxForm = await loadTaxFormsRequiredForExpenses(expenseIds);
     return expenseIds.map(id => (expenseNeedsTaxForm[id] ? [LEGAL_DOCUMENT_TYPE.US_TAX_FORM] : []));
   });
 };
