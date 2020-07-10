@@ -107,6 +107,10 @@ const accountFieldsDefinition = () => ({
     type: GraphQLBoolean,
     description: 'Returns whether the account is setup to Host collectives.',
   },
+  isAdmin: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Returns true if the remote user is an admin of this account',
+  },
   members: {
     type: MemberCollection,
     args: {
@@ -381,6 +385,13 @@ export const AccountFields = {
     description: 'Returns whether the account is setup to Host collectives.',
     resolve(collective) {
       return Boolean(collective.isHostAccount);
+    },
+  },
+  isAdmin: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Returns true if the remote user is an admin of this account',
+    resolve(collective, _, req) {
+      return Boolean(req.remoteUser?.isAdminOfCollective(collective));
     },
   },
   ...HasMembersFields,
