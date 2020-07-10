@@ -209,10 +209,11 @@ const Expense = new GraphQLObjectType({
         description:
           'Returns the list of legal documents required from the payee before the expense can be payed. Must be logged in.',
         async resolve(expense, _, req) {
-          if (!req.remoteUser?.isAdmin(expense.FromCollectiveId)) {
-            return [];
+          if (!(await ExpensePermissionsLib.canViewRequiredLegalDocuments(req, expense))) {
+            return null;
+          } else {
+            return req.loaders.Expense.requiredLegalDocuments.load(expense.id);
           }
-          return req.loaders.Expense.requiredLegalDocuments.load(expense.id);
         },
       },
     };
