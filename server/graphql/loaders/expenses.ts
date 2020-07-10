@@ -15,27 +15,36 @@ const {
 
 const userTaxFormRequiredBeforePaymentQuery = `
   SELECT 
-    e."UserId" "userId", 
-    MAX(er.id) as "expenseId",
+    all_expenses."FromCollectiveId",
+    analyzed_expenses.id as "expenseId",
     MAX(ld."requestStatus") as "legalDocRequestStatus",
-    MAX(d."documentType") as "requiredDocument",
-    SUM (e."amount") AS total
-  FROM "Expenses" e
-  INNER JOIN "Expenses" er ON e."UserId" = er."UserId"
-  INNER JOIN "Collectives" c ON c.id = e."CollectiveId"
-  INNER JOIN "RequiredLegalDocuments" d ON d."HostCollectiveId" = c."HostCollectiveId"
-                                    AND d."documentType" = 'US_TAX_FORM'
-  LEFT JOIN "LegalDocuments" ld ON ld."CollectiveId" = e."FromCollectiveId"
-                                AND ld.year = date_part('year', e."incurredAt")
-                                AND ld."documentType" = 'US_TAX_FORM'
-  WHERE er.id IN (:expenseIds)
-  AND e.type = 'INVOICE'
-  AND er.type = 'INVOICE'
-  AND e.status IN ('PENDING', 'APPROVED', 'PAID', 'PROCESSING', 'SCHEDULED_FOR_PAYMENT')
-  AND e.type NOT IN ('RECEIPT')
-  AND e."deletedAt" IS NULL
-  AND e."incurredAt" BETWEEN date_trunc('year', e."incurredAt") AND (date_trunc('year', e."incurredAt") + interval '1 year')
-  GROUP BY e."UserId"
+    d."documentType" as "requiredDocument",
+    SUM(all_expenses."amount") AS total
+  FROM
+    "Expenses" analyzed_expenses
+  INNER JOIN "Expenses" all_expenses
+    ON all_expenses."FromCollectiveId" = analyzed_expenses."FromCollectiveId"
+  INNER JOIN "Collectives" from_collective
+    ON from_collective.id = all_expenses."FromCollectiveId"
+  INNER JOIN "Collectives" c
+    ON c.id = all_expenses."CollectiveId"
+  INNER JOIN "RequiredLegalDocuments" d
+    ON d."HostCollectiveId" = c."HostCollectiveId"
+    AND d."documentType" = 'US_TAX_FORM'
+  LEFT JOIN "LegalDocuments" ld
+    ON ld."CollectiveId" = all_expenses."FromCollectiveId"
+    AND ld.year = date_part('year', all_expenses."incurredAt")
+    AND ld."documentType" = 'US_TAX_FORM'
+  WHERE analyzed_expenses.id IN (:expenseIds)
+  AND analyzed_expenses.type = 'INVOICE'
+  AND analyzed_expenses.status IN ('PENDING', 'APPROVED')
+  AND analyzed_expenses."deletedAt" IS NULL
+  AND from_collective.type = 'USER'
+  AND all_expenses.type = 'INVOICE'
+  AND all_expenses.status NOT IN ('ERROR', 'REJECTED')
+  AND all_expenses."deletedAt" IS NULL
+  AND all_expenses."incurredAt" BETWEEN date_trunc('year', all_expenses."incurredAt") AND (date_trunc('year', all_expenses."incurredAt") + interval '1 year')
+  GROUP BY analyzed_expenses.id, all_expenses."FromCollectiveId", d."documentType"
 `;
 
 /**
