@@ -208,6 +208,10 @@ export const canComment = async (req, expense): Promise<boolean> => {
   }
 };
 
+export const canViewRequiredLegalDocuments = async (req, expense): Promise<boolean> => {
+  return remoteUserMeetsOneCondition(req, expense, [isHostAdmin, isOwner]);
+};
+
 // ---- Expense actions ----
 
 export const approveExpense = async (req, expense): Promise<typeof models.Expense> => {
