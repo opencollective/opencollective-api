@@ -33,7 +33,7 @@
     "cloudflare": "2.7.0",
     "cloudflare-ip": "0.0.7",
     "config": "3.3.1",
-    "connect-redis": "4.0.4",
+    "connect-redis": "5.0.0",
     "cookie-parser": "1.4.5",
     "cors": "2.8.5",
     "dataloader": "2.0.0",
