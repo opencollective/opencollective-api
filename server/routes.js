@@ -1,6 +1,6 @@
 import { ApolloServer } from 'apollo-server-express';
 import config from 'config';
-import GraphHTTP from 'express-graphql';
+import { graphqlHTTP } from 'express-graphql';
 import expressLimiter from 'express-limiter';
 import serverStatus from 'express-server-status';
 import { get } from 'lodash';
@@ -109,7 +109,7 @@ export default app => {
   /**
    * GraphQL v1
    */
-  const graphqlServerV1 = GraphHTTP({
+  const graphqlServerV1 = graphqlHTTP({
     customFormatErrorFn: error => {
       logger.error(`GraphQL v1 error: ${error.message}`);
       logger.debug(error);
