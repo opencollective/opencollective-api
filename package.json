@@ -37,7 +37,7 @@
     "cookie-parser": "1.4.5",
     "cors": "2.8.5",
     "dataloader": "2.0.0",
-    "dataloader-sequelize": "2.1.2",
+    "dataloader-sequelize": "2.2.0",
     "debug": "4.1.1",
     "deepmerge": "4.2.2",
     "dotenv": "8.2.0",
