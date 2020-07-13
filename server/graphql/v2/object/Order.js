@@ -112,6 +112,17 @@ export const Order = new GraphQLObjectType({
           return models.PaymentMethod.findByPk(order.PaymentMethodId);
         },
       },
+      platformFee: {
+        type: Amount,
+        description: 'If an Order has fees on top, we should return the amount',
+        resolve(order) {
+          if (order.data.isFeesOnTop) {
+            return { value: order.data.platformFee };
+          } else {
+            return null;
+          }
+        },
+      },
     };
   },
 });
