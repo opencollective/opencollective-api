@@ -4,6 +4,7 @@ import { cloneDeep, set } from 'lodash';
 
 import { sequelize } from '../../../models';
 import { Forbidden, Unauthorized } from '../../errors';
+import { AccountTypeToModelMapping } from '../enum/AccountType';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { Account } from '../interface/Account';
 import AccountSettingsKey from '../scalar/AccountSettingsKey';
@@ -40,6 +41,16 @@ const accountMutations = {
 
         if (!req.remoteUser.isAdminOfCollective(account)) {
           throw new Forbidden();
+        }
+
+        if (
+          args.key === 'collectivePage' &&
+          ![AccountTypeToModelMapping.FUND, AccountTypeToModelMapping.PROJECT].includes(account.type)
+        ) {
+          const budgetSection = args.value.sections?.find(s => s.section === 'budget');
+          if (!budgetSection.isEnabled) {
+            throw new Forbidden();
+          }
         }
 
         const settings = account.settings ? cloneDeep(account.settings) : {};
