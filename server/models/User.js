@@ -138,6 +138,11 @@ export default (Sequelize, DataTypes) => {
         type: DataTypes.JSONB,
         allowNull: true,
       },
+
+      twoFactorAuthToken: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
     },
     {
       paranoid: true,
