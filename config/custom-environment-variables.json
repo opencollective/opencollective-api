@@ -145,7 +145,8 @@
     "minNbStars": "GITHUB_FLOW_MIN_NB_STARS"
   },
   "transferwise": {
-    "apiUrl": "TRANSFERWISE_API_URL"
+    "apiUrl": "TRANSFERWISE_API_URL",
+    "privateKey": "TRANSFERWISE_PRIVATE_TOKEN"
   },
   "fixie": {
     "url": "FIXIE_URL"
