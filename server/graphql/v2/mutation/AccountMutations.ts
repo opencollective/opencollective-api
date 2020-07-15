@@ -54,7 +54,7 @@ const accountMutations = {
           ![AccountTypeToModelMapping.FUND, AccountTypeToModelMapping.PROJECT].includes(account.type)
         ) {
           const budgetSection = args.value.sections?.find(s => s.section === 'budget');
-          if (!budgetSection.isEnabled) {
+          if (!budgetSection?.isEnabled) {
             throw new Forbidden();
           }
         }
