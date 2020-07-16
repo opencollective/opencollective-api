@@ -1,6 +1,9 @@
 import { expect } from 'chai';
+import sinon from 'sinon';
 
-import { formatAccountDetails } from '../../../server/lib/transferwise';
+import { formatAccountDetails, requestDataAndThrowParsedError } from '../../../server/lib/transferwise';
+
+const sandbox = sinon.createSandbox();
 
 describe('server/lib/transferwise', () => {
   describe('formatAccountDetails', () => {
@@ -61,6 +64,65 @@ describe('server/lib/transferwise', () => {
       expect(f).to.not.include('Is Manual Bank Transfer');
       expect(f).to.not.include('Type: sort_code');
       expect(f).to.not.include('Currency: GBP');
+    });
+  });
+
+  describe('requestDataAndThrowParsedError', () => {
+    let stub;
+
+    beforeEach(() => {
+      stub = sandbox.stub().resolves({ data: true });
+    });
+
+    it('should request using passing parameters', async () => {
+      await requestDataAndThrowParsedError(stub, 'fake-url', { headers: { Authentication: 'Bearer fake-tokinzes' } });
+      sinon.assert.calledWith(stub, 'fake-url', { headers: { Authentication: 'Bearer fake-tokinzes' } });
+    });
+
+    it('should inject post data, if passed', async () => {
+      await requestDataAndThrowParsedError(stub, 'fake-url', {
+        data: { hasBody: true },
+        headers: { Authentication: 'Bearer fake-tokinzes' },
+      });
+      sinon.assert.calledWith(
+        stub,
+        'fake-url',
+        { hasBody: true },
+        { headers: { Authentication: 'Bearer fake-tokinzes' } },
+      );
+    });
+
+    it('should extract data from the response', async () => {
+      stub.resolves({ data: { fake: true } });
+      const response = await requestDataAndThrowParsedError(stub, 'fake-url', {
+        headers: { Authentication: 'Bearer fake-tokinzes' },
+      });
+      expect(response).to.deep.equal({ fake: true });
+    });
+
+    it('should implement strong user authentication if requested', async () => {
+      stub.onFirstCall().throws({
+        response: {
+          headers: {
+            'x-2fa-approval-result': 'REJECTED',
+            'x-2fa-approval': 'fake-token',
+          },
+        },
+      });
+      stub.onSecondCall().resolves({ data: true });
+
+      await requestDataAndThrowParsedError(stub, 'fake-url', {
+        data: { cool: 'beans' },
+        headers: { Authentication: 'Bearer fake-tokinzes' },
+      });
+
+      const [url, data, options] = stub.secondCall.args;
+      expect(url).to.equal('fake-url');
+      expect(data).to.deep.equal({ cool: 'beans' });
+      expect(options).to.have.property('headers');
+      expect(options.headers).to.have.property('Authentication').equal('Bearer fake-tokinzes');
+      expect(options.headers).to.have.property('x-2fa-approval').equal('fake-token');
+      expect(options.headers).to.have.property('X-Signature');
     });
   });
 });
