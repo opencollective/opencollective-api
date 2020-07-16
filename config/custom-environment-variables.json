@@ -146,7 +146,7 @@
   },
   "transferwise": {
     "apiUrl": "TRANSFERWISE_API_URL",
-    "privateKey": "TRANSFERWISE_PRIVATE_TOKEN"
+    "privateKey": "TRANSFERWISE_PRIVATE_KEY"
   },
   "fixie": {
     "url": "FIXIE_URL"
