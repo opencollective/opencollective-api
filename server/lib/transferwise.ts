@@ -181,32 +181,16 @@ interface FundTransfer {
 export const fundTransfer = async (
   token,
   { profileId, transferId }: FundTransfer,
-  optionalHeaders?: object,
 ): Promise<{ status: 'COMPLETED' | 'REJECTED'; errorCode: string }> => {
-  try {
-    const headers = { ...optionalHeaders, Authorization: `Bearer ${token}` };
-    return getData(
-      await axios.post(`/v3/profiles/${profileId}/transfers/${transferId}/payments`, { type: 'BALANCE' }, { headers }),
-    );
-  } catch (e) {
-    // Implements Strong Customer Authentication
-    // https://api-docs.transferwise.com/#payouts-guide-strong-customer-authentication
-    const signatureFailed = e?.response?.headers['x-2fa-approval-result'] === 'REJECTED';
-    if (signatureFailed && !optionalHeaders) {
-      const sign = crypto.createSign('SHA256');
-      const ott = e.response.headers['x-2fa-approval'];
-      sign.update(ott);
-      sign.end();
-      const key = Buffer.from(config.transferwise.privateKey, 'base64').toString('ascii');
-      const signature = sign.sign(key, 'base64');
-      return fundTransfer(token, { profileId, transferId }, { 'X-Signature': signature, 'x-2fa-approval': ott });
-    } else {
-      debug(e.response?.data || e);
-      const error = parseError(e, 'Unable to fund transfer, please check your balance and try again.');
-      logger.error(error.toString());
-      throw error;
-    }
-  }
+  return requestDataAndThrowParsedError(
+    axios.post,
+    `/v3/profiles/${profileId}/transfers/${transferId}/payments`,
+    {
+      data: { type: 'BALANCE' },
+      headers: { Authorization: `Bearer ${token}` },
+    },
+    'Unable to fund transfer, please check your balance and try again.',
+  );
 };
 
 export const getProfiles = async (token: string): Promise<Profile[]> => {
