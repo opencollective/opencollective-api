@@ -116,7 +116,7 @@ export const Order = new GraphQLObjectType({
         type: Amount,
         description: 'If an Order has fees on top, we should return the amount',
         resolve(order) {
-          if (order.data.isFeesOnTop) {
+          if (order.data?.isFeesOnTop) {
             return { value: order.data.platformFee };
           } else {
             return null;
