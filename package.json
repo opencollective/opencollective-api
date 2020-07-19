@@ -98,7 +98,7 @@
     "sequelize-temporal": "1.0.8",
     "showdown": "1.9.1",
     "speakeasy": "2.0.0",
-    "stripe": "8.74.0",
+    "stripe": "8.76.0",
     "tweetnacl": "1.0.3",
     "tweetnacl-util": "0.15.1",
     "twitter": "1.7.1",
