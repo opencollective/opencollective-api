@@ -1,4 +1,4 @@
-import { GraphQLInputObjectType, GraphQLString } from 'graphql';
+import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
 import models from '../../../models';
 import { NotFound } from '../../errors';
@@ -11,6 +11,10 @@ export const TierReferenceInput = new GraphQLInputObjectType({
       type: GraphQLString,
       description: 'The id assigned to the Tier',
     },
+    legacyId: {
+      type: GraphQLInt,
+      description: 'The DB id assigned to the Tier',
+    },
   }),
 });
 
@@ -19,11 +23,14 @@ export const TierReferenceInput = new GraphQLInputObjectType({
  *
  * @param {string|number} input - id of the tier
  */
-export const fetchTierWithReference = async input => {
+export const fetchTierWithReference = async (input, { loaders } = {}) => {
+  const loadTier = id => (loaders ? loaders.Tier.byId.load(id) : models.Tier.findByPk(id));
   let tier;
   if (input.id) {
     const id = idDecode(input.id, 'tier');
-    tier = await models.Tier.findByPk(id);
+    tier = await loadTier(id);
+  } else if (input.legacyId) {
+    tier = await loadTier(input.legacyId);
   } else {
     throw new Error('Please provide an id');
   }
