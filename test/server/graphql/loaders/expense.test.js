@@ -1,10 +1,12 @@
 import { expect } from 'chai';
+import moment from 'moment';
 
 import { loaders } from '../../../../server/graphql/loaders';
 import { requiredLegalDocuments, userTaxFormRequiredBeforePayment } from '../../../../server/graphql/loaders/expenses';
 import models from '../../../../server/models';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../server/models/LegalDocument';
 import { fakeCollective, fakeExpense, fakeHost, fakeUser } from '../../../test-helpers/fake-data';
+import { resetTestDB } from '../../../utils';
 
 const US_TAX_FORM_THRESHOLD = 600e2;
 
@@ -21,6 +23,8 @@ const fakeHostWithRequiredLegalDocument = async (hostData = {}) => {
 };
 
 describe('server/graphql/loaders/expense', () => {
+  before(resetTestDB);
+
   describe('userTaxFormRequiredBeforePayment', () => {
     const req = {};
 
@@ -143,6 +147,31 @@ describe('server/graphql/loaders/expense', () => {
         const result = await loader.load(expense1.id);
         expect(result).to.be.false;
         const result2 = await loader.load(expense2.id);
+        expect(result2).to.be.false;
+      });
+
+      it('When expenses were submitted last year', async () => {
+        const user = await fakeUser();
+        const loader = userTaxFormRequiredBeforePayment({ loaders: loaders(req) });
+        const firstExpense = await fakeExpense({
+          amount: US_TAX_FORM_THRESHOLD + 1000,
+          CollectiveId: collective.id,
+          FromCollectiveId: user.CollectiveId,
+          UserId: user.id,
+          type: 'INVOICE',
+          incurredAt: moment(new Date()).subtract(1, 'year').set('month', 11).set('date', 30),
+        });
+        const secondExpense = await fakeExpense({
+          amount: 200,
+          CollectiveId: collective.id,
+          FromCollectiveId: user.CollectiveId,
+          UserId: user.id,
+          type: 'INVOICE',
+        });
+
+        const promises = [loader.load(firstExpense.id), loader.load(secondExpense.id)];
+        const [result1, result2] = await Promise.all(promises);
+        expect(result1).to.be.true;
         expect(result2).to.be.false;
       });
     });

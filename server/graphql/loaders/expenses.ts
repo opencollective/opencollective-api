@@ -15,7 +15,7 @@ const {
 
 const userTaxFormRequiredBeforePaymentQuery = `
   SELECT 
-  analyzed_expenses."FromCollectiveId",
+    analyzed_expenses."FromCollectiveId",
     analyzed_expenses.id as "expenseId",
     MAX(ld."requestStatus") as "legalDocRequestStatus",
     d."documentType" as "requiredDocument",
@@ -43,7 +43,9 @@ const userTaxFormRequiredBeforePaymentQuery = `
   AND all_expenses.type = 'INVOICE'
   AND all_expenses.status NOT IN ('ERROR', 'REJECTED')
   AND all_expenses."deletedAt" IS NULL
-  AND all_expenses."incurredAt" BETWEEN date_trunc('year', all_expenses."incurredAt") AND (date_trunc('year', all_expenses."incurredAt") + interval '1 year')
+  AND all_expenses."incurredAt"
+    BETWEEN date_trunc('year', analyzed_expenses."incurredAt")
+    AND (date_trunc('year', analyzed_expenses."incurredAt") + interval '1 year')
   GROUP BY analyzed_expenses.id, analyzed_expenses."FromCollectiveId", d."documentType"
 `;
 
