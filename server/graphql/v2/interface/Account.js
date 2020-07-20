@@ -87,6 +87,15 @@ const accountFieldsDefinition = () => ({
       },
     },
   },
+  backgroundImageUrl: {
+    type: GraphQLString,
+    args: {
+      height: { type: GraphQLInt },
+      format: {
+        type: ImageFormat,
+      },
+    },
+  },
   createdAt: {
     type: GraphQLDateTime,
     description: 'The time of creation',
@@ -365,6 +374,18 @@ export const AccountFields = {
     },
     resolve(collective, args) {
       return collective.getImageUrl(args);
+    },
+  },
+  backgroundImageUrl: {
+    type: GraphQLString,
+    args: {
+      height: { type: GraphQLInt },
+      format: {
+        type: ImageFormat,
+      },
+    },
+    resolve(collective, args) {
+      return collective.getBackgroundImageUrl(args);
     },
   },
   updatedAt: {
