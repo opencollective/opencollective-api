@@ -20,7 +20,7 @@ import { handleHostPlanAddedFundsLimit, handleHostPlanBankTransfersLimit } from 
 import recaptcha from '../../../lib/recaptcha';
 import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../lib/subscriptions';
 import { canUseFeature } from '../../../lib/user-permissions';
-import { capitalize, formatCurrency, md5, pluralize } from '../../../lib/utils';
+import { capitalize, formatCurrency, md5 } from '../../../lib/utils';
 import models from '../../../models';
 import { setupCreditCard } from '../../../paymentProviders/stripe/creditcard';
 import { FeatureNotAllowedForUser, NotFound, Unauthorized, ValidationFailed } from '../../errors';
@@ -250,12 +250,6 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
     }
     if (paymentRequired && order.paymentMethod && order.paymentMethod.type === 'manual') {
       await handleHostPlanBankTransfersLimit(host);
-    }
-
-    if (tier && tier.maxQuantityPerUser > 0 && order.quantity > tier.maxQuantityPerUser) {
-      throw new Error(
-        `You can buy up to ${tier.maxQuantityPerUser} ${pluralize('ticket', tier.maxQuantityPerUser)} per person`,
-      );
     }
 
     if (tier) {
