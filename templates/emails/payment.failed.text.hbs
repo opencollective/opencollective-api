@@ -13,7 +13,7 @@ Hi!
 {{#if lastAttempt}}
 
 We wanted to let you know that due to your payment failure, we have
-cancelled your recurring contribution of {{{currency order.totalAmount currency=order.currency}}}
+cancelled your recurring contribution of {{currency order.totalAmount currency=order.currency}}
 to {{collective.name}}.
 
 We are sad to see you go. You can resubscribe anytime at
@@ -22,7 +22,7 @@ https://opencollective.com/{{collective.slug}}.
 {{else}}
 
 We are having trouble authorizing your payment of
-{{{ currency order.totalAmount currency=order.currency}}} to
+{{currency order.totalAmount currency=order.currency}} to
 {{collective.name}}.
 
 Please check your recurring contributions and payment info at {{subscriptionsLink}}.

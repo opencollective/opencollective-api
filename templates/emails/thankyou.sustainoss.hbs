@@ -1,7 +1,7 @@
 {{#if interval }}
-Subject: Thank you for your {{{currency order.totalAmount currency=order.currency}}}/{{interval}} contribution to {{collective.name}}
+Subject: Thank you for your {{currency order.totalAmount currency=order.currency}}/{{interval}} contribution to {{collective.name}}
 {{else}}
-Subject: Thank you for your {{{currency order.totalAmount currency=order.currency}}} contribution to {{collective.name}}
+Subject: Thank you for your {{currency order.totalAmount currency=order.currency}} contribution to {{collective.name}}
 {{/if}}
 
 {{> header}}
@@ -16,15 +16,15 @@ Subject: Thank you for your {{{currency order.totalAmount currency=order.currenc
 
 {{#if interval}}
   {{#if firstPayment }}
-    <p>Thank you so much for your contribution of {{{currency order.totalAmount currency=order.currency}}} per {{interval}} to SustainOSS .
-      Your first payment was received on {{{moment order.createdAt}}}. Your contribution helps us continue growing the SustainOSS ecosystem and projects.</p>
+    <p>Thank you so much for your contribution of {{currency order.totalAmount currency=order.currency}} per {{interval}} to SustainOSS .
+      Your first payment was received on {{moment order.createdAt}}. Your contribution helps us continue growing the SustainOSS ecosystem and projects.</p>
     {{> charge_date_notice}}
   {{else}}
-    <p>We would like to thank you for your continued support. Your latest {{interval}}ly contribution of {{{currency order.totalAmount currency=order.currency}}} was received on {{{moment transaction.createdAt}}}.
+    <p>We would like to thank you for your continued support. Your latest {{interval}}ly contribution of {{currency order.totalAmount currency=order.currency}} was received on {{moment transaction.createdAt}}.
       Your contribution helps us continue our activities.</p>
   {{/if}}
 {{else}}
-<p>Thank you so much for your contribution of {{{currency order.totalAmount currency=order.currency}}} on {{{moment order.createdAt}}} to SustainOSS.</p>
+<p>Thank you so much for your contribution of {{currency order.totalAmount currency=order.currency}} on {{moment order.createdAt}} to SustainOSS.</p>
 {{/if}}
 
 <p>Next steps:

@@ -4,7 +4,6 @@ import path from 'path';
 import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
-import he from 'he';
 import juice from 'juice';
 import { get, includes, isArray, merge, pick } from 'lodash';
 import nodemailer from 'nodemailer';
@@ -46,7 +45,8 @@ const render = (template, data) => {
   if (templates[`${template}.text`]) {
     text = templates[`${template}.text`](data);
   }
-  const html = juice(he.decode(templates[template](data)));
+
+  const html = juice(templates[template](data));
 
   return { text, html };
 };

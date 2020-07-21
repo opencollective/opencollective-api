@@ -1,4 +1,4 @@
-Subject: {{member.memberCollective.name}} joined {{collective.name}} as {{{toLowerCase member.role}}}
+Subject: {{member.memberCollective.name}} joined {{{collective.name}}} as {{toLowerCase member.role}}
 
 {{> header}}
 
@@ -12,7 +12,7 @@ Subject: {{member.memberCollective.name}} joined {{collective.name}} as {{{toLow
 
 <p>Just a quick note to let you know that {{#if member.memberCollective.isIncognito}}someone (incognito){{else}}<a
     href="{{config.host.website}}/{{member.memberCollective.slug}}">{{member.memberCollective.name}}</a>{{/if}} is now a
-  {{{toLowerCase member.role}}} of <a href="{{config.host.website}}{{collective.urlPath}}">{{collective.name}}</a>.</p>
+  {{toLowerCase member.role}} of <a href="{{config.host.website}}{{collective.urlPath}}">{{collective.name}}</a>.</p>
 
 {{#if order.publicMessage}}
   <p class="pullQuote">“{{order.publicMessage}}”<br />- {{member.memberCollective.name}}</p>
@@ -72,13 +72,13 @@ Subject: {{member.memberCollective.name}} joined {{collective.name}} as {{{toLow
 <table>
   {{#if order.tier}}
   <tr>
-    <th>{{{capitalize order.tier.type}}}:</th>
+    <th>{{capitalize order.tier.type}}:</th>
     <td>{{order.tier.name}}</td>
   </tr>
   {{/if}}
   <tr>
     <th>Amount:</th>
-    <td>{{{currency order.totalAmount currency=order.currency}}}</td>
+    <td>{{currency order.totalAmount currency=order.currency}}</td>
   </tr>
   {{#if order.subscription}}
   {{#if order.subscription.interval}}

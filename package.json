@@ -58,7 +58,6 @@
     "graphql-type-json": "0.3.2",
     "handlebars": "4.7.6",
     "hashids": "2.2.1",
-    "he": "1.2.0",
     "helloworks-sdk": "1.2.1",
     "helmet": "3.23.3",
     "html-pdf": "2.2.0",

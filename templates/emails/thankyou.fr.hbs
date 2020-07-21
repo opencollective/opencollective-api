@@ -1,7 +1,7 @@
 {{#if interval }}
-Subject: Merci pour votre donation de {{{currency order.totalAmount currency=order.currency}}}/{{interval}} à {{collective.name}}
+Subject: Merci pour votre donation de {{currency order.totalAmount currency=order.currency}}/{{interval}} à {{collective.name}}
 {{else}}
-Subject: Merci pour votre donation de {{{currency order.totalAmount currency=order.currency}}} à {{collective.name}}
+Subject: Merci pour votre donation de {{currency order.totalAmount currency=order.currency}} à {{collective.name}}
 {{/if}}
 
 {{> header}}
@@ -17,17 +17,17 @@ Subject: Merci pour votre donation de {{{currency order.totalAmount currency=ord
 {{#if interval}}
 
 {{#if firstPayment }}
-<p>Merci pour votre donation de {{{currency order.totalAmount currency=order.currency}}} par {{interval}}. Votre premier
+<p>Merci pour votre donation de {{currency order.totalAmount currency=order.currency}} par {{interval}}. Votre premier
   paiement vient d'être reçu. Votre don nous aidera à continuer nos activités.</p>
 <p>Veuillez noter que vos futurs paiements seront effectués au premier du mois (<a
     href='https://github.com/opencollective/documentation/blob/master/backers-and-sponsors/payment.md#why-do-you-charge-recurring-monthly-subscriptions-on-1st-of-every-month'>plus
     d'info</a>).</p>
 {{else}}
-<p>Votre dernière donation de {{{currency order.totalAmount currency=order.currency}}} vient d'être reçue. Merci pour continuer à nous soutenir!</p>
+<p>Votre dernière donation de {{currency order.totalAmount currency=order.currency}} vient d'être reçue. Merci pour continuer à nous soutenir!</p>
 {{/if}}
 
 {{else}}
-<p>Merci pour votre donation de {{{currency order.totalAmount currency=order.currency}}}.
+<p>Merci pour votre donation de {{currency order.totalAmount currency=order.currency}}.
   Votre don nous aide à continuer nos activités.</p>
 {{/if}}
 

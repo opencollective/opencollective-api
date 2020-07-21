@@ -1,4 +1,4 @@
-Subject: {{ order.quantity }} {{{pluralize "ticket" n=order.quantity}}} confirmed for {{ event.name }}
+Subject: {{ order.quantity }} {{pluralize "ticket" n=order.quantity}} confirmed for {{ event.name }}
 
 {{> header}}
 {{> eventsnippet}}
@@ -19,7 +19,7 @@ Thanks again for registering to the <a href="{{config.host.website}}/{{collectiv
 
 <p>
 <div class="emoji">🎟</div>
-This confirms your {{ order.quantity }} {{{pluralize "ticket" n=order.quantity}}}{{#if order.totalAmount}} for a total of {{{currency order.totalAmount currency=order.currency}}}{{/if}} under the name of {{recipient.name}}.</p>
+This confirms your {{ order.quantity }} {{pluralize "ticket" n=order.quantity}}{{#if order.totalAmount}} for a total of {{currency order.totalAmount currency=order.currency}}{{/if}} under the name of {{recipient.name}}.</p>
 
 <p><strong>Please <a href="https://goo.gl/forms/kl27UIlNkAx6QgzH3 ">fill out this form</a> to enroll in the workshops that you are interested in. Places are limited.</strong></p>
 <p>

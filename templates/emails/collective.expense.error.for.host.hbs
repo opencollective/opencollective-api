@@ -1,4 +1,4 @@
-Subject: 🚨 Transaction failed on {{collective.name}} {{{currency transaction.netAmountInCollectiveCurrency currency=transaction.currency}}} for {{expense.description}}
+Subject: 🚨 Transaction failed on {{collective.name}} {{currency transaction.netAmountInCollectiveCurrency currency=transaction.currency}} for {{expense.description}}
 
 {{> header}}
 
@@ -7,7 +7,7 @@ Subject: 🚨 Transaction failed on {{collective.name}} {{{currency transaction.
     Hi there! Just a note to let you know that a TransferWise payment failed for an expense submitted to
     {{collective.name}}.
   </h3>
-  <h2>{{{currency transaction.netAmountInCollectiveCurrency currency=transaction.currency precision=2}}}</h2>
+  <h2>{{currency transaction.netAmountInCollectiveCurrency currency=transaction.currency precision=2}}</h2>
   <div>{{expense.description}}</div>
   <div>To: {{fromCollective.name}}</div>
   <div>

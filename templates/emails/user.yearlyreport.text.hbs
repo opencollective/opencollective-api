@@ -10,17 +10,17 @@ They give us the opportunity to make meaningful contributions. They give us mean
 But we need to nurture them. They need us. They need us to contribute with our time and our skills, to attend their events, to promote them in our social networks and to support them financially.
 If we all do that, we will be surrounded by thriving communities that will give everyone of us the opportunity to do meaningful contributions in the world 🌍
 
-In {{year}} you have contributed a total of {{stats.totalDonationsString}} across {{stats.totalCollectives}} {{{pluralize "collective" n=stats.totalCollectives}}}:
+In {{year}} you have contributed a total of {{stats.totalDonationsString}} across {{stats.totalCollectives}} {{pluralize "collective" n=stats.totalCollectives}}:
 
 {{#each hosts}}
 {{name}}
   {{#each collectives}}
-  {{{currency totalDonations currency=currency}}} to {{name}} https://opencollective.com/{{slug}}
+  {{currency totalDonations currency=currency}} to {{name}} https://opencollective.com/{{slug}}
   {{/each}}
 
 {{/each}}
 >>> Tweet these stats <<<
-{{{tweet.url}}}
+{{tweet.url}}
 
 Thank you for the contributions that you made this year. Thank you for playing your part in building this future 🙏.
 

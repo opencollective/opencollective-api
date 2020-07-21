@@ -1,9 +1,9 @@
-Subject: New expense on {{collective.name}}: {{{currency expense.amount currency=expense.currency precision=2}}} for {{expense.description}}
+Subject: New expense on {{collective.name}}: {{currency expense.amount currency=expense.currency precision=2}} for {{expense.description}}
 
 {{> header}}
 
 <center>
-  <h1>{{{currency expense.amount currency=expense.currency precision=2}}}</h1>
+  <h1>{{currency expense.amount currency=expense.currency precision=2}}</h1>
   <div>
     <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{expense.description}}</a>
   </div>
@@ -42,7 +42,7 @@ Subject: New expense on {{collective.name}}: {{{currency expense.amount currency
           </td>
           <td style="border-bottom: 1px dotted rgb(196, 199, 204); padding: 12px 0;">
             <p style="text-align: right;">
-              {{{currency this.amount currency=../expense.currency precision=2}}}
+              {{currency this.amount currency=../expense.currency precision=2}}
             </p>
           </td>
         </tr>

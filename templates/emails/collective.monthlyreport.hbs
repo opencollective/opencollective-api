@@ -1,4 +1,4 @@
-Subject: {{{collective.name}}} Collective {{month}} {{year}} Report
+Subject: {{collective.name}} Collective {{month}} {{year}} Report
 
 {{> header}}
 
@@ -91,21 +91,21 @@ Subject: {{{collective.name}}} Collective {{month}} {{year}} Report
 </style>
 
 <div style="display:none;font-size:1px;color:#333333;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">
-  Balance: {{{currency collective.stats.balance currency=collective.currency}}} (+{{{currency collective.stats.totalDonations currency=collective.currency}}}{{#if collective.stats.totalExpenses}}, {{{currency collective.stats.totalExpenses currency=collective.currency}}}{{/if}}) &nbsp; | &nbsp; 
+  Balance: {{currency collective.stats.balance currency=collective.currency}} (+{{currency collective.stats.totalDonations currency=collective.currency}}{{#if collective.stats.totalExpenses}}, {{currency collective.stats.totalExpenses currency=collective.currency}}{{/if}}) &nbsp; | &nbsp; 
   {{collective.stats.backers.lastMonth}} backers (+{{collective.newOrders.length}}{{#if collective.cancelledOrders.length}}, -{{collective.cancelledOrders.length}}{{/if}}) &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;
 </div>
 
 <div>
   <div class="reportHeader">
-    <h1>{{{collective.name}}}</h1>
+    <h1>{{collective.name}}</h1>
     <h2>{{month}} {{year}} Report</h2>
   </div>
-  <p>Here are your monthly stats.{{#if collective.transactions}} We have attached a CSV of the {{collective.transactions.length}} {{{pluralize "transaction" n=collective.transactions.length}}} that you had in {{month}}.{{/if}} Just reply to this email if you have any questions.</p>
+  <p>Here are your monthly stats.{{#if collective.transactions}} We have attached a CSV of the {{collective.transactions.length}} {{pluralize "transaction" n=collective.transactions.length}} that you had in {{month}}.{{/if}} Just reply to this email if you have any questions.</p>
 
   <center>
   <table border=0 cellpadding=0 cellspacing=0 width=300 style="margin: 30px 0px">
     <tr>
-      <td align="center"><span class="counter">{{{currency collective.stats.balance currency=collective.currency}}}</span></td>
+      <td align="center"><span class="counter">{{currency collective.stats.balance currency=collective.currency}}</span></td>
       <td width=200>&nbsp;</td>
       <td align="center"><span class="counter">{{collective.stats.backers.lastMonth}}</span></td>
     </tr>
@@ -116,8 +116,8 @@ Subject: {{{collective.name}}} Collective {{month}} {{year}} Report
     </tr>
     <tr>
       <td align="center">
-        <span class="positive">(+{{{currency collective.stats.totalDonations currency=collective.currency}}})</span><br />
-        <span class="negative">&nbsp;{{#if collective.stats.totalExpenses}}({{{currency collective.stats.totalExpenses currency=collective.currency}}}){{/if}}&nbsp;</span>
+        <span class="positive">(+{{currency collective.stats.totalDonations currency=collective.currency}})</span><br />
+        <span class="negative">&nbsp;{{#if collective.stats.totalExpenses}}({{currency collective.stats.totalExpenses currency=collective.currency}}){{/if}}&nbsp;</span>
       </td>
       <td></td>
       <td align="center">
@@ -142,7 +142,7 @@ Subject: {{{collective.name}}} Collective {{month}} {{year}} Report
     <div class="progress-bar" style="width:{{collective.nextGoal.percentage}}"></div>
   </div>
   <div class="dimmed">
-  ({{collective.nextGoal.percentage}} - missing {{{currency collective.nextGoal.missing.amount currency=collective.currency}}}{{#if collective.nextGoal.missing.interval}}/{{collective.nextGoal.missing.interval}}{{/if}})
+  ({{collective.nextGoal.percentage}} - missing {{currency collective.nextGoal.missing.amount currency=collective.currency}}{{#if collective.nextGoal.missing.interval}}/{{collective.nextGoal.missing.interval}}{{/if}})
   (<a href="https://twitter.com/intent/tweet?text={{{encodeURIComponent collective.nextGoal.tweet}}}">share this goal</a>)
   </div>
   {{else}}
@@ -158,7 +158,7 @@ Subject: {{{collective.name}}} Collective {{month}} {{year}} Report
   {{#if collective.updates}}
   <ul>
     {{#each collective.updates}}
-    <li>{{{moment publishedAt format="MM/DD"}}} <a href="https://opencollective.com/{{@root.collective.slug}}/updates/{{slug}}">{{title}}</a></li>
+    <li>{{moment publishedAt format="MM/DD"}} <a href="https://opencollective.com/{{@root.collective.slug}}/updates/{{slug}}">{{title}}</a></li>
     {{/each}}
   </ul>
   {{else}}
@@ -166,7 +166,7 @@ Subject: {{{collective.name}}} Collective {{month}} {{year}} Report
   {{/if}}
 
   {{#if collective.newOrders}}
-    <h2>😏 {{collective.newOrders.length}} new {{{pluralize "backer" n=collective.newOrders.length}}}</h2>
+    <h2>😏 {{collective.newOrders.length}} new {{pluralize "backer" n=collective.newOrders.length}}</h2>
     <table border=0 width="100%" class="orders"><tr><td>
     {{#each collective.newOrders}}
     <table border=0 class="backer">
@@ -186,9 +186,9 @@ Subject: {{{collective.name}}} Collective {{month}} {{year}} Report
           <div class="backerInfo">
             {{#if fromCollective.website}}<a href="{{fromCollective.website}}">{{fromCollective.website}}</a><br />{{/if}}
             {{#if fromCollective.description}}<div class="description">{{fromCollective.description}}</div>{{/if}}
-            {{#if Tier.name}}{{Tier.name}} ({{{currency totalAmount currency=currency}}} {{#if Tier.interval}}per {{Tier.interval}}{{/if}})
+            {{#if Tier.name}}{{Tier.name}} ({{currency totalAmount currency=currency}} {{#if Tier.interval}}per {{Tier.interval}}{{/if}})
             {{else}}
-            {{{currency totalAmount currency=currency}}} (one time)
+            {{currency totalAmount currency=currency}} (one time)
             {{/if}}
           </div>
         </td>
@@ -202,7 +202,7 @@ Subject: {{{collective.name}}} Collective {{month}} {{year}} Report
   {{/if}}
 
   {{#if collective.cancelledOrders}}
-    <h2>😒 {{collective.cancelledOrders.length}} {{{pluralize "backer" n=collective.cancelledOrders.length}}} stopped backing your collective</h2>
+    <h2>😒 {{collective.cancelledOrders.length}} {{pluralize "backer" n=collective.cancelledOrders.length}} stopped backing your collective</h2>
     <table border=0 width="100%" class="orders"><tr><td>
     {{#each collective.cancelledOrders}}
     <table border=0 class="backer">
@@ -222,8 +222,8 @@ Subject: {{{collective.name}}} Collective {{month}} {{year}} Report
           <div class="backerInfo">
             {{#if fromCollective.website}}<a href="{{fromCollective.website}}">{{fromCollective.website}}</a><br />{{/if}}
             {{#if fromCollective.description}}<div class="description">{{fromCollective.description}}</div>{{/if}}
-            {{#if Tier.name}}{{Tier.name}} ({{{currency totalAmount currency=currency}}} {{#if Tier.interval}}per {{Tier.interval}}{{/if}}) since {{{moment createdAt format="MMMM YYYY"}}}<br />{{/if}}
-            Total amount donated: {{{currency totalTransactions currency=currency}}}
+            {{#if Tier.name}}{{Tier.name}} ({{currency totalAmount currency=currency}} {{#if Tier.interval}}per {{Tier.interval}}{{/if}}) since {{moment createdAt format="MMMM YYYY"}}<br />{{/if}}
+            Total amount donated: {{currency totalTransactions currency=currency}}
           </div>
         </td>
       </tr>
@@ -246,8 +246,8 @@ Subject: {{{collective.name}}} Collective {{month}} {{year}} Report
 
   {{#each collective.expenses}}
     <tr>
-      <td valign="top">{{{moment createdAt format="MM/DD"}}}</td>
-      <td align="right" valign="top" nowrap class="negative">{{{currency amount currency=currency}}}</td>
+      <td valign="top">{{moment createdAt format="MM/DD"}}</td>
+      <td align="right" valign="top" nowrap class="negative">{{currency amount currency=currency}}</td>
       <td valign="top" width="100%"><a href="{{@root.config.host.website}}/{{@root.collective.slug}}/expenses#{{id}}?utm_source=opencollective&utm_campaign=monthlyreport&utm_medium=email">{{description}}</a></td>
       <td valign="top" class="{{toLowerCase status}}">{{toLowerCase status}}</td>
     </tr>
@@ -265,7 +265,7 @@ Subject: {{{collective.name}}} Collective {{month}} {{year}} Report
   </table>
   <ul>
     {{#each collective.tiers}}
-    <li class="tier">{{name}} ({{amountStr}}) - {{activeBackers.length}} active {{{pluralize "backer" n=activeBackers.length}}}
+    <li class="tier">{{name}} ({{amountStr}}) - {{activeBackers.length}} active {{pluralize "backer" n=activeBackers.length}}
       <div class="tierMembers">
         {{#each activeBackers}}
           <a href="{{@root.config.host.website}}/{{slug}}?utm_source=opencollective&utm_campaign=monthlyreport&utm_medium=email" class="{{../name}}">

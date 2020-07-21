@@ -1,7 +1,7 @@
 {{#if interval }}
-Subject: Thank you for your {{{currency order.totalAmount currency=order.currency}}}/{{interval}} contribution to {{collective.name}}
+Subject: Thank you for your {{currency order.totalAmount currency=order.currency}}/{{interval}} contribution to {{collective.name}}
 {{else}}
-Subject: Thank you for your {{{currency order.totalAmount currency=order.currency}}} contribution to {{collective.name}}
+Subject: Thank you for your {{currency order.totalAmount currency=order.currency}} contribution to {{collective.name}}
 {{/if}}
 
 {{> header}}
@@ -16,16 +16,16 @@ Subject: Thank you for your {{{currency order.totalAmount currency=order.currenc
 
 {{#if interval}}
   {{#if firstPayment }}
-    <p>We would like to thank you for your pledge to give {{{currency order.totalAmount currency=order.currency}}} per {{interval}}.
-      Your first payment was received on {{{moment order.createdAt}}}. As the collective's fiscal sponsor, Open Collective Foundation, a public charity recognized tax-exempt organization under IRS Section 501(c)(3), acknowledges your donation.</p>
+    <p>We would like to thank you for your pledge to give {{currency order.totalAmount currency=order.currency}} per {{interval}}.
+      Your first payment was received on {{moment order.createdAt}}. As the collective's fiscal sponsor, Open Collective Foundation, a public charity recognized tax-exempt organization under IRS Section 501(c)(3), acknowledges your donation.</p>
       {{> charge_date_notice}}
   {{else}}
-    <p>We would like to thank you for your continued support. Your latest {{interval}}ly contribution of {{{currency order.totalAmount currency=order.currency}}} was received on {{{moment transaction.createdAt}}}.
+    <p>We would like to thank you for your continued support. Your latest {{interval}}ly contribution of {{currency order.totalAmount currency=order.currency}} was received on {{moment transaction.createdAt}}.
        As the collective's fiscal sponsor, Open Collective Foundation, a public charity recognized tax-exempt organization under IRS Section 501(c)(3), acknowledges your donation.</p>
   {{/if}}
 {{else}}
 
-<p>We would like to thank you for your contribution of {{{currency order.totalAmount currency=order.currency}}} on {{{moment order.createdAt}}}.
+<p>We would like to thank you for your contribution of {{currency order.totalAmount currency=order.currency}} on {{moment order.createdAt}}.
 As the collective's fiscal sponsor, Open Collective Foundation, a public charity recognized tax-exempt organization under IRS Section 501(c)(3), acknowledges your donation.</p>
 {{/if}}
 

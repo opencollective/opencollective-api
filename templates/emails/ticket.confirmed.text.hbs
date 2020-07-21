@@ -4,7 +4,7 @@ Dear {{recipient.name}},
 Hi!
 {{/if}}
 
-This confirms your {{ order.quantity }} {{{pluralize "ticket" n=order.quantity}}}{{#if order.totalAmount}} for a total of {{{currency order.totalAmount currency=order.currency}}}{{/if}}.
+This confirms your {{ order.quantity }} {{pluralize "ticket" n=order.quantity}}{{#if order.totalAmount}} for a total of {{currency order.totalAmount currency=order.currency}}{{/if}}.
 
 We are excited that you'll be joining us at {{ event.name }} on {{ moment event.startsAt timezone=event.timezone format="MMMM Do YYYY" }} at {{ moment event.startsAt timezone=event.timezone format="h:mma" }} at {{ event.locationName }} ({{event.address}}).
 

@@ -1,17 +1,17 @@
 Hi {{fromCollective.name}} 👋
 
-In {{month}}, you have backed {{stats.collectives}} {{{pluralize "collective" n=stats.collectives}}} for a total of {{stats.totalDonatedString}}. Thank you for your {{{pluralize "contribution" n=stats.collectives}}}! 🙌
+In {{month}}, you have backed {{stats.collectives}} {{pluralize "collective" n=stats.collectives}} for a total of {{stats.totalDonatedString}}. Thank you for your {{pluralize "contribution" n=stats.collectives}}! 🙌
 {{#if stats.expenses}}They've spent a total of {{stats.totalSpentString}}{{stats.expensesBreakdownString}}.{{/if}}
 {{#each collectives}}
 {{#if nextGoal}}
 
-{{name}} needs {{{currency nextGoal.missing.amount currency=currency}}} more {{#if nextGoal.missing.interval}}per {{nextGoal.missing.interval}}{{/if}} to reach their next goal of {{nextGoal.title}} ({{nextGoal.percentage}} there). 
+{{name}} needs {{currency nextGoal.missing.amount currency=currency}} more {{#if nextGoal.missing.interval}}per {{nextGoal.missing.interval}}{{/if}} to reach their next goal of {{nextGoal.title}} ({{nextGoal.percentage}} there). 
 {{#if order.Subscription}}
-You are currently contributing {{{currency order.Subscription.amount currency=order.Subscription.currency}}} per {{order.Subscription.interval}}.
+You are currently contributing {{currency order.Subscription.amount currency=order.Subscription.currency}} per {{order.Subscription.interval}}.
 [increase your contribution]({{../config.host.website}}/{{../fromCollective.slug}}/recurring-contributions)
 [share their goal](https://twitter.com/intent/tweet?text={{{encodeURIComponent nextGoal.tweet}}})
 {{else}}
-You have contributed {{{order.totalAmount}}}.
+You have contributed {{order.totalAmount}}.
 [increase your contribution]({{../config.host.website}}/{{slug}}/donate)
 [share their goal](https://twitter.com/intent/tweet?text={{{encodeURIComponent nextGoal.tweet}}})
 {{/if}}
@@ -25,46 +25,46 @@ You have contributed {{{order.totalAmount}}}.
 {{name}}:
 {{publicUrl}}
 Backers: {{stats.backers.lastMonth}} (+{{stats.backers.new}}{{#if stats.backers.lost}}, -{{stats.backers.lost}}{{/if}})
-Current balance: {{{currency stats.balance currency=currency}}} (+{{{currency stats.totalDonations currency=currency}}}{{#if stats.totalPaidExpenses}}, -{{{currency stats.totalPaidExpenses currency=currency}}}{{/if}}) 
+Current balance: {{currency stats.balance currency=currency}} (+{{currency stats.totalDonations currency=currency}}{{#if stats.totalPaidExpenses}}, -{{currency stats.totalPaidExpenses currency=currency}}{{/if}}) 
 {{#if nextGoal}}
-Next goal: {{{currency nextGoal.amount currency=currency}}}{{#if nextGoal.interval}}/{{nextGoal.interval}}{{/if}} to {{nextGoal.title}} ({{nextGoal.percentage}} - missing {{{currency nextGoal.missing.amount currency=currency}}}{{#if nextGoal.missing.interval}}/{{nextGoal.missing.interval}}{{/if}})
+Next goal: {{currency nextGoal.amount currency=currency}}{{#if nextGoal.interval}}/{{nextGoal.interval}}{{/if}} to {{nextGoal.title}} ({{nextGoal.percentage}} - missing {{currency nextGoal.missing.amount currency=currency}}{{#if nextGoal.missing.interval}}/{{nextGoal.missing.interval}}{{/if}})
 {{/if}}
 {{#if order.Subscription}}
 Your contribution: {{currency order.Subscription.amount currency=order.Subscription.currency}} per {{order.Subscription.interval}}
-Member since: {{{moment order.subscription.createdAt format="MMMM YYYY"}}}
+Member since: {{moment order.subscription.createdAt format="MMMM YYYY"}}
 {{else}}
 Your contribution: {{order.totalAmount}}
 {{/if}}
 {{#if updates}}
 
-Latest {{{pluralize "update" n=updates.length}}}:
+Latest {{pluralize "update" n=updates.length}}:
 {{#each updates}}
-  - {{{moment publishedAt timezone=timezone format="MM/DD"}}} {{title}}
+  - {{moment publishedAt timezone=timezone format="MM/DD"}} {{title}}
   {{../config.host.website}}/{{../slug}}/updates/{{slug}}
 {{/each}}
 {{/if}}
 {{#if events.upcoming}}
 
-Upcoming {{{pluralize "event" n=events.upcoming.length}}}:
+Upcoming {{pluralize "event" n=events.upcoming.length}}:
 {{#each events.upcoming}}
-  - {{{moment startsAt timezone=timezone format="MMMM Do HH:mm"}}} {{name}} @ {{locationName}}
+  - {{moment startsAt timezone=timezone format="MMMM Do HH:mm"}} {{name}} @ {{locationName}}
     {{../config.host.website}}/{{../slug}}/events/{{slug}}
     RSVPs: {{stats.confirmed}} {{#if stats.interested}}(+{{stats.interested}} interested){{/if}}
 {{/each}}
 {{/if}}
 {{#if events.past}}
 
-Past {{{pluralize "event" n=events.past.length}}}:
+Past {{pluralize "event" n=events.past.length}}:
 {{#each events.past}}
-  - {{{moment startsAt timezone=timezone format="MMMM Do HH:mm"}}} {{name}} @ {{locationName}}
+  - {{moment startsAt timezone=timezone format="MMMM Do HH:mm"}} {{name}} @ {{locationName}}
     {{../config.host.website}}/{{../slug}}/events/{{slug}}
     RSVPs: {{stats.confirmed}} {{#if stats.interested}}(+{{stats.interested}} interested){{/if}}
 {{/each}}
 {{/if}}
 
-Latest {{{pluralize "expense" n=expenses.length}}}:
+Latest {{pluralize "expense" n=expenses.length}}:
   {{#each expenses}}
-  - {{{moment createdAt format="MM/DD"}}} {{{currency amount currency=../currency}}} {{description}} {{status}}
+  - {{moment createdAt format="MM/DD"}} {{currency amount currency=../currency}} {{description}} {{status}}
   {{else}}
   (no expense filed)
   {{/each}}
@@ -77,7 +77,7 @@ Latest {{{pluralize "expense" n=expenses.length}}}:
 
 {{#each relatedCollectives}}
 {{publicUrl}}
-{{{capitalize mission}}}
+{{capitalize mission}}
 
 {{/each}}
 
