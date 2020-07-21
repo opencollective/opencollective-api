@@ -101,7 +101,7 @@ describe('server/lib/transferwise', () => {
     });
 
     it('should implement strong user authentication if requested', async () => {
-      stub.onFirstCall().throws({
+      stub.onFirstCall().rejects({
         response: {
           headers: {
             'x-2fa-approval-result': 'REJECTED',
