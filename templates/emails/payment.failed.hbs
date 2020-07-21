@@ -16,11 +16,11 @@ Subject: Payment failed: Update your info to continue supporting {{collective.na
 
 {{#if lastAttempt}}
 <p>We wanted to let you know that due to your payment failure, we have cancelled your recurring contribution of
-{{{currency order.totalAmount currency=order.currency}}} to {{collective.name}}.
+{{currency order.totalAmount currency=order.currency}} to {{collective.name}}.
 
 We are sad to see you go. You can resubscribe anytime at <a href="https://opencollective.com/{{collective.slug}}">https://opencollective.com/{{collective.slug}}</a>.</p>
 {{else}}
-<p>We are having trouble authorizing your payment of {{{currency order.totalAmount currency=order.currency}}} to {{collective.name}}.</p>
+<p>We are having trouble authorizing your payment of {{currency order.totalAmount currency=order.currency}} to {{collective.name}}.</p>
 
 <p>Please check your <a href="{{subscriptionsLink}}">recurring contributions and payment info</a>.</p>
 

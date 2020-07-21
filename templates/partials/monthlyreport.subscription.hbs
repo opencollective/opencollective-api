@@ -134,19 +134,19 @@
         </tr>
         <tr>
           {{#if order.Subscription}}
-            <td><p>You’re contributing <b>{{{currency order.Subscription.amount currency=order.Subscription.currency}}}</b> per {{order.Subscription.interval}} since {{{moment order.Subscription.createdAt format="MMMM YYYY"}}}</p></td>
+            <td><p>You’re contributing <b>{{currency order.Subscription.amount currency=order.Subscription.currency}}</b> per {{order.Subscription.interval}} since {{moment order.Subscription.createdAt format="MMMM YYYY"}}</p></td>
           {{else}}
-            <td><p>You've contributed <b>{{{order.totalAmount}}}</b></p></td>
+            <td><p>You've contributed <b>{{order.totalAmount}}</b></p></td>
           {{/if}}
         </tr>
         <tr><td height="10"></td></tr>
         {{#if updates}}
           <tr>
             <td>
-              <label>Latest {{{pluralize "update" n=updates.length}}}:</label>
+              <label>Latest {{pluralize "update" n=updates.length}}:</label>
               <ul>
               {{#each updates}}
-                <li>{{{moment publishedAt timezone=timezone format="MM/DD"}}}
+                <li>{{moment publishedAt timezone=timezone format="MM/DD"}}
                   <a href="{{config.host.website}}/{{../slug}}/updates/{{slug}}">{{title}}</a><br />
                 </li>
               {{/each}}
@@ -159,10 +159,10 @@
         {{#if events.upcoming}}
           <tr>
             <td>
-              <label>Upcoming {{{pluralize "event" n=events.upcoming.length}}}:</label>
+              <label>Upcoming {{pluralize "event" n=events.upcoming.length}}:</label>
               <ul>
               {{#each events.upcoming}}
-                <li>{{{moment startsAt timezone=timezone format="MMMM Do HH:mm"}}} @ {{locationName}}<br />
+                <li>{{moment startsAt timezone=timezone format="MMMM Do HH:mm"}} @ {{locationName}}<br />
                 <a href="{{config.host.website}}/{{../slug}}/events/{{slug}}">{{name}}</a><br />
                 RSVPs: {{stats.confirmed}} {{#if stats.interested}}(+{{stats.interested}} interested){{/if}}</li>
               {{/each}}
@@ -175,10 +175,10 @@
         {{#if events.past}}
           <tr>
             <td>
-              <label>Past {{{pluralize "event" n=events.past.length}}}:</label>
+              <label>Past {{pluralize "event" n=events.past.length}}:</label>
               <ul>
               {{#each events.past}}
-                <li>{{{moment startsAt timezone=timezone format="MMMM Do HH:mm"}}} @ {{locationName}}<br />
+                <li>{{moment startsAt timezone=timezone format="MMMM Do HH:mm"}} @ {{locationName}}<br />
                 <a href="{{config.host.website}}/{{../slug}}/events/{{slug}}">{{name}}</a><br />
                 RSVPs: {{stats.confirmed}} {{#if stats.interested}}(+{{stats.interested}} interested){{/if}}</li>
               {{/each}}
@@ -192,13 +192,13 @@
             <div class="currentBalance">
               <label>Current balance:</label> 
               <div class="Statistic">
-                <div class="Amount">{{{currency stats.balance currency=currency}}}</div>
+                <div class="Amount">{{currency stats.balance currency=currency}}</div>
                 <div class="Change">
                   {{#if stats.totalDonations}}
-                  <div class="PositiveChange">+&nbsp;{{{currency stats.totalDonations currency=currency}}}</div>
+                  <div class="PositiveChange">+&nbsp;{{currency stats.totalDonations currency=currency}}</div>
                   {{/if}}
                   {{#if stats.totalPaidExpenses}}
-                  <div class="NegativeChange">-&nbsp;{{{currency stats.totalPaidExpenses currency=currency}}}</div>
+                  <div class="NegativeChange">-&nbsp;{{currency stats.totalPaidExpenses currency=currency}}</div>
                   {{/if}}
                 </div>
               </div>
@@ -210,10 +210,10 @@
         {{#if nextGoal}}
           <tr>
             <td>
-              <label>Next goal: {{{currency nextGoal.amount currency=currency}}}{{#if nextGoal.interval}}/{{nextGoal.interval}}{{/if}}</label>
+              <label>Next goal: {{currency nextGoal.amount currency=currency}}{{#if nextGoal.interval}}/{{nextGoal.interval}}{{/if}}</label>
                 <p>
                   {{nextGoal.title}}<br />
-                  ({{nextGoal.percentage}} - missing {{{currency nextGoal.missing.amount currency=currency}}}{{#if nextGoal.missing.interval}}/{{nextGoal.missing.interval}}{{/if}})
+                  ({{nextGoal.percentage}} - missing {{currency nextGoal.missing.amount currency=currency}}{{#if nextGoal.missing.interval}}/{{nextGoal.missing.interval}}{{/if}})
                   (<a href="https://twitter.com/intent/tweet?text={{{encodeURIComponent nextGoal.tweet}}}">share their goal</a>)
                 </p>
             </td>
@@ -224,11 +224,11 @@
         <tr>
           <td>
             <div class="latestExpenses">
-              <label>Latest {{{pluralize "expense" n=expenses.length}}}:</label>
+              <label>Latest {{pluralize "expense" n=expenses.length}}:</label>
               {{#if expenses.length}}
                 <ul>
                 {{#each expenses}}
-                <li>{{{moment createdAt format="MM/DD"}}} {{{currency amount currency=../currency}}} {{description}} {{status}}</li>
+                <li>{{moment createdAt format="MM/DD"}} {{currency amount currency=../currency}} {{description}} {{status}}</li>
                 {{/each}}
                 </ul>
               {{else}}

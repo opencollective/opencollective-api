@@ -1,10 +1,10 @@
-Subject: Expense paid on {{collective.name}}: {{{currency transaction.netAmountInCollectiveCurrency currency=transaction.currency}}} for {{transaction.description}}
+Subject: Expense paid on {{collective.name}}: {{currency transaction.netAmountInCollectiveCurrency currency=transaction.currency}} for {{transaction.description}}
 
 {{> header}}
 
 <center>
   <h3> Hi there! Just a note to let you know that an expense was paid in {{collective.name}}. </h3>
-  <h2>{{{currency transaction.netAmountInCollectiveCurrency currency=transaction.currency precision=2}}}</h2>
+  <h2>{{currency transaction.netAmountInCollectiveCurrency currency=transaction.currency precision=2}}</h2>
   <div>{{transaction.description}}</div>
   <div>To: {{fromCollective.name}}</div>
   {{#if payoutMethod}}

@@ -21,8 +21,8 @@ currency=order.currency}}} {{order.type}} to {{collective.name}} is pending
 <p>Hi!</p>
 {{/if}}
 
-<p>We would like to thank you for your donation of {{{currency order.totalAmount currency=order.currency}}} on
-  {{{moment order.createdAt}}}. Your order is currently pending - we'll let you know once the host of collective (<a
+<p>We would like to thank you for your donation of {{currency order.totalAmount currency=order.currency}} on
+  {{moment order.createdAt}}. Your order is currently pending - we'll let you know once the host of collective (<a
     href="https://opencollective.com/{{host.slug}}">{{host.name}}</a>) will have received
   the funds and attributed them to {{collective.name}}.</p>
 

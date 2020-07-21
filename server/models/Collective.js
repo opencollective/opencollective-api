@@ -185,7 +185,17 @@ export default function (Sequelize, DataTypes) {
         },
       },
 
-      name: DataTypes.STRING,
+      name: {
+        type: DataTypes.STRING,
+        set(name) {
+          this.setDataValue('name', name.replace(/\s+/g, ' ').trim());
+        },
+        validate: {
+          notEmpty: true,
+          len: [1, 255],
+        },
+      },
+
       company: DataTypes.STRING,
 
       CreatedByUserId: {
@@ -406,6 +416,9 @@ export default function (Sequelize, DataTypes) {
             this.setDataValue('twitterHandle', twitterHandle.replace(/^@/, ''));
           }
         },
+        validate: {
+          is: /^[A-Za-z0-9_]{1,15}$/,
+        },
       },
 
       githubHandle: {
@@ -441,6 +454,9 @@ export default function (Sequelize, DataTypes) {
           } else {
             this.setDataValue('website', null);
           }
+        },
+        validate: {
+          isUrl: true,
         },
       },
 

@@ -1,16 +1,16 @@
-*** {{{collective.name}}} Collective {{month}} {{year}} Report ***
+*** {{collective.name}} Collective {{month}} {{year}} Report ***
 
 Hi {{recipient.firstName}}!
 
-Here are your monthly stats.{{#if collective.transactions}} We have attached a CSV of the {{collective.transactions.length}} {{{pluralize "transaction" n=collective.transactions.length}}} that you had in {{month}}.{{/if}} Just reply to this email if you have any questions.
+Here are your monthly stats.{{#if collective.transactions}} We have attached a CSV of the {{collective.transactions.length}} {{pluralize "transaction" n=collective.transactions.length}} that you had in {{month}}.{{/if}} Just reply to this email if you have any questions.
 
-Balance: {{{currency collective.stats.balance currency=collective.currency}}} (+{{{currency collective.stats.totalDonations currency=collective.currency}}}{{#if collective.stats.totalExpenses}}, {{{currency collective.stats.totalExpenses currency=collective.currency}}}{{/if}}) 
+Balance: {{currency collective.stats.balance currency=collective.currency}} (+{{currency collective.stats.totalDonations currency=collective.currency}}{{#if collective.stats.totalExpenses}}, {{currency collective.stats.totalExpenses currency=collective.currency}}{{/if}}) 
 {{collective.stats.backers.lastMonth}} backers (+{{collective.stats.backers.new}}{{#if collective.stats.backers.lost}}, -{{collective.stats.backers.lost}}{{/if}}) 
 
 📌  Next goal
 {{#if collective.nextGoal}}
 
-You still need {{{currency collective.nextGoal.missing.amount currency=collective.currency}}} {{#if collective.nextGoal.missing.interval}}per {{collective.nextGoal.missing.interval}}{{/if}} to reach your next goal of {{collective.nextGoal.title}} ({{collective.nextGoal.percentage}} there). 
+You still need {{currency collective.nextGoal.missing.amount currency=collective.currency}} {{#if collective.nextGoal.missing.interval}}per {{collective.nextGoal.missing.interval}}{{/if}} to reach your next goal of {{collective.nextGoal.title}} ({{collective.nextGoal.percentage}} there). 
 {{else}}
 You haven't defined any goal. Set up a goal to incentivize your community to chip in.
 https://opencollective.com/{{collective.slug}}/edit/goals
@@ -21,7 +21,7 @@ https://opencollective.com/{{collective.slug}}/edit/goals
 
 {{#if collective.updates}}
   {{#each collective.updates}}
-- {{{moment publishedAt format="MM/DD"}}} {{title}}
+- {{moment publishedAt format="MM/DD"}} {{title}}
   https://opencollective.com/{{@root.collective.slug}}/updates/{{slug}}
   {{/each}}
 {{else}}
@@ -31,29 +31,29 @@ https://opencollective.com/{{collective.slug}}/updates
 {{/if}}
 
 {{#if collective.newOrders}}
-😏  {{collective.newOrders.length}} new {{{pluralize "backer" n=collective.newOrders.length}}}
+😏  {{collective.newOrders.length}} new {{pluralize "backer" n=collective.newOrders.length}}
 {{#each collective.newOrders}}
 
 - {{fromCollective.name}}
 {{#if fromCollective.website}}  {{fromCollective.website}}{{/if}}{{#if fromCollective.twitterHandle}} https://twitter.com/{{fromCollective.twitterHandle}}{{/if}}
 {{#if fromCollective.description}}  {{fromCollective.description}}{{/if}}
-{{#if Tier.name}}  {{Tier.name}} ({{{currency totalAmount currency=currency}}} {{#if Tier.interval}}per {{Tier.interval}}{{/if}})
+{{#if Tier.name}}  {{Tier.name}} ({{currency totalAmount currency=currency}} {{#if Tier.interval}}per {{Tier.interval}}{{/if}})
 {{else}}
-  {{{currency totalAmount currency=currency}}} (one time)
+  {{currency totalAmount currency=currency}} (one time)
 {{/if}}
 {{/each}}
 {{/if}}
 
 {{#if collective.cancelledOrders}}
-😒   {{collective.cancelledOrders.length}} {{{pluralize "backer" n=collective.cancelledOrders.length}}} stopped backing your collective
+😒   {{collective.cancelledOrders.length}} {{pluralize "backer" n=collective.cancelledOrders.length}} stopped backing your collective
   {{#each collective.cancelledOrders}}
 
 - {{fromCollective.name}}
 {{#if fromCollective.website}}  {{fromCollective.website}}{{/if}} {{#if fromCollective.twitterHandle}} https://twitter.com/{{fromCollective.twitterHandle}}{{/if}}
 {{#if fromCollective.description}}  {{fromCollective.description}}{{/if}}
-{{#if Tier.name}}  {{Tier.name}} ({{{currency totalAmount currency=currency}}} {{#if Tier.interval}}per {{Tier.interval}}{{/if}})
+{{#if Tier.name}}  {{Tier.name}} ({{currency totalAmount currency=currency}} {{#if Tier.interval}}per {{Tier.interval}}{{/if}})
 {{else}}
-{{{currency totalAmount currency=currency}}} (one time)
+{{currency totalAmount currency=currency}} (one time)
 {{/if}}
 {{/each}}
 {{/if}}
@@ -61,7 +61,7 @@ https://opencollective.com/{{collective.slug}}/updates
 🗒   Expenses
 
 {{#each collective.expenses}}
-- {{{moment createdAt format="MM/DD"}}} {{{currency amount currency=currency}}} {{description}} [{{toLowerCase status}}]
+- {{moment createdAt format="MM/DD"}} {{currency amount currency=currency}} {{description}} [{{toLowerCase status}}]
 {{else}}
 No expense submitted. 
 {{/each}}
@@ -82,7 +82,7 @@ Go to {{@root.collective.publicUrl}}/expenses to submit a new expense.
 {{#each relatedCollectives}}
 
 {{publicUrl}}
-{{{capitalize mission}}}
+{{capitalize mission}}
 {{/each}}
 
 🗣 Feedback

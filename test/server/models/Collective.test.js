@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import { SequelizeValidationError } from 'sequelize';
 import sinon from 'sinon';
 
 import { expenseStatus, roles } from '../../../server/constants';
@@ -17,6 +18,7 @@ import {
   fakePayoutMethod,
   fakeTransaction,
   fakeUser,
+  randStr,
 } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
@@ -201,6 +203,22 @@ describe('server/models/Collective', () => {
         }),
       ),
   );
+
+  it('validates name', async () => {
+    // Invalid
+    await expect(models.Collective.create({ name: '' })).to.be.eventually.rejectedWith(SequelizeValidationError);
+
+    // Valid
+    await expect(models.Collective.create({ name: 'joe', slug: randStr() })).to.be.eventually.fulfilled;
+    await expect(models.Collective.create({ name: 'frank zappa', slug: randStr() })).to.be.eventually.fulfilled;
+    await expect(models.Collective.create({ name: '王继磊', slug: randStr() })).to.be.eventually.fulfilled;
+    await expect(models.Collective.create({ name: 'جهاد', slug: randStr() })).to.be.eventually.fulfilled;
+  });
+
+  it('trims name', async () => {
+    const collective = await models.Collective.create({ name: '   Frank   Zappa    ', slug: randStr() });
+    expect(collective.name).to.eq('Frank Zappa');
+  });
 
   it('creates a unique slug', () => {
     return Collective.create({ slug: 'piamancini' })
