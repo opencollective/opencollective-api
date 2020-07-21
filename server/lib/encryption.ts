@@ -44,10 +44,14 @@ const SECRET_KEY = config.dbEncryption.secretKey;
 const CIPHER = config.dbEncryption.cipher;
 
 /**
- * SecretKey based authentication without nonce.
- * Used for DB encryption of tokens, equal tokens should collide.
+ * SecretKey based authentication.
+ * Used for DB encryption of tokens.
  */
 export const crypto = {
+  hash(s: string): string {
+    return cryptojs.SHA256(s).toString();
+  },
+
   encrypt(message: string): string {
     return cryptojs[CIPHER].encrypt(message, SECRET_KEY).toString();
   },

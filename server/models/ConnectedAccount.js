@@ -1,6 +1,8 @@
 import config from 'config';
+import { isNil } from 'lodash';
 
 import { supportedServices } from '../constants/connected_account';
+import { crypto } from '../lib/encryption';
 /**
  * Model.
  */
@@ -23,8 +25,27 @@ export default (Sequelize, DataTypes) => {
       clientId: DataTypes.STRING, // paypal app id
 
       // either paypal secret OR an accessToken to do requests to the provider on behalf of the user
-      token: DataTypes.STRING,
-      refreshToken: DataTypes.STRING, // used for Stripe
+      token: {
+        type: DataTypes.STRING,
+        get() {
+          const encrypted = this.getDataValue('token');
+          return isNil(encrypted) ? null : crypto.decrypt(encrypted);
+        },
+        set(value) {
+          this.setDataValue('token', crypto.encrypt(value));
+        },
+      },
+      // used for Stripe
+      refreshToken: {
+        type: DataTypes.STRING,
+        get() {
+          const encrypted = this.getDataValue('refreshToken');
+          return isNil(encrypted) ? null : crypto.decrypt(encrypted);
+        },
+        set(value) {
+          this.setDataValue('refreshToken', crypto.encrypt(value));
+        },
+      },
 
       data: DataTypes.JSONB, // Extra service provider specific data, e.g. Stripe: { publishableKey, scope, tokenType }
       settings: DataTypes.JSONB, // configuration settings, e.g. defining templates for auto-tweeting
@@ -37,6 +58,10 @@ export default (Sequelize, DataTypes) => {
       updatedAt: {
         type: DataTypes.DATE,
         defaultValue: Sequelize.NOW,
+      },
+
+      hash: {
+        type: DataTypes.STRING,
       },
     },
     {
