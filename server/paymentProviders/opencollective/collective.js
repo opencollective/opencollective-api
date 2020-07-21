@@ -129,8 +129,10 @@ paymentMethodProvider.processOrder = async order => {
   const totalAmountInPaymentMethodCurrency = order.totalAmount * fxrate;
 
   const hostFeeInHostCurrency = paymentsLib.calcFee(order.totalAmount * fxrate, hostFeePercent);
-
-  const platformFeeInHostCurrency = paymentsLib.calcFee(order.totalAmount * fxrate, platformFeePercent);
+  const orderPlatformFee = get(order, 'data.platformFee');
+  const platformFeeInHostCurrency = isNaN(orderPlatformFee)
+    ? paymentsLib.calcFee(order.totalAmount * fxrate, platformFeePercent)
+    : orderPlatformFee * fxrate;
 
   payload.transaction = {
     type: TransactionTypes.CREDIT,
@@ -146,6 +148,9 @@ paymentMethodProvider.processOrder = async order => {
     taxAmount: order.taxAmount,
     paymentProcessorFeeInHostCurrency: 0,
     description: order.description,
+    data: {
+      isFeesOnTop: order.data?.isFeesOnTop,
+    },
   };
 
   const transactions = await models.Transaction.createFromPayload(payload);
