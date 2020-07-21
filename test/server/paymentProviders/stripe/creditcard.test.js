@@ -12,7 +12,7 @@ async function createOrderWithPaymentMethod(paymentMethodName, orderParams = {})
   });
   const host = await models.Collective.create({ name: 'Host Collective' });
   const tier = await models.Tier.create({ name: 'backer', amount: 0 });
-  const collective = await models.Collective.create({ name: 'Parcel!!' });
+  const collective = await models.Collective.create({ name: 'Parcel' });
   collective.addHost(host, user, { shouldAutomaticallyApprove: true });
   const connectedAccount = await models.ConnectedAccount.create({
     service: 'stripe',
