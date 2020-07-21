@@ -63,12 +63,12 @@ const parseError = (
     code = `transferwise.error.${error.response.data.errorCode}`;
   }
 
+  if (error.response?.data?.errors) {
+    message = error.response.data.errors.map(e => e.message).join(' ');
+  }
   if (error.response.status === 422) {
-    message = 'TransferWise validation error: ';
+    message = `TransferWise validation error: ${message}`;
     code = `transferwise.error.validation`;
-    if (error.response?.data?.errors) {
-      message += error.response.data.errors.map(e => e.message).join(' ');
-    }
   }
 
   return new TransferwiseError(message, code);
