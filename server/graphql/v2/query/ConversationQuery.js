@@ -14,7 +14,7 @@ const ConversationQuery = {
   },
   async resolve(_, args) {
     const id = idDecode(args.id, IDENTIFIER_TYPES.CONVERSATION);
-    return models.Conversation.findOne({ where: { id } });
+    return id ? models.Conversation.findByPk(id) : null;
   },
 };
 
