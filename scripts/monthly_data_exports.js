@@ -29,6 +29,7 @@ const queries = [
     WHERE m."createdAt" > :startDate
       AND m."createdAt" < :endDate
       AND m.role='BACKER'
+      AND m."deletedAt" IS NULL
     GROUP BY "CollectiveId"
     ORDER BY "totalNewBackers" DESC
     `,
@@ -40,12 +41,14 @@ const queries = [
   max(c.website) as website, max(c."twitterHandle") as twitter, max(c.description) as description
   FROM "Transactions" t
   LEFT JOIN "Collectives" c ON c.id = t."CollectiveId"
+  INNER JOIN "PaymentMethods" pm ON t."PaymentMethodId" = pm.id
   WHERE t."createdAt" > :startDate
     AND c."createdAt" > :startDate
     AND t."createdAt" < :endDate
     AND c."createdAt" < :endDate
     AND t.type='CREDIT'
-    AND t."platformFeeInHostCurrency" < 0
+    AND t."deletedAt" IS NULL
+    AND NOT (pm."service" = 'opencollective' AND pm."type" = 'collective' AND t."HostCollectiveId" = t."FromCollectiveId") -- Ignore added funds
   GROUP BY t."CollectiveId"
   ORDER BY "totalAmount" DESC
   `,
@@ -59,11 +62,12 @@ const queries = [
   FROM "Transactions" t
   LEFT JOIN "Collectives" backer ON backer.id = t."FromCollectiveId"
   LEFT JOIN "Collectives" c ON c.id = t."CollectiveId"
+  INNER JOIN "PaymentMethods" pm ON t."PaymentMethodId" = pm.id
   WHERE t."createdAt" > :startDate
     AND t."createdAt" < :endDate
     AND t.type='CREDIT'
-    AND t."platformFeeInHostCurrency" < 0
     AND t."deletedAt" IS NULL
+    AND NOT (pm."service" = 'opencollective' AND pm."type" = 'collective' AND t."HostCollectiveId" = t."FromCollectiveId") -- Ignore added funds
    GROUP BY t."FromCollectiveId"
    ORDER BY "amount" DESC)
    SELECT row_number() over(order by "amount" DESC) as "#", * from res LIMIT 100
