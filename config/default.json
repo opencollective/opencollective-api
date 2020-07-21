@@ -138,5 +138,9 @@
     "path": "/_hyperwatch",
     "realm": null,
     "username": "opencollective"
+  },
+  "dbEncryption": {
+    "secretKey": "guineapigs",
+    "cipher": "DES"
   }
 }

@@ -158,8 +158,8 @@
     "username": "HYPERWATCH_USERNAME",
     "secret": "HYPERWATCH_SECRET"
   },
-  "twoFactorAuth": {
-    "secretKey": "TWO_FACTOR_AUTH_SECRET_KEY",
-    "cipher": "TWO_FACTOR_AUTH_CIPHER"
+  "dbEncryption": {
+    "secretKey": "DB_ENCRYPTION_SECRET_KEY",
+    "cipher": "DB_ENCRYPTION_CIPHER"
   }
 }

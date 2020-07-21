@@ -24,9 +24,5 @@
   },
   "githubFlow": {
     "minNbStars": 0
-  },
-  "twoFactorAuth": {
-    "secretKey": "guineapigs",
-    "cipher": "DES"
   }
 }

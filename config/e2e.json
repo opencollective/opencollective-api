@@ -10,9 +10,5 @@
     "virtualCards": {
       "maxPerDay": 1000
     }
-  },
-  "twoFactorAuth": {
-    "secretKey": "guineapigs",
-    "cipher": "DES"
   }
 }

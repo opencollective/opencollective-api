@@ -1,9 +1,8 @@
-import config from 'config';
-import crypto from 'crypto-js';
 import { GraphQLFloat, GraphQLNonNull, GraphQLString } from 'graphql';
 import GraphQLJSON from 'graphql-type-json';
 import { cloneDeep, set } from 'lodash';
 
+import { crypto } from '../../../lib/encryption';
 import models, { sequelize } from '../../../models';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { AccountTypeToModelMapping } from '../enum/AccountType';
@@ -11,9 +10,6 @@ import { AccountReferenceInput, fetchAccountWithReference } from '../input/Accou
 import { Account } from '../interface/Account';
 import { Individual } from '../object/Individual';
 import AccountSettingsKey from '../scalar/AccountSettingsKey';
-
-const SECRET_KEY = config.twoFactorAuth.secretKey;
-const CIPHER = config.twoFactorAuth.cipher;
 
 const accountMutations = {
   editAccountSetting: {
@@ -139,7 +135,7 @@ const accountMutations = {
         throw new ValidationFailed('Invalid 2FA token');
       }
 
-      const encryptedText = crypto[CIPHER].encrypt(args.token, SECRET_KEY).toString();
+      const encryptedText = crypto.encrypt(args.token);
 
       await user.update({ twoFactorAuthToken: encryptedText });
 
