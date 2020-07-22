@@ -531,7 +531,7 @@ export const ContributorType = new GraphQLObjectType({
     },
     isFundraiser: {
       type: new GraphQLNonNull(GraphQLBoolean),
-      description: 'True if the contributor is a core contributor (admin)',
+      description: 'True if the contributor is a fundraiser',
     },
     tiersIds: {
       type: new GraphQLNonNull(new GraphQLList(GraphQLInt)),

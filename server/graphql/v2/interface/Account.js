@@ -3,9 +3,11 @@ import { GraphQLDateTime } from 'graphql-iso-date';
 import GraphQLJSON from 'graphql-type-json';
 import { invert } from 'lodash';
 
+import { getPaginatedContributorsForCollective } from '../../../lib/contributors';
 import models, { Op } from '../../../models';
 import { hostResolver } from '../../common/collective';
 import { NotFound } from '../../errors';
+import { ContributorCollection } from '../collection/ContributorCollection';
 import { ConversationCollection } from '../collection/ConversationCollection';
 import { MemberCollection, MemberOfCollection } from '../collection/MemberCollection';
 import { OrderCollection } from '../collection/OrderCollection';
@@ -32,6 +34,8 @@ import { PaymentMethod } from '../object/PaymentMethod';
 import PayoutMethod from '../object/PayoutMethod';
 import { TagStats } from '../object/TagStats';
 import { TransferWise } from '../object/TransferWise';
+
+import { CollectionArgs } from './Collection';
 
 const accountFieldsDefinition = () => ({
   id: {
@@ -571,6 +575,17 @@ export const CollectiveAndFundFields = {
       const query = { where: { CollectiveId: account.id }, order: [['amount', 'ASC']] };
       const result = await models.Tier.findAndCountAll(query);
       return { nodes: result.rows, totalCount: result.count };
+    },
+  },
+  contributors: {
+    type: new GraphQLNonNull(ContributorCollection),
+    description: 'All the persons and entities that contribute to this account',
+    args: {
+      ...CollectionArgs,
+      roles: { type: new GraphQLList(MemberRole) },
+    },
+    resolve(collective, args) {
+      return getPaginatedContributorsForCollective(collective.id, args);
     },
   },
 };
