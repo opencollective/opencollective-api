@@ -1891,8 +1891,16 @@ export const ConnectedAccountType = new GraphQLObjectType({
       },
       username: {
         type: GraphQLString,
-        resolve(ca) {
-          return ca.username;
+        resolve(ca, args, req) {
+          // Services which we consider the username to be public
+          const publicServices = ['github', 'twitter'];
+          if (req.remoteUser.isAdmin(ca.CollectiveId)) {
+            return ca.username;
+          } else if (publicServices.includes(ca.service)) {
+            return ca.username;
+          } else {
+            return null;
+          }
         },
       },
       settings: {
