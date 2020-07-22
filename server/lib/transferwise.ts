@@ -49,8 +49,11 @@ const signString = (data: string) => {
   const key = Buffer.from(config.transferwise.privateKey, 'base64').toString('ascii');
   return sign.sign(key, 'base64');
 };
+
 const compactRecipientDetails = <T>(object: T): Partial<T> => omitBy(object, isNull);
+
 const getData = <T extends { data?: object }>(obj: T | undefined): T['data'] | undefined => obj && obj.data;
+
 const parseError = (
   error: AxiosError<{ errorCode?: TransferwiseErrorCodes; errors?: any[] }>,
   defaultMessage?: string,
@@ -73,33 +76,37 @@ const parseError = (
 
   return new TransferwiseError(message, code);
 };
-export const requestDataAndThrowParsedError = async (
+
+export const requestDataAndThrowParsedError = (
   fn: Function,
   url: string,
   { data, ...options }: { data?: object; headers: object; params?: object },
   defaultErrorMessage?: string,
 ): Promise<any> => {
-  try {
-    const response = data ? await fn(url, data, options) : await fn(url, options);
-    return getData(response);
-  } catch (e) {
-    // Implements Strong Customer Authentication
-    // https://api-docs.transferwise.com/#payouts-guide-strong-customer-authentication
-    const signatureFailed = e?.response?.headers['x-2fa-approval-result'] === 'REJECTED';
-    const hadSignature = e?.response?.headers['X-Signature'];
-    if (signatureFailed && !hadSignature) {
-      const ott = e.response.headers['x-2fa-approval'];
-      const signature = signString(ott);
-      options.headers = { ...options.headers, 'X-Signature': signature, 'x-2fa-approval': ott };
-      const response = data ? await fn(url, data, options) : await fn(url, options);
-      return getData(response);
-    } else {
+  const pRequest = data ? fn(url, data, options) : fn(url, options);
+  return pRequest
+    .then(getData)
+    .catch(e => {
+      // Implements Strong Customer Authentication
+      // https://api-docs.transferwise.com/#payouts-guide-strong-customer-authentication
+      const signatureFailed = e?.response?.headers['x-2fa-approval-result'] === 'REJECTED';
+      const hadSignature = e?.response?.headers['X-Signature'];
+      if (signatureFailed && !hadSignature) {
+        const ott = e.response.headers['x-2fa-approval'];
+        const signature = signString(ott);
+        options.headers = { ...options.headers, 'X-Signature': signature, 'x-2fa-approval': ott };
+        const request = data ? fn(url, data, options) : fn(url, options);
+        return request.then(getData);
+      } else {
+        throw e;
+      }
+    })
+    .catch(e => {
       debug(e.response?.data || e);
       const error = parseError(e, defaultErrorMessage);
       logger.error(error.toString());
       throw error;
-    }
-  }
+    });
 };
 
 interface CreateQuote {
