@@ -1,7 +1,8 @@
 import DataLoader from 'dataloader';
 
 import ACTIVITY from '../../constants/activities';
-import models, { Op, sequelize } from '../../models';
+import queries from '../../lib/queries';
+import models, { Op } from '../../models';
 import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile';
 import { ExpenseItem } from '../../models/ExpenseItem';
 import { LEGAL_DOCUMENT_TYPE } from '../../models/LegalDocument';
@@ -12,42 +13,6 @@ const THRESHOLD = 600e2;
 const {
   requestStatus: { RECEIVED },
 } = models.LegalDocument;
-
-const userTaxFormRequiredBeforePaymentQuery = `
-  SELECT 
-    analyzed_expenses."FromCollectiveId",
-    analyzed_expenses.id as "expenseId",
-    MAX(ld."requestStatus") as "legalDocRequestStatus",
-    d."documentType" as "requiredDocument",
-    SUM(all_expenses."amount") AS total
-  FROM
-    "Expenses" analyzed_expenses
-  INNER JOIN "Expenses" all_expenses
-    ON all_expenses."FromCollectiveId" = analyzed_expenses."FromCollectiveId"
-  INNER JOIN "Collectives" from_collective
-    ON from_collective.id = analyzed_expenses."FromCollectiveId"
-  INNER JOIN "Collectives" c
-    ON c.id = analyzed_expenses."CollectiveId"
-  INNER JOIN "RequiredLegalDocuments" d
-    ON d."HostCollectiveId" = c."HostCollectiveId"
-    AND d."documentType" = 'US_TAX_FORM'
-  LEFT JOIN "LegalDocuments" ld
-    ON ld."CollectiveId" = analyzed_expenses."FromCollectiveId"
-    AND ld.year = date_part('year', all_expenses."incurredAt")
-    AND ld."documentType" = 'US_TAX_FORM'
-  WHERE analyzed_expenses.id IN (:expenseIds)
-  AND analyzed_expenses.type = 'INVOICE'
-  AND analyzed_expenses.status IN ('PENDING', 'APPROVED')
-  AND analyzed_expenses."deletedAt" IS NULL
-  AND from_collective.type = 'USER'
-  AND all_expenses.type = 'INVOICE'
-  AND all_expenses.status NOT IN ('ERROR', 'REJECTED')
-  AND all_expenses."deletedAt" IS NULL
-  AND all_expenses."incurredAt"
-    BETWEEN date_trunc('year', analyzed_expenses."incurredAt")
-    AND (date_trunc('year', analyzed_expenses."incurredAt") + interval '1 year')
-  GROUP BY analyzed_expenses.id, analyzed_expenses."FromCollectiveId", d."documentType"
-`;
 
 /**
  * Loader for expense's items.
@@ -116,12 +81,7 @@ export const attachedFiles = (): DataLoader<number, ExpenseAttachedFile[]> => {
 };
 
 const loadTaxFormsRequiredForExpenses = async (expenseIds: number[]): Promise<object> => {
-  const expenses = await sequelize.query(userTaxFormRequiredBeforePaymentQuery, {
-    type: sequelize.QueryTypes.SELECT,
-    raw: true,
-    model: models.Expense,
-    replacements: { expenseIds },
-  });
+  const expenses = await queries.getTaxFormsRequiredForExpenses(expenseIds);
   const expenseNeedsTaxForm = {};
   expenses.forEach(expense => {
     expenseNeedsTaxForm[expense.expenseId] =
