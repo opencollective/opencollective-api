@@ -7,6 +7,8 @@
  * contributors should surface only unique collectives.
  */
 
+import { omit } from 'lodash';
+
 import MemberRoles from '../constants/roles';
 import { sequelize } from '../models';
 
@@ -220,7 +222,11 @@ const filterContributors = (contributors: ContributorsList, filters: Contributor
     }
   }
 
-  return contributors.slice(filters.offset || 0, filters.limit);
+  if (filters.offset || filters.limit) {
+    return contributors.slice(filters.offset || 0, filters.limit);
+  } else {
+    return contributors;
+  }
 };
 
 // ---- Public API ----
@@ -238,13 +244,36 @@ export const getContributorsForCollective = async (
 };
 
 /**
+ * Returns all the contributors for given collective
+ */
+export const getPaginatedContributorsForCollective = async (
+  collectiveId: number,
+  filters: ContributorsFilters | null,
+): Promise<{
+  offset: number;
+  limit: number;
+  totalCount: number;
+  nodes: ContributorsList;
+}> => {
+  const contributorsCache: ContributorsCacheEntry = await loadContributors(collectiveId);
+  const contributors = contributorsCache.all || [];
+  const filteredContributors = filterContributors(contributors, omit(filters, ['offset', 'limit']));
+  return {
+    offset: filters?.offset || 0,
+    limit: filters?.limit || 0,
+    totalCount: filteredContributors.length,
+    nodes: !filters ? filteredContributors : filteredContributors.slice(filters.offset || 0, filters.limit),
+  };
+};
+
+/**
  * Returns all the contributors for given tier
  */
 export const getContributorsForTier = async (
   collectiveId: number,
   tierId: number,
   filters: ContributorsFilters | null,
-) => {
+): Promise<ContributorsList> => {
   const contributorsCache: ContributorsCacheEntry = await loadContributors(collectiveId);
   const contributors = contributorsCache.tiers[tierId.toString()] || [];
   return filterContributors(contributors, filters);
