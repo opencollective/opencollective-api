@@ -16,9 +16,8 @@ import path from 'path';
 import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
-import { get, groupBy, pick, uniq } from 'lodash';
+import { groupBy, pick, uniq } from 'lodash';
 import moment from 'moment';
-import fetch from 'node-fetch';
 
 import ORDER_STATUS from '../../server/constants/order_status';
 import roles from '../../server/constants/roles';
@@ -29,9 +28,7 @@ import models, { Op } from '../../server/models';
 
 const d = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date();
 d.setMonth(d.getMonth() - 1);
-const year = d.getFullYear();
 const month = moment(d).format('MMMM');
-const month2digit = moment(d).format('MM');
 
 const startDate = new Date(d.getFullYear(), d.getMonth(), 1);
 const endDate = new Date(d.getFullYear(), d.getMonth() + 1, 1);
@@ -154,43 +151,6 @@ const processBacker = async FromCollectiveId => {
   }
 
   const attachments = [];
-  if (get(backerCollective, 'settings.sendInvoiceByEmail')) {
-    const distinctHostCollectiveIds = uniq(distinctTransactions.map(t => t.dataValues.HostCollectiveId));
-    const hosts = await Promise.map(distinctHostCollectiveIds, HostCollectiveId =>
-      models.Collective.findByPk(HostCollectiveId, {
-        attributes: ['id', 'slug'],
-      }),
-    );
-
-    const token = subscribers[0].jwt();
-    const headers = { Authorization: `Bearer ${token}` };
-    await Promise.map(
-      hosts,
-      async host => {
-        const filename = `${year}${month2digit}-${host.slug}-${backerCollective.slug}.pdf`;
-        const invoiceUrl = `${config.host.website}/${backerCollective.slug}/invoices/${filename}`;
-        console.log('>>> downloading', invoiceUrl);
-        await fetch(invoiceUrl, { headers })
-          .then(response => {
-            if (response.status === 200) {
-              return response.buffer();
-            } else {
-              console.error(`Unable to download the invoice ${invoiceUrl}`);
-            }
-          })
-          .then(blob => {
-            if (!blob) {
-              return;
-            }
-            attachments.push({
-              filename,
-              content: blob,
-            });
-          });
-      },
-      { concurrency: 4 },
-    );
-  }
   const orders = await models.Order.findAll({
     attributes: ['id', 'CollectiveId', 'totalAmount', 'currency'],
     where: {
