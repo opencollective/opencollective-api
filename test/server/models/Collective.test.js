@@ -287,7 +287,7 @@ describe('server/models/Collective', () => {
     );
   });
 
-  it('does not create collective with a blacklisted slug', () => {
+  it('does not create collective with a blocked slug', () => {
     return Collective.create({ name: 'learn more' }).then(collective => {
       // `https://host/learn-more` is a protected page.
       expect(collective.slug).to.not.equal('learn-more');

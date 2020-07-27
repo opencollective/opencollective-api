@@ -4,7 +4,7 @@ import { get, pick } from 'lodash';
 import activities from '../../../constants/activities';
 import roles from '../../../constants/roles';
 import { purgeCacheForPage } from '../../../lib/cloudflare';
-import { isBlacklistedCollectiveSlug } from '../../../lib/collectivelib';
+import { isCollectiveSlugReserved } from '../../../lib/collectivelib';
 import models from '../../../models';
 import { Unauthorized, ValidationFailed } from '../../errors';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
@@ -32,7 +32,7 @@ async function createFund(_, args, req) {
     settings: { ...DEFAULT_COLLECTIVE_SETTINGS, ...args.fund.settings },
   };
 
-  if (isBlacklistedCollectiveSlug(fundData.slug)) {
+  if (isCollectiveSlugReserved(fundData.slug)) {
     throw new Error(`The slug '${fundData.slug}' is not allowed.`);
   }
   const withSlug = await models.Collective.findOne({ where: { slug: fundData.slug } });

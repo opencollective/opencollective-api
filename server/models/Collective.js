@@ -39,9 +39,9 @@ import { HOST_FEE_PERCENT, OC_FEE_PERCENT } from '../constants/transactions';
 import { hasOptedOutOfFeature, isFeatureAllowedForCollectiveType } from '../lib/allowed-features';
 import cache from '../lib/cache';
 import {
-  collectiveSlugBlacklist,
+  collectiveSlugReservedlist,
   getCollectiveAvatarUrl,
-  isBlacklistedCollectiveSlug,
+  isCollectiveSlugReserved,
   validateSettings,
   whitelistSettings,
 } from '../lib/collectivelib';
@@ -174,7 +174,7 @@ export default function (Sequelize, DataTypes) {
           len: [1, 255],
           isLowercase: true,
           notIn: {
-            args: [collectiveSlugBlacklist],
+            args: [collectiveSlugReservedlist],
             msg: 'The slug given for this collective is a reserved keyword',
           },
           isValid(value) {
@@ -2949,7 +2949,7 @@ export default function (Sequelize, DataTypes) {
      */
     const slugSuggestionHelper = (slugToCheck, slugList, count) => {
       const slug = count > 0 ? `${slugToCheck}${count}` : slugToCheck;
-      if (slugList.indexOf(slug) === -1 && !isBlacklistedCollectiveSlug(slug)) {
+      if (slugList.indexOf(slug) === -1 && !isCollectiveSlugReserved(slug)) {
         return slug;
       } else {
         return slugSuggestionHelper(`${slugToCheck}`, slugList, count + 1);

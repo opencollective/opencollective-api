@@ -2,7 +2,7 @@ import { GraphQLNonNull } from 'graphql';
 import { pick } from 'lodash';
 
 import roles from '../../../constants/roles';
-import { isBlacklistedCollectiveSlug } from '../../../lib/collectivelib';
+import { isCollectiveSlugReserved } from '../../../lib/collectivelib';
 import models from '../../../models';
 import { NotFound, Unauthorized } from '../../errors';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
@@ -39,7 +39,7 @@ async function createProject(_, args, req) {
     settings: { ...DEFAULT_PROJECT_SETTINGS, ...args.project.settings },
   };
 
-  if (isBlacklistedCollectiveSlug(projectData.slug)) {
+  if (isCollectiveSlugReserved(projectData.slug)) {
     throw new Error(`The slug '${projectData.slug}' is not allowed.`);
   }
   const checkSlug = await models.Collective.findOne({ where: { slug: projectData.slug } });
