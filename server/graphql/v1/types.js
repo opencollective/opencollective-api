@@ -1894,7 +1894,7 @@ export const ConnectedAccountType = new GraphQLObjectType({
         resolve(ca, args, req) {
           // Services which we consider the username to be public
           const publicServices = ['github', 'twitter'];
-          if (req.remoteUser.isAdmin(ca.CollectiveId)) {
+          if (req.remoteUser && req.remoteUser.isAdmin(ca.CollectiveId)) {
             return ca.username;
           } else if (publicServices.includes(ca.service)) {
             return ca.username;
