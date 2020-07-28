@@ -90,6 +90,7 @@ async function run() {
       amountInHostCurrency: amount,
       netAmountInCollectiveCurrency: amount,
       TransactionGroup: uuid(),
+      CreatedByUserId: 30, // Pia (mandatory in the model)
     };
 
     console.log(`Adding Host Fees ${monthAsString} ${year} for ${host.slug}`);
