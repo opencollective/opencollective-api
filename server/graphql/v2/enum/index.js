@@ -13,4 +13,5 @@ export { OrderStatus } from './OrderStatus';
 export { PaymentMethodType } from './PaymentMethodType';
 export { TierAmountType } from './TierAmountType';
 export { TierInterval } from './TierInterval';
+export { TierType } from './TierType';
 export { TransactionType } from './TransactionType';

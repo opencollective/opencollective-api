@@ -2,7 +2,7 @@ import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLStri
 
 import models, { Op } from '../../../models';
 import { OrderCollection } from '../collection/OrderCollection';
-import { OrderStatus, TierAmountType, TierInterval } from '../enum';
+import { OrderStatus, TierAmountType, TierInterval, TierType } from '../enum';
 import { idEncode } from '../identifiers';
 
 import { Amount } from './Amount';
@@ -63,6 +63,9 @@ export const Tier = new GraphQLObjectType({
         resolve(tier) {
           return { value: tier.amount, currency: tier.currency };
         },
+      },
+      type: {
+        type: new GraphQLNonNull(TierType),
       },
       interval: {
         type: TierInterval,
