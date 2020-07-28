@@ -1,8 +1,17 @@
-import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import {
+  GraphQLBoolean,
+  GraphQLFloat,
+  GraphQLInt,
+  GraphQLInterfaceType,
+  GraphQLList,
+  GraphQLNonNull,
+  GraphQLString,
+} from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 import GraphQLJSON from 'graphql-type-json';
-import { invert } from 'lodash';
+import { invert, isNil } from 'lodash';
 
+import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
 import { getPaginatedContributorsForCollective } from '../../../lib/contributors';
 import models, { Op } from '../../../models';
 import { hostResolver } from '../../common/collective';
@@ -22,6 +31,7 @@ import {
   OrderStatus,
   TransactionType,
 } from '../enum';
+import { HostFeeStructure } from '../enum/HostFeeStructure';
 import { idEncode } from '../identifiers';
 import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
 import { HasMembersFields } from '../interface/HasMembers';
@@ -528,6 +538,26 @@ export const CollectiveAndFundFields = {
     type: Host,
     resolve: hostResolver,
   },
+  hostFeesStructure: {
+    description: 'Describe how the host charges the collective',
+    type: HostFeeStructure,
+    resolve: async (account, _, req) => {
+      if (!account.HostCollectiveId) {
+        return null;
+      } else if (isNil(account.hostFeePercent)) {
+        return HOST_FEE_STRUCTURE.DEFAULT;
+      } else {
+        const host = await req.loaders.Collective.byId.load(account.HostCollectiveId);
+        return account.hostFeePercent === host.hostFeePercent
+          ? HOST_FEE_STRUCTURE.DEFAULT
+          : HOST_FEE_STRUCTURE.CUSTOM_FEE;
+      }
+    },
+  },
+  hostFeePercent: {
+    description: 'Fees percentage that the host takes for this collective',
+    type: GraphQLFloat,
+  },
   approvedAt: {
     description: 'Date of approval by the Fiscal Host.',
     type: GraphQLDateTime,
@@ -551,7 +581,7 @@ export const CollectiveAndFundFields = {
   },
   totalFinancialContributors: {
     description: 'Number of unique financial contributors.',
-    type: GraphQLInt,
+    type: new GraphQLNonNull(GraphQLInt),
     args: {
       accountType: {
         type: AccountType,
@@ -561,7 +591,7 @@ export const CollectiveAndFundFields = {
     async resolve(account, args, req) {
       const stats = await req.loaders.Collective.stats.backers.load(account.id);
       if (!args.accountType) {
-        return stats.all;
+        return stats.all || 0;
       } else if (args.accountType === 'INDIVIDUAL') {
         return stats.USER || 0;
       } else {
@@ -604,6 +634,26 @@ export const EventAndProjectFields = {
     type: Host,
     resolve: hostResolver,
   },
+  hostFeesStructure: {
+    description: 'Describe how the host charges the collective',
+    type: HostFeeStructure,
+    resolve: async (account, _, req) => {
+      if (!account.HostCollectiveId) {
+        return null;
+      } else if (isNil(account.hostFeePercent)) {
+        return HOST_FEE_STRUCTURE.DEFAULT;
+      } else {
+        const host = await req.loaders.Collective.byId.load(account.HostCollectiveId);
+        return account.hostFeePercent === host.hostFeePercent
+          ? HOST_FEE_STRUCTURE.DEFAULT
+          : HOST_FEE_STRUCTURE.CUSTOM_FEE;
+      }
+    },
+  },
+  hostFeePercent: {
+    description: 'Fees percentage that the host takes for this collective',
+    type: GraphQLFloat,
+  },
   isApproved: {
     description: "Returns whether it's approved by the Fiscal Host",
     type: GraphQLBoolean,
@@ -621,6 +671,26 @@ export const EventAndProjectFields = {
     type: GraphQLBoolean,
     resolve(account) {
       return Boolean(account.isActive);
+    },
+  },
+  totalFinancialContributors: {
+    description: 'Number of unique financial contributors.',
+    type: new GraphQLNonNull(GraphQLInt),
+    args: {
+      accountType: {
+        type: AccountType,
+        description: 'Type of account (COLLECTIVE/EVENT/ORGANIZATION/INDIVIDUAL)',
+      },
+    },
+    async resolve(account, args, req) {
+      const stats = await req.loaders.Collective.stats.backers.load(account.id);
+      if (!args.accountType) {
+        return stats.all || 0;
+      } else if (args.accountType === 'INDIVIDUAL') {
+        return stats.USER || 0;
+      } else {
+        return stats[args.accountType] || 0;
+      }
     },
   },
 };

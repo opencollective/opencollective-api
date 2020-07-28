@@ -1,6 +1,6 @@
 import config from 'config';
 import crypto from 'crypto-js';
-import { GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLFloat, GraphQLNonNull, GraphQLString } from 'graphql';
 import GraphQLJSON from 'graphql-type-json';
 import { cloneDeep, set } from 'lodash';
 
@@ -63,6 +63,35 @@ const accountMutations = {
         set(settings, args.key, args.value);
         return account.update({ settings }, { transaction });
       });
+    },
+  },
+  editAccountFeeStructure: {
+    type: new GraphQLNonNull(Account),
+    description: 'An endpoint for hosts to edit the fees structure of their hosted accounts',
+    args: {
+      account: {
+        type: new GraphQLNonNull(AccountReferenceInput),
+        description: 'Account where the settings will be updated',
+      },
+      hostFeePercent: {
+        type: new GraphQLNonNull(GraphQLFloat),
+        description: 'The host fee percent to apply to this account',
+      },
+    },
+    async resolve(_, args, req): Promise<object> {
+      const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
+
+      if (!account.HostCollectiveId) {
+        throw new ValidationFailed('Fees structure can only be edited for accounts that you are hosting');
+      } else if (!req.remoteUser?.isAdmin(account.HostCollectiveId)) {
+        throw new Forbidden(
+          'You need to be logged in as an host admin to change the fees structure of the hosted accounts',
+        );
+      } else if (!account.approvedAt) {
+        throw new ValidationFailed('The collective needs to be approved before you can change the fees structure');
+      }
+
+      return account.update({ hostFeePercent: args.hostFeePercent });
     },
   },
   addTwoFactorAuthTokenToIndividual: {
