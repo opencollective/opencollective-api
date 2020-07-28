@@ -126,6 +126,9 @@ const queries = {
       const invoicesByKey = {};
       await Promise.map(transactions, async transaction => {
         const HostCollectiveId = transaction.HostCollectiveId;
+        if (!HostCollectiveId) {
+          return;
+        }
         hostsById[HostCollectiveId] =
           hostsById[HostCollectiveId] ||
           (await models.Collective.findByPk(HostCollectiveId, {
