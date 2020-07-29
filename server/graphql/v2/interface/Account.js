@@ -693,6 +693,17 @@ export const EventAndProjectFields = {
       }
     },
   },
+  contributors: {
+    type: new GraphQLNonNull(ContributorCollection),
+    description: 'All the persons and entities that contribute to this account',
+    args: {
+      ...CollectionArgs,
+      roles: { type: new GraphQLList(MemberRole) },
+    },
+    resolve(collective, args) {
+      return getPaginatedContributorsForCollective(collective.id, args);
+    },
+  },
 };
 
 export default Account;
