@@ -128,7 +128,11 @@ export async function createTransaction(order, paymentInfo) {
   const paypalFeeInCents = floatAmountToCents(paypalFee);
   const currencyFromPayPal = transaction.amount.currency;
 
-  const hostFeeInHostCurrency = libpayments.calcFee(amountFromPayPalInCents, order.collective.hostFeePercent);
+  const feeOnTop = order.data?.platformFee || 0;
+  const hostFeeInHostCurrency = libpayments.calcFee(
+    amountFromPayPalInCents - feeOnTop,
+    order.collective.hostFeePercent,
+  );
   const platformFeeInHostCurrency = libpayments.getPlatformFee(order);
 
   const payload = {

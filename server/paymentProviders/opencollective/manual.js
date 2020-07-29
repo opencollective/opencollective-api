@@ -35,13 +35,12 @@ async function processOrder(order) {
     );
   }
 
+  const feeOnTop = order.data?.platformFee || 0;
   const hostFeePercent = get(order, 'data.hostFeePercent', order.collective.hostFeePercent);
-  const hostFeeInHostCurrency = -Math.round((hostFeePercent / 100) * order.totalAmount);
+  const hostFeeInHostCurrency = -Math.round((hostFeePercent / 100) * (order.totalAmount - feeOnTop));
 
   // Waive fees except if explicitely passed
-  const orderPlatformFee = get(order, 'data.platformFee');
-  const platformFeeInHostCurrency = isNaN(orderPlatformFee) ? 0 : orderPlatformFee;
-
+  const platformFeeInHostCurrency = feeOnTop;
   const paymentProcessorFeeInHostCurrency = 0;
 
   payload.transaction = {

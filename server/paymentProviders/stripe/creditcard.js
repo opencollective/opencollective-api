@@ -176,7 +176,8 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
   // Create a Transaction
   const fees = extractFees(balanceTransaction);
   const hostFeePercent = get(order, 'data.hostFeePercent', order.collective.hostFeePercent);
-  const hostFeeInHostCurrency = paymentsLib.calcFee(balanceTransaction.amount, hostFeePercent);
+  const feeOnTop = order.data?.platformFee || 0;
+  const hostFeeInHostCurrency = paymentsLib.calcFee(balanceTransaction.amount - feeOnTop, hostFeePercent);
   const payload = {
     CreatedByUserId: order.CreatedByUserId,
     FromCollectiveId: order.FromCollectiveId,
