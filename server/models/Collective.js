@@ -1171,6 +1171,7 @@ export default function (Sequelize, DataTypes) {
     const orders = await models.Order.findAll({
       where: {
         CollectiveId: this.id,
+        FromCollectiveId: { [Op.ne]: this.id },
         createdAt: { [Op.gte]: startDate, [Op.lt]: endDate },
         ...where,
       },

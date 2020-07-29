@@ -42,7 +42,10 @@ const init = () => {
 
   const query = {
     attributes: ['id', 'slug', 'name', 'twitterHandle', 'currency', 'settings', 'tags'],
-    where: { type: 'COLLECTIVE', isActive: true },
+    where: {
+      type: { [Op.in]: ['COLLECTIVE', 'ORGANIZATION'] },
+      isActive: true,
+    },
   };
 
   let slugs;

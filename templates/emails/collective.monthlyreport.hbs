@@ -17,7 +17,7 @@ Subject: {{collective.name}} Collective {{month}} {{year}} Report
   }
   .action {
     font-size: 12px;
-    margin-left: 5px;    
+    margin-left: 5px;
     margin-top: 6px;
   }
   .counter {
@@ -91,7 +91,7 @@ Subject: {{collective.name}} Collective {{month}} {{year}} Report
 </style>
 
 <div style="display:none;font-size:1px;color:#333333;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">
-  Balance: {{currency collective.stats.balance currency=collective.currency}} (+{{currency collective.stats.totalDonations currency=collective.currency}}{{#if collective.stats.totalExpenses}}, {{currency collective.stats.totalExpenses currency=collective.currency}}{{/if}}) &nbsp; | &nbsp; 
+  Balance: {{currency collective.stats.balance currency=collective.currency}} (+{{currency collective.stats.totalDonations currency=collective.currency}}{{#if collective.stats.totalExpenses}}, {{currency collective.stats.totalExpenses currency=collective.currency}}{{/if}}) &nbsp; | &nbsp;
   {{collective.stats.backers.lastMonth}} backers (+{{collective.newOrders.length}}{{#if collective.cancelledOrders.length}}, -{{collective.cancelledOrders.length}}{{/if}}) &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;
 </div>
 
@@ -162,7 +162,7 @@ Subject: {{collective.name}} Collective {{month}} {{year}} Report
     {{/each}}
   </ul>
   {{else}}
-    <p>{{#if collective.stats.backers.lastMonth}}Your {{collective.stats.backers.lastMonth}} backers haven't heard from you last month! {{/if}}Don't forget to regularly <a href="https://opencollective.com/{{collective.slug}}/updates">post an update on your collective page</a> to keep your community posted on your latest activities!</p>
+    <p>{{#if collective.stats.backers.lastMonth}}Your {{collective.stats.backers.lastMonth}} backers haven't heard from you last month! {{/if}}Don't forget to regularly <a href="https://opencollective.com/{{collective.slug}}/updates">post an update on your profile page</a> to keep your community posted on your latest activities!</p>
   {{/if}}
 
   {{#if collective.newOrders}}
@@ -178,7 +178,7 @@ Subject: {{collective.name}} Collective {{month}} {{year}} Report
             {{else}}
               <img src="{{@root.config.host.images}}/{{fromCollective.slug}}/avatar/rounded.png" height="36" width="36" alt="{{fromCollective.name}}" border="0" />
             {{/if}}
-          </a>          
+          </a>
         </td>
         <td width="5"></td>
         <td valign="top" width="100%">
@@ -214,7 +214,7 @@ Subject: {{collective.name}} Collective {{month}} {{year}} Report
             {{else}}
               <img src="{{@root.config.host.images}}/{{fromCollective.slug}}/avatar/rounded.png" height="36" width="36" alt="{{fromCollective.name}}" border="0" />
             {{/if}}
-          </a>          
+          </a>
         </td>
         <td width="5"></td>
         <td valign="top" width="100%">
