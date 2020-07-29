@@ -84,11 +84,14 @@ async function run() {
       currency: host.currency,
       CollectiveId: host.id,
       FromCollectiveId: host.id,
-      HostCollectiveId: host.id,
+      HostCollectiveId: null,
       hostCurrency: host.currency,
       hostCurrencyFxRate: 1,
       amountInHostCurrency: amount,
       netAmountInCollectiveCurrency: amount,
+      platformFeeInHostCurrency: 0,
+      hostFeeInHostCurrency: 0,
+      paymentProcessorFeeInHostCurrency: 0,
       TransactionGroup: uuid(),
       CreatedByUserId: 30, // Pia (mandatory in the model)
     };
