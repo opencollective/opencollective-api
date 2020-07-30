@@ -462,7 +462,8 @@ export default (Sequelize, DataTypes) => {
         netAmountInCollectiveCurrency: Math.round(
           Math.abs(transaction.platformFeeInHostCurrency) * platformCurrencyFxRate,
         ),
-        hostCurrencyFxRate: platformCurrencyFxRate,
+        // This is always 1 because OpenCollective and OpenCollective Inc (Host) are in USD.
+        hostCurrencyFxRate: 1,
         data: {
           hostToPlatformFxRate: await getFxRate(transaction.hostCurrency, FEES_ON_TOP_TRANSACTION_PROPERTIES.currency),
         },
