@@ -23,7 +23,7 @@
     "algoliasearch": "3.35.1",
     "apollo-server-express": "2.16.1",
     "argparse": "1.0.10",
-    "aws-sdk": "2.723.0",
+    "aws-sdk": "2.724.0",
     "axios": "0.19.2",
     "babel-plugin-add-module-exports": "1.0.2",
     "babel-plugin-lodash": "3.3.4",
