@@ -4,13 +4,13 @@ Hi {{recipient.firstName}}!
 
 Here are your monthly stats.{{#if collective.transactions}} We have attached a CSV of the {{collective.transactions.length}} {{pluralize "transaction" n=collective.transactions.length}} that you had in {{month}}.{{/if}} Just reply to this email if you have any questions.
 
-Balance: {{currency collective.stats.balance currency=collective.currency}} (+{{currency collective.stats.totalDonations currency=collective.currency}}{{#if collective.stats.totalExpenses}}, {{currency collective.stats.totalExpenses currency=collective.currency}}{{/if}}) 
-{{collective.stats.backers.lastMonth}} backers (+{{collective.stats.backers.new}}{{#if collective.stats.backers.lost}}, -{{collective.stats.backers.lost}}{{/if}}) 
+Balance: {{currency collective.stats.balance currency=collective.currency}} (+{{currency collective.stats.totalDonations currency=collective.currency}}{{#if collective.stats.totalExpenses}}, {{currency collective.stats.totalExpenses currency=collective.currency}}{{/if}})
+{{collective.stats.backers.lastMonth}} backers (+{{collective.stats.backers.new}}{{#if collective.stats.backers.lost}}, -{{collective.stats.backers.lost}}{{/if}})
 
 📌  Next goal
 {{#if collective.nextGoal}}
 
-You still need {{currency collective.nextGoal.missing.amount currency=collective.currency}} {{#if collective.nextGoal.missing.interval}}per {{collective.nextGoal.missing.interval}}{{/if}} to reach your next goal of {{collective.nextGoal.title}} ({{collective.nextGoal.percentage}} there). 
+You still need {{currency collective.nextGoal.missing.amount currency=collective.currency}} {{#if collective.nextGoal.missing.interval}}per {{collective.nextGoal.missing.interval}}{{/if}} to reach your next goal of {{collective.nextGoal.title}} ({{collective.nextGoal.percentage}} there).
 {{else}}
 You haven't defined any goal. Set up a goal to incentivize your community to chip in.
 https://opencollective.com/{{collective.slug}}/edit/goals
@@ -26,7 +26,7 @@ https://opencollective.com/{{collective.slug}}/edit/goals
   {{/each}}
 {{else}}
 {{#if collective.stats.backers.lastMonth}}Your {{collective.stats.backers.lastMonth}} backers haven't heard from you last month!{{/if}}
-Don't forget to regularly post an update on your collective page to keep your community posted on your latest activities!
+Don't forget to regularly post an update on your profile page to keep your community posted on your latest activities!
 https://opencollective.com/{{collective.slug}}/updates
 {{/if}}
 
@@ -63,7 +63,7 @@ https://opencollective.com/{{collective.slug}}/updates
 {{#each collective.expenses}}
 - {{moment createdAt format="MM/DD"}} {{currency amount currency=currency}} {{description}} [{{toLowerCase status}}]
 {{else}}
-No expense submitted. 
+No expense submitted.
 {{/each}}
 
 Go to {{@root.collective.publicUrl}}/expenses to submit a new expense.
