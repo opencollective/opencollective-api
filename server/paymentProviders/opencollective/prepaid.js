@@ -83,13 +83,14 @@ async function processOrder(order) {
     throw new Error("This payment method doesn't have enough funds to complete this order");
   }
 
+  const feeOnTop = order.data?.platformFee || 0;
   const defaultPlatformFee =
     order.collective.platformFeePercent === null ? OC_FEE_PERCENT : order.collective.platformFeePercent;
   const platformFeePercent = get(order, 'data.platformFeePercent', defaultPlatformFee);
-  const platformFeeInHostCurrency = libpayments.calcFee(order.totalAmount, platformFeePercent);
+  const platformFeeInHostCurrency = feeOnTop || libpayments.calcFee(order.totalAmount, platformFeePercent);
 
   const hostFeePercent = get(order, 'data.hostFeePercent', order.collective.hostFeePercent);
-  const hostFeeInHostCurrency = libpayments.calcFee(order.totalAmount, hostFeePercent);
+  const hostFeeInHostCurrency = libpayments.calcFee(order.totalAmount - feeOnTop, hostFeePercent);
 
   // Use the above payment method to donate to Collective
   const transactions = await models.Transaction.createFromPayload({
