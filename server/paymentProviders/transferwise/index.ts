@@ -26,7 +26,7 @@ async function getTemporaryQuote(connectedAccount, payoutMethod, expense): Promi
   return await transferwise.getTemporaryQuote(connectedAccount.token, {
     sourceCurrency: expense.currency,
     targetCurrency: payoutMethod.data.currency,
-    targetAmount: expense.amount / 100,
+    sourceAmount: expense.amount / 100,
   });
 }
 
