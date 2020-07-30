@@ -1,4 +1,5 @@
 import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import GraphQLJSON from 'graphql-type-json';
 
 import models, { Op } from '../../../models';
 import { OrderCollection } from '../collection/OrderCollection';
@@ -72,6 +73,12 @@ export const Tier = new GraphQLObjectType({
       },
       presets: {
         type: new GraphQLList(GraphQLInt),
+      },
+      maxQuantity: {
+        type: GraphQLInt,
+      },
+      customFields: {
+        type: GraphQLJSON,
       },
       amountType: {
         type: new GraphQLNonNull(TierAmountType),
