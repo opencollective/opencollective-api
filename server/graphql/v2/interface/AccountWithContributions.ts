@@ -1,4 +1,4 @@
-import { GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull } from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull } from 'graphql';
 
 import { getPaginatedContributorsForCollective } from '../../../lib/contributors';
 import models from '../../../models';
@@ -46,6 +46,14 @@ export const AccountWithContributionsFields = {
     },
     resolve(collective, args): Promise<object> {
       return getPaginatedContributorsForCollective(collective.id, args);
+    },
+  },
+  platformContributionAvailable: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description:
+      'Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account',
+    resolve(account): boolean {
+      return account.platformFeePercent === 0;
     },
   },
   balance: {
