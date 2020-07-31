@@ -153,6 +153,11 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
             id: { [Op.ne]: transaction.id },
           },
         });
+
+  if (collectiveLedger.RefundTransactionId) {
+    throw new Error('This transaction has already been refunded');
+  }
+
   const userLedgerRefund = pick(collectiveLedger, [
     'currency',
     'FromCollectiveId',
