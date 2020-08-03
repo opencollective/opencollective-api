@@ -1,26 +1,13 @@
-import {
-  GraphQLBoolean,
-  GraphQLFloat,
-  GraphQLInt,
-  GraphQLInterfaceType,
-  GraphQLList,
-  GraphQLNonNull,
-  GraphQLString,
-} from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 import GraphQLJSON from 'graphql-type-json';
-import { invert, isNil } from 'lodash';
+import { invert } from 'lodash';
 
-import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
-import { getPaginatedContributorsForCollective } from '../../../lib/contributors';
 import models, { Op } from '../../../models';
-import { hostResolver } from '../../common/collective';
 import { NotFound } from '../../errors';
-import { ContributorCollection } from '../collection/ContributorCollection';
 import { ConversationCollection } from '../collection/ConversationCollection';
 import { MemberCollection, MemberOfCollection } from '../collection/MemberCollection';
 import { OrderCollection } from '../collection/OrderCollection';
-import { TierCollection } from '../collection/TierCollection';
 import { TransactionCollection } from '../collection/TransactionCollection';
 import {
   AccountOrdersFilter,
@@ -31,21 +18,17 @@ import {
   OrderStatus,
   TransactionType,
 } from '../enum';
-import { HostFeeStructure } from '../enum/HostFeeStructure';
 import { idEncode } from '../identifiers';
 import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
 import { HasMembersFields } from '../interface/HasMembers';
 import { IsMemberOfFields } from '../interface/IsMemberOf';
 import { AccountStats } from '../object/AccountStats';
 import { ConnectedAccount } from '../object/ConnectedAccount';
-import { Host } from '../object/Host';
 import { Location } from '../object/Location';
 import { PaymentMethod } from '../object/PaymentMethod';
 import PayoutMethod from '../object/PayoutMethod';
 import { TagStats } from '../object/TagStats';
 import { TransferWise } from '../object/TransferWise';
-
-import { CollectionArgs } from './Collection';
 
 const accountFieldsDefinition = () => ({
   id: {
@@ -520,188 +503,6 @@ export const AccountFields = {
       } else {
         return req.loaders.Collective.connectedAccounts.load(collective.id);
       }
-    },
-  },
-};
-
-export const CollectiveAndFundFields = {
-  balance: {
-    description: 'Amount of money in cents in the currency of the account currently available to spend',
-    deprecationReason: '2020/04/09 - Should not have been introduced. Use stats.balance.value',
-    type: GraphQLInt,
-    resolve(account, _, req) {
-      return req.loaders.Collective.balance.load(account.id);
-    },
-  },
-  host: {
-    description: 'Returns the Fiscal Host',
-    type: Host,
-    resolve: hostResolver,
-  },
-  hostFeesStructure: {
-    description: 'Describe how the host charges the collective',
-    type: HostFeeStructure,
-    resolve: async (account, _, req) => {
-      if (!account.HostCollectiveId) {
-        return null;
-      } else if (isNil(account.hostFeePercent)) {
-        return HOST_FEE_STRUCTURE.DEFAULT;
-      } else {
-        const host = await req.loaders.Collective.byId.load(account.HostCollectiveId);
-        return account.hostFeePercent === host.hostFeePercent
-          ? HOST_FEE_STRUCTURE.DEFAULT
-          : HOST_FEE_STRUCTURE.CUSTOM_FEE;
-      }
-    },
-  },
-  hostFeePercent: {
-    description: 'Fees percentage that the host takes for this collective',
-    type: GraphQLFloat,
-  },
-  approvedAt: {
-    description: 'Date of approval by the Fiscal Host.',
-    type: GraphQLDateTime,
-    resolve(account) {
-      return account.approvedAt;
-    },
-  },
-  isApproved: {
-    description: "Returns whether it's approved by the Fiscal Host",
-    type: GraphQLBoolean,
-    resolve(account) {
-      return account.isApproved();
-    },
-  },
-  isActive: {
-    description: "Returns whether it's active: can accept financial contributions and pay expenses.",
-    type: GraphQLBoolean,
-    resolve(account) {
-      return Boolean(account.isActive);
-    },
-  },
-  totalFinancialContributors: {
-    description: 'Number of unique financial contributors.',
-    type: new GraphQLNonNull(GraphQLInt),
-    args: {
-      accountType: {
-        type: AccountType,
-        description: 'Type of account (COLLECTIVE/EVENT/ORGANIZATION/INDIVIDUAL)',
-      },
-    },
-    async resolve(account, args, req) {
-      const stats = await req.loaders.Collective.stats.backers.load(account.id);
-      if (!args.accountType) {
-        return stats.all || 0;
-      } else if (args.accountType === 'INDIVIDUAL') {
-        return stats.USER || 0;
-      } else {
-        return stats[args.accountType] || 0;
-      }
-    },
-  },
-  tiers: {
-    type: new GraphQLNonNull(TierCollection),
-    async resolve(account) {
-      const query = { where: { CollectiveId: account.id }, order: [['amount', 'ASC']] };
-      const result = await models.Tier.findAndCountAll(query);
-      return { nodes: result.rows, totalCount: result.count };
-    },
-  },
-  contributors: {
-    type: new GraphQLNonNull(ContributorCollection),
-    description: 'All the persons and entities that contribute to this account',
-    args: {
-      ...CollectionArgs,
-      roles: { type: new GraphQLList(MemberRole) },
-    },
-    resolve(collective, args) {
-      return getPaginatedContributorsForCollective(collective.id, args);
-    },
-  },
-};
-
-export const EventAndProjectFields = {
-  balance: {
-    description: 'Amount of money in cents in the currency of the account currently available to spend',
-    deprecationReason: '2020/04/09 - Should not have been introduced. Use stats.balance.value',
-    type: GraphQLInt,
-    resolve(account, _, req) {
-      return req.loaders.Collective.balance.load(account.id);
-    },
-  },
-  host: {
-    description: 'Returns the Fiscal Host',
-    type: Host,
-    resolve: hostResolver,
-  },
-  hostFeesStructure: {
-    description: 'Describe how the host charges the collective',
-    type: HostFeeStructure,
-    resolve: async (account, _, req) => {
-      if (!account.HostCollectiveId) {
-        return null;
-      } else if (isNil(account.hostFeePercent)) {
-        return HOST_FEE_STRUCTURE.DEFAULT;
-      } else {
-        const host = await req.loaders.Collective.byId.load(account.HostCollectiveId);
-        return account.hostFeePercent === host.hostFeePercent
-          ? HOST_FEE_STRUCTURE.DEFAULT
-          : HOST_FEE_STRUCTURE.CUSTOM_FEE;
-      }
-    },
-  },
-  hostFeePercent: {
-    description: 'Fees percentage that the host takes for this collective',
-    type: GraphQLFloat,
-  },
-  isApproved: {
-    description: "Returns whether it's approved by the Fiscal Host",
-    type: GraphQLBoolean,
-    async resolve(account, _, req) {
-      if (!account.ParentCollectiveId) {
-        return false;
-      } else {
-        const parent = await req.loaders.Collective.byId.load(account.ParentCollectiveId);
-        return parent && parent.isApproved();
-      }
-    },
-  },
-  isActive: {
-    description: "Returns whether it's active: can accept financial contributions and pay expenses.",
-    type: GraphQLBoolean,
-    resolve(account) {
-      return Boolean(account.isActive);
-    },
-  },
-  totalFinancialContributors: {
-    description: 'Number of unique financial contributors.',
-    type: new GraphQLNonNull(GraphQLInt),
-    args: {
-      accountType: {
-        type: AccountType,
-        description: 'Type of account (COLLECTIVE/EVENT/ORGANIZATION/INDIVIDUAL)',
-      },
-    },
-    async resolve(account, args, req) {
-      const stats = await req.loaders.Collective.stats.backers.load(account.id);
-      if (!args.accountType) {
-        return stats.all || 0;
-      } else if (args.accountType === 'INDIVIDUAL') {
-        return stats.USER || 0;
-      } else {
-        return stats[args.accountType] || 0;
-      }
-    },
-  },
-  contributors: {
-    type: new GraphQLNonNull(ContributorCollection),
-    description: 'All the persons and entities that contribute to this account',
-    args: {
-      ...CollectionArgs,
-      roles: { type: new GraphQLList(MemberRole) },
-    },
-    resolve(collective, args) {
-      return getPaginatedContributorsForCollective(collective.id, args);
     },
   },
 };

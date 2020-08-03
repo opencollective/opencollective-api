@@ -1,18 +1,21 @@
 import { GraphQLObjectType } from 'graphql';
 
-import { Account, AccountFields, EventAndProjectFields } from '../interface/Account';
+import { Account, AccountFields } from '../interface/Account';
+import { AccountWithContributions, AccountWithContributionsFields } from '../interface/AccountWithContributions';
+import { AccountWithHost, AccountWithHostFields } from '../interface/AccountWithHost';
 
 import { Collective } from './Collective';
 
 export const Event = new GraphQLObjectType({
   name: 'Event',
   description: 'This represents an Event account',
-  interfaces: () => [Account],
+  interfaces: () => [Account, AccountWithHost, AccountWithContributions],
   isTypeOf: collective => collective.type === 'EVENT',
   fields: () => {
     return {
       ...AccountFields,
-      ...EventAndProjectFields,
+      ...AccountWithHostFields,
+      ...AccountWithContributionsFields,
       parent: {
         description: 'The Collective hosting this Event',
         type: Collective,
