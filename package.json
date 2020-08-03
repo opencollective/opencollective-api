@@ -59,7 +59,7 @@
     "handlebars": "4.7.6",
     "hashids": "2.2.1",
     "helloworks-sdk": "1.2.1",
-    "helmet": "3.23.3",
+    "helmet": "4.0.0",
     "html-pdf": "2.2.0",
     "ics": "2.22.1",
     "intl-messageformat": "9.2.0",
