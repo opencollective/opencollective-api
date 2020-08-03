@@ -114,10 +114,21 @@ export const Order = new GraphQLObjectType({
       },
       platformFee: {
         type: Amount,
-        description: 'If an Order has fees on top, we should return the amount',
+        deprecationReason: '2020-07-31: Please use platformContributionAmount',
         resolve(order) {
           if (order.data?.isFeesOnTop) {
             return { value: order.data.platformFee };
+          } else {
+            return null;
+          }
+        },
+      },
+      platformContributionAmount: {
+        type: Amount,
+        description: 'Platform contribution attached to the Order.',
+        resolve(order) {
+          if (order.data?.isFeesOnTop) {
+            return { value: order.data.platformFee, currency: order.currency };
           } else {
             return null;
           }
