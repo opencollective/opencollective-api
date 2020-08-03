@@ -13,7 +13,7 @@ import { Individual } from './Individual';
 export const Activity = new GraphQLObjectType({
   name: 'Activity',
   description: 'An activity describing something that happened on the platform',
-  fields: {
+  fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this activity',
@@ -59,5 +59,5 @@ export const Activity = new GraphQLObjectType({
         }
       },
     },
-  },
+  }),
 });

@@ -1,4 +1,5 @@
 import {
+  GraphQLBoolean,
   GraphQLInterfaceType,
   // GraphQLInt,
   GraphQLString,
@@ -8,6 +9,8 @@ import { GraphQLDateTime } from 'graphql-iso-date';
 import { TransactionType } from '../enum/TransactionType';
 import { idEncode } from '../identifiers';
 import { Amount } from '../object/Amount';
+import { Expense } from '../object/Expense';
+import { Order } from '../object/Order';
 
 import { Account } from './Account';
 
@@ -20,6 +23,9 @@ export const Transaction = new GraphQLInterfaceType({
       //   type: GraphQLInt,
       // },
       id: {
+        type: GraphQLString,
+      },
+      uuid: {
         type: GraphQLString,
       },
       type: {
@@ -43,7 +49,6 @@ export const Transaction = new GraphQLInterfaceType({
       paymentProcessorFee: {
         type: Amount,
       },
-
       host: {
         type: Account,
       },
@@ -53,12 +58,20 @@ export const Transaction = new GraphQLInterfaceType({
       toAccount: {
         type: Account,
       },
-
       createdAt: {
         type: GraphQLDateTime,
       },
       updatedAt: {
         type: GraphQLDateTime,
+      },
+      expense: {
+        type: Expense,
+      },
+      order: {
+        type: Order,
+      },
+      isRefunded: {
+        type: GraphQLBoolean,
       },
     };
   },
@@ -77,6 +90,9 @@ export const TransactionFields = () => {
       resolve(transaction) {
         return idEncode(transaction.id, 'transaction');
       },
+    },
+    uuid: {
+      type: GraphQLString,
     },
     type: {
       type: TransactionType,
@@ -149,6 +165,32 @@ export const TransactionFields = () => {
       resolve(transaction) {
         // Transactions are immutable right?
         return transaction.createdAt;
+      },
+    },
+    expense: {
+      type: Expense,
+      resolve(transaction, _, req) {
+        if (transaction.ExpenseId) {
+          return req.loaders.Expense.byId.load(transaction.ExpenseId);
+        } else {
+          return null;
+        }
+      },
+    },
+    order: {
+      type: Order,
+      resolve(transaction, _, req) {
+        if (transaction.OrderId) {
+          return req.loaders.Order.byId.load(transaction.OrderId);
+        } else {
+          return null;
+        }
+      },
+    },
+    isRefunded: {
+      type: GraphQLBoolean,
+      resolve(transaction) {
+        return transaction.RefundTransactionId !== null;
       },
     },
   };
