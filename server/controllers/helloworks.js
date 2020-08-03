@@ -5,7 +5,7 @@ import HelloWorks from 'helloworks-sdk';
 import { get } from 'lodash';
 
 import s3 from '../lib/awsS3';
-import { encrypt } from '../lib/encryption';
+import { secretbox } from '../lib/encryption';
 import logger from '../lib/logger';
 import models from '../models';
 
@@ -80,7 +80,7 @@ async function callback(req, res) {
         instanceId: id,
         documentId,
       })
-      .then(buff => Promise.resolve(encrypt(buff, ENCRYPTION_KEY)))
+      .then(buff => Promise.resolve(secretbox.encrypt(buff, ENCRYPTION_KEY)))
       .then(UploadToS3({ id: userCollectiveName, year, documentType: US_TAX_FORM }))
       .then(({ Location: location }) => {
         doc.requestStatus = RECEIVED;

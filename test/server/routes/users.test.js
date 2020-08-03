@@ -17,8 +17,8 @@ import * as utils from '../../utils';
  * Variables.
  */
 const application = utils.data('application');
-const SECRET_KEY = config.twoFactorAuth.secretKey;
-const CIPHER = config.twoFactorAuth.cipher;
+const SECRET_KEY = config.dbEncryption.secretKey;
+const CIPHER = config.dbEncryption.cipher;
 
 /**
  * Tests.

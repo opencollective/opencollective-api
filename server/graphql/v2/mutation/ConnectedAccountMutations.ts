@@ -2,6 +2,7 @@ import { GraphQLNonNull } from 'graphql';
 import { pick } from 'lodash';
 
 import { Service } from '../../../constants/connected_account';
+import { crypto } from '../../../lib/encryption';
 import * as paypal from '../../../lib/paypal';
 import * as transferwise from '../../../lib/transferwise';
 import models from '../../../models';
@@ -43,7 +44,7 @@ const connectedAccountMutations = {
           throw new ValidationFailed('A token is required');
         }
         const sameTokenCount = await models.ConnectedAccount.count({
-          where: { token: args.connectedAccount.token, service: args.connectedAccount.service },
+          where: { hash: crypto.hash(args.connectedAccount.service + args.connectedAccount.token) },
         });
         if (sameTokenCount > 0) {
           throw new ValidationFailed('This token is already being used');
@@ -76,6 +77,7 @@ const connectedAccountMutations = {
         ]),
         CollectiveId: collective.id,
         CreatedByUserId: req.remoteUser.id,
+        hash: crypto.hash(args.connectedAccount.service + args.connectedAccount.token),
       });
 
       return connectedAccount;
