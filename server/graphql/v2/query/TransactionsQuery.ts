@@ -83,12 +83,7 @@ const TransactionsQuery = {
         { '$collective.name$': { [Op.iLike]: ilikeQuery } },
       ];
 
-      include.push(
-        { association: 'fromCollective', attributes: [] },
-        { association: 'collective', attributes: [] },
-        // One-to-many relationships with limits are broken in Sequelize. Could be fixed by https://github.com/sequelize/sequelize/issues/4376
-        // { association: 'items', duplicating: false, attributes: [], separate: true },
-      );
+      include.push({ association: 'fromCollective', attributes: [] }, { association: 'collective', attributes: [] });
 
       if (!isNaN(args.searchTerm)) {
         where[Op.or].push({ id: args.searchTerm });

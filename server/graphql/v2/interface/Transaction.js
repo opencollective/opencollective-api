@@ -169,9 +169,9 @@ export const TransactionFields = () => {
     },
     expense: {
       type: Expense,
-      resolve(transaction) {
+      resolve(transaction, _, req) {
         if (transaction.ExpenseId) {
-          return transaction.getExpense({ paranoid: false });
+          return req.loaders.Expense.byId.load(transaction.ExpenseId);
         } else {
           return null;
         }
@@ -179,9 +179,9 @@ export const TransactionFields = () => {
     },
     order: {
       type: Order,
-      resolve(transaction) {
+      resolve(transaction, _, req) {
         if (transaction.OrderId) {
-          return transaction.getOrder({ paranoid: false });
+          return req.loaders.Order.byId.load(transaction.OrderId);
         } else {
           return null;
         }
