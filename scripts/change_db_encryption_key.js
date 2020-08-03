@@ -11,22 +11,25 @@ const SECRET_KEY = config.dbEncryption.secretKey;
 export async function main(args) {
   if (!args.oldKey || !args.newKey) {
     console.error('You need to provide both old and new key.');
-    console.error(`Usage: npm run script scripts/change_db_encryption_key.js oldKey newKey`);
+    console.error(
+      `Usage: npm run script scripts/change_db_encryption_key.js -- [-f] [--fromCipher DES] [--toCipher DES] oldKey newKey`,
+    );
     process.exit(1);
   }
-  if (SECRET_KEY && args.oldKey !== SECRET_KEY) {
+  if (!args.force && SECRET_KEY && args.oldKey !== SECRET_KEY) {
     console.error('Your oldKey does not match the existing DB_ENCRYPTION_SECRET_KEY!');
     process.exit(1);
   }
-  console.log(`Using cipher ${CIPHER}...`);
+  console.log(`Re-encrypting from cipher ${args.fromCipher} to cipher ${args.toCipher}...`);
+
   const [accounts] = await sequelize.query(
     `SELECT "id", "service", "token", "refreshToken" FROM "ConnectedAccounts" WHERE "token" IS NOT NULL`,
   );
 
   console.info(`Re-encrypting ${accounts.length} ConnectedAccounts...`);
-  const encrypt = message => cryptojs[CIPHER].encrypt(message, args.newKey).toString();
+  const encrypt = message => cryptojs[args.toCipher].encrypt(message, args.newKey).toString();
   const decrypt = encryptedMessage =>
-    cryptojs[CIPHER].decrypt(encryptedMessage, args.oldKey).toString(cryptojs.enc.Utf8);
+    cryptojs[args.fromCipher].decrypt(encryptedMessage, args.oldKey).toString(cryptojs.enc.Utf8);
 
   try {
     await sequelize.transaction(async transaction => {
@@ -63,6 +66,20 @@ function parseCommandLineArguments() {
   const parser = new ArgumentParser({
     addHelp: true,
     description: 'Change DB Encryption keys by reencrypting the DB fields',
+  });
+  parser.addArgument(['--fromCipher'], {
+    help: 'The current cipher being used',
+    defaultValue: CIPHER,
+  });
+  parser.addArgument(['--toCipher'], {
+    help: 'The new cipher you wantt o reencrypt data with',
+    defaultValue: CIPHER,
+  });
+  parser.addArgument(['-f', '--force'], {
+    help: 'Ignore existing key check',
+    defaultValue: false,
+    action: 'storeConst',
+    constant: true,
   });
   parser.addArgument(['oldKey'], {
     help: 'The current key being used',
