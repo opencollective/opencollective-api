@@ -936,3 +936,37 @@ export async function deactivateCollectiveAsHost(_, args, req) {
 
   return collective.deactivateAsHost();
 }
+
+export async function activateBudget(_, args, req) {
+  if (!req.remoteUser) {
+    throw new Unauthorized('You need to be logged in to activate budget.');
+  }
+
+  const collective = await models.Collective.findByPk(args.id);
+  if (!collective) {
+    throw new NotFound(`Collective with id ${args.id} not found`);
+  }
+
+  if (!req.remoteUser.isAdmin(collective.id)) {
+    throw new Unauthorized('You need to be logged in as an Admin.');
+  }
+
+  return collective.activateBudget();
+}
+
+export async function deactivateBudget(_, args, req) {
+  if (!req.remoteUser) {
+    throw new Unauthorized('You need to be logged in to deactivate budget.');
+  }
+
+  const collective = await models.Collective.findByPk(args.id);
+  if (!collective) {
+    throw new NotFound(`Collective with id ${args.id} not found`);
+  }
+
+  if (!req.remoteUser.isAdmin(collective.id)) {
+    throw new Unauthorized('You need to be logged in as an Admin.');
+  }
+
+  return collective.deactivateBudget();
+}

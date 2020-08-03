@@ -945,6 +945,8 @@ export default function (Sequelize, DataTypes) {
       CollectiveId: this.id,
       data: { collective: this.info },
     });
+
+    return this;
   };
 
   Collective.prototype.getOrCreateHostPaymentMethod = async function () {
@@ -980,13 +982,49 @@ export default function (Sequelize, DataTypes) {
 
     // TODO unsubscribe from OpenCollective tier plan.
 
-    await this.update({ isHostAccount: false });
+    await this.update({
+      isHostAccount: false,
+      isActive: false,
+      HostCollectiveId: null,
+      settings: omit(this.settings, ['hostCollective']),
+    });
 
     await models.Activity.create({
       type: activities.DEACTIVATED_COLLECTIVE_AS_HOST,
       CollectiveId: this.id,
       data: { collective: this.info },
     });
+
+    return this;
+  };
+
+  /**
+   * Activate Budget (so the "Host Organization" can receive financial contributions and manage expenses)
+   */
+  Collective.prototype.activateBudget = async function () {
+    if (!this.isHostAccount || ![types.ORGANIZATION].includes(this.type)) {
+      return;
+    }
+    await this.update({
+      isActive: true,
+      HostCollectiveId: this.id,
+      settings: { ...this.settings, hostCollective: { id: this.id } },
+    });
+
+    return this;
+  };
+
+  /**
+   * Deactivate Budget
+   */
+  Collective.prototype.deactivateBudget = async function () {
+    await this.update({
+      isActive: false,
+      HostCollectiveId: null,
+      settings: omit(this.settings, ['hostCollective']),
+    });
+
+    return this;
   };
 
   /**
