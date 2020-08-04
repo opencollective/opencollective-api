@@ -13,11 +13,13 @@ import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../errors';
 import * as applicationMutations from './mutations/applications';
 import * as backyourstackMutations from './mutations/backyourstack';
 import {
+  activateBudget,
   activateCollectiveAsHost,
   approveCollective,
   archiveCollective,
   createCollective,
   createCollectiveFromGithub,
+  deactivateBudget,
   deactivateCollectiveAsHost,
   deleteCollective,
   deleteUserCollective,
@@ -932,6 +934,32 @@ const mutations = {
     },
     resolve(_, args, req) {
       return deactivateCollectiveAsHost(_, args, req);
+    },
+  },
+  activateBudget: {
+    type: CollectiveInterfaceType,
+    description: 'Activate budget (For Host Organizations only)',
+    args: {
+      id: {
+        type: new GraphQLNonNull(GraphQLInt),
+        description: 'ID of the "collective" (Host Organization)',
+      },
+    },
+    resolve(_, args, req) {
+      return activateBudget(_, args, req);
+    },
+  },
+  deactivateBudget: {
+    type: CollectiveInterfaceType,
+    description: 'Deactivate budget (For Host Organizations only)',
+    args: {
+      id: {
+        type: new GraphQLNonNull(GraphQLInt),
+        description: 'ID of the "collective" (Host Organization)',
+      },
+    },
+    resolve(_, args, req) {
+      return deactivateBudget(_, args, req);
     },
   },
 };
