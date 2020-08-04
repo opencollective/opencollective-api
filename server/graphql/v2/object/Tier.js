@@ -13,16 +13,16 @@ export const Tier = new GraphQLObjectType({
   description: 'Tier model',
   fields: () => {
     return {
-      // _internal_id: {
-      //   type: GraphQLInt,
-      //   resolve(member) {
-      //     return member.id;
-      //   },
-      // },
       id: {
-        type: GraphQLString,
+        type: new GraphQLNonNull(GraphQLString),
         resolve(tier) {
           return idEncode(tier.id, 'tier');
+        },
+      },
+      legacyId: {
+        type: new GraphQLNonNull(GraphQLInt),
+        resolve(tier) {
+          return tier.id;
         },
       },
       slug: {
