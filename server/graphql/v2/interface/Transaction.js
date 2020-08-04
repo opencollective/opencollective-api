@@ -6,11 +6,13 @@ import {
 } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 
+import models from '../../../models';
 import { TransactionType } from '../enum/TransactionType';
 import { idEncode } from '../identifiers';
 import { Amount } from '../object/Amount';
 import { Expense } from '../object/Expense';
 import { Order } from '../object/Order';
+import { PaymentMethod } from '../object/PaymentMethod';
 
 import { Account } from './Account';
 
@@ -72,6 +74,9 @@ export const Transaction = new GraphQLInterfaceType({
       },
       isRefunded: {
         type: GraphQLBoolean,
+      },
+      paymentMethod: {
+        type: PaymentMethod,
       },
     };
   },
@@ -191,6 +196,12 @@ export const TransactionFields = () => {
       type: GraphQLBoolean,
       resolve(transaction) {
         return transaction.RefundTransactionId !== null;
+      },
+    },
+    paymentMethod: {
+      type: PaymentMethod,
+      resolve(transaction) {
+        return models.PaymentMethod.findByPk(transaction.PaymentMethodId);
       },
     },
   };
