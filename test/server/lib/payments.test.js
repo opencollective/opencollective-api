@@ -363,14 +363,12 @@ describe('server/lib/payments', () => {
       const [creditRefundTransaction] = refundTransactions.filter(t => t.type === 'CREDIT');
       expect(creditRefundTransaction.FromCollectiveId).to.equal(collective.id);
       expect(creditRefundTransaction.CollectiveId).to.equal(order.FromCollectiveId);
-      expect(creditRefundTransaction.data).to.deep.equal({ dataField: 'foo' });
 
       // And then the values for the transaction from the donor to the
       // collective also look correct
       const [debitRefundTransaction] = refundTransactions.filter(t => t.type === 'DEBIT');
       expect(debitRefundTransaction.FromCollectiveId).to.equal(order.FromCollectiveId);
       expect(debitRefundTransaction.CollectiveId).to.equal(collective.id);
-      expect(debitRefundTransaction.data).to.deep.equal({ dataField: 'foo' });
     });
   }); /* createRefundTransaction */
 

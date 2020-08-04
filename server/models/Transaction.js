@@ -411,19 +411,41 @@ export default (Sequelize, DataTypes) => {
       transaction.amountInHostCurrency = Math.round(transaction.amountInHostCurrency);
     }
 
-    const oppositeTransaction = {
+    // Is the target "collective" (account) "Active" (has an host, manage its own budget)
+    const fromCollective = await models.Collective.findByPk(transaction.FromCollectiveId);
+
+    let oppositeTransaction = {
       ...transaction,
       type: -transaction.amount > 0 ? TransactionTypes.CREDIT : TransactionTypes.DEBIT,
       FromCollectiveId: transaction.CollectiveId,
       CollectiveId: transaction.FromCollectiveId,
-      HostCollectiveId: await models.Collective.getHostCollectiveId(transaction.FromCollectiveId), // see https://github.com/opencollective/opencollective/issues/1154
-      amount: -transaction.netAmountInCollectiveCurrency,
-      netAmountInCollectiveCurrency: -transaction.amount,
       amountInHostCurrency: Math.round(-transaction.netAmountInCollectiveCurrency * transaction.hostCurrencyFxRate),
       hostFeeInHostCurrency: transaction.hostFeeInHostCurrency,
       platformFeeInHostCurrency: transaction.platformFeeInHostCurrency,
       paymentProcessorFeeInHostCurrency: transaction.paymentProcessorFeeInHostCurrency,
     };
+    if (!fromCollective.isActive) {
+      oppositeTransaction = {
+        ...oppositeTransaction,
+        HostCollectiveId: null,
+        amount: -transaction.netAmountInCollectiveCurrency,
+        netAmountInCollectiveCurrency: -transaction.amount,
+      };
+    } else {
+      const oppositeTransactionCurrencyFxRate = await getFxRate(
+        transaction.currency,
+        fromCollective.currency,
+        transaction.createdAt,
+      );
+      oppositeTransaction = {
+        ...oppositeTransaction,
+        HostCollectiveId: fromCollective.HostCollectiveId,
+        currency: fromCollective.currency,
+        amount: -Math.round(transaction.netAmountInCollectiveCurrency * oppositeTransactionCurrencyFxRate),
+        netAmountInCollectiveCurrency: -Math.round(transaction.amount * oppositeTransactionCurrencyFxRate),
+        data: { ...transaction.data, oppositeTransactionCurrencyFxRate },
+      };
+    }
 
     debug('createDoubleEntry', transaction, 'opposite', oppositeTransaction);
 
