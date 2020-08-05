@@ -459,7 +459,7 @@ export default (Sequelize, DataTypes) => {
       githubHandle: userData.githubHandle,
       currency: userData.currency,
       hostFeePercent: userData.hostFeePercent,
-      isActive: true,
+      isActive: false,
       isHostAccount: Boolean(userData.isHostAccount),
       CreatedByUserId: userData.CreatedByUserId || user.id,
       data: { UserId: user.id },

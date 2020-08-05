@@ -47,6 +47,7 @@ export const fakeUser = async (userData, collectiveData) => {
     HostCollectiveId: null,
     CreatedByUserId: user.id,
     ...collectiveData,
+    isActive: false,
   });
 
   await user.update({ CollectiveId: userCollective.id });
