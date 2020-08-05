@@ -1,4 +1,4 @@
-import { GraphQLObjectType } from 'graphql';
+import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 
 import { Account, AccountFields } from '../interface/Account';
 import { AccountWithContributions, AccountWithContributionsFields } from '../interface/AccountWithContributions';
@@ -24,6 +24,18 @@ export const Project = new GraphQLObjectType({
             return null;
           } else {
             return req.loaders.Collective.byId.load(project.ParentCollectiveId);
+          }
+        },
+      },
+      isApproved: {
+        description: "Returns whether it's approved by the Fiscal Host",
+        type: GraphQLNonNull(GraphQLBoolean),
+        async resolve(event, _, req) {
+          if (!event.ParentCollectiveId) {
+            return false;
+          } else {
+            const parent = await req.loaders.Collective.byId.load(event.ParentCollectiveId);
+            return parent && parent.isApproved();
           }
         },
       },
