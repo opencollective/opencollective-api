@@ -23,7 +23,12 @@ import logger from './logger';
 export default async function (app) {
   app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal'].concat(cloudflareIps));
 
-  app.use(helmet());
+  app.use(
+    helmet({
+      // It's currently breaking GraphQL playgrounds, to consider when activating this
+      contentSecurityPolicy: false,
+    }),
+  );
 
   // Loaders are attached to the request to batch DB queries per request
   // It also creates in-memory caching (based on request auth);
