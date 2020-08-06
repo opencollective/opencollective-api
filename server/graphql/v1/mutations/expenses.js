@@ -584,7 +584,10 @@ export async function payExpense(req, args) {
     throw new FeatureNotAllowedForUser();
   }
   const expense = await models.Expense.findByPk(expenseId, {
-    include: [{ model: models.Collective, as: 'collective' }],
+    include: [
+      { model: models.Collective, as: 'collective' },
+      { model: models.Collective, as: 'fromCollective' },
+    ],
   });
   if (!expense) {
     throw new Unauthorized('Expense not found');
@@ -698,6 +701,18 @@ export async function payExpense(req, args) {
       // Early return, we'll only mark as Paid when the transaction completes.
       return expense;
     }
+  } else if (payoutMethodType === PayoutMethodTypes.ACCOUNT_BALANCE) {
+    const payee = expense.fromCollective;
+    const payeeHost = await payee.getHostCollective();
+    if (!payeeHost) {
+      throw new Error('The payee needs to have an Host to able to be paid on its Open Collective balance.');
+    }
+    if (host.id !== payeeHost.id) {
+      throw new Error(
+        'The payee needs to be on the same Host than the payer to be paid on its Open Collective balance.',
+      );
+    }
+    await createTransactions(host, expense, feesInHostCurrency);
   } else if (expense.legacyPayoutMethod === 'manual' || expense.legacyPayoutMethod === 'other') {
     // note: we need to check for manual and other for legacy reasons
     await createTransactions(host, expense, feesInHostCurrency);

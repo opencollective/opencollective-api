@@ -696,12 +696,14 @@ describe('server/models/Collective', () => {
       shouldBeUsableAsPayout(await fakeCollective({ type: 'USER' }));
       shouldBeUsableAsPayout(await fakeCollective({ type: 'ORGANIZATION' }));
       shouldBeUsableAsPayout(await fakeCollective({ type: 'ORGANIZATION', isHostAccount: true }));
+      shouldBeUsableAsPayout(await fakeCollective({ type: 'COLLECTIVE' }));
+      shouldBeUsableAsPayout(await fakeCollective({ type: 'EVENT' }));
+      shouldBeUsableAsPayout(await fakeCollective({ type: 'PROJECT' }));
+      shouldBeUsableAsPayout(await fakeCollective({ type: 'FUND' }));
     });
 
-    it('is false for incognito profiles, collectives and events', async () => {
+    it('is false for incognito profiles', async () => {
       shouldNotBeUsableAsPayout(await fakeCollective({ type: 'USER', isIncognito: true }));
-      shouldNotBeUsableAsPayout(await fakeCollective({ type: 'COLLECTIVE' }));
-      shouldNotBeUsableAsPayout(await fakeCollective({ type: 'EVENT' }));
     });
   });
 
