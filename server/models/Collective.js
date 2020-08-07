@@ -1674,10 +1674,22 @@ export default function (Sequelize, DataTypes) {
         if (!remoteUser.isAdmin(this.id)) {
           throw new Error('You must be an admin of this host to change the host fee');
         }
-        const collectives = await this.getHostedCollectives();
-        // for some reason models.Collective.update({ hostFeePercent } , { where: { id: { [Op.in]: hostedCollectivesIds }}}) doesn't work :-/
-        const promises = collectives.map(c => c.update({ hostFeePercent }));
-        await Promise.all(promises);
+
+        await models.Collective.update(
+          { hostFeePercent },
+          {
+            hooks: false,
+            where: {
+              HostCollectiveId: this.id,
+              approvedAt: { [Op.not]: null },
+              data: {
+                useCustomHostFee: { [Op.not]: true },
+              },
+            },
+          },
+        );
+
+        // Update host
         return this.update({ hostFeePercent });
       }
     }

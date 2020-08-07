@@ -64,9 +64,9 @@ export const IsMemberOfFields = {
 
       if (args.hostFeesStructure) {
         if (args.hostFeesStructure === HOST_FEE_STRUCTURE.DEFAULT) {
-          collectiveConditions.hostFeePercent = { [Op.or]: [collective.hostFeePercent, null] };
+          collectiveConditions.data = { useCustomHostFee: { [Op.not]: true } };
         } else if (args.hostFeesStructure === HOST_FEE_STRUCTURE.CUSTOM_FEE) {
-          collectiveConditions.hostFeePercent = { [Op.not]: null, [Op.ne]: collective.hostFeePercent };
+          collectiveConditions.data = { useCustomHostFee: true };
         } else if (args.hostFeesStructure === HOST_FEE_STRUCTURE.MONTHLY_RETAINER) {
           throw new ValidationFailed('The MONTHLY_RETAINER fees structure is not supported yet');
         }

@@ -1,4 +1,4 @@
-import { GraphQLFloat, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLFloat, GraphQLNonNull, GraphQLString } from 'graphql';
 import GraphQLJSON from 'graphql-type-json';
 import { cloneDeep, set } from 'lodash';
 
@@ -73,21 +73,37 @@ const accountMutations = {
         type: new GraphQLNonNull(GraphQLFloat),
         description: 'The host fee percent to apply to this account',
       },
+      isCustomFee: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        description: 'If using a custom fee, set this to true',
+      },
     },
     async resolve(_, args, req): Promise<object> {
-      const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
+      return sequelize.transaction(async dbTransaction => {
+        const account = await fetchAccountWithReference(args.account, {
+          throwIfMissing: true,
+          dbTransaction,
+          lock: true,
+        });
 
-      if (!account.HostCollectiveId) {
-        throw new ValidationFailed('Fees structure can only be edited for accounts that you are hosting');
-      } else if (!req.remoteUser?.isAdmin(account.HostCollectiveId)) {
-        throw new Forbidden(
-          'You need to be logged in as an host admin to change the fees structure of the hosted accounts',
+        if (!account.HostCollectiveId) {
+          throw new ValidationFailed('Fees structure can only be edited for accounts that you are hosting');
+        } else if (!req.remoteUser?.isAdmin(account.HostCollectiveId)) {
+          throw new Forbidden(
+            'You need to be logged in as an host admin to change the fees structure of the hosted accounts',
+          );
+        } else if (!account.approvedAt) {
+          throw new ValidationFailed('The collective needs to be approved before you can change the fees structure');
+        }
+
+        return account.update(
+          {
+            hostFeePercent: args.hostFeePercent,
+            data: { ...account.data, useCustomHostFee: args.isCustomFee },
+          },
+          { transaction: dbTransaction },
         );
-      } else if (!account.approvedAt) {
-        throw new ValidationFailed('The collective needs to be approved before you can change the fees structure');
-      }
-
-      return account.update({ hostFeePercent: args.hostFeePercent });
+      });
     },
   },
   addTwoFactorAuthTokenToIndividual: {

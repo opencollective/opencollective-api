@@ -1,6 +1,5 @@
 import { GraphQLBoolean, GraphQLFloat, GraphQLInterfaceType, GraphQLNonNull } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
-import { isNil } from 'lodash';
 
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
 import { hostResolver } from '../../common/collective';
@@ -16,16 +15,13 @@ export const AccountWithHostFields = {
   hostFeesStructure: {
     description: 'Describe how the host charges the collective',
     type: HostFeeStructure,
-    resolve: async (account, _, req): Promise<HOST_FEE_STRUCTURE | null> => {
+    resolve: (account): HOST_FEE_STRUCTURE | null => {
       if (!account.HostCollectiveId) {
         return null;
-      } else if (isNil(account.hostFeePercent)) {
-        return HOST_FEE_STRUCTURE.DEFAULT;
+      } else if (account.data?.useCustomHostFee) {
+        return HOST_FEE_STRUCTURE.CUSTOM_FEE;
       } else {
-        const host = await req.loaders.Collective.byId.load(account.HostCollectiveId);
-        return account.hostFeePercent === host.hostFeePercent
-          ? HOST_FEE_STRUCTURE.DEFAULT
-          : HOST_FEE_STRUCTURE.CUSTOM_FEE;
+        return HOST_FEE_STRUCTURE.DEFAULT;
       }
     },
   },
