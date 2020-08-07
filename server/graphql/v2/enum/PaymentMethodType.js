@@ -7,5 +7,7 @@ export const PaymentMethodType = new GraphQLEnumType({
     GIFT_CARD: {},
     PREPAID_BUDGET: {},
     COLLECTIVE_BALANCE: {},
+    PAYPAL: {},
+    BANK_TRANSFER: {},
   },
 });
