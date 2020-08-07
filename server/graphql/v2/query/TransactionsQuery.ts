@@ -1,4 +1,4 @@
-import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 
 import models, { Op, sequelize } from '../../../models';
 import { TransactionCollection } from '../collection/TransactionCollection';
@@ -48,6 +48,14 @@ const TransactionsQuery = {
     searchTerm: {
       type: GraphQLString,
       description: 'The term to search',
+    },
+    hasExpense: {
+      type: GraphQLBoolean,
+      description: 'Transaction is attached to Expense',
+    },
+    hasOrder: {
+      type: GraphQLBoolean,
+      description: 'Transaction is attached to Order',
     },
   },
   async resolve(_, args, req): Promise<CollectionReturnType> {
@@ -104,6 +112,12 @@ const TransactionsQuery = {
     }
     if (args.dateFrom) {
       where['createdAt'] = { [Op.gte]: args.dateFrom };
+    }
+    if (args.hasExpense) {
+      where['ExpenseId'] = { [Op.ne]: null };
+    }
+    if (args.hasOrder) {
+      where['OrderId'] = { [Op.ne]: null };
     }
 
     const order = [[args.orderBy.field, args.orderBy.direction]];
