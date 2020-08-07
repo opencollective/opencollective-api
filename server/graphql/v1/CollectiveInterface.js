@@ -84,6 +84,9 @@ export const CollectiveOrderFieldType = new GraphQLEnumType({
     totalDonations: {
       description: 'Order collectives by total donations.',
     },
+    financialContributors: {
+      description: 'Order collectives by number of financial contributors (unique members).',
+    },
   },
 });
 

@@ -967,6 +967,7 @@ const queries = {
                   FROM    "Transactions" t
                   WHERE   t."type" = 'CREDIT'
                   AND     t."CollectiveId" = "Collective".id
+                  AND     t."deletedAt" IS NULL
                 )`),
                 'totalDonations',
               ],
@@ -974,6 +975,23 @@ const queries = {
           };
           query.order = [[sequelize.col('totalDonations'), args.orderDirection]];
         }
+      } else if (args.orderBy === 'financialContributors') {
+        query.attributes = {
+          include: [
+            [
+              sequelize.literal(`(
+                SELECT  COUNT(DISTINCT m."MemberCollectiveId")
+                FROM    "Members" m
+                WHERE   m."deletedAt" IS NULL
+                AND     m."CollectiveId" = "Collective".id
+                AND     m."role" = 'BACKER'
+              )`),
+              'contributors_count',
+            ],
+          ],
+        };
+
+        query.order = [[sequelize.col('contributors_count'), args.orderDirection]];
       } else {
         query.order = [[args.orderBy, args.orderDirection]];
       }
