@@ -22,6 +22,10 @@ export const IsMemberOfFields = {
         type: GraphQLBoolean,
         description: 'Filter on whether the account is a host or not',
       },
+      isApproved: {
+        type: GraphQLBoolean,
+        description: 'Filter on (un)approved collectives',
+      },
       includeIncognito: {
         type: GraphQLBoolean,
         defaultValue: true,
@@ -88,6 +92,10 @@ export const IsMemberOfFields = {
         if (!isNaN(args.searchTerm)) {
           where[Op.or].push({ '$collective.id$': args.searchTerm });
         }
+      }
+
+      if (!isNil(args.isApproved)) {
+        collectiveConditions.approvedAt = { [args.isApproved ? Op.not : Op.is]: null };
       }
 
       const result = await models.Member.findAndCountAll({
