@@ -1317,7 +1317,7 @@ const CollectiveFields = () => {
       },
       async resolve(collective, args) {
         const query = {
-          where: { HostCollectiveId: collective.id, type: types.COLLECTIVE },
+          where: { HostCollectiveId: collective.id, type: { [Op.in]: [types.COLLECTIVE, types.FUND] } },
           order: [[args.orderBy, args.orderDirection]],
           limit: args.limit,
           offset: args.offset,
