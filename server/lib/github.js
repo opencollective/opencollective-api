@@ -69,9 +69,9 @@ export async function getAllUserPublicRepos(accessToken) {
   let fetchRepos;
   const maxNbPages = 15; // More than that would probably timeout the request
   do {
-    // https://octokit.github.io/rest.js/#api-Repos-list
+    // https://octokit.github.io/rest.js/v18#repos-list-for-authenticated-user
     // https://developer.github.com/v3/repos/#list-your-repositories
-    fetchRepos = await octokit.repos.list(parameters).then(getData);
+    fetchRepos = await octokit.repos.listForAuthenticatedUser(parameters).then(getData);
     repos = [...repos, ...fetchRepos.filter(r => r.permissions.admin)];
     parameters.page++;
   } while (fetchRepos.length === parameters.per_page && parameters.page < maxNbPages);
@@ -102,7 +102,7 @@ export async function getAllOrganizationPublicRepos(org, accessToken) {
   let repos = [];
   let fetchRepos;
   do {
-    // https://octokit.github.io/rest.js/#api-Repos-listForOrg
+    // https://octokit.github.io/rest.js/v18#repos-list-for-org
     // https://developer.github.com/v3/repos/#list-organization-repositories
     fetchRepos = await octokit.repos.listForOrg(parameters).then(getData);
     repos = [...repos, ...fetchRepos];
@@ -118,7 +118,7 @@ export async function getAllOrganizationPublicRepos(org, accessToken) {
 
 export async function getRepo(name, accessToken) {
   const octokit = getOctokit(accessToken);
-  // https://octokit.github.io/rest.js/#api-Repos-get
+  // https://octokit.github.io/rest.js/v18#repos-get
   // https://developer.github.com/v3/repos/#get
   const [owner, repo] = name.split('/');
   return octokit.repos.get({ owner, repo }).then(getData);
@@ -126,17 +126,17 @@ export async function getRepo(name, accessToken) {
 
 export async function getOrg(name, accessToken) {
   const octokit = getOctokit(accessToken);
-  // https://octokit.github.io/rest.js/#api-Orgs-get
+  // https://octokit.github.io/rest.js/v18#orgs-get
   // https://developer.github.com/v3/orgs/#get-an-organization
   return octokit.orgs.get({ org: name }).then(getData);
 }
 
 export async function getOrgMemberships(accessToken) {
   const octokit = getOctokit(accessToken);
-  // https://octokit.github.io/rest.js/#api-Orgs-listMemberships
+  // https://octokit.github.io/rest.js/v18#orgs-list-memberships-for-authenticated-user
   // https://developer.github.com/v3/orgs/members/#list-your-organization-memberships
   // eslint-disable-next-line camelcase
-  return octokit.orgs.listMemberships({ page: 1, per_page: 100 }).then(getData);
+  return octokit.orgs.listMembershipsForAuthenticatedUser({ page: 1, per_page: 100 }).then(getData);
 }
 
 export async function checkGithubExists(githubHandle, accessToken) {
