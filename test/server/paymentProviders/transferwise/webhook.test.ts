@@ -30,7 +30,6 @@ describe('server/paymentProviders/transferwise/webhook', () => {
 
   const sandbox = sinon.createSandbox();
 
-  /* eslint-disable @typescript-eslint/camelcase */
   const event = {
     data: {
       resource: {
