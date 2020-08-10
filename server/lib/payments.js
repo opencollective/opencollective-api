@@ -10,7 +10,7 @@ import status from '../constants/order_status';
 import roles from '../constants/roles';
 import tiers from '../constants/tiers';
 import { FEES_ON_TOP_TRANSACTION_PROPERTIES, OC_FEE_PERCENT } from '../constants/transactions';
-import { createGiftCardPrepaidPaymentMethod, isGiftCardPrepaidBudgetOrder } from '../lib/gift-cards';
+import { createPrepaidPaymentMethod, isPrepaidBudgetOrder } from '../lib/prepaid-budget';
 import { formatAccountDetails } from '../lib/transferwise';
 import { formatCurrency } from '../lib/utils';
 import models from '../models';
@@ -330,8 +330,8 @@ export const executeOrder = async (user, order, options) => {
     await subscribeOrUpgradePlan(order);
 
     // Create a Pre-Paid Payment Method for the Gift Card budget
-    if (isGiftCardPrepaidBudgetOrder(order)) {
-      await createGiftCardPrepaidPaymentMethod(transaction);
+    if (isPrepaidBudgetOrder(order)) {
+      await createPrepaidPaymentMethod(transaction);
     }
   }
 

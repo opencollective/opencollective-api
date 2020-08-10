@@ -3,11 +3,11 @@ import { v4 as uuid } from 'uuid';
 
 import models from '../models';
 
-export function isGiftCardPrepaidBudgetOrder(order) {
-  return order.tier && order.tier.slug == 'gift-card-budget' && order.collective.slug === 'osc';
+export function isPrepaidBudgetOrder(order) {
+  return order.tier && order.tier.slug == 'prepaid-budget' && order.collective.slug === 'opensource';
 }
 
-export async function createGiftCardPrepaidPaymentMethod(originalCreditTransaction) {
+export async function createPrepaidPaymentMethod(originalCreditTransaction) {
   const shareableAmount =
     originalCreditTransaction.amountInHostCurrency +
     originalCreditTransaction.hostFeeInHostCurrency +
@@ -16,7 +16,7 @@ export async function createGiftCardPrepaidPaymentMethod(originalCreditTransacti
 
   const paymentMethodTransaction = {
     ...pick(originalCreditTransaction, ['currency', 'hostCurrency', 'CreatedByUserId']),
-    description: 'Prepaid Payment Method for Gift Card Budget',
+    description: 'Prepaid Budget',
     amount: shareableAmount,
     CollectiveId: originalCreditTransaction.FromCollectiveId,
     FromCollectiveId: originalCreditTransaction.CollectiveId,
@@ -31,7 +31,7 @@ export async function createGiftCardPrepaidPaymentMethod(originalCreditTransacti
     initialBalance: shareableAmount,
     currency: originalCreditTransaction.currency,
     CollectiveId: originalCreditTransaction.FromCollectiveId,
-    name: 'Prepaid Gift Card Budget',
+    name: 'Prepaid Budget',
     service: 'opencollective',
     type: 'prepaid',
     uuid: uuid(),
