@@ -1,4 +1,4 @@
-/* eslint-disable camelcase, @typescript-eslint/camelcase */
+/* eslint-disable camelcase */
 import paypal from '@paypal/payouts-sdk';
 
 import { PayoutBatchDetails, PayoutRequestBody, PayoutRequestResult } from '../types/paypal';

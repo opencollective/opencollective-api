@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/camelcase, camelcase */
+/* eslint-disable camelcase */
 
 import { isNil, round, toNumber } from 'lodash';
 import moment from 'moment';

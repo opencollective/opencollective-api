@@ -44,17 +44,19 @@
           ["^\\./(?=.*/)(?!/?$)", "^\\.(?!/?$)", "^\\./?$"]
         ]
       }
-    ]
+    ],
+    // tweak typescript defaults
+    "@typescript-eslint/ban-types": "warn"
   },
   // Disable typescript checks in JS
   "overrides": [
     {
       "files": ["*.js"],
       "rules": {
-        "@typescript-eslint/camelcase": "off",
         "@typescript-eslint/no-use-before-define": "off",
         "@typescript-eslint/indent": "off",
-        "@typescript-eslint/explicit-function-return-type": "off"
+        "@typescript-eslint/explicit-function-return-type": "off",
+        "@typescript-eslint/explicit-module-boundary-types": "off"
       }
     }
   ],

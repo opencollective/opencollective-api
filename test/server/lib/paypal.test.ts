@@ -1,4 +1,4 @@
-/* eslint-disable camelcase, @typescript-eslint/camelcase */
+/* eslint-disable camelcase */
 import paypalPayoutsSDK from '@paypal/payouts-sdk';
 import { expect } from 'chai';
 import sinon from 'sinon';
