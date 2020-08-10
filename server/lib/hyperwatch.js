@@ -13,6 +13,16 @@ const load = async app => {
 
   const { input, lib, modules, pipeline } = hyperwatch;
 
+  // Init
+  hyperwatch.init({
+    modules: {
+      // Expose the status page
+      status: { active: true },
+      // Expose logs (HTTP and Websocket)
+      logs: { active: true },
+    },
+  });
+
   // Mount Hyperwatch API and Websocket
 
   if (config.hyperwatch.secret) {
@@ -116,7 +126,7 @@ const load = async app => {
 
   // Start
 
-  modules.load();
+  modules.beforeStart();
 
   pipeline.start();
 };
