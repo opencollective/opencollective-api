@@ -75,6 +75,10 @@ const accountFieldsDefinition = () => ({
   expensePolicy: {
     type: GraphQLString,
   },
+  isIncognito: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Defines if the contributors wants to be incognito (name not displayed)',
+  },
   imageUrl: {
     type: GraphQLString,
     args: {
