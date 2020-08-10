@@ -11,6 +11,7 @@ import expenseMutations from './ExpenseMutations';
 import orderMutations from './OrderMutations';
 import paymentMethodMutations from './PaymentMethodMutations';
 import payoutMethodMutations from './PayoutMethodMutations';
+import transactionMutations from './TransactionMutations';
 
 const mutation = {
   createCollective: createCollectiveMutation,
@@ -26,6 +27,7 @@ const mutation = {
   ...payoutMethodMutations,
   ...orderMutations,
   ...paymentMethodMutations,
+  ...transactionMutations,
 };
 
 export default mutation;

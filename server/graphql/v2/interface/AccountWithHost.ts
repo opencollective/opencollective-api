@@ -1,4 +1,4 @@
-import { GraphQLBoolean, GraphQLFloat, GraphQLInterfaceType, GraphQLNonNull } from 'graphql';
+import { GraphQLBoolean, GraphQLFloat, GraphQLInt, GraphQLInterfaceType, GraphQLNonNull } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
@@ -28,6 +28,10 @@ export const AccountWithHostFields = {
   hostFeePercent: {
     description: 'Fees percentage that the host takes for this collective',
     type: GraphQLFloat,
+  },
+  platformFeePercent: {
+    description: 'Fees percentage that the platform takes for this collective',
+    type: GraphQLInt,
   },
   approvedAt: {
     description: 'Date of approval by the Fiscal Host.',

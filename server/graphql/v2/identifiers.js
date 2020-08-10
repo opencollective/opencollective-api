@@ -23,6 +23,7 @@ export const IDENTIFIER_TYPES = {
   CONNECTED_ACCOUNT: 'connected-account',
   EXPENSE_ATTACHED_FILE: 'expense-attached-file',
   EXPENSE_ITEM: 'expense-item',
+  TRANSACTION: 'transaction',
 };
 
 const getDefaultInstance = type => {

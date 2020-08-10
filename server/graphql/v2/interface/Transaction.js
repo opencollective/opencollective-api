@@ -1,12 +1,8 @@
-import {
-  GraphQLBoolean,
-  GraphQLInterfaceType,
-  // GraphQLInt,
-  GraphQLString,
-} from 'graphql';
+import { GraphQLBoolean, GraphQLInterfaceType, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 
 import models from '../../../models';
+import * as TransactionLib from '../../common/transactions';
 import { TransactionType } from '../enum/TransactionType';
 import { idEncode } from '../identifiers';
 import { Amount } from '../object/Amount';
@@ -15,6 +11,23 @@ import { Order } from '../object/Order';
 import { PaymentMethod } from '../object/PaymentMethod';
 
 import { Account } from './Account';
+
+const TransactionPermissions = new GraphQLObjectType({
+  name: 'TransactionPermissions',
+  description: 'Fields for the user permissions on an transaction',
+  fields: {
+    canRefund: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can edit the transaction',
+      resolve: TransactionLib.canRefund,
+    },
+    canDownloadInvoice: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: "Whether the current user can download this transaction's invoice",
+      resolve: TransactionLib.canDownloadInvoice,
+    },
+  },
+});
 
 export const Transaction = new GraphQLInterfaceType({
   name: 'Transaction',
@@ -77,6 +90,9 @@ export const Transaction = new GraphQLInterfaceType({
       },
       paymentMethod: {
         type: PaymentMethod,
+      },
+      permissions: {
+        type: TransactionPermissions,
       },
     };
   },
@@ -202,6 +218,13 @@ export const TransactionFields = () => {
       type: PaymentMethod,
       resolve(transaction) {
         return models.PaymentMethod.findByPk(transaction.PaymentMethodId);
+      },
+    },
+    permissions: {
+      type: new GraphQLNonNull(TransactionPermissions),
+      description: 'The permissions given to current logged in user for this transaction',
+      async resolve(transaction) {
+        return transaction; // Individual fields are set by TransactionPermissions's resolvers
       },
     },
   };
