@@ -3,6 +3,7 @@ import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString 
 import { get, pick, uniq } from 'lodash';
 import { isEmail } from 'validator';
 
+import { roles } from '../../constants';
 import { types as CollectiveTypes } from '../../constants/collectives';
 import Algolia from '../../lib/algolia';
 import { fetchCollectiveId } from '../../lib/cache';
@@ -107,7 +108,10 @@ const queries = {
       if (!fromCollective) {
         throw new NotFound('User or organization not found');
       }
-      if (!req.remoteUser || !req.remoteUser.isAdmin(fromCollective.id)) {
+      if (
+        !req.remoteUser ||
+        (!req.remoteUser.isAdmin(fromCollective.id) && !req.remoteUser.hasRole(roles.ACCOUNTANT, fromCollective.id))
+      ) {
         throw new Unauthorized("You don't have permission to access invoices for this user");
       }
 
@@ -265,7 +269,12 @@ const queries = {
         throw new NotFound('Host not found');
       }
 
-      if (!req.remoteUser || !req.remoteUser.isAdmin(fromCollective.id)) {
+      if (
+        !req.remoteUser ||
+        (!req.remoteUser.isAdmin(fromCollective.id) &&
+          !req.remoteUser.hasRole(roles.ACCOUNTANT, fromCollective.id) &&
+          !req.remoteUser.hasRole(roles.ACCOUNTANT, host.id))
+      ) {
         throw new Unauthorized("You don't have permission to access invoices for this user");
       }
 

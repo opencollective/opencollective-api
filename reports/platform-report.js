@@ -1,6 +1,7 @@
 import debugLib from 'debug';
 import moment from 'moment';
 
+import MemberRoles from '../server/constants/roles.ts';
 import { reduceArrayToCurrency } from '../server/lib/currency';
 import emailLib from '../server/lib/email';
 import { getBackersStats } from '../server/lib/hostlib';
@@ -241,7 +242,10 @@ async function PlatformReport(year, month) {
       },
     };
     console.log('>>> stats', JSON.stringify(data.stats, null, '  '));
-    const platformAdmins = await models.Member.findAll({ where: { CollectiveId: 1, role: 'ADMIN' } });
+    const platformAdmins = await models.Member.findAll({
+      logging: console.log,
+      where: { CollectiveId: 1, role: { [Op.or]: [MemberRoles.ADMIN, MemberRoles.ACCOUNTANT] } },
+    });
     const adminUsers = await models.User.findAll({
       attributes: ['email'],
       where: { CollectiveId: { [Op.in]: platformAdmins.map(m => m.MemberCollectiveId) } },

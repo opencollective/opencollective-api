@@ -1,3 +1,4 @@
+import { roles } from '../../constants';
 import { TransactionTypes } from '../../constants/transactions';
 
 const isRoot = async (req): Promise<boolean> => {
@@ -6,6 +7,34 @@ const isRoot = async (req): Promise<boolean> => {
   }
 
   return req.remoteUser.isRoot();
+};
+
+const isPayerAccountant = async (req, transaction): Promise<boolean> => {
+  const collectiveId = transaction.type === 'DEBIT' ? transaction.CollectiveId : transaction.FromCollectiveId;
+  if (!req.remoteUser) {
+    return false;
+  } else if (req.remoteUser.hasRole(roles.ACCOUNTANT, collectiveId)) {
+    return true;
+  } else {
+    const collective = await req.loaders.Collective.byId.load(collectiveId);
+    if (req.remoteUser.hasRole(roles.ACCOUNTANT, collective?.HostCollectiveId)) {
+      return true;
+    } else if (collective?.ParentCollectiveId) {
+      return req.remoteUser.hasRole(roles.ACCOUNTANT, collective.ParentCollectiveId);
+    } else {
+      return false;
+    }
+  }
+};
+
+const isPayeeAccountant = async (req, transaction): Promise<boolean> => {
+  if (!req.remoteUser) {
+    return false;
+  }
+  const collective = await req.loaders.Collective.byId.load(
+    transaction.type === 'CREDIT' ? transaction.CollectiveId : transaction.FromCollectiveId,
+  );
+  return req.remoteUser.isAdmin(collective.HostCollectiveId);
 };
 
 const isPayerCollectiveAdmin = async (req, transaction): Promise<boolean> => {
@@ -60,5 +89,10 @@ export const canRefund = async (transaction, _, req): Promise<boolean> => {
 };
 
 export const canDownloadInvoice = async (transaction, _, req): Promise<boolean> => {
-  return remoteUserMeetsOneCondition(req, transaction, [isPayerCollectiveAdmin, isPayeeHostAdmin]);
+  return remoteUserMeetsOneCondition(req, transaction, [
+    isPayerCollectiveAdmin,
+    isPayeeHostAdmin,
+    isPayerAccountant,
+    isPayeeAccountant,
+  ]);
 };

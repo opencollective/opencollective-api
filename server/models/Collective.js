@@ -1511,6 +1511,7 @@ export default function (Sequelize, DataTypes) {
         break;
 
       case roles.MEMBER:
+      case roles.ACCOUNTANT:
       case roles.ADMIN:
         if (![types.FUND, types.PROJECT].includes(this.type)) {
           await this.sendNewMemberEmail(user, role, member, sequelizeParams);
@@ -1976,24 +1977,27 @@ export default function (Sequelize, DataTypes) {
       throw new Error('There must always be at least one collective admin');
     }
 
+    const allowedRoles = [roles.ADMIN, roles.MEMBER, roles.ACCOUNTANT];
+
     // Ensure only ADMIN and MEMBER roles are used here
     members.forEach(member => {
-      if (![roles.ADMIN, roles.MEMBER].includes(member.role)) {
+      if (!allowedRoles.includes(member.role)) {
         throw new Error(`Cant edit or create membership with role ${member.role}`);
       }
     });
 
     // Load existing data
     const [oldMembers, oldInvitations] = await Promise.all([
-      this.getMembers({ where: { role: { [Op.in]: [roles.ADMIN, roles.MEMBER] } } }),
+      this.getMembers({ where: { role: { [Op.in]: allowedRoles } } }),
       models.MemberInvitation.findAll({
-        where: { CollectiveId: this.id, role: { [Op.in]: [roles.ADMIN, roles.MEMBER] } },
+        where: { CollectiveId: this.id, role: { [Op.in]: allowedRoles } },
       }),
     ]);
 
     // remove the members that are not present anymore
     const { remoteUserCollectiveId } = defaultAttributes;
-    const diff = differenceBy(oldMembers, members, 'id');
+    const diff = differenceBy(oldMembers, members, m => m.id);
+    console.log(oldMembers, members, diff);
     if (diff.length > 0) {
       debug('editMembers', 'delete', diff);
       const diffMemberIds = diff.map(m => m.id);
@@ -2042,7 +2046,7 @@ export default function (Sequelize, DataTypes) {
           where: {
             id: member.id,
             CollectiveId: this.id,
-            role: { [Op.in]: [roles.ADMIN, roles.MEMBER] },
+            role: { [Op.in]: allowedRoles },
           },
         });
       } else if (remoteUserCollectiveId && member.member?.id === remoteUserCollectiveId) {
@@ -2080,7 +2084,7 @@ export default function (Sequelize, DataTypes) {
     }
 
     return this.getMembers({
-      where: { role: { [Op.in]: [roles.ADMIN, roles.MEMBER] } },
+      where: { role: { [Op.in]: allowedRoles } },
     });
   };
 
