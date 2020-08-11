@@ -27,7 +27,6 @@ const createPaymentMethodQuery = /* GraphQL */ `
     $type: String!
     $currency: String!
     $limitedToTags: [String]
-    $limitedToCollectiveIds: [Int]
     $limitedToHostCollectiveIds: [Int]
   ) {
     createPaymentMethod(
@@ -40,7 +39,6 @@ const createPaymentMethodQuery = /* GraphQL */ `
       type: $type
       currency: $currency
       limitedToTags: $limitedToTags
-      limitedToCollectiveIds: $limitedToCollectiveIds
       limitedToHostCollectiveIds: $limitedToHostCollectiveIds
     ) {
       id
@@ -55,7 +53,6 @@ const createPaymentMethodQuery = /* GraphQL */ `
       expiryDate
       currency
       limitedToTags
-      limitedToCollectiveIds
       limitedToHostCollectiveIds
     }
   }

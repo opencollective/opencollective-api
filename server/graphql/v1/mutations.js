@@ -653,6 +653,7 @@ const mutations = {
       limitedToCollectiveIds: {
         type: new GraphQLList(GraphQLInt),
         description: 'Limit this payment method to make donations to those collectives',
+        deprecationReason: '2020-08-11: This field does not exist anymore',
       },
       limitedToHostCollectiveIds: {
         type: new GraphQLList(GraphQLInt),
@@ -744,6 +745,7 @@ const mutations = {
       limitedToCollectiveIds: {
         type: new GraphQLList(GraphQLInt),
         description: 'Limit this payment method to make donations to those collectives',
+        deprecationReason: '2020-08-11: This field does not exist anymore',
       },
       limitedToHostCollectiveIds: {
         type: new GraphQLList(GraphQLInt),

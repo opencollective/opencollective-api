@@ -150,11 +150,6 @@ export default function (Sequelize, DataTypes) {
         },
       },
 
-      limitedToCollectiveIds: {
-        type: DataTypes.ARRAY(DataTypes.INTEGER),
-        description: 'if not null, this payment method can only be used for collectives listed by their id',
-      },
-
       limitedToHostCollectiveIds: {
         type: DataTypes.ARRAY(DataTypes.INTEGER),
         description: 'if not null, this payment method can only be used for collectives hosted by these collective ids',
@@ -279,16 +274,6 @@ export default function (Sequelize, DataTypes) {
         }).then(r => r && r.name)
       );
     };
-
-    if (this.limitedToCollectiveIds) {
-      const collective = order.collective || (await order.getCollective());
-      if (!this.limitedToCollectiveIds.includes(collective.HostCollectiveId)) {
-        const collectives = await Promise.map(this.limitedToCollectiveIds, fetchCollectiveName);
-        throw new Error(
-          `This payment method can only be used for the following collectives ${formatArrayToString(collectives)}`,
-        );
-      }
-    }
 
     if (this.limitedToHostCollectiveIds) {
       const collective = order.collective || (await order.getCollective());

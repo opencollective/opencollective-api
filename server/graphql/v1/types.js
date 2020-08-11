@@ -2082,8 +2082,9 @@ export const PaymentMethodType = new GraphQLObjectType({
       },
       limitedToCollectiveIds: {
         type: new GraphQLList(GraphQLInt),
-        resolve(paymentMethod) {
-          return paymentMethod.limitedToCollectiveIds;
+        deprecationReason: '2020-08-11: This field does not exist anymore',
+        resolve() {
+          return null;
         },
       },
       limitedToHostCollectiveIds: {
