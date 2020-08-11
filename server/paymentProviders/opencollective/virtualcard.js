@@ -152,7 +152,6 @@ async function processOrder(order) {
  *                 organization wants to use
  * @param {Date} [args.expiryDate] The expiry date of the payment method
  * @param {[limitedToTags]} [args.limitedToTags] Limit this payment method to donate to collectives having those tags
- * @param {[limitedToCollectiveIds]} [args.limitedToCollectiveIds] Limit this payment method to those collective ids
  * @param {[limitedToHostCollectiveIds]} [args.limitedToHostCollectiveIds] Limit this payment method to collectives hosted by those collective ids
  * @param {boolean} sendEmailAsync if true, emails will be sent in background
  *  and we won't check if it has properly been sent to confirm
@@ -414,7 +413,6 @@ function getCreateParams(args, collective, sourcePaymentMethod, remoteUser) {
     CollectiveId: args.CollectiveId,
     expiryDate: expiryDate,
     limitedToTags: args.limitedToTags,
-    limitedToCollectiveIds: isEmpty(args.limitedToCollectiveIds) ? null : args.limitedToCollectiveIds,
     limitedToHostCollectiveIds: isEmpty(args.limitedToHostCollectiveIds) ? null : args.limitedToHostCollectiveIds,
     uuid: uuid(),
     service: 'opencollective',
