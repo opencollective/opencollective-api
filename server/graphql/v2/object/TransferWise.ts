@@ -1,5 +1,5 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import GraphQLJSON from 'graphql-type-json';
+import GraphQLJSON, { GraphQLJSONObject } from 'graphql-type-json';
 
 import transferwise from '../../../paymentProviders/transferwise';
 
@@ -71,11 +71,10 @@ export const TransferWise = new GraphQLObjectType({
       },
     },
     availableCurrencies: {
-      type: new GraphQLList(GraphQLString),
+      type: new GraphQLList(GraphQLJSONObject),
       async resolve(host) {
         if (host) {
-          const availableCurrencies = await transferwise.getAvailableCurrencies(host);
-          return availableCurrencies.map(c => c.code);
+          return await transferwise.getAvailableCurrencies(host);
         } else {
           return null;
         }
