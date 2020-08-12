@@ -1,10 +1,11 @@
-import { GraphQLInt, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLInt, GraphQLList, GraphQLObjectType, GraphQLString } from 'graphql';
 import GraphQLJSON from 'graphql-type-json';
-import { pick } from 'lodash';
+import { get, pick } from 'lodash';
 
 import { idEncode } from '../identifiers';
 import { Account } from '../interface/Account';
 import { Amount } from '../object/Amount';
+import { Host } from '../object/Host';
 
 export const PaymentMethod = new GraphQLObjectType({
   name: 'PaymentMethod',
@@ -67,6 +68,25 @@ export const PaymentMethod = new GraphQLObjectType({
           const dataSubset = pick(data, ['fullName', 'expMonth', 'expYear', 'brand', 'country', 'last4']);
 
           return dataSubset;
+        },
+      },
+      limitedToHosts: {
+        type: new GraphQLList(Host),
+        async resolve(paymentMethod, args, req) {
+          let hosts;
+          if (paymentMethod.type === 'prepaid') {
+            const hostId = get(paymentMethod, 'data.HostCollectiveId', null);
+            if (!hostId) {
+              return;
+            }
+            const host = await req.loaders.Collective.byId.load(hostId);
+            hosts = [host];
+          } else if (paymentMethod.type === 'virtualcard' && paymentMethod.limitedToHostCollectiveIds) {
+            hosts = paymentMethod.limitedToHostCollectiveIds.map(id => {
+              return req.loaders.Collective.byId.load(id);
+            });
+          }
+          return hosts;
         },
       },
     };
