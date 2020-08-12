@@ -135,7 +135,7 @@
     "nyc": "^15.1.0",
     "otpauth": "6.0.6",
     "prettier": "2.0.5",
-    "sinon": "^9.0.2",
+    "sinon": "^9.0.3",
     "supertest": "^4.0.2",
     "typescript": "^3.9.7"
   },
