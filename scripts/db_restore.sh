@@ -83,6 +83,11 @@ echo "DB restored to postgres://localhost/${LOCALDBNAME}"
   # Change ownership of the database
   psql "${LOCALDBNAME}" -c "alter database ${LOCALDBNAME} owner to ${LOCALDBUSER};"
 
+  # Change ownership of custom types (necessary if we want to modify it in migrations)
+  # Would be great to find a way to do that for all custom types
+  psql "${LOCALDBNAME}" -c "alter type \"enum_Expenses_type\" owner to ${LOCALDBUSER};"
+  psql "${LOCALDBNAME}" -c "alter type \"enum_ExpenseHistories_type\" owner to ${LOCALDBUSER};"
+
   psql "${LOCALDBNAME}" -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ${LOCALDBUSER};"
   psql "${LOCALDBNAME}" -c "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ${LOCALDBUSER};"
 

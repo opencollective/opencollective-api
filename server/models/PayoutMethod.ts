@@ -12,6 +12,7 @@ export enum PayoutMethodTypes {
   OTHER = 'OTHER',
   PAYPAL = 'PAYPAL',
   BANK_ACCOUNT = 'BANK_ACCOUNT',
+  ACCOUNT_BALANCE = 'ACCOUNT_BALANCE',
 }
 
 /** An interface for the values stored in `data` field for PayPal payout methods */
