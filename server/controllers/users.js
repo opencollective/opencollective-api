@@ -100,6 +100,7 @@ export const updateToken = async (req, res, next) => {
       secret: decryptedTwoFactorAuthToken,
       encoding: 'base32',
       token: twoFactorAuthenticatorCode,
+      window: 2,
     });
     if (!verified) {
       return next(new Unauthorized('Two-factor authentication code failed. Please try again'));
