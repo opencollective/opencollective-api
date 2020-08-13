@@ -6,6 +6,7 @@ import { idEncode } from '../identifiers';
 import { Account } from '../interface/Account';
 import { Amount } from '../object/Amount';
 import { Host } from '../object/Host';
+import ISODateTime from '../scalar/ISODateTime';
 
 export const PaymentMethod = new GraphQLObjectType({
   name: 'PaymentMethod',
@@ -88,6 +89,9 @@ export const PaymentMethod = new GraphQLObjectType({
           }
           return hosts;
         },
+      },
+      expiryDate: {
+        type: ISODateTime,
       },
     };
   },

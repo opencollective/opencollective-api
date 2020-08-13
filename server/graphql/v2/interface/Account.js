@@ -219,17 +219,22 @@ const accountFieldsDefinition = () => ({
   },
   payoutMethods: {
     type: new GraphQLList(PayoutMethod),
-    description: 'The list of payout methods that this collective can use to get paid',
+    description: 'The list of payout methods that this account can use to get paid',
   },
   paymentMethods: {
     type: new GraphQLList(PaymentMethod),
+    description: 'The list of payment methods that this account can use to pay for Orders',
     args: {
       types: {
         type: new GraphQLList(GraphQLString),
         description: 'Filter on given types (creditcard, virtualcard...)',
       },
+      includeExpired: {
+        type: GraphQLBoolean,
+        description:
+          'Wether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.',
+      },
     },
-    description: 'The list of payment methods that this collective can use to pay for Orders',
   },
   connectedAccounts: {
     type: new GraphQLList(ConnectedAccount),
@@ -477,24 +482,33 @@ export const AccountFields = {
     },
   },
   paymentMethods: {
-    type: new GraphQLList(PaymentMethod),
+    type: new GraphQLNonNull(new GraphQLList(PaymentMethod)),
     args: {
       types: { type: new GraphQLList(GraphQLString) },
+      includeExpired: {
+        type: GraphQLBoolean,
+        description:
+          'Wether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.',
+      },
     },
     description: 'The list of payment methods that this collective can use to pay for Orders',
     async resolve(collective, args, req) {
-      let paymentMethods = await req.loaders.PaymentMethod.findByCollectiveId.load(collective.id);
+      const now = new Date();
+      const paymentMethods = await req.loaders.PaymentMethod.findByCollectiveId.load(collective.id);
 
-      // Filter only "saved" stripe Payment Methods
-      paymentMethods = paymentMethods.filter(pm => pm.service !== 'stripe' || pm.saved);
-
-      paymentMethods = paymentMethods.filter(pm => !(pm.data && pm.data.hidden));
-
-      if (args.types) {
-        paymentMethods = paymentMethods.filter(pm => args.types.includes(pm.type));
-      }
-
-      return paymentMethods;
+      return paymentMethods.filter(pm => {
+        if (args.types && !args.types.includes(pm.type)) {
+          return false;
+        } else if (pm.data?.hidden) {
+          return false;
+        } else if (pm.service === 'stripe' && !pm.saved) {
+          return false;
+        } else if (!args.includeExpired && pm.expiryDate && pm.expiryDate <= now) {
+          return false;
+        } else {
+          return true;
+        }
+      });
     },
   },
   connectedAccounts: {

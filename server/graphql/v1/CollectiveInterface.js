@@ -1748,7 +1748,8 @@ const CollectiveFields = () => {
           paymentMethods = sortBy(paymentMethods, args.orderBy);
         }
 
-        return paymentMethods;
+        const now = new Date();
+        return paymentMethods.filter(pm => !pm.expiryDate || pm.expiryDate > now);
       },
     },
     payoutMethods: {
