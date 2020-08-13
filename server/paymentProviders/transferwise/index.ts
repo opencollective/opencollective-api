@@ -1,4 +1,6 @@
-import { find, has } from 'lodash';
+import crypto from 'crypto';
+
+import { find, has, pick } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import { TransferwiseError } from '../../graphql/errors';
@@ -6,6 +8,8 @@ import cache from '../../lib/cache';
 import * as transferwise from '../../lib/transferwise';
 import models from '../../models';
 import { Quote, RecipientAccount, Transfer } from '../../types/transferwise';
+
+const hashObject = obj => crypto.createHash('sha1').update(JSON.stringify(obj)).digest('hex').slice(0, 7);
 
 export const blackListedCurrenciesForBusinessProfiles = ['BRL', 'PKR'];
 
@@ -126,12 +130,14 @@ async function getAvailableCurrencies(host: any): Promise<{ code: string; minInv
 }
 
 async function getRequiredBankInformation(host: any, currency: string, accountDetails?: any): Promise<any> {
-  const cacheKey = `transferwise_required_bank_info_${host.id}_to_${currency}`;
-  if (!accountDetails) {
-    const fromCache = await cache.get(cacheKey);
-    if (fromCache) {
-      return fromCache;
-    }
+  const cacheKey = accountDetails
+    ? `transferwise_required_bank_info_${host.id}_${currency}_${hashObject(
+        pick(accountDetails, ['type', 'details.bankCode', 'details.legalTyp', 'details.address.country']),
+      )}`
+    : `transferwise_required_bank_info_${host.id}_to_${currency}`;
+  const fromCache = await cache.get(cacheKey);
+  if (fromCache) {
+    return fromCache;
   }
 
   const connectedAccount = await models.ConnectedAccount.findOne({
@@ -153,13 +159,13 @@ async function getRequiredBankInformation(host: any, currency: string, accountDe
     sourceAmount: currencyInfo.minInvoiceAmount * 20,
   };
 
-  if (accountDetails && has(accountDetails, 'details')) {
-    return await transferwise.validateAccountRequirements(connectedAccount.token, transactionParams, accountDetails);
-  } else {
-    const requiredFields = await transferwise.getAccountRequirements(connectedAccount.token, transactionParams);
-    cache.set(cacheKey, requiredFields, 24 * 60 * 60 /* a whole day and we could probably increase */);
-    return requiredFields;
-  }
+  const requiredFields =
+    accountDetails && has(accountDetails, 'details')
+      ? await transferwise.validateAccountRequirements(connectedAccount.token, transactionParams, accountDetails)
+      : await transferwise.getAccountRequirements(connectedAccount.token, transactionParams);
+
+  cache.set(cacheKey, requiredFields, 24 * 60 * 60 /* a whole day and we could probably increase */);
+  return requiredFields;
 }
 
 export default {
