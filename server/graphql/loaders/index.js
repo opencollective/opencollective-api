@@ -1,6 +1,7 @@
 import DataLoader from 'dataloader';
 import { createContext } from 'dataloader-sequelize';
 import { get, groupBy } from 'lodash';
+import moment from 'moment';
 
 import { types as CollectiveType } from '../../constants/collectives';
 import { maxInteger } from '../../constants/math';
@@ -441,8 +442,10 @@ export const loaders = req => {
       where: {
         CollectiveId: { [Op.in]: CollectiveIds },
         name: { [Op.ne]: null },
-        expiryDate: { [Op.or]: [null, { [Op.gte]: new Date() }] },
         archivedAt: null,
+        expiryDate: {
+          [Op.or]: [null, { [Op.gte]: moment().subtract(6, 'month') }],
+        },
       },
       order: [['id', 'DESC']],
     }).then(results => sortResults(CollectiveIds, results, 'CollectiveId', [])),
