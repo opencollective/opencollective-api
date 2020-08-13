@@ -100,6 +100,18 @@ export default function (Sequelize, DataTypes) {
         allowNull: false,
       },
 
+      longDescription: {
+        type: DataTypes.TEXT,
+        set(value) {
+          if (value) {
+            const cleanHtml = sanitizeHTML(value, PRIVATE_MESSAGE_SANITIZE_OPTS).trim();
+            this.setDataValue('longDescription', cleanHtml || null);
+          } else {
+            this.setDataValue('longDescription', null);
+          }
+        },
+      },
+
       /**
        * @deprecated Now using PaymentMethodId. The reason why this hadn't been removed yet
        * is because we'd need to migrate the legacy `donation` payout types that exist in the

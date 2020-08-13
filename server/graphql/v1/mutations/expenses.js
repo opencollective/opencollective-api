@@ -126,6 +126,7 @@ const checkExpenseItems = (expenseData, items) => {
 const EXPENSE_EDITABLE_FIELDS = [
   'amount',
   'description',
+  'longDescription',
   'category',
   'type',
   'tags',
