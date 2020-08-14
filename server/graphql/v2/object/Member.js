@@ -70,6 +70,13 @@ const MemberFields = {
       return { value };
     },
   },
+  publicMessage: {
+    type: GraphQLString,
+    description: 'Custom user message from member to the collective',
+    resolve(member) {
+      return member.publicMessage;
+    },
+  },
 };
 
 export const Member = new GraphQLObjectType({
