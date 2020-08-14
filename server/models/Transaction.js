@@ -456,12 +456,16 @@ export default (Sequelize, DataTypes) => {
     if (transaction.amount < 0) {
       index = 0;
       transactions.push(transaction);
-      transactions.push(oppositeTransaction);
+      // Skip CREDIT when inserting a DEBIT to itself
+      if (transaction.CollectiveId !== transaction.FromCollectiveId) {
+        transactions.push(oppositeTransaction);
+      }
     } else {
       index = 1;
       transactions.push(oppositeTransaction);
       transactions.push(transaction);
     }
+
     return Promise.mapSeries(transactions, t => Transaction.create(t)).then(results => results[index]);
   };
 
