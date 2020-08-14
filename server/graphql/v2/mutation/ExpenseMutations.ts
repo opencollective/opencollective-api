@@ -57,6 +57,7 @@ const expenseMutations = {
       return createExpenseLegacy(req.remoteUser, {
         ...pick(args.expense, [
           'description',
+          'longDescription',
           'tags',
           'type',
           'privateMessage',

@@ -41,6 +41,10 @@ const Expense = new GraphQLObjectType({
         type: new GraphQLNonNull(GraphQLString),
         description: 'Title/main description for this expense',
       },
+      longDescription: {
+        type: GraphQLString,
+        description: 'Longer description for this expense',
+      },
       amount: {
         type: new GraphQLNonNull(GraphQLInt),
         description: "Total amount of the expense (sum of the item's amounts).",
