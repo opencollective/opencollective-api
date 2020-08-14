@@ -160,14 +160,14 @@ describe('server/models/Transaction', () => {
     it('should deduct the platform fee from the main transactions', async () => {
       const transaction = {
         description: '$100 donation to Merveilles',
-        amount: 10000,
-        amountInHostCurrency: 10000,
+        amount: 11000,
+        amountInHostCurrency: 11000,
         currency: 'USD',
         hostCurrency: 'USD',
         hostCurrencyFxRate: 1,
         platformFeeInHostCurrency: 1000,
         hostFeeInHostCurrency: 500,
-        paymentProcessorFeeInHostCurrency: 200,
+        paymentProcessorFeeInHostCurrency: 300,
         type: 'CREDIT',
         createdAt: '2015-05-29T07:00:00.000Z',
         PaymentMethodId: 1,
@@ -186,7 +186,14 @@ describe('server/models/Transaction', () => {
       expect(t).to.have.property('platformFeeInHostCurrency').equal(0);
       expect(t)
         .to.have.property('netAmountInCollectiveCurrency')
-        .equal(transaction.amount + transaction.hostFeeInHostCurrency + transaction.paymentProcessorFeeInHostCurrency);
+        .equal(
+          // The total amount of donation minus the fees on top
+          10000 -
+            // Minus the host fee
+            500 -
+            // Minus the partial platform fee: (10000 out of 11000)
+            Math.round((300 * 10000) / 11000),
+        );
     });
 
     it('should create an aditional pair of transactions between contributor and Open Collective Inc', async () => {
@@ -197,9 +204,9 @@ describe('server/models/Transaction', () => {
       });
       const transaction = {
         description: '$100 donation to Merveilles',
-        amount: 10000,
+        amount: 11000,
         totalAmount: 11000,
-        amountInHostCurrency: 10000,
+        amountInHostCurrency: 11000,
         currency: 'USD',
         hostCurrency: 'USD',
         hostCurrencyFxRate: 1,
@@ -230,8 +237,11 @@ describe('server/models/Transaction', () => {
       expect(donationCredit).to.have.property('amount').equal(1000);
 
       const donationDebit = allTransactions.find(t => t.FromCollectiveId === oc.id);
+      const partialPaymentProcessorFee = Math.round(200 * (1000 / 11000));
       expect(donationDebit).to.have.property('type').equal('DEBIT');
-      expect(donationDebit).to.have.property('amount').equal(-1000);
+      expect(donationDebit)
+        .to.have.property('amount')
+        .equal(-1000 + partialPaymentProcessorFee);
     });
 
     it('should convert the donation transaction to USD and store the FX rate', async () => {
@@ -243,9 +253,9 @@ describe('server/models/Transaction', () => {
       });
       const transaction = {
         description: '$100 donation to Merveilles',
-        amount: 10000,
+        amount: 11000,
         totalAmount: 11000,
-        amountInHostCurrency: 10000,
+        amountInHostCurrency: 11000,
         currency: 'EUR',
         hostCurrency: 'EUR',
         hostCurrencyFxRate: 1,
@@ -280,12 +290,13 @@ describe('server/models/Transaction', () => {
         .equal(Math.round(1000 * donationCredit.data.hostToPlatformFxRate));
 
       const donationDebit = allTransactions.find(t => t.FromCollectiveId === oc.id);
+      const partialPaymentProcessorFee = Math.round(200 * (1000 / 11000));
       expect(donationDebit).to.have.nested.property('data.hostToPlatformFxRate');
       expect(donationDebit).to.have.property('type').equal('DEBIT');
       expect(donationDebit).to.have.property('currency').equal('USD');
       expect(donationDebit)
         .to.have.property('amount')
-        .equal(Math.round(-1000 * donationDebit.data.hostToPlatformFxRate));
+        .equal(Math.round((-1000 + partialPaymentProcessorFee) * donationDebit.data.hostToPlatformFxRate));
     });
 
     it('should not create transactions if platformFee is 0', async () => {
@@ -298,7 +309,7 @@ describe('server/models/Transaction', () => {
       const transaction = {
         description: '$100 donation to Merveilles',
         amount: 10000,
-        totalAmount: 11000,
+        totalAmount: 10000,
         amountInHostCurrency: 10000,
         currency: 'EUR',
         hostCurrency: 'EUR',

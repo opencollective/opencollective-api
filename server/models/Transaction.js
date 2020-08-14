@@ -476,6 +476,13 @@ export default (Sequelize, DataTypes) => {
       return;
     }
 
+    // Calculate the paymentProcessorFee proportional to the feeOnTop amount
+    const feeOnTopPaymentProcessorFee = toNegative(
+      Math.round(
+        transaction.paymentProcessorFeeInHostCurrency *
+          Math.abs(transaction.platformFeeInHostCurrency / transaction.amountInHostCurrency),
+      ),
+    );
     const platformCurrencyFxRate = await getFxRate(transaction.currency, FEES_ON_TOP_TRANSACTION_PROPERTIES.currency);
     const donationTransaction = defaultsDeep(
       {},
@@ -486,14 +493,17 @@ export default (Sequelize, DataTypes) => {
         amountInHostCurrency: Math.round(Math.abs(transaction.platformFeeInHostCurrency) * platformCurrencyFxRate),
         platformFeeInHostCurrency: 0,
         hostFeeInHostCurrency: 0,
-        paymentProcessorFeeInHostCurrency: 0,
+        // Represent the paymentProcessorFee in USD
+        paymentProcessorFeeInHostCurrency: Math.round(feeOnTopPaymentProcessorFee * platformCurrencyFxRate),
+        // Calculate the netAmount by deducting the proportional paymentProcessorFee
         netAmountInCollectiveCurrency: Math.round(
-          Math.abs(transaction.platformFeeInHostCurrency) * platformCurrencyFxRate,
+          (Math.abs(transaction.platformFeeInHostCurrency) + feeOnTopPaymentProcessorFee) * platformCurrencyFxRate,
         ),
         // This is always 1 because OpenCollective and OpenCollective Inc (Host) are in USD.
         hostCurrencyFxRate: 1,
         data: {
           hostToPlatformFxRate: await getFxRate(transaction.hostCurrency, FEES_ON_TOP_TRANSACTION_PROPERTIES.currency),
+          feeOnTopPaymentProcessorFee,
         },
       },
       transaction,
@@ -501,10 +511,14 @@ export default (Sequelize, DataTypes) => {
 
     await Transaction.createDoubleEntry(donationTransaction);
 
-    // Remove fees from main transaction
+    // Deduct the paymentProcessorFee we considered part of the feeOnTop donation
+    transaction.paymentProcessorFeeInHostCurrency =
+      transaction.paymentProcessorFeeInHostCurrency - feeOnTopPaymentProcessorFee;
+    // Recalculate amount
     transaction.amountInHostCurrency = transaction.amountInHostCurrency + transaction.platformFeeInHostCurrency;
     transaction.amount =
       transaction.amount + transaction.platformFeeInHostCurrency / (transaction.hostCurrencyFxRate || 1);
+    // Reset the platformFee because we're accounting for this value in a separate set of transactions
     transaction.platformFeeInHostCurrency = 0;
 
     return transaction;
