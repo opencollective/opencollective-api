@@ -83,6 +83,7 @@ export const requestDataAndThrowParsedError = (
   { data, ...options }: { data?: object; headers: object; params?: object },
   defaultErrorMessage?: string,
 ): Promise<any> => {
+  debug(`calling ${url}`);
   const pRequest = data ? fn(url, data, options) : fn(url, options);
   return pRequest
     .then(getData)
