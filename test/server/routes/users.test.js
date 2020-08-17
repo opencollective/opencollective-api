@@ -3,7 +3,6 @@ import config from 'config';
 import crypto from 'crypto-js';
 import moment from 'moment';
 import nodemailer from 'nodemailer';
-import { Secret, TOTP } from 'otpauth';
 import sinon from 'sinon';
 import speakeasy from 'speakeasy';
 import request from 'supertest';
@@ -145,12 +144,11 @@ describe('server/routes/users', () => {
       const encryptedToken = crypto[CIPHER].encrypt(secret.base32, SECRET_KEY).toString();
       const user = await models.User.create({ email: 'mopsa@mopsa.mopsa', twoFactorAuthToken: encryptedToken });
       const currentToken = user.jwt();
-      const twoFactorAuthenticatorCode = new TOTP({
+      const twoFactorAuthenticatorCode = speakeasy.totp({
         algorithm: 'SHA1',
-        digits: 6,
-        period: 30,
-        secret: Secret.fromB32(secret.base32),
-      }).generate();
+        encoding: 'base32',
+        secret: secret.base32,
+      });
 
       // When the endpoint is hit with a valid TOTP code
       const response = await request(expressApp)
