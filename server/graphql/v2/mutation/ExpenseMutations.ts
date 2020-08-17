@@ -1,4 +1,4 @@
-import { GraphQLBoolean, GraphQLInputObjectType, GraphQLInt, GraphQLNonNull } from 'graphql';
+import { GraphQLBoolean, GraphQLInputObjectType, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
 import { pick } from 'lodash';
 
 import models from '../../../models';
@@ -175,6 +175,10 @@ const expenseMutations = {
               type: GraphQLBoolean,
               description: 'Bypass automatic integrations (ie. PayPal, Transferwise) to process the expense manually',
             },
+            twoFactorAuthenticatorCode: {
+              type: GraphQLString,
+              description: '2FA code for if the host account has it turned on and the transaction is large.',
+            },
           },
         }),
       },
@@ -201,6 +205,7 @@ const expenseMutations = {
             id: expense.id,
             paymentProcessorFeeInCollectiveCurrency: args.paymentParams?.paymentProcessorFee,
             forceManual: args.paymentParams?.forceManual,
+            twoFactorAuthenticatorCode: args.paymentParams?.twoFactorAuthenticatorCode,
           });
         default:
           return expense;
