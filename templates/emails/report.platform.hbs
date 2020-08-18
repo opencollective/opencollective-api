@@ -145,9 +145,9 @@ Subject: {{month}} {{year}} Platform Report
       </tr>
       <tr>
         <td></td>
-        <td>Manually added funds:</td>
+        <td>Bank Transfers:</td>
         <td></td>
-        <td align="right">{{currency feesOnTopManual currency='USD'}}</td>
+        <td align="right">{{currency feeOnTopBankTransfers currency='USD'}}</td>
       </tr>
       <tr>
         <td></td>
@@ -161,7 +161,8 @@ Subject: {{month}} {{year}} Platform Report
         {{#if isUSD}}
         <td align="right">{{currency totalFeesDue currency=currency}}</td>
         {{else}}
-        <td align="right">{{currency platformFeesDue currency=currency}} + {{currency feesOnTopDue currency='USD'}} </td>
+        <td align="right">{{currency platformFeesDue currency=currency}} + {{currency feesOnTopDue currency='USD'}}
+        </td>
         {{/if}}
       </tr>
     </table>

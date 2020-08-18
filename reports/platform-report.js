@@ -20,14 +20,13 @@ const getPlatformRevenue = async (startDate, endDate) => {
   const res = await query(
     `
   SELECT
-    -- In the case this is a fees on top transaction, the currency will already be USD
     currency,
     SUM(
       CASE
-        WHEN (t."data"->>'isFeesOnTop' = 'true' AND t."type" = 'CREDIT' AND t."CollectiveId" = 1) THEN t."amount"
-        ELSE -t."platformFeeInHostCurrency"
+        WHEN (t."CollectiveId" = 1) and t."data"->>'isFeesOnTop' = 'true' THEN t."amount" -- Fees on Top
+        ELSE -t."platformFeeInHostCurrency" -- Platform Fee
       END
-    ) as "amount"
+    ) AS "amount"
   FROM "Transactions" t
   WHERE t."deletedAt" IS NULL
     AND t."OrderId" IS NOT NULL
@@ -151,8 +150,8 @@ async function PlatformReport(year, month) {
         SELECT
           max((CASE WHEN pm."service" = 'paypal' AND t."CollectiveId" = 1 THEN t."amount" ELSE 0 END)::float) as "feeOnTopPaypal",
           max((CASE WHEN (pm."service" = 'stripe' OR spm.service = 'stripe') AND t."CollectiveId" = 1 THEN t."amount" ELSE 0 END)::float) as "feeOnTopStripe",
-          max((CASE WHEN pm."service" != 'stripe' AND pm."service" != 'paypal' AND (spm.service IS NULL OR spm.service != 'stripe') AND t."CollectiveId" = 1 THEN t."platformFeeInHostCurrency" ELSE 0 END)::float) as "feeOnTopManual",
-          max((CASE WHEN (pm."service" != 'stripe' OR pm.service IS NULL) AND (spm.service IS NULL OR spm.service != 'stripe') AND t."CollectiveId" = 1 THEN t."amount" ELSE 0 END)::float) as "feeOnTopDue",
+          max((CASE WHEN t."PaymentMethodId" is NULL AND t."CollectiveId" = 1 THEN t."amount" ELSE 0 END)::float) as "feeOnTopBankTransfers",
+          max((CASE WHEN (t."PaymentMethodId" is NULL OR ((pm."service" != 'stripe' OR pm.service IS NULL) AND (spm.service IS NULL OR spm.service != 'stripe'))) AND t."CollectiveId" = 1 THEN t."amount" ELSE 0 END)::float) as "feeOnTopDue",
           max((CASE WHEN t."CollectiveId" != 1 THEN t."HostCollectiveId" ELSE 0 END)) AS "HostCollectiveId",
           t."OrderId"
           FROM "Transactions" t
@@ -168,7 +167,7 @@ async function PlatformReport(year, month) {
         SELECT
           "HostCollectiveId",
           sum("feeOnTopPaypal") AS "feesOnTopPaypal",
-          sum("feeOnTopManual") AS "feesOnTopManual",
+          sum("feeOnTopBankTransfers") AS "feeOnTopBankTransfers",
           sum("feeOnTopStripe") AS "feesOnTopStripe",
           sum("feeOnTopDue") AS "feesOnTopDue"
         FROM "feesOnTopTransactions"
@@ -181,7 +180,7 @@ async function PlatformReport(year, month) {
         d.*,
         stats.*,
         fot.*,
-        COALESCE(fot."feesOnTopPaypal", 0) + COALESCE(fot."feesOnTopManual", 0) + COALESCE(fot."feesOnTopStripe", 0) as "feesOnTop" 
+        COALESCE(fot."feesOnTopPaypal", 0) + COALESCE(fot."feeOnTopBankTransfers", 0) + COALESCE(fot."feesOnTopStripe", 0) as "feesOnTop"
       FROM "donationsData" d
       LEFT JOIN "hostedCollectivesStats" stats ON d."HostCollectiveId" = stats."HostCollectiveId"
       LEFT JOIN "feesOnTopByHost" fot ON fot."HostCollectiveId" = d."HostCollectiveId"
