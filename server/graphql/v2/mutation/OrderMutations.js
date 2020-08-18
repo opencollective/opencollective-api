@@ -208,7 +208,6 @@ const orderMutations = {
 
         // If using a named tier, amount can never be less than the minimum amount
         if (tierInfo && tierInfo.amountType === 'FLEXIBLE' && amountInCents < tierInfo.minimumAmount) {
-          console.log('error');
           throw new Error('Amount is less than minimum value allowed for this Tier.');
         }
 

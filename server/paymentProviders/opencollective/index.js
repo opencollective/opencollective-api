@@ -2,6 +2,7 @@ import collective from './collective';
 import host from './host';
 import manual from './manual';
 import prepaid from './prepaid';
+import test from './test';
 import virtualcard from './virtualcard';
 
 /** Process orders from Open Collective payment method types */
@@ -15,6 +16,8 @@ async function processOrder(order) {
       return manual.processOrder(order);
     case 'host':
       return collective.processOrder(order);
+    case 'test':
+      return test.processOrder(order);
     case 'collective': // Fall through
     default:
       return collective.processOrder(order);
@@ -31,6 +34,7 @@ export default {
     host,
     manual,
     prepaid,
+    test,
     virtualcard,
   },
   processOrder,
