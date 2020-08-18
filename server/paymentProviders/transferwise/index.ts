@@ -73,7 +73,7 @@ async function payExpense(
   const balance = account.balances.find(b => b.currency === quote.source);
   if (!balance || balance.amount.value < quote.sourceAmount) {
     throw new TransferwiseError(
-      `You don't have enough funds in your ${quote.source} balance. Please top up your account and try again.`,
+      `You don't have enough funds in your ${quote.source} balance. Please top up your account considering the source amount of ${quote.sourceAmount} (includes the fee ${quote.fee}) and try again.`,
       'transferwise.error.insufficientFunds',
       { currency: quote.source },
     );
