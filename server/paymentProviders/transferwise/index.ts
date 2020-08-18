@@ -132,7 +132,7 @@ async function getAvailableCurrencies(host: any): Promise<{ code: string; minInv
 async function getRequiredBankInformation(host: any, currency: string, accountDetails?: any): Promise<any> {
   const cacheKey = accountDetails
     ? `transferwise_required_bank_info_${host.id}_${currency}_${hashObject(
-        pick(accountDetails, ['type', 'details.bankCode', 'details.legalTyp', 'details.address.country']),
+        pick(accountDetails, ['type', 'details.bankCode', 'details.legalType', 'details.address.country']),
       )}`
     : `transferwise_required_bank_info_${host.id}_to_${currency}`;
   const fromCache = await cache.get(cacheKey);
