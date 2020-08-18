@@ -477,11 +477,9 @@ export default (Sequelize, DataTypes) => {
     }
 
     // Calculate the paymentProcessorFee proportional to the feeOnTop amount
+    const feeOnTopPercent = Math.abs(transaction.platformFeeInHostCurrency / transaction.amountInHostCurrency);
     const feeOnTopPaymentProcessorFee = toNegative(
-      Math.round(
-        transaction.paymentProcessorFeeInHostCurrency *
-          Math.abs(transaction.platformFeeInHostCurrency / transaction.amountInHostCurrency),
-      ),
+      Math.round(transaction.paymentProcessorFeeInHostCurrency * feeOnTopPercent),
     );
     const platformCurrencyFxRate = await getFxRate(transaction.currency, FEES_ON_TOP_TRANSACTION_PROPERTIES.currency);
     const donationTransaction = defaultsDeep(
