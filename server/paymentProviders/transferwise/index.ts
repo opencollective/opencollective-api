@@ -73,7 +73,7 @@ async function payExpense(
   const balance = account.balances.find(b => b.currency === quote.source);
   if (!balance || balance.amount.value < quote.sourceAmount) {
     throw new TransferwiseError(
-      `You don't have enough funds in your ${quote.source} balance. Please top up your account and try again.`,
+      `You don't have enough funds in your ${quote.source} balance. Please top up your account considering the source amount of ${quote.sourceAmount} (includes the fee ${quote.fee}) and try again.`,
       'transferwise.error.insufficientFunds',
       { currency: quote.source },
     );
@@ -132,7 +132,7 @@ async function getAvailableCurrencies(host: any): Promise<{ code: string; minInv
 async function getRequiredBankInformation(host: any, currency: string, accountDetails?: any): Promise<any> {
   const cacheKey = accountDetails
     ? `transferwise_required_bank_info_${host.id}_${currency}_${hashObject(
-        pick(accountDetails, ['type', 'details.bankCode', 'details.legalTyp', 'details.address.country']),
+        pick(accountDetails, ['type', 'details.bankCode', 'details.legalType', 'details.address.country']),
       )}`
     : `transferwise_required_bank_info_${host.id}_to_${currency}`;
   const fromCache = await cache.get(cacheKey);
