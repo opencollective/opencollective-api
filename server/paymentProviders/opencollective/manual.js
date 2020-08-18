@@ -1,10 +1,9 @@
-import { get, pick } from 'lodash';
+import { isNumber, pick } from 'lodash';
 
 import { maxInteger } from '../../constants/math';
-import { TransactionTypes } from '../../constants/transactions';
+import { HOST_FEE_PERCENT, TransactionTypes } from '../../constants/transactions';
 import { associateTransactionRefundId, createRefundTransaction } from '../../lib/payments';
 import models from '../../models';
-
 /**
  * Manual Payment method
  * This payment method enables a host to manually receive donations (e.g. by wire directly to the host's bank account)
@@ -35,12 +34,51 @@ async function processOrder(order) {
     );
   }
 
+  // Pick the first that is set as a Number
+  const platformFeePercent = [
+    // Fixed in the Order (special tiers: BackYourStack, Pre-Paid)
+    order.data?.hostFeePercent,
+    // Fixed for Bank Transfers at collective level
+    order.collective.data?.bankTransfersPlatformFeePercent,
+    // Fixed for Bank Transfers at host level
+    // As of August 2020, this will be only set on a selection of Hosts (opensource 5%)
+    host.data?.bankTransfersPlatformFeePercent,
+    // Default for Collective (skipped for now)
+    // order.collective.platformFeePercent,
+    // Default to 0
+    0,
+  ].find(isNumber);
+
+  // Pick the first that is set as a Number
+  const hostFeePercent = [
+    // Fixed in the Order (special tiers: BackYourStack, Pre-Paid)
+    order.data?.hostFeePercent,
+    // Fixed for Bank Transfers at collective level
+    // As of August 2020, this will be only set on a selection of Collective (some foundation collectives 5%)
+    order.collective.data?.bankTransfersHostFeePercent,
+    // Fixed for Bank Transfers at host level
+    // As of August 2020, this will be only set on a selection of Hosts (foundation 8%)
+    host.data?.bankTransfersHostFeePercent,
+    // Default for Collective
+    order.collective.hostFeePercent,
+    // Just in case, default on the platform
+    HOST_FEE_PERCENT,
+  ].find(isNumber);
+
+  const isFeesOnTop = order.data?.isFeesOnTop || false;
   const feeOnTop = order.data?.platformFee || 0;
-  const hostFeePercent = get(order, 'data.hostFeePercent', order.collective.hostFeePercent);
+
+  let platformFeeInHostCurrency;
+  if (isFeesOnTop) {
+    // If it's "Fees On Top", we're just using that
+    platformFeeInHostCurrency = feeOnTop;
+  } else {
+    //  Otherwise, use platformFeePercent
+    platformFeeInHostCurrency = -Math.round((platformFeePercent / 100) * order.totalAmount);
+  }
+
   const hostFeeInHostCurrency = -Math.round((hostFeePercent / 100) * (order.totalAmount - feeOnTop));
 
-  // Waive fees except if explicitely passed
-  const platformFeeInHostCurrency = feeOnTop;
   const paymentProcessorFeeInHostCurrency = 0;
 
   payload.transaction = {
