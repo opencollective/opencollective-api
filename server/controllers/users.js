@@ -9,6 +9,7 @@ import { isValidEmail } from '../lib/utils';
 import models from '../models';
 
 const { Unauthorized } = errors;
+const { User } = models;
 
 /**
  *
@@ -72,36 +73,43 @@ export const signin = (req, res, next) => {
 };
 
 /**
- * Receive a JWT and generate another one.
+ * Receive a login JWT and generate another one.
  * This can be used right after the first login.
- * If an authenticator code is sent, check if
- * the user has two-factor authentication enabled
- * on their account, and if they do, we challenge
- * them to auth with it during the login flow
+ * Also check if the user has two-factor authentication
+ * enabled on their account, and if they do, we send
+ * back a JWT with scope 'twofactorauth' to trigger
+ * the 2FA flow on the frontend
  */
-export const updateToken = async (req, res, next) => {
-  const { twoFactorAuthenticatorCode } = req.body;
-
-  // the first time we try, we need to just check if the user has 2FA
-  if (req.remoteUser.twoFactorAuthToken !== null && !twoFactorAuthenticatorCode) {
-    return next(new Unauthorized('Two-factor authentication is enabled on this account. Please enter the code'));
-  }
-
-  // we process a new token the 1st time if no 2FA, 2nd time if there is
-  const token = req.remoteUser.jwt({}, auth.TOKEN_EXPIRATION_SESSION);
-
-  // if there is a 2FA code we need to verify it before returning the token
-  if (twoFactorAuthenticatorCode) {
-    const verified = auth.verifyTwoFactorAuthenticatorCode(
-      req.remoteUser.twoFactorAuthToken,
-      twoFactorAuthenticatorCode,
-    );
-    if (!verified) {
-      return next(new Unauthorized('Two-factor authentication code failed. Please try again'));
-    }
-    res.send({ token: token });
+export const updateToken = async (req, res) => {
+  if (req.remoteUser.twoFactorAuthToken !== null) {
+    const token = req.remoteUser.jwt({ scope: 'twofactorauth' }, auth.TOKEN_EXPIRATION_SESSION);
+    res.send({ token });
   } else {
-    // otherwise just send the jwt token back
+    const token = req.remoteUser.jwt({}, auth.TOKEN_EXPIRATION_SESSION);
     res.send({ token });
   }
+};
+
+/**
+ * Verify the 2FA code the user has entered when
+ * logging in and send back another JWT.
+ */
+export const twoFactorAuthAndUpdateToken = async (req, res, next) => {
+  const { twoFactorAuthenticatorCode } = req.body;
+
+  const userId = Number(req.jwtPayload.sub);
+  const user = await User.findByPk(userId);
+  if (!user) {
+    logger.warn(`User id ${userId} not found`);
+    next();
+    return;
+  }
+
+  // we need to verify the 2FA code before returning the token
+  const verified = auth.verifyTwoFactorAuthenticatorCode(user.twoFactorAuthToken, twoFactorAuthenticatorCode);
+  if (!verified) {
+    return next(new Unauthorized('Two-factor authentication code failed. Please try again'));
+  }
+  const token = user.jwt({}, auth.TOKEN_EXPIRATION_SESSION);
+  res.send({ token: token });
 };
