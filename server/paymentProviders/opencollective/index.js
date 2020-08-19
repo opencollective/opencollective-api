@@ -1,6 +1,5 @@
-/** @module paymentProviders/opencollective */
-
 import collective from './collective';
+import host from './host';
 import manual from './manual';
 import prepaid from './prepaid';
 import virtualcard from './virtualcard';
@@ -14,6 +13,8 @@ async function processOrder(order) {
       return virtualcard.processOrder(order);
     case 'manual':
       return manual.processOrder(order);
+    case 'host':
+      return collective.processOrder(order);
     case 'collective': // Fall through
     default:
       return collective.processOrder(order);
@@ -27,6 +28,7 @@ export default {
   types: {
     default: collective,
     collective,
+    host,
     manual,
     prepaid,
     virtualcard,

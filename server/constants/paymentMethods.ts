@@ -11,6 +11,7 @@ export enum PAYMENT_METHOD_TYPE {
   PREPAID = 'prepaid',
   PAYMENT = 'payment',
   COLLECTIVE = 'collective',
+  HOST = 'host',
   ADAPTIVE = 'adaptive',
   VIRTUALCARD = 'virtualcard',
 }

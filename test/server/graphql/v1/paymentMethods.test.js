@@ -118,7 +118,7 @@ describe('server/graphql/v1/paymentMethods', () => {
         where: {
           service: 'opencollective',
           CollectiveId: host.id,
-          type: 'collective',
+          type: 'host',
         },
       }).then(pm => {
         paymentMethod = pm;
