@@ -951,7 +951,7 @@ export default function (Sequelize, DataTypes) {
 
   Collective.prototype.getOrCreateHostPaymentMethod = async function () {
     const hostPaymentMethod = await models.PaymentMethod.findOne({
-      where: { service: 'opencollective', type: 'collective', CollectiveId: this.id },
+      where: { service: 'opencollective', type: 'host', CollectiveId: this.id },
     });
 
     if (hostPaymentMethod) {
@@ -961,7 +961,7 @@ export default function (Sequelize, DataTypes) {
     return models.PaymentMethod.create({
       CollectiveId: this.id,
       service: 'opencollective',
-      type: 'collective',
+      type: 'host',
       name: `${this.name} (Host)`,
       primary: true,
       currency: this.currency,
