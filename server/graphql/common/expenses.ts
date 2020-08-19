@@ -14,6 +14,25 @@ const isOwner = async (req, expense): Promise<boolean> => {
   return req.remoteUser.isAdmin(expense.FromCollectiveId) || req.remoteUser.id === expense.UserId;
 };
 
+const isCollectiveAccountant = async (req, expense): Promise<boolean> => {
+  if (!req.remoteUser) {
+    return false;
+  } else if (req.remoteUser.hasRole(roles.ACCOUNTANT, expense.CollectiveId)) {
+    return true;
+  }
+
+  const collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
+  if (!collective) {
+    return false;
+  } else if (req.remoteUser.hasRole(roles.ACCOUNTANT, collective.HostCollectiveId)) {
+    return true;
+  } else if (collective.ParentCollectiveId) {
+    return req.remoteUser.hasRole(roles.ACCOUNTANT, collective.ParentCollectiveId);
+  } else {
+    return false;
+  }
+};
+
 const isCollectiveAdmin = async (req, expense): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
@@ -23,7 +42,12 @@ const isCollectiveAdmin = async (req, expense): Promise<boolean> => {
     if (!expense.collective) {
       expense.collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
     }
-    return req.remoteUser.isAdmin(expense.collective.ParentCollectiveId);
+
+    if (expense.collective?.ParentCollectiveId) {
+      return req.remoteUser.hasRole(roles.ACCOUNTANT, expense.collective.ParentCollectiveId);
+    } else {
+      return false;
+    }
   }
 };
 
@@ -59,22 +83,22 @@ const remoteUserMeetsOneCondition = async (req, expense, conditions): Promise<bo
 
 /** Checks if the user can see expense's attachments (items URLs, attached files) */
 export const canSeeExpenseAttachments = async (req, expense): Promise<boolean> => {
-  return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin]);
+  return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isCollectiveAccountant, isHostAdmin]);
 };
 
 /** Checks if the user can see expense's payout method */
 export const canSeeExpensePayoutMethod = async (req, expense): Promise<boolean> => {
-  return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin]);
+  return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isCollectiveAccountant, isHostAdmin]);
 };
 
 /** Checks if the user can see expense's payout method */
 export const canSeeExpenseInvoiceInfo = async (req, expense): Promise<boolean> => {
-  return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin]);
+  return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isCollectiveAccountant, isHostAdmin]);
 };
 
 /** Checks if the user can see expense's payout method */
 export const canSeeExpensePayeeLocation = async (req, expense): Promise<boolean> => {
-  return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin]);
+  return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isCollectiveAccountant, isHostAdmin]);
 };
 
 /**
@@ -209,7 +233,7 @@ export const canComment = async (req, expense): Promise<boolean> => {
 };
 
 export const canViewRequiredLegalDocuments = async (req, expense): Promise<boolean> => {
-  return remoteUserMeetsOneCondition(req, expense, [isHostAdmin, isOwner]);
+  return remoteUserMeetsOneCondition(req, expense, [isHostAdmin, isCollectiveAccountant, isOwner]);
 };
 
 // ---- Expense actions ----

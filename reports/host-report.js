@@ -4,6 +4,7 @@ import debugLib from 'debug';
 import { keyBy, pick } from 'lodash';
 import moment from 'moment';
 
+import MemberRoles from '../server/constants/roles.ts';
 import emailLib from '../server/lib/email';
 import { getBackersStats, getHostedCollectives, sumTransactions } from '../server/lib/hostlib';
 import { stripHTML } from '../server/lib/sanitize-html';
@@ -209,7 +210,7 @@ async function HostReport(year, month, hostId) {
       return models.Member.findAll({
         where: {
           CollectiveId: host.id,
-          role: 'ADMIN',
+          role: { [Op.or]: [MemberRoles.ADMIN, MemberRoles.ACCOUNTANT] },
         },
       }).map(
         admin => {
