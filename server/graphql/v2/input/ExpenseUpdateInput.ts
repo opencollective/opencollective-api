@@ -22,6 +22,10 @@ export const ExpenseUpdateInput = new GraphQLInputObjectType({
       type: GraphQLString,
       description: 'Main title of the expense',
     },
+    longDescription: {
+      type: GraphQLString,
+      description: 'Longer text to attach to the expense',
+    },
     tags: {
       type: new GraphQLList(GraphQLString),
       description: 'Tags associated to the expense (ie. Food, Engineering...)',
