@@ -1,9 +1,10 @@
 import { expect } from 'chai';
+import gqlV2 from 'fake-tag';
 
 import { fakeCollective, fakeTransaction } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
 
-const TRANSACTIONS_QUERY = `
+const transactionsQuery = gqlV2/* GraphQL */ `
   query Transactions(
     $slug: String!
     $type: TransactionType
@@ -46,19 +47,19 @@ describe('server/graphql/v2/query/TransactionsQuery', () => {
   it('filters', async () => {
     const queryParams = { slug: collective.slug };
 
-    let result = await graphqlQueryV2(TRANSACTIONS_QUERY, queryParams);
+    let result = await graphqlQueryV2(transactionsQuery, queryParams);
     expect(result.data.transactions.totalCount).to.eq(transactions.length);
 
-    result = await graphqlQueryV2(TRANSACTIONS_QUERY, { ...queryParams, minAmount: 9000 });
+    result = await graphqlQueryV2(transactionsQuery, { ...queryParams, minAmount: 9000 });
     expect(result.data.transactions.totalCount).to.eq(2);
 
-    result = await graphqlQueryV2(TRANSACTIONS_QUERY, { ...queryParams, type: 'DEBIT' });
+    result = await graphqlQueryV2(transactionsQuery, { ...queryParams, type: 'DEBIT' });
     expect(result.data.transactions.totalCount).to.eq(1);
 
-    result = await graphqlQueryV2(TRANSACTIONS_QUERY, { ...queryParams, searchTerm: 'this' });
+    result = await graphqlQueryV2(transactionsQuery, { ...queryParams, searchTerm: 'this' });
     expect(result.data.transactions.totalCount).to.eq(1);
 
-    result = await graphqlQueryV2(TRANSACTIONS_QUERY, { ...queryParams, maxAmount: 20 });
+    result = await graphqlQueryV2(transactionsQuery, { ...queryParams, maxAmount: 20 });
     expect(result.data.transactions.totalCount).to.eq(1);
   });
 });

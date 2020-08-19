@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import gql from 'fake-tag';
 import { describe, it } from 'mocha';
 import sinon from 'sinon';
 
@@ -92,30 +93,30 @@ describe('server/graphql/v1/mutation', () => {
   beforeEach('add user1 as admin of event1', () => event1.addUserWithRole(user1, roles.ADMIN));
 
   describe('createCollective tests', () => {
-    const createCollectiveQuery = `
-    mutation createCollective($collective: CollectiveInputType!) {
-      createCollective(collective: $collective) {
-        id
-        slug
-        currency
-        hostFeePercent
-        host {
+    const createCollectiveMutation = gql`
+      mutation CreateCollective($collective: CollectiveInputType!) {
+        createCollective(collective: $collective) {
           id
+          slug
           currency
-        }
-        parentCollective {
-          id
-          currency
-        }
-        isActive
-        tiers {
-          id
-          name
-          amount
-          presets
+          hostFeePercent
+          host {
+            id
+            currency
+          }
+          parentCollective {
+            id
+            currency
+          }
+          isActive
+          tiers {
+            id
+            name
+            amount
+            presets
+          }
         }
       }
-    }
     `;
 
     describe('creates an event collective', () => {
@@ -145,7 +146,7 @@ describe('server/graphql/v1/mutation', () => {
       };
 
       it('fails if not authenticated', async () => {
-        const result = await utils.graphqlQuery(createCollectiveQuery, {
+        const result = await utils.graphqlQuery(createCollectiveMutation, {
           collective: getEventData(collective1),
         });
         expect(result.errors).to.have.length(1);
@@ -155,7 +156,7 @@ describe('server/graphql/v1/mutation', () => {
       it('fails if authenticated but cannot edit parent collective', async () => {
         await host.collective.update({ settings: { apply: true } });
         const result = await utils.graphqlQuery(
-          createCollectiveQuery,
+          createCollectiveMutation,
           { collective: getEventData(collective1) },
           user3,
         );
@@ -173,7 +174,7 @@ describe('server/graphql/v1/mutation', () => {
         });
         const event = getEventData(collective1);
 
-        const result = await utils.graphqlQuery(createCollectiveQuery, { collective: event }, user1);
+        const result = await utils.graphqlQuery(createCollectiveMutation, { collective: event }, user1);
         result.errors && console.error(result.errors[0]);
         const createdEvent = result.data.createCollective;
         expect(createdEvent.slug).to.contain('brusselstogether-meetup');
@@ -204,18 +205,18 @@ describe('server/graphql/v1/mutation', () => {
         // We update the second (now only) tier
         event.tiers[0].amount = 123;
 
-        const updateQuery = `
-        mutation editCollective($collective: CollectiveInputType!) {
-          editCollective(collective: $collective) {
-            id,
-            slug,
-            tiers {
-              id,
-              name,
-              amount
+        const updateQuery = gql`
+          mutation editCollective($collective: CollectiveInputType!) {
+            editCollective(collective: $collective) {
+              id
+              slug
+              tiers {
+                id
+                name
+                amount
+              }
             }
           }
-        }
         `;
 
         const r2 = await utils.graphqlQuery(updateQuery, { collective: event });
@@ -250,7 +251,7 @@ describe('server/graphql/v1/mutation', () => {
       });
 
       it('fails if not logged in', async () => {
-        const res = await utils.graphqlQuery(createCollectiveQuery, {
+        const res = await utils.graphqlQuery(createCollectiveMutation, {
           collective: newCollectiveData,
         });
         expect(res.errors).to.exist;
@@ -263,14 +264,14 @@ describe('server/graphql/v1/mutation', () => {
           name: 'new collective',
           HostCollectiveId: host.CollectiveId,
         };
-        const result = await utils.graphqlQuery(createCollectiveQuery, { collective }, user1);
+        const result = await utils.graphqlQuery(createCollectiveMutation, { collective }, user1);
         expect(result.errors[0].message).to.equal('This host does not accept applications for new collectives');
       });
 
       it('creates a collective', async () => {
         emailSendMessageSpy.resetHistory();
         await host.collective.update({ settings: { apply: true } });
-        const res = await utils.graphqlQuery(createCollectiveQuery, { collective: newCollectiveData }, user1);
+        const res = await utils.graphqlQuery(createCollectiveMutation, { collective: newCollectiveData }, user1);
         res.errors && console.error(res.errors[0]);
         const newCollective = res.data.createCollective;
         const hostMembership = await models.Member.findOne({
@@ -312,17 +313,17 @@ describe('server/graphql/v1/mutation', () => {
 
   describe('editCollective tests', () => {
     describe('edit tiers', () => {
-      const editTiersQuery = `
-      mutation editTiers($id: Int!, $tiers: [TierInputType]) {
-        editTiers(id: $id, tiers: $tiers) {
-          id
-          name
-          type
-          amount
-          interval
-          goal
+      const editTiersMutation = gql`
+        mutation EditTiers($id: Int!, $tiers: [TierInputType]) {
+          editTiers(id: $id, tiers: $tiers) {
+            id
+            name
+            type
+            amount
+            interval
+            goal
+          }
         }
-      }
       `;
 
       const tiers = [
@@ -331,7 +332,7 @@ describe('server/graphql/v1/mutation', () => {
       ];
 
       it('fails if not authenticated', async () => {
-        const result = await utils.graphqlQuery(editTiersQuery, {
+        const result = await utils.graphqlQuery(editTiersMutation, {
           id: collective1.id,
           tiers,
         });
@@ -340,7 +341,7 @@ describe('server/graphql/v1/mutation', () => {
       });
 
       it('fails if not authenticated as host or member of collective', async () => {
-        const result = await utils.graphqlQuery(editTiersQuery, { id: collective1.id }, user3);
+        const result = await utils.graphqlQuery(editTiersMutation, { id: collective1.id }, user3);
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.equal(
           "You need to be logged in as a core contributor or as a host of the Scouts d'Arlon collective",
@@ -348,7 +349,7 @@ describe('server/graphql/v1/mutation', () => {
       });
 
       it('add new tiers and update existing', async () => {
-        const result = await utils.graphqlQuery(editTiersQuery, { id: collective1.id, tiers }, user1);
+        const result = await utils.graphqlQuery(editTiersMutation, { id: collective1.id, tiers }, user1);
         result.errors && console.error(result.errors[0]);
         expect(tiers).to.have.length(2);
         tiers.sort((a, b) => b.amount - a.amount);
@@ -357,7 +358,7 @@ describe('server/graphql/v1/mutation', () => {
         tiers[0].goal = 20000;
         tiers[1].amount = 100000;
         tiers.push({ name: 'free ticket', type: 'TICKET', amount: 0 });
-        const result2 = await utils.graphqlQuery(editTiersQuery, { id: collective1.id, tiers }, user1);
+        const result2 = await utils.graphqlQuery(editTiersMutation, { id: collective1.id, tiers }, user1);
         result2.errors && console.error(result2.errors[0]);
         const updatedTiers = result2.data.editTiers;
         updatedTiers.sort((a, b) => b.amount - a.amount);
@@ -368,23 +369,23 @@ describe('server/graphql/v1/mutation', () => {
     });
 
     describe('change the hostFeePercent of the host', () => {
-      const updateQuery = `
-      mutation editCollective($collective: CollectiveInputType!) {
-        editCollective(collective: $collective) {
-          id,
-          slug,
-          hostFeePercent,
-          host {
+      const updateHostFeePercentMutation = gql`
+        mutation UpdateHostFeePercent($collective: CollectiveInputType!) {
+          editCollective(collective: $collective) {
             id
+            slug
             hostFeePercent
+            host {
+              id
+              hostFeePercent
+            }
           }
         }
-      }
       `;
 
       it('fails if not authenticated as an admin of the host', async () => {
         const result = await utils.graphqlQuery(
-          updateQuery,
+          updateHostFeePercentMutation,
           { collective: { id: collective1.id, hostFeePercent: 11 } },
           user1,
         );
@@ -396,7 +397,7 @@ describe('server/graphql/v1/mutation', () => {
 
       it('updates the hostFeePercent of the collective, not of the host', async () => {
         const result = await utils.graphqlQuery(
-          updateQuery,
+          updateHostFeePercentMutation,
           { collective: { id: collective1.id, hostFeePercent: 11 } },
           host,
         );
@@ -406,7 +407,7 @@ describe('server/graphql/v1/mutation', () => {
 
       it('updates the hostFeePercent of the host and of the hosted collectives', async () => {
         const result = await utils.graphqlQuery(
-          updateQuery,
+          updateHostFeePercentMutation,
           { collective: { id: host.collective.id, hostFeePercent: 9 } },
           host,
         );
@@ -434,39 +435,39 @@ describe('server/graphql/v1/mutation', () => {
 
     describe('throws an error', () => {
       it('when missing all required fields', async () => {
-        const query = `
-          mutation createOrder($order: OrderInputType!) {
+        const createOrderMutation = gql`
+          mutation CreateOrder($order: OrderInputType!) {
             createOrder(order: $order) {
-              id,
+              id
               collective {
                 id
               }
               tier {
-                id,
-                name,
+                id
+                name
                 description
               }
             }
           }
         `;
 
-        const result = await utils.graphqlQuery(query, { order: {} });
+        const result = await utils.graphqlQuery(createOrderMutation, { order: {} });
         expect(result.errors.length).to.equal(1);
         expect(result.errors[0].message).to.contain('collective');
       });
 
       describe("when collective/tier doesn't exist", () => {
         it("when collective doesn't exist", async () => {
-          const query = `
+          const createOrderMutation = gql`
             mutation createOrder($order: OrderInputType!) {
               createOrder(order: $order) {
-                id,
+                id
                 collective {
                   id
                 }
                 tier {
-                  id,
-                  name,
+                  id
+                  name
                   description
                 }
               }
@@ -477,22 +478,22 @@ describe('server/graphql/v1/mutation', () => {
             tier: { id: 3 },
             quantity: 1,
           };
-          const result = await utils.graphqlQuery(query, { order }, user2);
+          const result = await utils.graphqlQuery(createOrderMutation, { order }, user2);
           expect(result.errors.length).to.equal(1);
           expect(result.errors[0].message).to.equal(`No collective found: ${order.collective.id}`);
         });
 
         it("when tier doesn't exist", async () => {
-          const query = `
-            mutation createOrder($order: OrderInputType!) {
+          const createOrderMutation = gql`
+            mutation CreateOrder($order: OrderInputType!) {
               createOrder(order: $order) {
-                id,
+                id
                 collective {
                   id
                 }
                 tier {
-                  id,
-                  name,
+                  id
+                  name
                   description
                 }
               }
@@ -504,7 +505,7 @@ describe('server/graphql/v1/mutation', () => {
             tier: { id: 1002 },
             quantity: 1,
           };
-          const result = await utils.graphqlQuery(query, { order }, user2);
+          const result = await utils.graphqlQuery(createOrderMutation, { order }, user2);
           expect(result.errors.length).to.equal(1);
           expect(result.errors[0].message).to.equal(
             `No tier found with tier id: 1002 for collective slug ${event1.slug}`,
@@ -514,16 +515,16 @@ describe('server/graphql/v1/mutation', () => {
 
       describe('after checking ticket quantity', () => {
         it('and if not enough are available', async () => {
-          const query = `
-            mutation createOrder($order: OrderInputType!) {
+          const createOrderMutation = gql`
+            mutation CreateOrder($order: OrderInputType!) {
               createOrder(order: $order) {
-                id,
+                id
                 collective {
                   id
                 }
                 tier {
-                  id,
-                  name,
+                  id
+                  name
                   description
                 }
               }
@@ -535,23 +536,23 @@ describe('server/graphql/v1/mutation', () => {
             tier: { id: 3 },
             quantity: 101,
           };
-          const result = await utils.graphqlQuery(query, { order }, user2);
+          const result = await utils.graphqlQuery(createOrderMutation, { order }, user2);
           expect(result.errors[0].message).to.equal(`No more tickets left for ${ticket1.name}`);
         });
       });
 
       describe('when no payment method', () => {
         it("and it's a paid ticket", async () => {
-          const query = `
-            mutation createOrder($order: OrderInputType!) {
+          const createOrderMutation = gql`
+            mutation CreateOrder($order: OrderInputType!) {
               createOrder(order: $order) {
-                id,
+                id
                 collective {
                   id
                 }
                 tier {
-                  id,
-                  name,
+                  id
+                  name
                   description
                 }
               }
@@ -563,7 +564,7 @@ describe('server/graphql/v1/mutation', () => {
             tier: { id: 4 },
             quantity: 2,
           };
-          const result = await utils.graphqlQuery(query, { order }, user2);
+          const result = await utils.graphqlQuery(createOrderMutation, { order }, user2);
           expect(result.errors[0].message).to.equal('This order requires a payment method');
         });
       });
@@ -577,19 +578,19 @@ describe('server/graphql/v1/mutation', () => {
       });
 
       describe('as an organization', () => {
-        const query = `
-          mutation createOrder($order: OrderInputType!) {
+        const createOrderMutation = gql`
+          mutation CreateOrder($order: OrderInputType!) {
             createOrder(order: $order) {
-              id,
+              id
               tier {
-                id,
-              },
+                id
+              }
               fromCollective {
                 slug
                 twitterHandle
-              },
+              }
               collective {
-                id,
+                id
                 slug
               }
             }
@@ -618,7 +619,7 @@ describe('server/graphql/v1/mutation', () => {
             quantity: 2,
           };
           emailSendMessageSpy.resetHistory();
-          const result = await utils.graphqlQuery(query, { order }, user2);
+          const result = await utils.graphqlQuery(createOrderMutation, { order }, user2);
           result.errors && console.error(result.errors);
           expect(result.data).to.deep.equal({
             createOrder: {
@@ -691,7 +692,7 @@ describe('server/graphql/v1/mutation', () => {
             tier: { id: 5 },
             quantity: 2,
           };
-          const result = await utils.graphqlQuery(query, { order }, user2);
+          const result = await utils.graphqlQuery(createOrderMutation, { order }, user2);
           result.errors && console.error(result.errors);
           expect(result.data).to.deep.equal({
             createOrder: {
@@ -734,30 +735,30 @@ describe('server/graphql/v1/mutation', () => {
 
       describe('in a free ticket', () => {
         it('from an existing user', async () => {
-          const query = `
-            mutation createOrder($order: OrderInputType!) {
+          const createOrderMutation = gql`
+            mutation CreateOrder($order: OrderInputType!) {
               createOrder(order: $order) {
-                id,
+                id
                 createdByUser {
-                  id,
+                  id
                   email
-                },
+                }
                 tier {
-                  id,
-                  name,
-                  description,
-                  maxQuantity,
+                  id
+                  name
+                  description
+                  maxQuantity
                   stats {
                     totalOrders
                     availableQuantity
                   }
-                },
+                }
                 fromCollective {
-                  id,
+                  id
                   slug
-                },
+                }
                 collective {
-                  id,
+                  id
                   slug
                 }
               }
@@ -770,7 +771,7 @@ describe('server/graphql/v1/mutation', () => {
             tier: { id: 3 },
             quantity: 2,
           };
-          const result = await utils.graphqlQuery(query, { order }, user2);
+          const result = await utils.graphqlQuery(createOrderMutation, { order }, user2);
           result.errors && console.error(result.errors);
           expect(result.data).to.deep.equal({
             createOrder: {
@@ -826,8 +827,8 @@ describe('server/graphql/v1/mutation', () => {
         });
 
         it('from a new user', async () => {
-          const query = `
-            mutation createOrder($order: OrderInputType!) {
+          const createOrderMutation = gql`
+            mutation CreateOrder($order: OrderInputType!) {
               createOrder(order: $order) {
                 id
                 createdByUser {
@@ -845,7 +846,7 @@ describe('server/graphql/v1/mutation', () => {
                 }
               }
             }
-        `;
+          `;
 
           const order = {
             collective: { id: event1.id },
@@ -855,7 +856,7 @@ describe('server/graphql/v1/mutation', () => {
           const remoteUser = await models.User.createUserWithCollective({
             email: 'newuser@email.com',
           });
-          const result = await utils.graphqlQuery(query, { order }, remoteUser);
+          const result = await utils.graphqlQuery(createOrderMutation, { order }, remoteUser);
           expect(result).to.deep.equal({
             data: {
               createOrder: {
@@ -890,25 +891,25 @@ describe('server/graphql/v1/mutation', () => {
 
       describe('in a paid ticket', () => {
         it('from an existing user', async () => {
-          const query = `
-            mutation createOrder($order: OrderInputType!) {
+          const createOrderMutation = gql`
+            mutation CreateOrder($order: OrderInputType!) {
               createOrder(order: $order) {
-                id,
+                id
                 createdByUser {
-                  id,
+                  id
                   email
-                },
+                }
                 tier {
-                  id,
-                  name,
-                  description,
-                  maxQuantity,
+                  id
+                  name
+                  description
+                  maxQuantity
                   stats {
                     availableQuantity
                   }
-                },
+                }
                 collective {
-                  id,
+                  id
                   slug
                 }
               }
@@ -929,7 +930,7 @@ describe('server/graphql/v1/mutation', () => {
             tier: { id: 4 },
             quantity: 2,
           };
-          const result = await utils.graphqlQuery(query, { order }, user2);
+          const result = await utils.graphqlQuery(createOrderMutation, { order }, user2);
           result.errors && console.error(result.errors[0]);
           expect(result.data).to.deep.equal({
             createOrder: {
@@ -971,25 +972,25 @@ describe('server/graphql/v1/mutation', () => {
         });
 
         it('from an existing but logged out user (should fail)', async () => {
-          const query = `
-            mutation createOrder($order: OrderInputType!) {
+          const createOrderMutation = gql`
+            mutation CreateOrder($order: OrderInputType!) {
               createOrder(order: $order) {
-                id,
+                id
                 createdByUser {
-                  id,
+                  id
                   email
-                },
+                }
                 tier {
-                  id,
-                  name,
-                  description,
-                  maxQuantity,
+                  id
+                  name
+                  description
+                  maxQuantity
                   stats {
                     availableQuantity
                   }
-                },
+                }
                 collective {
-                  id,
+                  id
                   slug
                 }
               }
@@ -1013,32 +1014,32 @@ describe('server/graphql/v1/mutation', () => {
           };
 
           const loggedInUser = null;
-          const result = await utils.graphqlQuery(query, { order }, loggedInUser);
+          const result = await utils.graphqlQuery(createOrderMutation, { order }, loggedInUser);
           // result.errors && console.error(result.errors[0]);
           expect(result.errors).to.exist;
           expect(result.errors[0].message).to.equal('You need to be authenticated to perform this action');
         });
 
         it('from a new user', async () => {
-          const query = `
-            mutation createOrder($order: OrderInputType!) {
+          const createOrderMutation = gql`
+            mutation CreateOrder($order: OrderInputType!) {
               createOrder(order: $order) {
-                id,
+                id
                 createdByUser {
-                  id,
+                  id
                   email
-                },
+                }
                 tier {
-                  id,
-                  name,
-                  description,
-                  maxQuantity,
+                  id
+                  name
+                  description
+                  maxQuantity
                   stats {
                     availableQuantity
                   }
-                },
+                }
                 collective {
-                  id,
+                  id
                   slug
                 }
               }
@@ -1059,7 +1060,7 @@ describe('server/graphql/v1/mutation', () => {
             quantity: 2,
           };
           const remoteUser = await models.User.createUserWithCollective({ email: 'newuser@email.com' });
-          const result = await utils.graphqlQuery(query, { order }, remoteUser);
+          const result = await utils.graphqlQuery(createOrderMutation, { order }, remoteUser);
           result.errors && console.error(result.errors[0]);
           const executeOrderArgument = executeOrderStub.firstCall.args;
           expect(result).to.deep.equal({

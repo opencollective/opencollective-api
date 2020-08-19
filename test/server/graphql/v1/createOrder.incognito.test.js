@@ -1,19 +1,31 @@
 import { expect } from 'chai';
+import gql from 'fake-tag';
 
 import * as libpayments from '../../../../server/lib/payments';
 import * as store from '../../../stores';
 import * as utils from '../../../utils';
 
-const getCollectiveQuery = `
-query Collective($slug: String) {
-  Collective(slug: $slug) {
-    members {
-      id
-      role
-      member {
+const collectiveQuery = gql`
+  query Collective($slug: String) {
+    Collective(slug: $slug) {
+      members {
         id
-        slug
-        name
+        role
+        member {
+          id
+          slug
+          name
+          createdByUser {
+            id
+            email
+            firstName
+            lastName
+          }
+        }
+      }
+      transactions {
+        id
+        description
         createdByUser {
           id
           email
@@ -21,40 +33,30 @@ query Collective($slug: String) {
           lastName
         }
       }
-    }
-    transactions {
-      id
-      description
-      createdByUser {
+      orders {
         id
-        email
-        firstName
-        lastName
-      }
-    }
-    orders {
-      id
-      description
-      totalAmount
-      createdByUser {
-        id
-        email
-        firstName
-        lastName
-      }
-      fromCollective {
-        slug
-        name
+        description
+        totalAmount
         createdByUser {
           id
           email
           firstName
           lastName
+        }
+        fromCollective {
+          slug
+          name
+          createdByUser {
+            id
+            email
+            firstName
+            lastName
+          }
         }
       }
     }
   }
-}`;
+`;
 
 describe('server/graphql/v1/createOrder.incognito', () => {
   let adminUser, backerUser, user, incognitoCollective, hostCollective, collective, hostAdmin;
@@ -94,7 +96,7 @@ describe('server/graphql/v1/createOrder.incognito', () => {
     });
 
     it("doesn't leak incognito info when querying the api not logged in", async () => {
-      const res = await utils.graphqlQuery(getCollectiveQuery, {
+      const res = await utils.graphqlQuery(collectiveQuery, {
         slug: collective.slug,
       });
       res.errors && console.error(res.errors[0]);
@@ -127,7 +129,7 @@ describe('server/graphql/v1/createOrder.incognito', () => {
 
     it("doesn't leak incognito info when querying the api logged in as another backer", async () => {
       const res = await utils.graphqlQuery(
-        getCollectiveQuery,
+        collectiveQuery,
         {
           slug: collective.slug,
         },
@@ -161,7 +163,7 @@ describe('server/graphql/v1/createOrder.incognito', () => {
 
     it('expose incognito email to the collective admin', async () => {
       const res = await utils.graphqlQuery(
-        getCollectiveQuery,
+        collectiveQuery,
         {
           slug: collective.slug,
         },
@@ -196,7 +198,7 @@ describe('server/graphql/v1/createOrder.incognito', () => {
 
     it('expose incognito email to the host admin', async () => {
       const res = await utils.graphqlQuery(
-        getCollectiveQuery,
+        collectiveQuery,
         {
           slug: collective.slug,
         },

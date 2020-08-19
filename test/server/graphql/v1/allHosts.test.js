@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import gql from 'fake-tag';
 import { describe, it } from 'mocha';
 
 import models from '../../../../server/models';
@@ -54,20 +55,20 @@ describe('server/graphql/v1/allHosts', () => {
   });
 
   describe('hosts', () => {
-    const allHostsQuery = `
-    query allHosts($tags: [String], $currency: String) {
-      allHosts(tags: $tags, currency: $currency) {
-        total
-        collectives {
-          id
-          type
-          slug
-          tags
-          settings
-          canApply
+    const allHostsQuery = gql`
+      query AllHosts($tags: [String], $currency: String) {
+        allHosts(tags: $tags, currency: $currency) {
+          total
+          collectives {
+            id
+            type
+            slug
+            tags
+            settings
+            canApply
+          }
         }
       }
-    }
     `;
 
     it('gets all the hosts where we can apply', async () => {

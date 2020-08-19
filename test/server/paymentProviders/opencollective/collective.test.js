@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import gql from 'fake-tag';
 import sinon from 'sinon';
 
 import models from '../../../../server/models';
@@ -10,8 +11,8 @@ import * as utils from '../../../utils';
 const ORDER_TOTAL_AMOUNT = 1000;
 const STRIPE_FEE_STUBBED_VALUE = 300;
 
-const createOrderQuery = `
-  mutation createOrder($order: OrderInputType!) {
+const createOrderMutation = gql`
+  mutation CreateOrder($order: OrderInputType!) {
     createOrder(order: $order) {
       id
       fromCollective {
@@ -231,8 +232,8 @@ describe('server/paymentProviders/opencollective/collective', () => {
         totalAmount: ocPaymentMethodBalance.amount,
       };
       // Executing queries
-      const res = await utils.graphqlQuery(createOrderQuery, { order });
-      const resWithUserParam = await utils.graphqlQuery(createOrderQuery, { order }, user2);
+      const res = await utils.graphqlQuery(createOrderMutation, { order });
+      const resWithUserParam = await utils.graphqlQuery(createOrderMutation, { order }, user2);
 
       // Then there should be Errors for the Result of the query without any user defined as param
       expect(res.errors).to.exist;
@@ -273,7 +274,7 @@ describe('server/paymentProviders/opencollective/collective', () => {
       };
 
       // Executing queries
-      const res = await utils.graphqlQuery(createOrderQuery, { order }, user1);
+      const res = await utils.graphqlQuery(createOrderMutation, { order }, user1);
 
       // Then there should be no errors
       res.errors && console.error(res.errors);
@@ -335,7 +336,7 @@ describe('server/paymentProviders/opencollective/collective', () => {
       };
 
       // Executing queries
-      const res = await utils.graphqlQuery(createOrderQuery, { order }, user1);
+      const res = await utils.graphqlQuery(createOrderMutation, { order }, user1);
 
       // Then there should be errors
       expect(res.errors).to.exist;
@@ -378,7 +379,7 @@ describe('server/paymentProviders/opencollective/collective', () => {
         interval: 'month',
       };
       // Executing queries
-      const res = await utils.graphqlQuery(createOrderQuery, { order }, user1);
+      const res = await utils.graphqlQuery(createOrderMutation, { order }, user1);
 
       // Then there should be no errors
       res.errors && console.error(res.errors);
@@ -430,7 +431,7 @@ describe('server/paymentProviders/opencollective/collective', () => {
         interval: 'month',
       };
       // Executing queries
-      const res = await utils.graphqlQuery(createOrderQuery, { order }, user1);
+      const res = await utils.graphqlQuery(createOrderMutation, { order }, user1);
 
       // Then there should be errors
       expect(res.errors).to.exist;

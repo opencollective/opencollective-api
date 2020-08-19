@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import gqlV2 from 'fake-tag';
 
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import { PayoutMethodTypes } from '../../../../../server/models/PayoutMethod';
@@ -8,7 +9,7 @@ import * as utils from '../../../../utils';
 
 describe('server/graphql/v2/mutation/PayoutMethodMutations', () => {
   describe('createPayoutMethod', () => {
-    const createPayoutMethodMutation = `
+    const createPayoutMethodMutation = gqlV2/* GraphQL */ `
       mutation createPayoutMethod($payoutMethod: PayoutMethodInput!, $account: AccountReferenceInput!) {
         createPayoutMethod(payoutMethod: $payoutMethod, account: $account) {
           data
@@ -111,8 +112,8 @@ describe('server/graphql/v2/mutation/PayoutMethodMutations', () => {
   });
 
   describe('removePayoutMethod', () => {
-    const removePayoutMethodMutation = `
-      mutation removePayoutMethod($id: String!) {
+    const removePayoutMethodMutation = gqlV2/* GraphQL */ `
+      mutation RemovePayoutMethod($id: String!) {
         removePayoutMethod(payoutMethodId: $id) {
           id
           data

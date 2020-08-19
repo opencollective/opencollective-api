@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import gqlV2 from 'fake-tag';
 import sinon from 'sinon';
 
 import * as transferwise from '../../../../../server/lib/transferwise';
@@ -16,8 +17,11 @@ describe('server/graphql/v2/mutation/ConnectedAccountMutations', () => {
   beforeEach(utils.resetTestDB);
 
   describe('createConnectedAccount', () => {
-    const createConnectedAccountMutation = `
-      mutation createConnectedAccount($connectedAccount: ConnectedAccountCreateInput!, $account: AccountReferenceInput!) {
+    const createConnectedAccountMutation = gqlV2/* GraphQL */ `
+      mutation CreateConnectedAccount(
+        $connectedAccount: ConnectedAccountCreateInput!
+        $account: AccountReferenceInput!
+      ) {
         createConnectedAccount(connectedAccount: $connectedAccount, account: $account) {
           id
           legacyId
@@ -117,8 +121,8 @@ describe('server/graphql/v2/mutation/ConnectedAccountMutations', () => {
   });
 
   describe('deleteConnectedAccount', () => {
-    const deleteConnectedAccountMutation = `
-      mutation deleteConnectedAccount($connectedAccount: ConnectedAccountReferenceInput!) {
+    const deleteConnectedAccountMutation = gqlV2/* GraphQL */ `
+      mutation DeleteConnectedAccount($connectedAccount: ConnectedAccountReferenceInput!) {
         deleteConnectedAccount(connectedAccount: $connectedAccount) {
           id
         }
