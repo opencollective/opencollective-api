@@ -9,7 +9,10 @@ import pdf from 'html-pdf';
 import { cloneDeep, get, isEqual, padStart } from 'lodash';
 import sanitizeHtml from 'sanitize-html';
 
+import errors from './errors';
 import handlebars from './handlebars';
+
+const { BadRequest } = errors;
 
 export function addParamsToUrl(url, obj) {
   const u = new URL(url);
@@ -611,4 +614,20 @@ export const toIsoDateStr = date => {
   const month = date.getMonth() + 1;
   const day = date.getUTCDate();
   return `${year}-${padStart(month.toString(), 2, '0')}-${padStart(day.toString(), 2, '0')}`;
+};
+
+export const getTokenFromRequestHeaders = req => {
+  const header = req.headers && req.headers.authorization;
+  if (!header) {
+    return null;
+  }
+
+  const parts = header.split(' ');
+  const scheme = parts[0];
+  const token = parts[1];
+  if (!/^Bearer$/i.test(scheme) || !token) {
+    throw new BadRequest('Format is Authorization: Bearer [token]');
+  }
+
+  return token;
 };

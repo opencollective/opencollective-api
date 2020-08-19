@@ -10,6 +10,7 @@ import request from 'request-promise';
 import * as connectedAccounts from '../controllers/connectedAccounts';
 import errors from '../lib/errors';
 import logger from '../lib/logger';
+import { getTokenFromRequestHeaders } from '../lib/utils';
 import models from '../models';
 import paymentProviders from '../paymentProviders';
 
@@ -43,16 +44,13 @@ const debug = debugLib('auth');
 export const parseJwtNoExpiryCheck = (req, res, next) => {
   let token = req.params.access_token || req.query.access_token || req.body.access_token;
   if (!token) {
-    const header = req.headers && req.headers.authorization;
-    if (!header) {
-      return next();
-    }
-
-    const parts = header.split(' ');
-    const scheme = parts[0];
-    token = parts[1];
-    if (!/^Bearer$/i.test(scheme) || !token) {
-      return next(new BadRequest('Format is Authorization: Bearer [token]'));
+    try {
+      token = getTokenFromRequestHeaders(req);
+      if (!token) {
+        return next();
+      }
+    } catch (err) {
+      return next(err);
     }
   }
 
@@ -98,12 +96,31 @@ export const _authenticateUserByJwt = async (req, res, next) => {
     return;
   }
 
+  if (req.jwtPayload.scope === 'twofactorauth') {
+    return next(errors.Unauthorized('Cannot use this token on this route.'));
+  }
+
   /**
    * Functionality for one-time login links. We check that the lastLoginAt
    * in the JWT matches the lastLoginAt in the db. If so, we allow the user
    * to log in, and update the lastLoginAt.
    */
   if (req.jwtPayload.scope === 'login') {
+    // We check the path because we don't want login tokens used on routes besides /users/update-token.
+    // TODO: write a middleware to use on the API that checks JWTs and routes to make sure they aren't
+    // being misused on any route (for example, tokens with 'login' scope and 'twofactorauth' scope).
+    const path = req.path;
+    if (path !== '/users/update-token') {
+      if (config.env === 'production') {
+        logger.error('Not allowed to use tokens with login scope on routes other than /users/update-token.');
+        next();
+        return;
+      } else {
+        logger.info(
+          'Not allowed to use tokens with login scope on routes other than /users/update-token. Ignoring in non-production environment.',
+        );
+      }
+    }
     if (user.lastLoginAt) {
       if (!req.jwtPayload.lastLoginAt || user.lastLoginAt.getTime() !== req.jwtPayload.lastLoginAt) {
         if (config.env === 'production') {
@@ -364,3 +381,28 @@ export function mustBeLoggedIn(req, res, next) {
     }
   });
 }
+
+export const checkTwoFactorAuthJWT = (req, res, next) => {
+  let token;
+  try {
+    token = getTokenFromRequestHeaders(req);
+  } catch (err) {
+    return next(err);
+  }
+
+  jwt.verify(token, jwtSecret, (err, decoded) => {
+    // JWT library either returns an error or the decoded version
+    if (err) {
+      return next(new BadRequest(err.message));
+    } else {
+      req.jwtPayload = decoded;
+    }
+  });
+
+  // if token does not have scope of 'twofactorauth' we should reject it
+  if (!req.jwtPayload || req.jwtPayload.scope !== 'twofactorauth') {
+    return next(new Unauthorized('Cannot use this token on this route.'));
+  } else {
+    next();
+  }
+};
