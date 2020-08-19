@@ -1711,7 +1711,7 @@ const CollectiveFields = () => {
           !args.includeHostCollectivePaymentMethod &&
           (collective.type === 'ORGANIZATION' || collective.type === 'USER')
         ) {
-          paymentMethods = paymentMethods.filter(pm => !(pm.service === 'opencollective' && pm.type === 'collective'));
+          paymentMethods = paymentMethods.filter(pm => !(pm.service === 'opencollective' && pm.type === 'host'));
         }
         // Filter only "saved" stripe Payment Methods
         // In the future we should only return the "saved" whatever the service
