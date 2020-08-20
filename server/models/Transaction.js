@@ -413,37 +413,57 @@ export default (Sequelize, DataTypes) => {
 
     // Is the target "collective" (account) "Active" (has an host, manage its own budget)
     const fromCollective = await models.Collective.findByPk(transaction.FromCollectiveId);
+    const fromCollectiveHost = await fromCollective.getHostCollective();
 
     let oppositeTransaction = {
       ...transaction,
       type: -transaction.amount > 0 ? TransactionTypes.CREDIT : TransactionTypes.DEBIT,
       FromCollectiveId: transaction.CollectiveId,
       CollectiveId: transaction.FromCollectiveId,
-      amountInHostCurrency: Math.round(-transaction.netAmountInCollectiveCurrency * transaction.hostCurrencyFxRate),
-      hostFeeInHostCurrency: transaction.hostFeeInHostCurrency,
-      platformFeeInHostCurrency: transaction.platformFeeInHostCurrency,
-      paymentProcessorFeeInHostCurrency: transaction.paymentProcessorFeeInHostCurrency,
     };
-    if (!fromCollective.isActive) {
+
+    if (!fromCollective.isActive || !fromCollectiveHost) {
       oppositeTransaction = {
         ...oppositeTransaction,
         HostCollectiveId: null,
         amount: -transaction.netAmountInCollectiveCurrency,
         netAmountInCollectiveCurrency: -transaction.amount,
+        amountInHostCurrency: Math.round(-transaction.netAmountInCollectiveCurrency * transaction.hostCurrencyFxRate),
+        hostFeeInHostCurrency: transaction.hostFeeInHostCurrency,
+        platformFeeInHostCurrency: transaction.platformFeeInHostCurrency,
+        paymentProcessorFeeInHostCurrency: transaction.paymentProcessorFeeInHostCurrency,
       };
     } else {
-      const oppositeTransactionCurrencyFxRate = await getFxRate(
-        transaction.currency,
-        fromCollective.currency,
+      const currency = fromCollective.currency;
+      const hostCurrency = fromCollectiveHost.currency;
+
+      const hostCurrencyFxRate = await getFxRate(currency, hostCurrency, transaction.createdAt);
+      const oppositeTransactionCurrencyFxRate = await getFxRate(transaction.currency, currency, transaction.createdAt);
+      const oppositeTransactionFeesCurrencyFxRate = await getFxRate(
+        transaction.hostCurrency,
+        hostCurrency,
         transaction.createdAt,
       );
+
+      const amount = -Math.round(transaction.netAmountInCollectiveCurrency * oppositeTransactionCurrencyFxRate);
+
       oppositeTransaction = {
         ...oppositeTransaction,
-        HostCollectiveId: fromCollective.HostCollectiveId,
-        currency: fromCollective.currency,
-        amount: -Math.round(transaction.netAmountInCollectiveCurrency * oppositeTransactionCurrencyFxRate),
+        HostCollectiveId: fromCollectiveHost.id,
+        currency,
+        hostCurrency,
+        hostCurrencyFxRate,
+        amount,
         netAmountInCollectiveCurrency: -Math.round(transaction.amount * oppositeTransactionCurrencyFxRate),
-        data: { ...transaction.data, oppositeTransactionCurrencyFxRate },
+        amountInHostCurrency: Math.round(amount * hostCurrencyFxRate),
+        hostFeeInHostCurrency: Math.round(transaction.hostFeeInHostCurrency * oppositeTransactionFeesCurrencyFxRate),
+        platformFeeInHostCurrency: Math.round(
+          transaction.platformFeeInHostCurrency * oppositeTransactionFeesCurrencyFxRate,
+        ),
+        paymentProcessorFeeInHostCurrency: Math.round(
+          transaction.paymentProcessorFeeInHostCurrency * oppositeTransactionFeesCurrencyFxRate,
+        ),
+        data: { ...transaction.data, oppositeTransactionCurrencyFxRate, oppositeTransactionFeesCurrencyFxRate },
       };
     }
 
