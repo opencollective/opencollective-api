@@ -1997,7 +1997,6 @@ export default function (Sequelize, DataTypes) {
     // remove the members that are not present anymore
     const { remoteUserCollectiveId } = defaultAttributes;
     const diff = differenceBy(oldMembers, members, m => m.id);
-    console.log(oldMembers, members, diff);
     if (diff.length > 0) {
       debug('editMembers', 'delete', diff);
       const diffMemberIds = diff.map(m => m.id);
