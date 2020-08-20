@@ -123,6 +123,7 @@ async function PlatformReport(year, month) {
         -SUM("hostFeeInHostCurrency")::float as "hostFees",
         -SUM(CASE WHEN pm."service" = 'paypal' THEN t."platformFeeInHostCurrency" ELSE 0 END)::float as "platformFeesPaypal",
         -SUM(CASE WHEN pm."service" = 'stripe' OR spm.service = 'stripe' THEN t."platformFeeInHostCurrency" ELSE 0 END)::float as "platformFeesStripe",
+        -SUM(CASE WHEN t."PaymentMethodId" is NULL THEN t."platformFeeInHostCurrency" ELSE 0 END)::float as "platformFeesBankTransfers",
         -SUM(CASE WHEN pm."service" != 'stripe' AND pm."service" != 'paypal' AND (spm.service IS NULL OR spm.service != 'stripe') THEN t."platformFeeInHostCurrency" ELSE 0 END)::float as "platformFeesManual",
         -SUM(CASE WHEN (pm."service" != 'stripe' OR pm.service IS NULL) AND (spm.service IS NULL OR spm.service != 'stripe') THEN t."platformFeeInHostCurrency" ELSE 0 END)::float as "platformFeesDue",
         -sum("platformFeeInHostCurrency")::float as "platformFees",
