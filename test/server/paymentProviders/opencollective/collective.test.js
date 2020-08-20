@@ -2,7 +2,8 @@ import { expect } from 'chai';
 import sinon from 'sinon';
 
 import models from '../../../../server/models';
-import CollectivePaymentProvider from '../../../../server/paymentProviders/opencollective/collective';
+import collectivePaymentProvider from '../../../../server/paymentProviders/opencollective/collective';
+import testPaymentProvider from '../../../../server/paymentProviders/opencollective/test';
 import * as store from '../../../stores';
 import * as utils from '../../../utils';
 
@@ -435,7 +436,7 @@ describe('server/paymentProviders/opencollective/collective', () => {
       expect(res.errors).to.exist;
       expect(res.errors).to.not.be.empty;
       expect(res.errors[0].message).to.contain(
-        'Cannot use the opencollective payment method to make a payment between different hosts',
+        'Cannot use the Open Collective payment method to make a payment between different hosts',
       );
     });
   }); /** END OF "Recurring donations between Collectives with different hosts must be allowed"*/
@@ -489,10 +490,10 @@ describe('server/paymentProviders/opencollective/collective', () => {
     it('Creates the opposite transactions', async () => {
       await checkBalances(0, 0);
       const orderData = await createOrder(fromCollective, toCollective);
-      const transaction = await CollectivePaymentProvider.processOrder(orderData);
+      const transaction = await testPaymentProvider.processOrder(orderData);
       await checkBalances(-5000, 5000);
 
-      const refund = await CollectivePaymentProvider.refundTransaction(transaction, user);
+      const refund = await collectivePaymentProvider.refundTransaction(transaction, user);
       await checkBalances(0, 0);
 
       expect(refund.amount).to.eq(transaction.amount);
@@ -505,13 +506,13 @@ describe('server/paymentProviders/opencollective/collective', () => {
     it('Cannot reimburse money if it exceeds the Collective balance', async () => {
       await checkBalances(0, 0);
       const orderData = await createOrder(fromCollective, toCollective);
-      const transaction = await CollectivePaymentProvider.processOrder(orderData);
+      const transaction = await testPaymentProvider.processOrder(orderData);
       await checkBalances(-5000, 5000);
       const orderData2 = await createOrder(toCollective, fromCollective, 2500);
-      await CollectivePaymentProvider.processOrder(orderData2);
+      await testPaymentProvider.processOrder(orderData2);
       await checkBalances(-2500, 2500);
-      expect(CollectivePaymentProvider.refundTransaction(transaction, user)).to.be.rejectedWith(
-        "The collective doesn't have enough funds to process this refund",
+      await expect(collectivePaymentProvider.refundTransaction(transaction, user)).to.be.rejectedWith(
+        'Not enough funds available ($25 left) to process this refund ($50)',
       );
     }); /** END OF "Cannot send money that exceeds Collective balance" */
   });
