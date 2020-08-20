@@ -22,7 +22,7 @@
     "@paypal/payouts-sdk": "^1.0.0",
     "algoliasearch": "3.35.1",
     "apollo-server-express": "2.16.1",
-    "argparse": "2.0.0",
+    "argparse": "1.0.10",
     "aws-sdk": "2.736.0",
     "axios": "0.19.2",
     "babel-plugin-add-module-exports": "1.0.2",
