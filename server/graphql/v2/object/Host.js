@@ -1,7 +1,8 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 import { find, get } from 'lodash';
 
-import { PaymentMethodType } from '../enum';
+import { PayoutMethodTypes } from '../../../models/PayoutMethod';
+import { PaymentMethodType, PayoutMethodType } from '../enum';
 import { Account, AccountFields } from '../interface/Account';
 import URL from '../scalar/URL';
 
@@ -68,6 +69,22 @@ export const Host = new GraphQLObjectType({
           }
 
           return supportedPaymentMethods;
+        },
+      },
+      supportedPayoutMethods: {
+        type: new GraphQLList(PayoutMethodType),
+        description: 'The list of payout methods this Host accepts for its expenses',
+        async resolve(collective, _, req) {
+          const connectedAccounts = await req.loaders.Collective.connectedAccounts.load(collective.id);
+          const supportedPayoutMethods = [PayoutMethodTypes.OTHER, PayoutMethodTypes.ACCOUNT_BALANCE];
+          if (connectedAccounts?.find?.(c => c.service === 'transferwise')) {
+            supportedPayoutMethods.push(PayoutMethodTypes.BANK_ACCOUNT);
+          }
+          if (!collective.settings?.disablePaypalPayouts) {
+            supportedPayoutMethods.push(PayoutMethodTypes.PAYPAL);
+          }
+
+          return supportedPayoutMethods;
         },
       },
     };
