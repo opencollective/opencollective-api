@@ -128,6 +128,12 @@ Subject: {{month}} {{year}} Platform Report
       </tr>
       <tr>
         <td></td>
+        <td>Bank Transfers:</td>
+        <td></td>
+        <td align="right">{{currency platformFeesBankTransfers currency=currency}}</td>
+      </tr>
+      <tr>
+        <td></td>
         <td>PayPal:</td>
         <td></td>
         <td align="right">{{currency platformFeesPaypal currency=currency}}</td>
@@ -145,9 +151,9 @@ Subject: {{month}} {{year}} Platform Report
       </tr>
       <tr>
         <td></td>
-        <td>Manually added funds:</td>
+        <td>Bank Transfers:</td>
         <td></td>
-        <td align="right">{{currency feesOnTopManual currency='USD'}}</td>
+        <td align="right">{{currency feeOnTopBankTransfers currency='USD'}}</td>
       </tr>
       <tr>
         <td></td>
@@ -161,7 +167,8 @@ Subject: {{month}} {{year}} Platform Report
         {{#if isUSD}}
         <td align="right">{{currency totalFeesDue currency=currency}}</td>
         {{else}}
-        <td align="right">{{currency platformFeesDue currency=currency}} + {{currency feesOnTopDue currency='USD'}} </td>
+        <td align="right">{{currency platformFeesDue currency=currency}} + {{currency feesOnTopDue currency='USD'}}
+        </td>
         {{/if}}
       </tr>
     </table>
