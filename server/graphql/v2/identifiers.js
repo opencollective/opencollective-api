@@ -19,6 +19,7 @@ export const IDENTIFIER_TYPES = {
   COMMENT_REACTION: 'comment-reaction',
   CONVERSATION: 'conversation',
   PAYOUT_METHOD: 'payout-method',
+  PAYMENT_METHOD: 'paymentMethod',
   EXPENSE: 'expense',
   CONNECTED_ACCOUNT: 'connected-account',
   EXPENSE_ATTACHED_FILE: 'expense-attached-file',

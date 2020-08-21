@@ -17,7 +17,7 @@ export const PaymentMethodReferenceInput = new GraphQLInputObjectType({
 /**
  * Retrieves a payment method
  *
- * @param {string|number} input - id of the payment method
+ * @param {object} input - id of the payment method
  */
 export const fetchPaymentMethodWithReference = async input => {
   // Load payment by ID using GQL loaders if we're not using a transaction & loaders are available

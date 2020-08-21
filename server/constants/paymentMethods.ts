@@ -14,5 +14,6 @@ export enum PAYMENT_METHOD_TYPE {
   HOST = 'host',
   ADAPTIVE = 'adaptive',
   VIRTUALCARD = 'virtualcard',
+  MANUAL = 'manual',
 }
 export const PAYMENT_METHOD_TYPES = Object.values(PAYMENT_METHOD_TYPE);
