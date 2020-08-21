@@ -8,6 +8,7 @@ import emailLib from '../../lib/email';
 import logger from '../../lib/logger';
 import models, { sequelize } from '../../models';
 import { bulkCreateVirtualCards, createVirtualCardsForEmails } from '../../paymentProviders/opencollective/virtualcard';
+import { editPublicMessage } from '../common/members';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../errors';
 
 import * as applicationMutations from './mutations/applications';
@@ -38,7 +39,6 @@ import {
   payExpense,
   updateExpenseStatus,
 } from './mutations/expenses';
-import { editPublicMessage } from './mutations/members';
 import { createWebhook, deleteNotification, editWebhooks } from './mutations/notifications';
 import {
   addFundsToCollective,

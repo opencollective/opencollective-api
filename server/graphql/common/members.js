@@ -1,6 +1,6 @@
-import { invalidateContributorsCache } from '../../../lib/contributors';
-import models from '../../../models';
-import { NotFound, Unauthorized } from '../../errors';
+import { invalidateContributorsCache } from '../../lib/contributors';
+import models from '../../models';
+import { NotFound, Unauthorized } from '../errors';
 
 /** A mutation to edit the public message of all matching members. */
 export async function editPublicMessage(_, { FromCollectiveId, CollectiveId, message }, req) {
