@@ -8,6 +8,7 @@ import statuses from '../../../constants/expense_status';
 import expenseType from '../../../constants/expense_type';
 import FEATURE from '../../../constants/feature';
 import roles from '../../../constants/roles';
+import { enforceTwoFactorAuthenticationOnPayouts } from '../../../lib/auth';
 import { getFxRate } from '../../../lib/currency';
 import { floatAmountToCents } from '../../../lib/math';
 import * as libPayments from '../../../lib/payments';
@@ -669,6 +670,21 @@ export async function payExpense(req, args) {
         expense.collective.currency,
       )}`,
     );
+  }
+
+  // If the amount of the expense is larger than i.e. $1000 enforce 2FA if the user has it turned on
+  const is2FARequiredForPayoutMethod = [PayoutMethodTypes.PAYPAL, PayoutMethodTypes.BANK_ACCOUNT].includes(
+    payoutMethodType,
+  );
+  const hostHasPayout2FAEnabled = get(host, 'settings.payoutsTwoFactorAuth.enabled', false);
+  const hostPayout2FAExpenseAmount = get(host, 'settings.payoutsTwoFactorAuth.expenseAmount', 100000);
+  if (
+    is2FARequiredForPayoutMethod &&
+    !args.forceManual &&
+    hostHasPayout2FAEnabled &&
+    expense.amount >= hostPayout2FAExpenseAmount
+  ) {
+    enforceTwoFactorAuthenticationOnPayouts(req, args.twoFactorAuthenticatorCode);
   }
 
   // Pay expense based on chosen payout method

@@ -342,6 +342,10 @@ const mutations = {
         type: GraphQLBoolean,
         description: 'Force expense with paypal method to be paid manually',
       },
+      twoFactorAuthenticatorCode: {
+        type: GraphQLString,
+        description: '2FA code for if the host account has it turned on and the transaction is large.',
+      },
     },
     resolve(_, args, req) {
       return payExpense(req, args);

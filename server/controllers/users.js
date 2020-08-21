@@ -1,9 +1,7 @@
 import config from 'config';
-import speakeasy from 'speakeasy';
 
 import * as auth from '../lib/auth';
 import emailLib from '../lib/email';
-import { crypto } from '../lib/encryption';
 import errors from '../lib/errors';
 import logger from '../lib/logger';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../lib/rate-limit';
@@ -94,14 +92,10 @@ export const updateToken = async (req, res, next) => {
 
   // if there is a 2FA code we need to verify it before returning the token
   if (twoFactorAuthenticatorCode) {
-    const encryptedTwoFactorAuthToken = req.remoteUser.twoFactorAuthToken;
-    const decryptedTwoFactorAuthToken = crypto.decrypt(encryptedTwoFactorAuthToken);
-    const verified = speakeasy.totp.verify({
-      secret: decryptedTwoFactorAuthToken,
-      encoding: 'base32',
-      token: twoFactorAuthenticatorCode,
-      window: 2,
-    });
+    const verified = auth.verifyTwoFactorAuthenticatorCode(
+      req.remoteUser.twoFactorAuthToken,
+      twoFactorAuthenticatorCode,
+    );
     if (!verified) {
       return next(new Unauthorized('Two-factor authentication code failed. Please try again'));
     }
