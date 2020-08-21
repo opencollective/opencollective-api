@@ -135,8 +135,7 @@ paymentMethodProvider.refundTransaction = async (transaction, user) => {
 
   // Use 0 for processor fees because there's no fees for collective to collective
   // transactions within the same host.
-  const refundTransaction = await paymentsLib.createRefundTransaction(transaction, 0, null, user);
-  return paymentsLib.associateTransactionRefundId(transaction, refundTransaction);
+  return await paymentsLib.createRefundTransaction(transaction, 0, null, user);
 };
 
 export default paymentMethodProvider;

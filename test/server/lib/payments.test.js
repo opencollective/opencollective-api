@@ -370,6 +370,40 @@ describe('server/lib/payments', () => {
       expect(debitRefundTransaction.FromCollectiveId).to.equal(order.FromCollectiveId);
       expect(debitRefundTransaction.CollectiveId).to.equal(collective.id);
     });
+
+    it('should allow collective to start a refund', async () => {
+      // Create Open Collective Inc
+      await fakeHost({ id: 8686 });
+      const order = await fakeOrder();
+      const transaction = await models.Transaction.createFromPayload({
+        CreatedByUserId: order.CreatedByUserId,
+        FromCollectiveId: order.FromCollectiveId,
+        CollectiveId: order.CollectiveId,
+        PaymentMethodId: order.PaymentMethodId,
+        transaction: {
+          type: 'CREDIT',
+          OrderId: order.id,
+          amount: 5000,
+          currency: 'USD',
+          hostCurrency: 'USD',
+          amountInHostCurrency: 5000,
+          hostCurrencyFxRate: 1,
+          hostFeeInHostCurrency: 250,
+          platformFeeInHostCurrency: 500,
+          paymentProcessorFeeInHostCurrency: 175,
+          description: 'Monthly subscription to Webpack',
+          data: { charge: { id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' }, isFeesOnTop: true },
+        },
+      });
+
+      const originalTransactions = await order.getTransactions();
+      expect(originalTransactions).to.have.lengthOf(4);
+
+      await payments.createRefundTransaction(transaction, 0, null, user);
+
+      const refundedTransactions = await order.getTransactions();
+      expect(refundedTransactions).to.have.lengthOf(8);
+    });
   }); /* createRefundTransaction */
 
   describe('sendOrderProcessingEmail', () => {

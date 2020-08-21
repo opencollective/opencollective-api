@@ -330,21 +330,17 @@ export default {
     const fees = extractFees(refundBalance);
 
     /* Create negative transactions for the received transaction */
-    const refundTransaction = await paymentsLib.createRefundTransaction(
+    return await paymentsLib.createRefundTransaction(
       transaction,
       fees.stripeFee,
       {
+        ...transaction.data,
         refund,
         balanceTransaction: refundBalance,
+        charge,
       },
       user,
     );
-
-    /* Associate RefundTransactionId to all the transactions created */
-    return paymentsLib.associateTransactionRefundId(transaction, refundTransaction, {
-      ...transaction.data,
-      charge,
-    });
   },
 
   /** Refund a given transaction that was already refunded
@@ -371,21 +367,12 @@ export default {
     const fees = extractFees(refundBalance);
 
     /* Create negative transactions for the received transaction */
-    const refundTransaction = await paymentsLib.createRefundTransaction(
+    return await paymentsLib.createRefundTransaction(
       transaction,
       fees.stripeFee,
-      {
-        refund,
-        balanceTransaction: refundBalance,
-      },
+      { ...transaction.data, charge, refund, balanceTransaction: refundBalance },
       user,
     );
-
-    /* Associate RefundTransactionId to all the transactions created */
-    return paymentsLib.associateTransactionRefundId(transaction, refundTransaction, {
-      ...transaction.data,
-      charge,
-    });
   },
 
   webhook: (/* requestBody, event */) => {

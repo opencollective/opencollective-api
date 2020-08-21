@@ -2,7 +2,7 @@ import { isNumber, pick } from 'lodash';
 
 import { maxInteger } from '../../constants/math';
 import { HOST_FEE_PERCENT, TransactionTypes } from '../../constants/transactions';
-import { associateTransactionRefundId, createRefundTransaction } from '../../lib/payments';
+import { createRefundTransaction } from '../../lib/payments';
 import models from '../../models';
 /**
  * Manual Payment method
@@ -110,8 +110,7 @@ async function processOrder(order) {
  * they want to actually refund the money.
  */
 const refundTransaction = async (transaction, user) => {
-  const refundTransaction = await createRefundTransaction(transaction, 0, null, user);
-  return associateTransactionRefundId(transaction, refundTransaction);
+  return await createRefundTransaction(transaction, 0, null, user);
 };
 
 /* Expected API of a Payment Method Type */
