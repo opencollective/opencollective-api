@@ -7,7 +7,8 @@ import { TransferwiseError } from '../../graphql/errors';
 import cache from '../../lib/cache';
 import * as transferwise from '../../lib/transferwise';
 import models from '../../models';
-import { Quote, RecipientAccount, Transfer } from '../../types/transferwise';
+import { ConnectedAccount } from '../../types/ConnectedAccount';
+import { Balance, Quote, RecipientAccount, Transfer } from '../../types/transferwise';
 
 const hashObject = obj => crypto.createHash('sha1').update(JSON.stringify(obj)).digest('hex').slice(0, 7);
 
@@ -168,9 +169,15 @@ async function getRequiredBankInformation(host: any, currency: string, accountDe
   return requiredFields;
 }
 
+async function getAccountBalances(connectedAccount: ConnectedAccount): Promise<Balance[]> {
+  const account = await transferwise.getBorderlessAccount(connectedAccount.token, connectedAccount.data.id);
+  return account.balances;
+}
+
 export default {
   getAvailableCurrencies,
   getRequiredBankInformation,
+  getAccountBalances,
   getTemporaryQuote,
   quoteExpense,
   payExpense,
