@@ -662,9 +662,9 @@ export default function (Sequelize, DataTypes) {
           } else {
             potentialSlugs = [
               instance.slug,
+              instance.name ? instance.name.replace(/ /g, '-') : null,
               instance.image ? userlib.getUsernameFromGithubURL(instance.image) : null,
               instance.twitterHandle ? instance.twitterHandle.replace(/@/g, '') : null,
-              instance.name ? instance.name.replace(/ /g, '-') : null,
             ];
           }
           return Collective.generateSlug(potentialSlugs, useSlugify).then(slug => {
