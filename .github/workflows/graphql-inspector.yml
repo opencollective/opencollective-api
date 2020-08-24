@@ -1,0 +1,29 @@
+name: GraphQL Inspector
+
+on: [push]
+
+env:
+  TZ: UTC
+  CI: true
+  NODE_ENV: ci
+
+jobs:
+  graphql-inspector:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@master
+      - name: GraphQL Inspector (V1)
+        uses: kamilkisiela/graphql-inspector@master
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          schema: 'master:server/graphql/schemaV1.graphql'
+          fail-on-breaking: false
+          annotations: false
+      - name: GraphQL Inspector (V2)
+        uses: kamilkisiela/graphql-inspector@master
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          schema: 'master:server/graphql/schemaV2.graphql'
+          fail-on-breaking: false
+          annotations: false
