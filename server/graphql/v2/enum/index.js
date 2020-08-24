@@ -11,6 +11,7 @@ export { OrderDirectionType } from './OrderDirectionType';
 export { OrderFrequency } from './OrderFrequency';
 export { OrderStatus } from './OrderStatus';
 export { PaymentMethodType } from './PaymentMethodType';
+export { PayoutMethodType } from './PayoutMethodType';
 export { TierAmountType } from './TierAmountType';
 export { TierInterval } from './TierInterval';
 export { TierType } from './TierType';
