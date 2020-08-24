@@ -9,6 +9,7 @@ import ExpenseQuery from './ExpenseQuery';
 import ExpensesQuery from './ExpensesQuery';
 import HostQuery from './HostQuery';
 import IndividualQuery from './IndividualQuery';
+import OrderQuery from './OrderQuery';
 import TierQuery from './TierQuery';
 import TransactionsQuery from './TransactionsQuery';
 
@@ -21,6 +22,7 @@ const query = {
   expenses: ExpensesQuery,
   expense: ExpenseQuery,
   hosts: HostsCollectionQuery,
+  order: OrderQuery,
   tier: TierQuery,
   // transaction: TransactionQuery,
   transactions: TransactionsQuery,

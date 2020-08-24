@@ -8,6 +8,7 @@ import { MemberOfCollection } from '../collection/MemberCollection';
 import { AccountType, AccountTypeToModelMapping } from '../enum/AccountType';
 import { HostFeeStructure } from '../enum/HostFeeStructure';
 import { MemberRole } from '../enum/MemberRole';
+import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
 
 export const IsMemberOfFields = {
@@ -18,6 +19,7 @@ export const IsMemberOfFields = {
       offset: { type: GraphQLInt },
       role: { type: new GraphQLList(MemberRole) },
       accountType: { type: new GraphQLList(AccountType) },
+      account: { type: AccountReferenceInput },
       isHostAccount: {
         type: GraphQLBoolean,
         description: 'Filter on whether the account is a host or not',
@@ -58,6 +60,10 @@ export const IsMemberOfFields = {
         collectiveConditions.type = {
           [Op.in]: args.accountType.map(value => AccountTypeToModelMapping[value]),
         };
+      }
+      if (args.account) {
+        const account = await fetchAccountWithReference(args.account, { loaders: req.loaders });
+        where.CollectiveId = account.id;
       }
       if (!args.includeIncognito || !req.remoteUser?.isAdmin(collective.id)) {
         collectiveConditions.isIncognito = false;
