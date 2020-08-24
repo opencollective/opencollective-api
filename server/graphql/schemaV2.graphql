@@ -96,6 +96,7 @@ interface Account {
     Type of accounts (BOT/COLLECTIVE/EVENT/ORGANIZATION/INDIVIDUAL)
     """
     accountType: [AccountType]
+    orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
   ): MemberOfCollection
   transactions(
     limit: Int = 100
@@ -428,7 +429,7 @@ A financial amount.
 type Amount {
   value: Float
   currency: Currency
-  valueInCents: Float
+  valueInCents: Int
 }
 
 """
@@ -2440,6 +2441,17 @@ type Credit implements Transaction {
   toAccount: Account
 }
 
+input CreditCardCreateInput {
+  token: String!
+  brand: String!
+  country: String!
+  expMonth: Int!
+  expYear: Int!
+  fullName: String
+  funding: String
+  zip: String
+}
+
 """
 All supported currencies
 """
@@ -3783,6 +3795,11 @@ type Host implements Account {
   The list of payment methods (Stripe, Paypal, manual bank transfer, etc ...) the Host can accept for its Collectives
   """
   supportedPaymentMethods: [PaymentMethodType]
+
+  """
+  The list of payout methods this Host accepts for its expenses
+  """
+  supportedPayoutMethods: [PayoutMethodType]
 }
 
 """
@@ -4155,6 +4172,11 @@ type Member {
   Total amount donated
   """
   totalDonations: Amount
+
+  """
+  Custom user message from member to the collective
+  """
+  publicMessage: String
   account: Account
 }
 
@@ -4183,6 +4205,11 @@ type MemberOf {
   Total amount donated
   """
   totalDonations: Amount
+
+  """
+  Custom user message from member to the collective
+  """
+  publicMessage: String
   account: Account
 }
 
@@ -4496,6 +4523,11 @@ type Mutation {
   removePayoutMethod(payoutMethodId: String!): PayoutMethod!
 
   """
+  To submit a new order
+  """
+  createOrder(order: OrderCreateInput!): Order!
+
+  """
   Cancel an order
   """
   cancelOrder(
@@ -4564,6 +4596,26 @@ type Mutation {
     """
     transaction: TransactionReferenceInput!
   ): Transaction!
+
+  """
+  Edit the public message for the given Member of a Collective
+  """
+  editPublicMessage(
+    """
+    Reference to an account for the donating Collective
+    """
+    fromAccount: AccountReferenceInput!
+
+    """
+    Reference to an account for the receiving Collective
+    """
+    toAccount: AccountReferenceInput!
+
+    """
+    New public message
+    """
+    message: String
+  ): Member!
 }
 
 """
@@ -4607,6 +4659,54 @@ type OrderCollection implements Collection {
 }
 
 """
+Input to create a new order
+"""
+input OrderCreateInput {
+  quantity: Int! = 1
+
+  """
+  The contribution amount for 1 quantity, without platform contribution and taxes
+  """
+  amount: AmountInput!
+  frequency: OrderFrequency!
+
+  """
+  The profile making the order
+  """
+  fromAccount: AccountReferenceInput!
+
+  """
+  The profile you want to contribute to
+  """
+  toAccount: AccountReferenceInput!
+
+  """
+  The payment method used for this order
+  """
+  paymentMethod: PaymentMethodInput
+
+  """
+  Platform contribution attached to this order
+  """
+  platformContributionAmount: AmountInput
+
+  """
+  Use this field to set the taxes associated to this order
+  """
+  taxes: [OrderTaxInput]
+
+  """
+  The tier you are contributing to
+  """
+  tier: TierReferenceInput
+
+  """
+  If the tier has some "customFields", use this field to set their values
+  """
+  customData: JSON
+}
+
+"""
 Possible directions in which to order a list of items
 """
 enum OrderDirection {
@@ -4633,10 +4733,41 @@ All order statuses
 enum OrderStatus {
   ACTIVE
   CANCELLED
-  PENDING
-  PAID
   ERROR
   EXPIRED
+  NEW
+  PAID
+  PENDING
+  PLEDGED
+  REQUIRE_CLIENT_CONFIRMATION
+}
+
+"""
+Input to set taxes for an order
+"""
+input OrderTaxInput {
+  type: OrderTaxType!
+  amount: AmountInput!
+
+  """
+  Country of the account ordering, to know from where to apply the tax
+  """
+  country: CountryISO!
+
+  """
+  Tax identification number, if any
+  """
+  idNumber: String
+}
+
+"""
+Type for a required legal document
+"""
+enum OrderTaxType {
+  """
+  European Value Added Tax
+  """
+  VAT
 }
 
 """
@@ -4809,7 +4940,7 @@ type Organization implements Account {
   Amount of money in cents in the currency of the collective currently available to spend
   """
   balance: Int @deprecated(reason: "2020/04/09 - Should not have been introduced. Use stats.balance.value")
-  email: String @deprecated(reason: "2020/08/20 - Not a good model. Look at the ADMINs and get their emails.")
+  email: String
 
   """
   If the organization if a host account, this will return the matchig Host object
@@ -4824,8 +4955,13 @@ type PaymentMethod {
   id: String
   legacyId: Int
   name: String
-  service: String
-  type: String
+  service: String @deprecated(reason: "2020-08-18: This field is being deprecated in favor of providerType")
+  type: String @deprecated(reason: "2020-08-18: This field is being deprecated in favor of providerType")
+
+  """
+  Defines the type of the payment method. Meant to be moved to "type" in the future.
+  """
+  providerType: PaymentMethodType
 
   """
   Returns the balance amount and the currency of this paymentMethod
@@ -4853,6 +4989,41 @@ input PaymentMethodDataInput {
   zip: String
 }
 
+"""
+An input to use for creating or retrieving payment methods
+"""
+input PaymentMethodInput {
+  """
+  The id assigned to the payment method
+  """
+  id: String
+
+  """
+  Type of this payment method
+  """
+  type: PaymentMethodType
+
+  """
+  Name of this payment method
+  """
+  name: String
+
+  """
+  Wether this payment method should be saved for future payments
+  """
+  isSavedForLater: Boolean
+
+  """
+  When creating a credit card, use this field to set its info
+  """
+  creditCardInfo: CreditCardCreateInput
+
+  """
+  To pass when type is PAYPAL
+  """
+  paypalInfo: PaypalPaymentInput
+}
+
 input PaymentMethodReferenceInput {
   """
   The id assigned to the payment method
@@ -4864,7 +5035,7 @@ enum PaymentMethodType {
   CREDIT_CARD
   GIFT_CARD
   PREPAID_BUDGET
-  COLLECTIVE_BALANCE
+  ACCOUNT_BALANCE
   PAYPAL
   BANK_TRANSFER
 }
@@ -4914,6 +5085,11 @@ enum PayoutMethodType {
   ACCOUNT_BALANCE
 }
 
+input PaypalPaymentInput {
+  token: String!
+  data: JSON
+}
+
 """
 Parameters for paying an expense
 """
@@ -4927,6 +5103,11 @@ input ProcessExpensePaymentParams {
   Bypass automatic integrations (ie. PayPal, Transferwise) to process the expense manually
   """
   forceManual: Boolean
+
+  """
+  2FA code for if the host account has it turned on and the transaction is large.
+  """
+  twoFactorAuthenticatorCode: String
 }
 
 """
