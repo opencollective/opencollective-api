@@ -2,6 +2,8 @@ import { GraphQLInt, GraphQLList, GraphQLObjectType, GraphQLString } from 'graph
 import GraphQLJSON from 'graphql-type-json';
 import { get, pick } from 'lodash';
 
+import { PaymentMethodType } from '../enum';
+import { getPaymentMethodType } from '../enum/PaymentMethodType';
 import { idEncode } from '../identifiers';
 import { Account } from '../interface/Account';
 import { Amount } from '../object/Amount';
@@ -31,9 +33,16 @@ export const PaymentMethod = new GraphQLObjectType({
       },
       service: {
         type: GraphQLString,
+        deprecationReason: '2020-08-18: This field is being deprecated in favor of providerType',
       },
       type: {
         type: GraphQLString,
+        deprecationReason: '2020-08-18: This field is being deprecated in favor of providerType',
+      },
+      providerType: {
+        description: 'Defines the type of the payment method. Meant to be moved to "type" in the future.',
+        type: PaymentMethodType,
+        resolve: getPaymentMethodType,
       },
       balance: {
         type: Amount,

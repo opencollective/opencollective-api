@@ -1,4 +1,4 @@
-import { GraphQLFloat, GraphQLObjectType } from 'graphql';
+import { GraphQLFloat, GraphQLInt, GraphQLObjectType } from 'graphql';
 
 import { Currency } from '../enum/Currency';
 
@@ -19,7 +19,7 @@ export const Amount = new GraphQLObjectType({
       },
     },
     valueInCents: {
-      type: GraphQLFloat,
+      type: GraphQLInt,
       resolve(amount) {
         return parseInt(amount.value, 10);
       },
