@@ -505,8 +505,11 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
         } else {
           orderCreated.status = status.ERROR;
         }
-        orderCreated.data.error = { message: error.message };
-        orderCreated.save();
+        // This is not working
+        // orderCreated.data.error = { message: error.message };
+        // This is working
+        orderCreated.data = { ...orderCreated.data, error: { message: error.message } };
+        await orderCreated.save();
       }
 
       if (!error.stripeResponse) {
