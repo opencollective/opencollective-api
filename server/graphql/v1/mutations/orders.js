@@ -404,7 +404,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
     let orderStatus = status.NEW;
     // Special cases
     if (collective.isPledged) {
-      orderStatus = status.PLEDGE;
+      orderStatus = status.PLEDGED;
     }
     if (get(order, 'paymentMethod.type') === 'manual') {
       orderStatus = status.PENDING;
@@ -511,7 +511,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
     if (orderCreated) {
       if (!orderCreated.processedAt) {
         if (error.stripeResponse) {
-          orderCreated.status = status.REQUIRE_ACTION;
+          orderCreated.status = status.REQUIRE_CLIENT_CONFIRMATION;
         } else {
           orderCreated.status = status.ERROR;
         }
@@ -564,10 +564,10 @@ export async function confirmOrder(order, remoteUser) {
   if (!remoteUser.isAdmin(order.FromCollectiveId)) {
     throw new Unauthorized("You don't have permission to confirm this order");
   }
-  if (![status.ERROR, status.PENDING, status.REQUIRE_ACTION].includes(order.status)) {
-    // As August 2020, we're transitionning from PENDING to REQUIRE_ACTION
+  if (![status.ERROR, status.PENDING, status.REQUIRE_CLIENT_CONFIRMATION].includes(order.status)) {
+    // As August 2020, we're transitionning from PENDING to REQUIRE_CLIENT_CONFIRMATION
     // PENDING can be safely removed after a few days (it will be dedicated for "Manual" payments)
-    throw new Error('Order can only be confirmed if its status is ERROR, PENDING or REQUIRE_ACTION.');
+    throw new Error('Order can only be confirmed if its status is ERROR, PENDING or REQUIRE_CLIENT_CONFIRMATION.');
   }
 
   try {

@@ -10,7 +10,7 @@
 
 export default {
   NEW: 'NEW', // New default state since August 2020
-  REQUIRE_ACTION: 'REQUIRE_ACTION', // For Strong Customer Authentication ("3D Secure")
+  REQUIRE_CLIENT_CONFIRMATION: 'REQUIRE_CLIENT_CONFIRMATION', // For Strong Customer Authentication ("3D Secure")
   PAID: 'PAID', // For One Time Contributions
   ERROR: 'ERROR', // For One Time and Recurring Contribution
   // This is only for "Recurring Contributions"
