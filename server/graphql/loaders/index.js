@@ -465,12 +465,12 @@ export const loaders = req => {
     }).then(results => sortResults(combinedKeys, results, 'CollectiveId:FromCollectiveId', [])),
   );
 
-  // Order - findPendingOrdersForCollective
-  context.loaders.Order.findPendingOrdersForCollective = new DataLoader(CollectiveIds =>
+  // Order - findPledgedOrdersForCollective
+  context.loaders.Order.findPledgedOrdersForCollective = new DataLoader(CollectiveIds =>
     models.Order.findAll({
       where: {
         CollectiveId: { [Op.in]: CollectiveIds },
-        status: 'PENDING',
+        status: 'PLEDGED',
       },
       order: [['createdAt', 'DESC']],
     }).then(results => sortResults(CollectiveIds, results, 'CollectiveId', [])),

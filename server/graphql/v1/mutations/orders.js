@@ -400,6 +400,16 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
     }
     debug('defaultDescription', defaultDescription, 'collective.type', collective.type);
 
+    // Default status, will get updated after the order is processed
+    let orderStatus = status.NEW;
+    // Special cases
+    if (collective.isPledged) {
+      orderStatus = status.PLEDGE;
+    }
+    if (get(order, 'paymentMethod.type') === 'manual') {
+      orderStatus = status.PENDING;
+    }
+
     const orderData = {
       CreatedByUserId: remoteUser.id,
       FromCollectiveId: fromCollective.id,
@@ -429,7 +439,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
         savePaymentMethod: Boolean(order.paymentMethod && order.paymentMethod.save),
         isFeesOnTop: order.isFeesOnTop,
       },
-      status: status.PENDING, // default status, will get updated after the order is processed
+      status: orderStatus,
     };
 
     // Handle specific fees
@@ -501,7 +511,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
     if (orderCreated) {
       if (!orderCreated.processedAt) {
         if (error.stripeResponse) {
-          orderCreated.status = status.PENDING;
+          orderCreated.status = status.REQUIRE_ACTION;
         } else {
           orderCreated.status = status.ERROR;
         }
@@ -554,8 +564,10 @@ export async function confirmOrder(order, remoteUser) {
   if (!remoteUser.isAdmin(order.FromCollectiveId)) {
     throw new Unauthorized("You don't have permission to confirm this order");
   }
-  if (order.status !== status.ERROR && order.status !== status.PENDING) {
-    throw new Error('Order can only be confirmed if its status is ERROR or PENDING.');
+  if (![status.ERROR, status.PENDING, status.REQUIRE_ACTION].includes(order.status)) {
+    // As August 2020, we're transitionning from PENDING to REQUIRE_ACTION
+    // PENDING can be safely removed after a few days (it will be dedicated for "Manual" payments)
+    throw new Error('Order can only be confirmed if its status is ERROR, PENDING or REQUIRE_ACTION.');
   }
 
   try {
@@ -984,7 +996,7 @@ export async function addFundsToCollective(order, remoteUser) {
     totalAmount: order.totalAmount,
     currency: collective.currency,
     description: order.description,
-    status: status.PENDING,
+    status: status.NEW,
     data: {},
   };
 

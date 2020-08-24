@@ -120,7 +120,7 @@ export default function (Sequelize, DataTypes) {
 
       status: {
         type: DataTypes.STRING,
-        defaultValue: status.PENDING,
+        defaultValue: status.NEW,
         allowNull: false,
         validate: {
           isIn: {
