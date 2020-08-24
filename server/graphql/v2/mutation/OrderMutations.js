@@ -6,7 +6,7 @@ import status from '../../../constants/order_status';
 import models from '../../../models';
 import { NotFound, Unauthorized } from '../../errors';
 import { createOrder as createOrderLegacy } from '../../v1/mutations/orders';
-import { getIntervalFromOrderFrequency } from '../enum/OrderFrequency';
+import { getIntervalFromContributionFrequency } from '../enum/ContributionFrequency';
 import { getDecodedId } from '../identifiers';
 import { fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { AmountInput, getValueInCentsFromAmountInput } from '../input/AmountInput';
@@ -55,7 +55,7 @@ const orderMutations = {
       const legacyOrderObj = {
         quantity: order.quantity,
         amount: getValueInCentsFromAmountInput(order.amount),
-        interval: getIntervalFromOrderFrequency(order.frequency),
+        interval: getIntervalFromContributionFrequency(order.frequency),
         taxAmount: tax && getValueInCentsFromAmountInput(tax.amount),
         countryISO: tax?.country,
         taxIdNumber: tax?.idNumber,

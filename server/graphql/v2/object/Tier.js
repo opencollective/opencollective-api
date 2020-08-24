@@ -3,7 +3,7 @@ import GraphQLJSON from 'graphql-type-json';
 
 import models, { Op } from '../../../models';
 import { OrderCollection } from '../collection/OrderCollection';
-import { OrderStatus, TierAmountType, TierInterval, TierType } from '../enum';
+import { ContributionFrequency, OrderStatus, TierAmountType, TierInterval, TierType } from '../enum';
 import { idEncode } from '../identifiers';
 
 import { Amount } from './Amount';
@@ -70,6 +70,10 @@ export const Tier = new GraphQLObjectType({
       },
       interval: {
         type: TierInterval,
+        deprecationReason: '2020-08-24: Please use "frequency"',
+      },
+      frequency: {
+        type: ContributionFrequency,
       },
       presets: {
         type: new GraphQLList(GraphQLInt),

@@ -8,7 +8,7 @@ export { ExpenseProcessAction } from './ExpenseProcessAction';
 export { ImageFormat } from './ImageFormat';
 export { MemberRole } from './MemberRole';
 export { OrderDirectionType } from './OrderDirectionType';
-export { OrderFrequency } from './OrderFrequency';
+export { ContributionFrequency } from './ContributionFrequency';
 export { OrderStatus } from './OrderStatus';
 export { PaymentMethodType } from './PaymentMethodType';
 export { PayoutMethodType } from './PayoutMethodType';
