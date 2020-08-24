@@ -122,10 +122,7 @@ async function processOrder(order) {
 
 async function refundTransaction(transaction, user) {
   /* Create negative transactions for the received transaction */
-  const refundTransaction = await libpayments.createRefundTransaction(transaction, 0, null, user);
-
-  /* Associate RefundTransactionId to all the transactions created */
-  return libpayments.associateTransactionRefundId(transaction, refundTransaction);
+  return await libpayments.createRefundTransaction(transaction, 0, null, user);
 }
 
 /* Expected API of a Payment Method Type */

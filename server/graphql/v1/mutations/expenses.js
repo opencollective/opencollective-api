@@ -772,13 +772,7 @@ export async function markExpenseAsUnpaid(req, ExpenseId, processorFeeRefunded) 
   });
 
   const paymentProcessorFeeInHostCurrency = processorFeeRefunded ? transaction.paymentProcessorFeeInHostCurrency : 0;
-  const refundedTransaction = await libPayments.createRefundTransaction(
-    transaction,
-    paymentProcessorFeeInHostCurrency,
-    null,
-    expense.User,
-  );
-  await libPayments.associateTransactionRefundId(transaction, refundedTransaction);
+  await libPayments.createRefundTransaction(transaction, paymentProcessorFeeInHostCurrency, null, expense.User);
 
   const updatedExpense = await expense.update({ status: statuses.APPROVED, lastEditedById: remoteUser.id });
   await updatedExpense.createActivity(activities.COLLECTIVE_EXPENSE_MARKED_AS_UNPAID, remoteUser);

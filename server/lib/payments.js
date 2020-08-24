@@ -144,7 +144,7 @@ export function calcFee(amount, fee) {
 export async function createRefundTransaction(transaction, refundedPaymentProcessorFee, data, user) {
   /* If the transaction passed isn't the one from the collective
    * perspective, the opposite transaction is retrieved. */
-  const collectiveLedger =
+  const creditTransaction =
     transaction.type === 'CREDIT'
       ? transaction
       : await models.Transaction.findOne({
@@ -154,49 +154,65 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
           },
         });
 
-  if (collectiveLedger.RefundTransactionId) {
+  if (creditTransaction.RefundTransactionId) {
     throw new Error('This transaction has already been refunded');
   }
 
-  const userLedgerRefund = pick(collectiveLedger, [
-    'currency',
-    'FromCollectiveId',
-    'CollectiveId',
-    'HostCollectiveId',
-    'PaymentMethodId',
-    'OrderId',
-    'hostCurrencyFxRate',
-    'hostCurrency',
-    'hostFeeInHostCurrency',
-    'platformFeeInHostCurrency',
-    'paymentProcessorFeeInHostCurrency',
-  ]);
-  userLedgerRefund.CreatedByUserId = user.id;
-  userLedgerRefund.description = `Refund of "${transaction.description}"`;
-  userLedgerRefund.data = data;
+  const buildRefund = t => {
+    const refund = pick(t, [
+      'currency',
+      'FromCollectiveId',
+      'CollectiveId',
+      'HostCollectiveId',
+      'PaymentMethodId',
+      'OrderId',
+      'hostCurrencyFxRate',
+      'hostCurrency',
+      'hostFeeInHostCurrency',
+      'platformFeeInHostCurrency',
+      'paymentProcessorFeeInHostCurrency',
+      'data.isFeesOnTop',
+    ]);
+    refund.CreatedByUserId = user.id;
+    refund.description = `Refund of "${t.description}"`;
+    refund.data = data;
 
-  /* The refund operation moves back fees to the user's ledger so the
-   * fees there should be positive. Since they're usually in negative,
-   * we're just setting them to positive by adding a - sign in front
-   * of it. */
-  userLedgerRefund.hostFeeInHostCurrency = -userLedgerRefund.hostFeeInHostCurrency;
-  userLedgerRefund.platformFeeInHostCurrency = -userLedgerRefund.platformFeeInHostCurrency;
-  userLedgerRefund.paymentProcessorFeeInHostCurrency = -userLedgerRefund.paymentProcessorFeeInHostCurrency;
+    /* The refund operation moves back fees to the user's ledger so the
+     * fees there should be positive. Since they're usually in negative,
+     * we're just setting them to positive by adding a - sign in front
+     * of it. */
+    refund.hostFeeInHostCurrency = -refund.hostFeeInHostCurrency;
+    refund.platformFeeInHostCurrency = -refund.platformFeeInHostCurrency;
+    refund.paymentProcessorFeeInHostCurrency = -refund.paymentProcessorFeeInHostCurrency;
 
-  /* If the payment processor doesn't refund the fee, the equivalent
-   * of the fee will be transferred from the host to the user so the
-   * user can get the full refund. */
-  if (refundedPaymentProcessorFee === 0) {
-    userLedgerRefund.hostFeeInHostCurrency += userLedgerRefund.paymentProcessorFeeInHostCurrency;
-    userLedgerRefund.paymentProcessorFeeInHostCurrency = 0;
+    /* If the payment processor doesn't refund the fee, the equivalent
+     * of the fee will be transferred from the host to the user so the
+     * user can get the full refund. */
+    if (refundedPaymentProcessorFee === 0) {
+      refund.hostFeeInHostCurrency += refund.paymentProcessorFeeInHostCurrency;
+      refund.paymentProcessorFeeInHostCurrency = 0;
+    }
+
+    /* Amount fields. Must be calculated after tweaking all the fees */
+    refund.amount = -t.amount;
+    refund.amountInHostCurrency = -t.amountInHostCurrency;
+    refund.netAmountInCollectiveCurrency = -libtransactions.netAmount(t);
+    return refund;
+  };
+
+  const creditTransactionRefund = buildRefund(creditTransaction);
+
+  if (transaction.data?.isFeesOnTop) {
+    const feeOnTopTransaction = await models.Transaction.findOne({
+      where: { ...FEES_ON_TOP_TRANSACTION_PROPERTIES, type: 'CREDIT' },
+    });
+    const feeOnTopRefund = buildRefund(feeOnTopTransaction);
+    const feeOnTopRefundTransaction = await models.Transaction.createDoubleEntry(feeOnTopRefund);
+    await associateTransactionRefundId(feeOnTopTransaction, feeOnTopRefundTransaction, data);
   }
 
-  /* Amount fields. Must be calculated after tweaking all the fees */
-  userLedgerRefund.amount = -collectiveLedger.amount;
-  userLedgerRefund.amountInHostCurrency = -collectiveLedger.amountInHostCurrency;
-  userLedgerRefund.netAmountInCollectiveCurrency = -libtransactions.netAmount(collectiveLedger);
-
-  return models.Transaction.createDoubleEntry(userLedgerRefund);
+  const refundTransaction = await models.Transaction.createDoubleEntry(creditTransactionRefund);
+  return await associateTransactionRefundId(transaction, refundTransaction, data);
 }
 
 export async function associateTransactionRefundId(transaction, refund, data) {
