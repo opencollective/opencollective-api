@@ -5,8 +5,8 @@ export const TransactionTypes = {
 };
 
 export const FEES_ON_TOP_TRANSACTION_PROPERTIES = {
-  CollectiveId: 1, // Open Collective
-  HostCollectiveId: 8686, // Open Collective Inc
+  CollectiveId: 8686, // Open Collective (Organization)
+  HostCollectiveId: 8686, // Open Collective (Organization)
   hostCurrency: 'USD',
   currency: 'USD',
 };
