@@ -18,6 +18,7 @@ import {
   pickBy,
   sum,
   sumBy,
+  trim,
   uniqBy,
 } from 'lodash';
 import moment from 'moment';
@@ -180,6 +181,9 @@ export default function (Sequelize, DataTypes) {
           isValid(value) {
             if (!/^[\w-]+$/.test(value)) {
               throw new Error('Slug may only contain alphanumeric characters or hyphens.');
+            }
+            if (trim(value, '-') !== value) {
+              throw new Error('Slug can not start nor end with hyphen.');
             }
           },
         },
