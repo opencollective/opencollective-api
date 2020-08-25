@@ -10,14 +10,18 @@ const { Transaction } = models;
 const transactionsData = utils.data('transactions1').transactions;
 
 describe('server/models/Transaction', () => {
-  let user, host, collective, oc, defaultTransactionData;
+  let user, host, inc, collective, defaultTransactionData;
 
   beforeEach(() => utils.resetTestDB());
 
   beforeEach(async () => {
     user = await fakeUser({}, { id: 10 });
-    const inc = await fakeHost({ id: 8686, slug: 'opencollectiveinc', CreatedByUserId: user.id });
-    oc = await fakeCollective({ id: 1, slug: 'opencollective', CreatedByUserId: user.id, HostCollectiveId: inc.id });
+    inc = await fakeHost({
+      id: 8686,
+      slug: 'opencollectiveinc',
+      CreatedByUserId: user.id,
+      HostCollectiveId: 8686,
+    });
     host = await fakeHost({ id: 2, CreatedByUserId: user.id });
     collective = await fakeCollective({ id: 3, HostCollectiveId: host.id, CreatedByUserId: user.id });
     defaultTransactionData = {
@@ -232,14 +236,14 @@ describe('server/models/Transaction', () => {
       const allTransactions = await Transaction.findAll({ where: { OrderId: order.id } });
       expect(allTransactions).to.have.length(4);
 
-      const donationCredit = allTransactions.find(t => t.CollectiveId === oc.id);
+      const donationCredit = allTransactions.find(t => t.CollectiveId === inc.id);
       expect(donationCredit).to.have.property('type').equal('CREDIT');
       expect(donationCredit).to.have.property('amount').equal(1000);
       expect(donationCredit)
         .to.have.property('PlatformTipForTransactionGroup')
         .equal(createdTransaction.TransactionGroup);
 
-      const donationDebit = allTransactions.find(t => t.FromCollectiveId === oc.id);
+      const donationDebit = allTransactions.find(t => t.FromCollectiveId === inc.id);
       const partialPaymentProcessorFee = Math.round(200 * (1000 / 11000));
       expect(donationDebit).to.have.property('type').equal('DEBIT');
       expect(donationDebit)
@@ -287,7 +291,7 @@ describe('server/models/Transaction', () => {
       const allTransactions = await Transaction.findAll({ where: { OrderId: order.id } });
       expect(allTransactions).to.have.length(4);
 
-      const donationCredit = allTransactions.find(t => t.CollectiveId === oc.id);
+      const donationCredit = allTransactions.find(t => t.CollectiveId === inc.id);
       expect(donationCredit).to.have.property('type').equal('CREDIT');
       expect(donationCredit).to.have.property('currency').equal('USD');
       expect(donationCredit).to.have.nested.property('data.hostToPlatformFxRate');
@@ -295,7 +299,7 @@ describe('server/models/Transaction', () => {
         .to.have.property('amount')
         .equal(Math.round(1000 * donationCredit.data.hostToPlatformFxRate));
 
-      const donationDebit = allTransactions.find(t => t.FromCollectiveId === oc.id);
+      const donationDebit = allTransactions.find(t => t.FromCollectiveId === inc.id);
       const partialPaymentProcessorFee = Math.round(200 * (1000 / 11000));
       expect(donationDebit).to.have.nested.property('data.hostToPlatformFxRate');
       expect(donationDebit).to.have.property('type').equal('DEBIT');
