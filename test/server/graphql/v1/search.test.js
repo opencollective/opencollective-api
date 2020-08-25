@@ -1,6 +1,7 @@
 import Index from 'algoliasearch/src/Index';
 import { expect } from 'chai';
 import config from 'config';
+import gql from 'fake-tag';
 import { describe, it } from 'mocha';
 import sinon from 'sinon';
 
@@ -66,17 +67,17 @@ describe('server/graphql/v1/search', () => {
   });
 
   it('returns list of CollectiveSearch types', async () => {
-    const query = `
-    query CollectiveSearch($term: String!) {
-      search(term: $term) {
-        collectives {
-          id
+    const collectiveSearchQuery = gql`
+      query CollectiveSearch($term: String!) {
+        search(term: $term) {
+          collectives {
+            id
+          }
         }
       }
-    }
     `;
 
-    const result = await utils.graphqlQuery(query, { term: 'open' });
+    const result = await utils.graphqlQuery(collectiveSearchQuery, { term: 'open' });
 
     expect(
       Index.prototype.search.firstCall.calledWith({
@@ -91,22 +92,22 @@ describe('server/graphql/v1/search', () => {
   });
 
   it('accepts limit and offset arguments', async () => {
-    const query = `
-    query CollectiveSearch($term: String!, $limit: Int!, $offset: Int!) {
-      search(term: $term, limit: $limit, offset: $offset) {
-        collectives {
-          id
-          name
-          description
+    const collectiveSearchQuery = gql`
+      query CollectiveSearch($term: String!, $limit: Int!, $offset: Int!) {
+        search(term: $term, limit: $limit, offset: $offset) {
+          collectives {
+            id
+            name
+            description
+          }
+          total
+          limit
+          offset
         }
-        total
-        limit
-        offset
       }
-    }
     `;
 
-    const result = await utils.graphqlQuery(query, {
+    const result = await utils.graphqlQuery(collectiveSearchQuery, {
       term: 'open',
       limit: 20,
       offset: 0,

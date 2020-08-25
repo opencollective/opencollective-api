@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import gqlV2 from 'fake-tag';
 import { pick } from 'lodash';
 
 import { expenseStatus } from '../../../../../server/constants';
@@ -16,72 +17,80 @@ import {
 } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, makeRequest } from '../../../../utils';
 
-const createExpenseMutation = `
-mutation createExpense($expense: ExpenseCreateInput!, $account: AccountReferenceInput!) {
-  createExpense(expense: $expense, account: $account) {
-    id
-    legacyId
-    invoiceInfo
-    amount
-    payee {
+const createExpenseMutation = gqlV2/* GraphQL */ `
+  mutation CreateExpense($expense: ExpenseCreateInput!, $account: AccountReferenceInput!) {
+    createExpense(expense: $expense, account: $account) {
+      id
+      legacyId
+      invoiceInfo
+      amount
+      payee {
+        legacyId
+      }
+      payeeLocation {
+        address
+        country
+      }
+    }
+  }
+`;
+
+const deleteExpenseMutation = gqlV2/* GraphQL */ `
+  mutation DeleteExpense($expense: ExpenseReferenceInput!) {
+    deleteExpense(expense: $expense) {
+      id
       legacyId
     }
-    payeeLocation {
-      address
-      country
-    }
   }
-}`;
+`;
 
-const deleteExpenseMutation = `
-mutation deleteExpense($expense: ExpenseReferenceInput!) {
-  deleteExpense(expense: $expense) {
-    id
-    legacyId
-  }
-}`;
-
-const editExpenseMutation = `
-mutation editExpense($expense: ExpenseUpdateInput!) {
-  editExpense(expense: $expense) {
-    id
-    legacyId
-    invoiceInfo
-    description
-    type
-    amount
-    status
-    privateMessage
-    invoiceInfo
-    payoutMethod {
+const editExpenseMutation = gqlV2/* GraphQL */ `
+  mutation EditExpense($expense: ExpenseUpdateInput!) {
+    editExpense(expense: $expense) {
       id
-      data
-      name
-      type
-    }
-    payeeLocation {
-      address
-      country
-    }
-    items {
-      id
-      url
-      amount
-      incurredAt
+      legacyId
+      invoiceInfo
       description
+      type
+      amount
+      status
+      privateMessage
+      invoiceInfo
+      payoutMethod {
+        id
+        data
+        name
+        type
+      }
+      payeeLocation {
+        address
+        country
+      }
+      items {
+        id
+        url
+        amount
+        incurredAt
+        description
+      }
+      tags
     }
-    tags
   }
-}`;
+`;
 
-const processExpenseMutation = `
-mutation processExpense($expenseId: Int!, $action: ExpenseProcessAction!, $paymentParams: ProcessExpensePaymentParams) {
-  processExpense(expense: { legacyId: $expenseId }, action: $action, paymentParams: $paymentParams) {
-    id
-    legacyId
-    status
+const processExpenseMutation = gqlV2/* GraphQL */ `
+  mutation ProcessExpense(
+    $expenseId: Int!
+    $action: ExpenseProcessAction!
+    $paymentParams: ProcessExpensePaymentParams
+  ) {
+    processExpense(expense: { legacyId: $expenseId }, action: $action, paymentParams: $paymentParams) {
+      id
+      legacyId
+      status
+    }
   }
-}`;
+`;
 
 /** A small helper to prepare an expense item to be submitted to GQLV2 */
 const convertExpenseItemId = item => {

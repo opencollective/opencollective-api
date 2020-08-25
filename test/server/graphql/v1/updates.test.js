@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import gql from 'fake-tag';
 import { describe, it } from 'mocha';
 import sinon from 'sinon';
 
@@ -69,30 +70,30 @@ describe('server/graphql/v1/updates', () => {
   });
 
   describe('create an update', () => {
-    const createUpdateQuery = `
-    mutation createUpdate($update: UpdateInputType!) {
-      createUpdate(update: $update) {
-        id
-        slug
-        publishedAt
+    const createUpdateMutation = gql`
+      mutation CreateUpdate($update: UpdateInputType!) {
+        createUpdate(update: $update) {
+          id
+          slug
+          publishedAt
+        }
       }
-    }
     `;
 
     it('fails if not authenticated', async () => {
-      const result = await utils.graphqlQuery(createUpdateQuery, { update });
+      const result = await utils.graphqlQuery(createUpdateMutation, { update });
       expect(result.errors).to.have.length(1);
       expect(result.errors[0].message).to.equal('You must be logged in to create an update');
     });
 
     it('fails if authenticated but cannot edit collective', async () => {
-      const result = await utils.graphqlQuery(createUpdateQuery, { update }, user2);
+      const result = await utils.graphqlQuery(createUpdateMutation, { update }, user2);
       expect(result.errors).to.have.length(1);
       expect(result.errors[0].message).to.equal("You don't have sufficient permissions to create an update");
     });
 
     it('creates an update', async () => {
-      const result = await utils.graphqlQuery(createUpdateQuery, { update }, user1);
+      const result = await utils.graphqlQuery(createUpdateMutation, { update }, user1);
       result.errors && console.error(result.errors[0]);
       const createdUpdate = result.data.createUpdate;
       expect(createdUpdate.slug).to.equal('monthly-update-2');
@@ -101,18 +102,18 @@ describe('server/graphql/v1/updates', () => {
   });
 
   describe('publish an update', () => {
-    const publishUpdateQuery = `
-    mutation publishUpdate($id: Int!, $notificationAudience: UpdateAudienceTypeEnum!) {
-      publishUpdate(id: $id, notificationAudience: $notificationAudience) {
-        id
-        slug
-        publishedAt
+    const publishUpdateMutation = gql`
+      mutation PublishUpdate($id: Int!, $notificationAudience: UpdateAudienceTypeEnum!) {
+        publishUpdate(id: $id, notificationAudience: $notificationAudience) {
+          id
+          slug
+          publishedAt
+        }
       }
-    }
     `;
 
     it('fails if not authenticated', async () => {
-      const result = await utils.graphqlQuery(publishUpdateQuery, {
+      const result = await utils.graphqlQuery(publishUpdateMutation, {
         id: update1.id,
         notificationAudience: update1.notificationAudience,
       });
@@ -122,7 +123,7 @@ describe('server/graphql/v1/updates', () => {
 
     it('fails if not authenticated as admin of collective', async () => {
       const result = await utils.graphqlQuery(
-        publishUpdateQuery,
+        publishUpdateMutation,
         { id: update1.id, notificationAudience: update1.notificationAudience },
         user2,
       );
@@ -134,7 +135,7 @@ describe('server/graphql/v1/updates', () => {
       sendEmailSpy.resetHistory();
       await models.Update.update({ publishedAt: new Date() }, { where: { id: update1.id } });
       const result = await utils.graphqlQuery(
-        publishUpdateQuery.replace(/publish\(/g, 'unpublish('),
+        publishUpdateMutation.replace(/publish\(/g, 'unpublish('),
         { id: update1.id, notificationAudience: update1.notificationAudience },
         user1,
       );
@@ -175,7 +176,7 @@ describe('server/graphql/v1/updates', () => {
           settings: { updatePublished: { active: true } },
         });
         result = await utils.graphqlQuery(
-          publishUpdateQuery,
+          publishUpdateMutation,
           { id: update1.id, notificationAudience: update1.notificationAudience },
           user1,
         );
@@ -209,18 +210,18 @@ describe('server/graphql/v1/updates', () => {
   });
 
   describe('edit an update', () => {
-    const editUpdateQuery = `
-    mutation editUpdate($update: UpdateAttributesInputType!) {
-      editUpdate(update: $update) {
-        id
-        slug
-        publishedAt
+    const editUpdateMutation = gql`
+      mutation EditUpdate($update: UpdateAttributesInputType!) {
+        editUpdate(update: $update) {
+          id
+          slug
+          publishedAt
+        }
       }
-    }
     `;
 
     it('fails if not authenticated', async () => {
-      const result = await utils.graphqlQuery(editUpdateQuery, {
+      const result = await utils.graphqlQuery(editUpdateMutation, {
         update: { id: update1.id },
       });
       expect(result.errors).to.exist;
@@ -228,7 +229,7 @@ describe('server/graphql/v1/updates', () => {
     });
 
     it('fails if not authenticated as admin of collective', async () => {
-      const result = await utils.graphqlQuery(editUpdateQuery, { update: { id: update1.id } }, user2);
+      const result = await utils.graphqlQuery(editUpdateMutation, { update: { id: update1.id } }, user2);
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal("You don't have sufficient permissions to edit this update");
     });
@@ -236,7 +237,7 @@ describe('server/graphql/v1/updates', () => {
     it('edits an update successfully and changes the slug if not published', async () => {
       await models.Update.update({ publishedAt: null }, { where: { id: update1.id } });
       const result = await utils.graphqlQuery(
-        editUpdateQuery,
+        editUpdateMutation,
         { update: { id: update1.id, title: 'new title' } },
         user1,
       );
@@ -250,7 +251,7 @@ describe('server/graphql/v1/updates', () => {
         { where: { id: update1.id } },
       );
       const result = await utils.graphqlQuery(
-        editUpdateQuery,
+        editUpdateMutation,
         { update: { id: update1.id, title: 'new title' } },
         user1,
       );
@@ -260,21 +261,22 @@ describe('server/graphql/v1/updates', () => {
     });
 
     it('fails if update title is not set', async () => {
-      const result = await utils.graphqlQuery(editUpdateQuery, { update: { id: update1.id, title: '' } }, user1);
+      const result = await utils.graphqlQuery(editUpdateMutation, { update: { id: update1.id, title: '' } }, user1);
       expect(result.errors[0].message).to.equal('Validation error: Validation len on title failed');
     });
   });
   describe('delete Update', () => {
-    const deleteUpdateQuery = `
-      mutation deleteUpdate($id: Int!) {
+    const deleteUpdateMutation = gql`
+      mutation DeleteUpdate($id: Int!) {
         deleteUpdate(id: $id) {
-          id,
+          id
           slug
         }
-      }`;
+      }
+    `;
 
     it('fails to delete an update if not logged in', async () => {
-      const result = await utils.graphqlQuery(deleteUpdateQuery, {
+      const result = await utils.graphqlQuery(deleteUpdateMutation, {
         id: update1.id,
       });
       expect(result.errors).to.exist;
@@ -285,7 +287,7 @@ describe('server/graphql/v1/updates', () => {
     });
 
     it('fails to delete an update if logged in as another user', async () => {
-      const result = await utils.graphqlQuery(deleteUpdateQuery, { id: update1.id }, user2);
+      const result = await utils.graphqlQuery(deleteUpdateMutation, { id: update1.id }, user2);
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal("You don't have sufficient permissions to delete this update");
       return models.Update.findByPk(update1.id).then(updateFound => {
@@ -294,7 +296,7 @@ describe('server/graphql/v1/updates', () => {
     });
 
     it('deletes an update', async () => {
-      const res = await utils.graphqlQuery(deleteUpdateQuery, { id: update1.id }, user1);
+      const res = await utils.graphqlQuery(deleteUpdateMutation, { id: update1.id }, user1);
       res.errors && console.error(res.errors[0]);
       expect(res.errors).to.not.exist;
       return models.Update.findByPk(update1.id).then(updateFound => {
@@ -304,15 +306,15 @@ describe('server/graphql/v1/updates', () => {
   });
 
   describe('query updates', () => {
-    const allUpdatesQuery = `
-    query allUpdates($CollectiveId: Int!, $limit: Int, $offset: Int) {
-      allUpdates(CollectiveId: $CollectiveId, limit: $limit, offset: $offset) {
-        id
-        slug
-        title
-        publishedAt
+    const allUpdatesQuery = gql`
+      query AllUpdates($CollectiveId: Int!, $limit: Int, $offset: Int) {
+        allUpdates(CollectiveId: $CollectiveId, limit: $limit, offset: $offset) {
+          id
+          slug
+          title
+          publishedAt
+        }
       }
-    }
     `;
 
     before(() => {

@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import gqlV2 from 'fake-tag';
 import { differenceBy } from 'lodash';
 
 import { US_TAX_FORM_THRESHOLD } from '../../../../../server/constants/tax-form';
@@ -6,8 +7,13 @@ import models from '../../../../../server/models';
 import { fakeCollective, fakeExpense, fakeHost, fakeTransaction } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
 
-const EXPENSES_QUERY = `
-  query Expenses($fromAccount: AccountReferenceInput, $account: AccountReferenceInput, $host: AccountReferenceInput, $status: ExpenseStatusFilter) {
+const expensesQuery = gqlV2/* GraphQL */ `
+  query Expenses(
+    $fromAccount: AccountReferenceInput
+    $account: AccountReferenceInput
+    $host: AccountReferenceInput
+    $status: ExpenseStatusFilter
+  ) {
     expenses(fromAccount: $fromAccount, account: $account, host: $host, status: $status) {
       totalCount
       nodes {
@@ -46,13 +52,13 @@ describe('server/graphql/v2/query/ExpensesQuery', () => {
       const queryParams = { account: { legacyId: collective.id } };
 
       // All status
-      let result = await graphqlQueryV2(EXPENSES_QUERY, queryParams);
+      let result = await graphqlQueryV2(expensesQuery, queryParams);
       expect(result.data.expenses.totalCount).to.eq(expenses.length);
 
-      result = await graphqlQueryV2(EXPENSES_QUERY, { ...queryParams, status: 'ERROR' });
+      result = await graphqlQueryV2(expensesQuery, { ...queryParams, status: 'ERROR' });
       expect(result.data.expenses.totalCount).to.eq(1);
 
-      result = await graphqlQueryV2(EXPENSES_QUERY, { ...queryParams, status: 'REJECTED' });
+      result = await graphqlQueryV2(expensesQuery, { ...queryParams, status: 'REJECTED' });
       expect(result.data.expenses.totalCount).to.eq(1);
     });
   });
@@ -97,7 +103,7 @@ describe('server/graphql/v2/query/ExpensesQuery', () => {
 
     it('Only returns expenses that are ready to pay', async () => {
       const queryParams = { host: { legacyId: host.id }, status: 'READY_TO_PAY' };
-      const result = await graphqlQueryV2(EXPENSES_QUERY, queryParams);
+      const result = await graphqlQueryV2(expensesQuery, queryParams);
       expect(result.data.expenses.totalCount).to.eq(expensesReadyToPay.length);
 
       const missingExpenses = differenceBy(expensesReadyToPay, result.data.expenses.nodes, e => e.legacyId || e.id);

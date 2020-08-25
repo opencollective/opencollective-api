@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import gql from 'fake-tag';
 import moment from 'moment';
 import nock from 'nock';
 import sinon from 'sinon';
@@ -16,8 +17,8 @@ import * as utils from '../../../utils';
 const ORDER_TOTAL_AMOUNT = 5000;
 const STRIPE_FEE_STUBBED_VALUE = 300;
 
-const createPaymentMethodQuery = /* GraphQL */ `
-  mutation createPaymentMethod(
+const createPaymentMethodMutation = gql`
+  mutation CreatePaymentMethod(
     $amount: Int
     $monthlyLimitPerMember: Int
     $CollectiveId: Int!
@@ -57,8 +58,9 @@ const createPaymentMethodQuery = /* GraphQL */ `
     }
   }
 `;
-const claimPaymentMethodQuery = /* GraphQL */ `
-  mutation claimPaymentMethod($user: UserInputType, $code: String!) {
+
+const claimPaymentMethodMutation = gql`
+  mutation ClaimPaymentMethod($user: UserInputType, $code: String!) {
     claimPaymentMethod(user: $user, code: $code) {
       id
       SourcePaymentMethodId
@@ -72,8 +74,9 @@ const claimPaymentMethodQuery = /* GraphQL */ `
     }
   }
 `;
-const createOrderQuery = /* GraphQL */ `
-  mutation createOrder($order: OrderInputType!) {
+
+const createOrderMutation = gql`
+  mutation CreateOrder($order: OrderInputType!) {
     createOrder(order: $order) {
       id
       fromCollective {
@@ -720,7 +723,7 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
           amount: 10000,
         };
         // call graphql mutation
-        const gqlResult = await utils.graphqlQuery(createPaymentMethodQuery, args, user1);
+        const gqlResult = await utils.graphqlQuery(createPaymentMethodMutation, args, user1);
         expect(gqlResult.errors[0]).to.exist;
         expect(gqlResult.errors[0].toString()).to.contain('"$currency" of required type "String!" was not provided.');
       }); /** End of "should fail creating a virtual card because there is no currency defined" */
@@ -732,7 +735,7 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
           CollectiveId: collective1.id,
         };
         // call graphql mutation
-        const gqlResult = await utils.graphqlQuery(createPaymentMethodQuery, args, user1);
+        const gqlResult = await utils.graphqlQuery(createPaymentMethodMutation, args, user1);
         expect(gqlResult.errors[0]).to.exist;
         expect(gqlResult.errors[0].toString()).to.contain(
           'you need to define either the amount or the monthlyLimitPerMember of the payment method.',
@@ -748,7 +751,7 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
           limitedToTags: ['open source'],
         };
         // call graphql mutation
-        const gqlResult = await utils.graphqlQuery(createPaymentMethodQuery, args, user1);
+        const gqlResult = await utils.graphqlQuery(createPaymentMethodMutation, args, user1);
 
         gqlResult.errors && console.error(gqlResult.errors[0]);
         expect(gqlResult.errors).to.be.undefined;
@@ -775,7 +778,7 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
           PaymentMethodId: creditCard2.id,
         };
         // call graphql mutation
-        const gqlResult = await utils.graphqlQuery(createPaymentMethodQuery, args, user1);
+        const gqlResult = await utils.graphqlQuery(createPaymentMethodMutation, args, user1);
         expect(gqlResult.errors).to.exist;
         expect(gqlResult.errors[0]).to.exist;
         expect(gqlResult.errors[0].toString()).to.contain('Invalid PaymentMethodId');
@@ -851,7 +854,7 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
         };
         // claim virtual card
         // call graphql mutation
-        const gqlResult = await utils.graphqlQuery(claimPaymentMethodQuery, args);
+        const gqlResult = await utils.graphqlQuery(claimPaymentMethodMutation, args);
 
         gqlResult.errors && console.error(gqlResult.errors[0]);
         expect(gqlResult.errors).to.be.undefined;
@@ -906,7 +909,7 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
         };
         // claim virtual card
         // call graphql mutation
-        const gqlResult = await utils.graphqlQuery(claimPaymentMethodQuery, args, existingUser);
+        const gqlResult = await utils.graphqlQuery(claimPaymentMethodMutation, args, existingUser);
 
         gqlResult.errors && console.error(gqlResult.errors[0]);
         expect(gqlResult.errors).to.be.undefined;
@@ -1062,7 +1065,7 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
           totalAmount: 1000000,
         };
         // Executing queries
-        const gqlResult = await utils.graphqlQuery(createOrderQuery, { order }, userVirtualCard);
+        const gqlResult = await utils.graphqlQuery(createOrderMutation, { order }, userVirtualCard);
         expect(gqlResult.errors).to.be.an('array');
         expect(gqlResult.errors[0]).to.exist;
         expect(gqlResult.errors[0].toString()).to.contain("You don't have enough funds available");
@@ -1077,7 +1080,7 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
           totalAmount: 1000,
         };
         // Executing queries
-        const gqlResult = await utils.graphqlQuery(createOrderQuery, { order }, userVirtualCard);
+        const gqlResult = await utils.graphqlQuery(createOrderMutation, { order }, userVirtualCard);
         expect(gqlResult.errors).to.be.an('array');
         expect(gqlResult.errors[0]).to.exist;
         expect(gqlResult.errors[0].toString()).to.contain(
@@ -1095,7 +1098,7 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
           totalAmount: 1000,
         };
         // Executing queries
-        const gqlResult = await utils.graphqlQuery(createOrderQuery, { order }, userVirtualCard);
+        const gqlResult = await utils.graphqlQuery(createOrderMutation, { order }, userVirtualCard);
         expect(gqlResult.errors).to.be.an('array');
         expect(gqlResult.errors[0]).to.exist;
         expect(gqlResult.errors[0].toString()).to.contain(
@@ -1112,7 +1115,7 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
           totalAmount: ORDER_TOTAL_AMOUNT,
         };
         // Executing queries
-        const gqlResult = await utils.graphqlQuery(createOrderQuery, { order }, userVirtualCard);
+        const gqlResult = await utils.graphqlQuery(createOrderMutation, { order }, userVirtualCard);
 
         gqlResult.errors && console.error(gqlResult.errors[0]);
         expect(gqlResult.errors).to.be.undefined;
@@ -1151,9 +1154,9 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
           totalAmount: ORDER_TOTAL_AMOUNT,
         };
         // Executing queries that overstep virtual card balance
-        await utils.graphqlQuery(createOrderQuery, { order }, userVirtualCard);
-        await utils.graphqlQuery(createOrderQuery, { order }, userVirtualCard);
-        const gqlResult = await utils.graphqlQuery(createOrderQuery, { order }, userVirtualCard);
+        await utils.graphqlQuery(createOrderMutation, { order }, userVirtualCard);
+        await utils.graphqlQuery(createOrderMutation, { order }, userVirtualCard);
+        const gqlResult = await utils.graphqlQuery(createOrderMutation, { order }, userVirtualCard);
 
         expect(gqlResult.errors).to.be.an('array');
         expect(gqlResult.errors[0]).to.exist;

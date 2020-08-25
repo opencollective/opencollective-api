@@ -1,5 +1,6 @@
 import { assert, expect } from 'chai';
 import config from 'config';
+import gql from 'fake-tag';
 import nodemailer from 'nodemailer';
 import sinon from 'sinon';
 
@@ -8,13 +9,13 @@ import * as utils from '../../../utils';
 
 const ordersData = utils.data('orders');
 
-const cancelSubscriptionQuery = `
-mutation cancelSubscription($id: Int!) {
-  cancelSubscription(id: $id) {
-    id
-    isSubscriptionActive
+const cancelSubscriptionMutation = gql`
+  mutation CancelSubscription($id: Int!) {
+    cancelSubscription(id: $id) {
+      id
+      isSubscriptionActive
+    }
   }
-}
 `;
 
 describe('server/graphql/v1/cancelSubscriptions', () => {
@@ -94,7 +95,7 @@ describe('server/graphql/v1/cancelSubscriptions', () => {
     });
 
     it('fails if if no authorization provided', async () => {
-      const res = await utils.graphqlQuery(cancelSubscriptionQuery, {
+      const res = await utils.graphqlQuery(cancelSubscriptionMutation, {
         id: order.id,
       });
 
@@ -103,13 +104,13 @@ describe('server/graphql/v1/cancelSubscriptions', () => {
     });
 
     it('fails if the subscription does not exist', async () => {
-      const res = await utils.graphqlQuery(cancelSubscriptionQuery, { id: 2 }, user);
+      const res = await utils.graphqlQuery(cancelSubscriptionMutation, { id: 2 }, user);
       expect(res.errors).to.exist;
       expect(res.errors[0].message).to.equal('Subscription not found');
     });
 
     it("fails if user isn't an admin of the collective", async () => {
-      const res = await utils.graphqlQuery(cancelSubscriptionQuery, { id: order.id }, user2);
+      const res = await utils.graphqlQuery(cancelSubscriptionMutation, { id: order.id }, user2);
 
       expect(res.errors).to.exist;
       expect(res.errors[0].message).to.equal("You don't have permission to cancel this subscription");
@@ -133,14 +134,14 @@ describe('server/graphql/v1/cancelSubscriptions', () => {
         }),
       );
 
-      const res = await utils.graphqlQuery(cancelSubscriptionQuery, { id: order2.id }, user);
+      const res = await utils.graphqlQuery(cancelSubscriptionMutation, { id: order2.id }, user);
 
       expect(res.errors).to.exist;
       expect(res.errors[0].message).to.equal('Subscription already canceled');
     });
 
     it('succeeds in canceling the subscription', async () => {
-      const res = await utils.graphqlQuery(cancelSubscriptionQuery, { id: order.id }, user);
+      const res = await utils.graphqlQuery(cancelSubscriptionMutation, { id: order.id }, user);
 
       expect(res.errors).to.not.exist;
 

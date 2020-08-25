@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import gqlV2 from 'fake-tag';
 import speakeasy from 'speakeasy';
 
 import { roles } from '../../../../../server/constants';
@@ -6,8 +7,8 @@ import { idEncode } from '../../../../../server/graphql/v2/identifiers';
 import { fakeCollective, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
 
-const editSettingsMutation = `
-  mutation EditUserSettings($account: AccountReferenceInput!, $key: AccountSettingsKey!, $value: JSON!) {
+const editSettingsMutation = gqlV2/* GraphQL */ `
+  mutation EditSettings($account: AccountReferenceInput!, $key: AccountSettingsKey!, $value: JSON!) {
     editAccountSetting(account: $account, key: $key, value: $value) {
       id
       settings
@@ -15,7 +16,7 @@ const editSettingsMutation = `
   }
 `;
 
-const addTwoFactorAuthTokenMutation = `
+const addTwoFactorAuthTokenMutation = gqlV2/* GraphQL */ `
   mutation AddTwoFactorAuthToAccount($account: AccountReferenceInput!, $token: String!) {
     addTwoFactorAuthTokenToIndividual(account: $account, token: $token) {
       id

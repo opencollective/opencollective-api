@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import config from 'config';
+import gql from 'fake-tag';
 import nodemailer from 'nodemailer';
 import sinon from 'sinon';
 
@@ -9,34 +10,34 @@ import initNock from '../../../nocks/graphql.updateSubscription.nock';
 import * as utils from '../../../utils';
 
 const ordersData = utils.data('orders');
-const updateSubscriptionQuery = `
-mutation updateSubscription($id: Int!, $paymentMethod: PaymentMethodInputType, $amount: Int) {
-  updateSubscription(id: $id, paymentMethod: $paymentMethod, amount: $amount) {
-    id
-    currency
-    totalAmount
-    interval
-    createdAt
-    isSubscriptionActive
-    collective {
+const updateSubscriptionMutation = gql`
+  mutation UpdateSubscription($id: Int!, $paymentMethod: PaymentMethodInputType, $amount: Int) {
+    updateSubscription(id: $id, paymentMethod: $paymentMethod, amount: $amount) {
       id
-    }
-    fromCollective {
-      id
-      slug
-      createdByUser {
+      currency
+      totalAmount
+      interval
+      createdAt
+      isSubscriptionActive
+      collective {
         id
       }
-    }
-    paymentMethod {
-      id
-      uuid
-      data
-      name
-      expiryDate
+      fromCollective {
+        id
+        slug
+        createdByUser {
+          id
+        }
+      }
+      paymentMethod {
+        id
+        uuid
+        data
+        name
+        expiryDate
+      }
     }
   }
-}
 `;
 
 describe('server/graphql/v1/updateSubscription', () => {
@@ -125,7 +126,7 @@ describe('server/graphql/v1/updateSubscription', () => {
     });
 
     it('fails if if no authorization provided', async () => {
-      const res = await utils.graphqlQuery(updateSubscriptionQuery, {
+      const res = await utils.graphqlQuery(updateSubscriptionMutation, {
         id: order.id,
         paymentMethod: {},
       });
@@ -135,13 +136,13 @@ describe('server/graphql/v1/updateSubscription', () => {
     });
 
     it('fails if the subscription does not exist', async () => {
-      const res = await utils.graphqlQuery(updateSubscriptionQuery, { id: 2 }, user);
+      const res = await utils.graphqlQuery(updateSubscriptionMutation, { id: 2 }, user);
       expect(res.errors).to.exist;
       expect(res.errors[0].message).to.equal('Subscription not found');
     });
 
     it("fails if user isn't an admin of the collective", async () => {
-      const res = await utils.graphqlQuery(updateSubscriptionQuery, { id: order.id }, user2);
+      const res = await utils.graphqlQuery(updateSubscriptionMutation, { id: order.id }, user2);
 
       expect(res.errors).to.exist;
       expect(res.errors[0].message).to.equal("You don't have permission to update this subscription");
@@ -164,7 +165,7 @@ describe('server/graphql/v1/updateSubscription', () => {
         }),
       );
 
-      const res = await utils.graphqlQuery(updateSubscriptionQuery, { id: order2.id }, user);
+      const res = await utils.graphqlQuery(updateSubscriptionMutation, { id: order2.id }, user);
 
       expect(res.errors).to.exist;
       expect(res.errors[0].message).to.equal('Subscription must be active to be updated');
@@ -173,7 +174,7 @@ describe('server/graphql/v1/updateSubscription', () => {
     describe('updating payment method', async () => {
       it("fails if the payment method uuid doesn't exist", async () => {
         const res = await utils.graphqlQuery(
-          updateSubscriptionQuery,
+          updateSubscriptionMutation,
           {
             id: order.id,
             paymentMethod: { uuid: 'c7279ed2-e825-4494-98b8-12ad1a3b85ff' },
@@ -200,7 +201,7 @@ describe('server/graphql/v1/updateSubscription', () => {
           const originalChargeRetryCount = order.Subscription.chargeRetryCount;
 
           const res = await utils.graphqlQuery(
-            updateSubscriptionQuery,
+            updateSubscriptionMutation,
             { id: order.id, paymentMethod: { uuid: pm2.uuid } },
             user,
           );
@@ -222,7 +223,7 @@ describe('server/graphql/v1/updateSubscription', () => {
 
         it("succeeds when it's a new payment method", async () => {
           const res = await utils.graphqlQuery(
-            updateSubscriptionQuery,
+            updateSubscriptionMutation,
             {
               id: order.id,
               paymentMethod: {
@@ -287,7 +288,7 @@ describe('server/graphql/v1/updateSubscription', () => {
 
           // run query
           const res = await utils.graphqlQuery(
-            updateSubscriptionQuery,
+            updateSubscriptionMutation,
             { id: order.id, paymentMethod: { uuid: pm2.uuid } },
             user,
           );
@@ -315,7 +316,7 @@ describe('server/graphql/v1/updateSubscription', () => {
 
           // run query
           const res = await utils.graphqlQuery(
-            updateSubscriptionQuery,
+            updateSubscriptionMutation,
             {
               id: order.id,
               paymentMethod: {
@@ -363,28 +364,28 @@ describe('server/graphql/v1/updateSubscription', () => {
 
     describe('updating amount', async () => {
       it('fails when the amount is the same', async () => {
-        const res = await utils.graphqlQuery(updateSubscriptionQuery, { id: order.id, amount: 2000 }, user);
+        const res = await utils.graphqlQuery(updateSubscriptionMutation, { id: order.id, amount: 2000 }, user);
 
         expect(res.errors).to.exist;
         expect(res.errors[0].message).to.equal('Same amount');
       });
 
       it('fails when the amount is invalid (too small)', async () => {
-        const res = await utils.graphqlQuery(updateSubscriptionQuery, { id: order.id, amount: 75 }, user);
+        const res = await utils.graphqlQuery(updateSubscriptionMutation, { id: order.id, amount: 75 }, user);
 
         expect(res.errors).to.exist;
         expect(res.errors[0].message).to.equal('Invalid amount');
       });
 
       it('fails when the amount is invalid (divisible by 100)', async () => {
-        const res = await utils.graphqlQuery(updateSubscriptionQuery, { id: order.id, amount: 125 }, user);
+        const res = await utils.graphqlQuery(updateSubscriptionMutation, { id: order.id, amount: 125 }, user);
 
         expect(res.errors).to.exist;
         expect(res.errors[0].message).to.equal('Invalid amount');
       });
 
       it('succeeds when the amount is valid', async () => {
-        const res = await utils.graphqlQuery(updateSubscriptionQuery, { id: order.id, amount: 4000 }, user);
+        const res = await utils.graphqlQuery(updateSubscriptionMutation, { id: order.id, amount: 4000 }, user);
 
         expect(res.errors).to.not.exist;
 

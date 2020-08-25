@@ -1,9 +1,10 @@
 import { expect } from 'chai';
+import gqlV2 from 'fake-tag';
 
 import { fakeCollective, fakeExpense, fakePayoutMethod, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
 
-const EXPENSE_QUERY = `
+const expenseQuery = gqlV2/* GraphQL */ `
   query Expense($id: Int!) {
     expense(expense: { legacyId: $id }) {
       id
@@ -35,11 +36,11 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
 
       // Query
       const queryParams = { id: expense.id };
-      const resultUnauthenticated = await graphqlQueryV2(EXPENSE_QUERY, queryParams);
-      const resultAsOwner = await graphqlQueryV2(EXPENSE_QUERY, queryParams, ownerUser);
-      const resultAsCollectiveAdmin = await graphqlQueryV2(EXPENSE_QUERY, queryParams, collectiveAdminUser);
-      const resultAsHostAdmin = await graphqlQueryV2(EXPENSE_QUERY, queryParams, hostAdminuser);
-      const resultAsRandomUser = await graphqlQueryV2(EXPENSE_QUERY, queryParams, randomUser);
+      const resultUnauthenticated = await graphqlQueryV2(expenseQuery, queryParams);
+      const resultAsOwner = await graphqlQueryV2(expenseQuery, queryParams, ownerUser);
+      const resultAsCollectiveAdmin = await graphqlQueryV2(expenseQuery, queryParams, collectiveAdminUser);
+      const resultAsHostAdmin = await graphqlQueryV2(expenseQuery, queryParams, hostAdminuser);
+      const resultAsRandomUser = await graphqlQueryV2(expenseQuery, queryParams, randomUser);
 
       // Check results
       expect(resultUnauthenticated.data.expense.payoutMethod.data).to.be.null;

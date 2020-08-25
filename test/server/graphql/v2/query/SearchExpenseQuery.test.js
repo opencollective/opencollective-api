@@ -1,16 +1,17 @@
 import { expect } from 'chai';
+import gqlV2 from 'fake-tag';
 
 import { fakeCollective, fakeExpense, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
 
-const SEARCH_EXPENSE_QUERY = `
-  query Expense($searchTerm: String!) {
-    expenses (orderBy: {field: CREATED_AT}, searchTerm: $searchTerm) {
+const searchExpenseQuery = gqlV2/* GraphQL */ `
+  query SearchExpense($searchTerm: String!) {
+    expenses(orderBy: { field: CREATED_AT }, searchTerm: $searchTerm) {
       nodes {
         description
         tags
         payee {
-          name,
+          name
           slug
         }
       }
@@ -44,10 +45,10 @@ describe('server/graphql/v2/query/SearchExpenseQuery', () => {
       await fakeExpense(expenseTwo);
 
       // Query
-      const searchQueryForDescription = await graphqlQueryV2(SEARCH_EXPENSE_QUERY, { searchTerm: 'OpenCollective' });
-      const searchQueryForTags = await graphqlQueryV2(SEARCH_EXPENSE_QUERY, { searchTerm: 'payout' });
-      const searchQueryForName = await graphqlQueryV2(SEARCH_EXPENSE_QUERY, { searchTerm: ownerUser.collective.name });
-      const searchQueryForSlug = await graphqlQueryV2(SEARCH_EXPENSE_QUERY, {
+      const searchQueryForDescription = await graphqlQueryV2(searchExpenseQuery, { searchTerm: 'OpenCollective' });
+      const searchQueryForTags = await graphqlQueryV2(searchExpenseQuery, { searchTerm: 'payout' });
+      const searchQueryForName = await graphqlQueryV2(searchExpenseQuery, { searchTerm: ownerUser.collective.name });
+      const searchQueryForSlug = await graphqlQueryV2(searchExpenseQuery, {
         searchTerm: hostAdminuser.collective.slug,
       });
 
