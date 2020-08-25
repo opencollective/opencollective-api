@@ -121,7 +121,7 @@ export function validateSettings(settings) {
   }
 }
 
-export const collectiveSlugBlacklist = [
+export const collectiveSlugReservedlist = [
   'about',
   'admin',
   'applications',
@@ -185,6 +185,6 @@ export const collectiveSlugBlacklist = [
  *
  * @param {String} slug
  */
-export function isBlacklistedCollectiveSlug(slug) {
-  return collectiveSlugBlacklist.includes(slug);
+export function isCollectiveSlugReserved(slug) {
+  return collectiveSlugReservedlist.includes(slug);
 }

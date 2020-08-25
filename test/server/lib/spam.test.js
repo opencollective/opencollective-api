@@ -64,7 +64,7 @@ describe('server/lib/spam', () => {
       });
     });
 
-    it('detects blacklisted websites', async () => {
+    it('detects blocked websites', async () => {
       // Website
       expect(collectiveSpamCheck({ website: 'https://supplementslove.com/promotion' })).to.deep.eq({
         score: 1,

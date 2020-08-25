@@ -243,7 +243,7 @@ describe('server/paymentProviders/transferwise/index', () => {
       expect(data).to.deep.include({ code: 'EUR', minInvoiceAmount: 1 });
     });
 
-    it('should blacklist currencies for business accounts', async () => {
+    it('should block currencies for business accounts', async () => {
       expect(data).to.not.deep.include({ code: 'BRL', minInvoiceAmount: 1 });
     });
   });

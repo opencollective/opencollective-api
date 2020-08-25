@@ -15,7 +15,7 @@ export type SpamAnalysisReport = {
   score: number;
   /** Detected spam keywords */
   keywords: string[];
-  /** Detected blacklisted domains */
+  /** Detected blocked domains */
   domains: string[];
 };
 
@@ -169,7 +169,7 @@ export const getSuspiciousKeywords = (content: string): string[] => {
 
 /**
  *
- * Returns blacklisted domains found in content
+ * Returns blocked domains found in content
  */
 const getSpamDomains = (content: string): string[] => {
   if (!content) {
@@ -198,10 +198,10 @@ export const collectiveSpamCheck = (collective: any, context: string): SpamAnaly
       result.score += SPAM_KEYWORDS[keyword];
     });
 
-    // Check for blacklisted domains
-    const blacklitedDomains = getSpamDomains(collective[field] || '');
-    if (blacklitedDomains.length) {
-      blacklitedDomains.forEach(domain => result.domains.add(domain));
+    // Check for blocked domains
+    const blockedDomains = getSpamDomains(collective[field] || '');
+    if (blockedDomains.length) {
+      blockedDomains.forEach(domain => result.domains.add(domain));
       result.score = 1;
     }
   });
