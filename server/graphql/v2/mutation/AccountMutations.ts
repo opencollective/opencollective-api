@@ -1,17 +1,59 @@
 import { GraphQLBoolean, GraphQLFloat, GraphQLNonNull, GraphQLString } from 'graphql';
 import GraphQLJSON from 'graphql-type-json';
-import { cloneDeep, set } from 'lodash';
+import { cloneDeep, pick, set } from 'lodash';
 
 import { crypto } from '../../../lib/encryption';
 import models, { sequelize } from '../../../models';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { AccountTypeToModelMapping } from '../enum/AccountType';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
+import { AccountUpdateInput } from '../input/AccountUpdateInput';
 import { Account } from '../interface/Account';
 import { Individual } from '../object/Individual';
 import AccountSettingsKey from '../scalar/AccountSettingsKey';
 
 const accountMutations = {
+  editAccount: {
+    type: new GraphQLNonNull(Account),
+    description: 'Edit the info for the given account',
+    args: {
+      account: {
+        type: new GraphQLNonNull(AccountUpdateInput),
+        description: 'Account where the settings will be updated',
+      },
+    },
+    async resolve(_, args, req): Promise<object> {
+      if (!req.remoteUser) {
+        throw new Unauthorized();
+      }
+
+      return sequelize.transaction(async transaction => {
+        const account = await fetchAccountWithReference(args.account, {
+          dbTransaction: transaction,
+          lock: true,
+          throwIfMissing: true,
+        });
+
+        if (!req.remoteUser.isAdminOfCollective(account)) {
+          throw new Forbidden();
+        }
+
+        return account.update(
+          pick(args.account, [
+            'name',
+            'company',
+            'description',
+            'longDescription',
+            'twitterHandle',
+            'githubHandle',
+            'website',
+            'tags',
+          ]),
+          { transaction },
+        );
+      });
+    },
+  },
   editAccountSetting: {
     type: new GraphQLNonNull(Account),
     description: 'Edit the settings for the given account',
