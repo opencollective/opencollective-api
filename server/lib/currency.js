@@ -4,7 +4,7 @@ import debugLib from 'debug';
 import fetch from 'isomorphic-fetch';
 import { get } from 'lodash';
 
-import { currencyFormats } from '../constants/currency_format';
+import { currencyFormats } from '../constants/currencies';
 
 import logger from './logger';
 
