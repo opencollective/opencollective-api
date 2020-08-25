@@ -509,7 +509,7 @@ const getTopSponsors = () => {
           AND t."createdAt" > :since
         GROUP BY t."CollectiveId"
         ORDER BY "totalDonationsLast3months" DESC, collectives DESC LIMIT 20
-      ), 
+      ),
       "topSponsorsTotalDonations" as (
         SELECT -sum(amount) as "totalDonations", max(t."CollectiveId") as "CollectiveId"
         FROM "Transactions" t WHERE t."CollectiveId" IN (
@@ -919,7 +919,7 @@ const getCollectivesWithMinBackersQuery = async ({
 const getTaxFormsRequiredForExpenses = expenseIds => {
   return sequelize.query(
     `
-    SELECT 
+    SELECT
       analyzed_expenses."FromCollectiveId",
       analyzed_expenses.id as "expenseId",
       MAX(ld."requestStatus") as "legalDocRequestStatus",
@@ -941,11 +941,11 @@ const getTaxFormsRequiredForExpenses = expenseIds => {
       AND ld.year = date_part('year', all_expenses."incurredAt")
       AND ld."documentType" = 'US_TAX_FORM'
     WHERE analyzed_expenses.id IN (:expenseIds)
-    AND analyzed_expenses.type = 'INVOICE'
+    AND analyzed_expenses.type != 'RECEIPT'
     AND analyzed_expenses.status IN ('PENDING', 'APPROVED')
     AND analyzed_expenses."deletedAt" IS NULL
     AND from_collective.type = 'USER'
-    AND all_expenses.type = 'INVOICE'
+    AND all_expenses.type != 'RECEIPT'
     AND all_expenses.status NOT IN ('ERROR', 'REJECTED')
     AND all_expenses."deletedAt" IS NULL
     AND all_expenses."incurredAt"
@@ -964,7 +964,7 @@ const getTaxFormsRequiredForExpenses = expenseIds => {
 const getTaxFormsRequiredForAccounts = async (accountIds, date = new Date()) => {
   const results = await sequelize.query(
     `
-    SELECT 
+    SELECT
       user_profile.id as "collectiveId",
       MAX(ld."requestStatus") as "legalDocRequestStatus",
       d."documentType" as "requiredDocument",
@@ -983,7 +983,7 @@ const getTaxFormsRequiredForAccounts = async (accountIds, date = new Date()) => 
       AND ld."documentType" = 'US_TAX_FORM'
     WHERE user_profile.id IN (:accountIds)
     AND user_profile.type = 'USER'
-    AND all_expenses.type = 'INVOICE'
+    AND all_expenses.type != 'RECEIPT'
     AND all_expenses.status NOT IN ('ERROR', 'REJECTED')
     AND all_expenses."deletedAt" IS NULL
     AND EXTRACT('year' FROM all_expenses."incurredAt") = :year
