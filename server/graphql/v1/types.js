@@ -20,6 +20,7 @@ import status from '../../constants/expense_status';
 import intervals from '../../constants/intervals';
 import { maxInteger } from '../../constants/math';
 import orderStatus from '../../constants/order_status';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPES } from '../../constants/paymentMethods';
 import roles from '../../constants/roles';
 import { getCollectiveAvatarUrl } from '../../lib/collectivelib';
 import { getContributorsForTier } from '../../lib/contributors';
@@ -33,7 +34,6 @@ import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
 
 import { CollectiveInterfaceType, CollectiveSearchResultsType } from './CollectiveInterface';
 import { TransactionInterfaceType } from './TransactionInterface';
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPES } from '../../constants/paymentMethods';
 
 /**
  * Take a graphql type and return a wrapper type that adds pagination. The pagination

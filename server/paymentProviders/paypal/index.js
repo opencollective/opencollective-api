@@ -125,23 +125,23 @@ export default {
             );
           }
 
+          const redirectUrl = new URL(paymentMethod.data.redirect);
+          redirectUrl.searchParams.set('paypalApprovalStatus', req.query.paypalApprovalStatus);
+
           if (req.query.paypalApprovalStatus !== 'success') {
             pm.destroy();
-            const redirect = `${paymentMethod.data.redirect}?status=error&service=paypal&error=User%20cancelled%20the%20request`;
-            return res.redirect(redirect);
+            redirectUrl.searchParams.set('paypalApprovalError', 'User cancelled the request');
+            return res.redirect(redirectUrl.href);
           }
 
           return (
             getPreapprovalDetailsAndUpdatePaymentMethod(pm)
               .catch(e => {
                 debugPaypal('>>> paypal callback error:', e);
-                const redirect = `${
-                  paymentMethod.data.redirect
-                }?status=error&service=paypal&error=Error%20while%20contacting%20PayPal&errorMessage=${encodeURIComponent(
-                  e.message,
-                )}`;
-                debugPaypal('>>> redirect', redirect);
-                res.redirect(redirect);
+                redirectUrl.searchParams.set('paypalApprovalStatus', 'error');
+                redirectUrl.searchParams.set('paypalApprovalError', e.message || 'Error while contacting PayPal');
+                debugPaypal('>>> redirect', redirectUrl.href);
+                res.redirect(redirectUrl.href);
                 throw e; // make sure we skip what follows until next catch()
               })
               .then(pm => {
@@ -171,8 +171,7 @@ export default {
               .then(oldPMs => oldPMs && oldPMs.map(pm => pm.destroy()))
 
               .then(() => {
-                const redirect = `${paymentMethod.data.redirect}?status=success&service=paypal`;
-                return res.redirect(redirect);
+                return res.redirect(redirectUrl.href);
               })
           );
         })
