@@ -2,7 +2,7 @@ import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
 import fetch from 'isomorphic-fetch';
-import { get } from 'lodash';
+import { get, keys, zipObject } from 'lodash';
 
 import { currencyFormats } from '../constants/currencies';
 
@@ -11,17 +11,18 @@ import logger from './logger';
 const debug = debugLib('currency');
 const cache = {};
 
-function getDate(date = 'latest') {
-  if (date.getFullYear) {
+function getDate(date: string | Date = 'latest') {
+  if (typeof date == 'string') {
+    return date;
+  } else if (date.getFullYear) {
     date.setTime(date.getTime() + date.getTimezoneOffset() * 60 * 1000);
     const mm = date.getMonth() + 1; // getMonth() is zero-based
     const dd = date.getDate();
-    date = [date.getFullYear(), (mm > 9 ? '' : '0') + mm, (dd > 9 ? '' : '0') + dd].join('-');
+    return [date.getFullYear(), (mm > 9 ? '' : '0') + mm, (dd > 9 ? '' : '0') + dd].join('-');
   }
-  return date;
 }
 
-export function formatCurrency(currency, value) {
+export function formatCurrency(currency: string, value: number): string {
   const _currency = currency.toUpperCase();
   const currencyStr = currencyFormats[_currency];
 
@@ -35,63 +36,95 @@ if (!get(config, 'fixer.accessKey') && !['staging', 'production'].includes(confi
   logger.info('Fixer API is not configured, lib/currency will always return 1.1');
 }
 
-export function getFxRate(fromCurrency, toCurrency, date = 'latest') {
-  debug(`getFxRate for ${date} ${fromCurrency} -> ${toCurrency}`);
-
-  if (fromCurrency === toCurrency) {
-    return Promise.resolve(1);
-  } else if (!fromCurrency || !toCurrency) {
-    return Promise.resolve(1);
-  } else if (!get(config, 'fixer.accessKey')) {
-    if (['staging', 'production'].includes(config.env)) {
-      throw new Error('Unable to fetch fxRate, Fixer API is not configured.');
-    } else {
-      return Promise.resolve(1.1);
-    }
-  }
-
+export async function fetchFxRates(
+  fromCurrency: string,
+  toCurrencies: string[],
+  date: string | Date = 'latest',
+): Promise<Record<string, number>> {
   date = getDate(date);
-
   let dateKey = date;
   if (dateKey === 'latest') {
     dateKey = getDate(new Date());
   }
-  const key = `${dateKey}-${fromCurrency}-${toCurrency}`;
-  if (cache[key]) {
-    return Promise.resolve(cache[key]);
+
+  const params = {
+    access_key: config.fixer.accessKey, // eslint-disable-line camelcase
+    base: fromCurrency,
+    symbols: toCurrencies.join(','),
+  };
+
+  const searchParams = Object.keys(params)
+    .map(key => `${key}=${params[key]}`)
+    .join('&');
+
+  try {
+    const res = await fetch(`https://data.fixer.io/${date}?${searchParams}`);
+    const json = await res.json();
+    if (json.error) {
+      throw new Error(json.error.info);
+    }
+    const rates = {};
+    keys(json.rates).forEach(to => {
+      rates[to] = parseFloat(json.rates[to]);
+      cache[`${dateKey}-${fromCurrency}-${to}`] = rates[to];
+    });
+
+    return rates;
+  } catch (error) {
+    if (!config.env || !['staging', 'production'].includes(config.env)) {
+      logger.info(`Unable to fetch fxRate with Fixer API: ${error.message}. Returning 1.1`);
+      return zipObject(
+        toCurrencies,
+        toCurrencies.map(() => 1.1),
+      );
+    } else {
+      logger.error(`Unable to fetch fxRate with Fixer API: ${error.message}`);
+      throw error;
+    }
   }
-
-  return new Promise((resolve, reject) => {
-    const params = {
-      access_key: config.fixer.accessKey, // eslint-disable-line camelcase
-      base: fromCurrency,
-      symbols: toCurrency,
-    };
-
-    const searchParams = Object.keys(params)
-      .map(key => `${key}=${params[key]}`)
-      .join('&');
-
-    fetch(`https://data.fixer.io/${date}?${searchParams}`)
-      .then(res => res.json())
-      .then(json => {
-        const fxrate = parseFloat(json.rates[toCurrency]);
-        cache[key] = fxrate;
-        return resolve(fxrate);
-      })
-      .catch(error => {
-        if (!config.env || !['staging', 'production'].includes(config.env)) {
-          logger.info(`Unable to fetch fxRate with Fixer API: ${error.message}. Returning 1.1`);
-          return resolve(1.1);
-        } else {
-          logger.error(`Unable to fetch fxRate with Fixer API: ${error.message}`);
-          reject(error);
-        }
-      });
-  });
 }
 
-export function convertToCurrency(amount, fromCurrency, toCurrency, date = 'latest') {
+export async function getFxRate(
+  fromCurrency: string,
+  toCurrency: string,
+  date: string | Date = 'latest',
+): Promise<number> {
+  debug(`getFxRate for ${date} ${fromCurrency} -> ${toCurrency}`);
+
+  if (fromCurrency === toCurrency) {
+    return 1;
+  } else if (!fromCurrency || !toCurrency) {
+    return 1;
+  } else if (!get(config, 'fixer.accessKey')) {
+    if (['staging', 'production'].includes(config.env)) {
+      throw new Error('Unable to fetch fxRate, Fixer API is not configured.');
+    } else {
+      return 1.1;
+    }
+  }
+
+  date = getDate(date);
+  let dateKey = date;
+  if (dateKey === 'latest') {
+    dateKey = getDate(new Date());
+  }
+
+  const key = `${dateKey}-${fromCurrency}-${toCurrency}`;
+  if (cache[key]) {
+    return cache[key];
+  }
+
+  const rates = await fetchFxRates(fromCurrency, [toCurrency], date);
+
+  return rates[toCurrency];
+}
+
+export function convertToCurrency(
+  amount: number,
+  fromCurrency: string,
+  toCurrency: string,
+  date: string | Date = 'latest',
+): Promise<number> {
   if (amount === 0) {
     return 0;
   }
