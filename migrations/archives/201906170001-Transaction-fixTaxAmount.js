@@ -1,3 +1,8 @@
+/* This migration is archived */
+
+/* This migration is commented becaused it contained live code that is not supported anynmore */
+
+/*
 'use strict';
 
 import models, { sequelize, Op } from '../server/models';
@@ -86,11 +91,13 @@ const processTransaction = async transaction => {
     throw e;
   }
 };
+*/
 
 /**
  * `taxAmount` like any other fee should be a negative number
  * and should be subtracted from the netAmountInCollectiveCurrency
  */
+/*
 module.exports = {
   up: async (queryInterface, Sequelize) => {
     const transactions = await fetchTransactions();
@@ -99,3 +106,4 @@ module.exports = {
 
   down: async queryInterface => {},
 };
+*/

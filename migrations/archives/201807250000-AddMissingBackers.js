@@ -1,3 +1,9 @@
+/* This migration is archived */
+
+/* This migration is commented becaused it contained live code that is not supported anynmore */
+
+/*
+
 'use strict';
 const DRY_RUN = false;
 let totalInserts = 0;
@@ -39,7 +45,7 @@ module.exports = {
           AND t."RefundTransactionId" IS NULL
         GROUP BY t."FromCollectiveId", t."CollectiveId"
       )
-      
+
       SELECT p.*
       FROM pairs p
       LEFT JOIN "Members" m ON m."MemberCollectiveId" = p."FromCollectiveId" AND m."CollectiveId"=p."CollectiveId"
@@ -78,3 +84,5 @@ module.exports = {
 
   down: (queryInterface, Sequelize) => {},
 };
+
+*/

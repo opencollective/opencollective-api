@@ -1,3 +1,8 @@
+/* This migration is archived */
+
+/* This migration is commented becaused it contained live code that is not supported anynmore */
+
+/*
 'use strict';
 
 import models from '../server/models';
@@ -8,19 +13,20 @@ module.exports = {
     // For already active collectives, this information is moved to `data.hasBeenPledged`
     // so that we don't loose it.
     return queryInterface.sequelize.query(`
-      UPDATE 
+      UPDATE
         "Collectives"
-      SET     
-        "isPledged" = FALSE, 
+      SET
+        "isPledged" = FALSE,
         data = (
-          CASE WHEN data IS NULL 
+          CASE WHEN data IS NULL
           THEN '{"hasBeenPledged": true}'::jsonb
           ELSE data::jsonb || '{"hasBeenPledged": true}'::jsonb
         END)
-      WHERE 
+      WHERE
         "isPledged" IS TRUE AND "isActive" IS TRUE
     `);
   },
 
   down: async (queryInterface, Sequelize) => {},
 };
+*/

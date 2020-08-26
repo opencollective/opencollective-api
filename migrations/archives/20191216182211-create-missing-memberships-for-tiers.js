@@ -1,3 +1,8 @@
+/* This migration is archived */
+
+/* This migration is commented becaused it contained live code that is not supported anynmore */
+
+/*
 'use strict';
 
 import models from '../server/models';
@@ -15,23 +20,23 @@ module.exports = {
         INNER JOIN "Transactions" t ON t."OrderId" = o.id
         WHERE status IN ('PAID', 'ACTIVE')
         AND "totalAmount" > 0
-      ) SELECT 
-        o."FromCollectiveId", 
-        o."CollectiveId", 
+      ) SELECT
+        o."FromCollectiveId",
+        o."CollectiveId",
         o."TierId",
         MAX(o."CreatedByUserId") AS "CreatedByUserId",
         MIN(o."createdAt") AS "createdAt"
-      FROM 
+      FROM
         confirmed_orders o
-      INNER JOIN 
+      INNER JOIN
         "PaymentMethods" pm ON pm.id = o."PaymentMethodId"
       LEFT JOIN
-        "Members" m 
-      ON 
-        o."FromCollectiveId" = m."MemberCollectiveId" 
-        AND o."CollectiveId" = m."CollectiveId" 
+        "Members" m
+      ON
+        o."FromCollectiveId" = m."MemberCollectiveId"
+        AND o."CollectiveId" = m."CollectiveId"
         AND (o."TierId" = m."TierId" OR (o."TierId" IS NULL AND m."TierId" IS NULL))
-      WHERE 
+      WHERE
         m.id IS NULL AND o."CreatedByUserId" IS NOT NULL
       GROUP BY
         o."FromCollectiveId", o."CollectiveId", o."TierId"
@@ -62,3 +67,4 @@ module.exports = {
     // Can't undo this without loosing data
   },
 };
+*/

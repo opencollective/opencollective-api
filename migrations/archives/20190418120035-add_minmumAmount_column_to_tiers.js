@@ -1,10 +1,17 @@
+/* This migration is archived */
+
+/* This migration is commented becaused it contained live code that is not supported anynmore */
+
+/*
 'use strict';
 import { map } from 'bluebird';
 const colName = 'minimumAmount';
+*/
 
 /**
  * Add a `minimumAmount` column to tiers to remove ambiguity.
  */
+/*
 module.exports = {
   up: async (queryInterface, Sequelize) => {
     const colParams = {
@@ -62,3 +69,4 @@ module.exports = {
     await queryInterface.removeColumn('Tiers', colName);
   },
 };
+*/

@@ -1,3 +1,9 @@
+/* This migration is archived */
+
+/* This migration is commented becaused it contained live code that is not supported anynmore */
+
+/*
+
 'use strict';
 import models from '../server/models';
 import roles from '../server/constants/roles';
@@ -68,3 +74,5 @@ module.exports = {
     return queryInterface.removeColumn('Transactions', 'UsingVirtualCardFromCollectiveId');
   },
 };
+
+*/

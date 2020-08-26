@@ -1,4 +1,6 @@
-'use strict';
+/* This migration is archived */
+
+/* This migration is commented becaused it contained live code that is not supported anynmore */
 
 /**
  * This migration tries to populate as much `countryISO` as possible, with a special
@@ -7,6 +9,8 @@
  * It does it automatically for hosts we're sure about the country (eg. Brussels Together).
  * For events, we try to guess the country based on the location.address
  */
+
+/*
 module.exports = {
   up: async queryInterface => {
     // Update all known belgium groups
@@ -82,8 +86,6 @@ module.exports = {
   },
 
   down: () => {
-    /*
-      No revert for this migration.
-    */
   },
 };
+*/
