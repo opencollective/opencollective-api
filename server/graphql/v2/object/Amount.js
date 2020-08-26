@@ -9,7 +9,11 @@ export const Amount = new GraphQLObjectType({
     value: {
       type: GraphQLFloat,
       resolve(amount) {
-        return parseInt(amount.value, 10) / 100;
+        if (amount.value === null) {
+          return null;
+        } else {
+          return parseInt(amount.value, 10) / 100;
+        }
       },
     },
     currency: {
