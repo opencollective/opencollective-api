@@ -319,7 +319,7 @@ describe('server/lib/subscriptions', () => {
       emailMock.expects('send').never();
 
       // When the order above is processed
-      const entry = await processOrderWithSubscription({ dryRun: true }, order);
+      const entry = await processOrderWithSubscription(order, { dryRun: true });
 
       // Then nothing was attempted
       expect(entry.status).to.equal('unattempted');
@@ -357,7 +357,7 @@ describe('server/lib/subscriptions', () => {
         paymentsStub.resolves({ info: 'Transaction' });
 
         // When the order is processed
-        const entry = await processOrderWithSubscription({ dryRun: false }, order);
+        const entry = await processOrderWithSubscription(order, { dryRun: false });
 
         // Expect the mock expectations to be verified. The right
         // email was sent.
@@ -385,7 +385,7 @@ describe('server/lib/subscriptions', () => {
         paymentsStub.resolves({ info: 'Transaction' });
 
         // When the order is processed
-        const entry = await processOrderWithSubscription({ dryRun: false }, order);
+        const entry = await processOrderWithSubscription(order, { dryRun: false });
 
         // Expect the mock expectations to be verified. The right
         // email was sent.
@@ -412,7 +412,7 @@ describe('server/lib/subscriptions', () => {
         paymentsStub.rejects('TypeError -- Whatever');
 
         // When the order is processed
-        const entry = await processOrderWithSubscription({ dryRun: false }, order);
+        const entry = await processOrderWithSubscription(order, { dryRun: false });
 
         // Expect the mock expectations to be verified. The right
         // email was sent.
@@ -439,7 +439,7 @@ describe('server/lib/subscriptions', () => {
         paymentsStub.resolves({});
 
         // When the order is processed
-        const entry = await processOrderWithSubscription({ dryRun: false }, order);
+        const entry = await processOrderWithSubscription(order, { dryRun: false });
 
         // Then expect the stub of the payment lib to be called
         expect(paymentsStub.called).to.be.true;
@@ -459,7 +459,7 @@ describe('server/lib/subscriptions', () => {
         paymentsStub.rejects('TypeError -- Whatever');
 
         // When the order is processed
-        const entry = await processOrderWithSubscription({ dryRun: false }, order);
+        const entry = await processOrderWithSubscription(order, { dryRun: false });
 
         // Then expect the stub of the payment lib to be called
         expect(paymentsStub.called).to.be.true;
@@ -482,7 +482,7 @@ describe('server/lib/subscriptions', () => {
         await subscription.update({ chargeNumber: 2 });
 
         // When the order is processed
-        const entry = await processOrderWithSubscription({ dryRun: false }, order);
+        const entry = await processOrderWithSubscription(order, { dryRun: false });
 
         // Then expect the stub of the payment lib to NOT be called!
         // No charge should happen!!!
