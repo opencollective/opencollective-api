@@ -88,6 +88,9 @@ export const Transaction = new GraphQLInterfaceType({
       isRefunded: {
         type: GraphQLBoolean,
       },
+      isRefund: {
+        type: GraphQLBoolean,
+      },
       paymentMethod: {
         type: PaymentMethod,
       },
@@ -213,6 +216,9 @@ export const TransactionFields = () => {
       resolve(transaction) {
         return transaction.RefundTransactionId !== null;
       },
+    },
+    isRefund: {
+      type: GraphQLBoolean,
     },
     paymentMethod: {
       type: PaymentMethod,
