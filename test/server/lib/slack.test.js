@@ -59,22 +59,9 @@ describe('server/lib/slack', () => {
     it('with activity succeeds', done => {
       formatMessageStub.withArgs(activity, 'slack').returns(formattedMessage);
 
-      const expected = postMessageStub.withArgs(formattedMessage, webhookUrl, {});
+      const expected = postMessageStub.withArgs(formattedMessage, webhookUrl);
 
-      slackLib.postActivityOnPublicChannel(activity, webhookUrl, {});
-
-      expect(expected.called).to.be.ok;
-      done();
-    });
-
-    it('with options keeps the options', done => {
-      const options = { option1: 'option1', attachments: [] };
-
-      formatMessageStub.withArgs(activity, 'slack').returns(formattedMessage);
-
-      const expected = postMessageStub.withArgs(formattedMessage, webhookUrl, options);
-
-      slackLib.postActivityOnPublicChannel(activity, webhookUrl, options);
+      slackLib.postActivityOnPublicChannel(activity, webhookUrl);
 
       expect(expected.called).to.be.ok;
       done();

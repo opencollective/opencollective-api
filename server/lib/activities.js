@@ -1,5 +1,3 @@
-import flatten from 'flat';
-
 import activities from '../constants/activities';
 import { TransactionTypes } from '../constants/transactions';
 
@@ -286,14 +284,6 @@ export default {
       default:
         return '';
     }
-  },
-
-  formatAttachment: attachment => {
-    const flattenedData = flatten(attachment);
-    const rows = Object.keys(flattenedData)
-      .filter(key => flattenedData[key])
-      .map(key => `${key}: ${flattenedData[key]}`);
-    return rows.join('\n');
   },
 };
 

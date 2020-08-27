@@ -30,7 +30,7 @@
 | API_URL                             | .host.api                                   | API exposed url                                                                |
 | WEBSITE_URL                         | .host.website                               | UI URL                                                                         |
 | FRONTEND_URL                        | .host.frontend                              | URL of the frontend service (for caching)                                      |
-| SLACK_HOOK_URL                      | .slack.webhookUrl                           | slack hook url                                                                 |
+| SLACK_WEBHOOK_ABUSE                 | .slack.webhooks.abuse                       | slack abuse webhook url                                                        |
 | GITHUB_CLIENT_ID                    | .github.clientId                            | github client ID                                                               |
 | GITHUB_CLIENT_SECRET                | .github.clientSecret                        | github client secret                                                           |
 | MEETUP_CLIENT_ID                    | .meetup.clientId                            | meetup client ID                                                               |

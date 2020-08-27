@@ -4,7 +4,6 @@ import '../../server/env';
 process.env.PORT = 3066;
 
 import Promise from 'bluebird';
-import config from 'config';
 import debugLib from 'debug';
 import _, { get, pick, set } from 'lodash';
 
@@ -180,19 +179,11 @@ const postSlackMessage = async (message, webhookUrl, options = {}) => {
 };
 
 const postToSlack = async (message, slackAccount) => {
-  // post to slack.opencollective.com (bug: we send it twice if both `collective` and `host` have set up a Slack webhook)
-  await postSlackMessage(message, config.slack.webhookUrl, {
-    channel: config.slack.publicActivityChannel,
-    linkTwitterMentions: true,
-  });
-
   if (!slackAccount) {
     return console.warn(`No slack account to post ${message}`);
   }
 
-  await postSlackMessage(message, slackAccount.webhookUrl, {
-    linkTwitterMentions: true,
-  });
+  await postSlackMessage(message, slackAccount.webhookUrl, { linkTwitterMentions: true });
 };
 
 const sendTweet = async (tweet, twitterAccount, template) => {

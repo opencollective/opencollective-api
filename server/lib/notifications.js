@@ -17,14 +17,6 @@ import { enrichActivity, sanitizeActivity } from './webhooks';
 const debug = debugLib('notifications');
 
 export default async (Sequelize, activity) => {
-  // publish everything to our private channel
-  publishToSlackPrivateChannel(activity).catch(console.log);
-
-  // publish a filtered version to our public channel
-  publishToSlack(activity, config.slack.webhookUrl, {
-    channel: config.slack.publicActivityChannel,
-  }).catch(console.log);
-
   notifyByEmail(activity).catch(console.log);
 
   // process notification entries for slack, twitter, gitter
@@ -44,7 +36,7 @@ export default async (Sequelize, activity) => {
     if (notifConfig.channel === channels.GITTER) {
       return publishToGitter(activity, notifConfig);
     } else if (notifConfig.channel === channels.SLACK) {
-      return publishToSlack(activity, notifConfig.webhookUrl, {});
+      return slackLib.postActivityOnPublicChannel(activity, notifConfig.webhookUrl);
     } else if (notifConfig.channel === channels.TWITTER) {
       return twitter.tweetActivity(activity);
     } else if (notifConfig.channel === channels.WEBHOOK) {
@@ -75,14 +67,6 @@ function publishToWebhook(activity, webhookUrl) {
   const sanitizedActivity = sanitizeActivity(activity);
   const enrichedActivity = enrichActivity(sanitizedActivity);
   return axios.post(webhookUrl, enrichedActivity);
-}
-
-function publishToSlack(activity, webhookUrl, options) {
-  return slackLib.postActivityOnPublicChannel(activity, webhookUrl, options);
-}
-
-function publishToSlackPrivateChannel(activity) {
-  return slackLib.postActivityOnPrivateChannel(activity);
 }
 
 /**
