@@ -1447,8 +1447,8 @@ const CollectiveFields = () => {
       resolve(collective, args = {}, req) {
         const where = {};
 
-        if (args.status === 'PENDING') {
-          return req.loaders.Order.findPendingOrdersForCollective.load(collective.id);
+        if (args.status === 'PLEDGED') {
+          return req.loaders.Order.findPledgedOrdersForCollective.load(collective.id);
         } else if (args.status) {
           where.status = args.status;
         } else {

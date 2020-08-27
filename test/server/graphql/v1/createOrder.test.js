@@ -145,6 +145,7 @@ describe('server/graphql/v1/createOrder', () => {
       slug: 'test',
       name: 'test',
       isActive: false,
+      isPledged: true,
       website: 'https://github.com/opencollective/frontend',
     });
     const thisOrder = cloneDeep(baseOrder);
@@ -169,7 +170,7 @@ describe('server/graphql/v1/createOrder', () => {
     res.errors && console.error(res.errors);
     expect(res.errors).to.not.exist;
 
-    expect(res.data.createOrder.status).to.equal('PENDING');
+    expect(res.data.createOrder.status).to.equal('PLEDGED');
   });
 
   it('creates a pending order (pledge) with inactive subscription if interval is included and collective is not active', async () => {
@@ -177,6 +178,7 @@ describe('server/graphql/v1/createOrder', () => {
       slug: 'test',
       name: 'test',
       isActive: false,
+      isPledged: true,
       website: 'https://github.com/opencollective/frontend',
     });
     const thisOrder = cloneDeep(baseOrder);
@@ -202,7 +204,7 @@ describe('server/graphql/v1/createOrder', () => {
     res.errors && console.error(res.errors);
     expect(res.errors).to.not.exist;
 
-    expect(res.data.createOrder.status).to.equal('PENDING');
+    expect(res.data.createOrder.status).to.equal('PLEDGED');
     expect(res.data.createOrder.subscription.interval).to.equal('month');
   });
 
