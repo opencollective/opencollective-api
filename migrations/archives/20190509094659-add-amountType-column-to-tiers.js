@@ -1,3 +1,8 @@
+/* This migration is archived */
+
+/* This migration is commented becaused it contained live code that is not supported anynmore */
+
+/*
 'use strict';
 import { map } from 'bluebird';
 
@@ -40,3 +45,4 @@ module.exports = {
     await queryInterface.removeColumn('Tiers', colName);
   },
 };
+*/

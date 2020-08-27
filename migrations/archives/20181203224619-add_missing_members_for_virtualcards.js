@@ -1,10 +1,13 @@
+/* This migration is archived */
+
+/* This migration is commented becaused it contained live code that is not supported anynmore */
+
+/*
+
 'use strict';
 import roles from '../server/constants/roles';
 import models from '../server/models';
 
-/**
- * This migration creates members for past Subscriptions made with virtualcards.
- */
 module.exports = {
   up: async (queryInterface, Sequelize) => {
     // Fetch all transactions where a virtual card was used but no member associated
@@ -47,8 +50,7 @@ module.exports = {
   },
 
   down: (queryInterface, Sequelize) => {
-    /*
-      We cannot rollback this migration as it could delete legitimate members.
-    */
   },
 };
+
+*/
