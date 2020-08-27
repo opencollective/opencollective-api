@@ -19,6 +19,7 @@ import {
   TransactionType,
 } from '../enum';
 import { idEncode } from '../identifiers';
+import { AccountReferenceInput } from '../input/AccountReferenceInput';
 import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
 import { HasMembersFields } from '../interface/HasMembers';
 import { IsMemberOfFields } from '../interface/IsMemberOf';
@@ -142,6 +143,10 @@ const accountFieldsDefinition = () => ({
       accountType: {
         type: new GraphQLList(AccountType),
         description: 'Type of accounts (BOT/COLLECTIVE/EVENT/ORGANIZATION/INDIVIDUAL)',
+      },
+      account: {
+        type: AccountReferenceInput,
+        description: 'Specific account to query the membership of.',
       },
       orderBy: {
         type: new GraphQLNonNull(ChronologicalOrderInput),
