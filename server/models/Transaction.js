@@ -154,6 +154,11 @@ export default (Sequelize, DataTypes) => {
         references: { model: 'Transactions', key: 'id' },
       },
 
+      isRefund: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+      },
+
       createdAt: {
         type: DataTypes.DATE,
         defaultValue: Sequelize.NOW,

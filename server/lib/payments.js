@@ -197,6 +197,7 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
     refund.amount = -t.amount;
     refund.amountInHostCurrency = -t.amountInHostCurrency;
     refund.netAmountInCollectiveCurrency = -libtransactions.netAmount(t);
+    refund.isRefund = true;
     return refund;
   };
 
