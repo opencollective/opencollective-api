@@ -60,7 +60,7 @@ export const Tier = new GraphQLObjectType({
         },
       },
       amount: {
-        type: Amount,
+        type: new GraphQLNonNull(Amount),
         resolve(tier) {
           return { value: tier.amount, currency: tier.currency };
         },
@@ -84,7 +84,7 @@ export const Tier = new GraphQLObjectType({
         type: new GraphQLNonNull(TierAmountType),
       },
       minimumAmount: {
-        type: Amount,
+        type: new GraphQLNonNull(Amount),
         resolve(tier) {
           return { value: tier.minimumAmount };
         },

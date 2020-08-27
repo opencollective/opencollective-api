@@ -1,5 +1,4 @@
-import { GraphQLObjectType, GraphQLString } from 'graphql';
-// import { GraphQLInt } from 'graphql';
+import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 
 import { MemberRole } from '../enum/MemberRole';
@@ -57,7 +56,7 @@ const MemberFields = {
     },
   },
   totalDonations: {
-    type: Amount,
+    type: new GraphQLNonNull(Amount),
     description: 'Total amount donated',
     async resolve(member, args, req) {
       if (member.totalDonations) {

@@ -1,4 +1,4 @@
-import { GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 
 import models from '../../../models';
@@ -33,7 +33,7 @@ export const Order = new GraphQLObjectType({
         },
       },
       amount: {
-        type: Amount,
+        type: new GraphQLNonNull(Amount),
         resolve(order) {
           return { value: order.totalAmount, currency: order.currency };
         },
@@ -94,7 +94,7 @@ export const Order = new GraphQLObjectType({
         },
       },
       totalDonations: {
-        type: Amount,
+        type: new GraphQLNonNull(Amount),
         description:
           'WARNING: Total amount donated between collectives, though there will be edge cases especially when looking on the Order level, as the order id is not used in calculating this.',
         async resolve(order, args, req) {

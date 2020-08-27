@@ -1,4 +1,4 @@
-import { GraphQLInt, GraphQLList, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import GraphQLJSON from 'graphql-type-json';
 import { get, pick } from 'lodash';
 
@@ -45,7 +45,7 @@ export const PaymentMethod = new GraphQLObjectType({
         resolve: getPaymentMethodType,
       },
       balance: {
-        type: Amount,
+        type: new GraphQLNonNull(Amount),
         description: 'Returns the balance amount and the currency of this paymentMethod',
         async resolve(paymentMethod, args, req) {
           const balance = await paymentMethod.getBalanceForUser(req.remoteUser);
