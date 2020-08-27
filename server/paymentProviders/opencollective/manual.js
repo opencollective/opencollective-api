@@ -37,7 +37,7 @@ async function processOrder(order) {
   // Pick the first that is set as a Number
   const platformFeePercent = [
     // Fixed in the Order (special tiers: BackYourStack, Pre-Paid)
-    order.data?.hostFeePercent,
+    order.data?.platformFeePercent,
     // Fixed for Bank Transfers at collective level
     order.collective.data?.bankTransfersPlatformFeePercent,
     // Fixed for Bank Transfers at host level
