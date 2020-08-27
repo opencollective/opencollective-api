@@ -1,7 +1,6 @@
-import config from 'config';
 import { clamp } from 'lodash';
 
-import slackLib from '../lib/slack';
+import slackLib, { OPEN_COLLECTIVE_SLACK_CHANNEL } from '../lib/slack';
 
 /** Return type when running a spam analysis */
 export type SpamAnalysisReport = {
@@ -226,9 +225,7 @@ export const notifyTeamAboutSuspiciousCollective = async (report: SpamAnalysisRe
   message = addLine(`Score: ${score}`);
   message = addLine(keywords.length > 0 && `Keywords: \`${keywords.toString()}\``);
   message = addLine(domains.length > 0 && `Domains: \`${domains.toString()}\``);
-  return slackLib.postMessage(message, config.slack.webhookUrl, {
-    channel: config.slack.abuseChannel,
-  });
+  return slackLib.postMessageToOpenCollectiveSlack(message, OPEN_COLLECTIVE_SLACK_CHANNEL.ABUSE);
 };
 
 /**
@@ -248,7 +245,5 @@ export const notifyTeamAboutPreventedCollectiveCreate = async (
   message = addLine(domains.length > 0 && `Domains: \`${domains.toString()}\``);
   message = addLine(`Collective data:`);
   message = addLine(`> ${JSON.stringify(report.data)}`);
-  return slackLib.postMessage(message, config.slack.webhookUrl, {
-    channel: config.slack.abuseChannel,
-  });
+  return slackLib.postMessageToOpenCollectiveSlack(message, OPEN_COLLECTIVE_SLACK_CHANNEL.ABUSE);
 };

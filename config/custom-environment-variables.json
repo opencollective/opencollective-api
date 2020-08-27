@@ -105,7 +105,9 @@
     }
   },
   "slack": {
-    "webhookUrl": "SLACK_HOOK_URL"
+    "webhooks": {
+      "abuse": "SLACK_WEBHOOK_ABUSE"
+    }
   },
   "github": {
     "clientID": "GITHUB_CLIENT_ID",

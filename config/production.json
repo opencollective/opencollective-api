@@ -28,10 +28,6 @@
   "stripe": {
     "redirectUri": "https://api.opencollective.com/connected-accounts/stripe/callback"
   },
-  "slack": {
-    "privateActivityChannel": "#activity-private",
-    "publicActivityChannel": "#activity-public"
-  },
   "paypal": {
     "rest": {
       "mode": "live"

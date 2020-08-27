@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import config from 'config';
 import sinon from 'sinon';
 
 import slackLib from '../../../server/lib/slack';
@@ -97,7 +98,7 @@ describe('server/lib/spam', () => {
       expect(args[0]).to.eq(
         '*Suspicious collective data was submitted for collective:* https://opencollective.com/ketoooo\nScore: 0.3\nKeywords: `keto`',
       );
-      expect(args[2].channel).to.eq('#abuse');
+      expect(args[1]).to.eq(config.slack.webhooks.abuse);
     });
   });
 
@@ -121,7 +122,7 @@ describe('server/lib/spam', () => {
       expect(args[0]).to.eq(
         'A collective creation was prevented and the user has been put in limited mode.\nKeywords: `keto`\nCollective data:\n> {"name":"Keto stuff","slug":"ketoooo"}',
       );
-      expect(args[2].channel).to.eq('#abuse');
+      expect(args[1]).to.eq(config.slack.webhooks.abuse);
     });
   });
 });

@@ -11,12 +11,10 @@ if (process.env.NODE_ENV === 'production' && today.getDate() !== 1) {
 process.env.PORT = 3066;
 
 import Promise from 'bluebird';
-import config from 'config';
 import debugLib from 'debug';
 import _, { get, pick, set } from 'lodash';
 import moment from 'moment';
 
-import slackLib from '../../server/lib/slack';
 import twitter from '../../server/lib/twitter';
 import models from '../../server/models';
 const d = new Date();
@@ -29,14 +27,6 @@ const endDate = new Date(d.getFullYear(), d.getMonth() + 1, 1);
 console.log('startDate', startDate, 'endDate', endDate);
 
 const debug = debugLib('monthlyreport');
-
-async function publishToSlack(message, webhookUrl, options) {
-  try {
-    return slackLib.postMessage(message, webhookUrl, options);
-  } catch (e) {
-    console.warn('Unable to post to slack', e);
-  }
-}
 
 const init = () => {
   const startTime = new Date();
@@ -188,12 +178,6 @@ const sendTweet = async (twitterAccount, data) => {
       // eslint-disable-next-line camelcase
       in_reply_to_status_id: get(twitterAccount, 'settings.monthlyStats.lastTweetId'),
     });
-    const tweetUrl = `https://twitter.com/${res.user.screen_name}/status/${res.id_str}`;
-    // publish to slack.opencollective.com
-    await publishToSlack(tweetUrl, config.slack.webhookUrl, {
-      channel: config.slack.publicActivityChannel,
-    });
-
     set(twitterAccount, 'settings.monthlyStats.lastTweetId', res.id_str);
     set(twitterAccount, 'settings.monthlyStats.lastTweetSentAt', new Date(res.created_at));
     twitterAccount.save();
