@@ -1,21 +1,22 @@
-import { GraphQLNonNull } from 'graphql';
+import { GraphQLNonNull, GraphQLObjectType } from 'graphql';
 import { isNil } from 'lodash';
 
 import activities from '../../../constants/activities';
 import status from '../../../constants/order_status';
 import models from '../../../models';
 import { NotFound, Unauthorized } from '../../errors';
-import { createOrder as createOrderLegacy } from '../../v1/mutations/orders';
+import { confirmOrder as confirmOrderLegacy, createOrder as createOrderLegacy } from '../../v1/mutations/orders';
 import { getIntervalFromContributionFrequency } from '../enum/ContributionFrequency';
 import { getDecodedId } from '../identifiers';
 import { fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { AmountInput, getValueInCentsFromAmountInput } from '../input/AmountInput';
 import { OrderCreateInput } from '../input/OrderCreateInput';
-import { OrderReferenceInput } from '../input/OrderReferenceInput';
+import { fetchOrderWithReference, OrderReferenceInput } from '../input/OrderReferenceInput';
 import { getLegacyPaymentMethodFromPaymentMethodInput } from '../input/PaymentMethodInput';
 import { fetchPaymentMethodWithReference, PaymentMethodReferenceInput } from '../input/PaymentMethodReferenceInput';
 import { fetchTierWithReference, TierReferenceInput } from '../input/TierReferenceInput';
 import { Order } from '../object/Order';
+import { StripeError } from '../object/StripeError';
 
 const modelArray = [
   { model: models.Subscription },
@@ -23,9 +24,24 @@ const modelArray = [
   { model: models.Collective, as: 'fromCollective' },
 ];
 
+const OrderWithPayment = new GraphQLObjectType({
+  name: 'OrderWithPayment',
+  fields: {
+    order: {
+      type: new GraphQLNonNull(Order),
+      description: 'The order created',
+    },
+    stripeError: {
+      type: StripeError,
+      description:
+        'This field will be set if the order was created but there was an error with Stripe during the payment',
+    },
+  },
+});
+
 const orderMutations = {
   createOrder: {
-    type: GraphQLNonNull(Order),
+    type: GraphQLNonNull(OrderWithPayment),
     description: 'To submit a new order',
     args: {
       order: {
@@ -67,7 +83,8 @@ const orderMutations = {
         platformFee,
       };
 
-      return createOrderLegacy(legacyOrderObj, req.loaders, req.remoteUser, req.ip);
+      const orderCreated = await createOrderLegacy(legacyOrderObj, req.loaders, req.remoteUser, req.ip);
+      return { order: orderCreated, stripeError: orderCreated.stripeError };
     },
   },
   cancelOrder: {
@@ -273,6 +290,22 @@ const orderMutations = {
       }
 
       return order;
+    },
+  },
+  confirmOrder: {
+    type: new GraphQLNonNull(OrderWithPayment),
+    args: {
+      order: {
+        type: new GraphQLNonNull(OrderReferenceInput),
+      },
+    },
+    async resolve(_, args, req) {
+      const baseOrder = await fetchOrderWithReference(args.order);
+      const updatedOrder = await confirmOrderLegacy(baseOrder, req.remoteUser);
+      return {
+        order: updatedOrder,
+        stripeError: updatedOrder.stripeError,
+      };
     },
   },
 };
