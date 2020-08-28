@@ -11,7 +11,6 @@ import { types } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import status from '../../../constants/order_status';
 import roles from '../../../constants/roles';
-import { OC_FEE_PERCENT } from '../../../constants/transactions';
 import { VAT_OPTIONS } from '../../../constants/vat';
 import cache from '../../../lib/cache';
 import { purgeCacheForPage } from '../../../lib/cloudflare';
@@ -1007,11 +1006,7 @@ export async function addFundsToCollective(order, remoteUser) {
   }
 
   if (!isNil(order.platformFeePercent)) {
-    if (order.platformFeePercent !== OC_FEE_PERCENT && !remoteUser.isRoot()) {
-      throw new Error('Only root user can customize the platformFeePercent');
-    } else {
-      orderData.data.platformFeePercent = order.platformFeePercent;
-    }
+    orderData.data.platformFeePercent = order.platformFeePercent;
   }
 
   const orderCreated = await models.Order.create(orderData);
