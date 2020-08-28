@@ -21,6 +21,7 @@ export function setupModels(client) {
     'CommentReaction',
     'Conversation',
     'ConversationFollower',
+    'CurrencyExchangeRate',
     'Expense',
     'ExpenseAttachedFile',
     'ExpenseItem',
