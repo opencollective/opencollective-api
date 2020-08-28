@@ -1,7 +1,7 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLList, GraphQLNonNull } from 'graphql';
 import GraphQLJSON from 'graphql-type-json';
 
-import { OrderFrequency } from '../enum/OrderFrequency';
+import { ContributionFrequency } from '../enum/ContributionFrequency';
 
 import { AccountReferenceInput } from './AccountReferenceInput';
 import { AmountInput } from './AmountInput';
@@ -22,7 +22,7 @@ export const OrderCreateInput = new GraphQLInputObjectType({
       description: 'The contribution amount for 1 quantity, without platform contribution and taxes',
     },
     frequency: {
-      type: new GraphQLNonNull(OrderFrequency),
+      type: new GraphQLNonNull(ContributionFrequency),
     },
     fromAccount: {
       type: new GraphQLNonNull(AccountReferenceInput),

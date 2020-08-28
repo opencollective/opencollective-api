@@ -2,7 +2,7 @@ import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 
 import models from '../../../models';
-import { OrderFrequency, OrderStatus } from '../enum';
+import { ContributionFrequency, OrderStatus } from '../enum';
 import { idEncode } from '../identifiers';
 import { Account } from '../interface/Account';
 import { Amount } from '../object/Amount';
@@ -45,7 +45,7 @@ export const Order = new GraphQLObjectType({
         },
       },
       frequency: {
-        type: OrderFrequency,
+        type: ContributionFrequency,
         async resolve(order) {
           const subscription = await order.getSubscription();
           if (!subscription) {
