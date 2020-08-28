@@ -50,13 +50,13 @@ export const Transaction = new GraphQLInterfaceType({
         type: GraphQLString,
       },
       amount: {
-        type: Amount,
+        type: new GraphQLNonNull(Amount),
       },
       netAmount: {
-        type: Amount,
+        type: new GraphQLNonNull(Amount),
       },
       platformFee: {
-        type: Amount,
+        type: new GraphQLNonNull(Amount),
       },
       hostFee: {
         type: Amount,
@@ -131,13 +131,13 @@ export const TransactionFields = () => {
       },
     },
     amount: {
-      type: Amount,
+      type: new GraphQLNonNull(Amount),
       resolve(transaction) {
         return { value: transaction.amount, currency: transaction.currency };
       },
     },
     netAmount: {
-      type: Amount,
+      type: new GraphQLNonNull(Amount),
       resolve(transaction) {
         return {
           value: transaction.netAmountInCollectiveCurrency,
@@ -146,7 +146,7 @@ export const TransactionFields = () => {
       },
     },
     platformFee: {
-      type: Amount,
+      type: new GraphQLNonNull(Amount),
       resolve(transaction) {
         return {
           value: transaction.platformFeeInHostCurrency || 0,
@@ -155,7 +155,7 @@ export const TransactionFields = () => {
       },
     },
     hostFee: {
-      type: Amount,
+      type: new GraphQLNonNull(Amount),
       resolve(transaction) {
         return {
           value: transaction.hostFeeInHostCurrency || 0,
@@ -164,7 +164,7 @@ export const TransactionFields = () => {
       },
     },
     paymentProcessorFee: {
-      type: Amount,
+      type: new GraphQLNonNull(Amount),
       resolve(transaction) {
         return {
           value: transaction.paymentProcessorFeeInHostCurrency || 0,
