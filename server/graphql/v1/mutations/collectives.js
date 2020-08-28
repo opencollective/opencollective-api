@@ -44,6 +44,7 @@ export async function createCollective(_, args, req) {
   if (location) {
     collectiveData.locationName = location.name;
     collectiveData.address = location.address;
+    collectiveData.countryISO = location.country;
     if (location.lat) {
       collectiveData.geoLocationLatLong = {
         type: 'Point',

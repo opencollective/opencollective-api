@@ -124,6 +124,7 @@ export const UserInputType = new GraphQLInputObjectType({
     website: { type: GraphQLString },
     paypalEmail: { type: GraphQLString, deprecationReason: '2020-01-21: Replaced by PayoutMethods' },
     newsletterOptIn: { type: GraphQLBoolean },
+    location: { type: LocationInputType },
   }),
 });
 
