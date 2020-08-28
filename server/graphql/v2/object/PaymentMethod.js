@@ -2,8 +2,8 @@ import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLStri
 import GraphQLJSON from 'graphql-type-json';
 import { get, pick } from 'lodash';
 
-import { PaymentMethodType } from '../enum';
-import { getPaymentMethodType } from '../enum/PaymentMethodType';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPES } from '../../../constants/paymentMethods';
+import { getPaymentMethodType, PaymentMethodType } from '../enum/PaymentMethodType';
 import { idEncode } from '../identifiers';
 import { Account } from '../interface/Account';
 import { Amount } from '../object/Amount';
@@ -28,8 +28,17 @@ export const PaymentMethod = new GraphQLObjectType({
         },
       },
       name: {
-        // last 4 digit of card number for Stripe
         type: GraphQLString,
+        resolve(paymentMethod, _, req) {
+          if (
+            paymentMethod.service === PAYMENT_METHOD_SERVICE.PAYPAL &&
+            paymentMethod.type === PAYMENT_METHOD_TYPES.ADAPTIVE
+          ) {
+            return req.remoteUser?.isAdmin(paymentMethod.CollectiveId) ? paymentMethod.name : null;
+          } else {
+            return paymentMethod.name;
+          }
+        },
       },
       service: {
         type: GraphQLString,
@@ -100,6 +109,9 @@ export const PaymentMethod = new GraphQLObjectType({
         },
       },
       expiryDate: {
+        type: ISODateTime,
+      },
+      createdAt: {
         type: ISODateTime,
       },
     };

@@ -20,6 +20,7 @@ import status from '../../constants/expense_status';
 import intervals from '../../constants/intervals';
 import { maxInteger } from '../../constants/math';
 import orderStatus from '../../constants/order_status';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPES } from '../../constants/paymentMethods';
 import roles from '../../constants/roles';
 import { getCollectiveAvatarUrl } from '../../lib/collectivelib';
 import { getContributorsForTier } from '../../lib/contributors';
@@ -2020,8 +2021,15 @@ export const PaymentMethodType = new GraphQLObjectType({
       name: {
         // last 4 digit of card number for Stripe
         type: GraphQLString,
-        resolve(paymentMethod) {
-          return paymentMethod.name;
+        resolve(paymentMethod, _, req) {
+          if (
+            paymentMethod.service === PAYMENT_METHOD_SERVICE.PAYPAL &&
+            paymentMethod.type === PAYMENT_METHOD_TYPES.ADAPTIVE
+          ) {
+            return req.remoteUser?.isAdmin(paymentMethod.CollectiveId) ? paymentMethod.name : null;
+          } else {
+            return paymentMethod.name;
+          }
         },
       },
       description: {

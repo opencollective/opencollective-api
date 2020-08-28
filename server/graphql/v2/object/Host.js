@@ -1,12 +1,17 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 import { find, get } from 'lodash';
 
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
+import models from '../../../models';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
+import TransferwiseLib from '../../../paymentProviders/transferwise';
 import { PaymentMethodType, PayoutMethodType } from '../enum';
 import { Account, AccountFields } from '../interface/Account';
 import URL from '../scalar/URL';
 
+import { Amount } from './Amount';
 import { HostPlan } from './HostPlan';
+import { PaymentMethod } from './PaymentMethod';
 
 export const Host = new GraphQLObjectType({
   name: 'Host',
@@ -71,6 +76,19 @@ export const Host = new GraphQLObjectType({
           return supportedPaymentMethods;
         },
       },
+      paypalPreApproval: {
+        type: PaymentMethod,
+        description: 'Paypal preapproval info. Returns null if PayPal account is not connected.',
+        resolve: async host => {
+          return models.PaymentMethod.findOne({
+            where: {
+              CollectiveId: host.id,
+              service: PAYMENT_METHOD_SERVICE.PAYPAL,
+              type: PAYMENT_METHOD_TYPE.ADAPTIVE,
+            },
+          });
+        },
+      },
       supportedPayoutMethods: {
         type: new GraphQLList(PayoutMethodType),
         description: 'The list of payout methods this Host accepts for its expenses',
@@ -85,6 +103,24 @@ export const Host = new GraphQLObjectType({
           }
 
           return supportedPayoutMethods;
+        },
+      },
+      transferwiseBalances: {
+        type: new GraphQLList(Amount),
+        description: 'Transferwise balances. Returns null if Transferwise account is not connected.',
+        resolve: async host => {
+          const transferwiseAccount = await models.ConnectedAccount.findOne({
+            where: { CollectiveId: host.id, service: 'transferwise' },
+          });
+
+          if (transferwiseAccount) {
+            return TransferwiseLib.getAccountBalances(transferwiseAccount).then(balances => {
+              return balances.map(balance => ({
+                value: balance.amount.value,
+                currency: balance.amount.currency,
+              }));
+            });
+          }
         },
       },
     };
