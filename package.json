@@ -115,7 +115,7 @@
     "chai-jest-snapshot": "^2.0.0",
     "codecov": "^3.7.2",
     "commitizen": "^4.2.1",
-    "cz-conventional-changelog": "^3.2.1",
+    "cz-conventional-changelog": "^3.3.0",
     "eslint": "^7.7.0",
     "eslint-config-opencollective": "^2.2.0",
     "eslint-plugin-babel": "^5.3.1",
