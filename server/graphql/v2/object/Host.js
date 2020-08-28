@@ -98,7 +98,7 @@ export const Host = new GraphQLObjectType({
           if (connectedAccounts?.find?.(c => c.service === 'transferwise')) {
             supportedPayoutMethods.push(PayoutMethodTypes.BANK_ACCOUNT);
           }
-          if (!collective.settings?.disablePaypalPayouts) {
+          if (connectedAccounts?.find?.(c => c.service === 'paypal') || !collective.settings?.disablePaypalPayouts) {
             supportedPayoutMethods.push(PayoutMethodTypes.PAYPAL);
           }
 
