@@ -1,4 +1,5 @@
 import accountMutations from './AccountMutations';
+import { addFundsMutation } from './AddFundsMutations';
 import collectiveMutations from './CollectiveMutations';
 import commentMutations from './CommentMutations';
 import commentReactionMutations from './CommentReactionMutations';
@@ -15,6 +16,7 @@ import payoutMethodMutations from './PayoutMethodMutations';
 import transactionMutations from './TransactionMutations';
 
 const mutation = {
+  addFunds: addFundsMutation,
   createCollective: createCollectiveMutation,
   createFund: createFundMutation,
   createProject: createProjectMutation,
