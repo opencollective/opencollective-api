@@ -56,7 +56,7 @@ export default {
 
     return new Promise((resolve, reject) => {
       // production check
-      if (process.env.NODE_ENV !== 'production' && !process.env.TEST_SLACK) {
+      if (config.env !== 'production' && !process.env.TEST_SLACK) {
         return resolve();
       }
 

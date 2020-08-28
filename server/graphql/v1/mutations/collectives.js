@@ -208,7 +208,7 @@ export async function createCollectiveFromGithub(_, args, req) {
   };
 
   // For e2e testing, we enable testuser+(admin|member)@opencollective.com to create collective without github validation
-  if (process.env.NODE_ENV !== 'production' && user.email.match(/.*test.*@opencollective.com$/)) {
+  if (config.env !== 'production' && user.email.match(/.*test.*@opencollective.com$/)) {
     const existingCollective = models.Collective.findOne({
       where: { slug: collectiveData.slug.toLowerCase() },
     });

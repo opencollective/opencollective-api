@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import '../../server/env';
 
+import config from 'config';
 import { v4 as uuid } from 'uuid';
 
 import { sumTransactions } from '../../server/lib/hostlib';
@@ -8,8 +9,8 @@ import models, { Op } from '../../server/models';
 
 // Only run on the first of the month
 const today = new Date();
-if (process.env.NODE_ENV === 'production' && today.getDate() !== 1 && !process.env.OFFCYCLE) {
-  console.log('NODE_ENV is production and today is not the first of month, script aborted!');
+if (config.env === 'production' && today.getDate() !== 1 && !process.env.OFFCYCLE) {
+  console.log('OC_ENV is production and today is not the first of month, script aborted!');
   process.exit();
 }
 

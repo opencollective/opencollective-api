@@ -1,4 +1,5 @@
 import Promise from 'bluebird';
+import config from 'config';
 import debugLib from 'debug';
 import { get, intersection } from 'lodash';
 import { Op } from 'sequelize';
@@ -180,7 +181,7 @@ export default function (Sequelize, DataTypes) {
               throw new Error(`${instance.service} payment method requires a token`);
             }
             if (instance.service === 'stripe' && !instance.token.match(/^(tok|src|pm)_[a-zA-Z0-9]{24}/)) {
-              if (process.env.NODE_ENV !== 'production' && isTestToken(instance.token)) {
+              if (config.env !== 'production' && isTestToken(instance.token)) {
                 // test token for end to end tests
               } else {
                 throw new Error(`Invalid Stripe token ${instance.token}`);

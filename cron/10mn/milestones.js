@@ -4,6 +4,7 @@ import '../../server/env';
 process.env.PORT = 3066;
 
 import Promise from 'bluebird';
+import config from 'config';
 import debugLib from 'debug';
 import _, { get, pick, set } from 'lodash';
 
@@ -16,7 +17,7 @@ import models, { Op, sequelize } from '../../server/models';
 const TenMinutesAgo = new Date();
 TenMinutesAgo.setMinutes(TenMinutesAgo.getMinutes() - 10);
 
-if (process.env.NODE_ENV !== 'production') {
+if (config.env !== 'production') {
   TenMinutesAgo.setDate(TenMinutesAgo.getDate() - 40);
 }
 
@@ -188,7 +189,7 @@ const postToSlack = async (message, slackAccount) => {
 
 const sendTweet = async (tweet, twitterAccount, template) => {
   console.log('>>> sending tweet:', tweet.length, tweet);
-  if (process.env.NODE_ENV === 'production') {
+  if (config.env === 'production') {
     try {
       const res = await twitter.tweetStatus(twitterAccount, tweet, null, {
         // We thread the tweet with the previous milestone

@@ -2654,8 +2654,8 @@ export default function (Sequelize, DataTypes) {
               `The host for the ${this.name} collective has no Stripe account set up (HostCollectiveId: ${HostCollectiveId})`,
             ),
           );
-        } else if (process.env.NODE_ENV !== 'production' && includes(stripeAccount.token, 'live')) {
-          return Promise.reject(new Error(`You can't use a Stripe live key on ${process.env.NODE_ENV}`));
+        } else if (config.env !== 'production' && includes(stripeAccount.token, 'live')) {
+          return Promise.reject(new Error(`You can't use a Stripe live key on ${config.env}`));
         } else {
           return stripeAccount;
         }

@@ -1,22 +1,24 @@
 #!/usr/bin/env node
 import '../../server/env';
 
-// Only run on the first of the month
-const today = new Date();
-if (process.env.NODE_ENV === 'production' && today.getDate() !== 1) {
-  console.log('NODE_ENV is production and today is not the first of month, script aborted!');
-  process.exit();
-}
-
-process.env.PORT = 3066;
-
 import Promise from 'bluebird';
+import config from 'config';
 import debugLib from 'debug';
 import _, { get, pick, set } from 'lodash';
 import moment from 'moment';
 
 import twitter from '../../server/lib/twitter';
 import models from '../../server/models';
+
+// Only run on the first of the month
+const today = new Date();
+if (config.env === 'production' && today.getDate() !== 1) {
+  console.log('OC_ENV is production and today is not the first of month, script aborted!');
+  process.exit();
+}
+
+process.env.PORT = 3066;
+
 const d = new Date();
 d.setMonth(d.getMonth() - 1);
 const month = moment(d).format('MMMM');

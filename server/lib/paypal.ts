@@ -1,5 +1,6 @@
 /* eslint-disable camelcase */
 import paypal from '@paypal/payouts-sdk';
+import config from 'config';
 
 import { PayoutBatchDetails, PayoutRequestBody, PayoutRequestResult } from '../types/paypal';
 
@@ -21,7 +22,7 @@ type ConnectedAccount = {
 
 const getPayPalClient = ({ token, clientId }: ConnectedAccount): ReturnType<typeof paypal.core.PayPalHttpClient> => {
   const environment =
-    process.env.NODE_ENV === 'production'
+    config.env === 'production'
       ? new paypal.core.LiveEnvironment(clientId, token)
       : new paypal.core.SandboxEnvironment(clientId, token);
 
