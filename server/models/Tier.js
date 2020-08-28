@@ -76,7 +76,17 @@ export default function (Sequelize, DataTypes) {
         defaultValue: 'TIER',
       },
 
-      description: DataTypes.STRING(510),
+      description: {
+        type: DataTypes.STRING(510),
+        validate: {
+          length(description) {
+            if (description?.length > 510) {
+              const tierName = this.getDataValue('name');
+              throw new Error(`In "${tierName}" tier, the description is too long (must be less than 510 characters)`);
+            }
+          },
+        },
+      },
 
       longDescription: {
         type: DataTypes.TEXT,
