@@ -52,11 +52,11 @@ export const Activity = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLJSON),
       description: 'Data attached to this activity (if any)',
       resolve(activity): object {
+        const toPick = ['error'];
         if (activity.type === ACTIVITY.COLLECTIVE_EXPENSE_PAID) {
-          return pick(activity.data, ['isManualPayout']);
-        } else {
-          return {};
+          toPick.push('isManualPayout');
         }
+        return pick(activity.data, toPick);
       },
     },
   }),
