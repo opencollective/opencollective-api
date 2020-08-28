@@ -3,7 +3,7 @@ import { Model } from 'sequelize';
 import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
 
 /**
- * Sequelize model to represent an ExpenseAttachedFile, linked to the `ExpenseAttachedFiles` table.
+ * Sequelize model to represent an CurrencyExchangeRate, linked to the `CurrencyExchangeRates` table.
  */
 export class CurrencyExchangeRate extends Model<CurrencyExchangeRate> {
   public readonly id!: number;
