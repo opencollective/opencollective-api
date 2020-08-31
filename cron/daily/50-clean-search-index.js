@@ -47,7 +47,12 @@ const cleanIndex = async () => {
         },
       ],
       type: {
-        [Op.or]: [collectiveTypes.COLLECTIVE, collectiveTypes.ORGANIZATION],
+        [Op.or]: [
+          collectiveTypes.COLLECTIVE,
+          collectiveTypes.ORGANIZATION,
+          collectiveTypes.FUND,
+          collectiveTypes.EVENT,
+        ],
       },
     },
     attributes: ['id'],
