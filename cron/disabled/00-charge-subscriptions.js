@@ -48,7 +48,7 @@ const startTime = new Date();
 async function run(options) {
   options.startDate = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date();
 
-  const queue = new PQueue({ concurrency: options.concurrency });
+  const queue = new PQueue({ concurrency: Number(options.concurrency) });
 
   const { count, rows: orders } = await ordersWithPendingCharges({
     limit: options.limit,
