@@ -51,12 +51,18 @@ export const Activity = new GraphQLObjectType({
     data: {
       type: new GraphQLNonNull(GraphQLJSON),
       description: 'Data attached to this activity (if any)',
-      resolve(activity): object {
+      async resolve(activity, _, req): Promise<object> {
+        const toPick = [];
         if (activity.type === ACTIVITY.COLLECTIVE_EXPENSE_PAID) {
-          return pick(activity.data, ['isManualPayout']);
-        } else {
-          return {};
+          toPick.push('isManualPayout');
         }
+        if (activity.type === ACTIVITY.COLLECTIVE_EXPENSE_ERROR) {
+          const collective = await req.loaders.Collective.byId.load(activity.CollectiveId);
+          if (req.remoteUser?.isAdmin(collective.HostCollectiveId)) {
+            toPick.push('error');
+          }
+        }
+        return pick(activity.data, toPick);
       },
     },
   }),
