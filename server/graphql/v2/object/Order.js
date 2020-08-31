@@ -1,10 +1,11 @@
-import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 
 import models from '../../../models';
 import { ContributionFrequency, OrderStatus } from '../enum';
 import { idEncode } from '../identifiers';
 import { Account } from '../interface/Account';
+import { Transaction } from '../interface/Transaction';
 import { Amount } from '../object/Amount';
 import { PaymentMethod } from '../object/PaymentMethod';
 import { Tier } from '../object/Tier';
@@ -14,17 +15,14 @@ export const Order = new GraphQLObjectType({
   description: 'Order model',
   fields: () => {
     return {
-      // _internal_id: {
-      //   type: GraphQLInt,
-      //   resolve(order) {
-      //     return order.id;
-      //   },
-      // },
       id: {
-        type: GraphQLString,
+        type: new GraphQLNonNull(GraphQLString),
         resolve(order) {
           return idEncode(order.id, 'order');
         },
+      },
+      legacyId: {
+        type: new GraphQLNonNull(GraphQLInt),
       },
       description: {
         type: GraphQLString,
@@ -79,6 +77,13 @@ export const Order = new GraphQLObjectType({
         type: Account,
         resolve(order) {
           return order.getCollective();
+        },
+      },
+      transactions: {
+        description: 'Transactions for this order ordered by createdAt ASC',
+        type: new GraphQLNonNull(new GraphQLList(Transaction)),
+        resolve(order, _, req) {
+          return req.loaders.Transaction.byOrderId.load(order.id);
         },
       },
       createdAt: {
