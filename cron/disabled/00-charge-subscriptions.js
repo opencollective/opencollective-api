@@ -72,6 +72,7 @@ async function run(options) {
 
   queue.onIdle().then(async () => {
     if (data.length === 0) {
+      await sequelize.close();
       vprint(options, 'Not generating CSV file');
       // We used to send a "ReportNoCharges" here but we're stopping this while moving to an Hourly schedule
       return;
