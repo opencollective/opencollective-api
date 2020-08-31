@@ -10,8 +10,10 @@ import status from '../constants/order_status';
 import models from '../models';
 
 import emailLib from './email';
+import logger from './logger';
 import * as paymentsLib from './payments';
 import { isHostPlan } from './plans';
+import { sleep } from './utils';
 
 /** Maximum number of attempts before an order gets cancelled. */
 export const MAX_RETRIES = 5;
@@ -21,7 +23,7 @@ export const MAX_RETRIES = 5;
  * Subscriptions are considered due if their `nextChargeDate` is
  * already past.
  */
-export async function ordersWithPendingCharges({ limit } = {}) {
+export async function ordersWithPendingCharges({ limit, startDate } = {}) {
   return models.Order.findAndCountAll({
     where: {
       SubscriptionId: { [Op.ne]: null },
@@ -40,8 +42,8 @@ export async function ordersWithPendingCharges({ limit } = {}) {
           isActive: true,
           deletedAt: null,
           deactivatedAt: null,
-          activatedAt: { [Op.lte]: new Date() },
-          nextChargeDate: { [Op.lte]: new Date() },
+          activatedAt: { [Op.lte]: startDate || new Date() },
+          nextChargeDate: { [Op.lte]: startDate || new Date() },
         },
       },
     ],
@@ -57,7 +59,22 @@ function hasReachedQuantity(order) {
  * Uses `lib.payments.processOrder()` to charge subscription and
  * handle both success and failure of that processing.
  */
-export async function processOrderWithSubscription(options, order) {
+export async function processOrderWithSubscription(order, options) {
+  // Refetch Order to be on the safe side (maybe it changed since it was retrieved)
+  if (!options.dryRun) {
+    const refetchOrder = await models.Order.findByPk(order.id);
+    if (!refetchOrder || refetchOrder.deletedAt || refetchOrder.updatedAt.getTime() !== order.updatedAt.getTime()) {
+      logger.info(`skipping order: ${order.id}, deleted, deactivated or updated since it was fetched.`);
+      return;
+    }
+  }
+
+  logger.info(
+    `order: ${order.id}, subscription: ${order.Subscription.id}, ` +
+      `attempt: #${order.Subscription.chargeRetryCount}, ` +
+      `due: ${order.Subscription.nextChargeDate}`,
+  );
+
   const csvEntry = {
     orderId: order.id,
     subscriptionId: order.Subscription.id,
@@ -118,6 +135,8 @@ export async function processOrderWithSubscription(options, order) {
         order.status = status.ACTIVE;
       }
     }
+  } else if (options.simulate) {
+    await sleep(Math.random() * 1000 * 5);
   }
 
   csvEntry.status = orderProcessedStatus;
@@ -171,6 +190,11 @@ export async function handleRetryStatus(order, transaction) {
     case 0:
       await sendThankYouEmail(order, transaction);
       break;
+    // case 1:
+    // Do nothing
+    // Or sendFailedEmail if we're sure it's an error that can't be fixed alone ...
+    // such as Credit Card expiration
+    // break;
     case MAX_RETRIES:
       await cancelSubscriptionAndNotifyUser(order);
       break;
