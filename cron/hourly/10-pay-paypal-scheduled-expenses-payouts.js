@@ -32,10 +32,11 @@ export async function run() {
 if (require.main === module) {
   run()
     .then(() => {
-      process.exit(0);
+      setTimeout(() => process.exit(0), 10000);
     })
     .catch(e => {
       console.error(e);
+      setTimeout(() => process.exit(0), 10000);
       process.exit(1);
     });
 }
