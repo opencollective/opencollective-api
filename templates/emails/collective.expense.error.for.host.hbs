@@ -22,9 +22,9 @@ Subject: 🚨 Transaction failed on {{collective.name}}
   <div>
     {{#if payoutMethod}}
     {{#ifCond payoutMethod.type '===' 'PAYPAL'}}
-    {{#ifCond error}}
+    {{#if error}}
     PayPal wasn't able to execute this transaction because: {{error.message}}.
-    {{/ifCond}}
+    {{/if}}
     {{#unless error}}
     Please, make sure you check in PayPal what happened exactly, you might need to create this transaction
     manually and mark as paid.<br />
