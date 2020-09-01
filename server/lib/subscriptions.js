@@ -187,15 +187,18 @@ function dateFormat(date) {
  *      failure and allow them to update the payment method.
  */
 export async function handleRetryStatus(order, transaction) {
+  const errorMessage = get(order, 'data.error.message');
   switch (order.Subscription.chargeRetryCount) {
     case 0:
       await sendThankYouEmail(order, transaction);
       break;
-    // case 1:
-    // Do nothing
-    // Or sendFailedEmail if we're sure it's an error that can't be fixed alone ...
-    // such as Credit Card expiration
-    // break;
+    case 1:
+    case 2:
+      // Don't send an error in the 2 first attempts because the user can not do much
+      if (!errorMessage.includes('Payment Processing error') && !errorMessage.includes('Internal Payment error')) {
+        await sendFailedEmail(order, false);
+      }
+      break;
     case MAX_RETRIES:
       await cancelSubscriptionAndNotifyUser(order);
       break;
