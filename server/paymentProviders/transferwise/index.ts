@@ -13,6 +13,7 @@ import { Balance, Quote, RecipientAccount, Transfer } from '../../types/transfer
 const hashObject = obj => crypto.createHash('sha1').update(JSON.stringify(obj)).digest('hex').slice(0, 7);
 
 export const blockedCurrenciesForBusinesProfiles = ['BRL', 'PKR'];
+export const currenciesThatRequireReference = ['RUB'];
 
 async function populateProfileId(connectedAccount): Promise<void> {
   if (!connectedAccount.data?.id) {
@@ -85,11 +86,16 @@ async function payExpense(
     ...payoutMethod.data,
   });
 
-  const transfer = await transferwise.createTransfer(connectedAccount.token, {
+  const transferOptions: transferwise.CreateTransfer = {
     accountId: recipient.id,
     quoteId: quote.id,
     uuid: uuid(),
-  });
+  };
+  // Append reference to currencies that require it.
+  if (currenciesThatRequireReference.includes(payoutMethod.data.currency)) {
+    transferOptions.details = { reference: `${expense.id}` };
+  }
+  const transfer = await transferwise.createTransfer(connectedAccount.token, transferOptions);
 
   let fund;
   try {
