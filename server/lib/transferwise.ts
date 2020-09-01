@@ -154,7 +154,7 @@ export const createRecipientAccount = async (
   };
 };
 
-interface CreateTransfer {
+export interface CreateTransfer {
   accountId: number;
   quoteId: number;
   uuid: string;
