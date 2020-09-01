@@ -48,7 +48,7 @@ const startTime = new Date();
 async function run(options) {
   options.startDate = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date();
 
-  const queue = new PQueue({ concurrency: options.concurrency });
+  const queue = new PQueue({ concurrency: Number(options.concurrency) });
 
   const { count, rows: orders } = await ordersWithPendingCharges({
     limit: options.limit,
@@ -72,6 +72,7 @@ async function run(options) {
 
   queue.onIdle().then(async () => {
     if (data.length === 0) {
+      await sequelize.close();
       vprint(options, 'Not generating CSV file');
       // We used to send a "ReportNoCharges" here but we're stopping this while moving to an Hourly schedule
       return;

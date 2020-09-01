@@ -2,7 +2,7 @@
 import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
-import { find, get, includes, pick } from 'lodash';
+import { find, get, includes, omit, pick } from 'lodash';
 import { Op } from 'sequelize';
 
 import activities from '../constants/activities';
@@ -323,7 +323,7 @@ export const executeOrder = async (user, order, options) => {
 
   const transaction = await processOrder(order, options);
   if (transaction) {
-    await order.update({ status: status.PAID, processedAt: new Date() });
+    await order.update({ status: status.PAID, processedAt: new Date(), data: omit(order.data, ['paymentIntent']) });
 
     // Register user as collective backer
     await order.collective.findOrAddUserWithRole(

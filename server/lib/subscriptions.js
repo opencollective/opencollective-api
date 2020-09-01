@@ -1,7 +1,5 @@
-/** @module lib/subscriptions */
-
 import config from 'config';
-import { get } from 'lodash';
+import { get, omit } from 'lodash';
 import moment from 'moment';
 import { Op } from 'sequelize';
 
@@ -119,7 +117,8 @@ export async function processOrderWithSubscription(order, options) {
         csvEntry.error = error.message;
         order.status = status.ERROR;
         order.data = order.data || {};
-        order.data.latestError = error.message;
+        // TODO: we should consolidate on error and remove latestError
+        order.data = { ...order.data, error: { message: error.message }, latestError: error.message };
       }
 
       order.Subscription.chargeRetryCount = getChargeRetryCount(orderProcessedStatus, order);
@@ -133,6 +132,8 @@ export async function processOrderWithSubscription(order, options) {
           order.Subscription.chargeNumber += 1;
         }
         order.status = status.ACTIVE;
+        // TODO: we should consolidate on error and remove latestError
+        order.data = omit(order.data, ['error', 'latestError', 'paymentIntent']);
       }
     }
   } else if (options.simulate) {

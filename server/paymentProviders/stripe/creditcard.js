@@ -163,6 +163,7 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
   }
 
   // Success: delete reference to paymentIntent
+  // TODO: paymentIntent should be later removed anyway on success, see subscriptions.js and orders.js
   if (order.data.paymentIntent) {
     delete order.data.paymentIntent;
     await order.update({ data: order.data });
@@ -288,6 +289,7 @@ export default {
         'Your card does not support this type of purchase.',
         'Your card has expired.',
         "Your card's security code is incorrect",
+        'Your card number is incorrect',
         'Payment Intent require action',
       ];
 
