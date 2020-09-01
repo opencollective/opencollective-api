@@ -353,6 +353,7 @@ export async function sendFailedEmail(order, lastAttempt) {
       collective: order.collective.info,
       fromCollective: order.fromCollective.minimal,
       subscriptionsLink: `${config.host.website}/${order.fromCollective.slug}/recurring-contributions`,
+      errorMessage: get(order, 'data.error.message'),
     },
     {
       from: `${order.collective.name} <no-reply@${order.collective.slug}.opencollective.com>`,

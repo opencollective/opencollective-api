@@ -4,6 +4,15 @@ Subject: Payment failed: Recurring contribution cancelled to {{collective.name}}
 Subject: Payment failed: Update your info to continue supporting {{collective.name}}
 {{/if}}
 
+<style>
+  .errorMessage {
+    display: inline-block;
+    background: #ddd;
+    padding: 1px 10px;
+    margin: 0px 10px;
+  }
+</style>
+
 {{> header}}
 
 {{> toplogo}}
@@ -15,16 +24,24 @@ Subject: Payment failed: Update your info to continue supporting {{collective.na
 {{/if}}
 
 {{#if lastAttempt}}
+
 <p>We wanted to let you know that due to your payment failure, we have cancelled your recurring contribution of
 {{currency order.totalAmount currency=order.currency}} to {{collective.name}}.
 
 We are sad to see you go. You can resubscribe anytime at <a href="https://opencollective.com/{{collective.slug}}">https://opencollective.com/{{collective.slug}}</a>.</p>
+
 {{else}}
-<p>We are having trouble authorizing your payment of {{currency order.totalAmount currency=order.currency}} to {{collective.name}}.</p>
+
+<p>We are having trouble processing your payment of {{currency order.totalAmount currency=order.currency}} to {{collective.name}}.</p>
+
+{{#if errorMessage}}
+  <p class="errorMessage">{{errorMessage}}</p>
+{{/if}}
 
 <p>Please check your <a href="{{subscriptionsLink}}">recurring contributions and payment info</a>.</p>
 
 <p>We'll automatically retry your payment in a few days. If you believe your payment info is correct, please contact your bank for more details.</p>
+
 {{/if}}
 
 <p>If you have questions, you can always email us at <a href="mailto:support@opencollective.com?Subject=Payment%20issue">support@opencollective.com</a>.</p>
