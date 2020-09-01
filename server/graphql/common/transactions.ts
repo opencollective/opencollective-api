@@ -42,7 +42,11 @@ const isPayerCollectiveAdmin = async (req, transaction): Promise<boolean> => {
     return false;
   }
 
-  const collectiveId = transaction.type === 'DEBIT' ? transaction.CollectiveId : transaction.FromCollectiveId;
+  const collectiveId =
+    transaction.type === 'DEBIT'
+      ? // If Transaction was paid with VirtualCard, only the card issuer has access to it
+        transaction.UsingVirtualCardFromCollectiveId || transaction.CollectiveId
+      : transaction.FromCollectiveId;
 
   if (req.remoteUser.isAdmin(collectiveId)) {
     return true;
