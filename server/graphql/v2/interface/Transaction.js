@@ -1,4 +1,11 @@
-import { GraphQLBoolean, GraphQLInterfaceType, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import {
+  GraphQLBoolean,
+  GraphQLInt,
+  GraphQLInterfaceType,
+  GraphQLNonNull,
+  GraphQLObjectType,
+  GraphQLString,
+} from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 
 import models from '../../../models';
@@ -34,11 +41,11 @@ export const Transaction = new GraphQLInterfaceType({
   description: 'Transaction interface shared by all kind of transactions (Debit, Credit)',
   fields: () => {
     return {
-      // _internal_id: {
-      //   type: GraphQLInt,
-      // },
       id: {
-        type: GraphQLString,
+        type: new GraphQLNonNull(GraphQLString),
+      },
+      legacyId: {
+        type: new GraphQLNonNull(GraphQLInt),
       },
       uuid: {
         type: GraphQLString,
@@ -103,16 +110,16 @@ export const Transaction = new GraphQLInterfaceType({
 
 export const TransactionFields = () => {
   return {
-    // _internal_id: {
-    //   type: GraphQLInt,
-    //   resolve(transaction) {
-    //     return transaction.id;
-    //   },
-    // },
     id: {
-      type: GraphQLString,
+      type: new GraphQLNonNull(GraphQLString),
       resolve(transaction) {
         return idEncode(transaction.id, 'transaction');
+      },
+    },
+    legacyId: {
+      type: new GraphQLNonNull(GraphQLInt),
+      resolve(transaction) {
+        return transaction.id;
       },
     },
     uuid: {

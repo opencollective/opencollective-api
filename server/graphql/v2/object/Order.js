@@ -23,6 +23,9 @@ export const Order = new GraphQLObjectType({
       },
       legacyId: {
         type: new GraphQLNonNull(GraphQLInt),
+        resolve(order) {
+          return order.id;
+        },
       },
       description: {
         type: GraphQLString,
