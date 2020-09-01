@@ -296,13 +296,15 @@ export default {
         hostStripeCustomer,
       });
     } catch (error) {
+      // Here, we check strictly the error message
       const knownErrors = [
         'Your card has insufficient funds.',
         'Your card was declined.',
         'Your card does not support this type of purchase.',
         'Your card has expired.',
         "Your card's security code is incorrect",
-        'Your card number is incorrect',
+        'Your card number is incorrect.',
+        'Invalid amount.',
         'Payment Intent require action',
       ];
 
