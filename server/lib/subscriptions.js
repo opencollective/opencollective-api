@@ -150,7 +150,11 @@ export async function processOrderWithSubscription(order, options) {
       if (collectiveIsArchived) {
         await sendArchivedCollectiveEmail(order);
       } else if (creditCardNeedsConfirmation) {
-        await sendCreditCardConfirmationEmail(order);
+        if (order.Subscription.chargeRetryCount >= MAX_RETRIES) {
+          await cancelSubscriptionAndNotifyUser(order);
+        } else {
+          await sendCreditCardConfirmationEmail(order);
+        }
       } else {
         await handleRetryStatus(order, transaction);
       }
