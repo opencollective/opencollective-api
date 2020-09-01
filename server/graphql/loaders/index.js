@@ -520,6 +520,12 @@ export const loaders = req => {
 
   /** *** Transaction *****/
   context.loaders.Transaction = {
+    byOrderId: new DataLoader(async keys => {
+      const where = { OrderId: { [Op.in]: keys } };
+      const order = [['createdAt', 'ASC']];
+      const transactions = await models.Transaction.findAll({ where, order });
+      return sortResults(keys, transactions, 'OrderId', []);
+    }),
     findByOrderId: options =>
       createDataLoaderWithOptions(
         (OrderIds, options) => {
