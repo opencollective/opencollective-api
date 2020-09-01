@@ -312,6 +312,25 @@ export default {
         throw error;
       }
 
+      // Here, we do a partial check and rewrite the error.
+      const identifiedErrors = {
+        // This object cannot be accessed right now because another API request or Stripe process is currently accessing it.
+        // If you see this error intermittently, retry the request.
+        // If you see this error frequently and are making multiple concurrent requests to a single object, make your requests serially or at a lower rate.
+        'This object cannot be accessed right now because another API request.': 'Payment Processing error (API).',
+        // You cannot confirm this PaymentIntent because it's missing a payment method.
+        // To confirm the PaymentIntent with cus_9cNHqpdWYOV4aH, specify a payment method attached to this customer along with the customer ID.
+        "You cannot confirm this PaymentIntent because it's missing a payment method.":
+          'Internal Payment error (PaymentIntent)',
+        // You have exceeded the maximum number of declines on this card in the last 24 hour period.
+        // Please contact us via https://support.stripe.com/contact if you need further assistance.
+        'You have exceeded the maximum number of declines on this card': 'Your card was declined.',
+      };
+      const identifiedErrorKey = Object.keys(identifiedErrors).find(message => error.message.includes(message));
+      if (identifiedErrorKey) {
+        throw new Error(identifiedErrors[identifiedErrorKey]);
+      }
+
       logger.error(`Unknown Stripe Payment Error: ${error.message}`);
       logger.error(error);
       logger.error(error.stack);
