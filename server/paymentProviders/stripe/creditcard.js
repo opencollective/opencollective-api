@@ -44,7 +44,20 @@ const getOrCreateCustomerOnHostAccount = async (hostStripeAccount, { paymentMeth
   // to the platform stripe account, not to the host's stripe
   // account. Since payment methods had no name before that
   // migration, we're using it to test for pre-migration users;
+
+  // Well, DISCARD what is written above, these customers are coming from the Host
   if (!paymentMethod.name) {
+    const customer = await stripe.customers.retrieve(paymentMethod.customerId, {
+      stripeAccount: hostStripeAccount.username,
+    });
+
+    if (customer) {
+      logger.info(`Pre-migration customer found: ${paymentMethod.customerId}`);
+      logger.info(JSON.stringify(customer));
+      return customer;
+    }
+
+    logger.info(`Pre-migration customer not found: ${paymentMethod.customerId}`);
     return { id: paymentMethod.customerId };
   }
 
