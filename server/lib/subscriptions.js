@@ -194,21 +194,20 @@ export async function handleRetryStatus(order, transaction) {
   const errorMessage = get(order, 'data.error.message');
   switch (order.Subscription.chargeRetryCount) {
     case 0:
-      await sendThankYouEmail(order, transaction);
-      break;
+      return sendThankYouEmail(order, transaction);
     case 1:
     case 2:
-      // Don't send an error in the 2 first attempts because the user can not do much
-      if (!errorMessage.includes('Payment Processing error') && !errorMessage.includes('Internal Payment error')) {
-        await sendFailedEmail(order, false);
+      // Don't send an error in the 2 first attempts because the user is not responsible for these errors
+      if (errorMessage) {
+        if (errorMessage.includes('Payment Processing error') || errorMessage.includes('Internal Payment error')) {
+          return Promise.resolve();
+        }
       }
-      break;
+      return sendFailedEmail(order, false);
     case MAX_RETRIES:
-      await cancelSubscriptionAndNotifyUser(order);
-      break;
+      return cancelSubscriptionAndNotifyUser(order);
     default:
-      await sendFailedEmail(order, false);
-      break;
+      return sendFailedEmail(order, false);
   }
 }
 
