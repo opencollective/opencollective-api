@@ -116,7 +116,7 @@
     "codecov": "^3.7.2",
     "commitizen": "^4.2.1",
     "cz-conventional-changelog": "^3.3.0",
-    "eslint": "^7.7.0",
+    "eslint": "^7.8.0",
     "eslint-config-opencollective": "^2.2.0",
     "eslint-plugin-babel": "^5.3.1",
     "eslint-plugin-import": "^2.22.0",
