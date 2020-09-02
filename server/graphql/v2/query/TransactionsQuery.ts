@@ -59,7 +59,7 @@ const TransactionsQuery = {
     },
   },
   async resolve(_, args, req): Promise<CollectionReturnType> {
-    const where = {};
+    const where = [];
     const include = [];
 
     // Check arguments
@@ -75,55 +75,62 @@ const TransactionsQuery = {
       ),
     );
     if (fromAccount) {
-      where['FromCollectiveId'] = fromAccount.id;
+      where.push({ FromCollectiveId: fromAccount.id });
     }
     if (account) {
-      where['CollectiveId'] = account.id;
+      where.push({
+        [Op.or]: [{ CollectiveId: account.id }, { UsingVirtualCardFromCollectiveId: account.id, type: 'DEBIT' }],
+      });
     }
     if (args.searchTerm) {
       const sanitizedTerm = args.searchTerm.replace(/(_|%|\\)/g, '\\$1');
       const ilikeQuery = `%${sanitizedTerm}%`;
-      where[Op.or] = [
+      const or = [];
+      or.push(
         { description: { [Op.iLike]: ilikeQuery } },
         { '$fromCollective.slug$': { [Op.iLike]: ilikeQuery } },
         { '$fromCollective.name$': { [Op.iLike]: ilikeQuery } },
         { '$collective.slug$': { [Op.iLike]: ilikeQuery } },
         { '$collective.name$': { [Op.iLike]: ilikeQuery } },
-      ];
+      );
 
       include.push({ association: 'fromCollective', attributes: [] }, { association: 'collective', attributes: [] });
 
       if (!isNaN(args.searchTerm)) {
-        where[Op.or].push({ id: args.searchTerm });
+        or.push({ id: args.searchTerm });
       }
+
+      where.push({
+        [Op.or]: or,
+      });
     }
     if (args.type) {
-      where['type'] = args.type;
+      where.push({ type: args.type });
     }
     if (args.minAmount) {
-      where['amount'] = sequelize.where(sequelize.fn('abs', sequelize.col('amount')), Op.gte, args.minAmount);
+      where.push({ amount: sequelize.where(sequelize.fn('abs', sequelize.col('amount')), Op.gte, args.minAmount) });
     }
     if (args.maxAmount) {
-      let condition = sequelize.where(sequelize.fn('abs', sequelize.col('amount')), Op.lte, args.maxAmount);
+      let amount = sequelize.where(sequelize.fn('abs', sequelize.col('amount')), Op.lte, args.maxAmount);
       if (where['amount']) {
-        condition = { [Op.and]: [where['amount'], condition] };
+        amount = { [Op.and]: [where['amount'], amount] };
       }
-      where['amount'] = condition;
+      where.push({ amount });
     }
     if (args.dateFrom) {
-      where['createdAt'] = { [Op.gte]: args.dateFrom };
+      where.push({ createdAt: { [Op.gte]: args.dateFrom } });
     }
     if (args.hasExpense) {
-      where['ExpenseId'] = { [Op.ne]: null };
+      where.push({ ExpenseId: { [Op.ne]: null } });
     }
     if (args.hasOrder) {
-      where['OrderId'] = { [Op.ne]: null };
+      where.push({ OrderId: { [Op.ne]: null } });
     }
 
     const order = [[args.orderBy.field, args.orderBy.direction]];
     const { offset, limit } = args;
     const result = await models.Transaction.findAndCountAll({
-      where,
+      where: sequelize.and(...where),
       limit,
       offset,
       order,

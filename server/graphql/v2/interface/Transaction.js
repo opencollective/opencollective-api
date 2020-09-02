@@ -80,6 +80,9 @@ export const Transaction = new GraphQLInterfaceType({
       toAccount: {
         type: Account,
       },
+      giftCardEmitterAccount: {
+        type: Account,
+      },
       createdAt: {
         type: GraphQLDateTime,
       },
@@ -238,6 +241,15 @@ export const TransactionFields = () => {
       description: 'The permissions given to current logged in user for this transaction',
       async resolve(transaction) {
         return transaction; // Individual fields are set by TransactionPermissions's resolvers
+      },
+    },
+    giftCardEmitterAccount: {
+      type: Account,
+      description: '',
+      async resolve(transaction, _, req) {
+        return transaction.UsingVirtualCardFromCollectiveId
+          ? await req.loaders.Collective.byId.load(transaction.UsingVirtualCardFromCollectiveId)
+          : null;
       },
     },
   };
