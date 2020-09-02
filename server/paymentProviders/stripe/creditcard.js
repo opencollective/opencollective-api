@@ -44,7 +44,20 @@ const getOrCreateCustomerOnHostAccount = async (hostStripeAccount, { paymentMeth
   // to the platform stripe account, not to the host's stripe
   // account. Since payment methods had no name before that
   // migration, we're using it to test for pre-migration users;
+
+  // Well, DISCARD what is written above, these customers are coming from the Host
   if (!paymentMethod.name) {
+    const customer = await stripe.customers.retrieve(paymentMethod.customerId, {
+      stripeAccount: hostStripeAccount.username,
+    });
+
+    if (customer) {
+      logger.info(`Pre-migration customer found: ${paymentMethod.customerId}`);
+      logger.info(JSON.stringify(customer));
+      return customer;
+    }
+
+    logger.info(`Pre-migration customer not found: ${paymentMethod.customerId}`);
     return { id: paymentMethod.customerId };
   }
 
@@ -283,18 +296,40 @@ export default {
         hostStripeCustomer,
       });
     } catch (error) {
+      // Here, we check strictly the error message
       const knownErrors = [
         'Your card has insufficient funds.',
         'Your card was declined.',
         'Your card does not support this type of purchase.',
         'Your card has expired.',
         "Your card's security code is incorrect",
-        'Your card number is incorrect',
+        'Your card number is incorrect.',
+        'Invalid amount.',
         'Payment Intent require action',
       ];
 
       if (knownErrors.includes(error.message)) {
         throw error;
+      }
+
+      // Here, we do a partial check and rewrite the error.
+      const identifiedErrors = {
+        // This object cannot be accessed right now because another API request or Stripe process is currently accessing it.
+        // If you see this error intermittently, retry the request.
+        // If you see this error frequently and are making multiple concurrent requests to a single object, make your requests serially or at a lower rate.
+        'This object cannot be accessed right now because another API request.':
+          'Payment Processing error (API request).',
+        // You cannot confirm this PaymentIntent because it's missing a payment method.
+        // To confirm the PaymentIntent with cus_9cNHqpdWYOV4aH, specify a payment method attached to this customer along with the customer ID.
+        "You cannot confirm this PaymentIntent because it's missing a payment method.":
+          'Internal Payment error (invalid PaymentIntent)',
+        // You have exceeded the maximum number of declines on this card in the last 24 hour period.
+        // Please contact us via https://support.stripe.com/contact if you need further assistance.
+        'You have exceeded the maximum number of declines on this card': 'Your card was declined.',
+      };
+      const errorKey = Object.keys(identifiedErrors).find(errorMessage => error.message.includes(errorMessage));
+      if (errorKey) {
+        throw new Error(identifiedErrors[errorKey]);
       }
 
       logger.error(`Unknown Stripe Payment Error: ${error.message}`);

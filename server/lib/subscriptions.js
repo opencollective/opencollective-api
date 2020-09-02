@@ -150,7 +150,11 @@ export async function processOrderWithSubscription(order, options) {
       if (collectiveIsArchived) {
         await sendArchivedCollectiveEmail(order);
       } else if (creditCardNeedsConfirmation) {
-        await sendCreditCardConfirmationEmail(order);
+        if (order.Subscription.chargeRetryCount >= MAX_RETRIES) {
+          await cancelSubscriptionAndNotifyUser(order);
+        } else {
+          await sendCreditCardConfirmationEmail(order);
+        }
       } else {
         await handleRetryStatus(order, transaction);
       }
@@ -187,21 +191,23 @@ function dateFormat(date) {
  *      failure and allow them to update the payment method.
  */
 export async function handleRetryStatus(order, transaction) {
+  const errorMessage = get(order, 'data.error.message');
   switch (order.Subscription.chargeRetryCount) {
     case 0:
-      await sendThankYouEmail(order, transaction);
-      break;
-    // case 1:
-    // Do nothing
-    // Or sendFailedEmail if we're sure it's an error that can't be fixed alone ...
-    // such as Credit Card expiration
-    // break;
+      return sendThankYouEmail(order, transaction);
+    case 1:
+    case 2:
+      // Don't send an error in the 2 first attempts because the user is not responsible for these errors
+      if (errorMessage) {
+        if (errorMessage.includes('Payment Processing error') || errorMessage.includes('Internal Payment error')) {
+          return Promise.resolve();
+        }
+      }
+      return sendFailedEmail(order, false);
     case MAX_RETRIES:
-      await cancelSubscriptionAndNotifyUser(order);
-      break;
+      return cancelSubscriptionAndNotifyUser(order);
     default:
-      await sendFailedEmail(order, false);
-      break;
+      return sendFailedEmail(order, false);
   }
 }
 
@@ -341,6 +347,10 @@ export async function sendArchivedCollectiveEmail(order) {
 /** Send `payment.failed` email */
 export async function sendFailedEmail(order, lastAttempt) {
   const user = order.createdByUser;
+  let errorMessage = get(order, 'data.error.message');
+  if (errorMessage && errorMessage.includes('Something went wrong with the payment')) {
+    errorMessage = 'Something went wrong with the payment.';
+  }
   return emailLib.send(
     'payment.failed',
     user.email,
@@ -350,6 +360,7 @@ export async function sendFailedEmail(order, lastAttempt) {
       collective: order.collective.info,
       fromCollective: order.fromCollective.minimal,
       subscriptionsLink: `${config.host.website}/${order.fromCollective.slug}/recurring-contributions`,
+      errorMessage: errorMessage,
     },
     {
       from: `${order.collective.name} <no-reply@${order.collective.slug}.opencollective.com>`,

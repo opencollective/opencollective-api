@@ -262,6 +262,7 @@ describe('server/lib/subscriptions', () => {
           collective: order.collective.info,
           fromCollective: order.fromCollective.minimal,
           subscriptionsLink: `${config.host.website}/cslug/recurring-contributions`,
+          errorMessage: undefined,
         });
 
       // When the status of the order is handled
@@ -291,6 +292,7 @@ describe('server/lib/subscriptions', () => {
           collective: order.collective.info,
           fromCollective: order.fromCollective.minimal,
           subscriptionsLink: `${config.host.website}/cslug/recurring-contributions`,
+          errorMessage: undefined,
         });
 
       // When the status of the order is handled

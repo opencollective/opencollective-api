@@ -102,6 +102,9 @@ async function processOrder(order) {
   }
   // finding Source Payment method and update order payment method properties
   const sourcePaymentMethod = await models.PaymentMethod.findByPk(paymentMethod.SourcePaymentMethodId);
+  if (!sourcePaymentMethod) {
+    throw new Error(`Gift Card source Payment Method unavailable`);
+  }
 
   // finding the payment provider lib to execute the order
   const sourcePaymentMethodProvider = libpayments.findPaymentMethodProvider(sourcePaymentMethod);
