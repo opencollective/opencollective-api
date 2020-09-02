@@ -50,7 +50,7 @@
     "express-server-status": "1.0.3",
     "express-session": "1.17.1",
     "express-ws": "4.0.0",
-    "forest-express-sequelize": "6.3.6",
+    "forest-express-sequelize": "6.3.8",
     "fs-extra": "9.0.1",
     "graphql": "15.3.0",
     "graphql-iso-date": "3.6.1",
