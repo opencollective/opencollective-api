@@ -347,6 +347,10 @@ export async function sendArchivedCollectiveEmail(order) {
 /** Send `payment.failed` email */
 export async function sendFailedEmail(order, lastAttempt) {
   const user = order.createdByUser;
+  let errorMessage = get(order, 'data.error.message');
+  if (errorMessage && errorMessage.includes('Something went wrong with the payment')) {
+    errorMessage = 'Something went wrong with the payment.';
+  }
   return emailLib.send(
     'payment.failed',
     user.email,
@@ -356,7 +360,7 @@ export async function sendFailedEmail(order, lastAttempt) {
       collective: order.collective.info,
       fromCollective: order.fromCollective.minimal,
       subscriptionsLink: `${config.host.website}/${order.fromCollective.slug}/recurring-contributions`,
-      errorMessage: get(order, 'data.error.message'),
+      errorMessage: errorMessage,
     },
     {
       from: `${order.collective.name} <no-reply@${order.collective.slug}.opencollective.com>`,

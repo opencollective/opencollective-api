@@ -327,9 +327,9 @@ export default {
         // Please contact us via https://support.stripe.com/contact if you need further assistance.
         'You have exceeded the maximum number of declines on this card': 'Your card was declined.',
       };
-      const identifiedErrorKey = Object.keys(identifiedErrors).find(message => error.message.includes(message));
-      if (identifiedErrorKey) {
-        throw new Error(identifiedErrors[identifiedErrorKey]);
+      const errorKey = Object.keys(identifiedErrors).find(errorMessage => error.message.includes(errorMessage));
+      if (errorKey) {
+        throw new Error(identifiedErrors[errorKey]);
       }
 
       logger.error(`Unknown Stripe Payment Error: ${error.message}`);
