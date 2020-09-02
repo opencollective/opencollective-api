@@ -1,6 +1,7 @@
 import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 
+import roles from '../../../constants/roles';
 import models from '../../../models';
 import { ContributionFrequency, OrderStatus } from '../enum';
 import { idEncode } from '../identifiers';
@@ -9,6 +10,8 @@ import { Transaction } from '../interface/Transaction';
 import { Amount } from '../object/Amount';
 import { PaymentMethod } from '../object/PaymentMethod';
 import { Tier } from '../object/Tier';
+
+import { MemberOf } from './Member';
 
 export const Order = new GraphQLObjectType({
   name: 'Order',
@@ -140,6 +143,21 @@ export const Order = new GraphQLObjectType({
           } else {
             return null;
           }
+        },
+      },
+      membership: {
+        type: MemberOf,
+        description:
+          'This represents a MemberOf relationship (ie: Collective backed by an Individual) attached to the Order.',
+        async resolve(order) {
+          return models.Member.findOne({
+            where: {
+              MemberCollectiveId: order.FromCollectiveId,
+              CollectiveId: order.CollectiveId,
+              role: roles.BACKER,
+              TierId: order.TierId,
+            },
+          });
         },
       },
     };
