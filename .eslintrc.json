@@ -57,7 +57,9 @@
     ],
     "graphql/named-operations": ["error"],
     "graphql/capitalized-type-name": ["error"],
-    "graphql/no-deprecated-fields": ["warn"]
+    "graphql/no-deprecated-fields": ["warn"],
+    // Already being validated by @typescript-eslint/no-unused-vars
+    "no-unused-vars": "off"
   },
   // Disable typescript checks in JS
   "overrides": [
