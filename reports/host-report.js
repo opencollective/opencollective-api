@@ -319,10 +319,14 @@ async function HostReport(year, month, hostId) {
         }
         return exportToPDF('expenses', data, {
           paper: host.currency === 'USD' ? 'Letter' : 'A4',
+        }).catch(error => {
+          console.error(error);
+          return;
         });
       })
       .then(pdf => {
-        if (pdf) {
+        // Mailgun limit is 25MB
+        if (pdf && pdf.length < 24000000) {
           attachments.push({
             filename: `${host.slug}-${pdfFilename}`,
             content: pdf,
