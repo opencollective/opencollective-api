@@ -438,6 +438,7 @@ const mutations = {
     },
     async resolve(_, args, req) {
       const collective = await models.Collective.findByPk(args.collectiveId);
+      console.log(collective, '===============here');
       if (!collective) {
         throw new NotFound();
       } else if (!req.remoteUser || !req.remoteUser.isAdmin(collective.id)) {
@@ -451,6 +452,27 @@ const mutations = {
       }
     },
   },
+  // sendCoreContributorsEmails: {
+  //   type: CollectiveInterfaceType,
+  //   description: 'Sends emails to admins',
+  //   args: {
+  //     collectiveId: { type: new GraphQLNonNull(GraphQLInt) },
+  //     members: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(MemberInputType))) },
+  //   },
+  //   async resolve(_, args, req) {
+  //     const collective = await models.Collective.findByPk(args.collectiveId);
+  //     if (!collective) {
+  //       throw new NotFound();
+  //     } else if (!req.remoteUser || !req.remoteUser.isAdmin(collective.id)) {
+  //       throw new Unauthorized();
+  //     } else {
+  //       await newdata =  collective.getAdminUsers()
+  //       // emailLib.send('admin.request.removal',newdata , newdata);
+  //       return collective;
+  //     }
+  //   },
+  // },
+
   editPublicMessage: {
     type: new GraphQLList(MemberType),
     description: 'A mutation to edit the public message of all matching members.',
