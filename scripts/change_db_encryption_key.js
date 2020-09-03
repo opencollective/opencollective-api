@@ -39,7 +39,7 @@ export async function main(args) {
         await sequelize.query(
           `
           UPDATE "ConnectedAccounts"
-          SET "token" = :token, "refreshToken" = :refreshToken 
+          SET "token" = :token, "refreshToken" = :refreshToken
           WHERE "id" = :id;
         `,
           {
@@ -62,35 +62,37 @@ export async function main(args) {
 }
 
 /** Return the options passed by the user to run the script */
+/* eslint-disable camelcase */
 function parseCommandLineArguments() {
   const parser = new ArgumentParser({
     addHelp: true,
     description: 'Change DB Encryption keys by reencrypting the DB fields',
   });
-  parser.addArgument(['--fromCipher'], {
+  parser.add_argument('--fromCipher', {
     help: 'The current cipher being used',
-    defaultValue: CIPHER,
+    default: CIPHER,
   });
-  parser.addArgument(['--toCipher'], {
+  parser.add_argument('--toCipher', {
     help: 'The new cipher you wantt o reencrypt data with',
-    defaultValue: CIPHER,
+    default: CIPHER,
   });
-  parser.addArgument(['-f', '--force'], {
+  parser.add_argument('-f', '--force', {
     help: 'Ignore existing key check',
-    defaultValue: false,
-    action: 'storeConst',
+    default: false,
+    action: 'store_const',
     constant: true,
   });
-  parser.addArgument(['oldKey'], {
+  parser.add_argument('oldKey', {
     help: 'The current key being used',
     action: 'store',
   });
-  parser.addArgument(['newKey'], {
+  parser.add_argument('newKey', {
     help: 'The new key you want to reencrypt data with',
     action: 'store',
   });
-  return parser.parseArgs();
+  return parser.parse_args();
 }
+/* eslint-enable camelcase */
 
 if (!module.parent) {
   main(parseCommandLineArguments());

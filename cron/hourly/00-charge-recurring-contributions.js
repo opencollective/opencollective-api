@@ -35,13 +35,6 @@ const csvFields = [
   'nextPeriodStartAfter',
 ];
 
-/** Print `message` to console if `options.verbose` is true */
-function vprint(options, message) {
-  if (options.verbose) {
-    console.log(message);
-  }
-}
-
 const startTime = new Date();
 
 /** Run the script with parameters read from the command line */
@@ -54,7 +47,7 @@ async function run(options) {
     limit: options.limit,
     startDate: options.startDate,
   });
-  vprint(
+  console.log(
     options,
     `${count} recurring contributions pending charges. Charging ${orders.length} contributions right now. dryRun: ${options.dryRun}`,
   );
@@ -73,18 +66,18 @@ async function run(options) {
   queue.onIdle().then(async () => {
     if (data.length === 0) {
       await sequelize.close();
-      vprint(options, 'Not generating CSV file');
+      console.log(options, 'Not generating CSV file');
       // We used to send a "ReportNoCharges" here but we're stopping this while moving to an Hourly schedule
       return;
     }
-    vprint(options, 'Writing the output to a CSV file');
+    console.log(options, 'Writing the output to a CSV file');
     try {
       const csv = json2csv(data, { fields: csvFields });
       if (options.dryRun) {
         fs.writeFileSync('charge_recurring_contributions.output.csv', csv);
       }
       if (!options.dryRun) {
-        vprint(options, 'Sending email report');
+        console.log(options, 'Sending email report');
         const attachments = [
           {
             filename: `${new Date().toLocaleDateString()}.csv`,
@@ -98,7 +91,7 @@ async function run(options) {
     }
 
     await sequelize.close();
-    vprint(options, 'Finished running charge recurring contributions');
+    console.log(options, 'Finished running charge recurring contributions');
   });
 }
 
@@ -149,46 +142,41 @@ async function emailReport(orders, data, attachments) {
 }
 
 /** Return the options passed by the user to run the script */
+/* eslint-disable camelcase */
 export function parseCommandLineArguments() {
   const parser = new ArgumentParser({
-    addHelp: true,
+    add_help: true,
     description: 'Charge due recurring contributions',
   });
-  parser.addArgument(['-q', '--quiet'], {
-    help: 'Silence output',
-    defaultValue: false,
-    action: 'storeConst',
+  parser.add_argument('--dryrun', {
+    help: "Don't perform any payment or change to the database",
+    default: false,
+    action: 'store_const',
     constant: true,
   });
-  parser.addArgument(['--dryrun'], {
-    help: "Don't perform any changes to the database",
-    defaultValue: false,
-    action: 'storeConst',
+  parser.add_argument('-l', '--limit', {
+    help: 'Total recurring contributions to process',
+    default: 1000,
+  });
+  parser.add_argument('-c', '--concurrency', {
+    help: 'Number of operations to process at the same time',
+    default: 5,
+  });
+  parser.add_argument('-s', '--simulate', {
+    help: 'If in dry run, simulate operation between 0 to 5 seconds',
+    default: false,
+    action: 'store_const',
     constant: true,
   });
-  parser.addArgument(['-l', '--limit'], {
-    help: 'total recurring contributions to process',
-    defaultValue: 1000,
-  });
-  parser.addArgument(['-c', '--concurrency'], {
-    help: 'concurrency',
-    defaultValue: 5,
-  });
-  parser.addArgument(['-s', '--simulate'], {
-    help: 'concurrency',
-    defaultValue: false,
-    action: 'storeConst',
-    constant: true,
-  });
-  const args = parser.parseArgs();
+  const args = parser.pars_args();
   return {
     dryRun: args.dryrun,
-    verbose: !args.quiet,
     limit: args.limit,
     concurrency: args.concurrency,
     simulate: args.simulate,
   };
 }
+/* eslint-enable camelcase */
 
 /** Kick off the script with all the user selected options */
 export async function entryPoint(options) {
