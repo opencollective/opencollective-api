@@ -94,7 +94,7 @@ export default {
               );
               tweetLink = linkify(
                 format,
-                `https://twitter.com/intent/tweet?status=${tweet}`,
+                `https://twitter.com/intent/tweet?text=${tweet}`,
                 'Thank that person on Twitter',
               );
               tweetThis = ` [${tweetLink}]`;
@@ -126,11 +126,7 @@ export default {
               collectiveTwitter ? `@${collectiveTwitter}` : collectiveName
             } 👍 ${publicUrl}`,
           );
-          tweetLink = linkify(
-            format,
-            `https://twitter.com/intent/tweet?status=${tweet}`,
-            'Thank that person on Twitter',
-          );
+          tweetLink = linkify(format, `https://twitter.com/intent/tweet?text=${tweet}`, 'Thank that person on Twitter');
           tweetThis = ` [${tweetLink}]`;
         }
         return `New subscription confirmed: ${currency} ${recurringAmount} from ${userString} to ${collective}!${tweetThis}`;
