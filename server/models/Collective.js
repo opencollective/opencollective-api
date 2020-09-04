@@ -1200,6 +1200,17 @@ export default function (Sequelize, DataTypes) {
     });
   };
 
+  Collective.prototype.getProjects = function (query = {}) {
+    return Collective.findAll({
+      ...query,
+      where: {
+        ...query.where,
+        ParentCollectiveId: this.id,
+        type: types.PROJECT,
+      },
+    });
+  };
+
   /**
    * Return stats about backers based on the Members table
    *  - stats.backers.lastMonth: number of backers by endDate
@@ -1802,7 +1813,7 @@ export default function (Sequelize, DataTypes) {
       CollectiveId: this.id,
     };
 
-    let shouldAutomaticallyApprove = options && options.shouldAutomaticallyApprove;
+    let shouldAutomaticallyApprove = options?.shouldAutomaticallyApprove;
 
     // If not forced, let's check for cases where we can still safely automatically approve collective
     if (!shouldAutomaticallyApprove) {
@@ -1823,15 +1834,16 @@ export default function (Sequelize, DataTypes) {
       throw new Error('This host is not open to applications');
     }
 
+    const platformFeePercent =
+      options?.platformFeePercent || this.tags?.includes('covid-19')
+        ? this.platformFeePercent // Keep existing platformFeePercent if COVID-19 initiative
+        : hostCollective.platformFeePercent; // Otherwise, follow the new host platformFeePercent
     const updatedValues = {
       HostCollectiveId: hostCollective.id,
       hostFeePercent: hostCollective.hostFeePercent,
+      platformFeePercent,
       ...(shouldAutomaticallyApprove ? { isActive: true, approvedAt: new Date() } : null),
     };
-
-    if (hostCollective.platformFeePercent !== null) {
-      updatedValues.platformFeePercent = hostCollective.platformFeePercent;
-    }
 
     // events should take the currency of their parent collective, not necessarily the host of their host.
     if (this.type === 'COLLECTIVE') {
@@ -1918,7 +1930,7 @@ export default function (Sequelize, DataTypes) {
           },
         };
 
-        if (!options || !options.skipCollectiveApplyActivity) {
+        if (!options?.skipCollectiveApplyActivity) {
           promises.push(
             models.Activity.create({
               CollectiveId: this.id,
@@ -1932,10 +1944,23 @@ export default function (Sequelize, DataTypes) {
 
     await Promise.all(promises);
 
-    // Cascade host update to events
+    // Cascade host update to events and projects
+    // Passing platformFeePercent through options so we don't request the parent collective on every children update
     const events = await this.getEvents();
     if (events?.length > 0) {
-      await Promise.all(events.map(e => e.addHost(hostCollective, creatorUser)));
+      await Promise.all(
+        events.map(e =>
+          e.addHost(hostCollective, creatorUser, { platformFeePercent: updatedValues.platformFeePercent }),
+        ),
+      );
+    }
+    const projects = await this.getProjects();
+    if (projects?.length > 0) {
+      await Promise.all(
+        projects.map(e =>
+          e.addHost(hostCollective, creatorUser, { platformFeePercent: updatedValues.platformFeePercent }),
+        ),
+      );
     }
 
     return this;
@@ -1972,10 +1997,14 @@ export default function (Sequelize, DataTypes) {
     this.HostCollectiveId = null;
     this.isActive = false;
     this.approvedAt = null;
-    // Prepare events to receive a new host
+    // Prepare events and projects to receive a new host
     const events = await this.getEvents();
     if (events?.length > 0) {
       await Promise.all(events.map(e => e.changeHost(null)));
+    }
+    const projects = await this.getProjects();
+    if (projects?.length > 0) {
+      await Promise.all(projects.map(e => e.changeHost(null)));
     }
 
     if (newHostCollectiveId) {
