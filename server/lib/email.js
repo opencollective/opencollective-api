@@ -224,6 +224,7 @@ const getNotificationLabel = (template, recipients) => {
     'user.monthlyreport': 'monthly reports for backers',
     'user.yearlyreport': 'yearly reports',
     thankyou: 'thank you for your donation',
+    'admin.request.removal': 'Request to be romoved as admin',
   };
 
   return notificationTypeLabels[template];

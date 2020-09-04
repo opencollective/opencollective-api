@@ -1,6 +1,6 @@
 import config from 'config';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { pick } from 'lodash';
+import { get, pick } from 'lodash';
 
 import statuses from '../../constants/expense_status';
 import roles from '../../constants/roles';
@@ -438,7 +438,6 @@ const mutations = {
     },
     async resolve(_, args, req) {
       const collective = await models.Collective.findByPk(args.collectiveId);
-      console.log(collective, '===============here');
       if (!collective) {
         throw new NotFound();
       } else if (!req.remoteUser || !req.remoteUser.isAdmin(collective.id)) {
@@ -452,26 +451,36 @@ const mutations = {
       }
     },
   },
-  // sendCoreContributorsEmails: {
-  //   type: CollectiveInterfaceType,
-  //   description: 'Sends emails to admins',
-  //   args: {
-  //     collectiveId: { type: new GraphQLNonNull(GraphQLInt) },
-  //     members: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(MemberInputType))) },
-  //   },
-  //   async resolve(_, args, req) {
-  //     const collective = await models.Collective.findByPk(args.collectiveId);
-  //     if (!collective) {
-  //       throw new NotFound();
-  //     } else if (!req.remoteUser || !req.remoteUser.isAdmin(collective.id)) {
-  //       throw new Unauthorized();
-  //     } else {
-  //       await newdata =  collective.getAdminUsers()
-  //       // emailLib.send('admin.request.removal',newdata , newdata);
-  //       return collective;
-  //     }
-  //   },
-  // },
+  sendEmailToAdmins: {
+    type: CollectiveInterfaceType,
+    description: 'Sends emails to admins',
+    args: {
+      collectiveId: { type: new GraphQLNonNull(GraphQLInt) },
+      members: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(MemberInputType))) },
+    },
+    async resolve(_, args, req) {
+      const collective = await models.Collective.findByPk(args.collectiveId);
+      if (!collective) {
+        throw new NotFound();
+      } else if (!req.remoteUser || !req.remoteUser.isAdmin(collective.id)) {
+        throw new Unauthorized();
+      } else {
+        for (const adminUser of args.members) {
+          const { slug } = collective;
+          const collectiveName = collective.name;
+          const { email } = adminUser;
+          const userId = adminUser.id;
+
+          emailLib.send('admin.request.removal', adminUser.member.email, {
+            collective: pick(collective, ['slug', 'name']),
+            admin: get(adminUser, 'member'),
+            sender: { name: `${req.remoteUser.firstName} ${req.remoteUser.lastName}`, email: req.remoteUser.email },
+          });
+        }
+        return collective;
+      }
+    },
+  },
 
   editPublicMessage: {
     type: new GraphQLList(MemberType),
