@@ -17,30 +17,31 @@ const updateFilterConditionsForReadyToPay = async (where, include): Promise<void
   where['status'] = expenseStatus.APPROVED;
 
   // Get all collectives matching the search that have APPROVED expenses
-  const attributes = ['FromCollectiveId', 'CollectiveId'];
   const results = await models.Expense.findAll({
     where,
     include,
-    attributes,
-    group: attributes,
+    attributes: ['FromCollectiveId', 'CollectiveId'],
+    group: ['Expense.FromCollectiveId', 'Expense.CollectiveId'],
     raw: true,
   });
 
-  // Check the balances for these collectives. The following will emit an SQL like:
-  // AND ((CollectiveId = 1 AND amount < 5000) OR (CollectiveId = 2 AND amount < 3000))
-  const balances = await queries.getBalances(results.map(e => e.CollectiveId));
-  where[Op.and].push({
-    [Op.or]: balances.map(({ CollectiveId, balance }) => ({
-      CollectiveId,
-      amount: { [Op.lte]: balance },
-    })),
-  });
+  if (results.length > 0) {
+    // Check the balances for these collectives. The following will emit an SQL like:
+    // AND ((CollectiveId = 1 AND amount < 5000) OR (CollectiveId = 2 AND amount < 3000))
+    const balances = await queries.getBalances(results.map(e => e.CollectiveId));
+    where[Op.and].push({
+      [Op.or]: balances.map(({ CollectiveId, balance }) => ({
+        CollectiveId,
+        amount: { [Op.lte]: balance },
+      })),
+    });
 
-  // Check tax forms
-  const taxFormResults = await queries.getTaxFormsRequiredForAccounts(results.map(e => e.FromCollectiveId));
-  taxFormResults.forEach(({ collectiveId }) => {
-    where[Op.and].push({ FromCollectiveId: { [Op.not]: collectiveId } });
-  });
+    // Check tax forms
+    const taxFormResults = await queries.getTaxFormsRequiredForAccounts(results.map(e => e.FromCollectiveId));
+    taxFormResults.forEach(({ collectiveId }) => {
+      where[Op.and].push({ FromCollectiveId: { [Op.not]: collectiveId } });
+    });
+  }
 };
 
 const ExpensesQuery = {
