@@ -35,7 +35,7 @@ export const fetchTierWithReference = async (input, { loaders } = {}) => {
     throw new Error('Please provide an id');
   }
   if (!tier) {
-    throw new NotFound('Payment Method Not Found');
+    throw new NotFound(`Tier Not Found`);
   }
   return tier;
 };
