@@ -21,7 +21,7 @@ Subject: {{member.memberCollective.name}} joined {{{collective.name}}} as {{toLo
 {{#if tweet}}
 <center>
   {{tweet.text}}<br />
-  <a href="https://twitter.com/intent/tweet?status={{tweet.encoded}}" class="btn blue">
+  <a href="https://twitter.com/intent/tweet?text={{tweet.encoded}}" class="btn blue">
     <div>Thank that person on Twitter!</div>
   </a>
 </center>
@@ -59,7 +59,7 @@ Subject: {{member.memberCollective.name}} joined {{{collective.name}}} as {{toLo
       <br/>
 
       {{#if member.memberCollectiveUser.email}}
-        <b>Email: </b>{{member.memberCollectiveUser.email}} 
+        <b>Email: </b>{{member.memberCollectiveUser.email}}
       {{/if}}
     </td>
   </tr>
