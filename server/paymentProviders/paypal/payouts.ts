@@ -13,9 +13,13 @@ import { PayoutItemDetails } from '../../types/paypal';
 
 export const payExpensesBatch = async (expenses: any[]): Promise<any[]> => {
   const [firstExpense] = expenses;
-  const isSameHost = expenses.every(e => !isNil(e.CollectiveId) && e.CollectiveId === firstExpense.CollectiveId);
+  const isSameHost = expenses.every(
+    e =>
+      !isNil(e.collective?.HostCollectiveId) &&
+      e.collective.HostCollectiveId === firstExpense.collective.HostCollectiveId,
+  );
   if (!isSameHost) {
-    throw new Error('All expenses in the batch should belong to the same Collective.');
+    throw new Error('All expenses should have collective prop populated and belong to the same Host.');
   }
 
   const host = await firstExpense.collective.getHostCollective();
