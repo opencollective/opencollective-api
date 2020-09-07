@@ -20,10 +20,10 @@ export async function run() {
       { model: models.PayoutMethod, as: 'PayoutMethod', where: { type: PayoutMethodTypes.PAYPAL } },
     ],
   });
-  const batches = values(groupBy(expenses, 'collective.HostCollectiveId'));
+  const batches = values(groupBy(expenses, 'CollectiveId'));
   logger.info(`Processing ${expenses.length} expense(s) scheduled for payment using PayPal Payouts...`);
   for (const batch of batches) {
-    logger.info(`Paying host ${batch[0]?.collective?.HostCollectiveId} batch with ${batch.length} expense(s)...`);
+    logger.info(`Paying collective ${batch[0]?.CollectiveId} batch with ${batch.length} expense(s)...`);
     await paypal.payExpensesBatch(batch).catch(console.error);
   }
   logger.info('Done!');
