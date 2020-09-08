@@ -57,6 +57,12 @@ const TransactionsQuery = {
       type: GraphQLBoolean,
       description: 'Transaction is attached to Order',
     },
+    includeIncognitoTransactions: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      defaultValue: false,
+      description:
+        'If the account is a user and this field is true, contributions from the incognito profile will be included too (admins only)',
+    },
   },
   async resolve(_, args, req): Promise<CollectionReturnType> {
     const where = [];
@@ -78,9 +84,24 @@ const TransactionsQuery = {
       where.push({ FromCollectiveId: fromAccount.id });
     }
     if (account) {
-      where.push({
-        [Op.or]: [{ CollectiveId: account.id }, { UsingVirtualCardFromCollectiveId: account.id, type: 'DEBIT' }],
-      });
+      const accountConditions = [
+        { CollectiveId: account.id },
+        { UsingVirtualCardFromCollectiveId: account.id, type: 'DEBIT' },
+      ];
+
+      // When users are admins, also fetch their incognito contributions
+      if (
+        args.includeIncognitoTransactions &&
+        req.remoteUser?.isAdminOfCollective(account) &&
+        req.remoteUser.CollectiveId === account.id
+      ) {
+        const incognitoProfile = await req.remoteUser.getIncognitoProfile();
+        if (incognitoProfile) {
+          accountConditions.push({ CollectiveId: incognitoProfile.id });
+        }
+      }
+
+      where.push({ [Op.or]: accountConditions });
     }
     if (args.searchTerm) {
       const sanitizedTerm = args.searchTerm.replace(/(_|%|\\)/g, '\\$1');

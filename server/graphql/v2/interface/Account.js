@@ -166,6 +166,12 @@ const accountFieldsDefinition = () => ({
       orderBy: {
         type: ChronologicalOrderInput,
       },
+      includeIncognitoTransactions: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        defaultValue: false,
+        description:
+          'If the account is a user and this field is true, contributions from the incognito profile will be included too (admins only)',
+      },
     },
   },
   orders: {
@@ -268,7 +274,7 @@ export const Account = new GraphQLInterfaceType({
 });
 
 const accountTransactions = {
-  type: TransactionCollection,
+  type: new GraphQLNonNull(TransactionCollection),
   args: {
     type: { type: TransactionType },
     limit: { type: GraphQLInt, defaultValue: 100 },
@@ -277,9 +283,23 @@ const accountTransactions = {
       type: ChronologicalOrderInput,
       defaultValue: ChronologicalOrderInput.defaultValue,
     },
+    includeIncognitoTransactions: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      defaultValue: false,
+      description:
+        'If the account is a user and this field is true, contributions from the incognito profile will be included too (admins only)',
+    },
   },
-  async resolve(collective, args) {
+  async resolve(collective, args, req) {
     const where = { CollectiveId: collective.id };
+
+    // When users are admins, also fetch their incognito contributions
+    if (args.includeIncognitoTransactions && req.remoteUser?.isAdminOfCollective(collective)) {
+      const incognitoProfile = await req.remoteUser.getIncognitoProfile();
+      if (incognitoProfile) {
+        where.CollectiveId = { [Op.or]: [collective.id, incognitoProfile.id] };
+      }
+    }
 
     if (args.type) {
       where.type = args.type;
