@@ -602,7 +602,11 @@ export async function payExpense(req, args) {
       'Expense is currently being processed, this means someone already started the payment process',
     );
   }
-  if (expense.status !== statuses.APPROVED) {
+  if (
+    expense.status !== statuses.APPROVED &&
+    // Allow errored expenses to be marked as paid
+    !(expense.status === statuses.ERROR && args.forceManual)
+  ) {
     throw new Unauthorized(`Expense needs to be approved. Current status of the expense: ${expense.status}.`);
   }
   if (!(await ExpenseLib.canPayExpense(req, expense))) {
