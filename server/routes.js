@@ -1,6 +1,5 @@
 import { ApolloServer } from 'apollo-server-express';
 import config from 'config';
-import { graphqlHTTP } from 'express-graphql';
 import expressLimiter from 'express-limiter';
 import { get } from 'lodash';
 import multer from 'multer';
@@ -12,9 +11,11 @@ import uploadImage from './controllers/images';
 import * as email from './controllers/services/email';
 import * as users from './controllers/users';
 import { paypalWebhook, stripeWebhook, transferwiseWebhook } from './controllers/webhooks';
+import { getGraphqlCacheKey } from './graphql/cache';
 import graphqlSchemaV1 from './graphql/v1/schema';
 import graphqlSchemaV2 from './graphql/v2/schema';
-import logger from './lib/logger';
+import cache from './lib/cache';
+import { parseToBoolean } from './lib/utils';
 import * as authentication from './middleware/authentication';
 import errorHandler from './middleware/error_handler';
 import * as params from './middleware/params';
@@ -101,20 +102,47 @@ export default app => {
   const isDevelopment = config.env === 'development';
 
   /**
-   * GraphQL v1
+   * GraphQL caching
    */
-  const graphqlServerV1 = graphqlHTTP({
-    customFormatErrorFn: error => {
-      logger.error(`GraphQL v1 error: ${error.message}`);
-      logger.debug(error);
-      return error;
-    },
-    schema: graphqlSchemaV1,
-    pretty: isDevelopment,
-    graphiql: isDevelopment,
+  app.use('/graphql', async (req, res, next) => {
+    const cacheKey = getGraphqlCacheKey(req);
+    const enabled = parseToBoolean(config.graphql.cache.enabled);
+    if (cacheKey && enabled) {
+      const fromCache = await cache.get(cacheKey);
+      if (fromCache) {
+        res.servedFromGraphqlCache = true;
+        res.send(fromCache);
+        return;
+      }
+      req.cacheKey = cacheKey;
+    }
+    next();
   });
 
-  app.use('/graphql/v1', graphqlServerV1);
+  /**
+   * GraphQL v1
+   */
+  const graphqlServerV1 = new ApolloServer({
+    schema: graphqlSchemaV1,
+    introspection: true,
+    playground: isDevelopment,
+    engine: {
+      apiKey: get(config, 'graphql.apolloEngineAPIKey'),
+    },
+    // Align with behavior from express-graphql
+    context: ({ req }) => {
+      return req;
+    },
+    formatResponse: (response, ctx) => {
+      const req = ctx.context;
+      if (req.cacheKey) {
+        cache.set(req.cacheKey, response, Number(config.graphql.cache.ttl));
+      }
+      return response;
+    },
+  });
+
+  graphqlServerV1.applyMiddleware({ app, path: '/graphql/v1' });
 
   /**
    * GraphQL v2
@@ -130,6 +158,13 @@ export default app => {
     context: ({ req }) => {
       return req;
     },
+    formatResponse: (response, ctx) => {
+      const req = ctx.context;
+      if (req.cacheKey) {
+        cache.set(req.cacheKey, response, Number(config.graphql.cache.ttl));
+      }
+      return response;
+    },
   });
 
   graphqlServerV2.applyMiddleware({ app, path: '/graphql/v2' });
@@ -137,7 +172,7 @@ export default app => {
   /**
    * GraphQL default (v1)
    */
-  app.use('/graphql', graphqlServerV1);
+  graphqlServerV1.applyMiddleware({ app, path: '/graphql' });
 
   /**
    * Webhooks that should bypass api key check

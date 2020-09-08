@@ -10,7 +10,7 @@ import activities from '../../../constants/activities';
 import { types } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import roles from '../../../constants/roles';
-import { purgeCacheForPage } from '../../../lib/cloudflare';
+import { purgeCacheForCollective } from '../../../lib/cache';
 import emailLib from '../../../lib/email';
 import * as github from '../../../lib/github';
 import { handleHostCollectivesLimit } from '../../../lib/plans';
@@ -157,10 +157,10 @@ export async function createCollective(_, args, req) {
 
   // Purge cache for parent collective (for events) and hosts
   if (parentCollective) {
-    purgeCacheForPage(`/${parentCollective.slug}`);
+    purgeCacheForCollective(parentCollective.slug);
   }
   if (hostCollective) {
-    purgeCacheForPage(`/${hostCollective.slug}`);
+    purgeCacheForCollective(hostCollective.slug);
   }
 
   // Inherit fees from parent collective after setting its host (events)
@@ -420,7 +420,7 @@ export function editCollective(_, args, req) {
     })
     .then(() => {
       // Ask cloudflare to refresh the cache for this collective's page
-      purgeCacheForPage(`/${collective.slug}`);
+      purgeCacheForCollective(collective.slug);
       return collective;
     });
 }
@@ -474,7 +474,8 @@ export async function approveCollective(remoteUser, CollectiveId) {
     }),
   );
 
-  purgeCacheForPage(`/${collective.slug}`);
+  purgeCacheForCollective(collective.slug);
+
   // Approve the collective and return it
   return collective.update({ isActive: true, approvedAt: new Date() });
 }
@@ -900,7 +901,8 @@ export async function rejectCollective(_, args, req) {
     },
   });
 
-  purgeCacheForPage(`/${collective.slug}`);
+  purgeCacheForCollective(collective.slug);
+
   return collective.changeHost(null, req.remoteUser);
 }
 

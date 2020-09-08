@@ -1,7 +1,7 @@
 import { get } from 'lodash';
 
 import { mustHaveRole } from '../../../lib/auth';
-import { purgeCacheForPage } from '../../../lib/cloudflare';
+import { purgeCacheForCollective } from '../../../lib/cache';
 import { stripTags } from '../../../lib/utils';
 import models from '../../../models';
 import { NotFound, ValidationFailed } from '../../errors';
@@ -37,7 +37,7 @@ export async function createUpdate(_, args, req) {
     makePublicOn: args.update.makePublicOn,
   });
 
-  purgeCacheForPage(`/${collective.slug}`);
+  purgeCacheForCollective(collective.slug);
   return update;
 }
 
@@ -54,7 +54,7 @@ export async function editUpdate(_, args, req) {
   let update = await fetchUpdate(args.update.id);
   update = await update.edit(req.remoteUser, args.update);
   const collective = await models.Collective.findByPk(update.CollectiveId);
-  purgeCacheForPage(`/${collective.slug}`);
+  purgeCacheForCollective(collective.slug);
   return update;
 }
 
@@ -62,7 +62,7 @@ export async function publishUpdate(_, args, req) {
   let update = await fetchUpdate(args.id);
   update = await update.publish(req.remoteUser, args.notificationAudience);
   const collective = await models.Collective.findByPk(update.CollectiveId);
-  purgeCacheForPage(`/${collective.slug}`);
+  purgeCacheForCollective(collective.slug);
   return update;
 }
 
@@ -70,7 +70,7 @@ export async function unpublishUpdate(_, args, req) {
   let update = await fetchUpdate(args.id);
   update = await update.unpublish(req.remoteUser);
   const collective = await models.Collective.findByPk(update.CollectiveId);
-  purgeCacheForPage(`/${collective.slug}`);
+  purgeCacheForCollective(collective.slug);
   return update;
 }
 
@@ -78,6 +78,6 @@ export async function deleteUpdate(_, args, req) {
   let update = await fetchUpdate(args.id);
   update = await update.delete(req.remoteUser);
   const collective = await models.Collective.findByPk(update.CollectiveId);
-  purgeCacheForPage(`/${collective.slug}`);
+  purgeCacheForCollective(collective.slug);
   return update;
 }
