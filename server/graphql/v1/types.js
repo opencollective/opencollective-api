@@ -377,18 +377,26 @@ export const MemberType = new GraphQLObjectType({
       },
       collective: {
         type: CollectiveInterfaceType,
-        resolve(member, args, req) {
-          return member.collective || req.loaders.Collective.byId.load(member.CollectiveId);
+        async resolve(member, args, req) {
+          const collective = member.collective || (await req.loaders.Collective.byId.load(member.CollectiveId));
+          if (!collective?.isIncognito || req.remoteUser?.isAdmin(collective.id)) {
+            return collective;
+          }
         },
       },
       member: {
         type: CollectiveInterfaceType,
-        resolve(member, args, req) {
+        async resolve(member, args, req) {
           const memberCollective =
-            member.memberCollective || req.loaders.Collective.byId.load(member.MemberCollectiveId);
+            member.memberCollective || (await req.loaders.Collective.byId.load(member.MemberCollectiveId));
+          const collective = member.collective || (await req.loaders.Collective.byId.load(member.CollectiveId));
+
           if (memberCollective && req.remoteUser && req.remoteUser.isAdmin(member.CollectiveId)) {
             allowContextPermission(req, PERMISSION_TYPE.SEE_INCOGNITO_ACCOUNT_DETAILS, memberCollective.id);
+          } else if (collective?.isIncognito) {
+            return null;
           }
+
           return memberCollective;
         },
       },

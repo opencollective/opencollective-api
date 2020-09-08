@@ -15,7 +15,11 @@ export const HasMembersFields = {
       role: { type: new GraphQLList(MemberRole) },
       accountType: { type: new GraphQLList(AccountType) },
     },
-    async resolve(collective, args) {
+    async resolve(collective, args, req) {
+      if (collective.isIncognito && !req.remoteUser?.isAdmin(collective.id)) {
+        return { offset: args.offset, limit: args.limit, totalCount: 0, nodes: [] };
+      }
+
       const where = { CollectiveId: collective.id };
 
       if (args.role && args.role.length > 0) {
