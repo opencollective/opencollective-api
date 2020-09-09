@@ -2,7 +2,6 @@ import { ApolloServer } from 'apollo-server-express';
 import config from 'config';
 import { graphqlHTTP } from 'express-graphql';
 import expressLimiter from 'express-limiter';
-import serverStatus from 'express-server-status';
 import { get } from 'lodash';
 import multer from 'multer';
 import redis from 'redis';
@@ -26,11 +25,6 @@ import * as paypal from './paymentProviders/paypal/payment';
 const upload = multer();
 
 export default app => {
-  /**
-   * Status.
-   */
-  app.use('/status', serverStatus(app));
-
   /**
    * Extract GraphQL API Key
    */
