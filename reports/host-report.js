@@ -267,7 +267,7 @@ async function HostReport(year, month, hostId) {
       }
     };
 
-    return getHostedCollectives(host.id, endDate)
+    return getHostedCollectives(host.id, startDate, endDate)
       .tap(collectives => {
         collectivesById = keyBy(collectives, 'id');
         data.stats.totalCollectives = collectives.filter(c => c.type === 'COLLECTIVE').length;
@@ -276,6 +276,7 @@ async function HostReport(year, month, hostId) {
       })
       .then(() =>
         getTransactions(Object.keys(collectivesById), startDate, endDate, {
+          where: { HostCollectiveId: host.id },
           include: [
             {
               model: models.Expense,
