@@ -15,7 +15,7 @@ async function processOrder(order) {
     case 'manual':
       return manual.processOrder(order);
     case 'host':
-      return collective.processOrder(order);
+      return host.processOrder(order);
     case 'test':
       return test.processOrder(order);
     case 'collective': // Fall through
