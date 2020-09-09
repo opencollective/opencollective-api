@@ -55,8 +55,8 @@ const orderMutations = {
         throw new Error('Attaching multiple taxes is not supported yet');
       }
 
-      const getOrderTotalAmount = ({ platformContributionAmount, taxes }) => {
-        let totalAmount = getValueInCentsFromAmountInput(order.amount);
+      const getOrderTotalAmount = ({ platformContributionAmount, taxes, quantity }) => {
+        let totalAmount = getValueInCentsFromAmountInput(order.amount) * quantity;
         totalAmount += platformContributionAmount ? getValueInCentsFromAmountInput(platformContributionAmount) : 0;
         totalAmount += taxes?.[0].amount ? getValueInCentsFromAmountInput(taxes[0].amount) : 0;
         return totalAmount;
