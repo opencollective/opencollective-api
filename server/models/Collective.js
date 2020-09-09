@@ -303,14 +303,6 @@ export default function (Sequelize, DataTypes) {
         },
       },
 
-      // Max amount to raise across all tiers
-      maxAmount: {
-        type: DataTypes.INTEGER, // In cents
-        validate: {
-          min: 0,
-        },
-      },
-
       // Max quantity of tickets across all tiers
       maxQuantity: {
         type: DataTypes.INTEGER,
@@ -547,7 +539,6 @@ export default function (Sequelize, DataTypes) {
             image: this.image,
             data: this.data,
             backgroundImage: this.backgroundImage,
-            maxAmount: this.maxAmount,
             maxQuantity: this.maxQuantity,
             locationName: this.locationName,
             address: this.address,

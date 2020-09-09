@@ -597,7 +597,6 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       startsAt: { type: DateString },
       endsAt: { type: DateString },
       timezone: { type: GraphQLString },
-      maxAmount: { type: GraphQLInt },
       hostFeePercent: { type: GraphQLInt },
       platformFeePercent: { type: GraphQLInt },
       currency: { type: GraphQLString },
@@ -987,12 +986,6 @@ const CollectiveFields = () => {
       type: GraphQLString,
       resolve(collective) {
         return collective.timezone;
-      },
-    },
-    maxAmount: {
-      type: GraphQLInt,
-      resolve(collective) {
-        return collective.maxAmount;
       },
     },
     hostFeePercent: {
