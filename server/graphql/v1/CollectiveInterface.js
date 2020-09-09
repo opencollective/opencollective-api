@@ -1197,7 +1197,11 @@ const CollectiveFields = () => {
         tierSlug: { type: GraphQLString },
         roles: { type: new GraphQLList(GraphQLString) },
       },
-      resolve(collective, args) {
+      resolve(collective, args, req) {
+        if (collective.isIncognito && !req.remoteUser?.isAdmin(collective.id)) {
+          return [];
+        }
+
         const query = {
           limit: args.limit,
           offset: args.offset,

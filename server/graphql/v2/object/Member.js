@@ -78,6 +78,15 @@ const MemberFields = {
   },
 };
 
+const getMemberAccountResolver = field => async (member, args, req) => {
+  const memberAccount = member.memberCollective || (await req.loaders.Collective.byId.load(member.MemberCollectiveId));
+  const account = member.collective || (await req.loaders.Collective.byId.load(member.CollectiveId));
+
+  if (!account?.isIncognito || req.remoteUser?.isAdmin(memberAccount.id)) {
+    return field === 'collective' ? account : memberAccount;
+  }
+};
+
 export const Member = new GraphQLObjectType({
   name: 'Member',
   description: 'This represents a Member relationship (ie: Organization backing a Collective)',
@@ -86,9 +95,7 @@ export const Member = new GraphQLObjectType({
       ...MemberFields,
       account: {
         type: Account,
-        resolve(member, args, req) {
-          return member.memberCollective || req.loaders.Collective.byId.load(member.MemberCollectiveId);
-        },
+        resolve: getMemberAccountResolver('memberCollective'),
       },
     };
   },
@@ -102,9 +109,7 @@ export const MemberOf = new GraphQLObjectType({
       ...MemberFields,
       account: {
         type: Account,
-        resolve(member, args, req) {
-          return member.collective || req.loaders.Collective.byId.load(member.CollectiveId);
-        },
+        resolve: getMemberAccountResolver('collective'),
       },
     };
   },

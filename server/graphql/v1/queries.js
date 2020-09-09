@@ -1103,22 +1103,33 @@ const queries = {
    */
   member: {
     type: MemberType,
+    deprecationReason: '2020-09-08: This endpoint does not seems to be used anymore',
     args: {
       id: { type: GraphQLInt },
       CollectiveId: { type: GraphQLInt },
       MemberCollectiveId: { type: GraphQLInt },
       TierId: { type: GraphQLInt },
     },
-    async resolve(_, args) {
+    async resolve(_, args, req) {
       if (!args.id && !(args.MemberCollectiveId && (args.CollectiveId || args.TierId))) {
         throw new ValidationFailed(
           'Must provide either an id, a pair of MemberCollectiveId/CollectiveId or a pair of MemberCollectiveId/TierId',
         );
       }
 
-      return models.Member.findOne({
+      const member = await models.Member.findOne({
         where: pick(args, ['id', 'CollectiveId', 'MemberCollectiveId', 'tierId']),
+        include: [
+          { model: models.Collective, as: 'collective' },
+          { model: models.Collective, as: 'memberCollective' },
+        ],
       });
+
+      if (member.collective?.isIncognito && !req.remoteUser?.isAdmin(member.memberCollective?.id)) {
+        return null;
+      } else {
+        return member;
+      }
     },
   },
 
@@ -1285,6 +1296,8 @@ const queries = {
                   members.push(m);
                 })
                 .then(() => members);
+            } else if (args.CollectiveId && !req.remoteUser?.isAdmin(args.CollectiveId)) {
+              return members.filter(m => !m.collective?.isIncognito);
             } else {
               return members;
             }
