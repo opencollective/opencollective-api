@@ -123,7 +123,7 @@ export default {
     {
       name: 'Reinventing Brussels',
       slug: 'reinventingbrussels',
-      mission: 'connect all the initiatives that create a welcoming &amp; sustainable city with deep human values',
+      description: 'connect all the initiatives that create a welcoming &amp; sustainable city with deep human values',
       image: 'https://opencollective-production.s3-us-west-1.amazonaws.com/1738fae0-9a20-11e6-8650-f92e594d5de8.png',
       currency: 'EUR',
       settings: {
@@ -135,7 +135,7 @@ export default {
     {
       name: 'Refugees Got Talent',
       slug: 'refugeesgottalent',
-      mission: 'offer a space and artistic material to refugees artists, so they can practice their art again.',
+      description: 'offer a space and artistic material to refugees artists, so they can practice their art again.',
       image: 'https://cl.ly/0Q3N193Z1e3u/BrusselsTogetherLogo.png',
       currency: 'EUR',
       tags: ['#brusselstogether'],
@@ -144,7 +144,7 @@ export default {
     {
       name: 'Brussels Smart City',
       slug: 'brusselssmartcity',
-      mission: 'improve the life of Brussels Citizens by the use of technology',
+      description: 'improve the life of Brussels Citizens by the use of technology',
       image: 'https://cl.ly/0Q3N193Z1e3u/BrusselsTogetherLogo.png',
       currency: 'EUR',
       tags: ['#brusselstogether'],

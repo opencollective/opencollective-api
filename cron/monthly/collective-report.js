@@ -212,10 +212,7 @@ const processCollective = collective => {
         data.collective.stats.totalDonations = results[3];
         data.collective.stats.totalExpenses = results[4];
         data.collective.expenses = results[5].map(expense => expense.info);
-        data.relatedCollectives = (results[6] || []).map(c => {
-          c.description = c.description || c.mission;
-          return c;
-        });
+        data.relatedCollectives = results[6] || [];
         data.collective.updates = results[10];
         data.collective.transactions = results[12];
         const nextGoal = results[11];

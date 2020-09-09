@@ -318,8 +318,8 @@ const processCollective = async CollectiveId => {
     'settings',
     'totalDonations',
     'contributorsCount',
+    'description',
   ]);
-  data.collective.description = collective.description || collective.mission;
   data.collective.stats = results[0];
   data.collective.stats.balance = results[1];
   data.collective.stats.totalDonations = results[2];
