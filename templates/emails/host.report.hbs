@@ -92,9 +92,9 @@ Subject: {{host.name}} Host {{reportName}}
         <td align="center"><span class="counter">{{number stats.backers.total}}</span></td>
       </tr>
       <tr>
-        <td align="center" nowrap><span class="label">current balance</span></td>
+        <td align="center" nowrap><span class="label">Amount Managed*</span></td>
         <td></td>
-        <td align="center" nowrap><span class="label">total backers</span></td>
+        <td align="center" nowrap><span class="label">Total Backers</span></td>
       </tr>
       <tr>
         <td align="center">
@@ -111,6 +111,9 @@ Subject: {{host.name}} Host {{reportName}}
       </tr>
     </table>
   </center>
+  <p>
+    * This is the total balance of all collectives managed by your host.
+  </p>
 
   <h2>Details for the {{#if month}}month{{else}}year{{/if}}</h2>
   <table border=0 width="100%">
@@ -292,7 +295,7 @@ Subject: {{host.name}} Host {{reportName}}
   <ul>
     <li>A CSV export of all the transactions of the {{#if month}}month{{else}}year{{/if}}</li>
     {{#if expensesPdf}}
-      <li>A PDF with all the receipts</li>
+    <li>A PDF with all the receipts</li>
     {{/if}}
   </ul>
 

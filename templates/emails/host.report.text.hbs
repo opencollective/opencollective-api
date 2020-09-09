@@ -2,11 +2,12 @@ Hi {{recipient.firstName}}!
 
 Here is your {{#if month}}monthly{{else}}yearly{{/if}} report from {{moment startDate}} till {{moment endDateIncluded}} included.
 
-Balance as of {{moment reportDate}}: {{currency stats.balance.totalInHostCurrency currency=host.currency precision=2}} (+{{currency stats.totalNetAmountReceived.totalInHostCurrency currency=host.currency precision=2}}{{#if stats.totalAmountSpent.totalInHostCurrency}}, {{currency stats.totalAmountSpent.totalInHostCurrency currency=host.currency precision=2}}{{/if}})
+Amount Managed* as of {{moment reportDate}}: {{currency stats.balance.totalInHostCurrency currency=host.currency precision=2}} (+{{currency stats.totalNetAmountReceived.totalInHostCurrency currency=host.currency precision=2}}{{#if stats.totalAmountSpent.totalInHostCurrency}}, {{currency stats.totalAmountSpent.totalInHostCurrency currency=host.currency precision=2}}{{/if}})
 
 {{number stats.totalCollectives}} {{pluralize "collective" n=stats.totalCollectives}} ({{number stats.totalActiveCollectives}} active)
 {{number stats.backers.total}} backers (+{{number stats.backers.new}}{{#if stats.backers.lost}}, -{{number stats.backers.lost}}{{/if}}) 
 
+* This is the total balance of all collectives managed by your host.
 
 Details for the month:
 
