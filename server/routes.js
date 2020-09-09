@@ -100,6 +100,7 @@ export default app => {
   app.param('expenseid', params.expenseid);
 
   const isDevelopment = config.env === 'development';
+  const isProduction = config.env === 'production';
 
   /**
    * GraphQL caching
@@ -127,6 +128,8 @@ export default app => {
     introspection: true,
     playground: isDevelopment,
     engine: {
+      reportSchema: isProduction,
+      variant: 'current',
       apiKey: get(config, 'graphql.apolloEngineAPIKey'),
     },
     // Align with behavior from express-graphql
@@ -152,7 +155,9 @@ export default app => {
     introspection: true,
     playground: isDevelopment,
     engine: {
-      apiKey: get(config, 'graphql.apolloEngineAPIKey'),
+      reportSchema: isProduction,
+      variant: 'current',
+      apiKey: get(config, 'graphql.apolloEngineAPIKeyV2'),
     },
     // Align with behavior from express-graphql
     context: ({ req }) => {
