@@ -1009,10 +1009,20 @@ export default function (Sequelize, DataTypes) {
     if (!this.isHostAccount || ![types.ORGANIZATION].includes(this.type)) {
       return;
     }
+
     await this.update({
       isActive: true,
       HostCollectiveId: this.id,
       settings: { ...this.settings, hostCollective: { id: this.id } },
+    });
+
+    await models.PaymentMethod.create({
+      CollectiveId: this.id,
+      service: 'opencollective',
+      type: 'collective',
+      name: `${capitalize(this.name)} (${capitalize(this.type.toLowerCase())})`,
+      primary: true,
+      currency: this.currency,
     });
 
     return this;
@@ -1027,6 +1037,19 @@ export default function (Sequelize, DataTypes) {
       HostCollectiveId: null,
       settings: omit(this.settings, ['hostCollective']),
     });
+
+    const collectivePaymentMethod = await models.PaymentMethod.findOne({
+      where: {
+        CollectiveId: this.id,
+        service: 'opencollective',
+        type: 'collective',
+        deletedAt: null,
+      },
+    });
+
+    if (collectivePaymentMethod) {
+      await collectivePaymentMethod.destroy();
+    }
 
     return this;
   };
