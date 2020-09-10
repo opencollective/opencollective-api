@@ -66,8 +66,9 @@ const orderMutations = {
       const { platformContributionAmount } = order;
       const tax = order.taxes?.[0];
       const platformFee = platformContributionAmount && getValueInCentsFromAmountInput(platformContributionAmount);
-      const loadAccount = account => fetchAccountWithReference(account, { loaders: req.loaders, throwIfMissing: true });
-      const tier = order.tier && (await fetchTierWithReference(order.tier, { loaders: req.loaders }));
+      const loadersParams = { loaders: req.loaders, throwIfMissing: true };
+      const loadAccount = account => fetchAccountWithReference(account, loadersParams);
+      const tier = order.tier && (await fetchTierWithReference(order.tier, loadersParams));
 
       const legacyOrderObj = {
         quantity: order.quantity,
@@ -259,7 +260,7 @@ const orderMutations = {
 
         // get tier info if it's a named tier
         if (args.tier.id !== null) {
-          tierInfo = await fetchTierWithReference(args.tier);
+          tierInfo = await fetchTierWithReference(args.tier, { throwIfMissing: true });
           if (!tierInfo) {
             throw new Error(`No tier found with tier id: ${args.tier.id} for collective ${order.CollectiveId}`);
           } else if (tierInfo.CollectiveId !== order.CollectiveId) {
