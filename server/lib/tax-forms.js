@@ -1,74 +1,26 @@
 import config from 'config';
-import { uniqBy } from 'lodash';
 
-import models from '../models';
+import models, { Op } from '../models';
 
 import logger from './logger';
+import queries from './queries';
 import { isEmailInternal } from './utils';
 
-const { RequiredLegalDocument, LegalDocument, Collective, User } = models;
+const { RequiredLegalDocument, LegalDocument } = models;
 const {
   documentType: { US_TAX_FORM },
 } = RequiredLegalDocument;
 
-export async function findUsersThatNeedToBeSentTaxForm({ invoiceTotalThreshold, year }) {
-  const users = await RequiredLegalDocument.findAll({
-    where: { documentType: US_TAX_FORM },
-  })
-    .map(requiredUsTaxDoc => requiredUsTaxDoc.getHostCollective())
-    .map(host => host.getUsersWhoHaveTotalExpensesOverThreshold({ threshold: invoiceTotalThreshold, year }))
-    .reduce((acc, item) => {
-      return [...acc, ...item];
-    }, [])
-    .filter(user => {
-      return LegalDocument.doesUserNeedToBeSentDocument({ documentType: US_TAX_FORM, year, user });
+export async function findUsersThatNeedToBeSentTaxForm(year) {
+  const results = await queries.getTaxFormsRequiredForAccounts(null, new Date(year, 1));
+
+  if (!results.length) {
+    return [];
+  } else {
+    return models.User.findAll({
+      where: { CollectiveId: { [Op.in]: results.map(result => result.collectiveId) } },
     });
-
-  return uniqBy(users, 'id');
-}
-
-export async function isUserTaxFormRequiredBeforePayment({ invoiceTotalThreshold, year, expenseCollectiveId, UserId }) {
-  const collective = await Collective.findOne({
-    where: { id: expenseCollectiveId },
-    include: {
-      association: 'HostCollective',
-    },
-  });
-
-  // Host can be null (we allow submitting expenses to collectives without a host)
-  if (!collective.HostCollective) {
-    return false;
   }
-
-  const { HostCollective: host } = collective;
-  const user = await User.findByPk(UserId);
-  const requiredDocuments = await host.getRequiredLegalDocuments({
-    where: {
-      documentType: US_TAX_FORM,
-    },
-  });
-
-  if (requiredDocuments.length == 0) {
-    return false;
-  }
-
-  const isOverThreshold = await host.doesUserHaveTotalExpensesOverThreshold({
-    threshold: invoiceTotalThreshold,
-    year,
-    UserId,
-  });
-
-  if (!isOverThreshold) {
-    return false;
-  }
-
-  const hasUserCompletedDocument = await LegalDocument.hasUserCompletedDocument({
-    documentType: US_TAX_FORM,
-    year,
-    user,
-  });
-
-  return !hasUserCompletedDocument;
 }
 
 export function SendHelloWorksTaxForm({ client, callbackUrl, workflowId, year }) {

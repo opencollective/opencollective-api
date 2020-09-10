@@ -12,7 +12,6 @@ import { sequelize } from '../../server/models';
 const MAX_REQUESTS_PER_SECOND = 1;
 const ONE_SECOND_IN_MILLISECONDS = 1000;
 
-const US_TAX_FORM_THRESHOLD = 600e2;
 const HELLO_WORKS_KEY = config.get('helloworks.key');
 const HELLO_WORKS_SECRET = config.get('helloworks.secret');
 const HELLO_WORKS_WORKFLOW_ID = config.get('helloworks.workflowId');
@@ -37,10 +36,7 @@ const sendHelloWorksUsTaxForm = SendHelloWorksTaxForm({
 const init = async () => {
   console.log('>>>> Running tax form job');
   // Filter unique users
-  const users = findUsersThatNeedToBeSentTaxForm({
-    invoiceTotalThreshold: US_TAX_FORM_THRESHOLD,
-    year,
-  });
+  const users = findUsersThatNeedToBeSentTaxForm(year);
 
   if (process.env.DRY_RUN) {
     console.log('>> Doing tax form dry run. Emails of users who need tax forms:');

@@ -4,12 +4,9 @@ import moment from 'moment';
 import sinon from 'sinon';
 
 import expenseTypes from '../../../server/constants/expense_type';
-import {
-  findUsersThatNeedToBeSentTaxForm,
-  isUserTaxFormRequiredBeforePayment,
-  SendHelloWorksTaxForm,
-} from '../../../server/lib/tax-forms';
+import { findUsersThatNeedToBeSentTaxForm, SendHelloWorksTaxForm } from '../../../server/lib/tax-forms';
 import models from '../../../server/models';
+import { fakeCollective, fakeHost, fakeUser } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 const { RECEIPT, INVOICE } = expenseTypes;
 
@@ -43,7 +40,7 @@ describe('server/lib/tax-forms', () => {
   // - one host collective that needs legal docs
   // - two hosted collectives that have invoices to them.
   // - a user that has a document with Error status
-  let user, userCollective, hostCollective, organisationCollectives;
+  let user, userCollective, hostCollective, collectives;
 
   const documentData = {
     year: moment().year(),
@@ -87,67 +84,16 @@ describe('server/lib/tax-forms', () => {
     },
   ];
 
-  const hostCollectiveData = {
-    slug: 'opensource',
-    name: 'opensouce',
-    currency: 'USD',
-    tags: ['#opensource'],
-  };
-
-  const organisationCollectivesData = [
-    {
-      slug: 'babel',
-      name: 'babel',
-      currency: 'USD',
-      tags: ['#babel'],
-      tiers: [
-        {
-          name: 'backer',
-          range: [2, 100],
-          interval: 'monthly',
-        },
-        {
-          name: 'sponsor',
-          range: [100, 100000],
-          interval: 'yearly',
-        },
-      ],
-    },
-    {
-      slug: 'scuttlebutt',
-      name: 'scuttlebutt',
-      currency: 'USD',
-      tags: ['#scuttlebutt'],
-      tiers: [
-        {
-          name: 'backer',
-          range: [2, 100],
-          interval: 'monthly',
-        },
-        {
-          name: 'sponsor',
-          range: [100, 100000],
-          interval: 'yearly',
-        },
-      ],
-    },
-  ];
-
   beforeEach(async () => await utils.resetTestDB());
   beforeEach(async () => {
     const users = await Promise.all(usersData.map(userData => User.createUserWithCollective(userData)));
     user = users[0];
     userCollective = await Collective.findByPk(user.CollectiveId);
-    hostCollective = await Collective.create(hostCollectiveData);
-
-    organisationCollectives = await Promise.all(
-      organisationCollectivesData
-        .map(collectiveData => {
-          collectiveData.HostCollectiveId = hostCollective.id;
-          return collectiveData;
-        })
-        .map(collectiveData => Collective.create(collectiveData)),
-    );
+    hostCollective = await fakeHost();
+    collectives = await Promise.all([
+      fakeCollective({ HostCollectiveId: hostCollective.id }),
+      fakeCollective({ HostCollectiveId: hostCollective.id }),
+    ]);
 
     const mixCollective = await Collective.findByPk(users[3].CollectiveId);
 
@@ -156,7 +102,7 @@ describe('server/lib/tax-forms', () => {
       ExpenseOverThreshold({
         UserId: users[0].id,
         FromCollectiveId: users[0].CollectiveId,
-        CollectiveId: organisationCollectives[0].id,
+        CollectiveId: collectives[0].id,
         incurredAt: moment(),
       }),
     );
@@ -165,7 +111,7 @@ describe('server/lib/tax-forms', () => {
       ExpenseOverThreshold({
         UserId: users[2].id,
         FromCollectiveId: users[2].CollectiveId,
-        CollectiveId: organisationCollectives[0].id,
+        CollectiveId: collectives[0].id,
         incurredAt: moment(),
         type: RECEIPT,
       }),
@@ -175,7 +121,7 @@ describe('server/lib/tax-forms', () => {
       ExpenseOverThreshold({
         UserId: users[1].id,
         FromCollectiveId: users[1].CollectiveId,
-        CollectiveId: organisationCollectives[0].id,
+        CollectiveId: collectives[0].id,
         incurredAt: moment(),
       }),
     );
@@ -184,7 +130,7 @@ describe('server/lib/tax-forms', () => {
       ExpenseOverThreshold({
         UserId: users[1].id,
         FromCollectiveId: users[1].CollectiveId,
-        CollectiveId: organisationCollectives[0].id,
+        CollectiveId: collectives[0].id,
         incurredAt: moment(),
         amount: US_TAX_FORM_THRESHOLD - 200e2,
       }),
@@ -194,7 +140,7 @@ describe('server/lib/tax-forms', () => {
       ExpenseOverThreshold({
         UserId: users[0].id,
         FromCollectiveId: users[0].CollectiveId,
-        CollectiveId: organisationCollectives[1].id,
+        CollectiveId: collectives[1].id,
         incurredAt: moment(),
       }),
     );
@@ -203,7 +149,7 @@ describe('server/lib/tax-forms', () => {
       ExpenseOverThreshold({
         UserId: users[0].id,
         FromCollectiveId: users[0].CollectiveId,
-        CollectiveId: organisationCollectives[0].id,
+        CollectiveId: collectives[0].id,
         incurredAt: moment().set('year', 2016),
       }),
     );
@@ -213,7 +159,7 @@ describe('server/lib/tax-forms', () => {
       ExpenseOverThreshold({
         UserId: users[3].id,
         FromCollectiveId: users[3].CollectiveId,
-        CollectiveId: organisationCollectives[0].id,
+        CollectiveId: collectives[0].id,
         incurredAt: moment(),
       }),
     );
@@ -235,61 +181,9 @@ describe('server/lib/tax-forms', () => {
 
   describe('findUsersThatNeedToBeSentTaxForm', () => {
     it('it finds the correct users for this year and de-duplicates them', async () => {
-      const users = await findUsersThatNeedToBeSentTaxForm({
-        invoiceTotalThreshold: US_TAX_FORM_THRESHOLD,
-        year: moment().year(),
-      });
+      const users = await findUsersThatNeedToBeSentTaxForm(moment().year());
       expect(users.length).to.be.eq(3);
       expect(users.every(async user => (await user.name) !== 'Piet Geursen')).to.be.true;
-    });
-  });
-
-  describe('isUserTaxFormRequiredBeforePayment', () => {
-    it('it returns true when the user is over the threshold but has not returned their form ', async () => {
-      const result = await isUserTaxFormRequiredBeforePayment({
-        invoiceTotalThreshold: US_TAX_FORM_THRESHOLD,
-        year: moment().year(),
-        expenseCollectiveId: organisationCollectives[0].id,
-        UserId: user.id,
-      });
-      expect(result).to.be.true;
-    });
-    it('it returns false when all the other conditions are met except the document status is received', async () => {
-      const legalDoc = Object.assign({}, documentData, {
-        CollectiveId: userCollective.id,
-        requestStatus: RECEIVED,
-      });
-      await LegalDocument.create(legalDoc);
-
-      const result = await isUserTaxFormRequiredBeforePayment({
-        invoiceTotalThreshold: US_TAX_FORM_THRESHOLD,
-        year: moment().year(),
-        expenseCollectiveId: organisationCollectives[0].id,
-        UserId: user.id,
-      });
-      expect(result).to.be.false;
-    });
-    it('it returns false when all the other conditions are met except the host does not require a legal document', async () => {
-      const requiredDoc = await hostCollective.getRequiredLegalDocuments();
-      requiredDoc[0].destroy();
-      const result = await isUserTaxFormRequiredBeforePayment({
-        invoiceTotalThreshold: US_TAX_FORM_THRESHOLD,
-        year: moment().year(),
-        expenseCollectiveId: organisationCollectives[0].id,
-        UserId: user.id,
-      });
-      expect(result).to.be.false;
-    });
-    it('it returns false when all the other conditions are met except the user does not cross the threshold', async () => {
-      await Expense.destroy({ where: { UserId: user.id } });
-
-      const result = await isUserTaxFormRequiredBeforePayment({
-        invoiceTotalThreshold: US_TAX_FORM_THRESHOLD,
-        year: moment().year(),
-        expenseCollectiveId: organisationCollectives[0].id,
-        UserId: user.id,
-      });
-      expect(result).to.be.false;
     });
   });
 

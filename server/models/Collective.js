@@ -2945,34 +2945,6 @@ export default function (Sequelize, DataTypes) {
     return userTotal >= threshold;
   };
 
-  Collective.prototype.getUsersWhoHaveTotalExpensesOverThreshold = async function ({ threshold, year }) {
-    const { PENDING, APPROVED, PAID, PROCESSING } = expenseStatus;
-    const since = moment({ year });
-    const until = moment({ year }).add(1, 'y');
-    const status = [PENDING, APPROVED, PAID, PROCESSING];
-    const excludedTypes = [expenseTypes.RECEIPT];
-    const expenses = await this.getExpensesForHost(status, since, until, null, excludedTypes);
-
-    const userTotals = expenses.reduce((totals, expense) => {
-      const { UserId } = expense;
-
-      totals[UserId] = totals[UserId] || 0;
-      totals[UserId] += expense.amount;
-
-      return totals;
-    }, {});
-
-    const userAmountsThatCrossThreshold = pickBy(userTotals, total => total >= threshold);
-
-    const userIdsThatCrossThreshold = keys(userAmountsThatCrossThreshold).map(Number);
-
-    return models.User.findAll({
-      where: {
-        id: userIdsThatCrossThreshold,
-      },
-    });
-  };
-
   Collective.getHostCollectiveId = async CollectiveId => {
     const res = await models.Member.findOne({
       attributes: ['MemberCollectiveId'],
