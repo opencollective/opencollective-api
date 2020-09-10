@@ -81,6 +81,17 @@ export const Tier = new GraphQLObjectType({
       maxQuantity: {
         type: GraphQLInt,
       },
+      availableQuantity: {
+        type: GraphQLInt,
+        description: 'Number of tickets available. Returns null if there is no limit.',
+        resolve(tier, _, req) {
+          if (!tier.maxQuantity) {
+            return null;
+          } else {
+            return req.loaders.Tier.availableQuantity.load(tier.id);
+          }
+        },
+      },
       customFields: {
         type: GraphQLJSON,
       },
