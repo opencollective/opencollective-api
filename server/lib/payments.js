@@ -18,8 +18,8 @@ import paymentProviders from '../paymentProviders';
 
 import emailLib from './email';
 import { subscribeOrUpgradePlan, validatePlanRequest } from './plans';
-import * as libsubscription from './subscriptions';
-import * as libtransactions from './transactions';
+import { getNextChargeAndPeriodStartDates } from './recurring-contributions';
+import { netAmount } from './transactions';
 
 const debug = debugLib('payments');
 
@@ -196,7 +196,7 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
     /* Amount fields. Must be calculated after tweaking all the fees */
     refund.amount = -t.amount;
     refund.amountInHostCurrency = -t.amountInHostCurrency;
-    refund.netAmountInCollectiveCurrency = -libtransactions.netAmount(t);
+    refund.netAmountInCollectiveCurrency = -netAmount(t);
     refund.isRefund = true;
     return refund;
   };
@@ -268,7 +268,7 @@ export const createSubscription = async order => {
   // included so we're doing that manually here. Not the
   // cutest but works.
   order.Subscription = subscription;
-  const updatedDates = libsubscription.getNextChargeAndPeriodStartDates('new', order);
+  const updatedDates = getNextChargeAndPeriodStartDates('new', order);
   order.Subscription.nextChargeDate = updatedDates.nextChargeDate;
   order.Subscription.nextPeriodStart = updatedDates.nextPeriodStart || order.Subscription.nextPeriodStart;
 

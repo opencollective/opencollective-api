@@ -12,7 +12,7 @@ import {
   groupProcessedOrders,
   ordersWithPendingCharges,
   processOrderWithSubscription,
-} from '../../server/lib/subscriptions';
+} from '../../server/lib/recurring-contributions';
 import { sequelize } from '../../server/models';
 
 const REPORT_EMAIL = 'ops@opencollective.com';
@@ -56,7 +56,7 @@ async function run(options) {
   });
   vprint(
     options,
-    `${count} subscriptions pending charges. Charging ${orders.length} subscriptions right now. dryRun: ${options.dryRun}`,
+    `${count} recurring contributions pending charges. Charging ${orders.length} contributions right now. dryRun: ${options.dryRun}`,
   );
   const data = [];
 
@@ -81,7 +81,7 @@ async function run(options) {
     try {
       const csv = json2csv(data, { fields: csvFields });
       if (options.dryRun) {
-        fs.writeFileSync('charge_subscriptions.output.csv', csv);
+        fs.writeFileSync('charge_recurring_contributions.output.csv', csv);
       }
       if (!options.dryRun) {
         vprint(options, 'Sending email report');
@@ -98,14 +98,14 @@ async function run(options) {
     }
 
     await sequelize.close();
-    vprint(options, 'Finished running charge subscriptions');
+    vprint(options, 'Finished running charge recurring contributions');
   });
 }
 
 /** Send an email with details of the subscriptions processed */
 async function emailReport(orders, data, attachments) {
   const icon = err => (err ? '❌' : '✅');
-  let result = [`Total Subscriptions pending charges found: ${orders.length}`, ''];
+  let result = [`Total recurring contributions pending charges found: ${orders.length}`, ''];
 
   // Add entries of each group to the result list
   const printGroup = ([name, { total, entries }]) => {
@@ -138,8 +138,7 @@ async function emailReport(orders, data, attachments) {
   result.push(`\n\nTotal time taken: ${end}ms`);
 
   // Subject line of the email
-  const issuesFound = data.get('canceled') || data.get('past_due');
-  const subject = `${icon(issuesFound)} Daily Subscription Report - ${now.toLocaleDateString()}`;
+  const subject = `Recurring Contributions Report - ${now.toLocaleDateString()}`;
 
   // Actual send
   return emailLib.sendMessage(REPORT_EMAIL, subject, '', {
@@ -153,7 +152,7 @@ async function emailReport(orders, data, attachments) {
 export function parseCommandLineArguments() {
   const parser = new ArgumentParser({
     addHelp: true,
-    description: 'Charge due subscriptions',
+    description: 'Charge due recurring contributions',
   });
   parser.addArgument(['-q', '--quiet'], {
     help: 'Silence output',
@@ -168,12 +167,12 @@ export function parseCommandLineArguments() {
     constant: true,
   });
   parser.addArgument(['-l', '--limit'], {
-    help: 'total subscriptions to process',
-    defaultValue: 500,
+    help: 'total recurring contributions to process',
+    defaultValue: 1000,
   });
   parser.addArgument(['-c', '--concurrency'], {
     help: 'concurrency',
-    defaultValue: 3,
+    defaultValue: 5,
   });
   parser.addArgument(['-s', '--simulate'], {
     help: 'concurrency',
