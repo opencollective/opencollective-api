@@ -23,7 +23,7 @@ export const TierReferenceInput = new GraphQLInputObjectType({
  *
  * @param {string|number} input - id of the tier
  */
-export const fetchTierWithReference = async (input, { loaders } = {}) => {
+export const fetchTierWithReference = async (input, { loaders, throwIfMissing } = {}) => {
   const loadTier = id => (loaders ? loaders.Tier.byId.load(id) : models.Tier.findByPk(id));
   let tier;
   if (input.id) {
@@ -34,8 +34,8 @@ export const fetchTierWithReference = async (input, { loaders } = {}) => {
   } else {
     throw new Error('Please provide an id');
   }
-  if (!tier) {
-    throw new NotFound('Payment Method Not Found');
+  if (!tier && throwIfMissing) {
+    throw new NotFound(`Tier Not Found`);
   }
   return tier;
 };

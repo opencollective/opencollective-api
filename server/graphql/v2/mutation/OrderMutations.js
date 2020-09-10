@@ -55,8 +55,8 @@ const orderMutations = {
         throw new Error('Attaching multiple taxes is not supported yet');
       }
 
-      const getOrderTotalAmount = ({ platformContributionAmount, taxes }) => {
-        let totalAmount = getValueInCentsFromAmountInput(order.amount);
+      const getOrderTotalAmount = ({ platformContributionAmount, taxes, quantity }) => {
+        let totalAmount = getValueInCentsFromAmountInput(order.amount) * quantity;
         totalAmount += platformContributionAmount ? getValueInCentsFromAmountInput(platformContributionAmount) : 0;
         totalAmount += taxes?.[0].amount ? getValueInCentsFromAmountInput(taxes[0].amount) : 0;
         return totalAmount;
@@ -66,7 +66,9 @@ const orderMutations = {
       const { platformContributionAmount } = order;
       const tax = order.taxes?.[0];
       const platformFee = platformContributionAmount && getValueInCentsFromAmountInput(platformContributionAmount);
-      const loadAccount = account => fetchAccountWithReference(account, { loaders: req.loaders, throwIfMissing: true });
+      const loadersParams = { loaders: req.loaders, throwIfMissing: true };
+      const loadAccount = account => fetchAccountWithReference(account, loadersParams);
+      const tier = order.tier && (await fetchTierWithReference(order.tier, loadersParams));
 
       const legacyOrderObj = {
         quantity: order.quantity,
@@ -80,6 +82,7 @@ const orderMutations = {
         fromCollective: await loadAccount(order.fromAccount),
         collective: await loadAccount(order.toAccount),
         totalAmount: getOrderTotalAmount(order),
+        tier,
         platformFee,
       };
 
@@ -257,7 +260,7 @@ const orderMutations = {
 
         // get tier info if it's a named tier
         if (args.tier.id !== null) {
-          tierInfo = await fetchTierWithReference(args.tier);
+          tierInfo = await fetchTierWithReference(args.tier, { throwIfMissing: true });
           if (!tierInfo) {
             throw new Error(`No tier found with tier id: ${args.tier.id} for collective ${order.CollectiveId}`);
           } else if (tierInfo.CollectiveId !== order.CollectiveId) {
