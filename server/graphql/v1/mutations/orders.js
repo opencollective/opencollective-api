@@ -12,8 +12,7 @@ import FEATURE from '../../../constants/feature';
 import status from '../../../constants/order_status';
 import roles from '../../../constants/roles';
 import { VAT_OPTIONS } from '../../../constants/vat';
-import cache from '../../../lib/cache';
-import { purgeCacheForPage } from '../../../lib/cloudflare';
+import cache, { purgeCacheForCollective } from '../../../lib/cache';
 import * as github from '../../../lib/github';
 import * as libPayments from '../../../lib/payments';
 import { handleHostPlanAddedFundsLimit, handleHostPlanBankTransfersLimit } from '../../../lib/plans';
@@ -503,7 +502,8 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
     }
 
     // Invalidate Cloudflare cache for the collective pages
-    purgeCacheForPage([`/${collective.slug}`, `/${fromCollective.slug}`]);
+    purgeCacheForCollective(collective.slug);
+    purgeCacheForCollective(fromCollective.slug);
 
     order = await models.Order.findByPk(orderCreated.id);
     return order;

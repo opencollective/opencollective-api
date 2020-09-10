@@ -3,7 +3,7 @@ import { get, pick } from 'lodash';
 
 import activities from '../../../constants/activities';
 import roles from '../../../constants/roles';
-import { purgeCacheForPage } from '../../../lib/cloudflare';
+import { purgeCacheForCollective } from '../../../lib/cache';
 import { isCollectiveSlugReserved } from '../../../lib/collectivelib';
 import * as github from '../../../lib/github';
 import { defaultHostCollective } from '../../../lib/utils';
@@ -90,7 +90,7 @@ async function createCollective(_, args, req) {
   // Add the host if any
   if (host) {
     await collective.addHost(host, remoteUser, { shouldAutomaticallyApprove });
-    purgeCacheForPage(`/${host.slug}`);
+    purgeCacheForCollective(host.slug);
   }
 
   // Will send an email to the authenticated user

@@ -142,5 +142,11 @@
   "dbEncryption": {
     "secretKey": "guineapigs",
     "cipher": "DES"
+  },
+  "graphql": {
+    "cache": {
+      "enabled": false,
+      "ttl": 300
+    }
   }
 }

@@ -56,6 +56,9 @@ const load = async app => {
 
         if (req.body && req.body.query && req.body.variables) {
           log = log.set('graphql', req.body);
+          if (res.servedFromGraphqlCache) {
+            log = log.setIn(['graphql', 'servedFromCache'], true);
+          }
         }
 
         if (req.clientApp) {

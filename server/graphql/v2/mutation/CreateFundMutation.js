@@ -3,7 +3,7 @@ import { get, pick } from 'lodash';
 
 import activities from '../../../constants/activities';
 import roles from '../../../constants/roles';
-import { purgeCacheForPage } from '../../../lib/cloudflare';
+import { purgeCacheForCollective } from '../../../lib/cache';
 import { isCollectiveSlugReserved } from '../../../lib/collectivelib';
 import models from '../../../models';
 import { Unauthorized, ValidationFailed } from '../../errors';
@@ -59,7 +59,7 @@ async function createFund(_, args, req) {
   // Add the host if any
   if (host) {
     await fund.addHost(host, remoteUser);
-    purgeCacheForPage(`/${host.slug}`);
+    purgeCacheForCollective(host.slug);
   }
 
   // Will send an email to the authenticated user

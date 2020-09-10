@@ -22,7 +22,12 @@
     }
   },
   "graphql": {
-    "apolloEngineAPIKey": "APOLLO_ENGINE_API_KEY"
+    "apolloEngineAPIKey": "APOLLO_ENGINE_API_KEY",
+    "apolloEngineAPIKeyV2": "APOLLO_ENGINE_API_KEY_V2",
+    "cache": {
+      "enabled": "GRAPHQL_CACHE_ENABLED",
+      "ttl": "GRAPHQL_CACHE_TTL"
+    }
   },
   "memcache": {
     "servers": "MEMCACHE_SERVERS",
@@ -40,9 +45,6 @@
       "emailUnsubscribeSecret": "EMAIL_UNSUBSCRIBE_SECRET",
       "hashidSalt": "HASHID_SALT"
     }
-  },
-  "cache": {
-    "middleware": "CACHE_MIDDLEWARE"
   },
   "log": {
     "level": "LOG_LEVEL",
