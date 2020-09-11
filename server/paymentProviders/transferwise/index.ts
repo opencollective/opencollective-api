@@ -111,7 +111,10 @@ async function payExpense(
   return { quote, recipient, transfer, fund };
 }
 
-async function getAvailableCurrencies(host: any): Promise<{ code: string; minInvoiceAmount: number }[]> {
+async function getAvailableCurrencies(
+  host: any,
+  ignoreBlockedCurrencies = false,
+): Promise<{ code: string; minInvoiceAmount: number }[]> {
   const cacheKey = `transferwise_available_currencies_${host.id}`;
   const fromCache = await cache.get(cacheKey);
   if (fromCache) {
@@ -125,7 +128,8 @@ async function getAvailableCurrencies(host: any): Promise<{ code: string; minInv
     throw new TransferwiseError('Host is not connected to Transferwise', 'transferwise.error.notConnected');
   }
   await populateProfileId(connectedAccount);
-  const currencyBlockList = connectedAccount.data?.type === 'business' ? blockedCurrenciesForBusinesProfiles : [];
+  const currencyBlockList =
+    connectedAccount.data?.type === 'business' && !ignoreBlockedCurrencies ? blockedCurrenciesForBusinesProfiles : [];
 
   const pairs = await transferwise.getCurrencyPairs(connectedAccount.token);
   const source = pairs.sourceCurrencies.find(sc => sc.currencyCode === host.currency);
