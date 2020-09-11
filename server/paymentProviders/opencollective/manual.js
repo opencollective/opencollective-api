@@ -2,6 +2,7 @@ import { isNumber, pick } from 'lodash';
 
 import { maxInteger } from '../../constants/math';
 import { HOST_FEE_PERCENT, TransactionTypes } from '../../constants/transactions';
+import { FEATURE, hasOptedInForFeature } from '../../lib/allowed-features';
 import { createRefundTransaction } from '../../lib/payments';
 import models from '../../models';
 /**
@@ -28,7 +29,7 @@ async function processOrder(order) {
   const payload = pick(order, ['CreatedByUserId', 'FromCollectiveId', 'CollectiveId', 'PaymentMethodId']);
   const host = await order.collective.getHostCollective();
 
-  if (host.currency !== order.currency) {
+  if (host.currency !== order.currency && !hasOptedInForFeature(host, FEATURE.CROSS_CURRENCY_MANUAL_TRANSACTIONS)) {
     throw Error(
       `Cannot manually record a transaction in a different currency than the currency of the host ${host.currency}`,
     );
