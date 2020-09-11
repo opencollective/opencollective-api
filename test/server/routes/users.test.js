@@ -119,17 +119,56 @@ describe('server/routes/users', () => {
       // And then the token should have a long expiration
       expect(moment(parsedToken.exp).diff(parsedToken.iat)).to.equal(auth.TOKEN_EXPIRATION_SESSION);
     });
+    it('should respond with 2FA token if the user has 2FA enabled on account', async () => {
+      const secret = speakeasy.generateSecret({ length: 64 });
+      const encryptedToken = crypto[CIPHER].encrypt(secret.base32, SECRET_KEY).toString();
+      const user = await models.User.create({ email: 'mopsa@mopsa.mopsa', twoFactorAuthToken: encryptedToken });
+      const currentToken = user.jwt();
+
+      // When the endpoint is hit with a valid token
+      const response = await request(expressApp).post(updateTokenUrl).set('Authorization', `Bearer ${currentToken}`);
+
+      // Then it responds with success
+      expect(response.statusCode).to.equal(200);
+
+      // And then the response also contains a 2FA token
+      const parsedToken = auth.verifyJwt(response.body.token);
+      expect(parsedToken.scope).to.equal('twofactorauth');
+    });
+  });
+
+  /**
+   * Receive a valid 2FA token & return a brand new token
+   */
+  describe('#twoFactorAuth', () => {
+    const twoFactorAuthUrl = `/users/two-factor-auth?api_key=${application.api_key}`;
+
+    it('should fail if no token is provided', async () => {
+      const response = await request(expressApp).post(twoFactorAuthUrl);
+      expect(response.statusCode).to.equal(400);
+    });
+    it('should fail if token with wrong scope is provided', async () => {
+      // Given a user and an authentication token
+      const user = await models.User.create({ email: 'test@mctesterson.com' });
+      const badToken = user.jwt({ scope: 'nottwofactorauth' });
+
+      // When the endpoint is hit with a token of the wrong scope
+      const response = await request(expressApp).post(twoFactorAuthUrl).set('Authorization', `Bearer ${badToken}`);
+
+      // Then the API rejects the request
+      expect(response.statusCode).to.equal(401);
+    });
     it('should reject 2FA if invalid TOTP code is received', async () => {
       // Given a user and an authentication token and a TOTP
       const secret = speakeasy.generateSecret({ length: 64 });
       const encryptedToken = crypto[CIPHER].encrypt(secret.base32, SECRET_KEY).toString();
       const user = await models.User.create({ email: 'mopsa@mopsa.mopsa', twoFactorAuthToken: encryptedToken });
-      const currentToken = user.jwt();
+      const currentToken = user.jwt({ scope: 'twofactorauth' });
       const twoFactorAuthenticatorCode = '123456';
 
       // When the endpoint is hit with an invalid TOTP code
       const response = await request(expressApp)
-        .post(updateTokenUrl)
+        .post(twoFactorAuthUrl)
         .send({ twoFactorAuthenticatorCode })
         .set('Authorization', `Bearer ${currentToken}`);
 
@@ -143,7 +182,7 @@ describe('server/routes/users', () => {
       const secret = speakeasy.generateSecret({ length: 64 });
       const encryptedToken = crypto[CIPHER].encrypt(secret.base32, SECRET_KEY).toString();
       const user = await models.User.create({ email: 'mopsa@mopsa.mopsa', twoFactorAuthToken: encryptedToken });
-      const currentToken = user.jwt();
+      const currentToken = user.jwt({ scope: 'twofactorauth' });
       const twoFactorAuthenticatorCode = speakeasy.totp({
         algorithm: 'SHA1',
         encoding: 'base32',
@@ -152,7 +191,7 @@ describe('server/routes/users', () => {
 
       // When the endpoint is hit with a valid TOTP code
       const response = await request(expressApp)
-        .post(updateTokenUrl)
+        .post(twoFactorAuthUrl)
         .send({ twoFactorAuthenticatorCode })
         .set('Authorization', `Bearer ${currentToken}`);
 
