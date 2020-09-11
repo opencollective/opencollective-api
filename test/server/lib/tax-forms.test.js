@@ -4,9 +4,10 @@ import moment from 'moment';
 import sinon from 'sinon';
 
 import expenseTypes from '../../../server/constants/expense_type';
-import { findUsersThatNeedToBeSentTaxForm, SendHelloWorksTaxForm } from '../../../server/lib/tax-forms';
+import { US_TAX_FORM_THRESHOLD } from '../../../server/constants/tax-form';
+import { findAccountsThatNeedToBeSentTaxForm, sendHelloWorksUsTaxForm } from '../../../server/lib/tax-forms';
 import models from '../../../server/models';
-import { fakeCollective, fakeHost, fakeUser } from '../../test-helpers/fake-data';
+import { fakeCollective, fakeExpense, fakeHost } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 const { RECEIPT, INVOICE } = expenseTypes;
 
@@ -15,10 +16,9 @@ const {
   documentType: { US_TAX_FORM },
 } = RequiredLegalDocument;
 const {
-  requestStatus: { REQUESTED, ERROR, RECEIVED },
+  requestStatus: { REQUESTED, ERROR },
 } = LegalDocument;
 
-const US_TAX_FORM_THRESHOLD = 600e2;
 const HELLO_WORKS_KEY = '123';
 const HELLO_WORKS_SECRET = 'ABC';
 
@@ -40,7 +40,7 @@ describe('server/lib/tax-forms', () => {
   // - one host collective that needs legal docs
   // - two hosted collectives that have invoices to them.
   // - a user that has a document with Error status
-  let user, userCollective, hostCollective, collectives;
+  let user, userCollective, hostCollective, collectives, organizationWithTaxForm;
 
   const documentData = {
     year: moment().year(),
@@ -90,6 +90,7 @@ describe('server/lib/tax-forms', () => {
     user = users[0];
     userCollective = await Collective.findByPk(user.CollectiveId);
     hostCollective = await fakeHost();
+    organizationWithTaxForm = await fakeCollective({ type: 'ORGANIZATION' });
     collectives = await Promise.all([
       fakeCollective({ HostCollectiveId: hostCollective.id }),
       fakeCollective({ HostCollectiveId: hostCollective.id }),
@@ -164,6 +165,12 @@ describe('server/lib/tax-forms', () => {
       }),
     );
 
+    // Organization: add expenses whose sum exceeds the threshold
+    const baseParams = { FromCollectiveId: organizationWithTaxForm.id, CollectiveId: collectives[0].id, amount: 250e2 };
+    await fakeExpense({ ...baseParams, type: 'INVOICE' });
+    await fakeExpense({ ...baseParams, type: 'UNCLASSIFIED' });
+    await fakeExpense({ ...baseParams, type: 'FUNDING_REQUEST' });
+
     // Mix has a document that's in the error state
     const legalDoc = Object.assign({}, documentData, {
       CollectiveId: mixCollective.id,
@@ -179,11 +186,11 @@ describe('server/lib/tax-forms', () => {
     await RequiredLegalDocument.create(requiredDoc);
   });
 
-  describe('findUsersThatNeedToBeSentTaxForm', () => {
-    it('it finds the correct users for this year and de-duplicates them', async () => {
-      const users = await findUsersThatNeedToBeSentTaxForm(moment().year());
-      expect(users.length).to.be.eq(3);
-      expect(users.every(async user => (await user.name) !== 'Piet Geursen')).to.be.true;
+  describe('findAccountsThatNeedToBeSentTaxForm', () => {
+    it('includes the organization', async () => {
+      const accounts = await findAccountsThatNeedToBeSentTaxForm(moment().year());
+      expect(accounts.length).to.be.eq(4);
+      expect(accounts.some(account => account.id === organizationWithTaxForm.id)).to.be.true;
     });
   });
 
@@ -193,34 +200,27 @@ describe('server/lib/tax-forms', () => {
     });
 
     it('updates the documents status to requested when the client request succeeds', async () => {
-      const legalDoc = Object.assign({}, documentData, {
-        CollectiveId: userCollective.id,
-      });
+      const legalDoc = Object.assign({}, documentData, { CollectiveId: userCollective.id });
       const doc = await LegalDocument.create(legalDoc);
 
       const resolves = sinon.fake.resolves(null);
       sinon.replace(client.workflowInstances, 'createInstance', resolves);
 
-      const sendHelloWorksUsTaxForm = SendHelloWorksTaxForm({ client, callbackUrl, workflowId, year });
-
-      await sendHelloWorksUsTaxForm(user);
+      await sendHelloWorksUsTaxForm(client, user.collective, year, callbackUrl, workflowId, user);
 
       await doc.reload();
       expect(client.workflowInstances.createInstance.called);
       expect(doc.requestStatus).to.eq(REQUESTED);
     });
+
     it('sets updates the documents status to error when the client request fails', async () => {
-      const legalDoc = Object.assign({}, documentData, {
-        CollectiveId: userCollective.id,
-      });
+      const legalDoc = Object.assign({}, documentData, { CollectiveId: userCollective.id });
       const doc = await LegalDocument.create(legalDoc);
 
       const rejects = sinon.fake.rejects(null);
       sinon.replace(client.workflowInstances, 'createInstance', rejects);
 
-      const sendHelloWorksUsTaxForm = SendHelloWorksTaxForm({ client, callbackUrl, workflowId, year });
-
-      await sendHelloWorksUsTaxForm(user);
+      await sendHelloWorksUsTaxForm(client, user.collective, year, callbackUrl, workflowId, user);
 
       await doc.reload();
       expect(client.workflowInstances.createInstance.called);

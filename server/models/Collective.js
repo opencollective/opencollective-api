@@ -1100,11 +1100,11 @@ export default function (Sequelize, DataTypes) {
   };
 
   // Returns the User model of the User that created this collective
-  Collective.prototype.getUser = function () {
+  Collective.prototype.getUser = function (queryParams) {
     switch (this.type) {
       case types.USER:
       case types.ORGANIZATION:
-        return models.User.findByPk(this.CreatedByUserId);
+        return models.User.findByPk(this.CreatedByUserId, queryParams);
       default:
         return Promise.resolve(null);
     }
@@ -1150,9 +1150,9 @@ export default function (Sequelize, DataTypes) {
   /**
    * Get the admin users { id, email } of this collective
    */
-  Collective.prototype.getAdminUsers = async function () {
+  Collective.prototype.getAdminUsers = async function ({ userQueryParams } = {}) {
     if (this.type === 'USER') {
-      return [await this.getUser()];
+      return [await this.getUser(userQueryParams)];
     }
     const admins = await models.Member.findAll({
       where: {
@@ -1160,12 +1160,11 @@ export default function (Sequelize, DataTypes) {
         role: roles.ADMIN,
       },
     });
-    const users = await Promise.map(admins, admin =>
-      models.User.findOne({
-        where: { CollectiveId: admin.MemberCollectiveId },
-      }),
-    );
-    return users;
+
+    return models.User.findAll({
+      where: { CollectiveId: { [Op.in]: admins.map(m => m.MemberCollectiveId) } },
+      ...userQueryParams,
+    });
   };
 
   /**
