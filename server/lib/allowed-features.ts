@@ -15,6 +15,10 @@ export const OPT_OUT_FEATURE_FLAGS = {
   [FEATURE.CONTACT_FORM]: 'settings.features.contactForm',
 };
 
+export const OPT_IN_FEATURE_FLAGS = {
+  [FEATURE.CROSS_CURRENCY_MANUAL_TRANSACTIONS]: 'settings.features.crossCurrencyManualTransactions',
+};
+
 /**
  * Returns true if feature is allowed for this collective type, false otherwise.
  */
@@ -26,6 +30,11 @@ export const isFeatureAllowedForCollectiveType = (collectiveType: keyof types, f
 export const hasOptedOutOfFeature = (collective, feature): boolean => {
   const optOutFlag = OPT_OUT_FEATURE_FLAGS[feature];
   return optOutFlag ? get(collective, optOutFlag) === false : false;
+};
+
+export const hasOptedInForFeature = (collective, feature): boolean => {
+  const optOutFlag = OPT_IN_FEATURE_FLAGS[feature];
+  return get(collective, optOutFlag) === true;
 };
 
 /**
@@ -44,5 +53,7 @@ const hasFeature = (collective, feature: FEATURE): boolean => {
   // Check opt-out flags
   return !hasOptedOutOfFeature(collective, feature);
 };
+
+export { FEATURE };
 
 export default hasFeature;
