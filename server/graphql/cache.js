@@ -2,6 +2,7 @@ import { difference } from 'lodash';
 
 export const purgeCacheForCollectiveOperationNames = [
   'CollectivePage',
+  'ContributePage',
   'BudgetSection',
   'UpdatesSection',
   'TransactionsSection',
@@ -11,6 +12,8 @@ export const purgeCacheForCollectiveOperationNames = [
   'CollectiveCover',
   'RecurringContributions',
   'ContributionsSection',
+  'Members_Users',
+  'Members_Organizations',
 ];
 
 export function checkSupportedVariables(req, variableNames) {
@@ -38,6 +41,7 @@ export function getGraphqlCacheKey(req) {
   }
   switch (req.body.operationName) {
     case 'CollectivePage':
+    case 'ContributePage':
       if (!checkSupportedVariables(req, ['slug', 'nbContributorsPerContributeCard'])) {
         return;
       }
@@ -97,5 +101,21 @@ export function getGraphqlCacheKey(req) {
         return;
       }
       return `${req.body.operationName}_${req.body.variables.slug}`;
+    case 'Members':
+      if (!checkSupportedVariables(req, ['collectiveSlug', 'offset', 'limit', 'type', 'role', 'orderBy'])) {
+        return;
+      }
+      if (req.body.variables.offset !== 0 || req.body.variables.limit !== 100) {
+        return;
+      }
+      if (req.body.variables.role !== 'BACKER') {
+        return;
+      }
+      if (req.body.variables.type === 'ORGANIZATION,COLLECTIVE') {
+        return `${req.body.operationName}_Organizations_${req.body.variables.collectiveSlug}`;
+      }
+      if (req.body.variables.type === 'USER') {
+        return `${req.body.operationName}_Users_${req.body.variables.collectiveSlug}`;
+      }
   }
 }
