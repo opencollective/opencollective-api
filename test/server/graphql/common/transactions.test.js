@@ -74,11 +74,11 @@ describe('server/graphql/common/transactions', () => {
     it('can refund if root or host admin of the collective receiving the contribution', async () => {
       expect(await canRefund(transaction, undefined, publicReq)).to.be.false;
       expect(await canRefund(transaction, undefined, randomUserReq)).to.be.false;
-      expect(await canRefund(transaction, undefined, collectiveAdminReq)).to.be.false;
       expect(await canRefund(transaction, undefined, collectiveAccountantReq)).to.be.false;
       expect(await canRefund(transaction, undefined, hostAccountantReq)).to.be.false;
       expect(await canRefund(transaction, undefined, contributorReq)).to.be.false;
       expect(await canRefund(transaction, undefined, fromCollectiveAccountantReq)).to.be.false;
+      expect(await canRefund(transaction, undefined, collectiveAdminReq)).to.be.true;
       expect(await canRefund(transaction, undefined, hostAdminReq)).to.be.true;
       expect(await canRefund(transaction, undefined, rootAdminReq)).to.be.true;
     });

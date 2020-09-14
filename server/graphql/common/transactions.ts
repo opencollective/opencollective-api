@@ -1,4 +1,7 @@
+import moment from 'moment';
+
 import { roles } from '../../constants';
+import orderStatus from '../../constants/order_status';
 import { TransactionTypes } from '../../constants/transactions';
 
 const isRoot = async (req): Promise<boolean> => {
@@ -66,6 +69,16 @@ const isPayeeHostAdmin = async (req, transaction): Promise<boolean> => {
   return req.remoteUser.isAdmin(collective.HostCollectiveId);
 };
 
+const isPayeeCollectiveAdmin = async (req, transaction): Promise<boolean> => {
+  if (!req.remoteUser) {
+    return false;
+  }
+  const collective = await req.loaders.Collective.byId.load(
+    transaction.type === 'CREDIT' ? transaction.CollectiveId : transaction.FromCollectiveId,
+  );
+  return req.remoteUser.isAdmin(collective.id);
+};
+
 /**
  * Returns true if the transaction meets at least one condition.
  * Always returns false for unauthenticated requests.
@@ -89,14 +102,34 @@ export const canRefund = async (transaction, _, req): Promise<boolean> => {
   if (transaction.type !== TransactionTypes.CREDIT || transaction.OrderId === null) {
     return false;
   }
-  return remoteUserMeetsOneCondition(req, transaction, [isRoot, isPayeeHostAdmin]);
+  const timeLimit = moment().subtract(30, 'd');
+  const createdAtMoment = moment(transaction.createdAt);
+  const transactionIsOlderThanThirtyDays = createdAtMoment < timeLimit;
+  if (transactionIsOlderThanThirtyDays) {
+    return remoteUserMeetsOneCondition(req, transaction, [isRoot, isPayeeHostAdmin]);
+  } else {
+    return remoteUserMeetsOneCondition(req, transaction, [isRoot, isPayeeHostAdmin, isPayeeCollectiveAdmin]);
+  }
 };
 
 export const canDownloadInvoice = async (transaction, _, req): Promise<boolean> => {
+  if (transaction.OrderId) {
+    const order = await req.loaders.Order.byId.load(transaction.OrderId);
+    if (order.status === orderStatus.REJECTED) {
+      return false;
+    }
+  }
   return remoteUserMeetsOneCondition(req, transaction, [
     isPayerCollectiveAdmin,
     isPayeeHostAdmin,
     isPayerAccountant,
     isPayeeAccountant,
   ]);
+};
+
+export const canReject = async (transaction, _, req): Promise<boolean> => {
+  if (transaction.type !== TransactionTypes.CREDIT || transaction.OrderId === null) {
+    return false;
+  }
+  return remoteUserMeetsOneCondition(req, transaction, [isPayeeCollectiveAdmin]);
 };

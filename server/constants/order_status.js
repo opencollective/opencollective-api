@@ -21,4 +21,5 @@ export default {
   EXPIRED: 'EXPIRED', // When it's marked as such by Admins
   // For Pledges
   PLEDGED: 'PLEDGED',
+  REJECTED: 'REJECTED',
 };
