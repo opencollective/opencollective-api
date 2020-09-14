@@ -113,31 +113,29 @@ async function payExpense(
 
 async function getAvailableCurrencies(
   host: any,
-  ignoreBlockedCurrencies = false,
+  ignoreBlockedCurrencies = true,
 ): Promise<{ code: string; minInvoiceAmount: number }[]> {
-  const cacheKey = `transferwise_available_currencies_${host.id}`;
-  const fromCache = await cache.get(cacheKey);
-  if (fromCache) {
-    return fromCache;
-  }
-
   const connectedAccount = await models.ConnectedAccount.findOne({
     where: { service: 'transferwise', CollectiveId: host.id },
   });
   if (!connectedAccount) {
     throw new TransferwiseError('Host is not connected to Transferwise', 'transferwise.error.notConnected');
   }
-  await populateProfileId(connectedAccount);
+  const cacheKey = `transferwise_available_currencies_${host.id}`;
   const currencyBlockList =
-    connectedAccount.data?.type === 'business' && !ignoreBlockedCurrencies ? blockedCurrenciesForBusinesProfiles : [];
+    connectedAccount.data?.type === 'business' && ignoreBlockedCurrencies ? blockedCurrenciesForBusinesProfiles : [];
+  const fromCache = await cache.get(cacheKey);
+  if (fromCache) {
+    return fromCache.filter(c => !currencyBlockList.includes(c.code));
+  }
+
+  await populateProfileId(connectedAccount);
 
   const pairs = await transferwise.getCurrencyPairs(connectedAccount.token);
   const source = pairs.sourceCurrencies.find(sc => sc.currencyCode === host.currency);
-  const currencies = source.targetCurrencies
-    .filter(c => !currencyBlockList.includes(c.currencyCode))
-    .map(c => ({ code: c.currencyCode, minInvoiceAmount: c.minInvoiceAmount }));
+  const currencies = source.targetCurrencies.map(c => ({ code: c.currencyCode, minInvoiceAmount: c.minInvoiceAmount }));
   cache.set(cacheKey, currencies, 24 * 60 * 60 /* a whole day and we could probably increase */);
-  return currencies;
+  return currencies.filter(c => !currencyBlockList.includes(c.code));
 }
 
 async function getRequiredBankInformation(host: any, currency: string, accountDetails?: any): Promise<any> {
