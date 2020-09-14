@@ -3,9 +3,9 @@ import '../../server/env';
 
 import Promise from 'bluebird';
 import config from 'config';
+import merge from 'deepmerge';
 import fetch from 'isomorphic-fetch';
 import _ from 'lodash';
-import merge from 'merge-options';
 import moment from 'moment-timezone';
 import showdown from 'showdown';
 
