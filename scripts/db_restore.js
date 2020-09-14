@@ -39,29 +39,31 @@ export async function main(args) {
 }
 
 /** Return the options passed by the user to run the script */
+/* eslint-disable camelcase */
 function parseCommandLineArguments() {
   const parser = new ArgumentParser({
-    addHelp: true,
+    add_help: true,
     description: 'Restore dump file into a Database',
   });
-  parser.addArgument(['-q', '--quiet'], {
+  parser.add_argument('-q', '--quiet', {
     help: 'Silence output',
-    defaultValue: true,
-    action: 'storeConst',
+    default: true,
+    action: 'store_const',
     constant: false,
   });
-  parser.addArgument(['-f', '--force'], {
+  parser.add_argument('-f', '--force', {
     help: 'Overwrite existing database',
-    defaultValue: false,
-    action: 'storeConst',
+    default: false,
+    action: 'store_const',
     constant: true,
   });
-  parser.addArgument(['file'], {
+  parser.add_argument('file', {
     help: 'Path for the dump file',
     action: 'store',
   });
-  return parser.parseArgs();
+  return parser.parse_args();
 }
+/* eslint-enable camelcase */
 
 if (!module.parent) {
   main(parseCommandLineArguments());
