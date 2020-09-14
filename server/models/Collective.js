@@ -261,7 +261,6 @@ export default function (Sequelize, DataTypes) {
         },
       },
 
-      mission: DataTypes.STRING, // max 95 characters
       description: DataTypes.STRING, // max 95 characters
 
       longDescription: {
@@ -300,14 +299,6 @@ export default function (Sequelize, DataTypes) {
         },
         get() {
           return this.getDataValue('backgroundImage');
-        },
-      },
-
-      // Max amount to raise across all tiers
-      maxAmount: {
-        type: DataTypes.INTEGER, // In cents
-        validate: {
-          min: 0,
         },
       },
 
@@ -540,14 +531,12 @@ export default function (Sequelize, DataTypes) {
           return {
             id: this.id,
             name: this.name,
-            mission: this.mission,
             description: this.description,
             longDescription: this.longDescription,
             currency: this.currency,
             image: this.image,
             data: this.data,
             backgroundImage: this.backgroundImage,
-            maxAmount: this.maxAmount,
             maxQuantity: this.maxQuantity,
             locationName: this.locationName,
             address: this.address,
@@ -583,7 +572,6 @@ export default function (Sequelize, DataTypes) {
             image: this.image,
             backgroundImage: this.backgroundImage,
             publicUrl: this.publicUrl,
-            mission: this.mission,
             description: this.description,
             settings: this.settings,
             currency: this.currency,
@@ -616,7 +604,6 @@ export default function (Sequelize, DataTypes) {
             twitterHandle: this.twitterHandle,
             githubHandle: this.githubHandle,
             publicUrl: this.publicUrl,
-            mission: this.mission,
             isSupercollective: this.isSupercollective,
           };
         },
@@ -643,7 +630,6 @@ export default function (Sequelize, DataTypes) {
             currency: this.currency,
             slug: this.slug,
             type: this.type,
-            mission: this.mission,
             tags: this.tags,
             locationName: this.locationName,
             balance: this.balance, // useful in ranking

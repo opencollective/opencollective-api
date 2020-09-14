@@ -451,7 +451,6 @@ export default (Sequelize, DataTypes) => {
       type: 'USER',
       name: collectiveName,
       image: userData.image,
-      mission: userData.mission,
       description: userData.description,
       longDescription: userData.longDescription,
       website: userData.website,

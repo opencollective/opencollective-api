@@ -587,7 +587,6 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
         description: 'Returns true if the collective has a long description',
       },
       expensePolicy: { type: GraphQLString },
-      mission: { type: GraphQLString },
       tags: { type: new GraphQLList(GraphQLString) },
       location: {
         type: LocationType,
@@ -597,7 +596,6 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       startsAt: { type: DateString },
       endsAt: { type: DateString },
       timezone: { type: GraphQLString },
-      maxAmount: { type: GraphQLInt },
       hostFeePercent: { type: GraphQLInt },
       platformFeePercent: { type: GraphQLInt },
       currency: { type: GraphQLString },
@@ -937,12 +935,6 @@ const CollectiveFields = () => {
         return collective.expensePolicy;
       },
     },
-    mission: {
-      type: GraphQLString,
-      resolve(collective) {
-        return collective.mission;
-      },
-    },
     tags: {
       type: new GraphQLList(GraphQLString),
       resolve(collective) {
@@ -987,12 +979,6 @@ const CollectiveFields = () => {
       type: GraphQLString,
       resolve(collective) {
         return collective.timezone;
-      },
-    },
-    maxAmount: {
-      type: GraphQLInt,
-      resolve(collective) {
-        return collective.maxAmount;
       },
     },
     hostFeePercent: {

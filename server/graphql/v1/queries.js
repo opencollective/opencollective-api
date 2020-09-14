@@ -1437,8 +1437,7 @@ const queries = {
     args: {
       term: {
         type: GraphQLString,
-        description:
-          'Fetch collectives related to this term based on name, description, tags, slug, mission, and location',
+        description: 'Fetch collectives related to this term based on name, description, tags, slug, and location',
       },
       hostCollectiveIds: {
         type: new GraphQLList(GraphQLInt),
