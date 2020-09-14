@@ -111,7 +111,7 @@ export const _authenticateUserByJwt = async (req, res, next) => {
     // being misused on any route (for example, tokens with 'login' scope and 'twofactorauth' scope).
     const path = req.path;
     if (path !== '/users/update-token') {
-      if (config.env === 'production') {
+      if (config.env === 'production' || config.env === 'staging') {
         logger.error('Not allowed to use tokens with login scope on routes other than /users/update-token.');
         next();
         return;
@@ -123,7 +123,7 @@ export const _authenticateUserByJwt = async (req, res, next) => {
     }
     if (user.lastLoginAt) {
       if (!req.jwtPayload.lastLoginAt || user.lastLoginAt.getTime() !== req.jwtPayload.lastLoginAt) {
-        if (config.env === 'production') {
+        if (config.env === 'production' || config.env === 'staging') {
           logger.error('This login link is expired or has already been used');
           return next(errors.Unauthorized('This login link is expired or has already been used'));
         } else {
