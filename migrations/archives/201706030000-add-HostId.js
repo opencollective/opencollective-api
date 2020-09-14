@@ -8,7 +8,7 @@
  * And populates them
  */
 const Promise = require('bluebird');
-const fetch = require('isomorphic-fetch');
+const fetch = require('node-fetch');
 
 const missingCurrency = [];
 const updateQueriesToPerform = []; // we keep track of all queries to perform to make sure we can run them in one transaction

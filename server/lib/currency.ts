@@ -1,8 +1,8 @@
 import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
-import fetch from 'isomorphic-fetch';
 import { get, keys, zipObject } from 'lodash';
+import fetch from 'node-fetch';
 
 import { currencyFormats } from '../constants/currencies';
 

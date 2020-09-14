@@ -3,7 +3,6 @@ import config from 'config';
 import debugLib from 'debug';
 import deepmerge from 'deepmerge';
 import * as ics from 'ics';
-import fetch from 'isomorphic-fetch';
 import slugify from 'limax';
 import {
   defaults,
@@ -22,6 +21,7 @@ import {
   uniqBy,
 } from 'lodash';
 import moment from 'moment';
+import fetch from 'node-fetch';
 import prependHttp from 'prepend-http';
 import { Op } from 'sequelize';
 import Temporal from 'sequelize-temporal';

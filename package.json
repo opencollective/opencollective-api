@@ -60,7 +60,6 @@
     "html-pdf": "2.2.0",
     "ics": "2.24.0",
     "intl-messageformat": "9.3.7",
-    "isomorphic-fetch": "2.2.1",
     "json2csv": "5.0.1",
     "jsonwebtoken": "8.5.1",
     "juice": "7.0.0",
