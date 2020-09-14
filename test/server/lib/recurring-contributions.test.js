@@ -13,7 +13,7 @@ import {
   MAX_RETRIES,
   ordersWithPendingCharges,
   processOrderWithSubscription,
-} from '../../../server/lib/subscriptions';
+} from '../../../server/lib/recurring-contributions';
 import models from '../../../server/models';
 import { randEmail } from '../../stores';
 import * as utils from '../../utils';
@@ -50,9 +50,9 @@ async function createOrderWithSubscription(interval, date, quantity = 1) {
   return { order, subscription, user, collective };
 }
 
-describe('server/lib/subscriptions', () => {
+describe('server/lib/recurring-contributions', () => {
   describe('#getNextChargeAndPeriodStartDates', () => {
-    it("should use the next month's first day for monthly subscriptions", () => {
+    it("should use the next month's first day for monthly recurring contributions", () => {
       // Given the following order with subscription
       const order = {
         Subscription: {
@@ -71,7 +71,7 @@ describe('server/lib/subscriptions', () => {
       expect(updatedDates.nextChargeDate.getTime()).to.equal(new Date('2018-02-01 0:0').getTime());
     });
 
-    it('should use the next 2 months first day for monthly subscriptions on or after 15th', () => {
+    it('should use the next 2 months first day for monthly recurring contributions on or after 15th', () => {
       // Given the following order with subscription
       const order = {
         Subscription: {

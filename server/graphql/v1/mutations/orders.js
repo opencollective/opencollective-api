@@ -17,7 +17,7 @@ import * as github from '../../../lib/github';
 import * as libPayments from '../../../lib/payments';
 import { handleHostPlanAddedFundsLimit, handleHostPlanBankTransfersLimit } from '../../../lib/plans';
 import recaptcha from '../../../lib/recaptcha';
-import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../lib/subscriptions';
+import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../lib/recurring-contributions';
 import { canUseFeature } from '../../../lib/user-permissions';
 import { capitalize, formatCurrency, md5 } from '../../../lib/utils';
 import models from '../../../models';
