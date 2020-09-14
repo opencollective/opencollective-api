@@ -1,22 +1,23 @@
 #!/usr/bin/env node
 import '../../server/env';
 
-// Only run on the first of the year
-const today = new Date();
-if (process.env.NODE_ENV === 'production' && today.getDate() !== 1 && today.getMonth() !== 0 && !process.env.OFFCYCLE) {
-  console.log('NODE_ENV is production and today is not the first of year, script aborted!');
-  process.exit();
-}
-
-process.env.PORT = 3066;
-
 import Promise from 'bluebird';
+import config from 'config';
 import _ from 'lodash';
 
 import emailLib from '../../server/lib/email';
 import queries from '../../server/lib/queries';
 import { formatArrayToString, formatCurrency, formatCurrencyObject } from '../../server/lib/utils';
 import models, { Op, sequelize } from '../../server/models';
+
+// Only run on the first of the year
+const today = new Date();
+if (config.env === 'production' && today.getDate() !== 1 && today.getMonth() !== 0 && !process.env.OFFCYCLE) {
+  console.log('OC_ENV is production and today is not the first of year, script aborted!');
+  process.exit();
+}
+
+process.env.PORT = 3066;
 
 const d = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date();
 const startDate = new Date(`${d.getFullYear() - 1}`);

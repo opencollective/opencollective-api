@@ -1,6 +1,6 @@
 'use strict';
 
-const SQL = ` 
+const SQL = `
   BEGIN;
 
   -- TransferWise
@@ -31,7 +31,7 @@ const SQL = `
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
-    if (process.env.NODE_ENV === undefined || process.env.NODE_ENV === 'development') {
+    if (process.env.OC_ENV === undefined || process.env.OC_ENV === 'development') {
       return queryInterface.sequelize.query(SQL);
     }
   },

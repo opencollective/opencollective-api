@@ -2,6 +2,7 @@
 import '../../server/env';
 
 import Promise from 'bluebird';
+import config from 'config';
 import fetch from 'isomorphic-fetch';
 import _ from 'lodash';
 import merge from 'merge-options';
@@ -397,8 +398,8 @@ async function postToOutline(title, text) {
  */
 function onlyExecuteInProdOnMondays() {
   const today = new Date();
-  if (process.env.NODE_ENV === 'production' && today.getDay() !== 1) {
-    console.log('NODE_ENV is production and day is not Monday, script aborted!');
+  if (config.env === 'production' && today.getDay() !== 1) {
+    console.log('OC_ENV is production and day is not Monday, script aborted!');
     process.exit();
   }
 }

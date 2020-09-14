@@ -86,7 +86,7 @@ async function checkOrdersLimit(order, remoteUser, reqIp) {
       const errorMessage =
         'Error while processing your request, please try again or contact support@opencollective.com';
       // Show a developer-friendly message in DEV
-      if (process.env.NODE_ENV === 'development') {
+      if (config.env === 'development') {
         throw new Error(`${errorMessage} - Orders limit reached`);
       } else {
         throw new Error(errorMessage);

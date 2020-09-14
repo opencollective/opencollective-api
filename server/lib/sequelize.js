@@ -29,7 +29,7 @@ if (process.env.PGSSLMODE === 'require') {
 }
 
 if (config.database.options.logging) {
-  if (process.env.NODE_ENV === 'production') {
+  if (config.env === 'production') {
     config.database.options.logging = (query, executionTime) => {
       if (executionTime > 50) {
         debug(query.replace(/(\n|\t| +)/g, ' ').slice(0, 100), '|', executionTime, 'ms');

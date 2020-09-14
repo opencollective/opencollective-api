@@ -368,14 +368,14 @@ export function exportToPDF(template, data, options) {
  * @param {"opensource" | null} category of the collective
  */
 export const defaultHostCollective = category => {
-  if (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging') {
+  if (config.env === 'production' || config.env === 'staging') {
     if (category === 'opensource') {
       return { id: 772, CollectiveId: 11004, ParentCollectiveId: 83 }; // Open Source Host Collective
     } else {
       return {}; // Don't automatically assign a host anymore
     }
   }
-  if (process.env.NODE_ENV === 'development' || process.env.E2E_TEST) {
+  if (config.env === 'development' || process.env.E2E_TEST) {
     if (category === 'opensource') {
       return { CollectiveId: 9805, ParentCollectiveId: 83 }; // Open Source Host Collective
     } else {

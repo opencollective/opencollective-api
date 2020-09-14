@@ -1,6 +1,6 @@
 {
   "port": "PORT",
-  "env": "NODE_ENV",
+  "env": "OC_ENV",
   "maildev": {
     "client": "MAILDEV_CLIENT",
     "server": "MAILDEV_SERVER"

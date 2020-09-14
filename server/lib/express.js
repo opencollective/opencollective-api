@@ -54,7 +54,7 @@ export default async function (app) {
   await hyperwatch(app);
 
   // Error handling.
-  if (process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'staging') {
+  if (config.env !== 'production' && config.env !== 'staging') {
     app.use(errorHandler());
   }
 

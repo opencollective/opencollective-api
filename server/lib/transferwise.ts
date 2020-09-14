@@ -289,7 +289,7 @@ export const getBorderlessAccount = async (token: string, profileId: string | nu
   return accounts.find(a => a.profileId === profileId);
 };
 
-const isProduction = process.env.NODE_ENV === 'production';
+const isProduction = config.env === 'production';
 const publicKey = fs.readFileSync(
   path.join(
     __dirname,

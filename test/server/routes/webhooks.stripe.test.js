@@ -22,8 +22,8 @@ describe('server/routes/webhooks.stripe', () => {
       livemode: false,
     });
 
-    const env = process.env.NODE_ENV;
-    process.env.NODE_ENV = 'production';
+    const env = process.env.OC_ENV;
+    process.env.OC_ENV = 'production';
 
     request(expressApp)
       .post('/webhooks/stripe')
@@ -31,7 +31,7 @@ describe('server/routes/webhooks.stripe', () => {
       .expect(200)
       .end(err => {
         expect(err).to.not.exist;
-        process.env.NODE_ENV = env;
+        process.env.OC_ENV = env;
         done();
       });
   });

@@ -2,7 +2,7 @@
 
 | Environment Variable                | Config Name(name on the `config` file)      | Description                                                                    |
 | ----------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------ |
-| NODE_ENV                            | .env                                        | Node Environment variable                                                      |
+| OC_ENV                              | .env                                        | Application Environment variable                                               |
 | PG_DATABASE                         | .database.database                          | Postgres database name                                                         |
 | PG_USERNAME                         | .database.username                          | Postgres database username                                                     |
 | PG_PASSWORD                         | .database.password                          | Postgres database password                                                     |

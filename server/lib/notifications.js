@@ -56,7 +56,7 @@ export default async (Sequelize, activity) => {
 
 function publishToGitter(activity, notifConfig) {
   const message = activitiesLib.formatMessageForPublicChannel(activity, 'markdown');
-  if (message && process.env.NODE_ENV === 'production') {
+  if (message && config.env === 'production') {
     return axios.post(notifConfig.webhookUrl, { message });
   } else {
     Promise.resolve();

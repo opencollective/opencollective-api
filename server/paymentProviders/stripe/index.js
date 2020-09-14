@@ -194,7 +194,8 @@ export default {
   webhook: requestBody => {
     // Stripe sends test events to production as well
     // don't do anything if the event is not livemode
-    if (process.env.NODE_ENV === 'production' && !requestBody.livemode) {
+    // NOTE: not using config.env because of ugly tests
+    if (process.env.OC_ENV === 'production' && !requestBody.livemode) {
       return Promise.resolve();
     }
     /**
