@@ -109,6 +109,7 @@ export default app => {
    * GraphQL caching
    */
   app.use('/graphql', async (req, res, next) => {
+    req.startAt = req.startAt || new Date();
     const cacheKey = getGraphqlCacheKey(req);
     const enabled = parseToBoolean(config.graphql.cache.enabled);
     if (cacheKey && enabled) {
@@ -141,9 +142,11 @@ export default app => {
     },
     formatResponse: (response, ctx) => {
       const req = ctx.context;
+      req.endAt = req.endAt || new Date();
       if (req.cacheKey) {
         cache.set(req.cacheKey, response, Number(config.graphql.cache.ttl));
       }
+      req.res.set('Execution-Time', req.endAt - req.startAt);
       return response;
     },
   });
@@ -168,9 +171,11 @@ export default app => {
     },
     formatResponse: (response, ctx) => {
       const req = ctx.context;
+      req.endAt = req.endAt || new Date();
       if (req.cacheKey) {
         cache.set(req.cacheKey, response, Number(config.graphql.cache.ttl));
       }
+      req.res.set('Execution-Time', req.endAt - req.startAt);
       return response;
     },
   });

@@ -42,11 +42,11 @@ const load = async app => {
   const expressInput = input.express.create();
 
   app.use((req, res, next) => {
-    req.startAt = new Date();
+    req.startAt = req.startAt || new Date();
 
     res.on('finish', async () => {
       const { success, reject } = expressInput;
-      req.endAt = new Date();
+      req.endAt = req.endAt || new Date();
       try {
         const executionTime = req.endAt - req.startAt;
         let log = hyperwatch.util.createLog(req, res).set('executionTime', executionTime);
