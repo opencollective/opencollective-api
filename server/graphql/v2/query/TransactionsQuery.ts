@@ -24,6 +24,10 @@ const TransactionsQuery = {
       type: AccountReferenceInput,
       description: 'Reference of the account where this expense was submitted',
     },
+    host: {
+      type: AccountReferenceInput,
+      description: 'Reference of the host where this expense was submitted',
+    },
     tags: {
       type: new GraphQLList(GraphQLString),
       description: 'Only expenses that match these tags',
@@ -42,6 +46,10 @@ const TransactionsQuery = {
       description: 'Only return expenses where the amount is lower than or equal to this value (in cents)',
     },
     dateFrom: {
+      type: ISODateTime,
+      description: 'Only return expenses that were created after this date',
+    },
+    dateTo: {
       type: ISODateTime,
       description: 'Only return expenses that were created after this date',
     },
@@ -69,19 +77,31 @@ const TransactionsQuery = {
     const include = [];
 
     // Check arguments
-    if (args.limit > 100) {
-      throw new Error('Cannot fetch more than 100 expenses at the same time, please adjust the limit');
+    if (args.limit > 1000) {
+      throw new Error('Cannot fetch more than 1000 transactions at the same time, please adjust the limit');
     }
 
     // Load accounts
     const fetchAccountParams = { loaders: req.loaders, throwIfMissing: true };
-    const [fromAccount, account] = await Promise.all(
-      [args.fromAccount, args.account].map(
+    const [fromAccount, account, host] = await Promise.all(
+      [args.fromAccount, args.account, args.host].map(
         reference => reference && fetchAccountWithReference(reference, fetchAccountParams),
       ),
     );
     if (fromAccount) {
-      where.push({ FromCollectiveId: fromAccount.id });
+      const condition = { FromCollectiveId: fromAccount.id };
+      if (
+        args.includeIncognitoTransactions &&
+        req.remoteUser?.isAdminOfCollective(fromAccount) &&
+        req.remoteUser.CollectiveId === fromAccount.id
+      ) {
+        const incognitoProfile = await req.remoteUser.getIncognitoProfile();
+        if (incognitoProfile) {
+          condition.FromCollectiveId = { [Op.or]: [fromAccount.id, incognitoProfile.id] };
+        }
+      }
+
+      where.push(condition);
     }
     if (account) {
       const accountConditions = [
@@ -102,6 +122,9 @@ const TransactionsQuery = {
       }
 
       where.push({ [Op.or]: accountConditions });
+    }
+    if (host) {
+      where.push({ HostCollectiveId: host.id });
     }
     if (args.searchTerm) {
       const sanitizedTerm = args.searchTerm.replace(/(_|%|\\)/g, '\\$1');
@@ -140,6 +163,9 @@ const TransactionsQuery = {
     }
     if (args.dateFrom) {
       where.push({ createdAt: { [Op.gte]: args.dateFrom } });
+    }
+    if (args.dateTo) {
+      where.push({ createdAt: { [Op.lte]: args.dateTo } });
     }
     if (args.hasExpense) {
       where.push({ ExpenseId: { [Op.ne]: null } });
