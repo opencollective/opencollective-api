@@ -124,18 +124,11 @@ export default app => {
     next();
   });
 
-  /**
-   * GraphQL v1
-   */
-  const graphqlServerV1 = new ApolloServer({
-    schema: graphqlSchemaV1,
+  /* GraphQL server generic options */
+
+  const graphqlServerOptions = {
     introspection: true,
     playground: isDevelopment,
-    engine: {
-      reportSchema: isProduction,
-      variant: 'current',
-      apiKey: get(config, 'graphql.apolloEngineAPIKey'),
-    },
     // Align with behavior from express-graphql
     context: ({ req }) => {
       return req;
@@ -149,6 +142,19 @@ export default app => {
       req.res.set('Execution-Time', req.endAt - req.startAt);
       return response;
     },
+  };
+
+  /**
+   * GraphQL v1
+   */
+  const graphqlServerV1 = new ApolloServer({
+    schema: graphqlSchemaV1,
+    engine: {
+      reportSchema: isProduction,
+      variant: 'current',
+      apiKey: get(config, 'graphql.apolloEngineAPIKey'),
+    },
+    ...graphqlServerOptions,
   });
 
   graphqlServerV1.applyMiddleware({ app, path: '/graphql/v1' });
@@ -158,26 +164,12 @@ export default app => {
    */
   const graphqlServerV2 = new ApolloServer({
     schema: graphqlSchemaV2,
-    introspection: true,
-    playground: isDevelopment,
     engine: {
       reportSchema: isProduction,
       variant: 'current',
       apiKey: get(config, 'graphql.apolloEngineAPIKeyV2'),
     },
-    // Align with behavior from express-graphql
-    context: ({ req }) => {
-      return req;
-    },
-    formatResponse: (response, ctx) => {
-      const req = ctx.context;
-      req.endAt = req.endAt || new Date();
-      if (req.cacheKey) {
-        cache.set(req.cacheKey, response, Number(config.graphql.cache.ttl));
-      }
-      req.res.set('Execution-Time', req.endAt - req.startAt);
-      return response;
-    },
+    ...graphqlServerOptions,
   });
 
   graphqlServerV2.applyMiddleware({ app, path: '/graphql/v2' });
