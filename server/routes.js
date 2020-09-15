@@ -15,6 +15,7 @@ import { getGraphqlCacheKey } from './graphql/cache';
 import graphqlSchemaV1 from './graphql/v1/schema';
 import graphqlSchemaV2 from './graphql/v2/schema';
 import cache from './lib/cache';
+import statsd from './lib/statsd';
 import { parseToBoolean } from './lib/utils';
 import * as authentication from './middleware/authentication';
 import errorHandler from './middleware/error_handler';
@@ -135,11 +136,15 @@ export default app => {
     },
     formatResponse: (response, ctx) => {
       const req = ctx.context;
-      req.endAt = req.endAt || new Date();
+
       if (req.cacheKey) {
         cache.set(req.cacheKey, response, Number(config.graphql.cache.ttl));
       }
-      req.res.set('Execution-Time', req.endAt - req.startAt);
+
+      req.endAt = req.endAt || new Date();
+      const executionTime = req.endAt - req.startAt;
+      req.res.set('Execution-Time', executionTime);
+      statsd.timing('api.graphql.executionTime', executionTime);
       return response;
     },
   };
