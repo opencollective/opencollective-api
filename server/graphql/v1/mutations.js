@@ -434,6 +434,7 @@ const mutations = {
     description: 'Updates all the core contributors (role = ADMIN or MEMBER) for this collective.',
     args: {
       collectiveId: { type: new GraphQLNonNull(GraphQLInt) },
+      askSelfRemoval: { type: GraphQLBoolean },
       members: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(MemberInputType))) },
     },
     async resolve(_, args, req) {
@@ -443,45 +444,36 @@ const mutations = {
       } else if (!req.remoteUser || !req.remoteUser.isAdmin(collective.id)) {
         throw new Unauthorized();
       } else {
-        await collective.editMembers(args.members, {
-          CreatedByUserId: req.remoteUser.id,
-          remoteUserCollectiveId: req.remoteUser.CollectiveId,
-        });
-        return collective;
-      }
-    },
-  },
-  sendEmailToAdmins: {
-    type: CollectiveInterfaceType,
-    description: 'Sends emails to admins',
-    args: {
-      collectiveId: { type: new GraphQLNonNull(GraphQLInt) },
-      members: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(MemberInputType))) },
-    },
-    async resolve(_, args, req) {
-      const collective = await models.Collective.findByPk(args.collectiveId);
-      if (!collective) {
-        throw new NotFound();
-      } else if (!req.remoteUser || !req.remoteUser.isAdmin(collective.id)) {
-        throw new Unauthorized();
-      } else {
-        for (const adminUser of args.members) {
-          const { slug } = collective;
-          const collectiveName = collective.name;
-          const { email } = adminUser;
-          const userId = adminUser.id;
-
-          emailLib.send('admin.request.removal', adminUser.member.email, {
-            collective: pick(collective, ['slug', 'name']),
-            admin: get(adminUser, 'member'),
-            sender: { name: `${req.remoteUser.firstName} ${req.remoteUser.lastName}`, email: req.remoteUser.email },
+        /** Send Email to co-admin if admin has requested to be removed */
+        if (args.askSelfRemoval) {
+          const collective = await models.Collective.findByPk(args.collectiveId);
+          if (!collective) {
+            throw new NotFound();
+          } else if (!req.remoteUser || !req.remoteUser.isAdmin(collective.id)) {
+            throw new Unauthorized();
+          } else {
+            const admins = await collective.getAdminUsers();
+            console.log(args.members, '-00');
+            for (const adminUser of args.members) {
+              emailLib.send('admin.request.removal', adminUser.member.email, {
+                collective: pick(collective, ['slug', 'name']),
+                adminFirstName: get(adminUser.member, 'name'),
+                sender: { name: `${req.remoteUser.firstName} ${req.remoteUser.lastName}`, email: req.remoteUser.email },
+              });
+            }
+            return collective;
+          }
+        } else {
+          /** Just edit members if  admin has not  requested to be removed */
+          await collective.editMembers(args.members, {
+            CreatedByUserId: req.remoteUser.id,
+            remoteUserCollectiveId: req.remoteUser.CollectiveId,
           });
+          return collective;
         }
-        return collective;
       }
     },
   },
-
   editPublicMessage: {
     type: new GraphQLList(MemberType),
     description: 'A mutation to edit the public message of all matching members.',

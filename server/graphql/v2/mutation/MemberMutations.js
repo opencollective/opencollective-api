@@ -1,8 +1,12 @@
-import { GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLNonNull, GraphQLBoolean, GraphQLString, GraphQLInt, GraphQLList } from 'graphql';
 
 import { editPublicMessage } from '../../common/members';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { Member } from '../object/Member';
+import { CollectiveCreateInput } from '../input/CollectiveCreateInput';
+import models from '../../../models';
+import emailLib from '../../../lib/email';
+import { get, pick } from 'lodash';
 
 const memberMutations = {
   editPublicMessage: {

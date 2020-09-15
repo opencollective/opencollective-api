@@ -1,8 +1,8 @@
 Subject: Request to be removed as admin
 
 {{> header}}
-{{#if admin}}
-<p>Dear {{admin.name}},</p>
+{{#if adminFirstName}}
+<p>Dear {{adminFirstName}},</p>
 {{else}}
 <p>Hi!</p>
 {{/if}}
@@ -10,7 +10,8 @@ Subject: Request to be removed as admin
 
 <p> {{ sender.name}} - {{ sender.email}} requests to be removed as an Admin from {{collective.name}} </p>
 
-<p></p>
+<p>Follow the link to view settings: 
+    <a href="https://opencollective.com/{{collective.slug}}/edit/members">settings</a></p>
 
 <p>With ❤️,</p>
 
