@@ -168,7 +168,7 @@ export function parseCommandLineArguments() {
     action: 'store_const',
     constant: true,
   });
-  const args = parser.pars_args();
+  const args = parser.parse_args();
   return {
     dryRun: args.dryrun,
     limit: args.limit,
