@@ -15,6 +15,7 @@ import { getGraphqlCacheKey } from './graphql/cache';
 import graphqlSchemaV1 from './graphql/v1/schema';
 import graphqlSchemaV2 from './graphql/v2/schema';
 import cache from './lib/cache';
+import statsd from './lib/statsd';
 import { parseToBoolean } from './lib/utils';
 import * as authentication from './middleware/authentication';
 import errorHandler from './middleware/error_handler';
@@ -109,6 +110,7 @@ export default app => {
    * GraphQL caching
    */
   app.use('/graphql', async (req, res, next) => {
+    req.startAt = req.startAt || new Date();
     const cacheKey = getGraphqlCacheKey(req);
     const enabled = parseToBoolean(config.graphql.cache.enabled);
     if (cacheKey && enabled) {
@@ -123,29 +125,41 @@ export default app => {
     next();
   });
 
-  /**
-   * GraphQL v1
-   */
-  const graphqlServerV1 = new ApolloServer({
-    schema: graphqlSchemaV1,
+  /* GraphQL server generic options */
+
+  const graphqlServerOptions = {
     introspection: true,
     playground: isDevelopment,
-    engine: {
-      reportSchema: isProduction,
-      variant: 'current',
-      apiKey: get(config, 'graphql.apolloEngineAPIKey'),
-    },
     // Align with behavior from express-graphql
     context: ({ req }) => {
       return req;
     },
     formatResponse: (response, ctx) => {
       const req = ctx.context;
+
       if (req.cacheKey) {
         cache.set(req.cacheKey, response, Number(config.graphql.cache.ttl));
       }
+
+      req.endAt = req.endAt || new Date();
+      const executionTime = req.endAt - req.startAt;
+      req.res.set('Execution-Time', executionTime);
+      statsd.timing('api.graphql.executionTime', executionTime);
       return response;
     },
+  };
+
+  /**
+   * GraphQL v1
+   */
+  const graphqlServerV1 = new ApolloServer({
+    schema: graphqlSchemaV1,
+    engine: {
+      reportSchema: isProduction,
+      variant: 'current',
+      apiKey: get(config, 'graphql.apolloEngineAPIKey'),
+    },
+    ...graphqlServerOptions,
   });
 
   graphqlServerV1.applyMiddleware({ app, path: '/graphql/v1' });
@@ -155,24 +169,12 @@ export default app => {
    */
   const graphqlServerV2 = new ApolloServer({
     schema: graphqlSchemaV2,
-    introspection: true,
-    playground: isDevelopment,
     engine: {
       reportSchema: isProduction,
       variant: 'current',
       apiKey: get(config, 'graphql.apolloEngineAPIKeyV2'),
     },
-    // Align with behavior from express-graphql
-    context: ({ req }) => {
-      return req;
-    },
-    formatResponse: (response, ctx) => {
-      const req = ctx.context;
-      if (req.cacheKey) {
-        cache.set(req.cacheKey, response, Number(config.graphql.cache.ttl));
-      }
-      return response;
-    },
+    ...graphqlServerOptions,
   });
 
   graphqlServerV2.applyMiddleware({ app, path: '/graphql/v2' });
