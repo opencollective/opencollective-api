@@ -117,6 +117,10 @@ export default app => {
       const fromCache = await cache.get(cacheKey);
       if (fromCache) {
         res.servedFromGraphqlCache = true;
+        req.endAt = req.endAt || new Date();
+        const executionTime = req.endAt - req.startAt;
+        res.set('Execution-Time', executionTime);
+        statsd.timing('api.graphql.executionTime', executionTime);
         res.send(fromCache);
         return;
       }
