@@ -235,7 +235,7 @@ const mutations = {
         let organization = null;
 
         if (args.throwIfExists && user) {
-          throw new Error('User already exists for given email');
+          throw new Error('It looks like that email already exists, please sign in instead');
         } else if (!user) {
           const creationRequest = {
             ip: req.ip,
