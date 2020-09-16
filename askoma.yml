@@ -1,0 +1,2 @@
+- название: Anchore Container Scan
+  использует: anchore/scan-action@v1.0.9
