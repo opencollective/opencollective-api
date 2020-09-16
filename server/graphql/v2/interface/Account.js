@@ -1,7 +1,7 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 import GraphQLJSON from 'graphql-type-json';
-import { invert } from 'lodash';
+import { get, invert } from 'lodash';
 
 import models, { Op } from '../../../models';
 import { NotFound } from '../../errors';
@@ -258,6 +258,10 @@ const accountFieldsDefinition = () => ({
   location: {
     type: Location,
     description: 'The address associated to this account. This field is always public for collectives and events.',
+  },
+  categories: {
+    type: new GraphQLNonNull(new GraphQLList(GraphQLString)),
+    description: 'Categories set by Open Collective to help moderation.',
   },
   stats: {
     type: AccountStats,
@@ -550,6 +554,12 @@ export const AccountFields = {
       } else {
         return req.loaders.Collective.connectedAccounts.load(collective.id);
       }
+    },
+  },
+  categories: {
+    type: new GraphQLNonNull(new GraphQLList(GraphQLString)),
+    resolve(collective) {
+      return get(collective.data, 'categories', []);
     },
   },
 };
