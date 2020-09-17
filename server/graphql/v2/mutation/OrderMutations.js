@@ -82,6 +82,7 @@ const orderMutations = {
         fromCollective: await loadAccount(order.fromAccount),
         collective: await loadAccount(order.toAccount),
         totalAmount: getOrderTotalAmount(order),
+        customData: order.customData,
         tier,
         platformFee,
       };
