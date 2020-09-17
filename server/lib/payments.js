@@ -396,6 +396,7 @@ const sendOrderConfirmedEmail = async order => {
   if (tier && tier.type === tiers.TICKET) {
     return models.Activity.create({
       type: activities.TICKET_CONFIRMED,
+      CollectiveId: collective.id,
       data: {
         EventCollectiveId: collective.id,
         UserId: user.id,

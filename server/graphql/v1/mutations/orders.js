@@ -491,6 +491,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
       await collective.addUserWithRole(remoteUser, roles.ATTENDEE, {}, { order: orderCreated });
       await models.Activity.create({
         type: activities.TICKET_CONFIRMED,
+        CollectiveId: collective.id,
         data: {
           EventCollectiveId: collective.id,
           UserId: remoteUser.id,
