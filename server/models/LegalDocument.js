@@ -69,30 +69,14 @@ export default function (Sequelize, DataTypes) {
     },
   );
 
-  LegalDocument.findByTypeYearUser = ({ documentType, year, user }) => {
-    return user.getCollective().then(collective => {
-      if (collective) {
-        return LegalDocument.findOne({
-          where: {
-            year,
-            CollectiveId: collective.id,
-            documentType,
-          },
-        });
-      }
+  LegalDocument.findByTypeYearCollective = ({ documentType, year, collective }) => {
+    return LegalDocument.findOne({
+      where: {
+        year,
+        CollectiveId: collective.id,
+        documentType,
+      },
     });
-  };
-
-  LegalDocument.hasUserCompletedDocument = async ({ documentType, year, user }) => {
-    const doc = await LegalDocument.findByTypeYearUser({ documentType, year, user });
-
-    return doc !== null && doc.requestStatus == RECEIVED;
-  };
-
-  LegalDocument.doesUserNeedToBeSentDocument = async ({ documentType, year, user }) => {
-    const doc = await LegalDocument.findByTypeYearUser({ documentType, year, user });
-
-    return doc == null || doc.requestStatus == NOT_REQUESTED || doc.requestStatus == ERROR;
   };
 
   LegalDocument.requestStatus = {

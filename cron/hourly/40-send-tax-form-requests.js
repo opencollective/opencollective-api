@@ -6,62 +6,49 @@ import HelloWorks from 'helloworks-sdk';
 import moment from 'moment';
 import pThrottle from 'p-throttle';
 
-import { findUsersThatNeedToBeSentTaxForm, SendHelloWorksTaxForm } from '../../server/lib/tax-forms';
+import { findAccountsThatNeedToBeSentTaxForm, sendHelloWorksUsTaxForm } from '../../server/lib/tax-forms';
 import { sequelize } from '../../server/models';
 
 const MAX_REQUESTS_PER_SECOND = 1;
 const ONE_SECOND_IN_MILLISECONDS = 1000;
 
-const US_TAX_FORM_THRESHOLD = 600e2;
-const HELLO_WORKS_KEY = config.get('helloworks.key');
-const HELLO_WORKS_SECRET = config.get('helloworks.secret');
-const HELLO_WORKS_WORKFLOW_ID = config.get('helloworks.workflowId');
-const HELLO_WORKS_CALLBACK_PATH = config.get('helloworks.callbackPath');
-
-const HELLO_WORKS_CALLBACK_URL = `${config.get('host.api')}${HELLO_WORKS_CALLBACK_PATH}`;
+const WORKFLOW_ID = config.get('helloworks.workflowId');
+const CALLBACK_PATH = config.get('helloworks.callbackPath');
+const CALLBACK_URL = `${config.get('host.api')}${CALLBACK_PATH}`;
 
 const year = moment().year();
 
 const client = new HelloWorks({
-  apiKeyId: HELLO_WORKS_KEY,
-  apiKeySecret: HELLO_WORKS_SECRET,
-});
-
-const sendHelloWorksUsTaxForm = SendHelloWorksTaxForm({
-  client,
-  callbackUrl: HELLO_WORKS_CALLBACK_URL,
-  workflowId: HELLO_WORKS_WORKFLOW_ID,
-  year,
+  apiKeyId: config.get('helloworks.key'),
+  apiKeySecret: config.get('helloworks.secret'),
 });
 
 const init = async () => {
   console.log('>>>> Running tax form job');
-  // Filter unique users
-  const users = findUsersThatNeedToBeSentTaxForm({
-    invoiceTotalThreshold: US_TAX_FORM_THRESHOLD,
-    year,
-  });
+  const accounts = await findAccountsThatNeedToBeSentTaxForm(year);
 
   if (process.env.DRY_RUN) {
-    console.log('>> Doing tax form dry run. Emails of users who need tax forms:');
-    return users.map(
-      pThrottle(
-        user => {
-          console.log(user.email);
-        },
-        MAX_REQUESTS_PER_SECOND,
-        ONE_SECOND_IN_MILLISECONDS,
+    console.log('>> Doing tax form dry run. Accounts who need tax forms:');
+    return Promise.all(
+      accounts.map(
+        pThrottle(
+          account => console.log(`${account.name} (@${account.slug})`),
+          MAX_REQUESTS_PER_SECOND,
+          ONE_SECOND_IN_MILLISECONDS,
+        ),
       ),
     );
   } else {
-    return users.map(
-      pThrottle(
-        user => {
-          console.log(`>> Sending tax form to user: ${user.email}`);
-          return sendHelloWorksUsTaxForm(user);
-        },
-        MAX_REQUESTS_PER_SECOND,
-        ONE_SECOND_IN_MILLISECONDS,
+    return Promise.all(
+      accounts.map(
+        pThrottle(
+          account => {
+            console.log(`>> Sending tax form to account: ${account.name} (@${account.slug})`);
+            return sendHelloWorksUsTaxForm(client, account, year, CALLBACK_URL, WORKFLOW_ID);
+          },
+          MAX_REQUESTS_PER_SECOND,
+          ONE_SECOND_IN_MILLISECONDS,
+        ),
       ),
     );
   }
@@ -69,7 +56,7 @@ const init = async () => {
 
 init()
   .catch(error => {
-    console.log(error);
+    console.error(error);
   })
   .finally(() => {
     sequelize.close();

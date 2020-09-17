@@ -944,7 +944,6 @@ const getTaxFormsRequiredForExpenses = expenseIds => {
     AND analyzed_expenses.type != 'RECEIPT'
     AND analyzed_expenses.status IN ('PENDING', 'APPROVED')
     AND analyzed_expenses."deletedAt" IS NULL
-    AND from_collective.type = 'USER'
     AND all_expenses.type != 'RECEIPT'
     AND all_expenses.status NOT IN ('ERROR', 'REJECTED')
     AND all_expenses."deletedAt" IS NULL
@@ -961,33 +960,32 @@ const getTaxFormsRequiredForExpenses = expenseIds => {
   );
 };
 
-const getTaxFormsRequiredForAccounts = async (accountIds, date = new Date()) => {
+const getTaxFormsRequiredForAccounts = async (accountIds = [], date = new Date()) => {
   const results = await sequelize.query(
     `
     SELECT
-      user_profile.id as "collectiveId",
+      account.id as "collectiveId",
       MAX(ld."requestStatus") as "legalDocRequestStatus",
       d."documentType" as "requiredDocument",
       SUM(all_expenses."amount") AS total
-    FROM "Collectives" user_profile
+    FROM "Collectives" account
     INNER JOIN "Expenses" all_expenses
-      ON all_expenses."FromCollectiveId" = user_profile.id
+      ON all_expenses."FromCollectiveId" = account.id
     INNER JOIN "Collectives" c
       ON all_expenses."CollectiveId" = c.id
     INNER JOIN "RequiredLegalDocuments" d
       ON d."HostCollectiveId" = c."HostCollectiveId"
       AND d."documentType" = 'US_TAX_FORM'
     LEFT JOIN "LegalDocuments" ld
-      ON ld."CollectiveId" = user_profile.id
+      ON ld."CollectiveId" = account.id
       AND ld.year = date_part('year', all_expenses."incurredAt")
       AND ld."documentType" = 'US_TAX_FORM'
-    WHERE user_profile.id IN (:accountIds)
-    AND user_profile.type = 'USER'
-    AND all_expenses.type != 'RECEIPT'
+    WHERE all_expenses.type != 'RECEIPT'
+    ${accountIds?.length ? 'AND account.id IN (:accountIds)' : ''}
     AND all_expenses.status NOT IN ('ERROR', 'REJECTED')
     AND all_expenses."deletedAt" IS NULL
     AND EXTRACT('year' FROM all_expenses."incurredAt") = :year
-    GROUP BY user_profile.id, d."documentType"
+    GROUP BY account.id, d."documentType"
   `,
     {
       raw: true,
