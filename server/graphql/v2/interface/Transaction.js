@@ -59,7 +59,13 @@ export const Transaction = new GraphQLInterfaceType({
       amount: {
         type: new GraphQLNonNull(Amount),
       },
+      amountInHostCurrency: {
+        type: new GraphQLNonNull(Amount),
+      },
       netAmount: {
+        type: new GraphQLNonNull(Amount),
+      },
+      taxAmount: {
         type: new GraphQLNonNull(Amount),
       },
       platformFee: {
@@ -146,11 +152,26 @@ export const TransactionFields = () => {
         return { value: transaction.amount, currency: transaction.currency };
       },
     },
+    amountInHostCurrency: {
+      type: new GraphQLNonNull(Amount),
+      resolve(transaction) {
+        return { value: transaction.amountInHostCurrency, currency: transaction.hostCurrency };
+      },
+    },
     netAmount: {
       type: new GraphQLNonNull(Amount),
       resolve(transaction) {
         return {
           value: transaction.netAmountInCollectiveCurrency,
+          currency: transaction.currency,
+        };
+      },
+    },
+    taxAmount: {
+      type: new GraphQLNonNull(Amount),
+      resolve(transaction) {
+        return {
+          value: Math.abs(transaction.taxAmount),
           currency: transaction.currency,
         };
       },
@@ -245,7 +266,7 @@ export const TransactionFields = () => {
     },
     giftCardEmitterAccount: {
       type: Account,
-      description: '',
+      description: 'Account that emitted the gift card used for this transaction (if any)',
       async resolve(transaction, _, req) {
         return transaction.UsingVirtualCardFromCollectiveId
           ? await req.loaders.Collective.byId.load(transaction.UsingVirtualCardFromCollectiveId)

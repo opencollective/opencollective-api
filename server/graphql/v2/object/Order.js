@@ -12,6 +12,7 @@ import { PaymentMethod } from '../object/PaymentMethod';
 import { Tier } from '../object/Tier';
 
 import { MemberOf } from './Member';
+import { OrderTax } from './OrderTax';
 
 export const Order = new GraphQLObjectType({
   name: 'Order',
@@ -41,6 +42,9 @@ export const Order = new GraphQLObjectType({
         resolve(order) {
           return { value: order.totalAmount, currency: order.currency };
         },
+      },
+      quantity: {
+        type: GraphQLInt,
       },
       status: {
         type: OrderStatus,
@@ -142,6 +146,21 @@ export const Order = new GraphQLObjectType({
             return { value: order.data.platformFee, currency: order.currency };
           } else {
             return null;
+          }
+        },
+      },
+      taxes: {
+        type: new GraphQLNonNull(new GraphQLList(OrderTax)),
+        resolve(order) {
+          if (order.data?.tax) {
+            return [
+              {
+                type: order.data.tax.id,
+                percentage: order.data.tax.percentage,
+              },
+            ];
+          } else {
+            return [];
           }
         },
       },
