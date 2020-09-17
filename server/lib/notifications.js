@@ -26,7 +26,6 @@ export default async (Sequelize, activity) => {
   const where = {
     CollectiveId: activity.CollectiveId,
     type: [activityType.ACTIVITY_ALL, activity.type],
-    channel: Object.values(channels),
     active: true,
   };
 
