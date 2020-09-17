@@ -122,6 +122,14 @@ const checkExpenseItems = (expenseData, items) => {
       throw new ValidationFailed('Some items are missing a file');
     }
   }
+
+  // If expense is not a grant request then incurredAt must be set
+  if (expenseData.type !== expenseType.FUNDING_REQUEST) {
+    const hasMissingDate = items.some(a => !a.incurredAt);
+    if (hasMissingDate) {
+      throw new ValidationFailed('Some items are missing a date');
+    }
+  }
 };
 
 const EXPENSE_EDITABLE_FIELDS = [

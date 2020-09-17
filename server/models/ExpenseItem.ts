@@ -123,7 +123,7 @@ export default (sequelize, DataTypes): typeof ExpenseItem => {
       incurredAt: {
         type: DataTypes.DATE,
         defaultValue: DataTypes.NOW,
-        allowNull: false,
+        allowNull: true,
       },
       ExpenseId: {
         type: DataTypes.INTEGER,

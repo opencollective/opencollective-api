@@ -222,6 +222,9 @@ export async function newCollectiveInHost(name, currency, hostCollective, user =
  * @return {models.Expense} newly created expense instance.
  */
 export async function createExpense(user, expenseData) {
+  if (expenseData.items) {
+    expenseData.items.forEach(i => (i.incurredAt = i.incurredAt || new Date()));
+  }
   return expenses.createExpense(user, expenseData);
 }
 
