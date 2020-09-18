@@ -79,6 +79,10 @@ export default function (Sequelize, DataTypes) {
     });
   };
 
+  LegalDocument.prototype.shouldBeRequested = function () {
+    return this.requestStatus == NOT_REQUESTED || this.requestStatus == ERROR;
+  };
+
   LegalDocument.requestStatus = {
     REQUESTED,
     NOT_REQUESTED,
