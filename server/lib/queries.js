@@ -941,6 +941,7 @@ const getTaxFormsRequiredForExpenses = expenseIds => {
       AND ld.year = date_part('year', all_expenses."incurredAt")
       AND ld."documentType" = 'US_TAX_FORM'
     WHERE analyzed_expenses.id IN (:expenseIds)
+    AND analyzed_expenses."FromCollectiveId" != d."HostCollectiveId"
     AND analyzed_expenses.type != 'RECEIPT'
     AND analyzed_expenses.status IN ('PENDING', 'APPROVED')
     AND analyzed_expenses."deletedAt" IS NULL
@@ -982,6 +983,7 @@ const getTaxFormsRequiredForAccounts = async (accountIds = [], date = new Date()
       AND ld."documentType" = 'US_TAX_FORM'
     WHERE all_expenses.type != 'RECEIPT'
     ${accountIds?.length ? 'AND account.id IN (:accountIds)' : ''}
+    AND account.id != d."HostCollectiveId"
     AND all_expenses.status NOT IN ('ERROR', 'REJECTED')
     AND all_expenses."deletedAt" IS NULL
     AND EXTRACT('year' FROM all_expenses."incurredAt") = :year

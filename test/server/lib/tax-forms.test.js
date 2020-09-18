@@ -123,6 +123,15 @@ describe('server/lib/tax-forms', () => {
         incurredAt: moment(),
       }),
     );
+    // An expense from the host, should not be included
+    await Expense.create(
+      ExpenseOverThreshold({
+        UserId: hostCollective.CreatedByUserId,
+        FromCollectiveId: hostCollective.id,
+        CollectiveId: collectives[0].id,
+        incurredAt: moment(),
+      }),
+    );
     // An expense from this year over the threshold BUT it's of type receipt so it should not be counted
     await Expense.create(
       ExpenseOverThreshold({
@@ -208,6 +217,7 @@ describe('server/lib/tax-forms', () => {
       expect(accounts.length).to.be.eq(4);
       expect(accounts.some(account => account.id === organizationWithTaxForm.id)).to.be.true;
       expect(accounts.some(account => account.id === accountAlreadyNotified.id)).to.be.false;
+      expect(accounts.some(account => account.id === hostCollective.id)).to.be.false;
     });
   });
 
