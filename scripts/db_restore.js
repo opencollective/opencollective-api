@@ -49,13 +49,13 @@ function parseCommandLineArguments() {
     help: 'Silence output',
     default: true,
     action: 'store_const',
-    constant: false,
+    const: false,
   });
   parser.add_argument('-f', '--force', {
     help: 'Overwrite existing database',
     default: false,
     action: 'store_const',
-    constant: true,
+    const: true,
   });
   parser.add_argument('file', {
     help: 'Path for the dump file',

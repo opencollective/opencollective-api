@@ -80,7 +80,7 @@ function parseCommandLineArguments() {
     help: 'Ignore existing key check',
     default: false,
     action: 'store_const',
-    constant: true,
+    const: true,
   });
   parser.add_argument('oldKey', {
     help: 'The current key being used',
