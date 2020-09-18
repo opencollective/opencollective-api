@@ -22,6 +22,13 @@ export async function findAccountsThatNeedToBeSentTaxForm(year) {
   } else {
     return models.Collective.findAll({
       where: { id: { [Op.in]: results.map(result => result.collectiveId) } },
+      include: [{ association: 'legalDocuments', required: false }],
+    }).then(collectives => {
+      return collectives.filter(
+        collective =>
+          !collective.legalDocuments.length ||
+          collective.legalDocuments.some(legalDocument => legalDocument.shouldBeRequested()),
+      );
     });
   }
 }

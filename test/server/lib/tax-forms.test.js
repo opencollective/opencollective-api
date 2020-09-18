@@ -7,7 +7,7 @@ import expenseTypes from '../../../server/constants/expense_type';
 import { US_TAX_FORM_THRESHOLD } from '../../../server/constants/tax-form';
 import { findAccountsThatNeedToBeSentTaxForm, sendHelloWorksUsTaxForm } from '../../../server/lib/tax-forms';
 import models from '../../../server/models';
-import { fakeCollective, fakeExpense, fakeHost } from '../../test-helpers/fake-data';
+import { fakeCollective, fakeExpense, fakeHost, fakeLegalDocument } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 const { RECEIPT, INVOICE } = expenseTypes;
 
@@ -40,7 +40,7 @@ describe('server/lib/tax-forms', () => {
   // - one host collective that needs legal docs
   // - two hosted collectives that have invoices to them.
   // - a user that has a document with Error status
-  let user, userCollective, hostCollective, collectives, organizationWithTaxForm;
+  let user, users, userCollective, hostCollective, collectives, organizationWithTaxForm, accountAlreadyNotified;
 
   const documentData = {
     year: moment().year(),
@@ -82,15 +82,19 @@ describe('server/lib/tax-forms', () => {
       lastName: 'Irving',
       email: 'mix@opencollective.com',
     },
+    {
+      email: 'randzzz@opencollective.com',
+    },
   ];
 
   beforeEach(async () => await utils.resetTestDB());
   beforeEach(async () => {
-    const users = await Promise.all(usersData.map(userData => User.createUserWithCollective(userData)));
+    users = await Promise.all(usersData.map(userData => User.createUserWithCollective(userData)));
     user = users[0];
     userCollective = await Collective.findByPk(user.CollectiveId);
     hostCollective = await fakeHost();
     organizationWithTaxForm = await fakeCollective({ type: 'ORGANIZATION' });
+    accountAlreadyNotified = await fakeCollective({ type: 'ORGANIZATION' });
     collectives = await Promise.all([
       fakeCollective({ HostCollectiveId: hostCollective.id }),
       fakeCollective({ HostCollectiveId: hostCollective.id }),
@@ -98,11 +102,35 @@ describe('server/lib/tax-forms', () => {
 
     const mixCollective = await Collective.findByPk(users[3].CollectiveId);
 
+    // Create legal document for accountAlreadyNotified
+    await fakeLegalDocument({
+      CollectiveId: accountAlreadyNotified.id,
+      status: 'REQUESTED',
+    });
+
     // An expense from this year over the threshold
     await Expense.create(
       ExpenseOverThreshold({
         UserId: users[0].id,
         FromCollectiveId: users[0].CollectiveId,
+        CollectiveId: collectives[0].id,
+        incurredAt: moment(),
+      }),
+    );
+    // An expense from this year over the threshold
+    await Expense.create(
+      ExpenseOverThreshold({
+        UserId: accountAlreadyNotified.CreatedByUserId,
+        FromCollectiveId: accountAlreadyNotified.id,
+        CollectiveId: collectives[0].id,
+        incurredAt: moment(),
+      }),
+    );
+    // An expense from the host, should not be included
+    await Expense.create(
+      ExpenseOverThreshold({
+        UserId: hostCollective.CreatedByUserId,
+        FromCollectiveId: hostCollective.id,
         CollectiveId: collectives[0].id,
         incurredAt: moment(),
       }),
@@ -131,6 +159,16 @@ describe('server/lib/tax-forms', () => {
       ExpenseOverThreshold({
         UserId: users[1].id,
         FromCollectiveId: users[1].CollectiveId,
+        CollectiveId: collectives[0].id,
+        incurredAt: moment(),
+        amount: US_TAX_FORM_THRESHOLD - 200e2,
+      }),
+    );
+    // An expense from this year under the threshold
+    await Expense.create(
+      ExpenseOverThreshold({
+        UserId: users[4].id,
+        FromCollectiveId: users[4].CollectiveId,
         CollectiveId: collectives[0].id,
         incurredAt: moment(),
         amount: US_TAX_FORM_THRESHOLD - 200e2,
@@ -187,10 +225,13 @@ describe('server/lib/tax-forms', () => {
   });
 
   describe('findAccountsThatNeedToBeSentTaxForm', () => {
-    it('includes the organization', async () => {
+    it('returns the right profiles', async () => {
       const accounts = await findAccountsThatNeedToBeSentTaxForm(moment().year());
       expect(accounts.length).to.be.eq(4);
       expect(accounts.some(account => account.id === organizationWithTaxForm.id)).to.be.true;
+      expect(accounts.some(account => account.id === accountAlreadyNotified.id)).to.be.false;
+      expect(accounts.some(account => account.id === hostCollective.id)).to.be.false;
+      expect(accounts.some(account => account.id === users[4].CollectiveId)).to.be.false;
     });
   });
 
