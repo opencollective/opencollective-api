@@ -49,7 +49,7 @@ export const Organization = new GraphQLObjectType({
         type: Host,
         description: 'If the organization if a host account, this will return the matchig Host object',
         resolve(collective) {
-          if (collective.isHost) {
+          if (collective.isHostAccount) {
             return collective;
           }
         },
