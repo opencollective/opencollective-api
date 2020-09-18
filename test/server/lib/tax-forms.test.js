@@ -40,7 +40,7 @@ describe('server/lib/tax-forms', () => {
   // - one host collective that needs legal docs
   // - two hosted collectives that have invoices to them.
   // - a user that has a document with Error status
-  let user, userCollective, hostCollective, collectives, organizationWithTaxForm, accountAlreadyNotified;
+  let user, users, userCollective, hostCollective, collectives, organizationWithTaxForm, accountAlreadyNotified;
 
   const documentData = {
     year: moment().year(),
@@ -82,11 +82,14 @@ describe('server/lib/tax-forms', () => {
       lastName: 'Irving',
       email: 'mix@opencollective.com',
     },
+    {
+      email: 'randzzz@opencollective.com',
+    },
   ];
 
   beforeEach(async () => await utils.resetTestDB());
   beforeEach(async () => {
-    const users = await Promise.all(usersData.map(userData => User.createUserWithCollective(userData)));
+    users = await Promise.all(usersData.map(userData => User.createUserWithCollective(userData)));
     user = users[0];
     userCollective = await Collective.findByPk(user.CollectiveId);
     hostCollective = await fakeHost();
@@ -161,6 +164,16 @@ describe('server/lib/tax-forms', () => {
         amount: US_TAX_FORM_THRESHOLD - 200e2,
       }),
     );
+    // An expense from this year under the threshold
+    await Expense.create(
+      ExpenseOverThreshold({
+        UserId: users[4].id,
+        FromCollectiveId: users[4].CollectiveId,
+        CollectiveId: collectives[0].id,
+        incurredAt: moment(),
+        amount: US_TAX_FORM_THRESHOLD - 200e2,
+      }),
+    );
     // An expense from this year over the threshold on the other host collective
     await Expense.create(
       ExpenseOverThreshold({
@@ -218,6 +231,7 @@ describe('server/lib/tax-forms', () => {
       expect(accounts.some(account => account.id === organizationWithTaxForm.id)).to.be.true;
       expect(accounts.some(account => account.id === accountAlreadyNotified.id)).to.be.false;
       expect(accounts.some(account => account.id === hostCollective.id)).to.be.false;
+      expect(accounts.some(account => account.id === users[4].CollectiveId)).to.be.false;
     });
   });
 
