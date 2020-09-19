@@ -39,7 +39,7 @@
     "crypto-js": "4.0.0",
     "dataloader": "2.0.0",
     "dataloader-sequelize": "2.3.0",
-    "debug": "4.1.1",
+    "debug": "4.2.0",
     "deepmerge": "4.2.2",
     "dotenv": "8.2.0",
     "errorhandler": "1.5.1",
