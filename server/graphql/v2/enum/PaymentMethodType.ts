@@ -11,6 +11,7 @@ enum PaymentMethodTypeEnum {
   ACCOUNT_BALANCE = 'ACCOUNT_BALANCE',
   PAYPAL = 'PAYPAL',
   BANK_TRANSFER = 'BANK_TRANSFER',
+  ADDED_FUNDS = 'ADDED_FUNDS',
 }
 
 export const PaymentMethodType = new GraphQLEnumType({
@@ -28,6 +29,8 @@ export const getPaymentMethodType = ({ service, type }: PaymentMethod): PaymentM
   } else if (service === PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE) {
     if (type === PAYMENT_METHOD_TYPE.VIRTUALCARD) {
       return PaymentMethodTypeEnum.GIFT_CARD;
+    } else if (type === PAYMENT_METHOD_TYPE.HOST) {
+      return PaymentMethodTypeEnum.ADDED_FUNDS;
     } else if (type === PAYMENT_METHOD_TYPE.COLLECTIVE) {
       return PaymentMethodTypeEnum.ACCOUNT_BALANCE;
     } else if (type === PAYMENT_METHOD_TYPE.PREPAID) {
@@ -54,6 +57,8 @@ export const getLegacyServiceTypeFromPaymentMethodType = (type: PaymentMethodTyp
       return { service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE, type: PAYMENT_METHOD_TYPE.PREPAID };
     case PaymentMethodTypeEnum.ACCOUNT_BALANCE:
       return { service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE, type: PAYMENT_METHOD_TYPE.COLLECTIVE };
+    case PaymentMethodTypeEnum.ADDED_FUNDS:
+      return { service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE, type: PAYMENT_METHOD_TYPE.HOST };
     case PaymentMethodTypeEnum.BANK_TRANSFER:
       return { service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE, type: PAYMENT_METHOD_TYPE.MANUAL };
     case PaymentMethodTypeEnum.PAYPAL:

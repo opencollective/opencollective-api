@@ -2732,11 +2732,11 @@ export default function (Sequelize, DataTypes) {
               model: models.PaymentMethod,
               as: 'paymentMethod',
               attributes: [],
-              // This is the main chracateristic of Added Funds
+              // This is the main characteristic of Added Funds
               // Some older usage before 2017 doesn't have it but it's ok
               where: {
                 service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
-                type: PAYMENT_METHOD_TYPE.COLLECTIVE,
+                type: PAYMENT_METHOD_TYPE.HOST,
                 CollectiveId: this.id,
               },
             },
