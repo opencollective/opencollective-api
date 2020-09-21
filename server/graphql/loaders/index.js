@@ -267,7 +267,11 @@ export const loaders = req => {
       .then(results => {
         return tierIds.map(tierId => {
           const result = results.find(({ id }) => id === tierId);
-          return result ? result.availableQuantity : maxInteger;
+          if (result) {
+            return result.availableQuantity > 0 ? result.availableQuantity : 0;
+          } else {
+            return null;
+          }
         });
       }),
   );
