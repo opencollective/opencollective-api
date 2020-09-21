@@ -985,7 +985,7 @@ describe('server/models/Collective', () => {
       collective = await fakeCollective({ isHostAccount: true });
       paymentMethod = await fakePaymentMethod({
         service: 'opencollective',
-        type: 'collective',
+        type: 'host',
         data: {},
         CollectiveId: collective.id,
       });
