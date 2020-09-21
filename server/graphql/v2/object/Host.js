@@ -7,19 +7,22 @@ import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import TransferwiseLib from '../../../paymentProviders/transferwise';
 import { PaymentMethodType, PayoutMethodType } from '../enum';
 import { Account, AccountFields } from '../interface/Account';
+import { AccountWithContributions, AccountWithContributionsFields } from '../interface/AccountWithContributions';
 import URL from '../scalar/URL';
 
 import { Amount } from './Amount';
 import { HostPlan } from './HostPlan';
 import { PaymentMethod } from './PaymentMethod';
+import PayoutMethod from './PayoutMethod';
 
 export const Host = new GraphQLObjectType({
   name: 'Host',
   description: 'This represents an Host account',
-  interfaces: () => [Account],
+  interfaces: () => [Account, AccountWithContributions],
   fields: () => {
     return {
       ...AccountFields,
+      ...AccountWithContributionsFields,
       hostFeePercent: {
         type: GraphQLInt,
         resolve(collective) {
@@ -74,6 +77,13 @@ export const Host = new GraphQLObjectType({
           }
 
           return supportedPaymentMethods;
+        },
+      },
+      bankAccount: {
+        type: PayoutMethod,
+        async resolve(collective, _, req) {
+          const payoutMethods = await req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
+          return payoutMethods.find(c => c.service === 'transferwise');
         },
       },
       paypalPreApproval: {
