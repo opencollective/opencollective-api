@@ -2793,7 +2793,7 @@ export default function (Sequelize, DataTypes) {
       const fx = await getFxRate(t.currency, 'USD');
       return Math.round(t.total * fx);
     };
-    const total = sum(await Promise.all(transactions.map(processTransaction)));
+    const total = Math.abs(sum(await Promise.all(transactions.map(processTransaction))));
     return total;
   };
 
