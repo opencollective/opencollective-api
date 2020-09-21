@@ -1428,11 +1428,12 @@ export const TierStatsType = new GraphQLObjectType({
       },
       availableQuantity: {
         type: GraphQLInt,
-        resolve(tier, _, req) {
+        async resolve(tier, _, req) {
           if (!tier.maxQuantity) {
             return maxInteger;
           } else {
-            return req.loaders.Tier.availableQuantity.load(tier.id);
+            const result = await req.loaders.Tier.availableQuantity.load(tier.id);
+            return result === null ? maxInteger : result;
           }
         },
       },
