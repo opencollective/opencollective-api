@@ -242,6 +242,7 @@ const queries = {
 
   InvoiceByDateRange: {
     type: InvoiceType,
+    deprecationReason: '2020-09-17: PDF service is now using the GQLV2 transactions endpoint',
     args: {
       invoiceInputType: {
         type: new GraphQLNonNull(InvoiceInputType),

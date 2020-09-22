@@ -371,6 +371,7 @@ const mutations = {
   },
   createExpense: {
     type: ExpenseType,
+    deprecationReason: '2020-09-17: Now using GQLV2 for that',
     args: {
       expense: { type: new GraphQLNonNull(ExpenseInputType) },
     },
