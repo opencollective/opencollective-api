@@ -7,6 +7,7 @@ import { v4 as uuid } from 'uuid';
 import activities from '../constants/activities';
 import { FEES_ON_TOP_TRANSACTION_PROPERTIES, TransactionTypes } from '../constants/transactions';
 import { getFxRate } from '../lib/currency';
+import logger from '../lib/logger';
 import { toNegative } from '../lib/math';
 import { calcFee } from '../lib/payments';
 import { stripHTML } from '../lib/sanitize-html';
@@ -215,10 +216,13 @@ export default (Sequelize, DataTypes) => {
       },
 
       hooks: {
-        afterCreate: transaction => {
-          Transaction.createActivity(transaction);
-          // intentionally returns null, needs to be async (https://github.com/petkaantonov/bluebird/blob/master/docs/docs/warning-explanations.md#warning-a-promise-was-created-in-a-handler-but-was-not-returned-from-it)
-          return null;
+        afterCreate: (transaction, sequelizeOpts) => {
+          if (sequelizeOpts.transaction) {
+            return Transaction.createActivity(transaction, sequelizeOpts.transaction);
+          } else {
+            // Intentionally don't return for backward compatibility
+            Transaction.createActivity(transaction);
+          }
         },
       },
     },
@@ -405,11 +409,12 @@ export default (Sequelize, DataTypes) => {
    *
    */
 
-  Transaction.createDoubleEntry = async transaction => {
+  Transaction.createDoubleEntry = async (transaction, dbTransaction) => {
     transaction.type = transaction.amount > 0 ? TransactionTypes.CREDIT : TransactionTypes.DEBIT;
     transaction.netAmountInCollectiveCurrency = transaction.netAmountInCollectiveCurrency || transaction.amount;
     transaction.TransactionGroup = uuid();
     transaction.hostCurrencyFxRate = transaction.hostCurrencyFxRate || 1;
+    const sequelizeParams = { transaction: dbTransaction };
 
     if (!isUndefined(transaction.amountInHostCurrency)) {
       // ensure this is always INT
@@ -417,8 +422,8 @@ export default (Sequelize, DataTypes) => {
     }
 
     // Is the target "collective" (account) "Active" (has an host, manage its own budget)
-    const fromCollective = await models.Collective.findByPk(transaction.FromCollectiveId);
-    const fromCollectiveHost = await fromCollective.getHostCollective();
+    const fromCollective = await models.Collective.findByPk(transaction.FromCollectiveId, sequelizeParams);
+    const fromCollectiveHost = await fromCollective.getHostCollective(sequelizeParams);
 
     let oppositeTransaction = {
       ...transaction,
@@ -491,7 +496,7 @@ export default (Sequelize, DataTypes) => {
       transactions.push(transaction);
     }
 
-    return Promise.mapSeries(transactions, t => Transaction.create(t)).then(results => results[index]);
+    return Promise.mapSeries(transactions, t => Transaction.create(t, sequelizeParams)).then(results => results[index]);
   };
 
   Transaction.createFeesOnTopTransaction = async ({ transaction }) => {
@@ -598,48 +603,37 @@ export default (Sequelize, DataTypes) => {
     return Transaction.createDoubleEntry(transaction);
   };
 
-  Transaction.createActivity = transaction => {
+  Transaction.createActivity = async (transaction, sqlTransaction) => {
     if (transaction.deletedAt) {
-      return Promise.resolve();
+      return;
     }
-    return (
-      Transaction.findByPk(transaction.id, {
-        include: [
-          { model: models.Collective, as: 'fromCollective' },
-          { model: models.Collective, as: 'collective' },
-          { model: models.User, as: 'createdByUser' },
-          { model: models.PaymentMethod },
-        ],
-      })
-        // Create activity.
-        .then(transaction => {
-          const activityPayload = {
-            type: activities.COLLECTIVE_TRANSACTION_CREATED,
-            TransactionId: transaction.id,
-            CollectiveId: transaction.CollectiveId,
-            CreatedByUserId: transaction.CreatedByUserId,
-            data: {
-              transaction: transaction.info,
-              user: transaction.User && transaction.User.minimal,
-              fromCollective: transaction.fromCollective && transaction.fromCollective.minimal,
-              collective: transaction.collective && transaction.collective.minimal,
-            },
-          };
-          if (transaction.createdByUser) {
-            activityPayload.data.user = transaction.createdByUser.info;
-          }
-          if (transaction.PaymentMethod) {
-            activityPayload.data.paymentMethod = transaction.PaymentMethod.info;
-          }
-          return models.Activity.create(activityPayload);
-        })
-        .catch(err =>
-          console.error(
-            `Error creating activity of type ${activities.COLLECTIVE_TRANSACTION_CREATED} for transaction ID ${transaction.id}`,
-            err,
-          ),
-        )
-    );
+
+    try {
+      const user = await transaction.getCreatedByUser();
+      const fromCollective = await transaction.getFromCollective();
+      const collective = await transaction.getCollective();
+      const paymentMethod = transaction.PaymentMethodId && (await transaction.getPaymentMethod());
+      const activityPayload = {
+        type: activities.COLLECTIVE_TRANSACTION_CREATED,
+        TransactionId: transaction.id,
+        CollectiveId: transaction.CollectiveId,
+        CreatedByUserId: transaction.CreatedByUserId,
+        data: {
+          transaction: transaction.info,
+          user: user?.minimal,
+          fromCollective: fromCollective?.minimal,
+          collective: collective?.minimal,
+          paymentMethod: paymentMethod?.info,
+        },
+      };
+
+      return await models.Activity.create(activityPayload, { transaction: sqlTransaction });
+    } catch (err) {
+      console.error(
+        `Error creating activity of type ${activities.COLLECTIVE_TRANSACTION_CREATED} for transaction ID ${transaction.id}`,
+        err,
+      );
+    }
   };
 
   Transaction.creditHost = (order, collective) => {

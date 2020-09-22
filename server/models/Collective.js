@@ -2278,9 +2278,9 @@ export default function (Sequelize, DataTypes) {
     });
   };
 
-  Collective.prototype.getBalance = async function (until) {
+  Collective.prototype.getBalance = async function (until, dbTransaction) {
     until = until || new Date();
-    const result = await queries.getBalances([this.id], until);
+    const result = await queries.getBalances([this.id], until, dbTransaction);
     return get(result, '[0].balance') || 0;
   };
 

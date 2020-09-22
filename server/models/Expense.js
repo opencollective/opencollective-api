@@ -280,7 +280,7 @@ export default function (Sequelize, DataTypes) {
    * @param {string} type: type of the activity, see `constants/activities.js`
    * @param {object} user: the user who triggered the activity. Leave blank for system activities.
    */
-  Expense.prototype.createActivity = async function (type, user, data) {
+  Expense.prototype.createActivity = async function (type, user, data, debitTransaction, sqlTransaction) {
     const submittedByUser = this.user || (await models.User.findByPk(this.UserId));
     const submittedByUserCollective = await models.Collective.findByPk(submittedByUser.CollectiveId);
     const fromCollective = this.fromCollective || (await models.Collective.findByPk(this.FromCollectiveId));
@@ -290,34 +290,39 @@ export default function (Sequelize, DataTypes) {
     const host = await this.collective.getHostCollective(); // may be null
     const payoutMethod = await this.getPayoutMethod();
     const items = this.items || (await this.getItems());
-    const transaction =
-      this.status === status.PAID &&
-      (await models.Transaction.findOne({
+
+    if (!debitTransaction && this.status === status.PAID) {
+      debitTransaction = await models.Transaction.findOne({
         where: { type: 'DEBIT', ExpenseId: this.id },
-      }));
-    await models.Activity.create({
-      type,
-      UserId: user?.id,
-      CollectiveId: this.collective.id,
-      ExpenseId: this.id,
-      data: {
-        ...pick(data, ['isManualPayout', 'error']),
-        host: get(host, 'minimal'),
-        collective: { ...this.collective.minimal, isActive: this.collective.isActive },
-        user: submittedByUserCollective.minimal,
-        fromCollective: fromCollective.minimal,
-        expense: this.info,
-        transaction: transaction.info,
-        payoutMethod: payoutMethod && pick(payoutMethod.dataValues, ['id', 'type', 'data']),
-        items: items.map(item => ({
-          id: item.id,
-          incurredAt: item.incurredAt,
-          description: item.description,
-          amount: item.amount,
-          url: item.url,
-        })),
+      });
+    }
+
+    await models.Activity.create(
+      {
+        type,
+        UserId: user?.id,
+        CollectiveId: this.collective.id,
+        ExpenseId: this.id,
+        data: {
+          ...pick(data, ['isManualPayout', 'error']),
+          host: get(host, 'minimal'),
+          collective: { ...this.collective.minimal, isActive: this.collective.isActive },
+          user: submittedByUserCollective.minimal,
+          fromCollective: fromCollective.minimal,
+          expense: this.info,
+          transaction: debitTransaction?.info,
+          payoutMethod: payoutMethod && pick(payoutMethod.dataValues, ['id', 'type', 'data']),
+          items: items.map(item => ({
+            id: item.id,
+            incurredAt: item.incurredAt,
+            description: item.description,
+            amount: item.amount,
+            url: item.url,
+          })),
+        },
       },
-    });
+      { transaction: sqlTransaction },
+    );
   };
 
   Expense.prototype.setApproved = function (lastEditedById) {
@@ -338,16 +343,16 @@ export default function (Sequelize, DataTypes) {
     return this.save();
   };
 
-  Expense.prototype.setPaid = function (lastEditedById) {
+  Expense.prototype.setPaid = function (lastEditedById, dbTransaction) {
     this.status = status.PAID;
     this.lastEditedById = lastEditedById;
-    return this.save();
+    return this.save({ transaction: dbTransaction });
   };
 
-  Expense.prototype.setProcessing = function (lastEditedById) {
+  Expense.prototype.setProcessing = function (lastEditedById, dbTransaction) {
     this.status = status.PROCESSING;
     this.lastEditedById = lastEditedById;
-    return this.save();
+    return this.save({ transaction: dbTransaction });
   };
 
   Expense.prototype.setError = function (lastEditedById) {

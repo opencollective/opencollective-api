@@ -5,6 +5,7 @@ import { pick } from 'lodash';
 import { expenseStatus } from '../../../../../server/constants';
 import { payExpense } from '../../../../../server/graphql/v1/mutations/expenses.js';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
+import models from '../../../../../server/models';
 import { randEmail, randUrl } from '../../../../stores';
 import {
   fakeCollective,
@@ -573,6 +574,38 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.data.processExpense.status).to.eq('PAID');
         expect(result2.errors).to.exist;
         expect(result2.errors[0].message).to.eq('Expense has already been paid');
+
+        const transactions = await models.Transaction.findAll({ where: { ExpenseId: expense.id } });
+        expect(transactions.length).to.eq(2);
+      });
+
+      it('handles concurency (should not create duplicate transactions)', async () => {
+        const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+        const expense = await fakeExpense({
+          amount: 1000,
+          CollectiveId: collective.id,
+          status: 'APPROVED',
+          PayoutMethodId: payoutMethod.id,
+        });
+
+        // Updates the collective balance and pay the expense
+        await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: expense.amount * 3 });
+        const mutationParams = { expenseId: expense.id, action: 'PAY' };
+        const responses = await Promise.all([
+          graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin),
+          graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin),
+        ]);
+
+        await expense.reload();
+        expect(expense.status).to.eq('PAID');
+        const transactions = await models.Transaction.findAll({ where: { ExpenseId: expense.id } });
+        expect(transactions.length).to.eq(2);
+
+        const failure = responses.find(r => r.errors);
+        const success = responses.find(r => r.data);
+        expect(failure).to.exist;
+        expect(success).to.exist;
+        expect(success.data.processExpense.status).to.eq('PAID');
       });
     });
 

@@ -1008,7 +1008,7 @@ const getTaxFormsRequiredForAccounts = async (accountIds = [], date = new Date()
   });
 };
 
-const getBalances = async (collectiveIds, until = new Date()) =>
+const getBalances = async (collectiveIds, until = new Date(), transaction) =>
   sequelize.query(
     `
         WITH "blockedFunds" AS (
@@ -1042,7 +1042,11 @@ const getBalances = async (collectiveIds, until = new Date()) =>
         GROUP BY
           t."CollectiveId";
       `,
-    { type: sequelize.QueryTypes.SELECT, replacements: { ids: collectiveIds, until } },
+    {
+      type: sequelize.QueryTypes.SELECT,
+      replacements: { ids: collectiveIds, until },
+      transaction,
+    },
   );
 
 const serializeCollectivesResult = JSON.stringify;

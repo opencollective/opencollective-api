@@ -65,6 +65,7 @@ export async function createFromPaidExpense(
   hostFeeInHostCurrency = 0,
   platformFeeInHostCurrency = 0,
   transactionData,
+  dbTransaction,
 ) {
   const hostCurrency = host.currency;
   let createPaymentResponse, executePaymentResponse;
@@ -72,7 +73,7 @@ export async function createFromPaidExpense(
     hostFeeInCollectiveCurrency = 0,
     platformFeeInCollectiveCurrency = 0;
   let hostCurrencyFxRate = 1;
-  const payoutMethod = await expense.getPayoutMethod();
+  const payoutMethod = await expense.getPayoutMethod({ transaction: dbTransaction });
   const payoutMethodType = payoutMethod ? payoutMethod.type : expense.getPayoutMethodTypeFromLegacy();
 
   // If PayPal
@@ -154,7 +155,7 @@ export async function createFromPaidExpense(
 
   transaction.hostCurrencyFxRate = hostCurrencyFxRate;
   transaction.amountInHostCurrency = -Math.round(hostCurrencyFxRate * expense.amount); // amountInHostCurrency is an INTEGER (in cents)
-  return models.Transaction.createDoubleEntry(transaction);
+  return models.Transaction.createDoubleEntry(transaction, dbTransaction);
 }
 
 /**
