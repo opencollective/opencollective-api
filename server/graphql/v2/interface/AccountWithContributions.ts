@@ -1,6 +1,7 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull } from 'graphql';
 import { isNil } from 'lodash';
 
+import { types } from '../../../constants/collectives';
 import { OC_FEE_PERCENT } from '../../../constants/transactions';
 import { getPaginatedContributorsForCollective } from '../../../lib/contributors';
 import models from '../../../models';
@@ -9,6 +10,10 @@ import { TierCollection } from '../collection/TierCollection';
 import { AccountType, MemberRole } from '../enum';
 
 import { CollectionArgs } from './Collection';
+
+const hasBudget = account => {
+  return account.type !== types.ORGANIZATION || (account.isHostAccount && account.isActive);
+};
 
 export const AccountWithContributionsFields = {
   totalFinancialContributors: {
@@ -21,6 +26,10 @@ export const AccountWithContributionsFields = {
       },
     },
     async resolve(account, args, req): Promise<number> {
+      if (!hasBudget(account)) {
+        return 0;
+      }
+
       const stats = await req.loaders.Collective.stats.backers.load(account.id);
       if (!args.accountType) {
         return stats.all || 0;
@@ -34,6 +43,10 @@ export const AccountWithContributionsFields = {
   tiers: {
     type: new GraphQLNonNull(TierCollection),
     async resolve(account): Promise<object> {
+      if (!hasBudget(account)) {
+        return [];
+      }
+
       const query = { where: { CollectiveId: account.id }, order: [['amount', 'ASC']] };
       const result = await models.Tier.findAndCountAll(query);
       return { nodes: result.rows, totalCount: result.count };
