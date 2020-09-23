@@ -692,6 +692,9 @@ export default function (Sequelize, DataTypes) {
 
             // Prevent collective creation
             throw new Error('Collective creation failed');
+          } else if (spamReport.score > 0) {
+            notifyTeamAboutSuspiciousCollective(spamReport);
+            instance.data = { ...instance.data, spamReport };
           }
 
           // Set default platformFeePercent
@@ -720,17 +723,13 @@ export default function (Sequelize, DataTypes) {
             });
           }
 
-          const spamReport = collectiveSpamCheck(instance, 'Collective.afterCreate');
-          if (spamReport.score > 0) {
-            notifyTeamAboutSuspiciousCollective(spamReport);
-          }
-
           return null;
         },
         afterUpdate: async instance => {
           const spamReport = collectiveSpamCheck(instance, 'Collective.afterUpdate');
-          if (spamReport.score > 0) {
+          if (spamReport.score > 0 && spamReport.score > (instance.data?.spamReport?.score || 0)) {
             notifyTeamAboutSuspiciousCollective(spamReport);
+            return instance.update({ data: { ...instance.data, spamReport } });
           }
         },
       },
