@@ -84,12 +84,7 @@ const TransactionFields = () => {
     refundTransaction: {
       type: TransactionInterfaceType,
       resolve(transaction) {
-        // If it's a sequelize model transaction, it means it has the method getRefundTransaction
-        // otherwise we just null
-        if (transaction && transaction.getRefundTransaction) {
-          return transaction.getRefundTransaction();
-        }
-        return null;
+        return transaction.getRefundTransaction();
       },
     },
     uuid: {

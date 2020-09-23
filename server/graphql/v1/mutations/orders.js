@@ -12,6 +12,7 @@ import FEATURE from '../../../constants/feature';
 import status from '../../../constants/order_status';
 import roles from '../../../constants/roles';
 import { VAT_OPTIONS } from '../../../constants/vat';
+import { canRefund } from '../../../graphql/common/transactions';
 import cache, { purgeCacheForCollective } from '../../../lib/cache';
 import * as github from '../../../lib/github';
 import * as libPayments from '../../../lib/payments';
@@ -22,7 +23,7 @@ import { canUseFeature } from '../../../lib/user-permissions';
 import { capitalize, formatCurrency, md5 } from '../../../lib/utils';
 import models from '../../../models';
 import { setupCreditCard } from '../../../paymentProviders/stripe/creditcard';
-import { FeatureNotAllowedForUser, NotFound, Unauthorized, ValidationFailed } from '../../errors';
+import { FeatureNotAllowedForUser, Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 
 const oneHourInSeconds = 60 * 60;
 
@@ -782,20 +783,16 @@ export async function refundTransaction(_, args, req) {
     throw new NotFound('Transaction not found');
   }
 
-  const collective = await models.Collective.findByPk(transaction.CollectiveId);
-  const isHost = await collective.isHost();
-  const HostCollectiveId = isHost ? collective.id : await collective.getHostCollectiveId();
-
-  // 1. Verify user permission. User must be either
-  //   a. Admin of the collective that received the donation - disabled for now
+  // 1a. Verify user permission using canRefun. User must be either
+  //   a. Admin of the collective that received the donation
   //   b. Admin of the Host Collective that received the donation
   //   c. Admin of opencollective.com/opencollective
+  // 1b. Check transaction age - only Host admins can refund transactions older than 30 days
+  // 1c. The transaction type must be CREDIT to prevent users from refunding their own DEBITs
 
-  if (
-    !req.remoteUser.isAdmin(HostCollectiveId) &&
-    !req.remoteUser.isRoot() /* && !req.remoteUser.isAdmin(collective.id) */
-  ) {
-    throw new Unauthorized('Not a site admin or host collective admin');
+  const canUserRefund = await canRefund(transaction, undefined, req);
+  if (!canUserRefund) {
+    throw new Forbidden('Cannot refund this transaction');
   }
 
   // 2. Refund via payment method

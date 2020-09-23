@@ -161,7 +161,7 @@ describe('server/graphql/v1/refundTransaction', () => {
 
     // Then it should error out with the right error
     const [{ message }] = result.errors;
-    expect(message).to.equal('Not a site admin or host collective admin');
+    expect(message).to.equal('Cannot refund this transaction');
   });
 
   describe('Save CreatedByUserId', () => {

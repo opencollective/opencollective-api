@@ -26,7 +26,7 @@ export const AccountReferenceInput = new GraphQLInputObjectType({
 /**
  * Retrieves an account
  *
- * @param {string|number} input - slug or id of the collective
+ * @param {object} input - object containing slug or id of the collective
  * @param {object} params
  *    - dbTransaction: An SQL transaction to run the query. Will skip `loaders`
  *    - lock: If true and `dbTransaction` is set, the row will be locked
