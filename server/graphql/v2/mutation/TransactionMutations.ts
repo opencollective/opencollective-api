@@ -49,6 +49,11 @@ const transactionMutations = {
       // get transaction info
       const transaction = await fetchTransactionWithReference(args.transaction);
 
+      const canUserReject = await canReject(transaction, undefined, req);
+      if (!canUserReject) {
+        throw new Forbidden('Cannot reject this transaction');
+      }
+
       /** refund transaction and set status - - if the transaction has already been
        * refunded we don't want to try and do it again, but we will continue with
        * marking the order as 'REJECTED'
@@ -57,24 +62,26 @@ const transactionMutations = {
       if (!transaction.RefundTransactionId) {
         refundedTransaction = await legacyRefundTransaction(undefined, { id: transaction.id }, req);
       } else {
-        // check permissions since we won't check them in legacyRefundTransaction
-        const canUserReject = await canReject(transaction, undefined, req);
-        if (!canUserReject) {
-          throw new Forbidden('Cannot reject this transaction');
-        }
         refundedTransaction = await fetchTransactionWithReference({ legacyId: transaction.RefundTransactionId });
       }
-      const orderToUpdate = await models.Order.update(
-        {
-          status: orderStatus.REJECTED,
-        },
-        {
-          where: { id: refundedTransaction.OrderId },
-          returning: true,
-        },
-      );
+
+      const orderToUpdate = await models.Order.findOne({
+        where: { id: refundedTransaction.OrderId },
+        include: { model: models.Subscription },
+      });
+
       if (!orderToUpdate) {
         throw new NotFound('Order not found');
+      }
+
+      if (orderToUpdate.SubscriptionId) {
+        await orderToUpdate.update({ status: orderStatus.REJECTED });
+        await orderToUpdate.Subscription.deactivate();
+      } else {
+        // else just update the status to REJECTED
+        await orderToUpdate.update({
+          status: orderStatus.REJECTED,
+        });
       }
 
       // get membership info & remove member from Collective
