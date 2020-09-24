@@ -70,6 +70,9 @@ const orderMutations = {
       const loadAccount = account => fetchAccountWithReference(account, loadersParams);
       const tier = order.tier && (await fetchTierWithReference(order.tier, loadersParams));
 
+      const fromCollective = await loadAccount(order.fromAccount);
+      const collective = await loadAccount(order.toAccount);
+
       const legacyOrderObj = {
         quantity: order.quantity,
         amount: getValueInCentsFromAmountInput(order.amount),
@@ -79,8 +82,8 @@ const orderMutations = {
         taxIdNumber: tax?.idNumber,
         isFeesOnTop: !isNil(platformFee),
         paymentMethod: await getLegacyPaymentMethodFromPaymentMethodInput(order.paymentMethod),
-        fromCollective: await loadAccount(order.fromAccount),
-        collective: await loadAccount(order.toAccount),
+        fromCollective: { id: fromCollective.id },
+        collective: { id: collective.id },
         totalAmount: getOrderTotalAmount(order),
         customData: order.customData,
         tier,
