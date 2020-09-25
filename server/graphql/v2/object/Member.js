@@ -62,11 +62,12 @@ const MemberFields = {
       if (member.totalDonations) {
         return { value: member.totalDonations };
       }
+      const collective = await req.loaders.Collective.byId.load(member.CollectiveId);
       const value = await req.loaders.Transaction.totalAmountDonatedFromTo.load({
         FromCollectiveId: member.MemberCollectiveId,
         CollectiveId: member.CollectiveId,
       });
-      return { value };
+      return { value, currency: collective.currency };
     },
   },
   publicMessage: {
