@@ -209,10 +209,15 @@ describe('server/graphql/v1/createOrder', () => {
   });
 
   it('creates a pending order if the collective is active and the payment method type is manual', async () => {
-    const hostAdmin = await models.User.create({ email: store.randEmail(), name: '_____' });
+    const hostAdmin = await models.User.createUserWithCollective({
+      firstName: 'Mike',
+      lastName: 'Doe',
+      email: store.randEmail(),
+    });
     const host = await models.Collective.create({
       slug: 'host-collective',
       name: 'Open Collective 501c3',
+      type: 'ORGANIZATION',
       currency: 'USD',
       CreatedByUserId: hostAdmin.id,
       settings: {
@@ -224,6 +229,8 @@ describe('server/graphql/v1/createOrder', () => {
         },
       },
     });
+    await host.addUserWithRole(hostAdmin, 'ADMIN', { CreatedByUserId: hostAdmin.id });
+
     const collective = await models.Collective.create({
       slug: 'webpack',
       name: 'test',
@@ -246,6 +253,12 @@ describe('server/graphql/v1/createOrder', () => {
     });
     await collective.addHost(host, hostAdmin, { shouldAutomaticallyApprove: true });
     await collective.update({ isActive: true });
+
+    await utils.waitForCondition(() => emailSendMessageSpy.callCount === 1, {
+      tag: 'fearlesscitiesbrussels would love to be hosted ',
+    });
+    emailSendMessageSpy.resetHistory();
+
     const thisOrder = cloneDeep(baseOrder);
     delete thisOrder.paymentMethod;
     thisOrder.paymentMethod = { type: 'manual' };
@@ -276,11 +289,8 @@ describe('server/graphql/v1/createOrder', () => {
       where: { OrderId: res.data.createOrder.id },
     });
     expect(transactionsCount).to.equal(0);
-    await utils.waitForCondition(() => emailSendMessageSpy.callCount == 3);
-    expect(emailSendMessageSpy.callCount).to.equal(3);
-
-    const hostEmailArgs = emailSendMessageSpy.args.find(callArgs => callArgs[1].includes('would love to be hosted'));
-    expect(hostEmailArgs).to.exist;
+    await utils.waitForCondition(() => emailSendMessageSpy.callCount == 2);
+    expect(emailSendMessageSpy.callCount).to.equal(2);
 
     const pendingEmailArgs = emailSendMessageSpy.args.find(callArgs =>
       callArgs[1].includes('New pending financial contribution'),
