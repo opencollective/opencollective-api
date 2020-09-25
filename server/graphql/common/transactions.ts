@@ -131,5 +131,12 @@ export const canReject = async (transaction, _, req): Promise<boolean> => {
   if (transaction.type !== TransactionTypes.CREDIT || transaction.OrderId === null) {
     return false;
   }
-  return remoteUserMeetsOneCondition(req, transaction, [isPayeeCollectiveAdmin]);
+  const timeLimit = moment().subtract(30, 'd');
+  const createdAtMoment = moment(transaction.createdAt);
+  const transactionIsOlderThanThirtyDays = createdAtMoment < timeLimit;
+  if (transactionIsOlderThanThirtyDays) {
+    return remoteUserMeetsOneCondition(req, transaction, [isRoot, isPayeeHostAdmin]);
+  } else {
+    return remoteUserMeetsOneCondition(req, transaction, [isRoot, isPayeeHostAdmin, isPayeeCollectiveAdmin]);
+  }
 };
