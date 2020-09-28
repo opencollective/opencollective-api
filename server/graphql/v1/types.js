@@ -1989,6 +1989,7 @@ export const PaymentMethodType = new GraphQLObjectType({
       },
       SourcePaymentMethodId: {
         type: GraphQLInt,
+        deprecationReason: '2020-09-28: Not used',
         resolve(paymentMethod) {
           return paymentMethod.SourcePaymentMethodId;
         },
