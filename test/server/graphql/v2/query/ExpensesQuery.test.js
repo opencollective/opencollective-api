@@ -20,6 +20,9 @@ const expensesQuery = gqlV2/* GraphQL */ `
         id
         legacyId
         status
+        type
+        description
+        amount
       }
     }
   }
@@ -77,26 +80,31 @@ describe('server/graphql/v2/query/ExpensesQuery', () => {
 
       // Create expenses
       expensesReadyToPay = await Promise.all([
-        fakeExpense({ ...baseExpenseData, type: 'RECEIPT' }),
-        fakeExpense({ ...baseExpenseData, type: 'INVOICE' }),
+        fakeExpense({ ...baseExpenseData, description: 'Ready (receipt)', type: 'RECEIPT' }),
+        fakeExpense({ ...baseExpenseData, description: 'Ready (invoice)', type: 'INVOICE' }),
       ]);
 
       await Promise.all([
         // Not ready to pay because of their status
-        fakeExpense({ ...baseExpenseData, status: 'PENDING' }),
-        fakeExpense({ ...baseExpenseData, status: 'REJECTED' }),
-        fakeExpense({ ...baseExpenseData, status: 'PROCESSING' }),
-        fakeExpense({ ...baseExpenseData, status: 'ERROR' }),
-        fakeExpense({ ...baseExpenseData, status: 'PAID' }),
-        fakeExpense({ ...baseExpenseData, status: 'SCHEDULED_FOR_PAYMENT' }),
+        fakeExpense({ ...baseExpenseData, description: 'Not ready (status)', status: 'PENDING' }),
+        fakeExpense({ ...baseExpenseData, description: 'Not ready (status)', status: 'REJECTED' }),
+        fakeExpense({ ...baseExpenseData, description: 'Not ready (status)', status: 'PROCESSING' }),
+        fakeExpense({ ...baseExpenseData, description: 'Not ready (status)', status: 'ERROR' }),
+        fakeExpense({ ...baseExpenseData, description: 'Not ready (status)', status: 'PAID' }),
+        fakeExpense({ ...baseExpenseData, description: 'Not ready (status)', status: 'SCHEDULED_FOR_PAYMENT' }),
         // Not ready to pay because of the balance
-        fakeExpense({ ...baseExpenseData, CollectiveId: collectiveWithoutBalance.id }),
+        fakeExpense({
+          ...baseExpenseData,
+          description: 'Not ready (balance)',
+          CollectiveId: collectiveWithoutBalance.id,
+        }),
         // Not ready to pay because of the tax form
         fakeExpense({
           ...baseExpenseData,
           amount: US_TAX_FORM_THRESHOLD + 1,
           type: 'INVOICE',
           status: 'APPROVED',
+          description: 'Not ready (tax form)',
         }),
       ]);
     });
