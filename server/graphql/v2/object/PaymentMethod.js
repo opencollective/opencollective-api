@@ -67,6 +67,15 @@ export const PaymentMethod = new GraphQLObjectType({
           return req.loaders.Collective.byId.load(paymentMethod.CollectiveId);
         },
       },
+      sourcePaymentMethod: {
+        type: PaymentMethod,
+        description: 'For gift cards, this field will return to the source payment method',
+        resolve(paymentMethod, _, req) {
+          if (paymentMethod.SourcePaymentMethodId && req.remoteUser?.isAdmin(paymentMethod.CollectiveId)) {
+            return req.loaders.PaymentMethod.byId.load(paymentMethod.SourcePaymentMethodId);
+          }
+        },
+      },
       data: {
         type: GraphQLJSON,
         resolve(paymentMethod, _, req) {
