@@ -1,4 +1,4 @@
-import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull } from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { isNil } from 'lodash';
 
 import { types } from '../../../constants/collectives';
@@ -85,6 +85,9 @@ export const AccountWithContributionsFields = {
     resolve(account, _, req): Promise<number> {
       return req.loaders.Collective.balance.load(account.id);
     },
+  },
+  contributionPolicy: {
+    type: GraphQLString,
   },
 };
 
