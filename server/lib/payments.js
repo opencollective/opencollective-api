@@ -454,20 +454,19 @@ export const sendOrderProcessingEmail = async order => {
   if (instructions) {
     const formatValues = {
       account,
-      orderid: order.id,
       reference: order.id,
       amount: formatCurrency(order.totalAmount, order.currency),
       collective: parentCollective ? `${parentCollective.slug} event` : order.collective.slug,
       tier: get(order, 'tier.slug') || get(order, 'tier.name'),
+      // @deprecated but we still have some entries in the DB
+      OrderId: order.id,
     };
-    data.instructions = instructions.replace(/{([\s\S]+?)}/g, (match, p1) => {
-      if (p1) {
-        const key = p1.toLowerCase();
-        if (formatValues[key]) {
-          return formatValues[key];
-        }
+    data.instructions = instructions.replace(/{([\s\S]+?)}/g, (match, key) => {
+      if (key && formatValues[key]) {
+        return formatValues[key];
+      } else {
+        return match;
       }
-      return match;
     });
   }
   return emailLib.send('order.processing', user.email, data, {
