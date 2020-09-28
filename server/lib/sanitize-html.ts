@@ -89,6 +89,14 @@ export const buildSanitizerOptions = (allowedContent: AllowedContentType = {}): 
     transformTags: {
       h1: 'h3',
       h2: 'h3',
+      a : function(tagname, attribs) {
+        let url = attribs.href;
+        return {
+          attribs: {
+            href: `/redirect?url=${encodeURIComponent(url)}`,
+          }
+        }
+      },
     },
   };
 };
