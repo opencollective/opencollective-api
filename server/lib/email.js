@@ -264,8 +264,8 @@ const generateEmailFromTemplate = (template, recipient, data = {}, options = {})
   }
 
   if (template === 'collective.approved') {
-    if (hostSlug === 'the-social-change-agency') {
-      template += '.the-social-change-agency';
+    if (hostSlug === 'the-social-change-nest') {
+      template += '.the-social-change-nest';
     }
   }
 
@@ -273,8 +273,8 @@ const generateEmailFromTemplate = (template, recipient, data = {}, options = {})
     if (hostSlug === 'opensource') {
       template += '.opensource';
     }
-    if (hostSlug === 'the-social-change-agency') {
-      template += '.the-social-change-agency';
+    if (hostSlug === 'the-social-change-nest') {
+      template += '.the-social-change-nest';
     }
   }
 
