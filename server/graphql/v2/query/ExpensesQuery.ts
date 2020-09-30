@@ -1,6 +1,8 @@
 import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import { partition } from 'lodash';
 
 import { expenseStatus } from '../../../constants';
+import EXPENSE_TYPE from '../../../constants/expense_type';
 import queries from '../../../lib/queries';
 import models, { Op, sequelize } from '../../../models';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
@@ -25,11 +27,14 @@ const updateFilterConditionsForReadyToPay = async (where, include): Promise<void
     raw: true,
   });
 
-  if (results.length > 0) {
+  const [expensesSubjectToTaxForm, expensesWithoutTaxForm] = partition(results, e => e.type !== EXPENSE_TYPE.RECEIPT);
+
+  const taxFormConditions = [];
+  if (expensesSubjectToTaxForm.length > 0) {
     // Check the balances for these collectives. The following will emit an SQL like:
     // AND ((CollectiveId = 1 AND amount < 5000) OR (CollectiveId = 2 AND amount < 3000))
     const balances = await queries.getBalances(results.map(e => e.CollectiveId));
-    where[Op.and].push({
+    taxFormConditions.push({
       [Op.or]: balances.map(({ CollectiveId, balance }) => ({
         CollectiveId,
         amount: { [Op.lte]: balance },
@@ -39,8 +44,17 @@ const updateFilterConditionsForReadyToPay = async (where, include): Promise<void
     // Check tax forms
     const taxFormResults = await queries.getTaxFormsRequiredForAccounts(results.map(e => e.FromCollectiveId));
     taxFormResults.forEach(({ collectiveId }) => {
-      where[Op.and].push({ FromCollectiveId: { [Op.not]: collectiveId } });
+      taxFormConditions.push({ FromCollectiveId: { [Op.not]: collectiveId } });
     });
+  }
+
+  if (taxFormConditions.length) {
+    if (expensesWithoutTaxForm.length) {
+      const ignoredIds = expensesWithoutTaxForm.map(e => e.id);
+      where[Op.and].push({ [Op.or]: [{ id: { [Op.in]: ignoredIds } }, { [Op.and]: taxFormConditions }] });
+    } else {
+      where[Op.and].push(...taxFormConditions);
+    }
   }
 };
 
