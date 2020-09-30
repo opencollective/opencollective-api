@@ -1,3 +1,4 @@
+import { TaxType } from '@opencollective/taxes';
 import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
@@ -199,6 +200,7 @@ async function HostReport(year, month, hostId) {
     data.maxSlugSize = 0;
     data.notes = null;
     data.expensesPerPage = [[]];
+    data.taxType = host.getTaxType() || 'Taxes';
     data.stats = {
       numberPaidExpenses: 0,
     };
@@ -367,6 +369,7 @@ async function HostReport(year, month, hostId) {
           numberTransactions: data.transactions.length,
           numberDonations: data.transactions.length - data.stats.numberPaidExpenses,
         };
+
         summary.hosts.push({
           host: { name: host.name, slug: host.slug, currency: host.currency },
           stats: data.stats,

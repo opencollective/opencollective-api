@@ -7,5 +7,8 @@ export const OrderTaxType = new GraphQLEnumType({
     VAT: {
       description: 'European Value Added Tax',
     },
+    GST: {
+      description: 'New Zealand Good and Services Tax',
+    },
   },
 });
