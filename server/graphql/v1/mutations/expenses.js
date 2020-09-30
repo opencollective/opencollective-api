@@ -571,214 +571,246 @@ async function payExpenseWithTransferwise(host, payoutMethod, expense, fees, rem
 }
 
 /**
+ * A soft lock on expenses, that works by adding a `isLocked` flag on expense's data
+ */
+const lockExpense = async (id, callback) => {
+  // Lock expense
+  await sequelize.transaction(async sqlTransaction => {
+    const expense = await models.Expense.findByPk(id, { lock: true, transaction: sqlTransaction });
+
+    if (!expense) {
+      throw new Unauthorized('Expense not found');
+    } else if (expense.data?.isLocked) {
+      throw new Error('This expense is already been processed, please try again later');
+    } else {
+      return expense.update({ data: { ...expense.data, isLocked: true } }, { transaction: sqlTransaction });
+    }
+  });
+
+  try {
+    return callback();
+  } finally {
+    // Unlock expense
+    const expense = await models.Expense.findByPk(id);
+    await expense.update({ data: { ...expense.data, isLocked: false } });
+  }
+};
+
+/**
  * Pay an expense based on the payout method defined in the Expense object
  * @PRE: fees { id, paymentProcessorFeeInCollectiveCurrency, hostFeeInCollectiveCurrency, platformFeeInCollectiveCurrency }
  * Note: some payout methods like PayPal will automatically define `paymentProcessorFeeInCollectiveCurrency`
  */
 export async function payExpense(req, args) {
-  const { remoteUser } = req;
-  const expenseId = args.id;
-  const fees = omit(args, ['id', 'forceManual']);
+  return lockExpense(args.id, async () => {
+    const { remoteUser } = req;
+    const expenseId = args.id;
+    const fees = omit(args, ['id', 'forceManual']);
 
-  if (!remoteUser) {
-    throw new Unauthorized('You need to be logged in to pay an expense');
-  } else if (!canUseFeature(remoteUser, FEATURE.EXPENSES)) {
-    throw new FeatureNotAllowedForUser();
-  }
-  const expense = await models.Expense.findByPk(expenseId, {
-    include: [
-      { model: models.Collective, as: 'collective' },
-      { model: models.Collective, as: 'fromCollective' },
-    ],
-  });
-  if (!expense) {
-    throw new Unauthorized('Expense not found');
-  }
-  if (expense.status === statuses.PAID) {
-    throw new Unauthorized('Expense has already been paid');
-  }
-  if (expense.status === statuses.PROCESSING) {
-    throw new Unauthorized(
-      'Expense is currently being processed, this means someone already started the payment process',
-    );
-  }
-  if (
-    expense.status !== statuses.APPROVED &&
-    // Allow errored expenses to be marked as paid
-    !(expense.status === statuses.ERROR && args.forceManual)
-  ) {
-    throw new Unauthorized(`Expense needs to be approved. Current status of the expense: ${expense.status}.`);
-  }
-  if (!(await ExpenseLib.canPayExpense(req, expense))) {
-    throw new Unauthorized("You don't have permission to pay this expense");
-  }
-  const host = await expense.collective.getHostCollective();
-
-  if (expense.legacyPayoutMethod === 'donation') {
-    throw new Error('"In kind" donations are not supported anymore');
-  }
-
-  const balance = await expense.collective.getBalance();
-  if (expense.amount > balance) {
-    throw new Unauthorized(
-      `You don't have enough funds to pay this expense. Current balance: ${formatCurrency(
-        balance,
-        expense.collective.currency,
-      )}, Expense amount: ${formatCurrency(expense.amount, expense.collective.currency)}`,
-    );
-  }
-
-  const feesInHostCurrency = {};
-  const fxrate = await getFxRate(expense.collective.currency, host.currency);
-  const payoutMethod = await expense.getPayoutMethod();
-  const payoutMethodType = payoutMethod ? payoutMethod.type : expense.getPayoutMethodTypeFromLegacy();
-
-  if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT && !args.forceManual) {
-    const [connectedAccount] = await host.getConnectedAccounts({
-      where: { service: 'transferwise', deletedAt: null },
+    if (!remoteUser) {
+      throw new Unauthorized('You need to be logged in to pay an expense');
+    } else if (!canUseFeature(remoteUser, FEATURE.EXPENSES)) {
+      throw new FeatureNotAllowedForUser();
+    }
+    const expense = await models.Expense.findByPk(expenseId, {
+      include: [
+        { model: models.Collective, as: 'collective' },
+        { model: models.Collective, as: 'fromCollective' },
+      ],
     });
-    if (!connectedAccount) {
-      throw new Error('Host is not connected to Transferwise');
+    if (!expense) {
+      throw new Unauthorized('Expense not found');
     }
-    const quote = await paymentProviders.transferwise.getTemporaryQuote(connectedAccount, payoutMethod, expense);
-    // Notice this is the FX rate between Host and Collective, that's why we use `fxrate`.
-    fees.paymentProcessorFeeInCollectiveCurrency = floatAmountToCents(quote.fee / fxrate);
-  } else if (payoutMethodType === PayoutMethodTypes.PAYPAL && !args.forceManual) {
-    fees.paymentProcessorFeeInCollectiveCurrency = await paymentProviders.paypal.types['adaptive'].fees({
-      amount: expense.amount,
-      currency: expense.collective.currency,
-      host,
-    });
-  }
-
-  feesInHostCurrency.paymentProcessorFeeInHostCurrency = Math.round(
-    fxrate * (fees.paymentProcessorFeeInCollectiveCurrency || 0),
-  );
-  feesInHostCurrency.hostFeeInHostCurrency = Math.round(fxrate * (fees.hostFeeInCollectiveCurrency || 0));
-  feesInHostCurrency.platformFeeInHostCurrency = Math.round(fxrate * (fees.platformFeeInCollectiveCurrency || 0));
-
-  if (!fees.paymentProcessorFeeInCollectiveCurrency) {
-    fees.paymentProcessorFeeInCollectiveCurrency = 0;
-  }
-
-  if (expense.amount + fees.paymentProcessorFeeInCollectiveCurrency > balance) {
-    throw new Error(
-      `You don't have enough funds to cover for the fees of this payment method. Current balance: ${formatCurrency(
-        balance,
-        expense.collective.currency,
-      )}, Expense amount: ${formatCurrency(
-        expense.amount,
-        expense.collective.currency,
-      )}, Estimated ${payoutMethodType} fees: ${formatCurrency(
-        fees.paymentProcessorFeeInCollectiveCurrency,
-        expense.collective.currency,
-      )}`,
-    );
-  }
-
-  // If the amount of the expense is larger than i.e. $1000 enforce 2FA if the user has it turned on
-  const is2FARequiredForPayoutMethod = [PayoutMethodTypes.PAYPAL, PayoutMethodTypes.BANK_ACCOUNT].includes(
-    payoutMethodType,
-  );
-  const hostHasPayout2FAEnabled = get(host, 'settings.payoutsTwoFactorAuth.enabled', false);
-  const hostPayout2FAExpenseAmount = get(host, 'settings.payoutsTwoFactorAuth.expenseAmount', 100000);
-  if (
-    is2FARequiredForPayoutMethod &&
-    !args.forceManual &&
-    hostHasPayout2FAEnabled &&
-    expense.amount >= hostPayout2FAExpenseAmount
-  ) {
-    enforceTwoFactorAuthenticationOnPayouts(req, args.twoFactorAuthenticatorCode);
-  }
-
-  // Pay expense based on chosen payout method
-  if (payoutMethodType === PayoutMethodTypes.PAYPAL) {
-    const paypalEmail = payoutMethod.data.email;
-    let paypalPaymentMethod = null;
-    try {
-      paypalPaymentMethod = await host.getPaymentMethod({ service: 'paypal' });
-    } catch {
-      // ignore missing paypal payment method
+    if (expense.status === statuses.PAID) {
+      throw new Unauthorized('Expense has already been paid');
     }
-    // If the expense has been filed with the same paypal email than the host paypal
-    // then we simply mark the expense as paid
-    if (paypalPaymentMethod && paypalEmail === paypalPaymentMethod.name) {
-      feesInHostCurrency.paymentProcessorFeeInHostCurrency = 0;
-      await createTransactions(host, expense, feesInHostCurrency);
-    } else if (args.forceManual) {
-      await createTransactions(host, expense, feesInHostCurrency);
-    } else if (paypalPaymentMethod) {
-      await payExpenseWithPayPal(remoteUser, expense, host, paypalPaymentMethod, paypalEmail, feesInHostCurrency);
-    } else {
-      throw new Error('No Paypal account linked, please reconnect Paypal or pay manually');
-    }
-  } else if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT) {
-    if (args.forceManual) {
-      feesInHostCurrency.paymentProcessorFeeInHostCurrency = 0;
-      await createTransactions(host, expense, feesInHostCurrency);
-    } else {
-      await payExpenseWithTransferwise(host, payoutMethod, expense, feesInHostCurrency, remoteUser);
-      await expense.setProcessing(remoteUser.id);
-      // Early return, we'll only mark as Paid when the transaction completes.
-      return expense;
-    }
-  } else if (payoutMethodType === PayoutMethodTypes.ACCOUNT_BALANCE) {
-    const payee = expense.fromCollective;
-    const payeeHost = await payee.getHostCollective();
-    if (!payeeHost) {
-      throw new Error('The payee needs to have an Host to able to be paid on its Open Collective balance.');
-    }
-    if (host.id !== payeeHost.id) {
-      throw new Error(
-        'The payee needs to be on the same Host than the payer to be paid on its Open Collective balance.',
+    if (expense.status === statuses.PROCESSING) {
+      throw new Unauthorized(
+        'Expense is currently being processed, this means someone already started the payment process',
       );
     }
-    await createTransactions(host, expense, feesInHostCurrency);
-  } else if (expense.legacyPayoutMethod === 'manual' || expense.legacyPayoutMethod === 'other') {
-    // note: we need to check for manual and other for legacy reasons
-    await createTransactions(host, expense, feesInHostCurrency);
-  }
+    if (
+      expense.status !== statuses.APPROVED &&
+      // Allow errored expenses to be marked as paid
+      !(expense.status === statuses.ERROR && args.forceManual)
+    ) {
+      throw new Unauthorized(`Expense needs to be approved. Current status of the expense: ${expense.status}.`);
+    }
+    if (!(await ExpenseLib.canPayExpense(req, expense))) {
+      throw new Unauthorized("You don't have permission to pay this expense");
+    }
+    const host = await expense.collective.getHostCollective();
 
-  return markExpenseAsPaid(expense, remoteUser);
+    if (expense.legacyPayoutMethod === 'donation') {
+      throw new Error('"In kind" donations are not supported anymore');
+    }
+
+    const balance = await expense.collective.getBalance();
+    if (expense.amount > balance) {
+      throw new Unauthorized(
+        `You don't have enough funds to pay this expense. Current balance: ${formatCurrency(
+          balance,
+          expense.collective.currency,
+        )}, Expense amount: ${formatCurrency(expense.amount, expense.collective.currency)}`,
+      );
+    }
+
+    const feesInHostCurrency = {};
+    const fxrate = await getFxRate(expense.collective.currency, host.currency);
+    const payoutMethod = await expense.getPayoutMethod();
+    const payoutMethodType = payoutMethod ? payoutMethod.type : expense.getPayoutMethodTypeFromLegacy();
+
+    if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT && !args.forceManual) {
+      const [connectedAccount] = await host.getConnectedAccounts({
+        where: { service: 'transferwise', deletedAt: null },
+      });
+      if (!connectedAccount) {
+        throw new Error('Host is not connected to Transferwise');
+      }
+      const quote = await paymentProviders.transferwise.getTemporaryQuote(connectedAccount, payoutMethod, expense);
+      // Notice this is the FX rate between Host and Collective, that's why we use `fxrate`.
+      fees.paymentProcessorFeeInCollectiveCurrency = floatAmountToCents(quote.fee / fxrate);
+    } else if (payoutMethodType === PayoutMethodTypes.PAYPAL && !args.forceManual) {
+      fees.paymentProcessorFeeInCollectiveCurrency = await paymentProviders.paypal.types['adaptive'].fees({
+        amount: expense.amount,
+        currency: expense.collective.currency,
+        host,
+      });
+    }
+
+    feesInHostCurrency.paymentProcessorFeeInHostCurrency = Math.round(
+      fxrate * (fees.paymentProcessorFeeInCollectiveCurrency || 0),
+    );
+    feesInHostCurrency.hostFeeInHostCurrency = Math.round(fxrate * (fees.hostFeeInCollectiveCurrency || 0));
+    feesInHostCurrency.platformFeeInHostCurrency = Math.round(fxrate * (fees.platformFeeInCollectiveCurrency || 0));
+
+    if (!fees.paymentProcessorFeeInCollectiveCurrency) {
+      fees.paymentProcessorFeeInCollectiveCurrency = 0;
+    }
+
+    if (expense.amount + fees.paymentProcessorFeeInCollectiveCurrency > balance) {
+      throw new Error(
+        `You don't have enough funds to cover for the fees of this payment method. Current balance: ${formatCurrency(
+          balance,
+          expense.collective.currency,
+        )}, Expense amount: ${formatCurrency(
+          expense.amount,
+          expense.collective.currency,
+        )}, Estimated ${payoutMethodType} fees: ${formatCurrency(
+          fees.paymentProcessorFeeInCollectiveCurrency,
+          expense.collective.currency,
+        )}`,
+      );
+    }
+
+    // If the amount of the expense is larger than i.e. $1000 enforce 2FA if the user has it turned on
+    const is2FARequiredForPayoutMethod = [PayoutMethodTypes.PAYPAL, PayoutMethodTypes.BANK_ACCOUNT].includes(
+      payoutMethodType,
+    );
+    const hostHasPayout2FAEnabled = get(host, 'settings.payoutsTwoFactorAuth.enabled', false);
+    const hostPayout2FAExpenseAmount = get(host, 'settings.payoutsTwoFactorAuth.expenseAmount', 100000);
+    if (
+      is2FARequiredForPayoutMethod &&
+      !args.forceManual &&
+      hostHasPayout2FAEnabled &&
+      expense.amount >= hostPayout2FAExpenseAmount
+    ) {
+      enforceTwoFactorAuthenticationOnPayouts(req, args.twoFactorAuthenticatorCode);
+    }
+
+    // Pay expense based on chosen payout method
+    if (payoutMethodType === PayoutMethodTypes.PAYPAL) {
+      const paypalEmail = payoutMethod.data.email;
+      let paypalPaymentMethod = null;
+      try {
+        paypalPaymentMethod = await host.getPaymentMethod({ service: 'paypal' });
+      } catch {
+        // ignore missing paypal payment method
+      }
+      // If the expense has been filed with the same paypal email than the host paypal
+      // then we simply mark the expense as paid
+      if (paypalPaymentMethod && paypalEmail === paypalPaymentMethod.name) {
+        feesInHostCurrency.paymentProcessorFeeInHostCurrency = 0;
+        await createTransactions(host, expense, feesInHostCurrency);
+      } else if (args.forceManual) {
+        await createTransactions(host, expense, feesInHostCurrency);
+      } else if (paypalPaymentMethod) {
+        await payExpenseWithPayPal(remoteUser, expense, host, paypalPaymentMethod, paypalEmail, feesInHostCurrency);
+      } else {
+        throw new Error('No Paypal account linked, please reconnect Paypal or pay manually');
+      }
+    } else if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT) {
+      if (args.forceManual) {
+        feesInHostCurrency.paymentProcessorFeeInHostCurrency = 0;
+        await createTransactions(host, expense, feesInHostCurrency);
+      } else {
+        await payExpenseWithTransferwise(host, payoutMethod, expense, feesInHostCurrency, remoteUser);
+        await expense.setProcessing(remoteUser.id);
+        // Early return, we'll only mark as Paid when the transaction completes.
+        return expense;
+      }
+    } else if (payoutMethodType === PayoutMethodTypes.ACCOUNT_BALANCE) {
+      const payee = expense.fromCollective;
+      const payeeHost = await payee.getHostCollective();
+      if (!payeeHost) {
+        throw new Error('The payee needs to have an Host to able to be paid on its Open Collective balance.');
+      }
+      if (host.id !== payeeHost.id) {
+        throw new Error(
+          'The payee needs to be on the same Host than the payer to be paid on its Open Collective balance.',
+        );
+      }
+      await createTransactions(host, expense, feesInHostCurrency);
+    } else if (expense.legacyPayoutMethod === 'manual' || expense.legacyPayoutMethod === 'other') {
+      // note: we need to check for manual and other for legacy reasons
+      await createTransactions(host, expense, feesInHostCurrency);
+    }
+
+    return markExpenseAsPaid(expense, remoteUser);
+  });
 }
 
 export async function markExpenseAsUnpaid(req, ExpenseId, processorFeeRefunded) {
   const { remoteUser } = req;
-  if (!remoteUser) {
-    throw new Unauthorized('You need to be logged in to unpay an expense');
-  } else if (!canUseFeature(remoteUser, FEATURE.EXPENSES)) {
-    throw new FeatureNotAllowedForUser();
-  }
 
-  const expense = await models.Expense.findByPk(ExpenseId, {
-    include: [
-      { model: models.Collective, as: 'collective' },
-      { model: models.User, as: 'User' },
-      { model: models.PayoutMethod },
-    ],
+  const updatedExpense = await lockExpense(ExpenseId, async () => {
+    if (!remoteUser) {
+      throw new Unauthorized('You need to be logged in to unpay an expense');
+    } else if (!canUseFeature(remoteUser, FEATURE.EXPENSES)) {
+      throw new FeatureNotAllowedForUser();
+    }
+
+    const expense = await models.Expense.findByPk(ExpenseId, {
+      include: [
+        { model: models.Collective, as: 'collective' },
+        { model: models.User, as: 'User' },
+        { model: models.PayoutMethod },
+      ],
+    });
+
+    if (!expense) {
+      throw new NotFound('No expense found');
+    }
+
+    if (!(await ExpenseLib.canMarkAsUnpaid(req, expense))) {
+      throw new Unauthorized("You don't have permission to mark this expense as unpaid");
+    }
+
+    if (expense.status !== statuses.PAID) {
+      throw new Unauthorized('Expense has not been paid yet');
+    }
+
+    const transaction = await models.Transaction.findOne({
+      where: { ExpenseId },
+      include: [{ model: models.Expense }],
+    });
+
+    const paymentProcessorFeeInHostCurrency = processorFeeRefunded ? transaction.paymentProcessorFeeInHostCurrency : 0;
+    await libPayments.createRefundTransaction(transaction, paymentProcessorFeeInHostCurrency, null, expense.User);
+
+    return expense.update({ status: statuses.APPROVED, lastEditedById: remoteUser.id });
   });
 
-  if (!expense) {
-    throw new NotFound('No expense found');
-  }
-
-  if (!(await ExpenseLib.canMarkAsUnpaid(req, expense))) {
-    throw new Unauthorized("You don't have permission to mark this expense as unpaid");
-  }
-
-  if (expense.status !== statuses.PAID) {
-    throw new Unauthorized('Expense has not been paid yet');
-  }
-
-  const transaction = await models.Transaction.findOne({
-    where: { ExpenseId },
-    include: [{ model: models.Expense }],
-  });
-
-  const paymentProcessorFeeInHostCurrency = processorFeeRefunded ? transaction.paymentProcessorFeeInHostCurrency : 0;
-  await libPayments.createRefundTransaction(transaction, paymentProcessorFeeInHostCurrency, null, expense.User);
-
-  const updatedExpense = await expense.update({ status: statuses.APPROVED, lastEditedById: remoteUser.id });
   await updatedExpense.createActivity(activities.COLLECTIVE_EXPENSE_MARKED_AS_UNPAID, remoteUser);
   return updatedExpense;
 }
