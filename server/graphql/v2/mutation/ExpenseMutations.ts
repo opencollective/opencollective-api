@@ -1,6 +1,11 @@
 import { GraphQLBoolean, GraphQLInputObjectType, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
-import { pick } from 'lodash';
+import { omit, pick, size } from 'lodash';
+import { v4 as uuid } from 'uuid';
 
+import { types as collectiveTypes } from '../../../constants/collectives';
+import expenseStatus from '../../../constants/expense_status';
+import FEATURE from '../../../constants/feature';
+import { canUseFeature } from '../../../lib/user-permissions';
 import models from '../../../models';
 import {
   approveExpense,
@@ -9,7 +14,7 @@ import {
   scheduleExpenseForPayment,
   unapproveExpense,
 } from '../../common/expenses';
-import { NotFound, Unauthorized } from '../../errors';
+import { FeatureNotAllowedForUser, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import {
   createExpense as createExpenseLegacy,
   editExpense as editExpenseLegacy,
@@ -20,6 +25,7 @@ import { ExpenseProcessAction } from '../enum/ExpenseProcessAction';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { ExpenseCreateInput } from '../input/ExpenseCreateInput';
+import { ExpenseInviteDraftInput } from '../input/ExpenseInviteDraftInput';
 import {
   ExpenseReferenceInput,
   fetchExpenseWithReference,
@@ -210,6 +216,99 @@ const expenseMutations = {
         default:
           return expense;
       }
+    },
+  },
+  draftExpenseAndInviteUser: {
+    type: new GraphQLNonNull(Expense),
+    description: 'Persist an Expense as a draft and invite someone to edit and submit it.',
+    args: {
+      expense: {
+        type: new GraphQLNonNull(ExpenseInviteDraftInput),
+        description: 'Expense data',
+      },
+      account: {
+        type: new GraphQLNonNull(AccountReferenceInput),
+        description: 'Account where the expense will be created',
+      },
+    },
+    async resolve(_, args, req): Promise<object> {
+      const remoteUser = req.remoteUser;
+      const expenseData = args.expense;
+
+      if (!remoteUser) {
+        throw new Unauthorized('You need to be logged in to create an expense');
+      } else if (!canUseFeature(remoteUser, FEATURE.EXPENSES)) {
+        throw new FeatureNotAllowedForUser();
+      }
+      if (size(expenseData.attachedFiles) > 15) {
+        throw new ValidationFailed('The number of files that you can attach to an expense is limited to 15');
+      }
+
+      const collective = await fetchAccountWithReference(args.account, req);
+      if (!collective) {
+        throw new ValidationFailed('Collective not found');
+      }
+
+      const isAllowedType = [
+        collectiveTypes.COLLECTIVE,
+        collectiveTypes.EVENT,
+        collectiveTypes.FUND,
+        collectiveTypes.PROJECT,
+      ].includes(collective.type);
+      const isActiveHost = collective.type === collectiveTypes.ORGANIZATION && collective.isActive;
+      if (!isAllowedType && !isActiveHost) {
+        throw new ValidationFailed(
+          'Expenses can only be submitted to Collectives, Events, Funds, Projects and active Hosts.',
+        );
+      }
+
+      const draftKey = uuid();
+      const expenseFields = [
+        'description',
+        'longDescription',
+        'tags',
+        'type',
+        'privateMessage',
+        'invoiceInfo',
+        'payeeLocation',
+      ];
+
+      const fromCollective = await remoteUser.getCollective();
+      const payee = expenseData.payee?.id
+        ? (await fetchAccountWithReference({ id: expenseData.payee.id }))?.minimal
+        : expenseData.payee;
+      const expense = await models.Expense.create({
+        ...pick(expenseData, expenseFields),
+        CollectiveId: collective.id,
+        FromCollectiveId: fromCollective.id,
+        lastEditedById: remoteUser.id,
+        UserId: remoteUser.id,
+        currency: collective.currency,
+        incurredAt: new Date(),
+        amount: expenseData.items?.reduce((total, item) => total + item.amount, 0) || expenseData.amount || 1,
+        data: {
+          items: expenseData.items,
+          payee,
+          invitedByCollectiveId: fromCollective.id,
+          draftKey,
+          recipientNote: expenseData.recipientNote,
+        },
+        status: expenseStatus.DRAFT,
+      });
+
+      const inviteUrl = `${config.host.website}/${collective.slug}/expenses/${expense.id}?key=${draftKey}`;
+      expense
+        .createActivity(activityType.COLLECTIVE_EXPENSE_INVITE_DRAFTED, remoteUser, { ...expense.data, inviteUrl })
+        .catch(e => logger.error('An error happened when creating the COLLECTIVE_EXPENSE_INVITE_DRAFTED activity', e));
+
+      if (config.env === 'development') {
+        logger.info(`Expense Invite Link: ${inviteUrl}`);
+      }
+
+      return expense;
+    },
+  },
+      return expense;
     },
   },
 };
