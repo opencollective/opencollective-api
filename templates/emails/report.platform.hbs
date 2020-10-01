@@ -96,7 +96,7 @@ Subject: {{month}} {{year}} Platform Report
     </table>
     <h2>Hosts with unpaid platform fees</h2>
     {{#each hosts}}
-    {{#if platformFeesDue}}
+    {{#if hasFeesDue}}
     <h3><a href="https://opencollective.com/{{host}}">{{host}}</a></h3>
     <table>
       <tr>
@@ -153,7 +153,7 @@ Subject: {{month}} {{year}} Platform Report
         <td></td>
         <td>Bank Transfers:</td>
         <td></td>
-        <td align="right">{{currency feeOnTopBankTransfers currency='USD'}}</td>
+        <td align="right">{{currency feesOnTopBankTransfers currency='USD'}}</td>
       </tr>
       <tr>
         <td></td>
