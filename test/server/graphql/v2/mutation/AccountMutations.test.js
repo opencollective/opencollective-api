@@ -146,6 +146,21 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         collectivePage: { background: { zoom: 0.5, crop: { x: 0, y: 0 } } },
       });
     });
+
+    it('validates settings and refuses bad values for specific keys', async () => {
+      const result = await graphqlQueryV2(
+        editSettingsMutation,
+        {
+          account: { legacyId: collective.id },
+          key: 'moderation',
+          value: { rejectedCategories: ['ADULT', 'NOT_A_MODERATION_CATEGORY'] },
+        },
+        adminUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/Invalid filtering category/);
+    });
   });
 
   describe('addTwoFactorAuthTokenToIndividual', () => {
