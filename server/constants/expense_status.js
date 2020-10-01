@@ -1,17 +1,24 @@
 /**
  * Constants for the expense status
  *
+ *
  * pending -> rejected
  * pending -> approved -> paid
+ *
  * TransferWise:
- * pending -> approved -> processing -> paid
- * pending -> approved -> processing -> error
+ * ... -> approved -> processing -> paid
+ * ... -> approved -> processing -> error
+ *
  * PayPal Payouts:
- * pending -> approved -> scheduled_for_payment -> paid
- * pending -> approved -> scheduled_for_payment -> error
+ * ... -> approved -> scheduled_for_payment -> paid
+ * ... -> approved -> scheduled_for_payment -> error
+ *
+ * Submit on Behalf:
+ * draft -> pending -> ...
  */
 
 export default {
+  DRAFT: 'DRAFT',
   PENDING: 'PENDING',
   APPROVED: 'APPROVED',
   REJECTED: 'REJECTED',

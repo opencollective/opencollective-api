@@ -218,6 +218,8 @@ const ExpensesQuery = {
       } else {
         await updateFilterConditionsForReadyToPay(where, include);
       }
+    } else {
+      where['status'] = { [Op.ne]: expenseStatus.DRAFT };
     }
 
     const order = [[args.orderBy.field, args.orderBy.direction]];
