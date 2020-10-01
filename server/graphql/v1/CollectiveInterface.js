@@ -856,6 +856,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       },
       connectedAccounts: { type: new GraphQLList(ConnectedAccountType) },
       plan: { type: PlanType },
+      contributionPolicy: { type: GraphQLString },
     };
   },
 });
@@ -1839,6 +1840,12 @@ const CollectiveFields = () => {
       type: CollectiveStatsType,
       resolve(collective) {
         return collective;
+      },
+    },
+    contributionPolicy: {
+      type: GraphQLString,
+      resolve(collective) {
+        return collective.contributionPolicy;
       },
     },
   };

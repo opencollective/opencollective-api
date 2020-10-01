@@ -1,8 +1,9 @@
 import * as LibTaxes from '@opencollective/taxes';
 import config from 'config';
-import { pick } from 'lodash';
+import { get, pick } from 'lodash';
 
 import { types as CollectiveTypes } from '../constants/collectives';
+import { MODERATION_CATEGORIES } from '../constants/moderation-categories';
 import { VAT_OPTIONS } from '../constants/vat';
 
 import logger from './logger';
@@ -59,6 +60,7 @@ export const COLLECTIVE_SETTINGS_KEYS_LIST = [
   'isHostCollective',
   'lang',
   'matchingFund',
+  'moderation',
   'paymentMethods',
   'recommendedCollectives',
   'style',
@@ -113,6 +115,15 @@ export function validateSettings(settings) {
       return 'Invalid VAT number';
     } else if (settings.VAT.type && settings.VAT.type !== VAT_OPTIONS.HOST && settings.VAT.type !== VAT_OPTIONS.OWN) {
       return 'Invalid VAT configuration';
+    }
+  }
+
+  if (settings.moderation?.rejectedContributionCategories) {
+    const categories = get(settings, 'moderation.rejectedContributionCategories');
+    for (const category of categories) {
+      if (!MODERATION_CATEGORIES.includes(category)) {
+        return 'Invalid filtering category';
+      }
     }
   }
 

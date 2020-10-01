@@ -276,6 +276,13 @@ export default function (Sequelize, DataTypes) {
 
       expensePolicy: DataTypes.TEXT, // markdown
 
+      contributionPolicy: {
+        type: DataTypes.TEXT, // markdown
+        validate: {
+          len: [0, 500],
+        },
+      },
+
       currency: CustomDataTypes(DataTypes).currency,
 
       image: {
