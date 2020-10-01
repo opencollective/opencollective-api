@@ -317,7 +317,7 @@ export default {
         // This object cannot be accessed right now because another API request or Stripe process is currently accessing it.
         // If you see this error intermittently, retry the request.
         // If you see this error frequently and are making multiple concurrent requests to a single object, make your requests serially or at a lower rate.
-        'This object cannot be accessed right now because another API request.':
+        'This object cannot be accessed right now because another API request or Stripe process is currently accessing it.':
           'Payment Processing error (API request).',
         // You cannot confirm this PaymentIntent because it's missing a payment method.
         // To confirm the PaymentIntent with cus_9cNHqpdWYOV4aH, specify a payment method attached to this customer along with the customer ID.
@@ -326,6 +326,12 @@ export default {
         // You have exceeded the maximum number of declines on this card in the last 24 hour period.
         // Please contact us via https://support.stripe.com/contact if you need further assistance.
         'You have exceeded the maximum number of declines on this card': 'Your card was declined.',
+        // An error occurred while processing your card. Try again in a little bit.
+        'An error occurred while processing your card.': 'Payment Processing error (API error).',
+        // This account cannot currently make live charges.
+        // If you are a customer trying to make a purchase, please contact the owner of this site.
+        // Your transaction has not been processed.
+        'This account cannot currently make live charges.': 'Payment Processing error (Host error).',
       };
       const errorKey = Object.keys(identifiedErrors).find(errorMessage => error.message.includes(errorMessage));
       if (errorKey) {

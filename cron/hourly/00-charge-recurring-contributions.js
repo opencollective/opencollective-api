@@ -155,11 +155,11 @@ export function parseCommandLineArguments() {
   });
   parser.add_argument('-l', '--limit', {
     help: 'Total recurring contributions to process',
-    default: 1000,
+    default: 500,
   });
   parser.add_argument('-c', '--concurrency', {
     help: 'Number of operations to process at the same time',
-    default: 5,
+    default: 3,
   });
   parser.add_argument('-s', '--simulate', {
     help: 'If in dry run, simulate operation between 0 to 5 seconds',
