@@ -453,7 +453,6 @@ const mutations = {
             throw new Unauthorized();
           } else {
             const admins = await collective.getAdminUsers();
-            console.log(args.members, '-00');
             for (const adminUser of args.members) {
               emailLib.send('admin.request.removal', adminUser.member.email, {
                 collective: pick(collective, ['slug', 'name']),
