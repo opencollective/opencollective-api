@@ -78,6 +78,7 @@ const orderMutations = {
         amount: getValueInCentsFromAmountInput(order.amount),
         interval: getIntervalFromContributionFrequency(order.frequency),
         taxAmount: tax && getValueInCentsFromAmountInput(tax.amount),
+        taxType: tax?.type,
         countryISO: tax?.country,
         taxIdNumber: tax?.idNumber,
         isFeesOnTop: !isNil(platformFee),

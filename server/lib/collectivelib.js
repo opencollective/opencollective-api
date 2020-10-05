@@ -69,15 +69,16 @@ export const COLLECTIVE_SETTINGS_KEYS_LIST = [
   'tos',
   'twitter',
   'VAT',
+  'GST',
   'virtualCardsMaxDailyCount',
   'W9',
 ];
 
 /**
  * Whitelist the collective settings that can be updated.
- * TODO: Whitelist all collective fields (only VAT is atm)
+ * TODO: Filter all settings fields
  */
-export function whitelistSettings(settings) {
+export function filterCollectiveSettings(settings) {
   if (!settings) {
     return null;
   }
@@ -86,6 +87,10 @@ export function whitelistSettings(settings) {
 
   if (preparedSettings.VAT) {
     preparedSettings.VAT = pick(preparedSettings.VAT, ['number', 'type']);
+  }
+
+  if (preparedSettings.GST) {
+    preparedSettings.GST = pick(preparedSettings.GST, ['number']);
   }
 
   // Generate warnings for invalid settings

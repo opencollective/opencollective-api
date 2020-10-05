@@ -1,3 +1,4 @@
+import { TaxType } from '@opencollective/taxes';
 import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
@@ -12,10 +13,8 @@ import {
   get,
   includes,
   isNull,
-  keys,
   omit,
   pick,
-  pickBy,
   sum,
   sumBy,
   trim,
@@ -41,10 +40,10 @@ import { hasOptedOutOfFeature, isFeatureAllowedForCollectiveType } from '../lib/
 import cache from '../lib/cache';
 import {
   collectiveSlugReservedlist,
+  filterCollectiveSettings,
   getCollectiveAvatarUrl,
   isCollectiveSlugReserved,
   validateSettings,
-  whitelistSettings,
 } from '../lib/collectivelib';
 import { getFxRate } from '../lib/currency';
 import emailLib from '../lib/email';
@@ -341,7 +340,7 @@ export default function (Sequelize, DataTypes) {
           return this.getDataValue('settings') || {};
         },
         set(value) {
-          this.setDataValue('settings', whitelistSettings(value));
+          this.setDataValue('settings', filterCollectiveSettings(value));
         },
         validate: {
           validate(settings) {
@@ -2506,6 +2505,17 @@ export default function (Sequelize, DataTypes) {
     }
 
     return models.Transaction.findAll(query);
+  };
+
+  /**
+   * Returns the main tax type for this collective
+   */
+  Collective.prototype.getTaxType = function () {
+    if (this.settings?.VAT) {
+      return TaxType.VAT;
+    } else if (this.settings?.GST) {
+      return TaxType.GST;
+    }
   };
 
   Collective.prototype.getTotalTransactions = function (

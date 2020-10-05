@@ -23,7 +23,7 @@ Total amount received:                 {{currency stats.totalNetAmountReceived.t
 
 {{#if stats.totalTaxAmountCollected.totalInHostCurrency}}
 Taxes collected:                       {{currency stats.totalTaxAmountCollected.totalInHostCurrency currency=host.currency precision=2}}
-(VAT received)
+({{taxType}} received)
 {{/if}}
 Host fees:                             {{currency stats.totalHostFees.totalInHostCurrency currency=host.currency precision=2}}
 (Commission for {{host.name}})
