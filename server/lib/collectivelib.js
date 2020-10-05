@@ -123,8 +123,8 @@ export function validateSettings(settings) {
     }
   }
 
-  if (settings.moderation?.rejectedContributionCategories) {
-    const categories = get(settings, 'moderation.rejectedContributionCategories');
+  if (settings.moderation?.rejectedCategories) {
+    const categories = get(settings, 'moderation.rejectedCategories');
     for (const category of categories) {
       if (!MODERATION_CATEGORIES.includes(category)) {
         return 'Invalid filtering category';
