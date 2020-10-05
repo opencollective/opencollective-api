@@ -10,6 +10,8 @@ import expressLib from './lib/express';
 import logger from './lib/logger';
 import routes from './routes';
 
+const workers = process.env.WEB_CONCURRENCY || 1;
+
 async function start(i) {
   const expressApp = express();
 
@@ -45,9 +47,8 @@ async function start(i) {
 
 let app;
 
-if (['production', 'staging'].includes(config.env)) {
-  const workers = process.env.WEB_CONCURRENCY || 1;
-  throng({ workers, lifetime: Infinity }, start);
+if (['production', 'staging'].includes(config.env) && workers && workers > 1) {
+  throng({ worker: start, count: workers });
 } else {
   app = start(1);
 }
