@@ -1,3 +1,4 @@
+import config from 'config';
 import { truncate } from 'lodash';
 import LibSanitize from 'sanitize-html';
 
@@ -89,6 +90,19 @@ export const buildSanitizerOptions = (allowedContent: AllowedContentType = {}): 
     transformTags: {
       h1: 'h3',
       h2: 'h3',
+      a: function (tagName, attribs) {
+        return {
+          tagName: 'a',
+          attribs: {
+            ...attribs,
+            href: `${
+              !attribs.href.startsWith(config.host.website)
+                ? `${config.host.website}/redirect?url=${encodeURIComponent(attribs.href)}`
+                : attribs.href
+            }`,
+          },
+        };
+      },
     },
   };
 };
