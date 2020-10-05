@@ -80,7 +80,7 @@ const orderMutations = {
         taxAmount: tax && getValueInCentsFromAmountInput(tax.amount),
         taxType: tax?.type,
         countryISO: tax?.country,
-        taxIdNumber: tax?.idNumber,
+        taxIDNumber: tax?.idNumber,
         isFeesOnTop: !isNil(platformFee),
         paymentMethod: await getLegacyPaymentMethodFromPaymentMethodInput(order.paymentMethod),
         fromCollective: { id: fromCollective.id },
