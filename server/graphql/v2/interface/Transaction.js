@@ -119,7 +119,7 @@ export const Transaction = new GraphQLInterfaceType({
       permissions: {
         type: TransactionPermissions,
       },
-      isRejected: {
+      isOrderRejected: {
         type: new GraphQLNonNull(GraphQLBoolean),
       },
       refundTransaction: {
@@ -285,7 +285,7 @@ export const TransactionFields = () => {
           : null;
       },
     },
-    isRejected: {
+    isOrderRejected: {
       type: new GraphQLNonNull(GraphQLBoolean),
       async resolve(transaction, _, req) {
         if (transaction.OrderId) {
