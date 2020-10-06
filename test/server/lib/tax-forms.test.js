@@ -40,7 +40,14 @@ describe('server/lib/tax-forms', () => {
   // - one host collective that needs legal docs
   // - two hosted collectives that have invoices to them.
   // - a user that has a document with Error status
-  let user, users, userCollective, hostCollective, collectives, organizationWithTaxForm, accountAlreadyNotified;
+  let user,
+    users,
+    userCollective,
+    hostCollective,
+    collectives,
+    organizationWithTaxForm,
+    accountAlreadyNotified,
+    accountWithTaxFormFromLastYear;
 
   const documentData = {
     year: moment().year(),
@@ -95,6 +102,7 @@ describe('server/lib/tax-forms', () => {
     hostCollective = await fakeHost();
     organizationWithTaxForm = await fakeCollective({ type: 'ORGANIZATION' });
     accountAlreadyNotified = await fakeCollective({ type: 'ORGANIZATION' });
+    accountWithTaxFormFromLastYear = await fakeCollective({ type: 'ORGANIZATION' });
     collectives = await Promise.all([
       fakeCollective({ HostCollectiveId: hostCollective.id }),
       fakeCollective({ HostCollectiveId: hostCollective.id }),
@@ -106,6 +114,13 @@ describe('server/lib/tax-forms', () => {
     await fakeLegalDocument({
       CollectiveId: accountAlreadyNotified.id,
       status: 'REQUESTED',
+    });
+
+    // Create legal document for accountWithTaxFormFromLastYear
+    await fakeLegalDocument({
+      CollectiveId: accountWithTaxFormFromLastYear.id,
+      status: 'RECEIVED',
+      year: year - 1,
     });
 
     // An expense from this year over the threshold
@@ -122,6 +137,15 @@ describe('server/lib/tax-forms', () => {
       ExpenseOverThreshold({
         UserId: accountAlreadyNotified.CreatedByUserId,
         FromCollectiveId: accountAlreadyNotified.id,
+        CollectiveId: collectives[0].id,
+        incurredAt: moment(),
+      }),
+    );
+    // An expense from this year over the threshold
+    await Expense.create(
+      ExpenseOverThreshold({
+        UserId: accountWithTaxFormFromLastYear.CreatedByUserId,
+        FromCollectiveId: accountWithTaxFormFromLastYear.id,
         CollectiveId: collectives[0].id,
         incurredAt: moment(),
       }),
@@ -227,8 +251,9 @@ describe('server/lib/tax-forms', () => {
   describe('findAccountsThatNeedToBeSentTaxForm', () => {
     it('returns the right profiles', async () => {
       const accounts = await findAccountsThatNeedToBeSentTaxForm(moment().year());
-      expect(accounts.length).to.be.eq(4);
+      expect(accounts.length).to.be.eq(5);
       expect(accounts.some(account => account.id === organizationWithTaxForm.id)).to.be.true;
+      expect(accounts.some(account => account.id === accountWithTaxFormFromLastYear.id)).to.be.true;
       expect(accounts.some(account => account.id === accountAlreadyNotified.id)).to.be.false;
       expect(accounts.some(account => account.id === hostCollective.id)).to.be.false;
       expect(accounts.some(account => account.id === users[4].CollectiveId)).to.be.false;
