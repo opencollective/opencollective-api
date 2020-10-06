@@ -24,6 +24,14 @@ const HELLO_WORKS_WORKFLOW_ID = get(config, 'helloworks.workflowId');
 const HELLO_WORKS_S3_BUCKET = get(config, 'helloworks.aws.s3.bucket');
 const ENCRYPTION_KEY = get(config, 'helloworks.documentEncryptionKey');
 
+// Put legacy workflows here
+const SUPPORTED_WORKFLOWS = new Set([
+  HELLO_WORKS_WORKFLOW_ID,
+  'MfmOZErmhz1qPgMp',
+  'MkFBvG39RIA61OnD',
+  'qdUbX5nw8sMZzykz',
+]);
+
 function processMetadata(metadata) {
   // Check if metadata is malformed
   // ie: {"email,a@example.com":"1","userId,258567":"0","year,2019":"2"}
@@ -53,7 +61,7 @@ async function callback(req, res) {
   } = req;
 
   const metadata = processMetadata(metadataReceived);
-  if (status && status === 'completed' && workflowId == HELLO_WORKS_WORKFLOW_ID) {
+  if (status && status === 'completed' && SUPPORTED_WORKFLOWS.has(workflowId)) {
     const { userId, accountId, email, year } = metadata;
     const documentId = Object.keys(data)[0];
     const documentType = US_TAX_FORM;
