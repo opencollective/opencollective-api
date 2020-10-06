@@ -26,7 +26,6 @@ env:
   FRONTEND_FOLDER: /home/runner/work/opencollective-api/opencollective-api/opencollective-frontend
   IMAGES_FOLDER: /home/runner/work/opencollective-api/opencollective-api/opencollective-images
   TERM: xterm
-  NEW_CONTRIBUTION_FLOW: ${{ contains(github.ref, 'new-cf') }}
 
 jobs:
   e2e:
