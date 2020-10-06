@@ -636,7 +636,7 @@ const getMembersWithTotalDonations = (where, options = {}) => {
     return condition;
   };
 
-  const roleCond = where.role ? `AND member.role = '${where.role}'` : '';
+  const roleCond = where.role ? `AND member.role = :role` : '';
 
   let types,
     filterByMemberCollectiveType = '';
@@ -731,6 +731,7 @@ const getMembersWithTotalDonations = (where, options = {}) => {
         limit: options.limit || 100000, // we should reduce this to 100 by default but right now Webpack depends on it
         offset: options.offset || 0,
         types,
+        role: where.role,
       },
       type: sequelize.QueryTypes.SELECT,
       model: models.Collective,
@@ -742,7 +743,7 @@ const getMembersWithBalance = (where, options = {}) => {
   const { until } = options;
   const untilCondition = table =>
     until ? `AND ${table}."createdAt" < '${until.toISOString().toString().substr(0, 10)}'` : '';
-  const roleCond = where.role ? `AND member.role = '${where.role}'` : '';
+  const roleCond = where.role ? `AND member.role = :role` : '';
 
   let types,
     filterByMemberCollectiveType = '';
