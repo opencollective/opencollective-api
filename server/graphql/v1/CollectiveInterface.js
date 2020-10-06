@@ -857,6 +857,10 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       connectedAccounts: { type: new GraphQLList(ConnectedAccountType) },
       plan: { type: PlanType },
       contributionPolicy: { type: GraphQLString },
+      categories: {
+        type: new GraphQLNonNull(new GraphQLList(GraphQLString)),
+        description: 'Categories set by Open Collective to help moderation.',
+      },
     };
   },
 });
@@ -1846,6 +1850,12 @@ const CollectiveFields = () => {
       type: GraphQLString,
       resolve(collective) {
         return collective.contributionPolicy;
+      },
+    },
+    categories: {
+      type: new GraphQLNonNull(new GraphQLList(GraphQLString)),
+      resolve(collective) {
+        return get(collective.data, 'categories', []);
       },
     },
   };
