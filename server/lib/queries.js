@@ -979,7 +979,7 @@ const getTaxFormsRequiredForAccounts = async (accountIds = [], date = new Date()
       AND d."documentType" = 'US_TAX_FORM'
     LEFT JOIN "LegalDocuments" ld
       ON ld."CollectiveId" = account.id
-      AND ld.year = date_part('year', all_expenses."incurredAt")
+      AND ld.year = :year
       AND ld."documentType" = 'US_TAX_FORM'
     WHERE all_expenses.type != 'RECEIPT'
     ${accountIds?.length ? 'AND account.id IN (:accountIds)' : ''}

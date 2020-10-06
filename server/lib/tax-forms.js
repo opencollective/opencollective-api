@@ -22,7 +22,7 @@ export async function findAccountsThatNeedToBeSentTaxForm(year) {
   } else {
     return models.Collective.findAll({
       where: { id: { [Op.in]: results.map(result => result.collectiveId) } },
-      include: [{ association: 'legalDocuments', required: false }],
+      include: [{ association: 'legalDocuments', required: false, where: { year } }],
     }).then(collectives => {
       return collectives.filter(
         collective =>
