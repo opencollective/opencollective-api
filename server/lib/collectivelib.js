@@ -126,7 +126,7 @@ export function validateSettings(settings) {
   if (settings.moderation?.rejectedCategories) {
     const categories = get(settings, 'moderation.rejectedCategories');
     for (const category of categories) {
-      if (!MODERATION_CATEGORIES.includes(category)) {
+      if (!Object.keys(MODERATION_CATEGORIES).includes(category)) {
         return 'Invalid filtering category';
       }
     }

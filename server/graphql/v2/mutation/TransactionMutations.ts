@@ -65,6 +65,10 @@ const transactionMutations = {
         refundedTransaction = await fetchTransactionWithReference({ legacyId: transaction.RefundTransactionId });
       }
 
+      if (!refundedTransaction) {
+        throw new NotFound('Refunded transaction not found');
+      }
+
       const orderToUpdate = await models.Order.findOne({
         where: { id: refundedTransaction.OrderId },
         include: { model: models.Subscription },
