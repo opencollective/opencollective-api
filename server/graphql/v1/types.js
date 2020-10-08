@@ -698,6 +698,12 @@ export const InvoiceType = new GraphQLObjectType({
           return invoice.totalAmount;
         },
       },
+      totalTransactions: {
+        type: GraphQLInt,
+        resolve(invoice) {
+          return invoice.totalTransactions;
+        },
+      },
       currency: {
         type: GraphQLString,
         resolve(invoice) {

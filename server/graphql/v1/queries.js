@@ -146,6 +146,7 @@ const queries = {
         const totalAmount = invoicesByKey[slug]
           ? invoicesByKey[slug].totalAmount + transaction.amountInHostCurrency
           : transaction.amountInHostCurrency;
+        const totalTransactions = invoicesByKey[slug] ? invoicesByKey[slug].totalTransactions + 1 : 1;
 
         invoicesByKey[slug] = {
           HostCollectiveId,
@@ -154,6 +155,7 @@ const queries = {
           year,
           month,
           totalAmount,
+          totalTransactions,
           currency: transaction.hostCurrency,
         };
       });
