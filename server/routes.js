@@ -1,7 +1,7 @@
 import { ApolloServer } from 'apollo-server-express';
 import config from 'config';
 import expressLimiter from 'express-limiter';
-import { get } from 'lodash';
+import { get, pick } from 'lodash';
 import multer from 'multer';
 import redis from 'redis';
 
@@ -15,6 +15,7 @@ import { getGraphqlCacheKey } from './graphql/cache';
 import graphqlSchemaV1 from './graphql/v1/schema';
 import graphqlSchemaV2 from './graphql/v2/schema';
 import cache from './lib/cache';
+import logger from './lib/logger';
 import statsd from './lib/statsd';
 import { parseToBoolean } from './lib/utils';
 import * as authentication from './middleware/authentication';
@@ -137,6 +138,18 @@ export default app => {
     // Align with behavior from express-graphql
     context: ({ req }) => {
       return req;
+    },
+    formatError: err => {
+      logger.error(`GraphQL error: ${err.message}`);
+      const extra = pick(err, ['locations', 'path']);
+      if (Object.keys(extra).length) {
+        logger.error(extra);
+      }
+      const stacktrace = get(err, 'err.extensions.exception.stacktrace');
+      if (stacktrace) {
+        logger.error(stacktrace);
+      }
+      return err;
     },
     formatResponse: (response, ctx) => {
       const req = ctx.context;
