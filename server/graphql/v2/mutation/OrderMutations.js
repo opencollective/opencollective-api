@@ -49,9 +49,7 @@ const orderMutations = {
       },
     },
     async resolve(_, args, req) {
-      if (!req.remoteUser) {
-        throw new Error('Unauthenticated orders are not supported yet');
-      } else if (args.order.taxes?.length > 1) {
+      if (args.order.taxes?.length > 1) {
         throw new Error('Attaching multiple taxes is not supported yet');
       }
 
@@ -69,8 +67,7 @@ const orderMutations = {
       const loadersParams = { loaders: req.loaders, throwIfMissing: true };
       const loadAccount = account => fetchAccountWithReference(account, loadersParams);
       const tier = order.tier && (await fetchTierWithReference(order.tier, loadersParams));
-
-      const fromCollective = await loadAccount(order.fromAccount);
+      const fromCollective = order.fromAccount && (await loadAccount(order.fromAccount));
       const collective = await loadAccount(order.toAccount);
 
       const legacyOrderObj = {
@@ -83,11 +80,12 @@ const orderMutations = {
         taxIDNumber: tax?.idNumber,
         isFeesOnTop: !isNil(platformFee),
         paymentMethod: await getLegacyPaymentMethodFromPaymentMethodInput(order.paymentMethod),
-        fromCollective: { id: fromCollective.id },
+        fromCollective: fromCollective && { id: fromCollective.id },
         collective: { id: collective.id },
         totalAmount: getOrderTotalAmount(order),
         customData: order.customData,
-        tier,
+        tier: tier && { id: tier.id },
+        guestInfo: order.guestInfo,
         platformFee,
       };
 

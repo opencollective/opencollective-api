@@ -15,6 +15,7 @@ export const Individual = new GraphQLObjectType({
       ...AccountFields,
       firstName: {
         type: GraphQLString,
+        deprecationReason: '2020-10-12: Use the name field',
         resolve(userCollective, args, req) {
           return (
             userCollective && req.loaders.getUserDetailsByCollectiveId.load(userCollective.id).then(u => u.firstName)
@@ -23,6 +24,7 @@ export const Individual = new GraphQLObjectType({
       },
       lastName: {
         type: GraphQLString,
+        deprecationReason: '2020-10-12: Use the name field',
         resolve(userCollective, args, req) {
           return (
             userCollective && req.loaders.getUserDetailsByCollectiveId.load(userCollective.id).then(u => u.lastName)
@@ -38,6 +40,12 @@ export const Individual = new GraphQLObjectType({
           return (
             userCollective && req.loaders.getUserDetailsByCollectiveId.load(userCollective.id).then(user => user.email)
           );
+        },
+      },
+      isGuest: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        resolve(account) {
+          return Boolean(account.data?.isGuest);
         },
       },
       isFollowingConversation: {

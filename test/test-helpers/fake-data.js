@@ -14,7 +14,6 @@ import { types as CollectiveType } from '../../server/constants/collectives';
 import { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPES } from '../../server/constants/paymentMethods';
 import { REACTION_EMOJI } from '../../server/constants/reaction-emoji';
 import models from '../../server/models';
-import { LEGAL_DOCUMENT_TYPE } from '../../server/models/LegalDocument';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import { randEmail, randUrl } from '../stores';
 

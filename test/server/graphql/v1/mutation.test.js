@@ -857,6 +857,7 @@ describe('server/graphql/v1/mutation', () => {
             email: 'newuser@email.com',
           });
           const result = await utils.graphqlQuery(createOrderMutation, { order }, remoteUser);
+          result.errors && console.error(result.errors);
           expect(result).to.deep.equal({
             data: {
               createOrder: {
@@ -1010,14 +1011,14 @@ describe('server/graphql/v1/mutation', () => {
             collective: { id: event1.id },
             tier: { id: 4 },
             quantity: 2,
-            user: { email: user2.email },
+            guestInfo: { email: user2.email },
           };
 
           const loggedInUser = null;
           const result = await utils.graphqlQuery(createOrderMutation, { order }, loggedInUser);
           // result.errors && console.error(result.errors[0]);
           expect(result.errors).to.exist;
-          expect(result.errors[0].message).to.equal('You need to be authenticated to perform this action');
+          expect(result.errors[0].message).to.equal('An account already exists for this email, please sign in.');
         });
 
         it('from a new user', async () => {

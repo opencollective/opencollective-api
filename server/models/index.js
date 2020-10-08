@@ -25,6 +25,7 @@ export function setupModels(client) {
     'Expense',
     'ExpenseAttachedFile',
     'ExpenseItem',
+    'GuestToken',
     'LegalDocument',
     'Member',
     'MemberInvitation',
@@ -70,6 +71,9 @@ export function setupModels(client) {
     foreignKey: 'CollectiveId',
     constraints: false,
   });
+
+  // GuestTokens
+  m.GuestToken.belongsTo(m.Collective, { as: 'collective', foreignKey: 'CollectiveId' });
 
   // Members
   m.Member.belongsTo(m.User, {
