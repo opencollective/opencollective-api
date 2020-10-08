@@ -625,6 +625,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
         type: GraphQLBoolean,
       },
       data: { type: GraphQLJSON },
+      githubContributors: { type: new GraphQLNonNull(GraphQLJSON) },
       slug: { type: GraphQLString },
       path: { type: GraphQLString },
       isHost: { type: GraphQLBoolean },
@@ -1069,6 +1070,12 @@ const CollectiveFields = () => {
       type: GraphQLJSON,
       resolve(collective) {
         return collective.data || {};
+      },
+    },
+    githubContributors: {
+      type: new GraphQLNonNull(GraphQLJSON),
+      resolve(collective) {
+        return collective.data?.githubContributors || {};
       },
     },
     slug: {
