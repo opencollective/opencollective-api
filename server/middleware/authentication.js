@@ -247,11 +247,11 @@ export const authenticateServiceDisconnect = (req, res) => {
 
 function getOAuthCallbackUrl(req) {
   // eslint-disable-next-line camelcase
-  const { utm_source, CollectiveId, access_token, redirect } = req.query;
+  const { CollectiveId, access_token, context } = req.query;
   const { service } = req.params;
 
   // eslint-disable-next-line camelcase
-  const params = new URLSearchParams(omitBy({ access_token, redirect, CollectiveId, utm_source }, isNil));
+  const params = new URLSearchParams(omitBy({ CollectiveId, access_token, context }, isNil));
 
   return `${config.host.website}/api/connected-accounts/${service}/callback?${params.toString()}`;
 }

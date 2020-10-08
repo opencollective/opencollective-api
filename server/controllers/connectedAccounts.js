@@ -11,7 +11,7 @@ import paymentProviders from '../paymentProviders';
 const { ConnectedAccount, User } = models;
 
 export const createOrUpdate = (req, res, next, accessToken, data, emails) => {
-  const { utm_source: utmSource, redirect } = req.query;
+  const { context } = req.query;
   const { service } = req.params;
   const attrs = { service };
 
@@ -73,11 +73,11 @@ export const createOrUpdate = (req, res, next, accessToken, data, emails) => {
         })
         .then(() => {
           const token = user.generateConnectedAccountVerifiedToken(caId, data.profile.username);
-          const newLocation = redirect
-            ? `${redirect}?token=${token}`
-            : `${config.host.website}/github/apply/${token}?utm_source=${utmSource}`;
-
-          res.redirect(newLocation);
+          if (context === 'createCollective') {
+            res.redirect(`${config.host.website}/create/opensource?token=${token}`);
+          } else {
+            res.redirect(`${config.host.website}/${req.query.slug}/edit/connected-accounts`);
+          }
         })
         .catch(next);
     }
@@ -91,7 +91,7 @@ export const createOrUpdate = (req, res, next, accessToken, data, emails) => {
             CreatedByUserId: req.remoteUser.id,
           }),
         )
-        .then(() => res.redirect(redirect || `${config.host.website}/${req.query.slug}/edit/connected-accounts`))
+        .then(() => res.redirect(`${config.host.website}/${req.query.slug}/edit/connected-accounts`))
         .catch(next);
 
     case 'twitter': {
@@ -123,7 +123,7 @@ export const createOrUpdate = (req, res, next, accessToken, data, emails) => {
             CreatedByUserId: req.remoteUser.id,
           }),
         )
-        .then(() => res.redirect(redirect || `${config.host.website}/${collective.slug}/edit/connected-accounts`))
+        .then(() => res.redirect(`${config.host.website}/${req.query.slug}/edit/connected-accounts`))
         .catch(next);
     }
 
