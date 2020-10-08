@@ -1,5 +1,6 @@
 import config from 'config';
 import { get } from 'lodash';
+import fetch from 'node-fetch';
 
 import * as constants from '../../constants/transactions';
 import logger from '../../lib/logger';
