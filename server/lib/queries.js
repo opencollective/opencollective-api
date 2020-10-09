@@ -939,7 +939,7 @@ const getTaxFormsRequiredForExpenses = expenseIds => {
       AND d."documentType" = 'US_TAX_FORM'
     LEFT JOIN "LegalDocuments" ld
       ON ld."CollectiveId" = analyzed_expenses."FromCollectiveId"
-      AND ld.year = date_part('year', all_expenses."incurredAt")
+      AND ld.year = date_part('year', analyzed_expenses."incurredAt")
       AND ld."documentType" = 'US_TAX_FORM'
     WHERE analyzed_expenses.id IN (:expenseIds)
     AND analyzed_expenses."FromCollectiveId" != d."HostCollectiveId"

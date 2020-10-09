@@ -4,7 +4,14 @@ import { differenceBy } from 'lodash';
 
 import { US_TAX_FORM_THRESHOLD } from '../../../../../server/constants/tax-form';
 import models from '../../../../../server/models';
-import { fakeCollective, fakeExpense, fakeHost, fakeTransaction } from '../../../../test-helpers/fake-data';
+import { LEGAL_DOCUMENT_TYPE } from '../../../../../server/models/LegalDocument';
+import {
+  fakeCollective,
+  fakeExpense,
+  fakeHost,
+  fakeLegalDocument,
+  fakeTransaction,
+} from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
 
 const expensesQuery = gqlV2/* GraphQL */ `
@@ -74,6 +81,12 @@ describe('server/graphql/v2/query/ExpensesQuery', () => {
       const collective = await fakeCollective({ HostCollectiveId: host.id });
       const collectiveWithoutBalance = await fakeCollective({ HostCollectiveId: host.id });
       const baseExpenseData = { type: 'RECEIPT', CollectiveId: collective.id, status: 'APPROVED', amount: 1000 };
+      const expenseWithTaxFormData = {
+        ...baseExpenseData,
+        amount: US_TAX_FORM_THRESHOLD + 1,
+        type: 'INVOICE',
+        description: 'Not ready (tax form)',
+      };
 
       // Add balance to the collective
       await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 1000000 });
@@ -82,9 +95,17 @@ describe('server/graphql/v2/query/ExpensesQuery', () => {
       expensesReadyToPay = await Promise.all([
         fakeExpense({ ...baseExpenseData, description: 'Ready (receipt)', type: 'RECEIPT' }),
         fakeExpense({ ...baseExpenseData, description: 'Ready (invoice)', type: 'INVOICE' }),
+        fakeExpense({ ...expenseWithTaxFormData, description: 'Ready (invoice, submitted tax form)' }),
       ]);
 
-      await Promise.all([
+      await fakeLegalDocument({
+        year: expensesReadyToPay[2].incurredAt.getFullYear(),
+        CollectiveId: expensesReadyToPay[2].FromCollectiveId,
+        requestStatus: 'RECEIVED',
+        documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
+      });
+
+      const expensesNotReadyToPay = await Promise.all([
         // Not ready to pay because of their status
         fakeExpense({ ...baseExpenseData, description: 'Not ready (status)', status: 'PENDING' }),
         fakeExpense({ ...baseExpenseData, description: 'Not ready (status)', status: 'REJECTED' }),
@@ -99,19 +120,27 @@ describe('server/graphql/v2/query/ExpensesQuery', () => {
           CollectiveId: collectiveWithoutBalance.id,
         }),
         // Not ready to pay because of the tax form
-        fakeExpense({
-          ...baseExpenseData,
-          amount: US_TAX_FORM_THRESHOLD + 1,
-          type: 'INVOICE',
-          status: 'APPROVED',
-          description: 'Not ready (tax form)',
-        }),
+        // -- No tax form submitted
+        fakeExpense({ ...expenseWithTaxFormData }),
+        // Tax form submitted last year
+        fakeExpense({ ...expenseWithTaxFormData, description: 'Not ready (tax form submitted for last year) [NRLY]' }),
       ]);
+
+      // Add a tax form from last year on expense
+      const expenseWithOutdatedTaxForm = expensesNotReadyToPay.find(({ description }) => description.includes('NRLY'));
+      await fakeLegalDocument({
+        year: expenseWithOutdatedTaxForm.incurredAt.getFullYear() - 1,
+        CollectiveId: expenseWithOutdatedTaxForm.FromCollectiveId,
+        requestStatus: 'RECEIVED',
+        documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
+      });
     });
 
     it('Only returns expenses that are ready to pay', async () => {
       const queryParams = { host: { legacyId: host.id }, status: 'READY_TO_PAY' };
       const result = await graphqlQueryV2(expensesQuery, queryParams);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
       expect(result.data.expenses.totalCount).to.eq(expensesReadyToPay.length);
 
       const missingExpenses = differenceBy(expensesReadyToPay, result.data.expenses.nodes, e => e.legacyId || e.id);
