@@ -26,6 +26,11 @@ import * as paypal from './paymentProviders/paypal/payment';
 
 const upload = multer();
 
+const noCache = (req, res, next) => {
+  res.set('Cache-Control', 'no-cache');
+  next();
+};
+
 export default app => {
   /**
    * Extract GraphQL API Key
@@ -195,8 +200,12 @@ export default app => {
   app.post('/webhooks/transferwise', transferwiseWebhook); // when it gets a new subscription invoice
   app.post('/webhooks/paypal', paypalWebhook);
   app.post('/webhooks/mailgun', email.webhook); // when receiving an email
-  app.get('/connected-accounts/:service/callback', authentication.authenticateServiceCallback); // oauth callback
-  app.delete('/connected-accounts/:service/disconnect/:collectiveId', authentication.authenticateServiceDisconnect);
+  app.get('/connected-accounts/:service/callback', noCache, authentication.authenticateServiceCallback); // oauth callback
+  app.delete(
+    '/connected-accounts/:service/disconnect/:collectiveId',
+    noCache,
+    authentication.authenticateServiceDisconnect,
+  );
 
   app.use(sanitizer()); // note: this break /webhooks/mailgun /graphiql
 
@@ -213,12 +222,18 @@ export default app => {
   /**
    * Generic OAuth (ConnectedAccounts)
    */
-  app.get('/connected-accounts/:service(github)', authentication.authenticateService); // backward compatibility
+  app.get('/connected-accounts/:service(github)', noCache, authentication.authenticateService); // backward compatibility
   app.get(
     '/connected-accounts/:service(github|twitter|meetup|stripe|paypal)/oauthUrl',
+    noCache,
     authentication.authenticateService,
   );
-  app.get('/connected-accounts/:service/verify', authentication.parseJwtNoExpiryCheck, connectedAccounts.verify);
+  app.get(
+    '/connected-accounts/:service/verify',
+    noCache,
+    authentication.parseJwtNoExpiryCheck,
+    connectedAccounts.verify,
+  );
 
   /* PayPal Payment Method Helpers */
   app.post('/services/paypal/create-payment', paypal.createPayment);
