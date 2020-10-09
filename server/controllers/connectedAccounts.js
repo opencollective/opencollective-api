@@ -8,6 +8,10 @@ import models from '../models';
 import paymentProviders from '../paymentProviders';
 
 export const createOrUpdate = async (req, res, next, accessToken, data) => {
+  if (!req.remoteUser) {
+    throw new Error('Please login to edit connected account');
+  }
+
   const { CollectiveId, context } = req.query;
   const { service } = req.params;
 
@@ -16,10 +20,6 @@ export const createOrUpdate = async (req, res, next, accessToken, data) => {
   switch (service) {
     case 'github': {
       const profile = data.profile._json;
-
-      if (!req.remoteUser) {
-        throw new Error('Not authenticated.');
-      }
 
       const userCollective = await models.Collective.findByPk(req.remoteUser.CollectiveId);
 
@@ -59,6 +59,14 @@ export const createOrUpdate = async (req, res, next, accessToken, data) => {
     }
 
     case 'meetup':
+      if (!CollectiveId) {
+        return next(new errors.ValidationFailed('Please provide a CollectiveId as a query parameter'));
+      }
+
+      if (!req.remoteUser.isAdmin(CollectiveId)) {
+        throw new errors.Unauthorized('Please login as an admin of this collective to add a connected account');
+      }
+
       collective = await models.Collective.findByPk(CollectiveId);
 
       connectedAccount = await createConnectedAccountForCollective(collective.id, service);
@@ -74,6 +82,14 @@ export const createOrUpdate = async (req, res, next, accessToken, data) => {
 
     case 'twitter': {
       const profile = data.profile._json;
+
+      if (!CollectiveId) {
+        return next(new errors.ValidationFailed('Please provide a CollectiveId as a query parameter'));
+      }
+
+      if (!req.remoteUser.isAdmin(CollectiveId)) {
+        throw new errors.Unauthorized('Please login as an admin of this collective to add a connected account');
+      }
 
       collective = await models.Collective.findByPk(CollectiveId);
 
