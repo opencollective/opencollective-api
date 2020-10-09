@@ -6,6 +6,7 @@ import request from 'request-promise';
 
 import emailLib from '../../lib/email';
 import errors from '../../lib/errors';
+import logger from '../../lib/logger';
 import models, { Op, sequelize } from '../../models';
 
 const debugEmail = debug('email');
@@ -62,10 +63,6 @@ const sendEmailToList = (to, email) => {
           });
         }
       });
-    })
-    .catch(e => {
-      console.error('error in sendEmailToList', e);
-      throw e;
     });
 };
 
@@ -100,7 +97,7 @@ export const approve = (req, res, next) => {
         });
       })
       .catch(e => {
-        console.error('err: ', e);
+        logger.error(e);
       });
   };
 
@@ -140,7 +137,8 @@ export const approve = (req, res, next) => {
       if (e.statusCode === 404) {
         return next(new errors.NotFound(`Message ${messageId} not found on the ${mailserver} server`));
       } else {
-        return next(e);
+        logger.error(e);
+        return next(new errors.ServerError('Unexpected error'));
       }
     });
 };
@@ -205,8 +203,8 @@ export const webhook = async (req, res, next) => {
       return sendEmailToList(recipient, { subject: email.subject, body, from: email.from })
         .then(() => res.send('ok'))
         .catch(e => {
-          debugWebhook('Error: ', e);
-          next(e);
+          logger.error(e);
+          return next(new errors.ServerError('Unexpected error'));
         });
     }
   }
@@ -332,8 +330,8 @@ export const webhook = async (req, res, next) => {
           });
 
         default:
-          debugWebhook('Unknown error:', e);
-          return next(e);
+          logger.error(e);
+          return next(new errors.ServerError('Unexpected error'));
       }
     });
 };
