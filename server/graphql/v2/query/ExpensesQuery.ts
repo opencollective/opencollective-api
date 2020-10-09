@@ -3,6 +3,7 @@ import { partition } from 'lodash';
 
 import { expenseStatus } from '../../../constants';
 import EXPENSE_TYPE from '../../../constants/expense_type';
+import { US_TAX_FORM_THRESHOLD } from '../../../constants/tax-form';
 import queries from '../../../lib/queries';
 import models, { Op, sequelize } from '../../../models';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
@@ -22,30 +23,40 @@ const updateFilterConditionsForReadyToPay = async (where, include): Promise<void
   const results = await models.Expense.findAll({
     where,
     include,
-    attributes: ['FromCollectiveId', 'CollectiveId'],
-    group: ['Expense.FromCollectiveId', 'Expense.CollectiveId'],
+    attributes: ['Expense.id', 'FromCollectiveId', 'CollectiveId'],
+    group: ['Expense.id', 'Expense.FromCollectiveId', 'Expense.CollectiveId'],
     raw: true,
   });
 
   const [expensesSubjectToTaxForm, expensesWithoutTaxForm] = partition(results, e => e.type !== EXPENSE_TYPE.RECEIPT);
 
+  // Check the balances for these collectives. The following will emit an SQL like:
+  // AND ((CollectiveId = 1 AND amount < 5000) OR (CollectiveId = 2 AND amount < 3000))
+  const balances = await queries.getBalances(results.map(e => e.CollectiveId));
+  where[Op.and].push({
+    [Op.or]: balances.map(({ CollectiveId, balance }) => ({
+      CollectiveId,
+      amount: { [Op.lte]: balance },
+    })),
+  });
+
+  // Check tax forms
   const taxFormConditions = [];
   if (expensesSubjectToTaxForm.length > 0) {
-    // Check the balances for these collectives. The following will emit an SQL like:
-    // AND ((CollectiveId = 1 AND amount < 5000) OR (CollectiveId = 2 AND amount < 3000))
-    const balances = await queries.getBalances(results.map(e => e.CollectiveId));
-    taxFormConditions.push({
-      [Op.or]: balances.map(({ CollectiveId, balance }) => ({
-        CollectiveId,
-        amount: { [Op.lte]: balance },
-      })),
+    const taxFormResults = await queries.getTaxFormsRequiredForExpenses(results.map(e => e.id));
+    const expensesWithPendingTaxForm = [];
+
+    taxFormResults.forEach(result => {
+      if (
+        result.requiredDocument &&
+        result.total >= US_TAX_FORM_THRESHOLD &&
+        result.legalDocRequestStatus !== models.LegalDocument.requestStatus.RECEIVED
+      ) {
+        expensesWithPendingTaxForm.push(result.expenseId);
+      }
     });
 
-    // Check tax forms
-    const taxFormResults = await queries.getTaxFormsRequiredForAccounts(results.map(e => e.FromCollectiveId));
-    taxFormResults.forEach(({ collectiveId }) => {
-      taxFormConditions.push({ FromCollectiveId: { [Op.not]: collectiveId } });
-    });
+    taxFormConditions.push({ id: { [Op.notIn]: expensesWithPendingTaxForm } });
   }
 
   if (taxFormConditions.length) {
