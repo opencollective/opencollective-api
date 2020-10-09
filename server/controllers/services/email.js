@@ -66,10 +66,27 @@ const sendEmailToList = (to, email) => {
     });
 };
 
+/**
+ * Only take the param from request if it's a two letter country code
+ */
+const getMailServer = req => {
+  if (req.query.mailserver?.match(/^[a-z]{2}$/i)) {
+    return req.query.mailserver;
+  } else {
+    return 'so';
+  }
+};
+
 export const approve = (req, res, next) => {
   const { messageId } = req.query;
   const approverEmail = req.query.approver;
-  const mailserver = req.query.mailserver || 'so';
+  const mailserver = getMailServer(req);
+
+  if (!messageId) {
+    return next(new errors.BadRequest('No messageId provided'));
+  } else if (!messageId.match(/^[a-z0-9]+=?$/i)) {
+    return next(new errors.BadRequest('Invalid messageId provided'));
+  }
 
   let approver, sender;
   let email = {};
