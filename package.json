@@ -98,7 +98,7 @@
     "tweetnacl": "1.0.3",
     "tweetnacl-util": "0.15.1",
     "twitter": "1.7.1",
-    "uuid": "8.3.0",
+    "uuid": "8.3.1",
     "validator": "13.1.17",
     "winston": "3.3.3"
   },
