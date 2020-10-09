@@ -249,7 +249,7 @@ function getOAuthCallbackUrl(req) {
   // eslint-disable-next-line camelcase
   const params = new URLSearchParams(omitBy({ CollectiveId, access_token, context }, isNil));
 
-  if (params.keys().length > 0) {
+  if (params.toString().length > 0) {
     return `${config.host.website}/api/connected-accounts/${service}/callback?${params.toString()}`;
   } else {
     return `${config.host.website}/api/connected-accounts/${service}/callback`;
