@@ -249,16 +249,11 @@ function getOAuthCallbackUrl(req) {
   // eslint-disable-next-line camelcase
   const params = new URLSearchParams(omitBy({ CollectiveId, access_token, context }, isNil));
 
-  return `${config.host.website}/api/connected-accounts/${service}/callback?${params.toString()}`;
-}
-
-function getGithubEmails(accessToken) {
-  return request({
-    uri: 'https://api.github.com/user/emails',
-    qs: { access_token: accessToken }, // eslint-disable-line camelcase
-    headers: { 'User-Agent': 'OpenCollective' },
-    json: true,
-  }).then(json => json.map(entry => entry.email));
+  if (params.keys().length > 0) {
+    return `${config.host.website}/api/connected-accounts/${service}/callback?${params.toString()}`;
+  } else {
+    return `${config.host.website}/api/connected-accounts/${service}/callback`;
+  }
 }
 
 /**
