@@ -233,11 +233,7 @@ export const authenticateServiceCallback = (req, res, next) => {
     if (!accessToken) {
       return res.redirect(config.host.website);
     }
-    let emails;
-    if (service === 'github' && !req.remoteUser) {
-      emails = await getGithubEmails(accessToken);
-    }
-    connectedAccounts.createOrUpdate(req, res, next, accessToken, data, emails).catch(next);
+    connectedAccounts.createOrUpdate(req, res, next, accessToken, data).catch(next);
   })(req, res, next);
 };
 
