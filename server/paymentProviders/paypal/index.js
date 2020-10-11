@@ -107,7 +107,8 @@ export default {
     },
 
     callback: (req, res, next) => {
-      let paymentMethod;
+      let paymentMethod, oldPmName, newPmName;
+
       return models.PaymentMethod.findOne({
         where: {
           service: 'paypal',
@@ -145,6 +146,7 @@ export default {
                 throw e; // make sure we skip what follows until next catch()
               })
               .then(pm => {
+                newPmName = pm.info.name;
                 return models.Activity.create({
                   type: 'user.paymentMethod.created',
                   UserId: paymentMethod.CreatedByUserId,
@@ -168,7 +170,19 @@ export default {
               )
 
               // TODO: Call paypal to cancel preapproval keys before marking as deleted.
-              .then(oldPMs => oldPMs && oldPMs.map(pm => pm.destroy()))
+              .then(
+                oldPMs =>
+                  oldPMs &&
+                  oldPMs.map(pm => {
+                    oldPmName = pm.info.name;
+                    if (oldPmName && newPmName && oldPmName !== newPmName) {
+                      redirectUrl.searchParams.set('paypalApprovalError', `PRE_APPROVAL_EMAIL_CHANGED`);
+                      redirectUrl.searchParams.set('oldPaypalEmail', oldPmName);
+                      redirectUrl.searchParams.set('newPaypalEmail', newPmName);
+                    }
+                    return pm.destroy();
+                  }),
+              )
 
               .then(() => {
                 return res.redirect(redirectUrl.href);
