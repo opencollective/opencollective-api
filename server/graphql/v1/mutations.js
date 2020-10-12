@@ -43,7 +43,6 @@ import { createWebhook, deleteNotification, editWebhooks } from './mutations/not
 import {
   addFundsToCollective,
   addFundsToOrg,
-  cancelSubscription,
   confirmOrder,
   createOrder,
   markOrderAsPaid,
@@ -578,15 +577,6 @@ const mutations = {
       },
     },
     resolve: commentMutations.deleteComment,
-  },
-  cancelSubscription: {
-    type: OrderType,
-    args: {
-      id: { type: new GraphQLNonNull(GraphQLInt) },
-    },
-    resolve(_, args, req) {
-      return cancelSubscription(req.remoteUser, args.id);
-    },
   },
   refundTransaction: {
     type: TransactionInterfaceType,

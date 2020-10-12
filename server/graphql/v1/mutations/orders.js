@@ -627,55 +627,6 @@ export async function confirmOrder(order, remoteUser) {
   }
 }
 
-/**
- * Cancel user's subscription. We don't prevent this event is user is limited (canUseFeature -> false)
- * because we don't want to prevent users from cancelling their subscriptions.
- */
-export async function cancelSubscription(remoteUser, orderId) {
-  if (!remoteUser) {
-    throw new Unauthorized('You need to be logged in to cancel a subscription');
-  }
-
-  const query = {
-    where: {
-      id: orderId,
-    },
-    include: [
-      { model: models.Subscription },
-      { model: models.Collective, as: 'collective' },
-      { model: models.Collective, as: 'fromCollective' },
-    ],
-  };
-
-  const order = await models.Order.findOne(query);
-
-  if (!order) {
-    throw new NotFound('Subscription not found');
-  }
-  if (!remoteUser.isAdmin(order.FromCollectiveId)) {
-    throw new Unauthorized("You don't have permission to cancel this subscription");
-  }
-  if (!order.Subscription.isActive && order.status === status.CANCELLED) {
-    throw new Error('Subscription already canceled');
-  }
-
-  await order.update({ status: status.CANCELLED });
-  await order.Subscription.deactivate();
-  await models.Activity.create({
-    type: activities.SUBSCRIPTION_CANCELED,
-    CollectiveId: order.CollectiveId,
-    UserId: order.CreatedByUserId,
-    data: {
-      subscription: order.Subscription,
-      collective: order.collective.minimal,
-      user: remoteUser.minimal,
-      fromCollective: order.fromCollective.minimal,
-    },
-  });
-
-  return models.Order.findOne(query);
-}
-
 export async function refundTransaction(_, args, req) {
   // 0. Retrieve transaction from database
   const transaction = await models.Transaction.findByPk(args.id, {
