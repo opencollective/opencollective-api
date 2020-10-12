@@ -123,12 +123,13 @@ export const generateSummaryForHTML = (content: string, maxLength = 255): string
     return null;
   }
 
-  // Replace all new lines by separators
-  const withoutBR = content.replace(/<br\/?>/, ' ');
-  const separatedTitles = withoutBR.replace(/<\/h3>/, '</h3> · ');
+  const cleanStr = content
+    .replace(/(<br\/?>)|(\n)/g, ' ') // Replace all new lines by separators
+    .replace(/<\/p>/g, '</p> ') // Add a space after each paragraph to mark the separation
+    .replace(/<\/h3>/g, '</h3> · '); // Separate titles from then rest with a midpoint;
 
   // Sanitize: `<li><strong> Test with   spaces </strong></li>` ==> `<strong> Test with   spaces </strong>`
-  const sanitized = sanitizeHTML(separatedTitles, optsSanitizeSummary);
+  const sanitized = sanitizeHTML(cleanStr, optsSanitizeSummary);
 
   // Trim: `<strong> Test with   spaces </strong>` ==> <strong>Test with spaces</strong>
   const trimmed = sanitized.trim().replace('\n', ' ').replace(/\s+/g, ' ');

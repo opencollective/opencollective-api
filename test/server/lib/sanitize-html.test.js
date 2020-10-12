@@ -151,6 +151,21 @@ describe('server/lib/sanitize-html', () => {
       );
     });
 
+    it('Replaces newlines by spaces', () => {
+      expect(generateSummaryForHTML(`Hello\nWorld<br/><br/>!\n\n\nOnly one space`, 40)).to.eq(
+        'Hello World ! Only one space',
+      );
+
+      expect(
+        generateSummaryForHTML(
+          `<p>After a much ado, we created an easy way to donate to <a href="https://sagemath.org" target="_blank">SageMath</a> project.</p><p>Donations are US tax (IRC 501(c)(6)) deductible.  </p>`,
+          240,
+        ),
+      ).to.eq(
+        'After a much ado, we created an easy way to donate to <a href="https://sagemath.org" target="_blank">SageMath</a> project. Donations are US tax (IRC 501(c)(6)) deductible.',
+      );
+    });
+
     it('Truncating tags in middle works as expected', () => {
       expect(generateSummaryForHTML("I'd like to say <strong>Hello World</strong>", 20)).to.to.eq("I'd like to say...");
     });
