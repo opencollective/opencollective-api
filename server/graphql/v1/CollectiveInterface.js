@@ -624,7 +624,10 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
         description: 'Defines if a collective is pledged',
         type: GraphQLBoolean,
       },
-      data: { type: GraphQLJSON },
+      data: {
+        type: GraphQLJSON,
+        deprecationReason: '2020-10-08: This field is not provided anymore and will return an empty object',
+      },
       githubContributors: { type: new GraphQLNonNull(GraphQLJSON) },
       slug: { type: GraphQLString },
       path: { type: GraphQLString },
@@ -1068,8 +1071,9 @@ const CollectiveFields = () => {
     },
     data: {
       type: GraphQLJSON,
-      resolve(collective) {
-        return collective.data || {};
+      deprecationReason: '2020-10-08: This field is not provided anymore and will return an empty object',
+      resolve() {
+        return {};
       },
     },
     githubContributors: {

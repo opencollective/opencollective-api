@@ -317,7 +317,7 @@ export function editCollective(_, args, req) {
   }
 
   const newCollectiveData = {
-    ...omit(args.collective, ['location', 'type', 'ParentCollectiveId']),
+    ...omit(args.collective, ['location', 'type', 'ParentCollectiveId', 'data']),
     LastEditedByUserId: req.remoteUser.id,
   };
 

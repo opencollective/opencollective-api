@@ -176,7 +176,7 @@ export const CollectiveInputType = new GraphQLInputObjectType({
     tags: { type: new GraphQLList(GraphQLString) },
     tiers: { type: new GraphQLList(TierInputType) },
     settings: { type: GraphQLJSON },
-    data: { type: GraphQLJSON },
+    data: { type: GraphQLJSON, deprecationReason: '2020-10-08: data cannot be edited. This field will be ignored.' },
     members: { type: new GraphQLList(MemberInputType) },
     notifications: { type: new GraphQLList(NotificationInputType) },
     HostCollectiveId: { type: GraphQLInt },
