@@ -174,7 +174,7 @@ const authorize = (googleDrive, callback) => {
   if (refresh_token) {
     oAuth2Client.setCredentials(googleDrive);
     callback(oAuth2Client);
-  } else if (process.env.NODE_ENV !== 'production') {
+  } else if (process.env.NODE_ENV !== 'production' || process.env.GOOGLE_DRIVE_FORCE_AUTH) {
     return getAccessToken(oAuth2Client, callback);
   } else {
     console.log('No token set for Google Drive, skipping data export upload');
