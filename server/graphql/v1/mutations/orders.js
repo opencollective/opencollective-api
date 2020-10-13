@@ -23,7 +23,7 @@ import { handleHostPlanAddedFundsLimit, handleHostPlanBankTransfersLimit } from 
 import recaptcha from '../../../lib/recaptcha';
 import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../lib/recurring-contributions';
 import { canUseFeature } from '../../../lib/user-permissions';
-import { capitalize, formatCurrency, md5 } from '../../../lib/utils';
+import { capitalize, formatCurrency, md5, parseToBoolean } from '../../../lib/utils';
 import models from '../../../models';
 import { setupCreditCard } from '../../../paymentProviders/stripe/creditcard';
 import { FeatureNotAllowedForUser, Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
@@ -100,7 +100,9 @@ async function checkOrdersLimit(order, reqIp) {
 }
 
 const checkGuestContribution = order => {
-  if (order.interval) {
+  if (!parseToBoolean(config.guestContributions.enable)) {
+    throw new Error('Guest contributions are not enabled yet');
+  } else if (order.interval) {
     throw new Error('You need to sign up to create a recurring contribution');
   } else if (order.guestInfo?.email && !isEmail(order.guestInfo.email)) {
     throw new Error('You need to provide a valid email');
