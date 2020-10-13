@@ -174,7 +174,7 @@ const authorize = (googleDrive, callback) => {
   if (refresh_token) {
     oAuth2Client.setCredentials(googleDrive);
     callback(oAuth2Client);
-  } else if (process.env.NODE_ENV !== 'production' || process.env.GOOGLE_DRIVE_FORCE_AUTH) {
+  } else if (process.env.NODE_ENV !== 'production' || process.env.MANUAL_RUN) {
     return getAccessToken(oAuth2Client, callback);
   } else {
     console.log('No token set for Google Drive, skipping data export upload');
@@ -200,7 +200,12 @@ const getAccessToken = (oAuth2Client, callback) => {
   rl.question('Enter the code from that page here: ', code => {
     rl.close();
     oAuth2Client.getToken(code, (err, token) => {
-      if (err) return console.error('Error retrieving access token', err);
+      if (err) {
+        return console.error('Error retrieving access token', err);
+      } else {
+        console.log(`>>> Token: ${token}`);
+      }
+
       oAuth2Client.setCredentials(token);
       callback(oAuth2Client);
     });
@@ -214,7 +219,7 @@ const getAccessToken = (oAuth2Client, callback) => {
 const uploadFiles = async auth => {
   const drive = google.drive({ version: 'v3', auth });
 
-  //create a folder on drive
+  // Create a folder on drive
   const folderMetadata = {
     name: `${startDate.getFullYear()}-${month}`,
     mimeType: 'application/vnd.google-apps.folder',
@@ -244,7 +249,7 @@ const uploadFiles = async auth => {
   });
   console.log(`>>> all files uploaded to "${folderMetadata['name']}" folder in google drive`);
 
-  //delete all the files after succesful upload
+  // Delete all the files after succesful upload
   try {
     fs.rmdirSync(`${path}`, { recursive: true });
     console.log(`${path} is deleted!`);
