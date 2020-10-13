@@ -179,7 +179,7 @@ async function getRequiredBankInformation(host: any, currency: string, accountDe
 
 async function getAccountBalances(connectedAccount: ConnectedAccount): Promise<Balance[]> {
   const account = await transferwise.getBorderlessAccount(connectedAccount.token, connectedAccount.data.id);
-  return account.balances;
+  return account?.balances || [];
 }
 
 export default {
