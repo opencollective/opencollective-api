@@ -168,9 +168,10 @@ async function PlatformReport(year, month) {
         SELECT
           "HostCollectiveId",
           sum("feeOnTopPaypal") AS "feesOnTopPaypal",
-          sum("feeOnTopBankTransfers") AS "feeOnTopBankTransfers",
+          sum("feeOnTopBankTransfers") AS "feesOnTopBankTransfers",
           sum("feeOnTopStripe") AS "feesOnTopStripe",
-          sum("feeOnTopDue") AS "feesOnTopDue"
+          sum("feeOnTopDue") AS "feesOnTopDue",
+          COALESCE(sum("feeOnTopPaypal"), 0) + COALESCE(sum("feeOnTopBankTransfers"), 0) + COALESCE(sum("feeOnTopStripe"), 0) as "feesOnTop"
         FROM "feesOnTopTransactions"
         GROUP BY "HostCollectiveId"
       )
@@ -180,13 +181,12 @@ async function PlatformReport(year, month) {
         hc.currency,
         d.*,
         stats.*,
-        fot.*,
-        COALESCE(fot."feesOnTopPaypal", 0) + COALESCE(fot."feeOnTopBankTransfers", 0) + COALESCE(fot."feesOnTopStripe", 0) as "feesOnTop"
+        fot.*
       FROM "donationsData" d
       LEFT JOIN "hostedCollectivesStats" stats ON d."HostCollectiveId" = stats."HostCollectiveId"
       LEFT JOIN "feesOnTopByHost" fot ON fot."HostCollectiveId" = d."HostCollectiveId"
       LEFT JOIN "Collectives" hc ON hc.id = d."HostCollectiveId"
-      WHERE d."platformFees" > 0
+      WHERE (d."platformFees" > 0 OR fot."feesOnTop" > 0)
       ORDER BY d."totalRevenue" DESC
     `,
       { startDate, endDate },
@@ -198,6 +198,7 @@ async function PlatformReport(year, month) {
         ...host,
         isUSD,
         totalFeesDue: isUSD ? (host.feesOnTopDue || 0) + host.platformFeesDue : null,
+        hasFeesDue: host.feesOnTopDue > 0 || host.platformFeesDue > 0,
       };
     });
 
