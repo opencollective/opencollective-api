@@ -75,7 +75,7 @@
     "node-fetch": "2.6.1",
     "node-slack": "0.0.7",
     "nodemailer": "6.4.13",
-    "p-queue": "6.6.1",
+    "p-queue": "6.6.2",
     "p-throttle": "3.1.0",
     "passport": "0.4.1",
     "passport-github": "1.1.0",
