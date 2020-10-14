@@ -1,12 +1,14 @@
 import Promise from 'bluebird';
 import config from 'config';
 import jwt from 'jsonwebtoken';
+import { isNil } from 'lodash';
 import moment from 'moment';
 import speakeasy from 'speakeasy';
 
 import * as errors from '../graphql/errors';
 import models, { Op } from '../models';
 
+import cache from './cache';
 import { crypto } from './encryption';
 
 // Helper
@@ -93,16 +95,53 @@ export function verifyTwoFactorAuthenticatorCode(encryptedTwoFactorAuthToken, tw
   return verified;
 }
 
-export function enforceTwoFactorAuthenticationOnPayouts(req, twoFactorAuthenticatorCode) {
+const getCacheKey = userId => {
+  return `${userId}_2fa_payment_limit`;
+};
+
+export async function rollingPayoutLimitTwoFactorAuthentication(
+  req,
+  twoFactorAuthenticatorCode,
+  hostRollingLimit,
+  expenseAmount,
+) {
   if (req.remoteUser.twoFactorAuthToken !== null) {
+    // 1. we check the 'cache' if the key exists: cacheKey=${user.id}_2fa_payment_limit
+    const userId = req.remoteUser.id;
+    const cacheKey = getCacheKey(userId);
+    const keyInCache = await cache.get(cacheKey);
+
     if (twoFactorAuthenticatorCode) {
       const verified = verifyTwoFactorAuthenticatorCode(req.remoteUser.twoFactorAuthToken, twoFactorAuthenticatorCode);
       if (!verified) {
         throw new Error('Two-factor authentication failed: invalid code. Please try again.');
       }
-      return;
+      // With 2FA code
+      // 2. if limit key exists, reset the limit; if limit key doesn't exist, initialise the limit
+      return {
+        cacheKey,
+        cacheValue: 0,
+      };
     } else {
-      throw new Error('Two-factor authentication enabled: please enter your code.');
+      // Without 2FA code
+      // 2. if the limit key does exist, check the value
+      // 3. if the payment fits the limit, process the payment, decrease the limit
+      // 4. if it doesn't fit the limit, prompt 2FA again
+      if (isNil(keyInCache)) {
+        // 5. if the limit key doesn't exist, ask for 2FA
+        throw new Error('Two-factor authentication enabled: please enter your code.');
+      } else {
+        const runningTotal = keyInCache + expenseAmount;
+        const expenseExceedsRollingLimit = runningTotal > hostRollingLimit;
+        if (expenseExceedsRollingLimit) {
+          throw new Error('Two-factor authentication payout limit exceeded: please re-enter your code.');
+        } else {
+          return {
+            cacheKey,
+            cacheValue: runningTotal,
+          };
+        }
+      }
     }
   } else {
     throw new Error('Host has two-factor authentication enabled for large payouts.');
