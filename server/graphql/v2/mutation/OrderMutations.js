@@ -1,4 +1,4 @@
-import { GraphQLNonNull, GraphQLObjectType } from 'graphql';
+import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { isNil, isNull, isUndefined } from 'lodash';
 
 import activities from '../../../constants/activities';
@@ -30,6 +30,10 @@ const OrderWithPayment = new GraphQLObjectType({
     order: {
       type: new GraphQLNonNull(Order),
       description: 'The order created',
+    },
+    guestToken: {
+      type: GraphQLString,
+      description: 'If donating as a guest, this will contain your guest token to contribute again in the future',
     },
     stripeError: {
       type: StripeError,
@@ -89,8 +93,8 @@ const orderMutations = {
         platformFee,
       };
 
-      const orderCreated = await createOrderLegacy(legacyOrderObj, req.loaders, req.remoteUser, req.ip);
-      return { order: orderCreated, stripeError: orderCreated.stripeError };
+      const result = await createOrderLegacy(legacyOrderObj, req.loaders, req.remoteUser, req.ip);
+      return { order: result.order, stripeError: result.stripeError, guestToken: result.guestToken?.value };
     },
   },
   cancelOrder: {

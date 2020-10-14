@@ -469,8 +469,9 @@ const mutations = {
         type: new GraphQLNonNull(OrderInputType),
       },
     },
-    resolve(_, args, req) {
-      return createOrder(args.order, req.loaders, req.remoteUser, req.ip);
+    async resolve(_, args, req) {
+      const { order } = await createOrder(args.order, req.loaders, req.remoteUser, req.ip);
+      return order;
     },
   },
   confirmOrder: {

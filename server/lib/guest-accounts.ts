@@ -73,7 +73,7 @@ const createGuestProfile = (email: string, name: string | null): Promise<GuestPr
       throw new Error('An account already exists for this email, please sign in.');
     }
 
-    collective.update({ CreatedByUserId: user.id });
+    await collective.update({ CreatedByUserId: user.id }, { transaction });
 
     // Create the token that will be used to authenticate future contributions for
     // this guest profile

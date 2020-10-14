@@ -216,7 +216,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
   await checkOrdersLimit(order, reqIp);
   const recaptchaResponse = await checkRecaptcha(order, remoteUser, reqIp);
 
-  let orderCreated, isGuest;
+  let orderCreated, isGuest, guestToken;
   try {
     // ---- Set defaults ----
     order.quantity = order.quantity || 1;
@@ -375,6 +375,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
         const guestProfile = await getOrCreateGuestProfile(order.guestInfo);
         remoteUser = guestProfile.user;
         fromCollective = guestProfile.collective;
+        guestToken = guestProfile.token;
         isGuest = true;
       }
     }
@@ -552,7 +553,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
     purgeCacheForCollective(fromCollective.slug);
 
     order = await models.Order.findByPk(orderCreated.id);
-    return order;
+    return { order, guestToken };
   } catch (error) {
     if (orderCreated) {
       if (!orderCreated.processedAt) {
@@ -572,13 +573,14 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
         throw error;
       }
 
-      orderCreated.stripeError = {
+      const stripeError = {
         message: error.message,
         account: error.stripeAccount,
         response: error.stripeResponse,
       };
 
-      return orderCreated;
+      orderCreated.stripeError = stripeError;
+      return { order: orderCreated, stripeError, guestToken };
     }
 
     throw error;
