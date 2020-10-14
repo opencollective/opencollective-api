@@ -112,7 +112,8 @@ const checkGuestContribution = order => {
 };
 
 async function checkRecaptcha(order, remoteUser, reqIp) {
-  if (['ci', 'test'].includes(config.env)) {
+  // Disabled for all environments
+  if (['ci', 'test', 'development', 'production'].includes(config.env)) {
     return;
   }
 
