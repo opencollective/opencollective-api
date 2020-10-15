@@ -187,7 +187,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         const result = await callCreateOrder({ order: { ...validOrderParams, fromAccount: null } });
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.include(
-          'When contributing as a guest, you either need to provide an email or a token',
+          'You need to provide a guest profile with an email for logged out contributions',
         );
       });
 

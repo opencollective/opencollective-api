@@ -100,14 +100,22 @@ async function checkOrdersLimit(order, reqIp) {
 }
 
 const checkGuestContribution = order => {
+  const { interval, guestInfo } = order;
+
   if (!parseToBoolean(config.guestContributions.enable)) {
     throw new Error('Guest contributions are not enabled yet');
-  } else if (order.interval) {
+  } else if (interval) {
     throw new Error('You need to sign up to create a recurring contribution');
-  } else if (order.guestInfo?.email && !isEmail(order.guestInfo.email)) {
+  } else if (!guestInfo) {
+    throw new Error('You need to provide a guest profile with an email for logged out contributions');
+  } else if (guestInfo.email && !isEmail(guestInfo.email)) {
     throw new Error('You need to provide a valid email');
-  } else if (!order.guestInfo?.email && !order.guestInfo?.token) {
+  } else if (!guestInfo.email && !guestInfo.token) {
     throw new Error('When contributing as a guest, you either need to provide an email or a token');
+  } else if (order.totalAmount > 5000) {
+    if (!guestInfo.name || !guestInfo.location?.address || !guestInfo.location.country) {
+      throw new Error('Contributions that are more than $5000 must have an address attached');
+    }
   }
 };
 
@@ -367,7 +375,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
 
     if (!fromCollective) {
       if (remoteUser) {
-        // @deprecated - Creating organizations inline from this endpoint should not be suoported anymore
+        // @deprecated - Creating organizations inline from this endpoint should not be supported anymore
         logger.warn('createOrder: Inline org creation should not be used anymore');
         fromCollective = await models.Collective.createOrganization(order.fromCollective, remoteUser, remoteUser);
       } else {

@@ -447,7 +447,7 @@ describe('server/graphql/v1/createOrder', () => {
     // Then there should be errors
     expect(res.errors).to.exist;
     expect(res.errors[0].message).to.equal(
-      'When contributing as a guest, you either need to provide an email or a token',
+      'You need to provide a guest profile with an email for logged out contributions',
     );
   });
 
