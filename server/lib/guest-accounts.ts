@@ -16,7 +16,7 @@ type GuestProfileDetails = {
 /**
  * Load a `GuestToken` from its code, returns the user and collective associated
  */
-const loadGuestToken = async (guestToken: string): Promise<GuestProfileDetails> => {
+export const loadGuestToken = async (guestToken: string): Promise<GuestProfileDetails> => {
   const token = await models.GuestToken.findOne({
     where: { value: guestToken },
     include: [{ association: 'collective', required: true }],
@@ -87,8 +87,8 @@ const createGuestProfile = (email: string, name: string | null): Promise<GuestPr
 /**
  * Returns the guest profile from a guest token
  */
-const getGuestProfileFromToken = async (token, { email, name }): Promise<GuestProfileDetails> => {
-  const { collective, user } = await loadGuestToken(token);
+const getGuestProfileFromToken = async (tokenValue, { email, name }): Promise<GuestProfileDetails> => {
+  const { collective, user, token } = await loadGuestToken(tokenValue);
 
   if (user.confirmedAt) {
     // Account exists & user is confirmed => need to sign in

@@ -16,7 +16,7 @@ import { VAT_OPTIONS } from '../../../constants/vat';
 import { canRefund } from '../../../graphql/common/transactions';
 import cache, { purgeCacheForCollective } from '../../../lib/cache';
 import * as github from '../../../lib/github';
-import { getOrCreateGuestProfile } from '../../../lib/guest-accounts';
+import { getOrCreateGuestProfile, loadGuestToken } from '../../../lib/guest-accounts';
 import logger from '../../../lib/logger';
 import * as libPayments from '../../../lib/payments';
 import { handleHostPlanAddedFundsLimit, handleHostPlanBankTransfersLimit } from '../../../lib/plans';
@@ -587,9 +587,16 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
   }
 }
 
-export async function confirmOrder(order, remoteUser) {
+export async function confirmOrder(order, remoteUser, guestToken) {
   if (!remoteUser) {
-    throw new Unauthorized('You need to be logged in to confirm an order');
+    if (!parseToBoolean(config.guestContributions.enable)) {
+      throw new Unauthorized('You need to be logged in to confirm an order');
+    } else if (!guestToken) {
+      throw new Error('We could not authenticate your request');
+    } else {
+      const result = await loadGuestToken(guestToken);
+      remoteUser = result.user;
+    }
   } else if (!canUseFeature(remoteUser, FEATURE.ORDER)) {
     return new FeatureNotAllowedForUser();
   }

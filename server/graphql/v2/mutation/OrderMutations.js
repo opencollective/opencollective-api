@@ -263,13 +263,18 @@ const orderMutations = {
       order: {
         type: new GraphQLNonNull(OrderReferenceInput),
       },
+      guestToken: {
+        type: GraphQLString,
+        description: 'If the order was made as a guest, you can use this field to authenticate',
+      },
     },
     async resolve(_, args, req) {
       const baseOrder = await fetchOrderWithReference(args.order);
-      const updatedOrder = await confirmOrderLegacy(baseOrder, req.remoteUser);
+      const updatedOrder = await confirmOrderLegacy(baseOrder, req.remoteUser, args.guestToken);
       return {
         order: updatedOrder,
         stripeError: updatedOrder.stripeError,
+        guestToken: args.guestToken,
       };
     },
   },
