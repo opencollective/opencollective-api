@@ -1,5 +1,5 @@
 import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
-import { partition } from 'lodash';
+import { isEmpty, partition } from 'lodash';
 
 import { expenseStatus } from '../../../constants';
 import EXPENSE_TYPE from '../../../constants/expense_type';
@@ -32,13 +32,15 @@ const updateFilterConditionsForReadyToPay = async (where, include): Promise<void
 
   // Check the balances for these collectives. The following will emit an SQL like:
   // AND ((CollectiveId = 1 AND amount < 5000) OR (CollectiveId = 2 AND amount < 3000))
-  const balances = await queries.getBalances(results.map(e => e.CollectiveId));
-  where[Op.and].push({
-    [Op.or]: balances.map(({ CollectiveId, balance }) => ({
-      CollectiveId,
-      amount: { [Op.lte]: balance },
-    })),
-  });
+  if (!isEmpty(results)) {
+    const balances = await queries.getBalances(results.map(e => e.CollectiveId));
+    where[Op.and].push({
+      [Op.or]: balances.map(({ CollectiveId, balance }) => ({
+        CollectiveId,
+        amount: { [Op.lte]: balance },
+      })),
+    });
+  }
 
   // Check tax forms
   const taxFormConditions = [];
