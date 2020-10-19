@@ -1,9 +1,9 @@
 import { expect } from 'chai';
 
-import { getOrCreateGuestProfile } from '../../../server/lib/guest-accounts';
+import { confirmGuestAccount, getOrCreateGuestProfile } from '../../../server/lib/guest-accounts';
 import models from '../../../server/models';
 import { randEmail } from '../../stores';
-import { fakeUser } from '../../test-helpers/fake-data';
+import { fakeOrder, fakeUser, randStr } from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
 
 describe('server/lib/guest-accounts.ts', () => {
@@ -25,7 +25,9 @@ describe('server/lib/guest-accounts.ts', () => {
       it('Rejects if a verified account already exists for this email', async () => {
         const user = await fakeUser();
         const guestAccountPromise = getOrCreateGuestProfile({ email: user.email });
-        expect(guestAccountPromise).to.be.rejectedWith('An account already exists for this email, please sign in');
+        await expect(guestAccountPromise).to.be.rejectedWith(
+          'An account already exists for this email, please sign in',
+        );
       });
 
       it('Creates a new profile if a non-verified account already exists for this profile', async () => {
@@ -62,8 +64,101 @@ describe('server/lib/guest-accounts.ts', () => {
           token: user.collective.guestToken, // should not have any impact, just to make sure we can't bypass the validation
         });
 
-        expect(guestAccountPromise).to.be.rejectedWith('An account already exists for this email, please sign in');
+        await expect(guestAccountPromise).to.be.rejectedWith(
+          'An account already exists for this email, please sign in',
+        );
       });
+    });
+  });
+
+  describe('confirmGuestAccount', () => {
+    it('throws an error if user email does not exists (or does not match the token)', async () => {
+      const user = await fakeUser({ emailConfirmationToken: randStr(), confirmedAt: null });
+      const email = randEmail();
+      await expect(confirmGuestAccount(email, user.emailConfirmationToken)).to.be.rejectedWith(
+        `No account found for ${email}`,
+      );
+    });
+
+    it('throws an error if the token is invalid', async () => {
+      const user = await fakeUser({ emailConfirmationToken: randStr(), confirmedAt: null });
+      await expect(confirmGuestAccount(user.email, 'InvalidToken')).to.be.rejectedWith(
+        'Invalid email confirmation token',
+      );
+    });
+
+    it('throws an error if account is already confirmed', async () => {
+      const user = await fakeUser({ emailConfirmationToken: randStr() });
+      const confirmedAt = user.confirmedAt;
+      expect(confirmedAt).to.not.be.null;
+      await expect(confirmGuestAccount(user.email, user.emailConfirmationToken)).to.be.rejectedWith(
+        'This account has already been verified',
+      );
+    });
+
+    it('verifies the account and updates the profile', async () => {
+      const email = randEmail();
+      const { user } = await getOrCreateGuestProfile({ email });
+      expect(user.confirmedAt).to.be.null;
+
+      await confirmGuestAccount(user.email, user.emailConfirmationToken);
+      await user.reload({ include: [{ association: 'collective' }] });
+      expect(user.confirmedAt).to.not.be.null;
+      expect(user.collective.name).to.eq('Incognito');
+      expect(user.collective.slug).to.include('user-');
+    });
+
+    it('verifies the account and updates the profile for users that already filled their profiles', async () => {
+      const email = randEmail();
+      const { user } = await getOrCreateGuestProfile({ email, name: 'Zappa' });
+      expect(user.confirmedAt).to.be.null;
+
+      await confirmGuestAccount(user.email, user.emailConfirmationToken);
+      await user.reload({ include: [{ association: 'collective' }] });
+      expect(user.confirmedAt).to.not.be.null;
+      expect(user.collective.name).to.eq('Zappa');
+      expect(user.collective.slug).to.include('zappa');
+    });
+
+    it('links all the other guest profiles (with the guest tokens) and removes them', async () => {
+      const email = randEmail();
+      const { user, collective: mainProfile, token: guestToken } = await getOrCreateGuestProfile({ email });
+      const { collective: otherGuestProfile, token: otherGuestToken } = await getOrCreateGuestProfile({ email });
+      expect(user.confirmedAt).to.be.null;
+
+      // Create some fake data
+      const orders = await Promise.all([
+        fakeOrder({ FromCollectiveId: mainProfile.id }, { withTransactions: true }),
+        fakeOrder({ FromCollectiveId: otherGuestProfile.id }, { withTransactions: true }),
+      ]);
+
+      await confirmGuestAccount(user.email, user.emailConfirmationToken, [otherGuestToken.value]);
+      await user.reload({ include: [{ association: 'collective' }] });
+      expect(user.confirmedAt).to.not.be.null;
+
+      // Has deleted other profiles (but not the main one)
+      expect((await otherGuestProfile.reload({ paranoid: false })).deletedAt).to.not.be.null;
+      expect((await mainProfile.reload({ paranoid: false })).deletedAt).to.be.null;
+
+      // Has deleted tokens
+      expect((await guestToken.reload({ paranoid: false })).deletedAt).to.not.be.null;
+      expect((await otherGuestToken.reload({ paranoid: false })).deletedAt).to.not.be.null;
+
+      // Has moved orders and transactions
+      await Promise.all(
+        orders.map(async o => {
+          await Promise.all(o.transactions.map(t => t.reload()));
+          await o.reload();
+        }),
+      );
+
+      expect(orders[0].FromCollectiveId).to.eq(mainProfile.id);
+      expect(orders[1].FromCollectiveId).to.eq(mainProfile.id);
+
+      const findCredit = transactions => transactions.find(t => t.type === 'CREDIT');
+      const findDebit = transactions => transactions.find(t => t.type === 'DEBIT');
+      expect(findCredit(orders[1].transactions).FromCollectiveId).to.eq(mainProfile.id);
+      expect(findDebit(orders[1].transactions).CollectiveId).to.eq(mainProfile.id);
     });
   });
 });

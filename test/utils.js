@@ -77,6 +77,7 @@ export const inspectSpy = (spy, argsCount) => {
  * E.g. await waitForCondition(() => emailSendMessageSpy.callCount === 1)
  * @param {*} cond
  * @param {*} options: { timeout, delay }
+ * @returns {Promise}
  */
 export const waitForCondition = (cond, options = { timeout: 10000, delay: 0 }) =>
   new Promise(resolve => {

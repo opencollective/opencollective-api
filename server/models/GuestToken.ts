@@ -24,6 +24,13 @@ export default (sequelize, DataTypes): typeof GuestToken => {
         primaryKey: true,
         autoIncrement: true,
       },
+      UserId: {
+        type: DataTypes.INTEGER,
+        references: { key: 'id', model: 'Users' },
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE',
+        allowNull: false,
+      },
       CollectiveId: {
         type: DataTypes.INTEGER,
         references: { key: 'id', model: 'Collectives' },
@@ -55,6 +62,7 @@ export default (sequelize, DataTypes): typeof GuestToken => {
     {
       sequelize,
       tableName: 'GuestTokens',
+      paranoid: true,
     },
   );
 
