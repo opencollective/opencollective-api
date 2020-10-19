@@ -154,6 +154,11 @@ export default (Sequelize, DataTypes) => {
         references: { model: 'Transactions', key: 'id' },
       },
 
+      PlatformTipForTransactionGroup: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+
       isRefund: {
         type: DataTypes.BOOLEAN,
         defaultValue: false,
