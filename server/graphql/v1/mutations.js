@@ -49,7 +49,6 @@ import {
   markOrderAsPaid,
   markPendingOrderAsExpired,
   refundTransaction,
-  updateSubscription,
 } from './mutations/orders';
 import * as paymentMethodsMutation from './mutations/paymentMethods';
 import { editTier, editTiers } from './mutations/tiers';
@@ -587,17 +586,6 @@ const mutations = {
     },
     resolve(_, args, req) {
       return cancelSubscription(req.remoteUser, args.id);
-    },
-  },
-  updateSubscription: {
-    type: OrderType,
-    args: {
-      id: { type: new GraphQLNonNull(GraphQLInt) },
-      paymentMethod: { type: PaymentMethodInputType },
-      amount: { type: GraphQLInt },
-    },
-    async resolve(_, args, req) {
-      return await updateSubscription(req.remoteUser, args);
     },
   },
   refundTransaction: {

@@ -1,5 +1,5 @@
 import { GraphQLNonNull, GraphQLObjectType } from 'graphql';
-import { isNil } from 'lodash';
+import { isNil, isNull, isUndefined } from 'lodash';
 
 import activities from '../../../constants/activities';
 import status from '../../../constants/order_status';
@@ -147,58 +147,6 @@ const orderMutations = {
       return models.Order.findOne(query);
     },
   },
-  activateOrder: {
-    type: Order,
-    description: 'Reactivate a cancelled order',
-    args: {
-      order: {
-        type: new GraphQLNonNull(OrderReferenceInput),
-        description: 'Object matching the OrderReferenceInput (id)',
-      },
-    },
-    async resolve(_, args, req) {
-      const decodedId = getDecodedId(args.order.id);
-
-      if (!req.remoteUser) {
-        throw new Unauthorized('You need to be logged in to activate a recurring contribution');
-      }
-
-      const query = {
-        where: {
-          id: decodedId,
-        },
-        include: modelArray,
-      };
-
-      const order = await models.Order.findOne(query);
-
-      if (!order) {
-        throw new NotFound('Recurring contribution not found');
-      }
-      if (!req.remoteUser.isAdmin(order.FromCollectiveId)) {
-        throw new Unauthorized("You don't have permission to cancel this recurring contribution");
-      }
-      if (order.Subscription.isActive && order.status === status.ACTIVE) {
-        throw new Error('Recurring contribution already active');
-      }
-
-      await order.update({ status: status.ACTIVE });
-      await order.Subscription.activate();
-      await models.Activity.create({
-        type: activities.SUBSCRIPTION_ACTIVATED,
-        CollectiveId: order.CollectiveId,
-        UserId: order.CreatedByUserId,
-        data: {
-          subscription: order.Subscription,
-          collective: order.collective.minimal,
-          user: req.remoteUser.minimal,
-          fromCollective: order.fromCollective.minimal,
-        },
-      });
-
-      return models.Order.findOne(query);
-    },
-  },
   updateOrder: {
     type: Order,
     description: "Update an Order's amount, tier, or payment method",
@@ -247,7 +195,7 @@ const orderMutations = {
       }
 
       // payment method
-      if (args.paymentMethod !== undefined) {
+      if (!isUndefined(args.paymentMethod)) {
         // unlike v1 we don't have to check/assign new payment method, that will be taken care of in another mutation
         const newPaymentMethod = await fetchPaymentMethodWithReference(args.paymentMethod);
 
@@ -259,12 +207,12 @@ const orderMutations = {
         order = await order.update({ PaymentMethodId: newPaymentMethod.id, status: newStatus });
       }
 
-      // amount and tier (will always go together)
-      if (args.amount !== undefined && args.tier !== undefined) {
+      // amount and tier (will always go together, unnamed tiers are NULL)
+      if (!isUndefined(args.amount) && !isUndefined(args.tier)) {
         let tierInfo;
 
         // get tier info if it's a named tier
-        if (args.tier.id !== null) {
+        if (!isNull(args.tier.id)) {
           tierInfo = await fetchTierWithReference(args.tier, { throwIfMissing: true });
           if (!tierInfo) {
             throw new Error(`No tier found with tier id: ${args.tier.id} for collective ${order.CollectiveId}`);
@@ -287,9 +235,15 @@ const orderMutations = {
           throw new Error('Amount is less than minimum value allowed for this Tier.');
         }
 
-        // check if the amount is different from the previous amount
+        // If using a FIXED tier, amount cannot be different from the tier's amount
+        if (tierInfo && tierInfo.amountType === 'FIXED' && amountInCents !== tierInfo.amount) {
+          throw new Error('Amount is incorrect for this Tier.');
+        }
+
+        // check if the amount is different from the previous amount - update subscription as well
         if (amountInCents !== order.totalAmount) {
           order = await order.update({ totalAmount: amountInCents });
+          await order.Subscription.update({ amount: amountInCents });
         }
 
         // Custom contribution is null, named tier will be tierInfo.id
