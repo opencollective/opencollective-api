@@ -152,6 +152,7 @@ async function PlatformReport(year, month) {
           max((CASE WHEN pm."service" = 'paypal' AND t."CollectiveId" = 1 THEN t."amount" ELSE 0 END)::float) as "feeOnTopPaypal",
           max((CASE WHEN (pm."service" = 'stripe' OR spm.service = 'stripe') AND t."CollectiveId" = 1 THEN t."amount" ELSE 0 END)::float) as "feeOnTopStripe",
           max((CASE WHEN t."PaymentMethodId" is NULL AND t."CollectiveId" = 1 THEN t."amount" ELSE 0 END)::float) as "feeOnTopBankTransfers",
+          max(CASE WHEN t."CollectiveId" = 1 and pm."service" != 'stripe' AND pm."service" != 'paypal' AND (spm.service IS NULL OR spm.service != 'stripe') THEN t."amount" ELSE 0 END)::float as "feeOnTopManual",
           max((CASE WHEN (t."PaymentMethodId" is NULL OR ((pm."service" != 'stripe' OR pm.service IS NULL) AND (spm.service IS NULL OR spm.service != 'stripe'))) AND t."CollectiveId" = 1 THEN t."amount" ELSE 0 END)::float) as "feeOnTopDue",
           max((CASE WHEN t."CollectiveId" != 1 THEN t."HostCollectiveId" ELSE 0 END)) AS "HostCollectiveId",
           t."OrderId"
@@ -169,9 +170,10 @@ async function PlatformReport(year, month) {
           "HostCollectiveId",
           sum("feeOnTopPaypal") AS "feesOnTopPaypal",
           sum("feeOnTopBankTransfers") AS "feesOnTopBankTransfers",
+          sum("feeOnTopManual") AS "feesOnTopManual",
           sum("feeOnTopStripe") AS "feesOnTopStripe",
           sum("feeOnTopDue") AS "feesOnTopDue",
-          COALESCE(sum("feeOnTopPaypal"), 0) + COALESCE(sum("feeOnTopBankTransfers"), 0) + COALESCE(sum("feeOnTopStripe"), 0) as "feesOnTop"
+          COALESCE(sum("feeOnTopPaypal"), 0) + COALESCE(sum("feeOnTopBankTransfers"), 0) + COALESCE(sum("feeOnTopStripe"), 0) + COALESCE(sum("feeOnTopManual"), 0) as "feesOnTop"
         FROM "feesOnTopTransactions"
         GROUP BY "HostCollectiveId"
       )
