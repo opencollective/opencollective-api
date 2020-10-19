@@ -222,7 +222,7 @@ describe('server/models/Transaction', () => {
         },
       };
 
-      await Transaction.createFromPayload({
+      const createdTransaction = await Transaction.createFromPayload({
         transaction,
         CreatedByUserId: user.id,
         FromCollectiveId: user.CollectiveId,
@@ -235,6 +235,9 @@ describe('server/models/Transaction', () => {
       const donationCredit = allTransactions.find(t => t.CollectiveId === oc.id);
       expect(donationCredit).to.have.property('type').equal('CREDIT');
       expect(donationCredit).to.have.property('amount').equal(1000);
+      expect(donationCredit)
+        .to.have.property('PlatformTipForTransactionGroup')
+        .equal(createdTransaction.TransactionGroup);
 
       const donationDebit = allTransactions.find(t => t.FromCollectiveId === oc.id);
       const partialPaymentProcessorFee = Math.round(200 * (1000 / 11000));
@@ -242,6 +245,9 @@ describe('server/models/Transaction', () => {
       expect(donationDebit)
         .to.have.property('amount')
         .equal(-1000 + partialPaymentProcessorFee);
+      expect(donationDebit)
+        .to.have.property('PlatformTipForTransactionGroup')
+        .equal(createdTransaction.TransactionGroup);
     });
 
     it('should convert the donation transaction to USD and store the FX rate', async () => {

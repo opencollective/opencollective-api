@@ -413,7 +413,7 @@ export default (Sequelize, DataTypes) => {
   Transaction.createDoubleEntry = async transaction => {
     transaction.type = transaction.amount > 0 ? TransactionTypes.CREDIT : TransactionTypes.DEBIT;
     transaction.netAmountInCollectiveCurrency = transaction.netAmountInCollectiveCurrency || transaction.amount;
-    transaction.TransactionGroup = uuid();
+    transaction.TransactionGroup = transaction.TransactionGroup || uuid();
     transaction.hostCurrencyFxRate = transaction.hostCurrencyFxRate || 1;
 
     if (!isUndefined(transaction.amountInHostCurrency)) {
@@ -529,6 +529,7 @@ export default (Sequelize, DataTypes) => {
         ),
         // This is always 1 because OpenCollective and OpenCollective Inc (Host) are in USD.
         hostCurrencyFxRate: 1,
+        PlatformTipForTransactionGroup: transaction.TransactionGroup,
         data: {
           hostToPlatformFxRate: await getFxRate(transaction.hostCurrency, FEES_ON_TOP_TRANSACTION_PROPERTIES.currency),
           feeOnTopPaymentProcessorFee,
@@ -573,6 +574,7 @@ export default (Sequelize, DataTypes) => {
     transaction.CreatedByUserId = CreatedByUserId;
     transaction.FromCollectiveId = FromCollectiveId;
     transaction.CollectiveId = CollectiveId;
+    transaction.TransactionGroup = uuid();
     transaction.PaymentMethodId = transaction.PaymentMethodId || PaymentMethodId;
     transaction.type = transaction.amount > 0 ? TransactionTypes.CREDIT : TransactionTypes.DEBIT;
     transaction.hostFeeInHostCurrency = toNegative(transaction.hostFeeInHostCurrency);
