@@ -3,7 +3,6 @@ import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
 import { find, get, includes, omit, pick } from 'lodash';
-import { Op } from 'sequelize';
 
 import activities from '../constants/activities';
 import status from '../constants/order_status';
@@ -13,7 +12,7 @@ import { FEES_ON_TOP_TRANSACTION_PROPERTIES, OC_FEE_PERCENT } from '../constants
 import { createPrepaidPaymentMethod, isPrepaidBudgetOrder } from '../lib/prepaid-budget';
 import { formatAccountDetails } from '../lib/transferwise';
 import { formatCurrency } from '../lib/utils';
-import models from '../models';
+import models, { Op } from '../models';
 import paymentProviders from '../paymentProviders';
 
 import emailLib from './email';
@@ -175,7 +174,7 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
     ]);
     refund.CreatedByUserId = user.id;
     refund.description = `Refund of "${t.description}"`;
-    refund.data = data;
+    refund.data = { ...refund.data, ...data };
 
     /* The refund operation moves back fees to the user's ledger so the
      * fees there should be positive. Since they're usually in negative,
@@ -205,7 +204,11 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
 
   if (transaction.data?.isFeesOnTop) {
     const feeOnTopTransaction = await models.Transaction.findOne({
-      where: { ...FEES_ON_TOP_TRANSACTION_PROPERTIES, type: 'CREDIT' },
+      where: {
+        ...FEES_ON_TOP_TRANSACTION_PROPERTIES,
+        type: 'CREDIT',
+        PlatformTipForTransactionGroup: transaction.TransactionGroup,
+      },
     });
     const feeOnTopRefund = buildRefund(feeOnTopTransaction);
     const feeOnTopRefundTransaction = await models.Transaction.createDoubleEntry(feeOnTopRefund);
