@@ -339,7 +339,7 @@ export const fakeTier = async (tierData = {}) => {
 /**
  * Creates a fake order. All params are optionals.
  */
-export const fakeOrder = async (orderData = {}) => {
+export const fakeOrder = async (orderData = {}, withSubscription) => {
   const CreatedByUserId = orderData.CreatedByUserId || (await fakeUser()).id;
   const user = await models.User.findByPk(CreatedByUserId);
   const FromCollectiveId = orderData.FromCollectiveId || (await models.Collective.findByPk(user.CollectiveId)).id;
@@ -358,6 +358,16 @@ export const fakeOrder = async (orderData = {}) => {
 
   if (order.PaymentMethodId) {
     order.paymentMethod = await models.PaymentMethod.findByPk(order.PaymentMethodId);
+  }
+
+  if (withSubscription) {
+    const subscription = await models.Subscription.create({
+      amount: order.totalAmount,
+      interval: 'month',
+      currency: order.currency,
+      isActive: true,
+    });
+    await order.update({ SubscriptionId: subscription.id });
   }
 
   order.fromCollective = await models.Collective.findByPk(order.FromCollectiveId);

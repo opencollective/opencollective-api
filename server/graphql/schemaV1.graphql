@@ -113,7 +113,8 @@ type Collective implements CollectiveInterface {
   Defines if a collective is pledged
   """
   isPledged: Boolean
-  data: JSON
+  data: JSON @deprecated(reason: "2020-10-08: This field is not provided anymore and will return an empty object")
+  githubContributors: JSON!
   slug: String
   path: String
 
@@ -297,6 +298,7 @@ type Collective implements CollectiveInterface {
   plan: PlanType
   stats: CollectiveStatsType
   contributionPolicy: String
+  categories: [String]!
 }
 
 """
@@ -409,7 +411,8 @@ interface CollectiveInterface {
   Defines if a collective is pledged
   """
   isPledged: Boolean
-  data: JSON
+  data: JSON @deprecated(reason: "2020-10-08: This field is not provided anymore and will return an empty object")
+  githubContributors: JSON!
   slug: String
   path: String
   isHost: Boolean
@@ -581,6 +584,11 @@ interface CollectiveInterface {
   connectedAccounts: [ConnectedAccountType]
   plan: PlanType
   contributionPolicy: String
+
+  """
+  Categories set by Open Collective to help moderation.
+  """
+  categories: [String]!
 }
 
 """
@@ -1027,7 +1035,8 @@ type Event implements CollectiveInterface {
   Defines if a collective is pledged
   """
   isPledged: Boolean
-  data: JSON
+  data: JSON @deprecated(reason: "2020-10-08: This field is not provided anymore and will return an empty object")
+  githubContributors: JSON!
   slug: String
   path: String
 
@@ -1211,6 +1220,7 @@ type Event implements CollectiveInterface {
   plan: PlanType
   stats: CollectiveStatsType
   contributionPolicy: String
+  categories: [String]!
 }
 
 """
@@ -1458,7 +1468,8 @@ type Fund implements CollectiveInterface {
   Defines if a collective is pledged
   """
   isPledged: Boolean
-  data: JSON
+  data: JSON @deprecated(reason: "2020-10-08: This field is not provided anymore and will return an empty object")
+  githubContributors: JSON!
   slug: String
   path: String
 
@@ -1642,6 +1653,7 @@ type Fund implements CollectiveInterface {
   plan: PlanType
   stats: CollectiveStatsType
   contributionPolicy: String
+  categories: [String]!
 }
 
 """
@@ -1730,6 +1742,7 @@ type InvoiceType {
   """
   day: Int
   totalAmount: Int
+  totalTransactions: Int
   currency: String
   host: CollectiveInterface
   fromCollective: CollectiveInterface
@@ -1987,7 +2000,6 @@ type Mutation {
   editComment(comment: CommentAttributesInputType!): CommentType
   deleteComment(id: Int!): CommentType
   cancelSubscription(id: Int!): OrderType
-  updateSubscription(id: Int!, paymentMethod: PaymentMethodInputType, amount: Int): OrderType
   refundTransaction(id: Int!): Transaction
   addFundsToOrg(totalAmount: Int!, CollectiveId: Int!, HostCollectiveId: Int!, description: String): PaymentMethodType
   createApplication(application: ApplicationInput!): Application
@@ -2548,7 +2560,8 @@ type Organization implements CollectiveInterface {
   Defines if a collective is pledged
   """
   isPledged: Boolean
-  data: JSON
+  data: JSON @deprecated(reason: "2020-10-08: This field is not provided anymore and will return an empty object")
+  githubContributors: JSON!
   slug: String
   path: String
 
@@ -2732,6 +2745,7 @@ type Organization implements CollectiveInterface {
   plan: PlanType
   stats: CollectiveStatsType
   contributionPolicy: String
+  categories: [String]!
   email: String
 }
 
@@ -2960,7 +2974,8 @@ type Project implements CollectiveInterface {
   Defines if a collective is pledged
   """
   isPledged: Boolean
-  data: JSON
+  data: JSON @deprecated(reason: "2020-10-08: This field is not provided anymore and will return an empty object")
+  githubContributors: JSON!
   slug: String
   path: String
 
@@ -3144,6 +3159,7 @@ type Project implements CollectiveInterface {
   plan: PlanType
   stats: CollectiveStatsType
   contributionPolicy: String
+  categories: [String]!
 }
 
 """
@@ -3872,7 +3888,8 @@ type User implements CollectiveInterface {
   Defines if a collective is pledged
   """
   isPledged: Boolean
-  data: JSON
+  data: JSON @deprecated(reason: "2020-10-08: This field is not provided anymore and will return an empty object")
+  githubContributors: JSON!
   slug: String
   path: String
 
@@ -4056,6 +4073,7 @@ type User implements CollectiveInterface {
   plan: PlanType
   stats: CollectiveStatsType
   contributionPolicy: String
+  categories: [String]!
   firstName: String @deprecated(reason: "2020-03-27: These field are now deprecated in favor of collective.name")
   lastName: String @deprecated(reason: "2020-03-27: These field are now deprecated in favor of collective.name")
   email: String
