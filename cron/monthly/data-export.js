@@ -6,7 +6,7 @@ import readline from 'readline';
 
 import Promise from 'bluebird';
 import { googleDrive } from 'config';
-import { google } from 'googleapis'; // eslint-disable-line node/no-unpublished-import
+import { google } from 'googleapis';
 import { parse as json2csv } from 'json2csv';
 import moment from 'moment';
 
