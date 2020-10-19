@@ -159,9 +159,6 @@ describe('server/lib/email', () => {
           `Thank you for your ${amountStr}/month contribution to #BrusselsTogether`,
         );
         expect(nm.sendMail.lastCall.args[0].html).to.contain(data.relatedCollectives[0].name);
-        expect(nm.sendMail.lastCall.args[0].html).to.contain(
-          `${config.host.website}/${data.fromCollective.slug}/transactions`,
-        );
       });
     });
   });

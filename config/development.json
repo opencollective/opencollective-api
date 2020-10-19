@@ -24,5 +24,8 @@
   },
   "githubFlow": {
     "minNbStars": 0
+  },
+  "host": {
+    "pdf": "http://localhost:3002"
   }
 }
