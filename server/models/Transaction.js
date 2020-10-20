@@ -1,6 +1,6 @@
 import Promise from 'bluebird';
 import debugLib from 'debug';
-import { defaultsDeep, get, isUndefined } from 'lodash';
+import { defaultsDeep, get, isNull, isUndefined } from 'lodash';
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
@@ -47,7 +47,14 @@ export default (Sequelize, DataTypes) => {
         },
         onDelete: 'SET NULL',
         onUpdate: 'CASCADE',
-        allowNull: false,
+        allowNull: true, // we allow CreatedByUserId to be null but only on refund transactions
+        validate: {
+          isValid(value) {
+            if (isNull(value) && this.isRefund === false) {
+              throw new Error('Only refund transactions can have null user.');
+            }
+          },
+        },
       },
 
       // Source of the money for a DEBIT

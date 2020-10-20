@@ -173,7 +173,7 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
       'paymentProcessorFeeInHostCurrency',
       'data.isFeesOnTop',
     ]);
-    refund.CreatedByUserId = user.id;
+    refund.CreatedByUserId = user?.id || null;
     refund.description = `Refund of "${t.description}"`;
     refund.data = data;
 
