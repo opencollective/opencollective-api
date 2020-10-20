@@ -31,9 +31,12 @@ Subject: Thank you for your {{currency order.totalAmount currency=order.currency
 <p>Join our <a href="https://facebook.com/collectives/BrusselsTogether">Facebook Group</a> or join the conversation on <a href="https://slack.brusselstogether.org">our slack</a>.
 And don't forget to use the hashtag #BrusselsTogether whenever you share something on social networks about initiatives that are happening that we need to support together.</p>
 
-<p>
-  P.S: You can download a PDF receipt for your contribution <a href="{{config.host.website}}/{{fromCollective.slug}}/transactions">on your transactions page</a>{{#if subscriptionsLink}}, and you can manage your recurring contributions <a href="{{subscriptionsLink}}">here</a>{{/if}}.
-</p>
+{{#if transactionPdf}}
+<h2>📎 Attachments</h2>
+<ul>
+  <li>A PDF receipt of your transaction</li>
+</ul>
+{{/if}}
 
 <p>Warmly,</p>
 

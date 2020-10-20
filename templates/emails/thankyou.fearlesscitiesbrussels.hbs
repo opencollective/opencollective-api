@@ -35,9 +35,12 @@ Subject: Thank you for your {{currency order.totalAmount currency=order.currency
 <p>We are also looking for volunteers to help us with the organization of the event.
 Please take a look at the <a href="https://docs.google.com/spreadsheets/d/1x_z1CpyjfRfogYa0iIBpKHiwAMcyWUNi7laXMn2ePWY/edit?usp=sharing">list of things that we still need to do</a> and see if there is anyway you can help. That would be amazing. Among other things, we are still looking for people to help us with child care, video recording, distributing flyers.</p>
 
-<p>
-  P.S: You can download a PDF receipt for your contribution <a href="{{config.host.website}}/{{fromCollective.slug}}/transactions">on your transactions page</a>{{#if subscriptionsLink}}, and you can manage your recurring contributions <a href="{{subscriptionsLink}}">here</a>{{/if}}.
-</p>
+{{#if transactionPdf}}
+<h2>📎 Attachments</h2>
+<ul>
+  <li>A PDF receipt of your transaction</li>
+</ul>
+{{/if}}
 
 <p>Warmly,</p>
 

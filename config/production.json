@@ -20,7 +20,7 @@
     "frontend": "https://frontend.opencollective.com",
     "website": "https://opencollective.com",
     "images": "https://images.opencollective.com",
-    "invoices": "https://invoices.opencollective.com"
+    "pdf": "https://pdf.opencollective.com"
   },
   "log": {
     "slowRequest": true

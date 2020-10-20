@@ -11,11 +11,12 @@ import tiers from '../constants/tiers';
 import { FEES_ON_TOP_TRANSACTION_PROPERTIES, OC_FEE_PERCENT } from '../constants/transactions';
 import { createPrepaidPaymentMethod, isPrepaidBudgetOrder } from '../lib/prepaid-budget';
 import { formatAccountDetails } from '../lib/transferwise';
-import { formatCurrency } from '../lib/utils';
+import { formatCurrency, toIsoDateStr } from '../lib/utils';
 import models, { Op } from '../models';
 import paymentProviders from '../paymentProviders';
 
 import emailLib from './email';
+import { getTransactionPdf } from './pdf';
 import { subscribeOrUpgradePlan, validatePlanRequest } from './plans';
 import { getNextChargeAndPeriodStartDates } from './recurring-contributions';
 import { netAmount } from './transactions';
@@ -255,8 +256,7 @@ export const sendEmailNotifications = (order, transaction) => {
     sendOrderProcessingEmail(order);
     sendManualPendingOrderEmail(order);
   } else {
-    order.transaction = transaction;
-    sendOrderConfirmedEmail(order); // async
+    sendOrderConfirmedEmail(order, transaction); // async
   }
 };
 
@@ -391,7 +391,9 @@ const validatePayment = payment => {
   }
 };
 
-const sendOrderConfirmedEmail = async order => {
+const sendOrderConfirmedEmail = async (order, transaction) => {
+  let pdf;
+  const attachments = [];
   const { collective, tier, interval, fromCollective } = order;
   const user = order.createdByUser;
   const host = await collective.getHostCollective();
@@ -412,12 +414,9 @@ const sendOrderConfirmedEmail = async order => {
   } else {
     // normal order
     const relatedCollectives = await order.collective.getRelatedCollectives(3, 0);
-    const emailOptions = {
-      from: `${collective.name} <no-reply@${collective.slug}.opencollective.com>`,
-    };
     const data = {
       order: order.activity,
-      transaction: pick(order.transaction, ['createdAt', 'uuid']),
+      transaction: pick(transaction, ['createdAt', 'uuid']),
       user: user.info,
       collective: collective.info,
       host: host ? host.info : {},
@@ -427,6 +426,23 @@ const sendOrderConfirmedEmail = async order => {
       monthlyInterval: interval === 'month',
       firstPayment: true,
       subscriptionsLink: interval && `${config.host.website}/${fromCollective.slug}/recurring-contributions`,
+    };
+
+    // hit PDF service and get PDF
+    pdf = await getTransactionPdf(transaction, user);
+
+    // attach pdf
+    if (pdf) {
+      const createdAtString = toIsoDateStr(transaction.createdAt ? new Date(transaction.createdAt) : new Date());
+      attachments.push({
+        filename: `transaction_${collective.slug}_${createdAtString}_${transaction.uuid}.pdf`,
+        content: pdf,
+      });
+      data.transactionPdf = true;
+    }
+    const emailOptions = {
+      from: `${collective.name} <no-reply@${collective.slug}.opencollective.com>`,
+      attachments,
     };
 
     return emailLib.send('thankyou', user.email, data, emailOptions);
