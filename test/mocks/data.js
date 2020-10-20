@@ -212,8 +212,6 @@ export default {
       },
       { type: 'user.created', UserId: 3, data: {} },
       { type: 'collective.created', UserId: 1, CollectiveId: 1, data: {} },
-      { type: 'collective.user.added', UserId: 1, CollectiveId: 1, data: {} },
-      { type: 'collective.user.added', UserId: 3, CollectiveId: 1, data: {} },
       { type: 'collective.updated', UserId: 1, CollectiveId: 1, data: {} },
       { type: 'collective.updated', UserId: 3, CollectiveId: 1, data: {} },
       { type: 'collective.updated', UserId: 1, CollectiveId: 1, data: {} },
@@ -367,20 +365,6 @@ export default {
         data: {
           user: {
             email: 'jussi@kuohujoki.fi',
-          },
-          collective: {
-            name: 'Blah',
-            slug: 'blah',
-            publicUrl: 'https://opencollective.com/blah',
-          },
-        },
-      },
-      {
-        type: 'collective.user.added',
-        data: {
-          user: {
-            image: 'http://image.githubusercontent.com/asood123',
-            id: 2,
           },
           collective: {
             name: 'Blah',
