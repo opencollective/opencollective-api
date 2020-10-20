@@ -236,7 +236,8 @@ const orderMutations = {
         }
 
         // If using a FIXED tier, amount cannot be different from the tier's amount
-        if (tierInfo && tierInfo.amountType === 'FIXED' && amountInCents !== tierInfo.amount) {
+        // TODO: it should be amountInCents !== tierInfo.amount, but we need to do work to make sure that would play well with platform fees/taxes
+        if (tierInfo && tierInfo.amountType === 'FIXED' && amountInCents < tierInfo.amount) {
           throw new Error('Amount is incorrect for this Tier.');
         }
 
