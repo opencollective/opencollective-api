@@ -163,7 +163,7 @@ describe('server/lib/sanitize-html', () => {
           240,
         ),
       ).to.eq(
-        `After a much ado, we created an easy way to donate to <a href="${config.host.website}/redirect?url=https%3A%2F%2sagemath.org" target="_blank">SageMath</a> project. Donations are US tax (IRC 501(c)(6)) deductible.`,
+        `After a much ado, we created an easy way to donate to <a href="${config.host.website}/redirect?url=https%3A%2F%2Fsagemath.org" target="_blank">SageMath</a> project. Donations are US tax (IRC 501(c)(6)) deductible.`,
       );
     });
 
