@@ -2,7 +2,7 @@ import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLN
 import { isNil } from 'lodash';
 
 import { types } from '../../../constants/collectives';
-import { OC_FEE_PERCENT } from '../../../constants/transactions';
+import { PLATFORM_FEE_PERCENT } from '../../../constants/transactions';
 import { getPaginatedContributorsForCollective } from '../../../lib/contributors';
 import models from '../../../models';
 import { ContributorCollection } from '../collection/ContributorCollection';
@@ -67,7 +67,7 @@ export const AccountWithContributionsFields = {
     type: new GraphQLNonNull(GraphQLInt),
     description: 'How much platform fees are charged for this account',
     resolve(account): number {
-      return isNil(account.platformFeePercent) ? OC_FEE_PERCENT : account.platformFeePercent;
+      return isNil(account.platformFeePercent) ? PLATFORM_FEE_PERCENT : account.platformFeePercent;
     },
   },
   platformContributionAvailable: {

@@ -35,7 +35,7 @@ import FEATURE from '../constants/feature';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import plans, { PLANS_COLLECTIVE_SLUG } from '../constants/plans';
 import roles, { MemberRoleLabels } from '../constants/roles';
-import { HOST_FEE_PERCENT, OC_FEE_PERCENT } from '../constants/transactions';
+import { HOST_FEE_PERCENT, PLATFORM_FEE_PERCENT } from '../constants/transactions';
 import { hasOptedOutOfFeature, isFeatureAllowedForCollectiveType } from '../lib/allowed-features';
 import cache from '../lib/cache';
 import {
@@ -245,7 +245,6 @@ export default function (Sequelize, DataTypes) {
 
       hostFeePercent: {
         type: DataTypes.FLOAT,
-        defaultValue: HOST_FEE_PERCENT,
         validate: {
           min: 0,
           max: 100,
@@ -702,18 +701,6 @@ export default function (Sequelize, DataTypes) {
             notifyTeamAboutSuspiciousCollective(spamReport);
             instance.data = { ...instance.data, spamReport };
           }
-
-          // Set default platformFeePercent
-          if (instance.platformFeePercent === null || instance.platformFeePercent === undefined) {
-            // Automatically waive fees for collectives created under the COVID-19 category
-            if (instance.tags?.includes('covid-19')) {
-              instance.platformFeePercent = 0;
-            } else if (instance.type === 'USER' || instance.type === 'ORGANIZATION') {
-              instance.platformFeePercent = null;
-            } else {
-              instance.platformFeePercent = OC_FEE_PERCENT;
-            }
-          }
         },
         afterCreate: async instance => {
           instance.findImage();
@@ -930,7 +917,11 @@ export default function (Sequelize, DataTypes) {
     }
 
     if (!this.isHostAccount) {
-      await this.update({ isHostAccount: true });
+      await this.update({
+        isHostAccount: true,
+        hostFeePercent: HOST_FEE_PERCENT,
+        platformFeePercent: PLATFORM_FEE_PERCENT,
+      });
     }
 
     await this.getOrCreateHostPaymentMethod();
@@ -1824,14 +1815,10 @@ export default function (Sequelize, DataTypes) {
       throw new Error('This host is not open to applications');
     }
 
-    const platformFeePercent =
-      options?.platformFeePercent || this.tags?.includes('covid-19')
-        ? this.platformFeePercent // Keep existing platformFeePercent if COVID-19 initiative
-        : hostCollective.platformFeePercent; // Otherwise, follow the new host platformFeePercent
     const updatedValues = {
       HostCollectiveId: hostCollective.id,
       hostFeePercent: hostCollective.hostFeePercent,
-      platformFeePercent,
+      platformFeePercent: hostCollective.platformFeePercent,
       ...(shouldAutomaticallyApprove ? { isActive: true, approvedAt: new Date() } : null),
     };
 
@@ -1987,6 +1974,8 @@ export default function (Sequelize, DataTypes) {
     this.HostCollectiveId = null;
     this.isActive = false;
     this.approvedAt = null;
+    this.hostFeePercent = null;
+    this.platformFeePercent = null;
     // Prepare events and projects to receive a new host
     const events = await this.getEvents();
     if (events?.length > 0) {

@@ -466,11 +466,17 @@ export async function approveCollective(remoteUser, CollectiveId) {
     },
   });
 
-  // Approve all events created by this collective
+  // Approve all events and projects created by this collective
   const events = await collective.getEvents();
   await Promise.all(
     events.map(event => {
       event.update({ isActive: true, approvedAt: new Date() });
+    }),
+  );
+  const projects = await collective.getProjects();
+  await Promise.all(
+    projects.map(project => {
+      project.update({ isActive: true, approvedAt: new Date() });
     }),
   );
 
@@ -518,9 +524,11 @@ export async function archiveCollective(_, args, req) {
     membership.destroy();
   }
 
-  if (collective.type === types.EVENT) {
+  if (collective.type === types.EVENT || collective.type === types.PROJECT) {
     return collective.update({ isActive: false, deactivatedAt: Date.now() });
   }
+
+  // TODO: cascade deactivation to EVENTs and PROJECTs?
 
   return collective.update({ isActive: false, deactivatedAt: Date.now(), approvedAt: null, HostCollectiveId: null });
 }
