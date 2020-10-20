@@ -1005,6 +1005,14 @@ export default function (Sequelize, DataTypes) {
       isActive: true,
       HostCollectiveId: this.id,
       settings: { ...this.settings, hostCollective: { id: this.id } },
+      approvedAt: new Date(),
+    });
+
+    await models.members.create({
+      role: roles.HOST,
+      CreatedByUserId: this.CreatedByUserId,
+      MemberCollectiveId: this.id,
+      CollectiveId: this.id,
     });
 
     await models.PaymentMethod.create({
@@ -1027,6 +1035,15 @@ export default function (Sequelize, DataTypes) {
       isActive: false,
       HostCollectiveId: null,
       settings: omit(this.settings, ['hostCollective']),
+      approvedAt: null,
+    });
+
+    await models.members.destroy({
+      where: {
+        role: roles.HOST,
+        MemberCollectiveId: this.id,
+        CollectiveId: this.id,
+      },
     });
 
     const collectivePaymentMethod = await models.PaymentMethod.findOne({
