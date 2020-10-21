@@ -35,7 +35,6 @@ import FEATURE from '../constants/feature';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import plans, { PLANS_COLLECTIVE_SLUG } from '../constants/plans';
 import roles, { MemberRoleLabels } from '../constants/roles';
-import { HOST_FEE_PERCENT, PLATFORM_FEE_PERCENT } from '../constants/transactions';
 import { hasOptedOutOfFeature, isFeatureAllowedForCollectiveType } from '../lib/allowed-features';
 import cache from '../lib/cache';
 import {
@@ -917,11 +916,16 @@ export default function (Sequelize, DataTypes) {
     }
 
     if (!this.isHostAccount) {
-      await this.update({
-        isHostAccount: true,
-        hostFeePercent: HOST_FEE_PERCENT,
-        platformFeePercent: PLATFORM_FEE_PERCENT,
-      });
+      const updatedValues = { isHostAccount: true };
+      // hostFeePercent and platformFeePercent are not supposed to be set at this point
+      // but we're dealing with legacy tests here
+      if (this.hostFeePercent === null) {
+        updatedValues.hostFeePercent = config.fees.default.hostPercent;
+      }
+      if (this.platformFeePercent === null) {
+        updatedValues.platformFeePercent = config.fees.default.platformPercent;
+      }
+      await this.update(updatedValues);
     }
 
     await this.getOrCreateHostPaymentMethod();

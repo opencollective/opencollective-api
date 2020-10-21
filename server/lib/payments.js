@@ -8,7 +8,7 @@ import activities from '../constants/activities';
 import status from '../constants/order_status';
 import roles from '../constants/roles';
 import tiers from '../constants/tiers';
-import { FEES_ON_TOP_TRANSACTION_PROPERTIES, PLATFORM_FEE_PERCENT } from '../constants/transactions';
+import { FEES_ON_TOP_TRANSACTION_PROPERTIES } from '../constants/transactions';
 import { createPrepaidPaymentMethod, isPrepaidBudgetOrder } from '../lib/prepaid-budget';
 import { formatAccountDetails } from '../lib/transferwise';
 import { formatCurrency, toIsoDateStr } from '../lib/utils';
@@ -552,7 +552,9 @@ export const getPlatformFee = order => {
   }
 
   const defaultPlatformFeePercent =
-    order.collective.platformFeePercent === null ? PLATFORM_FEE_PERCENT : order.collective.platformFeePercent;
+    order.collective.platformFeePercent === null
+      ? config.fees.default.platformPercent
+      : order.collective.platformFeePercent;
 
   const platformFeePercent = get(order, 'data.platformFeePercent', defaultPlatformFeePercent);
 
