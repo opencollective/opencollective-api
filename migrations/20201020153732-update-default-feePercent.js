@@ -41,7 +41,7 @@ module.exports = {
       UPDATE "Collectives"
       SET "platformFeePercent" = NULL, "hostFeePercent" = NULL
       WHERE "HostCollectiveId" IS NULL
-      AND "type" IN ('COLLECTIVE', 'FUND', 'EVENT", "PROJECT')
+      AND "type" IN ('COLLECTIVE', 'FUND', 'EVENT', 'PROJECT')
     `);
   },
 
