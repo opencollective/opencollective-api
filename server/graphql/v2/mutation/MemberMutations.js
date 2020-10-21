@@ -1,12 +1,12 @@
-import { GraphQLNonNull, GraphQLBoolean, GraphQLString, GraphQLInt, GraphQLList } from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import { get, pick } from 'lodash';
 
+import emailLib from '../../../lib/email';
+import models from '../../../models';
 import { editPublicMessage } from '../../common/members';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
-import { Member } from '../object/Member';
 import { CollectiveCreateInput } from '../input/CollectiveCreateInput';
-import models from '../../../models';
-import emailLib from '../../../lib/email';
-import { get, pick } from 'lodash';
+import { Member } from '../object/Member';
 
 const memberMutations = {
   editPublicMessage: {
