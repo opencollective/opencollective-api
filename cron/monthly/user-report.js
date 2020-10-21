@@ -448,7 +448,9 @@ const computeStats = async (collectives, currency = 'USD') => {
   stats.totalDonatedString = formatCurrencyObject(stats.totalDonatedPerCurrency);
   const ar = [];
   stats.topCategories.map(category => {
-    ar.push(`${category} (${formatCurrencyObject(categories[category].totalAmountPerCurrency)})`);
+    ar.push(
+      `${category || 'unclassified expenses'} (${formatCurrencyObject(categories[category].totalAmountPerCurrency)})`,
+    );
   });
   stats.expensesBreakdownString = `${Object.keys(categories).length > 3 ? ', mostly in' : ' in'} ${formatArrayToString(
     ar,
