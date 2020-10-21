@@ -6,6 +6,7 @@ import { find, get, includes, omit, pick } from 'lodash';
 
 import activities from '../constants/activities';
 import status from '../constants/order_status';
+import { PAYMENT_METHOD_TYPES } from '../constants/paymentMethods';
 import roles from '../constants/roles';
 import tiers from '../constants/tiers';
 import { FEES_ON_TOP_TRANSACTION_PROPERTIES, OC_FEE_PERCENT } from '../constants/transactions';
@@ -394,7 +395,7 @@ const validatePayment = payment => {
 const sendOrderConfirmedEmail = async (order, transaction) => {
   let pdf;
   const attachments = [];
-  const { collective, tier, interval, fromCollective } = order;
+  const { collective, tier, interval, fromCollective, paymentMethod } = order;
   const user = order.createdByUser;
   const host = await collective.getHostCollective();
 
@@ -428,8 +429,10 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
       subscriptionsLink: interval && `${config.host.website}/${fromCollective.slug}/recurring-contributions`,
     };
 
-    // hit PDF service and get PDF
-    pdf = await getTransactionPdf(transaction, user);
+    // hit PDF service and get PDF (unless payment method type is gift card)
+    if (paymentMethod?.type !== PAYMENT_METHOD_TYPES.VIRTUALCARD) {
+      pdf = await getTransactionPdf(transaction, user);
+    }
 
     // attach pdf
     if (pdf) {

@@ -1,8 +1,8 @@
 import config from 'config';
-import fetch from 'node-fetch';
 
-import { TOKEN_EXPIRATION_LOGIN } from '../lib/auth';
-import logger from '../lib/logger';
+import { TOKEN_EXPIRATION_LOGIN } from './auth';
+import { fetchWithTimeout } from './fetch';
+import logger from './logger';
 
 export const getTransactionPdf = async (transaction, user) => {
   if (['ci', 'test'].includes(config.env)) {
@@ -13,7 +13,8 @@ export const getTransactionPdf = async (transaction, user) => {
   const headers = {
     Authorization: `Bearer ${accessToken}`,
   };
-  return await fetch(pdfUrl, { method: 'get', headers })
+
+  return fetchWithTimeout(pdfUrl, { method: 'get', headers, timeoutInMs: 10000 })
     .then(response => {
       const { status } = response;
       if (status >= 200 && status < 300) {
@@ -24,6 +25,6 @@ export const getTransactionPdf = async (transaction, user) => {
       }
     })
     .catch(error => {
-      logger.error(`Error fetching PDF: ${error}`);
+      logger.error(`Error fetching PDF: ${error.message}`);
     });
 };
