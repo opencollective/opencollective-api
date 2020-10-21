@@ -43,8 +43,12 @@ const getContributorRejectedCategories = (fromCollective, collective) => {
   return intersection(rejectedCategories, contributorRejectedCategories);
 };
 
-async function run({ dryRun = false } = {}) {
-  const rows = await sequelize.query(query, { type: sequelize.QueryTypes.SELECT });
+async function run({ dryRun, limit } = {}) {
+  let rows = await sequelize.query(query, { type: sequelize.QueryTypes.SELECT });
+
+  if (rows.length > 0 && limit) {
+    rows = rows.slice(0, limit);
+  }
 
   for (const row of rows) {
     const order = await models.Order.findByPk(row['id']);
@@ -76,8 +80,8 @@ async function run({ dryRun = false } = {}) {
       logger.info(`  - Found transaction #${transaction.id}`);
       // Refund transaction if not already refunded
       if (!transaction.RefundTransactionId) {
+        logger.info(`  - Refunding transaction`);
         if (!dryRun) {
-          logger.info(`  - Refunding transaction`);
           await libPayments.refundTransaction(transaction);
         }
       } else {
@@ -152,9 +156,13 @@ function parseCommandLineArguments() {
     action: 'store_const',
     const: true,
   });
+  parser.add_argument('-l', '--limit', {
+    help: 'Total matching orders to process',
+  });
   const args = parser.parse_args();
   return {
     dryRun: args.dryrun,
+    limit: args.limit,
   };
 }
 
