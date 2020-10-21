@@ -8,13 +8,15 @@ import statuses from '../../../constants/expense_status';
 import expenseType from '../../../constants/expense_type';
 import FEATURE from '../../../constants/feature';
 import roles from '../../../constants/roles';
-import { rollingPayoutLimitTwoFactorAuthentication } from '../../../lib/auth';
-import cache from '../../../lib/cache';
 import { getFxRate } from '../../../lib/currency';
 import { floatAmountToCents } from '../../../lib/math';
 import * as libPayments from '../../../lib/payments';
 import { handleTransferwisePayoutsLimit } from '../../../lib/plans';
 import { createFromPaidExpense as createTransactionFromPaidExpense } from '../../../lib/transactions';
+import {
+  handleTwoFactorAuthenticationPayoutLimit,
+  resetRollingPayoutLimitOnFailure,
+} from '../../../lib/two-factor-authentication';
 import { canUseFeature } from '../../../lib/user-permissions';
 import { formatCurrency } from '../../../lib/utils';
 import models, { sequelize } from '../../../models';
@@ -24,7 +26,6 @@ import * as ExpenseLib from '../../common/expenses';
 import { BadRequest, FeatureNotAllowedForUser, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 
 const debug = debugLib('expenses');
-const CACHE_VALIDITY = 3600; // 1h in secs for cache to expire
 
 export async function updateExpenseStatus(req, expenseId, status) {
   const { remoteUser } = req;
@@ -711,29 +712,13 @@ export async function payExpense(req, args) {
       PayoutMethodTypes.BANK_ACCOUNT,
     ].includes(payoutMethodType);
     const hostHasPayoutTwoFactorAuthenticationEnabled = get(host, 'settings.payoutsTwoFactorAuth.enabled', false);
-    const hostPayoutTwoFactorAuthenticationRollingLimit = get(
-      host,
-      'settings.payoutsTwoFactorAuth.rollingLimit',
-      1000000,
-    );
     const useTwoFactorAuthentication =
       isTwoFactorAuthenticationRequiredForPayoutMethod &&
       !args.forceManual &&
       hostHasPayoutTwoFactorAuthenticationEnabled;
-    let currentRollingPayoutLimit;
-    if (useTwoFactorAuthentication) {
-      currentRollingPayoutLimit = await rollingPayoutLimitTwoFactorAuthentication(
-        req,
-        args.twoFactorAuthenticatorCode,
-        hostPayoutTwoFactorAuthenticationRollingLimit,
-        expense.amount,
-      );
-    }
 
-    // immediately set the cache
-    if (currentRollingPayoutLimit) {
-      const { cacheKey, cacheValue } = currentRollingPayoutLimit;
-      cache.set(cacheKey, cacheValue, CACHE_VALIDITY);
+    if (useTwoFactorAuthentication) {
+      await handleTwoFactorAuthenticationPayoutLimit(req.remoteUser, args.twoFactorAuthenticatorCode, expense);
     }
 
     try {
@@ -785,13 +770,10 @@ export async function payExpense(req, args) {
         await createTransactions(host, expense, feesInHostCurrency);
       }
     } catch (error) {
-      // if the payment doesn't go through we want to reset the cache amount
-      if (currentRollingPayoutLimit) {
-        const { cacheKey, cacheValue } = currentRollingPayoutLimit;
-        if (cacheValue !== 0) {
-          cache.set(cacheKey, cacheValue - expense.amount, CACHE_VALIDITY);
-        }
+      if (useTwoFactorAuthentication) {
+        await resetRollingPayoutLimitOnFailure(req.remoteUser, expense);
       }
+
       return error;
     }
 
