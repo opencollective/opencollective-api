@@ -128,8 +128,8 @@ async function run({ dryRun, limit } = {}) {
     logger.info(`  - Purging cache for ${collective.slug}`);
     logger.info(`  - Purging cache for ${fromCollective.slug}`);
     if (!dryRun) {
-      purgeCacheForCollective(collective);
-      purgeCacheForCollective(fromCollective);
+      purgeCacheForCollective(collective.slug);
+      purgeCacheForCollective(fromCollective.slug);
     }
 
     const activity = {
