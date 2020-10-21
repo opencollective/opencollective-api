@@ -936,6 +936,8 @@ export default function (Sequelize, DataTypes) {
       data: { collective: this.info },
     });
 
+    await this.activateBudget();
+
     return this;
   };
 
@@ -1003,7 +1005,7 @@ export default function (Sequelize, DataTypes) {
       approvedAt: new Date(),
     });
 
-    await models.members.create({
+    await models.Member.create({
       role: roles.HOST,
       CreatedByUserId: this.CreatedByUserId,
       MemberCollectiveId: this.id,
@@ -1033,7 +1035,7 @@ export default function (Sequelize, DataTypes) {
       approvedAt: null,
     });
 
-    await models.members.destroy({
+    await models.Member.destroy({
       where: {
         role: roles.HOST,
         MemberCollectiveId: this.id,
