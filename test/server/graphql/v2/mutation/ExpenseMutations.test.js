@@ -1020,10 +1020,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
   });
 
   describe('draftExpenseAndInviteUser and resendDraftExpenseInvite', () => {
-    const sandbox = sinon.createSandbox();
-    sandbox.stub(emailLib, 'sendMessage').resolves();
-
-    let collective, expense, user;
+    let sandbox, collective, expense, user;
 
     const draftExpenseAndInviteUserMutation = gqlV2/* GraphQL */ `
       mutation DraftExpenseAndInviteUser($expense: ExpenseInviteDraftInput!, $account: AccountReferenceInput!) {
@@ -1066,6 +1063,8 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
     after(() => sandbox.restore());
 
     before(async () => {
+      sandbox = sinon.createSandbox();
+      sandbox.stub(emailLib, 'sendMessage').resolves();
       user = await fakeUser();
       collective = await fakeCollective();
 
