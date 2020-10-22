@@ -331,8 +331,8 @@ export const getItemsChanges = async (expense, expenseData) => {
   return [hasItemChanges, itemsData, itemsDiff];
 };
 
-export async function editExpense(req, expenseData) {
-  const { remoteUser } = req;
+export async function editExpense(req, expenseData, options) {
+  const remoteUser = options?.overrideRemoteUser || req.remoteUser;
   if (!remoteUser) {
     throw new Unauthorized('You need to be logged in to edit an expense');
   } else if (!canUseFeature(remoteUser, FEATURE.EXPENSES)) {
@@ -352,7 +352,7 @@ export async function editExpense(req, expenseData) {
 
   if (!expense) {
     throw new NotFound('Expense not found');
-  } else if (!(await ExpenseLib.canEditExpense(req, expense))) {
+  } else if (!options?.skipPermissionCheck && !(await ExpenseLib.canEditExpense(req, expense))) {
     throw new Unauthorized("You don't have permission to edit this expense");
   }
 
@@ -363,7 +363,7 @@ export async function editExpense(req, expenseData) {
   // Load the payee profile
   const fromCollective = expenseData.fromCollective || expense.fromCollective;
   if (expenseData.fromCollective && expenseData.fromCollective.id !== expense.fromCollective.id) {
-    if (!remoteUser.isAdmin(fromCollective.id)) {
+    if (!options?.skipPermissionCheck && !remoteUser.isAdmin(fromCollective.id)) {
       throw new ValidationFailed('You must be an admin of the account to submit an expense in its name');
     } else if (!fromCollective.canBeUsedAsPayoutProfile()) {
       throw new ValidationFailed('This account cannot be used for payouts');

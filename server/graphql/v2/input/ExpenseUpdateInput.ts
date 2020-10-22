@@ -2,7 +2,7 @@ import { GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } fr
 
 import { ExpenseType } from '../enum/ExpenseType';
 
-import { AccountReferenceInput } from './AccountReferenceInput';
+import { NewAccountOrReferenceInput } from './AccountReferenceInput';
 import { ExpenseAttachedFileInput } from './ExpenseAttachedFileInput';
 import { ExpenseItemInput } from './ExpenseItemInput';
 import { LocationInput } from './LocationInput';
@@ -60,7 +60,7 @@ export const ExpenseUpdateInput = new GraphQLInputObjectType({
       description: '(Optional) A list of files that you want to attach to this expense',
     },
     payee: {
-      type: AccountReferenceInput,
+      type: NewAccountOrReferenceInput,
       description: 'Account to reimburse',
     },
     payeeLocation: {

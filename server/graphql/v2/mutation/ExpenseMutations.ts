@@ -1,19 +1,24 @@
+import config from 'config';
 import { GraphQLBoolean, GraphQLInputObjectType, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
-import { omit, pick, size } from 'lodash';
+import { pick, size } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
+import activityType from '../../../constants/activities';
 import { types as collectiveTypes } from '../../../constants/collectives';
 import expenseStatus from '../../../constants/expense_status';
 import FEATURE from '../../../constants/feature';
+import logger from '../../../lib/logger';
 import { canUseFeature } from '../../../lib/user-permissions';
 import models from '../../../models';
 import {
   approveExpense,
   canDeleteExpense,
+  canEditExpense,
   rejectExpense,
   scheduleExpenseForPayment,
   unapproveExpense,
 } from '../../common/expenses';
+import { createUser } from '../../common/user';
 import { FeatureNotAllowedForUser, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import {
   createExpense as createExpenseLegacy,
@@ -87,12 +92,18 @@ const expenseMutations = {
         type: new GraphQLNonNull(ExpenseUpdateInput),
         description: 'Expense data',
       },
+      draftKey: {
+        type: GraphQLString,
+        description: 'Expense draft key if invited to submit expense',
+      },
     },
-    async resolve(_, { expense }, req): Promise<object> {
+    async resolve(_, args, req): Promise<object> {
       // Support deprecated `attachments` field
-      const items = expense.items || expense.attachments;
+      const items = args.expense.items || args.expense.attachments;
+      const expense = args.expense;
+      const payeeExists = expense.payee?.id || expense.payee?.legacyId;
 
-      return editExpenseLegacy(req, {
+      const expenseData = {
         id: idDecode(expense.id, IDENTIFIER_TYPES.EXPENSE),
         description: expense.description,
         tags: expense.tags,
@@ -119,8 +130,52 @@ const expenseMutations = {
           id: attachedFile.id && idDecode(attachedFile.id, IDENTIFIER_TYPES.EXPENSE_ITEM),
           url: attachedFile.url,
         })),
-        fromCollective: expense.payee && (await fetchAccountWithReference(expense.payee, { throwIfMissing: true })),
-      });
+        fromCollective: payeeExists && (await fetchAccountWithReference(expense.payee, { throwIfMissing: true })),
+      };
+
+      if (args.draftKey) {
+        // It is a submit on behalf being completed
+        const expenseId = getDatabaseIdFromExpenseReference(args.expense);
+        let existingExpense = await models.Expense.findByPk(expenseId, {
+          include: [{ model: models.Collective, as: 'collective' }],
+        });
+        if (existingExpense.status !== expenseStatus.DRAFT) {
+          throw new Unauthorized('Expense can not be edited.');
+        }
+        if (existingExpense.data.draftKey !== args.draftKey) {
+          throw new Unauthorized('You need to submit the right draft key to edit this expense');
+        }
+
+        const options = { overrideRemoteUser: undefined, skipPermissionCheck: true };
+        if (!payeeExists) {
+          const { organization: organizationData, ...payee } = expense.payee;
+          const { user, organization } = await createUser(pick(payee, ['name', 'email', 'newsletterOptIn']), {
+            organizationData,
+            throwIfExists: true,
+            sendSignInLink: true,
+            redirect: `/${existingExpense.collective.slug}/expenses/${expenseId}?key=${existingExpense.data.draftKey}`,
+            creationRequest: {
+              ip: req.ip,
+              userAgent: req.header?.['user-agent'],
+            },
+          });
+          expenseData.fromCollective = organization || user.collective;
+          options.overrideRemoteUser = user;
+          options.skipPermissionCheck = true;
+        }
+
+        existingExpense = await editExpenseLegacy(req, expenseData, options);
+
+        await existingExpense.update({
+          status: options.overrideRemoteUser?.id ? expenseStatus.UNVERIFIED : undefined,
+          lastEditedById: options.overrideRemoteUser?.id || req.remoteUser?.id,
+          UserId: req.remoteUser?.id,
+        });
+
+        return existingExpense;
+      }
+
+      return editExpenseLegacy(req, expenseData);
     },
   },
   deleteExpense: {
@@ -308,6 +363,62 @@ const expenseMutations = {
       return expense;
     },
   },
+  resendDraftExpenseInvite: {
+    type: new GraphQLNonNull(Expense),
+    description: 'To verify and unverified expense.',
+    args: {
+      expense: {
+        type: new GraphQLNonNull(ExpenseReferenceInput),
+        description: 'Reference of the expense to process',
+      },
+    },
+    async resolve(_, args, req): Promise<object> {
+      const expenseId = getDatabaseIdFromExpenseReference(args.expense);
+      const expense = await models.Expense.findByPk(expenseId, {
+        include: [{ model: models.Collective, as: 'collective' }],
+      });
+      if (!expense) {
+        throw new NotFound('Expense not found');
+      } else if (expense.status !== expenseStatus.DRAFT) {
+        throw new Unauthorized('Expense was already submitted.');
+      } else if (!(await canEditExpense(req, expense))) {
+        throw new Unauthorized("You don't have the permission to edit this expense.");
+      }
+
+      const inviteUrl = `${config.host.website}/${expense.collective.slug}/expenses/${expense.id}?key=${expense.data.draftKey}`;
+      expense
+        .createActivity(activityType.COLLECTIVE_EXPENSE_INVITE_DRAFTED, req.remoteUser, { ...expense.data, inviteUrl })
+        .catch(e => logger.error('An error happened when creating the COLLECTIVE_EXPENSE_INVITE_DRAFTED activity', e));
+
+      return expense;
+    },
+  },
+  verifyExpense: {
+    type: new GraphQLNonNull(Expense),
+    description: 'To verify and unverified expense.',
+    args: {
+      expense: {
+        type: new GraphQLNonNull(ExpenseReferenceInput),
+        description: 'Reference of the expense to process',
+      },
+      draftKey: {
+        type: GraphQLString,
+        description: 'Expense draft key if invited to submit expense',
+      },
+    },
+    async resolve(_, args, req): Promise<object> {
+      const expenseId = getDatabaseIdFromExpenseReference(args.expense);
+      const expense = await models.Expense.findByPk(expenseId);
+      if (!expense) {
+        throw new NotFound('Expense not found');
+      } else if (expense.status !== expenseStatus.UNVERIFIED) {
+        throw new Unauthorized('Expense can not be verified.');
+      } else if (expense.data?.draftKey !== args.draftKey) {
+        throw new Unauthorized('The provided draft key is not correct.');
+      } else if (!(await canEditExpense(req, expense))) {
+        throw new Unauthorized("You don't have the permission to edit this expense.");
+      }
+      await expense.update({ status: expenseStatus.PENDING });
       return expense;
     },
   },

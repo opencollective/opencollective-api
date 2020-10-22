@@ -14,11 +14,12 @@
  * ... -> approved -> scheduled_for_payment -> error
  *
  * Submit on Behalf:
- * draft -> pending -> ...
+ * draft -> unverified -> pending -> ...
  */
 
 export default {
   DRAFT: 'DRAFT',
+  UNVERIFIED: 'UNVERIFIED',
   PENDING: 'PENDING',
   APPROVED: 'APPROVED',
   REJECTED: 'REJECTED',
