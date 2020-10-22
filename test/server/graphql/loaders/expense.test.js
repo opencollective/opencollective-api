@@ -194,35 +194,76 @@ describe('server/graphql/loaders/expense', () => {
       });
     });
   });
-});
 
-describe('server/graphql/loaders/expense', () => {
   describe('requiredLegalDocuments', () => {
     const req = {};
-
-    let host, collective, expenseWithUserTaxForm, expenseWithOutUserTaxForm;
+    let host, collective, expenseWithUserTaxForm, expenseWithOutUserTaxForm, expenseWithTaxFormFromLastYear;
 
     before(async () => {
       host = await fakeHostWithRequiredLegalDocument();
       collective = await fakeCollective({ HostCollectiveId: host.id });
+      const fromCollective = (await fakeUser()).collective;
+      const fromCollective2 = (await fakeUser()).collective;
+
       expenseWithUserTaxForm = await fakeExpense({
         amount: US_TAX_FORM_THRESHOLD + 100e2,
+        FromCollectiveId: fromCollective.id,
         CollectiveId: collective.id,
         type: 'INVOICE',
+        status: 'APPROVED',
       });
-      expenseWithOutUserTaxForm = await fakeExpense({ type: 'INVOICE' });
+
+      expenseWithOutUserTaxForm = await fakeExpense({
+        type: 'INVOICE',
+        FromCollectiveId: fromCollective2.id,
+        CollectiveId: collective.id,
+        amount: US_TAX_FORM_THRESHOLD - 100e2,
+        status: 'APPROVED',
+      });
+
+      expenseWithTaxFormFromLastYear = await fakeExpense({
+        amount: US_TAX_FORM_THRESHOLD + 100e2,
+        FromCollectiveId: fromCollective2.id,
+        CollectiveId: collective.id,
+        type: 'INVOICE',
+        incurredAt: new moment().subtract(1, 'year').toDate(),
+        status: 'APPROVED',
+      });
+
+      // A fake expense to try to fool the previous results
+      await fakeExpense({
+        type: 'INVOICE',
+        FromCollectiveId: fromCollective2.id,
+        CollectiveId: (await fakeCollective()).id, // Host without tax form
+        amount: US_TAX_FORM_THRESHOLD + 100e2,
+        status: 'APPROVED',
+      });
     });
 
     it('returns required legal documents', async () => {
       const loader = requiredLegalDocuments({ loaders: loaders(req) });
-      const result = await loader.load(expenseWithUserTaxForm.id);
-      expect(result).to.have.length(1);
+      let result = await loader.load(expenseWithUserTaxForm.id);
+      expect(result).to.deep.eq([LEGAL_DOCUMENT_TYPE.US_TAX_FORM]);
+
+      result = await loader.load(expenseWithTaxFormFromLastYear.id);
+      expect(result).to.deep.eq([LEGAL_DOCUMENT_TYPE.US_TAX_FORM]);
     });
 
     it('returns no required legal document', async () => {
       const loader = requiredLegalDocuments({ loaders: loaders(req) });
       const result = await loader.load(expenseWithOutUserTaxForm.id);
-      expect(result).to.have.length(0);
+      expect(result).to.deep.eq([]);
+    });
+
+    it('is not fooled by other expenses in the loader', async () => {
+      const loader = requiredLegalDocuments({ loaders: loaders(req) });
+      const result = await loader.loadMany([
+        expenseWithUserTaxForm.id,
+        expenseWithTaxFormFromLastYear.id,
+        expenseWithOutUserTaxForm.id,
+      ]);
+
+      expect(result).to.deep.eq([[LEGAL_DOCUMENT_TYPE.US_TAX_FORM], [LEGAL_DOCUMENT_TYPE.US_TAX_FORM], []]);
     });
   });
 });
