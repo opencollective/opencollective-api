@@ -34,6 +34,12 @@
     "images": "https://images-staging.opencollective.com",
     "invoices": "https://invoices-staging.opencollective.com"
   },
+  "fees": {
+    "default": {
+      "hostPercent": 0,
+      "platformPercent": 0
+    }
+  },
   "limits": {
     "ordersPerHour": {
       "perAccount": 10,

@@ -1,6 +1,7 @@
+import config from 'config';
 import { get } from 'lodash';
 
-import { OC_FEE_PERCENT, TransactionTypes } from '../../constants/transactions';
+import { TransactionTypes } from '../../constants/transactions';
 import * as currency from '../../lib/currency';
 import * as libpayments from '../../lib/payments';
 import models, { Op } from '../../models';
@@ -85,7 +86,9 @@ async function processOrder(order) {
 
   const feeOnTop = order.data?.platformFee || 0;
   const defaultPlatformFee =
-    order.collective.platformFeePercent === null ? OC_FEE_PERCENT : order.collective.platformFeePercent;
+    order.collective.platformFeePercent === null
+      ? config.fees.default.platformPercent
+      : order.collective.platformFeePercent;
   const platformFeePercent = get(order, 'data.platformFeePercent', defaultPlatformFee);
   const platformFeeInHostCurrency = feeOnTop || libpayments.calcFee(order.totalAmount, platformFeePercent);
 

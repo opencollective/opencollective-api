@@ -1,10 +1,12 @@
+import config from 'config';
 import { isNumber, pick } from 'lodash';
 
 import { maxInteger } from '../../constants/math';
-import { HOST_FEE_PERCENT, TransactionTypes } from '../../constants/transactions';
+import { TransactionTypes } from '../../constants/transactions';
 import { FEATURE, hasOptedInForFeature } from '../../lib/allowed-features';
 import { createRefundTransaction } from '../../lib/payments';
 import models from '../../models';
+
 /**
  * Manual Payment method
  * This payment method enables a host to manually receive donations (e.g. by wire directly to the host's bank account)
@@ -63,7 +65,7 @@ async function processOrder(order) {
     // Default for Collective
     order.collective.hostFeePercent,
     // Just in case, default on the platform
-    HOST_FEE_PERCENT,
+    config.fees.default.hostPercent,
   ].find(isNumber);
 
   const isFeesOnTop = order.data?.isFeesOnTop || false;
