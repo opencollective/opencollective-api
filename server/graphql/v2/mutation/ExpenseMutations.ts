@@ -177,7 +177,7 @@ const expenseMutations = {
             },
             twoFactorAuthenticatorCode: {
               type: GraphQLString,
-              description: '2FA code for if the host account has it turned on and the transaction is large.',
+              description: '2FA code for if the host account has 2FA for payouts turned on.',
             },
           },
         }),

@@ -1,14 +1,22 @@
 import { expect } from 'chai';
+import config from 'config';
+import crypto from 'crypto-js';
 import gqlV2 from 'fake-tag';
 import { pick } from 'lodash';
+import sinon from 'sinon';
+import speakeasy from 'speakeasy';
 
 import { expenseStatus } from '../../../../../server/constants';
 import { payExpense } from '../../../../../server/graphql/v1/mutations/expenses.js';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
+import { getFxRate } from '../../../../../server/lib/currency';
 import models from '../../../../../server/models';
+import { PayoutMethodTypes } from '../../../../../server/models/PayoutMethod';
+import paymentProviders from '../../../../../server/paymentProviders';
 import { randEmail, randUrl } from '../../../../stores';
 import {
   fakeCollective,
+  fakeConnectedAccount,
   fakeExpense,
   fakeExpenseItem,
   fakePayoutMethod,
@@ -17,6 +25,27 @@ import {
   randStr,
 } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, makeRequest } from '../../../../utils';
+
+const SECRET_KEY = config.dbEncryption.secretKey;
+const CIPHER = config.dbEncryption.cipher;
+
+export const addFunds = async (user, hostCollective, collective, amount) => {
+  const currency = collective.currency || 'USD';
+  const hostCurrencyFxRate = await getFxRate(currency, hostCollective.currency);
+  const amountInHostCurrency = Math.round(hostCurrencyFxRate * amount);
+  await models.Transaction.create({
+    CreatedByUserId: user.id,
+    HostCollectiveId: hostCollective.id,
+    type: 'CREDIT',
+    amount,
+    amountInHostCurrency,
+    hostCurrencyFxRate,
+    netAmountInCollectiveCurrency: amount,
+    hostCurrency: hostCollective.currency,
+    currency,
+    CollectiveId: collective.id,
+  });
+};
 
 const createExpenseMutation = gqlV2/* GraphQL */ `
   mutation CreateExpense($expense: ExpenseCreateInput!, $account: AccountReferenceInput!) {
@@ -751,6 +780,161 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.eq('Expense is already scheduled for payment');
       });
+    });
+  });
+
+  describe('processExpense > PAY > with 2FA payouts', () => {
+    const fee = 1.74;
+    let collective, host, collectiveAdmin, hostAdmin, sandbox, expense1, expense2, expense3, expense4, user;
+
+    before(() => {
+      sandbox = sinon.createSandbox();
+      sandbox.stub(paymentProviders.transferwise, 'payExpense').resolves({ quote: { fee } });
+      sandbox.stub(paymentProviders.transferwise, 'getTemporaryQuote').resolves({ fee });
+    });
+
+    after(() => sandbox.restore());
+
+    before(async () => {
+      hostAdmin = await fakeUser();
+      user = await fakeUser();
+      collectiveAdmin = await fakeUser();
+      host = await fakeCollective({
+        admin: hostAdmin.collective,
+        settings: { payoutsTwoFactorAuth: { enabled: true, rollingLimit: 50000 } },
+      });
+      collective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdmin.collective });
+      await hostAdmin.populateRoles();
+      await host.update({ plan: 'network-host-plan' });
+      await addFunds(user, host, collective, 15000000);
+      await fakeConnectedAccount({
+        CollectiveId: host.id,
+        service: 'transferwise',
+        token: 'faketoken',
+        data: { type: 'business', id: 0 },
+      });
+      const payoutMethod = await fakePayoutMethod({
+        type: PayoutMethodTypes.BANK_ACCOUNT,
+        data: {
+          accountHolderName: 'Mopsa Mopsa',
+          currency: 'EUR',
+          type: 'iban',
+          legalType: 'PRIVATE',
+          details: {
+            IBAN: 'DE89370400440532013000',
+          },
+        },
+      });
+      expense1 = await fakeExpense({
+        payoutMethod: 'transferwise',
+        status: expenseStatus.APPROVED,
+        amount: 10000,
+        CollectiveId: collective.id,
+        UserId: user.id,
+        currency: 'USD',
+        PayoutMethodId: payoutMethod.id,
+        category: 'Engineering',
+        type: 'INVOICE',
+        description: 'January Invoice',
+      });
+      expense2 = await fakeExpense({
+        payoutMethod: 'transferwise',
+        status: expenseStatus.APPROVED,
+        amount: 30000,
+        CollectiveId: collective.id,
+        UserId: user.id,
+        currency: 'USD',
+        PayoutMethodId: payoutMethod.id,
+        category: 'Engineering',
+        type: 'INVOICE',
+        description: 'January Invoice',
+      });
+      expense3 = await fakeExpense({
+        payoutMethod: 'transferwise',
+        status: expenseStatus.APPROVED,
+        amount: 15000,
+        CollectiveId: collective.id,
+        UserId: user.id,
+        currency: 'USD',
+        PayoutMethodId: payoutMethod.id,
+        category: 'Engineering',
+        type: 'INVOICE',
+        description: 'January Invoice',
+      });
+      expense4 = await fakeExpense({
+        payoutMethod: 'transferwise',
+        status: expenseStatus.APPROVED,
+        amount: 20000,
+        CollectiveId: collective.id,
+        UserId: user.id,
+        currency: 'USD',
+        PayoutMethodId: payoutMethod.id,
+        category: 'Engineering',
+        type: 'INVOICE',
+        description: 'January Invoice',
+      });
+    });
+
+    it('Tries to pay the expense but 2FA is enabled so the 2FA code needs to be entered', async () => {
+      const mutationParams = { expenseId: expense1.id, action: 'PAY' };
+      const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('Host has two-factor authentication enabled for large payouts.');
+    });
+
+    it('Pays multiple expenses - 2FA is asked for the first time and after the limit is exceeded', async () => {
+      const secret = speakeasy.generateSecret({ length: 64 });
+      const encryptedToken = crypto[CIPHER].encrypt(secret.base32, SECRET_KEY).toString();
+      await hostAdmin.update({ twoFactorAuthToken: encryptedToken });
+      const twoFactorAuthenticatorCode = speakeasy.totp({
+        algorithm: 'SHA1',
+        encoding: 'base32',
+        secret: secret.base32,
+      });
+
+      // process expense 1 giving 2FA the first time - limit will be set to 0/500
+      const expenseMutationParams1 = {
+        expenseId: expense1.id,
+        action: 'PAY',
+        paymentParams: { twoFactorAuthenticatorCode },
+      };
+      const result1 = await graphqlQueryV2(processExpenseMutation, expenseMutationParams1, hostAdmin);
+
+      expect(result1.errors).to.not.exist;
+      expect(result1.data.processExpense.status).to.eq('PROCESSING');
+
+      // process expense 2, no 2FA code - limit will be 300/500
+      const expenseMutationParams2 = {
+        expenseId: expense2.id,
+        action: 'PAY',
+      };
+      const result2 = await graphqlQueryV2(processExpenseMutation, expenseMutationParams2, hostAdmin);
+
+      expect(result2.errors).to.not.exist;
+      expect(result2.data.processExpense.status).to.eq('PROCESSING');
+
+      // process expense 3, no 2FA code - limit will be 450/500
+      const expenseMutationParams3 = {
+        expenseId: expense3.id,
+        action: 'PAY',
+      };
+      const result3 = await graphqlQueryV2(processExpenseMutation, expenseMutationParams3, hostAdmin);
+
+      expect(result3.errors).to.not.exist;
+      expect(result3.data.processExpense.status).to.eq('PROCESSING');
+
+      // process expense 4, no 2FA code - limit will be exceeded and we will be asked to enter the 2FA code again
+      const expenseMutationParams4 = {
+        expenseId: expense4.id,
+        action: 'PAY',
+      };
+      const result4 = await graphqlQueryV2(processExpenseMutation, expenseMutationParams4, hostAdmin);
+
+      expect(result4.errors).to.exist;
+      expect(result4.errors[0].message).to.eq(
+        'Two-factor authentication payout limit exceeded: please re-enter your code.',
+      );
     });
   });
 });

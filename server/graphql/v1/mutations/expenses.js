@@ -8,12 +8,15 @@ import statuses from '../../../constants/expense_status';
 import expenseType from '../../../constants/expense_type';
 import FEATURE from '../../../constants/feature';
 import roles from '../../../constants/roles';
-import { enforceTwoFactorAuthenticationOnPayouts } from '../../../lib/auth';
 import { getFxRate } from '../../../lib/currency';
 import { floatAmountToCents } from '../../../lib/math';
 import * as libPayments from '../../../lib/payments';
 import { handleTransferwisePayoutsLimit } from '../../../lib/plans';
 import { createFromPaidExpense as createTransactionFromPaidExpense } from '../../../lib/transactions';
+import {
+  handleTwoFactorAuthenticationPayoutLimit,
+  resetRollingPayoutLimitOnFailure,
+} from '../../../lib/two-factor-authentication';
 import { canUseFeature } from '../../../lib/user-permissions';
 import { formatCurrency } from '../../../lib/utils';
 import models, { sequelize } from '../../../models';
@@ -703,67 +706,75 @@ export async function payExpense(req, args) {
       );
     }
 
-    // If the amount of the expense is larger than i.e. $1000 enforce 2FA if the user has it turned on
-    const is2FARequiredForPayoutMethod = [PayoutMethodTypes.PAYPAL, PayoutMethodTypes.BANK_ACCOUNT].includes(
-      payoutMethodType,
-    );
-    const hostHasPayout2FAEnabled = get(host, 'settings.payoutsTwoFactorAuth.enabled', false);
-    const hostPayout2FAExpenseAmount = get(host, 'settings.payoutsTwoFactorAuth.expenseAmount', 100000);
-    if (
-      is2FARequiredForPayoutMethod &&
+    // 2FA for payouts
+    const isTwoFactorAuthenticationRequiredForPayoutMethod = [
+      PayoutMethodTypes.PAYPAL,
+      PayoutMethodTypes.BANK_ACCOUNT,
+    ].includes(payoutMethodType);
+    const hostHasPayoutTwoFactorAuthenticationEnabled = get(host, 'settings.payoutsTwoFactorAuth.enabled', false);
+    const useTwoFactorAuthentication =
+      isTwoFactorAuthenticationRequiredForPayoutMethod &&
       !args.forceManual &&
-      hostHasPayout2FAEnabled &&
-      expense.amount >= hostPayout2FAExpenseAmount
-    ) {
-      enforceTwoFactorAuthenticationOnPayouts(req, args.twoFactorAuthenticatorCode);
+      hostHasPayoutTwoFactorAuthenticationEnabled;
+
+    if (useTwoFactorAuthentication) {
+      await handleTwoFactorAuthenticationPayoutLimit(req.remoteUser, args.twoFactorAuthenticatorCode, expense);
     }
 
-    // Pay expense based on chosen payout method
-    if (payoutMethodType === PayoutMethodTypes.PAYPAL) {
-      const paypalEmail = payoutMethod.data.email;
-      let paypalPaymentMethod = null;
-      try {
-        paypalPaymentMethod = await host.getPaymentMethod({ service: 'paypal' });
-      } catch {
-        // ignore missing paypal payment method
-      }
-      // If the expense has been filed with the same paypal email than the host paypal
-      // then we simply mark the expense as paid
-      if (paypalPaymentMethod && paypalEmail === paypalPaymentMethod.name) {
-        feesInHostCurrency.paymentProcessorFeeInHostCurrency = 0;
+    try {
+      // Pay expense based on chosen payout method
+      if (payoutMethodType === PayoutMethodTypes.PAYPAL) {
+        const paypalEmail = payoutMethod.data.email;
+        let paypalPaymentMethod = null;
+        try {
+          paypalPaymentMethod = await host.getPaymentMethod({ service: 'paypal' });
+        } catch {
+          // ignore missing paypal payment method
+        }
+        // If the expense has been filed with the same paypal email than the host paypal
+        // then we simply mark the expense as paid
+        if (paypalPaymentMethod && paypalEmail === paypalPaymentMethod.name) {
+          feesInHostCurrency.paymentProcessorFeeInHostCurrency = 0;
+          await createTransactions(host, expense, feesInHostCurrency);
+        } else if (args.forceManual) {
+          await createTransactions(host, expense, feesInHostCurrency);
+        } else if (paypalPaymentMethod) {
+          await payExpenseWithPayPal(remoteUser, expense, host, paypalPaymentMethod, paypalEmail, feesInHostCurrency);
+        } else {
+          throw new Error('No Paypal account linked, please reconnect Paypal or pay manually');
+        }
+      } else if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT) {
+        if (args.forceManual) {
+          feesInHostCurrency.paymentProcessorFeeInHostCurrency = 0;
+          await createTransactions(host, expense, feesInHostCurrency);
+        } else {
+          await payExpenseWithTransferwise(host, payoutMethod, expense, feesInHostCurrency, remoteUser);
+          await expense.setProcessing(remoteUser.id);
+          // Early return, we'll only mark as Paid when the transaction completes.
+          return expense;
+        }
+      } else if (payoutMethodType === PayoutMethodTypes.ACCOUNT_BALANCE) {
+        const payee = expense.fromCollective;
+        const payeeHost = await payee.getHostCollective();
+        if (!payeeHost) {
+          throw new Error('The payee needs to have an Host to able to be paid on its Open Collective balance.');
+        }
+        if (host.id !== payeeHost.id) {
+          throw new Error(
+            'The payee needs to be on the same Host than the payer to be paid on its Open Collective balance.',
+          );
+        }
         await createTransactions(host, expense, feesInHostCurrency);
-      } else if (args.forceManual) {
+      } else if (expense.legacyPayoutMethod === 'manual' || expense.legacyPayoutMethod === 'other') {
+        // note: we need to check for manual and other for legacy reasons
         await createTransactions(host, expense, feesInHostCurrency);
-      } else if (paypalPaymentMethod) {
-        await payExpenseWithPayPal(remoteUser, expense, host, paypalPaymentMethod, paypalEmail, feesInHostCurrency);
-      } else {
-        throw new Error('No Paypal account linked, please reconnect Paypal or pay manually');
       }
-    } else if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT) {
-      if (args.forceManual) {
-        feesInHostCurrency.paymentProcessorFeeInHostCurrency = 0;
-        await createTransactions(host, expense, feesInHostCurrency);
-      } else {
-        await payExpenseWithTransferwise(host, payoutMethod, expense, feesInHostCurrency, remoteUser);
-        await expense.setProcessing(remoteUser.id);
-        // Early return, we'll only mark as Paid when the transaction completes.
-        return expense;
+    } catch (error) {
+      if (useTwoFactorAuthentication) {
+        await resetRollingPayoutLimitOnFailure(req.remoteUser, expense);
       }
-    } else if (payoutMethodType === PayoutMethodTypes.ACCOUNT_BALANCE) {
-      const payee = expense.fromCollective;
-      const payeeHost = await payee.getHostCollective();
-      if (!payeeHost) {
-        throw new Error('The payee needs to have an Host to able to be paid on its Open Collective balance.');
-      }
-      if (host.id !== payeeHost.id) {
-        throw new Error(
-          'The payee needs to be on the same Host than the payer to be paid on its Open Collective balance.',
-        );
-      }
-      await createTransactions(host, expense, feesInHostCurrency);
-    } else if (expense.legacyPayoutMethod === 'manual' || expense.legacyPayoutMethod === 'other') {
-      // note: we need to check for manual and other for legacy reasons
-      await createTransactions(host, expense, feesInHostCurrency);
+
+      return error;
     }
 
     return markExpenseAsPaid(expense, remoteUser);
