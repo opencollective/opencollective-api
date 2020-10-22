@@ -134,7 +134,10 @@ async function run({ dryRun, limit } = {}) {
 
     const activity = {
       type: 'contribution.rejected',
-      data: { collective: { name: collective.name } },
+      data: {
+        collective: { name: collective.name },
+        rejectionReason: `${collective.name} banned some specific categories of contributors and there was a match with your profile.`,
+      },
     };
 
     logger.info(`  - Notifying admins of ${fromCollective.slug}`);
