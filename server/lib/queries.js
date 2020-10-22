@@ -937,6 +937,9 @@ const getTaxFormsRequiredForExpenses = expenseIds => {
     INNER JOIN "RequiredLegalDocuments" d
       ON d."HostCollectiveId" = c."HostCollectiveId"
       AND d."documentType" = 'US_TAX_FORM'
+    INNER JOIN "Collectives" all_expenses_collectives
+      ON all_expenses_collectives.id = all_expenses."CollectiveId"
+      AND all_expenses_collectives."HostCollectiveId" = d."HostCollectiveId"
     LEFT JOIN "LegalDocuments" ld
       ON ld."CollectiveId" = analyzed_expenses."FromCollectiveId"
       AND ld.year = date_part('year', analyzed_expenses."incurredAt")
@@ -949,9 +952,7 @@ const getTaxFormsRequiredForExpenses = expenseIds => {
     AND all_expenses.type != 'RECEIPT'
     AND all_expenses.status NOT IN ('ERROR', 'REJECTED')
     AND all_expenses."deletedAt" IS NULL
-    AND all_expenses."incurredAt"
-      BETWEEN date_trunc('year', analyzed_expenses."incurredAt")
-      AND (date_trunc('year', analyzed_expenses."incurredAt") + interval '1 year')
+    AND date_trunc('year', all_expenses."incurredAt") = date_trunc('year', analyzed_expenses."incurredAt")
     GROUP BY analyzed_expenses.id, analyzed_expenses."FromCollectiveId", d."documentType"
   `,
     {
