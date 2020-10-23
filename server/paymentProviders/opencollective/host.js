@@ -1,9 +1,7 @@
-import { get } from 'lodash';
-
 import { maxInteger } from '../../constants/math';
 import { TransactionTypes } from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
-import * as paymentsLib from '../../lib/payments';
+import { calcFee, getHostFeePercent, getPlatformFeePercent } from '../../lib/payments';
 import models from '../../models';
 
 const paymentMethodProvider = {};
@@ -25,8 +23,8 @@ paymentMethodProvider.processOrder = async order => {
     throw new Error('Can only use the Host payment method to Add Funds to an hosted Collective.');
   }
 
-  const hostFeePercent = get(order, 'data.hostFeePercent', 0);
-  const platformFeePercent = get(order, 'data.platformFeePercent', 0);
+  const hostFeePercent = await getHostFeePercent(order);
+  const platformFeePercent = await getPlatformFeePercent(order);
 
   const payload = {
     CreatedByUserId: order.CreatedByUserId,
@@ -43,8 +41,8 @@ paymentMethodProvider.processOrder = async order => {
   const fxrate = await getFxRate(order.currency, order.paymentMethod.currency);
   const totalAmountInPaymentMethodCurrency = order.totalAmount * fxrate;
 
-  const hostFeeInHostCurrency = paymentsLib.calcFee(order.totalAmount * fxrate, hostFeePercent);
-  const platformFeeInHostCurrency = paymentsLib.calcFee(order.totalAmount * fxrate, platformFeePercent);
+  const hostFeeInHostCurrency = calcFee(order.totalAmount * fxrate, hostFeePercent);
+  const platformFeeInHostCurrency = calcFee(order.totalAmount * fxrate, platformFeePercent);
 
   payload.transaction = {
     type: TransactionTypes.CREDIT,

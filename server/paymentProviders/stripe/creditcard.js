@@ -3,7 +3,7 @@ import { get, result } from 'lodash';
 
 import * as constants from '../../constants/transactions';
 import logger from '../../lib/logger';
-import * as paymentsLib from '../../lib/payments';
+import { createRefundTransaction, getHostFee, getPlatformFee } from '../../lib/payments';
 import stripe, { extractFees } from '../../lib/stripe';
 import models from '../../models';
 
@@ -111,7 +111,7 @@ const getOrCreateCustomerOnHostAccount = async (hostStripeAccount, { paymentMeth
  */
 const createChargeAndTransactions = async (hostStripeAccount, { order, hostStripeCustomer }) => {
   // Read or compute Platform Fee
-  const platformFee = paymentsLib.getPlatformFee(order);
+  const platformFee = await getPlatformFee(order.totalAmount, order);
 
   // Make sure data is available (breaking in some old tests)
   order.data = order.data || {};
@@ -183,9 +183,7 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
 
   // Create a Transaction
   const fees = extractFees(balanceTransaction);
-  const hostFeePercent = get(order, 'data.hostFeePercent', order.collective.hostFeePercent);
-  const feeOnTop = order.data?.platformFee || 0;
-  const hostFeeInHostCurrency = paymentsLib.calcFee(balanceTransaction.amount - feeOnTop, hostFeePercent);
+  const hostFeeInHostCurrency = await getHostFee(balanceTransaction.amount, order);
   const payload = {
     CreatedByUserId: order.CreatedByUserId,
     FromCollectiveId: order.FromCollectiveId,
@@ -367,7 +365,7 @@ export default {
     const fees = extractFees(refundBalance);
 
     /* Create negative transactions for the received transaction */
-    return await paymentsLib.createRefundTransaction(
+    return await createRefundTransaction(
       transaction,
       fees.stripeFee,
       {
@@ -404,7 +402,7 @@ export default {
     const fees = extractFees(refundBalance);
 
     /* Create negative transactions for the received transaction */
-    return await paymentsLib.createRefundTransaction(
+    return await createRefundTransaction(
       transaction,
       fees.stripeFee,
       { ...transaction.data, charge, refund, balanceTransaction: refundBalance },
