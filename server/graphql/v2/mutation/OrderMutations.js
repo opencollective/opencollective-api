@@ -1,4 +1,4 @@
-import { GraphQLNonNull, GraphQLObjectType } from 'graphql';
+import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { isNil, isNull, isUndefined } from 'lodash';
 
 import activities from '../../../constants/activities';
@@ -31,6 +31,10 @@ const OrderWithPayment = new GraphQLObjectType({
       type: new GraphQLNonNull(Order),
       description: 'The order created',
     },
+    guestToken: {
+      type: GraphQLString,
+      description: 'If donating as a guest, this will contain your guest token to contribute again in the future',
+    },
     stripeError: {
       type: StripeError,
       description:
@@ -49,9 +53,7 @@ const orderMutations = {
       },
     },
     async resolve(_, args, req) {
-      if (!req.remoteUser) {
-        throw new Error('Unauthenticated orders are not supported yet');
-      } else if (args.order.taxes?.length > 1) {
+      if (args.order.taxes?.length > 1) {
         throw new Error('Attaching multiple taxes is not supported yet');
       }
 
@@ -69,8 +71,7 @@ const orderMutations = {
       const loadersParams = { loaders: req.loaders, throwIfMissing: true };
       const loadAccount = account => fetchAccountWithReference(account, loadersParams);
       const tier = order.tier && (await fetchTierWithReference(order.tier, loadersParams));
-
-      const fromCollective = await loadAccount(order.fromAccount);
+      const fromCollective = order.fromAccount && (await loadAccount(order.fromAccount));
       const collective = await loadAccount(order.toAccount);
 
       const legacyOrderObj = {
@@ -83,16 +84,17 @@ const orderMutations = {
         taxIDNumber: tax?.idNumber,
         isFeesOnTop: !isNil(platformFee),
         paymentMethod: await getLegacyPaymentMethodFromPaymentMethodInput(order.paymentMethod),
-        fromCollective: { id: fromCollective.id },
+        fromCollective: fromCollective && { id: fromCollective.id },
         collective: { id: collective.id },
         totalAmount: getOrderTotalAmount(order),
         customData: order.customData,
-        tier,
+        tier: tier && { id: tier.id },
+        guestInfo: order.guestInfo,
         platformFee,
       };
 
-      const orderCreated = await createOrderLegacy(legacyOrderObj, req.loaders, req.remoteUser, req.ip);
-      return { order: orderCreated, stripeError: orderCreated.stripeError };
+      const result = await createOrderLegacy(legacyOrderObj, req.loaders, req.remoteUser, req.ip);
+      return { order: result.order, stripeError: result.stripeError, guestToken: result.guestToken?.value };
     },
   },
   cancelOrder: {
@@ -261,13 +263,18 @@ const orderMutations = {
       order: {
         type: new GraphQLNonNull(OrderReferenceInput),
       },
+      guestToken: {
+        type: GraphQLString,
+        description: 'If the order was made as a guest, you can use this field to authenticate',
+      },
     },
     async resolve(_, args, req) {
       const baseOrder = await fetchOrderWithReference(args.order);
-      const updatedOrder = await confirmOrderLegacy(baseOrder, req.remoteUser);
+      const updatedOrder = await confirmOrderLegacy(baseOrder, req.remoteUser, args.guestToken);
       return {
         order: updatedOrder,
         stripeError: updatedOrder.stripeError,
+        guestToken: args.guestToken,
       };
     },
   },

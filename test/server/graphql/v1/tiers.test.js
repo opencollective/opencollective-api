@@ -7,6 +7,7 @@ import sinon from 'sinon';
 import { VAT_OPTIONS } from '../../../../server/constants/vat';
 import stripe from '../../../../server/lib/stripe';
 import models from '../../../../server/models';
+import { randEmail } from '../../../stores';
 import { fakeHost, fakeUser } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
@@ -258,9 +259,13 @@ describe('server/graphql/v1/tiers', () => {
         const order = generateLoggedOutOrder(user1.email);
         order.paymentMethod = { uuid: paymentMethod1.uuid, service: 'stripe' };
 
-        const result = await utils.graphqlQuery(createOrderMutation, { order });
+        const result = await utils.graphqlQuery(createOrderMutation, {
+          order: { ...order, guestInfo: { email: randEmail() } },
+        });
         expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.equal('You need to be authenticated to perform this action');
+        expect(result.errors[0].message).to.equal(
+          'You need to be logged in to be able to use an existing payment method',
+        );
       });
 
       it('fails to use a payment method on file if not logged in as the owner', async () => {

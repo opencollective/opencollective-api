@@ -77,6 +77,12 @@ export default (Sequelize, DataTypes) => {
         defaultValue: Sequelize.NOW,
       },
 
+      confirmedAt: {
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW,
+        allowNull: true,
+      },
+
       lastLoginAt: {
         type: DataTypes.DATE,
       },

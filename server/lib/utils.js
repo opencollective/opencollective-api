@@ -547,6 +547,11 @@ export function promiseSeq(arr, predicate, consecutive = 100) {
 }
 
 export function parseToBoolean(value) {
+  // If value is already a boolean, don't bother converting it
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
   let lowerValue = value;
   // check whether it's string
   if (lowerValue && (typeof lowerValue === 'string' || lowerValue instanceof String)) {

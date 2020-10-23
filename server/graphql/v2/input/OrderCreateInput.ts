@@ -5,6 +5,7 @@ import { ContributionFrequency } from '../enum/ContributionFrequency';
 
 import { AccountReferenceInput } from './AccountReferenceInput';
 import { AmountInput } from './AmountInput';
+import { GuestInfoInput } from './GuestInfoInput';
 import { OrderTaxInput } from './OrderTaxInput';
 import { PaymentMethodInput } from './PaymentMethodInput';
 import { TierReferenceInput } from './TierReferenceInput';
@@ -25,12 +26,16 @@ export const OrderCreateInput = new GraphQLInputObjectType({
       type: new GraphQLNonNull(ContributionFrequency),
     },
     fromAccount: {
-      type: new GraphQLNonNull(AccountReferenceInput),
-      description: 'The profile making the order',
+      type: AccountReferenceInput,
+      description: 'The profile making the order. Can be null for guest contributions.',
     },
     toAccount: {
       type: new GraphQLNonNull(AccountReferenceInput),
       description: 'The profile you want to contribute to',
+    },
+    guestInfo: {
+      type: GuestInfoInput,
+      description: 'Use this when fromAccount is null to pass the guest info',
     },
     paymentMethod: {
       description: 'The payment method used for this order',

@@ -64,7 +64,9 @@ export const PaymentMethod = new GraphQLObjectType({
       account: {
         type: Account,
         resolve(paymentMethod, _, req) {
-          return req.loaders.Collective.byId.load(paymentMethod.CollectiveId);
+          if (paymentMethod.CollectiveId) {
+            return req.loaders.Collective.byId.load(paymentMethod.CollectiveId);
+          }
         },
       },
       sourcePaymentMethod: {

@@ -446,7 +446,9 @@ describe('server/graphql/v1/createOrder', () => {
 
     // Then there should be errors
     expect(res.errors).to.exist;
-    expect(res.errors[0].message).to.equal('You need to be authenticated to perform this action');
+    expect(res.errors[0].message).to.equal(
+      'You need to provide a guest profile with an email for logged out contributions',
+    );
   });
 
   it("doesn't store the payment method for user if order fail", async () => {

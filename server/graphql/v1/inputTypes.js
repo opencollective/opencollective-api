@@ -304,6 +304,25 @@ export const TierInputType = new GraphQLInputObjectType({
   }),
 });
 
+export const GuestInfoInput = new GraphQLInputObjectType({
+  name: 'GuestInfoInput',
+  description: 'Input type for guest contributions',
+  fields: {
+    email: {
+      type: GraphQLString,
+      description: "Contributor's email",
+    },
+    name: {
+      type: GraphQLString,
+      description: 'Full name of the user',
+    },
+    token: {
+      type: GraphQLString,
+      description: 'The unique guest token',
+    },
+  },
+});
+
 export const OrderInputType = new GraphQLInputObjectType({
   name: 'OrderInputType',
   description: 'Input type for OrderType',
@@ -324,12 +343,16 @@ export const OrderInputType = new GraphQLInputObjectType({
     publicMessage: { type: GraphQLString },
     privateMessage: { type: GraphQLString },
     paymentMethod: { type: PaymentMethodInputType },
-    user: { type: UserInputType },
+    user: { type: UserInputType, deprecationReason: '2020-10-13: This field is now ignored' },
     fromCollective: { type: CollectiveAttributesInputType },
     collective: { type: new GraphQLNonNull(CollectiveAttributesInputType) },
     tier: { type: TierInputType },
     customData: { type: GraphQLJSON },
     recaptchaToken: { type: GraphQLString },
+    guestInfo: {
+      type: GuestInfoInput,
+      description: 'Use this when fromAccount is null to pass the guest info',
+    },
     // For taxes
     taxAmount: {
       type: GraphQLInt,
