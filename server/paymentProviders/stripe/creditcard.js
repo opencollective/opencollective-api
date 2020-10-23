@@ -175,13 +175,6 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
     throw new Error(UNKNOWN_ERROR_MSG);
   }
 
-  // Success: delete reference to paymentIntent
-  // TODO: paymentIntent should be later removed anyway on success, see subscriptions.js and orders.js
-  if (order.data.paymentIntent) {
-    delete order.data.paymentIntent;
-    await order.update({ data: order.data });
-  }
-
   const charge = paymentIntent.charges.data[0];
 
   const balanceTransaction = await stripe.balanceTransactions.retrieve(charge.balance_transaction, {
