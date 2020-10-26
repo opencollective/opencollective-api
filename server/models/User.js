@@ -14,17 +14,6 @@ import { isValidEmail } from '../lib/utils';
 
 const debug = debugLib('models:User');
 
-const splitName = name => {
-  let firstName = null,
-    lastName = null;
-  if (name) {
-    const tokens = name.split(' ');
-    firstName = tokens[0];
-    lastName = tokens.length > 1 ? tokens.slice(1).join(' ') : null;
-  }
-  return { firstName, lastName };
-};
-
 /**
  * Model.
  */
@@ -204,13 +193,6 @@ export default (Sequelize, DataTypes) => {
             firstName: this.firstName,
             lastName: this.lastName,
           };
-        },
-      },
-      setterMethods: {
-        name(value) {
-          const { firstName, lastName } = splitName(value);
-          this.setDataValue('firstName', firstName);
-          this.setDataValue('lastName', lastName);
         },
       },
     },
@@ -455,7 +437,7 @@ export default (Sequelize, DataTypes) => {
     const sequelizeParams = transaction ? { transaction } : undefined;
     debug('createUserWithCollective', userData);
     // TODO: 'firstName', 'lastName' are deprecated in the User table
-    const cleanUserData = pick(userData, ['email', 'firstName', 'lastName', 'name', 'newsletterOptIn']);
+    const cleanUserData = pick(userData, ['email', 'firstName', 'lastName', 'newsletterOptIn']);
     const user = await User.create(cleanUserData, sequelizeParams);
     let name = userData.firstName;
     if (name && userData.lastName) {
@@ -502,7 +484,16 @@ export default (Sequelize, DataTypes) => {
     return user;
   };
 
-  User.splitName = splitName;
+  User.splitName = name => {
+    let firstName = null,
+      lastName = null;
+    if (name) {
+      const tokens = name.split(' ');
+      firstName = tokens[0];
+      lastName = tokens.length > 1 ? tokens.slice(1).join(' ') : null;
+    }
+    return { firstName, lastName };
+  };
 
   return User;
 };

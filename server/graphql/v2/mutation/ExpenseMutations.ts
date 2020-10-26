@@ -149,16 +149,19 @@ const expenseMutations = {
         const options = { overrideRemoteUser: undefined, skipPermissionCheck: true };
         if (!payeeExists) {
           const { organization: organizationData, ...payee } = expense.payee;
-          const { user, organization } = await createUser(pick(payee, ['name', 'email', 'newsletterOptIn']), {
-            organizationData,
-            throwIfExists: true,
-            sendSignInLink: true,
-            redirect: `/${existingExpense.collective.slug}/expenses/${expenseId}?key=${existingExpense.data.draftKey}`,
-            creationRequest: {
-              ip: req.ip,
-              userAgent: req.header?.['user-agent'],
+          const { user, organization } = await createUser(
+            { ...pick(payee, ['email', 'newsletterOptIn']), ...models.User.splitName(payee.name) },
+            {
+              organizationData,
+              throwIfExists: true,
+              sendSignInLink: true,
+              redirect: `/${existingExpense.collective.slug}/expenses/${expenseId}?key=${existingExpense.data.draftKey}`,
+              creationRequest: {
+                ip: req.ip,
+                userAgent: req.header?.['user-agent'],
+              },
             },
-          });
+          );
           expenseData.fromCollective = organization || user.collective;
           options.overrideRemoteUser = user;
           options.skipPermissionCheck = true;
