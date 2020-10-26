@@ -25,58 +25,6 @@ const CreditCardWithStripeError = new GraphQLObjectType({
   },
 });
 
-const addStripeCreditCard = {
-  type: PaymentMethod,
-  description: 'Add a new payment method to be used with an Order',
-  args: {
-    paymentMethod: {
-      type: PaymentMethodCreateInput,
-      description: 'A Payment Method to add to an Account',
-    },
-    account: {
-      type: AccountReferenceInput,
-      description: 'Account to add Payment Method to',
-    },
-  },
-  async resolve(_, args, req) {
-    const collective = await fetchAccountWithReference(args.account, { throwIfMissing: true });
-    if (!req.remoteUser.isAdminOfCollective(collective)) {
-      throw new Forbidden(`Must be an admin of ${collective.name}`);
-    }
-
-    const { paymentMethod } = args;
-
-    const newPaymentMethodData = {
-      ...paymentMethod,
-      service: 'stripe',
-      type: 'creditcard',
-      CreatedByUserId: collective.CreatedByUserId,
-      currency: collective.currency,
-      saved: true,
-      CollectiveId: collective.id,
-    };
-
-    let pm = await models.PaymentMethod.create(newPaymentMethodData);
-
-    try {
-      pm = await setupCreditCard(pm, {
-        collective,
-        user: req.remoteUser,
-      });
-    } catch (error) {
-      if (!error.stripeResponse) {
-        throw error;
-      }
-
-      pm.stripeError = {
-        message: error.message,
-        response: error.stripeResponse,
-      };
-    }
-    return pm;
-  },
-};
-
 const addCreditCard = {
   type: GraphQLNonNull(CreditCardWithStripeError),
   description: 'Add a new payment method to be used with an Order',
@@ -179,7 +127,10 @@ const confirmCreditCard = {
 
 const paymentMethodMutations = {
   addCreditCard,
-  addStripeCreditCard,
+  addStripeCreditCard: {
+    ...addCreditCard,
+    deprecationReason: '2020-10-23: Use addCreditCard',
+  },
   confirmCreditCard,
 };
 

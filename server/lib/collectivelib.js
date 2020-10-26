@@ -62,6 +62,7 @@ export const COLLECTIVE_SETTINGS_KEYS_LIST = [
   'matchingFund',
   'moderation',
   'paymentMethods',
+  'payoutsTwoFactorAuth',
   'recommendedCollectives',
   'style',
   'superCollectiveTag',
