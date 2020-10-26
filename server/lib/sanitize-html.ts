@@ -1,5 +1,9 @@
+import config from 'config';
 import { truncate } from 'lodash';
+import prependHttp from 'prepend-http';
 import LibSanitize from 'sanitize-html';
+
+import { isValidUploadedImage } from './images';
 
 interface AllowedContentType {
   /** Allows titles  supported by RichTextEditor (`h3` only) */
@@ -89,6 +93,15 @@ export const buildSanitizerOptions = (allowedContent: AllowedContentType = {}): 
     transformTags: {
       h1: 'h3',
       h2: 'h3',
+      a: function (tagName, attribs) {
+        return {
+          tagName: 'a',
+          attribs: {
+            ...attribs,
+            href: formatLinkHref(attribs.href),
+          },
+        };
+      },
     },
   };
 };
@@ -104,7 +117,7 @@ const optsSanitizeSummary = buildSanitizerOptions({ links: true, basicTextFormat
  * smart defaults to match our use cases. It works as a whitelist, so by default all
  * tags will be stripped out.
  */
-export function sanitizeHTML(content, options: SanitizeOptions = optsStripAll): string {
+export function sanitizeHTML(content: string, options: SanitizeOptions = optsStripAll): string {
   return LibSanitize(content, options);
 }
 
@@ -148,4 +161,43 @@ export const generateSummaryForHTML = (content: string, maxLength = 255): string
   } else {
     return secondSanitized;
   }
+};
+
+const formatLinkHref = (url: string): string => {
+  if (!url) {
+    return '';
+  }
+
+  const baseUrl = prependHttp(url);
+  if (isTrustedLinkUrl(baseUrl)) {
+    return baseUrl;
+  } else {
+    return `${config.host.website}/redirect?url=${encodeURIComponent(baseUrl)}`;
+  }
+};
+
+const isTrustedLinkUrl = (url: string): boolean => {
+  let parsedUrl = null;
+
+  try {
+    parsedUrl = new URL(url);
+  } catch {
+    throw new Error(`Invalid URL: ${url}`);
+  }
+
+  if (!['http:', 'https:', 'ftp:', 'mailto:'].includes(parsedUrl.protocol)) {
+    throw new Error(`Invalid link protocol: ${parsedUrl.protocol}`);
+  }
+
+  const rootDomain = parsedUrl.host.replace(/^www\./, '');
+  const trustedDomains = [
+    config.host.website.replace(/^https?:\/\//, ''),
+    'opencollective.com',
+    'github.com',
+    'meetup.com',
+    'twitter.com',
+    'wikipedia.org',
+  ];
+
+  return trustedDomains.includes(rootDomain) || isValidUploadedImage(url, false);
 };

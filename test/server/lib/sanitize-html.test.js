@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import config from 'config';
 
 import {
   buildSanitizerOptions,
@@ -125,6 +126,32 @@ describe('server/lib/sanitize-html', () => {
         '<iframe width="560" height="315" src="https://www.youtube.com/embed/4in0wKB1jRU?start=461" frameborder="0" allow allowfullscreen>',
       );
     });
+
+    it('redirects unstrusted domains', () => {
+      const sanitizerOptions = buildSanitizerOptions({ links: true });
+      expect(sanitizeHTML('<a href="https://malicious-domain.com">Test</a>', sanitizerOptions)).to.eq(
+        '<a href="http://localhost:3000/redirect?url=https%3A%2F%2Fmalicious-domain.com">Test</a>',
+      );
+      expect(sanitizeHTML('<a href="http://malicious-domain.com/toto">Test</a>', sanitizerOptions)).to.eq(
+        '<a href="http://localhost:3000/redirect?url=http%3A%2F%2Fmalicious-domain.com%2Ftoto">Test</a>',
+      );
+      expect(sanitizeHTML('<a href="malicious-domain.com/toto">Test</a>', sanitizerOptions)).to.eq(
+        '<a href="http://localhost:3000/redirect?url=https%3A%2F%2Fmalicious-domain.com%2Ftoto">Test</a>',
+      );
+    });
+
+    it('does not redirect trusted domains', () => {
+      const testUrls = [
+        '<a href="https://opencollective.com/toto">Test</a>',
+        '<a href="http://github.com/toto">Test</a>',
+        '<a href="https://opencollective-test.s3.us-west-1.amazonaws.com/a83d7d30-f8e6-11ea-b187-e31017293ab6.jpg">Test</a>',
+      ];
+
+      const sanitizerOptions = buildSanitizerOptions({ links: true });
+      testUrls.forEach(url => {
+        expect(sanitizeHTML(url, sanitizerOptions)).to.eq(url);
+      });
+    });
   });
 
   describe('generateSummaryForHTML', () => {
@@ -135,7 +162,7 @@ describe('server/lib/sanitize-html', () => {
         'Reges: constructio interrete. <i>Suo genere perveniant ad extremum;</i> Atqui pu...',
       );
       expect(generateSummaryForHTML(fullContent.slice(1000), 1000)).to.to.eq(
-        'Si qua in iis corrigere voluit, deteriora fecit. Nec enim, dum metuit, iustus est, et certe, si metuere destiterit, non erit; Unum nescio, quo modo possit, si luxuriosus sit, finitas cupiditates habere. Illud vero minime consectarium, sed in primis hebes, illorum scilicet, non tuum, gloriatione dignam esse beatam vitam. Entry Header 1 Entry Header 2 Entry Header 3 Entry Line 1 Entry Line 2 Entry Line 3 Quid affers, cur Thorius, cur Caius Postumius, cur omnium horum magister, Orata, non iucundissime vixerit? Non laboro, inquit, de nomine. <i>Ex rebus enim timiditas, non ex vocabulis nascitur.</i> Hoc loco discipulos quaerere videtur, ut, qui asoti esse velint, philosophi ante fiant. <a href="http://loripsum.net/" target="_blank">Dicimus aliquem hilare vivere;</a> Quae quidem sapientes sequuntur duce natura tamquam videntes; Nulla erit controversia. Si verbum sequimur, primum longius verbum praepositum quam bonum. Eorum enim omnium multa praetermittentium, dum eligant aliquid, quod sequa...',
+        `Si qua in iis corrigere voluit, deteriora fecit. Nec enim, dum metuit, iustus est, et certe, si metuere destiterit, non erit; Unum nescio, quo modo possit, si luxuriosus sit, finitas cupiditates habere. Illud vero minime consectarium, sed in primis hebes, illorum scilicet, non tuum, gloriatione dignam esse beatam vitam. Entry Header 1 Entry Header 2 Entry Header 3 Entry Line 1 Entry Line 2 Entry Line 3 Quid affers, cur Thorius, cur Caius Postumius, cur omnium horum magister, Orata, non iucundissime vixerit? Non laboro, inquit, de nomine. <i>Ex rebus enim timiditas, non ex vocabulis nascitur.</i> Hoc loco discipulos quaerere videtur, ut, qui asoti esse velint, philosophi ante fiant. <a href="${config.host.website}/redirect?url=http%3A%2F%2Floripsum.net%2F" target="_blank">Dicimus aliquem hilare vivere;</a> Quae quidem sapientes sequuntur duce natura tamquam videntes; Nulla erit controversia. Si verbum sequimur, primum longius verbum praepositum quam bonum. Eorum enim omnium multa praeter...`,
       );
     });
 
@@ -162,7 +189,7 @@ describe('server/lib/sanitize-html', () => {
           240,
         ),
       ).to.eq(
-        'After a much ado, we created an easy way to donate to <a href="https://sagemath.org" target="_blank">SageMath</a> project. Donations are US tax (IRC 501(c)(6)) deductible.',
+        `After a much ado, we created an easy way to donate to <a href="${config.host.website}/redirect?url=https%3A%2F%2Fsagemath.org" target="_blank">SageMath</a> project. Donations are US tax (IRC 501(c)(6)) deductible.`,
       );
     });
 
