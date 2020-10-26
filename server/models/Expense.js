@@ -1,4 +1,4 @@
-import { get, pick } from 'lodash';
+import { get, isEmpty, pick } from 'lodash';
 import Temporal from 'sequelize-temporal';
 import { isISO31661Alpha2 } from 'validator';
 
@@ -289,7 +289,7 @@ export default function (Sequelize, DataTypes) {
     }
     const host = await this.collective.getHostCollective(); // may be null
     const payoutMethod = await this.getPayoutMethod();
-    const items = this.items || (await this.getItems());
+    const items = this.items || this.data?.items || (await this.getItems());
     const transaction =
       this.status === status.PAID &&
       (await models.Transaction.findOne({
@@ -301,7 +301,7 @@ export default function (Sequelize, DataTypes) {
       CollectiveId: this.collective.id,
       ExpenseId: this.id,
       data: {
-        ...pick(data, ['isManualPayout', 'error']),
+        ...pick(data, ['isManualPayout', 'error', 'payee', 'draftKey', 'inviteUrl', 'recipientNote']),
         host: get(host, 'minimal'),
         collective: { ...this.collective.minimal, isActive: this.collective.isActive },
         user: submittedByUserCollective.minimal,
@@ -309,13 +309,15 @@ export default function (Sequelize, DataTypes) {
         expense: this.info,
         transaction: transaction.info,
         payoutMethod: payoutMethod && pick(payoutMethod.dataValues, ['id', 'type', 'data']),
-        items: items.map(item => ({
-          id: item.id,
-          incurredAt: item.incurredAt,
-          description: item.description,
-          amount: item.amount,
-          url: item.url,
-        })),
+        items:
+          !isEmpty(items) &&
+          items.map(item => ({
+            id: item.id,
+            incurredAt: item.incurredAt,
+            description: item.description,
+            amount: item.amount,
+            url: item.url,
+          })),
       },
     });
   };

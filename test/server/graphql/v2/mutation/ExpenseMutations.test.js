@@ -10,6 +10,7 @@ import { expenseStatus } from '../../../../../server/constants';
 import { payExpense } from '../../../../../server/graphql/v1/mutations/expenses.js';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import { getFxRate } from '../../../../../server/lib/currency';
+import emailLib from '../../../../../server/lib/email';
 import models from '../../../../../server/models';
 import { PayoutMethodTypes } from '../../../../../server/models/PayoutMethod';
 import paymentProviders from '../../../../../server/paymentProviders';
@@ -24,7 +25,7 @@ import {
   fakeUser,
   randStr,
 } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, makeRequest } from '../../../../utils';
+import { graphqlQueryV2, makeRequest, waitForCondition } from '../../../../utils';
 
 const SECRET_KEY = config.dbEncryption.secretKey;
 const CIPHER = config.dbEncryption.cipher;
@@ -75,8 +76,8 @@ const deleteExpenseMutation = gqlV2/* GraphQL */ `
 `;
 
 const editExpenseMutation = gqlV2/* GraphQL */ `
-  mutation EditExpense($expense: ExpenseUpdateInput!) {
-    editExpense(expense: $expense) {
+  mutation EditExpense($expense: ExpenseUpdateInput!, $draftKey: String) {
+    editExpense(expense: $expense, draftKey: $draftKey) {
       id
       legacyId
       invoiceInfo
@@ -86,6 +87,17 @@ const editExpenseMutation = gqlV2/* GraphQL */ `
       status
       privateMessage
       invoiceInfo
+      payee {
+        legacyId
+        id
+        name
+        slug
+      }
+      createdByAccount {
+        legacyId
+        name
+        slug
+      }
       payoutMethod {
         id
         data
@@ -324,6 +336,75 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, expense.User);
       result.errors && console.error(result.errors);
       expect(result.data.editExpense.payeeLocation).to.deep.equal(updatedExpenseData.payeeLocation);
+    });
+
+    it("let's another user to edit and submit a draft if the right key is provided", async () => {
+      const expense = await fakeExpense({ data: { draftKey: 'fake-key' }, status: expenseStatus.DRAFT });
+      const anotherUser = await fakeUser();
+
+      const updatedExpenseData = {
+        id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+        description: 'This is a test.',
+        payee: {
+          legacyId: anotherUser.id,
+        },
+      };
+
+      const { errors } = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, anotherUser);
+      expect(errors).to.exist;
+      expect(errors[0]).to.have.nested.property('extensions.code', 'Unauthorized');
+
+      const result = await graphqlQueryV2(
+        editExpenseMutation,
+        {
+          expense: updatedExpenseData,
+          draftKey: 'fake-key',
+        },
+        anotherUser,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.editExpense.description).to.equal(updatedExpenseData.description);
+      expect(result.data.editExpense.payee.legacyId).to.equal(anotherUser.id);
+    });
+
+    it('creates new user and organization if draft payee does not exist', async () => {
+      const expense = await fakeExpense({ data: { draftKey: 'fake-key' }, status: expenseStatus.DRAFT });
+      const anotherUser = await fakeUser();
+
+      const updatedExpenseData = {
+        id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+        description: 'This is a test.',
+        payee: {
+          name: 'New Folk',
+          email: randEmail(),
+          organization: {
+            name: 'Folk Ventures',
+            slug: randStr('folk-'),
+          },
+        },
+      };
+
+      const { errors } = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData });
+      expect(errors).to.exist;
+      expect(errors[0]).to.have.nested.property('extensions.code', 'Unauthorized');
+
+      const result = await graphqlQueryV2(
+        editExpenseMutation,
+        {
+          expense: updatedExpenseData,
+          draftKey: 'fake-key',
+        },
+        anotherUser,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      expect(result.data.editExpense.description).to.equal(updatedExpenseData.description);
+      expect(result.data.editExpense.payee.slug).to.equal(updatedExpenseData.payee.organization.slug);
+
+      const user = await models.User.findOne({ where: { email: updatedExpenseData.payee.email } });
+      expect(user).to.exist;
     });
   });
 
@@ -935,6 +1016,125 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(result4.errors[0].message).to.eq(
         'Two-factor authentication payout limit exceeded: please re-enter your code.',
       );
+    });
+  });
+
+  describe('draftExpenseAndInviteUser and resendDraftExpenseInvite', () => {
+    let sandbox, collective, expense, user;
+
+    const draftExpenseAndInviteUserMutation = gqlV2/* GraphQL */ `
+      mutation DraftExpenseAndInviteUser($expense: ExpenseInviteDraftInput!, $account: AccountReferenceInput!) {
+        draftExpenseAndInviteUser(expense: $expense, account: $account) {
+          id
+          legacyId
+          status
+          draft
+        }
+      }
+    `;
+    const resendDraftExpenseInviteMutation = gqlV2/* GraphQL */ `
+      mutation ResendDraftExpenseInviteMutation($expense: ExpenseReferenceInput!) {
+        resendDraftExpenseInvite(expense: $expense) {
+          id
+          legacyId
+          status
+          draft
+        }
+      }
+    `;
+
+    const invoice = {
+      description: 'A valid expense',
+      type: 'INVOICE',
+      recipientNote: 'Hey pal, could you please submit this',
+      payee: { name: 'John Doe', email: 'john@doe.co' },
+      items: [
+        {
+          id: 'af89232d-7ac6-4e4f-9781-1c7d35fa76ca',
+          url: '',
+          amount: 4200,
+          incurredAt: '2020-10-08',
+          description: 'Goosebemps',
+        },
+      ],
+      payeeLocation: { address: '123 Potatoes street', country: 'BE' },
+    };
+
+    after(() => sandbox.restore());
+
+    before(async () => {
+      sandbox = sinon.createSandbox();
+      sandbox.stub(emailLib, 'sendMessage').resolves();
+      user = await fakeUser();
+      collective = await fakeCollective();
+
+      const result = await graphqlQueryV2(
+        draftExpenseAndInviteUserMutation,
+        { expense: invoice, account: { legacyId: collective.id } },
+        user,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data).to.exist;
+      expect(result.data.draftExpenseAndInviteUser).to.exist;
+
+      const draftedExpense = result.data.draftExpenseAndInviteUser;
+      expense = await models.Expense.findByPk(draftedExpense.legacyId);
+    });
+
+    it('should create a new DRAFT expense with a draftKey', async () => {
+      expect(expense.status).to.eq(expenseStatus.DRAFT);
+      expect(expense.amount).to.eq(4200);
+      expect(expense.payeeLocation).to.deep.equal(invoice.payeeLocation);
+      expect(expense.data.payee).to.deep.equal(invoice.payee);
+      expect(expense.data.recipientNote).to.equal(invoice.recipientNote);
+      expect(expense.data.draftKey).to.exist;
+    });
+
+    it('should send an email notifying the invited user to submit the expense', async () => {
+      await waitForCondition(() => emailLib.sendMessage.firstCall);
+
+      const [recipient, subject, body] = emailLib.sendMessage.firstCall.args;
+
+      expect(recipient).to.eq(invoice.payee.email);
+      expect(subject).to.include(collective.name);
+      expect(subject).to.include('wants you to submit an expense');
+      expect(body).to.include(
+        `href="http://localhost:3000/${collective.slug}/expenses/${expense.id}?key&#x3D;${expense.data.draftKey}"`,
+      );
+      expect(body).to.include('<td>Hey pal, could you please submit this</td>');
+      expect(body).to.include('<td>Goosebemps</td>');
+      expect(body).to.include('<td>$42.00</td>');
+    });
+
+    it('should resend the invite email', async () => {
+      await graphqlQueryV2(resendDraftExpenseInviteMutation, { expense: { legacyId: expense.id } }, user);
+
+      await waitForCondition(() => emailLib.sendMessage.secondCall);
+
+      const [recipient] = emailLib.sendMessage.secondCall.args;
+      expect(recipient).to.eq(invoice.payee.email);
+    });
+
+    it('should invite an existing user', async () => {
+      // Bypass RateLimit
+      // sandbox.clock.tick(1000 * 10);
+      const existingUser = await fakeUser();
+      const expense = { ...invoice, payee: { id: existingUser.collective.id } };
+      const result = await graphqlQueryV2(
+        draftExpenseAndInviteUserMutation,
+        { expense, account: { legacyId: collective.id } },
+        user,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      await waitForCondition(() => emailLib.sendMessage.thirdCall);
+
+      const [recipient] = emailLib.sendMessage.thirdCall.args;
+      expect(recipient).to.eq(existingUser.email);
     });
   });
 });
