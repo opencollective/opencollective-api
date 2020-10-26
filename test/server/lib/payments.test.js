@@ -7,6 +7,7 @@ import sinon from 'sinon';
 import status from '../../../server/constants/order_status';
 import { PLANS_COLLECTIVE_SLUG } from '../../../server/constants/plans';
 import roles from '../../../server/constants/roles';
+import { FEES_ON_TOP_TRANSACTION_PROPERTIES } from '../../../server/constants/transactions';
 import emailLib from '../../../server/lib/email';
 import * as payments from '../../../server/lib/payments';
 import * as plansLib from '../../../server/lib/plans';
@@ -377,10 +378,10 @@ describe('server/lib/payments', () => {
       expect(debitRefundTransaction.CollectiveId).to.equal(collective.id);
     });
 
-    it('should allow collective to start a refund', async () => {
+    it('should refund platform fees on top when refunding original transaction', async () => {
       // Create Open Collective Inc
       await fakeHost({ id: 8686 });
-      const order = await fakeOrder();
+      const order = await fakeOrder({ status: 'ACTIVE' });
       const transaction = await models.Transaction.createFromPayload({
         CreatedByUserId: order.CreatedByUserId,
         FromCollectiveId: order.FromCollectiveId,
@@ -398,7 +399,7 @@ describe('server/lib/payments', () => {
           platformFeeInHostCurrency: 500,
           paymentProcessorFeeInHostCurrency: 175,
           description: 'Monthly subscription to Webpack',
-          data: { charge: { id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' }, isFeesOnTop: true },
+          data: { charge: { id: 'ch_refunded_charge' }, isFeesOnTop: true },
         },
       });
 
@@ -407,8 +408,8 @@ describe('server/lib/payments', () => {
 
       await payments.createRefundTransaction(transaction, 0, null, user);
 
-      const refundedTransactions = await order.getTransactions();
-      expect(refundedTransactions).to.have.lengthOf(8);
+      const refundedTransactions = await order.getTransactions({ where: { isRefund: true } });
+      expect(refundedTransactions).to.have.lengthOf(4);
     });
   }); /* createRefundTransaction */
 

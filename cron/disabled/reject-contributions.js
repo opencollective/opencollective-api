@@ -23,7 +23,7 @@ const query = `SELECT "Orders"."id"
 
 const getContributorRejectedCategories = (fromCollective, collective) => {
   const rejectedCategories = get(collective, 'settings.moderation.rejectedCategories', []);
-  const contributorCategories = get(fromCollective, 'categories', []);
+  const contributorCategories = get(fromCollective, 'data.categories', []);
 
   if (rejectedCategories.length === 0 || contributorCategories.length === 0) {
     return [];
@@ -103,7 +103,7 @@ async function run({ dryRun = false } = {}) {
           await subscription.deactivate();
         }
       } else {
-        logger.info(`  - Subsription not found`);
+        logger.info(`  - Subscription not found`);
       }
     } else {
       logger.info(`  - No subscription to deactivate`);
