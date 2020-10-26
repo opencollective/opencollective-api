@@ -1118,6 +1118,8 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
     });
 
     it('should invite an existing user', async () => {
+      // Bypass RateLimit
+      // sandbox.clock.tick(1000 * 10);
       const existingUser = await fakeUser();
       const expense = { ...invoice, payee: { id: existingUser.collective.id } };
       const result = await graphqlQueryV2(

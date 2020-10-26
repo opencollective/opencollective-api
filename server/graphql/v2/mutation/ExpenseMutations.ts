@@ -297,7 +297,7 @@ const expenseMutations = {
       const remoteUser = req.remoteUser;
       const expenseData = args.expense;
 
-      const rateLimit = new RateLimit(`draft_expense_${remoteUser.id}`, 1, 10);
+      const rateLimit = new RateLimit(`draft_expense_${remoteUser.id}`, 1, 10, true);
       if (!(await rateLimit.registerCall())) {
         throw new RateLimitExceeded();
       }
