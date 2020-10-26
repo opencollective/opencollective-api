@@ -8,6 +8,7 @@ import { types as collectiveTypes } from '../../../constants/collectives';
 import expenseStatus from '../../../constants/expense_status';
 import FEATURE from '../../../constants/feature';
 import logger from '../../../lib/logger';
+import RateLimit from '../../../lib/rate-limit';
 import { canUseFeature } from '../../../lib/user-permissions';
 import models from '../../../models';
 import {
@@ -19,7 +20,7 @@ import {
   unapproveExpense,
 } from '../../common/expenses';
 import { createUser } from '../../common/user';
-import { FeatureNotAllowedForUser, NotFound, Unauthorized, ValidationFailed } from '../../errors';
+import { FeatureNotAllowedForUser, NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 import {
   createExpense as createExpenseLegacy,
   editExpense as editExpenseLegacy,
@@ -139,6 +140,9 @@ const expenseMutations = {
         let existingExpense = await models.Expense.findByPk(expenseId, {
           include: [{ model: models.Collective, as: 'collective' }],
         });
+        if (!existingExpense) {
+          throw new NotFound('Expense not found.');
+        }
         if (existingExpense.status !== expenseStatus.DRAFT) {
           throw new Unauthorized('Expense can not be edited.');
         }
@@ -293,6 +297,11 @@ const expenseMutations = {
       const remoteUser = req.remoteUser;
       const expenseData = args.expense;
 
+      const rateLimit = new RateLimit(`draft_expense_${remoteUser.id}`, 1, 10);
+      if (!(await rateLimit.registerCall())) {
+        throw new RateLimitExceeded();
+      }
+
       if (!remoteUser) {
         throw new Unauthorized('You need to be logged in to create an expense');
       } else if (!canUseFeature(remoteUser, FEATURE.EXPENSES)) {
@@ -333,7 +342,7 @@ const expenseMutations = {
 
       const fromCollective = await remoteUser.getCollective();
       const payee = expenseData.payee?.id
-        ? (await fetchAccountWithReference({ id: expenseData.payee.id }))?.minimal
+        ? (await fetchAccountWithReference({ id: expenseData.payee.id }, { throwIfMissing: true }))?.minimal
         : expenseData.payee;
       const expense = await models.Expense.create({
         ...pick(expenseData, expenseFields),
@@ -368,7 +377,7 @@ const expenseMutations = {
   },
   resendDraftExpenseInvite: {
     type: new GraphQLNonNull(Expense),
-    description: 'To verify and unverified expense.',
+    description: 'To verify an unverified expense.',
     args: {
       expense: {
         type: new GraphQLNonNull(ExpenseReferenceInput),
@@ -377,6 +386,12 @@ const expenseMutations = {
     },
     async resolve(_, args, req): Promise<object> {
       const expenseId = getDatabaseIdFromExpenseReference(args.expense);
+
+      const rateLimit = new RateLimit(`resend_draft_invite_${expenseId}`, 2, 10);
+      if (!(await rateLimit.registerCall())) {
+        throw new RateLimitExceeded();
+      }
+
       const expense = await models.Expense.findByPk(expenseId, {
         include: [{ model: models.Collective, as: 'collective' }],
       });
@@ -410,11 +425,8 @@ const expenseMutations = {
       },
     },
     async resolve(_, args, req): Promise<object> {
-      const expenseId = getDatabaseIdFromExpenseReference(args.expense);
-      const expense = await models.Expense.findByPk(expenseId);
-      if (!expense) {
-        throw new NotFound('Expense not found');
-      } else if (expense.status !== expenseStatus.UNVERIFIED) {
+      const expense = await fetchExpenseWithReference(args.expense, { throwIfMissing: true });
+      if (expense.status !== expenseStatus.UNVERIFIED) {
         throw new Unauthorized('Expense can not be verified.');
       } else if (expense.data?.draftKey !== args.draftKey) {
         throw new Unauthorized('The provided draft key is not correct.');

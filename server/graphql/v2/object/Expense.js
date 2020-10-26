@@ -1,7 +1,7 @@
 import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 import GraphQLJSON from 'graphql-type-json';
-import { omit } from 'lodash';
+import { pick } from 'lodash';
 
 import expenseStatus from '../../../constants/expense_status';
 import models, { Op } from '../../../models';
@@ -23,6 +23,8 @@ import ExpenseItem from './ExpenseItem';
 import ExpensePermissions from './ExpensePermissions';
 import { Location } from './Location';
 import PayoutMethod from './PayoutMethod';
+
+const EXPENSE_DRAFT_PUBLIC_FIELDS = ['items', 'payee', 'recipientNote', 'invitedByCollectiveId'];
 
 const Expense = new GraphQLObjectType({
   name: 'Expense',
@@ -228,7 +230,7 @@ const Expense = new GraphQLObjectType({
         description: 'Drafted field values that were still not persisted',
         async resolve(expense) {
           if (expense.status == expenseStatus.DRAFT) {
-            return omit(expense.data, ['draftKey']);
+            return pick(expense.data, EXPENSE_DRAFT_PUBLIC_FIELDS);
           }
         },
       },
