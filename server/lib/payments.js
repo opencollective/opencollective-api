@@ -10,6 +10,7 @@ import { PAYMENT_METHOD_TYPES } from '../constants/paymentMethods';
 import roles from '../constants/roles';
 import tiers from '../constants/tiers';
 import { FEES_ON_TOP_TRANSACTION_PROPERTIES } from '../constants/transactions';
+import { notifyAdminsOfCollective } from '../lib/notifications';
 import { createPrepaidPaymentMethod, isPrepaidBudgetOrder } from '../lib/prepaid-budget';
 import { formatAccountDetails } from '../lib/transferwise';
 import { formatCurrency, toIsoDateStr } from '../lib/utils';
@@ -254,8 +255,8 @@ export const sendEmailNotifications = (order, transaction) => {
   debug('sendEmailNotifications');
   // for gift cards and manual payment methods
   if (!transaction) {
-    sendOrderProcessingEmail(order);
-    sendManualPendingOrderEmail(order);
+    sendOrderProcessingEmail(order); // This is the one for the Contributor
+    sendManualPendingOrderEmail(order); // This is the one for the Host Admins
   } else {
     sendOrderConfirmedEmail(order, transaction); // async
   }
@@ -498,20 +499,17 @@ export const sendOrderProcessingEmail = async order => {
 
 const sendManualPendingOrderEmail = async order => {
   const { collective, fromCollective } = order;
-  const user = order.createdByUser;
   const host = await collective.getHostCollective();
+
   const data = {
     order: order.info,
-    user: user.info,
     collective: collective.info,
     host: host.info,
     fromCollective: fromCollective.activity,
     pendingOrderLink: `${config.host.website}/${collective.slug}/orders/${order.id}`,
   };
 
-  return emailLib.send('order.new.pendingFinancialContribution', user.email, data, {
-    from: `${collective.name} <no-reply@${collective.slug}.opencollective.com>`,
-  });
+  return notifyAdminsOfCollective(host.id, { type: 'order.new.pendingFinancialContribution', data });
 };
 
 export const sendReminderPendingOrderEmail = async order => {
@@ -533,10 +531,7 @@ export const sendReminderPendingOrderEmail = async order => {
     viewDetailsLink: `${config.host.website}/${collective.slug}/orders/${order.id}`,
   };
 
-  const adminUsers = await host.getAdminUsers();
-  for (const adminUser of adminUsers) {
-    await emailLib.send('order.reminder.pendingFinancialContribution', adminUser.email, data);
-  }
+  return notifyAdminsOfCollective(host.id, { type: 'order.reminder.pendingFinancialContribution', data });
 };
 
 export const sendExpiringCreditCardUpdateEmail = async data => {
