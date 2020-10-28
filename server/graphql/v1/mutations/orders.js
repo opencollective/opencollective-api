@@ -112,8 +112,10 @@ const checkGuestContribution = order => {
     throw new Error('You need to provide a valid email');
   } else if (!guestInfo.email && !guestInfo.token) {
     throw new Error('When contributing as a guest, you either need to provide an email or a token');
-  } else if (order.totalAmount > 5000) {
-    if (!guestInfo.name || !guestInfo.location?.address || !guestInfo.location.country) {
+  } else if (order.totalAmount > 25000) {
+    if (!guestInfo.name) {
+      throw new Error('Contributions that are more than $250 must have a name attached');
+    } else if (order.totalAmount > 500000 && (!guestInfo.location?.address || !guestInfo.location.country)) {
       throw new Error('Contributions that are more than $5000 must have an address attached');
     }
   }
