@@ -10,6 +10,7 @@ import request from 'supertest';
 import app from '../../../server/index';
 import * as auth from '../../../server/lib/auth.js';
 import models from '../../../server/models';
+import { fakeUser } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
 /**
@@ -134,6 +135,15 @@ describe('server/routes/users', () => {
       // And then the response also contains a 2FA token
       const parsedToken = auth.verifyJwt(response.body.token);
       expect(parsedToken.scope).to.equal('twofactorauth');
+    });
+
+    it('should mark the user as confirmed', async () => {
+      const user = await fakeUser({ confirmedAt: null });
+      const currentToken = user.jwt({ scope: 'login' });
+      await request(expressApp).post(updateTokenUrl).set('Authorization', `Bearer ${currentToken}`);
+
+      await user.reload();
+      expect(user.confirmedAt).to.exist;
     });
   });
 

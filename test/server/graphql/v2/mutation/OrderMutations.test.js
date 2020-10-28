@@ -55,7 +55,9 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         CollectiveId: collective.id,
         status: 'ACTIVE',
       },
-      true,
+      {
+        withSubscription: true,
+      },
     );
     order2 = await fakeOrder(
       {
@@ -64,7 +66,9 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         CollectiveId: collective.id,
         status: 'ACTIVE',
       },
-      true,
+      {
+        withSubscription: true,
+      },
     );
     paymentMethod = await fakePaymentMethod({
       service: 'stripe',

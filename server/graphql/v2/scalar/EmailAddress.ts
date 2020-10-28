@@ -1,7 +1,7 @@
 import { GraphQLError, GraphQLScalarType, Kind } from 'graphql';
 import { isEmail } from 'validator';
 
-const validate = (value: unknown) => {
+const validateAndFormat = (value: unknown) => {
   if (typeof value !== 'string') {
     throw new TypeError(`Value is not string: ${value}`);
   }
@@ -10,7 +10,7 @@ const validate = (value: unknown) => {
     throw new TypeError(`Value is not a valid email address: ${value}`);
   }
 
-  return value;
+  return value.trim().toLowerCase();
 };
 
 /**
@@ -22,14 +22,14 @@ const EmailAddress = new GraphQLScalarType({
   description:
     'A field whose value conforms to the standard internet email address format as specified in RFC822: https://www.w3.org/Protocols/rfc822/.',
 
-  serialize: validate,
-  parseValue: validate,
+  serialize: validateAndFormat,
+  parseValue: validateAndFormat,
   parseLiteral(ast) {
     if (ast.kind !== Kind.STRING) {
       throw new GraphQLError(`Can only validate strings as email addresses but got a: ${ast.kind}`);
     }
 
-    return validate(ast.value);
+    return validateAndFormat(ast.value);
   },
 });
 

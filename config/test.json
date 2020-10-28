@@ -27,5 +27,10 @@
   },
   "fixer": {
     "accessKey": "UNDEFINED_FIXER_ACCESS_KEY"
+  },
+  "limits": {
+    "sendGuestConfirmPerMinutePerEmail": 100000,
+    "sendGuestConfirmPerMinutePerIp": 100000,
+    "confirmGuestAccountPerMinutePerIp": 100000
   }
 }
