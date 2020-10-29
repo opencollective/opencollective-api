@@ -1,12 +1,13 @@
 import * as LibTaxes from '@opencollective/taxes';
 import config from 'config';
-import { get, pick } from 'lodash';
+import { get, isEmpty, pick } from 'lodash';
 
 import { types as CollectiveTypes } from '../constants/collectives';
 import { MODERATION_CATEGORIES } from '../constants/moderation-categories';
 import { VAT_OPTIONS } from '../constants/vat';
 import models, { sequelize } from '../models';
 
+import { DEFAULT_GUEST_NAME } from './guest-accounts';
 import logger from './logger';
 import { md5 } from './utils';
 
@@ -211,6 +212,24 @@ export function isCollectiveSlugReserved(slug: string): boolean {
   return collectiveSlugReservedlist.includes(slug);
 }
 
+const mergeCollectiveFields = async (from, into, transaction) => {
+  const fieldsToUpdate = {};
+  const isTmpName = name => !name || name === DEFAULT_GUEST_NAME || name === 'Incognito';
+  if (isTmpName(into.name) && !isTmpName(from.name)) {
+    fieldsToUpdate['name'] = from.name;
+  }
+
+  if (from.countryISO && !into.countryISO) {
+    fieldsToUpdate['countryISO'] = from.countryISO;
+  }
+
+  if (from.address && !into.address) {
+    fieldsToUpdate['address'] = from.address;
+  }
+
+  return isEmpty(fieldsToUpdate) ? into : into.update(fieldsToUpdate, { transaction });
+};
+
 /**
  * An helper to merge a collective with another one, with some limitations.
  */
@@ -227,6 +246,9 @@ export const mergeCollectives = async (
   }
 
   return sequelize.transaction(async transaction => {
+    // Update collective
+    await mergeCollectiveFields(from, into, transaction);
+
     // Update orders (FROM)
     await models.Order.update({ FromCollectiveId: into.id }, { where: { FromCollectiveId: from.id } }, { transaction });
 

@@ -9,8 +9,8 @@ import models, { Op, sequelize } from '../models';
 
 import { mergeCollectives } from './collectivelib';
 
+export const DEFAULT_GUEST_NAME = 'Guest';
 const INVALID_TOKEN_MSG = 'Your guest token is invalid. If you already have an account, please sign in.';
-const DEFAULT_GUEST_NAME = 'Guest';
 
 type GuestProfileDetails = {
   user: typeof models.User;
@@ -193,6 +193,14 @@ export const confirmGuestAccount = async (
 
   // 3. Link the other guest profiles & contributions
   await linkOtherGuestProfiles(user, userCollective, guestTokensValues);
+
+  // 4. If name was updated by the merge, update the slug
+  await userCollective.reload();
+  if (newName !== userCollective.name && userCollective.slug.startsWith('user-')) {
+    await userCollective.update({
+      slug: await models.Collective.generateSlug([userCollective.name]),
+    });
+  }
 
   return { user, collective: userCollective };
 };
