@@ -129,7 +129,12 @@ const guestMutations = {
         throw new Error('Cannot link more than 30 profiles at the same time');
       }
 
-      const { user, collective } = await confirmGuestAccount(<string>args.email, <string>args.emailConfirmationToken);
+      const { user, collective } = await confirmGuestAccount(
+        <string>args.email,
+        <string>args.emailConfirmationToken,
+        <string[]>args.guestTokens,
+      );
+
       const accessToken = user.jwt({}, TOKEN_EXPIRATION_SESSION);
       return { account: collective, accessToken };
     },
