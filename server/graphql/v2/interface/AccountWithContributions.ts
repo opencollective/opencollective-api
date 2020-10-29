@@ -4,9 +4,10 @@ import { isNil } from 'lodash';
 
 import { types } from '../../../constants/collectives';
 import { getPaginatedContributorsForCollective } from '../../../lib/contributors';
-import models from '../../../models';
+import models, { Op } from '../../../models';
 import { ContributorCollection } from '../collection/ContributorCollection';
 import { TierCollection } from '../collection/TierCollection';
+import { UpdateCollection } from '../collection/UpdateCollection';
 import { AccountType, MemberRole } from '../enum';
 
 import { CollectionArgs } from './Collection';
@@ -88,6 +89,27 @@ export const AccountWithContributionsFields = {
   },
   contributionPolicy: {
     type: GraphQLString,
+  },
+  updates: {
+    type: new GraphQLNonNull(UpdateCollection),
+    args: {
+      ...CollectionArgs,
+      onlyPublishedUpdates: { type: GraphQLBoolean },
+    },
+    async resolve(collective, { limit, offset, onlyPublishedUpdates }) {
+      const query = {
+        where: {
+          CollectiveId: collective.id,
+          publishedAt: onlyPublishedUpdates ? { [Op.ne]: null } : null,
+        },
+        order: [['createdAt', 'DESC']],
+        limit,
+        offset,
+      };
+
+      const result = await models.Update.findAndCountAll(query);
+      return { nodes: result.rows, totalCount: result.count, limit, offset };
+    },
   },
 };
 
