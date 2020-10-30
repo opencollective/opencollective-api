@@ -123,19 +123,12 @@ const checkGuestContribution = order => {
 
 async function checkRecaptcha(order, remoteUser, reqIp) {
   // Disabled for all environments
-  if (['ci', 'test', 'development', 'production'].includes(config.env)) {
+  if (!parseToBoolean(config.env.recaptcha.enable)) {
     return;
   }
 
   if (!order.recaptchaToken) {
-    // Fail if Recaptcha is required
-    if (!remoteUser) {
-      debug('Recaptcha token missing');
-      throw new Error(
-        'Error while processing your request (Recaptcha token missing), please try again or contact support@opencollective.com',
-      );
-    }
-    // Otherwise, pass for now
+    // Pass for now
     return;
   }
 

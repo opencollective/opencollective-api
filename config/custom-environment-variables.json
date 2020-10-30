@@ -136,7 +136,8 @@
   },
   "recaptcha": {
     "siteKey": "RECAPTCHA_SITE_KEY",
-    "secretKey": "RECAPTCHA_SECRET_KEY"
+    "secretKey": "RECAPTCHA_SECRET_KEY",
+    "enable": "RECAPTCHA_ENABLE"
   },
   "helloworks": {
     "key": "HELLO_WORKS_KEY",
