@@ -189,6 +189,7 @@ interface Account {
   """
   categories: [String]!
   stats: AccountStats
+  updates(limit: Int, offset: Int, onlyPublishedUpdates: Boolean): UpdateCollection!
 }
 
 """
@@ -636,6 +637,7 @@ type Bot implements Account {
   location: Location
   categories: [String]!
   stats: AccountStats
+  updates(limit: Int, offset: Int, onlyPublishedUpdates: Boolean): UpdateCollection!
 }
 
 """
@@ -833,6 +835,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   location: Location
   categories: [String]!
   stats: AccountStats
+  updates(limit: Int, offset: Int, onlyPublishedUpdates: Boolean): UpdateCollection!
 
   """
   Returns the Fiscal Host
@@ -2881,6 +2884,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions {
   location: Location
   categories: [String]!
   stats: AccountStats
+  updates(limit: Int, offset: Int, onlyPublishedUpdates: Boolean): UpdateCollection!
 
   """
   Returns the Fiscal Host
@@ -3726,6 +3730,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   location: Location
   categories: [String]!
   stats: AccountStats
+  updates(limit: Int, offset: Int, onlyPublishedUpdates: Boolean): UpdateCollection!
 
   """
   Returns the Fiscal Host
@@ -4000,6 +4005,7 @@ type Host implements Account & AccountWithContributions {
   location: Location
   categories: [String]!
   stats: AccountStats
+  updates(limit: Int, offset: Int, onlyPublishedUpdates: Boolean): UpdateCollection!
 
   """
   Number of unique financial contributors.
@@ -4342,6 +4348,7 @@ type Individual implements Account {
   location: Location
   categories: [String]!
   stats: AccountStats
+  updates(limit: Int, offset: Int, onlyPublishedUpdates: Boolean): UpdateCollection!
   firstName: String @deprecated(reason: "2020-10-12: Use the name field")
   lastName: String @deprecated(reason: "2020-10-12: Use the name field")
   email: String
@@ -5427,6 +5434,7 @@ type Organization implements Account {
   location: Location
   categories: [String]!
   stats: AccountStats
+  updates(limit: Int, offset: Int, onlyPublishedUpdates: Boolean): UpdateCollection!
 
   """
   Amount of money in cents in the currency of the collective currently available to spend
@@ -5764,6 +5772,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions {
   location: Location
   categories: [String]!
   stats: AccountStats
+  updates(limit: Int, offset: Int, onlyPublishedUpdates: Boolean): UpdateCollection!
 
   """
   Returns the Fiscal Host
@@ -6373,6 +6382,62 @@ type TransferWiseRequiredField {
   type: String
   title: String
   fields: [TransferWiseField]
+}
+
+"""
+This represents an Update
+"""
+type Update {
+  id: String!
+  legacyId: Int
+  slug: String!
+
+  """
+  Indicates whether or not the user is allowed to see the content of this update
+  """
+  userCanSeeUpdate: Boolean!
+  isPrivate: Boolean!
+  title: String!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  publishedAt: DateTime
+  notificationAudience: UpdateAudienceType
+  makePublicOn: DateTime
+  summary: String
+  html: String
+  tags: [String]
+  fromAccount: Account
+  account: Account
+}
+
+"""
+Defines targets for an update
+"""
+enum UpdateAudienceType {
+  """
+  Will be sent to collective admins and financial contributors
+  """
+  ALL
+
+  """
+  Will be sent to collective admins
+  """
+  COLLECTIVE_ADMINS
+
+  """
+  Will be sent to financial contributors
+  """
+  FINANCIAL_CONTRIBUTORS
+}
+
+"""
+A collection of "Updates"
+"""
+type UpdateCollection implements Collection {
+  offset: Int
+  limit: Int
+  totalCount: Int
+  nodes: [Update]
 }
 
 """

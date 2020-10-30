@@ -9,6 +9,7 @@ import { ConversationCollection } from '../collection/ConversationCollection';
 import { MemberCollection, MemberOfCollection } from '../collection/MemberCollection';
 import { OrderCollection } from '../collection/OrderCollection';
 import { TransactionCollection } from '../collection/TransactionCollection';
+import { UpdateCollection } from '../collection/UpdateCollection';
 import {
   AccountOrdersFilter,
   AccountType,
@@ -267,6 +268,14 @@ const accountFieldsDefinition = () => ({
     type: AccountStats,
     resolve(collective) {
       return collective;
+    },
+  },
+  updates: {
+    type: new GraphQLNonNull(UpdateCollection),
+    args: {
+      limit: { type: GraphQLInt },
+      offset: { type: GraphQLInt },
+      onlyPublishedUpdates: { type: GraphQLBoolean },
     },
   },
 });
@@ -560,6 +569,28 @@ export const AccountFields = {
     type: new GraphQLNonNull(new GraphQLList(GraphQLString)),
     resolve(collective) {
       return get(collective.data, 'categories', []);
+    },
+  },
+  updates: {
+    type: new GraphQLNonNull(UpdateCollection),
+    args: {
+      limit: { type: GraphQLInt },
+      offset: { type: GraphQLInt },
+      onlyPublishedUpdates: { type: GraphQLBoolean },
+    },
+    async resolve(collective, { limit, offset, onlyPublishedUpdates }) {
+      const query = { where: { CollectiveId: collective.id }, order: [['createdAt', 'DESC']] };
+      if (limit) {
+        query.limit = limit;
+      }
+      if (offset) {
+        query.offset = offset;
+      }
+      if (onlyPublishedUpdates) {
+        query.where.publishedAt = { [Op.ne]: null };
+      }
+      const result = await models.Update.findAndCountAll(query);
+      return { nodes: result.rows, totalCount: result.count, limit, offset };
     },
   },
 };
