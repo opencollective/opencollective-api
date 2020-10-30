@@ -563,6 +563,10 @@ export const ContributorType = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Defines if the contributors wants to be incognito (name not displayed)',
     },
+    isGuest: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Defines if the contributors is a guest account',
+    },
     description: {
       type: GraphQLString,
       description: 'Description of how the member contribute. Will usually be a tier name, or "design" or "code".',

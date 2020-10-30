@@ -27,6 +27,7 @@ export interface Contributor {
   isBacker: boolean;
   isFundraiser: boolean;
   isIncognito: boolean;
+  isGuest: boolean;
   tiersIds: Array<number | null>;
   type: string;
   since: string;
@@ -126,6 +127,7 @@ const loadContributors = async (collectiveId: number): Promise<ContributorsCache
         MIN(m.since) AS since,
         MAX(m."publicMessage") AS "publicMessage",
         BOOL_OR(mc."isIncognito") AS "isIncognito",
+        BOOL_OR(COALESCE((mc."data"->>'isGuest')::boolean, FALSE)) AS "isGuest",
         ARRAY_AGG(DISTINCT m."role") AS roles,
         ARRAY_AGG(DISTINCT tier."id") AS "tiersIds",
         COALESCE(MAX(m.description), MAX(tier.name)) AS description,
