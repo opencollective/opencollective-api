@@ -99,10 +99,15 @@ async function checkOrdersLimit(order, reqIp) {
   }
 }
 
-const checkGuestContribution = order => {
+const checkGuestContribution = async (order, loaders) => {
   const { interval, guestInfo } = order;
 
-  if (!parseToBoolean(config.guestContributions.enable)) {
+  const collective = order.collective.id && (await loaders.Collective.byId.load(order.collective.id));
+  if (!collective) {
+    throw new Error('Guest contributions need to be made to an existing collective');
+  }
+
+  if (!parseToBoolean(config.guestContributions.enable) && !get(collective.settings, 'features.GUEST_CONTRIBUTIONS')) {
     throw new Error('Guest contributions are not enabled yet');
   } else if (interval) {
     throw new Error('You need to sign up to create a recurring contribution');
@@ -123,7 +128,7 @@ const checkGuestContribution = order => {
 
 async function checkRecaptcha(order, remoteUser, reqIp) {
   // Disabled for all environments
-  if (!parseToBoolean(config.env.recaptcha.enable)) {
+  if (config.env.recaptcha && !parseToBoolean(config.env.recaptcha.enable)) {
     return;
   }
 
@@ -213,7 +218,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
   if (remoteUser && !canUseFeature(remoteUser, FEATURE.ORDER)) {
     return new FeatureNotAllowedForUser();
   } else if (!remoteUser) {
-    checkGuestContribution(order);
+    await checkGuestContribution(order, loaders);
   }
 
   await checkOrdersLimit(order, reqIp);
@@ -591,16 +596,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
 }
 
 export async function confirmOrder(order, remoteUser, guestToken) {
-  if (!remoteUser) {
-    if (!parseToBoolean(config.guestContributions.enable)) {
-      throw new Unauthorized('You need to be logged in to confirm an order');
-    } else if (!guestToken) {
-      throw new Error('We could not authenticate your request');
-    } else {
-      const result = await loadGuestToken(guestToken);
-      remoteUser = result.user;
-    }
-  } else if (!canUseFeature(remoteUser, FEATURE.ORDER)) {
+  if (remoteUser && !canUseFeature(remoteUser, FEATURE.ORDER)) {
     return new FeatureNotAllowedForUser();
   }
 
@@ -616,9 +612,24 @@ export async function confirmOrder(order, remoteUser, guestToken) {
     ],
   });
 
+  if (!remoteUser) {
+    if (
+      !parseToBoolean(config.guestContributions.enable) &&
+      !get(order.collective, 'settings.features.GUEST_CONTRIBUTIONS')
+    ) {
+      throw new Unauthorized('You need to be logged in to confirm an order');
+    } else if (!guestToken) {
+      throw new Error('We could not authenticate your request');
+    } else {
+      const result = await loadGuestToken(guestToken);
+      remoteUser = result.user;
+    }
+  }
+
   if (!order) {
     throw new NotFound('Order not found');
   }
+
   if (!remoteUser.isAdmin(order.FromCollectiveId)) {
     throw new Unauthorized("You don't have permission to confirm this order");
   }
