@@ -7,6 +7,7 @@ import { roles } from '../../constants';
 import { types as CollectiveTypes } from '../../constants/collectives';
 import Algolia from '../../lib/algolia';
 import { fetchCollectiveId } from '../../lib/cache';
+import { getConsolidatedInvoicesData } from '../../lib/pdf';
 import rawQueries from '../../lib/queries';
 import { searchCollectivesByEmail, searchCollectivesInDB, searchCollectivesOnAlgolia } from '../../lib/search';
 import { toIsoDateStr } from '../../lib/utils';
@@ -115,55 +116,8 @@ const queries = {
         throw new Unauthorized("You don't have permission to access invoices for this user");
       }
 
-      const transactions = await models.Transaction.findAll({
-        attributes: ['createdAt', 'HostCollectiveId', 'amountInHostCurrency', 'hostCurrency'],
-        where: {
-          type: 'CREDIT',
-          [Op.or]: [
-            { FromCollectiveId: fromCollective.id, UsingVirtualCardFromCollectiveId: null },
-            { UsingVirtualCardFromCollectiveId: fromCollective.id },
-          ],
-        },
-      });
+      const invoices = await getConsolidatedInvoicesData(fromCollective);
 
-      const hostsById = {};
-      const invoicesByKey = {};
-      await Promise.map(transactions, async transaction => {
-        const HostCollectiveId = transaction.HostCollectiveId;
-        if (!HostCollectiveId) {
-          return;
-        }
-        hostsById[HostCollectiveId] =
-          hostsById[HostCollectiveId] ||
-          (await models.Collective.findByPk(HostCollectiveId, {
-            attributes: ['id', 'slug'],
-          }));
-        const createdAt = new Date(transaction.createdAt);
-        const year = createdAt.getFullYear();
-        const month = createdAt.getMonth() + 1;
-        const month2digit = month < 10 ? `0${month}` : `${month}`;
-        const slug = `${year}${month2digit}.${hostsById[HostCollectiveId].slug}.${fromCollective.slug}`;
-        const totalAmount = invoicesByKey[slug]
-          ? invoicesByKey[slug].totalAmount + transaction.amountInHostCurrency
-          : transaction.amountInHostCurrency;
-        const totalTransactions = invoicesByKey[slug] ? invoicesByKey[slug].totalTransactions + 1 : 1;
-
-        invoicesByKey[slug] = {
-          HostCollectiveId,
-          FromCollectiveId: fromCollective.id,
-          slug,
-          year,
-          month,
-          totalAmount,
-          totalTransactions,
-          currency: transaction.hostCurrency,
-        };
-      });
-      const invoices = [];
-      Object.keys(invoicesByKey).forEach(key => invoices.push(invoicesByKey[key]));
-      invoices.sort((a, b) => {
-        return a.slug > b.slug ? -1 : 1;
-      });
       return invoices;
     },
   },

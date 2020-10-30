@@ -136,6 +136,10 @@ Subject: {{collective.name}} Collective {{month}} {{year}} Report
       <td><div class="action"><a href="{{@root.collective.publicUrl}}/edit/goals?utm_source=opencollective&utm_campaign=monthlyreport&utm_medium=email">Edit goals</a></div></td>
     </tr>
   </table>
+
+  {{#if consolidatedPdfs}}
+  <br /><p>We've also attached PDFs of all your contributions, organized by fiscal host, to this email 👇</p>{{/if}}
+
   {{#if collective.nextGoal}}
   {{collective.nextGoal.title}}<br />
   <div class="progress-track">
