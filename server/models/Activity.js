@@ -51,6 +51,7 @@ export default function (Sequelize, DataTypes) {
       hooks: {
         afterCreate(activity) {
           notify(Sequelize, activity); // intentionally no return statement, needs to be async
+          return Promise.resolve();
         },
       },
     },
