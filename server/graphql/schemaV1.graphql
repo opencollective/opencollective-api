@@ -139,6 +139,11 @@ type Collective implements CollectiveInterface {
   isIncognito: Boolean
 
   """
+  Returns whether this collective is a guest profile
+  """
+  isGuest: Boolean
+
+  """
   Returns whether this collective is archived
   """
   isArchived: Boolean
@@ -261,11 +266,6 @@ type Collective implements CollectiveInterface {
     orderBy: PaymenMethodOrderField = type
 
     """
-    Defines if the organization "collective" payment method should be returned
-    """
-    includeOrganizationCollectivePaymentMethod: Boolean = false
-
-    """
     Defines if the host "collective" payment method should be returned
     """
     includeHostCollectivePaymentMethod: Boolean = false
@@ -355,7 +355,6 @@ input CollectiveInputType {
   tags: [String]
   tiers: [TierInputType]
   settings: JSON
-  data: JSON
   members: [MemberInputType]
   notifications: [NotificationInputType]
   HostCollectiveId: Int
@@ -417,6 +416,7 @@ interface CollectiveInterface {
   path: String
   isHost: Boolean
   isIncognito: Boolean
+  isGuest: Boolean
   canApply: Boolean
   canContact: Boolean
   isArchived: Boolean
@@ -550,11 +550,6 @@ interface CollectiveInterface {
     Order entries based on given column. Set to null for no ordering.
     """
     orderBy: PaymenMethodOrderField
-
-    """
-    Defines if the organization "collective" payment method should be returned
-    """
-    includeOrganizationCollectivePaymentMethod: Boolean = false
 
     """
     Defines if the host "collective" payment method should be returned
@@ -748,9 +743,7 @@ Input type for CommentType
 """
 input CommentAttributesInputType {
   id: Int
-  markdown: String
   html: String
-  UpdateId: Int
 }
 
 """
@@ -758,17 +751,12 @@ Input type for CommentType
 """
 input CommentInputType {
   id: Int
-  markdown: String
   html: String
 
   """
   Not supported yet. Defaults to user collective ID.
   """
   FromCollectiveId: Int
-  CollectiveId: Int
-  ExpenseId: Int
-  UpdateId: Int
-  ConversationId: Int
 }
 
 """
@@ -889,6 +877,11 @@ type Contributor {
   Defines if the contributors wants to be incognito (name not displayed)
   """
   isIncognito: Boolean!
+
+  """
+  Defines if the contributors is a guest account
+  """
+  isGuest: Boolean!
 
   """
   Description of how the member contribute. Will usually be a tier name, or "design" or "code".
@@ -1061,6 +1054,11 @@ type Event implements CollectiveInterface {
   isIncognito: Boolean
 
   """
+  Returns whether this collective is a guest profile
+  """
+  isGuest: Boolean
+
+  """
   Returns whether this collective is archived
   """
   isArchived: Boolean
@@ -1183,11 +1181,6 @@ type Event implements CollectiveInterface {
     orderBy: PaymenMethodOrderField = type
 
     """
-    Defines if the organization "collective" payment method should be returned
-    """
-    includeOrganizationCollectivePaymentMethod: Boolean = false
-
-    """
     Defines if the host "collective" payment method should be returned
     """
     includeHostCollectivePaymentMethod: Boolean = false
@@ -1299,24 +1292,15 @@ Input type for ExpenseType
 input ExpenseInputType {
   id: Int
   amount: Int
-  currency: String
   createdAt: DateString
   incurredAt: DateString
   description: String
   category: String
   status: String
   type: String
-
-  """
-  Can be: paypal, other. Also deprecated: donation, manual
-  """
-  payoutMethod: String
   PayoutMethod: PayoutMethodInput
   privateMessage: String
-  attachment: String
-  attachments: [ExpenseItemInputType]
   items: [ExpenseItemInputType]
-  user: UserInputType
   collective: CollectiveAttributesInputType
 }
 
@@ -1496,6 +1480,11 @@ type Fund implements CollectiveInterface {
   isIncognito: Boolean
 
   """
+  Returns whether this collective is a guest profile
+  """
+  isGuest: Boolean
+
+  """
   Returns whether this collective is archived
   """
   isArchived: Boolean
@@ -1616,11 +1605,6 @@ type Fund implements CollectiveInterface {
     isConfirmed: Boolean = true
     types: [String]
     orderBy: PaymenMethodOrderField = type
-
-    """
-    Defines if the organization "collective" payment method should be returned
-    """
-    includeOrganizationCollectivePaymentMethod: Boolean = false
 
     """
     Defines if the host "collective" payment method should be returned
@@ -2038,11 +2022,6 @@ type Mutation {
     limitedToTags: [String]
 
     """
-    Limit this payment method to make donations to those collectives
-    """
-    limitedToCollectiveIds: [Int]
-
-    """
     Limit this payment method to make donations to the collectives hosted by those hosts
     """
     limitedToHostCollectiveIds: [Int]
@@ -2117,11 +2096,6 @@ type Mutation {
     Limit this payment method to make donations to collectives having those tags
     """
     limitedToTags: [String]
-
-    """
-    Limit this payment method to make donations to those collectives
-    """
-    limitedToCollectiveIds: [Int]
 
     """
     Limit this payment method to make donations to the collectives hosted by those hosts
@@ -2399,7 +2373,6 @@ input OrderInputType {
   publicMessage: String
   privateMessage: String
   paymentMethod: PaymentMethodInputType
-  user: UserInputType
   fromCollective: CollectiveAttributesInputType
   collective: CollectiveAttributesInputType!
   tier: TierInputType
@@ -2613,6 +2586,11 @@ type Organization implements CollectiveInterface {
   isIncognito: Boolean
 
   """
+  Returns whether this collective is a guest profile
+  """
+  isGuest: Boolean
+
+  """
   Returns whether this collective is archived
   """
   isArchived: Boolean
@@ -2733,11 +2711,6 @@ type Organization implements CollectiveInterface {
     isConfirmed: Boolean = true
     types: [String]
     orderBy: PaymenMethodOrderField = type
-
-    """
-    Defines if the organization "collective" payment method should be returned
-    """
-    includeOrganizationCollectivePaymentMethod: Boolean = false
 
     """
     Defines if the host "collective" payment method should be returned
@@ -3027,6 +3000,11 @@ type Project implements CollectiveInterface {
   isIncognito: Boolean
 
   """
+  Returns whether this collective is a guest profile
+  """
+  isGuest: Boolean
+
+  """
   Returns whether this collective is archived
   """
   isArchived: Boolean
@@ -3147,11 +3125,6 @@ type Project implements CollectiveInterface {
     isConfirmed: Boolean = true
     types: [String]
     orderBy: PaymenMethodOrderField = type
-
-    """
-    Defines if the organization "collective" payment method should be returned
-    """
-    includeOrganizationCollectivePaymentMethod: Boolean = false
 
     """
     Defines if the host "collective" payment method should be returned
@@ -3292,7 +3265,6 @@ type Query {
     CollectiveId: Int
     CollectiveSlug: String
     status: ExpenseStatus
-    category: String
     FromCollectiveId: Int
     FromCollectiveSlug: String
 
@@ -3941,6 +3913,11 @@ type User implements CollectiveInterface {
   isIncognito: Boolean
 
   """
+  Returns whether this collective is a guest profile
+  """
+  isGuest: Boolean
+
+  """
   Returns whether this collective is archived
   """
   isArchived: Boolean
@@ -4063,11 +4040,6 @@ type User implements CollectiveInterface {
     orderBy: PaymenMethodOrderField = type
 
     """
-    Defines if the organization "collective" payment method should be returned
-    """
-    includeOrganizationCollectivePaymentMethod: Boolean = false
-
-    """
     Defines if the host "collective" payment method should be returned
     """
     includeHostCollectivePaymentMethod: Boolean = false
@@ -4153,7 +4125,6 @@ input UserInputType {
   twitterHandle: String
   githubHandle: String
   website: String
-  paypalEmail: String
   newsletterOptIn: Boolean
   location: LocationInputType
 }
