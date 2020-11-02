@@ -25,6 +25,7 @@ export const IDENTIFIER_TYPES = {
   EXPENSE_ATTACHED_FILE: 'expense-attached-file',
   EXPENSE_ITEM: 'expense-item',
   TRANSACTION: 'transaction',
+  UPDATE: 'update',
 };
 
 const getDefaultInstance = type => {
