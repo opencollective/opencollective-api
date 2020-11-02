@@ -216,11 +216,6 @@ input AccountReferenceInput {
   id: String
 
   """
-  The internal id of the account (ie: 580)
-  """
-  legacyId: Int
-
-  """
   The slug identifying the account (ie: babel for https://opencollective.com/babel)
   """
   slug: String
@@ -958,7 +953,6 @@ input CommentCreateInput {
   If your comment is linked to an expense, set it here
   """
   expense: ExpenseReferenceInput
-  ExpenseId: Int
   ConversationId: String
 }
 
@@ -5059,11 +5053,6 @@ input NewAccountOrReferenceInput {
   id: String
 
   """
-  The internal id of the account (ie: 580)
-  """
-  legacyId: Int
-
-  """
   The slug identifying the account (ie: babel for https://opencollective.com/babel)
   """
   slug: String
@@ -6024,11 +6013,6 @@ type Query {
     searchTerm: String
   ): ExpenseCollection
   expense(
-    """
-    Public expense identifier
-    """
-    id: String
-
     """
     Identifiers to retrieve the expense.
     """
