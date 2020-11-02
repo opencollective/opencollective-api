@@ -175,5 +175,8 @@
     "clientSecret": "GOOGLE_DRIVE_CLIENT_SECRET",
     "redirectUri": "GOOGLE_DRIVE_REDIRECT_URI",
     "refresh_token": "GOOGLE_DRIVE_REFRESH_TOKEN"
+  },
+  "pdfService": {
+    "fetchTransactionsReceipts": "FETCH_TRANSACTIONS_RECEIPTS"
   }
 }

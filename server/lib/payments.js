@@ -10,18 +10,18 @@ import { PAYMENT_METHOD_TYPES } from '../constants/paymentMethods';
 import roles from '../constants/roles';
 import tiers from '../constants/tiers';
 import { FEES_ON_TOP_TRANSACTION_PROPERTIES } from '../constants/transactions';
-import { notifyAdminsOfCollective } from '../lib/notifications';
-import { createPrepaidPaymentMethod, isPrepaidBudgetOrder } from '../lib/prepaid-budget';
-import { formatAccountDetails } from '../lib/transferwise';
-import { formatCurrency, toIsoDateStr } from '../lib/utils';
 import models, { Op } from '../models';
 import paymentProviders from '../paymentProviders';
 
 import emailLib from './email';
+import { notifyAdminsOfCollective } from './notifications';
 import { getTransactionPdf } from './pdf';
 import { subscribeOrUpgradePlan, validatePlanRequest } from './plans';
+import { createPrepaidPaymentMethod, isPrepaidBudgetOrder } from './prepaid-budget';
 import { getNextChargeAndPeriodStartDates } from './recurring-contributions';
 import { netAmount } from './transactions';
+import { formatAccountDetails } from './transferwise';
+import { formatCurrency, toIsoDateStr } from './utils';
 
 const debug = debugLib('payments');
 
