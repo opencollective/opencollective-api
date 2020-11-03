@@ -16,6 +16,7 @@ jobs:
       - name: GraphQL Inspector (V1)
         uses: kamilkisiela/graphql-inspector@master
         with:
+          name: 'GraphQL Inspector - Schema v1'
           github-token: ${{ secrets.GITHUB_TOKEN }}
           schema: 'master:server/graphql/schemaV1.graphql'
           fail-on-breaking: false
@@ -23,6 +24,7 @@ jobs:
       - name: GraphQL Inspector (V2)
         uses: kamilkisiela/graphql-inspector@master
         with:
+          name: 'GraphQL Inspector - Schema v2'
           github-token: ${{ secrets.GITHUB_TOKEN }}
           schema: 'master:server/graphql/schemaV2.graphql'
           fail-on-breaking: false
