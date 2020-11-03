@@ -1,6 +1,6 @@
 import config from 'config';
 import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
-import { isNil } from 'lodash';
+import { assign, isNil } from 'lodash';
 
 import { types } from '../../../constants/collectives';
 import { getPaginatedContributorsForCollective } from '../../../lib/contributors';
@@ -97,11 +97,14 @@ export const AccountWithContributionsFields = {
       onlyPublishedUpdates: { type: GraphQLBoolean },
     },
     async resolve(collective, { limit, offset, onlyPublishedUpdates }) {
+      let where = {
+        CollectiveId: collective.id,
+      };
+      if (onlyPublishedUpdates) {
+        where = assign(where, { publishedAt: { [Op.ne]: null } });
+      }
       const query = {
-        where: {
-          CollectiveId: collective.id,
-          publishedAt: onlyPublishedUpdates ? { [Op.ne]: null } : undefined,
-        },
+        where,
         order: [['createdAt', 'DESC']],
         limit,
         offset,
