@@ -100,7 +100,7 @@ export const AccountWithContributionsFields = {
       const query = {
         where: {
           CollectiveId: collective.id,
-          publishedAt: onlyPublishedUpdates ? { [Op.ne]: null } : null,
+          publishedAt: onlyPublishedUpdates ? { [Op.ne]: null } : undefined,
         },
         order: [['createdAt', 'DESC']],
         limit,
