@@ -1,17 +1,19 @@
 import config from 'config';
-import { get, omit } from 'lodash';
+import { get, isEmpty, omit } from 'lodash';
 import moment from 'moment';
 import { Op } from 'sequelize';
 
 import intervals from '../constants/intervals';
 import status from '../constants/order_status';
+import { PAYMENT_METHOD_TYPES } from '../constants/paymentMethods';
 import models from '../models';
 
 import emailLib from './email';
 import logger from './logger';
 import * as paymentsLib from './payments';
+import { getTransactionPdf } from './pdf';
 import { isHostPlan } from './plans';
-import { sleep } from './utils';
+import { sleep, toIsoDateStr } from './utils';
 
 /** Maximum number of attempts before an order gets cancelled. */
 export const MAX_RETRIES = 5;
@@ -370,6 +372,9 @@ export async function sendFailedEmail(order, lastAttempt) {
 
 /** Send `thankyou` email */
 export async function sendThankYouEmail(order, transaction) {
+  let pdf;
+  const attachments = [];
+  const { collective, paymentMethod } = order;
   const relatedCollectives = await order.collective.getRelatedCollectives(3, 0);
   const user = order.createdByUser;
   const host = await order.collective.getHostCollective();
@@ -383,6 +388,20 @@ export async function sendThankYouEmail(order, transaction) {
         from: `${order.collective.name} <no-reply@${order.collective.slug}.opencollective.com>`,
       },
     );
+  }
+
+  // hit PDF service and get PDF (unless payment method type is gift card)
+  if (paymentMethod?.type !== PAYMENT_METHOD_TYPES.VIRTUALCARD) {
+    pdf = await getTransactionPdf(transaction, user);
+  }
+
+  // attach pdf
+  if (pdf) {
+    const createdAtString = toIsoDateStr(transaction.createdAt ? new Date(transaction.createdAt) : new Date());
+    attachments.push({
+      filename: `transaction_${collective.slug}_${createdAtString}_${transaction.uuid}.pdf`,
+      content: pdf,
+    });
   }
 
   return emailLib.send(
@@ -400,9 +419,11 @@ export async function sendThankYouEmail(order, transaction) {
       config: { host: config.host },
       interval: order.Subscription.interval,
       subscriptionsLink: `${config.host.website}/${order.fromCollective.slug}/recurring-contributions`,
+      transactionPdf: isEmpty(attachments) ? null : true,
     },
     {
       from: `${order.collective.name} <no-reply@${order.collective.slug}.opencollective.com>`,
+      attachments,
     },
   );
 }
