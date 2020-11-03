@@ -48,6 +48,7 @@ export const templateNames = [
   'event.reminder.7d',
   'fund.created.foundation',
   'fund.approved.foundation',
+  'host.application.contact',
   'host.report',
   'host.report.text',
   'host.report.summary',
