@@ -1,3 +1,7 @@
+import fs from 'fs';
+import path from 'path';
+
+import bayes from 'bayes';
 import { clamp } from 'lodash';
 
 import slackLib, { OPEN_COLLECTIVE_SLACK_CHANNEL } from '../lib/slack';
@@ -16,6 +20,13 @@ export type SpamAnalysisReport = {
   keywords: string[];
   /** Detected blocked domains */
   domains: string[];
+  /** Result of the Bayes check, spam or ham */
+  bayes: string;
+};
+
+export type BayesClassifier = {
+  /** Categorize a content string */
+  categorize: Function;
 };
 
 // Watched content
@@ -358,11 +369,38 @@ const getSpamDomains = (content: string): string[] => {
   }, []);
 };
 
+let bayesClassifier;
+
+const getBayesClassifier = async (): Promise<BayesClassifier> => {
+  if (!bayesClassifier) {
+    const bayesClassifierPath = path.join(__dirname, '..', '..', 'config', `collective-spam-bayes.json`);
+    const bayesClassifierJson = await fs.promises.readFile(bayesClassifierPath, 'utf-8');
+    bayesClassifier = bayes.fromJson(bayesClassifierJson);
+  }
+  return bayesClassifier;
+};
+
+export const collectiveBayesCheck = async (collective: any, extraString: string): Promise<string> => {
+  const content = `${collective.slug} ${collective.name} ${collective.description} ${collective.longDescription} ${collective.website} ${extraString}`;
+
+  const classifier = await getBayesClassifier();
+
+  return classifier.categorize(content);
+};
+
 /**
  * Checks the values for this collective to try to determinate if it's a spammy profile.
  */
-export const collectiveSpamCheck = (collective: any, context: string): SpamAnalysisReport => {
+export const collectiveSpamCheck = async (collective: any, context: string): Promise<SpamAnalysisReport> => {
   const result = { score: 0, keywords: new Set<string>(), domains: new Set<string>() };
+
+  let bayesCheck = null;
+  if (collective.description || collective.longDescription) {
+    bayesCheck = await collectiveBayesCheck(collective, '');
+    if (bayesCheck === 'spam') {
+      result.score += 0.5;
+    }
+  }
 
   ANALYZED_FIELDS.forEach(field => {
     // Check each field for SPAM keywords
@@ -383,6 +421,7 @@ export const collectiveSpamCheck = (collective: any, context: string): SpamAnaly
   return {
     date: new Date().toISOString(),
     score: clamp(result.score, 0, 1),
+    bayes: bayesCheck,
     keywords: Array.from(result.keywords),
     domains: Array.from(result.domains),
     data: collective.info || collective,
