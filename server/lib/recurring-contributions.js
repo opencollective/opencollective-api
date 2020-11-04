@@ -16,7 +16,7 @@ import { isHostPlan } from './plans';
 import { sleep, toIsoDateStr } from './utils';
 
 /** Maximum number of attempts before an order gets cancelled. */
-export const MAX_RETRIES = 5;
+export const MAX_RETRIES = 6;
 
 /** Find all orders with subscriptions that are active & due.
  *
@@ -248,10 +248,12 @@ export function getNextChargeAndPeriodStartDates(status, order) {
 
     response.nextPeriodStart = nextChargeDate.toDate();
   } else if (status === 'failure') {
-    if (order.Subscription.chargeRetryCount >= 2) {
-      nextChargeDate = moment(new Date()).add(5, 'days');
+    if (order.Subscription.chargeRetryCount > 2) {
+      // How do I remove time part from JavaScript date?
+      // https://stackoverflow.com/questions/34722862/how-do-i-remove-time-part-from-javascript-date/34722927
+      nextChargeDate = moment(new Date(new Date().toDateString())).add(5, 'days');
     } else {
-      nextChargeDate = moment(new Date()).add(2, 'days');
+      nextChargeDate = moment(new Date(new Date().toDateString())).add(2, 'days');
     }
   } else if (status === 'updated') {
     // used when user updates payment method

@@ -297,6 +297,7 @@ export default {
         'Your card has expired.',
         "Your card's security code is incorrect",
         'Your card number is incorrect.',
+        'The zip code you supplied failed validation.',
         'Invalid amount.',
         'Payment Intent require action',
       ];
