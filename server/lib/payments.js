@@ -2,7 +2,7 @@
 import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
-import { find, get, includes, omit, pick } from 'lodash';
+import { find, get, includes, isNumber, omit, pick } from 'lodash';
 
 import activities from '../constants/activities';
 import status from '../constants/order_status';
@@ -543,18 +543,114 @@ export const sendExpiringCreditCardUpdateEmail = async data => {
   return emailLib.send('payment.creditcard.expiring', data.email, data);
 };
 
-export const getPlatformFee = order => {
-  const orderPlatformFee = get(order, 'data.platformFee');
-  if (!isNaN(orderPlatformFee)) {
-    return orderPlatformFee;
+export const getPlatformFee = async (totalAmount, order, host = null) => {
+  const isFeesOnTop = order.data?.isFeesOnTop || false;
+
+  // If it's "Fees On Top", we're just using that
+  if (isFeesOnTop) {
+    return order.data?.platformFee;
   }
 
-  const defaultPlatformFeePercent =
-    order.collective.platformFeePercent === null
-      ? config.fees.default.platformPercent
-      : order.collective.platformFeePercent;
+  //  Otherwise, use platformFeePercent
+  const platformFeePercent = await getPlatformFeePercent(order, host);
 
-  const platformFeePercent = get(order, 'data.platformFeePercent', defaultPlatformFeePercent);
+  return calcFee(totalAmount, platformFeePercent);
+};
 
-  return parseInt((order.totalAmount * platformFeePercent) / 100, 10);
+export const getPlatformFeePercent = async (order, host = null) => {
+  // No Host Fee for money going to an host itself
+  if (order.collective.isHostAccount) {
+    return 0;
+  }
+
+  const possibleValues = [
+    // Fixed in the Order (special tiers: BackYourStack, Pre-Paid)
+    order.data?.platformFeePercent,
+  ];
+
+  if (order.paymentMethod.service === 'opencollective' && order.paymentMethod.type === 'manual') {
+    host = host || (await order.collective.getHostCollective());
+    // Fixed for Bank Transfers at collective level
+    possibleValues.push(order.collective.data?.bankTransfersPlatformFeePercent);
+    // Fixed for Bank Transfers at host level
+    // As of August 2020, this will be only set on a selection of Hosts (opensource 5%)
+    possibleValues.push(host.data?.bankTransfersPlatformFeePercent);
+    // Default to 0 for this kind of payments
+    possibleValues.push(0);
+  }
+
+  if (order.paymentMethod.service === 'opencollective') {
+    // Default to 0 for this kind of payments
+    if (order.paymentMethod.type === 'collective' || order.paymentMethod.type === 'host') {
+      possibleValues.push(0);
+    }
+  }
+
+  // Default for Collective
+  possibleValues.push(order.collective.platformFeePercent);
+
+  // Just in case, default on the platform (not used in normal operation)
+  possibleValues.push(config.fees.default.platformPercent);
+
+  // Pick the first that is set as a Number
+  return possibleValues.find(isNumber);
+};
+
+export const getHostFee = async (totalAmount, order, host = null) => {
+  const feeOnTop = order.data?.platformFee || 0;
+
+  const hostFeePercent = await getHostFeePercent(order, host);
+
+  return calcFee(totalAmount - feeOnTop, hostFeePercent);
+};
+
+export const getHostFeePercent = async (order, host = null) => {
+  host = host || (await order.collective.getHostCollective());
+
+  // No Host Fee for money going to an host itself
+  if (order.collective.isHostAccount) {
+    return 0;
+  }
+
+  const possibleValues = [
+    // Fixed in the Order (special tiers: BackYourStack, Pre-Paid)
+    order.data?.hostFeePercent,
+  ];
+
+  if (order.paymentMethod.service === 'opencollective' && order.paymentMethod.type === 'manual') {
+    // Fixed for Bank Transfers at collective level
+    // As of August 2020, this will be only set on a selection of Collective (some foundation collectives 5%)
+    possibleValues.push(order.collective.data?.bankTransfersHostFeePercent);
+    // Fixed for Bank Transfers at host level
+    // As of August 2020, this will be only set on a selection of Hosts (foundation 8%)
+    possibleValues.push(host.data?.bankTransfersHostFeePercent);
+  }
+
+  if (order.paymentMethod.service === 'opencollective') {
+    // Default to 0 for this kind of payments
+    if (order.paymentMethod.type === 'collective' || order.paymentMethod.type === 'host') {
+      possibleValues.push(0);
+    }
+  }
+
+  if (order.paymentMethod.service === 'stripe') {
+    // Configurable by the Host globally or at the Collective level
+    possibleValues.push(order.collective.data?.creditCardHostFeePercent);
+    possibleValues.push(host.data?.creditCardHostFeePercent);
+  }
+
+  if (order.paymentMethod.service === 'paypal') {
+    // Configurable by the Host globally or at the Collective level
+    possibleValues.push(order.collective.data?.paypalHostFeePercent);
+    possibleValues.push(host.data?.paypalHostFeePercent);
+  }
+
+  // Default for Collective
+  possibleValues.push(order.collective.hostFeePercent);
+
+  // Just in case, default on the platform (not used in normal operation)
+  possibleValues.push(config.fees.default.hostPercent);
+
+  // Pick the first that is set as a Number
+  return possibleValues.find(isNumber);
 };

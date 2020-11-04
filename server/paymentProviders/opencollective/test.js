@@ -1,9 +1,8 @@
 import config from 'config';
-import { get } from 'lodash';
 
 import { maxInteger } from '../../constants/math';
 import { TransactionTypes } from '../../constants/transactions';
-import * as paymentsLib from '../../lib/payments';
+import { calcFee, getHostFeePercent, getPlatformFeePercent } from '../../lib/payments';
 import models from '../../models';
 
 const paymentMethodProvider = {};
@@ -25,8 +24,8 @@ paymentMethodProvider.processOrder = async order => {
 
   const collectiveHost = await order.collective.getHostCollective();
 
-  const hostFeePercent = get(order, 'data.hostFeePercent', 0);
-  const platformFeePercent = get(order, 'data.platformFeePercent', 0);
+  const hostFeePercent = await getHostFeePercent(order);
+  const platformFeePercent = await getPlatformFeePercent(order);
 
   const payload = {
     CreatedByUserId: order.CreatedByUserId,
@@ -35,8 +34,8 @@ paymentMethodProvider.processOrder = async order => {
     PaymentMethodId: order.PaymentMethodId,
   };
 
-  const hostFeeInHostCurrency = paymentsLib.calcFee(order.totalAmount, hostFeePercent);
-  const platformFeeInHostCurrency = paymentsLib.calcFee(order.totalAmount, platformFeePercent);
+  const hostFeeInHostCurrency = calcFee(order.totalAmount, hostFeePercent);
+  const platformFeeInHostCurrency = calcFee(order.totalAmount, platformFeePercent);
 
   payload.transaction = {
     type: TransactionTypes.CREDIT,

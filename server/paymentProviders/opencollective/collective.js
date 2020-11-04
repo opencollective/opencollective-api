@@ -1,9 +1,8 @@
 import Promise from 'bluebird';
-import { get } from 'lodash';
 
 import { TransactionTypes } from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
-import * as paymentsLib from '../../lib/payments';
+import { calcFee, createRefundTransaction, getHostFeePercent, getPlatformFeePercent } from '../../lib/payments';
 import { formatCurrency } from '../../lib/utils';
 import models from '../../models';
 
@@ -54,8 +53,8 @@ paymentMethodProvider.processOrder = async order => {
     );
   }
 
-  const hostFeePercent = get(order, 'data.hostFeePercent', 0);
-  const platformFeePercent = get(order, 'data.platformFeePercent', 0);
+  const hostFeePercent = await getHostFeePercent(order);
+  const platformFeePercent = await getPlatformFeePercent(order);
 
   const payload = {
     CreatedByUserId: order.CreatedByUserId,
@@ -73,9 +72,9 @@ paymentMethodProvider.processOrder = async order => {
   const totalAmountInPaymentMethodCurrency = order.totalAmount * fxrate;
 
   const feeOnTop = order.data?.platformFee || 0;
-  const hostFeeInHostCurrency = paymentsLib.calcFee((order.totalAmount - feeOnTop) * fxrate, hostFeePercent);
+  const hostFeeInHostCurrency = calcFee((order.totalAmount - feeOnTop) * fxrate, hostFeePercent);
   const platformFeeInHostCurrency = !feeOnTop
-    ? paymentsLib.calcFee(order.totalAmount * fxrate, platformFeePercent)
+    ? calcFee(order.totalAmount * fxrate, platformFeePercent)
     : feeOnTop * fxrate;
 
   payload.transaction = {
@@ -135,7 +134,7 @@ paymentMethodProvider.refundTransaction = async (transaction, user) => {
 
   // Use 0 for processor fees because there's no fees for collective to collective
   // transactions within the same host.
-  return await paymentsLib.createRefundTransaction(transaction, 0, null, user);
+  return await createRefundTransaction(transaction, 0, null, user);
 };
 
 export default paymentMethodProvider;

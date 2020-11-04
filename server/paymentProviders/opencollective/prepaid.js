@@ -1,9 +1,8 @@
-import config from 'config';
 import { get } from 'lodash';
 
 import { TransactionTypes } from '../../constants/transactions';
 import * as currency from '../../lib/currency';
-import * as libpayments from '../../lib/payments';
+import { createRefundTransaction, getHostFee, getPlatformFee, isProvider } from '../../lib/payments';
 import models, { Op } from '../../models';
 
 /** Get the balance of a prepaid credit card
@@ -18,7 +17,7 @@ import models, { Op } from '../../models';
  * @return {Object} with amount & currency from the payment method.
  */
 async function getBalance(paymentMethod) {
-  if (!libpayments.isProvider('opencollective.prepaid', paymentMethod)) {
+  if (!isProvider('opencollective.prepaid', paymentMethod)) {
     throw new Error(`Expected opencollective.prepaid but got ${paymentMethod.service}.${paymentMethod.type}`);
   }
   /* Result will be negative (We're looking for DEBIT transactions) */
@@ -84,16 +83,8 @@ async function processOrder(order) {
     throw new Error("This payment method doesn't have enough funds to complete this order");
   }
 
-  const feeOnTop = order.data?.platformFee || 0;
-  const defaultPlatformFee =
-    order.collective.platformFeePercent === null
-      ? config.fees.default.platformPercent
-      : order.collective.platformFeePercent;
-  const platformFeePercent = get(order, 'data.platformFeePercent', defaultPlatformFee);
-  const platformFeeInHostCurrency = feeOnTop || libpayments.calcFee(order.totalAmount, platformFeePercent);
-
-  const hostFeePercent = get(order, 'data.hostFeePercent', order.collective.hostFeePercent);
-  const hostFeeInHostCurrency = libpayments.calcFee(order.totalAmount - feeOnTop, hostFeePercent);
+  const platformFeeInHostCurrency = await getPlatformFee(order.totalAmount, order, hostCollective);
+  const hostFeeInHostCurrency = await getHostFee(order.totalAmount, order, hostCollective);
 
   // Use the above payment method to donate to Collective
   const transactions = await models.Transaction.createFromPayload({
@@ -125,7 +116,7 @@ async function processOrder(order) {
 
 async function refundTransaction(transaction, user) {
   /* Create negative transactions for the received transaction */
-  return await libpayments.createRefundTransaction(transaction, 0, null, user);
+  return await createRefundTransaction(transaction, 0, null, user);
 }
 
 /* Expected API of a Payment Method Type */
