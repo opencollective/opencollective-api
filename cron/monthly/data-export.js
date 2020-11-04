@@ -203,7 +203,7 @@ const getAccessToken = (oAuth2Client, callback) => {
       if (err) {
         return console.error('Error retrieving access token', err);
       } else {
-        console.log(`>>> Token: ${token}`);
+        console.log(`>>> Token: ${JSON.stringify(token)}`);
       }
 
       oAuth2Client.setCredentials(token);
