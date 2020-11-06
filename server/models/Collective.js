@@ -974,12 +974,8 @@ export default function (Sequelize, DataTypes) {
 
     // TODO unsubscribe from OpenCollective tier plan.
 
-    await this.update({
-      isHostAccount: false,
-      isActive: false,
-      HostCollectiveId: null,
-      settings: omit(this.settings, ['hostCollective']),
-    });
+    await this.deactivateBudget();
+    await this.update({ isHostAccount: false });
 
     await models.Activity.create({
       type: activities.DEACTIVATED_COLLECTIVE_AS_HOST,
