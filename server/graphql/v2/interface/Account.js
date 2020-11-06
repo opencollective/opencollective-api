@@ -1,7 +1,7 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 import GraphQLJSON from 'graphql-type-json';
-import { get, invert } from 'lodash';
+import { assign, get, invert } from 'lodash';
 
 import models, { Op } from '../../../models';
 import { NotFound } from '../../errors';
@@ -9,6 +9,7 @@ import { ConversationCollection } from '../collection/ConversationCollection';
 import { MemberCollection, MemberOfCollection } from '../collection/MemberCollection';
 import { OrderCollection } from '../collection/OrderCollection';
 import { TransactionCollection } from '../collection/TransactionCollection';
+import { UpdateCollection } from '../collection/UpdateCollection';
 import {
   AccountOrdersFilter,
   AccountType,
@@ -30,6 +31,8 @@ import { PaymentMethod } from '../object/PaymentMethod';
 import PayoutMethod from '../object/PayoutMethod';
 import { TagStats } from '../object/TagStats';
 import { TransferWise } from '../object/TransferWise';
+
+import { CollectionArgs } from './Collection';
 
 const accountFieldsDefinition = () => ({
   id: {
@@ -267,6 +270,30 @@ const accountFieldsDefinition = () => ({
     type: AccountStats,
     resolve(collective) {
       return collective;
+    },
+  },
+  updates: {
+    type: new GraphQLNonNull(UpdateCollection),
+    args: {
+      ...CollectionArgs,
+      onlyPublishedUpdates: { type: GraphQLBoolean },
+    },
+    async resolve(collective, { limit, offset, onlyPublishedUpdates }) {
+      let where = {
+        CollectiveId: collective.id,
+      };
+      if (onlyPublishedUpdates) {
+        where = assign(where, { publishedAt: { [Op.ne]: null } });
+      }
+      const query = {
+        where,
+        order: [['createdAt', 'DESC']],
+        limit,
+        offset,
+      };
+
+      const result = await models.Update.findAndCountAll(query);
+      return { nodes: result.rows, totalCount: result.count, limit, offset };
     },
   },
 });

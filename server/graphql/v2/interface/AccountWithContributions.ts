@@ -1,13 +1,12 @@
 import config from 'config';
 import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
-import { assign, isNil } from 'lodash';
+import { isNil } from 'lodash';
 
 import { types } from '../../../constants/collectives';
 import { getPaginatedContributorsForCollective } from '../../../lib/contributors';
-import models, { Op } from '../../../models';
+import models from '../../../models';
 import { ContributorCollection } from '../collection/ContributorCollection';
 import { TierCollection } from '../collection/TierCollection';
-import { UpdateCollection } from '../collection/UpdateCollection';
 import { AccountType, MemberRole } from '../enum';
 
 import { CollectionArgs } from './Collection';
@@ -89,30 +88,6 @@ export const AccountWithContributionsFields = {
   },
   contributionPolicy: {
     type: GraphQLString,
-  },
-  updates: {
-    type: new GraphQLNonNull(UpdateCollection),
-    args: {
-      ...CollectionArgs,
-      onlyPublishedUpdates: { type: GraphQLBoolean },
-    },
-    async resolve(collective, { limit, offset, onlyPublishedUpdates }) {
-      let where = {
-        CollectiveId: collective.id,
-      };
-      if (onlyPublishedUpdates) {
-        where = assign(where, { publishedAt: { [Op.ne]: null } });
-      }
-      const query = {
-        where,
-        order: [['createdAt', 'DESC']],
-        limit,
-        offset,
-      };
-
-      const result = await models.Update.findAndCountAll(query);
-      return { nodes: result.rows, totalCount: result.count, limit, offset };
-    },
   },
 };
 
