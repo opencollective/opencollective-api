@@ -683,7 +683,7 @@ export default function (Sequelize, DataTypes) {
           }
 
           // Check if collective is spam
-          const spamReport = collectiveSpamCheck(instance, 'Collective.beforeCreate');
+          const spamReport = await collectiveSpamCheck(instance, 'Collective.beforeCreate');
           // If 100% sure that it's a spam
           if (spamReport.score === 1) {
             // Put the user into limited mode
@@ -717,11 +717,11 @@ export default function (Sequelize, DataTypes) {
 
           return null;
         },
-        afterUpdate: async instance => {
-          const spamReport = collectiveSpamCheck(instance, 'Collective.afterUpdate');
+        afterUpdate: async (instance, options) => {
+          const spamReport = await collectiveSpamCheck(instance, 'Collective.afterUpdate');
           if (spamReport.score > 0 && spamReport.score > (instance.data?.spamReport?.score || 0)) {
             notifyTeamAboutSuspiciousCollective(spamReport);
-            return instance.update({ data: { ...instance.data, spamReport } });
+            return instance.update({ data: { ...instance.data, spamReport } }, { transaction: options.transaction });
           }
         },
       },

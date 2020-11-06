@@ -25,40 +25,44 @@ describe('server/lib/spam', () => {
     it('detects bad keywords', async () => {
       // Description
       const collectiveWithBadDescription = await fakeCollective({ description: 'Some keto stuff' });
-      expect(collectiveSpamCheck(collectiveWithBadDescription, 'test')).to.deep.eq({
+      expect(await collectiveSpamCheck(collectiveWithBadDescription, 'test')).to.deep.eq({
         score: 0.3,
         keywords: ['keto'],
         domains: [],
+        bayes: 'ham',
         context: 'test',
         data: collectiveWithBadDescription.info,
         date: '2020-01-01T00:00:00.000Z',
       });
 
       // Long description
-      expect(collectiveSpamCheck({ longDescription: 'Some PORN stuff' })).to.deep.eq({
+      expect(await collectiveSpamCheck({ longDescription: 'Some PORN stuff' })).to.deep.eq({
         score: 0.2,
         keywords: ['porn'],
         domains: [],
+        bayes: 'ham',
         context: undefined,
         date: '2020-01-01T00:00:00.000Z',
         data: { longDescription: 'Some PORN stuff' },
       });
 
       // Website
-      expect(collectiveSpamCheck({ website: 'https://maxketo.com' })).to.deep.eq({
+      expect(await collectiveSpamCheck({ website: 'https://maxketo.com' })).to.deep.eq({
         score: 0.3,
         keywords: ['keto'],
         domains: [],
+        bayes: null,
         context: undefined,
         date: '2020-01-01T00:00:00.000Z',
         data: { website: 'https://maxketo.com' },
       });
 
       // Name
-      expect(collectiveSpamCheck({ name: 'BEST KeTo!!!' })).to.deep.eq({
+      expect(await collectiveSpamCheck({ name: 'BEST KeTo!!!' })).to.deep.eq({
         score: 0.3,
         keywords: ['keto'],
         domains: [],
+        bayes: null,
         context: undefined,
         date: '2020-01-01T00:00:00.000Z',
         data: { name: 'BEST KeTo!!!' },
@@ -67,10 +71,11 @@ describe('server/lib/spam', () => {
 
     it('detects blocked websites', async () => {
       // Website
-      expect(collectiveSpamCheck({ website: 'https://supplementslove.com/promotion' })).to.deep.eq({
+      expect(await collectiveSpamCheck({ website: 'https://supplementslove.com/promotion' })).to.deep.eq({
         score: 1,
         keywords: [],
         domains: ['supplementslove.com'],
+        bayes: null,
         context: undefined,
         date: '2020-01-01T00:00:00.000Z',
         data: { website: 'https://supplementslove.com/promotion' },
@@ -90,7 +95,7 @@ describe('server/lib/spam', () => {
     });
 
     it('notifies Slack with the report info', async () => {
-      const report = collectiveSpamCheck({ name: 'Keto stuff', slug: 'ketoooo' });
+      const report = await collectiveSpamCheck({ name: 'Keto stuff', slug: 'ketoooo' });
       await notifyTeamAboutSuspiciousCollective(report);
       expect(slackPostMessageStub.calledOnce).to.be.true;
 
@@ -114,7 +119,7 @@ describe('server/lib/spam', () => {
     });
 
     it('notifies Slack with the report info', async () => {
-      const report = collectiveSpamCheck({ name: 'Keto stuff', slug: 'ketoooo' });
+      const report = await collectiveSpamCheck({ name: 'Keto stuff', slug: 'ketoooo' });
       await notifyTeamAboutPreventedCollectiveCreate(report);
       expect(slackPostMessageStub.calledOnce).to.be.true;
 
