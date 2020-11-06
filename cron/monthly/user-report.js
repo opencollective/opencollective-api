@@ -7,13 +7,14 @@ import path from 'path';
 import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
-import { groupBy, pick, uniq } from 'lodash';
+import { groupBy, isEmpty, pick, uniq } from 'lodash';
 import moment from 'moment';
 
 import ORDER_STATUS from '../../server/constants/order_status';
 import roles from '../../server/constants/roles';
 import { convertToCurrency } from '../../server/lib/currency';
 import emailLib from '../../server/lib/email';
+import { getConsolidatedInvoicePdfs } from '../../server/lib/pdf';
 import { formatArrayToString, formatCurrencyObject } from '../../server/lib/utils';
 import models, { Op } from '../../server/models';
 
@@ -150,7 +151,6 @@ const processBacker = async FromCollectiveId => {
     return;
   }
 
-  const attachments = [];
   const orders = await models.Order.findAll({
     attributes: ['id', 'CollectiveId', 'totalAmount', 'currency'],
     where: {
@@ -192,6 +192,9 @@ const processBacker = async FromCollectiveId => {
     'DESC',
   ).then(({ collectives }) => collectives);
 
+  // monthlyConsolidatedInvoices is array of attachments
+  const monthlyConsolidatedInvoices = await getConsolidatedInvoicePdfs(backerCollective);
+
   try {
     await Promise.each(subscribers, user => {
       const data = {
@@ -199,17 +202,18 @@ const processBacker = async FromCollectiveId => {
         month,
         fromCollective: backerCollective.info,
         collectives: collectivesWithOrders,
-        manageSubscriptionsUrl: `${config.host.website}/subscriptions`,
+        manageSubscriptionsUrl: `${config.host.website}/recurring-contributions`,
         relatedCollectives: relatedCollectives,
         stats,
         tags: stats.allTags || {},
+        consolidatedPdfs: isEmpty(monthlyConsolidatedInvoices) ? null : true,
       };
       if (data.tags['open source']) {
         data.tags.opensource = true;
       }
       data[backerCollective.type] = true;
       const options = {
-        attachments,
+        attachments: monthlyConsolidatedInvoices,
       };
       return sendEmail(user, data, options);
     });
