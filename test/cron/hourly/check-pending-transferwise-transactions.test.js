@@ -96,6 +96,7 @@ describe('cron/hourly/check-pending-transferwise-transactions.js', () => {
       type: 'DEBIT',
       amount: -1 * manualExpense.amount,
       ExpenseId: manualExpense.id,
+      data: { unrelatedDataKey: true },
     });
 
     const spy = sandbox.spy(console, 'log');
