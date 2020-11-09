@@ -61,7 +61,7 @@ export async function run() {
     },
     include: [
       { model: models.Collective, as: 'collective' },
-      { model: models.Transaction, where: { data: { [Op.ne]: null } } },
+      { model: models.Transaction, where: { data: { transfer: { [Op.ne]: null } } } },
       { model: models.PayoutMethod, as: 'PayoutMethod', where: { type: PayoutMethodTypes.BANK_ACCOUNT } },
     ],
   });
