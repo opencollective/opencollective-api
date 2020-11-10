@@ -90,7 +90,6 @@ describe('server/graphql/v1/mutation', () => {
       }),
     ).tap(e => (event1 = e)),
   );
-  beforeEach('add user1 as admin of event1', () => event1.addUserWithRole(user1, roles.ADMIN));
 
   describe('createCollective tests', () => {
     const createCollectiveMutation = gql`
@@ -190,14 +189,9 @@ describe('server/graphql/v1/mutation', () => {
           order: [['MemberCollectiveId', 'ASC']],
         });
         expect(createdEvent.currency).to.equal(createdEvent.parentCollective.currency);
-        expect(members).to.have.length(3);
-        expect(members[0].CollectiveId).to.equal(event.id);
-        expect(members[0].MemberCollectiveId).to.equal(user1.CollectiveId);
-        expect(members[0].role).to.equal(roles.ADMIN);
-        expect(members[1].role).to.equal(roles.HOST);
-        expect(members[1].MemberCollectiveId).to.equal(collective1.HostCollectiveId);
-        expect(members[2].role).to.equal(roles.ADMIN);
-        expect(members[2].MemberCollectiveId).to.equal(user2.CollectiveId);
+        expect(members).to.have.length(1);
+        expect(members[0].role).to.equal(roles.HOST);
+        expect(members[0].MemberCollectiveId).to.equal(collective1.HostCollectiveId);
 
         // We remove the first tier
         event.tiers.shift();
@@ -809,8 +803,9 @@ describe('server/graphql/v1/mutation', () => {
             },
           });
           expect(members).to.have.length(1);
-          await utils.waitForCondition(() => emailSendMessageSpy.callCount > 1);
-          expect(emailSendSpy.callCount).to.equal(2);
+          // 2 for the collective admins, 1 for the contributor
+          await utils.waitForCondition(() => emailSendMessageSpy.callCount === 3);
+          expect(emailSendSpy.callCount).to.equal(3);
           const activityData = emailSendSpy.firstCall.args[2];
           expect(activityData.member.role).to.equal('ATTENDEE');
           expect(activityData.collective.type).to.equal('EVENT');
@@ -818,12 +813,15 @@ describe('server/graphql/v1/mutation', () => {
           expect(activityData.collective.slug).to.equal(event1.slug);
           expect(activityData.member.memberCollective.slug).to.equal(user2.collective.slug);
           expect(emailSendSpy.firstCall.args[0]).to.equal('collective.member.created');
-          expect(emailSendSpy.secondCall.args[0]).to.equal('ticket.confirmed');
-          expect(emailSendMessageSpy.callCount).to.equal(2);
+          expect(emailSendSpy.secondCall.args[0]).to.equal('collective.member.created');
+          expect(emailSendSpy.thirdCall.args[0]).to.equal('ticket.confirmed');
+          expect(emailSendMessageSpy.callCount).to.equal(3);
           expect(emailSendMessageSpy.firstCall.args[0]).to.equal('user1@opencollective.com');
           expect(emailSendMessageSpy.firstCall.args[1]).to.equal('Anish Bas joined January meetup as attendee');
           expect(emailSendMessageSpy.secondCall.args[0]).to.equal('user2@opencollective.com');
-          expect(emailSendMessageSpy.secondCall.args[1]).to.equal('2 tickets confirmed for January meetup');
+          expect(emailSendMessageSpy.secondCall.args[1]).to.equal('Anish Bas joined January meetup as attendee');
+          expect(emailSendMessageSpy.thirdCall.args[0]).to.equal('user2@opencollective.com');
+          expect(emailSendMessageSpy.thirdCall.args[1]).to.equal('2 tickets confirmed for January meetup');
         });
 
         it('from a new user', async () => {
@@ -965,8 +963,8 @@ describe('server/graphql/v1/mutation', () => {
           expect(executeOrderArgument[1].totalAmount).to.equal(4000);
           expect(executeOrderArgument[1].currency).to.equal('USD');
           expect(executeOrderArgument[1].paymentMethod.token).to.equal('tok_123456781234567812345678');
-          await utils.waitForCondition(() => emailSendMessageSpy.callCount > 0);
-          expect(emailSendMessageSpy.callCount).to.equal(1);
+          await utils.waitForCondition(() => emailSendMessageSpy.callCount === 2);
+          expect(emailSendMessageSpy.callCount).to.equal(2);
           expect(emailSendMessageSpy.firstCall.args[0]).to.equal(user1.email);
           expect(emailSendMessageSpy.firstCall.args[1]).to.contain(`Anish Bas joined ${event1.name} as backer`);
           expect(emailSendMessageSpy.firstCall.args[2]).to.contain('/scouts/events/jan-meetup');
@@ -1097,8 +1095,8 @@ describe('server/graphql/v1/mutation', () => {
           expect(executeOrderArgument[1].totalAmount).to.equal(4000);
           expect(executeOrderArgument[1].currency).to.equal('USD');
           expect(executeOrderArgument[1].paymentMethod.token).to.equal('tok_123456781234567812345678');
-          await utils.waitForCondition(() => emailSendMessageSpy.callCount > 0);
-          expect(emailSendMessageSpy.callCount).to.equal(1);
+          await utils.waitForCondition(() => emailSendMessageSpy.callCount === 2);
+          expect(emailSendMessageSpy.callCount).to.equal(2);
           expect(emailSendMessageSpy.firstCall.args[0]).to.equal(user1.email);
           expect(emailSendMessageSpy.firstCall.args[1]).to.contain('incognito joined January meetup as backer');
         });
