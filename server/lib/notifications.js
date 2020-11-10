@@ -454,9 +454,9 @@ async function notifyByEmail(activity) {
     case activityType.COLLECTIVE_EXPENSE_INVITE_DRAFTED:
       // New User
       if (activity.data.payee?.email) {
-        await emailLib.send(activity.type, activity.data.payee.email, activity.data);
+        await emailLib.send(activity.type, activity.data.payee.email, activity.data, { sendEvenIfNotProduction: true });
       } else if (activity.data.payee.id) {
-        await notifyAdminsOfCollective(activity.data.payee.id, activity);
+        await notifyAdminsOfCollective(activity.data.payee.id, activity, { sendEvenIfNotProduction: true });
       }
       break;
   }
