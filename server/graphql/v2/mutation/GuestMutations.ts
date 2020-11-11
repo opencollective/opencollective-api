@@ -82,11 +82,16 @@ const guestMutations = {
 
       // Send email
       const encodedEmail = encodeURIComponent(user.email);
-      await emailLib.send('confirm-guest-account', user.email, {
-        email: user.email,
-        verifyAccountLink: `${config.host.website}/confirm/guest/${user.emailConfirmationToken}?email=${encodedEmail}`,
-        clientIp: req.ip,
-      });
+      await emailLib.send(
+        'confirm-guest-account',
+        user.email,
+        {
+          email: user.email,
+          verifyAccountLink: `${config.host.website}/confirm/guest/${user.emailConfirmationToken}?email=${encodedEmail}`,
+          clientIp: req.ip,
+        },
+        { sendEvenIfNotProduction: true },
+      );
 
       return true;
     },
