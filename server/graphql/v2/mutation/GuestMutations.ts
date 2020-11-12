@@ -3,7 +3,7 @@ import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQL
 
 import { TOKEN_EXPIRATION_SESSION } from '../../../lib/auth';
 import emailLib from '../../../lib/email';
-import { confirmGuestAccount } from '../../../lib/guest-accounts';
+import { confirmGuestAccountByEmail } from '../../../lib/guest-accounts';
 import RateLimit from '../../../lib/rate-limit';
 import models from '../../../models';
 import { BadRequest, NotFound, RateLimitExceeded } from '../../errors';
@@ -134,7 +134,7 @@ const guestMutations = {
         throw new Error('Cannot link more than 30 profiles at the same time');
       }
 
-      const { user, collective } = await confirmGuestAccount(
+      const { user, collective } = await confirmGuestAccountByEmail(
         <string>args.email,
         <string>args.emailConfirmationToken,
         <string[]>args.guestTokens,

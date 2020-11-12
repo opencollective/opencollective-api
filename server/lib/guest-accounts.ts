@@ -172,15 +172,14 @@ export const getOrCreateGuestProfile = async ({
 };
 
 export const confirmGuestAccount = async (
-  email: string,
-  emailConfirmationToken: string,
+  user: typeof models.User,
   guestTokensValues?: string[] | null,
 ): Promise<{
   collective: typeof models.Collective;
   user: typeof models.User;
 }> => {
   // 1. Mark user as confirmed
-  const user = await markUserAsConfirmed(email, emailConfirmationToken);
+  await user.update({ emailConfirmationToken: null, confirmedAt: new Date() });
 
   // 2. Update the profile (collective)
   const userCollective = await user.getCollective();
@@ -205,7 +204,14 @@ export const confirmGuestAccount = async (
   return { user, collective: userCollective };
 };
 
-const markUserAsConfirmed = async (email, emailConfirmationToken) => {
+export const confirmGuestAccountByEmail = async (
+  email: string,
+  emailConfirmationToken: string,
+  guestTokensValues?: string[] | null,
+): Promise<{
+  collective: typeof models.Collective;
+  user: typeof models.User;
+}> => {
   const user = await models.User.findOne({ where: { email } });
   if (!user) {
     throw new NotFound(`No account found for ${email}`, null, { internalData: { emailConfirmationToken } });
@@ -219,7 +225,7 @@ const markUserAsConfirmed = async (email, emailConfirmationToken) => {
     });
   }
 
-  return user.update({ emailConfirmationToken: null, confirmedAt: new Date() });
+  return confirmGuestAccount(user, guestTokensValues);
 };
 
 const linkOtherGuestProfiles = async (user, userCollective, guestTokensValues) => {

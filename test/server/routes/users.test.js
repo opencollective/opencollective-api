@@ -144,6 +144,8 @@ describe('server/routes/users', () => {
 
       await user.reload();
       expect(user.confirmedAt).to.exist;
+      const userCollective = await user.getCollective();
+      expect(userCollective.data.isGuest).to.be.false;
     });
   });
 
