@@ -16,18 +16,33 @@ const checkIsActive = (
 export const getFeatureStatusResolver = (feature: FEATURE) => async (collective): Promise<FEATURE_STATUS> => {
   if (!collective) {
     return FEATURE_STATUS.UNSUPPORTED;
-  } else if (!isFeatureAllowedForCollectiveType(collective.type, collective.isHostAccount, feature)) {
+  } else if (!isFeatureAllowedForCollectiveType(collective.type, feature, collective.isHostAccount)) {
     return FEATURE_STATUS.UNSUPPORTED;
   } else if (!hasFeature(collective, feature)) {
     return FEATURE_STATUS.DISABLED;
   }
 
   // Add some special cases that check for data to see if the feature is `ACTIVE` or just `AVAILABLE`
+  // Right now only UPDATES, CONVERSATIONS, and RECURRING CONTRIBUTIONS
   switch (feature) {
     case FEATURE.UPDATES:
       return checkIsActive(
         models.Update.count({
           where: { CollectiveId: collective.id, publishedAt: { [Op.not]: null } },
+          limit: 1,
+        }),
+      );
+    case FEATURE.CONVERSATIONS:
+      return checkIsActive(
+        models.Conversation.count({
+          where: { CollectiveId: collective.id, deletedAt: { [Op.eq]: null } },
+          limit: 1,
+        }),
+      );
+    case FEATURE.RECURRING_CONTRIBUTIONS:
+      return checkIsActive(
+        models.Order.count({
+          where: { FromCollectiveId: collective.id, SubscriptionId: { [Op.not]: null }, status: 'ACTIVE' },
           limit: 1,
         }),
       );

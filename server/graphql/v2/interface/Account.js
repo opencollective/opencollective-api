@@ -5,6 +5,7 @@ import { assign, get, invert } from 'lodash';
 
 import models, { Op } from '../../../models';
 import { NotFound } from '../../errors';
+import { CollectiveFeatures } from '../../v1/CollectiveInterface.js';
 import { ConversationCollection } from '../collection/ConversationCollection';
 import { MemberCollection, MemberOfCollection } from '../collection/MemberCollection';
 import { OrderCollection } from '../collection/OrderCollection';
@@ -294,6 +295,13 @@ const accountFieldsDefinition = () => ({
 
       const result = await models.Update.findAndCountAll(query);
       return { nodes: result.rows, totalCount: result.count, limit, offset };
+    },
+  },
+  features: {
+    type: new GraphQLNonNull(CollectiveFeatures),
+    description: 'Describes the features enabled and available for this collective',
+    resolve(collective) {
+      return collective;
     },
   },
 });

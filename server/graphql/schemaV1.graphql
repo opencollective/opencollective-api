@@ -300,6 +300,11 @@ type Collective implements CollectiveInterface {
     isConfirmed: Boolean
   ): PaginatedPaymentMethod
   connectedAccounts: [ConnectedAccountType]
+
+  """
+  Describes the features enabled and available for this collective
+  """
+  features: CollectiveFeatures!
   plan: PlanType
   stats: CollectiveStatsType
   contributionPolicy: String
@@ -333,6 +338,55 @@ input CollectiveAttributesInputType {
   isIncognito: Boolean
   tags: [String]
   contributionPolicy: String
+}
+
+"""
+Describes the features enabled and available for this collective
+"""
+type CollectiveFeatures {
+  CONTRIBUTE: CollectiveFeatureStatus
+  CONTRIBUTIONS: CollectiveFeatureStatus
+  RECURRING_CONTRIBUTIONS: CollectiveFeatureStatus
+  EVENTS: CollectiveFeatureStatus
+  PROJECTS: CollectiveFeatureStatus
+  BUDGET: CollectiveFeatureStatus
+  TRANSACTIONS: CollectiveFeatureStatus
+  USE_EXPENSES: CollectiveFeatureStatus
+  COLLECTIVE_GOALS: CollectiveFeatureStatus
+  TOP_FINANCIAL_CONTRIBUTORS: CollectiveFeatureStatus
+  ALL_FINANCIAL_CONTRIBUTORS: CollectiveFeatureStatus
+  CONNECT: CollectiveFeatureStatus
+  CONVERSATIONS: CollectiveFeatureStatus
+  UPDATES: CollectiveFeatureStatus
+  ABOUT: CollectiveFeatureStatus
+  TEAM: CollectiveFeatureStatus
+  ORDER: CollectiveFeatureStatus
+  CONTACT_COLLECTIVE: CollectiveFeatureStatus
+  CONTACT_FORM: CollectiveFeatureStatus
+  CREATE_COLLECTIVE: CollectiveFeatureStatus
+  CROSS_CURRENCY_MANUAL_TRANSACTIONS: CollectiveFeatureStatus
+}
+
+enum CollectiveFeatureStatus {
+  """
+  The feature is enabled and is actively used
+  """
+  ACTIVE
+
+  """
+  The feature is enabled, but there is no data for it
+  """
+  AVAILABLE
+
+  """
+  The feature is disabled, but can be enabled by an admin
+  """
+  DISABLED
+
+  """
+  The feature is disabled and cannot be activated for this account
+  """
+  UNSUPPORTED
 }
 
 """
@@ -588,6 +642,11 @@ interface CollectiveInterface {
     isConfirmed: Boolean
   ): PaginatedPaymentMethod
   connectedAccounts: [ConnectedAccountType]
+
+  """
+  Describes the features enabled and available for this collective
+  """
+  features: CollectiveFeatures!
   plan: PlanType
   contributionPolicy: String
 
@@ -1233,6 +1292,11 @@ type Event implements CollectiveInterface {
     isConfirmed: Boolean
   ): PaginatedPaymentMethod
   connectedAccounts: [ConnectedAccountType]
+
+  """
+  Describes the features enabled and available for this collective
+  """
+  features: CollectiveFeatures!
   plan: PlanType
   stats: CollectiveStatsType
   contributionPolicy: String
@@ -1673,6 +1737,11 @@ type Fund implements CollectiveInterface {
     isConfirmed: Boolean
   ): PaginatedPaymentMethod
   connectedAccounts: [ConnectedAccountType]
+
+  """
+  Describes the features enabled and available for this collective
+  """
+  features: CollectiveFeatures!
   plan: PlanType
   stats: CollectiveStatsType
   contributionPolicy: String
@@ -2796,6 +2865,11 @@ type Organization implements CollectiveInterface {
     isConfirmed: Boolean
   ): PaginatedPaymentMethod
   connectedAccounts: [ConnectedAccountType]
+
+  """
+  Describes the features enabled and available for this collective
+  """
+  features: CollectiveFeatures!
   plan: PlanType
   stats: CollectiveStatsType
   contributionPolicy: String
@@ -3215,6 +3289,11 @@ type Project implements CollectiveInterface {
     isConfirmed: Boolean
   ): PaginatedPaymentMethod
   connectedAccounts: [ConnectedAccountType]
+
+  """
+  Describes the features enabled and available for this collective
+  """
+  features: CollectiveFeatures!
   plan: PlanType
   stats: CollectiveStatsType
   contributionPolicy: String
@@ -3479,6 +3558,11 @@ type Query {
     Only return collectives of this type
     """
     types: [TypeOfCollective]
+
+    """
+    Filter on wether account is a host
+    """
+    isHost: Boolean
 
     """
     Limit the amount of results. Defaults to 20
@@ -4134,6 +4218,11 @@ type User implements CollectiveInterface {
     isConfirmed: Boolean
   ): PaginatedPaymentMethod
   connectedAccounts: [ConnectedAccountType]
+
+  """
+  Describes the features enabled and available for this collective
+  """
+  features: CollectiveFeatures!
   plan: PlanType
   stats: CollectiveStatsType
   contributionPolicy: String

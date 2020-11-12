@@ -15,7 +15,7 @@ import sequelize from 'sequelize';
 import SqlString from 'sequelize/lib/sql-string';
 
 import { types } from '../../constants/collectives';
-import FEATURE from '../../constants/feature';
+import { FeaturesList } from '../../constants/feature';
 import FEATURE_STATUS from '../../constants/feature-status';
 import roles from '../../constants/roles';
 import { getContributorsForCollective } from '../../lib/contributors';
@@ -876,6 +876,19 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
     };
   },
 });
+
+const FeaturesFields = () => {
+  return FeaturesList.reduce(
+    (obj, feature) =>
+      Object.assign(obj, {
+        [feature]: {
+          type: CollectiveFeatureStatus,
+          resolve: getFeatureStatusResolver(feature),
+        },
+      }),
+    {},
+  );
+};
 
 const CollectiveFields = () => {
   return {
@@ -1892,7 +1905,7 @@ const CollectiveFields = () => {
   };
 };
 
-const CollectiveFeatureStatus = new GraphQLEnumType({
+export const CollectiveFeatureStatus = new GraphQLEnumType({
   name: 'CollectiveFeatureStatus',
   values: {
     [FEATURE_STATUS.ACTIVE]: {
@@ -1913,31 +1926,10 @@ const CollectiveFeatureStatus = new GraphQLEnumType({
 export const CollectiveFeatures = new GraphQLObjectType({
   name: 'CollectiveFeatures',
   description: 'Describes the features enabled and available for this collective',
-  fields: {
-    [FEATURE.CONVERSATIONS]: {
-      type: CollectiveFeatureStatus,
-      resolve: getFeatureStatusResolver(FEATURE.CONVERSATIONS),
-    },
-    [FEATURE.COLLECTIVE_GOALS]: {
-      type: CollectiveFeatureStatus,
-      resolve: getFeatureStatusResolver(FEATURE.COLLECTIVE_GOALS),
-    },
-    [FEATURE.RECEIVE_EXPENSES]: {
-      type: CollectiveFeatureStatus,
-      resolve: getFeatureStatusResolver(FEATURE.RECEIVE_EXPENSES),
-    },
-    [FEATURE.UPDATES]: {
-      type: CollectiveFeatureStatus,
-      resolve: getFeatureStatusResolver(FEATURE.UPDATES),
-    },
-    [FEATURE.TRANSFERWISE]: {
-      type: CollectiveFeatureStatus,
-      resolve: getFeatureStatusResolver(FEATURE.TRANSFERWISE),
-    },
-    [FEATURE.PAYPAL_PAYOUTS]: {
-      type: CollectiveFeatureStatus,
-      resolve: getFeatureStatusResolver(FEATURE.PAYPAL_PAYOUTS),
-    },
+  fields: () => {
+    return {
+      ...FeaturesFields(),
+    };
   },
 });
 

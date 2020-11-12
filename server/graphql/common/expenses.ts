@@ -116,7 +116,7 @@ export const canUpdateExpenseStatus = async (req, expense): Promise<boolean> => 
   const { remoteUser } = req;
   if (!remoteUser) {
     return false;
-  } else if (!canUseFeature(req.remoteUser, FEATURE.EXPENSES)) {
+  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     return false;
   } else if (remoteUser.hasRole([roles.ADMIN], expense.CollectiveId)) {
     return true;
@@ -135,7 +135,7 @@ export const canUpdateExpenseStatus = async (req, expense): Promise<boolean> => 
 export const canEditExpense = async (req, expense): Promise<boolean> => {
   if (expense.status === expenseStatus.PAID || expense.status === expenseStatus.PROCESSING) {
     return false;
-  } else if (!canUseFeature(req.remoteUser, FEATURE.EXPENSES)) {
+  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     return false;
   } else {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isCollectiveAdmin]);
@@ -149,7 +149,7 @@ export const canEditExpense = async (req, expense): Promise<boolean> => {
 export const canDeleteExpense = async (req, expense): Promise<boolean> => {
   if (expense.status !== expenseStatus.REJECTED) {
     return false;
-  } else if (!canUseFeature(req.remoteUser, FEATURE.EXPENSES)) {
+  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     return false;
   } else {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin]);
@@ -162,7 +162,7 @@ export const canDeleteExpense = async (req, expense): Promise<boolean> => {
 export const canPayExpense = async (req, expense): Promise<boolean> => {
   if (![expenseStatus.APPROVED, expenseStatus.ERROR].includes(expense.status)) {
     return false;
-  } else if (!canUseFeature(req.remoteUser, FEATURE.EXPENSES)) {
+  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     return false;
   } else {
     return isHostAdmin(req, expense);
@@ -175,7 +175,7 @@ export const canPayExpense = async (req, expense): Promise<boolean> => {
 export const canApprove = async (req, expense): Promise<boolean> => {
   if (![expenseStatus.PENDING, expenseStatus.REJECTED].includes(expense.status)) {
     return false;
-  } else if (!canUseFeature(req.remoteUser, FEATURE.EXPENSES)) {
+  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     return false;
   } else {
     return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin]);
@@ -188,7 +188,7 @@ export const canApprove = async (req, expense): Promise<boolean> => {
 export const canReject = async (req, expense): Promise<boolean> => {
   if (expense.status !== expenseStatus.PENDING) {
     return false;
-  } else if (!canUseFeature(req.remoteUser, FEATURE.EXPENSES)) {
+  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     return false;
   } else {
     return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin]);
@@ -201,7 +201,7 @@ export const canReject = async (req, expense): Promise<boolean> => {
 export const canUnapprove = async (req, expense): Promise<boolean> => {
   if (expense.status !== expenseStatus.APPROVED) {
     return false;
-  } else if (!canUseFeature(req.remoteUser, FEATURE.EXPENSES)) {
+  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     return false;
   } else {
     return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin]);
@@ -214,7 +214,7 @@ export const canUnapprove = async (req, expense): Promise<boolean> => {
 export const canMarkAsUnpaid = async (req, expense): Promise<boolean> => {
   if (expense.status !== expenseStatus.PAID) {
     return false;
-  } else if (!canUseFeature(req.remoteUser, FEATURE.EXPENSES)) {
+  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     return false;
   } else {
     return isHostAdmin(req, expense);
@@ -225,7 +225,7 @@ export const canMarkAsUnpaid = async (req, expense): Promise<boolean> => {
  * Returns true if user can comment and see others comments for this expense
  */
 export const canComment = async (req, expense): Promise<boolean> => {
-  if (!canUseFeature(req.remoteUser, FEATURE.EXPENSES)) {
+  if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     return false;
   } else {
     return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin, isOwner]);
