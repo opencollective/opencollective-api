@@ -1169,9 +1169,12 @@ export default function (Sequelize, DataTypes) {
     if (this.type === 'USER') {
       return [await this.getUser(userQueryParams)];
     }
+
+    const collectiveId = ['EVENT', 'PROJECT'].includes(this.type) ? this.ParentCollectiveId : this.id;
+
     const admins = await models.Member.findAll({
       where: {
-        CollectiveId: this.id,
+        CollectiveId: collectiveId,
         role: roles.ADMIN,
       },
     });

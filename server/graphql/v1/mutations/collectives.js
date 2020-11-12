@@ -128,20 +128,7 @@ export async function createCollective(_, args, req) {
 
   // We add the admins of the parent collective as admins
   if (collectiveData.type === types.EVENT) {
-    promises.push(collective.addUserWithRole(req.remoteUser, roles.ADMIN, { CreatedByUserId: req.remoteUser.id }));
-    const admins = await models.Member.findAll({ where: { CollectiveId: parentCollective.id, role: roles.ADMIN } });
-    admins.forEach(member => {
-      if (member.MemberCollectiveId !== req.remoteUser.CollectiveId) {
-        promises.push(
-          models.Member.create({
-            CreatedByUserId: req.remoteUser.id,
-            CollectiveId: collective.id,
-            MemberCollectiveId: member.MemberCollectiveId,
-            role: roles.ADMIN,
-          }),
-        );
-      }
-    });
+    // Nothing needed, ADMINS of the Parent are Admins of the Event and that's it
   } else if (collectiveData.members) {
     promises.push(
       collective.editMembers(collectiveData.members, {
