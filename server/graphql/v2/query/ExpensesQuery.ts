@@ -219,7 +219,7 @@ const ExpensesQuery = {
         await updateFilterConditionsForReadyToPay(where, include);
       }
     } else {
-      where['status'] = { [Op.ne]: expenseStatus.DRAFT };
+      where['status'] = { [Op.notIn]: [expenseStatus.DRAFT, expenseStatus.UNVERIFIED] };
     }
 
     const order = [[args.orderBy.field, args.orderBy.direction]];
