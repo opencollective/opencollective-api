@@ -159,7 +159,7 @@ const expenseMutations = {
               organizationData,
               throwIfExists: true,
               sendSignInLink: true,
-              redirect: `/${existingExpense.collective.slug}/expenses/${expenseId}?key=${existingExpense.data.draftKey}`,
+              redirect: `/${existingExpense.collective.slug}/expenses/${expenseId}`,
               creationRequest: {
                 ip: req.ip,
                 userAgent: req.header?.['user-agent'],
@@ -403,7 +403,7 @@ const expenseMutations = {
         throw new Unauthorized("You don't have the permission to edit this expense.");
       }
 
-      const inviteUrl = `${config.host.website}/${expense.collective.slug}/expenses/${expense.id}?key=${expense.data.draftKey}`;
+      const inviteUrl = `${config.host.website}/${expense.collective.slug}/expenses/${expense.id}`;
       expense
         .createActivity(activityType.COLLECTIVE_EXPENSE_INVITE_DRAFTED, req.remoteUser, { ...expense.data, inviteUrl })
         .catch(e => logger.error('An error happened when creating the COLLECTIVE_EXPENSE_INVITE_DRAFTED activity', e));
