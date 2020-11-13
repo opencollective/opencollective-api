@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { confirmGuestAccount, getOrCreateGuestProfile } from '../../../server/lib/guest-accounts';
+import { confirmGuestAccountByEmail, getOrCreateGuestProfile } from '../../../server/lib/guest-accounts';
 import models from '../../../server/models';
 import { randEmail } from '../../stores';
 import { fakeOrder, fakeUser, randStr } from '../../test-helpers/fake-data';
@@ -71,18 +71,18 @@ describe('server/lib/guest-accounts.ts', () => {
     });
   });
 
-  describe('confirmGuestAccount', () => {
+  describe('confirmGuestAccountByEmail', () => {
     it('throws an error if user email does not exists (or does not match the token)', async () => {
       const user = await fakeUser({ emailConfirmationToken: randStr(), confirmedAt: null });
       const email = randEmail();
-      await expect(confirmGuestAccount(email, user.emailConfirmationToken)).to.be.rejectedWith(
+      await expect(confirmGuestAccountByEmail(email, user.emailConfirmationToken)).to.be.rejectedWith(
         `No account found for ${email}`,
       );
     });
 
     it('throws an error if the token is invalid', async () => {
       const user = await fakeUser({ emailConfirmationToken: randStr(), confirmedAt: null });
-      await expect(confirmGuestAccount(user.email, 'InvalidToken')).to.be.rejectedWith(
+      await expect(confirmGuestAccountByEmail(user.email, 'InvalidToken')).to.be.rejectedWith(
         'Invalid email confirmation token',
       );
     });
@@ -91,7 +91,7 @@ describe('server/lib/guest-accounts.ts', () => {
       const user = await fakeUser({ emailConfirmationToken: randStr() });
       const confirmedAt = user.confirmedAt;
       expect(confirmedAt).to.not.be.null;
-      await expect(confirmGuestAccount(user.email, user.emailConfirmationToken)).to.be.rejectedWith(
+      await expect(confirmGuestAccountByEmail(user.email, user.emailConfirmationToken)).to.be.rejectedWith(
         'This account has already been verified',
       );
     });
@@ -101,7 +101,7 @@ describe('server/lib/guest-accounts.ts', () => {
       const { user } = await getOrCreateGuestProfile({ email });
       expect(user.confirmedAt).to.be.null;
 
-      await confirmGuestAccount(user.email, user.emailConfirmationToken);
+      await confirmGuestAccountByEmail(user.email, user.emailConfirmationToken);
       await user.reload({ include: [{ association: 'collective' }] });
       expect(user.confirmedAt).to.not.be.null;
       expect(user.collective.name).to.eq('Incognito');
@@ -113,7 +113,7 @@ describe('server/lib/guest-accounts.ts', () => {
       const { user } = await getOrCreateGuestProfile({ email, name: 'Zappa' });
       expect(user.confirmedAt).to.be.null;
 
-      await confirmGuestAccount(user.email, user.emailConfirmationToken);
+      await confirmGuestAccountByEmail(user.email, user.emailConfirmationToken);
       await user.reload({ include: [{ association: 'collective' }] });
       expect(user.confirmedAt).to.not.be.null;
       expect(user.collective.name).to.eq('Zappa');
@@ -132,7 +132,7 @@ describe('server/lib/guest-accounts.ts', () => {
         fakeOrder({ FromCollectiveId: otherGuestProfile.id }, { withTransactions: true }),
       ]);
 
-      await confirmGuestAccount(user.email, user.emailConfirmationToken, [otherGuestToken.value]);
+      await confirmGuestAccountByEmail(user.email, user.emailConfirmationToken, [otherGuestToken.value]);
       await user.reload({ include: [{ association: 'collective' }] });
       expect(user.confirmedAt).to.not.be.null;
 
