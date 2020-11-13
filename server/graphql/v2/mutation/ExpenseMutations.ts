@@ -176,7 +176,7 @@ const expenseMutations = {
         await existingExpense.update({
           status: options.overrideRemoteUser?.id ? expenseStatus.UNVERIFIED : undefined,
           lastEditedById: options.overrideRemoteUser?.id || req.remoteUser?.id,
-          UserId: req.remoteUser?.id,
+          UserId: options.overrideRemoteUser?.id || req.remoteUser?.id,
         });
 
         return existingExpense;
@@ -428,8 +428,6 @@ const expenseMutations = {
       const expense = await fetchExpenseWithReference(args.expense, { throwIfMissing: true });
       if (expense.status !== expenseStatus.UNVERIFIED) {
         throw new Unauthorized('Expense can not be verified.');
-      } else if (expense.data?.draftKey !== args.draftKey) {
-        throw new Unauthorized('The provided draft key is not correct.');
       } else if (!(await canEditExpense(req, expense))) {
         throw new Unauthorized("You don't have the permission to edit this expense.");
       }
