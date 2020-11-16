@@ -2,7 +2,7 @@ import { get } from 'lodash';
 
 import { mustHaveRole } from '../../../lib/auth';
 import { purgeCacheForCollective } from '../../../lib/cache';
-import { stripTags } from '../../../lib/utils';
+import { stripHTML } from '../../../lib/sanitize-html';
 import models from '../../../models';
 import { NotFound, ValidationFailed } from '../../errors';
 
@@ -23,12 +23,12 @@ export async function createUpdate(_, args, req) {
     throw new Error('This collective does not exist');
   }
 
-  const markdown = args.update.markdown ? stripTags(args.update.markdown) : '';
+  const markdown = args.update.markdown ? stripHTML(args.update.markdown) : '';
 
   const update = await models.Update.create({
     title: args.update.title,
     markdown,
-    html: stripTags(args.update.html),
+    html: stripHTML(args.update.html),
     CollectiveId,
     isPrivate: args.update.isPrivate,
     TierId: get(args, 'update.tier.id'),

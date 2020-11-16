@@ -24,7 +24,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPES } from '../../constants/pa
 import roles from '../../constants/roles';
 import { getCollectiveAvatarUrl } from '../../lib/collectivelib';
 import { getContributorsForTier } from '../../lib/contributors';
-import { stripTags } from '../../lib/utils';
+import { stripHTML } from '../../lib/sanitize-html';
 import models, { Op, sequelize } from '../../models';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import * as commonComment from '../common/comment';
@@ -1104,7 +1104,7 @@ export const UpdateType = new GraphQLObjectType({
             return null;
           }
 
-          return stripTags(update.html || '');
+          return stripHTML(update.html || '');
         },
       },
       markdown: {
@@ -1114,7 +1114,7 @@ export const UpdateType = new GraphQLObjectType({
             return null;
           }
 
-          return stripTags(update.markdown || '');
+          return stripHTML(update.markdown || '');
         },
       },
       tags: {

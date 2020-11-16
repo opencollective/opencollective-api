@@ -1,7 +1,7 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 
-import { stripTags } from '../../../lib/utils';
+import { stripHTML } from '../../../lib/sanitize-html';
 import { UpdateAudienceType } from '../enum/UpdateAudienceType';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { Account } from '../interface/Account';
@@ -51,7 +51,7 @@ const Update = new GraphQLObjectType({
             return null;
           }
 
-          return stripTags(update.html || '');
+          return stripHTML(update.html || '');
         },
       },
       tags: { type: new GraphQLList(GraphQLString) },

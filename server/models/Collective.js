@@ -49,6 +49,7 @@ import emailLib from '../lib/email';
 import logger from '../lib/logger';
 import { handleHostCollectivesLimit } from '../lib/plans';
 import queries from '../lib/queries';
+import { stripHTML } from '../lib/sanitize-html';
 import {
   collectiveSpamCheck,
   notifyTeamAboutPreventedCollectiveCreate,
@@ -56,7 +57,7 @@ import {
 } from '../lib/spam';
 import { canUseFeature } from '../lib/user-permissions';
 import userlib from '../lib/userlib';
-import { capitalize, cleanTags, flattenArray, formatCurrency, getDomain, md5, stripTags } from '../lib/utils';
+import { capitalize, cleanTags, flattenArray, formatCurrency, getDomain, md5 } from '../lib/utils';
 
 import CustomDataTypes from './DataTypes';
 import { PayoutMethodTypes } from './PayoutMethod';
@@ -264,7 +265,7 @@ export default function (Sequelize, DataTypes) {
         type: DataTypes.TEXT,
         set(longDescription) {
           if (longDescription) {
-            this.setDataValue('longDescription', stripTags(longDescription));
+            this.setDataValue('longDescription', stripHTML(longDescription));
           } else {
             this.setDataValue('longDescription', null);
           }

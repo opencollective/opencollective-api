@@ -6,7 +6,8 @@ import { Op } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
 import { maxInteger } from '../constants/math';
-import { capitalize, days, formatCurrency, stripTags } from '../lib/utils';
+import { stripHTML } from '../lib/sanitize-html';
+import { capitalize, days, formatCurrency } from '../lib/utils';
 import { isSupportedVideoProvider, supportedVideoProviders } from '../lib/validators';
 
 import CustomDataTypes from './DataTypes';
@@ -98,7 +99,7 @@ export default function (Sequelize, DataTypes) {
           if (!content) {
             this.setDataValue('longDescription', null);
           } else {
-            this.setDataValue('longDescription', stripTags(content));
+            this.setDataValue('longDescription', stripHTML(content));
           }
         },
       },

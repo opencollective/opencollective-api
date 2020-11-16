@@ -1,7 +1,7 @@
 import { pick } from 'lodash';
 
 import { mustBeLoggedInTo } from '../../lib/auth';
-import { stripTags } from '../../lib/utils';
+import { sanitizeHTML } from '../../lib/sanitize-html';
 import models from '../../models';
 import { NotFound, Unauthorized, ValidationFailed } from '../errors';
 
@@ -126,7 +126,7 @@ function fromCollectiveResolver({ FromCollectiveId }, _, { loaders }) {
  * Returns a resolver function that strip tags from the object prop.
  * @param {string} prop - prop to look in the object of the resolver first argument.
  */
-const getStripTagsResolver = prop => obj => stripTags(obj[prop] || '');
+const getStripTagsResolver = prop => obj => sanitizeHTML(obj[prop] || '');
 
 export {
   editComment,

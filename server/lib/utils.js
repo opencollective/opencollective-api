@@ -7,10 +7,10 @@ import Promise from 'bluebird';
 import config from 'config';
 import pdf from 'html-pdf';
 import { cloneDeep, get, isEqual, padStart } from 'lodash';
-import sanitizeHtml from 'sanitize-html';
 
 import errors from './errors';
 import handlebars from './handlebars';
+import { sanitizeHTML } from './sanitize-html';
 
 const { BadRequest } = errors;
 
@@ -59,35 +59,8 @@ export function getDomain(url = '') {
   return domain;
 }
 
-/**
- * @deprecated Please use the functions in `server/lib/sanitize-html.js`
- */
-export function stripTags(str, allowedTags) {
-  return sanitizeHtml(str, {
-    allowedTags: allowedTags || sanitizeHtml.defaults.allowedTags.concat(['img', 'h1', 'h2', 'h3']),
-    allowedAttributes: {
-      a: ['href', 'name', 'target'],
-      img: ['src'],
-      iframe: [
-        'src',
-        'allowfullscreen',
-        'frameborder',
-        'autoplay',
-        'width',
-        'height',
-        {
-          name: 'allow',
-          multiple: true,
-          values: ['autoplay', 'encrypted-media', 'gyroscope'],
-        },
-      ],
-    },
-    allowedIframeHostnames: ['www.youtube.com', 'www.youtube-nocookie.com', 'player.vimeo.com'],
-  });
-}
-
 export const sanitizeObject = (obj, attributes, sanitizerFn) => {
-  const sanitizer = typeof sanitizerFn === 'function' ? sanitizerFn : stripTags;
+  const sanitizer = typeof sanitizerFn === 'function' ? sanitizerFn : sanitizeHTML;
 
   attributes.forEach(attr => {
     if (!obj[attr]) {
