@@ -271,12 +271,17 @@ export default function (Sequelize, DataTypes) {
         },
       },
 
-      expensePolicy: DataTypes.TEXT, // markdown
+      expensePolicy: {
+        type: DataTypes.TEXT, // markdown
+        validate: {
+          len: [0, 16000], // largest policy is 15,500, all the rest are under 10,000
+        },
+      },
 
       contributionPolicy: {
         type: DataTypes.TEXT, // markdown
         validate: {
-          len: [0, 500],
+          len: [0, 3000], // we want to keep this relatively small
         },
       },
 
