@@ -234,6 +234,15 @@ const Expense = new GraphQLObjectType({
           }
         },
       },
+      requestedByAccount: {
+        type: Account,
+        description: 'The account that requested this expense to be submitted',
+        async resolve(expense, _, req) {
+          if (expense.data?.invitedByCollectiveId) {
+            return await req.loaders.Collective.byId.load(expense.data.invitedByCollectiveId);
+          }
+        },
+      },
     };
   },
 });
