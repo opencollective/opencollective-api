@@ -11,8 +11,8 @@ import {
   GraphQLScalarType,
   GraphQLString,
 } from 'graphql';
-import GraphQLJSON from 'graphql-type-json';
 import { Kind } from 'graphql/language';
+import GraphQLJSON from 'graphql-type-json';
 import { get, omit, pick } from 'lodash';
 import moment from 'moment';
 

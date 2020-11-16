@@ -21,7 +21,7 @@
     // enforce strictly camelcase
     "camelcase": "error",
     // simple-import-sort
-    "simple-import-sort/sort": [
+    "simple-import-sort/imports": [
       "error",
       {
         "groups": [

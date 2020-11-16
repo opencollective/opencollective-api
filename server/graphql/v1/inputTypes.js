@@ -10,8 +10,8 @@ import {
   GraphQLScalarType,
   GraphQLString,
 } from 'graphql';
-import GraphQLJSON from 'graphql-type-json';
 import { Kind } from 'graphql/language';
+import GraphQLJSON from 'graphql-type-json';
 
 import { DateString, IsoDateString, PayoutMethodTypeEnum } from './types';
 
