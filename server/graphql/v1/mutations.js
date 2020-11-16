@@ -138,6 +138,7 @@ const mutations = {
   approveCollective: {
     type: CollectiveInterfaceType,
     description: 'Approve a collective',
+    deprecationReason: '2020-11-16: Please use API V2',
     args: {
       id: { type: new GraphQLNonNull(GraphQLInt) },
     },
@@ -148,6 +149,7 @@ const mutations = {
   rejectCollective: {
     type: CollectiveInterfaceType,
     description: 'Reject a collective',
+    deprecationReason: '2020-11-16: Please use API V2',
     args: {
       id: { type: new GraphQLNonNull(GraphQLInt) },
       rejectionReason: { type: GraphQLString },

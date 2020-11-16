@@ -12,6 +12,7 @@ export { ContributionFrequency } from './ContributionFrequency';
 export { OrderStatus } from './OrderStatus';
 export { PaymentMethodType } from './PaymentMethodType';
 export { PayoutMethodType } from './PayoutMethodType';
+export { ProcessHostApplicationAction } from './ProcessHostApplicationAction';
 export { TierAmountType } from './TierAmountType';
 export { TierInterval } from './TierInterval';
 export { TierType } from './TierType';

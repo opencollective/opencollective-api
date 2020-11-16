@@ -1,13 +1,16 @@
-import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { find, get } from 'lodash';
 
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
-import models from '../../../models';
+import models, { Op, sequelize } from '../../../models';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import TransferwiseLib from '../../../paymentProviders/transferwise';
+import { AccountCollection } from '../collection/AccountCollection';
 import { PaymentMethodType, PayoutMethodType } from '../enum';
+import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
 import { Account, AccountFields } from '../interface/Account';
 import { AccountWithContributions, AccountWithContributionsFields } from '../interface/AccountWithContributions';
+import { CollectionArgs } from '../interface/Collection';
 import URL from '../scalar/URL';
 
 import { Amount } from './Amount';
@@ -131,6 +134,51 @@ export const Host = new GraphQLObjectType({
               }));
             });
           }
+        },
+      },
+      pendingApplications: {
+        type: new GraphQLNonNull(AccountCollection),
+        description: 'Pending applications for this host',
+        args: {
+          ...CollectionArgs,
+          searchTerm: {
+            type: GraphQLString,
+            description:
+              'A term to search membership. Searches in collective tags, name, slug, members description and role.',
+          },
+          orderBy: {
+            type: new GraphQLNonNull(ChronologicalOrderInput),
+            defaultValue: { field: 'createdAt', direction: 'DESC' },
+            description: 'Order of the results',
+          },
+        },
+        resolve: async (host, args) => {
+          const where = { HostCollectiveId: host.id, approvedAt: null };
+          const sanitizedSearch = args.searchTerm?.replace(/(_|%|\\)/g, '\\$1');
+
+          if (sanitizedSearch) {
+            const ilikeQuery = `%${sanitizedSearch}%`;
+            where[Op.or] = [
+              { description: { [Op.iLike]: ilikeQuery } },
+              { longDescription: { [Op.iLike]: ilikeQuery } },
+              { slug: { [Op.iLike]: ilikeQuery } },
+              { name: { [Op.iLike]: ilikeQuery } },
+              { tags: { [Op.overlap]: sequelize.cast([args.searchTerm.toLowerCase()], 'varchar[]') } },
+            ];
+
+            if (/^#?\d+$/.test(args.searchTerm)) {
+              where[Op.or].push({ id: args.searchTerm.replace('#', '') });
+            }
+          }
+
+          const result = await models.Collective.findAndCountAll({
+            where,
+            limit: args.limit,
+            offset: args.offset,
+            order: [[args.orderBy.field, args.orderBy.direction]],
+          });
+
+          return { nodes: result.rows, totalCount: result.count, limit: args.limit, offset: args.offset };
         },
       },
     };

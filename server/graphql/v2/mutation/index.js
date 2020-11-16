@@ -10,6 +10,7 @@ import createFundMutation from './CreateFundMutation';
 import createProjectMutation from './CreateProjectMutation';
 import expenseMutations from './ExpenseMutations';
 import guestMutations from './GuestMutations';
+import hostApplicationMutations from './HostApplicationMutations';
 import memberMutations from './MemberMutations';
 import orderMutations from './OrderMutations';
 import paymentMethodMutations from './PaymentMethodMutations';
@@ -26,6 +27,7 @@ const mutation = {
   ...connectedAccountMutations,
   ...conversationMutations,
   ...expenseMutations,
+  ...hostApplicationMutations,
   ...accountMutations,
   ...collectiveMutations,
   ...guestMutations,
