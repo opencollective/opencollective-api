@@ -124,7 +124,7 @@
     "eslint-plugin-mocha": "8.0.0",
     "eslint-plugin-node": "^11.1.0",
     "eslint-plugin-react": "^7.21.5",
-    "eslint-plugin-simple-import-sort": "^5.0.3",
+    "eslint-plugin-simple-import-sort": "^6.0.0",
     "fake-tag": "^2.0.0",
     "geoip-lite": "^1.4.2",
     "get-urls": "^10.0.0",
