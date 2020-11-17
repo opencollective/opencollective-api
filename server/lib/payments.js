@@ -558,11 +558,6 @@ export const getPlatformFee = async (totalAmount, order, host = null) => {
 };
 
 export const getPlatformFeePercent = async (order, host = null) => {
-  // No Host Fee for money going to an host itself
-  if (order.collective.isHostAccount) {
-    return 0;
-  }
-
   const possibleValues = [
     // Fixed in the Order (special tiers: BackYourStack, Pre-Paid)
     order.data?.platformFeePercent,
