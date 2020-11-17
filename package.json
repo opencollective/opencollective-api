@@ -20,7 +20,7 @@
     "@octokit/rest": "18.0.9",
     "@opencollective/taxes": "3.1.0",
     "@paypal/payouts-sdk": "^1.0.0",
-    "algoliasearch": "3.35.1",
+    "algoliasearch": "4.7.0",
     "apollo-server-express": "2.19.0",
     "argparse": "2.0.1",
     "aws-sdk": "2.792.0",
