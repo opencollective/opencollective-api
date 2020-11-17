@@ -21,7 +21,7 @@ export const addFundsMutation = {
     const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
     const fromAccount = await fetchAccountWithReference(args.fromAccount, { throwIfMissing: true });
 
-    const allowedTypes = ['COLLECTIVE', 'EVENT', 'FUND', 'PROJECT'];
+    const allowedTypes = ['ORGANIZATION', 'COLLECTIVE', 'EVENT', 'FUND', 'PROJECT'];
     if (!allowedTypes.includes(account.type)) {
       throw new ValidationFailed(`Adding funds is only possible for the following types: ${allowedTypes.join(',')}`);
     }
