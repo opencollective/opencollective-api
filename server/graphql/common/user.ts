@@ -44,6 +44,7 @@ export const createUser = (
     if (organizationData) {
       const organizationParams = {
         type: 'ORGANIZATION',
+        CreatedByUserId: user.id,
         ...pick(organizationData, ['name', 'slug', 'description', 'website', 'twitterHandle', 'githubHandle']),
       };
       organization = await models.Collective.create(organizationParams, { transaction });
