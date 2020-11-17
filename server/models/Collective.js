@@ -915,7 +915,7 @@ export default function (Sequelize, DataTypes) {
 
   // run when attaching a Stripe Account to this user/organization collective
   // this Payment Method will be used for "Add Funds"
-  Collective.prototype.becomeHost = async function () {
+  Collective.prototype.becomeHost = async function ({ remoteUser }) {
     if (this.type !== 'USER' && this.type !== 'ORGANIZATION') {
       return;
     }
@@ -941,7 +941,7 @@ export default function (Sequelize, DataTypes) {
       data: { collective: this.info },
     });
 
-    await this.activateBudget();
+    await this.activateBudget({ remoteUser });
 
     return this;
   };
@@ -969,7 +969,7 @@ export default function (Sequelize, DataTypes) {
    * If the collective is a host, it needs to remove existing hosted collectives before
    * deactivating it as a host.
    */
-  Collective.prototype.deactivateAsHost = async function () {
+  Collective.prototype.deactivateAsHost = async function ({ remoteUser }) {
     const hostedCollectives = await this.getHostedCollectivesCount();
     if (hostedCollectives >= 1) {
       throw new Error(
@@ -979,7 +979,7 @@ export default function (Sequelize, DataTypes) {
 
     // TODO unsubscribe from OpenCollective tier plan.
 
-    await this.deactivateBudget();
+    await this.deactivateBudget({ remoteUser });
     await this.update({ isHostAccount: false });
 
     await models.Activity.create({
@@ -994,7 +994,7 @@ export default function (Sequelize, DataTypes) {
   /**
    * Activate Budget (so the "Host Organization" can receive financial contributions and manage expenses)
    */
-  Collective.prototype.activateBudget = async function () {
+  Collective.prototype.activateBudget = async function ({ remoteUser }) {
     if (!this.isHostAccount || ![types.ORGANIZATION].includes(this.type)) {
       return;
     }
@@ -1008,7 +1008,7 @@ export default function (Sequelize, DataTypes) {
 
     await models.Member.create({
       role: roles.HOST,
-      CreatedByUserId: this.CreatedByUserId,
+      CreatedByUserId: remoteUser ? remoteUser.id : this.CreatedByUserId || this.LastEditedByUserId,
       MemberCollectiveId: this.id,
       CollectiveId: this.id,
     });
@@ -1973,11 +1973,11 @@ export default function (Sequelize, DataTypes) {
   /**
    * Change or remove host of the collective (only if balance === 0)
    * Note: when changing host, we also set the collective.isActive to false
-   *       unless the creatorUser (remoteUser) is an admin of the host
+   *       unless the remoteUser is an admin of the host
    * @param {*} newHostCollective: { id }
-   * @param {*} creatorUser { id }
+   * @param {*} remoteUser { id }
    */
-  Collective.prototype.changeHost = async function (newHostCollectiveId, creatorUser) {
+  Collective.prototype.changeHost = async function (newHostCollectiveId, remoteUser) {
     if (newHostCollectiveId === this.id) {
       // do nothing
       return;
@@ -2019,9 +2019,9 @@ export default function (Sequelize, DataTypes) {
         throw new Error('Host not found');
       }
       if (!newHostCollective.isHostAccount) {
-        await newHostCollective.becomeHost();
+        await newHostCollective.becomeHost({ remoteUser });
       }
-      return this.addHost(newHostCollective, creatorUser);
+      return this.addHost(newHostCollective, remoteUser);
     } else {
       // if we remove the host
       return this.save();
