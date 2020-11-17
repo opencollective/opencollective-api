@@ -1404,6 +1404,10 @@ const queries = {
         type: new GraphQLList(TypeOfCollectiveType),
         description: 'Only return collectives of this type',
       },
+      isHost: {
+        type: GraphQLBoolean,
+        description: 'Filter on wether account is a host',
+      },
       limit: {
         type: GraphQLInt,
         description: 'Limit the amount of results. Defaults to 20',
@@ -1423,9 +1427,8 @@ const queries = {
       },
     },
     async resolve(_, args, req) {
-      const { limit, offset, term, types, hostCollectiveIds, useAlgolia } = args;
+      const { limit, offset, term, types, isHost, hostCollectiveIds, useAlgolia } = args;
       const cleanTerm = term ? term.trim() : '';
-      const isEmptyTerm = cleanTerm.length === 0;
       const listToStr = list => (list ? list.join('_') : '');
       const generateResults = (collectives, total) => {
         const optionalParamsKey = `${listToStr(types)}-${listToStr(hostCollectiveIds)}`;
@@ -1439,19 +1442,22 @@ const queries = {
       };
 
       if (useAlgolia && Algolia.isAvailable()) {
-        if (isEmptyTerm) {
-          return generateResults([], 0);
-        } else {
-          const [collectives, total] = await searchCollectivesOnAlgolia(cleanTerm, offset, limit, types);
-          return generateResults(collectives, total);
-        }
+        const [collectives, total] = await searchCollectivesOnAlgolia(cleanTerm, offset, limit, types, isHost);
+        return generateResults(collectives, total);
       } else if (isEmail(cleanTerm) && req.remoteUser && (!types || types.includes(CollectiveTypes.USER))) {
         // If an email is provided, search in the user table. Users must be authenticated
         // because we limit the rate of queries for this feature.
         const [collectives, total] = await searchCollectivesByEmail(cleanTerm, req.remoteUser);
         return generateResults(collectives, total);
       } else {
-        const [collectives, total] = await searchCollectivesInDB(cleanTerm, offset, limit, types, hostCollectiveIds);
+        const [collectives, total] = await searchCollectivesInDB(
+          cleanTerm,
+          offset,
+          limit,
+          types,
+          hostCollectiveIds,
+          isHost,
+        );
         return generateResults(collectives, total);
       }
     },

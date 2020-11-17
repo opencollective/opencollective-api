@@ -72,7 +72,7 @@ const searchTermToTsVector = term => {
 /**
  * Search collectives directly in the DB, using a full-text query.
  */
-export const searchCollectivesInDB = async (term, offset = 0, limit = 100, types, hostCollectiveIds) => {
+export const searchCollectivesInDB = async (term, offset = 0, limit = 100, types, hostCollectiveIds, isHost) => {
   // TSVector to search for collectives names/description/slug
   const tsVector = `
     to_tsvector('simple', c.name)
@@ -87,6 +87,10 @@ export const searchCollectivesInDB = async (term, offset = 0, limit = 100, types
 
   if (hostCollectiveIds && hostCollectiveIds.length > 0) {
     dynamicConditions += 'AND "HostCollectiveId" IN (:hostCollectiveIds) ';
+  }
+
+  if (isHost !== undefined) {
+    dynamicConditions += 'AND "isHostAccount" = :isHost ';
   }
 
   if (term && term.length > 0) {
@@ -129,6 +133,7 @@ export const searchCollectivesInDB = async (term, offset = 0, limit = 100, types
         offset,
         limit,
         hostCollectiveIds,
+        isHost,
       },
     },
   );
@@ -141,7 +146,12 @@ export const searchCollectivesInDB = async (term, offset = 0, limit = 100, types
  *
  * @returns a tuple like [collectives, total]
  */
-export const searchCollectivesOnAlgolia = async (term, offset, limit, types) => {
+export const searchCollectivesOnAlgolia = async (term, offset, limit, types, isHostAccount) => {
+  if (term.length === 0) {
+    // No need to search on Algolia if there's no query term
+    return searchCollectivesInDB(term, offset, limit, types, null, isHostAccount);
+  }
+
   const index = algolia.getIndex();
   if (!index) {
     return EMPTY_SEARCH_RESULT;
@@ -163,6 +173,9 @@ export const searchCollectivesOnAlgolia = async (term, offset, limit, types) => 
   const where = { id: { [Op.in]: collectiveIds } };
   if (types !== undefined) {
     where.type = { [Op.in]: types };
+  }
+  if (isHostAccount !== undefined) {
+    where.isHostAccount = isHostAccount;
   }
 
   const collectives = await models.Collective.findAll({ where });
