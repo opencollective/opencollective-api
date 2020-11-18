@@ -82,7 +82,17 @@ async function run({ dryRun, limit } = {}) {
       if (!transaction.RefundTransactionId) {
         logger.info(`  - Refunding transaction`);
         if (!dryRun) {
-          await libPayments.refundTransaction(transaction);
+          try {
+            await libPayments.refundTransaction(transaction);
+          } catch (e) {
+            if (e.message.includes('has already been refunded')) {
+              logger.info(`  - Transaction has already been refunded on Payment Provider`);
+              const paymentMethodProvider = libPayments.findPaymentMethodProvider(transaction.PaymentMethod);
+              if (paymentMethodProvider && paymentMethodProvider.refundTransactionOnlyInDatabase) {
+                await paymentMethodProvider.refundTransactionOnlyInDatabase(transaction);
+              }
+            }
+          }
         }
       } else {
         logger.info(`  - Transaction already refunded`);
