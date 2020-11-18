@@ -41,97 +41,99 @@ describe('server/graphql/v1/search', () => {
     });
   });
 
-  beforeEach(() => {
-    // Make sure the library is constructed
-    config.algolia = config.algolia || {};
-    config.algolia.appId = config.algolia.appId || 'x';
-    config.algolia.appKey = config.algolia.appKey || 'y';
-    config.algolia.index = config.algolia.index || 'z';
+  describe('With Algolia', () => {
+    beforeEach(() => {
+      // Make sure the library is constructed
+      config.algolia = config.algolia || {};
+      config.algolia.appId = config.algolia.appId || 'x';
+      config.algolia.appKey = config.algolia.appKey || 'y';
+      config.algolia.index = config.algolia.index || 'z';
 
-    sandbox.stub(Index.prototype, 'search');
-    Index.prototype.search.returns(Promise.resolve({ hits, nbHits }));
-  });
-
-  afterEach(() => {
-    if (config.algolia.appId === 'x') {
-      delete config.algolia.appId;
-    }
-    if (config.algolia.appKey === 'y') {
-      delete config.algolia.appKey;
-    }
-    if (config.algolia.index === 'z') {
-      delete config.algolia.index;
-    }
-
-    sandbox.restore();
-  });
-
-  it('returns list of CollectiveSearch types', async () => {
-    const collectiveSearchQuery = gql`
-      query CollectiveSearch($term: String!) {
-        search(term: $term) {
-          collectives {
-            id
-          }
-        }
-      }
-    `;
-
-    const result = await utils.graphqlQuery(collectiveSearchQuery, { term: 'open' });
-
-    expect(
-      Index.prototype.search.firstCall.calledWith({
-        query: 'open',
-        length: 20,
-        offset: 0,
-      }),
-    ).to.be.true;
-    expect(result.data.search).to.deep.equal({
-      collectives: [{ id: hits[0].id }],
-    });
-  });
-
-  it('accepts limit and offset arguments', async () => {
-    const collectiveSearchQuery = gql`
-      query CollectiveSearch($term: String!, $limit: Int!, $offset: Int!) {
-        search(term: $term, limit: $limit, offset: $offset) {
-          collectives {
-            id
-            name
-            description
-          }
-          total
-          limit
-          offset
-        }
-      }
-    `;
-
-    const result = await utils.graphqlQuery(collectiveSearchQuery, {
-      term: 'open',
-      limit: 20,
-      offset: 0,
+      sandbox.stub(Index.prototype, 'search');
+      Index.prototype.search.returns(Promise.resolve({ hits, nbHits }));
     });
 
-    expect(
-      Index.prototype.search.firstCall.calledWith({
-        query: 'open',
-        length: 20,
-        offset: 0,
-      }),
-    ).to.be.true;
+    afterEach(() => {
+      if (config.algolia.appId === 'x') {
+        delete config.algolia.appId;
+      }
+      if (config.algolia.appKey === 'y') {
+        delete config.algolia.appKey;
+      }
+      if (config.algolia.index === 'z') {
+        delete config.algolia.index;
+      }
 
-    expect(result.data.search).to.deep.equal({
-      collectives: [
-        {
-          id: hits[0].id,
-          name: hits[0].name,
-          description: hits[0].description,
-        },
-      ],
-      total: nbHits,
-      limit: 20,
-      offset: 0,
+      sandbox.restore();
+    });
+
+    it('returns list of CollectiveSearch types', async () => {
+      const collectiveSearchQuery = gql`
+        query CollectiveSearch($term: String!) {
+          search(term: $term, useAlgolia: true) {
+            collectives {
+              id
+            }
+          }
+        }
+      `;
+
+      const result = await utils.graphqlQuery(collectiveSearchQuery, { term: 'open' });
+
+      expect(
+        Index.prototype.search.firstCall.calledWith({
+          query: 'open',
+          length: 20,
+          offset: 0,
+        }),
+      ).to.be.true;
+      expect(result.data.search).to.deep.equal({
+        collectives: [{ id: hits[0].id }],
+      });
+    });
+
+    it('accepts limit and offset arguments', async () => {
+      const collectiveSearchQuery = gql`
+        query CollectiveSearch($term: String!, $limit: Int!, $offset: Int!) {
+          search(term: $term, limit: $limit, offset: $offset, useAlgolia: true) {
+            collectives {
+              id
+              name
+              description
+            }
+            total
+            limit
+            offset
+          }
+        }
+      `;
+
+      const result = await utils.graphqlQuery(collectiveSearchQuery, {
+        term: 'open',
+        limit: 20,
+        offset: 0,
+      });
+
+      expect(
+        Index.prototype.search.firstCall.calledWith({
+          query: 'open',
+          length: 20,
+          offset: 0,
+        }),
+      ).to.be.true;
+
+      expect(result.data.search).to.deep.equal({
+        collectives: [
+          {
+            id: hits[0].id,
+            name: hits[0].name,
+            description: hits[0].description,
+          },
+        ],
+        total: nbHits,
+        limit: 20,
+        offset: 0,
+      });
     });
   });
 });

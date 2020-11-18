@@ -129,7 +129,8 @@
   "algolia": {
     "appId": "ALGOLIA_APP_ID",
     "appKey": "ALGOLIA_KEY",
-    "index": "ALGOLIA_INDEX"
+    "index": "ALGOLIA_INDEX",
+    "useAsDefault": "ALGOLIA_USE_DEFAULT"
   },
   "fixer": {
     "accessKey": "FIXER_ACCESS_KEY"

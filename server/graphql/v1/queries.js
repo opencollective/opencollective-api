@@ -1,4 +1,5 @@
 import Promise from 'bluebird';
+import config from 'config';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { get, pick, uniq } from 'lodash';
 import { isEmail } from 'validator';
@@ -10,7 +11,7 @@ import { fetchCollectiveId } from '../../lib/cache';
 import { getConsolidatedInvoicesData } from '../../lib/pdf';
 import rawQueries from '../../lib/queries';
 import { searchCollectivesByEmail, searchCollectivesInDB, searchCollectivesOnAlgolia } from '../../lib/search';
-import { toIsoDateStr } from '../../lib/utils';
+import { parseToBoolean, toIsoDateStr } from '../../lib/utils';
 import models, { Op, sequelize } from '../../models';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../errors';
 
@@ -1387,10 +1388,7 @@ const queries = {
    */
   search: {
     type: CollectiveSearchResultsType,
-    description: `
-      Search for collectives. Uses Algolia, except if searching for users or if using flag to opt-out.
-      Results are returned with best matches first.
-    `,
+    description: `Search for collectives. Results are returned with best matches first.`,
     args: {
       term: {
         type: GraphQLString,
@@ -1419,7 +1417,8 @@ const queries = {
       },
       useAlgolia: {
         type: GraphQLBoolean,
-        defaultValue: true,
+        deprecationReason: '2020-11-18: Algolia is intended to be removed in a near future',
+        defaultValue: parseToBoolean(config.algolia.useAsDefault),
         description: `
           If set to false, an internal query will be used to search the collective rather than Algolia.
           You **must** set this to false when searching for users/organizations.
