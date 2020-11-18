@@ -53,8 +53,9 @@ describe('server/lib/tax-forms', () => {
     year: moment().year(),
   };
 
-  function ExpenseOverThreshold({ incurredAt, UserId, CollectiveId, amount, type, FromCollectiveId }) {
+  function ExpenseOverThreshold({ status, incurredAt, UserId, CollectiveId, amount, type, FromCollectiveId }) {
     return {
+      status: status || 'APPROVED',
       description: 'pizza',
       amount: amount || US_TAX_FORM_THRESHOLD + 100e2,
       currency: 'USD',
@@ -178,6 +179,16 @@ describe('server/lib/tax-forms', () => {
         incurredAt: moment(),
       }),
     );
+    // An expense from this year over the threshold, but not counted because PENDIING
+    await Expense.create(
+      ExpenseOverThreshold({
+        status: 'PENDING',
+        UserId: users[1].id,
+        FromCollectiveId: users[1].CollectiveId,
+        CollectiveId: collectives[0].id,
+        incurredAt: moment(),
+      }),
+    );
     // An expense from this year under the threshold
     await Expense.create(
       ExpenseOverThreshold({
@@ -228,7 +239,13 @@ describe('server/lib/tax-forms', () => {
     );
 
     // Organization: add expenses whose sum exceeds the threshold
-    const baseParams = { FromCollectiveId: organizationWithTaxForm.id, CollectiveId: collectives[0].id, amount: 250e2 };
+    const baseParams = {
+      FromCollectiveId: organizationWithTaxForm.id,
+      CollectiveId: collectives[0].id,
+      amount: 250e2,
+      status: 'APPROVED',
+    };
+
     await fakeExpense({ ...baseParams, type: 'INVOICE' });
     await fakeExpense({ ...baseParams, type: 'UNCLASSIFIED' });
     await fakeExpense({ ...baseParams, type: 'FUNDING_REQUEST' });
