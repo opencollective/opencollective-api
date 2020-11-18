@@ -95,13 +95,18 @@ export async function createFromPaidExpense(
         );
 
       case 'ERROR':
+        // Backward compatible error message parsing
+        // eslint-disable-next-line no-case-declarations
+        const errorMessage =
+          executePaymentResponse.payErrorList?.payError?.[0].error?.message ||
+          executePaymentResponse.payErrorList?.[0].error?.message;
         throw new errors.ServerError(
-          `Error while paying the expense with PayPal: "${executePaymentResponse.payErrorList[0].error.message}". Please contact support@opencollective.com`,
+          `Error while paying the expense with PayPal: "${errorMessage}". Please contact support@opencollective.com or pay it manually through PayPal.`,
         );
 
       default:
         throw new errors.ServerError(
-          `Error while paying the expense with PayPal. Please contact support@opencollective.com`,
+          `Error while paying the expense with PayPal. Please contact support@opencollective.com or pay it manually through PayPal.`,
         );
     }
 
