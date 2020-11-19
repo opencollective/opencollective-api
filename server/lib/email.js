@@ -12,7 +12,7 @@ import models from '../models';
 
 import templates from './emailTemplates';
 import logger from './logger';
-import { md5, sha512 } from './utils';
+import { isEmailInternal, md5, sha512 } from './utils';
 import whiteListDomains from './whiteListDomains';
 
 const debug = debugLib('email');
@@ -87,6 +87,17 @@ const getTemplateAttributes = str => {
   return attributes;
 };
 
+const filterBccForTestEnv = emails => {
+  if (!emails) {
+    return emails;
+  }
+
+  const isString = typeof emails === 'string';
+  const list = isString ? emails.split(',') : emails;
+  const filtered = list.filter(isEmailInternal);
+  return isString ? filtered.join(',') : filtered;
+};
+
 /*
  * sends an email message to a recipient with given subject and body
  */
@@ -147,6 +158,10 @@ const sendMessage = (recipients, subject, html, options = {}) => {
       debug('emailLib.sendMessage error: No recipient defined');
       return Promise.resolve();
     }
+
+    // Filter users added as BCC
+    options.bcc = filterBccForTestEnv(options.bcc);
+
     let sendToBcc = true;
     // Don't send to BCC if sendEvenIfNotProduction and NOT in testing env
     if (options.sendEvenIfNotProduction === true && !['ci', 'test'].includes(config.env)) {
