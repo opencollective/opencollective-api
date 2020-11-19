@@ -508,6 +508,7 @@ export const CollectiveStatsType = new GraphQLObjectType({
       },
       topExpenses: {
         type: GraphQLJSON,
+        deprecationReason: '[LegacyExpenseFlow] 2020-11-17: Not used anymore',
         resolve(collective) {
           return Promise.all([
             queries.getTopExpenseCategories(collective.id),

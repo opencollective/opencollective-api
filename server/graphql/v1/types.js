@@ -948,6 +948,7 @@ export const ExpenseType = new GraphQLObjectType({
       },
       userTaxFormRequiredBeforePayment: {
         type: GraphQLBoolean,
+        deprecationReason: '2020-11-17: [LegacyExpenseFlow] Please use API V2',
         async resolve(expense, _, req) {
           return req.loaders.Expense.userTaxFormRequiredBeforePayment.load(expense.id);
         },
@@ -967,6 +968,7 @@ export const ExpenseType = new GraphQLObjectType({
       comments: {
         type: CommentListType,
         description: 'Returns the list of comments for this expense, or `null` if user is not allowed to see them',
+        deprecationReason: '2020-11-17: [LegacyExpenseFlow] Now using GQLV2 for that',
         args: {
           limit: { type: GraphQLInt },
           offset: { type: GraphQLInt },

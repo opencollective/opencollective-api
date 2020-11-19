@@ -470,6 +470,7 @@ const queries = {
    */
   allComments: {
     type: new GraphQLList(UpdateType),
+    deprecationReason: '2020-11-17: [LegacyExpenseFlow] Please use API V2',
     args: {
       ExpenseId: { type: GraphQLInt },
       UpdateId: { type: GraphQLInt },
@@ -610,6 +611,7 @@ const queries = {
    */
   allExpenses: {
     type: new GraphQLList(ExpenseType),
+    deprecationReason: '2020-11-17: [LegacyExpenseFlow] Please use API V2',
     args: {
       CollectiveId: { type: new GraphQLNonNull(GraphQLInt) },
       includeHostedCollectives: { type: GraphQLBoolean },
@@ -679,6 +681,7 @@ const queries = {
    */
   expenses: {
     type: PaginatedExpensesType,
+    deprecationReason: '2020-11-17: [LegacyExpenseFlow] Please use API V2',
     args: {
       CollectiveId: { type: GraphQLInt },
       CollectiveSlug: { type: GraphQLString },
@@ -750,6 +753,7 @@ const queries = {
    */
   Expense: {
     type: ExpenseType,
+    deprecationReason: '2020-11-17: [LegacyExpenseFlow] Please use API V2',
     args: {
       id: { type: new GraphQLNonNull(GraphQLInt) },
     },

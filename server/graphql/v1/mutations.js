@@ -281,6 +281,7 @@ const mutations = {
   },
   approveExpense: {
     type: ExpenseType,
+    deprecationReason: '2020-11-17: [LegacyExpenseFlow] Now using GQLV2 for that',
     args: {
       id: { type: new GraphQLNonNull(GraphQLInt) },
     },
@@ -290,6 +291,7 @@ const mutations = {
   },
   unapproveExpense: {
     type: ExpenseType,
+    deprecationReason: '2020-11-17: [LegacyExpenseFlow] Now using GQLV2 for that',
     args: {
       id: { type: new GraphQLNonNull(GraphQLInt) },
     },
@@ -308,6 +310,7 @@ const mutations = {
   },
   payExpense: {
     type: ExpenseType,
+    deprecationReason: '2020-11-17: [LegacyExpenseFlow] Now using GQLV2 for that',
     args: {
       id: { type: new GraphQLNonNull(GraphQLInt) },
       paymentProcessorFeeInCollectiveCurrency: { type: GraphQLInt },
@@ -346,7 +349,7 @@ const mutations = {
   },
   createExpense: {
     type: ExpenseType,
-    deprecationReason: '2020-09-17: Now using GQLV2 for that',
+    deprecationReason: '2020-09-17: [LegacyExpenseFlow] Now using GQLV2 for that',
     args: {
       expense: { type: new GraphQLNonNull(ExpenseInputType) },
     },
@@ -356,6 +359,7 @@ const mutations = {
   },
   editExpense: {
     type: ExpenseType,
+    deprecationReason: '2020-11-17: [LegacyExpenseFlow] Now using GQLV2 for that',
     args: {
       expense: { type: new GraphQLNonNull(ExpenseInputType) },
     },
@@ -365,6 +369,7 @@ const mutations = {
   },
   deleteExpense: {
     type: ExpenseType,
+    deprecationReason: '2020-11-17: [LegacyExpenseFlow] Now using GQLV2 for that',
     args: {
       id: { type: new GraphQLNonNull(GraphQLInt) },
     },
@@ -374,6 +379,7 @@ const mutations = {
   },
   markExpenseAsUnpaid: {
     type: ExpenseType,
+    deprecationReason: '2020-11-17: [LegacyExpenseFlow] Now using GQLV2 for that',
     args: {
       id: { type: new GraphQLNonNull(GraphQLInt) },
       processorFeeRefunded: { type: new GraphQLNonNull(GraphQLBoolean) },
