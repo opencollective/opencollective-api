@@ -31,7 +31,7 @@ export async function updateExpenseStatus(req, expenseId, status) {
   const { remoteUser } = req;
   if (!remoteUser) {
     throw new Unauthorized('You need to be logged in to update the status of an expense');
-  } else if (!canUseFeature(remoteUser, FEATURE.EXPENSES)) {
+  } else if (!canUseFeature(remoteUser, FEATURE.USE_EXPENSES)) {
     throw new FeatureNotAllowedForUser();
   }
 
@@ -202,7 +202,7 @@ const createAttachedFiles = async (expense, attachedFilesData, remoteUser, trans
 export async function createExpense(remoteUser, expenseData) {
   if (!remoteUser) {
     throw new Unauthorized('You need to be logged in to create an expense');
-  } else if (!canUseFeature(remoteUser, FEATURE.EXPENSES)) {
+  } else if (!canUseFeature(remoteUser, FEATURE.USE_EXPENSES)) {
     throw new FeatureNotAllowedForUser();
   }
 
@@ -335,7 +335,7 @@ export async function editExpense(req, expenseData, options) {
   const remoteUser = options?.overrideRemoteUser || req.remoteUser;
   if (!remoteUser) {
     throw new Unauthorized('You need to be logged in to edit an expense');
-  } else if (!canUseFeature(remoteUser, FEATURE.EXPENSES)) {
+  } else if (!canUseFeature(remoteUser, FEATURE.USE_EXPENSES)) {
     throw new FeatureNotAllowedForUser();
   } else if (expenseData.payoutMethod && expenseData.PayoutMethod) {
     throw new Error('payoutMethod and PayoutMethod are exclusive, please use only one');
@@ -465,7 +465,7 @@ export async function deleteExpense(req, expenseId) {
   const { remoteUser } = req;
   if (!remoteUser) {
     throw new Unauthorized('You need to be logged in to delete an expense');
-  } else if (!canUseFeature(remoteUser, FEATURE.EXPENSES)) {
+  } else if (!canUseFeature(remoteUser, FEATURE.USE_EXPENSES)) {
     throw new FeatureNotAllowedForUser();
   }
 
@@ -612,7 +612,7 @@ export async function payExpense(req, args) {
 
     if (!remoteUser) {
       throw new Unauthorized('You need to be logged in to pay an expense');
-    } else if (!canUseFeature(remoteUser, FEATURE.EXPENSES)) {
+    } else if (!canUseFeature(remoteUser, FEATURE.USE_EXPENSES)) {
       throw new FeatureNotAllowedForUser();
     }
     const expense = await models.Expense.findByPk(expenseId, {
@@ -787,7 +787,7 @@ export async function markExpenseAsUnpaid(req, ExpenseId, processorFeeRefunded) 
   const updatedExpense = await lockExpense(ExpenseId, async () => {
     if (!remoteUser) {
       throw new Unauthorized('You need to be logged in to unpay an expense');
-    } else if (!canUseFeature(remoteUser, FEATURE.EXPENSES)) {
+    } else if (!canUseFeature(remoteUser, FEATURE.USE_EXPENSES)) {
       throw new FeatureNotAllowedForUser();
     }
 

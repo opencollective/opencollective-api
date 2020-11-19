@@ -304,7 +304,7 @@ const expenseMutations = {
 
       if (!remoteUser) {
         throw new Unauthorized('You need to be logged in to create an expense');
-      } else if (!canUseFeature(remoteUser, FEATURE.EXPENSES)) {
+      } else if (!canUseFeature(remoteUser, FEATURE.USE_EXPENSES)) {
         throw new FeatureNotAllowedForUser();
       }
       if (size(expenseData.attachedFiles) > 15) {

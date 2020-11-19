@@ -1,7 +1,7 @@
 import { pick } from 'lodash';
 
 import FEATURE from '../../constants/feature';
-import hasFeature from '../../lib/allowed-features';
+import { hasFeature } from '../../lib/allowed-features';
 import { canUseFeature } from '../../lib/user-permissions';
 import models from '../../models';
 import { FeatureNotAllowedForUser, FeatureNotSupportedForCollective, NotFound, Unauthorized } from '../errors';
