@@ -4,9 +4,10 @@ import { isNil, isNull, isUndefined } from 'lodash';
 import activities from '../../../constants/activities';
 import status from '../../../constants/order_status';
 import models from '../../../models';
-import { NotFound, Unauthorized } from '../../errors';
+import { BadRequest, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { confirmOrder as confirmOrderLegacy, createOrder as createOrderLegacy } from '../../v1/mutations/orders';
 import { getIntervalFromContributionFrequency } from '../enum/ContributionFrequency';
+import { ProcessOrderAction } from '../enum/ProcessOrderAction';
 import { getDecodedId } from '../identifiers';
 import { fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { AmountInput, getValueInCentsFromAmountInput } from '../input/AmountInput';
@@ -276,6 +277,37 @@ const orderMutations = {
         stripeError: updatedOrder.stripeError,
         guestToken: args.guestToken,
       };
+    },
+  },
+  processOrder: {
+    type: new GraphQLNonNull(Order),
+    description: 'A mutation for the host to approve or reject an order',
+    args: {
+      order: {
+        type: new GraphQLNonNull(OrderReferenceInput),
+      },
+      action: {
+        type: new GraphQLNonNull(ProcessOrderAction),
+      },
+    },
+    async resolve(_, args, req) {
+      const order = await fetchOrderWithReference(args.order);
+      const toAccount = await req.loaders.Collective.byId.load(order.CollectiveId);
+
+      if (!req.remoteUser?.isAdmin(toAccount.HostCollectiveId)) {
+        throw new Unauthorized('Only host admins can process orders');
+      } else if (order.status !== status.PENDING) {
+        throw new ValidationFailed(`Only pending orders can be processed, this one is ${order.status}`);
+      }
+
+      switch (args.action) {
+        case 'MARK_AS_PAID':
+          return order.markAsPaid(req.remoteUser);
+        case 'MARK_AS_EXPIRED':
+          return order.markAsExpired();
+        default:
+          throw new BadRequest(`Unknown action ${args.action}`);
+      }
     },
   },
 };

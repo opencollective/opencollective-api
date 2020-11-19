@@ -12,6 +12,7 @@ import { PaymentMethod } from '../object/PaymentMethod';
 import { Tier } from '../object/Tier';
 
 import { MemberOf } from './Member';
+import OrderPermissions from './OrderPermissions';
 import { OrderTax } from './OrderTax';
 
 export const Order = new GraphQLObjectType({
@@ -79,14 +80,14 @@ export const Order = new GraphQLObjectType({
       },
       fromAccount: {
         type: Account,
-        resolve(order) {
-          return order.getFromCollective();
+        resolve(order, _, req) {
+          return req.loaders.Collective.byId.load(order.FromCollectiveId);
         },
       },
       toAccount: {
         type: Account,
-        resolve(order) {
-          return order.getCollective();
+        resolve(order, _, req) {
+          return req.loaders.Collective.byId.load(order.CollectiveId);
         },
       },
       transactions: {
@@ -120,11 +121,12 @@ export const Order = new GraphQLObjectType({
           return { value, currency: order.currency };
         },
       },
-      // needed for recurring contributions work, but we should update to encoded id and write v2 payment method object soon
       paymentMethod: {
         type: PaymentMethod,
-        resolve(order) {
-          return models.PaymentMethod.findByPk(order.PaymentMethodId);
+        resolve(order, _, req) {
+          if (order.PaymentMethodId) {
+            return req.loaders.PaymentMethod.byId.load(order.PaymentMethodId);
+          }
         },
       },
       platformFee: {
@@ -177,6 +179,13 @@ export const Order = new GraphQLObjectType({
               TierId: order.TierId,
             },
           });
+        },
+      },
+      permissions: {
+        type: new GraphQLNonNull(OrderPermissions),
+        description: 'The permissions given to current logged in user for this order',
+        async resolve(order) {
+          return order; // Individual fields are set by OrderPermissions resolvers
         },
       },
     };

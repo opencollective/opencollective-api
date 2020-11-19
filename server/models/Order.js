@@ -5,6 +5,7 @@ import Temporal from 'sequelize-temporal';
 
 import status from '../constants/order_status';
 import { TransactionTypes } from '../constants/transactions';
+import * as libPayments from '../lib/payments';
 
 import CustomDataTypes from './DataTypes';
 
@@ -250,6 +251,22 @@ export default function (Sequelize, DataTypes) {
         return null;
       }
     });
+  };
+
+  Order.prototype.markAsExpired = async function () {
+    // TODO: We should create an activity to record who rejected the order
+    return this.update({ status: status.EXPIRED });
+  };
+
+  Order.prototype.markAsPaid = async function (user) {
+    this.paymentMethod = {
+      service: 'opencollective',
+      type: 'manual',
+      paid: true,
+    };
+
+    await libPayments.executeOrder(user, this);
+    return this;
   };
 
   Order.prototype.getUser = function () {
