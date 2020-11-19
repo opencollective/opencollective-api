@@ -70,18 +70,22 @@ const searchTermToTsVector = term => {
 };
 
 /**
+ * TSVector to search for collectives names/description/slug
+ * Updating the value here requires generating a new migration to update the index.
+ * See `migrations/20201119100223-update-collectives-search-index.js`
+ */
+export const TS_VECTOR = `
+  to_tsvector('simple', name)
+  || to_tsvector('simple', slug)
+  || to_tsvector('simple', COALESCE(description, ''))
+  || COALESCE(array_to_tsvector(tags), '')
+  || to_tsvector('simple', COALESCE("longDescription", ''))
+`;
+
+/**
  * Search collectives directly in the DB, using a full-text query.
  */
 export const searchCollectivesInDB = async (term, offset = 0, limit = 100, types, hostCollectiveIds, isHost) => {
-  // TSVector to search for collectives names/description/slug
-  const tsVector = `
-    to_tsvector('simple', c.name)
-    || to_tsvector('simple', c.slug)
-    || to_tsvector('simple', COALESCE(c.description, ''))
-    || to_tsvector('simple', COALESCE(c."longDescription", ''))
-    || COALESCE(array_to_tsvector(tags), '')
-  `;
-
   // Build dynamic conditions based on arguments
   let dynamicConditions = '';
 
@@ -93,9 +97,13 @@ export const searchCollectivesInDB = async (term, offset = 0, limit = 100, types
     dynamicConditions += 'AND "isHostAccount" = :isHost ';
   }
 
+  if (types?.length) {
+    dynamicConditions += `AND type IN (:types) `;
+  }
+
   if (term && term.length > 0) {
     term = term.replace(/(_|%|\\)/g, ' ').trim();
-    dynamicConditions += `AND (${tsVector} @@ plainto_tsquery('simple', :vectorizedTerm) OR name ILIKE '%' || :term || '%' OR slug ILIKE '%' || :term || '%') `;
+    dynamicConditions += `AND (${TS_VECTOR} @@ plainto_tsquery('simple', :vectorizedTerm) OR name ILIKE '%' || :term || '%' OR slug ILIKE '%' || :term || '%') `;
   } else {
     term = '';
   }
@@ -110,14 +118,13 @@ export const searchCollectivesInDB = async (term, offset = 0, limit = 100, types
         CASE WHEN (slug = :slugifiedTerm OR name ILIKE :term) THEN
           1
         ELSE
-          ts_rank(${tsVector}, plainto_tsquery('simple', :vectorizedTerm))
+          ts_rank(${TS_VECTOR}, plainto_tsquery('simple', :vectorizedTerm))
         END
       ) AS __rank__
     FROM "Collectives" c
     WHERE "deletedAt" IS NULL
     AND "deactivatedAt" IS NULL
-    AND "isIncognito" = FALSE
-    AND type IN (:types) ${dynamicConditions}
+    AND "isIncognito" = FALSE ${dynamicConditions}
     ORDER BY __rank__ DESC
     OFFSET :offset
     LIMIT :limit
@@ -126,7 +133,7 @@ export const searchCollectivesInDB = async (term, offset = 0, limit = 100, types
       model: models.Collective,
       mapToModel: true,
       replacements: {
-        types: types || CollectiveTypesList,
+        types,
         term: term,
         slugifiedTerm: slugify(term),
         vectorizedTerm: searchTermToTsVector(term),

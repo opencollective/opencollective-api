@@ -40,6 +40,7 @@
 | ALGOLIA_APP_ID                      | .algolia.appId                              | algolia APP id                                                                 |
 | ALGOLIA_KEY                         | .algolia.appKey                             | algolia key                                                                    |
 | ALGOLIA_INDEX                       | .algolia.index                              | algolia index                                                                  |
+| ALGOLIA_USE_DEFAULT                 | .algolia.useAsDefault                       | whether to use Algolia as the default engine for search                        |
 | FOREST_AUTH_SECRET                  |                                             | forest auth secret                                                             |
 | FOREST_ENV_SECRET                   |                                             | forest environment secret                                                      |
 |                                     | .stripe.redirectUri                         |                                                                                |
