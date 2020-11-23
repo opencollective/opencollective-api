@@ -279,7 +279,7 @@ const orderMutations = {
       };
     },
   },
-  processOrder: {
+  processPendingOrder: {
     type: new GraphQLNonNull(Order),
     description: 'A mutation for the host to approve or reject an order',
     args: {
