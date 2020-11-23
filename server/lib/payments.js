@@ -506,7 +506,7 @@ const sendManualPendingOrderEmail = async order => {
     collective: collective.info,
     host: host.info,
     fromCollective: fromCollective.activity,
-    pendingOrderLink: `${config.host.website}/${collective.slug}/orders/${order.id}`,
+    pendingOrderLink: `${config.host.website}/${host.slug}/dashboard/donations?searchTerm=%23${order.id}`,
   };
 
   return notifyAdminsOfCollective(host.id, { type: 'order.new.pendingFinancialContribution', data });
@@ -528,7 +528,7 @@ export const sendReminderPendingOrderEmail = async order => {
     collective: collective.info,
     host: host.info,
     fromCollective: fromCollective.activity,
-    viewDetailsLink: `${config.host.website}/${collective.slug}/orders/${order.id}`,
+    viewDetailsLink: `${config.host.website}/${host.slug}/dashboard/donations?searchTerm=%23${order.id}`,
   };
 
   return notifyAdminsOfCollective(host.id, { type: 'order.reminder.pendingFinancialContribution', data });
