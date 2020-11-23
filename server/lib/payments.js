@@ -478,7 +478,7 @@ export const sendOrderProcessingEmail = async order => {
     const formatValues = {
       account,
       reference: order.id,
-      amount: formatCurrency(order.totalAmount, order.currency),
+      amount: formatCurrency(order.totalAmount, order.currency, 2),
       collective: parentCollective ? `${parentCollective.slug} event` : order.collective.slug,
       tier: get(order, 'tier.slug') || get(order, 'tier.name'),
       // @deprecated but we still have some entries in the DB
