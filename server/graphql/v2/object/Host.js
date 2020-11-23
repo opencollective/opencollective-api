@@ -86,7 +86,7 @@ export const Host = new GraphQLObjectType({
         type: PayoutMethod,
         async resolve(collective, _, req) {
           const payoutMethods = await req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
-          return payoutMethods.find(c => c.service === 'transferwise');
+          return payoutMethods.find(c => c.type === 'BANK_ACCOUNT' && c.data?.isManualBankTransfer);
         },
       },
       paypalPreApproval: {
