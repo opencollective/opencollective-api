@@ -89,6 +89,7 @@ export const fakeCollective = async (collectiveData = {}) => {
     hostFeePercent: 10,
     tags: [randStr(), randStr()],
     isActive: true,
+    approvedAt: collectiveData.HostCollectiveId ? new Date() : null,
     ...collectiveData,
   });
 

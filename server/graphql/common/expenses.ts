@@ -60,7 +60,11 @@ const isHostAdmin = async (req, expense): Promise<boolean> => {
     expense.collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
   }
 
-  return req.remoteUser.isAdmin(expense.collective?.HostCollectiveId);
+  if (!expense.collective) {
+    return false;
+  }
+
+  return req.remoteUser.isAdmin(expense.collective.HostCollectiveId) && expense.collective.isActive;
 };
 
 /**
