@@ -31,7 +31,6 @@ import { PaymentMethod } from '../object/PaymentMethod';
 import PayoutMethod from '../object/PayoutMethod';
 import { TagStats } from '../object/TagStats';
 import { TransferWise } from '../object/TransferWise';
-import ISODateTime from '../scalar/ISODateTime';
 
 import { CollectionArgs } from './Collection';
 
@@ -186,22 +185,6 @@ const accountFieldsDefinition = () => ({
       filter: { type: AccountOrdersFilter },
       status: { type: new GraphQLList(OrderStatus) },
       tierSlug: { type: GraphQLString },
-      minAmount: {
-        type: GraphQLInt,
-        description: 'Only return orders where the amount is greater than or equal to this value (in cents)',
-      },
-      maxAmount: {
-        type: GraphQLInt,
-        description: 'Only return orders where the amount is lower than or equal to this value (in cents)',
-      },
-      dateFrom: {
-        type: ISODateTime,
-        description: 'Only return orders that were created after this date',
-      },
-      searchTerm: {
-        type: GraphQLString,
-        description: 'The term to search',
-      },
       onlySubscriptions: {
         type: GraphQLBoolean,
         description: 'Only returns orders that have an subscription (monthly/yearly)',
@@ -372,22 +355,6 @@ const accountOrders = {
     filter: { type: AccountOrdersFilter },
     status: { type: new GraphQLList(OrderStatus) },
     tierSlug: { type: GraphQLString },
-    minAmount: {
-      type: GraphQLInt,
-      description: 'Only return orders where the amount is greater than or equal to this value (in cents)',
-    },
-    maxAmount: {
-      type: GraphQLInt,
-      description: 'Only return orders where the amount is lower than or equal to this value (in cents)',
-    },
-    dateFrom: {
-      type: ISODateTime,
-      description: 'Only return orders that were created after this date',
-    },
-    searchTerm: {
-      type: GraphQLString,
-      description: 'The term to search',
-    },
     onlySubscriptions: {
       type: GraphQLBoolean,
       description: 'Only returns orders that have an subscription (monthly/yearly)',
@@ -398,8 +365,7 @@ const accountOrders = {
     },
   },
   async resolve(collective, args) {
-    let where;
-    const include = [];
+    let where, include;
     if (args.filter === 'OUTGOING') {
       where = { FromCollectiveId: collective.id };
     } else if (args.filter === 'INCOMING') {
@@ -420,36 +386,6 @@ const accountOrders = {
       }
       where.TierId = tier.id;
     }
-    if (args.minAmount) {
-      where['amount'] = { [Op.gte]: args.minAmount };
-    }
-    if (args.maxAmount) {
-      where['amount'] = { ...where['amount'], [Op.lte]: args.maxAmount };
-    }
-    if (args.dateFrom) {
-      where['createdAt'] = { [Op.gte]: args.dateFrom };
-    }
-
-    // Add search filter
-    if (args.searchTerm) {
-      const sanitizedTerm = args.searchTerm.replace(/(_|%|\\)/g, '\\$1');
-      const ilikeQuery = `%${sanitizedTerm}%`;
-
-      include.push({ association: 'fromCollective', attributes: [] });
-      include.push({ association: 'collective', attributes: [] });
-
-      where[Op.or] = [
-        { description: { [Op.iLike]: ilikeQuery } },
-        { '$fromCollective.slug$': { [Op.iLike]: ilikeQuery } },
-        { '$fromCollective.name$': { [Op.iLike]: ilikeQuery } },
-        { '$collective.slug$': { [Op.iLike]: ilikeQuery } },
-        { '$collective.name$': { [Op.iLike]: ilikeQuery } },
-      ];
-
-      if (!isNaN(args.searchTerm)) {
-        where[Op.or].push({ id: args.searchTerm });
-      }
-    }
 
     // Pagination
     if (args.limit <= 0 || args.limit > 1000) {
@@ -460,7 +396,7 @@ const accountOrders = {
     }
 
     if (args.onlySubscriptions) {
-      include.push({ model: models.Subscription, required: true });
+      include = [{ model: models.Subscription, required: true }];
     }
 
     const result = await models.Order.findAndCountAll({
