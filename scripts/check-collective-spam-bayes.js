@@ -30,13 +30,14 @@ async function run() {
   const collectives = await models.Collective.findAll({
     where: {
       approvedAt: { [Op.is]: null },
-      // description: { [Op.not]: null },
-      longDescription: { [Op.not]: null },
-      // createdAt: { [Op.gt]: '2020-11-01' },
-      createdAt: { [Op.gt]: '2020-07-21' },
+      [Op.or]: [
+        { description: { [Op.not]: null } },
+        { longDescription: { [Op.not]: null } },
+        // { website: { [Op.not]: null } },
+      ],
+      updatedAt: { [Op.gt]: '2020-11-15' },
     },
-    order: [['createdAt', 'DESC']],
-    // limit: 10000,
+    order: [['updatedAt', 'DESC']],
     paranoid: true,
   });
 

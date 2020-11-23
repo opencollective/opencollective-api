@@ -49,7 +49,7 @@ async function run() {
   const entries = Object.entries(domains);
   entries.sort(compareEntries);
 
-  const topDomains = entries.slice(0, 100).map(el => el[0]);
+  const topDomains = entries.slice(0, 120).map(el => el[0]);
 
   console.log('Updated SPAMMERS_DOMAINS', JSON.stringify(union(SPAMMERS_DOMAINS, topDomains).sort(), null, 2));
 
