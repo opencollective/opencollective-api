@@ -921,7 +921,7 @@ export default function (Sequelize, DataTypes) {
     }
 
     if (!this.isHostAccount) {
-      const updatedValues = { isHostAccount: true };
+      const updatedValues = { isHostAccount: true, plan: 'start-plan-2021' };
       // hostFeePercent and platformFeePercent are not supposed to be set at this point
       // but we're dealing with legacy tests here
       if (this.hostFeePercent === null) {
