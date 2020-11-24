@@ -153,7 +153,7 @@ const ExpensesQuery = {
         association: 'collective',
         attributes: [],
         required: true,
-        where: { HostCollectiveId: host.id },
+        where: { HostCollectiveId: host.id, approvedAt: { [Op.not]: null } },
       });
     }
 
