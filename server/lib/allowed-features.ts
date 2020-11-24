@@ -42,6 +42,8 @@ export const OPT_OUT_FEATURE_FLAGS = {
 export const OPT_IN_FEATURE_FLAGS = {
   [FEATURE.CROSS_CURRENCY_MANUAL_TRANSACTIONS]: 'settings.features.crossCurrencyManualTransactions',
   [FEATURE.COLLECTIVE_GOALS]: 'settings.collectivePage.showGoals',
+  [FEATURE.PAYPAL_PAYOUTS]: 'settings.features.paypalPayouts',
+  [FEATURE.PAYPAL_DONATIONS]: 'settings.features.paypalDonations',
 };
 
 const FEATURES_ONLY_FOR_HOST_ORGS = [
