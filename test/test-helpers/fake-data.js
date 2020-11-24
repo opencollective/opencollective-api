@@ -424,6 +424,7 @@ export const fakeTransaction = async (transactionData = {}) => {
     hostCurrencyFxRate: 1,
     netAmountInCollectiveCurrency: amount,
     amountInHostCurrency: amount,
+    TransactionGroup: uuid(),
     ...transactionData,
     amount,
     CreatedByUserId,
