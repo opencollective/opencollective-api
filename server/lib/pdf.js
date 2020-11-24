@@ -7,9 +7,10 @@ import models, { Op } from '../models';
 import { TOKEN_EXPIRATION_PDF } from './auth';
 import { fetchWithTimeout } from './fetch';
 import logger from './logger';
+import { parseToBoolean } from './utils';
 
 export const getTransactionPdf = async (transaction, user) => {
-  if (config.pdfService.fetchTransactionsReceipts === false) {
+  if (parseToBoolean(config.pdfService.fetchTransactionsReceipts) === false) {
     return;
   }
   const pdfUrl = `${config.host.pdf}/transactions/${transaction.uuid}/invoice.pdf`;
