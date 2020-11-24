@@ -85,7 +85,12 @@ export const TS_VECTOR = `
 /**
  * Search collectives directly in the DB, using a full-text query.
  */
-export const searchCollectivesInDB = async (term, offset = 0, limit = 100, types, hostCollectiveIds, isHost) => {
+export const searchCollectivesInDB = async (
+  term,
+  offset = 0,
+  limit = 100,
+  { types, hostCollectiveIds, isHost, onlyActive } = {},
+) => {
   // Build dynamic conditions based on arguments
   let dynamicConditions = '';
 
@@ -101,6 +106,11 @@ export const searchCollectivesInDB = async (term, offset = 0, limit = 100, types
     dynamicConditions += `AND type IN (:types) `;
   }
 
+  if (onlyActive) {
+    dynamicConditions += 'AND "isActive" = TRUE ';
+  }
+
+  // Cleanup term
   if (term && term.length > 0) {
     term = term.replace(/(_|%|\\)/g, ' ').trim();
     dynamicConditions += `AND (${TS_VECTOR} @@ plainto_tsquery('simple', :vectorizedTerm) OR name ILIKE '%' || :term || '%' OR slug ILIKE '%' || :term || '%') `;

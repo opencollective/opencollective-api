@@ -38,7 +38,7 @@ describe('server/lib/search', () => {
     it("Doesn't return items with the wrong type", async () => {
       const typeFilter = [CollectiveType.ORGANIZATION];
       const { userCollective } = await newUser();
-      const [results, count] = await searchCollectivesInDB(userCollective.slug, 0, 10000, typeFilter);
+      const [results, count] = await searchCollectivesInDB(userCollective.slug, 0, 10000, { types: typeFilter });
       expect(results.length).to.eq(0);
       expect(count).to.eq(0);
     });
