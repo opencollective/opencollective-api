@@ -1410,6 +1410,10 @@ const queries = {
         type: GraphQLBoolean,
         description: 'Filter on wether account is a host',
       },
+      onlyActive: {
+        type: GraphQLBoolean,
+        description: 'Whether to return only active accounts',
+      },
       limit: {
         type: GraphQLInt,
         description: 'Limit the amount of results. Defaults to 20',
@@ -1430,13 +1434,15 @@ const queries = {
       },
     },
     async resolve(_, args, req) {
-      const { limit, offset, term, types, isHost, hostCollectiveIds, useAlgolia } = args;
+      const { limit, offset, term, types, isHost, hostCollectiveIds, onlyActive, useAlgolia } = args;
       const cleanTerm = term ? term.trim() : '';
       const listToStr = list => (list ? list.join('_') : '');
       const generateResults = (collectives, total) => {
         const optionalParamsKey = `${listToStr(types)}-${listToStr(hostCollectiveIds)}`;
+        const activeKey = onlyActive ? 'active' : 'all';
+        const providerKey = useAlgolia ? 'algolia' : 'direct';
         return {
-          id: `search-${optionalParamsKey}-${cleanTerm}-${offset}-${limit}-${useAlgolia ? 'algolia' : 'direct'}`,
+          id: `search-${optionalParamsKey}-${cleanTerm}-${activeKey}-${offset}-${limit}-${providerKey}`,
           total,
           collectives,
           limit,
@@ -1453,14 +1459,11 @@ const queries = {
         const [collectives, total] = await searchCollectivesByEmail(cleanTerm, req.remoteUser);
         return generateResults(collectives, total);
       } else {
-        const [collectives, total] = await searchCollectivesInDB(
-          cleanTerm,
-          offset,
-          limit,
+        const [collectives, total] = await searchCollectivesInDB(cleanTerm, offset, limit, {
           types,
           hostCollectiveIds,
           isHost,
-        );
+        });
         return generateResults(collectives, total);
       }
     },
