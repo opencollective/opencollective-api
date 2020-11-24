@@ -179,7 +179,7 @@ const accountFieldsDefinition = () => ({
     },
   },
   orders: {
-    type: OrderCollection,
+    type: new GraphQLNonNull(OrderCollection),
     args: {
       limit: { type: GraphQLInt, defaultValue: 100 },
       offset: { type: GraphQLInt, defaultValue: 0 },
@@ -356,7 +356,7 @@ const accountTransactions = {
 };
 
 const accountOrders = {
-  type: OrderCollection,
+  type: new GraphQLNonNull(OrderCollection),
   args: {
     limit: { type: GraphQLInt, defaultValue: 100 },
     offset: { type: GraphQLInt, defaultValue: 0 },
@@ -395,6 +395,7 @@ const accountOrders = {
       where.TierId = tier.id;
     }
 
+    // Pagination
     if (args.limit <= 0 || args.limit > 1000) {
       args.limit = 100;
     }
