@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import moment from 'moment';
 import { SequelizeValidationError } from 'sequelize';
 import sinon from 'sinon';
 
@@ -6,7 +7,7 @@ import { expenseStatus, roles } from '../../../server/constants';
 import plans from '../../../server/constants/plans';
 import { getFxRate } from '../../../server/lib/currency';
 import emailLib from '../../../server/lib/email';
-import models, { Op } from '../../../server/models';
+import models, { Op, sequelize } from '../../../server/models';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 import {
   fakeCollective,
@@ -18,6 +19,7 @@ import {
   fakePayoutMethod,
   fakeTransaction,
   fakeUser,
+  multiple,
   randStr,
 } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
@@ -1049,6 +1051,95 @@ describe('server/models/Collective', () => {
       const fx = await getFxRate('EUR', 'USD');
       const totalAddedFunds = await collective.getTotalTransferwisePayouts();
       expect(totalAddedFunds).to.equals(100000 + 50000 * fx);
+    });
+  });
+
+  describe('getHostMetrics()', () => {
+    const lastMonth = moment.utc().subtract(1, 'month');
+
+    let gbpHost;
+    before(async () => {
+      await utils.resetTestDB();
+      const user = await fakeUser({ id: 30 }, { id: 20, slug: 'pia' });
+      const inc = await fakeHost({ id: 8686, slug: 'opencollectiveinc', CreatedByUserId: user.id });
+      const opencollective = await fakeCollective({
+        id: 1,
+        slug: 'opencollective',
+        CreatedByUserId: user.id,
+        HostCollectiveId: inc.id,
+      });
+      // Move Collectives ID auto increment pointer up, so we don't collide with the manually created id:1
+      await sequelize.query(`ALTER SEQUENCE "Collectives_id_seq" RESTART WITH 1453`);
+      await fakePayoutMethod({
+        id: 2955,
+        CollectiveId: opencollective.id,
+        type: 'BANK_ACCOUNT',
+      });
+
+      gbpHost = await fakeHost({ currency: 'GBP' });
+
+      const stripePaymentMethod = await fakePaymentMethod({ service: 'stripe', token: 'tok_bypassPending' });
+
+      const socialCollective = await fakeCollective({ HostCollectiveId: gbpHost.id });
+      const transactionProps = {
+        type: 'CREDIT',
+        CollectiveId: socialCollective.id,
+        currency: 'GBP',
+        hostCurrency: 'GBP',
+        HostCollectiveId: gbpHost.id,
+        createdAt: lastMonth,
+      };
+      // Create Platform Fees
+      await fakeTransaction({
+        ...transactionProps,
+        amount: 3000,
+        platformFeeInHostCurrency: -300,
+        hostFeeInHostCurrency: -300,
+      });
+      await fakeTransaction({
+        ...transactionProps,
+        amount: 5000,
+        platformFeeInHostCurrency: -500,
+        hostFeeInHostCurrency: -500,
+        PaymentMethodId: stripePaymentMethod.id,
+      });
+      // Add Platform Tips
+      const t = await fakeTransaction(transactionProps);
+      await fakeTransaction({
+        type: 'CREDIT',
+        CollectiveId: opencollective.id,
+        HostCollectiveId: inc.id,
+        amount: 100,
+        currency: 'USD',
+        data: { hostToPlatformFxRate: 1.23 },
+        PlatformTipForTransactionGroup: t.TransactionGroup,
+        createdAt: lastMonth,
+      });
+      await fakeTransaction({
+        type: 'CREDIT',
+        CollectiveId: opencollective.id,
+        HostCollectiveId: inc.id,
+        amount: 300,
+        currency: 'USD',
+        data: { hostToPlatformFxRate: 1.2 },
+        PlatformTipForTransactionGroup: t.TransactionGroup,
+        createdAt: lastMonth,
+        PaymentMethodId: stripePaymentMethod.id,
+      });
+    });
+
+    it('returns acurate metrics for requested month', async () => {
+      const metrics = await gbpHost.getHostMetrics(lastMonth);
+
+      expect(metrics).to.deep.equal({
+        hostFees: 800,
+        platformFees: 800,
+        pendingPlatformFees: 300,
+        platformTips: 331,
+        pendingPlatformTips: 81,
+        hostFeeCharge: 0,
+        hostFeeChargePercent: 0,
+      });
     });
   });
 });

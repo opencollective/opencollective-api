@@ -35,6 +35,7 @@ import FEATURE from '../constants/feature';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import plans, { PLANS_COLLECTIVE_SLUG } from '../constants/plans';
 import roles, { MemberRoleLabels } from '../constants/roles';
+import { FEES_ON_TOP_TRANSACTION_PROPERTIES, TransactionTypes } from '../constants/transactions';
 import { hasOptedOutOfFeature, isFeatureAllowedForCollectiveType } from '../lib/allowed-features';
 import cache from '../lib/cache';
 import {
@@ -2899,6 +2900,78 @@ export default function (Sequelize, DataTypes) {
     };
     await cache.set(cacheKey, plan, 5 * 60 /* 5 minutes */);
     return plan;
+  };
+
+  /**
+   * Returns financial metrics from the Host collective.
+   * @param {Date} from Defaults to beginning of the current month.
+   * @param {Date} [to] Optional, defaults to the end of the 'from' month and 'from' is reseted to the beginning of its month.
+   */
+  Collective.prototype.getHostMetrics = async function (from = moment().utc().startOf('month'), to) {
+    if (!this.isHostAccount || !this.isActive || this.type !== types.ORGANIZATION) {
+      return null;
+    }
+
+    // If only one argument is passed, get metric for the whole month of the first argument date.
+    if (!to) {
+      to = moment(from).utc().endOf('month');
+      from = moment(from).utc().startOf('month');
+    }
+
+    const isPendingTransaction = t =>
+      t.PaymentMethod?.service !== 'stripe' && t.PaymentMethod?.sourcePaymentMethod?.service !== 'stripe';
+    const plan = await this.getPlan();
+    const hostFeeChargePercent = plan.hostFeeChargePercent || 0;
+
+    const transactions = await models.Transaction.findAll({
+      where: {
+        HostCollectiveId: this.id,
+        type: TransactionTypes.CREDIT,
+        createdAt: { [Op.gte]: from, [Op.lte]: to },
+      },
+      include: [
+        {
+          model: models.PaymentMethod,
+          as: 'PaymentMethod',
+          include: [{ model: models.PaymentMethod, as: 'sourcePaymentMethod' }],
+        },
+      ],
+    });
+
+    const hostFees = Math.abs(sumBy(transactions, 'hostFeeInHostCurrency'));
+    const platformFees = Math.abs(sumBy(transactions, 'platformFeeInHostCurrency'));
+    const pendingPlatformFees = Math.abs(sumBy(transactions.filter(isPendingTransaction), 'platformFeeInHostCurrency'));
+
+    const tipsTransactions = await models.Transaction.findAll({
+      where: {
+        ...pick(FEES_ON_TOP_TRANSACTION_PROPERTIES, ['CollectiveId', 'HostCollectiveId']),
+        type: TransactionTypes.CREDIT,
+        PlatformTipForTransactionGroup: { [Op.in]: transactions.map(t => t.TransactionGroup) },
+      },
+      include: [
+        {
+          model: models.PaymentMethod,
+          as: 'PaymentMethod',
+          include: [{ model: models.PaymentMethod, as: 'sourcePaymentMethod' }],
+        },
+      ],
+    });
+
+    const getTipAmountInHostCurrency = t => t.amount / t.data?.hostToPlatformFxRate || 1;
+    const platformTips = Math.round(sumBy(tipsTransactions, getTipAmountInHostCurrency));
+    const pendingPlatformTips = Math.round(
+      sumBy(tipsTransactions.filter(isPendingTransaction), getTipAmountInHostCurrency),
+    );
+
+    return {
+      hostFees,
+      platformFees,
+      pendingPlatformFees,
+      platformTips,
+      pendingPlatformTips,
+      hostFeeCharge: (hostFees * hostFeeChargePercent) / 100,
+      hostFeeChargePercent,
+    };
   };
 
   /**
