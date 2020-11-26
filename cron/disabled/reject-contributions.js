@@ -43,7 +43,7 @@ const getContributorRejectedCategories = (fromCollective, collective) => {
   return intersection(rejectedCategories, contributorRejectedCategories);
 };
 
-async function run({ dryRun, limit } = {}) {
+async function run({ dryRun, limit, force } = {}) {
   let rows = await sequelize.query(query, { type: sequelize.QueryTypes.SELECT });
 
   if (rows.length > 0 && limit) {
@@ -81,9 +81,20 @@ async function run({ dryRun, limit } = {}) {
       // Refund transaction if not already refunded
       if (!transaction.RefundTransactionId) {
         logger.info(`  - Refunding transaction`);
+        if (!libPayments.refundTransaction) {
+          if (force) {
+            logger.info(`  - refundTransaction not available. Creating refundTransaction in the database only.`);
+          } else {
+            logger.info(`  - refundTransaction not available. Use 'force' to refundTransaction in the database only.`);
+          }
+        }
         if (!dryRun) {
           try {
-            await libPayments.refundTransaction(transaction);
+            if (libPayments.refundTransaction) {
+              await libPayments.refundTransaction(transaction);
+            } else if (force) {
+              await libPayments.createRefundTransaction(transaction, 0, null);
+            }
           } catch (e) {
             if (e.message.includes('has already been refunded')) {
               logger.info(`  - Transaction has already been refunded on Payment Provider`);
@@ -172,10 +183,17 @@ function parseCommandLineArguments() {
   parser.add_argument('-l', '--limit', {
     help: 'Total matching orders to process',
   });
+  parser.add_argument('--force', {
+    help: "Force refunds even if payment provider doesn't support it.",
+    default: false,
+    action: 'store_const',
+    const: true,
+  });
   const args = parser.parse_args();
   return {
     dryRun: args.dryrun,
     limit: args.limit,
+    force: args.force,
   };
 }
 
