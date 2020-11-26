@@ -278,6 +278,12 @@ export const PlanType = new GraphQLObjectType({
     transferwisePayoutsLimit: {
       type: GraphQLInt,
     },
+    hostFees: {
+      type: GraphQLBoolean,
+    },
+    hostFeeSharePercent: {
+      type: GraphQLInt,
+    },
   },
 });
 

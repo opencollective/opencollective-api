@@ -48,5 +48,13 @@ export const HostPlan = new GraphQLObjectType({
       type: GraphQLInt,
       description: 'Amount limit for the transferwise payouts feature under this plan',
     },
+    hostFees: {
+      type: GraphQLBoolean,
+      description: 'Ability to charge Host Fees.',
+    },
+    hostFeeSharePercent: {
+      type: GraphQLInt,
+      description: 'Charge on revenues made through Host Fees.',
+    },
   },
 });

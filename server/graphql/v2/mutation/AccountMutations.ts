@@ -2,12 +2,15 @@ import { GraphQLBoolean, GraphQLFloat, GraphQLNonNull, GraphQLString } from 'gra
 import GraphQLJSON from 'graphql-type-json';
 import { cloneDeep, set } from 'lodash';
 
+import plans from '../../../constants/plans';
+import cache from '../../../lib/cache';
 import { crypto } from '../../../lib/encryption';
 import models, { sequelize } from '../../../models';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { AccountTypeToModelMapping } from '../enum/AccountType';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { Account } from '../interface/Account';
+import { Host } from '../object/Host';
 import { Individual } from '../object/Individual';
 import AccountSettingsKey from '../scalar/AccountSettingsKey';
 
@@ -140,7 +143,7 @@ const accountMutations = {
         throw new Unauthorized('This account already has 2FA enabled.');
       }
 
-      /* 
+      /*
       check that base32 secret is only capital letters, numbers (2-7), 103 chars long;
       Our secret is 64 ascii characters which is encoded into 104 base32 characters
       (base32 should be divisible by 8). But the last character is an = to pad, and
@@ -154,6 +157,48 @@ const accountMutations = {
       const encryptedText = crypto.encrypt(args.token);
 
       await user.update({ twoFactorAuthToken: encryptedText });
+
+      return account;
+    },
+  },
+  editHostPlan: {
+    type: new GraphQLNonNull(Host),
+    description: 'Update the plan',
+    args: {
+      account: {
+        type: new GraphQLNonNull(AccountReferenceInput),
+        description: 'Account that will have 2FA added to it',
+      },
+      plan: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: 'The name of the plan to subscribe to.',
+      },
+    },
+    async resolve(_, args, req): Promise<object> {
+      if (!req.remoteUser) {
+        throw new Unauthorized();
+      }
+
+      const account = await fetchAccountWithReference(args.account);
+      if (!req.remoteUser.isAdminOfCollective(account)) {
+        throw new Forbidden();
+      }
+      if (!account.isHostAccount) {
+        throw new Error(`Only Fiscal Hosts can set their plan.`);
+      }
+
+      const plan = args.plan;
+      if (!plans[plan]) {
+        throw new Error(`Unknown plan: ${plan}`);
+      }
+
+      await account.update({ plan });
+
+      if (plan === 'start-plan-2021') {
+        await account.updateHostFee(0, req.remoteUser);
+      }
+
+      await cache.del(`plan_${account.id}`);
 
       return account;
     },
