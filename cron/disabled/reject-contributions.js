@@ -81,7 +81,9 @@ async function run({ dryRun, limit, force } = {}) {
       // Refund transaction if not already refunded
       if (!transaction.RefundTransactionId) {
         logger.info(`  - Refunding transaction`);
-        const paymentMethod = transaction.PaymentMethodId ? await models.Order.findByPk(transaction.PaymentMethodId) : null;
+        const paymentMethod = transaction.PaymentMethodId
+          ? await models.PaymentMethod.findByPk(transaction.PaymentMethodId)
+          : null;
         const paymentMethodProvider = paymentMethod ? libPayments.findPaymentMethodProvider(paymentMethod) : null;
         if (!paymentMethodProvider || !paymentMethodProvider.refundTransaction) {
           if (force) {
