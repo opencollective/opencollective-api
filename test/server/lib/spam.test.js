@@ -3,11 +3,7 @@ import config from 'config';
 import sinon from 'sinon';
 
 import slackLib from '../../../server/lib/slack';
-import {
-  collectiveSpamCheck,
-  notifyTeamAboutPreventedCollectiveCreate,
-  notifyTeamAboutSuspiciousCollective,
-} from '../../../server/lib/spam';
+import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective } from '../../../server/lib/spam';
 import { fakeCollective } from '../../test-helpers/fake-data';
 
 describe('server/lib/spam', () => {
@@ -102,30 +98,6 @@ describe('server/lib/spam', () => {
       const args = slackPostMessageStub.getCall(0).args;
       expect(args[0]).to.eq(
         '*Suspicious collective data was submitted for collective:* https://opencollective.com/ketoooo\nScore: 0.3\nKeywords: `keto`',
-      );
-      expect(args[1]).to.eq(config.slack.webhooks.abuse);
-    });
-  });
-
-  describe('notifyTeamAboutPreventedCollectiveCreate', () => {
-    let slackPostMessageStub = null;
-
-    before(() => {
-      slackPostMessageStub = sinon.stub(slackLib, 'postMessage');
-    });
-
-    after(() => {
-      slackPostMessageStub.restore();
-    });
-
-    it('notifies Slack with the report info', async () => {
-      const report = await collectiveSpamCheck({ name: 'Keto stuff', slug: 'ketoooo' });
-      await notifyTeamAboutPreventedCollectiveCreate(report);
-      expect(slackPostMessageStub.calledOnce).to.be.true;
-
-      const args = slackPostMessageStub.getCall(0).args;
-      expect(args[0]).to.eq(
-        'A collective creation was prevented and the user has been put in limited mode.\nKeywords: `keto`\nCollective data:\n> {"name":"Keto stuff","slug":"ketoooo"}',
       );
       expect(args[1]).to.eq(config.slack.webhooks.abuse);
     });
