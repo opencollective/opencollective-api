@@ -398,7 +398,7 @@ export default (Sequelize, DataTypes) => {
    * Limit the user account, preventing most actions on the platoform
    * @param spamReport: an optional spam report to attach to the account limitation. See `server/lib/spam.ts`.
    */
-  User.prototype.limitAcount = async function (spamReport = null) {
+  User.prototype.limitAccount = async function (spamReport = null) {
     const newData = { ...this.data, features: { ...get(this.data, 'features'), ALL: false } };
     if (spamReport) {
       newData.spamReports = [...get(this.data, 'spamReports', []), spamReport];

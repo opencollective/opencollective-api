@@ -461,23 +461,3 @@ export const notifyTeamAboutSuspiciousCollective = async (report: SpamAnalysisRe
   message = addLine(domains.length > 0 && `Domains: \`${domains.toString()}\``);
   return slackLib.postMessageToOpenCollectiveSlack(message, OPEN_COLLECTIVE_SLACK_CHANNEL.ABUSE);
 };
-
-/**
- * Post a message on Slack if the collective is suspicious
- */
-export const notifyTeamAboutPreventedCollectiveCreate = async (
-  report: SpamAnalysisReport,
-  user: any | null,
-): Promise<void> => {
-  const { keywords, domains } = report;
-  let message = `A collective creation was prevented and the user has been put in limited mode.`;
-  const addLine = (line: string): string => (line ? `${message}\n${line}` : message);
-  if (user) {
-    message = addLine(`UserId: ${user.id}`);
-  }
-  message = addLine(keywords.length > 0 && `Keywords: \`${keywords.toString()}\``);
-  message = addLine(domains.length > 0 && `Domains: \`${domains.toString()}\``);
-  message = addLine(`Collective data:`);
-  message = addLine(`> ${JSON.stringify(report.data)}`);
-  return slackLib.postMessageToOpenCollectiveSlack(message, OPEN_COLLECTIVE_SLACK_CHANNEL.ABUSE);
-};

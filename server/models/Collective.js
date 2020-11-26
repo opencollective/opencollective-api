@@ -49,11 +49,7 @@ import emailLib from '../lib/email';
 import logger from '../lib/logger';
 import { handleHostCollectivesLimit } from '../lib/plans';
 import queries from '../lib/queries';
-import {
-  collectiveSpamCheck,
-  notifyTeamAboutPreventedCollectiveCreate,
-  notifyTeamAboutSuspiciousCollective,
-} from '../lib/spam';
+import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective } from '../lib/spam';
 import { canUseFeature } from '../lib/user-permissions';
 import userlib from '../lib/userlib';
 import { capitalize, cleanTags, flattenArray, formatCurrency, getDomain, md5, stripTags } from '../lib/utils';
@@ -690,18 +686,7 @@ export default function (Sequelize, DataTypes) {
           // Check if collective is spam
           const spamReport = await collectiveSpamCheck(instance, 'Collective.beforeCreate');
           // If 100% sure that it's a spam
-          if (spamReport.score === 1) {
-            // Put the user into limited mode
-            if (user) {
-              await user.limitAcount(spamReport);
-            }
-
-            // Notify Slack
-            notifyTeamAboutPreventedCollectiveCreate(spamReport);
-
-            // Prevent collective creation
-            throw new Error('Collective creation failed');
-          } else if (spamReport.score > 0) {
+          if (spamReport.score > 0) {
             notifyTeamAboutSuspiciousCollective(spamReport);
             instance.data = { ...instance.data, spamReport };
           }
