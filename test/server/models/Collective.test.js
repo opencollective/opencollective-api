@@ -1057,6 +1057,10 @@ describe('server/models/Collective', () => {
   describe('getHostMetrics()', () => {
     const lastMonth = moment.utc().subtract(1, 'month');
 
+    after(async () => {
+      await utils.resetTestDB();
+    });
+
     let gbpHost;
     before(async () => {
       await utils.resetTestDB();
