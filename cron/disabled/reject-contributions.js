@@ -17,7 +17,7 @@ import models, { Op, sequelize } from '../../server/models';
 const query = `SELECT "Orders"."id"
   FROM "Orders", "Collectives", "Collectives" as "FromCollectives"
   WHERE "Orders"."CollectiveId" = "Collectives"."id" AND "FromCollectives"."id" = "Orders"."FromCollectiveId"
-  AND "Orders"."status" = 'ACTIVE'
+  AND "Orders"."status" IN ('ACTIVE', 'PAID')
   AND "Collectives"."settings"->'moderation'->'rejectedCategories' IS NOT NULL
   AND "FromCollectives"."data"->'categories' IS NOT NULL`;
 
@@ -81,7 +81,8 @@ async function run({ dryRun, limit, force } = {}) {
       // Refund transaction if not already refunded
       if (!transaction.RefundTransactionId) {
         logger.info(`  - Refunding transaction`);
-        if (!libPayments.refundTransaction) {
+        const paymentMethodProvider = libPayments.findPaymentMethodProvider(transaction.PaymentMethod);
+        if (!paymentMethodProvider || !paymentMethodProvider.refundTransaction) {
           if (force) {
             logger.info(`  - refundTransaction not available. Creating refundTransaction in the database only.`);
           } else {
@@ -98,7 +99,6 @@ async function run({ dryRun, limit, force } = {}) {
           } catch (e) {
             if (e.message.includes('has already been refunded')) {
               logger.info(`  - Transaction has already been refunded on Payment Provider`);
-              const paymentMethodProvider = libPayments.findPaymentMethodProvider(transaction.PaymentMethod);
               if (paymentMethodProvider && paymentMethodProvider.refundTransactionOnlyInDatabase) {
                 await paymentMethodProvider.refundTransactionOnlyInDatabase(transaction);
               }
