@@ -32,7 +32,7 @@
     "api": "http://localhost:3060",
     "website": "http://localhost:3000",
     "images": "https://images-staging.opencollective.com",
-    "invoices": "https://invoices-staging.opencollective.com"
+    "pdf": "https://pdf-staging.opencollective.com"
   },
   "fees": {
     "default": {

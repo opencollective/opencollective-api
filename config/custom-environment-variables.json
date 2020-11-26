@@ -95,7 +95,7 @@
     "images": "IMAGES_URL",
     "frontend": "FRONTEND_URL",
     "website": "WEBSITE_URL",
-    "invoices": "INVOICES_URL"
+    "pdf": "PDF_SERVICE_URL"
   },
   "limits": {
     "ordersPerHour": {
