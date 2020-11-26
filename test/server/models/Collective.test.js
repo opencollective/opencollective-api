@@ -1061,7 +1061,7 @@ describe('server/models/Collective', () => {
       await utils.resetTestDB();
     });
 
-    let gbpHost;
+    let gbpHost, socialCollective;
     before(async () => {
       await utils.resetTestDB();
       const user = await fakeUser({ id: 30 }, { id: 20, slug: 'pia' });
@@ -1084,7 +1084,7 @@ describe('server/models/Collective', () => {
 
       const stripePaymentMethod = await fakePaymentMethod({ service: 'stripe', token: 'tok_bypassPending' });
 
-      const socialCollective = await fakeCollective({ HostCollectiveId: gbpHost.id });
+      socialCollective = await fakeCollective({ HostCollectiveId: gbpHost.id });
       const transactionProps = {
         type: 'CREDIT',
         CollectiveId: socialCollective.id,
@@ -1099,6 +1099,7 @@ describe('server/models/Collective', () => {
         amount: 3000,
         platformFeeInHostCurrency: -300,
         hostFeeInHostCurrency: -300,
+        netAmountInCollectiveCurrency: 3000 - 300 - 300,
       });
       await fakeTransaction({
         ...transactionProps,
@@ -1106,6 +1107,7 @@ describe('server/models/Collective', () => {
         platformFeeInHostCurrency: -500,
         hostFeeInHostCurrency: -500,
         PaymentMethodId: stripePaymentMethod.id,
+        netAmountInCollectiveCurrency: 5000 - 500 - 500,
       });
       // Add Platform Tips
       const t = await fakeTransaction(transactionProps);
@@ -1134,6 +1136,7 @@ describe('server/models/Collective', () => {
 
     it('returns acurate metrics for requested month', async () => {
       const metrics = await gbpHost.getHostMetrics(lastMonth);
+      const expectedTotalMoneyManaged = await socialCollective.getBalance();
 
       expect(metrics).to.deep.equal({
         hostFees: 800,
@@ -1143,6 +1146,7 @@ describe('server/models/Collective', () => {
         pendingPlatformTips: 81,
         hostFeeCharge: 0,
         hostFeeChargePercent: 0,
+        totalMoneyManaged: expectedTotalMoneyManaged,
       });
     });
   });

@@ -1691,6 +1691,17 @@ export default function (Sequelize, DataTypes) {
     return models.User.findAll({ where: { CollectiveId: { [Op.in]: adminMembersIds } } });
   };
 
+  /**
+   * Returns the sum of the balance of hosted collectives.
+   * @param {Date} [until] Optional: balance on given date-time.
+   */
+  Collective.prototype.getTotalMoneyManaged = async function (until) {
+    const hostedCollectives = await this.getHostedCollectives();
+    const ids = hostedCollectives.map(c => c.id);
+    const balances = await queries.getBalances(ids, until.toString());
+    return sumBy(balances, 'balance');
+  };
+
   Collective.prototype.updateHostFee = async function (hostFeePercent, remoteUser) {
     if (typeof hostFeePercent === undefined || !remoteUser || hostFeePercent === this.hostFeePercent) {
       return;
@@ -2963,6 +2974,8 @@ export default function (Sequelize, DataTypes) {
       sumBy(tipsTransactions.filter(isPendingTransaction), getTipAmountInHostCurrency),
     );
 
+    const totalMoneyManaged = await this.getTotalMoneyManaged(to);
+
     return {
       hostFees,
       platformFees,
@@ -2971,6 +2984,7 @@ export default function (Sequelize, DataTypes) {
       pendingPlatformTips,
       hostFeeCharge: (hostFees * hostFeeChargePercent) / 100,
       hostFeeChargePercent,
+      totalMoneyManaged,
     };
   };
 
