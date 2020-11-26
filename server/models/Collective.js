@@ -50,6 +50,7 @@ import emailLib from '../lib/email';
 import logger from '../lib/logger';
 import { handleHostCollectivesLimit } from '../lib/plans';
 import queries from '../lib/queries';
+import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
 import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective } from '../lib/spam';
 import { canUseFeature } from '../lib/user-permissions';
 import userlib from '../lib/userlib';
@@ -125,6 +126,12 @@ export const defaultTiers = (HostCollectiveId, currency) => {
 };
 
 const validTypes = ['USER', 'COLLECTIVE', 'ORGANIZATION', 'EVENT', 'PROJECT', 'FUND', 'BOT'];
+
+const sanitizeOptions = buildSanitizerOptions({
+  basicTextFormatting: true,
+  multilineTextFormatting: true,
+  links: true,
+});
 
 /**
  * Collective Model.
@@ -268,16 +275,30 @@ export default function (Sequelize, DataTypes) {
       },
 
       expensePolicy: {
-        type: DataTypes.TEXT, // markdown
+        type: DataTypes.TEXT, // HTML
         validate: {
-          len: [0, 16000], // largest policy is 15,500, all the rest are under 10,000
+          len: [0, 50000], // just to prevent people from putting a lot of text in there
+        },
+        set(expensePolicy) {
+          if (expensePolicy) {
+            this.setDataValue('expensePolicy', sanitizeHTML(expensePolicy, sanitizeOptions));
+          } else {
+            this.setDataValue('expensePolicy', null);
+          }
         },
       },
 
       contributionPolicy: {
-        type: DataTypes.TEXT, // markdown
+        type: DataTypes.TEXT, // HTML
         validate: {
-          len: [0, 3000], // we want to keep this relatively small
+          len: [0, 50000], // just to prevent people from putting a lot of text in there
+        },
+        set(contributionPolicy) {
+          if (contributionPolicy) {
+            this.setDataValue('contributionPolicy', sanitizeHTML(contributionPolicy, sanitizeOptions));
+          } else {
+            this.setDataValue('contributionPolicy', null);
+          }
         },
       },
 
