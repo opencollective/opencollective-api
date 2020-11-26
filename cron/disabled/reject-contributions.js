@@ -81,7 +81,8 @@ async function run({ dryRun, limit, force } = {}) {
       // Refund transaction if not already refunded
       if (!transaction.RefundTransactionId) {
         logger.info(`  - Refunding transaction`);
-        const paymentMethodProvider = libPayments.findPaymentMethodProvider(transaction.PaymentMethod);
+        const paymentMethod = transaction.PaymentMethodId ? await models.Order.findByPk(transaction.PaymentMethodId) : null;
+        const paymentMethodProvider = paymentMethod ? libPayments.findPaymentMethodProvider(paymentMethod) : null;
         if (!paymentMethodProvider || !paymentMethodProvider.refundTransaction) {
           if (force) {
             logger.info(`  - refundTransaction not available. Creating refundTransaction in the database only.`);
@@ -91,7 +92,7 @@ async function run({ dryRun, limit, force } = {}) {
         }
         if (!dryRun) {
           try {
-            if (libPayments.refundTransaction) {
+            if (paymentMethodProvider.refundTransaction) {
               await libPayments.refundTransaction(transaction);
             } else if (force) {
               await libPayments.createRefundTransaction(transaction, 0, null);
