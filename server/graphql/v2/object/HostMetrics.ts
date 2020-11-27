@@ -1,0 +1,18 @@
+import { GraphQLInt, GraphQLObjectType } from 'graphql';
+
+import { Amount } from './Amount';
+
+export const HostMetrics = new GraphQLObjectType({
+  name: 'HostMetrics',
+  description: 'Host metrics related to collected and pending fees/tips.',
+  fields: {
+    hostFees: { type: Amount, description: 'Amount collected in host fees for given period' },
+    platformFees: { type: Amount, description: 'Amount collected in platform fees for given period' },
+    pendingPlatformFees: { type: Amount, description: 'Amount collected in platform fees requiring settlement' },
+    platformTips: { type: Amount, description: 'Amount collected in platform tips for given period' },
+    pendingPlatformTips: { type: Amount, description: 'Amount collected in platform tips requiring settlement' },
+    hostFeeCharge: { type: Amount, description: 'Amount in host fee shared with the platform' },
+    totalMoneyManaged: { type: Amount, description: 'Total amount managed on behalf of hosted collectives' },
+    hostFeeChargePercent: { type: GraphQLInt, description: 'Host fee sharing percent' },
+  },
+});

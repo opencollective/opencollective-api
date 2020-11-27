@@ -1,5 +1,5 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { find, get } from 'lodash';
+import { find, get, mapValues } from 'lodash';
 
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import models, { Op, sequelize } from '../../../models';
@@ -14,6 +14,7 @@ import { CollectionArgs } from '../interface/Collection';
 import URL from '../scalar/URL';
 
 import { Amount } from './Amount';
+import { HostMetrics } from './HostMetrics';
 import { HostPlan } from './HostPlan';
 import { PaymentMethod } from './PaymentMethod';
 import PayoutMethod from './PayoutMethod';
@@ -54,6 +55,24 @@ export const Host = new GraphQLObjectType({
         type: new GraphQLNonNull(HostPlan),
         resolve(host) {
           return host.getPlan();
+        },
+      },
+      hostMetrics: {
+        type: new GraphQLNonNull(HostMetrics),
+        args: {
+          from: {
+            type: GraphQLString,
+            description: "Inferior date limit in which we're calculating the metrics",
+          },
+          to: {
+            type: GraphQLString,
+            description: "Superior date limit in which we're calculating the metrics",
+          },
+        },
+        resolve(host, args) {
+          const metrics = host.getHostMetrics(args?.from, args?.to);
+          const toAmount = value => ({ value, currency: host.currency });
+          return mapValues(metrics, (value, key) => (key.includes('Percent') ? value : toAmount(value)));
         },
       },
       supportedPaymentMethods: {
