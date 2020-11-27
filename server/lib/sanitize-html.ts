@@ -191,13 +191,13 @@ const isTrustedLinkUrl = (url: string): boolean => {
 
   const rootDomain = parsedUrl.host.replace(/^www\./, '');
   const trustedDomains = [
-    config.host.website.replace(/^https?:\/\//, ''),
-    'opencollective.com',
-    'github.com',
-    'meetup.com',
-    'twitter.com',
-    'wikipedia.org',
+    new RegExp(`^(.+\\.)?${config.host.website.replace(/^https?:\/\//, '')}$`),
+    /^(.+\.)?opencollective.com$/,
+    /^(.+\.)?github.com$/,
+    /^(.+\.)?meetup.com$/,
+    /^(.+\.)?twitter.com$/,
+    /^(.+\.)?wikipedia.com$/,
   ];
 
-  return trustedDomains.includes(rootDomain) || isValidUploadedImage(url, false);
+  return trustedDomains.some(regex => rootDomain.match(regex)) || isValidUploadedImage(url, false);
 };

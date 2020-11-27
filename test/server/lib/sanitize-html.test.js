@@ -138,11 +138,18 @@ describe('server/lib/sanitize-html', () => {
       expect(sanitizeHTML('<a href="malicious-domain.com/toto">Test</a>', sanitizerOptions)).to.eq(
         '<a href="http://localhost:3000/redirect?url=https%3A%2F%2Fmalicious-domain.com%2Ftoto">Test</a>',
       );
+      expect(sanitizeHTML('<a href="opencollective.com.malicious.com">Test</a>', sanitizerOptions)).to.eq(
+        '<a href="http://localhost:3000/redirect?url=https%3A%2F%2Fopencollective.com.malicious.com">Test</a>',
+      );
+      expect(sanitizeHTML('<a href="maliciousopencollective.com">Test</a>', sanitizerOptions)).to.eq(
+        '<a href="http://localhost:3000/redirect?url=https%3A%2F%2Fmaliciousopencollective.com">Test</a>',
+      );
     });
 
     it('does not redirect trusted domains', () => {
       const testUrls = [
         '<a href="https://opencollective.com/toto">Test</a>',
+        '<a href="https://docs.opencollective.com/toto">Test</a>',
         '<a href="http://github.com/toto">Test</a>',
         '<a href="https://opencollective-test.s3.us-west-1.amazonaws.com/a83d7d30-f8e6-11ea-b187-e31017293ab6.jpg">Test</a>',
       ];
