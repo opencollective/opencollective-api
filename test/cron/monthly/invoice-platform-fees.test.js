@@ -75,6 +75,11 @@ describe('cron/monthly/invoice-platform-fees', () => {
     expense.items = await expense.getItems();
   });
 
+  // Resync DB to make sure we're not touching other tests
+  after(async () => {
+    await utils.resetTestDB();
+  });
+
   it('should credit the host with the total amount collected in platform fees', async () => {
     const [collectedTransaction] = await gbpHost.getTransactions({});
     expect(collectedTransaction).to.have.property('description').that.includes('Platform Fees and Tips collected in');
