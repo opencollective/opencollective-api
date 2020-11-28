@@ -42,22 +42,6 @@ async function createOrganization(_, args, req) {
   // Add authenticated user as an admin
   await organization.addUserWithRole(remoteUser, roles.ADMIN, { CreatedByUserId: remoteUser.id });
 
-  // Will send an email to the authenticated user
-  // - tell them that their organization was successfully created
-  // - tell them that their organization is pending validation (which might be wrong if it was automatically approved)
-  const remoteUserCollective = await loaders.Collective.byId.load(remoteUser.CollectiveId);
-  models.Activity.create({
-    type: activities.COLLECTIVE_CREATED,
-    UserId: remoteUser.id,
-    data: {
-      collective: organization.info,
-      user: {
-        email: remoteUser.email,
-        collective: remoteUserCollective.info,
-      },
-    },
-  });
-
   return organization;
 }
 
