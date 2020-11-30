@@ -10,8 +10,10 @@ import activitiesLib from '../lib/activities';
 import emailLib from '../lib/email';
 import models from '../models';
 
+import { getTransactionPdf } from './pdf';
 import slackLib from './slack';
 import twitter from './twitter';
+import { toIsoDateStr } from './utils';
 import { enrichActivity, sanitizeActivity } from './webhooks';
 
 const debug = debugLib('notifications');
@@ -109,6 +111,7 @@ async function notifySubscribers(users, activity, options = {}) {
 }
 
 async function notifyUserId(UserId, activity, options = {}) {
+  let pdf;
   const user = await models.User.findByPk(UserId);
   debug('notifyUserId', UserId, user && user.email, activity.type);
 
@@ -117,6 +120,19 @@ async function notifyUserId(UserId, activity, options = {}) {
     const parentCollective = await event.getParentCollective();
     const ics = await event.getICS();
     options.attachments = [{ filename: `${event.slug}.ics`, content: ics }];
+    const transaction = await models.Transaction.findOne({
+      where: { OrderId: activity.data.order.id, type: 'CREDIT' },
+    });
+    pdf = await getTransactionPdf(transaction, user);
+    // attach pdf
+    if (pdf) {
+      const createdAtString = toIsoDateStr(transaction.createdAt ? new Date(transaction.createdAt) : new Date());
+      options.attachments.push({
+        filename: `transaction_${event.slug}_${createdAtString}_${transaction.uuid}.pdf`,
+        content: pdf,
+      });
+      activity.data.transactionPdf = true;
+    }
     activity.data.event = event.info;
     activity.data.collective = parentCollective.info;
     options.from = `${parentCollective.name} <no-reply@${parentCollective.slug}.opencollective.com>`;
