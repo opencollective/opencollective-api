@@ -15,8 +15,13 @@ import roles from '../../server/constants/roles';
 import { convertToCurrency } from '../../server/lib/currency';
 import emailLib from '../../server/lib/email';
 import { getConsolidatedInvoicePdfs } from '../../server/lib/pdf';
-import { formatArrayToString, formatCurrencyObject } from '../../server/lib/utils';
+import { formatArrayToString, formatCurrencyObject, parseToBoolean } from '../../server/lib/utils';
 import models, { Op } from '../../server/models';
+
+if (parseToBoolean(process.env.SKIP_USER_REPORT) && !process.env.OFFCYCLE) {
+  console.log('Skipping because SKIP_USER_REPORT is set.');
+  process.exit();
+}
 
 // Only run on the first of the month
 const today = new Date();
