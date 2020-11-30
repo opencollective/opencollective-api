@@ -190,8 +190,7 @@ export default function (Sequelize, DataTypes) {
           this.setDataValue('name', name.replace(/\s+/g, ' ').trim());
         },
         validate: {
-          notEmpty: true,
-          len: [1, 255],
+          len: [0, 255],
         },
       },
 
