@@ -18,5 +18,5 @@ module.exports = {
     console.info(`Fixed ${updateTs.rowCount} transactions`);
   },
 
-  down: queryInterface => {},
+  down: async queryInterface => {},
 };

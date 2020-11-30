@@ -22,6 +22,7 @@ module.exports = {
   },
 
   down: async (queryInterface, Sequelize) => {
-    return queryInterface.removeColumn('Tiers', 'useStandalonePage');
+    await queryInterface.removeColumn('Tiers', 'useStandalonePage');
+    await queryInterface.removeColumn('TierHistories', 'useStandalonePage');
   },
 };
