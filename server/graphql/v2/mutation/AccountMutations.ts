@@ -5,6 +5,7 @@ import { cloneDeep, set } from 'lodash';
 import plans from '../../../constants/plans';
 import cache from '../../../lib/cache';
 import { crypto } from '../../../lib/encryption';
+import { verifyTwoFactorAuthenticatorCode } from '../../../lib/two-factor-authentication';
 import models, { sequelize } from '../../../models';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { AccountTypeToModelMapping } from '../enum/AccountType';
@@ -157,6 +158,51 @@ const accountMutations = {
       const encryptedText = crypto.encrypt(args.token);
 
       await user.update({ twoFactorAuthToken: encryptedText });
+
+      return account;
+    },
+  },
+  removeTwoFactorAuthTokenFromIndividual: {
+    type: new GraphQLNonNull(Individual),
+    description: 'Add 2FA to the Account if it does not have it',
+    args: {
+      account: {
+        type: new GraphQLNonNull(AccountReferenceInput),
+        description: 'Account that will have 2FA added to it',
+      },
+      code: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: 'The 6-digit 2FA code',
+      },
+    },
+    async resolve(_, args, req): Promise<object> {
+      if (!req.remoteUser) {
+        throw new Unauthorized();
+      }
+
+      const account = await fetchAccountWithReference(args.account);
+
+      if (!req.remoteUser.isAdminOfCollective(account)) {
+        throw new Forbidden();
+      }
+
+      const user = await models.User.findOne({ where: { CollectiveId: account.id } });
+
+      if (!user) {
+        throw new NotFound('Account not found.');
+      }
+
+      if (!user.twoFactorAuthToken) {
+        throw new Unauthorized('This account already has 2FA disabled.');
+      }
+
+      const verified = verifyTwoFactorAuthenticatorCode(user.twoFactorAuthToken, args.code);
+
+      if (!verified) {
+        throw new Unauthorized('Two-factor authentication code failed. Please try again');
+      }
+
+      await user.update({ twoFactorAuthToken: null });
 
       return account;
     },
