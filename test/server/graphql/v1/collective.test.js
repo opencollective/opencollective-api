@@ -931,10 +931,13 @@ describe('server/graphql/v1/collective', () => {
         'You must be logged in as an admin or as the host of this collective collective to edit it',
       );
 
-      const res3 = await utils.graphqlQuery(editCollectiveMutation, { collective }, newUser2);
-      expect(res3.errors[0].message).to.equal(
-        'You cannot remove yourself as a Collective admin. If you are the only admin, please add a new one and ask them to remove you.',
+      const res3 = await utils.graphqlQuery(
+        editCollectiveMutation,
+        { collective: { ...collective, members: collective.members.filter(m => m.role !== 'ADMIN') } },
+        newUser2,
       );
+
+      expect(res3.errors[0].message).to.equal('There must be at least one admin for the account');
     });
 
     it('apply to host', async () => {

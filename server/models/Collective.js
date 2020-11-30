@@ -2021,7 +2021,7 @@ export default function (Sequelize, DataTypes) {
     }
 
     if (members.filter(m => m.role === roles.ADMIN).length === 0) {
-      throw new Error('There must always be at least one collective admin');
+      throw new Error('There must be at least one admin for the account');
     }
 
     const allowedRoles = [roles.ADMIN, roles.MEMBER, roles.ACCOUNTANT];
@@ -2045,14 +2045,14 @@ export default function (Sequelize, DataTypes) {
     const { remoteUserCollectiveId } = defaultAttributes;
     const diff = differenceBy(oldMembers, members, m => m.id);
     if (diff.length > 0) {
+      const nbAdminsBefore = oldMembers.filter(m => m.role === roles.ADMIN && m.id).length;
+      const nbAdmins = members.filter(m => m.role === roles.ADMIN && m.id).length;
+      if (nbAdminsBefore && !nbAdmins) {
+        throw new Error('There must be at least one admin for the account');
+      }
+
       debug('editMembers', 'delete', diff);
       const diffMemberIds = diff.map(m => m.id);
-      const diffMemberCollectiveIds = diff.map(m => m.MemberCollectiveId);
-      if (remoteUserCollectiveId && diffMemberCollectiveIds.indexOf(remoteUserCollectiveId) !== -1) {
-        throw new Error(
-          'You cannot remove yourself as a Collective admin. If you are the only admin, please add a new one and ask them to remove you.',
-        );
-      }
       await models.Member.update({ deletedAt: new Date() }, { where: { id: { [Op.in]: diffMemberIds } } });
     }
 

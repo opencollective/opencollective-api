@@ -793,6 +793,11 @@ describe('server/models/Collective', () => {
         });
       };
 
+      // Remove all existing members to stash from fresh
+      await models.Member.destroy({
+        where: { CollectiveId: collective.id, role: { [Op.in]: [roles.ADMIN, roles.MEMBER] } },
+      });
+
       let members = await collective.editMembers(
         [
           {
