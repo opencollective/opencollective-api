@@ -92,7 +92,7 @@ export const getConsolidatedInvoicesData = async fromCollective => {
 };
 
 export const getConsolidatedInvoicePdfs = async fromCollective => {
-  if (config.pdfService.fetchTransactionsReceipts === false) {
+  if (parseToBoolean(config.pdfService.fetchTransactionsReceipts) === false) {
     return;
   }
 
