@@ -178,6 +178,7 @@ const authorize = (googleDrive, callback) => {
     return getAccessToken(oAuth2Client, callback);
   } else {
     console.log('No token set for Google Drive, skipping data export upload');
+    process.exit(0);
   }
 };
 
