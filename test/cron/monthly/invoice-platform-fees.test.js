@@ -35,7 +35,7 @@ describe('cron/monthly/invoice-platform-fees', () => {
       type: 'BANK_ACCOUNT',
     });
 
-    gbpHost = await fakeHost({ currency: 'GBP' });
+    gbpHost = await fakeHost({ currency: 'GBP', plan: 'grow-plan-2021' });
 
     const socialCollective = await fakeCollective({ HostCollectiveId: gbpHost.id });
     const transactionProps = {
@@ -51,6 +51,22 @@ describe('cron/monthly/invoice-platform-fees', () => {
       ...transactionProps,
       amount: 3000,
       platformFeeInHostCurrency: -300,
+      hostFeeInHostCurrency: -300,
+    });
+    await fakeTransaction({
+      ...transactionProps,
+      amount: 3000,
+      platformFeeInHostCurrency: 0,
+      hostFeeInHostCurrency: -200,
+    });
+    await fakeTransaction({
+      ...transactionProps,
+      amount: 3000,
+      platformFeeInHostCurrency: 0,
+      hostFeeInHostCurrency: -300,
+      data: {
+        settled: true,
+      },
     });
     // Add Platform Tips
     const t = await fakeTransaction(transactionProps);
@@ -100,6 +116,11 @@ describe('cron/monthly/invoice-platform-fees', () => {
   it('should invoice platform tips not collected through Stripe', async () => {
     const platformTipsItem = expense.items.find(p => p.description == 'Platform Tips');
     expect(platformTipsItem).to.have.property('amount', Math.round(100 / 1.23));
+  });
+
+  it('should invoice pending shared host revenue and ignore settled transactions and transactions with platform fee', async () => {
+    const sharedRevenueItem = expense.items.find(p => p.description == 'Shared Revenue');
+    expect(sharedRevenueItem).to.have.property('amount', Math.round(200 * 0.15));
   });
 
   it('should attach detailed list of transactions in the expense', async () => {
