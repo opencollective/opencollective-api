@@ -110,8 +110,12 @@ const getOrCreateCustomerOnHostAccount = async (hostStripeAccount, { paymentMeth
  * See: Shared Customers: https://stripe.com/docs/connect/shared-customers
  */
 const createChargeAndTransactions = async (hostStripeAccount, { order, hostStripeCustomer }) => {
+  const host = await order.collective.getHostCollective();
+  const hostPlan = await host.getPlan();
+  const isSharedRevenue = !!hostPlan.hostFeeSharePercent;
+
   // Read or compute Platform Fee
-  const platformFee = await getPlatformFee(order.totalAmount, order);
+  const platformFee = await getPlatformFee(order.totalAmount, order, host, { hostPlan });
 
   // Make sure data is available (breaking in some old tests)
   order.data = order.data || {};
@@ -184,6 +188,21 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
   // Create a Transaction
   const fees = extractFees(balanceTransaction);
   const hostFeeInHostCurrency = await getHostFee(balanceTransaction.amount, order);
+  const data = {
+    charge,
+    balanceTransaction,
+    isFeesOnTop: order.data?.isFeesOnTop,
+    isSharedRevenue,
+    settled: true,
+  };
+  let platformFeeInHostCurrency = fees.applicationFee;
+  if (isSharedRevenue) {
+    // Platform Fee In Host Currency makes no sense in the shared revenue model.
+    platformFeeInHostCurrency = 0;
+    data.hostFeeSharePercent = hostPlan.hostFeeSharePercent;
+    data.platformFee = platformFee;
+  }
+
   const payload = {
     CreatedByUserId: order.CreatedByUserId,
     FromCollectiveId: order.FromCollectiveId,
@@ -197,12 +216,12 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
       hostCurrency: balanceTransaction.currency,
       amountInHostCurrency: balanceTransaction.amount,
       hostCurrencyFxRate: balanceTransaction.amount / order.totalAmount,
-      hostFeeInHostCurrency,
-      platformFeeInHostCurrency: fees.applicationFee,
       paymentProcessorFeeInHostCurrency: fees.stripeFee,
       taxAmount: order.taxAmount,
       description: order.description,
-      data: { charge, balanceTransaction, isFeesOnTop: order.data?.isFeesOnTop },
+      hostFeeInHostCurrency,
+      platformFeeInHostCurrency,
+      data,
     },
   };
 

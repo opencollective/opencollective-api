@@ -543,12 +543,17 @@ export const sendExpiringCreditCardUpdateEmail = async data => {
   return emailLib.send('payment.creditcard.expiring', data.email, data);
 };
 
-export const getPlatformFee = async (totalAmount, order, host = null) => {
+export const getPlatformFee = async (totalAmount, order, host = null, { hostPlan } = {}) => {
   const isFeesOnTop = order.data?.isFeesOnTop || false;
 
   // If it's "Fees On Top", we're just using that
   if (isFeesOnTop) {
     return order.data?.platformFee;
+  }
+
+  if (hostPlan?.hostFeeSharePercent) {
+    const hostFeePercent = await getHostFeePercent(order, host);
+    return calcFee(totalAmount, hostFeePercent * (hostPlan.hostFeeSharePercent / 100));
   }
 
   //  Otherwise, use platformFeePercent
