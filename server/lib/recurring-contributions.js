@@ -5,7 +5,7 @@ import { Op } from 'sequelize';
 
 import intervals from '../constants/intervals';
 import status from '../constants/order_status';
-import { PAYMENT_METHOD_TYPES } from '../constants/paymentMethods';
+import { PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import models from '../models';
 
 import emailLib from './email';
@@ -393,7 +393,7 @@ export async function sendThankYouEmail(order, transaction) {
   }
 
   // hit PDF service and get PDF (unless payment method type is gift card)
-  if (paymentMethod?.type !== PAYMENT_METHOD_TYPES.VIRTUALCARD) {
+  if (paymentMethod?.type !== PAYMENT_METHOD_TYPE.VIRTUALCARD) {
     pdf = await getTransactionPdf(transaction, user);
   }
 

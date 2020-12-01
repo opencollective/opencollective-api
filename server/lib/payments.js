@@ -6,7 +6,7 @@ import { find, get, includes, isNumber, omit, pick } from 'lodash';
 
 import activities from '../constants/activities';
 import status from '../constants/order_status';
-import { PAYMENT_METHOD_TYPES } from '../constants/paymentMethods';
+import { PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import roles from '../constants/roles';
 import tiers from '../constants/tiers';
 import { FEES_ON_TOP_TRANSACTION_PROPERTIES } from '../constants/transactions';
@@ -431,7 +431,7 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
     };
 
     // hit PDF service and get PDF (unless payment method type is gift card)
-    if (paymentMethod?.type !== PAYMENT_METHOD_TYPES.VIRTUALCARD) {
+    if (paymentMethod?.type !== PAYMENT_METHOD_TYPE.VIRTUALCARD) {
       pdf = await getTransactionPdf(transaction, user);
     }
 
