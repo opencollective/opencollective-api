@@ -540,6 +540,7 @@ export default (Sequelize, DataTypes) => {
         data: {
           hostToPlatformFxRate: await getFxRate(transaction.hostCurrency, FEES_ON_TOP_TRANSACTION_PROPERTIES.currency),
           feeOnTopPaymentProcessorFee,
+          settled: transaction.data?.settled,
         },
       },
       transaction,
