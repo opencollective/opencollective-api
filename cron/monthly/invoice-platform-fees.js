@@ -251,6 +251,12 @@ export async function run() {
     const transactionIds = hostTransactions.map(t => t.id);
     const totalAmountCredited = sumBy(items, i => (i.description === 'Shared Revenue' ? 0 : i.amount));
     const totalAmountCharged = sumBy(items, i => i.amount);
+    if (totalAmountCharged < 1000) {
+      console.warn(
+        `${HostName} (#${hostId}) skipped, total amound pending ${totalAmountCharged / 100} < 10.00 ${currency}.\n`,
+      );
+      continue;
+    }
     console.info(
       `${HostName} (#${hostId}) has ${hostTransactions.length} pending transactions and owes ${
         totalAmountCharged / 100
