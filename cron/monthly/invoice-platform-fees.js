@@ -91,6 +91,7 @@ export async function run() {
         AND t."CollectiveId" = 1
         AND t."PlatformTipForTransactionGroup" IS NOT NULL
         AND t."type" = 'CREDIT'
+        AND ot."HostCollectiveId" NOT IN (8686)
         AND (
           pm."service" != 'stripe'
           OR pm.service IS NULL
@@ -143,6 +144,7 @@ export async function run() {
         AND t."deletedAt" IS NULL
         AND t."type" = 'CREDIT'
         AND t."platformFeeInHostCurrency" != 0
+        AND t."HostCollectiveId" NOT IN (8686)
         AND (
           pm."service" != 'stripe'
           OR pm.service IS NULL
@@ -199,7 +201,7 @@ export async function run() {
         AND t."platformFeeInHostCurrency" = 0
         AND t."data"->>'settled' IS NULL
         -- Ignore opensource and foundation:
-        AND t."HostCollectiveId" NOT IN (11004, 11049)
+        AND t."HostCollectiveId" NOT IN (11004, 11049, 8686)
       AND (
         h."type" = 'ORGANIZATION'
         AND h."isHostAccount" = TRUE
