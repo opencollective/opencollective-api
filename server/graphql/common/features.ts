@@ -13,7 +13,9 @@ const checkIsActive = (
 /**
  * Returns a resolved that will give the `FEATURE_STATUS` for the given collective/feature.
  */
-export const getFeatureStatusResolver = (feature: FEATURE) => async (collective): Promise<FEATURE_STATUS> => {
+export const getFeatureStatusResolver = (feature: FEATURE) => async (
+  collective: typeof models.Collective,
+): Promise<FEATURE_STATUS> => {
   if (!collective) {
     return FEATURE_STATUS.UNSUPPORTED;
   } else if (!isFeatureAllowedForCollectiveType(collective.type, feature, collective.isHostAccount)) {
