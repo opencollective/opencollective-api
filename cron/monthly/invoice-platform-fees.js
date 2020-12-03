@@ -17,9 +17,10 @@ import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 
 // Only run on the 5th of the month
 const date = process.env.START_DATE ? moment.utc(process.env.START_DATE) : moment.utc();
-const isDry = process.env.DRY;
+const DRY = process.env.DRY;
+const HOST_ID = process.env.HOST_ID;
 const isProduction = config.env === 'production';
-if (isProduction && date.getDate() !== 5) {
+if (isProduction && date.date() !== 5) {
   console.log('OC_ENV is production and today is not the 5th of month, script aborted!');
   process.exit();
 }
@@ -27,7 +28,7 @@ if (isProduction && !process.env.OFFCYCLE) {
   console.log('OC_ENV is production and this script is currently only running manually. Use OFFCYCLE=1.');
   process.exit();
 }
-if (isDry) {
+if (DRY) {
   console.info('Running dry, changes are not going to be persisted to the DB.');
 }
 
@@ -235,22 +236,33 @@ export async function run() {
   });
 
   for (const [hostId, hostTransactions] of entries(byHost)) {
+    if (HOST_ID && hostId != HOST_ID) {
+      continue;
+    }
+
     const { HostName, currency, plan, chargedHostId } = hostTransactions[0];
 
-    let items = entries(groupBy(hostTransactions, 'source')).map(([source, transactions]) => {
+    const hostFeeSharePercent = plans[plan]?.hostFeeSharePercent;
+    const transactions = hostTransactions.map(t => {
+      if (t.source === 'Shared Revenue') {
+        t.amount = round(t.amount * (hostFeeSharePercent / 100));
+      }
+      return t;
+    });
+
+    let items = entries(groupBy(transactions, 'source')).map(([source, ts]) => {
       const incurredAt = date;
       const description = source;
-      let amount = round(sumBy(transactions, 'amount'));
-      if (source === 'Shared Revenue') {
-        const { hostFeeSharePercent } = plans[plan];
-        amount = round(amount * (hostFeeSharePercent / 100));
-      }
+      const amount = round(sumBy(ts, 'amount'));
       return { incurredAt, amount, description };
     });
 
-    const transactionIds = hostTransactions.map(t => t.id);
-    const totalAmountCredited = sumBy(items, i => (i.description === 'Shared Revenue' ? 0 : i.amount));
-    const totalAmountCharged = sumBy(items, i => i.amount);
+    const transactionIds = transactions.map(t => t.id);
+    const totalAmountCredited = sumBy(
+      items.filter(i => i.description != 'Shared Revenue'),
+      'amount',
+    );
+    const totalAmountCharged = sumBy(items, 'amount');
     if (totalAmountCharged < 1000) {
       console.warn(
         `${HostName} (#${hostId}) skipped, total amound pending ${totalAmountCharged / 100} < 10.00 ${currency}.\n`,
@@ -258,15 +270,15 @@ export async function run() {
       continue;
     }
     console.info(
-      `${HostName} (#${hostId}) has ${hostTransactions.length} pending transactions and owes ${
+      `${HostName} (#${hostId}) has ${transactions.length} pending transactions and owes ${
         totalAmountCharged / 100
       } (${currency})`,
     );
-    if (isDry) {
+    if (DRY) {
       console.debug(`Items:\n${json2csv(items)}\n`);
     }
 
-    if (!isDry) {
+    if (!DRY) {
       if (!chargedHostId) {
         console.error(`Warning: We don't have a way to submit the expense to ${HostName}, ignoring.\n`);
         continue;
@@ -279,7 +291,7 @@ export async function run() {
         CreatedByUserId: SETTLEMENT_EXPENSE_PROPERTIES.UserId,
         currency: currency,
         description: `Platform Fees and Tips collected in ${moment.utc().subtract(1, 'month').format('MMMM')}`,
-        FromCollectiveId: SETTLEMENT_EXPENSE_PROPERTIES.FromCollectiveId,
+        FromCollectiveId: chargedHostId,
         HostCollectiveId: hostId,
         hostCurrency: currency,
         netAmountInCollectiveCurrency: totalAmountCredited,
@@ -323,7 +335,7 @@ export async function run() {
       await models.ExpenseItem.bulkCreate(items);
 
       // Attach CSV
-      const Body = json2csv(hostTransactions.map(t => pick(t, ATTACHED_CSV_COLUMNS)));
+      const Body = json2csv(transactions.map(t => pick(t, ATTACHED_CSV_COLUMNS)));
       const filenameBase = `${HostName}-${moment(date).subtract(1, 'month').format('MMMM-YYYY')}`;
       const Key = `${filenameBase}.${generateKey().slice(0, 6)}.csv`;
       const { Location: url } = await uploadToS3({
