@@ -33,7 +33,7 @@ const collectiveMutations = {
       if (collective.type !== COLLECTIVE) {
         throw new Error('Account not a Collective');
       }
-      if (!req.remoteUser.isAdmin(collective.id)) {
+      if (!req.remoteUser.isAdminOfCollective(collective)) {
         throw new Unauthorized('You need to be an Admin of the Collective');
       }
 

@@ -32,8 +32,8 @@ const memberMutations = {
       return await editPublicMessage(
         _,
         {
-          FromCollectiveId: fromAccount.id,
-          CollectiveId: toAccount.id,
+          fromAccount,
+          toAccount,
           message,
         },
         req,

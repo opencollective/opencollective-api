@@ -126,7 +126,9 @@ const orderMutations = {
       if (!order) {
         throw new NotFound('Recurring contribution not found');
       }
-      if (!req.remoteUser.isAdmin(order.FromCollectiveId)) {
+
+      const fromCollective = await req.loaders.Collective.byId.load(order.FromCollectiveId);
+      if (!req.remoteUser.isAdminOfCollective(fromCollective)) {
         throw new Unauthorized("You don't have permission to cancel this recurring contribution");
       }
       if (!order.Subscription.isActive && order.status === status.CANCELLED) {
@@ -190,7 +192,9 @@ const orderMutations = {
       if (!order) {
         throw new NotFound('Order not found');
       }
-      if (!req.remoteUser.isAdmin(order.FromCollectiveId)) {
+
+      const fromCollective = await req.loaders.Collective.byId.load(order.FromCollectiveId);
+      if (!req.remoteUser.isAdminOfCollective(fromCollective)) {
         throw new Unauthorized("You don't have permission to update this order");
       }
       if (!order.Subscription.isActive) {
@@ -202,7 +206,8 @@ const orderMutations = {
         // unlike v1 we don't have to check/assign new payment method, that will be taken care of in another mutation
         const newPaymentMethod = await fetchPaymentMethodWithReference(args.paymentMethod);
 
-        if (!req.remoteUser.isAdmin(newPaymentMethod.CollectiveId)) {
+        const newPaymentMethodCollective = await req.loaders.Collective.byId.load(newPaymentMethod.CollectiveId);
+        if (!req.remoteUser.isAdminOfCollective(newPaymentMethodCollective)) {
           throw new Unauthorized("You don't have permission to use this payment method");
         }
 

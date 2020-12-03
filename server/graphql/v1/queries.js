@@ -112,7 +112,8 @@ const queries = {
       }
       if (
         !req.remoteUser ||
-        (!req.remoteUser.isAdmin(fromCollective.id) && !req.remoteUser.hasRole(roles.ACCOUNTANT, fromCollective.id))
+        (!req.remoteUser.isAdminOfCollective(fromCollective) &&
+          !req.remoteUser.hasRole(roles.ACCOUNTANT, fromCollective.id))
       ) {
         throw new Unauthorized("You don't have permission to access invoices for this user");
       }
@@ -152,7 +153,7 @@ const queries = {
       if (!host) {
         throw new NotFound('Host not found');
       }
-      if (!req.remoteUser || !req.remoteUser.isAdmin(fromCollective.id)) {
+      if (!req.remoteUser || !req.remoteUser.isAdminOfCollective(fromCollective)) {
         throw new Unauthorized("You don't have permission to access invoices for this user");
       }
 
@@ -229,7 +230,7 @@ const queries = {
 
       if (
         !req.remoteUser ||
-        (!req.remoteUser.isAdmin(fromCollective.id) &&
+        (!req.remoteUser.isAdminOfCollective(fromCollective) &&
           !req.remoteUser.hasRole(roles.ACCOUNTANT, fromCollective.id) &&
           !req.remoteUser.hasRole(roles.ACCOUNTANT, host.id))
       ) {

@@ -194,12 +194,12 @@ const TransactionFields = () => {
         // We don't return the user if the transaction has been created by someone who wanted to remain incognito
         // This is very suboptimal. We should probably record the CreatedByCollectiveId (or better CreatedByProfileId) instead of the User.
         if (transaction && transaction.getCreatedByUser) {
+          const collective = await transaction.getCollective();
           const fromCollective = await transaction.getFromCollective();
-          if (fromCollective.isIncognito && (!req.remoteUser || !req.remoteUser.isAdmin(transaction.CollectiveId))) {
+          if (fromCollective.isIncognito && (!req.remoteUser || !req.remoteUser.isAdminOfCollective(collective))) {
             return {};
           }
-          const collective = await transaction.getCollective();
-          if (collective.isIncognito && (!req.remoteUser || !req.remoteUser.isAdmin(transaction.FromCollectiveId))) {
+          if (collective.isIncognito && (!req.remoteUser || !req.remoteUser.isAdminOfCollective(fromCollective))) {
             return {};
           }
           return transaction.getCreatedByUser();
@@ -330,7 +330,7 @@ export const TransactionExpenseType = new GraphQLObjectType({
           if (!transaction.ExpenseId) {
             return null;
           } else {
-            const expense = req.loaders.Expense.byId.load(transaction.ExpenseId);
+            const expense = await req.loaders.Expense.byId.load(transaction.ExpenseId);
             if (!expense || !(await canSeeExpenseAttachments(req, expense))) {
               return null;
             } else {

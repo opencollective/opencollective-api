@@ -3,8 +3,15 @@ import models from '../../models';
 import { NotFound, Unauthorized } from '../errors';
 
 /** A mutation to edit the public message of all matching members. */
-export async function editPublicMessage(_, { FromCollectiveId, CollectiveId, message }, req) {
-  if (!req.remoteUser || !req.remoteUser.isAdmin(FromCollectiveId)) {
+export async function editPublicMessage(_, { fromAccount, toAccount, FromCollectiveId, CollectiveId, message }, req) {
+  if (!fromAccount && FromCollectiveId) {
+    fromAccount = await req.loaders.Collective.byId.load(FromCollectiveId);
+  }
+  if (!toAccount && CollectiveId) {
+    toAccount = await req.loaders.Collective.byId.load(CollectiveId);
+  }
+
+  if (!req.remoteUser || !req.remoteUser.isAdminOfCollective(fromAccount)) {
     throw new Unauthorized("You don't have the permission to edit member public message");
   }
   const [quantityUpdated, updatedMembers] = await models.Member.update(
@@ -14,8 +21,8 @@ export async function editPublicMessage(_, { FromCollectiveId, CollectiveId, mes
     {
       returning: true,
       where: {
-        MemberCollectiveId: FromCollectiveId,
-        CollectiveId: CollectiveId,
+        MemberCollectiveId: fromAccount.id,
+        CollectiveId: toAccount.id,
       },
     },
   );
@@ -28,6 +35,6 @@ export async function editPublicMessage(_, { FromCollectiveId, CollectiveId, mes
    * used in the collective page. Member's `afterUpdate` hook is not triggered here
    * because we don't update the model directly (we use Model.update(..., {where})).
    */
-  invalidateContributorsCache(CollectiveId);
+  invalidateContributorsCache(toAccount.id);
   return updatedMembers;
 }

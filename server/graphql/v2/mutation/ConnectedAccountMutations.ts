@@ -35,7 +35,7 @@ const connectedAccountMutations = {
       }
 
       const collective = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
-      if (!req.remoteUser.isAdmin(collective.id)) {
+      if (!req.remoteUser.isAdminOfCollective(collective)) {
         throw new Unauthorized("You don't have permission to edit this collective");
       }
 
@@ -100,11 +100,14 @@ const connectedAccountMutations = {
       const connectedAccount = await fetchConnectedAccountWithReference(args.connectedAccount, {
         throwIfMissing: true,
       });
-      if (!req.remoteUser.isAdmin(connectedAccount.CollectiveId)) {
+
+      const collective = await req.loaders.Collective.byId.load(connectedAccount.CollectiveId);
+      if (!req.remoteUser.isAdminOfCollective(collective)) {
         throw new Unauthorized("You don't have permission to edit this collective");
       }
 
       await connectedAccount.destroy({ force: true });
+
       return connectedAccount;
     },
   },

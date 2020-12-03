@@ -13,7 +13,7 @@ export function editTiers(_, args, req) {
         throw new Error(`Collective with id ${args.id} not found`);
       }
       collective = c;
-      return req.remoteUser.isAdmin(collective.id);
+      return req.remoteUser.isAdminOfCollective(collective);
     })
     .then(canEdit => {
       if (!canEdit) {
@@ -34,7 +34,9 @@ export async function editTier(_, args, req) {
   }
 
   const tier = await req.loaders.Tier.byId.load(args.tier.id);
-  if (!req.remoteUser.isAdmin(tier.CollectiveId)) {
+
+  const collective = await req.loaders.Collective.byId.load(tier.CollectiveId);
+  if (!req.remoteUser.isAdminOfCollective(collective)) {
     throw new Unauthorized();
   }
 
