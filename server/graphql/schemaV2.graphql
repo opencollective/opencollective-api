@@ -4344,6 +4344,16 @@ type HostPlan {
   Amount limit for the transferwise payouts feature under this plan
   """
   transferwisePayoutsLimit: Int
+
+  """
+  Ability to charge Host Fees.
+  """
+  hostFees: Boolean
+
+  """
+  Charge on revenues made through Host Fees.
+  """
+  hostFeeSharePercent: Int
 }
 
 enum ImageFormat {
@@ -4764,6 +4774,12 @@ type Mutation {
     """
     host: AccountReferenceInput
   ): Fund
+  createOrganization(
+    """
+    Information about the organization to create (name, slug, description, website, ...)
+    """
+    organization: OrganizationCreateInput!
+  ): Organization
   createProject(
     """
     Information about the Project to create (name, slug, description, tags, settings)
@@ -5051,6 +5067,21 @@ type Mutation {
     """
     token: String!
   ): Individual!
+
+  """
+  Update the plan
+  """
+  editHostPlan(
+    """
+    Account that will have 2FA added to it
+    """
+    account: AccountReferenceInput!
+
+    """
+    The name of the plan to subscribe to.
+    """
+    plan: String!
+  ): Host!
 
   """
   Apply to an host with a collective
@@ -5750,6 +5781,14 @@ type Organization implements Account & AccountWithContributions {
   If the organization if a host account, this will return the matchig Host object
   """
   host: Host
+}
+
+input OrganizationCreateInput {
+  name: String!
+  slug: String!
+  description: String!
+  website: String
+  settings: JSON
 }
 
 """
