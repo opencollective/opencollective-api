@@ -279,7 +279,7 @@ export async function run() {
         CreatedByUserId: SETTLEMENT_EXPENSE_PROPERTIES.UserId,
         currency: currency,
         description: `Platform Fees and Tips collected in ${moment.utc().subtract(1, 'month').format('MMMM')}`,
-        FromCollectiveId: SETTLEMENT_EXPENSE_PROPERTIES.FromCollectiveId,
+        FromCollectiveId: chargedHostId,
         HostCollectiveId: hostId,
         hostCurrency: currency,
         netAmountInCollectiveCurrency: totalAmountCredited,
