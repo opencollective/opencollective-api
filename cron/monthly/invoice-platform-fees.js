@@ -20,7 +20,7 @@ const date = process.env.START_DATE ? moment.utc(process.env.START_DATE) : momen
 const DRY = process.env.DRY;
 const HOST_ID = process.env.HOST_ID;
 const isProduction = config.env === 'production';
-if (isProduction && date.date() !== 5) {
+if (isProduction && date.date() !== 5 && !process.env.OFFCYCLE) {
   console.log('OC_ENV is production and today is not the 5th of month, script aborted!');
   process.exit();
 }
