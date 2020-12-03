@@ -31,7 +31,7 @@ describe('cron/monthly/invoice-platform-fees', () => {
     await sequelize.query(`ALTER SEQUENCE "Collectives_id_seq" RESTART WITH 1453`);
     await fakePayoutMethod({
       id: 2955,
-      CollectiveId: opencollective.id,
+      CollectiveId: inc.id,
       type: 'BANK_ACCOUNT',
     });
 
@@ -78,11 +78,6 @@ describe('cron/monthly/invoice-platform-fees', () => {
       data: { hostToPlatformFxRate: 1.23 },
       PlatformTipForTransactionGroup: t.TransactionGroup,
       createdAt: lastMonth,
-    });
-
-    // Add some noise...
-    multiple(fakeTransaction, 5, {
-      ...transactionProps,
     });
 
     await invoicePlatformFees();
