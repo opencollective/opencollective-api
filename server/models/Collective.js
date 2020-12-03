@@ -2388,6 +2388,7 @@ export default function (Sequelize, DataTypes) {
       where: {
         type: 'DEBIT',
         createdAt: createdAt,
+        ExpenseId: null,
         [Op.or]: {
           CollectiveId: this.id,
           UsingVirtualCardFromCollectiveId: this.id,
