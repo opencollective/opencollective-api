@@ -17,7 +17,8 @@ import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 
 // Only run on the 5th of the month
 const date = process.env.START_DATE ? moment.utc(process.env.START_DATE) : moment.utc();
-const isDry = process.env.DRY;
+const DRY = process.env.DRY;
+const HOST_ID = process.env.HOST_ID;
 const isProduction = config.env === 'production';
 if (isProduction && date.date() !== 5) {
   console.log('OC_ENV is production and today is not the 5th of month, script aborted!');
@@ -27,7 +28,7 @@ if (isProduction && !process.env.OFFCYCLE) {
   console.log('OC_ENV is production and this script is currently only running manually. Use OFFCYCLE=1.');
   process.exit();
 }
-if (isDry) {
+if (DRY) {
   console.info('Running dry, changes are not going to be persisted to the DB.');
 }
 
@@ -235,6 +236,10 @@ export async function run() {
   });
 
   for (const [hostId, hostTransactions] of entries(byHost)) {
+    if (HOST_ID && hostId != HOST_ID) {
+      continue;
+    }
+
     const { HostName, currency, plan, chargedHostId } = hostTransactions[0];
 
     const hostFeeSharePercent = plans[plan]?.hostFeeSharePercent;
@@ -269,11 +274,11 @@ export async function run() {
         totalAmountCharged / 100
       } (${currency})`,
     );
-    if (isDry) {
+    if (DRY) {
       console.debug(`Items:\n${json2csv(items)}\n`);
     }
 
-    if (!isDry) {
+    if (!DRY) {
       if (!chargedHostId) {
         console.error(`Warning: We don't have a way to submit the expense to ${HostName}, ignoring.\n`);
         continue;
