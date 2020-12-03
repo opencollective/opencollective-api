@@ -237,20 +237,27 @@ export async function run() {
   for (const [hostId, hostTransactions] of entries(byHost)) {
     const { HostName, currency, plan, chargedHostId } = hostTransactions[0];
 
-    let items = entries(groupBy(hostTransactions, 'source')).map(([source, transactions]) => {
+    const hostFeeSharePercent = plans[plan]?.hostFeeSharePercent;
+    const transactions = hostTransactions.map(t => {
+      if (t.source === 'Shared Revenue') {
+        t.amount = round(t.amount * (hostFeeSharePercent / 100));
+      }
+      return t;
+    });
+
+    let items = entries(groupBy(transactions, 'source')).map(([source, ts]) => {
       const incurredAt = date;
       const description = source;
-      let amount = round(sumBy(transactions, 'amount'));
-      if (source === 'Shared Revenue') {
-        const { hostFeeSharePercent } = plans[plan];
-        amount = round(amount * (hostFeeSharePercent / 100));
-      }
+      const amount = round(sumBy(ts, 'amount'));
       return { incurredAt, amount, description };
     });
 
-    const transactionIds = hostTransactions.map(t => t.id);
-    const totalAmountCredited = sumBy(items, i => (i.description === 'Shared Revenue' ? 0 : i.amount));
-    const totalAmountCharged = sumBy(items, i => i.amount);
+    const transactionIds = transactions.map(t => t.id);
+    const totalAmountCredited = sumBy(
+      items.filter(i => i.description != 'Shared Revenue'),
+      'amount',
+    );
+    const totalAmountCharged = sumBy(items, 'amount');
     if (totalAmountCharged < 1000) {
       console.warn(
         `${HostName} (#${hostId}) skipped, total amound pending ${totalAmountCharged / 100} < 10.00 ${currency}.\n`,
@@ -258,7 +265,7 @@ export async function run() {
       continue;
     }
     console.info(
-      `${HostName} (#${hostId}) has ${hostTransactions.length} pending transactions and owes ${
+      `${HostName} (#${hostId}) has ${transactions.length} pending transactions and owes ${
         totalAmountCharged / 100
       } (${currency})`,
     );
@@ -323,7 +330,7 @@ export async function run() {
       await models.ExpenseItem.bulkCreate(items);
 
       // Attach CSV
-      const Body = json2csv(hostTransactions.map(t => pick(t, ATTACHED_CSV_COLUMNS)));
+      const Body = json2csv(transactions.map(t => pick(t, ATTACHED_CSV_COLUMNS)));
       const filenameBase = `${HostName}-${moment(date).subtract(1, 'month').format('MMMM-YYYY')}`;
       const Key = `${filenameBase}.${generateKey().slice(0, 6)}.csv`;
       const { Location: url } = await uploadToS3({
