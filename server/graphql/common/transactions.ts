@@ -51,12 +51,9 @@ const isPayerCollectiveAdmin = async (req, transaction): Promise<boolean> => {
         transaction.UsingVirtualCardFromCollectiveId || transaction.CollectiveId
       : transaction.FromCollectiveId;
 
-  if (req.remoteUser.isAdmin(collectiveId)) {
-    return true;
-  } else {
-    const collective = await req.loaders.Collective.byId.load(collectiveId);
-    return req.remoteUser.isAdmin(collective.ParentCollectiveId);
-  }
+  const collective = await req.loaders.Collective.byId.load(collectiveId);
+
+  return req.remoteUser.isAdminOfCollective(collective);
 };
 
 const isPayeeHostAdmin = async (req, transaction): Promise<boolean> => {
@@ -76,7 +73,7 @@ const isPayeeCollectiveAdmin = async (req, transaction): Promise<boolean> => {
   const collective = await req.loaders.Collective.byId.load(
     transaction.type === 'CREDIT' ? transaction.CollectiveId : transaction.FromCollectiveId,
   );
-  return req.remoteUser.isAdmin(collective.id);
+  return req.remoteUser.isAdminOfCollective(collective);
 };
 
 /**

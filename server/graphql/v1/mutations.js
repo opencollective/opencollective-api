@@ -422,7 +422,7 @@ const mutations = {
       const collective = await models.Collective.findByPk(args.collectiveId);
       if (!collective) {
         throw new NotFound();
-      } else if (!req.remoteUser || !req.remoteUser.isAdmin(collective.id)) {
+      } else if (!req.remoteUser || !req.remoteUser.isAdminOfCollective(collective)) {
         throw new Unauthorized();
       } else {
         await collective.editMembers(args.members, {

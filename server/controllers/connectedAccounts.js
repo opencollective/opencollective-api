@@ -63,11 +63,10 @@ export const createOrUpdate = async (req, res, next, accessToken, data) => {
         return next(new errors.ValidationFailed('Please provide a CollectiveId as a query parameter'));
       }
 
-      if (!req.remoteUser.isAdmin(CollectiveId)) {
+      collective = await models.Collective.findByPk(CollectiveId);
+      if (!req.remoteUser.isAdminOfCollective(collective)) {
         throw new errors.Unauthorized('Please login as an admin of this collective to add a connected account');
       }
-
-      collective = await models.Collective.findByPk(CollectiveId);
 
       connectedAccount = await createConnectedAccountForCollective(collective.id, service);
       await connectedAccount.update({
@@ -87,11 +86,10 @@ export const createOrUpdate = async (req, res, next, accessToken, data) => {
         return next(new errors.ValidationFailed('Please provide a CollectiveId as a query parameter'));
       }
 
-      if (!req.remoteUser.isAdmin(CollectiveId)) {
+      collective = await models.Collective.findByPk(CollectiveId);
+      if (!req.remoteUser.isAdminOfCollective(collective)) {
         throw new errors.Unauthorized('Please login as an admin of this collective to add a connected account');
       }
-
-      collective = await models.Collective.findByPk(CollectiveId);
 
       collective.image =
         collective.image ||

@@ -11,7 +11,11 @@ const isOwner = async (req, expense): Promise<boolean> => {
     return false;
   }
 
-  return req.remoteUser.isAdmin(expense.FromCollectiveId) || req.remoteUser.id === expense.UserId;
+  if (!expense.fromCollective) {
+    expense.fromCollective = await req.loaders.Collective.byId.load(expense.FromCollectiveId);
+  }
+
+  return req.remoteUser.isAdminOfCollective(expense.fromCollective) || req.remoteUser.id === expense.UserId;
 };
 
 const isCollectiveAccountant = async (req, expense): Promise<boolean> => {
@@ -36,19 +40,13 @@ const isCollectiveAccountant = async (req, expense): Promise<boolean> => {
 const isCollectiveAdmin = async (req, expense): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
-  } else if (req.remoteUser.isAdmin(expense.CollectiveId)) {
-    return true;
-  } else {
-    if (!expense.collective) {
-      expense.collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
-    }
-
-    if (expense.collective?.ParentCollectiveId) {
-      return req.remoteUser.hasRole(roles.ACCOUNTANT, expense.collective.ParentCollectiveId);
-    } else {
-      return false;
-    }
   }
+
+  if (!expense.collective) {
+    expense.collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
+  }
+
+  return req.remoteUser.isAdminOfCollective(expense.collective);
 };
 
 const isHostAdmin = async (req, expense): Promise<boolean> => {

@@ -543,7 +543,7 @@ export const AccountFields = {
     type: new GraphQLList(PayoutMethod),
     description: 'The list of payout methods that this collective can use to get paid',
     async resolve(collective, _, req) {
-      if (!req.remoteUser || !req.remoteUser.isAdmin(collective.id)) {
+      if (!req.remoteUser || !req.remoteUser.isAdminOfCollective(collective)) {
         return null;
       } else {
         return req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
@@ -585,7 +585,7 @@ export const AccountFields = {
     description: 'The list of connected accounts (Stripe, Twitter, etc ...)',
     // Only for admins, no pagination
     async resolve(collective, _, req) {
-      if (!req.remoteUser || !req.remoteUser.isAdmin(collective.id)) {
+      if (!req.remoteUser || !req.remoteUser.isAdminOfCollective(collective)) {
         return null;
       } else {
         return req.loaders.Collective.connectedAccounts.load(collective.id);
