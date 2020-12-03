@@ -164,11 +164,11 @@ const accountMutations = {
   },
   removeTwoFactorAuthTokenFromIndividual: {
     type: new GraphQLNonNull(Individual),
-    description: 'Add 2FA to the Account if it does not have it',
+    description: 'Remove 2FA from the Account if it has been enabled',
     args: {
       account: {
         type: new GraphQLNonNull(AccountReferenceInput),
-        description: 'Account that will have 2FA added to it',
+        description: 'Account that will have 2FA removed from it',
       },
       code: {
         type: new GraphQLNonNull(GraphQLString),
