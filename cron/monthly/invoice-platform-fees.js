@@ -231,9 +231,12 @@ export async function run() {
   );
   const byHost = groupBy(pastMonthTransactions, 'HostCollectiveId');
   const today = moment.utc();
-  const payoutMethods = await models.PayoutMethod.findAll({
-    where: { CollectiveId: SETTLEMENT_EXPENSE_PROPERTIES.FromCollectiveId },
-  });
+  const payoutMethods = groupBy(
+    await models.PayoutMethod.findAll({
+      where: { CollectiveId: SETTLEMENT_EXPENSE_PROPERTIES.FromCollectiveId },
+    }),
+    'type',
+  );
 
   for (const [hostId, hostTransactions] of entries(byHost)) {
     if (HOST_ID && hostId != HOST_ID) {
@@ -303,13 +306,19 @@ export async function run() {
         where: { deletedAt: null },
       });
 
-      let PayoutMethod = payoutMethods.find(pm => pm.type === PayoutMethodTypes.BANK_ACCOUNT);
+      let PayoutMethod =
+        payoutMethods[PayoutMethodTypes.OTHER]?.[0] || payoutMethods[PayoutMethodTypes.BANK_ACCOUNT]?.[0];
       if (
         connectedAccounts?.find?.(c => c.service === 'paypal') &&
         !host.settings?.disablePaypalPayouts &&
-        payoutMethods.find(pm => pm.type === PayoutMethodTypes.PAYPAL)
+        payoutMethods[PayoutMethodTypes.PAYPAL]?.[0]
       ) {
-        PayoutMethod = payoutMethods.find(pm => pm.type === PayoutMethodTypes.PAYPAL);
+        PayoutMethod = payoutMethods[PayoutMethodTypes.PAYPAL]?.[0];
+      } else if (
+        connectedAccounts?.find?.(c => c.service === 'transferwise') &&
+        payoutMethods[PayoutMethodTypes.BANK_ACCOUNT]?.[0]
+      ) {
+        PayoutMethod = payoutMethods[PayoutMethodTypes.BANK_ACCOUNT]?.[0];
       }
 
       // Create the Expense
