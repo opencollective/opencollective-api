@@ -21,7 +21,7 @@ export const SETTLEMENT_PAYMENT_METHOD = {
 };
 
 export const SETTLEMENT_EXPENSE_PROPERTIES = {
-  FromCollectiveId: 1,
+  FromCollectiveId: 8686,
   lastEditedById: SETTLEMENT_USER_ID,
   UserId: SETTLEMENT_USER_ID,
   payeeLocation: {

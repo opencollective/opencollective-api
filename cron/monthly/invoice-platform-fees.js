@@ -19,7 +19,7 @@ import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 const date = process.env.START_DATE ? moment.utc(process.env.START_DATE) : moment.utc();
 const isDry = process.env.DRY;
 const isProduction = config.env === 'production';
-if (isProduction && date.getDate() !== 5) {
+if (isProduction && date.date() !== 5) {
   console.log('OC_ENV is production and today is not the 5th of month, script aborted!');
   process.exit();
 }
