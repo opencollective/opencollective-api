@@ -332,7 +332,7 @@ export async function run() {
         incurredAt: today,
         data: { isPlatformTipSettlement: true, transactionIds },
         type: expenseTypes.INVOICE,
-        status: expenseStatus.APPROVED,
+        status: expenseStatus.PENDING,
       });
 
       // Create Expense Items
