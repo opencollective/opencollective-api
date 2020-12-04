@@ -222,6 +222,8 @@ export default (Sequelize, DataTypes) => {
             amountSentToHostInHostCurrency: this.amountSentToHostInHostCurrency,
             hostCurrency: this.hostCurrency,
             ExpenseId: this.ExpenseId,
+            OrderId: this.OrderId,
+            isRefund: this.isRefund,
           };
         },
       },
@@ -351,6 +353,7 @@ export default (Sequelize, DataTypes) => {
           'hostFeeInHostCurrency',
           'platformFeeInHostCurrency',
           'netAmountInHostCurrency',
+          'amountInHostCurrency',
         ].indexOf(attr) !== -1
       ) {
         return value / 100; // converts cents
@@ -364,6 +367,7 @@ export default (Sequelize, DataTypes) => {
       'type',
       'CollectiveId',
       'amount',
+      'amountInHostCurrency',
       'currency',
       'description',
       'netAmountInCollectiveCurrency',
@@ -374,6 +378,8 @@ export default (Sequelize, DataTypes) => {
       'platformFeeInHostCurrency',
       'netAmountInHostCurrency',
       'Expense.privateMessage',
+      'source',
+      'isRefund',
     ];
 
     // We only add tax amount for european hosts

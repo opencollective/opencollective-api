@@ -1,8 +1,7 @@
-import { TaxType } from '@opencollective/taxes';
 import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
-import { keyBy, pick } from 'lodash';
+import { filter, groupBy, keyBy, pick, sumBy } from 'lodash';
 import moment from 'moment';
 
 import MemberRoles from '../server/constants/roles.ts';
@@ -14,6 +13,7 @@ import { exportToPDF } from '../server/lib/utils';
 import models, { Op, sequelize } from '../server/models';
 
 const debug = debugLib('hostreport');
+const sumByWhen = (vector, iteratee, predicate) => sumBy(filter(vector, predicate), iteratee);
 
 const summary = {
   totalHosts: 0,
@@ -85,29 +85,6 @@ async function HostReport(year, month, hostId) {
     const where = { HostCollectiveId: host.id };
     const whereWithDateRange = { ...where, ...dateRange };
 
-    const payoutProcessorFeesQuery = service => {
-      // When using Sequelize query.include[].where it performs the condition on the join and it doesn't work
-      // that's why have to do the query this this way.
-      if (service === 'paypal') {
-        where['$PaymentMethod.service$'] = 'paypal';
-      } else {
-        where['$PaymentMethod.service$'] = {
-          [Op.or]: { [Op.ne]: 'paypal', [Op.is]: null },
-        };
-      }
-
-      return {
-        where: { ...where, ...dateRange, type: 'DEBIT' },
-        raw: true,
-        include: [
-          {
-            model: models.PaymentMethod,
-            attributes: [[sequelize.fn('MAX', sequelize.col('service')), 'service']],
-          },
-        ],
-      };
-    };
-
     return Promise.props({
       balance: sumTransactions(
         'netAmountInCollectiveCurrency',
@@ -115,63 +92,7 @@ async function HostReport(year, month, hostId) {
         host.currency,
       ), // total host balance
       delta: sumTransactions('netAmountInCollectiveCurrency', { where: whereWithDateRange }, host.currency), // delta host balance last month
-      totalAmountDonations: sumTransactions(
-        'amount',
-        { where: { ...whereWithDateRange, type: 'CREDIT' } },
-        host.currency,
-      ), // total donations last month
-      totalNetAmountReceivedForCollectives: sumTransactions(
-        'netAmountInCollectiveCurrency',
-        { where: { ...whereWithDateRange, type: 'CREDIT' } },
-        host.currency,
-      ), // total net amount received last month
-      totalAmountPaidExpenses: sumTransactions(
-        'netAmountInCollectiveCurrency',
-        { where: { ...whereWithDateRange, type: 'DEBIT' } },
-        host.currency,
-      ), // total net amount paid out last month
-      totalTaxAmountCollected: sumTransactions(
-        'taxAmount',
-        { where: whereWithDateRange, type: 'CREDIT' },
-        host.currency,
-      ), // total tax collected
-      totalTaxAmountPaid: sumTransactions('taxAmount', { where: whereWithDateRange, type: 'DEBIT' }, host.currency), // total tax paid
-      // We only count HostFees on CREDIT transactions with an Order and on DEBIT transactions with an Expense
-      // (because the host fee of the destination host is recorded in the DEBIT transaction when making a donation to another host)
-      totalHostFees: sumTransactions(
-        'hostFeeInHostCurrency',
-        {
-          where: {
-            ...whereWithDateRange,
-            [Op.or]: [
-              { type: 'CREDIT', OrderId: { [Op.ne]: null } },
-              { type: 'DEBIT', ExpenseId: { [Op.ne]: null } },
-            ],
-          },
-        },
-        host.currency,
-      ),
       backers: getBackersStats(startDate, endDate, collectiveids),
-      platformFees: sumTransactions(
-        'platformFeeInHostCurrency',
-        { where: { ...whereWithDateRange, type: 'CREDIT' } },
-        host.currency,
-      ),
-      paymentProcessorFees: sumTransactions(
-        'paymentProcessorFeeInHostCurrency',
-        { where: { ...whereWithDateRange, type: 'CREDIT' } },
-        host.currency,
-      ), // total stripe fees
-      payoutProcessorFeesPaypal: sumTransactions(
-        'paymentProcessorFeeInHostCurrency',
-        payoutProcessorFeesQuery('paypal'),
-        host.currency,
-      ), // total paypal fees
-      payoutProcessorFeesOther: sumTransactions(
-        'paymentProcessorFeeInHostCurrency',
-        payoutProcessorFeesQuery('other'),
-        host.currency,
-      ), // total other payout processor fees (manually recorded)
     });
   };
 
@@ -202,9 +123,7 @@ async function HostReport(year, month, hostId) {
       data.notes = null;
       data.expensesPerPage = [[]];
       data.taxType = host.getTaxType() || 'Taxes';
-      data.stats = {
-        numberPaidExpenses: 0,
-      };
+      data.stats = {};
 
       const getHostAdminsEmails = host => {
         if (host.type === 'USER') {
@@ -233,6 +152,7 @@ async function HostReport(year, month, hostId) {
             ? {
                 ...transaction.Expense.info,
                 items: transaction.Expense.items.map(item => item.dataValues),
+                PayoutMethod: transaction.Expense.PayoutMethod,
               }
             : null,
         };
@@ -243,11 +163,11 @@ async function HostReport(year, month, hostId) {
           t.notes = t.notes ? `${t.notes} (${note})` : note;
           data.notes = note;
         }
+        t.source = t.ExpenseId ? 'EXPENSE' : t.OrderId ? 'ORDER' : 'OTHER';
 
         // We prepare expenses for the PDF export
         if (t.type === 'DEBIT' && t.ExpenseId) {
           t.page = page++;
-          data.stats.numberPaidExpenses++;
           if ((page - 1) % expensesPerPage === 0) {
             currentPage++;
             data.expensesPerPage[currentPage] = [];
@@ -282,12 +202,14 @@ async function HostReport(year, month, hostId) {
                   url: { [Op.not]: null },
                 },
               },
+              { model: models.PayoutMethod, attributes: ['type'] },
             ],
           },
           {
             model: models.User,
             as: 'createdByUser',
           },
+          { model: models.PaymentMethod, attributes: ['service', 'type'] },
         ],
       });
 
@@ -321,35 +243,90 @@ async function HostReport(year, month, hostId) {
         data.expensesPdf = true;
       }
       const stats = await getHostStats(host, Object.keys(collectivesById));
-      stats.totalAmountPaid = {
-        totalInHostCurrency:
-          stats.totalAmountPaidExpenses.totalInHostCurrency +
-          stats.paymentProcessorFees.totalInHostCurrency +
-          stats.platformFees.totalInHostCurrency,
-      };
-      stats.totalAmountSpent = {
-        totalInHostCurrency:
-          stats.totalAmountPaidExpenses.totalInHostCurrency +
-          stats.payoutProcessorFeesPaypal.totalInHostCurrency +
-          stats.payoutProcessorFeesOther.totalInHostCurrency,
-      };
-      stats.totalHostRevenue = {
-        totalInHostCurrency: stats.totalHostFees.totalInHostCurrency,
-      };
-      // Total net amount received on the host's bank account = total amount - payment processor fees and platform fees
-      stats.totalNetAmountReceived = {
-        totalInHostCurrency:
-          stats.totalAmountDonations.totalInHostCurrency +
-          stats.paymentProcessorFees.totalInHostCurrency +
-          stats.platformFees.totalInHostCurrency,
-      };
+
+      const { donations, expenses, otherCredits, otherDebits } = groupBy(data.transactions, t => {
+        if (t.OrderId && t.type === 'CREDIT') {
+          return 'donations';
+        } else if (t.ExpenseId && t.type === 'DEBIT') {
+          return 'expenses';
+          // TODO REPLACE WITH OTHER INCOMES AND OTHER EXPENSES
+        } else if (t.type === 'DEBIT') {
+          return 'otherDebits';
+        } else if (t.type === 'CREDIT') {
+          return 'otherCredits';
+        }
+      });
+
+      const totalAmountDonations = sumBy(donations, 'amountInHostCurrency');
+      const paymentProcessorFees = sumBy(donations, 'paymentProcessorFeeInHostCurrency');
+      const platformFees = sumBy(donations, 'platformFeeInHostCurrency');
+      const totalAmountOtherCredits = sumBy(otherCredits, 'amountInHostCurrency');
+      const paymentProcessorFeesOtherCredits = sumBy(otherCredits, 'paymentProcessorFeeInHostCurrency');
+      const platformFeesOtherCredits = sumBy(otherCredits, 'platformFeeInHostCurrency');
+      const totalAmountOtherDebits = sumBy(otherDebits, 'amountInHostCurrency');
+      const paymentProcessorFeesOtherDebits = sumBy(otherDebits, 'paymentProcessorFeeInHostCurrency');
+      const platformFeesOtherDebits = sumBy(otherDebits, 'platformFeeInHostCurrency');
+      const payoutProcessorFeesPaypal = sumByWhen(
+        expenses,
+        'paymentProcessorFeeInHostCurrency',
+        t => t.Expense?.PayoutMethod?.type === 'PAYPAL',
+      );
+      const payoutProcessorFeesTransferWise = sumByWhen(
+        expenses,
+        'paymentProcessorFeeInHostCurrency',
+        t => t.Expense?.PayoutMethod?.type === 'BANK_ACCOUNT',
+      );
+      const payoutProcessorFeesOther = sumByWhen(
+        expenses,
+        'paymentProcessorFeeInHostCurrency',
+        t => (t.Expense && !t.Expense.PayoutMethod) || t.Expense?.PayoutMethod?.type === 'OTHER',
+      );
+      const totalNetAmountReceived =
+        totalAmountDonations +
+        paymentProcessorFees +
+        platformFees +
+        totalAmountOtherCredits +
+        paymentProcessorFeesOtherCredits +
+        platformFeesOtherCredits;
+      const totalTaxAmountCollected = sumByWhen(transactions, 'taxAmount', t => t.type === 'CREDIT');
+      const totalAmountPaidExpenses = sumByWhen(expenses, 'netAmountInHostCurrency');
+      const totalHostFees = sumBy([...donations, ...otherCredits], 'hostFeeInHostCurrency');
+      const totalNetAmountReceivedForCollectives = sumBy([...donations, ...otherCredits], 'netAmountInHostCurrency');
+      const totalAmountSpent =
+        totalAmountPaidExpenses +
+        payoutProcessorFeesOther +
+        payoutProcessorFeesPaypal +
+        totalAmountOtherDebits +
+        paymentProcessorFeesOtherDebits +
+        platformFeesOtherDebits;
 
       data.stats = {
         ...data.stats,
         ...stats,
+        numberDonations: donations.length,
+        numberOtherCredits: otherCredits?.length || 0,
+        numberOtherDebits: otherDebits?.length || 0,
+        numberPaidExpenses: expenses.length,
+        numberTransactions: transactions.length,
+        paymentProcessorFees,
+        paymentProcessorFeesOtherCredits,
+        paymentProcessorFeesOtherDebits,
+        payoutProcessorFeesOther,
+        payoutProcessorFeesPaypal,
+        payoutProcessorFeesTransferWise,
+        platformFees,
+        platformFeesOtherCredits,
+        platformFeesOtherDebits,
         totalActiveCollectives: Object.keys(keyBy(data.transactions, 'CollectiveId')).length,
-        numberTransactions: data.transactions.length,
-        numberDonations: data.transactions.length - data.stats.numberPaidExpenses,
+        totalAmountDonations,
+        totalAmountOtherCredits,
+        totalAmountOtherDebits,
+        totalAmountPaidExpenses,
+        totalAmountSpent,
+        totalHostFees,
+        totalNetAmountReceived,
+        totalNetAmountReceivedForCollectives,
+        totalTaxAmountCollected,
       };
 
       summary.hosts.push({
@@ -381,9 +358,7 @@ async function HostReport(year, month, hostId) {
       console.error('Unable to send host report for ', data.host.slug, 'No recipient to send to');
       return;
     }
-    // debug("email data transactions", data.transactions);
-    debug('email data stats', data.stats);
-    debug('email data stats.backers', data.stats.backers);
+    debug('email data stats', JSON.stringify(data.stats, null, 2));
     const options = { attachments };
     return emailLib.send(emailTemplate, recipients, data, options);
   };
