@@ -252,6 +252,9 @@ export const mergeCollectives = async (
     // Update orders (FROM)
     await models.Order.update({ FromCollectiveId: into.id }, { where: { FromCollectiveId: from.id } }, { transaction });
 
+    // Update orders (TO)
+    await models.Order.update({ CollectiveId: into.id }, { where: { CollectiveId: from.id } }, { transaction });
+
     // Update transactions
     // ... CREDIT
     await models.Transaction.update(
@@ -263,12 +266,35 @@ export const mergeCollectives = async (
     // ... DEBIT
     await models.Transaction.update({ CollectiveId: into.id }, { where: { CollectiveId: from.id } }, { transaction });
 
+    // Update payment methods
+    await models.PaymentMethod.update({ CollectiveId: into.id }, { where: { CollectiveId: from.id } }, { transaction });
+
     // Update members
     await models.Member.update(
       { MemberCollectiveId: into.id },
       { where: { MemberCollectiveId: from.id } },
       { transaction },
     );
+
+    // Update memberships
+    await models.Member.update({ CollectiveId: into.id }, { where: { CollectiveId: from.id } }, { transaction });
+
+    // Update member invitations
+    await models.MemberInvitation.update(
+      { MemberCollectiveId: into.id },
+      { where: { MemberCollectiveId: from.id } },
+      { transaction },
+    );
+
+    // Update memberships invitations
+    await models.MemberInvitation.update(
+      { CollectiveId: into.id },
+      { where: { CollectiveId: from.id } },
+      { transaction },
+    );
+
+    // Update activities
+    await models.Activity.update({ CollectiveId: into.id }, { where: { CollectiveId: from.id } }, { transaction });
 
     // Mark from profile as deleted
     await models.Collective.update(
