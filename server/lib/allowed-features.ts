@@ -3,9 +3,10 @@ import { get } from 'lodash';
 import { types } from '../constants/collectives';
 import FEATURE from '../constants/feature';
 
+const HOST_TYPES = [types.USER, types.ORGANIZATION];
+
 // Please refer to and update https://docs.google.com/spreadsheets/d/15ppKaZJCXBjvY7-AjjCj3w5D-4ebLQdEowynJksgDXE/edit#gid=0
 const FeatureAllowedForTypes = {
-  // Collective page features
   [FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS]: [
     types.ORGANIZATION,
     types.COLLECTIVE,
@@ -14,17 +15,18 @@ const FeatureAllowedForTypes = {
     types.PROJECT,
   ],
   [FEATURE.RECURRING_CONTRIBUTIONS]: [types.USER, types.ORGANIZATION, types.COLLECTIVE, types.FUND],
+  [FEATURE.RECEIVE_HOST_APPLICATIONS]: HOST_TYPES,
+  [FEATURE.HOST_DASHBOARD]: HOST_TYPES,
   [FEATURE.EVENTS]: [types.ORGANIZATION, types.COLLECTIVE],
   [FEATURE.PROJECTS]: [types.FUND],
   [FEATURE.USE_EXPENSES]: [types.ORGANIZATION, types.COLLECTIVE, types.EVENT, types.FUND, types.PROJECT],
-  [FEATURE.RECEIVE_EXPENSES]: [types.ORGANIZATION],
+  [FEATURE.RECEIVE_EXPENSES]: [types.ORGANIZATION, types.COLLECTIVE, types.EVENT, types.FUND, types.PROJECT],
   [FEATURE.COLLECTIVE_GOALS]: [types.COLLECTIVE, types.ORGANIZATION],
   [FEATURE.TOP_FINANCIAL_CONTRIBUTORS]: [types.COLLECTIVE, types.ORGANIZATION, types.FUND],
   [FEATURE.CONVERSATIONS]: [types.COLLECTIVE, types.ORGANIZATION],
   [FEATURE.UPDATES]: [types.COLLECTIVE, types.ORGANIZATION],
   [FEATURE.TEAM]: [types.ORGANIZATION, types.COLLECTIVE, types.EVENT, types.FUND, types.PROJECT],
-  // Other
-  [FEATURE.CONTACT_FORM]: [types.COLLECTIVE, types.EVENT],
+  [FEATURE.CONTACT_FORM]: [types.COLLECTIVE, types.EVENT, types.ORGANIZATION],
   [FEATURE.TRANSFERWISE]: [types.ORGANIZATION],
   [FEATURE.PAYPAL_PAYOUTS]: [types.ORGANIZATION],
   [FEATURE.PAYPAL_DONATIONS]: [types.ORGANIZATION],
@@ -44,18 +46,26 @@ export const OPT_IN_FEATURE_FLAGS = {
   [FEATURE.COLLECTIVE_GOALS]: 'settings.collectivePage.showGoals',
   [FEATURE.PAYPAL_PAYOUTS]: 'settings.features.paypalPayouts',
   [FEATURE.PAYPAL_DONATIONS]: 'settings.features.paypalDonations',
+  [FEATURE.RECEIVE_HOST_APPLICATIONS]: 'settings.apply',
 };
 
-const FEATURES_ONLY_FOR_HOST_ORGS = [
+const FEATURES_ONLY_FOR_HOST_ORGS = new Set([
   FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS,
   FEATURE.USE_EXPENSES,
   FEATURE.RECEIVE_EXPENSES,
+  FEATURE.RECEIVE_HOST_APPLICATIONS,
   FEATURE.TOP_FINANCIAL_CONTRIBUTORS,
   FEATURE.COLLECTIVE_GOALS,
   FEATURE.TRANSFERWISE,
   FEATURE.PAYPAL_PAYOUTS,
   FEATURE.PAYPAL_DONATIONS,
-];
+  FEATURE.CONTACT_FORM,
+  FEATURE.HOST_DASHBOARD,
+]);
+
+const FEATURES_ONLY_FOR_HOST_USERS = new Set([FEATURE.RECEIVE_HOST_APPLICATIONS, FEATURE.HOST_DASHBOARD]);
+
+const FEATURES_ONLY_FOR_ACTIVE_ACCOUNTS = new Set([FEATURE.CONTACT_FORM]);
 
 /**
  * Returns true if feature is allowed for this collective type, false otherwise.
@@ -69,7 +79,9 @@ export const isFeatureAllowedForCollectiveType = (collectiveType: types, feature
   }
 
   // Check if allowed for host orgs but not normal orgs
-  if (collectiveType === types.ORGANIZATION && FEATURES_ONLY_FOR_HOST_ORGS.includes(feature) && !isHost) {
+  if (collectiveType === types.ORGANIZATION && FEATURES_ONLY_FOR_HOST_ORGS.has(feature) && !isHost) {
+    return false;
+  } else if (collectiveType === types.USER && FEATURES_ONLY_FOR_HOST_USERS.has(feature) && !isHost) {
     return false;
   }
 
@@ -95,6 +107,11 @@ export const hasFeature = (collective, feature: FEATURE): boolean => {
   }
 
   if (!isFeatureAllowedForCollectiveType(collective.type, feature, collective.isHostAccount)) {
+    return false;
+  }
+
+  // Features only for active accounts
+  if (!collective.isActive && FEATURES_ONLY_FOR_ACTIVE_ACCOUNTS.has(feature)) {
     return false;
   }
 
