@@ -149,11 +149,11 @@ async function PlatformReport(year, month) {
       ),
       "feesOnTopTransactions" AS (
         SELECT
-          max((CASE WHEN pm."service" = 'paypal' AND t."CollectiveId" = 1 THEN t."amount" ELSE 0 END)::float) as "feeOnTopPaypal",
-          max((CASE WHEN (pm."service" = 'stripe' OR spm.service = 'stripe') AND t."CollectiveId" = 1 THEN t."amount" ELSE 0 END)::float) as "feeOnTopStripe",
-          max((CASE WHEN t."PaymentMethodId" is NULL AND t."CollectiveId" = 1 THEN t."amount" ELSE 0 END)::float) as "feeOnTopBankTransfers",
-          max(CASE WHEN t."CollectiveId" = 1 and pm."service" != 'stripe' AND pm."service" != 'paypal' AND (spm.service IS NULL OR spm.service != 'stripe') THEN t."amount" ELSE 0 END)::float as "feeOnTopManual",
-          max((CASE WHEN (t."PaymentMethodId" is NULL OR ((pm."service" != 'stripe' OR pm.service IS NULL) AND (spm.service IS NULL OR spm.service != 'stripe'))) AND t."CollectiveId" = 1 THEN t."amount" ELSE 0 END)::float) as "feeOnTopDue",
+          max((CASE WHEN pm."service" = 'paypal' AND t."CollectiveId" = 1 THEN t."netAmountInCollectiveCurrency" ELSE 0 END)::float) as "feeOnTopPaypal",
+          max((CASE WHEN (pm."service" = 'stripe' OR spm.service = 'stripe') AND t."CollectiveId" = 1 THEN t."netAmountInCollectiveCurrency" ELSE 0 END)::float) as "feeOnTopStripe",
+          max((CASE WHEN t."PaymentMethodId" is NULL AND t."CollectiveId" = 1 THEN t."netAmountInCollectiveCurrency" ELSE 0 END)::float) as "feeOnTopBankTransfers",
+          max(CASE WHEN t."CollectiveId" = 1 and pm."service" != 'stripe' AND pm."service" != 'paypal' AND (spm.service IS NULL OR spm.service != 'stripe') THEN t."netAmountInCollectiveCurrency" ELSE 0 END)::float as "feeOnTopManual",
+          max((CASE WHEN (t."PaymentMethodId" is NULL OR ((pm."service" != 'stripe' OR pm.service IS NULL) AND (spm.service IS NULL OR spm.service != 'stripe'))) AND t."CollectiveId" = 1 THEN t."netAmountInCollectiveCurrency" ELSE 0 END)::float) as "feeOnTopDue",
           max((CASE WHEN t."CollectiveId" != 1 THEN t."HostCollectiveId" ELSE 0 END)) AS "HostCollectiveId",
           t."OrderId"
           FROM "Transactions" t
