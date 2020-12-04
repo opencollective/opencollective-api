@@ -16,7 +16,6 @@ import graphqlSchemaV1 from './graphql/v1/schema';
 import graphqlSchemaV2 from './graphql/v2/schema';
 import cache from './lib/cache';
 import logger from './lib/logger';
-import statsd from './lib/statsd';
 import { parseToBoolean } from './lib/utils';
 import * as authentication from './middleware/authentication';
 import errorHandler from './middleware/error_handler';
@@ -126,7 +125,6 @@ export default app => {
         req.endAt = req.endAt || new Date();
         const executionTime = req.endAt - req.startAt;
         res.set('Execution-Time', executionTime);
-        statsd.timing('api.graphql.executionTime', executionTime);
         res.send(fromCache);
         return;
       }
@@ -166,7 +164,6 @@ export default app => {
       req.endAt = req.endAt || new Date();
       const executionTime = req.endAt - req.startAt;
       req.res.set('Execution-Time', executionTime);
-      statsd.timing('api.graphql.executionTime', executionTime);
       return response;
     },
   };
