@@ -28,10 +28,11 @@ describe('server/graphql/loaders/expense', () => {
   describe('userTaxFormRequiredBeforePayment', () => {
     const req = {};
 
-    let host, collective;
+    let host, otherHost, collective;
 
     before(async () => {
       host = await fakeHostWithRequiredLegalDocument();
+      otherHost = await fakeHostWithRequiredLegalDocument();
       collective = await fakeCollective({ HostCollectiveId: host.id });
     });
 
@@ -191,6 +192,28 @@ describe('server/graphql/loaders/expense', () => {
         const [result1, result2] = await Promise.all(promises);
         expect(result1).to.be.true;
         expect(result2).to.be.false;
+      });
+
+      it('When expense is submitted by a collective under the same host', async () => {
+        const loader = userTaxFormRequiredBeforePayment({ loaders: loaders(req) });
+        const fromCollective = await fakeCollective({ HostCollectiveId: host.id });
+        const collectiveSameHost = await fakeCollective({ HostCollectiveId: host.id });
+        const collectiveDifferentHost = await fakeCollective({ HostCollectiveId: otherHost.id });
+        const expenseUnderSameHost = await fakeExpense({
+          amount: US_TAX_FORM_THRESHOLD + 1000,
+          CollectiveId: collectiveSameHost.id,
+          FromCollectiveId: fromCollective.id,
+          type: 'INVOICE',
+        });
+        const expenseUnderDifferentHost = await fakeExpense({
+          amount: US_TAX_FORM_THRESHOLD + 1000,
+          CollectiveId: collectiveDifferentHost.id,
+          FromCollectiveId: fromCollective.id,
+          type: 'INVOICE',
+        });
+
+        const result = await loader.loadMany([expenseUnderSameHost.id, expenseUnderDifferentHost.id]);
+        expect(result).to.deep.eq([false, true]);
       });
     });
   });
