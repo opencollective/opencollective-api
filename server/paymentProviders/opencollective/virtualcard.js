@@ -338,7 +338,7 @@ function getCurrencyFromCreateArgs(args, collective) {
  */
 function getCreateParams(args, collective, sourcePaymentMethod, remoteUser) {
   // Make sure user is admin of collective
-  if (!remoteUser.isAdmin(collective.id)) {
+  if (!remoteUser.isAdminOfCollective(collective)) {
     throw new Error('User must be admin of collective');
   }
 

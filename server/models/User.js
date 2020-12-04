@@ -350,6 +350,15 @@ export default (Sequelize, DataTypes) => {
     return result;
   };
 
+  // Slightly better API than the former
+  User.prototype.isMemberOfCollective = function (collective) {
+    if (collective.type === 'EVENT' || collective.type === 'PROJECT') {
+      return this.isMember(collective.id) || this.isMember(collective.ParentCollectiveId);
+    } else {
+      return this.isMember(collective.id);
+    }
+  };
+
   // Determines whether a user can see updates for a collective based on their roles.
   User.prototype.canSeeUpdates = function (CollectiveId) {
     const result =
