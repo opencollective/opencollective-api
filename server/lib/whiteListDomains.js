@@ -23,6 +23,7 @@ export const whiteListDomains = [
   'yeah.net',
   'nigge.rs',
   'xoxy.net',
+  'uymail.com',
 ];
 
 export default whiteListDomains;
