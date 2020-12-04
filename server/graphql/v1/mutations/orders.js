@@ -355,12 +355,15 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
         throw new Error(`From collective id ${order.fromCollective.id} not found`);
       }
 
-      const possibleRoles = [roles.ADMIN];
+      const possibleRoles = [];
       if (fromCollective.type === types.ORGANIZATION) {
         possibleRoles.push(roles.MEMBER);
       }
 
-      if (!remoteUser?.hasRole(possibleRoles, order.fromCollective.id)) {
+      if (
+        !remoteUser?.isAdminOfCollective(order.fromCollective) &&
+        !remoteUser?.hasRole(possibleRoles, order.fromCollective.id)
+      ) {
         // We only allow to add funds on behalf of a collective if the user is an admin of that collective or an admin of the host of the collective that receives the money
         const HostId = await collective.getHostCollectiveId();
         if (!remoteUser?.isAdmin(HostId)) {
