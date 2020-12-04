@@ -216,6 +216,15 @@ describe('server/lib/tax-forms', () => {
         incurredAt: moment().set('year', 2016),
       }),
     );
+    // An expense submitted under the same host (should not trigger tax form)
+    await Expense.create(
+      ExpenseOverThreshold({
+        UserId: users[0].id,
+        FromCollectiveId: (await fakeCollective({ HostCollectiveId: collectives[0].HostCollectiveId })).id,
+        CollectiveId: collectives[0].id,
+        incurredAt: moment(),
+      }),
+    );
 
     // Mix made an expense from this year over the threshold
     await Expense.create(
