@@ -335,7 +335,7 @@ export const loaders = req => {
         `
         SELECT "Order"."TierId" AS "TierId", COALESCE(SUM("Transaction"."netAmountInCollectiveCurrency"), 0) AS "totalDonated"
         FROM "Transactions" AS "Transaction"
-        INNER JOIN "Orders" AS "Order" ON "Transaction"."OrderId" = "Order"."id" AND ("Order"."deletedAt" IS NULL)
+        INNER JOIN "Orders" AS "Order" ON "Transaction"."OrderId" = "Order"."id" AND "Transaction"."CollectiveId" = "Order"."CollectiveId" AND ("Order"."deletedAt" IS NULL)
         WHERE "TierId" IN (?)
         AND "Transaction"."deletedAt" IS NULL
         AND "Transaction"."RefundTransactionId" IS NULL
