@@ -260,7 +260,7 @@ export async function run() {
       return { incurredAt, amount, description };
     });
 
-    const transactionIds = transactions.map(t => t.id);
+    const transactionIds = transactions.map(t => t.TransactionId);
     const totalAmountCredited = sumBy(
       items.filter(i => i.description != 'Shared Revenue'),
       'amount',
@@ -332,7 +332,7 @@ export async function run() {
         incurredAt: today,
         data: { isPlatformTipSettlement: true, transactionIds },
         type: expenseTypes.INVOICE,
-        status: expenseStatus.APPROVED,
+        status: expenseStatus.PENDING,
       });
 
       // Create Expense Items
