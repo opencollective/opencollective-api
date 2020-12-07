@@ -89,7 +89,7 @@ export const Host = new GraphQLObjectType({
             supportedPaymentMethods.push('CREDIT_CARD');
           }
 
-          if (find(connectedAccounts, ['service', 'paypal'])) {
+          if (find(connectedAccounts, ['service', 'paypal']) && !collective.settings?.disablePaypalDonations) {
             supportedPaymentMethods.push('PAYPAL');
           }
 
