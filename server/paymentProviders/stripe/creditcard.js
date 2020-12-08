@@ -116,6 +116,7 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
 
   // Read or compute Platform Fee
   const platformFee = await getPlatformFee(order.totalAmount, order, host, { hostPlan });
+  const platformTip = order.data?.platformFee;
 
   // Make sure data is available (breaking in some old tests)
   order.data = order.data || {};
@@ -194,13 +195,15 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
     isFeesOnTop: order.data?.isFeesOnTop,
     isSharedRevenue,
     settled: true,
+    platformFee: platformFee,
+    platformTip,
   };
+
   let platformFeeInHostCurrency = fees.applicationFee;
   if (isSharedRevenue) {
     // Platform Fee In Host Currency makes no sense in the shared revenue model.
-    platformFeeInHostCurrency = 0;
+    platformFeeInHostCurrency = platformTip || 0;
     data.hostFeeSharePercent = hostPlan.hostFeeSharePercent;
-    data.platformFee = platformFee;
   }
 
   const payload = {
