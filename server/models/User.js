@@ -5,6 +5,7 @@ import debugLib from 'debug';
 import slugify from 'limax';
 import { defaults, get, intersection, pick } from 'lodash';
 import { Op } from 'sequelize';
+import Temporal from 'sequelize-temporal';
 
 import roles from '../constants/roles';
 import * as auth from '../lib/auth';
@@ -503,6 +504,8 @@ export default (Sequelize, DataTypes) => {
     }
     return { firstName, lastName };
   };
+
+  Temporal(User, Sequelize);
 
   return User;
 };
