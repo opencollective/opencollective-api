@@ -14,6 +14,7 @@ import {
   isNull,
   omit,
   pick,
+  round,
   sum,
   sumBy,
   trim,
@@ -54,7 +55,16 @@ import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
 import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective } from '../lib/spam';
 import { canUseFeature } from '../lib/user-permissions';
 import userlib from '../lib/userlib';
-import { capitalize, cleanTags, flattenArray, formatCurrency, getDomain, md5, stripTags } from '../lib/utils';
+import {
+  capitalize,
+  cleanTags,
+  flattenArray,
+  formatCurrency,
+  getDomain,
+  md5,
+  stripTags,
+  sumByWhen,
+} from '../lib/utils';
 
 import CustomDataTypes from './DataTypes';
 import { PayoutMethodTypes } from './PayoutMethod';
@@ -2945,7 +2955,11 @@ export default function (Sequelize, DataTypes) {
    * @param {Date} from Defaults to beginning of the current month.
    * @param {Date} [to] Optional, defaults to the end of the 'from' month and 'from' is reseted to the beginning of its month.
    */
-  Collective.prototype.getHostMetrics = async function (from = moment().utc().startOf('month'), to) {
+  Collective.prototype.getHostMetrics = async function (
+    from = moment().utc().startOf('month'),
+    to,
+    { returnTransactions = false } = {},
+  ) {
     if (!this.isHostAccount || !this.isActive || this.type !== types.ORGANIZATION) {
       return null;
     }
@@ -2957,7 +2971,7 @@ export default function (Sequelize, DataTypes) {
     }
 
     const isPendingTransaction = t =>
-      t.PaymentMethod?.service !== 'stripe' && t.PaymentMethod?.sourcePaymentMethod?.service !== 'stripe';
+      !(t.PaymentMethod?.service == 'stripe' || t.PaymentMethod?.sourcePaymentMethod?.service == 'stripe');
     const plan = await this.getPlan();
     const hostFeeSharePercent = plan.hostFeeSharePercent || 0;
 
@@ -2978,7 +2992,14 @@ export default function (Sequelize, DataTypes) {
 
     const hostFees = Math.abs(sumBy(transactions, 'hostFeeInHostCurrency'));
     const platformFees = Math.abs(sumBy(transactions, 'platformFeeInHostCurrency'));
-    const pendingPlatformFees = Math.abs(sumBy(transactions.filter(isPendingTransaction), 'platformFeeInHostCurrency'));
+    const pendingPlatformFees = Math.abs(sumByWhen(transactions, 'platformFeeInHostCurrency', isPendingTransaction));
+    const hostFeeShare = Math.abs(
+      sumByWhen(
+        transactions,
+        t => round((t.hostFeeInHostCurrency * t.data.hostFeeSharePercent) / 100),
+        t => t.data?.isSharedRevenue && t.data?.hostFeeSharePercent > 0,
+      ),
+    );
 
     const tipsTransactions = await models.Transaction.findAll({
       where: {
@@ -2995,24 +3016,31 @@ export default function (Sequelize, DataTypes) {
       ],
     });
 
-    const getTipAmountInHostCurrency = t => t.amount / t.data?.hostToPlatformFxRate || 1;
+    const getTipAmountInHostCurrency = t => t.amounInHostCurrency / (t.data?.hostToPlatformFxRate || 1);
     const platformTips = Math.round(sumBy(tipsTransactions, getTipAmountInHostCurrency));
     const pendingPlatformTips = Math.round(
-      sumBy(tipsTransactions.filter(isPendingTransaction), getTipAmountInHostCurrency),
+      sumByWhen(tipsTransactions, getTipAmountInHostCurrency, isPendingTransaction),
     );
 
     const totalMoneyManaged = await this.getTotalMoneyManaged(to);
 
-    return {
+    const metrics = {
       hostFees,
       platformFees,
       pendingPlatformFees,
       platformTips,
       pendingPlatformTips,
-      hostFeeShare: (hostFees * hostFeeSharePercent) / 100,
+      hostFeeShare,
       hostFeeSharePercent,
       totalMoneyManaged,
     };
+
+    if (returnTransactions) {
+      metrics.transactions = transactions;
+      metrics.tipsTransactions = tipsTransactions;
+    }
+
+    return metrics;
   };
 
   /**
