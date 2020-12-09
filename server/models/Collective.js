@@ -3016,7 +3016,7 @@ export default function (Sequelize, DataTypes) {
       ],
     });
 
-    const getTipAmountInHostCurrency = t => t.amounInHostCurrency / (t.data?.hostToPlatformFxRate || 1);
+    const getTipAmountInHostCurrency = t => t.netAmountInCollectiveCurrency / (t.data?.hostToPlatformFxRate || 1);
     const platformTips = Math.round(sumBy(tipsTransactions, getTipAmountInHostCurrency));
     const pendingPlatformTips = Math.round(
       sumByWhen(tipsTransactions, getTipAmountInHostCurrency, isPendingTransaction),
