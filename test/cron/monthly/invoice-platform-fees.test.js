@@ -3,7 +3,14 @@ import moment from 'moment';
 
 import { run as invoicePlatformFees } from '../../../cron/monthly/invoice-platform-fees';
 import { sequelize } from '../../../server/models';
-import { fakeCollective, fakeHost, fakePayoutMethod, fakeTransaction, fakeUser } from '../../test-helpers/fake-data';
+import {
+  fakeCollective,
+  fakeHost,
+  fakePaymentMethod,
+  fakePayoutMethod,
+  fakeTransaction,
+  fakeUser,
+} from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
 describe('cron/monthly/invoice-platform-fees', () => {
@@ -67,6 +74,20 @@ describe('cron/monthly/invoice-platform-fees', () => {
       PlatformTipForTransactionGroup: t.TransactionGroup,
       createdAt: lastMonth,
     });
+    // Collected Platform Tip with pending Payment Processor Fee
+    const t2 = await fakeTransaction(transactionProps);
+    const paymentMethod = await fakePaymentMethod({ service: 'stripe', token: 'tok_bypassPending' });
+    await fakeTransaction({
+      type: 'CREDIT',
+      CollectiveId: oc.id,
+      amount: 1000,
+      currency: 'USD',
+      data: { hostToPlatformFxRate: 1.23 },
+      PlatformTipForTransactionGroup: t2.TransactionGroup,
+      paymentProcessorFeeInHostCurrency: -100,
+      PaymentMethodId: paymentMethod.id,
+      createdAt: lastMonth,
+    });
 
     await invoicePlatformFees();
 
@@ -109,5 +130,12 @@ describe('cron/monthly/invoice-platform-fees', () => {
   it('should attach detailed list of transactions in the expense', async () => {
     const [attachment] = await expense.getAttachedFiles();
     expect(attachment).to.have.property('url').that.includes('.csv');
+  });
+
+  it('should deduct owed payment processor fees relatetd to platform tips collected using stripe', async () => {
+    const reimburseItem = expense.items.find(
+      p => p.description == 'Reimburse: Payment Processor Fee for collected Platform Tips',
+    );
+    expect(reimburseItem).to.have.property('amount', Math.round(-100 / 1.23));
   });
 });
