@@ -1143,8 +1143,8 @@ describe('server/models/Collective', () => {
         pendingPlatformFees: 300,
         platformTips: 331,
         pendingPlatformTips: 81,
-        hostFeeCharge: 0,
-        hostFeeChargePercent: 0,
+        hostFeeShare: 0,
+        hostFeeSharePercent: 0,
         totalMoneyManaged: expectedTotalMoneyManaged,
       });
     });

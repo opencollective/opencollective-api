@@ -2959,7 +2959,7 @@ export default function (Sequelize, DataTypes) {
     const isPendingTransaction = t =>
       t.PaymentMethod?.service !== 'stripe' && t.PaymentMethod?.sourcePaymentMethod?.service !== 'stripe';
     const plan = await this.getPlan();
-    const hostFeeChargePercent = plan.hostFeeChargePercent || 0;
+    const hostFeeSharePercent = plan.hostFeeSharePercent || 0;
 
     const transactions = await models.Transaction.findAll({
       where: {
@@ -3009,8 +3009,8 @@ export default function (Sequelize, DataTypes) {
       pendingPlatformFees,
       platformTips,
       pendingPlatformTips,
-      hostFeeCharge: (hostFees * hostFeeChargePercent) / 100,
-      hostFeeChargePercent,
+      hostFeeShare: (hostFees * hostFeeSharePercent) / 100,
+      hostFeeSharePercent,
       totalMoneyManaged,
     };
   };

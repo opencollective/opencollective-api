@@ -11,8 +11,8 @@ export const HostMetrics = new GraphQLObjectType({
     pendingPlatformFees: { type: Amount, description: 'Amount collected in platform fees requiring settlement' },
     platformTips: { type: Amount, description: 'Amount collected in platform tips for given period' },
     pendingPlatformTips: { type: Amount, description: 'Amount collected in platform tips requiring settlement' },
-    hostFeeCharge: { type: Amount, description: 'Amount in host fee shared with the platform' },
+    hostFeeShare: { type: Amount, description: 'Amount in host fee shared with the platform' },
     totalMoneyManaged: { type: Amount, description: 'Total amount managed on behalf of hosted collectives' },
-    hostFeeChargePercent: { type: GraphQLInt, description: 'Host fee sharing percent' },
+    hostFeeSharePercent: { type: GraphQLInt, description: 'Host fee sharing percent' },
   },
 });
