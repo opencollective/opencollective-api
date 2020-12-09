@@ -66,6 +66,8 @@ async function run({ dryRun, limit, force } = {}) {
 
     logger.info(`  - Found rejected categories: ${rejectedCategories.join(', ')}`);
 
+    let shouldMarkAsRejected = true;
+
     // Retrieve latest transaction
     const transaction = await models.Transaction.findOne({
       where: {
@@ -113,16 +115,20 @@ async function run({ dryRun, limit, force } = {}) {
       }
     } else {
       logger.info(`  - No transaction found`);
+      if (order.status === 'PAID') {
+        shouldMarkAsRejected = false;
+      }
     }
 
-    // Mark the Order as rejected
-    logger.info(`  - Marking order #${order.id} as rejected `);
-    if (!dryRun) {
-      await order.update({ status: orderStatus.REJECTED });
+    // Mark the Order as rejected (only if we found a transaction to refund)
+    if (shouldMarkAsRejected) {
+      logger.info(`  - Marking order #${order.id} as rejected `);
+      if (!dryRun) {
+        await order.update({ status: orderStatus.REJECTED });
+      }
     }
 
     // Deactivate subscription
-
     if (order.SubscriptionId) {
       const subscription = await models.Subscription.findByPk(order.SubscriptionId);
       if (subscription) {
