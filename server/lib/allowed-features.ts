@@ -3,6 +3,8 @@ import { get } from 'lodash';
 import { types } from '../constants/collectives';
 import FEATURE from '../constants/feature';
 
+import { isPastEvent } from './collectivelib';
+
 const HOST_TYPES = [types.USER, types.ORGANIZATION];
 
 // Please refer to and update https://docs.google.com/spreadsheets/d/15ppKaZJCXBjvY7-AjjCj3w5D-4ebLQdEowynJksgDXE/edit#gid=0
@@ -67,6 +69,8 @@ const FEATURES_ONLY_FOR_HOST_USERS = new Set([FEATURE.RECEIVE_HOST_APPLICATIONS,
 
 const FEATURES_ONLY_FOR_ACTIVE_ACCOUNTS = new Set([FEATURE.CONTACT_FORM]);
 
+const FEATURES_DISABLED_FOR_PAST_EVENTS = new Set([FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS]);
+
 /**
  * Returns true if feature is allowed for this collective type, false otherwise.
  */
@@ -123,6 +127,11 @@ export const hasFeature = (collective, feature: FEATURE): boolean => {
   // Check opt-in flags
   if (feature in OPT_IN_FEATURE_FLAGS) {
     return hasOptedInForFeature(collective, feature);
+  }
+
+  // Checks for past events
+  if (collective.type === types.EVENT && isPastEvent(collective) && FEATURES_DISABLED_FOR_PAST_EVENTS.has(feature)) {
+    return false;
   }
 
   return true;

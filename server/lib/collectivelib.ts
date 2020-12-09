@@ -309,3 +309,16 @@ export const mergeCollectives = async (
     );
   });
 };
+
+/**
+ * Returns true if the event is passed
+ */
+export const isPastEvent = (event: typeof models.Collective): boolean => {
+  if (!event.endsAt) {
+    return false;
+  } else {
+    const oneDay = 24 * 60 * 60 * 1000;
+    const isOverSince = new Date().getTime() - new Date(event.endsAt).getTime();
+    return isOverSince > oneDay;
+  }
+};
