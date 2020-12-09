@@ -64,7 +64,7 @@ const createGuestProfile = (
       {
         type: COLLECTIVE_TYPE.USER,
         slug: `guest-${uuid().split('-')[0]}`,
-        name: name ?? DEFAULT_GUEST_NAME,
+        name: name || DEFAULT_GUEST_NAME,
         data: { isGuest: true },
         address: location?.address,
         countryISO: location?.country,
