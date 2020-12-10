@@ -1,3 +1,4 @@
+import { types } from '../../constants/collectives';
 import FEATURE from '../../constants/feature';
 import FEATURE_STATUS from '../../constants/feature-status';
 import { hasFeature, isFeatureAllowedForCollectiveType } from '../../lib/allowed-features';
@@ -55,6 +56,27 @@ export const getFeatureStatusResolver = (feature: FEATURE) => async (
           limit: 1,
         }),
         FEATURE_STATUS.DISABLED,
+      );
+    case FEATURE.EVENTS:
+      return checkIsActive(
+        models.Collective.count({
+          where: { type: types.EVENT, ParentCollectiveId: collective.id },
+          limit: 1,
+        }),
+      );
+    case FEATURE.PROJECTS:
+      return checkIsActive(
+        models.Collective.count({
+          where: { type: types.PROJECT, ParentCollectiveId: collective.id },
+          limit: 1,
+        }),
+      );
+    case FEATURE.CONNECTED_ACCOUNTS:
+      return checkIsActive(
+        models.Member.count({
+          where: { role: 'CONNECTED_COLLECTIVE', CollectiveId: collective.id },
+          limit: 1,
+        }),
       );
     default:
       return FEATURE_STATUS.ACTIVE;
