@@ -78,22 +78,44 @@ async function HostReport(year, month, hostId) {
     previewCondition = `AND c.slug NOT IN ('${slugs.join("','")}')`;
   }
 
-  const getHostStats = (host, collectiveids) => {
+  const getHostStats = async (host, collectiveids) => {
     // Since collectives can change host,
     // we don't fetch transactions based on the CollectiveId but based on the HostCollectiveId
     // at the time of the transaction
     const where = { HostCollectiveId: host.id };
     const whereWithDateRange = { ...where, ...dateRange };
 
-    return Promise.props({
-      balance: sumTransactions(
+    return {
+      balance: await sumTransactions(
         'netAmountInCollectiveCurrency',
         { where: { ...where, createdAt: { [Op.lt]: endDate } } },
         host.currency,
       ), // total host balance
-      delta: sumTransactions('netAmountInCollectiveCurrency', { where: whereWithDateRange }, host.currency), // delta host balance last month
-      backers: getBackersStats(startDate, endDate, collectiveids),
-    });
+      totalMoneyManaged:
+        (
+          await sumTransactions(
+            'amountInHostCurrency',
+            { where: { ...where, createdAt: { [Op.lt]: endDate } } },
+            host.currency,
+          )
+        ).totalInHostCurrency +
+        (
+          await sumTransactions(
+            'paymentProcessorFeeInHostCurrency',
+            { where: { ...where, createdAt: { [Op.lt]: endDate } } },
+            host.currency,
+          )
+        ).totalInHostCurrency +
+        (
+          await sumTransactions(
+            'platformFeeInHostCurrency',
+            { where: { ...where, createdAt: { [Op.lt]: endDate } } },
+            host.currency,
+          )
+        ).totalInHostCurrency,
+      delta: await sumTransactions('netAmountInCollectiveCurrency', { where: whereWithDateRange }, host.currency), // delta host balance last month
+      backers: await getBackersStats(startDate, endDate, collectiveids),
+    };
   };
 
   const processHost = async host => {
