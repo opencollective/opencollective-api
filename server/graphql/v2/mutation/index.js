@@ -1,6 +1,5 @@
 import accountMutations from './AccountMutations';
 import { addFundsMutation } from './AddFundsMutations';
-import collectiveMutations from './CollectiveMutations';
 import commentMutations from './CommentMutations';
 import commentReactionMutations from './CommentReactionMutations';
 import connectedAccountMutations from './ConnectedAccountMutations';
@@ -31,7 +30,6 @@ const mutation = {
   ...expenseMutations,
   ...hostApplicationMutations,
   ...accountMutations,
-  ...collectiveMutations,
   ...guestMutations,
   ...payoutMethodMutations,
   ...orderMutations,

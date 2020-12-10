@@ -26,6 +26,7 @@ export function setupModels(client) {
     'ExpenseAttachedFile',
     'ExpenseItem',
     'GuestToken',
+    'HostApplication',
     'LegalDocument',
     'Member',
     'MemberInvitation',

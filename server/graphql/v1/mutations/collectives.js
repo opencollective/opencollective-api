@@ -17,6 +17,7 @@ import { handleHostCollectivesLimit } from '../../../lib/plans';
 import { canUseFeature } from '../../../lib/user-permissions';
 import { defaultHostCollective } from '../../../lib/utils';
 import models, { Op } from '../../../models';
+import { HostApplicationStatus } from '../../../models/HostApplication';
 import { FeatureNotAllowedForUser, NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 
 const DEFAULT_COLLECTIVE_SETTINGS = {
@@ -440,19 +441,6 @@ export async function approveCollective(remoteUser, CollectiveId) {
   // Check limits
   await handleHostCollectivesLimit(host, { throwHostException: true, notifyAdmins: true });
 
-  models.Activity.create({
-    type: activities.COLLECTIVE_APPROVED,
-    UserId: remoteUser.id,
-    CollectiveId: host.id,
-    data: {
-      collective: collective.info,
-      host: host.info,
-      user: {
-        email: remoteUser.email,
-      },
-    },
-  });
-
   // Approve all events and projects created by this collective
   const events = await collective.getEvents();
   await Promise.all(
@@ -470,7 +458,22 @@ export async function approveCollective(remoteUser, CollectiveId) {
   purgeCacheForCollective(collective.slug);
 
   // Approve the collective and return it
-  return collective.update({ isActive: true, approvedAt: new Date() });
+  await collective.update({ isActive: true, approvedAt: new Date() });
+  await models.HostApplication.updatePendingApplications(host, collective, HostApplicationStatus.APPROVED);
+  await models.Activity.create({
+    type: activities.COLLECTIVE_APPROVED,
+    UserId: remoteUser.id,
+    CollectiveId: host.id,
+    data: {
+      collective: collective.info,
+      host: host.info,
+      user: {
+        email: remoteUser.email,
+      },
+    },
+  });
+
+  return collective;
 }
 
 export async function archiveCollective(_, args, req) {
@@ -882,7 +885,9 @@ export async function rejectCollective(_, args, req) {
   const rejectionReason =
     args.rejectionReason && sanitize(args.rejectionReason, { allowedTags: [], allowedAttributes: {} }).trim();
 
-  models.Activity.create({
+  await collective.changeHost(null, req.remoteUser);
+  await models.HostApplication.updatePendingApplications(hostCollective, collective, HostApplicationStatus.REJECTED);
+  await models.Activity.create({
     type: activities.COLLECTIVE_REJECTED,
     UserId: req.remoteUser.id,
     CollectiveId: hostCollective.id,
@@ -897,8 +902,7 @@ export async function rejectCollective(_, args, req) {
   });
 
   purgeCacheForCollective(collective.slug);
-
-  return collective.changeHost(null, req.remoteUser);
+  return collective;
 }
 
 export async function activateCollectiveAsHost(_, args, req) {
