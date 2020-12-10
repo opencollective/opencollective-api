@@ -144,6 +144,14 @@ const accountFieldsDefinition = () => ({
       limit: { type: GraphQLInt, defaultValue: 100 },
       offset: { type: GraphQLInt, defaultValue: 0 },
       role: { type: new GraphQLList(MemberRole) },
+      isApproved: {
+        type: GraphQLBoolean,
+        description: 'Filter on (un)approved collectives',
+      },
+      isArchived: {
+        type: GraphQLBoolean,
+        description: 'Filter on archived collectives',
+      },
       accountType: {
         type: new GraphQLList(AccountType),
         description: 'Type of accounts (BOT/COLLECTIVE/EVENT/ORGANIZATION/INDIVIDUAL)',
