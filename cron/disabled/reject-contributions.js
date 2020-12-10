@@ -55,6 +55,10 @@ async function run({ dryRun, limit, force } = {}) {
     const collective = await models.Collective.findByPk(order.CollectiveId);
     const fromCollective = await models.Collective.findByPk(order.FromCollectiveId);
 
+    if (collective.slug === 'opencollective') {
+      continue;
+    }
+
     logger.info(`Checking order #${order.id} from #${fromCollective.slug} to #${collective.slug}`);
 
     const rejectedCategories = getContributorRejectedCategories(fromCollective, collective);
@@ -67,6 +71,7 @@ async function run({ dryRun, limit, force } = {}) {
     logger.info(`  - Found rejected categories: ${rejectedCategories.join(', ')}`);
 
     let shouldMarkAsRejected = true;
+    let shouldNotifyContributor = true;
 
     // Retrieve latest transaction
     const transaction = await models.Transaction.findOne({
@@ -117,6 +122,7 @@ async function run({ dryRun, limit, force } = {}) {
       logger.info(`  - No transaction found`);
       if (order.status === 'PAID') {
         shouldMarkAsRejected = false;
+        shouldNotifyContributor = false;
       }
     }
 
@@ -162,17 +168,18 @@ async function run({ dryRun, limit, force } = {}) {
       purgeCacheForCollective(fromCollective.slug);
     }
 
-    const activity = {
-      type: 'contribution.rejected',
-      data: {
-        collective: { name: collective.name },
-        rejectionReason: `${collective.name} banned some specific categories of contributors and there was a match with your profile.`,
-      },
-    };
-
-    logger.info(`  - Notifying admins of ${fromCollective.slug}`);
-    if (!dryRun) {
-      await notifyAdminsOfCollective(fromCollective.id, activity);
+    if (shouldNotifyContributor) {
+      const activity = {
+        type: 'contribution.rejected',
+        data: {
+          collective: { name: collective.name },
+          rejectionReason: `${collective.name} banned some specific categories of contributors and there was a match with your profile.`,
+        },
+      };
+      logger.info(`  - Notifying admins of ${fromCollective.slug}`);
+      if (!dryRun) {
+        await notifyAdminsOfCollective(fromCollective.id, activity);
+      }
     }
   }
 }
