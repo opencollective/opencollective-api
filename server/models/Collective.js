@@ -952,7 +952,7 @@ export default function (Sequelize, DataTypes) {
 
   Collective.prototype.getOrCreateHostPaymentMethod = async function () {
     const hostPaymentMethod = await models.PaymentMethod.findOne({
-      where: { service: 'opencollective', type: 'host', CollectiveId: this.id },
+      where: { service: 'opencollective', type: 'host', CollectiveId: this.id, currency: this.currency },
     });
 
     if (hostPaymentMethod) {
