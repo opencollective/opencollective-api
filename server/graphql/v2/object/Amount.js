@@ -6,7 +6,7 @@ import { Currency } from '../enum/Currency';
 export const Amount = new GraphQLObjectType({
   name: 'Amount',
   description: 'A financial amount.',
-  fields: {
+  fields: () => ({
     value: {
       type: GraphQLFloat,
       resolve(amount) {
@@ -33,5 +33,5 @@ export const Amount = new GraphQLObjectType({
         }
       },
     },
-  },
+  }),
 });

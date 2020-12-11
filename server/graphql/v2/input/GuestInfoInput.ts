@@ -7,7 +7,7 @@ import { LocationInput } from './LocationInput';
 export const GuestInfoInput = new GraphQLInputObjectType({
   name: 'GuestInfoInput',
   description: 'Input type for guest contributions',
-  fields: {
+  fields: () => ({
     email: {
       type: GraphQLNonNull(EmailAddress),
       description: "Contributor's email",
@@ -24,5 +24,5 @@ export const GuestInfoInput = new GraphQLInputObjectType({
       type: LocationInput,
       description: 'Address of the user, mandatory when amount is above $5000.',
     },
-  },
+  }),
 });

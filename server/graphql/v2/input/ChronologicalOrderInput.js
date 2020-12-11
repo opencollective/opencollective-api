@@ -6,7 +6,7 @@ import { OrderDirectionType } from '../enum/OrderDirectionType';
 export const ChronologicalOrderInput = new GraphQLInputObjectType({
   name: 'ChronologicalOrderInput',
   description: 'Input to order results chronologically',
-  fields: {
+  fields: () => ({
     field: {
       description: 'Field to chronologically order by.',
       defaultValue: 'createdAt',
@@ -17,7 +17,7 @@ export const ChronologicalOrderInput = new GraphQLInputObjectType({
       defaultValue: 'DESC',
       type: OrderDirectionType,
     },
-  },
+  }),
 });
 
 export const CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE = Object.entries(ChronologicalOrderInput.getFields()).reduce(

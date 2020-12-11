@@ -7,10 +7,10 @@ export const TransactionCollection = new GraphQLObjectType({
   name: 'TransactionCollection',
   interfaces: [Collection],
   description: 'A collection of Transactions (Debit or Credit)',
-  fields: {
+  fields: () => ({
     ...CollectionFields,
     nodes: {
       type: new GraphQLList(Transaction),
     },
-  },
+  }),
 });

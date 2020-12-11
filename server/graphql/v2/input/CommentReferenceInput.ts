@@ -5,10 +5,10 @@ import { GraphQLInputObjectType, GraphQLString } from 'graphql';
  */
 export const CommentReferenceInput = new GraphQLInputObjectType({
   name: 'CommentReferenceInput',
-  fields: {
+  fields: () => ({
     id: {
       type: GraphQLString,
       description: 'The public id identifying the comment',
     },
-  },
+  }),
 });

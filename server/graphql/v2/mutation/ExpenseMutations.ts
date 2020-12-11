@@ -233,7 +233,7 @@ const expenseMutations = {
         type: new GraphQLInputObjectType({
           name: 'ProcessExpensePaymentParams',
           description: 'Parameters for paying an expense',
-          fields: {
+          fields: () => ({
             paymentProcessorFee: {
               type: GraphQLInt,
               description:
@@ -247,7 +247,7 @@ const expenseMutations = {
               type: GraphQLString,
               description: '2FA code for if the host account has 2FA for payouts turned on.',
             },
-          },
+          }),
         }),
       },
     },

@@ -7,12 +7,12 @@ const ContributorCollection = new GraphQLObjectType({
   name: 'ContributorCollection',
   interfaces: [Collection],
   description: 'A collection of "Contributor"',
-  fields: {
+  fields: () => ({
     ...CollectionFields,
     nodes: {
       type: new GraphQLList(Contributor),
     },
-  },
+  }),
 });
 
 export { ContributorCollection };
