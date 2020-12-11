@@ -74,9 +74,9 @@ Subject: {{host.name}} Host {{reportName}}
   Collectives: {{number stats.totalCollectives}} ({{number stats.totalActiveCollectives}} active) //
   Backers: {{number stats.backers.total}} (+{{number stats.backers.new}}{{#if stats.backers.lost}},
   -{{number stats.backers.lost}}{{/if}}) //
-  Balance: {{currency stats.balance.totalInHostCurrency currency=host.currency}}
-  ({{currency stats.delta.totalInHostCurrency currency=host.currency sign=true}}) //
-  Host fees: {{currency stats.totalHostFees.totalInHostCurrency currency=host.currency}} //
+  Balance: {{currency stats.balance currency=host.currency}}
+  ({{currency stats.delta currency=host.currency sign=true}}) //
+  Host fees: {{currency stats.totalHostFees currency=host.currency}} //
 </div>
 
 <div>
@@ -86,8 +86,7 @@ Subject: {{host.name}} Host {{reportName}}
   <center>
     <table border=0 cellpadding=0 cellspacing=0 width=300 style="margin: 30px 0px">
       <tr>
-        <td align="center"><span
-            class="counter">{{currency stats.balance.totalInHostCurrency currency=host.currency}}</span></td>
+        <td align="center"><span class="counter">{{currency stats.totalMoneyManaged currency=host.currency}}</span></td>
         <td width=200>&nbsp;</td>
         <td align="center"><span class="counter">{{number stats.backers.total}}</span></td>
       </tr>
@@ -98,10 +97,9 @@ Subject: {{host.name}} Host {{reportName}}
       </tr>
       <tr>
         <td align="center">
+          <span class="positive">(+{{currency stats.totalNetAmountReceived currency=host.currency}})</span><br />
           <span
-            class="positive">(+{{currency stats.totalNetAmountReceived.totalInHostCurrency currency=host.currency}})</span><br />
-          <span
-            class="negative">&nbsp;{{#if stats.totalAmountSpent.totalInHostCurrency}}({{currency stats.totalAmountSpent.totalInHostCurrency currency=host.currency}}){{/if}}&nbsp;</span>
+            class="negative">&nbsp;{{#if stats.totalAmountSpent}}({{currency stats.totalAmountSpent currency=host.currency}}){{/if}}&nbsp;</span>
         </td>
         <td></td>
         <td align="center">
@@ -145,29 +143,76 @@ Subject: {{host.name}} Host {{reportName}}
       <td></td>
       <td align="right">{{number stats.numberPaidExpenses}}</td>
     </tr>
+    {{#if stats.numberOtherCredits}}
+    <tr class="indent1">
+      <td>Number of uncategorized {{pluralize "credit" n=stats.numberOtherCredits}}</td>
+      <td></td>
+      <td align="right">{{number stats.numberOtherCredits}}</td>
+    </tr>
+    {{/if}}
+    {{#if stats.numberOtherDebits}}
+    <tr class="indent1">
+      <td>Number of uncategorized {{pluralize "debit" n=stats.numberOtherDebits}}</td>
+      <td></td>
+      <td align="right">{{number stats.numberOtherDebits}}</td>
+    </tr>
+    {{/if}}
     <tr>
       <td colspan=3 height=10></td>
     </tr>
     <tr>
       <td>Total donations (before fees)</td>
       <td></td>
-      <td align="right">{{currency stats.totalAmountDonations.totalInHostCurrency currency=host.currency precision=2}}
+      <td align="right">{{currency stats.totalAmountDonations currency=host.currency precision=2}}
       </td>
     </tr>
     <tr class="indent1">
       <td>Payment processor fees (Stripe)</td>
       <td></td>
       <td align="right">
-        {{currency stats.paymentProcessorFees.totalInHostCurrency currency=host.currency precision=2}}
+        {{currency stats.paymentProcessorFees currency=host.currency precision=2}}
       </td>
     </tr>
     <tr class="indent1">
       <td>Platform fees (Open Collective)</td>
       <td></td>
       <td align="right">
-        {{currency stats.platformFees.totalInHostCurrency currency=host.currency precision=2}}
+        {{currency stats.platformFees currency=host.currency precision=2}}
       </td>
     </tr>
+    {{#if stats.numberOtherCredits}}
+    <tr>
+      <td colspan=3 height=10></td>
+    </tr>
+    <tr>
+      <td>Other Credits</td>
+      <td></td>
+      <td align="right">{{currency stats.totalAmountOtherCredits currency=host.currency precision=2}}
+      </td>
+    </tr>
+    <tr>
+      <td colspan=3 class="muted">Refunded Expenses, Credited Invoices...</td>
+    </tr>
+    {{#if stats.platformFeesOtherCredits }}
+    <tr class="indent1">
+      <td>Platform fees</td>
+      <td></td>
+      <td align="right">
+        {{currency stats.platformFeesOtherCredits currency=host.currency precision=2}}
+      </td>
+    </tr>
+    {{/if}}
+    {{#if stats.paymentProcessorFeesOtherCredits }}
+    <tr class="indent1">
+      <td>Payment processor fees</td>
+      <td></td>
+      <td align="right">
+        {{currency stats.paymentProcessorFeesOtherCredits currency=host.currency precision=2}}
+      </td>
+    </tr>
+    {{/if}}
+    {{/if}}
+
     <tr>
       <td colspan=2></td>
       <td height=10 class="line">
@@ -178,20 +223,17 @@ Subject: {{host.name}} Host {{reportName}}
       <td>Total amount received</td>
       <td></td>
       <td align="right">
-        {{currency stats.totalNetAmountReceived.totalInHostCurrency currency=host.currency precision=2}}</td>
-    </tr>
-    <tr>
-      <td colspan=3 class="muted">Total amount transferred to your {{host.name}} bank account</td>
+        {{currency stats.totalNetAmountReceived currency=host.currency precision=2}}</td>
     </tr>
     <tr>
       <td colspan=3 height=10></td>
     </tr>
-    {{#if stats.totalTaxAmountCollected.totalInHostCurrency}}
+    {{#if stats.totalTaxAmountCollected}}
     <tr>
       <td>Taxes collected</td>
       <td></td>
       <td align="right">
-        {{currency stats.totalTaxAmountCollected.totalInHostCurrency currency=host.currency precision=2}}</td>
+        {{currency stats.totalTaxAmountCollected currency=host.currency precision=2}}</td>
     </tr>
     <tr>
       <td colspan=3 class="muted">{{taxType}} received</td>
@@ -203,7 +245,7 @@ Subject: {{host.name}} Host {{reportName}}
     <tr>
       <td>Host fees</td>
       <td></td>
-      <td align="right">{{currency stats.totalHostFees.totalInHostCurrency currency=host.currency precision=2}}</td>
+      <td align="right">{{currency stats.totalHostFees currency=host.currency precision=2}}</td>
     </tr>
     <tr>
       <td colspan=3 class="muted">Total commission for {{host.name}}</td>
@@ -215,7 +257,7 @@ Subject: {{host.name}} Host {{reportName}}
       <td>Net amount</td>
       <td></td>
       <td align="right">
-        {{currency stats.totalNetAmountReceivedForCollectives.totalInHostCurrency currency=host.currency precision=2}}
+        {{currency stats.totalNetAmountReceivedForCollectives currency=host.currency precision=2}}
       </td>
     </tr>
     <tr>
@@ -229,21 +271,59 @@ Subject: {{host.name}} Host {{reportName}}
       <td>Expenses paid</td>
       <td></td>
       <td align="right">
-        {{currency stats.totalAmountPaidExpenses.totalInHostCurrency currency=host.currency precision=2}}</td>
+        {{currency stats.totalAmountPaidExpenses currency=host.currency precision=2}}</td>
     </tr>
     <tr class="indent1">
       <td>Payment processor fees (PayPal)</td>
       <td></td>
       <td align="right">
-        {{currency stats.payoutProcessorFeesPaypal.totalInHostCurrency currency=host.currency precision=2}} </td>
+        {{currency stats.payoutProcessorFeesPaypal currency=host.currency precision=2}} </td>
     </tr>
     <tr class="indent1">
-      <td>Payment processor fees (other)</td>
+      <td>Payment processor fees (TransferWise)</td>
       <td></td>
       <td align="right">
-        {{currency stats.payoutProcessorFeesOther.totalInHostCurrency currency=host.currency precision=2}}
+        {{currency stats.payoutProcessorFeesTransferWise currency=host.currency precision=2}} </td>
+    </tr>
+    <tr class="indent1">
+      <td>Other payment processor fees</td>
+      <td></td>
+      <td align="right">
+        {{currency stats.payoutProcessorFeesOther currency=host.currency precision=2}}
       </td>
     </tr>
+    {{#if stats.numberOtherDebits}}
+    <tr>
+      <td colspan=3 height=10></td>
+    </tr>
+    <tr>
+      <td>Other Debits</td>
+      <td></td>
+      <td align="right">{{currency stats.totalAmountOtherDebits currency=host.currency precision=2}}
+      </td>
+    </tr>
+    <tr>
+      <td colspan=3 class="muted">Donations to Other Collectives, Internal Transactions, Refunds...</td>
+    </tr>
+    {{#if stats.platformFeesOtherDebits}}
+    <tr class="indent1">
+      <td>Platform fees</td>
+      <td></td>
+      <td align="right">
+        {{currency stats.platformFeesOtherDebits currency=host.currency precision=2}}
+      </td>
+    </tr>
+    {{/if}}
+    {{#if stats.aymentProcessorFeesOtherDebits}}
+    <tr class="indent1">
+      <td>Payment processor fees</td>
+      <td></td>
+      <td align="right">
+        {{currency stats.paymentProcessorFeesOtherDebits currency=host.currency precision=2}}
+      </td>
+    </tr>
+    {{/if}}
+    {{/if}}
     <tr>
       <td colspan=2></td>
       <td height=10 class="line">
@@ -253,7 +333,7 @@ Subject: {{host.name}} Host {{reportName}}
     <tr>
       <td>Total amount spent</td>
       <td></td>
-      <td align="right">{{currency stats.totalAmountSpent.totalInHostCurrency currency=host.currency precision=2}}
+      <td align="right">{{currency stats.totalAmountSpent currency=host.currency precision=2}}
       </td>
     </tr>
     <tr>

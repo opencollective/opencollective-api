@@ -38,7 +38,7 @@ paymentMethodProvider.processOrder = async order => {
   // of the collective for display purposes (using the fxrate at the time of display)
   // Anyway, until we change that, when we give money to a collective that has a different currency
   // we need to compute the equivalent using the fxrate of the day
-  const fxrate = await getFxRate(order.currency, order.paymentMethod.currency);
+  const fxrate = await getFxRate(order.currency, collectiveHost.currency);
   const totalAmountInPaymentMethodCurrency = order.totalAmount * fxrate;
 
   const hostFeeInHostCurrency = calcFee(order.totalAmount * fxrate, hostFeePercent);
