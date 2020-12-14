@@ -993,6 +993,7 @@ type CollectiveFeatures {
   PAYPAL_PAYOUTS: CollectiveFeatureStatus
   PAYPAL_DONATIONS: CollectiveFeatureStatus
   HOST_DASHBOARD: CollectiveFeatureStatus
+  CONNECTED_ACCOUNTS: CollectiveFeatureStatus
 }
 
 enum CollectiveFeatureStatus {
@@ -5127,11 +5128,11 @@ type Mutation {
   ): Individual!
 
   """
-  Add 2FA to the Account if it does not have it
+  Remove 2FA from the Account if it has been enabled
   """
   removeTwoFactorAuthTokenFromIndividual(
     """
-    Account that will have 2FA added to it
+    Account that will have 2FA removed from it
     """
     account: AccountReferenceInput!
 
