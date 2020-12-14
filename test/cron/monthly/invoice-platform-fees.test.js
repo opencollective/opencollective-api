@@ -3,14 +3,7 @@ import moment from 'moment';
 
 import { run as invoicePlatformFees } from '../../../cron/monthly/invoice-platform-fees';
 import { sequelize } from '../../../server/models';
-import {
-  fakeCollective,
-  fakeHost,
-  fakePayoutMethod,
-  fakeTransaction,
-  fakeUser,
-  multiple,
-} from '../../test-helpers/fake-data';
+import { fakeCollective, fakeHost, fakePayoutMethod, fakeTransaction, fakeUser } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
 describe('cron/monthly/invoice-platform-fees', () => {
@@ -20,18 +13,13 @@ describe('cron/monthly/invoice-platform-fees', () => {
   before(async () => {
     await utils.resetTestDB();
     const user = await fakeUser({ id: 30 }, { id: 20, slug: 'pia' });
-    const inc = await fakeHost({ id: 8686, slug: 'opencollectiveinc', CreatedByUserId: user.id });
-    const opencollective = await fakeCollective({
-      id: 1,
-      slug: 'opencollective',
-      CreatedByUserId: user.id,
-      HostCollectiveId: inc.id,
-    });
+    const oc = await fakeHost({ id: 8686, slug: 'opencollective', CreatedByUserId: user.id });
+
     // Move Collectives ID auto increment pointer up, so we don't collide with the manually created id:1
     await sequelize.query(`ALTER SEQUENCE "Collectives_id_seq" RESTART WITH 1453`);
     await fakePayoutMethod({
       id: 2955,
-      CollectiveId: inc.id,
+      CollectiveId: oc.id,
       type: 'BANK_ACCOUNT',
     });
 
@@ -72,7 +60,7 @@ describe('cron/monthly/invoice-platform-fees', () => {
     const t = await fakeTransaction(transactionProps);
     await fakeTransaction({
       type: 'CREDIT',
-      CollectiveId: opencollective.id,
+      CollectiveId: oc.id,
       amount: 1000,
       currency: 'USD',
       data: { hostToPlatformFxRate: 1.23 },
