@@ -10,7 +10,6 @@ env:
   NODE_ENV: ci # TODO: should be ideally development, test or production
   PGHOST: localhost
   PGUSER: postgres
-  ENABLE_GUEST_CONTRIBUTIONS: true
   WEBSITE_URL: http://localhost:3000
   IMAGES_URL: http://localhost:3001
   API_URL: http://localhost:3060
