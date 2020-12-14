@@ -127,7 +127,7 @@
     "fake-tag": "^2.0.0",
     "geoip-lite": "^1.4.2",
     "get-urls": "^10.0.0",
-    "husky": "^4.3.5",
+    "husky": "^4.3.6",
     "lint-staged": "^10.5.3",
     "maildev": "^1.1.0",
     "mocha": "^8.2.1",
