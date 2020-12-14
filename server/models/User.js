@@ -339,7 +339,7 @@ export default (Sequelize, DataTypes) => {
   };
 
   User.prototype.isRoot = function () {
-    const result = this.hasRole([roles.ADMIN], 1);
+    const result = this.hasRole([roles.ADMIN], 1) || this.hasRole([roles.ADMIN], 8686);
     debug('isRoot?', result);
     return result;
   };

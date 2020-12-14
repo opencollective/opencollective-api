@@ -1070,13 +1070,7 @@ describe('server/models/Collective', () => {
     before(async () => {
       await utils.resetTestDB();
       const user = await fakeUser({ id: 30 }, { id: 20, slug: 'pia' });
-      const inc = await fakeHost({ id: 8686, slug: 'opencollectiveinc', CreatedByUserId: user.id });
-      const opencollective = await fakeCollective({
-        id: 1,
-        slug: 'opencollective',
-        CreatedByUserId: user.id,
-        HostCollectiveId: inc.id,
-      });
+      const opencollective = await fakeHost({ id: 8686, slug: 'opencollective', CreatedByUserId: user.id });
       // Move Collectives ID auto increment pointer up, so we don't collide with the manually created id:1
       await sequelize.query(`ALTER SEQUENCE "Collectives_id_seq" RESTART WITH 1453`);
       await fakePayoutMethod({
@@ -1119,7 +1113,7 @@ describe('server/models/Collective', () => {
       await fakeTransaction({
         type: 'CREDIT',
         CollectiveId: opencollective.id,
-        HostCollectiveId: inc.id,
+        HostCollectiveId: opencollective.id,
         amount: 100,
         currency: 'USD',
         data: { hostToPlatformFxRate: 1.23 },
@@ -1129,7 +1123,7 @@ describe('server/models/Collective', () => {
       await fakeTransaction({
         type: 'CREDIT',
         CollectiveId: opencollective.id,
-        HostCollectiveId: inc.id,
+        HostCollectiveId: opencollective.id,
         amount: 300,
         currency: 'USD',
         data: { hostToPlatformFxRate: 1.2 },
