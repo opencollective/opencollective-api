@@ -104,9 +104,6 @@
     "clientID": "UNDEFINED_GITHUB_CLIENT_ID",
     "clientSecret": "UNDEFINED_GITHUB_CLIENT_SECRET"
   },
-  "algolia": {
-    "index": "dvl_collectives"
-  },
   "stripe": {
     "accountId": "acct_15vekcDjPFcHOcTm",
     "clientId": "ca_68FQcZXEcV66Kjg7egLnR1Ce87cqwoue",
