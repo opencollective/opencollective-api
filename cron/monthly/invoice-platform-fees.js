@@ -372,16 +372,16 @@ export async function run() {
       let PayoutMethod =
         payoutMethods[PayoutMethodTypes.OTHER]?.[0] || payoutMethods[PayoutMethodTypes.BANK_ACCOUNT]?.[0];
       if (
-        connectedAccounts?.find?.(c => c.service === 'paypal') &&
+        connectedAccounts?.find(c => c.service === 'transferwise') &&
+        payoutMethods[PayoutMethodTypes.BANK_ACCOUNT]?.[0]
+      ) {
+        PayoutMethod = payoutMethods[PayoutMethodTypes.BANK_ACCOUNT]?.[0];
+      } else if (
+        connectedAccounts?.find(c => c.service === 'paypal') &&
         !host.settings?.disablePaypalPayouts &&
         payoutMethods[PayoutMethodTypes.PAYPAL]?.[0]
       ) {
         PayoutMethod = payoutMethods[PayoutMethodTypes.PAYPAL]?.[0];
-      } else if (
-        connectedAccounts?.find?.(c => c.service === 'transferwise') &&
-        payoutMethods[PayoutMethodTypes.BANK_ACCOUNT]?.[0]
-      ) {
-        PayoutMethod = payoutMethods[PayoutMethodTypes.BANK_ACCOUNT]?.[0];
       }
 
       // Create the Expense
