@@ -1,11 +1,11 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { find, get, mapValues } from 'lodash';
+import { find, get, keyBy, mapValues } from 'lodash';
 
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import models, { Op, sequelize } from '../../../models';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import TransferwiseLib from '../../../paymentProviders/transferwise';
-import { AccountCollection } from '../collection/AccountCollection';
+import { HostApplicationCollection } from '../collection/HostApplicationCollection';
 import { PaymentMethodType, PayoutMethodType } from '../enum';
 import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
 import { Account, AccountFields } from '../interface/Account';
@@ -156,7 +156,7 @@ export const Host = new GraphQLObjectType({
         },
       },
       pendingApplications: {
-        type: new GraphQLNonNull(AccountCollection),
+        type: new GraphQLNonNull(HostApplicationCollection),
         description: 'Pending applications for this host',
         args: {
           ...CollectionArgs,
@@ -197,7 +197,28 @@ export const Host = new GraphQLObjectType({
             order: [[args.orderBy.field, args.orderBy.direction]],
           });
 
-          return { nodes: result.rows, totalCount: result.count, limit: args.limit, offset: args.offset };
+          // Link applications to collectives
+          const collectiveIds = result.rows.map(collective => collective.id);
+          const applications = await models.HostApplication.findAll({
+            order: [['updatedAt', 'DESC']],
+            where: {
+              HostCollectiveId: host.id,
+              status: 'PENDING',
+              CollectiveId: collectiveIds ? { [Op.in]: collectiveIds } : undefined,
+            },
+          });
+          const groupedApplications = keyBy(applications, 'CollectiveId');
+          const nodes = result.rows.map(collective => {
+            const application = groupedApplications[collective.id];
+            if (application) {
+              application.collective = collective;
+              return application;
+            } else {
+              return { collective };
+            }
+          });
+
+          return { totalCount: result.count, limit: args.limit, offset: args.offset, nodes };
         },
       },
     };

@@ -28,6 +28,10 @@ export const IsMemberOfFields = {
         type: GraphQLBoolean,
         description: 'Filter on (un)approved collectives',
       },
+      isArchived: {
+        type: GraphQLBoolean,
+        description: 'Filter on archived collectives',
+      },
       includeIncognito: {
         type: GraphQLBoolean,
         defaultValue: true,
@@ -102,6 +106,9 @@ export const IsMemberOfFields = {
 
       if (!isNil(args.isApproved)) {
         collectiveConditions.approvedAt = { [args.isApproved ? Op.not : Op.is]: null };
+      }
+      if (!isNil(args.isArchived)) {
+        collectiveConditions.deactivatedAt = { [args.isArchived ? Op.not : Op.is]: null };
       }
 
       const result = await models.Member.findAndCountAll({

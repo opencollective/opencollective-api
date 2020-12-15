@@ -1947,7 +1947,13 @@ export default function (Sequelize, DataTypes) {
               'githubHandle',
             ]),
           },
+          application: {
+            message: options?.message,
+          },
         };
+
+        // Record application
+        promises.push(models.HostApplication.recordApplication(hostCollective, this, { message: options?.message }));
 
         if (!options?.skipCollectiveApplyActivity) {
           promises.push(
@@ -1992,7 +1998,7 @@ export default function (Sequelize, DataTypes) {
    * @param {*} newHostCollective: { id }
    * @param {*} remoteUser { id }
    */
-  Collective.prototype.changeHost = async function (newHostCollectiveId, remoteUser) {
+  Collective.prototype.changeHost = async function (newHostCollectiveId, remoteUser, message) {
     const balance = await this.getBalance();
     if (balance > 0) {
       throw new Error(`Unable to change host: you still have a balance of ${formatCurrency(balance, this.currency)}`);
@@ -2004,6 +2010,7 @@ export default function (Sequelize, DataTypes) {
         role: roles.HOST,
       },
     });
+
     if (membership) {
       await membership.destroy();
     }
@@ -2037,7 +2044,7 @@ export default function (Sequelize, DataTypes) {
       if (!newHostCollective.isHostAccount) {
         await newHostCollective.becomeHost({ remoteUser });
       }
-      return this.addHost(newHostCollective, remoteUser);
+      return this.addHost(newHostCollective, remoteUser, { message });
     } else {
       // if we remove the host
       return this.save();
