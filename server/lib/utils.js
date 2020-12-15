@@ -6,7 +6,7 @@ import { URL } from 'url';
 import Promise from 'bluebird';
 import config from 'config';
 import pdf from 'html-pdf';
-import { cloneDeep, get, isEqual, padStart } from 'lodash';
+import { cloneDeep, filter, get, isEqual, padStart, sumBy } from 'lodash';
 import sanitizeHtml from 'sanitize-html';
 
 import errors from './errors';
@@ -636,3 +636,5 @@ export const getTokenFromRequestHeaders = req => {
 
   return token;
 };
+
+export const sumByWhen = (vector, iteratee, predicate) => sumBy(filter(vector, predicate), iteratee);

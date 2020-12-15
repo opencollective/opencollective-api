@@ -4400,7 +4400,7 @@ type HostMetrics {
   """
   Amount in host fee shared with the platform
   """
-  hostFeeCharge: Amount
+  hostFeeShare: Amount
 
   """
   Total amount managed on behalf of hosted collectives
@@ -4410,7 +4410,7 @@ type HostMetrics {
   """
   Host fee sharing percent
   """
-  hostFeeChargePercent: Int
+  hostFeeSharePercent: Int
 }
 
 """

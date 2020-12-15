@@ -210,6 +210,62 @@ export async function run() {
       )
     ORDER BY
       t."createdAt"
+    ),
+    "tipPaymentProcessorFee" AS (
+      SELECT
+        t."createdAt",
+        t.description,
+        round(t."paymentProcessorFeeInHostCurrency"::float / COALESCE((t."data"->>'hostToPlatformFxRate')::float, 1)) AS "amount",
+        ot."hostCurrency" AS "currency",
+        ot."CollectiveId",
+        c."slug" AS "CollectiveSlug",
+        ot."HostCollectiveId",
+        h."name" AS "HostName",
+        ot."OrderId",
+        t.id AS "TransactionId",
+        t.data,
+        pm."service" AS "PaymentService",
+        spm."service" AS "SourcePaymentService",
+        'Reimburse: Payment Processor Fee for collected Platform Tips'::TEXT AS "source",
+        h.plan,
+        CASE
+          WHEN h."isActive" THEN h.id
+          ELSE (
+            h."settings"->'hostCollective'->>'id'
+          )::INT
+        END AS "chargedHostId"
+      FROM
+        "Transactions" t
+      LEFT JOIN "Transactions" ot ON
+        t."PlatformTipForTransactionGroup"::uuid = ot."TransactionGroup"
+        AND ot.type = 'CREDIT'
+        AND ot."PlatformTipForTransactionGroup" IS NULL
+      LEFT JOIN "Collectives" h ON
+        ot."HostCollectiveId" = h.id
+      LEFT JOIN "Collectives" c ON
+        ot."CollectiveId" = c.id
+      LEFT JOIN "PaymentMethods" pm ON
+        t."PaymentMethodId" = pm.id
+      LEFT JOIN "PaymentMethods" spm ON
+        spm.id = pm."SourcePaymentMethodId"
+      WHERE
+        t."createdAt" >= date_trunc('month',  NOW() - INTERVAL '1 month')
+        AND t."createdAt" < date_trunc('month',  NOW())
+        AND t."deletedAt" IS NULL
+        AND t."CollectiveId" = 8686
+        AND t."PlatformTipForTransactionGroup" IS NOT NULL
+        AND t."type" = 'CREDIT'
+        AND ot."HostCollectiveId" NOT IN (8686)
+        AND (
+          pm."service" = 'stripe'
+          OR spm.service = 'stripe'
+        )
+        AND (
+          h."type" = 'ORGANIZATION'
+          AND h."isHostAccount" = TRUE
+        )
+      ORDER BY
+        t."createdAt"
     )
 
     SELECT
@@ -225,7 +281,12 @@ export async function run() {
     SELECT
       *
     FROM
-      "sharedRevenue";
+      "sharedRevenue"
+    UNION
+    SELECT
+      *
+    FROM
+      "tipPaymentProcessorFee";
   `,
     { replacements: { date: date.format('L') } },
   );
@@ -262,7 +323,9 @@ export async function run() {
 
     const transactionIds = transactions.map(t => t.TransactionId);
     const totalAmountCredited = sumBy(
-      items.filter(i => i.description != 'Shared Revenue'),
+      items
+        .filter(i => i.description != 'Shared Revenue')
+        .filter(i => i.description != 'Reimburse: Payment Processor Fee for collected Platform Tips'),
       'amount',
     );
     const totalAmountCharged = sumBy(items, 'amount');
@@ -309,16 +372,16 @@ export async function run() {
       let PayoutMethod =
         payoutMethods[PayoutMethodTypes.OTHER]?.[0] || payoutMethods[PayoutMethodTypes.BANK_ACCOUNT]?.[0];
       if (
-        connectedAccounts?.find?.(c => c.service === 'paypal') &&
+        connectedAccounts?.find(c => c.service === 'transferwise') &&
+        payoutMethods[PayoutMethodTypes.BANK_ACCOUNT]?.[0]
+      ) {
+        PayoutMethod = payoutMethods[PayoutMethodTypes.BANK_ACCOUNT]?.[0];
+      } else if (
+        connectedAccounts?.find(c => c.service === 'paypal') &&
         !host.settings?.disablePaypalPayouts &&
         payoutMethods[PayoutMethodTypes.PAYPAL]?.[0]
       ) {
         PayoutMethod = payoutMethods[PayoutMethodTypes.PAYPAL]?.[0];
-      } else if (
-        connectedAccounts?.find?.(c => c.service === 'transferwise') &&
-        payoutMethods[PayoutMethodTypes.BANK_ACCOUNT]?.[0]
-      ) {
-        PayoutMethod = payoutMethods[PayoutMethodTypes.BANK_ACCOUNT]?.[0];
       }
 
       // Create the Expense
