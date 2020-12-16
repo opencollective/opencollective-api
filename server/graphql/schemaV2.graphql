@@ -477,6 +477,21 @@ enum ActivityType {
 }
 
 """
+Response for the addTwoFactorAuthTokenToIndividual mutation
+"""
+type AddTwoFactorAuthTokenToIndividualResponse {
+  """
+  The Individual that the 2FA has been enabled for
+  """
+  account: Individual!
+
+  """
+  The recovery codes for the Individual to write down
+  """
+  recoveryCodes: [String]
+}
+
+"""
 A financial amount.
 """
 type Amount {
@@ -5247,22 +5262,22 @@ type Mutation {
   ): Account!
 
   """
-  Add 2FA to the Account if it does not have it
+  Add 2FA to the Individual if it does not have it
   """
   addTwoFactorAuthTokenToIndividual(
     """
-    Account that will have 2FA added to it
+    Individual that will have 2FA added to it
     """
     account: AccountReferenceInput!
 
     """
-    The generated secret to save to the Account
+    The generated secret to save to the Individual
     """
     token: String!
-  ): Individual!
+  ): AddTwoFactorAuthTokenToIndividualResponse!
 
   """
-  Remove 2FA from the Account if it has been enabled
+  Remove 2FA from the Individual if it has been enabled
   """
   removeTwoFactorAuthTokenFromIndividual(
     """
@@ -5710,7 +5725,7 @@ input OrderTaxInput {
   """
   Country of the account ordering, to know from where to apply the tax
   """
-  country: CountryISO!
+  country: CountryISO
 
   """
   Tax identification number, if any
