@@ -10,7 +10,6 @@ import helmet from 'helmet';
 import { get, has } from 'lodash';
 import passport from 'passport';
 import { Strategy as GitHubStrategy } from 'passport-github';
-import { Strategy as MeetupStrategy } from 'passport-meetup-oauth2';
 import { Strategy as TwitterStrategy } from 'passport-twitter';
 import redis from 'redis';
 
@@ -70,11 +69,6 @@ export default async function (app) {
     passport.use(new GitHubStrategy(get(config, 'github'), verify));
   } else {
     logger.info('Configuration missing for passport GitHubStrategy, skipping.');
-  }
-  if (has(config, 'meetup.clientID') && has(config, 'meetup.clientSecret')) {
-    passport.use(new MeetupStrategy(get(config, 'meetup'), verify));
-  } else {
-    logger.info('Configuration missing for passport MeetupStrategy, skipping.');
   }
   if (has(config, 'twitter.consumerKey') && has(config, 'twitter.consumerSecret')) {
     passport.use(new TwitterStrategy(get(config, 'twitter'), verify));

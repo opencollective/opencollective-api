@@ -33,8 +33,6 @@
 | SLACK_WEBHOOK_ABUSE                 | .slack.webhooks.abuse                       | slack abuse webhook url                                                        |
 | GITHUB_CLIENT_ID                    | .github.clientId                            | github client ID                                                               |
 | GITHUB_CLIENT_SECRET                | .github.clientSecret                        | github client secret                                                           |
-| MEETUP_CLIENT_ID                    | .meetup.clientId                            | meetup client ID                                                               |
-| MEETUP_CLIENT_SECRET                | .meetup.clientSecret                        | meetup client secret                                                           |
 | TWITTER_CONSUMER_KEY                | .twitter.consumerKey                        | twitter key                                                                    |
 | TWITTER_CONSUMER_SECRET             | .twitter.consumerSecret                     | twitter secret                                                                 |
 | FOREST_AUTH_SECRET                  |                                             | forest auth secret                                                             |

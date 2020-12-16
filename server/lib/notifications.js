@@ -411,14 +411,6 @@ async function notifyByEmail(activity) {
       break;
 
     case activityType.COLLECTIVE_CREATED:
-      // Meetups
-      if ((get(activity, 'data.collective.tags') || []).includes('meetup')) {
-        notifyAdminsOfCollective(activity.data.collective.id, activity, {
-          template: 'collective.created.meetup',
-        });
-        break;
-      }
-
       // Funds MVP
       if (get(activity, 'data.collective.type') === 'FUND' || get(activity, 'data.collective.settings.fund') === true) {
         if (get(activity, 'data.host.slug') === 'foundation') {

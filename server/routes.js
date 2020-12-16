@@ -234,7 +234,7 @@ export default app => {
    */
   app.get('/connected-accounts/:service(github)', noCache, authentication.authenticateService); // backward compatibility
   app.get(
-    '/connected-accounts/:service(github|twitter|meetup|stripe|paypal)/oauthUrl',
+    '/connected-accounts/:service(github|twitter|stripe|paypal)/oauthUrl',
     noCache,
     authentication.authenticateService,
   );

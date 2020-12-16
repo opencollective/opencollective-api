@@ -71,45 +71,9 @@ import { PayoutMethodTypes } from './PayoutMethod';
 
 const debug = debugLib('models:Collective');
 
-export const defaultTiers = (HostCollectiveId, currency) => {
-  const tiers = [];
-
-  if (HostCollectiveId === 858) {
-    // if request coming from opencollective.com/meetups
-    tiers.push({
-      type: 'TIER',
-      name: '1 month',
-      description:
-        'Sponsor our meetup and get: a shout-out on social media, presence on the merch table and your logo on our meetup page.',
-      slug: '1month-sponsor',
-      amount: 25000,
-      button: 'become a sponsor',
-      currency: currency,
-    });
-    tiers.push({
-      type: 'TIER',
-      name: '3 months',
-      description:
-        '**10% off!** - Sponsor our meetup and get: a shout-out on social media, presence on the merch table and your logo on our meetup page.',
-      slug: '3month-sponsor',
-      amount: 67500,
-      button: 'become a sponsor',
-      currency: currency,
-    });
-    tiers.push({
-      type: 'TIER',
-      name: '6 months',
-      description:
-        '**20% off!** - Sponsor our meetup and get: a shout-out on social media, presence on the merch table and your logo on our meetup page.',
-      slug: '6month-sponsor',
-      amount: 120000,
-      button: 'become a sponsor',
-      currency: currency,
-    });
-    return tiers;
-  }
-  if (tiers.length === 0) {
-    tiers.push({
+const defaultTiers = currency => {
+  return [
+    {
       type: 'TIER',
       name: 'backer',
       slug: 'backers',
@@ -119,8 +83,8 @@ export const defaultTiers = (HostCollectiveId, currency) => {
       currency: currency,
       minimumAmount: 500,
       amountType: 'FLEXIBLE',
-    });
-    tiers.push({
+    },
+    {
       type: 'TIER',
       name: 'sponsor',
       slug: 'sponsors',
@@ -130,9 +94,8 @@ export const defaultTiers = (HostCollectiveId, currency) => {
       currency: currency,
       minimumAmount: 10000,
       amountType: 'FLEXIBLE',
-    });
-  }
-  return tiers;
+    },
+  ];
 };
 
 const validTypes = ['USER', 'COLLECTIVE', 'ORGANIZATION', 'EVENT', 'PROJECT', 'FUND', 'BOT'];
@@ -1912,7 +1875,7 @@ export default function (Sequelize, DataTypes) {
     if (this.type === types.COLLECTIVE) {
       let tiers = await this.getTiers();
       if (!tiers || tiers.length === 0) {
-        tiers = defaultTiers(hostCollective.id, hostCollective.currency);
+        tiers = defaultTiers(hostCollective.currency);
         promises.push(models.Tier.createMany(tiers, { CollectiveId: this.id }));
       } else {
         // if the collective already had some tiers, we delete the ones that don't have the same currency

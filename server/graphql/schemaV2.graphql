@@ -1195,8 +1195,8 @@ enum ConnectedAccountService {
   stripe
   github
   twitter
-  meetup
   transferwise
+  meetup @deprecated(reason: "Not using this service anymore")
 }
 
 enum ContributionFrequency {

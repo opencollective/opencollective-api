@@ -217,10 +217,6 @@ export const authenticateService = (req, res, next) => {
       .catch(next);
   }
 
-  if (service === 'meetup') {
-    opts.scope = 'ageless';
-  }
-
   return passport.authenticate(service, opts)(req, res, next);
 };
 
