@@ -1689,7 +1689,7 @@ export default function (Sequelize, DataTypes) {
   Collective.prototype.getTotalMoneyManaged = async function (until) {
     const hostedCollectives = await this.getHostedCollectives();
     const ids = hostedCollectives.map(c => c.id);
-    const balances = await queries.getBalances(ids, until.toString());
+    const balances = await queries.getBalances(ids, until.toISOString());
     return sumBy(balances, 'balance');
   };
 
