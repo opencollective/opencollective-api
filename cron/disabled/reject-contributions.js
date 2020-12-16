@@ -81,6 +81,7 @@ async function run({ dryRun, limit, force } = {}) {
         createdAt: { [Op.gte]: sequelize.literal("NOW() - INTERVAL '30 days'") },
       },
       order: [['createdAt', 'DESC']],
+      include: [models.PaymentMethod],
     });
 
     if (transaction) {
@@ -88,10 +89,9 @@ async function run({ dryRun, limit, force } = {}) {
       // Refund transaction if not already refunded
       if (!transaction.RefundTransactionId) {
         logger.info(`  - Refunding transaction`);
-        const paymentMethod = transaction.PaymentMethodId
-          ? await models.PaymentMethod.findByPk(transaction.PaymentMethodId)
+        const paymentMethodProvider = transaction.PaymentMethod
+          ? libPayments.findPaymentMethodProvider(transaction.PaymentMethod)
           : null;
-        const paymentMethodProvider = paymentMethod ? libPayments.findPaymentMethodProvider(paymentMethod) : null;
         if (!paymentMethodProvider || !paymentMethodProvider.refundTransaction) {
           if (force) {
             logger.info(`  - refundTransaction not available. Creating refundTransaction in the database only.`);
