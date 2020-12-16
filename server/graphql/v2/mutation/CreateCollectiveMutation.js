@@ -1,4 +1,4 @@
-import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
+import { GraphQLBoolean, GraphQLNonNull, GraphQLString } from 'graphql';
 import { get, pick } from 'lodash';
 
 import activities from '../../../constants/activities';
@@ -89,7 +89,7 @@ async function createCollective(_, args, req) {
 
   // Add the host if any
   if (host) {
-    await collective.addHost(host, remoteUser, { shouldAutomaticallyApprove });
+    await collective.addHost(host, remoteUser, { shouldAutomaticallyApprove, message: args.message });
     purgeCacheForCollective(host.slug);
   }
 
@@ -129,6 +129,10 @@ const createCollectiveMutation = {
       description: 'Wether to trigger the automated approval for Open Source collectives with GitHub.',
       type: GraphQLBoolean,
       defaultValue: false,
+    },
+    message: {
+      type: GraphQLString,
+      description: 'A message to attach for the host to review the application',
     },
   },
   resolve: (_, args, req) => {
