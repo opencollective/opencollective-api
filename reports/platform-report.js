@@ -1,6 +1,7 @@
 import debugLib from 'debug';
 import moment from 'moment';
 
+import plans, { SHARED_REVENUE_PLANS } from '../server/constants/plans';
 import MemberRoles from '../server/constants/roles.ts';
 import { reduceArrayToCurrency } from '../server/lib/currency';
 import emailLib from '../server/lib/email';
@@ -176,17 +177,46 @@ async function PlatformReport(year, month) {
           COALESCE(sum("feeOnTopPaypal"), 0) + COALESCE(sum("feeOnTopBankTransfers"), 0) + COALESCE(sum("feeOnTopStripe"), 0) + COALESCE(sum("feeOnTopManual"), 0) as "feesOnTop"
         FROM "feesOnTopTransactions"
         GROUP BY "HostCollectiveId"
+      ),
+      "sharedRevenue" AS (
+        SELECT
+          t."HostCollectiveId",
+          SUM(-t."hostFeeInHostCurrency") AS "sharedRevenueTotal",
+          SUM(CASE WHEN t."data"->>'settled' = 'true' THEN -t."hostFeeInHostCurrency" ELSE 0 END) AS "sharedRevenueSettled",
+          SUM(CASE WHEN t."data"->>'settled' IS NULL THEN -t."hostFeeInHostCurrency" ELSE 0 END) AS "sharedRevenueDue"
+        FROM
+          "Transactions" t
+        LEFT JOIN "Collectives" h ON h."id" = t."HostCollectiveId" 
+        WHERE
+          t."createdAt" >= date_trunc('month', NOW() - INTERVAL '1 month')
+          AND t."createdAt" < date_trunc('month', NOW())
+          AND t."deletedAt" IS NULL
+          AND t."type" = 'CREDIT'
+          AND t."hostFeeInHostCurrency" != 0
+          -- Ignore transactions that incurred in platformFee
+          AND t."platformFeeInHostCurrency" = 0
+          -- Ignore opensource and foundation:
+          AND t."HostCollectiveId" != 8686
+          AND (
+            h."type" = 'ORGANIZATION'
+            AND h."isHostAccount" = TRUE
+            AND h."plan" IN ('${SHARED_REVENUE_PLANS.join("', '")}')
+          )
+          GROUP BY t."HostCollectiveId", t."hostCurrency" 
       )
 
       SELECT
         hc.slug as "host",
         hc.currency,
+        hc.plan,
         d.*,
         stats.*,
-        fot.*
+        fot.*,
+        sr.*
       FROM "donationsData" d
       LEFT JOIN "hostedCollectivesStats" stats ON d."HostCollectiveId" = stats."HostCollectiveId"
       LEFT JOIN "feesOnTopByHost" fot ON fot."HostCollectiveId" = d."HostCollectiveId"
+      LEFT JOIN "sharedRevenue" sr ON sr."HostCollectiveId" = d."HostCollectiveId"
       LEFT JOIN "Collectives" hc ON hc.id = d."HostCollectiveId"
       WHERE (d."platformFees" > 0 OR fot."feesOnTop" > 0)
       ORDER BY d."totalRevenue" DESC
@@ -195,12 +225,21 @@ async function PlatformReport(year, month) {
     );
 
     hosts = hosts.map(host => {
+      const hostFeeSharePercent = plans[host.plan]?.hostFeeSharePercent || 0;
       const isUSD = host.currency === 'USD';
+      const totalSharedRevenueSettled = hostFeeSharePercent && (host.sharedRevenueSettled * hostFeeSharePercent) / 100;
+      const totalSharedRevenueDue = hostFeeSharePercent && (host.sharedRevenueDue * hostFeeSharePercent) / 100;
+      const totalSharedRevenue = hostFeeSharePercent && (host.sharedRevenueTotal * hostFeeSharePercent) / 100;
+      const platformFeesDue = host.platformFeesDue + totalSharedRevenueDue;
       return {
         ...host,
         isUSD,
         totalFeesDue: isUSD ? (host.feesOnTopDue || 0) + host.platformFeesDue : null,
-        hasFeesDue: host.feesOnTopDue > 0 || host.platformFeesDue > 0,
+        hasFeesDue: host.feesOnTopDue > 0 || platformFeesDue > 0,
+        platformFeesDue,
+        totalSharedRevenueSettled,
+        totalSharedRevenueDue,
+        totalSharedRevenue: totalSharedRevenue,
       };
     });
 
