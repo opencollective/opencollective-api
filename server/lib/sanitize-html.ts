@@ -147,19 +147,26 @@ export const generateSummaryForHTML = (content: string, maxLength = 255): string
   // Trim: `<strong> Test with   spaces </strong>` ==> <strong>Test with spaces</strong>
   const trimmed = sanitized.trim().replace('\n', ' ').replace(/\s+/g, ' ');
 
-  // Truncate
-  const truncated = truncate(trimmed, { length: maxLength, omission: '' });
-
-  // Second sanitize pass: an additional precaution in case someones finds a way to play with the trimmed version
-  const secondSanitized = sanitizeHTML(truncated, optsSanitizeSummary);
-
   const isTruncated = trimmed.length > maxLength;
+
+  let cutLength = maxLength;
+  let summary = trimmed;
+
+  while (summary.length > maxLength) {
+    // Truncate
+    summary = truncate(summary, { length: cutLength, omission: '' });
+
+    // Second sanitize pass: an additional precaution in case someones finds a way to play with the trimmed version
+    summary = sanitizeHTML(summary, optsSanitizeSummary);
+
+    cutLength--;
+  }
 
   // Check to see if the second sanitization cuts a html tag in the middle
   if (isTruncated) {
-    return `${secondSanitized.trim()}...`;
+    return `${summary.trim()}...`;
   } else {
-    return secondSanitized;
+    return summary;
   }
 };
 
