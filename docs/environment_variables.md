@@ -15,6 +15,7 @@
 | STRIPE_CLIENT_ID                    | .stripe.client_id                           | Stripe Client id                                                               |
 | STRIPE_KEY                          | .stripe.key                                 | Stripe key                                                                     |
 | STRIPE_SECRET                       | .stripe.secret                              | Stripe secret                                                                  |
+| SENTRY_DSN                          | .sentry.dsn                                 | Sentry DSN                                                                     |
 | AWS_KEY                             | .aws.s3.key                                 | AWS key                                                                        |
 | AWS_SECRET                          | .aws.s3.secret                              | AWS secret                                                                     |
 | AWS_S3_BUCKET                       | .aws.s3.bucket                              | AWS s3 bucket to send files                                                    |
