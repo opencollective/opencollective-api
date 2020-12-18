@@ -174,9 +174,13 @@ describe('server/lib/sanitize-html', () => {
     });
 
     it("Doesn't cut anchors", () => {
-      expect(generateSummaryForHTML("I'd like to say <strong>Hello World</strong>", 30)).to.to.eq(
-        "I'd like to say <strong>Hello </strong>...",
+      expect(generateSummaryForHTML('Hey, Hi <strong>Hello World</strong>', 30)).to.to.eq(
+        'Hey, Hi <strong>Hello</strong>...',
       );
+    });
+
+    it('Handle length properly with anchors', () => {
+      expect(generateSummaryForHTML("I'd like to say <strong>Hello World</strong>", 30)).to.have.lengthOf.at.most(33);
     });
 
     it('Adds separator after titles', () => {
@@ -198,6 +202,13 @@ describe('server/lib/sanitize-html', () => {
       ).to.eq(
         `After a much ado, we created an easy way to donate to <a href="${config.host.website}/redirect?url=https%3A%2F%2Fsagemath.org" target="_blank">SageMath</a> project. Donations are US tax (IRC 501(c)(6)) deductible.`,
       );
+    });
+
+    it('Handles utf-8 strings properly', () => {
+      const frenchSample = `Une communauté, c'est de la confiance et du partage. Open Collective vous permet de gérer vos finances pour que tout le monde puisse voir d'où vient l'argent et où il va. Collectez et dépensez de l'argent de manière transparente. Recevez des fonds par carte de crédit, Paypal ou virement bancaire et enregistrez tout dans votre budget transparent. Définissez différentes façons de contribuer avec des niveaux et des récompenses personnalisables.`;
+      for (const sampleLength of [40, 100, 240]) {
+        expect(generateSummaryForHTML(frenchSample, sampleLength)).to.have.lengthOf.at.most(sampleLength + 3);
+      }
     });
 
     it('Truncating tags in middle works as expected', () => {
