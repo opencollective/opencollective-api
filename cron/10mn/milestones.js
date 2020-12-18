@@ -97,6 +97,11 @@ const processNewMembersCount = async newMembersCount => {
     collective,
     dataValues: { count },
   } = newMembersCount;
+
+  if (collective.settings?.disableTweets) {
+    return;
+  }
+
   const backersCount = await collective.getBackersCount();
   if (backersCount < 10) {
     debug(`${collective.slug} only has ${backersCount} ${pluralize('backer', backersCount)}, skipping`);
