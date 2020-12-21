@@ -39,7 +39,6 @@ const FeatureAllowedForTypes = {
  */
 export const OPT_OUT_FEATURE_FLAGS = {
   [FEATURE.CONTACT_FORM]: 'settings.features.contactForm',
-  [FEATURE.CONVERSATIONS]: 'settings.features.conversations',
   [FEATURE.UPDATES]: 'settings.features.updates',
 };
 
@@ -49,6 +48,7 @@ export const OPT_IN_FEATURE_FLAGS = {
   [FEATURE.PAYPAL_PAYOUTS]: 'settings.features.paypalPayouts',
   [FEATURE.PAYPAL_DONATIONS]: 'settings.features.paypalDonations',
   [FEATURE.RECEIVE_HOST_APPLICATIONS]: 'settings.apply',
+  [FEATURE.CONVERSATIONS]: 'settings.features.conversations',
 };
 
 const FEATURES_ONLY_FOR_HOST_ORGS = new Set([
@@ -68,6 +68,8 @@ const FEATURES_ONLY_FOR_HOST_ORGS = new Set([
 const FEATURES_ONLY_FOR_HOST_USERS = new Set([FEATURE.RECEIVE_HOST_APPLICATIONS, FEATURE.HOST_DASHBOARD]);
 
 const FEATURES_ONLY_FOR_ACTIVE_ACCOUNTS = new Set([FEATURE.CONTACT_FORM]);
+
+const FEATURES_ONLY_FOR_ACTIVE_HOSTS = new Set([FEATURE.RECEIVE_EXPENSES, FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS]);
 
 const FEATURES_DISABLED_FOR_PAST_EVENTS = new Set([FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS]);
 
@@ -116,6 +118,8 @@ export const hasFeature = (collective, feature: FEATURE): boolean => {
 
   // Features only for active accounts
   if (!collective.isActive && FEATURES_ONLY_FOR_ACTIVE_ACCOUNTS.has(feature)) {
+    return false;
+  } else if (!collective.isActive && collective.isHost && FEATURES_ONLY_FOR_ACTIVE_HOSTS.has(feature)) {
     return false;
   }
 

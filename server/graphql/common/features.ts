@@ -78,6 +78,13 @@ export const getFeatureStatusResolver = (feature: FEATURE) => async (
           limit: 1,
         }),
       );
+    case FEATURE.TRANSACTIONS:
+      return checkIsActive(
+        models.Transaction.count({
+          where: { [Op.or]: { CollectiveId: collective.id, FromCollectiveId: collective.id } },
+          limit: 1,
+        }),
+      );
     default:
       return FEATURE_STATUS.ACTIVE;
   }
