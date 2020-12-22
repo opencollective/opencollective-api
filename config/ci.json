@@ -42,8 +42,5 @@
   },
   "fixer": {
     "accessKey": "UNDEFINED_FIXER_ACCESS_KEY"
-  },
-  "pdfService": {
-    "fetchTransactionsReceipts": false
   }
 }
