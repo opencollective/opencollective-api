@@ -169,5 +169,8 @@
   },
   "pdfService": {
     "fetchTransactionsReceipts": "FETCH_TRANSACTIONS_RECEIPTS"
+  },
+  "sentry": {
+    "dsn": "SENTRY_DSN"
   }
 }

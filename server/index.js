@@ -8,12 +8,14 @@ import throng from 'throng';
 
 import expressLib from './lib/express';
 import logger from './lib/logger';
+import { plugSentryToApp } from './lib/sentry';
 import routes from './routes';
 
 const workers = process.env.WEB_CONCURRENCY || 1;
 
 async function start(i) {
   const expressApp = express();
+  plugSentryToApp(expressApp); // Sentry request handler must be the first middleware on the app
 
   await expressLib(expressApp);
 
