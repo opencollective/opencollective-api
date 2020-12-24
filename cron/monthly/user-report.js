@@ -12,10 +12,9 @@ import moment from 'moment';
 
 import ORDER_STATUS from '../../server/constants/order_status';
 import roles from '../../server/constants/roles';
-import { convertToCurrency } from '../../server/lib/currency';
 import emailLib from '../../server/lib/email';
 import { getConsolidatedInvoicePdfs } from '../../server/lib/pdf';
-import { formatArrayToString, formatCurrencyObject, parseToBoolean } from '../../server/lib/utils';
+import { formatCurrencyObject, parseToBoolean } from '../../server/lib/utils';
 import models, { Op } from '../../server/models';
 
 if (parseToBoolean(process.env.SKIP_USER_REPORT) && !process.env.OFFCYCLE) {
@@ -186,16 +185,7 @@ const processBacker = async FromCollectiveId => {
       });
     }
   });
-  const stats = await computeStats(collectivesWithOrders, backerCollective.currency);
-  const relatedCollectives = await models.Collective.getCollectivesSummaryByTag(
-    stats.topTags,
-    3,
-    null,
-    0,
-    false,
-    'c."createdAt"',
-    'DESC',
-  ).then(({ collectives }) => collectives);
+  const stats = await computeStats(collectivesWithOrders);
 
   // monthlyConsolidatedInvoices is array of attachments
   const monthlyConsolidatedInvoices = await getConsolidatedInvoicePdfs(backerCollective);
@@ -398,8 +388,7 @@ const computeOrderSummary = orders => {
   return orderSummary;
 };
 
-const computeStats = async (collectives, currency = 'USD') => {
-  const categories = {};
+const computeStats = async collectives => {
   const tagsIndex = {};
   const stats = {
     collectives: collectives.length,
@@ -407,7 +396,7 @@ const computeStats = async (collectives, currency = 'USD') => {
     totalSpentPerCurrency: {},
     totalDonatedPerCurrency: {},
   };
-  await Promise.map(collectives, async collective => {
+  collectives.forEach(collective => {
     const expenses = collective.expenses;
     if (collective.tags) {
       collective.tags.map(t => {
@@ -423,36 +412,15 @@ const computeStats = async (collectives, currency = 'USD') => {
     }
     if (expenses && expenses.length > 0) {
       stats.expenses += expenses.length;
-      await Promise.map(expenses, async expense => {
-        const amountInBackerCurrency = await convertToCurrency(expense.amount, expense.currency, currency);
-        categories[expense.tags?.[0]] = categories[expense.tags?.[0]] || {
-          occurrences: 0,
-          totalAmountPerCurrency: {},
-          totalAmountInBackerCurrency: 0,
-        };
-        categories[expense.tags?.[0]].occurrences++;
-        categories[expense.tags?.[0]].totalAmountPerCurrency[expense.currency] =
-          categories[expense.tags?.[0]].totalAmountPerCurrency[expense.currency] || 0;
-        categories[expense.tags?.[0]].totalAmountPerCurrency[expense.currency] += expense.amount;
-        categories[expense.tags?.[0]].totalAmountInBackerCurrency += amountInBackerCurrency;
+      expenses.forEach(expense => {
         stats.totalSpentPerCurrency[expense.currency] = stats.totalSpentPerCurrency[expense.currency] || 0;
         stats.totalSpentPerCurrency[expense.currency] += expense.amount;
       });
     }
   });
-  stats.topTags = getTopKeysFromObject(tagsIndex);
   stats.allTags = tagsIndex;
-  stats.topCategories = getTopKeysFromObject(categories, 'totalAmountInBackerCurrency');
-  stats.categories = categories;
   stats.totalSpentString = formatCurrencyObject(stats.totalSpentPerCurrency);
   stats.totalDonatedString = formatCurrencyObject(stats.totalDonatedPerCurrency);
-  const ar = [];
-  stats.topCategories.map(category => {
-    ar.push(`${category} (${formatCurrencyObject(categories[category].totalAmountPerCurrency)})`);
-  });
-  stats.expensesBreakdownString = `${Object.keys(categories).length > 3 ? ', mostly in' : ' in'} ${formatArrayToString(
-    ar,
-  )}`;
   console.log(`>>> Stats: ${JSON.stringify(stats, null, 2)}`);
   return stats;
 };
