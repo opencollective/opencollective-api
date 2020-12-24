@@ -270,6 +270,10 @@ export const TierInputType = new GraphQLInputObjectType({
       type: GraphQLString,
       description: 'A long, html-formatted description.',
     },
+    useStandalonePage: {
+      type: GraphQLBoolean,
+      description: 'Whether this tier has a standalone page',
+    },
     videoUrl: {
       type: GraphQLString,
       description: 'Link to a video (YouTube, Vimeo).',

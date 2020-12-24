@@ -1495,9 +1495,14 @@ export const TierType = new GraphQLObjectType({
       hasLongDescription: {
         type: GraphQLBoolean,
         description: 'Returns true if the tier has a long description',
+        deprecationReason: '2020-12-24: This field is being deprecated in favor of useStandalonePage',
         resolve(tier) {
           return Boolean(tier.longDescription);
         },
+      },
+      useStandalonePage: {
+        type: GraphQLBoolean,
+        description: 'Returns true if the tier has its standalone page activated',
       },
       videoUrl: {
         type: GraphQLString,

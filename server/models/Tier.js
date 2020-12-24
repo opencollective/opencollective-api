@@ -103,6 +103,12 @@ export default function (Sequelize, DataTypes) {
         },
       },
 
+      useStandalonePage: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+      },
+
       videoUrl: {
         type: DataTypes.STRING,
         validate: {
