@@ -248,8 +248,7 @@ async function HostReport(year, month, hostId) {
       data.transactions = transactions;
       // Don't generate PDF in email if it's the yearly report
       let pdf;
-      if (yearlyReport || process.env.SKIP_PDF) {
-      } else {
+      if (!yearlyReport && !process.env.SKIP_PDF) {
         pdf = await exportToPDF('expenses', data, {
           paper: host.currency === 'USD' ? 'Letter' : 'A4',
         }).catch(error => {
