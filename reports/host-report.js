@@ -247,15 +247,17 @@ async function HostReport(year, month, hostId) {
       });
       data.transactions = transactions;
       // Don't generate PDF in email if it's the yearly report
+      let pdf;
       if (yearlyReport || process.env.SKIP_PDF) {
-        return;
+      } else {
+        pdf = await exportToPDF('expenses', data, {
+          paper: host.currency === 'USD' ? 'Letter' : 'A4',
+        }).catch(error => {
+          console.error(error);
+          return;
+        });
       }
-      const pdf = await exportToPDF('expenses', data, {
-        paper: host.currency === 'USD' ? 'Letter' : 'A4',
-      }).catch(error => {
-        console.error(error);
-        return;
-      });
+
       // Mailgun limit is 25MB
       if (pdf && pdf.length < 24000000) {
         attachments.push({
@@ -361,7 +363,6 @@ async function HostReport(year, month, hostId) {
       summary.numberDonations += data.stats.numberDonations;
       summary.numberPaidExpenses += data.stats.numberPaidExpenses;
       summary.totalAmountPaidExpenses += data.stats.totalAmountPaidExpenses;
-
       // Don't send transactions in email if there is more than 1000
       if (data.transactions.length > 1000) {
         delete data.transactions;
@@ -369,7 +370,7 @@ async function HostReport(year, month, hostId) {
       const admins = await getHostAdminsEmails(host);
       await sendEmail(admins, data, attachments);
     } catch (e) {
-      console.error(`Error in processing host ${host.slug}:`);
+      console.error(`Error in processing host ${host.slug}:`, e);
       debug(e);
     }
   };
