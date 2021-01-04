@@ -157,5 +157,8 @@
       "enabled": false,
       "ttl": 300
     }
+  },
+  "pdfService": {
+    "fetchTransactionsReceipts": false
   }
 }
