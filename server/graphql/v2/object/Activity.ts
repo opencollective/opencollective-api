@@ -42,7 +42,7 @@ export const Activity = new GraphQLObjectType({
       resolve: async (activity, _, req): Promise<object> => {
         if (activity.UserId) {
           const collective = await req.loaders.Collective.byUserId.load(activity.UserId);
-          if (!collective.isIncognito) {
+          if (!collective?.isIncognito) {
             return collective;
           }
         }
