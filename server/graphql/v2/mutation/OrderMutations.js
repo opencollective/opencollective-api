@@ -27,7 +27,7 @@ const modelArray = [
 
 const OrderWithPayment = new GraphQLObjectType({
   name: 'OrderWithPayment',
-  fields: {
+  fields: () => ({
     order: {
       type: new GraphQLNonNull(Order),
       description: 'The order created',
@@ -41,7 +41,7 @@ const OrderWithPayment = new GraphQLObjectType({
       description:
         'This field will be set if the order was created but there was an error with Stripe during the payment',
     },
-  },
+  }),
 });
 
 const orderMutations = {

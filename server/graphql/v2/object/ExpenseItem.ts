@@ -8,7 +8,7 @@ import URL from '../scalar/URL';
 const ExpenseItem = new GraphQLObjectType({
   name: 'ExpenseItem',
   description: 'Fields for an expense item',
-  fields: {
+  fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this expense item',
@@ -42,7 +42,7 @@ const ExpenseItem = new GraphQLObjectType({
         }
       },
     },
-  },
+  }),
 });
 
 export default ExpenseItem;

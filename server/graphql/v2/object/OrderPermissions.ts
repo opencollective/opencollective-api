@@ -14,7 +14,7 @@ const isHostAdmin = async (req, order) => {
 const OrderPermissions = new GraphQLObjectType({
   name: 'OrderPermissions',
   description: 'Fields for the user permissions on an order',
-  fields: {
+  fields: () => ({
     canMarkAsExpired: {
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Whether the current user can mark this order as expired',
@@ -29,7 +29,7 @@ const OrderPermissions = new GraphQLObjectType({
         return order.status === ORDER_STATUS.PENDING && isHostAdmin(req, order);
       },
     },
-  },
+  }),
 });
 
 export default OrderPermissions;

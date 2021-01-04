@@ -13,7 +13,7 @@ import { PayoutMethodInput } from './PayoutMethodInput';
  */
 export const ExpenseUpdateInput = new GraphQLInputObjectType({
   name: 'ExpenseUpdateInput',
-  fields: {
+  fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'ID of the expense that you are trying to edit',
@@ -67,5 +67,5 @@ export const ExpenseUpdateInput = new GraphQLInputObjectType({
       type: LocationInput,
       description: 'The address of the payee',
     },
-  },
+  }),
 });

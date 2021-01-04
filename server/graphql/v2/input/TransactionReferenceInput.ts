@@ -6,7 +6,7 @@ import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
 const TransactionReferenceInput = new GraphQLInputObjectType({
   name: 'TransactionReferenceInput',
-  fields: {
+  fields: () => ({
     id: {
       type: GraphQLString,
       description: 'The public id identifying the transaction (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
@@ -15,7 +15,7 @@ const TransactionReferenceInput = new GraphQLInputObjectType({
       type: GraphQLInt,
       description: 'The internal id of the transaction (ie: 580)',
     },
-  },
+  }),
 });
 
 const getDatabaseIdFromTransactionReference = (input: object): number => {

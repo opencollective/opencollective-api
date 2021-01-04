@@ -14,13 +14,13 @@ import { LocationInput } from './LocationInput';
 
 const ExpenseInvitee = new GraphQLInputObjectType({
   name: 'ExpenseInvitee',
-  fields: {
+  fields: () => ({
     id: { type: GraphQLInt },
     slug: { type: GraphQLString },
     name: { type: GraphQLString },
     email: { type: GraphQLString },
     isInvite: { type: GraphQLBoolean },
-  },
+  }),
 });
 
 /**
@@ -28,7 +28,7 @@ const ExpenseInvitee = new GraphQLInputObjectType({
  */
 export const ExpenseInviteDraftInput = new GraphQLInputObjectType({
   name: 'ExpenseInviteDraftInput',
-  fields: {
+  fields: () => ({
     description: {
       type: GraphQLString,
       description: 'Main title of the expense',
@@ -73,5 +73,5 @@ export const ExpenseInviteDraftInput = new GraphQLInputObjectType({
       type: LocationInput,
       description: 'The address of the payee',
     },
-  },
+  }),
 });

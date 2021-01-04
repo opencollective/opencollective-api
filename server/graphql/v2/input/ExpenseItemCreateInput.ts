@@ -8,7 +8,7 @@ import URL from '../scalar/URL';
  */
 export const ExpenseItemCreateInput = new GraphQLInputObjectType({
   name: 'ExpenseItemCreateInput',
-  fields: {
+  fields: () => ({
     amount: {
       type: new GraphQLNonNull(GraphQLInt),
       description: 'Amount in cents',
@@ -25,5 +25,5 @@ export const ExpenseItemCreateInput = new GraphQLInputObjectType({
       type: DateString,
       description: 'When was the money spent?',
     },
-  },
+  }),
 });

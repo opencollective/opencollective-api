@@ -13,7 +13,7 @@ import { StripeError } from '../object/StripeError';
 
 const CreditCardWithStripeError = new GraphQLObjectType({
   name: 'CreditCardWithStripeError',
-  fields: {
+  fields: () => ({
     paymentMethod: {
       type: new GraphQLNonNull(PaymentMethod),
       description: 'The payment method created',
@@ -22,7 +22,7 @@ const CreditCardWithStripeError = new GraphQLObjectType({
       type: StripeError,
       description: 'This field will be set if there was an error with Stripe during strong customer authentication',
     },
-  },
+  }),
 });
 
 const addCreditCard = {

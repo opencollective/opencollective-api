@@ -3,8 +3,8 @@ import GraphQLJSON from 'graphql-type-json';
 
 export const PaypalPaymentInput = new GraphQLInputObjectType({
   name: 'PaypalPaymentInput',
-  fields: {
+  fields: () => ({
     token: { type: new GraphQLNonNull(GraphQLString) },
     data: { type: GraphQLJSON },
-  },
+  }),
 });

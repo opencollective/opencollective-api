@@ -8,13 +8,13 @@ import PayoutMethodType from '../enum/PayoutMethodType';
  */
 const PayoutMethodInput = new GraphQLInputObjectType({
   name: 'PayoutMethodInput',
-  fields: {
+  fields: () => ({
     id: { type: GraphQLString },
     data: { type: GraphQLJSON },
     name: { type: GraphQLString },
     isSaved: { type: GraphQLBoolean },
     type: { type: PayoutMethodType },
-  },
+  }),
 });
 
 export { PayoutMethodInput };

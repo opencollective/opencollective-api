@@ -3,7 +3,7 @@ import { GraphQLBoolean, GraphQLInt, GraphQLObjectType, GraphQLString } from 'gr
 export const HostPlan = new GraphQLObjectType({
   name: 'HostPlan',
   description: 'The name of the current plan and its characteristics.',
-  fields: {
+  fields: () => ({
     name: {
       type: GraphQLString,
       description: 'The name of the plan',
@@ -56,5 +56,5 @@ export const HostPlan = new GraphQLObjectType({
       type: GraphQLInt,
       description: 'Charge on revenues made through Host Fees.',
     },
-  },
+  }),
 });

@@ -13,7 +13,7 @@ import EmailAddress from '../scalar/EmailAddress';
 const ConfirmGuestAccountResponse = new GraphQLObjectType({
   name: 'ConfirmGuestAccountResponse',
   description: 'Response for the confirmGuestAccount mutation',
-  fields: {
+  fields: () => ({
     account: {
       type: new GraphQLNonNull(Account),
       description: 'The validated account',
@@ -22,7 +22,7 @@ const ConfirmGuestAccountResponse = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLString),
       description: 'A token that can be used to sign in',
     },
-  },
+  }),
 });
 
 const guestMutations = {

@@ -13,7 +13,7 @@ import { TierReferenceInput } from './TierReferenceInput';
 export const OrderCreateInput = new GraphQLInputObjectType({
   name: 'OrderCreateInput',
   description: 'Input to create a new order',
-  fields: {
+  fields: () => ({
     quantity: {
       type: new GraphQLNonNull(GraphQLInt),
       defaultValue: 1,
@@ -57,5 +57,5 @@ export const OrderCreateInput = new GraphQLInputObjectType({
       type: GraphQLJSON,
       description: 'If the tier has some "customFields", use this field to set their values',
     },
-  },
+  }),
 });

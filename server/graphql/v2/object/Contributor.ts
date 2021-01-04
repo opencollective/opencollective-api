@@ -12,7 +12,7 @@ export const Contributor = new GraphQLObjectType({
     of the collective. While "Member" is dedicated to permissions, this type is meant
     to surface all the public contributors.
   `,
-  fields: {
+  fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'A unique identifier for this member',
@@ -84,5 +84,5 @@ export const Contributor = new GraphQLObjectType({
       type: GraphQLString,
       description: 'A public message from contributors to describe their contributions',
     },
-  },
+  }),
 });
