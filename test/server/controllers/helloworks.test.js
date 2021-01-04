@@ -11,7 +11,7 @@ import { fakeCollective, fakeExpense, fakeHost, fakeLegalDocument, fakeUser } fr
 
 const HELLO_WORKS_WORKFLOW_ID = get(config, 'helloworks.workflowId');
 
-const mockCallbackPayload = ({ accountType, accountId, userId }) => {
+const mockCallbackPayload = ({ accountType, accountId, userId, year }) => {
   const email = randEmail();
 
   return {
@@ -44,7 +44,7 @@ const mockCallbackPayload = ({ accountType, accountId, userId }) => {
       adminEmails: email,
       email: email,
       userId,
-      year: '2020',
+      year,
     },
     mode: 'test',
     status: 'completed',
@@ -96,7 +96,7 @@ describe('server/controllers/helloworks', () => {
     });
 
     const req = {
-      body: mockCallbackPayload({ accountType: collective.type, accountId: user.collective.id, userId: user.id }),
+      body: mockCallbackPayload({ accountType: collective.type, accountId: user.collective.id, userId: user.id, year }),
     };
     const res = getMockedRes();
 
@@ -128,7 +128,7 @@ describe('server/controllers/helloworks', () => {
     });
 
     const req = {
-      body: mockCallbackPayload({ accountType: organization.type, accountId: organization.id, userId: user.id }),
+      body: mockCallbackPayload({ accountType: organization.type, accountId: organization.id, userId: user.id, year }),
     };
     const res = getMockedRes();
 
