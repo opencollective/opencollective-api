@@ -11,6 +11,7 @@ import models from '../../../models';
 import { Unauthorized, ValidationFailed } from '../../errors';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { CollectiveCreateInput } from '../input/CollectiveCreateInput';
+import { UserCreateInput } from '../input/UserCreateInput';
 import { Collective } from '../object/Collective';
 
 const DEFAULT_COLLECTIVE_SETTINGS = {
@@ -22,15 +23,22 @@ async function createCollective(_, args, req) {
 
   const { remoteUser, loaders } = req;
 
-  if (!remoteUser) {
+  let user = remoteUser;
+
+  if (!user && args.user && args.host.slug === 'foundation') {
+    user = await models.User.findByEmail(args.user.email);
+    if (!user) {
+      user = await models.User.createUserWithCollective(args.user);
+    }
+  } else if (!user) {
     throw new Unauthorized('You need to be logged in to create a collective');
   }
 
   const collectiveData = {
     slug: args.collective.slug.toLowerCase(),
-    ...pick(args.collective, ['name', 'description', 'tags']),
+    ...pick(args.collective, ['name', 'description', 'tags', 'data']),
     isActive: false,
-    CreatedByUserId: remoteUser.id,
+    CreatedByUserId: user.id,
     settings: { ...DEFAULT_COLLECTIVE_SETTINGS, ...args.collective.settings },
   };
 
@@ -51,7 +59,7 @@ async function createCollective(_, args, req) {
     host = await loaders.Collective.byId.load(opensourceHost.CollectiveId);
     try {
       const githubAccount = await models.ConnectedAccount.findOne({
-        where: { CollectiveId: remoteUser.CollectiveId, service: 'github' },
+        where: { CollectiveId: user.CollectiveId, service: 'github' },
       });
       if (!githubAccount) {
         throw new Error('You must have a connected GitHub Account to create a collective with GitHub.');
@@ -85,22 +93,21 @@ async function createCollective(_, args, req) {
   const collective = await models.Collective.create(collectiveData);
 
   // Add authenticated user as an admin
-  await collective.addUserWithRole(remoteUser, roles.ADMIN, { CreatedByUserId: remoteUser.id });
+  await collective.addUserWithRole(user, roles.ADMIN, { CreatedByUserId: user.id });
 
   // Add the host if any
   if (host) {
-    await collective.addHost(host, remoteUser, { shouldAutomaticallyApprove, message: args.message });
+    await collective.addHost(host, user, { shouldAutomaticallyApprove, message: args.message });
     purgeCacheForCollective(host.slug);
   }
 
   // Will send an email to the authenticated user
   // - tell them that their collective was successfully created
-  // - tell them which fiscal host they picked, if any
-  // - tell them the status of their host application
-  const remoteUserCollective = await loaders.Collective.byId.load(remoteUser.CollectiveId);
+  // - tell them that their collective is pending validation (which might be wrong if it was automatically approved)
+  const remoteUserCollective = await loaders.Collective.byId.load(user.CollectiveId);
   models.Activity.create({
     type: activities.COLLECTIVE_CREATED,
-    UserId: remoteUser.id,
+    UserId: user.id,
     CollectiveId: get(host, 'id'),
     data: {
       collective: collective.info,
@@ -108,7 +115,7 @@ async function createCollective(_, args, req) {
       hostPending: collective.approvedAt ? false : true,
       accountType: collective.type === 'FUND' ? 'fund' : 'collective',
       user: {
-        email: remoteUser.email,
+        email: user.email,
         collective: remoteUserCollective.info,
       },
     },
@@ -127,6 +134,10 @@ const createCollectiveMutation = {
     host: {
       description: 'Reference to the host to apply on creation.',
       type: AccountReferenceInput,
+    },
+    user: {
+      description: 'User information to create along with the collective',
+      type: UserCreateInput,
     },
     automateApprovalWithGithub: {
       description: 'Wether to trigger the automated approval for Open Source collectives with GitHub.',
