@@ -1276,7 +1276,7 @@ const queries = {
     },
     resolve(collective, args, { remoteUser }) {
       if (!remoteUser) {
-        new Forbidden('Only collective admins can see pending invitations');
+        throw new Forbidden('Only collective admins can see pending invitations');
       }
       if (!args.CollectiveId && !args.MemberCollectiveId) {
         throw new ValidationFailed('You must either provide a CollectiveId or a MemberCollectiveId');
