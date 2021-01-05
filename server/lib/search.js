@@ -4,10 +4,10 @@
 
 import config from 'config';
 import slugify from 'limax';
-import { get, sortBy } from 'lodash';
+import { get } from 'lodash';
 
 import { RateLimitExceeded } from '../graphql/errors';
-import models, { Op, sequelize } from '../models';
+import models, { sequelize } from '../models';
 
 import RateLimit, { ONE_HOUR_IN_SECONDS } from './rate-limit';
 
@@ -132,6 +132,10 @@ export const searchCollectivesInDB = async (
     FROM "Collectives" c
     WHERE "deletedAt" IS NULL
     AND "deactivatedAt" IS NULL
+    AND ("data" ->> 'isGuest')::boolean IS NOT TRUE
+    AND ("data" ->> 'hideFromSearch')::boolean IS NOT TRUE
+    AND name != 'incognito'
+    AND name != 'anonymous'
     AND "isIncognito" = FALSE ${dynamicConditions}
     ORDER BY __rank__ DESC
     OFFSET :offset
