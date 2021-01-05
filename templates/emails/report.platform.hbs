@@ -34,7 +34,7 @@ Subject: {{month}} {{year}} Platform Report
 <div
   style="display:none;font-size:1px;color:#333333;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">
   {{currency stats.thisMonth.platformFees.amount currency=stats.thisMonth.platformFees.currency}}
-  ({{currency stats.delta.platformFees.amount currency=stats.delta.platformFees.currency  sign=true}}) /
+  ({{currency stats.delta.platformFees.amount currency=stats.delta.platformFees.currency sign=true}}) /
   {{stats.thisMonth.hosts.new}} new hosts ({{stats.thisMonth.hosts.active}} active, {{stats.thisMonth.hosts.total}}
   total) /
   {{stats.thisMonth.backers.new}} new backers ({{stats.thisMonth.backers.repeat}} repeat,
@@ -47,7 +47,7 @@ Subject: {{month}} {{year}} Platform Report
     <div class="bignumber">
       {{currency stats.thisMonth.platformFees.amount currency=stats.thisMonth.platformFees.currency}}</div>
     <div class="big delta">
-      ({{currency stats.delta.platformFees.amount currency=stats.delta.platformFees.currency  sign=true}})</div>
+      ({{currency stats.delta.platformFees.amount currency=stats.delta.platformFees.currency sign=true}})</div>
     <br />
     <br />
     by currency:
@@ -167,8 +167,27 @@ Subject: {{month}} {{year}} Platform Report
         <td></td>
         <td align="right">{{currency feesOnTopPaypal currency='USD'}}</td>
       </tr>
+      {{#if totalSharedRevenue}}
       <tr>
-        <th colspan=2>Fees still due: (OnTop + Platform)</th>
+        <th colspan=2>Shared Host Revenue</th>
+        <td></td>
+        <td align="right">{{currency totalSharedRevenueTotal currency=currency}}</td>
+      </tr>
+      <tr>
+        <td></td>
+        <td>Already Settled:</td>
+        <td></td>
+        <td align="right">{{currency totalSharedRevenueSettled currency=currency}}</td>
+      </tr>
+      <tr>
+        <td></td>
+        <td>Due:</td>
+        <td></td>
+        <td align="right">{{currency totalSharedRevenueDue currency=currency}}</td>
+      </tr>
+      {{/if}}
+      <tr>
+        <th colspan=2>Fees still due: (Tips + Platform + Shared Revenue)</th>
         <td></td>
         {{#if isUSD}}
         <td align="right">{{currency totalFeesDue currency=currency}}</td>
@@ -191,6 +210,7 @@ Subject: {{month}} {{year}} Platform Report
         <th>total revenue</th>
         <th>host fees</th>
         <th>platform fees</th>
+        <th>host revenue share</th>
         <th>fees on top (USD)</th>
       </tr>
       {{#each hosts}}
@@ -201,6 +221,7 @@ Subject: {{month}} {{year}} Platform Report
         <td align="right">{{currency totalRevenue currency=currency}}</td>
         <td align="right">{{currency hostFees currency=currency}}</td>
         <td align="right">{{currency platformFees currency=currency}}</td>
+        <td align="right">{{currency totalSharedRevenue currency=currency}}</td>
         <td align="right">{{currency feesOnTop currency='USD'}}</td>
       </tr>
       {{/each}}

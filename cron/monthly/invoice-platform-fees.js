@@ -3,12 +3,12 @@ import '../../server/env';
 
 import config from 'config';
 import { parse as json2csv } from 'json2csv';
-import { compact, entries, groupBy, mapValues, pick, round, sumBy, values } from 'lodash';
+import { entries, groupBy, pick, round, sumBy } from 'lodash';
 import moment from 'moment';
 
 import expenseStatus from '../../server/constants/expense_status';
 import expenseTypes from '../../server/constants/expense_type';
-import plans from '../../server/constants/plans';
+import plans, { SHARED_REVENUE_PLANS } from '../../server/constants/plans';
 import { SETTLEMENT_EXPENSE_PROPERTIES, TransactionTypes } from '../../server/constants/transactions';
 import { uploadToS3 } from '../../server/lib/awsS3';
 import { generateKey } from '../../server/lib/encryption';
@@ -43,8 +43,6 @@ const ATTACHED_CSV_COLUMNS = [
   'PaymentService',
   'source',
 ];
-
-const sharedRevenuePlans = compact(values(mapValues(plans, (v, k) => (v.hostFeeSharePercent > 0 ? k : undefined))));
 
 export async function run() {
   console.info(`Invoicing hosts pending fees and tips for ${moment(date).subtract(1, 'month').format('MMMM')}.`);
@@ -206,7 +204,7 @@ export async function run() {
       AND (
         h."type" = 'ORGANIZATION'
         AND h."isHostAccount" = TRUE
-        AND h."plan" in ('${sharedRevenuePlans.join("', '")}')
+        AND h."plan" in ('${SHARED_REVENUE_PLANS.join("', '")}')
       )
     ORDER BY
       t."createdAt"

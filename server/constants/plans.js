@@ -1,3 +1,5 @@
+import { compact, mapValues, values } from 'lodash';
+
 const plans = {
   // Legacy Plans (automatically set for accounts created before 2020)
   'legacy-custom-host-plan': {
@@ -203,5 +205,9 @@ const plans = {
 };
 
 export const PLANS_COLLECTIVE_SLUG = 'opencollective';
+
+export const SHARED_REVENUE_PLANS = compact(
+  values(mapValues(plans, (v, k) => (v.hostFeeSharePercent > 0 ? k : undefined))),
+);
 
 export default plans;
