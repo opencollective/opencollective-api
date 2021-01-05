@@ -1689,7 +1689,7 @@ export default function (Sequelize, DataTypes) {
   Collective.prototype.getTotalMoneyManaged = async function (until) {
     const hostedCollectives = await this.getHostedCollectives();
     const ids = hostedCollectives.map(c => c.id);
-    const balances = await queries.getBalances(ids, until.toString());
+    const balances = await queries.getBalances(ids, until.toISOString());
     return sumBy(balances, 'balance');
   };
 
@@ -2942,7 +2942,7 @@ export default function (Sequelize, DataTypes) {
       where: {
         HostCollectiveId: this.id,
         type: TransactionTypes.CREDIT,
-        createdAt: { [Op.gte]: from, [Op.lte]: to },
+        createdAt: { [Op.gte]: from, [Op.lt]: to },
       },
       include: [
         {
@@ -2959,14 +2959,15 @@ export default function (Sequelize, DataTypes) {
     const hostFeeShare = Math.abs(
       sumByWhen(
         transactions,
-        t => round((t.hostFeeInHostCurrency * t.data.hostFeeSharePercent) / 100),
-        t => t.data?.isSharedRevenue && t.data?.hostFeeSharePercent > 0,
+        t => round((t.hostFeeInHostCurrency * (t.data?.hostFeeSharePercent || plan.hostFeeSharePercent)) / 100),
+        t => !t.platformFeeInHostCurrency && t.hostFeeInHostCurrency,
       ),
     );
 
     const tipsTransactions = await models.Transaction.findAll({
       where: {
         ...pick(FEES_ON_TOP_TRANSACTION_PROPERTIES, ['CollectiveId', 'HostCollectiveId']),
+        createdAt: { [Op.gte]: from, [Op.lt]: to },
         type: TransactionTypes.CREDIT,
         PlatformTipForTransactionGroup: { [Op.in]: transactions.map(t => t.TransactionGroup) },
       },

@@ -98,8 +98,8 @@ Subject: {{host.name}} Host {{reportName}}
       <tr>
         <td align="center">
           <span class="positive">(+{{currency stats.totalNetAmountReceived currency=host.currency}})</span><br />
-          <span
-            class="negative">&nbsp;{{#if stats.totalAmountSpent}}({{currency stats.totalAmountSpent currency=host.currency}}){{/if}}&nbsp;</span>
+          <span class="negative">&nbsp;{{#if stats.totalAmountSpent}}({{currency stats.totalAmountSpent
+            currency=host.currency}}){{/if}}&nbsp;</span>
         </td>
         <td></td>
         <td align="center">
@@ -247,14 +247,33 @@ Subject: {{host.name}} Host {{reportName}}
       <td></td>
       <td align="right">{{currency stats.totalHostFees currency=host.currency precision=2}}</td>
     </tr>
-    <tr>
-      <td colspan=3 class="muted">Total commission for {{host.name}}</td>
+    {{#if stats.totalSharedRevenue}}
+    <tr class="indent1">
+      <td>Host Revenue Share ({{stats.plan.hostFeeSharePercent}}%)</td>
+      <td></td>
+      <td align="right">
+        {{currency stats.totalSharedRevenue currency=host.currency precision=2}} </td>
     </tr>
     <tr>
       <td colspan=3 height=10></td>
     </tr>
     <tr>
-      <td>Net amount</td>
+      <td class="ident1">Net revenue for {{host.name}}</td>
+      <td></td>
+      <td align="right">
+        {{currency stats.hostNetRevenue currency=host.currency precision=2}}
+      </td>
+    </tr>
+    {{else}}
+    <tr>
+      <td colspan=3 class="muted">Net revenue for {{host.name}}</td>
+    </tr>
+    {{/if}}
+    <tr>
+      <td colspan=3 height=10></td>
+    </tr>
+    <tr>
+      <td>Net amount received by your collectives</td>
       <td></td>
       <td align="right">
         {{currency stats.totalNetAmountReceivedForCollectives currency=host.currency precision=2}}
@@ -354,7 +373,8 @@ Subject: {{host.name}} Host {{reportName}}
     {{#each transactions}}
     <tr>
       <td valign="top"><a
-          href="{{@root.config.host.website}}/{{collective.slug}}/expenses/{{id}}?utm_source=opencollective&utm_campaign=monthlyreport&utm_medium=email">{{moment createdAt format="MM/DD"}}</a>
+          href="{{@root.config.host.website}}/{{collective.slug}}/expenses/{{id}}?utm_source=opencollective&utm_campaign=monthlyreport&utm_medium=email">{{moment
+          createdAt format="MM/DD"}}</a>
       </td>
       <td valign="top"><a href="{{@root.config.host.website}}/{{collective.slug}}">{{collective.shortSlug}}</a></td>
       <td valign="top" align="right" valign="top" nowrap class="{{type}}">
