@@ -2,6 +2,7 @@ import * as Sentry from '@sentry/node';
 import * as Tracing from '@sentry/tracing';
 import config from 'config';
 import * as express from 'express';
+import { isEqual } from 'lodash';
 
 export const plugSentryToApp = (app: express.Express): void => {
   if (!config.sentry?.dsn) {
@@ -30,6 +31,23 @@ export const plugSentryToApp = (app: express.Express): void => {
   app.use(Sentry.Handlers.tracingHandler());
 };
 
+const IGNORED_GQL_ERRORS = [
+  {
+    path: ['Collective'],
+    message: /^No collective found with slug/,
+  },
+  {
+    path: ['allMembers'],
+    message: /^Invalid collectiveSlug \(not found\)$/,
+  },
+];
+
+const isIgnoredGQLError = err => {
+  return IGNORED_GQL_ERRORS.some(ignoredError => {
+    return (!ignoredError.path || isEqual(ignoredError.path, err.path)) && err.message?.match(ignoredError.message);
+  });
+};
+
 export const SentryGraphQLPlugin = {
   requestDidStart(_): object {
     return {
@@ -41,7 +59,7 @@ export const SentryGraphQLPlugin = {
 
         for (const err of ctx.errors) {
           // Only report internal server errors, all errors extending ApolloError should be user-facing
-          if (err.extensions?.code) {
+          if (err.extensions?.code || isIgnoredGQLError(err)) {
             continue;
           }
 

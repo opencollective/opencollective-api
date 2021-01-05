@@ -5,6 +5,7 @@ import roles from '../../constants/roles';
 import emailLib from '../../lib/email';
 import logger from '../../lib/logger';
 import models, { sequelize } from '../../models';
+import { ValidationFailed } from '../errors';
 
 type CreateUserOptions = {
   organizationData?: {
@@ -32,7 +33,7 @@ export const createUser = (
     let user = await models.User.findOne({ where: { email: userData.email.toLowerCase() } }, { transaction });
 
     if (throwIfExists && user) {
-      throw new Error('It looks like that email already exists, please sign in instead');
+      throw new ValidationFailed('It looks like that email already exists, please sign in instead');
     } else if (!user) {
       // Create user
       user = await models.User.createUserWithCollective(userData, transaction);
