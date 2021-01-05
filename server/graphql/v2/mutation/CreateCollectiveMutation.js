@@ -25,7 +25,7 @@ async function createCollective(_, args, req) {
 
   let user = remoteUser;
 
-  if (!user && args.user && args.host.slug === 'foundation') {
+  if (!user && args.user && args.host.legacyId === defaultHostCollective('foundation').CollectiveId) {
     user = await models.User.findByEmail(args.user.email);
     if (!user) {
       user = await models.User.createUserWithCollective(args.user);
