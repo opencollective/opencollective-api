@@ -329,7 +329,7 @@ const expenseMutations = {
         );
       }
 
-      const draftKey = uuid();
+      const draftKey = process.env.OC_ENV === 'e2e' || process.env.OC_ENV === 'ci' ? 'draft-key' : uuid();
       const expenseFields = [
         'description',
         'longDescription',
