@@ -32,8 +32,5 @@
     "sendGuestConfirmPerMinutePerEmail": 100000,
     "sendGuestConfirmPerMinutePerIp": 100000,
     "confirmGuestAccountPerMinutePerIp": 100000
-  },
-  "pdfService": {
-    "fetchTransactionsReceipts": false
   }
 }

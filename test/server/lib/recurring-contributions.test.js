@@ -236,7 +236,7 @@ describe('server/lib/recurring-contributions', () => {
       emailMock.expects('send').once().withArgs('thankyou', 'test@oc.com');
 
       // When the status of the order is handled
-      await handleRetryStatus(order, {});
+      await handleRetryStatus(order);
 
       // Then the email mock should be verified
       emailMock.verify();
@@ -266,7 +266,7 @@ describe('server/lib/recurring-contributions', () => {
         });
 
       // When the status of the order is handled
-      await handleRetryStatus(order, {});
+      await handleRetryStatus(order);
 
       // Then the email mock should be verified
       emailMock.verify();
@@ -296,7 +296,7 @@ describe('server/lib/recurring-contributions', () => {
         });
 
       // When the status of the order is handled
-      await handleRetryStatus(order, {});
+      await handleRetryStatus(order);
 
       // Then the email mock should be verified
       emailMock.verify();
@@ -356,7 +356,7 @@ describe('server/lib/recurring-contributions', () => {
 
         // And that the payments library will return a transaction (to
         // be included in the email)
-        paymentsStub.resolves({ info: 'Transaction' });
+        paymentsStub.resolves(null);
 
         // When the order is processed
         const entry = await processOrderWithSubscription(order, { dryRun: false });
@@ -384,7 +384,7 @@ describe('server/lib/recurring-contributions', () => {
 
         // And that the payments library will return a transaction (to
         // be included in the email)
-        paymentsStub.resolves({ info: 'Transaction' });
+        paymentsStub.resolves(null);
 
         // When the order is processed
         const entry = await processOrderWithSubscription(order, { dryRun: false });

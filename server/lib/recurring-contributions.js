@@ -1,5 +1,5 @@
 import config from 'config';
-import { get, isEmpty, omit } from 'lodash';
+import { get, omit } from 'lodash';
 import moment from 'moment';
 import { Op } from 'sequelize';
 
@@ -374,7 +374,6 @@ export async function sendFailedEmail(order, lastAttempt) {
 
 /** Send `thankyou` email */
 export async function sendThankYouEmail(order, transaction) {
-  let pdf;
   const attachments = [];
   const { collective, paymentMethod } = order;
   const relatedCollectives = await order.collective.getRelatedCollectives(3, 0);
@@ -392,42 +391,54 @@ export async function sendThankYouEmail(order, transaction) {
     );
   }
 
+  const data = {
+    order: order.info,
+    transaction: transaction ? transaction.info : null,
+    user: user.info,
+    firstPayment: false,
+    collective: order.collective.info,
+    host: host ? host.info : {},
+    fromCollective: order.fromCollective.minimal,
+    relatedCollectives,
+    config: { host: config.host },
+    interval: order.Subscription.interval,
+    subscriptionsLink: `${config.host.website}/${order.fromCollective.slug}/recurring-contributions`,
+  };
+
   // hit PDF service and get PDF (unless payment method type is gift card)
-  if (paymentMethod?.type !== PAYMENT_METHOD_TYPE.VIRTUALCARD) {
-    pdf = await getTransactionPdf(transaction, user);
+  if (transaction && paymentMethod?.type !== PAYMENT_METHOD_TYPE.VIRTUALCARD) {
+    const transactionPdf = await getTransactionPdf(transaction, user);
+    if (transactionPdf) {
+      const createdAtString = toIsoDateStr(transaction.createdAt ? new Date(transaction.createdAt) : new Date());
+      attachments.push({
+        filename: `transaction_${collective.slug}_${createdAtString}_${transaction.uuid}.pdf`,
+        content: transactionPdf,
+      });
+      data.transactionPdf = true;
+    }
+
+    if (transaction.hasPlatformTip()) {
+      const platformTipTransaction = await transaction.getPlatformTipTransaction();
+      if (platformTipTransaction) {
+        const platformTipPdf = await getTransactionPdf(platformTipTransaction, user);
+        if (platformTipPdf) {
+          const createdAtString = toIsoDateStr(new Date(platformTipTransaction.createdAt));
+          attachments.push({
+            filename: `transaction_opencollective_${createdAtString}_${platformTipTransaction.uuid}.pdf`,
+            content: platformTipPdf,
+          });
+          data.platformTipPdf = true;
+        }
+      }
+    }
   }
 
-  // attach pdf
-  if (pdf) {
-    const createdAtString = toIsoDateStr(transaction.createdAt ? new Date(transaction.createdAt) : new Date());
-    attachments.push({
-      filename: `transaction_${collective.slug}_${createdAtString}_${transaction.uuid}.pdf`,
-      content: pdf,
-    });
-  }
+  const emailOptions = {
+    from: `${order.collective.name} <no-reply@${order.collective.slug}.opencollective.com>`,
+    attachments,
+  };
 
-  return emailLib.send(
-    'thankyou',
-    user.email,
-    {
-      order: order.info,
-      transaction: transaction.info,
-      user: user.info,
-      firstPayment: false,
-      collective: order.collective.info,
-      host: host ? host.info : {},
-      fromCollective: order.fromCollective.minimal,
-      relatedCollectives,
-      config: { host: config.host },
-      interval: order.Subscription.interval,
-      subscriptionsLink: `${config.host.website}/${order.fromCollective.slug}/recurring-contributions`,
-      transactionPdf: isEmpty(attachments) ? null : true,
-    },
-    {
-      from: `${order.collective.name} <no-reply@${order.collective.slug}.opencollective.com>`,
-      attachments,
-    },
-  );
+  return emailLib.send('thankyou', user.email, data, emailOptions);
 }
 
 export async function sendCreditCardConfirmationEmail(order) {

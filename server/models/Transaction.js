@@ -1,6 +1,6 @@
 import Promise from 'bluebird';
 import debugLib from 'debug';
-import { defaultsDeep, get, isNull, isUndefined } from 'lodash';
+import { defaultsDeep, get, isNull, isUndefined, pick } from 'lodash';
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
@@ -305,6 +305,22 @@ export default (Sequelize, DataTypes) => {
     return Transaction.findByPk(this.RefundTransactionId);
   };
 
+  Transaction.prototype.hasPlatformTip = function () {
+    return this.data?.isFeesOnTop ? true : false;
+  };
+
+  Transaction.prototype.getPlatformTipTransaction = function () {
+    if (this.hasPlatformTip()) {
+      return models.Transaction.findOne({
+        where: {
+          ...pick(FEES_ON_TOP_TRANSACTION_PROPERTIES, ['CollectiveId']),
+          type: this.type,
+          PlatformTipForTransactionGroup: this.TransactionGroup,
+        },
+      });
+    }
+  };
+
   /**
    * Class Methods
    */
@@ -559,8 +575,9 @@ export default (Sequelize, DataTypes) => {
       transaction.paymentProcessorFeeInHostCurrency - feeOnTopPaymentProcessorFee;
     // Recalculate amount
     transaction.amountInHostCurrency = transaction.amountInHostCurrency + transaction.platformFeeInHostCurrency;
-    transaction.amount =
-      transaction.amount + transaction.platformFeeInHostCurrency / (transaction.hostCurrencyFxRate || 1);
+    transaction.amount = Math.round(
+      transaction.amount + transaction.platformFeeInHostCurrency / (transaction.hostCurrencyFxRate || 1),
+    );
     // Reset the platformFee because we're accounting for this value in a separate set of transactions
     transaction.platformFeeInHostCurrency = 0;
 

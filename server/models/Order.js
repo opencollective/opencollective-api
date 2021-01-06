@@ -187,10 +187,18 @@ export default function (Sequelize, DataTypes) {
         activity() {
           return {
             id: this.id,
+            // totalAmount should not be changed, it's confusing
             totalAmount:
               this.data?.isFeesOnTop && this.data?.platformFee
                 ? this.totalAmount - this.data.platformFee
                 : this.totalAmount,
+            // introducing 3 new values to clarify
+            netAmount:
+              this.data?.isFeesOnTop && this.data?.platformFee
+                ? this.totalAmount - this.data.platformFee
+                : this.totalAmount,
+            platformTipAmount: this.data?.isFeesOnTop && this.data?.platformFee ? this.data?.platformFee : null,
+            chargeAmount: this.totalAmount,
             currency: this.currency,
             description: this.description,
             publicMessage: this.publicMessage,
