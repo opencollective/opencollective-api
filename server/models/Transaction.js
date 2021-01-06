@@ -559,8 +559,9 @@ export default (Sequelize, DataTypes) => {
       transaction.paymentProcessorFeeInHostCurrency - feeOnTopPaymentProcessorFee;
     // Recalculate amount
     transaction.amountInHostCurrency = transaction.amountInHostCurrency + transaction.platformFeeInHostCurrency;
-    transaction.amount =
-      transaction.amount + transaction.platformFeeInHostCurrency / (transaction.hostCurrencyFxRate || 1);
+    transaction.amount = Math.round(
+      transaction.amount + transaction.platformFeeInHostCurrency / (transaction.hostCurrencyFxRate || 1),
+    );
     // Reset the platformFee because we're accounting for this value in a separate set of transactions
     transaction.platformFeeInHostCurrency = 0;
 
