@@ -24,6 +24,7 @@ export const whiteListDomains = [
   'nigge.rs',
   'xoxy.net',
   'uymail.com',
+  'mailhaven.com',
 ];
 
 export default whiteListDomains;
