@@ -2,7 +2,9 @@ import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectT
 import { GraphQLDateTime } from 'graphql-iso-date';
 
 import { stripTags } from '../../../lib/utils';
-import { UpdateAudienceType } from '../enum/UpdateAudienceType';
+import models from '../../../models';
+import { CommentCollection } from '../collection/CommentCollection';
+import { UpdateAudienceType } from '../enum';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { Account } from '../interface/Account';
 
@@ -24,7 +26,7 @@ const Update = new GraphQLObjectType({
           if (!update.isPrivate) {
             return true;
           }
-          return req.remoteUser && req.remoteUser.canSeeUpdates(update.CollectiveId);
+          return Boolean(req.remoteUser && req.remoteUser.canSeeUpdates(update.CollectiveId));
         },
       },
       isPrivate: { type: new GraphQLNonNull(GraphQLBoolean) },
@@ -65,6 +67,29 @@ const Update = new GraphQLObjectType({
         type: Account,
         resolve(update, args, req) {
           return req.loaders.Collective.byId.load(update.CollectiveId);
+        },
+      },
+      comments: {
+        type: new GraphQLNonNull(CommentCollection),
+        description: "List the comments for this update. Not backed by a loader, don't use this in lists.",
+        args: {
+          limit: { type: GraphQLInt },
+          offset: { type: GraphQLInt },
+        },
+        async resolve(update, _, { limit, offset }) {
+          const where = { UpdateId: update.id };
+          const order = [['createdAt', 'ASC']];
+          const query = { where, order };
+
+          if (limit) {
+            query.limit = limit;
+          }
+          if (offset) {
+            query.offset = offset;
+          }
+
+          const result = await models.Comment.findAndCountAll(query);
+          return { nodes: result.rows, totalCount: result.count, limit, offset };
         },
       },
     };
