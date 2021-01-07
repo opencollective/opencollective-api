@@ -172,6 +172,10 @@ module.exports = {
 
     for (const collective of collectives) {
       const settings = cloneDeep(collective.settings);
+      if (!settings.collectivePage.sections) {
+        continue;
+      }
+
       settings.collectivePage.legacySectionsBackup = settings.collectivePage.sections;
       settings.collectivePage.sections = convertSectionsToNewFormat(settings.collectivePage.sections, collective.type);
       settings.collectivePage.useNewSections = true;
