@@ -13,7 +13,29 @@ import { Fund } from '../object/Fund';
 
 const DEFAULT_COLLECTIVE_SETTINGS = {
   features: { conversations: false },
-  collectivePage: { sections: ['budget', 'projects', 'about'] },
+  collectivePage: {
+    useNewSections: true,
+    sections: [
+      {
+        name: 'BUDGET',
+        type: 'CATEGORY',
+        isEnabled: true,
+        sections: [{ name: 'budget', type: 'SECTION', isEnabled: true, restrictedTo: null }],
+      },
+      {
+        name: 'CONTRIBUTE',
+        type: 'CATEGORY',
+        isEnabled: true,
+        sections: [{ type: 'SECTION', name: 'projects', isEnabled: true, restrictedTo: null }],
+      },
+      {
+        name: 'ABOUT',
+        type: 'CATEGORY',
+        isEnabled: true,
+        sections: [{ type: 'SECTION', name: 'about', isEnabled: true, restrictedTo: null }],
+      },
+    ],
+  },
 };
 
 async function createFund(_, args, req) {

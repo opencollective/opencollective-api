@@ -10,7 +10,23 @@ import { ProjectCreateInput } from '../input/ProjectCreateInput';
 import { Project } from '../object/Project';
 
 const DEFAULT_PROJECT_SETTINGS = {
-  collectivePage: { sections: ['budget', 'about'] },
+  collectivePage: {
+    useNewSections: true,
+    sections: [
+      {
+        name: 'BUDGET',
+        type: 'CATEGORY',
+        isEnabled: true,
+        sections: [{ name: 'budget', type: 'SECTION', isEnabled: true, restrictedTo: null }],
+      },
+      {
+        name: 'ABOUT',
+        type: 'CATEGORY',
+        isEnabled: true,
+        sections: [{ type: 'SECTION', name: 'about', isEnabled: true, restrictedTo: null }],
+      },
+    ],
+  },
 };
 
 async function createProject(_, args, req) {
