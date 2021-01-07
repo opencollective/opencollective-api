@@ -27,7 +27,7 @@ describe('server/lib/allowed-features', () => {
     });
     it('EVENTS', () => {
       expect(isFeatureAllowedForCollectiveType('COLLECTIVE', FEATURE.EVENTS)).to.be.true;
-      expect(isFeatureAllowedForCollectiveType('ORGANIZATION', FEATURE.EVENTS)).to.be.true;
+      expect(isFeatureAllowedForCollectiveType('ORGANIZATION', FEATURE.EVENTS)).to.be.false;
       expect(isFeatureAllowedForCollectiveType('ORGANIZATION', FEATURE.EVENTS, true)).to.be.true;
       expect(isFeatureAllowedForCollectiveType('USER', FEATURE.EVENTS)).to.be.false;
       expect(isFeatureAllowedForCollectiveType('EVENT', FEATURE.EVENTS)).to.be.false;
