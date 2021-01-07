@@ -150,6 +150,19 @@ const convertSectionsToNewFormat = (sections, collectiveType) => {
  */
 module.exports = {
   up: async queryInterface => {
+    // Remove customization made so far with the new navbar to start from clean data (only affects staging & dev)
+    await queryInterface.sequelize.query(`
+      UPDATE "Collectives"
+      SET settings = JSONB_SET(
+        JSONB_SET(settings, '{collectivePage,sections}', 'null'),
+        '{collectivePage,useNewSections}',
+        'false'
+      )
+      WHERE settings -> 'collectivePage' -> 'sections' IS NOT NULL
+      AND (settings -> 'collectivePage' ->> 'useNewSections')::boolean IS TRUE
+    `);
+
+    // Migrate all sections
     const [collectives] = await queryInterface.sequelize.query(`
       SELECT id, "type", settings
       FROM "Collectives" c 
