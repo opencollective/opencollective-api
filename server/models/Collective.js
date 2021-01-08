@@ -685,20 +685,22 @@ export default function (Sequelize, DataTypes) {
             instance.data = { ...instance.data, spamReport };
           }
         },
-        afterCreate: async instance => {
+        afterCreate: async (instance, options) => {
           instance.findImage();
 
           if ([types.COLLECTIVE, types.FUND, types.EVENT, types.PROJECT].includes(instance.type)) {
-            await models.PaymentMethod.create({
-              CollectiveId: instance.id,
-              service: 'opencollective',
-              type: 'collective',
-              name: `${instance.name} (${capitalize(instance.type.toLowerCase())})`,
-              primary: true,
-              currency: instance.currency,
-            });
+            await models.PaymentMethod.create(
+              {
+                CollectiveId: instance.id,
+                service: 'opencollective',
+                type: 'collective',
+                name: `${instance.name} (${capitalize(instance.type.toLowerCase())})`,
+                primary: true,
+                currency: instance.currency,
+              },
+              { transaction: options.transaction },
+            );
           }
-
           return null;
         },
         afterUpdate: async (instance, options) => {

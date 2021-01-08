@@ -10,6 +10,5 @@ export const CollectiveCreateInput = new GraphQLInputObjectType({
     tags: { type: new GraphQLList(GraphQLString) },
     githubHandle: { type: GraphQLString },
     settings: { type: GraphQLJSON },
-    data: { type: GraphQLJSON },
   }),
 });
