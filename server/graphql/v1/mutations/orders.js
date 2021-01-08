@@ -880,7 +880,7 @@ export async function addFundsToCollective(order, remoteUser) {
     fromCollective = await models.Collective.findByPk(order.fromCollective.id);
     if (!fromCollective) {
       throw new Error(`From collective id ${order.fromCollective.id} not found`);
-    } else if ([types.COLLECTIVE, types.EVENT].includes(fromCollective.type)) {
+    } else {
       const isAdminOfFromCollective = remoteUser.isRoot() || remoteUser.isAdmin(fromCollective.id);
       if (!isAdminOfFromCollective && fromCollective.HostCollectiveId !== host.id) {
         const fromCollectiveHostId = await fromCollective.getHostCollectiveId();
