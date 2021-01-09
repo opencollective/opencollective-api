@@ -5,7 +5,6 @@ import debugLib from 'debug';
 import jwt from 'jsonwebtoken';
 import { get, isNil, omitBy } from 'lodash';
 import passport from 'passport';
-import request from 'request-promise';
 
 import * as connectedAccounts from '../controllers/connectedAccounts';
 import errors from '../lib/errors';
@@ -189,7 +188,7 @@ export const authenticateService = (req, res, next) => {
   const opts = { callbackURL: getOAuthCallbackUrl(req) };
 
   if (service === 'github') {
-    if (context == 'createCollective') {
+    if (context === 'createCollective') {
       opts.scope = [
         // We need this to call github.getOrgMemberships and check if the user is an admin of a given Organization
         'read:org',
@@ -355,7 +354,7 @@ export function authorizeClientApp(req, res, next) {
     next(new Unauthorized(`Invalid API key: ${apiKey}`));
   } else {
     debug('Missing API key or Client Id');
-    next();
+    next(new BadRequest('Missing API key or Client Id'));
   }
 }
 
