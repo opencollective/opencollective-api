@@ -124,7 +124,7 @@ export const hasFeature = (collective, feature: FEATURE): boolean => {
   // Features only for active accounts
   if (!collective.isActive && FEATURES_ONLY_FOR_ACTIVE_ACCOUNTS.has(feature)) {
     return false;
-  } else if (!collective.isActive && collective.isHost && FEATURES_ONLY_FOR_ACTIVE_HOSTS.has(feature)) {
+  } else if (!collective.isActive && collective.isHostAccount && FEATURES_ONLY_FOR_ACTIVE_HOSTS.has(feature)) {
     return false;
   }
 
