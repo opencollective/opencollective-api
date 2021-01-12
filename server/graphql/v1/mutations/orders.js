@@ -884,8 +884,10 @@ export async function addFundsToCollective(order, remoteUser) {
       const isAdminOfFromCollective = remoteUser.isRoot() || remoteUser.isAdmin(fromCollective.id);
       if (!isAdminOfFromCollective && fromCollective.HostCollectiveId !== host.id) {
         const fromCollectiveHostId = await fromCollective.getHostCollectiveId();
-        if (!remoteUser.isAdmin(fromCollectiveHostId)) {
-          throw new Error("You don't have the permission to add funds from collectives you don't own or host.");
+        if (!remoteUser.isAdmin(fromCollectiveHostId) && !host.data?.allowAddFundsFromAllAccounts) {
+          throw new Error(
+            "You don't have the permission to add funds from accounts you don't own or host. Please contact support@opencollective.com if you want to enable this.",
+          );
         }
       }
     }
