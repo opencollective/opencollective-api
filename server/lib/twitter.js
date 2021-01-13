@@ -128,7 +128,7 @@ Support them too!`,
 Support them too!`,
       oneHundred: `🎉 {collective} just reached 100 backers!! 🙌
 Support them too!`,
-      oneThousandBackers: `🎉 {collective} just reached 1,0000 backers!!! 🙌
+      oneThousandBackers: `🎉 {collective} just reached 1,000 backers!!! 🙌
 Support them too!`,
       updatePublished: 'Latest update from the collective: {title}',
       monthlyStats: `In {month}, {totalNewBackers, select,
