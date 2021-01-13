@@ -100,14 +100,27 @@ const loadContributors = async (collectiveId: number): Promise<ContributorsCache
   const allContributors = await sequelize.query(
     `
       WITH member_collectives_matching_roles AS (
-        SELECT      c.*
-        FROM        "Collectives" c
-        INNER JOIN  "Members" m ON m."MemberCollectiveId" = c.id
-        WHERE       m."CollectiveId" = :collectiveId
-        AND         c."id" != :collectiveId
-        AND         m."deletedAt" IS NULL AND c."deletedAt" IS NULL
-        GROUP BY    c.id
-      ), total_contributed AS (
+        SELECT
+          c.*,
+          ARRAY_AGG(DISTINCT m."role") AS "roles",
+          MIN(m."since") as "since",
+          ARRAY_AGG(DISTINCT m."TierId") as "tiersIds",
+          COALESCE(MAX(m.description), MAX(t.name)) AS "memberDescription",
+          MAX(m."publicMessage") AS "publicMessage",
+          BOOL_OR(COALESCE((c."data" ->> 'isGuest') :: boolean, FALSE)) AS "isGuest"
+        FROM
+          "Collectives" c
+          INNER JOIN "Members" m ON m."MemberCollectiveId" = c.id
+          INNER JOIN "Tiers" t ON t.id = m."TierId"
+        WHERE
+          m."CollectiveId" = :collectiveId
+          AND m."MemberCollectiveId" != :collectiveId
+          AND m."deletedAt" IS NULL
+          AND c."deletedAt" IS NULL
+        GROUP BY
+          c.id
+      ),
+      total_contributed AS (
         SELECT
           "UsingVirtualCardFromCollectiveId",
           "FromCollectiveId",
@@ -119,36 +132,37 @@ const loadContributors = async (collectiveId: number): Promise<ContributorsCache
           AND TYPE = 'CREDIT'
           AND "deletedAt" IS NULL
           AND "RefundTransactionId" IS NULL
-        GROUP BY "UsingVirtualCardFromCollectiveId", "FromCollectiveId"
+        GROUP BY
+          "UsingVirtualCardFromCollectiveId",
+          "FromCollectiveId"
       )
-
       SELECT
         mc.id,
         MAX(mc.name) AS name,
         MAX(mc.slug) AS "collectiveSlug",
         MAX(mc.image) AS image,
         MAX(mc.type) AS type,
-        MIN(m.since) AS since,
-        MAX(m."publicMessage") AS "publicMessage",
-        BOOL_OR(mc."isIncognito") AS "isIncognito",
-        BOOL_OR(COALESCE((mc."data"->>'isGuest')::boolean, FALSE)) AS "isGuest",
-        ARRAY_AGG(DISTINCT m."role") AS roles,
-        ARRAY_AGG(DISTINCT tier."id") AS "tiersIds",
-        COALESCE(MAX(m.description), MAX(tier.name)) AS description,
-        COALESCE(tc."totalAmountDonated", 0) AS "totalAmountDonated"
+        mc.since,
+        mc.roles,
+        mc."tiersIds",
+        mc."publicMessage",
+        mc."isIncognito",
+        mc."isGuest",
+        mc."memberDescription" as "description",
+        COALESCE(SUM(tc."totalAmountDonated"), 0) AS "totalAmountDonated"
       FROM
         "member_collectives_matching_roles" mc
-      INNER JOIN
-        "Members" m ON m."MemberCollectiveId" = mc.id
-      LEFT JOIN
-        "Tiers" tier ON m."TierId" = tier.id
-      LEFT JOIN "total_contributed" tc ON tc."UsingVirtualCardFromCollectiveId" = mc.id OR tc."FromCollectiveId" = mc.id
-      WHERE
-        m."CollectiveId" = :collectiveId
-      AND
-        m."deletedAt" IS NULL AND mc."deletedAt" IS NULL
+        LEFT JOIN "total_contributed" tc ON tc."UsingVirtualCardFromCollectiveId" = mc.id
+        OR tc."FromCollectiveId" = mc.id
       GROUP BY
-        mc.id, "totalAmountDonated"
+        mc.id,
+        mc.since,
+        mc.roles,
+        mc."tiersIds",
+        mc."publicMessage",
+        mc."isIncognito",
+        mc."isGuest",
+        mc."memberDescription"
       ORDER BY
         "totalAmountDonated" DESC,
         "since" ASC
