@@ -27,9 +27,13 @@ async function createCollective(_, args, req) {
   let user = remoteUser,
     host;
 
+  if (args.host) {
+    host = await fetchAccountWithReference(args.host, { loaders });
+  }
+
   return sequelize
     .transaction(async transaction => {
-      if (!user && args.user && args.host.legacyId === defaultHostCollective('foundation').CollectiveId) {
+      if (!user && args.user && host.id === defaultHostCollective('foundation').CollectiveId) {
         user = await models.User.findByEmail(args.user.email, transaction);
         if (!user) {
           user = await models.User.createUserWithCollective(args.user, transaction);
@@ -46,7 +50,6 @@ async function createCollective(_, args, req) {
         isActive: false,
         CreatedByUserId: user.id,
         settings: { ...DEFAULT_COLLECTIVE_SETTINGS, ...args.collective.settings },
-        ...(args.applicationData && { data: args.applicationData }),
       };
 
       if (isCollectiveSlugReserved(collectiveData.slug)) {
@@ -95,7 +98,6 @@ async function createCollective(_, args, req) {
           collectiveData.tags.push('open source');
         }
       } else if (args.host) {
-        host = await fetchAccountWithReference(args.host, { loaders });
         if (!host) {
           throw new ValidationFailed('Host Not Found');
         }
@@ -111,7 +113,11 @@ async function createCollective(_, args, req) {
     .then(async collective => {
       // Add the host if any
       if (host) {
-        await collective.addHost(host, user, { shouldAutomaticallyApprove, message: args.message });
+        await collective.addHost(host, user, {
+          shouldAutomaticallyApprove,
+          message: args.message,
+          applicationData: args.applicationData,
+        });
         purgeCacheForCollective(host.slug);
       }
 
