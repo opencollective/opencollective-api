@@ -2585,21 +2585,7 @@ export default function (Sequelize, DataTypes) {
   };
 
   Collective.prototype.isHost = function () {
-    if (this.isHostAccount) {
-      return Promise.resolve(true);
-    }
-
-    if (this.type !== 'ORGANIZATION' && this.type !== 'USER') {
-      return Promise.resolve(false);
-    }
-
-    return models.Member.findOne({ where: { MemberCollectiveId: this.id, role: 'HOST' } }).then(r => Boolean(r));
-  };
-
-  Collective.prototype.isHostOf = function (CollectiveId) {
-    return models.Collective.findOne({
-      where: { id: CollectiveId, HostCollectiveId: this.id },
-    }).then(r => Boolean(r));
+    return this.isHostAccount;
   };
 
   Collective.prototype.getRelatedCollectives = function (
