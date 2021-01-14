@@ -968,6 +968,16 @@ export default function (Sequelize, DataTypes) {
     return this;
   };
 
+  Collective.prototype.hasBudget = () => {
+    if ([types.COLLECTIVE, types.EVENT, types.PROJECT, types.FUND].includes(this.type)) {
+      return true;
+    } else if (this.type === types.ORGANIZATION) {
+      return this.isHostAccount && this.isActive;
+    } else {
+      return false;
+    }
+  };
+
   /**
    * Activate Budget (so the "Host Organization" can receive financial contributions and manage expenses)
    */
