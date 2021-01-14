@@ -32,49 +32,53 @@ describe('server/lib/spam', () => {
       });
 
       // Long description
-      expect(await collectiveSpamCheck({ longDescription: 'Some PORN stuff' })).to.deep.eq({
+      const collectiveWithBadLongDescription = await fakeCollective({ longDescription: 'Some PORN stuff' });
+      expect(await collectiveSpamCheck(collectiveWithBadLongDescription)).to.deep.eq({
         score: 0.2,
         keywords: ['porn'],
         domains: [],
         bayes: 'ham',
         context: undefined,
         date: '2020-01-01T00:00:00.000Z',
-        data: { longDescription: 'Some PORN stuff' },
+        data: collectiveWithBadLongDescription.info,
       });
 
       // Website
-      expect(await collectiveSpamCheck({ website: 'https://maxketo.com' })).to.deep.eq({
+      const collectiveWithBadWebsite = await fakeCollective({ website: 'https://maxketo.com' });
+      expect(await collectiveSpamCheck(collectiveWithBadWebsite)).to.deep.eq({
         score: 0.3,
         keywords: ['keto'],
         domains: [],
-        bayes: null,
+        bayes: 'ham',
         context: undefined,
         date: '2020-01-01T00:00:00.000Z',
-        data: { website: 'https://maxketo.com' },
+        data: collectiveWithBadWebsite.info,
       });
 
       // Name
-      expect(await collectiveSpamCheck({ name: 'BEST KeTo!!!' })).to.deep.eq({
+      const collectiveWithBadName = await fakeCollective({ name: 'BEST KeTo!!!' });
+      expect(await collectiveSpamCheck(collectiveWithBadName)).to.deep.eq({
         score: 0.3,
         keywords: ['keto'],
         domains: [],
-        bayes: null,
+        bayes: 'ham',
         context: undefined,
         date: '2020-01-01T00:00:00.000Z',
-        data: { name: 'BEST KeTo!!!' },
+        data: collectiveWithBadName.info,
       });
     });
 
     it('detects blocked websites', async () => {
       // Website
-      expect(await collectiveSpamCheck({ website: 'https://supplementslove.com/promotion' })).to.deep.eq({
+      const collectiveWithBlockedWebsite = await fakeCollective({ website: 'https://supplementslove.com/promotion' });
+      expect(await collectiveSpamCheck(collectiveWithBlockedWebsite)).to.deep.eq({
         score: 1,
         keywords: [],
         domains: ['supplementslove.com'],
-        bayes: null,
+        bayes: 'ham',
         context: undefined,
         date: '2020-01-01T00:00:00.000Z',
-        data: { website: 'https://supplementslove.com/promotion' },
+        data: collectiveWithBlockedWebsite.info,
       });
     });
   });

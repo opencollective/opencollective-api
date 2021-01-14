@@ -2,6 +2,7 @@
 import '../server/env';
 
 import getUrls from 'get-urls'; // eslint-disable-line node/no-unpublished-import
+import moment from 'moment';
 
 import { SPAMMERS_DOMAINS } from '../server/lib/spam';
 import models, { Op, sequelize } from '../server/models';
@@ -9,7 +10,7 @@ import models, { Op, sequelize } from '../server/models';
 async function run() {
   const collectives = await models.Collective.findAll({
     where: {
-      updatedAt: { [Op.gt]: '2020-11-01' },
+      updatedAt: { [Op.gte]: moment().subtract(1, 'month').toDate() },
     },
     order: [['updatedAt', 'DESC']],
     paranoid: true,

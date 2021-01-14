@@ -58,8 +58,12 @@ async function run() {
       collective.data?.seo !== true &&
       collective.data?.notSpam !== true
     ) {
-      console.log('NEW', collective.slug, `https://opencollective.com/${collective.slug}`, collective.createdAt);
-      // console.log(collective.slug);
+      const transactions = await collective.getTransactions({});
+      if (transactions.length === 0) {
+        console.log('NEW', collective.slug, `https://opencollective.com/${collective.slug}`);
+      } else {
+        // console.log('HAS_TRANSACTIONS', `https://opencollective.com/${collective.slug}`);
+      }
     }
   }
 

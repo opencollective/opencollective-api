@@ -36,7 +36,7 @@ async function run() {
     where: {
       approvedAt: { [Op.is]: null },
       longDescription: { [Op.not]: null },
-      createdAt: { [Op.gt]: '2020-07-21' },
+      createdAt: { [Op.gt]: '2020-06-21' },
     },
     order: [['createdAt', 'DESC']],
     paranoid: false,
@@ -45,7 +45,9 @@ async function run() {
   for (const collective of collectives) {
     console.log(collective.slug, collective.createdAt);
     const ipString = await getIpString(collective);
-    const content = `${collective.slug} ${collective.name} ${collective.description} ${collective.longDescription} ${collective.website} ${ipString}`;
+    const content = `${collective.slug.split('-').join(' ')} ${collective.name} ${collective.description} ${
+      collective.longDescription
+    } ${collective.website} ${ipString}`;
 
     if (collective.data?.isBanned || collective.data?.seo === true) {
       await classifier.learn(content, 'spam');
@@ -66,7 +68,9 @@ async function run() {
   for (const collective of approvedCollectives) {
     console.log(collective.slug, collective.createdAt);
     const ipString = await getIpString(collective);
-    const content = `${collective.slug} ${collective.name} ${collective.description} ${collective.longDescription} ${collective.website} ${ipString}`;
+    const content = `${collective.slug.split('-').join(' ')} ${collective.name} ${collective.description} ${
+      collective.longDescription
+    } ${collective.website} ${ipString}`;
 
     await classifier.learn(content, 'ham');
   }
