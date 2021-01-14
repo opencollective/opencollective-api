@@ -4,7 +4,7 @@ import { isEmpty } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import { types as COLLECTIVE_TYPE } from '../constants/collectives';
-import { BadRequest, InvalidToken, NotFound } from '../graphql/errors';
+import { BadRequest, InvalidToken, NotFound, Unauthorized } from '../graphql/errors';
 import models, { Op, sequelize } from '../models';
 
 import { mergeCollectives } from './collectivelib';
@@ -86,7 +86,10 @@ const createGuestProfile = (
       );
     } else if (user.confirmedAt) {
       // We only allow to re-use the same User without token if it's not verified.
-      throw new Error('An account already exists for this email, please sign in.');
+      throw new Unauthorized(
+        'An account already exists for this email, please sign in.',
+        'ACCOUNT_EMAIL_ALREADY_EXISTS',
+      );
     }
 
     await collective.update({ CreatedByUserId: user.id }, { transaction });
@@ -130,7 +133,7 @@ const getGuestProfileFromToken = async (tokenValue, { email, name, location }): 
 
   if (user.confirmedAt) {
     // Account exists & user is confirmed => need to sign in
-    throw new Error('An account already exists for this email, please sign in.');
+    throw new Unauthorized('An account already exists for this email, please sign in.', 'ACCOUNT_EMAIL_ALREADY_EXISTS');
   } else if (email && user.email !== email.trim()) {
     // The user is making a new guest contribution from the same browser but with
     // a different email. For now the behavior is to ignore the existing guest profile
