@@ -602,7 +602,9 @@ export async function deleteCollective(_, args, req) {
   }
 
   return models.Member.findAll({
-    where: { CollectiveId: collective.id },
+    where: {
+      [Op.or]: [{ CollectiveId: collective.id }, { MemberCollectiveId: collective.id }],
+    },
   })
     .then(members => {
       return map(
