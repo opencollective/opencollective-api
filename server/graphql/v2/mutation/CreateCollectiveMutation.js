@@ -33,7 +33,7 @@ async function createCollective(_, args, req) {
 
   return sequelize
     .transaction(async transaction => {
-      if (!user && args.user && host.id === defaultHostCollective('foundation').CollectiveId) {
+      if (!user && args.user && host?.id === defaultHostCollective('foundation').CollectiveId) {
         user = await models.User.findByEmail(args.user.email, transaction);
         if (!user) {
           user = await models.User.createUserWithCollective(args.user, transaction);
@@ -124,10 +124,7 @@ async function createCollective(_, args, req) {
       // Will send an email to the authenticated user OR newly created user (For OCF application)
       // - tell them that their collective was successfully created
       // - tell them that their collective is pending validation (which might be wrong if it was automatically approved)
-      const remoteUserCollective = remoteUser
-        ? await loaders.Collective.byId.load(user.CollectiveId)
-        : await models.Collective.findByPk(user.CollectiveId);
-
+      const remoteUserCollective = await loaders.Collective.byId.load(user.CollectiveId);
       models.Activity.create({
         type: activities.COLLECTIVE_CREATED,
         UserId: user.id,
