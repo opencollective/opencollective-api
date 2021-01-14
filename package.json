@@ -21,7 +21,7 @@
     "@opencollective/taxes": "3.1.0",
     "@paypal/payouts-sdk": "^1.0.0",
     "@sentry/node": "5.29.2",
-    "@sentry/tracing": "5.29.2",
+    "@sentry/tracing": "5.30.0",
     "apollo-server-express": "2.19.1",
     "argparse": "2.0.1",
     "aws-sdk": "2.826.0",
