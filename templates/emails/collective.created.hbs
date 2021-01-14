@@ -4,14 +4,38 @@ Subject: Welcome to Open Collective!
 
 <h1>Hey {{collective.name}} 👋</h1>
 
-<p>I’m Pía, one of the founders of Open Collective. I’d love to help you set up and get your collective up and running. Feel free to reach out to me directly by replying to this email. I'm here to help you!</p>
+<p>I’m Pía, one of the founders of Open Collective. I’d love to help you set up and get your {{accountType}} up and running. Feel free to reach out to me directly by replying to this email. I'm here to help you!</p>
 
-<p>Your collective is pending approval from your host (<a href="https://opencollective.com/{{host.slug}}">{{host.name}}</a>). Your host is the legal entity that will hold the money on behalf of your collective. Once they approve you, you will be able to collect money for your collective without having to worry about accounting, invoicing, etc. If you already have a legal entity that could act as your host, please reach out!</p>
+{{#if host}}
 
-<p>In the meantime, you can already customize your collective page, submit expenses, organize events (with free tickets), post updates and add members.</p>
+<p>
+  {{#if hostPending}}
+  Your {{accountType}} is pending approval from your Host (<a href="https://opencollective.com/{{host.slug}}">{{host.name}}</a>).
+  Your Host is the legal entity that will hold the money on behalf of your {{accountType}}.
+  Once they approve you, you will be able to collect money without having to worry about accounting, invoicing, or tax reporting.
+  {{else}}
+  Your {{accountType}} is hosted by <a href="https://opencollective.com/{{host.slug}}">{{host.name}}</a>.
+  Your host is the legal entity that will hold the money on behalf of your {{accountType}}.
+  With a Host, you will be able to collect money without having to worry about accounting, invoicing, or tax reporting.
+  {{/if}}
+</p>
+
+{{else}}
+
+<p>
+  Your {{accountType}} doesn't have a Host yet.
+  You can browse the hosts already on the platform <a href="https://opencollective.com/hosts">here</a>.
+  You will be able to collect money for your {{accountType}} without having to worry about accounting, invoicing, or tax reporting.
+  If your collective is already under a Fiscal Host and you want them to join as well, please reach out!
+</p>
+
+{{/if}}
+
+<p>In the meantime, you can already customize your profile page, submit expenses, organize events (with free tickets), post updates and add members.</p>
+
 <p> Don't forget to check our <a href="https://docs.opencollective.com/help/collectives/customize-collective">docs</a> to make the most from our customization options.</p>
 
-<p>Let us know if you need any help setting things up, we are here to help your collective succeed.</p>
+<p>Let us know if you need any help setting things up, we are here to help your {{accountType}} succeed.</p>
 
 <p>
   <center>
