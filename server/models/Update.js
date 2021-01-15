@@ -295,6 +295,7 @@ export default function (Sequelize, DataTypes) {
 
   Update.prototype.delete = async function (remoteUser) {
     mustHaveRole(remoteUser, 'ADMIN', this.CollectiveId, 'delete this update');
+    await models.Comment.destroy({ where: { UpdateId: this.id } });
     return this.destroy();
   };
 
