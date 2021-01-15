@@ -22,7 +22,7 @@
     "@paypal/payouts-sdk": "^1.0.0",
     "@sentry/node": "5.30.0",
     "@sentry/tracing": "5.30.0",
-    "apollo-server-express": "2.19.1",
+    "apollo-server-express": "2.19.2",
     "argparse": "2.0.1",
     "aws-sdk": "2.828.0",
     "axios": "0.21.1",
