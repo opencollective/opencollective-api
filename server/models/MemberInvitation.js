@@ -3,6 +3,7 @@ import { pick } from 'lodash';
 
 import { types } from '../constants/collectives';
 import roles, { MemberRoleLabels } from '../constants/roles';
+import { purgeCacheForCollective } from '../lib/cache';
 import emailLib from '../lib/email';
 
 import models from '.';
@@ -136,6 +137,7 @@ export default function (Sequelize, DataTypes) {
         description: this.description,
         since: this.since,
       });
+      purgeCacheForCollective(collective.slug);
     }
 
     return this.destroy();
