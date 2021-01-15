@@ -1059,10 +1059,11 @@ export const UpdateType = new GraphQLObjectType({
         description: 'Indicates whether or not the user is allowed to see the content of this update',
         type: GraphQLBoolean,
         resolve(update, _, req) {
-          if (!update.isPrivate) {
+          if (!update.publishedAt || update.isPrivate) {
+            return Boolean(req.remoteUser && req.remoteUser.canSeePrivateUpdates(update.CollectiveId));
+          } else {
             return true;
           }
-          return req.remoteUser && req.remoteUser.canSeeUpdates(update.CollectiveId);
         },
       },
       title: {
@@ -1092,7 +1093,7 @@ export const UpdateType = new GraphQLObjectType({
       summary: {
         type: GraphQLString,
         resolve(update, _, req) {
-          if (update.isPrivate && !(req.remoteUser && req.remoteUser.canSeeUpdates(update.CollectiveId))) {
+          if (update.isPrivate && !(req.remoteUser && req.remoteUser.canSeePrivateUpdates(update.CollectiveId))) {
             return null;
           }
 
@@ -1102,7 +1103,7 @@ export const UpdateType = new GraphQLObjectType({
       html: {
         type: GraphQLString,
         resolve(update, _, req) {
-          if (update.isPrivate && !(req.remoteUser && req.remoteUser.canSeeUpdates(update.CollectiveId))) {
+          if (update.isPrivate && !(req.remoteUser && req.remoteUser.canSeePrivateUpdates(update.CollectiveId))) {
             return null;
           }
 
@@ -1112,7 +1113,7 @@ export const UpdateType = new GraphQLObjectType({
       markdown: {
         type: GraphQLString,
         resolve(update, _, req) {
-          if (update.isPrivate && !(req.remoteUser && req.remoteUser.canSeeUpdates(update.CollectiveId))) {
+          if (update.isPrivate && !(req.remoteUser && req.remoteUser.canSeePrivateUpdates(update.CollectiveId))) {
             return null;
           }
 

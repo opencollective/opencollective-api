@@ -2112,7 +2112,7 @@ type Mutation {
     @deprecated(reason: "2020-10-13: This endpoint has been moved to GQLV2")
   confirmOrder(order: ConfirmOrderInputType!): OrderType
   addFundsToCollective(order: OrderInputType!): OrderType
-  createUpdate(update: UpdateInputType!): UpdateType
+  createUpdate(update: UpdateInputType!): UpdateType @deprecated(reason: "This endpoint has been moved to GQLV2")
   editUpdate(update: UpdateAttributesInputType!): UpdateType
   publishUpdate(id: Int!, notificationAudience: UpdateAudienceTypeEnum!): UpdateType
   unpublishUpdate(id: Int!): UpdateType

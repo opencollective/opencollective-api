@@ -1,14 +1,10 @@
-import config from 'config';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { pick } from 'lodash';
 
 import statuses from '../../constants/expense_status';
-import roles from '../../constants/roles';
-import emailLib from '../../lib/email';
-import logger from '../../lib/logger';
-import models, { sequelize } from '../../models';
+import models from '../../models';
 import { bulkCreateVirtualCards, createVirtualCardsForEmails } from '../../paymentProviders/opencollective/virtualcard';
 import { editPublicMessage } from '../common/members';
+import * as updateMutations from '../common/update';
 import { createUser } from '../common/user';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../errors';
 
@@ -52,7 +48,6 @@ import {
 } from './mutations/orders';
 import * as paymentMethodsMutation from './mutations/paymentMethods';
 import { editTier, editTiers } from './mutations/tiers';
-import * as updateMutations from './mutations/updates';
 import { confirmUserEmail, updateUserEmail } from './mutations/users';
 import { ApplicationInputType, ApplicationType } from './Application';
 import { CollectiveInterfaceType } from './CollectiveInterface';
@@ -480,6 +475,7 @@ const mutations = {
   },
   createUpdate: {
     type: UpdateType,
+    deprecationReason: 'This endpoint has been moved to GQLV2',
     args: {
       update: {
         type: new GraphQLNonNull(UpdateInputType),
@@ -543,7 +539,13 @@ const mutations = {
         type: new GraphQLNonNull(CommentInputType),
       },
     },
-    resolve: commentMutations.createComment,
+    resolve: (_, args, req) => {
+      if (args['UpdateId']) {
+        throw new Error('Use QPI V2 to post comments on updates');
+      }
+
+      return commentMutations.createComment(_, args, req);
+    },
   },
   editComment: {
     type: CommentType,

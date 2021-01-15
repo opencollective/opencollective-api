@@ -13,6 +13,7 @@ import OrderQuery from './OrderQuery';
 import OrdersQuery from './OrdersQuery';
 import TierQuery from './TierQuery';
 import TransactionsQuery from './TransactionsQuery';
+import UpdateQuery from './UpdateQuery';
 
 const query = {
   account: AccountQuery,
@@ -28,6 +29,7 @@ const query = {
   tier: TierQuery,
   // transaction: TransactionQuery,
   transactions: TransactionsQuery,
+  update: UpdateQuery,
   loggedInAccount: {
     type: Account,
     resolve(_, args, req) {

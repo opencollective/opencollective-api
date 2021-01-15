@@ -1,10 +1,11 @@
 import { get } from 'lodash';
 
-import { mustHaveRole } from '../../../lib/auth';
-import { purgeCacheForCollective } from '../../../lib/cache';
-import { stripTags } from '../../../lib/utils';
-import models from '../../../models';
-import { NotFound, ValidationFailed } from '../../errors';
+import { mustHaveRole } from '../../lib/auth';
+import { purgeCacheForCollective } from '../../lib/cache';
+import { stripTags } from '../../lib/utils';
+import models from '../../models';
+import { NotFound, ValidationFailed } from '../errors';
+import { idDecode, IDENTIFIER_TYPES } from '../v2/identifiers';
 
 function require(args, path) {
   if (!get(args, path)) {
@@ -13,7 +14,10 @@ function require(args, path) {
 }
 
 export async function createUpdate(_, args, req) {
-  const CollectiveId = get(args, 'update.collective.id');
+  let CollectiveId = get(args, 'update.collective.id');
+  if (!CollectiveId) {
+    CollectiveId = get(args, 'update.account.legacyId');
+  }
   mustHaveRole(req.remoteUser, 'ADMIN', CollectiveId, 'create an update');
   require(args, 'update.title');
 
@@ -42,7 +46,12 @@ export async function createUpdate(_, args, req) {
 }
 
 async function fetchUpdate(id) {
-  const update = await models.Update.findByPk(id);
+  let update;
+  if (typeof id == 'string') {
+    update = await models.Update.findByPk(idDecode(id, IDENTIFIER_TYPES.UPDATE));
+  } else {
+    update = await models.Update.findByPk(id);
+  }
   if (!update) {
     throw new NotFound(`Update with id ${id} not found`);
   }
