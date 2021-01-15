@@ -1,6 +1,7 @@
 import { GraphQLNonNull, GraphQLString } from 'graphql';
 
 import { createCommentResolver, deleteComment, editComment } from '../../common/comment';
+import { Unauthorized } from '../../errors';
 import { getDecodedId, idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { CommentCreateInput } from '../input/CommentCreateInput';
 import { CommentUpdateInput } from '../input/CommentUpdateInput';
@@ -50,6 +51,9 @@ const commentMutations = {
           loaders: req.loaders,
           throwIfMissing: true,
         });
+        if ((update.isPrivate || !update.publishedAt) && !req.remoteUser?.canSeePrivateUpdates(update.CollectiveId)) {
+          throw new Unauthorized('You do not have the permission to post comments on this update');
+        }
         args.comment.UpdateId = update.id;
       }
 
