@@ -8,6 +8,14 @@ import { UpdateAudienceType } from '../enum';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { Account } from '../interface/Account';
 
+const canSeeUpdateDetails = (req, update) => {
+  if (!update.publishedAt || update.isPrivate) {
+    return Boolean(req.remoteUser && req.remoteUser.canSeePrivateUpdates(update.CollectiveId));
+  } else {
+    return true;
+  }
+};
+
 const Update = new GraphQLObjectType({
   name: 'Update',
   description: 'This represents an Update',
@@ -17,17 +25,18 @@ const Update = new GraphQLObjectType({
         type: new GraphQLNonNull(GraphQLString),
         resolve: getIdEncodeResolver(IDENTIFIER_TYPES.UPDATE),
       },
-      legacyId: { type: GraphQLInt },
+      legacyId: {
+        type: GraphQLInt,
+        resolve(update) {
+          return update.id;
+        },
+      },
       slug: { type: new GraphQLNonNull(GraphQLString) },
       userCanSeeUpdate: {
         description: 'Indicates whether or not the user is allowed to see the content of this update',
         type: new GraphQLNonNull(GraphQLBoolean),
         resolve(update, _, req) {
-          if (!update.publishedAt || update.isPrivate) {
-            return Boolean(req.remoteUser && req.remoteUser.canSeePrivateUpdates(update.CollectiveId));
-          } else {
-            return true;
-          }
+          return canSeeUpdateDetails(req, update);
         },
       },
       isPrivate: { type: new GraphQLNonNull(GraphQLBoolean) },
@@ -40,17 +49,17 @@ const Update = new GraphQLObjectType({
       summary: {
         type: GraphQLString,
         resolve(update, _, req) {
-          if (update.isPrivate && !(req.remoteUser && req.remoteUser.canSeePrivateUpdates(update.CollectiveId))) {
+          if (!canSeeUpdateDetails(req, update)) {
             return null;
+          } else {
+            return update.summary || '';
           }
-
-          return update.summary || '';
         },
       },
       html: {
         type: GraphQLString,
         resolve(update, _, req) {
-          if (update.isPrivate && !(req.remoteUser && req.remoteUser.canSeePrivateUpdates(update.CollectiveId))) {
+          if (!canSeeUpdateDetails(req, update)) {
             return null;
           }
 
@@ -71,26 +80,30 @@ const Update = new GraphQLObjectType({
         },
       },
       comments: {
-        type: new GraphQLNonNull(CommentCollection),
+        type: CommentCollection,
         description: "List the comments for this update. Not backed by a loader, don't use this in lists.",
         args: {
           limit: { type: GraphQLInt },
           offset: { type: GraphQLInt },
         },
-        async resolve(update, _, { limit, offset }) {
+        async resolve(update, args, req) {
+          if (!canSeeUpdateDetails(req, update)) {
+            return null;
+          }
+
           const where = { UpdateId: update.id };
           const order = [['createdAt', 'ASC']];
           const query = { where, order };
 
-          if (limit) {
-            query.limit = limit;
+          if (args.limit) {
+            query.limit = args.limit;
           }
-          if (offset) {
-            query.offset = offset;
+          if (args.offset) {
+            query.offset = args.offset;
           }
 
           const result = await models.Comment.findAndCountAll(query);
-          return { nodes: result.rows, totalCount: result.count, limit, offset };
+          return { nodes: result.rows, totalCount: result.count, limit: args.limit, offset: args.offset };
         },
       },
     };
