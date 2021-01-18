@@ -70,7 +70,7 @@ export const AccountWithContributionsFields = {
     description:
       'Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account',
     resolve(account): boolean {
-      return account.platformFeePercent === 0;
+      return account.platformFeePercent === 0 && Boolean(account.data?.disablePlatformTips) !== true;
     },
   },
   balance: {
