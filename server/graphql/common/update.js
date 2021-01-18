@@ -48,12 +48,7 @@ export async function createUpdate(_, args, req) {
 }
 
 async function fetchUpdate(id) {
-  let update;
-  if (typeof id == 'string') {
-    update = await models.Update.findByPk(idDecode(id, IDENTIFIER_TYPES.UPDATE));
-  } else {
-    update = await models.Update.findByPk(id);
-  }
+  const update = await models.Update.findByPk(idDecode(id, IDENTIFIER_TYPES.UPDATE));
   if (!update) {
     throw new NotFound(`Update with id ${id} not found`);
   }
