@@ -138,6 +138,7 @@ export const SPAMMERS_DOMAINS = [
   'healthline.com',
   'healthlinenutrition.com',
   'healthmassive.com',
+  'healthmife.com',
   'healthonlinecare.com',
   'healthsupplementcart.com',
   'healthtalkrev.blogspot.com',
@@ -175,6 +176,7 @@ export const SPAMMERS_DOMAINS = [
   'ketofasttrim.com',
   'ketofitstore.com',
   'ketogenicdietpills.com',
+  'ketogenicsupplementsreview.com',
   'ketohour.com',
   'ketopiller.com',
   'ketoplanusa.com',
@@ -187,6 +189,7 @@ export const SPAMMERS_DOMAINS = [
   'ketotrin.info',
   'ketovatrudiet.info',
   'ketoviante.info',
+  'ktc.instructure.com',
   'lakubet.co',
   'lunaireketobhb.blogspot.com',
   'mafiatek.my.id',
@@ -219,6 +222,7 @@ export const SPAMMERS_DOMAINS = [
   'orderfitness.org',
   'organicsupplementdietprogram.com',
   'ourunbiasedreview.blogspot.com',
+  'paper.li',
   'patch.com',
   'penzu.com',
   'petsaw.com',
@@ -226,6 +230,7 @@ export const SPAMMERS_DOMAINS = [
   'pillsfact.com',
   'pillsfect.com',
   'pillsmumy.com',
+  'pillsvibe.com',
   'pilsadiet.com',
   'plarium.com',
   'pornlike.net',
@@ -293,6 +298,7 @@ export const SPAMMERS_DOMAINS = [
   'trentandallievan.com',
   'tripoto.com',
   'trippleresult.com',
+  'tryittoday.xyz',
   'trypurenutrition.com',
   'uchearts.com',
   'udaipurqueen.com',
@@ -408,7 +414,9 @@ const getBayesClassifier = async (): Promise<BayesClassifier> => {
 };
 
 export const collectiveBayesCheck = async (collective: any, extraString: string): Promise<string> => {
-  const content = `${collective.slug} ${collective.name} ${collective.description} ${collective.longDescription} ${collective.website} ${extraString}`;
+  const content = `${collective.slug.split('-').join(' ')} ${collective.name} ${collective.description} ${
+    collective.longDescription
+  } ${collective.website} ${extraString}`;
 
   const classifier = await getBayesClassifier();
 
