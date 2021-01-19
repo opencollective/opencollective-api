@@ -368,21 +368,6 @@ export default function (Sequelize, DataTypes) {
     );
   };
 
-  Update.findBySlug = (slug, options = {}) => {
-    if (!slug || slug.length < 1) {
-      return Promise.resolve(null);
-    }
-    return Update.findOne({
-      where: { slug: slug.toLowerCase() },
-      ...options,
-    }).then(Update => {
-      if (!Update) {
-        throw new Error(`No update found with slug ${slug}`);
-      }
-      return Update;
-    });
-  };
-
   Update.associate = m => {
     Update.belongsTo(m.Collective, {
       foreignKey: 'CollectiveId',
