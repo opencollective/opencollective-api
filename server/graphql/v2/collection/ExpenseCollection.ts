@@ -1,4 +1,4 @@
-import { GraphQLList, GraphQLObjectType } from 'graphql';
+import { GraphQLInt, GraphQLList, GraphQLObjectType } from 'graphql';
 
 import { Collection, CollectionFields } from '../interface/Collection';
 import { Expense } from '../object/Expense';
@@ -9,6 +9,9 @@ const ExpenseCollection = new GraphQLObjectType({
   description: 'A collection of "Expenses"',
   fields: () => ({
     ...CollectionFields,
+    totalAmount: {
+      type: GraphQLInt,
+    },
     nodes: {
       type: new GraphQLList(Expense),
     },

@@ -54,4 +54,8 @@ export interface CollectionReturnType {
   offset: number;
 }
 
+export interface AmountCollectionReturnType extends CollectionReturnType {
+  totalAmount: number;
+}
+
 export { Collection, CollectionFields, CollectionArgs };

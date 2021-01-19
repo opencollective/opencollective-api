@@ -13,7 +13,7 @@ import { ExpenseType } from '../enum/ExpenseType';
 import PayoutMethodType from '../enum/PayoutMethodType';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
-import { CollectionArgs, CollectionReturnType } from '../interface/Collection';
+import { CollectionArgs, AmountCollectionReturnType } from '../interface/Collection';
 import ISODateTime from '../scalar/ISODateTime';
 
 const updateFilterConditionsForReadyToPay = async (where, include): Promise<void> => {
@@ -125,7 +125,7 @@ const ExpensesQuery = {
       description: 'The term to search',
     },
   },
-  async resolve(_, args, req): Promise<CollectionReturnType> {
+  async resolve(_, args, req): Promise<AmountCollectionReturnType> {
     const where = { [Op.and]: [] };
     const include = [];
 
@@ -225,9 +225,14 @@ const ExpensesQuery = {
     const order = [[args.orderBy.field, args.orderBy.direction]];
     const { offset, limit } = args;
     const result = await models.Expense.findAndCountAll({ include, where, order, offset, limit });
+    let totalAmount = 0;
+    result.rows.map(expense => {
+      totalAmount += expense.amount;
+    });
     return {
       nodes: result.rows,
       totalCount: result.count,
+      totalAmount: totalAmount,
       limit: args.limit,
       offset: args.offset,
     };
