@@ -13,7 +13,7 @@ import { ExpenseType } from '../enum/ExpenseType';
 import PayoutMethodType from '../enum/PayoutMethodType';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
-import { CollectionArgs, AmountCollectionReturnType } from '../interface/Collection';
+import { AmountCollectionReturnType,CollectionArgs } from '../interface/Collection';
 import ISODateTime from '../scalar/ISODateTime';
 
 const updateFilterConditionsForReadyToPay = async (where, include): Promise<void> => {
