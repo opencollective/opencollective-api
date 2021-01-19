@@ -1,10 +1,8 @@
 import * as Sentry from '@sentry/node';
-import * as Tracing from '@sentry/tracing';
 import config from 'config';
-import * as express from 'express';
 import { isEqual } from 'lodash';
 
-export const plugSentryToApp = (app: express.Express): void => {
+export const plugSentryToApp = (): void => {
   if (!config.sentry?.dsn) {
     return;
   }
@@ -14,21 +12,7 @@ export const plugSentryToApp = (app: express.Express): void => {
     environment: config.env,
     attachStacktrace: true,
     enabled: config.env !== 'test',
-    integrations: [
-      // enable HTTP calls tracing
-      new Sentry.Integrations.Http({ tracing: true }),
-      // enable Express.js middleware tracing
-      new Tracing.Integrations.Express({ app }),
-    ],
   });
-
-  // ---- Add request handlers ----
-  // RequestHandler creates a separate execution context using domains, so that every
-  // transaction/span/breadcrumb is attached to its own Hub instance
-  app.use(Sentry.Handlers.requestHandler({ ip: true }));
-
-  // TracingHandler creates a trace for every incoming request
-  app.use(Sentry.Handlers.tracingHandler());
 };
 
 const IGNORED_GQL_ERRORS = [
