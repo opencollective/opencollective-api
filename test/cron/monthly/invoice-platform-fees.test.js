@@ -30,7 +30,7 @@ describe('cron/monthly/invoice-platform-fees', () => {
       type: 'BANK_ACCOUNT',
     });
 
-    gbpHost = await fakeHost({ currency: 'GBP', plan: 'grow-plan-2021' });
+    gbpHost = await fakeHost({ currency: 'GBP', plan: 'grow-plan-2021', data: { plan: { pricePerCollective: 100 } } });
 
     const socialCollective = await fakeCollective({ HostCollectiveId: gbpHost.id });
     const transactionProps = {
@@ -137,5 +137,10 @@ describe('cron/monthly/invoice-platform-fees', () => {
       p => p.description == 'Reimburse: Payment Processor Fee for collected Platform Tips',
     );
     expect(reimburseItem).to.have.property('amount', Math.round(-100 / 1.23));
+  });
+
+  it('should consider fixed fee per host collective', async () => {
+    const reimburseItem = expense.items.find(p => p.description == 'Fixed Fee per Hosted Collective');
+    expect(reimburseItem).to.have.property('amount', 100);
   });
 });
