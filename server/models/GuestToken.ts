@@ -37,7 +37,6 @@ export default (sequelize, DataTypes): typeof GuestToken => {
         onDelete: 'CASCADE',
         onUpdate: 'CASCADE',
         allowNull: false,
-        unique: true,
       },
       value: {
         type: DataTypes.STRING,

@@ -30,11 +30,11 @@ describe('server/lib/guest-accounts.ts', () => {
         );
       });
 
-      it('Creates a new profile if a non-verified account already exists for this profile', async () => {
+      it('Re-use the same profile if a non-verified account already exists', async () => {
         const user = await fakeUser({ confirmedAt: null });
         const { collective } = await getOrCreateGuestProfile({ email: user.email });
         expect(collective).to.exist;
-        expect(collective.id).to.not.eq(user.CollectiveId);
+        expect(collective.id).to.eq(user.CollectiveId);
       });
     });
 
@@ -135,10 +135,6 @@ describe('server/lib/guest-accounts.ts', () => {
       await confirmGuestAccountByEmail(user.email, user.emailConfirmationToken, [otherGuestToken.value]);
       await user.reload({ include: [{ association: 'collective' }] });
       expect(user.confirmedAt).to.not.be.null;
-
-      // Has deleted other profiles (but not the main one)
-      expect((await otherGuestProfile.reload({ paranoid: false })).deletedAt).to.not.be.null;
-      expect((await mainProfile.reload({ paranoid: false })).deletedAt).to.be.null;
 
       // Has deleted tokens
       expect((await guestToken.reload({ paranoid: false })).deletedAt).to.not.be.null;

@@ -59,27 +59,14 @@ const createGuestProfile = (
   }
 
   return sequelize.transaction(async transaction => {
-    // Create the public guest profile
-    const collective = await models.Collective.create(
-      {
-        type: COLLECTIVE_TYPE.USER,
-        slug: `guest-${uuid().split('-')[0]}`,
-        name: name || DEFAULT_GUEST_NAME,
-        data: { isGuest: true },
-        address: location?.address,
-        countryISO: location?.country,
-      },
-      { transaction },
-    );
-
     // Create (or fetch) the user associated with the email
-    let user = await models.User.findOne({ where: { email } }, { transaction });
+    let user, collective;
+    user = await models.User.findOne({ where: { email } }, { transaction });
     if (!user) {
       user = await models.User.create(
         {
           email,
           confirmedAt: null,
-          CollectiveId: collective.id,
           emailConfirmationToken,
         },
         { transaction },
@@ -90,9 +77,29 @@ const createGuestProfile = (
         'An account already exists for this email, please sign in.',
         'ACCOUNT_EMAIL_ALREADY_EXISTS',
       );
+    } else if (user.CollectiveId) {
+      collective = await models.Collective.findByPk(user.CollectiveId, { transaction });
     }
 
-    await collective.update({ CreatedByUserId: user.id }, { transaction });
+    // Create the public guest profile
+    if (!collective) {
+      collective = await models.Collective.create(
+        {
+          type: COLLECTIVE_TYPE.USER,
+          slug: `guest-${uuid().split('-')[0]}`,
+          name: name || DEFAULT_GUEST_NAME,
+          data: { isGuest: true },
+          address: location?.address,
+          countryISO: location?.country,
+          CreatedByUserId: user.id,
+        },
+        { transaction },
+      );
+    }
+
+    if (!user.CollectiveId) {
+      await user.update({ CollectiveId: collective.id }, { transaction });
+    }
 
     // Create the token that will be used to authenticate future contributions for
     // this guest profile
