@@ -53,7 +53,7 @@ export const SentryGraphQLPlugin = {
             scope.setTag('kind', ctx.operation.operation);
 
             // Log query and variables as extras
-            scope.setExtra('query', ctx.context.query);
+            scope.setExtra('query', ctx.request.query);
             scope.setExtra('variables', ctx.request.variables);
 
             // Add logged in user (if any)
