@@ -70,8 +70,8 @@ export const Host = new GraphQLObjectType({
             description: "Superior date limit in which we're calculating the metrics",
           },
         },
-        resolve(host, args) {
-          const metrics = host.getHostMetrics(args?.from, args?.to);
+        async resolve(host, args) {
+          const metrics = await host.getHostMetrics(args?.from, args?.to);
           const toAmount = value => ({ value, currency: host.currency });
           return mapValues(metrics, (value, key) => (key.includes('Percent') ? value : toAmount(value)));
         },
