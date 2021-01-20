@@ -1412,6 +1412,12 @@ const queries = {
       onlyActive: {
         type: GraphQLBoolean,
         description: 'Whether to return only active accounts',
+        deprecationReason: '2021-01-20: Not supported anymore.',
+      },
+      skipRecentAccounts: {
+        type: GraphQLBoolean,
+        description: 'Whether to skip recent accounts (48h)',
+        defaultValue: false,
       },
       limit: {
         type: GraphQLInt,
@@ -1430,14 +1436,14 @@ const queries = {
       },
     },
     async resolve(_, args, req) {
-      const { limit, offset, term, types, isHost, hostCollectiveIds, onlyActive } = args;
+      const { limit, offset, term, types, isHost, hostCollectiveIds, skipRecentAccounts } = args;
       const cleanTerm = term ? term.trim() : '';
       const listToStr = list => (list ? list.join('_') : '');
       const generateResults = (collectives, total) => {
         const optionalParamsKey = `${listToStr(types)}-${listToStr(hostCollectiveIds)}`;
-        const activeKey = onlyActive ? 'active' : 'all';
+        const skipRecentKey = skipRecentAccounts ? 'skipRecent' : 'all';
         return {
-          id: `search-${optionalParamsKey}-${cleanTerm}-${activeKey}-${offset}-${limit}`,
+          id: `search-${optionalParamsKey}-${cleanTerm}-${skipRecentKey}-${offset}-${limit}`,
           total,
           collectives,
           limit,
@@ -1455,6 +1461,7 @@ const queries = {
           types,
           hostCollectiveIds,
           isHost,
+          skipRecentAccounts,
         });
         return generateResults(collectives, total);
       }
