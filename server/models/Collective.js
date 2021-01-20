@@ -1048,11 +1048,10 @@ export default function (Sequelize, DataTypes) {
   };
 
   /**
-   * If the collective is a host, this function return true in case it's open to applications.
-   * It does **not** check that the collective is indeed a host.
+   * Returns true if Collective is a host account open to applications.
    */
   Collective.prototype.canApply = async function () {
-    return Boolean(this.settings && this.settings.apply);
+    return Boolean(this.isHostAccount && this.settings?.apply);
   };
 
   /**
