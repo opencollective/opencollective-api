@@ -23,6 +23,7 @@ describe('server/graphql/v1/allHosts', () => {
       tags: ['host', 'brussels'],
       settings: { apply: { title: 'apply' } },
       plan: 'custom',
+      isHostAccount: true,
     });
     await models.Collective.create({
       name: 'Open Collective Paris',
@@ -30,6 +31,7 @@ describe('server/graphql/v1/allHosts', () => {
       tags: ['host', 'paris', 'chapter'],
       settings: { apply: { title: 'apply' } },
       plan: 'custom',
+      isHostAccount: true,
     });
     await models.Collective.create({
       name: 'wwcodeinc',
@@ -37,6 +39,7 @@ describe('server/graphql/v1/allHosts', () => {
       tags: ['host'],
       settings: { apply: { title: 'apply' } },
       plan: 'custom',
+      isHostAccount: true,
     });
     privateHost = await models.Collective.create({ name: 'Xavier' });
     await publicHost.addUserWithRole(hostAdmin, 'ADMIN');
