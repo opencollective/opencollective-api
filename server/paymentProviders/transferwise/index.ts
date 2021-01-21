@@ -12,6 +12,7 @@ import { Balance, Quote, RecipientAccount, Transfer } from '../../types/transfer
 
 const hashObject = obj => crypto.createHash('sha1').update(JSON.stringify(obj)).digest('hex').slice(0, 7);
 
+export const blockedCurrencies = ['NGN'];
 export const blockedCurrenciesForBusinesProfiles = ['BRL', 'PKR'];
 export const currenciesThatRequireReference = ['RUB'];
 
@@ -121,9 +122,16 @@ async function getAvailableCurrencies(
   if (!connectedAccount) {
     throw new TransferwiseError('Host is not connected to Transferwise', 'transferwise.error.notConnected');
   }
+
+  let currencyBlockList = [];
+  if (ignoreBlockedCurrencies) {
+    currencyBlockList = blockedCurrencies;
+    if (connectedAccount.data?.type === 'business') {
+      currencyBlockList = [...currencyBlockList, ...blockedCurrenciesForBusinesProfiles];
+    }
+  }
+
   const cacheKey = `transferwise_available_currencies_${host.id}`;
-  const currencyBlockList =
-    connectedAccount.data?.type === 'business' && ignoreBlockedCurrencies ? blockedCurrenciesForBusinesProfiles : [];
   const fromCache = await cache.get(cacheKey);
   if (fromCache) {
     return fromCache.filter(c => !currencyBlockList.includes(c.code));
