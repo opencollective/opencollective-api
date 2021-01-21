@@ -5,6 +5,8 @@ import models from '../../../models';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { Account, AccountFields } from '../interface/Account';
 
+import { Host } from './Host';
+
 export const Individual = new GraphQLObjectType({
   name: 'Individual',
   description: 'This represents an Individual account',
@@ -93,6 +95,15 @@ export const Individual = new GraphQLObjectType({
             return true;
           } else {
             return false;
+          }
+        },
+      },
+      host: {
+        type: Host,
+        description: 'If the individual is a host account, this will return the matching Host object',
+        resolve(collective) {
+          if (collective.isHostAccount) {
+            return collective;
           }
         },
       },
