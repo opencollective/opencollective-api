@@ -435,8 +435,8 @@ export default (Sequelize, DataTypes) => {
     );
   };
 
-  User.findByEmail = email => {
-    return User.findOne({ where: { email } });
+  User.findByEmail = (email, transaction) => {
+    return User.findOne({ where: { email } }, { transaction });
   };
 
   User.createUserWithCollective = async (userData, transaction) => {
