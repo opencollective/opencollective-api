@@ -188,7 +188,7 @@ export const canApprove = async (req, expense): Promise<boolean> => {
  * Returns true if expense can be rejected by user
  */
 export const canReject = async (req, expense): Promise<boolean> => {
-  if (expense.status !== expenseStatus.PENDING) {
+  if (![expenseStatus.PENDING, expenseStatus.UNVERIFIED].includes(expense.status)) {
     return false;
   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     return false;
