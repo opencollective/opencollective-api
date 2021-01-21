@@ -33,6 +33,11 @@ export async function createCollective(_, args, req) {
     throw new ValidationFailed('collective.name required');
   }
 
+  // TODO: enable me when Cypress helpers are migrated to v2
+  // if (args.collective.type === types.COLLECTIVE) {
+  //   throw new ValidationFailed('This mutation should not be used to create Collectives, use GraphQL v2.');
+  // }
+
   let hostCollective, parentCollective, collective;
 
   const collectiveData = {
@@ -156,24 +161,7 @@ export async function createCollective(_, args, req) {
     await collective.update({ hostFeePercent: parentCollective.hostFeePercent });
   }
 
-  // if the type of collective is an organization or an event, we don't notify the host
-  if (collective.type !== types.COLLECTIVE) {
-    return collective;
-  }
-  const remoteUserCollective = await models.Collective.findByPk(req.remoteUser.CollectiveId);
-  models.Activity.create({
-    type: activities.COLLECTIVE_CREATED,
-    UserId: req.remoteUser.id,
-    CollectiveId: get(hostCollective, 'id'),
-    data: {
-      collective: collective.info,
-      host: get(hostCollective, 'info'),
-      user: {
-        email: req.remoteUser.email,
-        collective: remoteUserCollective.info,
-      },
-    },
-  });
+  // if the type of collective is an organization or an event, we don't send notification
 
   return collective;
 }
