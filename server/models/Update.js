@@ -216,6 +216,11 @@ export default function (Sequelize, DataTypes) {
             return instance.generateSlug();
           }
         },
+        beforeDestroy: async instance => {
+          const newSlug = `${instance.slug}-${Date.now()}`;
+          instance.slug = newSlug;
+          await instance.save({ paranoid: false, hooks: false });
+        },
         afterCreate: instance => {
           models.Activity.create({
             type: activities.COLLECTIVE_UPDATE_CREATED,
