@@ -14,7 +14,7 @@ import models from '../../../models';
 import {
   approveExpense,
   canDeleteExpense,
-  canEditExpense,
+  canVerifyDraftExpense,
   rejectExpense,
   scheduleExpenseForPayment,
   unapproveExpense,
@@ -399,7 +399,7 @@ const expenseMutations = {
         throw new NotFound('Expense not found');
       } else if (expense.status !== expenseStatus.DRAFT) {
         throw new Unauthorized('Expense was already submitted.');
-      } else if (!(await canEditExpense(req, expense))) {
+      } else if (!(await canVerifyDraftExpense(req, expense))) {
         throw new Unauthorized("You don't have the permission to edit this expense.");
       }
 
@@ -428,7 +428,7 @@ const expenseMutations = {
       const expense = await fetchExpenseWithReference(args.expense, { throwIfMissing: true });
       if (expense.status !== expenseStatus.UNVERIFIED) {
         throw new Unauthorized('Expense can not be verified.');
-      } else if (!(await canEditExpense(req, expense))) {
+      } else if (!(await canVerifyDraftExpense(req, expense))) {
         throw new Unauthorized("You don't have the permission to edit this expense.");
       }
       await expense.update({ status: expenseStatus.PENDING });
