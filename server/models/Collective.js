@@ -2979,6 +2979,13 @@ export default function (Sequelize, DataTypes) {
         t => !t.platformFeeInHostCurrency && t.hostFeeInHostCurrency,
       ),
     );
+    const pendingHostFeeShare = Math.abs(
+      sumByWhen(
+        transactions,
+        t => round((t.hostFeeInHostCurrency * (t.data?.hostFeeSharePercent || plan.hostFeeSharePercent)) / 100),
+        t => !t.platformFeeInHostCurrency && t.hostFeeInHostCurrency && isPendingTransaction(t),
+      ),
+    );
 
     const tipsTransactions = await models.Transaction.findAll({
       where: {
@@ -3011,6 +3018,7 @@ export default function (Sequelize, DataTypes) {
       platformTips,
       pendingPlatformTips,
       hostFeeShare,
+      pendingHostFeeShare,
       hostFeeSharePercent,
       totalMoneyManaged,
     };
