@@ -50,7 +50,7 @@
     "express-limiter": "1.6.1",
     "express-session": "1.17.1",
     "express-ws": "4.0.0",
-    "forest-express-sequelize": "6.7.2",
+    "forest-express-sequelize": "6.7.3",
     "fs-extra": "9.1.0",
     "googleapis": "67.0.0",
     "graphql": "15.3.0",
