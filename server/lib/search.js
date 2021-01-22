@@ -87,7 +87,7 @@ export const searchCollectivesInDB = async (
   term,
   offset = 0,
   limit = 100,
-  { types, hostCollectiveIds, isHost, onlyActive } = {},
+  { types, hostCollectiveIds, isHost, onlyActive, skipRecentAccounts } = {},
 ) => {
   // Build dynamic conditions based on arguments
   let dynamicConditions = '';
@@ -108,6 +108,10 @@ export const searchCollectivesInDB = async (
     dynamicConditions += 'AND "isActive" = TRUE ';
   }
 
+  if (skipRecentAccounts) {
+    dynamicConditions += `AND "createdAt" < (NOW() - interval '2 day')`;
+  }
+
   // Cleanup term
   if (term && term.length > 0) {
     term = term.replace(/(_|%|\\)/g, ' ').trim();
@@ -119,8 +123,8 @@ export const searchCollectivesInDB = async (
   // Build the query
   const result = await sequelize.query(
     `
-    SELECT 
-      c.*, 
+    SELECT
+      c.*,
       COUNT(*) OVER() AS __total__,
       (
         CASE WHEN (slug = :slugifiedTerm OR name ILIKE :term) THEN
