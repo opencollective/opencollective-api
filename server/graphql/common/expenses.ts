@@ -103,6 +103,11 @@ export const canSeeExpensePayeeLocation = async (req, expense): Promise<boolean>
   return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isCollectiveAccountant, isHostAdmin]);
 };
 
+/** Checks if the user can verify or resend a draft */
+export const canVerifyDraftExpense = async (req, expense): Promise<boolean> => {
+  return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin]);
+};
+
 /**
  * Returns the list of items for this expense.
  */
@@ -135,7 +140,11 @@ export const canUpdateExpenseStatus = async (req, expense): Promise<boolean> => 
  * Only the author or an admin of the collective or collective.host can edit an expense when it hasn't been paid yet
  */
 export const canEditExpense = async (req, expense): Promise<boolean> => {
-  if (expense.status === expenseStatus.PAID || expense.status === expenseStatus.PROCESSING) {
+  if (
+    expense.status === expenseStatus.PAID ||
+    expense.status === expenseStatus.PROCESSING ||
+    expense.status === expenseStatus.DRAFT
+  ) {
     return false;
   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     return false;
@@ -188,7 +197,7 @@ export const canApprove = async (req, expense): Promise<boolean> => {
  * Returns true if expense can be rejected by user
  */
 export const canReject = async (req, expense): Promise<boolean> => {
-  if (expense.status !== expenseStatus.PENDING) {
+  if (![expenseStatus.PENDING, expenseStatus.UNVERIFIED].includes(expense.status)) {
     return false;
   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     return false;

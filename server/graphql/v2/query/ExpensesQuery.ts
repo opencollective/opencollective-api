@@ -219,7 +219,16 @@ const ExpensesQuery = {
         await updateFilterConditionsForReadyToPay(where, include);
       }
     } else {
-      where['status'] = { [Op.notIn]: [expenseStatus.DRAFT, expenseStatus.UNVERIFIED] };
+      if (req.remoteUser) {
+        where[Op.and].push({
+          [Op.or]: [
+            { status: { [Op.notIn]: [expenseStatus.DRAFT] } },
+            { status: expenseStatus.DRAFT, UserId: req.remoteUser.id },
+          ],
+        });
+      } else {
+        where['status'] = { [Op.notIn]: [expenseStatus.DRAFT] };
+      }
     }
 
     const order = [[args.orderBy.field, args.orderBy.direction]];

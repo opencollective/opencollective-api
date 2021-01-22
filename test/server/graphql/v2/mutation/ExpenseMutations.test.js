@@ -338,7 +338,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(result.data.editExpense.payeeLocation).to.deep.equal(updatedExpenseData.payeeLocation);
     });
 
-    it("let's another user to edit and submit a draft if the right key is provided", async () => {
+    it('lets another user edit and submit a draft if the right key is provided', async () => {
       const expense = await fakeExpense({ data: { draftKey: 'fake-key' }, status: expenseStatus.DRAFT });
       const anotherUser = await fakeUser();
 
@@ -1109,7 +1109,14 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
     });
 
     it('should resend the invite email', async () => {
-      await graphqlQueryV2(resendDraftExpenseInviteMutation, { expense: { legacyId: expense.id } }, user);
+      const result = await graphqlQueryV2(
+        resendDraftExpenseInviteMutation,
+        { expense: { legacyId: expense.id } },
+        user,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
 
       await waitForCondition(() => emailLib.sendMessage.secondCall);
 
