@@ -247,8 +247,8 @@ export async function run() {
       LEFT JOIN "PaymentMethods" spm ON
         spm.id = pm."SourcePaymentMethodId"
       WHERE
-        t."createdAt" >= date_trunc('month',  NOW() - INTERVAL '1 month')
-        AND t."createdAt" < date_trunc('month',  NOW())
+        t."createdAt" >= date_trunc('month',  date :date - INTERVAL '1 month')
+        AND t."createdAt" < date_trunc('month',  date :date)
         AND t."deletedAt" IS NULL
         AND t."CollectiveId" = 8686
         AND t."PlatformTipForTransactionGroup" IS NOT NULL
