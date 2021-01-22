@@ -85,8 +85,9 @@ async function createFund(_, args, req) {
   }
 
   // Will send an email to the authenticated user
-  // - tell them that their collective was successfully created
-  // - tell them that their collective is pending validation (which might be wrong if it was automatically approved)
+  // - tell them that their fund was successfully created
+  // - tell them which fiscal host they picked, if any
+  // - tell them the status of their host application
   const remoteUserCollective = await loaders.Collective.byId.load(remoteUser.CollectiveId);
   models.Activity.create({
     type: activities.COLLECTIVE_CREATED,
@@ -95,6 +96,8 @@ async function createFund(_, args, req) {
     data: {
       collective: fund.info,
       host: get(host, 'info'),
+      hostPending: fund.approvedAt ? false : true,
+      accountType: 'fund',
       user: {
         email: remoteUser.email,
         collective: remoteUserCollective.info,

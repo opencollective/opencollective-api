@@ -121,9 +121,10 @@ async function createCollective(_, args, req) {
         purgeCacheForCollective(host.slug);
       }
 
-      // Will send an email to the authenticated user OR newly created user (For OCF application)
+      // Will send an email to the authenticated user OR newly created user
       // - tell them that their collective was successfully created
-      // - tell them that their collective is pending validation (which might be wrong if it was automatically approved)
+      // - tell them which fiscal host they picked, if any
+      // - tell them the status of their host application
       const remoteUserCollective = await loaders.Collective.byId.load(user.CollectiveId);
       models.Activity.create({
         type: activities.COLLECTIVE_CREATED,
@@ -132,12 +133,15 @@ async function createCollective(_, args, req) {
         data: {
           collective: collective.info,
           host: get(host, 'info'),
+          hostPending: collective.approvedAt ? false : true,
+          accountType: collective.type === 'FUND' ? 'fund' : 'collective',
           user: {
             email: user.email,
             collective: remoteUserCollective.info,
           },
         },
       });
+
       return collective;
     });
 }
