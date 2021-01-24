@@ -1,4 +1,4 @@
-Subject: {{member.memberCollective.name}} joined {{{collective.name}}} as {{toLowerCase member.role}}
+Subject: {{member.memberCollective.name}} joined {{{collective.name}}} as {{toLowerCase member.role}} {{#if order}}{{formatOrderAmountWithInterval order}}{{/if}}
 
 {{> header}}
 
