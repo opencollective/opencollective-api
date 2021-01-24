@@ -2,7 +2,7 @@ import handlebars from 'handlebars';
 import { lowercase } from 'lodash';
 import moment from 'moment-timezone';
 
-import { capitalize, formatCurrencyObject, pluralize, resizeImage } from './utils';
+import { capitalize, formatCurrency, formatCurrencyObject, pluralize, resizeImage } from './utils';
 
 // from https://stackoverflow.com/questions/8853396/logical-operator-in-a-handlebars-js-if-conditional
 handlebars.registerHelper('ifCond', function (v1, operator, v2, options) {
@@ -159,6 +159,26 @@ handlebars.registerHelper('encodeURIComponent', str => {
 });
 
 handlebars.registerHelper('formatCurrencyObject', (obj, props) => formatCurrencyObject(obj, props.hash));
+
+handlebars.registerHelper('formatOrderAmountWithInterval', order => {
+  if (!order.currency || !order.totalAmount) {
+    return null;
+  }
+
+  const formattedAmount = formatCurrency(order.totalAmount, order.currency);
+  const subscription = order.subscription;
+  const interval = subscription?.interval || order.interval;
+
+  if (interval !== null) {
+    if (interval === 'month') {
+      return `(${formattedAmount}/m)`;
+    } else if (interval === 'year') {
+      return `(${formattedAmount}/y)`;
+    }
+  } else {
+    return `(${formattedAmount})`;
+  }
+});
 
 handlebars.registerHelper('debug', console.log);
 
