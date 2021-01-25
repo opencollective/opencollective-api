@@ -8,6 +8,8 @@ import { isValidUploadedImage } from './images';
 interface AllowedContentType {
   /** Allows titles  supported by RichTextEditor (`h3` only) */
   titles?: boolean;
+  /** Allow h1/h2. This option should not be used in places where we embed content as it can mess up with our layout */
+  mainTitles?: boolean;
   /** Includes bold, italic, strong and strike */
   basicTextFormatting?: boolean;
   /** Includes multiline rich text formatting like lists or code blocks */
@@ -34,10 +36,25 @@ export const buildSanitizerOptions = (allowedContent: AllowedContentType = {}): 
   const allowedTags = [];
   const allowedAttributes = {};
   const allowedIframeHostnames = [];
+  const transformTags = {
+    a: function (_, attribs) {
+      return {
+        tagName: 'a',
+        attribs: {
+          ...attribs,
+          href: formatLinkHref(attribs.href),
+        },
+      };
+    },
+  };
 
   // Titles
-  if (allowedContent.titles) {
+  if (allowedContent.mainTitles) {
+    allowedTags.push('h1', 'h2', 'h3');
+  } else if (allowedContent.titles) {
     allowedTags.push('h3');
+    transformTags['h1'] = 'h3';
+    transformTags['h2'] = 'h3';
   }
 
   // Multiline text formatting
@@ -90,19 +107,7 @@ export const buildSanitizerOptions = (allowedContent: AllowedContentType = {}): 
     allowedTags,
     allowedAttributes,
     allowedIframeHostnames,
-    transformTags: {
-      h1: 'h3',
-      h2: 'h3',
-      a: function (tagName, attribs) {
-        return {
-          tagName: 'a',
-          attribs: {
-            ...attribs,
-            href: formatLinkHref(attribs.href),
-          },
-        };
-      },
-    },
+    transformTags,
   };
 };
 

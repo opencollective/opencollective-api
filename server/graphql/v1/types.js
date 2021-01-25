@@ -24,7 +24,6 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPES } from '../../constants/pa
 import roles from '../../constants/roles';
 import { getCollectiveAvatarUrl } from '../../lib/collectivelib';
 import { getContributorsForTier } from '../../lib/contributors';
-import { stripTags } from '../../lib/utils';
 import models, { Op, sequelize } from '../../models';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import * as commonComment from '../common/comment';
@@ -1105,19 +1104,16 @@ export const UpdateType = new GraphQLObjectType({
         resolve(update, _, req) {
           if (update.isPrivate && !(req.remoteUser && req.remoteUser.canSeePrivateUpdates(update.CollectiveId))) {
             return null;
+          } else {
+            return update.html;
           }
-
-          return stripTags(update.html || '');
         },
       },
       markdown: {
         type: GraphQLString,
-        resolve(update, _, req) {
-          if (update.isPrivate && !(req.remoteUser && req.remoteUser.canSeePrivateUpdates(update.CollectiveId))) {
-            return null;
-          }
-
-          return stripTags(update.markdown || '');
+        deprecationReason: '2020-01-25: Use html',
+        resolve() {
+          return null;
         },
       },
       tags: {
@@ -1235,11 +1231,11 @@ export const CommentType = new GraphQLObjectType({
       },
       html: {
         type: GraphQLString,
-        resolve: commonComment.getStripTagsResolver('html'),
       },
       markdown: {
         type: GraphQLString,
-        resolve: commonComment.getStripTagsResolver('markdown'),
+        deprecationReason: '2020-01-25: Use html',
+        resolve: () => null,
       },
       createdByUser: {
         type: UserType,

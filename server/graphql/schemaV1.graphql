@@ -856,7 +856,7 @@ type CommentType {
   createdAt: DateString
   updatedAt: DateString
   html: String
-  markdown: String
+  markdown: String @deprecated(reason: "2020-01-25: Use html")
   createdByUser: UserDetails
   fromCollective: CollectiveInterface
   collective: CollectiveInterface
@@ -3579,6 +3579,11 @@ type Query {
     onlyActive: Boolean
 
     """
+    Whether to skip recent accounts (48h)
+    """
+    skipRecentAccounts: Boolean = false
+
+    """
     Limit the amount of results. Defaults to 20
     """
     limit: Int = 20
@@ -4003,7 +4008,7 @@ type UpdateType {
   publishedAt: DateString
   summary: String
   html: String
-  markdown: String
+  markdown: String @deprecated(reason: "2020-01-25: Use html")
   tags: [String]
   createdByUser: UserDetails
   fromCollective: CollectiveInterface

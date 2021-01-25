@@ -1,7 +1,6 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 
-import { stripTags } from '../../../lib/utils';
 import models from '../../../models';
 import { CommentCollection } from '../collection/CommentCollection';
 import { UpdateAudienceType } from '../enum';
@@ -61,9 +60,9 @@ const Update = new GraphQLObjectType({
         resolve(update, _, req) {
           if (!canSeeUpdateDetails(req, update)) {
             return null;
+          } else {
+            return update.html;
           }
-
-          return stripTags(update.html || '');
         },
       },
       tags: { type: new GraphQLList(GraphQLString) },

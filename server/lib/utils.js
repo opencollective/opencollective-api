@@ -6,8 +6,7 @@ import { URL } from 'url';
 import Promise from 'bluebird';
 import config from 'config';
 import pdf from 'html-pdf';
-import { cloneDeep, filter, get, isEqual, padStart, sumBy } from 'lodash';
-import sanitizeHtml from 'sanitize-html';
+import { filter, get, isEqual, padStart, sumBy } from 'lodash';
 
 import errors from './errors';
 import handlebars from './handlebars';
@@ -58,105 +57,6 @@ export function getDomain(url = '') {
   }
   return domain;
 }
-
-/**
- * @deprecated Please use the functions in `server/lib/sanitize-html.js`
- */
-export function stripTags(str, allowedTags) {
-  return sanitizeHtml(str, {
-    allowedTags: allowedTags || sanitizeHtml.defaults.allowedTags.concat(['img', 'h1', 'h2', 'h3']),
-    allowedAttributes: {
-      a: ['href', 'name', 'target'],
-      img: ['src'],
-      iframe: [
-        'src',
-        'allowfullscreen',
-        'frameborder',
-        'autoplay',
-        'width',
-        'height',
-        {
-          name: 'allow',
-          multiple: true,
-          values: ['autoplay', 'encrypted-media', 'gyroscope'],
-        },
-      ],
-    },
-    allowedIframeHostnames: ['www.youtube.com', 'www.youtube-nocookie.com', 'player.vimeo.com'],
-  });
-}
-
-export const sanitizeObject = (obj, attributes, sanitizerFn) => {
-  const sanitizer = typeof sanitizerFn === 'function' ? sanitizerFn : stripTags;
-
-  attributes.forEach(attr => {
-    if (!obj[attr]) {
-      return;
-    }
-    if (typeof obj[attr] === 'object') {
-      return sanitizeObject(obj[attr], Object.keys(obj[attr]), sanitizerFn);
-    }
-    obj[attr] = sanitizer(obj[attr] || '');
-  });
-  return obj;
-};
-
-/**
- * recursively reads all values of an object and hide emails and tokens
- * @param {*} obj
- */
-export const sanitizeForLogs = obj => {
-  const sanitizer = value => {
-    if (!value) {
-      return;
-    }
-    if (typeof value === 'string') {
-      if (value.indexOf('@') !== -1) {
-        return '(email obfuscated)';
-      }
-      if (value.substr(0, 4) === 'tok_') {
-        return '(token obfuscated)';
-      }
-    }
-    return value;
-  };
-
-  return sanitizeObject(cloneDeep(obj), Object.keys(obj), sanitizer);
-};
-
-String.prototype.trunc = function (n, useWordBoundary) {
-  if (this.length <= n) {
-    return this;
-  }
-  const subString = this.substr(0, n - 1);
-  return `${useWordBoundary ? subString.substr(0, subString.lastIndexOf(' ')) : subString}&hellip;`;
-};
-
-/**
- * Add parameters to an url.
- */
-export const addParameterUrl = (url, parameters) => {
-  const parsedUrl = new URL(url);
-
-  function removeTrailingChar(str, char) {
-    if (str.substr(-1) === char) {
-      return str.substr(0, str.length - 1);
-    }
-
-    return str;
-  }
-
-  parsedUrl.pathname = removeTrailingChar(parsedUrl.pathname, '/');
-
-  parsedUrl.searchParams.delete('search'); // Otherwise .search is used in place of .query
-  parsedUrl.searchParams.delete('api_key'); // make sure we don't surface the api_key publicly
-
-  for (const p in parameters) {
-    parsedUrl.searchParams.set(p, parameters[p]);
-  }
-
-  return parsedUrl.toString();
-};
 
 /**
  * Gives the number of days between two dates
