@@ -1144,6 +1144,7 @@ describe('server/models/Collective', () => {
         platformTips: 331,
         pendingPlatformTips: 81,
         hostFeeShare: 0,
+        pendingHostFeeShare: 0,
         hostFeeSharePercent: 0,
         totalMoneyManaged: expectedTotalMoneyManaged,
       });
