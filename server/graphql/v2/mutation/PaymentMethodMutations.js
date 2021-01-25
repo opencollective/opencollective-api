@@ -49,7 +49,7 @@ const addCreditCard = {
   },
   async resolve(_, args, req) {
     const collective = await fetchAccountWithReference(args.account, { throwIfMissing: true });
-    if (!req.remoteUser.isAdminOfCollective(collective)) {
+    if (!req.remoteUser?.isAdminOfCollective(collective)) {
       throw new Forbidden(`Must be an admin of ${collective.name}`);
     }
 
