@@ -1708,7 +1708,7 @@ export default function (Sequelize, DataTypes) {
     if (typeof hostFeePercent === undefined || !remoteUser || hostFeePercent === this.hostFeePercent) {
       return;
     }
-    if (this.type === types.COLLECTIVE || this.type === types.EVENT) {
+    if ([types.COLLECTIVE, types.EVENT, types.FUND, types.PROJECT].includes(this.type)) {
       // only an admin of the host of the collective can edit `hostFeePercent` of a COLLECTIVE
       if (!remoteUser || !remoteUser.isAdmin(this.HostCollectiveId)) {
         throw new Error('Only an admin of the host collective can edit the host fee for this collective');
@@ -1737,6 +1737,44 @@ export default function (Sequelize, DataTypes) {
 
         // Update host
         return this.update({ hostFeePercent });
+      }
+    }
+    return this;
+  };
+
+  Collective.prototype.updatePlatformFee = async function (platformFeePercent, remoteUser) {
+    if (typeof platformFeePercent === undefined || !remoteUser || platformFeePercent === this.platformFeePercent) {
+      return;
+    }
+    if ([types.COLLECTIVE, types.EVENT, types.FUND, types.PROJECT].includes(this.type)) {
+      // only an admin of the host of the collective can edit `platformFeePercent` of a COLLECTIVE
+      if (!remoteUser || !remoteUser.isAdmin(this.HostCollectiveId)) {
+        throw new Error('Only an admin of the host collective can edit the host fee for this collective');
+      }
+      return this.update({ platformFeePercent });
+    } else {
+      const isHost = await this.isHost();
+      if (isHost) {
+        if (!remoteUser.isAdmin(this.id)) {
+          throw new Error('You must be an admin of this host to change the platform fee');
+        }
+
+        await models.Collective.update(
+          { platformFeePercent },
+          {
+            hooks: false,
+            where: {
+              HostCollectiveId: this.id,
+              approvedAt: { [Op.not]: null },
+              data: {
+                useCustomPlatformFee: { [Op.not]: true },
+              },
+            },
+          },
+        );
+
+        // Update host
+        return this.update({ platformFeePercent });
       }
     }
     return this;

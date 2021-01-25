@@ -34,6 +34,7 @@ async function run({ dryRun } = {}) {
       console.log(`- Activating Platform Tips`);
       if (!dryRun) {
         await host.update({ platformFeePercent: 0 });
+        // MISSED: should have been a cascade, ie:  host.updatePlatformFee
       }
     }
 
