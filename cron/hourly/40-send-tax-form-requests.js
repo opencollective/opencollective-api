@@ -23,35 +23,19 @@ const client = new HelloWorks({
   apiKeySecret: config.get('helloworks.secret'),
 });
 
+const throttle = pThrottle({ limit: MAX_REQUESTS_PER_SECOND, interval: ONE_SECOND_IN_MILLISECONDS });
+
 const init = async () => {
   console.log('>>>> Running tax form job');
   const accounts = await findAccountsThatNeedToBeSentTaxForm(year);
+  const throttledFunc = throttle(account => {
+    console.log(`>> Sending tax form to account: ${account.name} (@${account.slug})`);
+    if (!process.env.DRY_RUN) {
+      return sendHelloWorksUsTaxForm(client, account, year, CALLBACK_URL, WORKFLOW_ID);
+    }
+  });
 
-  if (process.env.DRY_RUN) {
-    console.log('>> Doing tax form dry run. Accounts who need tax forms:');
-    return Promise.all(
-      accounts.map(
-        pThrottle(
-          account => console.log(`${account.name} (@${account.slug})`),
-          MAX_REQUESTS_PER_SECOND,
-          ONE_SECOND_IN_MILLISECONDS,
-        ),
-      ),
-    );
-  } else {
-    return Promise.all(
-      accounts.map(
-        pThrottle(
-          account => {
-            console.log(`>> Sending tax form to account: ${account.name} (@${account.slug})`);
-            return sendHelloWorksUsTaxForm(client, account, year, CALLBACK_URL, WORKFLOW_ID);
-          },
-          MAX_REQUESTS_PER_SECOND,
-          ONE_SECOND_IN_MILLISECONDS,
-        ),
-      ),
-    );
-  }
+  return Promise.all(accounts.map(throttledFunc));
 };
 
 init()
