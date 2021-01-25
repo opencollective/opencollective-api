@@ -83,7 +83,7 @@ describe('server/lib/allowed-features', () => {
 
     it('UPDATES', () => {
       expect(isFeatureAllowedForCollectiveType('COLLECTIVE', FEATURE.UPDATES)).to.be.true;
-      expect(isFeatureAllowedForCollectiveType('ORGANIZATION', FEATURE.UPDATES)).to.be.true;
+      expect(isFeatureAllowedForCollectiveType('ORGANIZATION', FEATURE.UPDATES)).to.be.false;
       expect(isFeatureAllowedForCollectiveType('ORGANIZATION', FEATURE.UPDATES, true)).to.be.true;
       expect(isFeatureAllowedForCollectiveType('USER', FEATURE.UPDATES)).to.be.false;
       expect(isFeatureAllowedForCollectiveType('EVENT', FEATURE.UPDATES)).to.be.false;
@@ -92,7 +92,7 @@ describe('server/lib/allowed-features', () => {
     });
     it('CONVERSATIONS', () => {
       expect(isFeatureAllowedForCollectiveType('COLLECTIVE', FEATURE.CONVERSATIONS)).to.be.true;
-      expect(isFeatureAllowedForCollectiveType('ORGANIZATION', FEATURE.CONVERSATIONS)).to.be.true;
+      expect(isFeatureAllowedForCollectiveType('ORGANIZATION', FEATURE.CONVERSATIONS)).to.be.false;
       expect(isFeatureAllowedForCollectiveType('ORGANIZATION', FEATURE.CONVERSATIONS, true)).to.be.true;
       expect(isFeatureAllowedForCollectiveType('USER', FEATURE.CONVERSATIONS)).to.be.false;
       expect(isFeatureAllowedForCollectiveType('EVENT', FEATURE.CONVERSATIONS)).to.be.false;
