@@ -241,7 +241,13 @@ const accountMutations = {
       await account.update({ plan });
 
       if (plan === 'start-plan-2021') {
+        // This should cascade to all Collectives
         await account.updateHostFee(0, req.remoteUser);
+      }
+
+      if (plan === 'start-plan-2021' || plan === 'grow-plan-2021') {
+        // This should cascade to all Collectives
+        await account.updatePlatformFee(0, req.remoteUser);
       }
 
       await cache.del(`plan_${account.id}`);
