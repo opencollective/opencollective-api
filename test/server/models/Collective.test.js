@@ -434,6 +434,7 @@ describe('server/models/Collective', () => {
       const plan = await hostUser.collective.getPlan();
 
       expect(plan).to.deep.equal({
+        id: 3,
         name: 'default',
         hostedCollectives: 2,
         addedFunds: 0,
