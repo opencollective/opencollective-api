@@ -917,6 +917,8 @@ export async function addFundsToCollective(order, remoteUser) {
   if (!isNil(order.platformFeePercent)) {
     orderData.data.platformFeePercent = order.platformFeePercent;
   }
+  // Invalidate Cloudflare cache for the collective pages
+  purgeCacheForCollective(collective.slug);
 
   const orderCreated = await models.Order.create(orderData);
 
