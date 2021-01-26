@@ -34,7 +34,7 @@ const OrderWithPayment = new GraphQLObjectType({
     },
     guestToken: {
       type: GraphQLString,
-      description: 'If donating as a guest, this will contain your guest token to contribute again in the future',
+      description: 'If donating as a guest, this will contain your guest token to confirm your order',
     },
     stripeError: {
       type: StripeError,
@@ -95,7 +95,7 @@ const orderMutations = {
       };
 
       const result = await createOrderLegacy(legacyOrderObj, req.loaders, req.remoteUser, req.ip);
-      return { order: result.order, stripeError: result.stripeError, guestToken: result.guestToken?.value };
+      return { order: result.order, stripeError: result.stripeError, guestToken: result.order.data?.guestToken };
     },
   },
   cancelOrder: {

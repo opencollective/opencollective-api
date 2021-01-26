@@ -1,3 +1,5 @@
+import crypto from 'crypto';
+
 import * as LibTaxes from '@opencollective/taxes';
 import Promise from 'bluebird';
 import config from 'config';
@@ -16,7 +18,7 @@ import { VAT_OPTIONS } from '../../../constants/vat';
 import { canRefund } from '../../../graphql/common/transactions';
 import cache, { purgeCacheForCollective } from '../../../lib/cache';
 import * as github from '../../../lib/github';
-import { getOrCreateGuestProfile, loadGuestToken } from '../../../lib/guest-accounts';
+import { getOrCreateGuestProfile } from '../../../lib/guest-accounts';
 import logger from '../../../lib/logger';
 import * as libPayments from '../../../lib/payments';
 import { handleHostPlanAddedFundsLimit, handleHostPlanBankTransfersLimit } from '../../../lib/plans';
@@ -113,10 +115,8 @@ const checkGuestContribution = async (order, loaders) => {
     throw new Error('You need to sign up to create a recurring contribution');
   } else if (!guestInfo) {
     throw new Error('You need to provide a guest profile with an email for logged out contributions');
-  } else if (guestInfo.email && !isEmail(guestInfo.email)) {
+  } else if (!guestInfo.email || !isEmail(guestInfo.email)) {
     throw new Error('You need to provide a valid email');
-  } else if (!guestInfo.email && !guestInfo.token) {
-    throw new Error('When contributing as a guest, you either need to provide an email or a token');
   } else if (order.totalAmount > 25000) {
     if (!guestInfo.name) {
       throw new Error('Contributions that are more than $250 must have a name attached');
@@ -383,8 +383,8 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
         const guestProfile = await getOrCreateGuestProfile(order.guestInfo);
         remoteUser = guestProfile.user;
         fromCollective = guestProfile.collective;
-        guestToken = guestProfile.token;
         isGuest = true;
+        guestToken = crypto.randomBytes(48).toString('hex');
       }
     }
 
@@ -485,6 +485,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
         customData: order.customData,
         savePaymentMethod: Boolean(order.paymentMethod && order.paymentMethod.save),
         isFeesOnTop: order.isFeesOnTop,
+        guestToken, // For guest contributions, this token is a way to authenticate to confirm the order
       },
       status: orderStatus,
     };
@@ -609,8 +610,13 @@ export async function confirmOrder(order, remoteUser, guestToken) {
       { model: models.Collective, as: 'fromCollective' },
       { model: models.PaymentMethod, as: 'paymentMethod' },
       { model: models.Subscription, as: 'Subscription' },
+      { association: 'createdByUser' },
     ],
   });
+
+  if (!order) {
+    throw new NotFound('Order not found');
+  }
 
   if (!remoteUser) {
     if (
@@ -618,21 +624,16 @@ export async function confirmOrder(order, remoteUser, guestToken) {
       !get(order.collective, 'settings.features.GUEST_CONTRIBUTIONS')
     ) {
       throw new Unauthorized('You need to be logged in to confirm an order');
-    } else if (!guestToken) {
+    } else if (!guestToken || guestToken !== order.data?.guestToken) {
       throw new Error('We could not authenticate your request');
     } else {
-      const result = await loadGuestToken(guestToken);
-      remoteUser = result.user;
+      // Guest token is verified, we can consider that request submitter is the owner of this order
+      remoteUser = order.createdByUser;
     }
-  }
-
-  if (!order) {
-    throw new NotFound('Order not found');
-  }
-
-  if (!remoteUser.isAdmin(order.FromCollectiveId)) {
+  } else if (!remoteUser.isAdmin(order.FromCollectiveId)) {
     throw new Unauthorized("You don't have permission to confirm this order");
   }
+
   if (![status.ERROR, status.PENDING, status.REQUIRE_CLIENT_CONFIRMATION].includes(order.status)) {
     // As August 2020, we're transitionning from PENDING to REQUIRE_CLIENT_CONFIRMATION
     // PENDING can be safely removed after a few days (it will be dedicated for "Manual" payments)
