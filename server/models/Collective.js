@@ -2942,6 +2942,7 @@ export default function (Sequelize, DataTypes) {
       if (planData) {
         const extraPlanData = get(this.data, 'plan', {});
         const plan = {
+          id: this.id,
           name: this.plan,
           hostedCollectives,
           addedFunds,
@@ -2956,6 +2957,7 @@ export default function (Sequelize, DataTypes) {
     }
 
     const plan = {
+      id: this.id,
       name: 'default',
       hostedCollectives,
       addedFunds,
