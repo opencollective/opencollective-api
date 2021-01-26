@@ -1046,7 +1046,7 @@ type Comment {
   id: String
   createdAt: DateTime
   html: String
-  markdown: String
+  markdown: String @deprecated(reason: "2020-01-25: Use html")
   fromAccount: Account
   account: Account
 
@@ -4404,6 +4404,11 @@ type HostMetrics {
   Amount in host fee shared with the platform
   """
   hostFeeShare: Amount
+
+  """
+  Amount in host fee shared  requiring settlement
+  """
+  pendingHostFeeShare: Amount
 
   """
   Total amount managed on behalf of hosted collectives

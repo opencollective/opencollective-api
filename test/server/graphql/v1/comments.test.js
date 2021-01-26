@@ -140,7 +140,6 @@ describe('server/graphql/v1/comments', () => {
       mutation CreateComment($comment: CommentInputType!) {
         createComment(comment: $comment) {
           id
-          markdown
           html
           expense {
             id
@@ -180,7 +179,6 @@ describe('server/graphql/v1/comments', () => {
       mutation EditComment($comment: CommentAttributesInputType!) {
         editComment(comment: $comment) {
           id
-          markdown
           html
         }
       }
@@ -265,7 +263,6 @@ describe('server/graphql/v1/comments', () => {
         query AllComments($ExpenseId: Int, $limit: Int, $offset: Int) {
           allComments(ExpenseId: $ExpenseId, limit: $limit, offset: $offset) {
             id
-            markdown
             html
           }
         }
@@ -292,7 +289,6 @@ describe('server/graphql/v1/comments', () => {
               total
               comments {
                 id
-                markdown
                 html
               }
             }
@@ -319,7 +315,6 @@ describe('server/graphql/v1/comments', () => {
               total
               comments {
                 id
-                markdown
                 html
               }
             }
@@ -350,7 +345,6 @@ describe('server/graphql/v1/comments', () => {
               total
               comments {
                 id
-                markdown
                 html
               }
             }
@@ -466,7 +460,6 @@ describe('server/graphql/v1/comments', () => {
       mutation EditComment($comment: CommentUpdateInput!) {
         editComment(comment: $comment) {
           id
-          markdown
           html
         }
       }
@@ -512,7 +505,6 @@ describe('server/graphql/v1/comments', () => {
       mutation CreateComment($comment: CommentCreateInput!) {
         createComment(comment: $comment) {
           id
-          markdown
           html
         }
       }

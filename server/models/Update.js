@@ -7,16 +7,22 @@ import slugify from 'limax';
 import { defaults, pick } from 'lodash';
 import { Op } from 'sequelize';
 import Temporal from 'sequelize-temporal';
-import showdown from 'showdown';
 
 import activities from '../constants/activities';
 import * as errors from '../graphql/errors';
 import { mustHaveRole } from '../lib/auth';
 import logger from '../lib/logger';
-import { generateSummaryForHTML } from '../lib/sanitize-html';
-import { sanitizeObject } from '../lib/utils';
+import { buildSanitizerOptions, generateSummaryForHTML, sanitizeHTML } from '../lib/sanitize-html';
 
-const markdownConverter = new showdown.Converter();
+const sanitizerOptions = buildSanitizerOptions({
+  titles: true,
+  mainTitles: true,
+  basicTextFormatting: true,
+  multilineTextFormatting: true,
+  images: true,
+  links: true,
+  videoIframes: true,
+});
 
 /**
  * Update Model.
@@ -106,16 +112,13 @@ export default function (Sequelize, DataTypes) {
         },
       },
 
+      // @deprecated
       markdown: DataTypes.TEXT,
+
       html: {
         type: DataTypes.TEXT,
-        get() {
-          return this.getDataValue('markdown')
-            ? markdownConverter.makeHtml(this.getDataValue('markdown'))
-            : this.getDataValue('html');
-        },
         set(html) {
-          this.setDataValue('html', html);
+          this.setDataValue('html', sanitizeHTML(html, sanitizerOptions));
           this.setDataValue('summary', generateSummaryForHTML(html, 240));
         },
       },
@@ -251,18 +254,9 @@ export default function (Sequelize, DataTypes) {
         throw new errors.ValidationFailed("Cannot link this update to a Tier that doesn't belong to this collective");
       }
     }
-    const editableAttributes = [
-      'TierId',
-      'FromCollectiveId',
-      'title',
-      'html',
-      'markdown',
-      'image',
-      'tags',
-      'isPrivate',
-      'makePublicOn',
-    ];
-    sanitizeObject(newUpdateData, ['html', 'markdown']);
+
+    const editableAttributes = ['TierId', 'title', 'html', 'tags', 'isPrivate', 'makePublicOn'];
+
     return await this.update({
       ...pick(newUpdateData, editableAttributes),
       LastEditedByUserId: remoteUser.id,

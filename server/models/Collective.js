@@ -55,16 +55,7 @@ import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
 import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective } from '../lib/spam';
 import { canUseFeature } from '../lib/user-permissions';
 import userlib from '../lib/userlib';
-import {
-  capitalize,
-  cleanTags,
-  flattenArray,
-  formatCurrency,
-  getDomain,
-  md5,
-  stripTags,
-  sumByWhen,
-} from '../lib/utils';
+import { capitalize, cleanTags, flattenArray, formatCurrency, getDomain, md5, sumByWhen } from '../lib/utils';
 
 import CustomDataTypes from './DataTypes';
 import { PayoutMethodTypes } from './PayoutMethod';
@@ -100,10 +91,19 @@ const defaultTiers = currency => {
 
 const validTypes = ['USER', 'COLLECTIVE', 'ORGANIZATION', 'EVENT', 'PROJECT', 'FUND', 'BOT'];
 
-const sanitizeOptions = buildSanitizerOptions({
+const policiesSanitizeOptions = buildSanitizerOptions({
   basicTextFormatting: true,
   multilineTextFormatting: true,
   links: true,
+});
+
+const longDescriptionSanitizerOptions = buildSanitizerOptions({
+  titles: true,
+  basicTextFormatting: true,
+  multilineTextFormatting: true,
+  images: true,
+  links: true,
+  videoIframes: true,
 });
 
 /**
@@ -240,7 +240,7 @@ export default function (Sequelize, DataTypes) {
         type: DataTypes.TEXT,
         set(longDescription) {
           if (longDescription) {
-            this.setDataValue('longDescription', stripTags(longDescription));
+            this.setDataValue('longDescription', sanitizeHTML(longDescription, longDescriptionSanitizerOptions));
           } else {
             this.setDataValue('longDescription', null);
           }
@@ -254,7 +254,7 @@ export default function (Sequelize, DataTypes) {
         },
         set(expensePolicy) {
           if (expensePolicy) {
-            this.setDataValue('expensePolicy', sanitizeHTML(expensePolicy, sanitizeOptions));
+            this.setDataValue('expensePolicy', sanitizeHTML(expensePolicy, policiesSanitizeOptions));
           } else {
             this.setDataValue('expensePolicy', null);
           }
@@ -268,7 +268,7 @@ export default function (Sequelize, DataTypes) {
         },
         set(contributionPolicy) {
           if (contributionPolicy) {
-            this.setDataValue('contributionPolicy', sanitizeHTML(contributionPolicy, sanitizeOptions));
+            this.setDataValue('contributionPolicy', sanitizeHTML(contributionPolicy, policiesSanitizeOptions));
           } else {
             this.setDataValue('contributionPolicy', null);
           }
