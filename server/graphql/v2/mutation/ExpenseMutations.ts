@@ -355,6 +355,7 @@ const expenseMutations = {
         amount: expenseData.items?.reduce((total, item) => total + item.amount, 0) || expenseData.amount || 1,
         data: {
           items: expenseData.items,
+          attachedFiles: expenseData.attachedFiles,
           payee,
           invitedByCollectiveId: fromCollective.id,
           draftKey,
