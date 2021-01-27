@@ -995,13 +995,6 @@ export default function (Sequelize, DataTypes) {
       approvedAt: new Date(),
     });
 
-    await models.Member.create({
-      role: roles.HOST,
-      CreatedByUserId: remoteUser ? remoteUser.id : this.CreatedByUserId || this.LastEditedByUserId,
-      MemberCollectiveId: this.id,
-      CollectiveId: this.id,
-    });
-
     await models.PaymentMethod.create({
       CollectiveId: this.id,
       service: 'opencollective',
