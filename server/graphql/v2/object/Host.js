@@ -1,6 +1,7 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { find, get, keyBy, mapValues } from 'lodash';
 
+import { types as CollectiveType } from '../../../constants/collectives';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import models, { Op, sequelize } from '../../../models';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
@@ -177,7 +178,8 @@ export const Host = new GraphQLObjectType({
             throw new Unauthorized('You need to be logged in as an admin of the host to see its pending application');
           }
 
-          const where = { HostCollectiveId: host.id, approvedAt: null };
+          const applyTypes = [CollectiveType.COLLECTIVE, CollectiveType.FUND];
+          const where = { HostCollectiveId: host.id, approvedAt: null, type: { [Op.in]: applyTypes } };
           const sanitizedSearch = args.searchTerm?.replace(/(_|%|\\)/g, '\\$1');
 
           if (sanitizedSearch) {
