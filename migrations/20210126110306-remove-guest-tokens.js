@@ -1,24 +1,12 @@
-import { Model } from 'sequelize';
+'use strict';
 
-import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
+module.exports = {
+  up: async (queryInterface, Sequelize) => {
+    return queryInterface.dropTable('GuestTokens');
+  },
 
-export class GuestToken extends Model<GuestToken> {
-  public readonly id!: number;
-  public CollectiveId!: number;
-  public value!: string;
-  public createdAt!: Date;
-  public updatedAt!: Date;
-
-  constructor(...args) {
-    super(...args);
-    restoreSequelizeAttributesOnClass(new.target, this);
-  }
-}
-
-export default (sequelize, DataTypes): typeof GuestToken => {
-  // Link the model to database fields
-  GuestToken.init(
-    {
+  down: async (queryInterface, Sequelize) => {
+    return queryInterface.createTable('GuestTokens', {
       id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
@@ -57,13 +45,6 @@ export default (sequelize, DataTypes): typeof GuestToken => {
         type: DataTypes.DATE,
         allowNull: true,
       },
-    },
-    {
-      sequelize,
-      tableName: 'GuestTokens',
-      paranoid: true,
-    },
-  );
-
-  return GuestToken;
+    });
+  },
 };
