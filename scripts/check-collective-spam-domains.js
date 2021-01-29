@@ -4,7 +4,7 @@ import '../server/env';
 import getUrls from 'get-urls'; // eslint-disable-line node/no-unpublished-import
 import moment from 'moment';
 
-import { SPAMMERS_DOMAINS } from '../server/lib/spam';
+import { resolveRedirect, SPAMMERS_DOMAINS } from '../server/lib/spam';
 import models, { Op, sequelize } from '../server/models';
 
 async function run() {
@@ -24,7 +24,7 @@ async function run() {
     const content = `${collective.slug} ${collective.name} ${collective.description} ${collective.longDescription} ${collective.website}`;
     const urls = getUrls(content);
     for (const url of urls) {
-      const parsedUrl = new URL(url);
+      const parsedUrl = resolveRedirect(new URL(url));
       if (SPAMMERS_DOMAINS.includes(parsedUrl.hostname)) {
         console.log(
           'NEW',

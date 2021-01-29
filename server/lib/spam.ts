@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 
 import bayes from 'bayes';
+import config from 'config';
 import { clamp } from 'lodash';
 
 import slackLib, { OPEN_COLLECTIVE_SLACK_CHANNEL } from '../lib/slack';
@@ -394,8 +395,9 @@ const getSpamDomains = (content: string): string[] => {
     return [];
   }
 
+  const lowerCaseContent = content.toLowerCase();
   return SPAMMERS_DOMAINS.reduce((result, domain) => {
-    if (content.toLowerCase().includes(domain)) {
+    if (lowerCaseContent.includes(domain)) {
       result.push(domain);
     }
     return result;
@@ -475,4 +477,23 @@ export const notifyTeamAboutSuspiciousCollective = async (report: SpamAnalysisRe
   message = addLine(keywords.length > 0 && `Keywords: \`${keywords.toString()}\``);
   message = addLine(domains.length > 0 && `Domains: \`${domains.toString()}\``);
   return slackLib.postMessageToOpenCollectiveSlack(message, OPEN_COLLECTIVE_SLACK_CHANNEL.ABUSE);
+};
+
+/**
+ * If URL is an open collective redirect, returns the redirect link.
+ */
+export const resolveRedirect = (parsedUrl: URL): URL => {
+  if (
+    parsedUrl.origin === config.host.website &&
+    parsedUrl.pathname === '/redirect' &&
+    parsedUrl.searchParams?.has('url')
+  ) {
+    try {
+      return new URL(parsedUrl.searchParams.get('url'));
+    } catch {
+      // Ignore invalid redirect URLs
+    }
+  }
+
+  return parsedUrl;
 };
