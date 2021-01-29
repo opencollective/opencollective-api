@@ -106,9 +106,6 @@
       "perIp": "ORDERS_LIMIT_IP"
     }
   },
-  "guestContributions": {
-    "enable": "ENABLE_GUEST_CONTRIBUTIONS"
-  },
   "slack": {
     "webhooks": {
       "abuse": "SLACK_WEBHOOK_ABUSE"

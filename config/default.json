@@ -65,9 +65,6 @@
     "collectiveEmailMessagePerHour": 5,
     "maxMemberInvitationsPerCollective": 50
   },
-  "guestContributions": {
-    "enable": true
-  },
   "email": {
     "from": "Open Collective <info@opencollective.com>"
   },
