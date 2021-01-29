@@ -19,6 +19,7 @@ import {
   sumBy,
   trim,
   uniqBy,
+  unset,
 } from 'lodash';
 import moment from 'moment';
 import fetch from 'node-fetch';
@@ -959,7 +960,25 @@ export default function (Sequelize, DataTypes) {
     // TODO unsubscribe from OpenCollective tier plan.
 
     await this.deactivateBudget({ remoteUser });
-    await this.update({ isHostAccount: false });
+
+    const settings = { ...this.settings };
+    unset(settings, 'paymentMethods.manual');
+
+    await this.update({ isHostAccount: false, plan: null, settings });
+
+    await models.PayoutMethod.destroy({
+      where: {
+        data: { isManualBankTransfer: true },
+        CollectiveId: this.id,
+      },
+    });
+
+    await models.ConnectedAccount.destroy({
+      where: {
+        service: 'stripe',
+        CollectiveId: this.id,
+      },
+    });
 
     await models.Activity.create({
       type: activities.DEACTIVATED_COLLECTIVE_AS_HOST,
@@ -1693,6 +1712,12 @@ export default function (Sequelize, DataTypes) {
   Collective.prototype.getTotalMoneyManaged = async function (until) {
     const hostedCollectives = await this.getHostedCollectives();
     const ids = hostedCollectives.map(c => c.id);
+    if (this.isActive) {
+      ids.push(this.id);
+    }
+    if (ids.length === 0) {
+      return 0;
+    }
     const balances = await queries.getBalances(ids, until.toISOString());
     return sumBy(balances, 'balance');
   };
@@ -1783,13 +1808,15 @@ export default function (Sequelize, DataTypes) {
       return this;
     }
 
-    const error = 'Only Users and Organisation that are not hosts can update currency';
-    if (![types.USER, types.ORGANIZATION].includes(this.type)) {
-      throw new Error(error);
+    if ([types.COLLECTIVE, types.FUND].includes(this.type) && this.isActive) {
+      throw new Error(
+        `Active Collectives or Funds can't edit their currency. Contact support@opencollective.com if it's an issue.`,
+      );
     }
+
     const isHost = await this.isHost();
     if (isHost) {
-      throw new Error(error);
+      throw new Error(`Fiscal Hosts can't edit their currency. Contact support@opencollective.com if it's an issue.`);
     }
 
     return this.setCurrency(currency);
@@ -1823,6 +1850,16 @@ export default function (Sequelize, DataTypes) {
     const tiers = await this.getTiers();
     if (tiers.length > 0) {
       await Promise.map(tiers, tier => tier.update({ currency }), { concurrency: 3 });
+    }
+
+    // Cascade currency to events and projects
+    const events = await this.getEvents();
+    if (events?.length > 0) {
+      await Promise.map(events, event => event.setCurrency(currency), { concurrency: 3 });
+    }
+    const projects = await this.getProjects();
+    if (projects?.length > 0) {
+      await Promise.map(projects, project => project.setCurrency(currency), { concurrency: 3 });
     }
 
     return this.update({ currency });
@@ -2019,11 +2056,17 @@ export default function (Sequelize, DataTypes) {
    * @param {*} remoteUser { id }
    */
   Collective.prototype.changeHost = async function (newHostCollectiveId, remoteUser, message) {
+    // Skip
+    if (this.HostCollectiveId == newHostCollectiveId) {
+      return this;
+    }
+
     const balance = await this.getBalance();
     if (balance > 0) {
       throw new Error(`Unable to change host: you still have a balance of ${formatCurrency(balance, this.currency)}`);
     }
-    const membership = await models.Member.findOne({
+
+    await models.Member.destroy({
       where: {
         CollectiveId: this.id,
         MemberCollectiveId: this.HostCollectiveId,
@@ -2031,13 +2074,16 @@ export default function (Sequelize, DataTypes) {
       },
     });
 
-    if (membership) {
-      await membership.destroy();
-    }
-
     // Self Hosted Collective
     if (this.id === this.HostCollectiveId) {
       this.isHostAccount = false;
+      this.plan = null;
+      await models.ConnectedAccount.destroy({
+        where: {
+          service: 'stripe',
+          CollectiveId: this.id,
+        },
+      });
     }
 
     // Prepare collective to receive a new host
@@ -2046,6 +2092,7 @@ export default function (Sequelize, DataTypes) {
     this.approvedAt = null;
     this.hostFeePercent = null;
     this.platformFeePercent = null;
+
     // Prepare events and projects to receive a new host
     const events = await this.getEvents();
     if (events?.length > 0) {

@@ -7,6 +7,7 @@ import jwt from 'jsonwebtoken';
 import { get } from 'lodash';
 
 import errors from '../../lib/errors';
+import logger from '../../lib/logger';
 import stripe from '../../lib/stripe';
 import { addParamsToUrl } from '../../lib/utils';
 import models from '../../models';
@@ -99,6 +100,14 @@ export default {
 
       let redirectUrl = redirect;
 
+      const deleteStripeAccounts = () =>
+        models.ConnectedAccount.destroy({
+          where: {
+            service: 'stripe',
+            CollectiveId,
+          },
+        });
+
       const createStripeAccount = data =>
         models.ConnectedAccount.create({
           service: 'stripe',
@@ -124,6 +133,7 @@ export default {
         if (!connectedAccount) {
           console.error('>>> updateHost: error: no connectedAccount');
         }
+
         const { account } = connectedAccount.data;
         if (!collective.address && account.legal_entity) {
           const { address } = account.legal_entity;
@@ -143,11 +153,11 @@ export default {
           collective.address = addressLines.join('\n');
         }
 
-        // Adds the opencollective payment method to enable the host to allocate funds to collectives
-        // Note that it's not expected anymore to connect Stripe if you're not an host
-        // await collective.becomeHost({ remoteUser: { id: CreatedByUserId } });
-
-        await collective.setCurrency(account.default_currency.toUpperCase());
+        try {
+          await collective.setCurrency(account.default_currency.toUpperCase());
+        } catch (error) {
+          logger.error(`Unable to set currency for '${collective.slug}': ${error.message}`);
+        }
 
         collective.timezone = collective.timezone || account.timezone;
 
@@ -159,6 +169,7 @@ export default {
           collective = c;
           redirectUrl = redirectUrl || `${config.host.website}/${collective.slug}`;
         })
+        .then(deleteStripeAccounts)
         .then(getToken(req.query.code))
         .then(getAccountInformation)
         .then(createStripeAccount)

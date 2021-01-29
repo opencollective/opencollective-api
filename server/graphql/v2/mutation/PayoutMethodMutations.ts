@@ -1,6 +1,7 @@
 import { GraphQLNonNull, GraphQLString } from 'graphql';
 import { pick } from 'lodash';
 
+import logger from '../../../lib/logger';
 import models from '../../../models';
 import { Forbidden, NotFound, Unauthorized } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
@@ -33,6 +34,12 @@ const payoutMethodMutations = {
       }
 
       if (args.payoutMethod.data.isManualBankTransfer) {
+        try {
+          await collective.setCurrency(args.payoutMethod.data.currency);
+        } catch (error) {
+          logger.error(`Unable to set currency for '${collective.slug}': ${error.message}`);
+        }
+
         const existingBankAccount = await models.PayoutMethod.findOne({
           where: {
             data: { isManualBankTransfer: true },
