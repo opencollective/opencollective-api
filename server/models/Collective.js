@@ -1718,7 +1718,7 @@ export default function (Sequelize, DataTypes) {
     if (ids.length === 0) {
       return 0;
     }
-    const balances = await queries.getBalances(ids, until.toISOString());
+    const balances = await queries.getBalancesInHostCurrency(ids, until.toISOString());
     return sumBy(balances, 'balance');
   };
 
