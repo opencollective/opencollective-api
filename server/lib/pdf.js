@@ -36,7 +36,7 @@ export const getTransactionPdf = async (transaction, user) => {
 
 export const getConsolidatedInvoicesData = async fromCollective => {
   const transactions = await models.Transaction.findAll({
-    attributes: ['createdAt', 'HostCollectiveId', 'amountInHostCurrency', 'hostCurrency'],
+    attributes: ['createdAt', 'HostCollectiveId', 'amountInHostCurrency', 'hostCurrency', 'CollectiveId'],
     where: {
       type: 'CREDIT',
       [Op.or]: [
@@ -55,6 +55,15 @@ export const getConsolidatedInvoicesData = async fromCollective => {
     if (!HostCollectiveId) {
       continue;
     }
+
+    if (fromCollective.id === transaction.CollectiveId) {
+      continue;
+    }
+
+    if (moment(transaction.createdAt).isSame(new Date(), 'month')) {
+      continue;
+    }
+
     if (!hostsById[HostCollectiveId]) {
       hostsById[HostCollectiveId] = await models.Collective.findByPk(HostCollectiveId, {
         attributes: ['id', 'slug'],
