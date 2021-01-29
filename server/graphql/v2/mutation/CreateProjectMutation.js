@@ -11,7 +11,6 @@ import { Project } from '../object/Project';
 
 const DEFAULT_PROJECT_SETTINGS = {
   collectivePage: {
-    useNewSections: true,
     sections: [
       {
         name: 'BUDGET',
