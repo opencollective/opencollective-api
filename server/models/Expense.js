@@ -139,7 +139,7 @@ export default function (Sequelize, DataTypes) {
       },
 
       privateMessage: {
-        type: DataTypes.STRING,
+        type: DataTypes.TEXT,
         set(value) {
           if (value) {
             const cleanHtml = sanitizeHTML(value, PRIVATE_MESSAGE_SANITIZE_OPTS).trim();
