@@ -1841,7 +1841,8 @@ export default function (Sequelize, DataTypes) {
           'You cannot change the currency of an Host with transactions. Please contact support@opencollective.com.',
         );
       }
-      const collectives = await this.getHostedCollectives();
+      let collectives = await this.getHostedCollectives();
+      collectives = collectives.filter(collective => collective.id !== this.id);
       // We use setCurrency so that it will cascade to Tiers
       await Promise.map(collectives, collective => collective.setCurrency(currency), { concurrency: 3 });
     }
