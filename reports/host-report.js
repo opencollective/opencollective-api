@@ -266,7 +266,7 @@ async function HostReport(year, month, hostId) {
       }
       const stats = await getHostStats(host, Object.keys(collectivesById));
 
-      const { donations, expenses, otherCredits, otherDebits } = groupBy(data.transactions, t => {
+      const groupedTransactions = groupBy(data.transactions, t => {
         if (t.OrderId && t.type === 'CREDIT') {
           return 'donations';
         } else if (t.ExpenseId && t.type === 'DEBIT') {
@@ -278,6 +278,11 @@ async function HostReport(year, month, hostId) {
           return 'otherCredits';
         }
       });
+
+      const donations = groupedTransactions.donations || [];
+      const expenses = groupedTransactions.expenses || [];
+      const otherCredits = groupedTransactions.otherCredits || [];
+      const otherDebits = groupedTransactions.otherDebits || [];
 
       const plan = await host.getPlan();
 
