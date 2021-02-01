@@ -1925,7 +1925,7 @@ export default function (Sequelize, DataTypes) {
     const promises = [models.Member.create(member), this.update(updatedValues)];
 
     // Invalidate current collective payment method if there's one
-    const collectivePaymentMethod = await models.PaymentMethod.findOne({
+    await models.PaymentMethod.destroy({
       where: {
         CollectiveId: this.id,
         service: 'opencollective',
@@ -1933,10 +1933,6 @@ export default function (Sequelize, DataTypes) {
         deletedAt: null,
       },
     });
-
-    if (collectivePaymentMethod) {
-      promises.push(collectivePaymentMethod.destroy());
-    }
 
     // Create the new payment method with host's currency
     if ([types.COLLECTIVE, types.FUND, types.EVENT, types.PROJECT].includes(this.type)) {
