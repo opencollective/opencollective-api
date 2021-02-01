@@ -55,17 +55,18 @@ const HostApplicationMutations = {
       const collective = await fetchAccountWithReference(args.collective);
       if (!collective) {
         throw new NotFound('Collective not found');
-      }
-      if (![CollectiveType.COLLECTIVE, CollectiveType.FUND].includes(collective.type)) {
-        throw new Error('Account must be a collective or a fund');
-      }
-      if (!req.remoteUser.isAdminOfCollective(collective)) {
+      } else if (!req.remoteUser.isAdminOfCollective(collective)) {
         throw new Unauthorized('You need to be an Admin of the account');
       }
 
       const host = await fetchAccountWithReference(args.host);
       if (!host) {
         throw new NotFound('Host not found');
+      }
+
+      const isSelfHosted = collective.type === CollectiveType.ORGANIZATION && collective.id === host.id;
+      if (!isSelfHosted && ![CollectiveType.COLLECTIVE, CollectiveType.FUND].includes(collective.type)) {
+        throw new Error('Account must be a collective or a fund');
       }
 
       // No need to check the balance, this is being handled in changeHost, along with most other checks
