@@ -8,7 +8,7 @@ import status from '../../constants/expense_status';
 import logger from '../../lib/logger';
 import * as paypal from '../../lib/paypal';
 import { createFromPaidExpense as createTransactionFromPaidExpense } from '../../lib/transactions';
-import models from '../../models';
+import models, { Op, sequelize } from '../../models';
 import { PayoutItemDetails } from '../../types/paypal';
 
 export const payExpensesBatch = async (expenses: any[]): Promise<any[]> => {
@@ -76,9 +76,22 @@ export const payExpensesBatch = async (expenses: any[]): Promise<any[]> => {
 export const checkBatchItemStatus = async (item: PayoutItemDetails, expense: any, host: any) => {
   // Reload up-to-date values to avoid race conditions when processing batches.
   await expense.reload();
-
   if (expense.data.payout_batch_id !== item.payout_batch_id) {
     throw new Error(`Item does not belongs to expense it claims it does.`);
+  }
+  // Checks existing transaction to prevent race conditions from multiple webhook calls.
+  const existingTransaction = await models.Transaction.findOne({
+    where: {
+      data: { payout_item_id: item.payout_item_id, transaction_id: item.transaction_id },
+      // We add a time-frame here as a boundary to this data (JSONB) query
+      createdAt: {
+        [Op.gte]: sequelize.literal("NOW() - INTERVAL '1 hour'"),
+      },
+    },
+  });
+  if (existingTransaction) {
+    logger.debug(`Item already processed as transaction #${existingTransaction.id}`);
+    return;
   }
 
   const paymentProcessorFeeInHostCurrency = round(toNumber(item.payout_item_fee?.value) * 100);
