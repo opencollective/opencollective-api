@@ -324,6 +324,7 @@ export default (Sequelize, DataTypes) => {
   };
 
   Transaction.prototype.getOppositeTransaction = async function () {
+    // NOTE: don't use in production flows until we have proper indexes in place
     return models.Transaction.findOne({
       where: {
         type: this.type === 'CREDIT' ? 'DEBIT' : 'CREDIT',
@@ -339,21 +340,7 @@ export default (Sequelize, DataTypes) => {
       return this;
     }
 
-    // Immediately convert taxAmount if necessary
-    // We don't store it in hostCurrency and can't populate like other values
-    if (this.taxAmount) {
-      const previousCurrency = this.currency;
-      const fxRate = await Transaction.getFxRate(previousCurrency, currency, this);
-      this.taxAmount = Math.round(this.taxAmount * fxRate);
-    }
-
-    this.currency = currency;
-    this.hostCurrencyFxRate = await Transaction.getFxRate(this.currency, this.hostCurrency, this);
-
-    // REMINDER: amount * hostCurrencyFxRate = amountInHostCurrency
-    // so: amount = amountInHostCurrency / hostCurrencyFxRate
-    this.amount = Math.round(this.amountInHostCurrency / this.hostCurrencyFxRate);
-    this.netAmountInCollectiveCurrency = Transaction.calculateNetAmountInCollectiveCurrency(this);
+    await Transaction.updateCurrency(currency, this);
 
     return this.save();
   };
@@ -487,7 +474,7 @@ export default (Sequelize, DataTypes) => {
       transaction.amountInHostCurrency = Math.round(transaction.amountInHostCurrency);
     }
 
-    // Is the target "collective" (account) "Active" (has an host, manage its own budget)
+    const collective = await models.Collective.findByPk(transaction.CollectiveId);
     const fromCollective = await models.Collective.findByPk(transaction.FromCollectiveId);
     const fromCollectiveHost = await fromCollective.getHostCollective();
 
@@ -511,6 +498,7 @@ export default (Sequelize, DataTypes) => {
         paymentProcessorFeeInHostCurrency: transaction.paymentProcessorFeeInHostCurrency,
       };
     } else {
+      // Is the target "collective" (account) "Active" (has an host, manage its own budget)
       const currency = fromCollective.currency;
       const hostCurrency = fromCollectiveHost.currency;
 
@@ -546,6 +534,11 @@ export default (Sequelize, DataTypes) => {
         ),
         data: { ...transaction.data, oppositeTransactionCurrencyFxRate, oppositeTransactionHostCurrencyFxRate },
       };
+    }
+
+    // Adjust currency of the transaction if necessary
+    if (transaction.currency !== collective.currency) {
+      transaction = await Transaction.updateCurrency(collective.currency, transaction);
     }
 
     debug('createDoubleEntry', transaction, 'opposite', oppositeTransaction);
@@ -647,9 +640,12 @@ export default (Sequelize, DataTypes) => {
     transaction.CreatedByUserId = CreatedByUserId;
     transaction.FromCollectiveId = FromCollectiveId;
     transaction.CollectiveId = CollectiveId;
-    transaction.TransactionGroup = uuid();
     transaction.PaymentMethodId = transaction.PaymentMethodId || PaymentMethodId;
-    transaction.type = transaction.amount > 0 ? TransactionTypes.CREDIT : TransactionTypes.DEBIT;
+
+    // transaction.TransactionGroup = uuid();
+
+    // transaction.type = transaction.amount > 0 ? TransactionTypes.CREDIT : TransactionTypes.DEBIT;
+
     transaction.hostFeeInHostCurrency = toNegative(transaction.hostFeeInHostCurrency);
     transaction.platformFeeInHostCurrency = toNegative(transaction.platformFeeInHostCurrency);
     transaction.taxAmount = toNegative(transaction.taxAmount);
@@ -780,6 +776,35 @@ export default (Sequelize, DataTypes) => {
     return getFxRate(fromCurrency, toCurrency, transaction.createdAt);
   };
 
+  Transaction.updateCurrency = async function (currency, transaction) {
+    // Nothing to do
+    if (currency === transaction.currency) {
+      return transaction;
+    }
+
+    // Immediately convert taxAmount if necessary
+    // We don't store it in hostCurrency and can't populate like other values
+    if (transaction.taxAmount) {
+      const previousCurrency = transaction.currency;
+      const fxRate = await Transaction.getFxRate(previousCurrency, currency, transaction);
+      transaction.taxAmount = Math.round(transaction.taxAmount * fxRate);
+    }
+
+    transaction.currency = currency;
+    transaction.hostCurrencyFxRate = await Transaction.getFxRate(
+      transaction.currency,
+      transaction.hostCurrency,
+      transaction,
+    );
+
+    // REMINDER: amount * hostCurrencyFxRate = amountInHostCurrency
+    // so: amount = amountInHostCurrency / hostCurrencyFxRate
+    transaction.amount = Math.round(transaction.amountInHostCurrency / transaction.hostCurrencyFxRate);
+    transaction.netAmountInCollectiveCurrency = Transaction.calculateNetAmountInCollectiveCurrency(transaction);
+
+    return transaction;
+  };
+
   Transaction.validate = async transaction => {
     // Skip as there is a known bug there
     // https://github.com/opencollective/opencollective/issues/3935
@@ -840,6 +865,12 @@ export default (Sequelize, DataTypes) => {
           : null) ||
         // Fetch from getFxRate
         (await Transaction.getFxRate(transaction.currency, oppositeTransaction.currency, transaction));
+
+      console.log(
+        transaction.amount,
+        oppositeTransactionCurrencyFxRate,
+        oppositeTransaction.netAmountInCollectiveCurrency,
+      );
 
       Transaction.assertAmountsLooselyEqual(
         oppositeTransaction.netAmountInCollectiveCurrency,

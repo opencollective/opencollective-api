@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import sinon from 'sinon';
 
 import models from '../../../server/models';
-import { fakeCollective, fakeHost, fakeOrder, fakeUser } from '../../test-helpers/fake-data';
+import { fakeCollective, fakeHost, fakeOrder, fakeTier, fakeUser } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
 const { Transaction } = models;
@@ -390,6 +390,66 @@ describe('server/models/Transaction', () => {
     await credit.setCurrency('EUR');
 
     await Transaction.validate(credit);
+
+    expect(credit).to.have.property('currency').equal('EUR');
+
+    expect(credit).to.have.property('amount').equal(402);
+  });
+
+  it.only('should record properly with a tier in different currency then convert properly when using setCurrency', async () => {
+    console.log(collective.dataValues);
+
+    const tier = await fakeTier({
+      CollectiveId: collective.id,
+      minimumAmount: 500,
+      amount: 500,
+      presets: [500, 750, 1000],
+      amountType: 'FLEXIBLE',
+    });
+
+    const order = await fakeOrder({
+      CreatedByUserId: user.id,
+      FromCollectiveId: user.CollectiveId,
+      CollectiveId: collective.id,
+      TierId: tier.id,
+      currency: 'GBP',
+    });
+
+    const transaction = {
+      description: 'Financial contribution to Booky Foundation',
+      amount: 500,
+      currency: 'GBP',
+      amountInHostCurrency: 567,
+      hostCurrency: 'EUR',
+      hostCurrencyFxRate: 1.13438,
+      platformFeeInHostCurrency: 0,
+      hostFeeInHostCurrency: 0,
+      paymentProcessorFeeInHostCurrency: 0,
+      type: 'CREDIT',
+      PaymentMethodId: 1,
+      OrderId: order.id,
+    };
+
+    const credit = await Transaction.createFromPayload({
+      transaction,
+      CreatedByUserId: user.id,
+      FromCollectiveId: user.CollectiveId,
+      CollectiveId: collective.id,
+    });
+
+    await Transaction.validate(credit);
+
+    expect(credit).to.have.property('currency').equal('USD');
+
+    expect(credit).to.have.property('amount').equal(402);
+
+    console.log(credit.dataValues);
+
+    await credit.setCurrency('EUR');
+
+    await Transaction.validate(credit);
+
+    console.log(credit.dataValues);
 
     expect(credit).to.have.property('currency').equal('EUR');
 
