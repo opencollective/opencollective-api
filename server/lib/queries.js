@@ -1049,7 +1049,7 @@ const getBalances = async (collectiveIds, until = new Date()) =>
     { type: sequelize.QueryTypes.SELECT, replacements: { ids: collectiveIds, until } },
   );
 
-const getBalancesInHostCurrency = async (collectiveIds, until = new Date()) =>
+const getBalancesInHostCurrency = async (collectiveIds, hostCollectiveId, until = new Date()) =>
   sequelize.query(
     `
       SELECT
@@ -1059,12 +1059,13 @@ const getBalancesInHostCurrency = async (collectiveIds, until = new Date()) =>
         "Transactions" t
       WHERE
         t."CollectiveId" IN (:ids)
+        AND t."HostCollectiveId" = :hostCollectiveId
         AND t."deletedAt" IS NULL
         AND t."createdAt" < :until
       GROUP BY
         t."CollectiveId";
       `,
-    { type: sequelize.QueryTypes.SELECT, replacements: { ids: collectiveIds, until } },
+    { type: sequelize.QueryTypes.SELECT, replacements: { ids: collectiveIds, hostCollectiveId, until } },
   );
 
 const serializeCollectivesResult = JSON.stringify;
