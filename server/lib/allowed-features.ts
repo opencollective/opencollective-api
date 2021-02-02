@@ -39,7 +39,6 @@ const FeatureAllowedForTypes = {
  */
 export const OPT_OUT_FEATURE_FLAGS = {
   [FEATURE.CONTACT_FORM]: 'settings.features.contactForm',
-  [FEATURE.UPDATES]: 'settings.features.updates',
 };
 
 export const OPT_IN_FEATURE_FLAGS = {
