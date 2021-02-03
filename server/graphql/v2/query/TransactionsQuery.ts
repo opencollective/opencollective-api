@@ -89,7 +89,7 @@ const TransactionsQuery = {
       ),
     );
     if (fromAccount) {
-      const condition = { FromCollectiveId: fromAccount.id };
+      let fromCollectiveCondition = fromAccount.id;
       if (
         args.includeIncognitoTransactions &&
         req.remoteUser?.isAdminOfCollective(fromAccount) &&
@@ -97,11 +97,16 @@ const TransactionsQuery = {
       ) {
         const incognitoProfile = await req.remoteUser.getIncognitoProfile();
         if (incognitoProfile) {
-          condition.FromCollectiveId = { [Op.or]: [fromAccount.id, incognitoProfile.id] };
+          fromCollectiveCondition = { [Op.or]: [fromAccount.id, incognitoProfile.id] };
         }
       }
 
-      where.push(condition);
+      where.push({
+        [Op.or]: [
+          { UsingVirtualCardFromCollectiveId: fromAccount.id, type: 'CREDIT' },
+          { FromCollectiveId: fromCollectiveCondition },
+        ],
+      });
     }
     if (account) {
       const accountConditions = [
