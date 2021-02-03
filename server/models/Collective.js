@@ -1167,12 +1167,22 @@ export default function (Sequelize, DataTypes) {
     }).map(member => member.memberCollective);
   };
 
+  Collective.prototype.getMemberships = function ({ role } = {}) {
+    return models.Member.findAll({
+      where: {
+        MemberCollectiveId: this.id,
+        role: role,
+      },
+      include: [{ model: models.Collective, as: 'collective' }],
+    }).map(member => member.collective);
+  };
+
   /**
    * Get the admin users { id, email } of this collective
    */
-  Collective.prototype.getAdminUsers = async function ({ userQueryParams } = {}) {
+  Collective.prototype.getAdminUsers = async function ({ userQueryParams, paranoid = true } = {}) {
     if (this.type === 'USER') {
-      return [await this.getUser(userQueryParams)];
+      return [await this.getUser({ paranoid, ...userQueryParams })];
     }
 
     const collectiveId = ['EVENT', 'PROJECT'].includes(this.type) ? this.ParentCollectiveId : this.id;
@@ -1182,10 +1192,12 @@ export default function (Sequelize, DataTypes) {
         CollectiveId: collectiveId,
         role: roles.ADMIN,
       },
+      paranoid,
     });
 
     return models.User.findAll({
       where: { CollectiveId: { [Op.in]: admins.map(m => m.MemberCollectiveId) } },
+      paranoid,
       ...userQueryParams,
     });
   };
