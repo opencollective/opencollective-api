@@ -41,29 +41,14 @@ describe('server/graphql/common/features', () => {
         expect(result).to.eq(FEATURE_STATUS.UNSUPPORTED);
       });
 
-      it('Returns DISABLED when the feature is disabled', async () => {
-        const collective = await fakeCollective({
-          type: 'COLLECTIVE',
-          settings: { features: { conversations: false } },
-        });
-        const result = await getFeatureStatusResolver(FEATURE.CONVERSATIONS)(collective);
-        expect(result).to.eq(FEATURE_STATUS.DISABLED);
-      });
-
-      it('Returns AVAILABLE if enabled but no update yet', async () => {
-        const collective = await fakeCollective({
-          type: 'COLLECTIVE',
-          settings: { features: { conversations: true } },
-        });
+      it('Returns AVAILABLE if enabled but no conversation yet', async () => {
+        const collective = await fakeCollective({ type: 'COLLECTIVE' });
         const result = await getFeatureStatusResolver(FEATURE.CONVERSATIONS)(collective);
         expect(result).to.eq(FEATURE_STATUS.AVAILABLE);
       });
 
       it("Returns ACTIVE if enabled and there's data", async () => {
-        const collective = await fakeCollective({
-          type: 'COLLECTIVE',
-          settings: { features: { conversations: true } },
-        });
+        const collective = await fakeCollective({ type: 'COLLECTIVE' });
         await fakeConversation({ CollectiveId: collective.id });
         const result = await getFeatureStatusResolver(FEATURE.CONVERSATIONS)(collective);
         expect(result).to.eq(FEATURE_STATUS.ACTIVE);

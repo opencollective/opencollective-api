@@ -47,7 +47,6 @@ export const OPT_IN_FEATURE_FLAGS = {
   [FEATURE.PAYPAL_PAYOUTS]: 'settings.features.paypalPayouts',
   [FEATURE.PAYPAL_DONATIONS]: 'settings.features.paypalDonations',
   [FEATURE.RECEIVE_HOST_APPLICATIONS]: 'settings.apply',
-  [FEATURE.CONVERSATIONS]: 'settings.features.conversations',
 };
 
 const FEATURES_ONLY_FOR_HOST_ORGS = new Set([
