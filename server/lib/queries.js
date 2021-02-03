@@ -1049,6 +1049,25 @@ const getBalances = async (collectiveIds, until = new Date()) =>
     { type: sequelize.QueryTypes.SELECT, replacements: { ids: collectiveIds, until } },
   );
 
+const getBalancesInHostCurrency = async (collectiveIds, hostCollectiveId, until = new Date()) =>
+  sequelize.query(
+    `
+      SELECT
+        t."CollectiveId",
+        COALESCE(SUM(ROUND(t."netAmountInCollectiveCurrency" * t."hostCurrencyFxRate")), 0) AS "balance"
+      FROM
+        "Transactions" t
+      WHERE
+        t."CollectiveId" IN (:ids)
+        AND t."HostCollectiveId" = :hostCollectiveId
+        AND t."deletedAt" IS NULL
+        AND t."createdAt" < :until
+      GROUP BY
+        t."CollectiveId";
+      `,
+    { type: sequelize.QueryTypes.SELECT, replacements: { ids: collectiveIds, hostCollectiveId, until } },
+  );
+
 const serializeCollectivesResult = JSON.stringify;
 
 const unserializeCollectivesResult = string => {
@@ -1072,31 +1091,32 @@ const getCollectivesWithMinBackers = memoize(getCollectivesWithMinBackersQuery, 
 });
 
 const queries = {
-  getHosts,
   getBalances,
-  getTaxFormsRequiredForExpenses,
-  getTaxFormsRequiredForAccounts,
+  getBalancesInHostCurrency,
+  getCollectivesByTag,
   getCollectivesOrderedByMonthlySpending,
   getCollectivesOrderedByMonthlySpendingQuery,
-  getTotalDonationsByCollectiveType,
-  getTotalAnnualBudgetForHost,
-  getTopDonorsForCollective,
-  getTopExpenseSubmitters,
-  getTopExpenseCategories,
-  getTotalAnnualBudget,
-  getMembersOfCollectiveWithRole,
-  getMembersWithTotalDonations,
-  getMembersWithBalance,
-  getTopSponsors,
-  getTopBackers,
-  getCollectivesByTag,
-  getTotalNumberOfActiveCollectives,
-  getTotalNumberOfDonors,
   getCollectivesWithBalance,
-  getUniqueCollectiveTags,
-  getVirtualCardBatchesForCollective,
   getCollectivesWithMinBackers,
   getCollectivesWithMinBackersQuery,
+  getHosts,
+  getMembersOfCollectiveWithRole,
+  getMembersWithBalance,
+  getMembersWithTotalDonations,
+  getTaxFormsRequiredForAccounts,
+  getTaxFormsRequiredForExpenses,
+  getTopBackers,
+  getTopDonorsForCollective,
+  getTopExpenseCategories,
+  getTopExpenseSubmitters,
+  getTopSponsors,
+  getTotalAnnualBudget,
+  getTotalAnnualBudgetForHost,
+  getTotalDonationsByCollectiveType,
+  getTotalNumberOfActiveCollectives,
+  getTotalNumberOfDonors,
+  getUniqueCollectiveTags,
+  getVirtualCardBatchesForCollective,
 };
 
 export default queries;

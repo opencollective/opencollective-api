@@ -141,7 +141,11 @@ export default (Sequelize, DataTypes) => {
       // stores the foreign exchange rate at the time of transaction between donation currency and transaction currency
       // amountInCollectiveCurrency * hostCurrencyFxRate = amountInHostCurrency
       // Expense amount * hostCurrencyFxRate = amountInHostCurrency
-      hostCurrencyFxRate: DataTypes.FLOAT,
+      hostCurrencyFxRate: {
+        type: DataTypes.FLOAT,
+        allowNull: false,
+        defaultValue: 1,
+      },
 
       // amount in currency of the host
       amountInHostCurrency: DataTypes.INTEGER,

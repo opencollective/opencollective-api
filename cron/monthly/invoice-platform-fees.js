@@ -373,6 +373,7 @@ export async function run() {
         FromCollectiveId: chargedHostId,
         HostCollectiveId: hostId,
         hostCurrency: currency,
+        hostCurrencyFxRate: 1,
         netAmountInCollectiveCurrency: totalAmountCredited,
         type: TransactionTypes.CREDIT,
       });
