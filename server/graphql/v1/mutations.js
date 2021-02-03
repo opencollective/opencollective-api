@@ -118,29 +118,6 @@ const mutations = {
       return deleteUserCollective(_, args, req);
     },
   },
-  approveCollective: {
-    type: CollectiveInterfaceType,
-    description: 'Approve a collective',
-    deprecationReason: '2020-11-16: Please use API V2',
-    args: {
-      id: { type: new GraphQLNonNull(GraphQLInt) },
-    },
-    resolve(_, args, req) {
-      return approveCollective(req.remoteUser, args.id);
-    },
-  },
-  rejectCollective: {
-    type: CollectiveInterfaceType,
-    description: 'Reject a collective',
-    deprecationReason: '2020-11-16: Please use API V2',
-    args: {
-      id: { type: new GraphQLNonNull(GraphQLInt) },
-      rejectionReason: { type: GraphQLString },
-    },
-    resolve(_, args, req) {
-      return rejectCollective(_, args, req);
-    },
-  },
   archiveCollective: {
     type: CollectiveInterfaceType,
     args: {
@@ -264,6 +241,7 @@ const mutations = {
   },
   markOrderAsPaid: {
     type: OrderType,
+    deprecationReason: '2021-01-29: Not used anymore',
     args: {
       id: { type: new GraphQLNonNull(GraphQLInt) },
     },
@@ -273,6 +251,7 @@ const mutations = {
   },
   markPendingOrderAsExpired: {
     type: OrderType,
+    deprecationReason: '2021-01-29: Not used anymore',
     args: {
       id: { type: new GraphQLNonNull(GraphQLInt) },
     },
@@ -359,20 +338,9 @@ const mutations = {
       return confirmOrder(args.order, req.remoteUser);
     },
   },
-  addFundsToCollective: {
-    type: OrderType,
-    args: {
-      order: {
-        type: new GraphQLNonNull(OrderInputType),
-      },
-    },
-    resolve(_, args, req) {
-      return addFundsToCollective(args.order, req.remoteUser);
-    },
-  },
   createUpdate: {
     type: UpdateType,
-    deprecationReason: 'This endpoint has been moved to GQLV2',
+    deprecationReason: '2021-01-29: This endpoint has been moved to GQLV2',
     args: {
       update: {
         type: new GraphQLNonNull(UpdateInputType),
@@ -384,6 +352,7 @@ const mutations = {
   },
   editUpdate: {
     type: UpdateType,
+    deprecationReason: '2021-01-29: Not used anymore',
     args: {
       update: {
         type: new GraphQLNonNull(UpdateAttributesInputType),
@@ -395,6 +364,7 @@ const mutations = {
   },
   publishUpdate: {
     type: UpdateType,
+    deprecationReason: '2021-01-29: Not used anymore',
     args: {
       id: {
         type: new GraphQLNonNull(GraphQLInt),
@@ -409,6 +379,7 @@ const mutations = {
   },
   unpublishUpdate: {
     type: UpdateType,
+    deprecationReason: '2021-01-29: Not used anymore',
     args: {
       id: {
         type: new GraphQLNonNull(GraphQLInt),
@@ -420,6 +391,7 @@ const mutations = {
   },
   deleteUpdate: {
     type: UpdateType,
+    deprecationReason: '2021-01-29: Not used anymore',
     args: {
       id: {
         type: new GraphQLNonNull(GraphQLInt),
@@ -431,6 +403,7 @@ const mutations = {
   },
   createComment: {
     type: CommentType,
+    deprecationReason: '2021-01-29: Not used anymore',
     args: {
       comment: {
         type: new GraphQLNonNull(CommentInputType),
@@ -446,6 +419,7 @@ const mutations = {
   },
   editComment: {
     type: CommentType,
+    deprecationReason: '2021-01-29: Not used anymore',
     args: {
       comment: {
         type: new GraphQLNonNull(CommentAttributesInputType),
@@ -455,6 +429,7 @@ const mutations = {
   },
   deleteComment: {
     type: CommentType,
+    deprecationReason: '2021-01-29: Not used anymore',
     args: {
       id: {
         type: new GraphQLNonNull(GraphQLInt),
@@ -520,6 +495,7 @@ const mutations = {
   createCreditCard: {
     type: PaymentMethodType,
     description: 'Add a new credit card to the given collective',
+    deprecationReason: '2021-01-29: Not used anymore',
     args: {
       CollectiveId: { type: new GraphQLNonNull(GraphQLInt) },
       name: { type: new GraphQLNonNull(GraphQLString) },

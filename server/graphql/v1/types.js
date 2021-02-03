@@ -1024,13 +1024,6 @@ export const UpdateType = new GraphQLObjectType({
           }
         },
       },
-      markdown: {
-        type: GraphQLString,
-        deprecationReason: '2020-01-25: Use html',
-        resolve() {
-          return null;
-        },
-      },
       tags: {
         type: new GraphQLList(GraphQLString),
         resolve(update) {
@@ -1061,64 +1054,8 @@ export const UpdateType = new GraphQLObjectType({
           return req.loaders.Tier.byId.load(update.TierId);
         },
       },
-      comments: {
-        type: CommentListType,
-        deprecationReason: 'Deprecated since 2020-03-18: This field has never been active and will be removed soon.',
-        args: {
-          limit: { type: GraphQLInt },
-          offset: { type: GraphQLInt },
-        },
-        resolve(update, args) {
-          return {
-            where: { UpdateId: update.id },
-            limit: args.limit || 10,
-            offset: args.offset || 0,
-          };
-        },
-      },
     };
   },
-});
-
-export const CommentListType = new GraphQLObjectType({
-  name: 'CommentListType',
-  deprecationReason: 'The resolver for comments is not standard. Please use `PaginatedComments`',
-  description: 'List of comments with pagination info',
-  fields: () => ({
-    comments: {
-      type: new GraphQLList(CommentType),
-      async resolve(query, args, req) {
-        let rows;
-        if (query.where.ExpenseId) {
-          rows = await req.loaders.Comment.findAllByAttribute('ExpenseId').load(query.where.ExpenseId);
-        }
-        if (query.where.UpdateId) {
-          rows = await req.loaders.Comment.findAllByAttribute('UpdateId').load(query.where.UpdateId);
-        }
-        return rows.splice(query.offset, query.limit);
-      },
-    },
-    limit: {
-      type: GraphQLInt,
-      resolve(query) {
-        return query.limit;
-      },
-    },
-    offset: {
-      type: GraphQLInt,
-      resolve(query) {
-        return query.offset;
-      },
-    },
-    total: {
-      type: GraphQLInt,
-      async resolve(query, args, req) {
-        if (query.where.ExpenseId) {
-          return req.loaders.Comment.countByExpenseId.load(query.where.ExpenseId);
-        }
-      },
-    },
-  }),
 });
 
 export const CommentType = new GraphQLObjectType({
@@ -1146,11 +1083,6 @@ export const CommentType = new GraphQLObjectType({
       },
       html: {
         type: GraphQLString,
-      },
-      markdown: {
-        type: GraphQLString,
-        deprecationReason: '2020-01-25: Use html',
-        resolve: () => null,
       },
       createdByUser: {
         type: UserType,
@@ -1866,7 +1798,6 @@ export const ConnectedAccountType = new GraphQLObjectType({
   },
 });
 
-// TODO: Put behind a login token
 export const PaymentMethodType = new GraphQLObjectType({
   name: 'PaymentMethodType',
   description: 'Sanitized PaymentMethod Info (PaymentMethod model)',
@@ -1918,13 +1849,6 @@ export const PaymentMethodType = new GraphQLObjectType({
       batch: {
         type: GraphQLString,
         description: 'To group multiple payment methods. Used for Gift Cards',
-      },
-      SourcePaymentMethodId: {
-        type: GraphQLInt,
-        deprecationReason: '2020-09-28: Not used',
-        resolve(paymentMethod) {
-          return paymentMethod.SourcePaymentMethodId;
-        },
       },
       type: {
         type: GraphQLString,

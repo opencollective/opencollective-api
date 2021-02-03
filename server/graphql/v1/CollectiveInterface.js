@@ -529,6 +529,7 @@ export const CollectiveStatsType = new GraphQLObjectType({
       },
       topFundingSources: {
         type: GraphQLJSON,
+        deprecationReason: '2021-01-29: Not used anymore',
         resolve(collective) {
           return Promise.all([
             queries.getTopDonorsForCollective(collective.id),
@@ -810,11 +811,6 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
           offset: { type: GraphQLInt },
         },
       },
-      childCollectives: {
-        type: new GraphQLList(CollectiveType),
-        description: "Get all child collectives (with type=COLLECTIVE, doesn't return events)",
-        deprecationReason: '2020/01/08 - Connected-collectives are now handled through members',
-      },
       paymentMethods: {
         type: new GraphQLList(PaymentMethodType),
         args: {
@@ -833,12 +829,6 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
           orderBy: {
             type: PaymentMethodOrderFieldType,
             description: 'Order entries based on given column. Set to null for no ordering.',
-          },
-          includeOrganizationCollectivePaymentMethod: {
-            type: GraphQLBoolean,
-            defaultValue: false,
-            description: 'Defines if the organization "collective" payment method should be returned',
-            deprecationReason: '2019-12-20: Replaced by includeHostCollectivePaymentMethod',
           },
           includeHostCollectivePaymentMethod: {
             type: GraphQLBoolean,
@@ -1727,14 +1717,6 @@ const CollectiveFields = () => {
         return models.Collective.findAll(query);
       },
     },
-    childCollectives: {
-      type: new GraphQLList(CollectiveType),
-      description: "Get all child collectives (with type=COLLECTIVE, doesn't return events)",
-      deprecationReason: '2020/01/08 - Connected-collectives are now handled through members',
-      resolve(collective, _, req) {
-        return req.loaders.Collective.childCollectives.load(collective.id);
-      },
-    },
     paymentMethods: {
       type: new GraphQLList(PaymentMethodType),
       args: {
@@ -1746,12 +1728,6 @@ const CollectiveFields = () => {
         orderBy: {
           type: PaymentMethodOrderFieldType,
           defaultValue: 'type',
-        },
-        includeOrganizationCollectivePaymentMethod: {
-          type: GraphQLBoolean,
-          defaultValue: false,
-          description: 'Defines if the organization "collective" payment method should be returned',
-          deprecationReason: '2019-12-20: Replaced by includeHostCollectivePaymentMethod',
         },
         includeHostCollectivePaymentMethod: {
           type: GraphQLBoolean,
@@ -1766,7 +1742,6 @@ const CollectiveFields = () => {
         let paymentMethods = await req.loaders.PaymentMethod.findByCollectiveId.load(collective.id);
         // Filter Payment Methods used by Hosts for "Add Funds"
         if (
-          !args.includeOrganizationCollectivePaymentMethod &&
           !args.includeHostCollectivePaymentMethod &&
           (collective.type === 'ORGANIZATION' || collective.type === 'USER')
         ) {
