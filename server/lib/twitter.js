@@ -139,9 +139,7 @@ Support them too!`,
 We}
 } received {totalAmountReceived} from {totalActiveBackers} {totalActiveBackers, plural, one {backer} other {backers}}{totalAmountSpent, plural,
   =0 {.}
-  other { and we spent {topExpenseCategories, select,
-      none {{totalAmountSpent}}
-      other {{totalAmountSpent} on {topExpenseCategories}}}.}} Our current balance is {balance}.
+  other { and we spent {totalAmountSpent}.}} Our current balance is {balance}.
 
 Top backers: {topBackersTwitterHandles}`,
       monthlyStatsNoNewDonation: `In {month}, we haven't received any new donation.

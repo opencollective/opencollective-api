@@ -42,11 +42,6 @@ export const ExpenseCreateInput = new GraphQLInputObjectType({
       type: new GraphQLNonNull(PayoutMethodInput),
       description: 'The payout method that will be used to reimburse the expense',
     },
-    attachments: {
-      type: new GraphQLList(ExpenseItemCreateInput),
-      description:
-        '@deprecated 2020-04-08: Please use the items field - The list of items for this expense. Total amount will be computed from them.',
-    },
     items: {
       type: new GraphQLList(ExpenseItemCreateInput),
       description: 'The list of items for this expense. Total amount will be computed from them.',

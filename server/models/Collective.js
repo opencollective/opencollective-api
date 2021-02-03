@@ -2406,13 +2406,6 @@ export default function (Sequelize, DataTypes) {
     });
   };
 
-  Collective.prototype.getTopExpenseCategories = function (startDate, endDate) {
-    return queries.getTopExpenseCategories(this.id, {
-      since: startDate,
-      until: endDate,
-    });
-  };
-
   // Returns the last payment method that has been confirmed attached to this collective
   Collective.prototype.getPaymentMethod = async function (where, mustBeConfirmed = true) {
     const query = {

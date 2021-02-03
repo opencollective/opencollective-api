@@ -108,7 +108,6 @@ const processCollective = collective => {
     collective.getTotalTransactions(startDate, endDate, 'expense', 'amount'),
     collective.getBackersStats(startDate, endDate),
     collective.getBackersCount({ since: startDate, until: endDate }),
-    collective.getTopExpenseCategories(startDate, endDate),
   ];
 
   return Promise.all(promises)
@@ -123,7 +122,6 @@ const processCollective = collective => {
       data.collective.stats.balance = results[2];
       data.collective.stats.totalReceived = results[3];
       data.collective.stats.totalSpent = results[4];
-      data.collective.stats.topExpenseCategories = results[7];
       return data;
     })
     .then(data => sendTweet(collective.twitterAccount, data))
@@ -160,15 +158,6 @@ const sendTweet = async (twitterAccount, data) => {
     totalAmountReceived: formatCurrency(stats.totalReceived, data.collective.currency),
     topBackersTwitterHandles: compileTwitterHandles(data.topBackers, 0, 3),
     newBackersTwitterHandles: compileTwitterHandles(data.topNewBackers, stats.backers.new, 5),
-    topExpenseCategories:
-      stats.topExpenseCategories.length === 0
-        ? 'none'
-        : stats.topExpenseCategories
-            .slice(0, 2)
-            // Notice: this category property is virtual, it actually corresponds to the first tag of the expense.
-            .map(ec => ec.category)
-            .join(' & ')
-            .toLowerCase(),
   };
 
   const template = stats.totalReceived === 0 ? 'monthlyStatsNoNewDonation' : 'monthlyStats';

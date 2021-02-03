@@ -3,7 +3,7 @@ import gql from 'fake-tag';
 import { describe, it } from 'mocha';
 import sinon from 'sinon';
 
-import * as expenses from '../../../../server/graphql/v1/mutations/expenses';
+import * as expenses from '../../../../server/graphql/common/expenses';
 import cache from '../../../../server/lib/cache';
 import models, { Op } from '../../../../server/models';
 import * as store from '../../../stores';
@@ -172,7 +172,6 @@ describe('server/graphql/v1/collective', () => {
               organizations
             }
             yearlyBudget
-            topExpenses
             topFundingSources
           }
           __typename
@@ -224,33 +223,6 @@ describe('server/graphql/v1/collective', () => {
         },
       ],
       byCollectiveType: [{ type: 'USER', totalDonations: 49500 }],
-    });
-
-    expect(collective.stats.topExpenses).to.deep.equal({
-      byCategory: [{ category: 'engineering', count: 10, totalExpenses: 5500 }],
-      byCollective: [
-        {
-          slug: 'testuser9',
-          image: null,
-          name: 'testuser9',
-          totalExpenses: -1000,
-          twitterHandle: null,
-        },
-        {
-          slug: 'testuser8',
-          image: null,
-          name: 'testuser8',
-          totalExpenses: -900,
-          twitterHandle: null,
-        },
-        {
-          slug: 'testuser7',
-          image: null,
-          name: 'testuser7',
-          totalExpenses: -800,
-          twitterHandle: null,
-        },
-      ],
     });
   });
 

@@ -7,7 +7,7 @@
 import sinon from 'sinon';
 import { v4 as uuid } from 'uuid';
 
-import * as expenses from '../../server/graphql/v1/mutations/expenses';
+import * as expenses from '../../server/graphql/common/expenses';
 import * as libpayments from '../../server/lib/payments';
 /* Libraries that create the objects */
 import models from '../../server/models';
@@ -49,6 +49,7 @@ function slugify(value) {
  *  to the user's creation. The fields "name", "email", "username" and
  *  "description" can't be overrided.
  * @return {Object} with references for `user` and `userCollective`.
+ * @deprecated Prefer the `fake-data` lib: use `fakeUser()`
  */
 export async function newUser(name, data = {}) {
   name = name || uuid().split('-')[0];
@@ -150,6 +151,7 @@ export async function newOrganization(orgData, adminUser) {
  *  collective
  * @returns {Object} with references for `hostCollective`,
  *  `hostAdmin`, and `collective`.
+ * @deprecated Prefer the `fake-data` lib: use `fakeCollective()`
  */
 export async function newCollectiveWithHost(name, currency, hostCurrency, hostFee, user = null, data = {}) {
   name = name || randStr();

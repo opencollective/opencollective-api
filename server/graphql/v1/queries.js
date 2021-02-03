@@ -29,15 +29,11 @@ import {
   TransactionType,
 } from './TransactionInterface';
 import {
-  ExpenseStatusType,
-  ExpenseType,
   InvoiceType,
   MemberInvitationType,
   MemberType,
-  OrderByType,
   OrderDirectionType,
   OrderType,
-  PaginatedExpensesType,
   PaymentMethodType,
   TierType,
   UpdateType,
@@ -603,162 +599,6 @@ const queries = {
         query.where.CollectiveId = { [Op.in]: collectiveIds };
         return models.Order.findAll(query);
       });
-    },
-  },
-
-  /*
-   * Given a collective slug, returns all expenses
-   */
-  allExpenses: {
-    type: new GraphQLList(ExpenseType),
-    deprecationReason: '2020-11-17: [LegacyExpenseFlow] Please use API V2',
-    args: {
-      CollectiveId: { type: new GraphQLNonNull(GraphQLInt) },
-      includeHostedCollectives: { type: GraphQLBoolean },
-      status: { type: GraphQLString },
-      category: { type: GraphQLString },
-      FromCollectiveId: { type: GraphQLInt },
-      fromCollectiveSlug: { type: GraphQLString },
-      limit: { type: GraphQLInt },
-      offset: { type: GraphQLInt },
-    },
-    async resolve(_, args, req) {
-      const query = { where: {} };
-      if (args.fromCollectiveSlug && !args.FromCollectiveId) {
-        args.FromCollectiveId = await fetchCollectiveId(args.fromCollectiveSlug);
-      }
-      if (args.FromCollectiveId) {
-        const user = await models.User.findOne({
-          attributes: ['id'],
-          where: { CollectiveId: args.FromCollectiveId },
-        });
-        if (!user) {
-          throw new Error('FromCollectiveId not found');
-        }
-        query.where.UserId = user.id;
-      }
-      if (args.status) {
-        query.where.status = args.status;
-      }
-      if (args.category) {
-        query.where[Op.and] = [sequelize.literal(`${sequelize.escape(args.category)} ILIKE ANY(tags)`)];
-      }
-      if (args.limit) {
-        query.limit = args.limit;
-      }
-      if (args.offset) {
-        query.offset = args.offset;
-      }
-      query.order = [['createdAt', 'DESC']];
-      return req.loaders.Collective.byId.load(args.CollectiveId).then(collective => {
-        if (!collective) {
-          throw new Error('Collective not found');
-        }
-        const getCollectiveIds = () => {
-          // if is host, we get all the expenses across all the hosted collectives that are active
-          if (args.includeHostedCollectives) {
-            return models.Collective.findAll({
-              attributes: ['id'],
-              where: {
-                HostCollectiveId: collective.id,
-                isActive: true,
-              },
-            }).map(c => c.id);
-          } else {
-            return Promise.resolve([args.CollectiveId]);
-          }
-        };
-        return getCollectiveIds().then(collectiveIds => {
-          query.where.CollectiveId = { [Op.in]: collectiveIds };
-          return models.Expense.findAll(query);
-        });
-      });
-    },
-  },
-
-  /*
-   * Return all expenses, with optional collective slug
-   */
-  expenses: {
-    type: PaginatedExpensesType,
-    deprecationReason: '2020-11-17: [LegacyExpenseFlow] Please use API V2',
-    args: {
-      CollectiveId: { type: GraphQLInt },
-      CollectiveSlug: { type: GraphQLString },
-      status: { type: ExpenseStatusType },
-      category: { type: GraphQLString, deprecationReason: '2020-06-03: Expense are now using tags' },
-      FromCollectiveId: { type: GraphQLInt },
-      FromCollectiveSlug: { type: GraphQLString },
-      limit: {
-        defaultValue: 100,
-        description: 'Defaults to 100',
-        type: GraphQLInt,
-      },
-      offset: {
-        defaultValue: 0,
-        type: GraphQLInt,
-      },
-      orderBy: {
-        defaultValue: OrderByType.defaultValue,
-        type: OrderByType,
-      },
-    },
-    async resolve(_, args) {
-      const {
-        category,
-        CollectiveId,
-        CollectiveSlug,
-        FromCollectiveId,
-        FromCollectiveSlug,
-        limit,
-        offset,
-        orderBy,
-        status,
-      } = args;
-      const query = {
-        limit,
-        offset,
-        order: [Object.values(orderBy)],
-        where: {},
-      };
-
-      if (FromCollectiveId || FromCollectiveSlug) {
-        query.where.FromCollectiveId = FromCollectiveId || (await fetchCollectiveId(FromCollectiveSlug));
-      }
-
-      if (category) {
-        query.where.tags = { [Op.contains]: [category] };
-      }
-
-      if (status) {
-        query.where.status = status;
-      }
-
-      if (CollectiveId || CollectiveSlug) {
-        query.where.CollectiveId = CollectiveId || (await fetchCollectiveId(CollectiveSlug));
-      }
-
-      const { count: total, rows: expenses } = await models.Expense.findAndCountAll(query);
-      return {
-        expenses,
-        limit,
-        offset,
-        total,
-      };
-    },
-  },
-
-  /*
-   * Given an Expense id, returns the expense details
-   */
-  Expense: {
-    type: ExpenseType,
-    deprecationReason: '2020-11-17: [LegacyExpenseFlow] Please use API V2',
-    args: {
-      id: { type: new GraphQLNonNull(GraphQLInt) },
-    },
-    resolve(_, args) {
-      return models.Expense.findByPk(args.id);
     },
   },
 
