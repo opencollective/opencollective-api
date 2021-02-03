@@ -39,6 +39,13 @@ import plans, { PLANS_COLLECTIVE_SLUG } from '../constants/plans';
 import roles, { MemberRoleLabels } from '../constants/roles';
 import { FEES_ON_TOP_TRANSACTION_PROPERTIES, TransactionTypes } from '../constants/transactions';
 import { hasOptedOutOfFeature, isFeatureAllowedForCollectiveType } from '../lib/allowed-features';
+import {
+  getBalance,
+  getBalanceWithBlockedFunds,
+  getTotalAmountReceived,
+  getTotalNetAmountReceived,
+  getYearlyIncome,
+} from '../lib/budget';
 import cache, { purgeCacheForCollective } from '../lib/cache';
 import {
   collectiveSlugReservedlist,
@@ -744,7 +751,7 @@ export default function (Sequelize, DataTypes) {
       }
       if (goal.type === 'balance') {
         if (!stats.balance) {
-          stats.balance = await this.getBalance(until);
+          stats.balance = await this.getBalance({ endDate: until });
         }
         if (stats.balance < goal.amount) {
           nextGoal = goal;
@@ -756,7 +763,7 @@ export default function (Sequelize, DataTypes) {
       }
       if (goal.type === 'yearlyBudget') {
         if (!stats.yearlyBudget) {
-          stats.yearlyBudget = await this.getYearlyIncome(until);
+          stats.yearlyBudget = await this.getYearlyIncome();
         }
         if (stats.yearlyBudget < goal.amount) {
           nextGoal = goal;
@@ -1876,12 +1883,8 @@ export default function (Sequelize, DataTypes) {
       }
     }
 
-    // Update all transactions
-    // Ensure consistency between collective.currency and transaction.currency
-    const transactions = await models.Transaction.findAll({ where: { CollectiveId: this.id } });
-    if (transactions.length > 0) {
-      await Promise.map(transactions, transaction => transaction.setCurrency(currency), { concurrency: 3 });
-    }
+    // What about transactions?
+    // No, the currency should not matter, and for the Hosts it's forbidden to change currency
 
     // Update tiers, skip or delete when they are already used?
     const tiers = await this.getTiers();
@@ -2438,100 +2441,24 @@ export default function (Sequelize, DataTypes) {
     });
   };
 
-  Collective.prototype.getBalance = async function (until) {
-    until = until || new Date();
-    const result = await queries.getBalances([this.id], until);
-    return get(result, '[0].balance') || 0;
+  Collective.prototype.getBalanceWithBlockedFunds = function (options) {
+    return getBalanceWithBlockedFunds(this, options);
+  };
+
+  Collective.prototype.getBalance = function (options) {
+    return getBalance(this, options);
   };
 
   Collective.prototype.getYearlyIncome = function () {
-    /*
-      Three cases:
-      1) All active monthly subscriptions. Multiply by 12
-      2) All one-time and yearly subscriptions
-      3) All inactive monthly subscriptions that have contributed in the past
-    */
-    return Sequelize.query(
-      `
-      WITH "activeMonthlySubscriptions" as (
-        SELECT DISTINCT d."SubscriptionId", t."netAmountInCollectiveCurrency"
-        FROM "Transactions" t
-        LEFT JOIN "Orders" d ON d.id = t."OrderId"
-        LEFT JOIN "Subscriptions" s ON s.id = d."SubscriptionId"
-        WHERE t."CollectiveId"=:CollectiveId
-          AND t."RefundTransactionId" IS NULL
-          AND s."isActive" IS TRUE
-          AND s.interval = 'month'
-          AND s."deletedAt" IS NULL
-      )
-      SELECT
-        (SELECT
-          COALESCE(SUM("netAmountInCollectiveCurrency"*12),0) FROM "activeMonthlySubscriptions")
-        +
-        (SELECT
-          COALESCE(SUM(t."netAmountInCollectiveCurrency"),0) FROM "Transactions" t
-          LEFT JOIN "Orders" d ON t."OrderId" = d.id
-          LEFT JOIN "Subscriptions" s ON d."SubscriptionId" = s.id
-          WHERE t."CollectiveId" = :CollectiveId
-            AND t."RefundTransactionId" IS NULL
-            AND t.type = 'CREDIT'
-            AND t."deletedAt" IS NULL
-            AND t."createdAt" > (current_date - INTERVAL '12 months')
-            AND ((s.interval = 'year' AND s."isActive" IS TRUE AND s."deletedAt" IS NULL) OR s.interval IS NULL))
-        +
-        (SELECT
-          COALESCE(SUM(t."netAmountInCollectiveCurrency"),0) FROM "Transactions" t
-          LEFT JOIN "Orders" d ON t."OrderId" = d.id
-          LEFT JOIN "Subscriptions" s ON d."SubscriptionId" = s.id
-          WHERE t."CollectiveId" = :CollectiveId
-            AND t."RefundTransactionId" IS NULL
-            AND t.type = 'CREDIT'
-            AND t."deletedAt" IS NULL
-            AND t."createdAt" > (current_date - INTERVAL '12 months')
-            AND s.interval = 'month' AND s."isActive" IS FALSE AND s."deletedAt" IS NULL)
-        "yearlyIncome"
-      `.replace(/\s\s+/g, ' '), // this is to remove the new lines and save log space.
-      {
-        replacements: { CollectiveId: this.id },
-        type: Sequelize.QueryTypes.SELECT,
-      },
-    ).then(result => Promise.resolve(parseInt(result[0].yearlyIncome, 10)));
+    return getYearlyIncome(this);
   };
 
-  Collective.prototype.getTotalAmountReceived = function (startDate, endDate) {
-    endDate = endDate || new Date();
-    const where = {
-      type: 'CREDIT',
-      createdAt: { [Op.lt]: endDate },
-      CollectiveId: this.id,
-      RefundTransactionId: { [Op.is]: null }, // Exclude refunded transactions
-    };
-    if (startDate) {
-      where.createdAt[Op.gte] = startDate;
-    }
-    return models.Transaction.findOne({
-      attributes: [[Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('amount')), 0), 'total']],
-      where,
-    }).then(result => parseInt(result.dataValues.total, 10));
+  Collective.prototype.getTotalAmountReceived = function (options) {
+    return getTotalAmountReceived(this, options);
   };
 
-  Collective.prototype.getTotalNetAmountReceived = function (startDate, endDate) {
-    endDate = endDate || new Date();
-    const where = {
-      type: 'CREDIT',
-      createdAt: { [Op.lt]: endDate },
-      CollectiveId: this.id,
-      RefundTransactionId: { [Op.is]: null }, // Exclude refunded transactions
-    };
-    if (startDate) {
-      where.createdAt[Op.gte] = startDate;
-    }
-    return models.Transaction.findOne({
-      attributes: [
-        [Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('netAmountInCollectiveCurrency')), 0), 'total'],
-      ],
-      where,
-    }).then(result => parseInt(result.dataValues.total, 10));
+  Collective.prototype.getTotalNetAmountReceived = function (options) {
+    return getTotalNetAmountReceived(this, options);
   };
 
   /**

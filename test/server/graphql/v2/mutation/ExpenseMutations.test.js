@@ -15,7 +15,7 @@ import models from '../../../../../server/models';
 import { PayoutMethodTypes } from '../../../../../server/models/PayoutMethod';
 import paymentProviders from '../../../../../server/paymentProviders';
 import paypalAdaptive from '../../../../../server/paymentProviders/paypal/adaptiveGateway';
-import { newCollectiveWithHost, newUser, randEmail, randUrl } from '../../../../stores';
+import { randEmail, randUrl } from '../../../../stores';
 import {
   fakeCollective,
   fakeConnectedAccount,
@@ -818,14 +818,14 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         });
 
         // Updates the collective balance and pay the expense
-        const initialBalance = await collective.getBalance();
+        const initialBalance = await collective.getBalanceWithBlockedFunds();
         const expensePlusFees = expense.amount + paymentProcessorFee;
         await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: expensePlusFees });
-        expect(await collective.getBalance()).to.equal(initialBalance + expensePlusFees);
+        expect(await collective.getBalanceWithBlockedFunds()).to.equal(initialBalance + expensePlusFees);
         const mutationParams = { expenseId: expense.id, action: 'PAY', paymentParams: { paymentProcessorFee } };
         emailSendMessageSpy.resetHistory();
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
-        expect(await collective.getBalance()).to.equal(initialBalance);
+        expect(await collective.getBalanceWithBlockedFunds()).to.equal(initialBalance);
         result.errors && console.error(result.errors);
         expect(result.data.processExpense.status).to.eq('PAID');
 
@@ -1111,14 +1111,14 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         // Updates the collective balance and pay the expense
         await fakeTransaction({ type: 'CREDIT', CollectiveId: testCollective.id, amount: expense.amount });
         await payExpense(makeRequest(hostAdmin), { id: expense.id, forceManual: true });
-        expect(await testCollective.getBalance()).to.eq(0);
+        expect(await testCollective.getBalanceWithBlockedFunds()).to.eq(0);
 
         const mutationParams = { expenseId: expense.id, action: 'MARK_AS_UNPAID' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
         expect(result.data.processExpense.status).to.eq('APPROVED');
-        expect(await testCollective.getBalance()).to.eq(expense.amount);
+        expect(await testCollective.getBalanceWithBlockedFunds()).to.eq(expense.amount);
         await payExpense(makeRequest(hostAdmin), { id: expense.id, forceManual: true });
-        expect(await testCollective.getBalance()).to.eq(0);
+        expect(await testCollective.getBalanceWithBlockedFunds()).to.eq(0);
       });
 
       it('Marks the expense as unpaid', async () => {
@@ -1135,12 +1135,12 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         // Updates the collective balance and pay the expense
         await fakeTransaction({ type: 'CREDIT', CollectiveId: testCollective.id, amount: expense.amount });
         await payExpense(makeRequest(hostAdmin), { id: expense.id });
-        expect(await testCollective.getBalance()).to.eq(0);
+        expect(await testCollective.getBalanceWithBlockedFunds()).to.eq(0);
 
         const mutationParams = { expenseId: expense.id, action: 'MARK_AS_UNPAID' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
         expect(result.data.processExpense.status).to.eq('APPROVED');
-        expect(await testCollective.getBalance()).to.eq(expense.amount);
+        expect(await testCollective.getBalanceWithBlockedFunds()).to.eq(expense.amount);
       });
 
       it('Expense needs to be paid', async () => {

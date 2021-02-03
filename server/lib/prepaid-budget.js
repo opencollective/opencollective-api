@@ -18,6 +18,7 @@ export async function createPrepaidPaymentMethod(originalCreditTransaction) {
     ...pick(originalCreditTransaction, ['currency', 'hostCurrency', 'CreatedByUserId']),
     description: 'Prepaid Budget',
     amount: shareableAmount,
+    amountInHostCurrency: shareableAmount,
     CollectiveId: originalCreditTransaction.FromCollectiveId,
     FromCollectiveId: originalCreditTransaction.CollectiveId,
     paymentProcessorFeeInHostCurrency: 0,

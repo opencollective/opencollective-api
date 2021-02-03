@@ -171,7 +171,7 @@ const processCollective = collective => {
       attributes: ['id', 'slug', 'name', 'image', 'firstDonation', 'lastDonation', 'totalDonations', 'tier'],
       until: endDate,
     }),
-    collective.getBalance(endDate),
+    collective.getBalance({ endDate }),
     collective.getTotalTransactions(startDate, endDate, 'donation'),
     collective.getTotalTransactions(startDate, endDate, 'expense'),
     collective.getExpenses(null, startDate, endDate),

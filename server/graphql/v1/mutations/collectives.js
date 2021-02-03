@@ -420,7 +420,6 @@ export async function archiveCollective(_, args, req) {
   }
 
   const balance = await collective.getBalance();
-
   if (balance > 0) {
     throw new Error('Cannot archive collective with balance > 0');
   }
