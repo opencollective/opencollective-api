@@ -1847,7 +1847,10 @@ export default function (Sequelize, DataTypes) {
     const isHost = await this.isHost();
     if (isHost) {
       // We only expect currency change at the beginning of the history of the Host
-      const transactionCount = await models.Transaction.count({ where: { HostCollectiveId: this.id } });
+      // We're however good with it if currency is already recorded as hostCurrency in the ledger
+      const transactionCount = await models.Transaction.count({
+        where: { HostCollectiveId: this.id, hostCurrency: { [Op.not]: currency } },
+      });
       if (transactionCount > 0) {
         throw new Error(
           'You cannot change the currency of an Host with transactions. Please contact support@opencollective.com.',
@@ -1856,22 +1859,53 @@ export default function (Sequelize, DataTypes) {
       let collectives = await this.getHostedCollectives();
       collectives = collectives.filter(collective => collective.id !== this.id);
       // We use setCurrency so that it will cascade to Tiers
-      await Promise.map(collectives, collective => collective.setCurrency(currency), { concurrency: 3 });
+      if (collectives.length > 0) {
+        await Promise.map(
+          collectives,
+          async collective => {
+            const collectiveTransactionCount = await models.Transaction.count({
+              where: { CollectiveId: collective.id },
+            });
+            // We only proceed with Collectives without Transactions
+            if (collectiveTransactionCount === 0) {
+              return collective.setCurrency(currency);
+            }
+          },
+          { concurrency: 3 },
+        );
+      }
     }
 
-    // This is currently for COLLECTIVE and EVENTS but we make it generic
+    // Update all transactions
+    // Ensure consistency between collective.currency and transaction.currency
+    const transactions = await models.Transaction.findAll({ where: { CollectiveId: this.id } });
+    if (transactions.length > 0) {
+      await Promise.map(transactions, transaction => transaction.setCurrency(currency), { concurrency: 3 });
+    }
+
+    // Update tiers, skip or delete when they are already used?
     const tiers = await this.getTiers();
     if (tiers.length > 0) {
-      await Promise.map(tiers, tier => tier.update({ currency }), { concurrency: 3 });
+      await Promise.map(
+        tiers,
+        async tier => {
+          // We only proceed with Tiers without Orders
+          const orderCount = await models.Order.count({ where: { TierId: tier.id } });
+          if (orderCount === 0) {
+            return tier.setCurrency(currency);
+          }
+        },
+        { concurrency: 3 },
+      );
     }
 
     // Cascade currency to events and projects
     const events = await this.getEvents();
-    if (events?.length > 0) {
+    if (events.length > 0) {
       await Promise.map(events, event => event.setCurrency(currency), { concurrency: 3 });
     }
     const projects = await this.getProjects();
-    if (projects?.length > 0) {
+    if (projects.length > 0) {
       await Promise.map(projects, project => project.setCurrency(currency), { concurrency: 3 });
     }
 
