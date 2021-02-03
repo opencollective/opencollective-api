@@ -1876,12 +1876,8 @@ export default function (Sequelize, DataTypes) {
       }
     }
 
-    // Update all transactions
-    // Ensure consistency between collective.currency and transaction.currency
-    const transactions = await models.Transaction.findAll({ where: { CollectiveId: this.id } });
-    if (transactions.length > 0) {
-      await Promise.map(transactions, transaction => transaction.setCurrency(currency), { concurrency: 3 });
-    }
+    // What about transactions?
+    // No, the currency should not matter, and for the Hosts it's forbidden to change currency
 
     // Update tiers, skip or delete when they are already used?
     const tiers = await this.getTiers();
