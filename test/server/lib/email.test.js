@@ -69,7 +69,7 @@ describe('server/lib/email', () => {
       };
       return emailLib.send(template, data.user.email, data, options).tap(() => {
         let amountStr = 50;
-        amountStr = amountStr.toLocaleString('fr-BE', {
+        amountStr = amountStr.toLocaleString('fr-FR', {
           style: 'currency',
           currency: 'EUR',
           minimumFractionDigits: 0,
@@ -145,7 +145,7 @@ describe('server/lib/email', () => {
       const from = 'BrusselsTogether <info@brusselstogether.opencollective.com>';
       return emailLib.send('thankyou', data.user.email, data, { from }).tap(() => {
         let amountStr = 50;
-        amountStr = amountStr.toLocaleString('EUR', {
+        amountStr = amountStr.toLocaleString('fr-FR', {
           style: 'currency',
           currency: 'EUR',
           minimumFractionDigits: 0,
