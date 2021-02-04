@@ -1,3 +1,5 @@
+/* eslint-disable camelcase */
+
 export type Quote = {
   id?: number;
   source: string;
@@ -220,4 +222,12 @@ export type BorderlessAccount = {
   active: boolean;
   eligible: boolean;
   balances: Balance[];
+};
+
+export type AccessToken = {
+  access_token: string;
+  token_type: 'bearer';
+  refresh_token: string;
+  expires_in: number;
+  scope: string;
 };

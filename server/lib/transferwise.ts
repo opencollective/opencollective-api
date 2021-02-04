@@ -1,3 +1,4 @@
+/* eslint-disable camelcase */
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -11,6 +12,7 @@ import { isNull, omitBy, startCase, toInteger, toUpper } from 'lodash';
 
 import { TransferwiseError } from '../graphql/errors';
 import {
+  AccessToken,
   BorderlessAccount,
   CurrencyPair,
   Profile,
@@ -80,7 +82,7 @@ const parseError = (
 export const requestDataAndThrowParsedError = (
   fn: Function,
   url: string,
-  { data, ...options }: { data?: object; headers: object; params?: object },
+  { data, ...options }: { data?: object; headers?: object; params?: object; auth?: object },
   defaultErrorMessage?: string,
 ): Promise<any> => {
   debug(`calling ${url}`);
@@ -342,4 +344,57 @@ export const formatAccountDetails = (payoutMethodData: Record<string, any>): str
   const { accountHolderName, currency, ...data } = payoutMethodData;
   const lines = renderObject({ accountHolderName, currency, ...data });
   return lines.join('\n');
+};
+
+export const getOAuthUrl = (state: string): string => {
+  return `${config.transferwise.oauthUrl}/oauth/authorize/?client_id=${config.transferwise.clientId}&redirect_uri=${config.transferwise.redirectUri}&state=${state}`;
+};
+
+export const getOrRefreshUserToken = async ({
+  code,
+  refreshToken,
+}: {
+  code?: string;
+  refreshToken?: string;
+}): Promise<AccessToken> => {
+  const data = refreshToken
+    ? { grant_type: 'refresh_token', refresh_token: refreshToken }
+    : {
+        grant_type: 'authorization_code',
+        client_id: config.transferwise.clientId,
+        code,
+        redirect_uri: config.transferwise.redirectUri,
+      };
+
+  const params = new url.URLSearchParams(data);
+  const token: AccessToken = await axios
+    .post(`/oauth/token`, params.toString(), {
+      auth: { username: config.transferwise.clientId, password: config.transferwise.clientSecret },
+    })
+    .then(getData);
+  debug(`getOrRefreshUserToken: ${JSON.stringify(token, null, 2)}`);
+  return token;
+};
+
+export const getApplicationToken = async (): Promise<AccessToken> => {
+  const params = new url.URLSearchParams({
+    grant_type: 'client_credentials',
+  });
+  const token = await axios
+    .post(`/oauth/token`, params.toString(), {
+      auth: { username: config.transferwise.clientId, password: config.transferwise.clientSecret },
+    })
+    .then(getData);
+  debug(`getApplicationToken: ${JSON.stringify(token, null, 2)}`);
+  return token;
+};
+
+export const listApplicationWebhooks = async (): Promise<any> => {
+  const { access_token } = await getApplicationToken();
+  const webhooks = await axios
+    .get(`/v3/applications/${config.transferwise.clientKey}/subscriptions`, {
+      headers: { Authorization: `Bearer ${access_token}` },
+    })
+    .then(getData);
+  return webhooks;
 };
