@@ -28,6 +28,8 @@ export const getFeatureStatusResolver = (feature: FEATURE) => async (
   // Add some special cases that check for data to see if the feature is `ACTIVE` or just `AVAILABLE`
   // Right now only UPDATES, CONVERSATIONS, and RECURRING CONTRIBUTIONS
   switch (feature) {
+    case FEATURE.RECEIVE_EXPENSES:
+      return checkIsActive(models.Expense.count({ where: { CollectiveId: collective.id }, limit: 1 }));
     case FEATURE.UPDATES:
       return checkIsActive(
         models.Update.count({
@@ -36,12 +38,7 @@ export const getFeatureStatusResolver = (feature: FEATURE) => async (
         }),
       );
     case FEATURE.CONVERSATIONS:
-      return checkIsActive(
-        models.Conversation.count({
-          where: { CollectiveId: collective.id, deletedAt: { [Op.eq]: null } },
-          limit: 1,
-        }),
-      );
+      return checkIsActive(models.Conversation.count({ where: { CollectiveId: collective.id }, limit: 1 }));
     case FEATURE.RECURRING_CONTRIBUTIONS:
       return checkIsActive(
         models.Order.count({
