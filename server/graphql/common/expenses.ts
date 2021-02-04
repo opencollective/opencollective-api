@@ -140,11 +140,14 @@ export const canUpdateExpenseStatus = async (req, expense): Promise<boolean> => 
  * Only the author or an admin of the collective or collective.host can edit an expense when it hasn't been paid yet
  */
 export const canEditExpense = async (req, expense): Promise<boolean> => {
-  if (
-    expense.status === expenseStatus.PAID ||
-    expense.status === expenseStatus.PROCESSING ||
-    expense.status === expenseStatus.DRAFT
-  ) {
+  const nonEditableStatuses = [
+    expenseStatus.PAID,
+    expenseStatus.PROCESSING,
+    expenseStatus.DRAFT,
+    expenseStatus.SCHEDULED_FOR_PAYMENT,
+  ];
+
+  if (nonEditableStatuses.includes(expense.status)) {
     return false;
   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     return false;

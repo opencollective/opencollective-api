@@ -129,7 +129,7 @@ describe('server/graphql/common/expenses', () => {
   });
 
   describe('canEditExpense', () => {
-    it('only if not processing or paid', async () => {
+    it('only if not processing, paid, draft or scheduled for payment', async () => {
       await expense.update({ status: 'PENDING' });
       expect(await canEditExpense(hostAdminReq, expense)).to.be.true;
       await expense.update({ status: 'APPROVED' });
@@ -141,6 +141,10 @@ describe('server/graphql/common/expenses', () => {
       await expense.update({ status: 'PROCESSING' });
       expect(await canEditExpense(hostAdminReq, expense)).to.be.false;
       await expense.update({ status: 'PAID' });
+      expect(await canEditExpense(hostAdminReq, expense)).to.be.false;
+      await expense.update({ status: 'DRAFT' });
+      expect(await canEditExpense(hostAdminReq, expense)).to.be.false;
+      await expense.update({ status: 'SCHEDULED_FOR_PAYMENT' });
       expect(await canEditExpense(hostAdminReq, expense)).to.be.false;
     });
 
