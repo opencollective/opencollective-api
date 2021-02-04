@@ -1,10 +1,12 @@
 import crypto from 'crypto';
 
-import { find, has, pick } from 'lodash';
+import { find, has, pick, toNumber } from 'lodash';
+import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
-import { TransferwiseError } from '../../graphql/errors';
+import { BadRequest, TransferwiseError } from '../../graphql/errors';
 import cache from '../../lib/cache';
+import logger from '../../lib/logger';
 import * as transferwise from '../../lib/transferwise';
 import models from '../../models';
 import { ConnectedAccount } from '../../types/ConnectedAccount';
@@ -191,6 +193,73 @@ async function getAccountBalances(connectedAccount: ConnectedAccount): Promise<B
   return account?.balances || [];
 }
 
+const oauth = {
+  redirectUrl: async function (
+    user: { id: number },
+    CollectiveId: string | number,
+    query?: { redirect: string },
+  ): Promise<string> {
+    const hash = hashObject({ CollectiveId, userId: user.id });
+    const cacheKey = `transferwise_oauth_${hash}`;
+    await cache.set(cacheKey, { CollectiveId, redirect: query.redirect }, 60 * 10);
+    return transferwise.getOAuthUrl(hash);
+  },
+
+  callback: async function (req, res, next): Promise<void> {
+    const state = req.query?.state;
+    if (!state) {
+      res.sendStatus(401);
+    }
+
+    const cacheKey = `transferwise_oauth_${state}`;
+    const originalRequest = await cache.get(cacheKey);
+    if (!originalRequest) {
+      const errorMessage = `TransferWise OAuth request not found or expired for state ${state}.`;
+      logger.error(errorMessage);
+      res.send(errorMessage);
+      return;
+    }
+
+    const { redirect, CollectiveId } = originalRequest;
+    const redirectUrl = new URL(redirect);
+    try {
+      const { code, profileId } = req.query;
+      const accessToken = await transferwise.getOrRefreshUserToken({ code });
+      const { access_token: token, refresh_token: refreshToken, ...data } = accessToken;
+
+      const existingConnectedAccount = await models.ConnectedAccount.findOne({
+        where: { service: 'transferwise', CollectiveId },
+      });
+
+      if (existingConnectedAccount) {
+        await existingConnectedAccount.update({
+          token,
+          refreshToken,
+          data: { ...existingConnectedAccount.data, data },
+        });
+      } else {
+        const connectedAccount = await models.ConnectedAccount.create({
+          CollectiveId,
+          service: 'transferwise',
+          token,
+          refreshToken,
+          data,
+        });
+        await populateProfileId(connectedAccount, toNumber(profileId));
+      }
+
+      res.redirect(redirectUrl.href);
+    } catch (e) {
+      logger.error(`Error with TransferWise OAuth callback: ${e.message}`, { ...e, state });
+      redirectUrl.searchParams.append(
+        'error',
+        `Could not OAuth with TransferWise, please contact support@opencollective.com. State: ${state}`,
+      );
+      res.redirect(redirectUrl.href);
+    }
+  },
+};
+
 export default {
   getAvailableCurrencies,
   getRequiredBankInformation,
@@ -198,4 +267,5 @@ export default {
   getTemporaryQuote,
   quoteExpense,
   payExpense,
+  oauth,
 };

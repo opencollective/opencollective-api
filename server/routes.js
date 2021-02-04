@@ -234,9 +234,9 @@ export default app => {
   /**
    * Generic OAuth (ConnectedAccounts)
    */
-  app.get('/connected-accounts/:service(github)', noCache, authentication.authenticateService); // backward compatibility
+  app.get('/connected-accounts/:service(github|transferwise)', noCache, authentication.authenticateService); // backward compatibility
   app.get(
-    '/connected-accounts/:service(github|twitter|stripe|paypal)/oauthUrl',
+    '/connected-accounts/:service(github|twitter|stripe|paypal|transferwise)/oauthUrl',
     noCache,
     authentication.authenticateService,
   );
