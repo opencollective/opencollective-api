@@ -39,6 +39,7 @@ export const getConsolidatedInvoicesData = async fromCollective => {
     attributes: ['createdAt', 'HostCollectiveId', 'amountInHostCurrency', 'hostCurrency', 'CollectiveId'],
     where: {
       type: 'CREDIT',
+      CollectiveId: { [Op.not]: fromCollective.id },
       [Op.or]: [
         { FromCollectiveId: fromCollective.id, UsingGiftCardFromCollectiveId: null },
         { UsingGiftCardFromCollectiveId: fromCollective.id },
@@ -53,10 +54,6 @@ export const getConsolidatedInvoicesData = async fromCollective => {
   for (const transaction of transactions) {
     const HostCollectiveId = transaction.HostCollectiveId;
     if (!HostCollectiveId) {
-      continue;
-    }
-
-    if (fromCollective.id === transaction.CollectiveId) {
       continue;
     }
 
