@@ -411,13 +411,13 @@ const getUniqueCollectiveTags = () => {
  * Get list of all unique batches for collective.
  * Returns an array of objects matching `PaymentMethodBatchInfo`
  */
-const getVirtualCardBatchesForCollective = async collectiveId => {
+const getGiftCardBatchesForCollective = async collectiveId => {
   return sequelize.query(
     `
     SELECT
-      :collectiveId::varchar || '-virtualcard-' || COALESCE(pm.batch, ' __UNGROUPED__ ') AS id,
+      :collectiveId::varchar || '-giftcard-' || COALESCE(pm.batch, ' __UNGROUPED__ ') AS id,
       :collectiveId AS "collectiveId",
-      'virtualcard' AS type,
+      'giftcard' AS type,
       pm.batch AS name,
       COUNT(pm.id) as count
     FROM "PaymentMethods" pm
@@ -629,7 +629,7 @@ const getMembersWithTotalDonations = (where, options = {}) => {
         ${buildTransactionsStatsQuery('FromCollectiveId')}
       ),
       IndirectStats AS (
-        ${buildTransactionsStatsQuery('UsingVirtualCardFromCollectiveId')}
+        ${buildTransactionsStatsQuery('UsingGiftCardFromCollectiveId')}
       )
     SELECT
       ${selector},
@@ -652,13 +652,12 @@ const getMembersWithTotalDonations = (where, options = {}) => {
       max(u.email) as email,
       max(c."twitterHandle") as "twitterHandle",
       COALESCE(max(dstats."totalDonations"), 0) as "directDonations",
-      COALESCE(max(istats."totalDonations"), 0) as "donationsThroughEmittedVirtualCards",
       COALESCE(max(dstats."totalDonations"), 0) +  COALESCE(max(istats."totalDonations"), 0) as "totalDonations",
       LEAST(Max(dstats."firstDonation"), Max(istats."firstDonation")) AS "firstDonation",
       GREATEST(Max(dstats."lastDonation"), Max(istats."lastDonation")) AS "lastDonation"
     FROM "Collectives" c
     LEFT JOIN DirectStats dstats ON c.id = dstats."FromCollectiveId"
-    LEFT JOIN IndirectStats istats ON c.id = istats."UsingVirtualCardFromCollectiveId"
+    LEFT JOIN IndirectStats istats ON c.id = istats."UsingGiftCardFromCollectiveId"
     LEFT JOIN "Members" member ON c.id = member."${groupBy}"
     LEFT JOIN "Users" u ON c.id = u."CollectiveId"
     WHERE member."${memberCondAttribute}" IN (:collectiveids)
@@ -1061,7 +1060,7 @@ const queries = {
   getTotalNumberOfActiveCollectives,
   getTotalNumberOfDonors,
   getUniqueCollectiveTags,
-  getVirtualCardBatchesForCollective,
+  getGiftCardBatchesForCollective,
 };
 
 export default queries;

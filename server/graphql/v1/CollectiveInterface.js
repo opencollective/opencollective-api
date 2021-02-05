@@ -17,6 +17,7 @@ import SqlString from 'sequelize/lib/sql-string';
 import { types } from '../../constants/collectives';
 import { FeaturesList } from '../../constants/feature';
 import FEATURE_STATUS from '../../constants/feature-status';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import roles from '../../constants/roles';
 import { getContributorsForCollective } from '../../lib/contributors';
 import queries from '../../lib/queries';
@@ -98,7 +99,7 @@ export const PaymentMethodOrderFieldType = new GraphQLEnumType({
   description: 'Properties by which PaymenMethods can be ordered',
   values: {
     type: {
-      description: 'Order payment methods by type (creditcard, virtualcard...)',
+      description: 'Order payment methods by type (creditcard, giftcard, etc.)',
     },
   },
 });
@@ -820,7 +821,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
           },
           types: {
             type: new GraphQLList(GraphQLString),
-            description: 'Filter on given types (creditcard, virtualcard...)',
+            description: 'Filter on given types  (creditcard, giftcard, etc.)',
           },
           orderBy: {
             type: PaymentMethodOrderFieldType,
@@ -845,10 +846,29 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       },
       virtualCardsBatches: {
         type: new GraphQLList(PaymentMethodBatchInfo),
+        deprecationReason: '2021-02-08: Renamed to giftCardBatches',
+        description:
+          'List all the gift cards batches emitted by this collective. May include `null` as key for unbatched gift cards.',
+      },
+      giftCardsBatches: {
+        type: new GraphQLList(PaymentMethodBatchInfo),
         description:
           'List all the gift cards batches emitted by this collective. May include `null` as key for unbatched gift cards.',
       },
       createdVirtualCards: {
+        type: PaginatedPaymentMethodsType,
+        deprecationReason: '2021-02-08: Renamed to giftCardBatches',
+        args: {
+          limit: { type: GraphQLInt },
+          offset: { type: GraphQLInt },
+          batch: { type: GraphQLString },
+          isConfirmed: {
+            type: GraphQLBoolean,
+            description: 'Wether the gift card has been claimed or not',
+          },
+        },
+      },
+      createdGiftCards: {
         type: PaginatedPaymentMethodsType,
         args: {
           limit: { type: GraphQLInt },
@@ -856,7 +876,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
           batch: { type: GraphQLString },
           isConfirmed: {
             type: GraphQLBoolean,
-            description: 'Wether the virtual card has been claimed or not',
+            description: 'Wether the gift card has been claimed or not',
           },
         },
       },
@@ -1755,7 +1775,9 @@ const CollectiveFields = () => {
           paymentMethods = paymentMethods.filter(pm => pm.service === args.service);
         }
         if (args.types) {
-          paymentMethods = paymentMethods.filter(pm => args.types.includes(pm.type));
+          // @deprecated 2021-02-08: virtualcard renamed to giftcard
+          const types = args.types?.map(type => (type === 'virtualcard' ? 'giftcard' : type));
+          paymentMethods = paymentMethods.filter(pm => types.includes(pm.type));
         }
         if (args.isConfirmed !== undefined) {
           paymentMethods = paymentMethods.filter(pm => pm.isConfirmed() === args.isConfirmed);
@@ -1797,6 +1819,7 @@ const CollectiveFields = () => {
     },
     virtualCardsBatches: {
       type: new GraphQLList(PaymentMethodBatchInfo),
+      deprecationReason: '2020-02-05: Use giftCardsBatches',
       description:
         'List all the gift cards batches emitted by this collective. May include `null` for unbatched gift cards.',
       resolve: async (collective, _args, req) => {
@@ -1805,19 +1828,33 @@ const CollectiveFields = () => {
           return [];
         }
 
-        return queries.getVirtualCardBatchesForCollective(collective.id);
+        return queries.getGiftCardBatchesForCollective(collective.id);
+      },
+    },
+    giftCardsBatches: {
+      type: new GraphQLList(PaymentMethodBatchInfo),
+      description:
+        'List all the gift cards batches emitted by this collective. May include `null` for unbatched gift cards.',
+      resolve: async (collective, _args, req) => {
+        // Must be admin of the collective
+        if (!req.remoteUser || !req.remoteUser.isAdminOfCollective(collective)) {
+          return [];
+        }
+
+        return queries.getGiftCardBatchesForCollective(collective.id);
       },
     },
     createdVirtualCards: {
       type: PaginatedPaymentMethodsType,
-      description: 'Get the virtual cards created by this collective. RemoteUser must be a collective admin.',
+      deprecationReason: '2020-02-05: Use createdGiftCards',
+      description: 'Get the gift cards created by this collective. RemoteUser must be a collective admin.',
       args: {
         limit: { type: GraphQLInt },
         offset: { type: GraphQLInt },
         batch: { type: GraphQLString },
         isConfirmed: {
           type: GraphQLBoolean,
-          description: 'Wether the virtual card has been claimed or not',
+          description: 'Wether the gift card has been claimed or not',
         },
       },
       resolve: async (collective, args, req) => {
@@ -1829,7 +1866,64 @@ const CollectiveFields = () => {
         const offset = args.offset || 0;
         const limit = args.limit || 15;
         const query = {
-          where: { type: 'virtualcard', service: 'opencollective' },
+          where: { type: PAYMENT_METHOD_TYPE.GIFT_CARD, service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE },
+          limit: args.limit,
+          offset: args.offset,
+          order: [
+            ['createdAt', 'DESC'],
+            ['id', 'DESC'],
+          ],
+          include: [
+            {
+              model: models.PaymentMethod,
+              as: 'sourcePaymentMethod',
+              where: { CollectiveId: collective.id },
+              required: true,
+              attributes: [],
+            },
+          ],
+        };
+
+        if (args.isConfirmed !== undefined) {
+          query.where.confirmedAt = { [args.isConfirmed ? Op.ne : Op.eq]: null };
+        }
+
+        if (args.batch !== undefined) {
+          query.where.batch = args.batch;
+        }
+
+        const result = await models.PaymentMethod.findAndCountAll(query);
+
+        return {
+          paymentMethods: result.rows,
+          total: result.count,
+          limit,
+          offset,
+        };
+      },
+    },
+    createdGiftCards: {
+      type: PaginatedPaymentMethodsType,
+      description: 'Get the gift cards created by this collective. RemoteUser must be a collective admin.',
+      args: {
+        limit: { type: GraphQLInt },
+        offset: { type: GraphQLInt },
+        batch: { type: GraphQLString },
+        isConfirmed: {
+          type: GraphQLBoolean,
+          description: 'Wether the gift card has been claimed or not',
+        },
+      },
+      resolve: async (collective, args, req) => {
+        // Must be admin of the collective
+        if (!req.remoteUser || !req.remoteUser.isAdminOfCollective(collective)) {
+          return [];
+        }
+
+        const offset = args.offset || 0;
+        const limit = args.limit || 15;
+        const query = {
+          where: { type: PAYMENT_METHOD_TYPE.GIFT_CARD, service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE },
           limit: args.limit,
           offset: args.offset,
           order: [

@@ -48,7 +48,7 @@
       "perEmailForCollective": 2,
       "perIp": 5
     },
-    "virtualCards": {
+    "giftCards": {
       "maxPerDay": 100
     },
     "changeEmailPerHour": {

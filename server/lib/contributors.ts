@@ -122,7 +122,7 @@ const loadContributors = async (collectiveId: number): Promise<ContributorsCache
     ),
     total_contributed AS (
       SELECT
-        "UsingVirtualCardFromCollectiveId",
+        "UsingGiftCardFromCollectiveId",
         "FromCollectiveId",
         COALESCE(SUM("amount"), 0) AS "totalAmountDonated"
       FROM
@@ -133,7 +133,7 @@ const loadContributors = async (collectiveId: number): Promise<ContributorsCache
         AND "deletedAt" IS NULL
         AND "RefundTransactionId" IS NULL
       GROUP BY
-        "UsingVirtualCardFromCollectiveId",
+        "UsingGiftCardFromCollectiveId",
         "FromCollectiveId"
     )
     SELECT
@@ -152,7 +152,7 @@ const loadContributors = async (collectiveId: number): Promise<ContributorsCache
       COALESCE(SUM(tc."totalAmountDonated"), 0) AS "totalAmountDonated"
     FROM
       "member_collectives_matching_roles" mc
-      LEFT JOIN "total_contributed" tc ON tc."UsingVirtualCardFromCollectiveId" = mc.id
+      LEFT JOIN "total_contributed" tc ON tc."UsingGiftCardFromCollectiveId" = mc.id
       OR tc."FromCollectiveId" = mc.id
     GROUP BY
       mc.id

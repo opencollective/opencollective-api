@@ -14,7 +14,7 @@
       "sendGuestConfirmPerMinutePerIp": 15,
       "confirmGuestAccountPerMinutePerIp": 15
     },
-    "virtualCards": {
+    "giftCards": {
       "maxPerDay": 1000
     }
   },

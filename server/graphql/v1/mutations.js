@@ -1,7 +1,7 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import models from '../../models';
-import { bulkCreateVirtualCards, createVirtualCardsForEmails } from '../../paymentProviders/opencollective/virtualcard';
+import { bulkCreateGiftCards, createGiftCardsForEmails } from '../../paymentProviders/opencollective/giftcard';
 import { editPublicMessage } from '../common/members';
 import * as updateMutations from '../common/update';
 import { createUser } from '../common/user';
@@ -51,7 +51,7 @@ import {
   MemberInputType,
   NotificationInputType,
   OrderInputType,
-  PaymentMethodDataVirtualCardInputType,
+  PaymentMethodDataGiftCardInputType,
   StripeCreditCardDataInputType,
   TierInputType,
   UpdateAttributesInputType,
@@ -505,37 +505,6 @@ const mutations = {
       return applicationMutations.deleteApplication(_, args, req);
     },
   },
-  createPaymentMethod: {
-    type: PaymentMethodType,
-    deprecationReason: 'Please use createVirtualCards',
-    args: {
-      type: { type: new GraphQLNonNull(GraphQLString) },
-      currency: { type: new GraphQLNonNull(GraphQLString) },
-      amount: { type: GraphQLInt },
-      monthlyLimitPerMember: { type: GraphQLInt },
-      limitedToTags: {
-        type: new GraphQLList(GraphQLString),
-        description: 'Limit this payment method to make donations to collectives having those tags',
-      },
-      limitedToCollectiveIds: {
-        type: new GraphQLList(GraphQLInt),
-        description: 'Limit this payment method to make donations to those collectives',
-        deprecationReason: '2020-08-11: This field does not exist anymore',
-      },
-      limitedToHostCollectiveIds: {
-        type: new GraphQLList(GraphQLInt),
-        description: 'Limit this payment method to make donations to the collectives hosted by those hosts',
-      },
-      CollectiveId: { type: new GraphQLNonNull(GraphQLInt) },
-      PaymentMethodId: { type: GraphQLInt },
-      description: { type: GraphQLString },
-      expiryDate: { type: GraphQLString },
-      data: { type: PaymentMethodDataVirtualCardInputType, description: 'The data attached to this PaymentMethod' },
-    },
-    resolve: async (_, args, req) => {
-      return paymentMethodsMutation.createPaymentMethod(args, req.remoteUser);
-    },
-  },
   updatePaymentMethod: {
     type: PaymentMethodType,
     description: 'Update a payment method',
@@ -581,16 +550,17 @@ const mutations = {
   },
   createVirtualCards: {
     type: new GraphQLList(PaymentMethodType),
+    deprecationReason: '2021-02-08: Renamed to createGiftCards',
     args: {
       CollectiveId: { type: new GraphQLNonNull(GraphQLInt) },
       PaymentMethodId: { type: GraphQLInt },
       emails: {
         type: new GraphQLList(GraphQLString),
-        description: 'A list of emails to generate virtual cards for (only if numberOfVirtualCards is not provided)',
+        description: 'A list of emails to generate gift cards for (only if numberOfVirtualCards is not provided)',
       },
       numberOfVirtualCards: {
         type: GraphQLInt,
-        description: 'Number of virtual cards to generate (only if emails is not provided)',
+        description: 'Number of gift cards to generate (only if emails is not provided)',
       },
       currency: {
         type: GraphQLString,
@@ -624,7 +594,7 @@ const mutations = {
       },
       description: {
         type: GraphQLString,
-        description: 'A custom message attached to the email that will be sent for this virtual card',
+        description: 'A custom message attached to the email that will be sent for this gift card',
       },
       customMessage: {
         type: GraphQLString,
@@ -633,7 +603,8 @@ const mutations = {
       expiryDate: { type: GraphQLString },
     },
     resolve: async (_, { emails, numberOfVirtualCards, ...args }, { remoteUser }) => {
-      if (numberOfVirtualCards && emails && numberOfVirtualCards !== emails.length) {
+      const numberOfGiftCards = numberOfVirtualCards;
+      if (numberOfGiftCards && emails && numberOfGiftCards !== emails.length) {
         throw Error("numberOfVirtualCards and emails counts doesn't match");
       } else if (args.limitedToOpenSourceCollectives && args.limitedToHostCollectiveIds) {
         throw Error('limitedToOpenSourceCollectives and limitedToHostCollectiveIds cannot be used at the same time');
@@ -652,13 +623,95 @@ const mutations = {
         args.limitedToHostCollectiveIds = [openSourceHost.id];
       }
 
-      if (numberOfVirtualCards) {
-        return await bulkCreateVirtualCards(args, remoteUser, numberOfVirtualCards);
+      if (numberOfGiftCards) {
+        return await bulkCreateGiftCards(args, remoteUser, numberOfGiftCards);
       } else if (emails) {
-        return await createVirtualCardsForEmails(args, remoteUser, emails, args.customMessage);
+        return await createGiftCardsForEmails(args, remoteUser, emails, args.customMessage);
       }
 
-      throw new Error('You must either pass numberOfVirtualCards of an email list');
+      throw new Error('You must either pass numberOfVirtualCards or an email list');
+    },
+  },
+  createGiftCards: {
+    type: new GraphQLList(PaymentMethodType),
+    args: {
+      CollectiveId: { type: new GraphQLNonNull(GraphQLInt) },
+      PaymentMethodId: { type: GraphQLInt },
+      emails: {
+        type: new GraphQLList(GraphQLString),
+        description: 'A list of emails to generate gift cards for (only if numberOfGiftCards is not provided)',
+      },
+      numberOfGiftCards: {
+        type: GraphQLInt,
+        description: 'Number of gift cards to generate (only if emails is not provided)',
+      },
+      currency: {
+        type: GraphQLString,
+        description: 'An optional currency. If not provided, will use the collective currency.',
+      },
+      amount: {
+        type: GraphQLInt,
+        description: 'The amount as an Integer with cents.',
+      },
+      batch: {
+        type: GraphQLString,
+        description: 'Batch name for the created gift cards.',
+      },
+      monthlyLimitPerMember: { type: GraphQLInt },
+      limitedToTags: {
+        type: new GraphQLList(GraphQLString),
+        description: 'Limit this payment method to make donations to collectives having those tags',
+      },
+      limitedToCollectiveIds: {
+        type: new GraphQLList(GraphQLInt),
+        description: 'Limit this payment method to make donations to those collectives',
+        deprecationReason: '2020-08-11: This field does not exist anymore',
+      },
+      limitedToHostCollectiveIds: {
+        type: new GraphQLList(GraphQLInt),
+        description: 'Limit this payment method to make donations to the collectives hosted by those hosts',
+      },
+      limitedToOpenSourceCollectives: {
+        type: GraphQLBoolean,
+        description: 'Set `limitedToHostCollectiveIds` to open-source collectives only',
+      },
+      description: {
+        type: GraphQLString,
+        description: 'A custom message attached to the email that will be sent for this gift card',
+      },
+      customMessage: {
+        type: GraphQLString,
+        description: 'A custom message that will be sent in the invitation email',
+      },
+      expiryDate: { type: GraphQLString },
+    },
+    resolve: async (_, { emails, numberOfGiftCards, ...args }, { remoteUser }) => {
+      if (numberOfGiftCards && emails && numberOfGiftCards !== emails.length) {
+        throw Error("numberOfGiftCards and emails counts doesn't match");
+      } else if (args.limitedToOpenSourceCollectives && args.limitedToHostCollectiveIds) {
+        throw Error('limitedToOpenSourceCollectives and limitedToHostCollectiveIds cannot be used at the same time');
+      }
+
+      if (args.limitedToOpenSourceCollectives) {
+        const openSourceHost = await models.Collective.findOne({
+          attributes: ['id'],
+          where: { slug: 'opensource' },
+        });
+        if (!openSourceHost) {
+          throw new Error(
+            'Cannot find the host "Open Source Collective". You can disable the opensource-only limitation, or contact us at support@opencollective.com if this keeps happening',
+          );
+        }
+        args.limitedToHostCollectiveIds = [openSourceHost.id];
+      }
+
+      if (numberOfGiftCards) {
+        return await bulkCreateGiftCards(args, remoteUser, numberOfGiftCards);
+      } else if (emails) {
+        return await createGiftCardsForEmails(args, remoteUser, emails, args.customMessage);
+      }
+
+      throw new Error('You must either pass numberOfGiftCards of an email list');
     },
   },
   claimPaymentMethod: {

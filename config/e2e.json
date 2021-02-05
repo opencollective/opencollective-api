@@ -7,7 +7,7 @@
     "server": true
   },
   "limits": {
-    "virtualCards": {
+    "giftCards": {
       "maxPerDay": 1000
     }
   }

@@ -12,9 +12,9 @@ describe('server/graphql/v1/createOrder.opencollective', () => {
       before(utils.resetTestDB);
 
       it('should error if payment method is not a prepaid', async () => {
-        expect(prepaid.getBalance({ service: 'opencollective', type: 'virtualcard' })).to.be.eventually.rejectedWith(
+        expect(prepaid.getBalance({ service: 'opencollective', type: 'giftcard' })).to.be.eventually.rejectedWith(
           Error,
-          'Expected opencollective.prepaid but got opencollective.virtualcard',
+          'Expected opencollective.prepaid but got opencollective.giftcard',
         );
       }); /* End of "should error if payment method is not a prepaid" */
 

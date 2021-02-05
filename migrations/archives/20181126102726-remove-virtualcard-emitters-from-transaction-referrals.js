@@ -2,7 +2,7 @@
 
 /**
  * This will ensure we don't count collectives as referral when the transaction
- * is paid with one of its virtual cards.
+ * is paid with one of its gift cards.
  */
 module.exports = {
   up: (queryInterface, Sequelize) => {
