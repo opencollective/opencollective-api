@@ -356,7 +356,6 @@ Object {
       "total": 20,
       "transactions": Array [
         Object {
-          "attachment": null,
           "collective": Object {
             "id": 7,
             "slug": "holly-day",
@@ -379,7 +378,6 @@ Object {
           "type": "DEBIT",
         },
         Object {
-          "attachment": null,
           "collective": Object {
             "id": 6,
             "slug": "geoff-frey",
@@ -429,7 +427,6 @@ Object {
           "type": "CREDIT",
         },
         Object {
-          "attachment": null,
           "collective": Object {
             "id": 5,
             "slug": "craft-work",
@@ -642,7 +639,6 @@ Object {
       "total": 20,
       "transactions": Array [
         Object {
-          "attachment": null,
           "collective": Object {
             "id": 9,
             "slug": "praxent",
@@ -692,7 +688,6 @@ Object {
           "type": "CREDIT",
         },
         Object {
-          "attachment": null,
           "collective": Object {
             "id": 8,
             "slug": "max-point",
@@ -769,7 +764,6 @@ Object {
           "type": "CREDIT",
         },
         Object {
-          "attachment": null,
           "collective": Object {
             "id": 7,
             "slug": "holly-day",
@@ -792,7 +786,6 @@ Object {
           "type": "DEBIT",
         },
         Object {
-          "attachment": null,
           "collective": Object {
             "id": 6,
             "slug": "geoff-frey",
@@ -842,7 +835,6 @@ Object {
           "type": "CREDIT",
         },
         Object {
-          "attachment": null,
           "collective": Object {
             "id": 5,
             "slug": "craft-work",
@@ -919,7 +911,6 @@ Object {
           "type": "CREDIT",
         },
         Object {
-          "attachment": null,
           "collective": Object {
             "id": 9,
             "slug": "praxent",
@@ -942,7 +933,6 @@ Object {
           "type": "DEBIT",
         },
         Object {
-          "attachment": null,
           "collective": Object {
             "id": 8,
             "slug": "max-point",
@@ -992,7 +982,6 @@ Object {
           "type": "CREDIT",
         },
         Object {
-          "attachment": null,
           "collective": Object {
             "id": 7,
             "slug": "holly-day",
@@ -1042,7 +1031,6 @@ Object {
           "type": "CREDIT",
         },
         Object {
-          "attachment": null,
           "collective": Object {
             "id": 6,
             "slug": "geoff-frey",
@@ -1119,7 +1107,6 @@ Object {
           "type": "CREDIT",
         },
         Object {
-          "attachment": null,
           "collective": Object {
             "id": 5,
             "slug": "craft-work",
@@ -1201,7 +1188,6 @@ exports[`server/graphql/v1/transaction return transactions returns one transacti
 Object {
   "data": Object {
     "Transaction": Object {
-      "attachment": null,
       "createdByUser": Object {
         "email": null,
         "firstName": null,

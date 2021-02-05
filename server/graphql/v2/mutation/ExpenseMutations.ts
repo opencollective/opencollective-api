@@ -15,18 +15,16 @@ import {
   approveExpense,
   canDeleteExpense,
   canVerifyDraftExpense,
+  createExpense,
+  editExpense,
+  markExpenseAsUnpaid,
+  payExpense,
   rejectExpense,
   scheduleExpenseForPayment,
   unapproveExpense,
 } from '../../common/expenses';
 import { createUser } from '../../common/user';
 import { FeatureNotAllowedForUser, NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
-import {
-  createExpense as createExpenseLegacy,
-  editExpense as editExpenseLegacy,
-  markExpenseAsUnpaid as markExpenseAsUnpaidLegacy,
-  payExpense as payExpenseLegacy,
-} from '../../v1/mutations/expenses';
 import { ExpenseProcessAction } from '../enum/ExpenseProcessAction';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
@@ -66,7 +64,7 @@ const expenseMutations = {
       // Right now this endpoint uses the old mutation by adapting the data for it. Once we get rid
       // of the `createExpense` endpoint in V1, the actual code to create the expense should be moved
       // here and cleaned.
-      return createExpenseLegacy(req.remoteUser, {
+      return createExpense(req.remoteUser, {
         ...pick(args.expense, [
           'description',
           'longDescription',
@@ -79,7 +77,7 @@ const expenseMutations = {
         ]),
         items,
         amount: items.reduce((total, item) => total + item.amount, 0),
-        PayoutMethod: payoutMethod,
+        payoutMethod,
         collective: await fetchAccountWithReference(args.account, req),
         fromCollective: await fetchAccountWithReference(args.expense.payee, { throwIfMissing: true }),
       });
@@ -113,7 +111,7 @@ const expenseMutations = {
         privateMessage: expense.privateMessage,
         invoiceInfo: expense.invoiceInfo,
         amount: items?.reduce((total, att) => total + att.amount, 0),
-        PayoutMethod: expense.payoutMethod && {
+        payoutMethod: expense.payoutMethod && {
           id: expense.payoutMethod.id && idDecode(expense.payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD),
           data: expense.payoutMethod.data,
           name: expense.payoutMethod.name,
@@ -171,7 +169,7 @@ const expenseMutations = {
           options.skipPermissionCheck = true;
         }
 
-        existingExpense = await editExpenseLegacy(req, expenseData, options);
+        existingExpense = await editExpense(req, expenseData, options);
 
         await existingExpense.update({
           status: options.overrideRemoteUser?.id ? expenseStatus.UNVERIFIED : undefined,
@@ -182,7 +180,7 @@ const expenseMutations = {
         return existingExpense;
       }
 
-      return editExpenseLegacy(req, expenseData);
+      return editExpense(req, expenseData);
     },
   },
   deleteExpense: {
@@ -265,11 +263,11 @@ const expenseMutations = {
         case 'REJECT':
           return rejectExpense(req, expense);
         case 'MARK_AS_UNPAID':
-          return markExpenseAsUnpaidLegacy(req, expense.id, args.paymentParams?.paymentProcessorFee);
+          return markExpenseAsUnpaid(req, expense.id, args.paymentParams?.paymentProcessorFee);
         case 'SCHEDULE_FOR_PAYMENT':
           return scheduleExpenseForPayment(req, expense);
         case 'PAY':
-          return payExpenseLegacy(req, {
+          return payExpense(req, {
             id: expense.id,
             paymentProcessorFeeInCollectiveCurrency: args.paymentParams?.paymentProcessorFee,
             forceManual: args.paymentParams?.forceManual,

@@ -142,7 +142,7 @@ export const graphqlQuery = async (query, variables, remoteUser, schema = schema
  * @param {object} variables - Variables to use in the queries and mutations. Example: { id: 1 }
  * @param {object} remoteUser - The user to add to the context. It is not required.
  */
-export async function graphqlQueryV2(query, variables, remoteUser) {
+export async function graphqlQueryV2(query, variables, remoteUser = null) {
   return graphqlQuery(query, variables, remoteUser, schemaV2);
 }
 

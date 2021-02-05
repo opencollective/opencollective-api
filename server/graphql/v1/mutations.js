@@ -1,6 +1,5 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
-import statuses from '../../constants/expense_status';
 import models from '../../models';
 import { bulkCreateVirtualCards, createVirtualCardsForEmails } from '../../paymentProviders/opencollective/virtualcard';
 import { editPublicMessage } from '../common/members';
@@ -28,14 +27,6 @@ import {
 } from './mutations/collectives';
 import * as commentMutations from './mutations/comments';
 import { editConnectedAccount } from './mutations/connectedAccounts';
-import {
-  createExpense,
-  deleteExpense,
-  editExpense,
-  markExpenseAsUnpaid,
-  payExpense,
-  updateExpenseStatus,
-} from './mutations/expenses';
 import { createWebhook, deleteNotification, editWebhooks } from './mutations/notifications';
 import {
   addFundsToCollective,
@@ -57,12 +48,10 @@ import {
   CommentInputType,
   ConfirmOrderInputType,
   ConnectedAccountInputType,
-  ExpenseInputType,
   MemberInputType,
   NotificationInputType,
   OrderInputType,
   PaymentMethodDataVirtualCardInputType,
-  PaymentMethodInputType,
   StripeCreditCardDataInputType,
   TierInputType,
   UpdateAttributesInputType,
@@ -73,7 +62,6 @@ import { TransactionInterfaceType } from './TransactionInterface';
 import {
   CommentType,
   ConnectedAccountType,
-  ExpenseType,
   MemberType,
   NotificationType,
   OrderType,
@@ -274,56 +262,6 @@ const mutations = {
       return editConnectedAccount(req.remoteUser, args.connectedAccount);
     },
   },
-  approveExpense: {
-    type: ExpenseType,
-    deprecationReason: '2020-11-17: [LegacyExpenseFlow] Now using GQLV2 for that',
-    args: {
-      id: { type: new GraphQLNonNull(GraphQLInt) },
-    },
-    resolve(_, args, req) {
-      return updateExpenseStatus(req, args.id, statuses.APPROVED);
-    },
-  },
-  unapproveExpense: {
-    type: ExpenseType,
-    deprecationReason: '2020-11-17: [LegacyExpenseFlow] Now using GQLV2 for that',
-    args: {
-      id: { type: new GraphQLNonNull(GraphQLInt) },
-    },
-    resolve(_, args, req) {
-      return updateExpenseStatus(req, args.id, statuses.PENDING);
-    },
-  },
-  rejectExpense: {
-    type: ExpenseType,
-    args: {
-      id: { type: new GraphQLNonNull(GraphQLInt) },
-    },
-    resolve(_, args, req) {
-      return updateExpenseStatus(req, args.id, statuses.REJECTED);
-    },
-  },
-  payExpense: {
-    type: ExpenseType,
-    deprecationReason: '2020-11-17: [LegacyExpenseFlow] Now using GQLV2 for that',
-    args: {
-      id: { type: new GraphQLNonNull(GraphQLInt) },
-      paymentProcessorFeeInCollectiveCurrency: { type: GraphQLInt },
-      hostFeeInCollectiveCurrency: { type: GraphQLInt },
-      platformFeeInCollectiveCurrency: { type: GraphQLInt },
-      forceManual: {
-        type: GraphQLBoolean,
-        description: 'Force expense with paypal method to be paid manually',
-      },
-      twoFactorAuthenticatorCode: {
-        type: GraphQLString,
-        description: '2FA code for if the host account has 2FA for payouts turned on.',
-      },
-    },
-    resolve(_, args, req) {
-      return payExpense(req, args);
-    },
-  },
   markOrderAsPaid: {
     type: OrderType,
     args: {
@@ -340,47 +278,6 @@ const mutations = {
     },
     resolve(_, args, req) {
       return markPendingOrderAsExpired(req.remoteUser, args.id);
-    },
-  },
-  createExpense: {
-    type: ExpenseType,
-    deprecationReason: '2020-09-17: [LegacyExpenseFlow] Now using GQLV2 for that',
-    args: {
-      expense: { type: new GraphQLNonNull(ExpenseInputType) },
-    },
-    resolve(_, args, req) {
-      return createExpense(req.remoteUser, args.expense);
-    },
-  },
-  editExpense: {
-    type: ExpenseType,
-    deprecationReason: '2020-11-17: [LegacyExpenseFlow] Now using GQLV2 for that',
-    args: {
-      expense: { type: new GraphQLNonNull(ExpenseInputType) },
-    },
-    resolve(_, args, req) {
-      return editExpense(req, args.expense);
-    },
-  },
-  deleteExpense: {
-    type: ExpenseType,
-    deprecationReason: '2020-11-17: [LegacyExpenseFlow] Now using GQLV2 for that',
-    args: {
-      id: { type: new GraphQLNonNull(GraphQLInt) },
-    },
-    resolve(_, args, req) {
-      return deleteExpense(req, args.id);
-    },
-  },
-  markExpenseAsUnpaid: {
-    type: ExpenseType,
-    deprecationReason: '2020-11-17: [LegacyExpenseFlow] Now using GQLV2 for that',
-    args: {
-      id: { type: new GraphQLNonNull(GraphQLInt) },
-      processorFeeRefunded: { type: new GraphQLNonNull(GraphQLBoolean) },
-    },
-    resolve(_, args, req) {
-      return markExpenseAsUnpaid(req, args.id, args.processorFeeRefunded);
     },
   },
   editTier: {

@@ -1,5 +1,5 @@
 {{#if expense }}
-Subject: {{collective.name}}: New comment on {{#if recipientIsAuthor}}your {{/if}}{{#if expense}}expense {{expense.description}}{{/if}}{{#if update}}update {{update.title}}{{/if}} by {{fromCollective.name}}
+Subject: {{collective.name}}: New comment on {{#if recipientIsAuthor}}your {{/if}}expense {{expense.description}} by {{fromCollective.name}}
 {{else if conversation}}
 Subject: New comment from {{fromCollective.name}} on "{{conversation.title}}"
 {{else if update}}
