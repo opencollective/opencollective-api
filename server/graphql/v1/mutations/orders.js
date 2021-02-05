@@ -27,7 +27,14 @@ import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../
 import { canUseFeature } from '../../../lib/user-permissions';
 import { capitalize, formatCurrency, md5, parseToBoolean } from '../../../lib/utils';
 import models from '../../../models';
-import { FeatureNotAllowedForUser, Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
+import {
+  BadRequest,
+  FeatureNotAllowedForUser,
+  Forbidden,
+  NotFound,
+  Unauthorized,
+  ValidationFailed,
+} from '../../errors';
 
 const oneHourInSeconds = 60 * 60;
 
@@ -101,25 +108,27 @@ async function checkOrdersLimit(order, reqIp) {
 }
 
 const checkGuestContribution = async (order, loaders) => {
-  const { interval, guestInfo } = order;
+  const { guestInfo } = order;
 
   const collective = order.collective.id && (await loaders.Collective.byId.load(order.collective.id));
   if (!collective) {
-    throw new Error('Guest contributions need to be made to an existing collective');
+    throw new BadRequest('Guest contributions need to be made to an existing collective');
   }
 
-  if (interval) {
-    throw new Error('You need to sign up to create a recurring contribution');
-  } else if (!guestInfo) {
-    throw new Error('You need to provide a guest profile with an email for logged out contributions');
+  if (!guestInfo) {
+    throw new BadRequest('You need to provide a guest profile with an email for logged out contributions');
   } else if (!guestInfo.email || !isEmail(guestInfo.email)) {
-    throw new Error('You need to provide a valid email');
+    throw new BadRequest('You need to provide a valid email');
   } else if (order.totalAmount > 25000) {
     if (!guestInfo.name) {
-      throw new Error('Contributions that are more than $250 must have a name attached');
+      throw new BadRequest('Contributions that are more than $250 must have a name attached');
     } else if (order.totalAmount > 500000 && (!guestInfo.location?.address || !guestInfo.location.country)) {
-      throw new Error('Contributions that are more than $5000 must have an address attached');
+      throw new BadRequest('Contributions that are more than $5000 must have an address attached');
     }
+  } else if (order.fromCollective) {
+    throw new BadRequest('You need to be logged in to specify a contributing profile');
+  } else if (order.paymentMethod?.id || order.paymentMethod?.uuid) {
+    throw new BadRequest('You need to be logged in to be able to use an existing payment method');
   }
 };
 
@@ -226,11 +235,6 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
     // ---- Set defaults ----
     order.quantity = order.quantity || 1;
     order.taxAmount = order.taxAmount || 0;
-
-    const isExistingPaymentMethod = Boolean(order.paymentMethod?.id || order.paymentMethod?.uuid);
-    if (isExistingPaymentMethod && !remoteUser) {
-      throw new Error('You need to be logged in to be able to use an existing payment method');
-    }
 
     if (!order.collective || (!order.collective.id && !order.collective.website && !order.collective.githubHandle)) {
       throw new Error('No collective id/website/githubHandle provided');
@@ -480,7 +484,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
         recaptchaResponse,
         tax: taxInfo,
         customData: order.customData,
-        savePaymentMethod: Boolean(order.paymentMethod && order.paymentMethod.save),
+        savePaymentMethod: Boolean(!isGuest && order.paymentMethod?.save),
         isFeesOnTop: order.isFeesOnTop,
         guestToken, // For guest contributions, this token is a way to authenticate to confirm the order
       },
@@ -516,12 +520,12 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
       } else {
         // Ideally, we should always save CollectiveId
         // but this is breaking some conventions elsewhere
-        if (orderCreated.data.savePaymentMethod) {
+        // Always link the payment method to the collective for guests but make sure `save` is false
+        if (orderCreated.data.savePaymentMethod || isGuest) {
           order.paymentMethod.CollectiveId = orderCreated.FromCollectiveId;
-        } else if (isGuest) {
-          // Always link the payment method to the collective for guests but make sure `save` is false
-          order.paymentMethod.CollectiveId = orderCreated.FromCollectiveId;
-          order.paymentMethod.save = false;
+        }
+
+        if (isGuest) {
           set(order.paymentMethod, 'data.isGuest', true);
         }
 

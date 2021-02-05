@@ -7,6 +7,7 @@ import roles from '../../../../server/constants/roles';
 import emailLib from '../../../../server/lib/email';
 import * as payments from '../../../../server/lib/payments';
 import models from '../../../../server/models';
+import { fakePaymentMethod } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
 let host, user1, user2, user3, collective1, event1, ticket1;
@@ -896,7 +897,7 @@ describe('server/graphql/v1/mutation', () => {
           expect(emailSendMessageSpy.firstCall.args[2]).to.contain('/scouts/events/jan-meetup');
         });
 
-        it('from an existing but logged out user (should fail)', async () => {
+        describe('from an existing but logged out user', async () => {
           const createOrderMutation = gql`
             mutation CreateOrder($order: OrderInputType!) {
               createOrder(order: $order) {
@@ -922,27 +923,72 @@ describe('server/graphql/v1/mutation', () => {
             }
           `;
 
-          const order = {
-            paymentMethod: {
-              token: 'tok_123456781234567812345678',
-              service: 'stripe',
-              name: '4242',
-              data: {
-                expMonth: 11,
-                expYear: 2020,
+          it('works with an order that has only fresh info', async () => {
+            const order = {
+              paymentMethod: {
+                token: 'tok_123456781234567812345678',
+                service: 'stripe',
+                name: '4242',
+                data: {
+                  expMonth: 11,
+                  expYear: 2020,
+                },
               },
-            },
-            collective: { id: event1.id },
-            tier: { id: 4 },
-            quantity: 2,
-            guestInfo: { email: user2.email },
-          };
+              collective: { id: event1.id },
+              tier: { id: 4 },
+              quantity: 2,
+              guestInfo: { email: user2.email },
+            };
 
-          const loggedInUser = null;
-          const result = await utils.graphqlQuery(createOrderMutation, { order }, loggedInUser);
-          // result.errors && console.error(result.errors[0]);
-          expect(result.errors).to.exist;
-          expect(result.errors[0].message).to.equal('An account already exists for this email, please sign in.');
+            const loggedInUser = null;
+            const result = await utils.graphqlQuery(createOrderMutation, { order }, loggedInUser);
+            result.errors && console.error(result.errors[0]);
+            expect(result.errors).to.not.exist;
+            expect(result.data).to.deep.equal({
+              createOrder: {
+                id: 1,
+                tier: {
+                  stats: {
+                    availableQuantity: 98,
+                  },
+                  description: '$20 ticket',
+                  id: 4,
+                  maxQuantity: 100,
+                  name: 'paid ticket',
+                },
+                createdByUser: {
+                  email: null,
+                  id: 3,
+                },
+                collective: {
+                  id: event1.id,
+                  slug: 'jan-meetup',
+                },
+              },
+            });
+          });
+
+          it('cannot use an existing payment method', async () => {
+            const user2PaymentMethod = await fakePaymentMethod({
+              CollectiveId: user2.CollectiveId,
+              service: 'opencollective',
+              type: 'prepaid',
+            });
+            const order = {
+              paymentMethod: { id: user2PaymentMethod.id },
+              collective: { id: event1.id },
+              tier: { id: 4 },
+              quantity: 2,
+              guestInfo: { email: user2.email },
+            };
+
+            const loggedInUser = null;
+            const result = await utils.graphqlQuery(createOrderMutation, { order }, loggedInUser);
+            expect(result.errors).to.exist;
+            expect(result.errors[0].message).to.equal(
+              'You need to be logged in to be able to use an existing payment method',
+            );
+          });
         });
 
         it('from a new user', async () => {
