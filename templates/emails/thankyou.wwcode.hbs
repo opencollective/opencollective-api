@@ -1,7 +1,7 @@
 {{#if interval }}
-Subject: Thank you for your {{{currency order.totalAmount currency=order.currency}}}/{{interval}} contribution to {{collective.name}}
+Subject: Thank you for your {{currency order.totalAmount currency=order.currency}}/{{interval}} contribution to {{collective.name}}
 {{else}}
-Subject: Thank you for your {{{currency order.totalAmount currency=order.currency}}} contribution to {{collective.name}}
+Subject: Thank you for your {{currency order.totalAmount currency=order.currency}} contribution to {{collective.name}}
 {{/if}}
 
 {{> header}}
@@ -16,23 +16,26 @@ Subject: Thank you for your {{{currency order.totalAmount currency=order.currenc
 
 {{#if interval}}
   {{#if firstPayment}}
-    <p>I would like to thank you for your pledge to give {{{currency order.totalAmount currency=order.currency}}} per {{interval}} on {{{moment order.createdAt}}}. Your generous gift helps us promote, inspire, and advance more women leaders in tech.</p>
+    <p>I would like to thank you for your pledge to give {{currency order.totalAmount currency=order.currency}} per {{interval}} on {{moment order.createdAt}}. Your generous gift helps us promote, inspire, and advance more women leaders in tech.</p>
     {{> charge_date_notice }}
   {{else}}
-    <p>I would like to thank you for your continued support. Your latest {{interval}}ly contribution of {{{currency order.totalAmount currency=order.currency}}} was received on {{{moment transaction.createdAt}}}.
+    <p>I would like to thank you for your continued support. Your latest {{interval}}ly contribution of {{currency order.totalAmount currency=order.currency}} was received on {{moment transaction.createdAt}}.
     Your generous gift helps us promote, inspire, and advance more women leaders in tech.</p>
   {{/if}}
 {{else}}
-<p>I would like to thank you for your contribution of {{{currency order.totalAmount currency=order.currency}}} on {{{moment order.createdAt}}}. Your generous gift helps us promote, inspire, and advance more women leaders in tech.</p>
+<p>I would like to thank you for your contribution of {{currency order.totalAmount currency=order.currency}} on {{moment order.createdAt}}. Your generous gift helps us promote, inspire, and advance more women leaders in tech.</p>
 {{/if}}
 
 <p>With your support, we are able to extend our program reach. Through this, we are able to provide an avenue into tech, empower women with skills needed for professional advancement, and provide environments where networking and mentorship are valued.</p>
 
 <p>On behalf of the Women Who Code Board of Executives, our leadership team, and our members worldwide, thank you for furthering our mission. We appreciate and value your contribution and continued support of our community.</p>
 
-<p>
-  P.S: You can download a PDF receipt for your contribution <a href="{{config.host.website}}/{{fromCollective.slug}}/transactions">on your transactions page</a>{{#if subscriptionsLink}}, and you can manage your subscriptions <a href="{{subscriptionsLink}}">here</a>{{/if}}.
-</p>
+{{#if transactionPdf}}
+<h2>📎 Attachments</h2>
+<ul>
+  <li>A PDF receipt of your transaction</li>
+</ul>
+{{/if}}
 
 <p>Warmly,</p>
 

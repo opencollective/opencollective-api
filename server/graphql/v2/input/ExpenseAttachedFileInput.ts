@@ -1,4 +1,4 @@
-import { GraphQLInputObjectType, GraphQLNonNull,GraphQLString } from 'graphql';
+import { GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
 
 import URL from '../scalar/URL';
 
@@ -7,7 +7,7 @@ import URL from '../scalar/URL';
  */
 export const ExpenseAttachedFileInput = new GraphQLInputObjectType({
   name: 'ExpenseAttachedFileInput',
-  fields: {
+  fields: () => ({
     id: {
       type: GraphQLString,
       description: 'ID of the file',
@@ -16,5 +16,5 @@ export const ExpenseAttachedFileInput = new GraphQLInputObjectType({
       type: new GraphQLNonNull(URL),
       description: 'URL of the file',
     },
-  },
+  }),
 });

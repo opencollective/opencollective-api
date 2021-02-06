@@ -258,9 +258,6 @@ Types:
   - collective.deleted
       data: collective.name, user.info
 
-  + collective.user.added
-      data: collective, user (caller), target (the new user), collectiveuser
-      2* Userid: the new user + the caller
   - collective.user.updated
       data: collective, user (caller), target (the updated user), collectiveuser (updated values)
       2* Userid: the updated user + the caller

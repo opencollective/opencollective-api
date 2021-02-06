@@ -2,6 +2,7 @@ import { GraphQLNonNull } from 'graphql';
 import { pick } from 'lodash';
 
 import { Service } from '../../../constants/connected_account';
+import { crypto } from '../../../lib/encryption';
 import * as paypal from '../../../lib/paypal';
 import * as transferwise from '../../../lib/transferwise';
 import models from '../../../models';
@@ -34,7 +35,7 @@ const connectedAccountMutations = {
       }
 
       const collective = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
-      if (!req.remoteUser.isAdmin(collective.id)) {
+      if (!req.remoteUser.isAdminOfCollective(collective)) {
         throw new Unauthorized("You don't have permission to edit this collective");
       }
 
@@ -43,7 +44,7 @@ const connectedAccountMutations = {
           throw new ValidationFailed('A token is required');
         }
         const sameTokenCount = await models.ConnectedAccount.count({
-          where: { token: args.connectedAccount.token, service: args.connectedAccount.service },
+          where: { hash: crypto.hash(args.connectedAccount.service + args.connectedAccount.token) },
         });
         if (sameTokenCount > 0) {
           throw new ValidationFailed('This token is already being used');
@@ -76,6 +77,7 @@ const connectedAccountMutations = {
         ]),
         CollectiveId: collective.id,
         CreatedByUserId: req.remoteUser.id,
+        hash: crypto.hash(args.connectedAccount.service + args.connectedAccount.token),
       });
 
       return connectedAccount;
@@ -98,11 +100,14 @@ const connectedAccountMutations = {
       const connectedAccount = await fetchConnectedAccountWithReference(args.connectedAccount, {
         throwIfMissing: true,
       });
-      if (!req.remoteUser.isAdmin(connectedAccount.CollectiveId)) {
+
+      const collective = await req.loaders.Collective.byId.load(connectedAccount.CollectiveId);
+      if (!req.remoteUser.isAdminOfCollective(collective)) {
         throw new Unauthorized("You don't have permission to edit this collective");
       }
 
       await connectedAccount.destroy({ force: true });
+
       return connectedAccount;
     },
   },

@@ -1,24 +1,25 @@
 #!/usr/bin/env node
 import '../../server/env';
 
+import Promise from 'bluebird';
+import config from 'config';
+import debugLib from 'debug';
+import { filter, isEmpty, pick, without } from 'lodash';
+import moment from 'moment';
+
+import { notifyAdminsOfCollective } from '../../server/lib/notifications';
+import { getConsolidatedInvoicePdfs } from '../../server/lib/pdf';
+import { getTiersStats } from '../../server/lib/utils';
+import models, { Op } from '../../server/models';
+
 // Only run on the first of the month
 const today = new Date();
-if (process.env.NODE_ENV === 'production' && today.getDate() !== 1 && !process.env.OFFCYCLE) {
-  console.log('NODE_ENV is production and today is not the first of month, script aborted!');
+if (config.env === 'production' && today.getDate() !== 1 && !process.env.OFFCYCLE) {
+  console.log('OC_ENV is production and today is not the first of month, script aborted!');
   process.exit();
 }
 
 process.env.PORT = 3066;
-
-import Promise from 'bluebird';
-import config from 'config';
-import debugLib from 'debug';
-import { filter, pick, without } from 'lodash';
-import moment from 'moment';
-
-import { notifyAdminsOfCollective } from '../../server/lib/notifications';
-import { getTiersStats } from '../../server/lib/utils';
-import models, { Op } from '../../server/models';
 
 const d = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date();
 d.setMonth(d.getMonth() - 1);
@@ -42,7 +43,10 @@ const init = () => {
 
   const query = {
     attributes: ['id', 'slug', 'name', 'twitterHandle', 'currency', 'settings', 'tags'],
-    where: { type: 'COLLECTIVE', isActive: true },
+    where: {
+      type: { [Op.in]: ['COLLECTIVE', 'ORGANIZATION'] },
+      isActive: true,
+    },
   };
 
   let slugs;
@@ -209,10 +213,7 @@ const processCollective = collective => {
         data.collective.stats.totalDonations = results[3];
         data.collective.stats.totalExpenses = results[4];
         data.collective.expenses = results[5].map(expense => expense.info);
-        data.relatedCollectives = (results[6] || []).map(c => {
-          c.description = c.description || c.mission;
-          return c;
-        });
+        data.relatedCollectives = results[6] || [];
         data.collective.updates = results[10];
         data.collective.transactions = results[12];
         const nextGoal = results[11];
@@ -241,7 +242,15 @@ const processCollective = collective => {
         return collective;
       });
     })
-    .then(collective => {
+    .then(async collective => {
+      if (collective.type === 'ORGANIZATION') {
+        const monthlyConsolidatedInvoices = await getConsolidatedInvoicePdfs(collective);
+
+        if (!isEmpty(monthlyConsolidatedInvoices)) {
+          options.attachments.push(...monthlyConsolidatedInvoices);
+          emailData.consolidatedPdfs = true;
+        }
+      }
       const activity = {
         type: 'collective.monthlyreport',
         data: emailData,

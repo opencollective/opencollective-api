@@ -6,7 +6,7 @@ import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
 const ExpenseReferenceInput = new GraphQLInputObjectType({
   name: 'ExpenseReferenceInput',
-  fields: {
+  fields: () => ({
     id: {
       type: GraphQLString,
       description: 'The public id identifying the expense (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
@@ -15,7 +15,7 @@ const ExpenseReferenceInput = new GraphQLInputObjectType({
       type: GraphQLInt,
       description: 'The internal id of the expense (ie: 580)',
     },
-  },
+  }),
 });
 
 const getDatabaseIdFromExpenseReference = (input: object): number => {

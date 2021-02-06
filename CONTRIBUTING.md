@@ -1,5 +1,9 @@
 # Contributing
 
+## Bounties
+
+This repo is part of the Open Collective bounty program. Get paid to contribute to Open Source! The Open Collective engineering team is small and we're always looking for new contributors to our Open Source codebases. Our Bounty program is an opportunity to solve issues that could be neglected otherwise. Contributors who fix these issues will be rewarded financially. Please see our docs for more information: https://docs.opencollective.com/help/contributing/development/bounties
+
 ## To fork or not to fork
 
 If you want to change a simple thing, for example, fix a typo or update copy, feel free to use the GitHub web interface, that's perfect. Under the hood, it will do complex things but you don't need to think about it!

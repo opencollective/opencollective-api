@@ -8,7 +8,7 @@ import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 export const ConnectedAccount = new GraphQLObjectType({
   name: 'ConnectedAccount',
   description: 'This represents a Connected Account',
-  fields: {
+  fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this connected account',
@@ -32,5 +32,5 @@ export const ConnectedAccount = new GraphQLObjectType({
     },
     settings: { type: GraphQLJSON },
     service: { type: new GraphQLNonNull(ConnectedAccountService) },
-  },
+  }),
 });

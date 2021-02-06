@@ -9,23 +9,16 @@ import activityType from '../constants/activities';
 import activitiesLib from '../lib/activities';
 import emailLib from '../lib/email';
 import models from '../models';
-import { PayoutMethodTypes } from '../models/PayoutMethod';
 
+import { getTransactionPdf } from './pdf';
 import slackLib from './slack';
 import twitter from './twitter';
+import { toIsoDateStr } from './utils';
 import { enrichActivity, sanitizeActivity } from './webhooks';
 
 const debug = debugLib('notifications');
 
 export default async (Sequelize, activity) => {
-  // publish everything to our private channel
-  publishToSlackPrivateChannel(activity).catch(console.log);
-
-  // publish a filtered version to our public channel
-  publishToSlack(activity, config.slack.webhookUrl, {
-    channel: config.slack.publicActivityChannel,
-  }).catch(console.log);
-
   notifyByEmail(activity).catch(console.log);
 
   // process notification entries for slack, twitter, gitter
@@ -35,7 +28,6 @@ export default async (Sequelize, activity) => {
   const where = {
     CollectiveId: activity.CollectiveId,
     type: [activityType.ACTIVITY_ALL, activity.type],
-    channel: Object.values(channels),
     active: true,
   };
 
@@ -45,7 +37,7 @@ export default async (Sequelize, activity) => {
     if (notifConfig.channel === channels.GITTER) {
       return publishToGitter(activity, notifConfig);
     } else if (notifConfig.channel === channels.SLACK) {
-      return publishToSlack(activity, notifConfig.webhookUrl, {});
+      return slackLib.postActivityOnPublicChannel(activity, notifConfig.webhookUrl);
     } else if (notifConfig.channel === channels.TWITTER) {
       return twitter.tweetActivity(activity);
     } else if (notifConfig.channel === channels.WEBHOOK) {
@@ -65,7 +57,7 @@ export default async (Sequelize, activity) => {
 
 function publishToGitter(activity, notifConfig) {
   const message = activitiesLib.formatMessageForPublicChannel(activity, 'markdown');
-  if (message && process.env.NODE_ENV === 'production') {
+  if (message && config.env === 'production') {
     return axios.post(notifConfig.webhookUrl, { message });
   } else {
     Promise.resolve();
@@ -78,14 +70,6 @@ function publishToWebhook(activity, webhookUrl) {
   return axios.post(webhookUrl, enrichedActivity);
 }
 
-function publishToSlack(activity, webhookUrl, options) {
-  return slackLib.postActivityOnPublicChannel(activity, webhookUrl, options);
-}
-
-function publishToSlackPrivateChannel(activity) {
-  return slackLib.postActivityOnPrivateChannel(activity);
-}
-
 /**
  * Send the notification email (using emailLib.sendMessageFromActivity)
  * to all users that have not unsubscribed
@@ -94,7 +78,6 @@ function publishToSlackPrivateChannel(activity) {
  */
 async function notifySubscribers(users, activity, options = {}) {
   const { data } = activity;
-
   if (!users || users.length === 0) {
     debug('notifySubscribers: no user to notify for activity', activity.type);
     return;
@@ -136,6 +119,40 @@ async function notifyUserId(UserId, activity, options = {}) {
     const parentCollective = await event.getParentCollective();
     const ics = await event.getICS();
     options.attachments = [{ filename: `${event.slug}.ics`, content: ics }];
+
+    const transaction = await models.Transaction.findOne({
+      where: { OrderId: activity.data.order.id, type: 'CREDIT' },
+    });
+
+    if (transaction) {
+      const transactionPdf = await getTransactionPdf(transaction, user);
+      if (transactionPdf) {
+        const createdAtString = toIsoDateStr(transaction.createdAt ? new Date(transaction.createdAt) : new Date());
+        options.attachments.push({
+          filename: `transaction_${event.slug}_${createdAtString}_${transaction.uuid}.pdf`,
+          content: transactionPdf,
+        });
+        activity.data.transactionPdf = true;
+      }
+
+      if (transaction.hasPlatformTip()) {
+        const platformTipTransaction = await transaction.getPlatformTipTransaction();
+
+        if (platformTipTransaction) {
+          const platformTipPdf = await getTransactionPdf(platformTipTransaction, user);
+
+          if (platformTipPdf) {
+            const createdAtString = toIsoDateStr(new Date(platformTipTransaction.createdAt));
+            options.attachments.push({
+              filename: `transaction_opencollective_${createdAtString}_${platformTipTransaction.uuid}.pdf`,
+              content: platformTipPdf,
+            });
+            activity.data.platformTipPdf = true;
+          }
+        }
+      }
+    }
+
     activity.data.event = event.info;
     activity.data.collective = parentCollective.info;
     options.from = `${parentCollective.name} <no-reply@${parentCollective.slug}.opencollective.com>`;
@@ -161,6 +178,14 @@ export async function notifyAdminsOfCollective(CollectiveId, activity, options =
   return notifySubscribers(adminUsers, activity, options);
 }
 
+/**
+ * Notify all admins of hosted collectives
+ */
+export async function notifyHostedCollectiveAdmins(CollectiveId, activity, options = {}) {
+  const collective = await models.Collective.findByPk(CollectiveId);
+  const adminUsers = await collective.getHostedCollectiveAdmins();
+  return notifySubscribers(adminUsers, activity, options);
+}
 /**
  * Notify all the followers of the conversation.
  */
@@ -201,14 +226,40 @@ async function notifyByEmail(activity) {
 
     case activityType.COLLECTIVE_UPDATE_PUBLISHED:
       twitter.tweetActivity(activity);
-      activity.data.update = await models.Update.findByPk(activity.data.update.id, {
-        include: [{ model: models.Collective, as: 'fromCollective' }],
-      });
-      activity.data.update = activity.data.update.info;
-      notifyMembersOfCollective(activity.data.update.CollectiveId, activity, {
-        from: `${activity.data.collective.name}
-        <no-reply@${activity.data.collective.slug}.opencollective.com>`,
-      });
+
+      activity.data.fromCollective = (await models.Collective.findByPk(activity.data.fromCollective.id))?.info;
+      activity.data.collective = await models.Collective.findByPk(activity.data.collective.id);
+      activity.data.collective = activity.data.collective.info;
+      activity.data.fromEmail = `${activity.data.collective.name}<no-reply@${activity.data.collective.slug}.opencollective.com>`;
+      if (activity.data.collective.isHostAccount) {
+        switch (activity.data.update.notificationAudience) {
+          case 'COLLECTIVE_ADMINS':
+            notifyHostedCollectiveAdmins(activity.data.update.CollectiveId, activity, {
+              from: activity.data.fromEmail,
+            });
+            break;
+
+          case 'FINANCIAL_CONTRIBUTORS':
+            notifyMembersOfCollective(activity.data.update.CollectiveId, activity, {
+              from: activity.data.fromEmail,
+            });
+            break;
+
+          case 'ALL':
+            notifyHostedCollectiveAdmins(activity.data.update.CollectiveId, activity, {
+              from: activity.data.fromEmail,
+            });
+
+            notifyMembersOfCollective(activity.data.update.CollectiveId, activity, {
+              from: activity.data.fromEmail,
+            });
+            break;
+        }
+      } else {
+        notifyMembersOfCollective(activity.data.update.CollectiveId, activity, {
+          from: activity.data.fromEmail,
+        });
+      }
       break;
 
     case activityType.SUBSCRIPTION_CANCELED:
@@ -285,13 +336,7 @@ async function notifyByEmail(activity) {
       activity.data.actions = {
         viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
       };
-      if (get(activity.data, 'payoutMethod.type') === PayoutMethodTypes.PAYPAL) {
-        activity.data.expense.payoutMethodLabel = `PayPal (${get(activity.data, 'payoutMethod.data.email')})`;
-      } else if (get(activity.data, 'payoutMethod.type') === PayoutMethodTypes.BANK_ACCOUNT) {
-        activity.data.expense.payoutMethodLabel = 'Wire Transfer';
-      } else {
-        activity.data.expense.payoutMethodLabel = 'Other';
-      }
+      activity.data.expense.payoutMethodLabel = models.PayoutMethod.getLabel(activity.data.payoutMethod);
       notifyUserId(activity.data.expense.UserId, activity);
       // We only notify the admins of the host if the collective is active (ie. has been approved by the host)
       if (get(activity, 'data.host.id') && get(activity, 'data.collective.isActive')) {
@@ -306,6 +351,7 @@ async function notifyByEmail(activity) {
       activity.data.actions = {
         viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
       };
+      activity.data.expense.payoutMethodLabel = models.PayoutMethod.getLabel(activity.data.payoutMethod);
       notifyUserId(activity.data.expense.UserId, activity);
       if (get(activity, 'data.host.id')) {
         notifyAdminsOfCollective(activity.data.host.id, activity, {
@@ -339,10 +385,25 @@ async function notifyByEmail(activity) {
       break;
 
     case activityType.COLLECTIVE_APPROVED:
+      // Funds MVP
+      if (get(activity, 'data.collective.type') === 'FUND' || get(activity, 'data.collective.settings.fund') === true) {
+        if (get(activity, 'data.host.slug') === 'foundation') {
+          notifyAdminsOfCollective(activity.data.collective.id, activity, {
+            template: 'fund.approved.foundation',
+          });
+        }
+        break;
+      }
+
       notifyAdminsOfCollective(activity.data.collective.id, activity);
       break;
 
     case activityType.COLLECTIVE_REJECTED:
+      // Funds MVP
+      if (get(activity, 'data.collective.type') === 'FUND' || get(activity, 'data.collective.settings.fund') === true) {
+        break;
+      }
+
       notifyAdminsOfCollective(
         activity.data.collective.id,
         activity,
@@ -358,19 +419,30 @@ async function notifyByEmail(activity) {
         template: 'collective.apply.for.host',
         replyTo: activity.data.user.email,
       });
+
+      // Funds MVP, we assume the info is already sent in COLLECTIVE_CREATED
+      if (get(activity, 'data.collective.type') === 'FUND' || get(activity, 'data.collective.settings.fund') === true) {
+        break;
+      }
+
       notifyAdminsOfCollective(activity.data.collective.id, activity, {
         from: `no-reply@${activity.data.host.slug}.opencollective.com`,
       });
       break;
 
     case activityType.COLLECTIVE_CREATED:
-      if ((get(activity, 'data.collective.tags') || []).includes('meetup')) {
-        notifyAdminsOfCollective(activity.data.collective.id, activity, {
-          template: 'collective.created.meetup',
-        });
-      } else {
-        notifyAdminsOfCollective(activity.data.collective.id, activity);
+      // Funds MVP
+      if (get(activity, 'data.collective.type') === 'FUND' || get(activity, 'data.collective.settings.fund') === true) {
+        if (get(activity, 'data.host.slug') === 'foundation') {
+          notifyAdminsOfCollective(activity.data.collective.id, activity, {
+            template: 'fund.created.foundation',
+          });
+        }
+        break;
       }
+
+      // Normal case
+      notifyAdminsOfCollective(activity.data.collective.id, activity);
       break;
 
     case activityType.COLLECTIVE_CREATED_GITHUB:
@@ -405,5 +477,15 @@ async function notifyByEmail(activity) {
       notifyAdminsOfCollective(activity.data.collective.id, activity, {
         template: 'deactivated.collective.as.host',
       });
+      break;
+
+    case activityType.COLLECTIVE_EXPENSE_INVITE_DRAFTED:
+      // New User
+      if (activity.data.payee?.email) {
+        await emailLib.send(activity.type, activity.data.payee.email, activity.data, { sendEvenIfNotProduction: true });
+      } else if (activity.data.payee.id) {
+        await notifyAdminsOfCollective(activity.data.payee.id, activity, { sendEvenIfNotProduction: true });
+      }
+      break;
   }
 }

@@ -1,13 +1,7 @@
 #!/usr/bin/env node
 import '../../server/env';
 
-// Only run on the first of the month
-const today = new Date();
-if (process.env.NODE_ENV === 'production' && today.getDate() !== 1) {
-  console.log('NODE_ENV is production and today is not the first of month, script aborted!');
-  process.exit();
-}
-
+import config from 'config';
 import debugLib from 'debug';
 import { groupBy } from 'lodash';
 import { Op } from 'sequelize';
@@ -17,6 +11,13 @@ import plans, { PLANS_COLLECTIVE_SLUG } from '../../server/constants/plans';
 import cache from '../../server/lib/cache';
 import emailLib from '../../server/lib/email';
 import models from '../../server/models';
+
+// Only run on the first of the month
+const today = new Date();
+if (config.env === 'production' && today.getDate() !== 1) {
+  console.log('OC_ENV is production and today is not the first of month, script aborted!');
+  process.exit();
+}
 
 const debug = debugLib('verify-plans');
 

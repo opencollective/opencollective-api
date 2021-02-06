@@ -52,7 +52,7 @@ sudo apt-get install postgresql-client
 
 #### Development
 
-Please be aware of the `NODE_ENV` variable. By default, it's set to `development` and the `opencollective_dvl` database will be used.
+Please be aware of the `NODE_ENV`/`OC_ENV` variable. By default, it's set to `development` and the `opencollective_dvl` database will be used.
 
 The development database should be automatically installed after `npm install`.
 
@@ -62,7 +62,7 @@ To force a restore run `npm run db:restore`, then `npm run db:migrate`.
 
 #### Test
 
-Please be aware of the `NODE_ENV` variable. By default, it's set to `development` and the `opencollective_dvl` database will be used. You have to set it yourself to `test` to switch to the test environment and use `opencollective_test` instead.
+Please be aware of the `NODE_ENV`/`OC_ENV` variable. By default, it's set to `development` and the `opencollective_dvl` database will be used. You have to set it yourself to `test` to switch to the test environment and use `opencollective_test` instead.
 
 To setup the database for tests, run `npm run db:setup` or run `NODE_ENV=test npm run db:setup` to force the environment.
 
