@@ -1,3 +1,6 @@
+#!/usr/bin/env node
+import '../server/env';
+
 /**
  * Script for setting up user & database.
  *
@@ -10,10 +13,10 @@
  *
  * More info here https://github.com/brianc/node-postgres/issues/1337
  */
-
 import format from 'pg-format';
-import { URL } from 'url';
+
 import * as libdb from '../server/lib/db';
+import { sequelize } from '../server/models';
 
 /** Create a user in postgres if it doesn't exist.
  *
@@ -24,12 +27,9 @@ import * as libdb from '../server/lib/db';
  * @param {string} password of the user.
  */
 async function createUser(client, name, password) {
-  const exists = await client.query(
-    'SELECT 1 FROM pg_roles WHERE rolname=$1', [name]);
+  const exists = await client.query('SELECT 1 FROM pg_roles WHERE rolname=$1', [name]);
   if (!exists.rowCount) {
-    await client.query(format(
-      "CREATE USER %s WITH PASSWORD '%s' SUPERUSER;",
-      name, password));
+    await client.query(format("CREATE USER %s WITH PASSWORD '%s' SUPERUSER;", name, password));
     console.log(`user ${name} created`);
   } else {
     console.log('user already exists');
@@ -38,13 +38,18 @@ async function createUser(client, name, password) {
 
 /** Kick things off */
 async function main() {
-  const url = new URL(libdb.getDBUrl('database'));
-
-  /* Connect with maintainance account */
+  /* Connect with maintenance account */
   const client = await libdb.getConnectedClient(libdb.getDBUrl('maintenancedb'));
-  await createUser(client, url.username, url.password);
-  const [clientMaint, clientApp] = await libdb.recreateDatabase(false);
+  const { username, password } = libdb.getDBConf('database');
+  await createUser(client, username, password);
+  const destroy = process.env.DB_DESTROY ? true : false;
+  const [clientMaint, clientApp] = await libdb.recreateDatabase(destroy);
+  await sequelize.sync({ force: true });
+  await sequelize.close();
+  console.log('schema created or reseted');
   await Promise.all([client.end(), clientMaint.end(), clientApp.end()]);
 }
 
-if (!module.parent) main();
+if (!module.parent) {
+  main();
+}

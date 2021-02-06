@@ -2,10 +2,7 @@
 
 ## Node and npm
 
-You can test that the API is working by opening:
-http://localhost:3060/status
-
-And you can play with GraphQL by opening:
+You can play with GraphQL by opening:
 http://localhost:3060/graphql
 
 ![](http://d.pr/i/Vxm1rw+)
@@ -75,7 +72,4 @@ There are many admin scripts in [`/scripts` directory](https://github.com/openco
 ```
 # Local development (without Docker)
 $ npx babel-node ./scripts/populate_usernames.js
-
-# Docker
-$ docker-compose exec api npx babel-node ./scripts/populate_usernames.js
 ```

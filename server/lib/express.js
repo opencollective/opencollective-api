@@ -1,111 +1,99 @@
-import bodyParser from 'body-parser';
+import cloudflareIps from 'cloudflare-ip/ips.json';
 import config from 'config';
+import connectRedis from 'connect-redis';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
-import morgan from 'morgan';
-import multer from 'multer';
 import errorHandler from 'errorhandler';
-import passport from 'passport';
-import connectSessionSequelize from 'connect-session-sequelize';
+import express from 'express';
 import session from 'express-session';
 import helmet from 'helmet';
+import { get, has } from 'lodash';
+import passport from 'passport';
 import { Strategy as GitHubStrategy } from 'passport-github';
 import { Strategy as TwitterStrategy } from 'passport-twitter';
-import { Strategy as MeetupStrategy } from 'passport-meetup-oauth2';
-import { sequelize as db } from '../models';
-import { middleware } from '../graphql/loaders';
-import debug from 'debug';
-import lruCache from '../middleware/lru_cache';
-import { sanitizeForLogs } from '../lib/utils';
+import redis from 'redis';
+
+import { loadersMiddleware } from '../graphql/loaders';
+
 import forest from './forest';
+import hyperwatch from './hyperwatch';
+import logger from './logger';
 
-const SequelizeStore = connectSessionSequelize(session.Store);
+export default async function (app) {
+  app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal'].concat(cloudflareIps));
 
-export default function(app) {
-  app.use(helmet());
+  app.use(
+    helmet({
+      // It's currently breaking GraphQL playgrounds, to consider when activating this
+      contentSecurityPolicy: false,
+    }),
+  );
 
   // Loaders are attached to the request to batch DB queries per request
   // It also creates in-memory caching (based on request auth);
-  app.use(middleware);
-
-  if (process.env.DEBUG && process.env.DEBUG.match(/response/)) {
-    app.use((req, res, next) => {
-      const temp = res.end
-      res.end = function(str) {
-        try {
-          const obj = JSON.parse(str);
-          debug('response')(JSON.stringify(obj, null, '  '));
-        } catch (e) {
-          debug('response', str);
-        }
-        temp.apply(this,arguments);
-      }
-      next();
-    });
-  }
-
-  // Log requests if it's not the test environment
-  if (!['test', 'circleci'].includes(process.env.NODE_ENV))
-    app.use(morgan('dev'));
+  app.use(loadersMiddleware);
 
   // Body parser.
-  app.use(bodyParser.json({limit: '50mb'}));
-  app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
-
-  // check for slow requests
-  app.use((req, res, next) => {
-    req.startAt = new Date;
-    const temp = res.end;
-
-    res.end = function() {
-      const timeElapsed = (new Date) - req.startAt;
-      if (timeElapsed > (process.env.SLOW_REQUEST_THRESHOLD || 1000)) {
-        if (req.body && req.body.query) {
-          console.log(`>>> slow request ${timeElapsed}ms`, req.body.operationName, "query:", req.body.query.substr(0, req.body.query.indexOf(")")+1));
-          if (req.body.variables) {
-            console.log(">>> variables: ", sanitizeForLogs(req.body.variables));
-          }
+  app.use(
+    express.json({
+      limit: '50mb',
+      // If the request is routed to our /webhooks/transferwise endpoint, we add
+      // the request body buffer to a new property called `rawBody` so we can
+      // calculate the checksum to verify if the request is authentic.
+      verify(req, res, buf) {
+        if (req.originalUrl.startsWith('/webhooks/transferwise')) {
+          req.rawBody = buf.toString();
         }
-      }
-      temp.apply(this,arguments);
-    }
-    next();
-  });
+      },
+    }),
+  );
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-  // Cors.
-  app.use(cors());
-
-  app.use(lruCache());
-
-  app.use(multer());
+  // Hyperwatch
+  await hyperwatch(app);
 
   // Error handling.
-  if (process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'staging') {
+  if (config.env !== 'production' && config.env !== 'staging') {
     app.use(errorHandler());
   }
 
   // Forest
-  forest(app);
+  await forest(app);
 
-  // Authentication
-
-  passport.serializeUser((user, cb) => cb(null, user));
-  passport.deserializeUser((obj, cb) => cb(null, obj));
+  // Cors.
+  app.use(cors());
 
   const verify = (accessToken, tokenSecret, profile, done) => done(null, accessToken, { tokenSecret, profile });
-  passport.use(new GitHubStrategy(config.github, verify));
-  passport.use(new MeetupStrategy(config.meetup, verify));
-  passport.use(new TwitterStrategy(config.twitter, verify));
+
+  if (has(config, 'github.clientID') && has(config, 'github.clientSecret')) {
+    passport.use(new GitHubStrategy(get(config, 'github'), verify));
+  } else {
+    logger.info('Configuration missing for passport GitHubStrategy, skipping.');
+  }
+  if (has(config, 'twitter.consumerKey') && has(config, 'twitter.consumerSecret')) {
+    passport.use(new TwitterStrategy(get(config, 'twitter'), verify));
+  } else {
+    logger.info('Configuration missing for passport TwitterStrategy, skipping.');
+  }
 
   app.use(cookieParser());
-  app.use(session({
-    secret: config.keys.opencollective.session_secret,
-    resave: false,
-    cookie: { maxAge: 1000 * 60 * 5 },
-    saveUninitialized: false,
-    store: new SequelizeStore({ db }),
-    proxy: true
-  }));
+
+  // Setup session (required by passport)
+
+  let store;
+  if (get(config, 'redis.serverUrl')) {
+    const RedisStore = connectRedis(session);
+    store = new RedisStore({ client: redis.createClient(get(config, 'redis.serverUrl')) });
+  }
+
+  app.use(
+    session({
+      store,
+      secret: config.keys.opencollective.sessionSecret,
+      resave: false,
+      saveUninitialized: false,
+    }),
+  );
+
   app.use(passport.initialize());
-  app.use(passport.session());
 }

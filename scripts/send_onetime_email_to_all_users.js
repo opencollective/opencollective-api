@@ -1,63 +1,65 @@
 #!/usr/bin/env node
+import '../server/env';
 
 /*
  * This script is useful for sending a one-time email to all users.
  */
 
+console.log('This script is being deprecated.');
+console.log('To re-enable it, remove this message with a Pull Request explaining the use case.');
+process.exit();
+
+/*
 process.env.PORT = 3066;
 
-import _ from 'lodash';
-import moment from 'moment';
-import config from 'config';
 import Promise from 'bluebird';
 import debugLib from 'debug';
-import models, { sequelize, Op } from '../server/models';
+import models, { Op } from '../server/models';
 import emailLib from '../server/lib/email';
-import roles from '../server/constants/roles';
 
 const debug = debugLib('onetime.email');
 
-const {
-  Collective,
-  Member,
-  User
-} = models;
+const { User } = models;
 
 const init = () => {
-  console.log("\nStarting script to send a one-time email...\n");
+  console.log('\nStarting script to send a one-time email...\n');
 
-  const startTime = new Date;
+  const startTime = new Date();
 
   // find all users
   const usersQuery = {
     attributes: ['email', 'firstName', 'lastName'],
-    include: [ { model: models.Transaction, required: true }]
-  }
+    include: [{ model: models.Transaction, required: true }],
+  };
 
   // for debugging, handpick a few users
   if (process.env.DEBUG && process.env.DEBUG.match(/preview/))
-    usersQuery.where = { username: {[Op.in]: ['xdamman','piamancini','aseem']} };
+    usersQuery.where = {
+      username: { [Op.in]: ['xdamman', 'piamancini', 'aseem'] },
+    };
 
   return User.findAll(usersQuery)
-  .then(sendEmail)
-  .then(() => {
-    const timeLapsed = Math.round((new Date - startTime)/1000);
-    console.log(`Total run time: ${timeLapsed}s`);
-    process.exit(0);
-  });
-}
+    .then(sendEmail)
+    .then(() => {
+      const timeLapsed = Math.round((new Date() - startTime) / 1000);
+      console.log(`Total run time: ${timeLapsed}s`);
+      process.exit(0);
+    });
+};
 
-const sendEmail = (recipients) => {
+const sendEmail = recipients => {
   const data = {};
   if (recipients.length === 0) return;
   return Promise.map(recipients, recipient => {
-    data.recipient = recipient;
+    data.recipient = recipient.info;
     if (process.env.ONLY && recipient.email !== process.env.ONLY) {
-      debug("Skipping ", recipient.email);
+      debug('Skipping ', recipient.email);
       return Promise.resolve();
     }
     return emailLib.send('announcement', recipient.email, data, { bcc: ' ' });
   });
-}
+};
 
 init();
+
+*/

@@ -1,23 +1,56 @@
 {
-  "env": "NODE_ENV",
+  "port": "PORT",
+  "env": "OC_ENV",
+  "maildev": {
+    "client": "MAILDEV_CLIENT",
+    "server": "MAILDEV_SERVER"
+  },
   "database": {
-    "database": "PG_DATABASE",
-    "username": "PG_USERNAME",
-    "password": "PG_PASSWORD",
-    "options": {
+    "url": "PG_URL",
+    "override": {
+      "database": "PG_DATABASE",
+      "username": "PG_USERNAME",
+      "password": "PG_PASSWORD",
       "host": "PG_HOST",
+      "port": "PG_PORT"
+    },
+    "options": {
       "pool": {
+        "min": "PG_MIN_CONNECTIONS",
         "max": "PG_MAX_CONNECTIONS"
       }
     }
   },
+  "graphql": {
+    "apolloEngineAPIKey": "APOLLO_ENGINE_API_KEY",
+    "apolloEngineAPIKeyV2": "APOLLO_ENGINE_API_KEY_V2",
+    "cache": {
+      "enabled": "GRAPHQL_CACHE_ENABLED",
+      "ttl": "GRAPHQL_CACHE_TTL"
+    }
+  },
+  "memcache": {
+    "servers": "MEMCACHE_SERVERS",
+    "username": "MEMCACHE_USERNAME",
+    "password": "MEMCACHE_PASSWORD"
+  },
+  "redis": {
+    "serverUrl": "REDIS_URL"
+  },
   "keys": {
     "opencollective": {
-      "api_key": "API_KEY",
-      "session_secret": "SESSION_SECRET",
-      "secret": "JWT_SECRET",
-      "resetPasswordSecret": "RESET_PASSWORD_SECRET"
+      "apiKey": "API_KEY",
+      "sessionSecret": "SESSION_SECRET",
+      "jwtSecret": "JWT_SECRET",
+      "emailUnsubscribeSecret": "EMAIL_UNSUBSCRIBE_SECRET",
+      "hashidSalt": "HASHID_SALT"
     }
+  },
+  "log": {
+    "level": "LOG_LEVEL",
+    "accessLogs": "ACCESS_LOGS",
+    "slowRequest": "SLOW_REQUEST",
+    "slowRequestThreshold": "SLOW_REQUEST_THRESHOLD"
   },
   "stripe": {
     "secret": "STRIPE_SECRET",
@@ -28,8 +61,15 @@
     "s3": {
       "key": "AWS_KEY",
       "secret": "AWS_SECRET",
-      "bucket": "AWS_S3_BUCKET"
+      "bucket": "AWS_S3_BUCKET",
+      "region": "AWS_S3_REGION",
+      "apiVersion": "AWS_S3_API_VERSION"
     }
+  },
+  "cloudflare": {
+    "key": "CLOUDFLARE_KEY",
+    "email": "CLOUDFLARE_EMAIL",
+    "zone": "CLOUDFLARE_ZONE"
   },
   "paypal": {
     "classic": {
@@ -48,41 +88,86 @@
   "mailgun": {
     "user": "MAILGUN_USER",
     "password": "MAILGUN_PASSWORD",
-    "api_key": "MAILGUN_API_KEY"
+    "apiKey": "MAILGUN_API_KEY"
   },
   "host": {
     "api": "API_URL",
-    "webapp": "WEBAPP_URL",
-    "website": "WEBSITE_URL"
+    "images": "IMAGES_URL",
+    "frontend": "FRONTEND_URL",
+    "website": "WEBSITE_URL",
+    "pdf": "PDF_SERVICE_URL"
+  },
+  "limits": {
+    "ordersPerHour": {
+      "perAccount": "ORDERS_LIMIT_ACCOUNT",
+      "perAccountForCollective": "ORDERS_LIMIT_ACCOUNT_COLLECTIVE",
+      "perEmail": "ORDERS_LIMIT_EMAIL",
+      "perEmailForCollective": "ORDERS_LIMIT_EMAIL_COLLECTIVE",
+      "perIp": "ORDERS_LIMIT_IP"
+    }
   },
   "slack": {
-    "webhookUrl": "SLACK_HOOK_URL"
+    "webhooks": {
+      "abuse": "SLACK_WEBHOOK_ABUSE"
+    }
   },
-  "clearbit": "CLEARBIT_KEY",
   "github": {
     "clientID": "GITHUB_CLIENT_ID",
     "clientSecret": "GITHUB_CLIENT_SECRET"
-  },
-  "meetup": {
-    "clientID": "MEETUP_CLIENT_ID",
-    "clientSecret": "MEETUP_CLIENT_SECRET"
   },
   "twitter": {
     "consumerKey": "TWITTER_CONSUMER_KEY",
     "consumerSecret": "TWITTER_CONSUMER_SECRET"
   },
-  "session": {
-    "secret": "EXPRESS_SESSION_SECRET"
-  },
-  "expressperf": {
-    "api_key": "EXPRESS_PERF_API_KEY"
-  },
-  "algolia": {
-    "appId": "ALGOLIA_APP_ID",
-    "appKey": "ALGOLIA_KEY",
-    "index": "ALGOLIA_INDEX"
-  },
   "fixer": {
     "accessKey": "FIXER_ACCESS_KEY"
+  },
+  "recaptcha": {
+    "siteKey": "RECAPTCHA_SITE_KEY",
+    "secretKey": "RECAPTCHA_SECRET_KEY",
+    "enable": "RECAPTCHA_ENABLE"
+  },
+  "helloworks": {
+    "key": "HELLO_WORKS_KEY",
+    "secret": "HELLO_WORKS_SECRET",
+    "documentEncryptionKey": "HELLO_WORKS_DOCUMENT_ENCRYPTION_KEY",
+    "aws": {
+      "s3": {
+        "bucket": "HELLO_WORKS_AWS_S3_BUCKET"
+      }
+    }
+  },
+  "githubFlow": {
+    "minNbStars": "GITHUB_FLOW_MIN_NB_STARS"
+  },
+  "transferwise": {
+    "apiUrl": "TRANSFERWISE_API_URL",
+    "privateKey": "TRANSFERWISE_PRIVATE_KEY"
+  },
+  "fixie": {
+    "url": "FIXIE_URL"
+  },
+  "hyperwatch": {
+    "enabled": "HYPERWATCH_ENABLED",
+    "path": "HYPERWATCH_PATH",
+    "realm": "HYPERWATCH_REALM",
+    "username": "HYPERWATCH_USERNAME",
+    "secret": "HYPERWATCH_SECRET"
+  },
+  "dbEncryption": {
+    "secretKey": "DB_ENCRYPTION_SECRET_KEY",
+    "cipher": "DB_ENCRYPTION_CIPHER"
+  },
+  "googleDrive": {
+    "clientId": "GOOGLE_DRIVE_CLIENT_ID",
+    "clientSecret": "GOOGLE_DRIVE_CLIENT_SECRET",
+    "redirectUri": "GOOGLE_DRIVE_REDIRECT_URI",
+    "refresh_token": "GOOGLE_DRIVE_REFRESH_TOKEN"
+  },
+  "pdfService": {
+    "fetchTransactionsReceipts": "FETCH_TRANSACTIONS_RECEIPTS"
+  },
+  "sentry": {
+    "dsn": "SENTRY_DSN"
   }
 }

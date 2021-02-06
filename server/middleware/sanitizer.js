@@ -1,6 +1,5 @@
+import { forEach as lodashEach } from 'lodash';
 import sanitize from 'sanitize-html';
-import lodashEach from 'lodash/collection/forEach';
-
 
 export default () => {
   return (req, res, next) => {
@@ -11,7 +10,7 @@ export default () => {
   };
 };
 
-const sanitizeHelper = (value) => {
+const sanitizeHelper = value => {
   if (typeof value === 'string') {
     value = value.replace(/&gt;/gi, '>');
     value = value.replace(/&lt;/gi, '<');
@@ -21,8 +20,7 @@ const sanitizeHelper = (value) => {
   } else if (typeof value === 'object') {
     lodashEach(value, (val, key) => {
       value[key] = sanitizeHelper(val);
-    })
+    });
   }
   return value;
-}
-
+};

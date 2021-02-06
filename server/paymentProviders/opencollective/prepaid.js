@@ -1,8 +1,9 @@
-import models from '../../models';
-import roles from '../../constants/roles';
-import * as libpayments from '../../lib/payments';
-import * as libtransactions from '../../lib/transactions';
-import { TransactionTypes, OC_FEE_PERCENT } from '../../constants/transactions';
+import { get } from 'lodash';
+
+import { TransactionTypes } from '../../constants/transactions';
+import * as currency from '../../lib/currency';
+import { createRefundTransaction, getHostFee, getPlatformFee, isProvider } from '../../lib/payments';
+import models, { Op } from '../../models';
 
 /** Get the balance of a prepaid credit card
  *
@@ -15,18 +16,39 @@ import { TransactionTypes, OC_FEE_PERCENT } from '../../constants/transactions';
  *  prepaid credit card payment method.
  * @return {Object} with amount & currency from the payment method.
  */
-export async function getBalance(paymentMethod) {
-  if (!libpayments.isProvider('opencollective.prepaid', paymentMethod)) {
+async function getBalance(paymentMethod) {
+  if (!isProvider('opencollective.prepaid', paymentMethod)) {
     throw new Error(`Expected opencollective.prepaid but got ${paymentMethod.service}.${paymentMethod.type}`);
   }
   /* Result will be negative (We're looking for DEBIT transactions) */
-  const spent = await libtransactions.sum({
-    PaymentMethodId: paymentMethod.id,
-    currency: paymentMethod.currency,
-    type: 'DEBIT',
+  const allTransactions = await models.Transaction.findAll({
+    attributes: ['netAmountInCollectiveCurrency', 'currency'],
+    where: { type: 'DEBIT', RefundTransactionId: null },
+    include: [
+      {
+        model: models.PaymentMethod,
+        require: true,
+        attributes: [],
+        where: {
+          [Op.or]: {
+            id: paymentMethod.id,
+            SourcePaymentMethodId: paymentMethod.id,
+          },
+        },
+      },
+    ],
   });
+  let spent = 0;
+  for (const transaction of allTransactions) {
+    if (transaction.currency != paymentMethod.currency) {
+      const fxRate = await currency.getFxRate(transaction.currency, paymentMethod.currency);
+      spent += transaction.netAmountInCollectiveCurrency * fxRate;
+    } else {
+      spent += transaction.netAmountInCollectiveCurrency;
+    }
+  }
   return {
-    amount: paymentMethod.initialBalance + spent,
+    amount: Math.round(paymentMethod.initialBalance + spent),
     currency: paymentMethod.currency,
   };
 }
@@ -38,34 +60,33 @@ export async function getBalance(paymentMethod) {
  *  processing Giftcard orders, the transaction generated from it is
  *  returned.
  */
-export async function processOrder(order) {
+async function processOrder(order) {
   const user = order.createdByUser;
-  const { paymentMethod: { data } } = order;
-
+  const {
+    paymentMethod: { data },
+  } = order;
   // Making sure the paymentMethod has the information we need to
   // process a prepaid card
-  if (!order.paymentMethod.customerId)
-    throw new Error('Prepaid method must have a value for `customerId`');
-  if (!data || !data.HostCollectiveId)
-    throw new Error('Prepaid method must have a value for `data.HostCollectiveId`');
-
-  // Check if the prepaid card was created for the collective making
-  // the donation
-  const fromCollective = await models.Collective.findById(order.FromCollectiveId);
-  if (order.paymentMethod.customerId !== fromCollective.slug)
-    throw new Error('Prepaid method can only be used by the organization that received it');
+  if (!get(data, 'HostCollectiveId')) {
+    throw new Error('Prepaid payment method must have a value for `data.HostCollectiveId`');
+  }
 
   // Check that target Collective's Host is same as gift card issuer
   const hostCollective = await order.collective.getHostCollective();
-  if (hostCollective.id !== data.HostCollectiveId)
+  if (hostCollective.id !== data.HostCollectiveId) {
     throw new Error('Prepaid method can only be used in collectives from the same host');
+  }
+
+  // Checking if balance is ok or will still be after completing the order
+  const balance = await getBalance(order.paymentMethod);
+  if (balance.amount - order.totalAmount < 0) {
+    throw new Error("This payment method doesn't have enough funds to complete this order");
+  }
+
+  const platformFeeInHostCurrency = await getPlatformFee(order.totalAmount, order, hostCollective);
+  const hostFeeInHostCurrency = await getHostFee(order.totalAmount, order, hostCollective);
 
   // Use the above payment method to donate to Collective
-  const hostFeeInHostCurrency = libpayments.calcFee(
-    order.totalAmount,
-    order.collective.hostFeePercent);
-  const platformFeeInHostCurrency = libpayments.calcFee(
-    order.totalAmount, OC_FEE_PERCENT);
   const transactions = await models.Transaction.createFromPayload({
     CreatedByUserId: user.id,
     FromCollectiveId: order.FromCollectiveId,
@@ -82,17 +103,10 @@ export async function processOrder(order) {
       hostFeeInHostCurrency,
       platformFeeInHostCurrency,
       paymentProcessorFeeInHostCurrency: 0,
-      description: order.description
-    }
+      taxAmount: order.taxAmount,
+      description: order.description,
+    },
   });
-
-  // add roles
-  await order.collective.findOrAddUserWithRole({ id: user.id, CollectiveId: order.fromCollective.id}, roles.BACKER, {
-    CreatedByUserId: user.id, TierId: order.TierId,
-  });
-
-  // Mark order row as processed
-  await order.update({ processedAt: new Date() });
 
   // Mark paymentMethod as confirmed
   order.paymentMethod.update({ confirmedAt: new Date() });
@@ -100,12 +114,18 @@ export async function processOrder(order) {
   return transactions;
 }
 
+async function refundTransaction(transaction, user) {
+  /* Create negative transactions for the received transaction */
+  return await createRefundTransaction(transaction, 0, null, user);
+}
+
 /* Expected API of a Payment Method Type */
 export default {
   features: {
     recurring: true,
-    waitToCharge: false
+    waitToCharge: false,
   },
   getBalance,
   processOrder,
+  refundTransaction,
 };

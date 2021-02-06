@@ -24,7 +24,7 @@ DELETE FROM "Transactions" where "CollectiveId" NOT IN (SELECT "CollectiveId" FR
 DELETE FROM "Users" where id NOT IN (SELECT "UserId" FROM "UserGroups");
 
 /* we obfuscate users' email address and tokens */
-UPDATE "Users" SET email=md5(random()::text) || '@gmail.com',_salt='*****',refresh_token='*****',"resetPasswordTokenHash"='*****',password_hash='*****',"seenAt"=NULL,"paypalEmail"='*****';
+UPDATE "Users" SET email=md5(random()::text) || '@gmail.com',"seenAt"=NULL,"paypalEmail"='*****';
 
 /* Delete collectives who are not part of the collectives that we keep */
 DELETE FROM "Groups" where id NOT IN (SELECT "GroupCollectiveROM "UserGroups");

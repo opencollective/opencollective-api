@@ -1,130 +1,115 @@
+import { execSync } from 'child_process';
+
+import Promise from 'bluebird';
+import { expect } from 'chai';
 import config from 'config';
 import debug from 'debug';
-import nock from 'nock';
-import path from 'path';
-import Promise from 'bluebird';
-import Stripe from 'stripe';
-import { exec } from 'child_process';
 import { graphql } from 'graphql';
-import { isArray, values } from 'lodash';
+import { cloneDeep, get, isArray, values } from 'lodash';
+import nock from 'nock';
+
+import * as dbRestore from '../scripts/db_restore';
+import { loaders } from '../server/graphql/loaders';
+import schemaV1 from '../server/graphql/v1/schema';
+import schemaV2 from '../server/graphql/v2/schema';
+import cache from '../server/lib/cache';
+import * as libpayments from '../server/lib/payments';
+/* Server code being used */
+import stripe from '../server/lib/stripe';
+import { sequelize } from '../server/models';
 
 /* Test data */
 import jsonData from './mocks/data';
-
-/* Server code being used */
-import userlib from '../server/lib/userlib';
-import schema from '../server/graphql/schema';
-import { loaders } from '../server/graphql/loaders';
-import { sequelize } from '../server/models';
-import * as libcache from '../server/lib/cache';
-import * as libpayments from '../server/lib/payments';
-import * as stripeGateway from '../server/paymentProviders/stripe/gateway';
-
-const appStripe = Stripe(config.stripe.secret);
 
 if (process.env.RECORD) {
   nock.recorder.rec();
 }
 
-jsonData.application = { name: 'client', api_key: config.keys.opencollective.api_key };
-
-export const data = (item) => {
-  const copy = Object.assign({}, jsonData[item]); // to avoid changing these data
-  return (isArray(jsonData[item])) ? values(copy) : copy;
-}
-
-export const clearbitStubBeforeEach = sandbox => {
-  sandbox.stub(userlib.clearbit.Enrichment, 'find').callsFake(() => {
-    return Promise.reject(new userlib.clearbit.Enrichment.NotFoundError());
-  });
+jsonData.application = {
+  name: 'client',
+  api_key: config.keys.opencollective.apiKey, // eslint-disable-line camelcase
 };
 
-export const clearbitStubAfterEach = (sandbox) => sandbox.restore();
+const debugWaitForCondition = debug('waitForCondition');
 
-export const resetCaches = () => libcache.clearCache();
+export const data = path => {
+  const copy = cloneDeep(get(jsonData, path)); // to avoid changing these data
+  return isArray(get(jsonData, path)) ? values(copy) : copy;
+};
 
-export const resetTestDB = () => sequelize.sync({force: true})
-  .catch(e => {
+export const resetCaches = () => cache.clear();
+
+export const resetTestDB = async () => {
+  await sequelize.sync({ force: true }).catch(e => {
     console.error("test/utils.js> Sequelize Error: Couldn't recreate the schema", e);
     process.exit(1);
   });
+  // That could be an alternative but this doesn't work
+  // await sequelize.truncate({ force: true, cascade: true });
+};
 
-export function loadDB(dbname) {
-
-  const importDB = (cb) => {
-    const cmd = `${path.join(__dirname, '../scripts/db_restore.sh')} -d ${config.database.database} -U ${config.database.username} -f ${path.join(__dirname,"dbdumps", `${dbname}.pgsql`)}`;
-    exec(cmd, cb);
-  };
-
-  return new Promise((resolve, reject) => {
-    importDB((err, stdout) => {
-      if (!err) {
-        debug("utils")(`${dbname} imported successfully`, stdout);
-        return resolve(stdout);
-      }
-      if (err) { // First try may fail due to foreign keys restrictions
-        debug("utils")(`error importing ${dbname}`, err);
-        importDB((err, stdout) => {
-          if (err) {
-            debug("utils")(`2nd attempt: error importing ${dbname}`, err);
-            return reject(err);
-          } else {
-            return resolve(stdout);
-          }
-        });
-      }
-    })
-  });
+export async function loadDB(dbname) {
+  await dbRestore.main({ force: true, file: dbname });
 }
 
-export const stringify = (json) => {
-  return JSON.stringify(json, null, '>>>>').replace(/\n>>>>+"([^"]+)"/g,'$1').replace(/\n|>>>>+/g,'')
-}
+export const stringify = json => {
+  return JSON.stringify(json, null, '>>>>')
+    .replace(/\n>>>>+"([^"]+)"/g, '$1')
+    .replace(/\n|>>>>+/g, '');
+};
 
 export const makeRequest = (remoteUser, query) => {
   return {
     remoteUser,
     body: { query },
-    loaders: loaders({ remoteUser })
-  }
-}
+    loaders: loaders({ remoteUser }),
+  };
+};
 
 export const inspectSpy = (spy, argsCount) => {
-  for (let i=0; i <  spy.callCount; i++) {
-    console.log(`>>> spy.args[${i}]`,  { ...spy.args[i].slice(0, argsCount)});
+  for (let i = 0; i < spy.callCount; i++) {
+    console.log(`>>> spy.args[${i}]`, { ...spy.args[i].slice(0, argsCount) });
   }
-}
+};
 
 /**
  * Wait for condition to be met
  * E.g. await waitForCondition(() => emailSendMessageSpy.callCount === 1)
  * @param {*} cond
  * @param {*} options: { timeout, delay }
+ * @returns {Promise}
  */
-export const waitForCondition = (cond, options = { timeout: 10000, delay: 0 }) => new Promise(resolve => {
-  let hasConditionBeenMet = false;
-  setTimeout(() => {
-    if (hasConditionBeenMet) return;
-    console.log(">>> waitForCondition Timeout Error");
-    console.trace();
-    throw new Error("Timeout waiting for condition", cond);
-  }, options.timeout || 10000);
-  const isConditionMet = () => {
-    hasConditionBeenMet = Boolean(cond());
-    if (options.tag) {
-      console.log(new Date().getTime(), ">>> ", options.tag, "is condition met?", hasConditionBeenMet);
-    }
-    if (hasConditionBeenMet) {
-      return setTimeout(resolve, options.delay || 0);
-    } else {
-      return setTimeout(isConditionMet, options.step || 100);
-    }
-  }
-  isConditionMet();
-});
+export const waitForCondition = (cond, options = { timeout: 10000, delay: 0 }) =>
+  new Promise(resolve => {
+    let hasConditionBeenMet = false;
+    setTimeout(() => {
+      if (hasConditionBeenMet) {
+        return;
+      }
+      console.log('>>> waitForCondition Timeout Error');
+      console.trace();
+      throw new Error('Timeout waiting for condition', cond);
+    }, options.timeout || 10000);
+    const isConditionMet = () => {
+      hasConditionBeenMet = Boolean(cond());
+      debugWaitForCondition(options.tag, `Has condition been met?`, hasConditionBeenMet);
+      if (hasConditionBeenMet) {
+        return setTimeout(resolve, options.delay || 0);
+      } else {
+        return setTimeout(isConditionMet, options.step || 100);
+      }
+    };
+    isConditionMet();
+  });
 
-export const graphqlQuery = async (query, variables, remoteUser) => {
-
+/**
+ * This function allows to test queries and mutations against a specific schema.
+ * @param {string} query - Queries and Mutations to serve against the type schema. Example: `query Expense($id: Int!) { Expense(id: $id) { description } }`
+ * @param {object} variables - Variables to use in the queries and mutations. Example: { id: 1 }
+ * @param {object} remoteUser - The user to add to the context. It is not required.
+ * @param {object} schema - Schema to which queries and mutations will be served against. Schema v1 by default.
+ */
+export const graphqlQuery = async (query, variables, remoteUser, schema = schemaV1) => {
   const prepare = () => {
     if (remoteUser) {
       remoteUser.rolesByCollectiveId = null; // force refetching the roles
@@ -132,22 +117,33 @@ export const graphqlQuery = async (query, variables, remoteUser) => {
     } else {
       return Promise.resolve();
     }
-  }
+  };
 
   if (process.env.DEBUG && process.env.DEBUG.match(/graphql/)) {
-    debug('graphql')("query", query);
-    debug('graphql')("variables", variables);
-    debug('graphql')("context", remoteUser);
+    debug('graphql')('query', query);
+    debug('graphql')('variables', variables);
+    debug('graphql')('context', remoteUser);
   }
 
-  return prepare()
-    .then(() => graphql(
+  return prepare().then(() =>
+    graphql(
       schema,
       query,
       null, // rootValue
       makeRequest(remoteUser, query), // context
-      variables
-    ));
+      variables,
+    ),
+  );
+};
+
+/**
+ * This function allows to test queries and mutations against schema v2.
+ * @param {string} query - Queries and Mutations to serve against the type schema. Example: `query Expense($id: Int!) { Expense(id: $id) { description } }`
+ * @param {object} variables - Variables to use in the queries and mutations. Example: { id: 1 }
+ * @param {object} remoteUser - The user to add to the context. It is not required.
+ */
+export async function graphqlQueryV2(query, variables, remoteUser = null) {
+  return graphqlQuery(query, variables, remoteUser, schemaV2);
 }
 
 /** Helper for interpreting fee description in BDD tests
@@ -178,19 +174,42 @@ export const readFee = (amount, feeStr) => {
   }
 };
 
+export const getTerminalCols = () => {
+  let length = 40;
+  if (process.platform === 'win32') {
+    return length;
+  }
+  try {
+    length = parseInt(execSync('tput cols').toString());
+  } catch {
+    return length;
+  }
+};
+
+export const separator = length => {
+  const terminalCols = length || getTerminalCols();
+
+  let separator = '';
+  for (let i = 0; i < terminalCols; i++) {
+    separator += '-';
+  }
+  console.log(`\n${separator}\n`);
+};
+
 /* ---- Stripe Helpers ---- */
 
 export const createStripeToken = async () => {
-    return appStripe.tokens.create({
+  return stripe.tokens
+    .create({
       card: {
         number: '4242424242424242',
-        exp_month: 12,
-        exp_year: 2028,
-        cvc: 222
-      }
+        exp_month: 12, // eslint-disable-line camelcase
+        exp_year: 2028, // eslint-disable-line camelcase
+        cvc: 222,
+      },
     })
     .then(st => st.id);
-}
+};
 
 /** Stub Stripe methods used while creating transactions
  *
@@ -202,32 +221,78 @@ export function stubStripeCreate(sandbox, overloadDefaults) {
     customer: { id: 'cus_BM7mGwp1Ea8RtL' },
     token: { id: 'tok_1AzPXGD8MNtzsDcgwaltZuvp' },
     charge: { id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' },
+    paymentIntent: { id: 'pi_1F82vtBYycQg1OMfS2Rctiau', status: 'requires_confirmation' },
+    paymentIntentConfirmed: { charges: { data: [{ id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' }] }, status: 'succeeded' },
     ...overloadDefaults,
   };
   /* Little helper function that returns the stub with a given
    * value. */
-  const factory = (name) => async () => values[name];
-  sandbox.stub(stripeGateway, "createCustomer").callsFake(factory('customer'));
-  sandbox.stub(stripeGateway, "createToken").callsFake(factory('token'));
-  sandbox.stub(stripeGateway, "createCharge").callsFake(factory('charge'));
+  const factory = name => async () => values[name];
+  sandbox.stub(stripe.tokens, 'create').callsFake(factory('token'));
+
+  sandbox.stub(stripe.customers, 'create').callsFake(async ({ source }) => {
+    if (source.startsWith('tok_chargeDeclined')) {
+      throw new Error('Your card was declined.');
+    }
+
+    return values.customer;
+  });
+
+  sandbox.stub(stripe.customers, 'retrieve').callsFake(factory('customer'));
+  sandbox.stub(stripe.paymentIntents, 'create').callsFake(factory('paymentIntent'));
+  sandbox.stub(stripe.paymentIntents, 'confirm').callsFake(factory('paymentIntentConfirmed'));
 }
 
-export function stubStripeBalance(sandbox, amount, currency, applicationFee=0, stripeFee=0) {
-  const fee_details = [];
+export function stubStripeBalance(sandbox, amount, currency, applicationFee = 0, stripeFee = 0) {
+  const feeDetails = [];
   const fee = applicationFee + stripeFee;
-  if (applicationFee && applicationFee > 0)
-    fee_details.push({ type: 'application_fee', amount: applicationFee });
-  if (stripeFee && stripeFee > 0)
-    fee_details.push({ type: 'stripe_fee', amount: stripeFee });
-  return sandbox.stub(stripeGateway, "retrieveBalanceTransaction").callsFake(async () => ({
-    id: "txn_1Bs9EEBYycQg1OMfTR33Y5Xr",
-    object: "balance_transaction",
+  if (applicationFee && applicationFee > 0) {
+    feeDetails.push({ type: 'application_fee', amount: applicationFee });
+  }
+  if (stripeFee && stripeFee > 0) {
+    feeDetails.push({ type: 'stripe_fee', amount: stripeFee });
+  }
+
+  const balanceTransaction = {
+    id: 'txn_1Bs9EEBYycQg1OMfTR33Y5Xr',
+    object: 'balance_transaction',
     amount,
     currency: currency.toLowerCase(),
     fee,
-    fee_details,
+    fee_details: feeDetails, // eslint-disable-line camelcase
     net: amount - fee,
-    status: "pending",
-    type: "charge",
-  }));
+    status: 'pending',
+    type: 'charge',
+  };
+  sandbox.stub(stripe.balanceTransactions, 'retrieve').callsFake(() => Promise.resolve(balanceTransaction));
+}
+
+export function expectNoErrorsFromResult(res) {
+  res.errors && console.error(res.errors);
+  expect(res.errors).to.not.exist;
+}
+
+/**
+ * traverse callback function definition.
+ * This callback will be called for every property of object.
+ * https://jsdoc.app/tags-param.html#callback-functions
+ *
+ * @callback PropertyCallback
+ * @param {string} key - Object key.
+ * @param {*} value - Object value at the given key.
+ */
+
+/**
+ * Traverse an object and call cb for every property.
+ * @param {object} obj - Object to traverse.
+ * @param {PropertyCallback} cb - Callback function to be called for every property of obj.
+ */
+export function traverse(obj, cb) {
+  for (const key in obj) {
+    if (obj[key] && typeof obj[key] === 'object') {
+      traverse(obj[key], cb);
+    } else {
+      cb(key, obj[key]);
+    }
+  }
 }

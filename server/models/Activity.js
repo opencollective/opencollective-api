@@ -1,29 +1,64 @@
 import notify from '../lib/notifications';
 
-export default function(Sequelize, DataTypes) {
+export default function (Sequelize, DataTypes) {
+  const Activity = Sequelize.define(
+    'Activity',
+    {
+      type: DataTypes.STRING,
 
-  const Activity = Sequelize.define('Activity', {
-    type: DataTypes.STRING,
+      data: DataTypes.JSONB,
 
-    data: DataTypes.JSON,
+      CollectiveId: {
+        type: DataTypes.INTEGER,
+        references: {
+          model: 'Collectives',
+          key: 'id',
+        },
+      },
 
-    createdAt: {
-      type: DataTypes.DATE,
-      defaultValue: Sequelize.NOW
-    }
-  }, {
-    updatedAt: false,
+      UserId: {
+        type: DataTypes.INTEGER,
+        references: {
+          model: 'Users',
+          key: 'id',
+        },
+      },
 
-    hooks: {
-      afterCreate(activity) {
-        notify(Sequelize, activity); // intentionally no return statement, needs to be async
-      }
-    }
-  });
+      TransactionId: {
+        type: DataTypes.INTEGER,
+        references: {
+          model: 'Transactions',
+          key: 'id',
+        },
+      },
+
+      ExpenseId: {
+        type: DataTypes.INTEGER,
+        references: {
+          model: 'Expenses',
+          key: 'id',
+        },
+      },
+
+      createdAt: {
+        type: DataTypes.DATE,
+        defaultValue: Sequelize.NOW,
+      },
+    },
+    {
+      updatedAt: false,
+
+      hooks: {
+        afterCreate(activity) {
+          notify(Sequelize, activity); // intentionally no return statement, needs to be async
+          return Promise.resolve();
+        },
+      },
+    },
+  );
 
   return Activity;
 }
-
 
 /*
 Types:
@@ -53,9 +88,6 @@ Types:
   - collective.deleted
       data: collective.name, user.info
 
-  + collective.user.added
-      data: collective, user (caller), target (the new user), collectiveuser
-      2* Userid: the new user + the caller
   - collective.user.updated
       data: collective, user (caller), target (the updated user), collectiveuser (updated values)
       2* Userid: the updated user + the caller

@@ -1,4 +1,8 @@
+#!/usr/bin/env node
+import '../server/env';
+
 import { ArgumentParser } from 'argparse';
+
 import * as libdb from '../server/lib/db';
 
 /** Help on how to use this script */
@@ -17,7 +21,7 @@ async function hasData(client) {
 }
 
 /** Launcher that recreates a database & load a dump into it. */
-async function main(args) {
+export async function main(args) {
   if (!args.file) {
     usage();
     return;
@@ -27,7 +31,7 @@ async function main(args) {
 
   const data = await hasData(clientApp);
 
-  if (!data || data && args.force) {
+  if (!data || (data && args.force)) {
     await libdb.loadDB(args.file);
   }
 
@@ -35,28 +39,32 @@ async function main(args) {
 }
 
 /** Return the options passed by the user to run the script */
+/* eslint-disable camelcase */
 function parseCommandLineArguments() {
   const parser = new ArgumentParser({
-    addHelp: true,
-    description: 'Restore dump file into a Database'
+    add_help: true,
+    description: 'Restore dump file into a Database',
   });
-  parser.addArgument(['-q', '--quiet'], {
+  parser.add_argument('-q', '--quiet', {
     help: 'Silence output',
-    defaultValue: true,
-    action: 'storeConst',
-    constant: false,
+    default: true,
+    action: 'store_const',
+    const: false,
   });
-  parser.addArgument(['-f', '--force'], {
-    help: "Overwrite existing database",
-    defaultValue: false,
-    action: 'storeConst',
-    constant: true,
+  parser.add_argument('-f', '--force', {
+    help: 'Overwrite existing database',
+    default: false,
+    action: 'store_const',
+    const: true,
   });
-  parser.addArgument(['file'], {
-    help: "Path for the dump file",
+  parser.add_argument('file', {
+    help: 'Path for the dump file',
     action: 'store',
   });
-  return parser.parseArgs();
+  return parser.parse_args();
 }
+/* eslint-enable camelcase */
 
-if (!module.parent) main(parseCommandLineArguments());
+if (!module.parent) {
+  main(parseCommandLineArguments());
+}

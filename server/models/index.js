@@ -1,50 +1,6 @@
-/**
- * Dependencies.
- */
-import pg from 'pg';
 import Sequelize from 'sequelize';
-import { database as config } from 'config';
-import debug from 'debug';
 
-// this is needed to prevent sequelize from converting integers to strings, when model definition isn't clear
-// like in case of the key totalOrders and raw query (like User.getTopBackers())
-pg.defaults.parseInt8 = true;
-
-/**
- * Database connection.
- */
-console.log(`Connecting to postgres://${config.options.host}/${config.database}`);
-
-// If we launch the process with DEBUG=psql, we log the postgres queries
-if (process.env.DEBUG && process.env.DEBUG.match(/psql/)) {
-  config.options.logging = true;
-}
-
-if (config.options.logging) {
-  if (process.env.NODE_ENV === 'production') {
-    config.options.logging = (query, executionTime) => {
-      if (executionTime > 50) {
-        debug("psql")(query.replace(/(\n|\t| +)/g,' ').slice(0, 100), '|', executionTime, 'ms');
-      }
-    }
-  } else {
-    config.options.logging = (query, executionTime) => {
-      debug("psql")(`\n-------------------- <query> --------------------\n`,query,`\n-------------------- </query executionTime="${executionTime}"> --------------------\n`);
-    }
-  }
-}
-
-config.options.operatorsAliases = false;
-
-export const sequelize = new Sequelize(
-  config.database,
-  config.username,
-  config.password,
-  config.options
-);
-
-const models = setupModels(sequelize);
-export default models;
+import sequelize from '../lib/sequelize';
 
 /**
  * Separate function to be able to use in scripts
@@ -58,21 +14,33 @@ export function setupModels(client) {
 
   [
     'Activity',
+    'Application',
     'ConnectedAccount',
-    'Order',
-    'Expense',
     'Collective',
     'Comment',
-    'Notification',
-    'PaymentMethod',
+    'CommentReaction',
+    'Conversation',
+    'ConversationFollower',
+    'CurrencyExchangeRate',
+    'Expense',
+    'ExpenseAttachedFile',
+    'ExpenseItem',
+    'HostApplication',
+    'LegalDocument',
     'Member',
+    'MemberInvitation',
+    'Notification',
+    'Order',
+    'PaymentMethod',
+    'PayoutMethod',
+    'RequiredLegalDocument',
     'Session',
     'Subscription',
     'Tier',
     'Transaction',
     'Update',
-    'User'
-  ].forEach((model) => {
+    'User',
+  ].forEach(model => {
     m[model] = client.import(`${__dirname}/${model}`);
   });
 
@@ -82,25 +50,60 @@ export function setupModels(client) {
 
   // PaymentMethod.
   m.PaymentMethod.belongsTo(m.Collective);
+  m.PaymentMethod.belongsTo(m.PaymentMethod, {
+    as: 'sourcePaymentMethod',
+    foreignKey: 'SourcePaymentMethodId',
+  });
 
   // User
   m.User.hasMany(m.Activity);
   m.User.hasMany(m.Notification);
-  m.User.hasMany(m.Transaction, { foreignKey: 'CreatedByUserId', as: 'transactions' });
+  m.User.hasMany(m.Transaction, {
+    foreignKey: 'CreatedByUserId',
+    as: 'transactions',
+  });
   m.User.hasMany(m.Order, { foreignKey: 'CreatedByUserId', as: 'orders' });
   m.User.hasMany(m.PaymentMethod, { foreignKey: 'CreatedByUserId' });
   m.User.hasMany(m.Member, { foreignKey: 'CreatedByUserId' });
   m.User.hasMany(m.ConnectedAccount, { foreignKey: 'CreatedByUserId' });
-  m.User.belongsTo(m.Collective, { as: 'collective', foreignKey: 'CollectiveId', constraints: false });
+  m.User.belongsTo(m.Collective, {
+    as: 'collective',
+    foreignKey: 'CollectiveId',
+    constraints: false,
+  });
 
   // Members
-  m.Member.belongsTo(m.User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
-  m.Member.belongsTo(m.Collective, { foreignKey: 'MemberCollectiveId', as: 'memberCollective' });
-  m.Member.belongsTo(m.Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+  m.Member.belongsTo(m.User, {
+    foreignKey: 'CreatedByUserId',
+    as: 'createdByUser',
+  });
+  m.Member.belongsTo(m.Collective, {
+    foreignKey: 'MemberCollectiveId',
+    as: 'memberCollective',
+  });
+  m.Member.belongsTo(m.Collective, {
+    foreignKey: 'CollectiveId',
+    as: 'collective',
+  });
   m.Member.belongsTo(m.Tier);
 
-  // ConnectedAccount
-  m.ConnectedAccount.belongsTo(m.Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+  // Member invitations
+  m.MemberInvitation.belongsTo(m.User, {
+    foreignKey: 'CreatedByUserId',
+    as: 'createdByUser',
+  });
+
+  m.MemberInvitation.belongsTo(m.Collective, {
+    foreignKey: 'MemberCollectiveId',
+    as: 'memberCollective',
+  });
+
+  m.MemberInvitation.belongsTo(m.Collective, {
+    foreignKey: 'CollectiveId',
+    as: 'collective',
+  });
+
+  m.MemberInvitation.belongsTo(m.Tier);
 
   // Activity.
   m.Activity.belongsTo(m.Collective);
@@ -114,48 +117,109 @@ export function setupModels(client) {
 
   // Transaction.
   m.Collective.hasMany(m.Transaction, { foreignKey: 'CollectiveId' });
-  m.Transaction.belongsTo(m.Collective, { foreignKey: 'CollectiveId', as: 'collective' });
-  m.Transaction.belongsTo(m.Collective, { foreignKey: 'FromCollectiveId', as: 'fromCollective' });
+  m.Transaction.belongsTo(m.Collective, {
+    foreignKey: 'CollectiveId',
+    as: 'collective',
+  });
+  m.Transaction.belongsTo(m.Collective, {
+    foreignKey: 'FromCollectiveId',
+    as: 'fromCollective',
+  });
+  m.Transaction.belongsTo(m.Collective, {
+    foreignKey: 'UsingVirtualCardFromCollectiveId',
+    as: 'usingVirtualCardFromCollective',
+  });
 
-  m.Transaction.belongsTo(m.User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
-  m.Transaction.belongsTo(m.Collective, { foreignKey: 'HostCollectiveId', as: 'host' });
+  m.Transaction.belongsTo(m.User, {
+    foreignKey: 'CreatedByUserId',
+    as: 'createdByUser',
+  });
+  m.Transaction.belongsTo(m.Collective, {
+    foreignKey: 'HostCollectiveId',
+    as: 'host',
+  });
   m.Transaction.belongsTo(m.PaymentMethod);
   m.PaymentMethod.hasMany(m.Transaction);
 
   // Expense
   m.Expense.belongsTo(m.User);
-  m.Expense.belongsTo(m.Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+  m.Expense.belongsTo(m.PayoutMethod);
+  m.Expense.belongsTo(m.Collective, {
+    foreignKey: 'CollectiveId',
+    as: 'collective',
+  });
+  m.Expense.belongsTo(m.Collective, {
+    foreignKey: 'FromCollectiveId',
+    as: 'fromCollective',
+  });
+  m.Expense.hasMany(m.ExpenseAttachedFile, { as: 'attachedFiles' });
+  m.Expense.hasMany(m.ExpenseItem, { as: 'items' });
+  m.Expense.hasMany(m.Transaction);
   m.Transaction.belongsTo(m.Expense);
   m.Transaction.belongsTo(m.Order);
 
+  // Expense items
+  m.ExpenseItem.belongsTo(m.Expense);
+
+  // Expense attached files
+  m.ExpenseAttachedFile.belongsTo(m.Expense);
+
+  // Comment reactions
+  m.CommentReaction.belongsTo(m.Comment);
+  m.CommentReaction.belongsTo(m.User);
+
   // Order.
-  m.Order.belongsTo(m.User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
-  m.Order.belongsTo(m.Collective, { foreignKey: 'FromCollectiveId', as: 'fromCollective' });
-  m.Order.belongsTo(m.Collective, { foreignKey: 'CollectiveId', as: 'collective' });
-  m.Order.belongsTo(m.Collective, { foreignKey: 'ReferralCollectiveId', as: 'referral' });
+  m.Order.belongsTo(m.User, {
+    foreignKey: 'CreatedByUserId',
+    as: 'createdByUser',
+  });
+  m.Order.belongsTo(m.Collective, {
+    foreignKey: 'FromCollectiveId',
+    as: 'fromCollective',
+  });
+  m.Order.belongsTo(m.Collective, {
+    foreignKey: 'CollectiveId',
+    as: 'collective',
+  });
   m.Order.belongsTo(m.Tier);
   // m.Collective.hasMany(m.Order); // makes the test `mocha test/graphql.transaction.test.js -g "insensitive" fail
-  m.Collective.hasMany(m.Member, { foreignKey: "CollectiveId", as: 'members'});
-  m.Collective.hasMany(m.Order, { foreignKey: "CollectiveId", as: 'orders'});
+  m.Collective.hasMany(m.Member, { foreignKey: 'CollectiveId', as: 'members' });
+  m.Collective.hasMany(m.Order, { foreignKey: 'CollectiveId', as: 'orders' });
+  m.Collective.hasMany(m.LegalDocument, { foreignKey: 'CollectiveId', as: 'legalDocuments' });
   m.Transaction.belongsTo(m.Order);
   m.Order.hasMany(m.Transaction);
   m.Tier.hasMany(m.Order);
+
+  // Legal documents
+  m.LegalDocument.belongsTo(m.Collective);
 
   // Subscription
   m.Order.belongsTo(m.Subscription); // adds SubscriptionId to the Orders table
   m.Subscription.hasOne(m.Order);
 
   // PaymentMethod
-  m.Order.belongsTo(m.PaymentMethod, { foreignKey: 'PaymentMethodId', as: 'paymentMethod' });
+  m.Order.belongsTo(m.PaymentMethod, {
+    foreignKey: 'PaymentMethodId',
+    as: 'paymentMethod',
+  });
   m.PaymentMethod.hasMany(m.Order);
   m.Transaction.belongsTo(m.PaymentMethod);
+
+  // Payout method
+  m.PayoutMethod.belongsTo(m.User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
+  m.PayoutMethod.belongsTo(m.Collective);
+  m.Collective.hasMany(m.PayoutMethod);
 
   // Tier
   m.Tier.belongsTo(m.Collective);
 
-  Object.keys(m).forEach((modelName) => m[modelName].associate && m[modelName].associate(m));
+  Object.keys(m).forEach(modelName => m[modelName].associate && m[modelName].associate(m));
 
   return m;
 }
 
-export const Op = Sequelize.Op;
+const Op = Sequelize.Op;
+const models = setupModels(sequelize);
+
+export { sequelize, Op };
+export default models;

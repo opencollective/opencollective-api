@@ -1,31 +1,34 @@
 {
-  "database": {
-    "database": "opencollective_dvl",
-    "username": "opencollective",
-    "password": "",
-    "options": {
-      "host": "127.0.0.1",
-      "dialect": "postgres",
-      "logging": false,
-      "benchmark": true
+  "maildev": {
+    "client": true,
+    "server": true
+  },
+  "limits": {
+    "ordersPerHour": {
+      "perAccount": 100,
+      "perAccountForCollective": 20,
+      "perEmail": 100,
+      "perEmailForCollective": 20,
+      "perIp": 50,
+      "sendGuestConfirmPerMinutePerEmail": 10,
+      "sendGuestConfirmPerMinutePerIp": 15,
+      "confirmGuestAccountPerMinutePerIp": 15
+    },
+    "virtualCards": {
+      "maxPerDay": 1000
     }
   },
-  "maintenancedb": {
-    "database": "postgres",
-    "username": "postgres",
-    "password": "",
-    "options": {
-      "host": "127.0.0.1"
-    }
+  "log": {
+    "slowRequest": true
   },
-  "keys": {
-    "opencollective": {
-      "api_key": "dvl-1510egmf4a23d80342403fb599qd",
-      "secret": "dvl-7749ba6ad8e62b53b18b4c30295f45d849c1",
-      "session_secret": "i&j@/V6Wx.`g>Aq?qQQF(>u)/Erm;3A="
-    }
+  "github": {
+    "clientID": "cdc163e5f5695e16787b",
+    "clientSecret": "1cc8e3a615af3a8ca47cd1f15adcfcdd1e880db4"
   },
-  "stripe": {
-    "platformPublishableKey": "pk_test_VgSB4VSg2wb5LdAkz7p38Gw8"
+  "githubFlow": {
+    "minNbStars": 0
+  },
+  "host": {
+    "pdf": "http://localhost:3002"
   }
 }

@@ -2,38 +2,37 @@
  * Slack message sending logic
  */
 
-import Slack from 'node-slack';
 import config from 'config';
-import debug from 'debug';
-import activitiesLib from '../lib/activities';
-import constants from '../constants/activities';
+import Slack from 'node-slack';
 
-const debugSlack = debug('slack');
+import activitiesLib from '../lib/activities';
+
+import logger from './logger';
+
+export const OPEN_COLLECTIVE_SLACK_CHANNEL = {
+  ABUSE: 'abuse',
+};
 
 export default {
-
-  /*
-   * Post a given activity to OpenCollective private channel
-   * This method can only publish to our webhookUrl and our private channel, so we don't leak info by mistake
-   */
-  postActivityOnPrivateChannel(activity) {
-    const message = activitiesLib.formatMessageForPrivateChannel(activity, 'slack');
-    const options = {
-      attachments: formatAttachment(activity),
-      channel: config.slack.privateActivityChannel
-    };
-    return this.postMessage(message, config.slack.webhookUrl, options);
-  },
-
   /*
    * Post a given activity to a public channel (meaning scrubbed info only)
    */
-  postActivityOnPublicChannel(activity, webhookUrl, options) {
-    if (!options) {
-      options = {};
+  postActivityOnPublicChannel(activity, webhookUrl) {
+    const message = activitiesLib.formatMessageForPublicChannel(activity, 'slack');
+    return this.postMessage(message, webhookUrl);
+  },
+
+  /**
+   * Post a message on Open Collective's Slack. Channel must be a valid key of
+   * `config.slack.webhooks`. Use the `OPEN_COLLECTIVE_SLACK_CHANNEL` helper.
+   */
+  postMessageToOpenCollectiveSlack(message, channel) {
+    const webhookUrl = config.slack.webhooks[channel];
+    if (webhookUrl) {
+      this.postMessage(message, webhookUrl);
+    } else if (typeof webhookUrl === 'undefined') {
+      logger.warn(`Unknown slack channel ${channel}`);
     }
-      const message = activitiesLib.formatMessageForPublicChannel(activity, 'slack');
-      return this.postMessage(message, webhookUrl, options);
   },
 
   /*
@@ -45,24 +44,19 @@ export default {
     }
 
     if (options.linkTwitterMentions) {
-      msg = msg.replace(/@([a-z\d_]+)/ig, '<http://twitter.com/$1|@$1>');
+      msg = msg.replace(/@([a-z\d_]+)/gi, '<http://twitter.com/$1|@$1>');
     }
 
     const slackOptions = {
       text: msg,
-      username: 'OpenCollective Activity Bot',
-      icon_url: 'https://opencollective.com/favicon.ico',
-      attachments: options.attachments || []
+      username: 'OpenCollective',
+      icon_url: 'https://opencollective.com/favicon.ico', // eslint-disable-line camelcase
+      attachments: options.attachments || [],
     };
-
-    // note that channel is optional on slack, as every webhook has a default channel
-    if (options.channel) {
-      slackOptions.channel = options.channel;
-    }
 
     return new Promise((resolve, reject) => {
       // production check
-      if (process.env.NODE_ENV !== 'production' && !process.env.TEST_SLACK) {
+      if (config.env !== 'production' && !process.env.TEST_SLACK) {
         return resolve();
       }
 
@@ -70,25 +64,13 @@ export default {
         return resolve();
       }
 
-      return new Slack(webhookUrl, {})
-        .send(slackOptions, (err) => {
-          if (err) {
-            debugSlack(err);
-            return reject(err);
-          }
-          return resolve();
-        });
+      return new Slack(webhookUrl, {}).send(slackOptions, err => {
+        if (err) {
+          logger.warn(`SlackLib.postMessage failed for ${webhookUrl}:`, err);
+          return reject(err);
+        }
+        return resolve();
+      });
     });
-  }
+  },
 };
-
-const formatAttachment = (activity) => {
-  if (activity.type === constants.WEBHOOK_STRIPE_RECEIVED) {
-    return [{
-      title: 'Data',
-      color: 'good',
-      text: activitiesLib.formatAttachment(activity.data)
-    }];
-  }
-  return [];
-}

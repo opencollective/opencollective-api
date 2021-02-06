@@ -1,3 +1,6 @@
+#!/usr/bin/env node
+import '../server/env';
+
 /**
  * These are some recommendations for using the script in
  * *development* mode. We currently have ~70000 transactions in our
@@ -19,28 +22,25 @@
  * don't block the database for other transactions.
  */
 import fs from 'fs';
-import moment from 'moment';
-import { ArgumentParser } from 'argparse';
 import { promisify } from 'util';
-import { result, includes } from 'lodash';
 
-import models, { sequelize } from '../server/models';
-import * as transactionsLib from '../server/lib/transactions';
-import * as paymentsLib from '../server/lib/payments';
-import { OC_FEE_PERCENT } from '../server/constants/transactions';
-import { sleep } from '../server/lib/utils';
-import { toNegative } from '../server/lib/math';
+import { ArgumentParser } from 'argparse';
+import { includes, result } from 'lodash';
+import moment from 'moment';
+
 import libemail from '../server/lib/email';
+import { toNegative } from '../server/lib/math';
+import * as transactionsLib from '../server/lib/transactions';
+import { sleep } from '../server/lib/utils';
+import models, { sequelize } from '../server/models';
 
 const REPORT_EMAIL = 'ops@opencollective.com';
 
 /** The script won't ever touch transaction groups in this list */
-const DONT_TOUCH_THESE_TRANSACTION_GROUPS = [
-  '4747823b-9924-4109-bb64-bed45f1ae151',
-];
+const DONT_TOUCH_THESE_TRANSACTION_GROUPS = ['4747823b-9924-4109-bb64-bed45f1ae151'];
 
 /** Helper that shows an icon transaction status */
-const icon = (good) => good ? '✅' : '❌';
+const icon = good => (good ? '✅' : '❌');
 
 export class Migration {
   constructor(options) {
@@ -56,7 +56,7 @@ export class Migration {
   /** Retrieve the total number of valid transactions */
   countValidTransactions = async () => {
     return models.Transaction.count({ where: { deletedAt: null } });
-  }
+  };
 
   /** Retrieve a batch of valid transactions */
   retrieveValidTransactions = async () => {
@@ -64,35 +64,39 @@ export class Migration {
       where: { deletedAt: null },
       order: ['TransactionGroup'],
       limit: this.options.batchSize,
-      offset: this.offset
+      offset: this.offset,
     });
     this.offset += transactions.length;
     return transactions;
-  }
+  };
 
   /** Saves what type of change was made to a given field in a transaction */
   saveTransactionChange = (tr, field, oldValue, newValue) => {
-    if (!tr.data) tr.data = {};
-    if (!tr.data.migration) tr.data.migration = {};
-    if (!tr.data.migration[this.date]) tr.data.migration[this.date] = {};
+    if (!tr.data) {
+      tr.data = {};
+    }
+    if (!tr.data.migration) {
+      tr.data.migration = {};
+    }
+    if (!tr.data.migration[this.date]) {
+      tr.data.migration[this.date] = {};
+    }
     tr.data.migration[this.date][field] = { oldValue, newValue };
 
     // Sequelize isn't really that great detecting changes in JSON
     // fields. So we're explicitly signaling the change.
     tr.changed('data', true);
-  }
+  };
 
   /** Ensure that `tr` has the `hostCurrencyFxRate` field filled in */
-  ensureHostCurrencyFxRate = (tr) => {
-    if (tr.amount === tr.amountInHostCurrency
-        && tr.currency === tr.hostCurrency
-        && !tr.hostCurrencyFxRate) {
+  ensureHostCurrencyFxRate = tr => {
+    if (tr.amount === tr.amountInHostCurrency && tr.currency === tr.hostCurrency && !tr.hostCurrencyFxRate) {
       tr.hostCurrencyFxRate = 1;
       this.saveTransactionChange(tr, 'hostCurrencyFxRate', null, 1);
       return true;
     }
     return false;
-  }
+  };
 
   /** Rewrite Host, Platform, and Payment Processor Fees
    *
@@ -105,58 +109,106 @@ export class Migration {
     const newHostFeeInHostCurrency = toNegative(credit.hostFeeInHostCurrency || debit.hostFeeInHostCurrency);
     if (newHostFeeInHostCurrency || newHostFeeInHostCurrency === 0) {
       if (newHostFeeInHostCurrency !== credit.hostFeeInHostCurrency) {
-        this.saveTransactionChange(credit, 'hostFeeInHostCurrency', credit.hostFeeInHostCurrency, newHostFeeInHostCurrency);
+        this.saveTransactionChange(
+          credit,
+          'hostFeeInHostCurrency',
+          credit.hostFeeInHostCurrency,
+          newHostFeeInHostCurrency,
+        );
         credit.hostFeeInHostCurrency = newHostFeeInHostCurrency;
-        if (!changed.includes(credit)) changed.push(credit);
+        if (!changed.includes(credit)) {
+          changed.push(credit);
+        }
       }
       if (newHostFeeInHostCurrency !== debit.hostFeeInHostCurrency) {
-        this.saveTransactionChange(debit, 'hostFeeInHostCurrency', debit.hostFeeInHostCurrency, newHostFeeInHostCurrency);
+        this.saveTransactionChange(
+          debit,
+          'hostFeeInHostCurrency',
+          debit.hostFeeInHostCurrency,
+          newHostFeeInHostCurrency,
+        );
         debit.hostFeeInHostCurrency = newHostFeeInHostCurrency;
-        if (!changed.includes(debit)) changed.push(debit);
+        if (!changed.includes(debit)) {
+          changed.push(debit);
+        }
       }
     }
     // Update platformFeeInHostCurrency
-    const newPlatformFeeInHostCurrency = toNegative(credit.platformFeeInHostCurrency || debit.platformFeeInHostCurrency);
+    const newPlatformFeeInHostCurrency = toNegative(
+      credit.platformFeeInHostCurrency || debit.platformFeeInHostCurrency,
+    );
     if (newPlatformFeeInHostCurrency || newPlatformFeeInHostCurrency === 0) {
       if (newPlatformFeeInHostCurrency !== credit.platformFeeInHostCurrency) {
-        this.saveTransactionChange(credit, 'platformFeeInHostCurrency', credit.platformFeeInHostCurrency, newPlatformFeeInHostCurrency);
+        this.saveTransactionChange(
+          credit,
+          'platformFeeInHostCurrency',
+          credit.platformFeeInHostCurrency,
+          newPlatformFeeInHostCurrency,
+        );
         credit.platformFeeInHostCurrency = newPlatformFeeInHostCurrency;
-        if (!changed.includes(credit)) changed.push(credit);
+        if (!changed.includes(credit)) {
+          changed.push(credit);
+        }
       }
       if (newPlatformFeeInHostCurrency !== debit.platformFeeInHostCurrency) {
-        this.saveTransactionChange(debit, 'platformFeeInHostCurrency', debit.platformFeeInHostCurrency, newPlatformFeeInHostCurrency);
+        this.saveTransactionChange(
+          debit,
+          'platformFeeInHostCurrency',
+          debit.platformFeeInHostCurrency,
+          newPlatformFeeInHostCurrency,
+        );
         debit.platformFeeInHostCurrency = newPlatformFeeInHostCurrency;
-        if (!changed.includes(debit)) changed.push(debit);
+        if (!changed.includes(debit)) {
+          changed.push(debit);
+        }
       }
     }
     // Update paymentProcessorFeeInHostCurrency
-    const newPaymentProcessorFeeInHostCurrency = toNegative(credit.paymentProcessorFeeInHostCurrency || debit.paymentProcessorFeeInHostCurrency);
+    const newPaymentProcessorFeeInHostCurrency = toNegative(
+      credit.paymentProcessorFeeInHostCurrency || debit.paymentProcessorFeeInHostCurrency,
+    );
     if (newPaymentProcessorFeeInHostCurrency || newPaymentProcessorFeeInHostCurrency === 0) {
       if (newPaymentProcessorFeeInHostCurrency !== credit.paymentProcessorFeeInHostCurrency) {
-        this.saveTransactionChange(credit, 'paymentProcessorFeeInHostCurrency', credit.paymentProcessorFeeInHostCurrency, newPaymentProcessorFeeInHostCurrency);
+        this.saveTransactionChange(
+          credit,
+          'paymentProcessorFeeInHostCurrency',
+          credit.paymentProcessorFeeInHostCurrency,
+          newPaymentProcessorFeeInHostCurrency,
+        );
         credit.paymentProcessorFeeInHostCurrency = newPaymentProcessorFeeInHostCurrency;
-        if (!changed.includes(credit)) changed.push(credit);
+        if (!changed.includes(credit)) {
+          changed.push(credit);
+        }
       }
       if (newPaymentProcessorFeeInHostCurrency !== debit.paymentProcessorFeeInHostCurrency) {
-        this.saveTransactionChange(debit, 'paymentProcessorFeeInHostCurrency', debit.paymentProcessorFeeInHostCurrency, newPaymentProcessorFeeInHostCurrency);
+        this.saveTransactionChange(
+          debit,
+          'paymentProcessorFeeInHostCurrency',
+          debit.paymentProcessorFeeInHostCurrency,
+          newPaymentProcessorFeeInHostCurrency,
+        );
         debit.paymentProcessorFeeInHostCurrency = newPaymentProcessorFeeInHostCurrency;
-        if (!changed.includes(debit)) changed.push(debit);
+        if (!changed.includes(debit)) {
+          changed.push(debit);
+        }
       }
     }
     return changed;
-  }
+  };
 
   /** Recalculate amountInHostCurrency & netAmountInCollectiveCurrency */
-  rewriteCreditAmounts = (credit) => {
+  rewriteCreditAmounts = credit => {
     let changed = false;
 
     /* Rewrite amountInHostCurrency for credit */
     const newAmountInHostCurrencyCredit = Math.round(credit.amount * credit.hostCurrencyFxRate);
     if (newAmountInHostCurrencyCredit !== credit.amountInHostCurrency) {
       this.saveTransactionChange(
-        credit, 'amountInHostCurrency',
+        credit,
+        'amountInHostCurrency',
         credit.amountInHostCurrency,
-        newAmountInHostCurrencyCredit);
+        newAmountInHostCurrencyCredit,
+      );
       credit.amountInHostCurrency = newAmountInHostCurrencyCredit;
       changed = true;
     }
@@ -165,14 +217,16 @@ export class Migration {
     const newNetAmountInCollectiveCurrency = transactionsLib.netAmount(credit);
     if (newNetAmountInCollectiveCurrency !== credit.netAmountInCollectiveCurrency) {
       this.saveTransactionChange(
-        credit, 'netAmountInCollectiveCurrency',
+        credit,
+        'netAmountInCollectiveCurrency',
         credit.netAmountInCollectiveCurrency,
-        newNetAmountInCollectiveCurrency);
+        newNetAmountInCollectiveCurrency,
+      );
       credit.netAmountInCollectiveCurrency = newNetAmountInCollectiveCurrency;
       changed = true;
     }
     return changed;
-  }
+  };
 
   /** Recalculate amountInHostCurrency, amount & netAmountInCollectiveCurrency for debit */
   rewriteDebitAmounts = (credit, debit) => {
@@ -181,18 +235,12 @@ export class Migration {
     /* Rewrite amount & amountInHostCurrency for debit */
     const newAmountInHostCurrency = -credit.netAmountInCollectiveCurrency;
     if (debit.amount !== newAmountInHostCurrency) {
-      this.saveTransactionChange(
-        debit, 'amount',
-        debit.amount,
-        newAmountInHostCurrency);
+      this.saveTransactionChange(debit, 'amount', debit.amount, newAmountInHostCurrency);
       debit.amount = newAmountInHostCurrency;
       changed = true;
     }
     if (debit.amountInHostCurrency !== newAmountInHostCurrency) {
-      this.saveTransactionChange(
-        debit, 'amountInHostCurrency',
-        debit.amountInHostCurrency,
-        newAmountInHostCurrency);
+      this.saveTransactionChange(debit, 'amountInHostCurrency', debit.amountInHostCurrency, newAmountInHostCurrency);
       debit.amountInHostCurrency = newAmountInHostCurrency;
       changed = true;
     }
@@ -201,14 +249,16 @@ export class Migration {
     const newNetAmountInCollectiveCurrencyDebit = -credit.amountInHostCurrency;
     if (debit.netAmountInCollectiveCurrency !== newNetAmountInCollectiveCurrencyDebit) {
       this.saveTransactionChange(
-        debit, 'netAmountInCollectiveCurrency',
+        debit,
+        'netAmountInCollectiveCurrency',
         debit.netAmountInCollectiveCurrency,
-        newNetAmountInCollectiveCurrencyDebit);
+        newNetAmountInCollectiveCurrencyDebit,
+      );
       debit.netAmountInCollectiveCurrency = newNetAmountInCollectiveCurrencyDebit;
       changed = true;
     }
     return changed;
-  }
+  };
 
   /** Create an order for orphan transactions */
   createOrder = async (credit, debit) => {
@@ -221,7 +271,7 @@ export class Migration {
       currency: credit.currency,
       processedAt: credit.createdAt,
       PaymentMethodId: credit.PaymentMethodId,
-      quantity: 1
+      quantity: 1,
     });
 
     this.saveTransactionChange(credit, 'OrderId', credit.OrderId, order.id);
@@ -229,7 +279,7 @@ export class Migration {
 
     this.saveTransactionChange(debit, 'OrderId', debit.OrderId, order.id);
     debit.OrderId = order.id;
-  }
+  };
 
   /** Make sure two transactions are pairs of each other */
   validatePair = (tr1, tr2) => {
@@ -248,20 +298,20 @@ export class Migration {
     if (tr2.OrderId && tr2.ExpenseId) {
       throw new Error('tr2 cannot be order & expense');
     }
-  }
+  };
 
   /** transactionsLib.verify as a boolean function */
-  verify = (tr) => transactionsLib.verify(tr) === true;
+  verify = tr => transactionsLib.verify(tr) === true;
 
   /** Migrate a pair of transactions */
   migratePair = (type, credit, debit) => {
     const fileName = `broken.${type.toLowerCase()}.csv`;
     const fixed = [];
-    const isFixed = (tr) => fixed.includes(tr);
+    const isFixed = tr => fixed.includes(tr);
 
     // Both CREDIT & DEBIT transactions add up
     if (this.verify(credit) && this.verify(debit)) {
-      vprint(`${type}.: true, true`);;
+      vprint(`${type}.: true, true`);
       return [];
     }
 
@@ -324,37 +374,43 @@ export class Migration {
 
     // Something is still off
     if (!isFixed(credit) && !this.verify(credit)) {
-      this.log(fileName, [
-        credit.id,
-        'CREDIT',
-        credit.TransactionGroup,
-        credit.PaymentMethodId,
-        credit.currency,
-        credit.hostCurrency,
-        credit.hostCurrencyFxRate,
-        transactionsLib.verify(credit),
-        transactionsLib.difference(credit),
-        credit.amount,
-        credit.netAmountInCollectiveCurrency,
-      ].join(', '));
+      this.log(
+        fileName,
+        [
+          credit.id,
+          'CREDIT',
+          credit.TransactionGroup,
+          credit.PaymentMethodId,
+          credit.currency,
+          credit.hostCurrency,
+          credit.hostCurrencyFxRate,
+          transactionsLib.verify(credit),
+          transactionsLib.difference(credit),
+          credit.amount,
+          credit.netAmountInCollectiveCurrency,
+        ].join(', '),
+      );
     }
     if (!isFixed(debit) && !this.verify(debit)) {
-      this.log(fileName, [
-        debit.id,
-        'DEBIT',
-        debit.TransactionGroup,
-        debit.PaymentMethodId,
-        debit.currency,
-        debit.hostCurrency,
-        debit.hostCurrencyFxRate,
-        transactionsLib.verify(debit),
-        transactionsLib.difference(debit),
-        debit.amount,
-        debit.netAmountInCollectiveCurrency,
-      ].join(', '));
+      this.log(
+        fileName,
+        [
+          debit.id,
+          'DEBIT',
+          debit.TransactionGroup,
+          debit.PaymentMethodId,
+          debit.currency,
+          debit.hostCurrency,
+          debit.hostCurrencyFxRate,
+          transactionsLib.verify(debit),
+          transactionsLib.difference(debit),
+          debit.amount,
+          debit.netAmountInCollectiveCurrency,
+        ].join(', '),
+      );
     }
     return fixed;
-  }
+  };
 
   /** Migrate one pair of transactions.
    *
@@ -363,7 +419,7 @@ export class Migration {
   migrate = async (tr1, tr2) => {
     this.validatePair(tr1, tr2);
     const credit = tr1.type === 'CREDIT' ? tr1 : tr2;
-    const debit =  tr1.type === 'DEBIT' ? tr1 : tr2;
+    const debit = tr1.type === 'DEBIT' ? tr1 : tr2;
 
     if (includes(DONT_TOUCH_THESE_TRANSACTION_GROUPS, tr1.TransactionGroup)) {
       const [vc, vd] = [this.verify(credit), this.verify(debit)];
@@ -406,17 +462,15 @@ export class Migration {
     // console.log('    * D:hostFee.....: ', debit.hostFeeInHostCurrency);
     // console.log('    * D:platformFee.: ', debit.platformFeeInHostCurrency);
     // console.log('    * D:ppFee.......: ', debit.paymentProcessorFeeInHostCurrency);
-    return false;
-  }
+    // return false;
+  };
 
   /** Run the whole migration */
   run = async () => {
     this.writeFileHeaders();
     let rowsChanged = 0;
     const allTransactions = await this.countValidTransactions();
-    const count = this.options.limit
-          ? Math.min(this.options.limit, allTransactions)
-          : allTransactions;
+    const count = this.options.limit ? Math.min(this.options.limit, allTransactions) : allTransactions;
 
     this.log('report.txt', `Ledger Fixer Report (dryRun: ${this.options.dryRun})`);
     this.log('report.txt', `Analyzing ${count} of ${allTransactions}\n`);
@@ -478,24 +532,34 @@ export class Migration {
         this.log('report.txt', ` * ${filename} ${length}`);
       }
     }
-  }
+  };
 
   stillBroken = async () => {
-    const allTransactions = await models.Transaction.findAll({ where: { deletedAt: null } });
-    const funkyTransactions = allTransactions.filter((tr) => !this.verify(tr));
+    const allTransactions = await models.Transaction.findAll({
+      where: { deletedAt: null },
+    });
+    const funkyTransactions = allTransactions.filter(tr => !this.verify(tr));
     return funkyTransactions.length;
-  }
+  };
 
-  incr = (counter) => {
-    if (!this.counters[counter]) this.counters[counter] = 0;
+  incr = counter => {
+    if (!this.counters[counter]) {
+      this.counters[counter] = 0;
+    }
     this.counters[counter]++;
-  }
+  };
 
   writeFileHeaders = () => {
     this.log('changes.csv', 'id,type,group,field,oldval,newval');
-    this.log('broken.order.csv', 'id,type,group,paymentMethodId,currency,hostCurrency,fx,reason,netAmount diff,amount,netAmount');
-    this.log('broken.expense.csv', 'id,type,group,paymentMethodId,currency,hostCurrency,fx,reason,netAmount diff,amount,netAmount');
-  }
+    this.log(
+      'broken.order.csv',
+      'id,type,group,paymentMethodId,currency,hostCurrency,fx,reason,netAmount diff,amount,netAmount',
+    );
+    this.log(
+      'broken.expense.csv',
+      'id,type,group,paymentMethodId,currency,hostCurrency,fx,reason,netAmount diff,amount,netAmount',
+    );
+  };
 
   log = (name, msg) => {
     if (!this.logFiles[name]) {
@@ -507,16 +571,21 @@ export class Migration {
     if (this.options.verbose) {
       console.log(name, msg);
     }
-  }
+  };
 
   /** Print out a CSV line */
-  logChange = (tr) => {
+  logChange = tr => {
     const fields = result(tr.data, `migration['${this.date}']`);
-    if (!fields) return;
-    for (const k of Object.keys(fields)) {
-      this.log('changes.csv', `${tr.id},${tr.type},${tr.TransactionGroup},${k},${fields[k].oldValue},${fields[k].newValue}`);
+    if (!fields) {
+      return;
     }
-  }
+    for (const k of Object.keys(fields)) {
+      this.log(
+        'changes.csv',
+        `${tr.id},${tr.type},${tr.TransactionGroup},${k},${fields[k].oldValue},${fields[k].newValue}`,
+      );
+    }
+  };
 
   report = async () => {
     const body = this.logFiles['report.txt'].join('\n');
@@ -534,7 +603,7 @@ export class Migration {
     } else {
       return emailReport('Ledger Fixer Report', body, attachments);
     }
-  }
+  };
 }
 
 /* -- Report functions -- */
@@ -551,45 +620,48 @@ async function saveReport(text, attachments) {
 /** Sends the report to REPORT_EMAIL address */
 async function emailReport(subject, text, attachments) {
   return libemail.sendMessage(REPORT_EMAIL, subject, '', {
-    text, attachments
+    text,
+    attachments,
   });
 }
 
 /* -- Utilities & Script Entry Point -- */
 
 /** Return the options passed by the user to run the script */
+/* eslint-disable camelcase */
 function parseCommandLineArguments() {
   const parser = new ArgumentParser({
     addHelp: true,
-    description: 'Charge due subscriptions'
+    description: 'Charge due subscriptions',
   });
-  parser.addArgument(['-q', '--quiet'], {
+  parser.add_argument('-q', '--quiet', {
     help: 'Silence output',
-    defaultValue: true,
-    action: 'storeConst',
-    constant: false
+    default: true,
+    action: 'store_const',
+    constant: false,
   });
-  parser.addArgument(['--notdryrun'], {
+  parser.add_argument('--notdryrun', {
     help: "Pass this flag when you're ready to run the script for real",
-    defaultValue: false,
-    action: 'storeConst',
-    constant: true
+    default: false,
+    action: 'store_const',
+    constant: true,
   });
-  parser.addArgument(['-l', '--limit'], {
-    help: 'total subscriptions to process'
+  parser.add_argument('-l', '--limit', {
+    help: 'total subscriptions to process',
   });
-  parser.addArgument(['-b', '--batch-size'], {
+  parser.add_argument('-b', '--batch-size', {
     help: 'batch size to fetch at a time',
-    defaultValue: 100
+    default: 100,
   });
-  const args = parser.parseArgs();
+  const args = parser.parse_args();
   return {
     dryRun: !args.notdryrun,
     verbose: !args.quiet,
     limit: args.limit,
-    batchSize: args.batch_size
+    batchSize: args.batch_size,
   };
 }
+/* eslint-enable camelcase */
 
 /** Print `message` to console if `options.verbose` is true */
 function vprint(options, message) {
@@ -613,4 +685,6 @@ async function entryPoint(options) {
 }
 
 /* Only call entry point if we're arg[0] */
-if (!module.parent) entryPoint(parseCommandLineArguments());
+if (!module.parent) {
+  entryPoint(parseCommandLineArguments());
+}

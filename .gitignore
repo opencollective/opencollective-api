@@ -20,18 +20,24 @@ tempStripe.js
 
 .env
 .env.*
+.envrc
 
-!.env.default
+!.env.development
+!.env.test
 
-.vscode
+# IDE files
 jsconfig.json
 typings
+.gtm
+# VSCode
+.history
+.vscode
+# JetBrains
 .idea/
+*.iml
 
 # test artifacts
 output/
 
-# JetBrains
-*.iml
 
 *.swp
