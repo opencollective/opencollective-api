@@ -1,15 +1,15 @@
-import config from 'config';
 import Promise from 'bluebird';
-import Twitter from 'twitter';
-import IntlMessageFormat from 'intl-messageformat';
+import config from 'config';
 import debugLib from 'debug';
-import { has, get } from 'lodash';
-
-import models from '../models';
-import logger from './logger';
-import { formatCurrency } from './utils';
+import IntlMessageFormat from 'intl-messageformat';
+import { get, has } from 'lodash';
+import Twitter from 'twitter';
 
 import activityType from '../constants/activities';
+import models from '../models';
+
+import logger from './logger';
+import { formatCurrency } from './utils';
 
 const debug = debugLib('twitter');
 
@@ -63,9 +63,10 @@ const tweetNewMember = async activity => {
   const template = settings.tweet;
 
   // todo: we should use the handlebar templating system to support {{#if}}{{/if}}
+  const amount = get(activity, 'data.order.totalAmount') - get(activity, 'data.order.data.platformFee', 0);
   const status = template
     .replace('{backerTwitterHandle}', `@${get(activity, 'data.member.memberCollective.twitterHandle')}`)
-    .replace('{amount}', formatCurrency(get(activity, 'data.order.totalAmount'), get(activity, 'data.order.currency')));
+    .replace('{amount}', formatCurrency(amount, get(activity, 'data.order.currency')));
 
   return await twitterLib.tweetStatus(
     twitterAccount,
@@ -127,7 +128,7 @@ Support them too!`,
 Support them too!`,
       oneHundred: `🎉 {collective} just reached 100 backers!! 🙌
 Support them too!`,
-      oneThousandBackers: `🎉 {collective} just reached 1,0000 backers!!! 🙌
+      oneThousandBackers: `🎉 {collective} just reached 1,000 backers!!! 🙌
 Support them too!`,
       updatePublished: 'Latest update from the collective: {title}',
       monthlyStats: `In {month}, {totalNewBackers, select,
@@ -138,9 +139,7 @@ Support them too!`,
 We}
 } received {totalAmountReceived} from {totalActiveBackers} {totalActiveBackers, plural, one {backer} other {backers}}{totalAmountSpent, plural,
   =0 {.}
-  other { and we spent {topExpenseCategories, select,
-      none {{totalAmountSpent}}
-      other {{totalAmountSpent} on {topExpenseCategories}}}.}} Our current balance is {balance}.
+  other { and we spent {totalAmountSpent}.}} Our current balance is {balance}.
 
 Top backers: {topBackersTwitterHandles}`,
       monthlyStatsNoNewDonation: `In {month}, we haven't received any new donation.

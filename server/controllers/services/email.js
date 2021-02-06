@@ -1,20 +1,21 @@
 import Promise from 'bluebird';
 import config from 'config';
-import request from 'request-promise';
 import debug from 'debug';
-import { pick, get } from 'lodash';
+import { get, pick } from 'lodash';
+import request from 'request-promise';
 
-import models, { sequelize, Op } from '../../models';
-import errors from '../../lib/errors';
 import emailLib from '../../lib/email';
+import errors from '../../lib/errors';
+import logger from '../../lib/logger';
+import models, { Op, sequelize } from '../../models';
 
 const debugEmail = debug('email');
 const debugWebhook = debug('webhook');
 
 export const unsubscribe = (req, res, next) => {
   const { type, email, slug, token } = req.params;
-  const computedToken = emailLib.generateUnsubscribeToken(email, slug, type);
-  if (token !== computedToken) {
+
+  if (!emailLib.isValidUnsubscribeToken(token, email, slug, type)) {
     return next(new errors.BadRequest('Invalid token'));
   }
 
@@ -34,7 +35,7 @@ export const unsubscribe = (req, res, next) => {
 const sendEmailToList = (to, email) => {
   debugEmail('sendEmailToList', to, 'email data: ', email);
   const { mailinglist, collectiveSlug, type } = getNotificationType(to);
-  email.from = email.from || `${collectiveSlug} collective <hello@${collectiveSlug}.opencollective.com>`;
+  email.from = email.from || `${collectiveSlug} collective <no-reply@${collectiveSlug}.opencollective.com>`;
   email.collective = email.collective || { slug: collectiveSlug }; // used for the unsubscribe url
 
   return models.Notification.getSubscribersUsers(collectiveSlug, mailinglist)
@@ -62,17 +63,30 @@ const sendEmailToList = (to, email) => {
           });
         }
       });
-    })
-    .catch(e => {
-      console.error('error in sendEmailToList', e);
-      throw e;
     });
+};
+
+/**
+ * Only take the param from request if it's a two letter country code
+ */
+const getMailServer = req => {
+  if (req.query.mailserver?.match(/^[a-z]{2}$/i)) {
+    return req.query.mailserver;
+  } else {
+    return 'so';
+  }
 };
 
 export const approve = (req, res, next) => {
   const { messageId } = req.query;
   const approverEmail = req.query.approver;
-  const mailserver = req.query.mailserver || 'so';
+  const mailserver = getMailServer(req);
+
+  if (!messageId) {
+    return next(new errors.BadRequest('No messageId provided'));
+  } else if (!messageId.match(/^[a-z0-9]+=*$/i)) {
+    return next(new errors.BadRequest('Invalid messageId provided'));
+  }
 
   let approver, sender;
   let email = {};
@@ -100,7 +114,7 @@ export const approve = (req, res, next) => {
         });
       })
       .catch(e => {
-        console.error('err: ', e);
+        logger.error(e);
       });
   };
 
@@ -140,7 +154,8 @@ export const approve = (req, res, next) => {
       if (e.statusCode === 404) {
         return next(new errors.NotFound(`Message ${messageId} not found on the ${mailserver} server`));
       } else {
-        return next(e);
+        logger.error(e);
+        return next(new errors.ServerError('Unexpected error'));
       }
     });
 };
@@ -197,7 +212,7 @@ export const webhook = async (req, res, next) => {
       return res.send({
         error: { message: `This Collective doesn't exist or can't be emailed directly using this address` },
       });
-    } else if (get(collective.settings, 'features.forwardEmails') === false || !(await collective.canContact())) {
+    } else if (!get(collective.settings, 'features.forwardEmails') || !(await collective.canContact())) {
       return res.send({
         error: { message: `This Collective can't be emailed directly using this address` },
       });
@@ -205,8 +220,8 @@ export const webhook = async (req, res, next) => {
       return sendEmailToList(recipient, { subject: email.subject, body, from: email.from })
         .then(() => res.send('ok'))
         .catch(e => {
-          debugWebhook('Error: ', e);
-          next(e);
+          logger.error(e);
+          return next(new errors.ServerError('Unexpected error'));
         });
     }
   }
@@ -332,8 +347,8 @@ export const webhook = async (req, res, next) => {
           });
 
         default:
-          debugWebhook('Unknown error:', e);
-          return next(e);
+          logger.error(e);
+          return next(new errors.ServerError('Unexpected error'));
       }
     });
 };

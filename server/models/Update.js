@@ -1,22 +1,28 @@
 /**
  * Dependencies.
  */
-import config from 'config';
-import Temporal from 'sequelize-temporal';
-import { Op } from 'sequelize';
-import slugify from 'limax';
 import Promise from 'bluebird';
-import showdown from 'showdown';
+import config from 'config';
+import slugify from 'limax';
 import { defaults, pick } from 'lodash';
+import { Op } from 'sequelize';
+import Temporal from 'sequelize-temporal';
 
-import * as errors from '../graphql/errors';
 import activities from '../constants/activities';
-import { sanitizeObject } from '../lib/utils';
+import * as errors from '../graphql/errors';
 import { mustHaveRole } from '../lib/auth';
-
 import logger from '../lib/logger';
+import { buildSanitizerOptions, generateSummaryForHTML, sanitizeHTML } from '../lib/sanitize-html';
 
-const markdownConverter = new showdown.Converter();
+const sanitizerOptions = buildSanitizerOptions({
+  titles: true,
+  mainTitles: true,
+  basicTextFormatting: true,
+  multilineTextFormatting: true,
+  images: true,
+  links: true,
+  videoIframes: true,
+});
 
 /**
  * Update Model.
@@ -106,13 +112,14 @@ export default function (Sequelize, DataTypes) {
         },
       },
 
+      // @deprecated
       markdown: DataTypes.TEXT,
+
       html: {
         type: DataTypes.TEXT,
-        get() {
-          return this.getDataValue('markdown')
-            ? markdownConverter.makeHtml(this.getDataValue('markdown'))
-            : this.getDataValue('html');
+        set(html) {
+          this.setDataValue('html', sanitizeHTML(html, sanitizerOptions));
+          this.setDataValue('summary', generateSummaryForHTML(html, 240));
         },
       },
 
@@ -121,6 +128,11 @@ export default function (Sequelize, DataTypes) {
       isPrivate: {
         type: DataTypes.BOOLEAN,
         defaultValue: false,
+      },
+
+      notificationAudience: {
+        type: DataTypes.STRING,
+        defaultValue: null,
       },
 
       tags: {
@@ -149,6 +161,10 @@ export default function (Sequelize, DataTypes) {
         type: DataTypes.DATE,
         defaultValue: null,
       },
+
+      summary: {
+        type: DataTypes.STRING,
+      },
     },
     {
       paranoid: true,
@@ -166,6 +182,7 @@ export default function (Sequelize, DataTypes) {
             publishedAt: this.publishedAt,
             slug: this.slug,
             tags: this.tags,
+            CollectiveId: this.CollectiveId,
           };
         },
         minimal() {
@@ -182,6 +199,8 @@ export default function (Sequelize, DataTypes) {
             id: this.id,
             slug: this.slug,
             title: this.title,
+            html: this.html,
+            notificationAudience: this.notificationAudience,
             CollectiveId: this.CollectiveId,
             FromCollectiveId: this.FromCollectiveId,
             TierId: this.TierId,
@@ -199,6 +218,11 @@ export default function (Sequelize, DataTypes) {
           if (!instance.publishedAt || !instance.slug) {
             return instance.generateSlug();
           }
+        },
+        beforeDestroy: async instance => {
+          const newSlug = `${instance.slug}-${Date.now()}`;
+          instance.slug = newSlug;
+          await instance.save({ paranoid: false, hooks: false });
         },
         afterCreate: instance => {
           models.Activity.create({
@@ -224,26 +248,15 @@ export default function (Sequelize, DataTypes) {
     if (newUpdateData.TierId) {
       const tier = await models.Tier.findByPk(newUpdateData.TierId);
       if (!tier) {
-        throw new errors.ValidationFailed({ message: 'Tier not found' });
+        throw new errors.ValidationFailed('Tier not found');
       }
       if (tier.CollectiveId !== this.CollectiveId) {
-        throw new errors.ValidationFailed({
-          message: "Cannot link this update to a Tier that doesn't belong to this collective",
-        });
+        throw new errors.ValidationFailed("Cannot link this update to a Tier that doesn't belong to this collective");
       }
     }
-    const editableAttributes = [
-      'TierId',
-      'FromCollectiveId',
-      'title',
-      'html',
-      'markdown',
-      'image',
-      'tags',
-      'isPrivate',
-      'makePublicOn',
-    ];
-    sanitizeObject(newUpdateData, ['html', 'markdown']);
+
+    const editableAttributes = ['TierId', 'title', 'html', 'tags', 'isPrivate', 'makePublicOn'];
+
     return await this.update({
       ...pick(newUpdateData, editableAttributes),
       LastEditedByUserId: remoteUser.id,
@@ -251,15 +264,19 @@ export default function (Sequelize, DataTypes) {
   };
 
   // Publish update
-  Update.prototype.publish = async function (remoteUser) {
+  Update.prototype.publish = async function (remoteUser, notificationAudience) {
     mustHaveRole(remoteUser, 'ADMIN', this.CollectiveId, 'publish this update');
     this.publishedAt = new Date();
+    this.notificationAudience = notificationAudience;
     this.collective = this.collective || (await models.Collective.findByPk(this.CollectiveId));
+    this.fromCollective = this.fromCollective || (await models.Collective.findByPk(this.FromCollectiveId));
+
     models.Activity.create({
       type: activities.COLLECTIVE_UPDATE_PUBLISHED,
       UserId: remoteUser.id,
       CollectiveId: this.CollectiveId,
       data: {
+        fromCollective: this.fromCollective.activity,
         collective: this.collective.activity,
         update: this.activity,
         url: `${config.host.website}/${this.collective.slug}/updates/${this.slug}`,
@@ -277,6 +294,7 @@ export default function (Sequelize, DataTypes) {
 
   Update.prototype.delete = async function (remoteUser) {
     mustHaveRole(remoteUser, 'ADMIN', this.CollectiveId, 'delete this update');
+    await models.Comment.destroy({ where: { UpdateId: this.id } });
     return this.destroy();
   };
 
@@ -347,21 +365,6 @@ export default function (Sequelize, DataTypes) {
     return Promise.map(updates, u => Update.create(defaults({}, u, defaultValues)), { concurrency: 1 }).catch(
       console.error,
     );
-  };
-
-  Update.findBySlug = (slug, options = {}) => {
-    if (!slug || slug.length < 1) {
-      return Promise.resolve(null);
-    }
-    return Update.findOne({
-      where: { slug: slug.toLowerCase() },
-      ...options,
-    }).then(Update => {
-      if (!Update) {
-        throw new Error(`No update found with slug ${slug}`);
-      }
-      return Update;
-    });
   };
 
   Update.associate = m => {

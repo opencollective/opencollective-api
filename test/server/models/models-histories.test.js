@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+
 import { sequelize } from '../../../server/models';
 import { resetTestDB } from '../../utils';
 

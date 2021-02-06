@@ -1,9 +1,11 @@
 import Promise from 'bluebird';
+import { get } from 'lodash';
+
+import logger from '../lib/logger';
+import models, { Op } from '../models';
 
 import emailLib from './email';
 import { templateNames } from './emailTemplates';
-import models, { Op } from '../models';
-import logger from '../lib/logger';
 
 const emailOptions = {
   from: 'Open Collective <support@opencollective.com>',
@@ -12,6 +14,12 @@ const emailOptions = {
 
 export async function processCollective(collective, template) {
   logger.info('-', collective.slug);
+
+  // Exclude Funds from onboarding, Funds MVP, remove me after migration to FUND type
+  if (get(collective, 'settings.fund') === true) {
+    return;
+  }
+
   const users = await collective.getAdminUsers();
   const unsubscribers = await models.Notification.getUnsubscribersUserIds('onboarding', collective.id);
   const recipients = users.filter(u => u && unsubscribers.indexOf(u.id) === -1).map(u => u.email);
@@ -37,7 +45,7 @@ export async function processCollective(collective, template) {
 
   logger.info(`>>> Sending ${template} email to the ${recipients.length} admin(s) of`, collective.slug);
   return Promise.map(recipients, recipient =>
-    emailLib.send(template, recipient, { collective }, emailOptions).catch(e => {
+    emailLib.send(template, recipient, { collective: collective.info }, emailOptions).catch(e => {
       logger.warn('Unable to send email to ', collective.slug, recipient, 'error:', e);
     }),
   );

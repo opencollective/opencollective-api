@@ -1,17 +1,23 @@
-import nock from 'nock';
 import { expect } from 'chai';
+import gqlV2 from 'fake-tag';
+import nock from 'nock';
 
-import * as utils from '../../../../utils';
 import models from '../../../../../server/models';
+import * as utils from '../../../../utils';
 
-const createCollectiveQuery = `
-    mutation createCollective($collective: CollectiveCreateInput!, $host: AccountReferenceInput, $automateApprovalWithGithub: Boolean) {
-      createCollective(collective: $collective, host: $host, automateApprovalWithGithub: $automateApprovalWithGithub) {
-        name
-        slug
-        tags
-      }
-    }`;
+const createCollectiveMutation = gqlV2/* GraphQL */ `
+  mutation CreateCollective(
+    $collective: CollectiveCreateInput!
+    $host: AccountReferenceInput
+    $automateApprovalWithGithub: Boolean
+  ) {
+    createCollective(collective: $collective, host: $host, automateApprovalWithGithub: $automateApprovalWithGithub) {
+      name
+      slug
+      tags
+    }
+  }
+`;
 
 const newCollectiveData = {
   name: 'My New Collective',
@@ -46,7 +52,7 @@ describe('server/graphql/v2/mutation/CreateCollectiveMutations', () => {
 
   describe('simple case', async () => {
     it('fails if not authenticated', async () => {
-      const result = await utils.graphqlQueryV2(createCollectiveQuery, {
+      const result = await utils.graphqlQueryV2(createCollectiveMutation, {
         collective: newCollectiveData,
       });
       expect(result.errors).to.have.length(1);
@@ -55,7 +61,7 @@ describe('server/graphql/v2/mutation/CreateCollectiveMutations', () => {
 
     it('succeeds if all parameters are right', async () => {
       const user = await models.User.createUserWithCollective(utils.data('user2'));
-      const result = await utils.graphqlQueryV2(createCollectiveQuery, { collective: newCollectiveData }, user);
+      const result = await utils.graphqlQueryV2(createCollectiveMutation, { collective: newCollectiveData }, user);
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       expect(result.data.createCollective.name).to.equal(newCollectiveData.name);
@@ -83,7 +89,7 @@ describe('server/graphql/v2/mutation/CreateCollectiveMutations', () => {
         });
 
       const result = await utils.graphqlQueryV2(
-        createCollectiveQuery,
+        createCollectiveMutation,
         {
           collective: backYourStackCollectiveData,
           host: { slug: host.slug },
@@ -114,7 +120,7 @@ describe('server/graphql/v2/mutation/CreateCollectiveMutations', () => {
         });
 
       const result = await utils.graphqlQueryV2(
-        createCollectiveQuery,
+        createCollectiveMutation,
         {
           collective: backYourStackCollectiveData,
           host: { slug: host.slug },
@@ -148,7 +154,7 @@ describe('server/graphql/v2/mutation/CreateCollectiveMutations', () => {
         .reply(200, [{ organization: { login: 'backyourstack' }, state: 'active', role: 'member' }]);
 
       const result = await utils.graphqlQueryV2(
-        createCollectiveQuery,
+        createCollectiveMutation,
         {
           collective: { ...backYourStackCollectiveData, githubHandle: 'backyourstack' },
           host: { slug: host.slug },
@@ -180,7 +186,7 @@ describe('server/graphql/v2/mutation/CreateCollectiveMutations', () => {
         .reply(200, [{ name: 'backyourstack', stargazers_count: 102 }]); // eslint-disable-line camelcase
 
       const result = await utils.graphqlQueryV2(
-        createCollectiveQuery,
+        createCollectiveMutation,
         {
           collective: { ...backYourStackCollectiveData, githubHandle: 'backyourstack' },
           host: { slug: host.slug },

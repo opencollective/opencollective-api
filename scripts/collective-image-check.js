@@ -1,6 +1,6 @@
 import '../server/env';
 
-import fetch from 'isomorphic-fetch';
+import fetch from 'node-fetch';
 
 import models, { Op } from '../server/models';
 

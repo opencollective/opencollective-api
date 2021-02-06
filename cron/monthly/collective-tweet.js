@@ -1,23 +1,24 @@
 #!/usr/bin/env node
 import '../../server/env';
 
+import Promise from 'bluebird';
+import config from 'config';
+import debugLib from 'debug';
+import _, { get, pick, set } from 'lodash';
+import moment from 'moment';
+
+import twitter from '../../server/lib/twitter';
+import models from '../../server/models';
+
 // Only run on the first of the month
 const today = new Date();
-if (process.env.NODE_ENV === 'production' && today.getDate() !== 1) {
-  console.log('NODE_ENV is production and today is not the first of month, script aborted!');
+if (config.env === 'production' && today.getDate() !== 1) {
+  console.log('OC_ENV is production and today is not the first of month, script aborted!');
   process.exit();
 }
 
 process.env.PORT = 3066;
 
-import config from 'config';
-import moment from 'moment';
-import Promise from 'bluebird';
-import debugLib from 'debug';
-import models from '../../server/models';
-import slackLib from '../../server/lib/slack';
-import twitter from '../../server/lib/twitter';
-import _, { pick, get, set } from 'lodash';
 const d = new Date();
 d.setMonth(d.getMonth() - 1);
 const month = moment(d).format('MMMM');
@@ -28,14 +29,6 @@ const endDate = new Date(d.getFullYear(), d.getMonth() + 1, 1);
 console.log('startDate', startDate, 'endDate', endDate);
 
 const debug = debugLib('monthlyreport');
-
-async function publishToSlack(message, webhookUrl, options) {
-  try {
-    return slackLib.postMessage(message, webhookUrl, options);
-  } catch (e) {
-    console.warn('Unable to post to slack', e);
-  }
-}
 
 const init = () => {
   const startTime = new Date();
@@ -115,7 +108,6 @@ const processCollective = collective => {
     collective.getTotalTransactions(startDate, endDate, 'expense', 'amount'),
     collective.getBackersStats(startDate, endDate),
     collective.getBackersCount({ since: startDate, until: endDate }),
-    collective.getTopExpenseCategories(startDate, endDate),
   ];
 
   return Promise.all(promises)
@@ -130,7 +122,6 @@ const processCollective = collective => {
       data.collective.stats.balance = results[2];
       data.collective.stats.totalReceived = results[3];
       data.collective.stats.totalSpent = results[4];
-      data.collective.stats.topExpenseCategories = results[7];
       return data;
     })
     .then(data => sendTweet(collective.twitterAccount, data))
@@ -167,14 +158,6 @@ const sendTweet = async (twitterAccount, data) => {
     totalAmountReceived: formatCurrency(stats.totalReceived, data.collective.currency),
     topBackersTwitterHandles: compileTwitterHandles(data.topBackers, 0, 3),
     newBackersTwitterHandles: compileTwitterHandles(data.topNewBackers, stats.backers.new, 5),
-    topExpenseCategories:
-      stats.topExpenseCategories.length === 0
-        ? 'none'
-        : stats.topExpenseCategories
-            .slice(0, 2)
-            .map(ec => ec.category)
-            .join(' & ')
-            .toLowerCase(),
   };
 
   const template = stats.totalReceived === 0 ? 'monthlyStatsNoNewDonation' : 'monthlyStats';
@@ -186,12 +169,6 @@ const sendTweet = async (twitterAccount, data) => {
       // eslint-disable-next-line camelcase
       in_reply_to_status_id: get(twitterAccount, 'settings.monthlyStats.lastTweetId'),
     });
-    const tweetUrl = `https://twitter.com/${res.user.screen_name}/status/${res.id_str}`;
-    // publish to slack.opencollective.com
-    await publishToSlack(tweetUrl, config.slack.webhookUrl, {
-      channel: config.slack.publicActivityChannel,
-    });
-
     set(twitterAccount, 'settings.monthlyStats.lastTweetId', res.id_str);
     set(twitterAccount, 'settings.monthlyStats.lastTweetSentAt', new Date(res.created_at));
     twitterAccount.save();

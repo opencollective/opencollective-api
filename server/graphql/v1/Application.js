@@ -1,10 +1,10 @@
 import {
-  GraphQLInt,
-  GraphQLString,
-  GraphQLObjectType,
-  GraphQLInputObjectType,
   GraphQLEnumType,
+  GraphQLInputObjectType,
+  GraphQLInt,
   GraphQLNonNull,
+  GraphQLObjectType,
+  GraphQLString,
 } from 'graphql';
 
 const ApplicationTypeType = new GraphQLEnumType({

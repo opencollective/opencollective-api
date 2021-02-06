@@ -1,22 +1,29 @@
-import { get } from 'lodash';
-import models from '../../models';
 import {
-  GraphQLInt,
-  GraphQLFloat,
-  GraphQLString,
-  GraphQLInterfaceType,
-  GraphQLObjectType,
-  GraphQLList,
   GraphQLEnumType,
+  GraphQLFloat,
   GraphQLInputObjectType,
+  GraphQLInt,
+  GraphQLInterfaceType,
+  GraphQLList,
+  GraphQLObjectType,
+  GraphQLString,
 } from 'graphql';
+import { get } from 'lodash';
+
+import models from '../../models';
+import { canSeeExpenseAttachments, getExpenseItems } from '../common/expenses';
+import { idEncode } from '../v2/identifiers';
 
 import { CollectiveInterfaceType, UserCollectiveType } from './CollectiveInterface';
-
-import { SubscriptionType, OrderType, PaymentMethodType, UserType, DateString, ExpenseType } from './types';
-import { getExpenseAttachments, canSeeExpenseAttachments } from '../common/expenses';
-
-import { idEncode } from '../v2/identifiers';
+import {
+  DateString,
+  ExpenseType,
+  OrderDirectionType,
+  OrderType,
+  PaymentMethodType,
+  SubscriptionType,
+  UserType,
+} from './types';
 
 export const TransactionInterfaceType = new GraphQLInterfaceType({
   name: 'Transaction',
@@ -77,12 +84,7 @@ const TransactionFields = () => {
     refundTransaction: {
       type: TransactionInterfaceType,
       resolve(transaction) {
-        // If it's a sequelize model transaction, it means it has the method getRefundTransaction
-        // otherwise we just null
-        if (transaction && transaction.getRefundTransaction) {
-          return transaction.getRefundTransaction();
-        }
-        return null;
+        return transaction.getRefundTransaction();
       },
     },
     uuid: {
@@ -192,12 +194,12 @@ const TransactionFields = () => {
         // We don't return the user if the transaction has been created by someone who wanted to remain incognito
         // This is very suboptimal. We should probably record the CreatedByCollectiveId (or better CreatedByProfileId) instead of the User.
         if (transaction && transaction.getCreatedByUser) {
+          const collective = await transaction.getCollective();
           const fromCollective = await transaction.getFromCollective();
-          if (fromCollective.isIncognito && (!req.remoteUser || !req.remoteUser.isAdmin(transaction.CollectiveId))) {
+          if (fromCollective.isIncognito && (!req.remoteUser || !req.remoteUser.isAdminOfCollective(collective))) {
             return {};
           }
-          const collective = await transaction.getCollective();
-          if (collective.isIncognito && (!req.remoteUser || !req.remoteUser.isAdmin(transaction.FromCollectiveId))) {
+          if (collective.isIncognito && (!req.remoteUser || !req.remoteUser.isAdminOfCollective(fromCollective))) {
             return {};
           }
           return transaction.getCreatedByUser();
@@ -290,52 +292,12 @@ export const TransactionExpenseType = new GraphQLObjectType({
           return transaction.description || expense;
         },
       },
-      privateMessage: {
-        type: GraphQLString,
-        deprecationReason: 'Please use transaction.expense.privateMessage',
-        resolve(transaction, args, req) {
-          // If it's a expense transaction it'll have an ExpenseId
-          // otherwise we return null
-          return transaction.ExpenseId
-            ? req.loaders.Expense.byId.load(transaction.ExpenseId).then(expense => expense && expense.privateMessage)
-            : null;
-        },
-      },
-      category: {
-        type: GraphQLString,
-        deprecationReason: 'Please use transaction.expense.category',
-        resolve(transaction, args, req) {
-          // If it's a expense transaction it'll have an ExpenseId
-          // otherwise we return null
-          return transaction.ExpenseId
-            ? req.loaders.Expense.byId.load(transaction.ExpenseId).then(expense => expense && expense.category)
-            : null;
-        },
-      },
       expense: {
         type: ExpenseType,
         resolve(transaction, args, req) {
           // If it's a expense transaction it'll have an ExpenseId
           // otherwise we return null
           return transaction.ExpenseId ? req.loaders.Expense.byId.load(transaction.ExpenseId) : null;
-        },
-      },
-      attachment: {
-        type: GraphQLString,
-        deprecationReason: 'Please use transaction.expense.attachment',
-        async resolve(transaction, args, req) {
-          // If it's a expense transaction it'll have an ExpenseId otherwise we return null
-          if (!transaction.ExpenseId) {
-            return null;
-          } else {
-            const expense = req.loaders.Expense.byId.load(transaction.ExpenseId);
-            if (!expense || !(await canSeeExpenseAttachments(req, expense))) {
-              return null;
-            } else {
-              const attachments = await getExpenseAttachments(transaction.ExpenseId, req);
-              return attachments[0] && attachments[0].url;
-            }
-          }
         },
       },
     };
@@ -351,45 +313,41 @@ export const TransactionOrderType = new GraphQLObjectType({
       ...TransactionFields(),
       description: {
         type: GraphQLString,
-        resolve(transaction) {
-          // If it's a sequelize model transaction, it means it has the method getOrder
-          // otherwise we return either transaction.description or null
-          const getOrder = transaction.getOrder
-            ? transaction.getOrder().then(order => order && order.description)
-            : null;
-          return transaction.description || getOrder;
-        },
-      },
-      privateMessage: {
-        type: GraphQLString,
-        resolve(transaction) {
-          // If it's a sequelize model transaction, it means it has the method getOrder
-          // otherwise we return null
-          return transaction.getOrder ? transaction.getOrder().then(order => order && order.privateMessage) : null;
+        async resolve(transaction, _, req) {
+          if (transaction.description) {
+            return transaction.description;
+          } else {
+            const order = await req.loaders.Order.byId.load(transaction.OrderId);
+            return order?.description;
+          }
         },
       },
       publicMessage: {
         type: GraphQLString,
-        resolve(transaction) {
-          // If it's a sequelize model transaction, it means it has the method getOrder
-          // otherwise we return null
-          return transaction.getOrder ? transaction.getOrder().then(order => order && order.publicMessage) : null;
+        async resolve(transaction, _, req) {
+          if (transaction.OrderId) {
+            const order = await req.loaders.Order.byId.load(transaction.OrderId);
+            return order?.publicMessage;
+          }
         },
       },
       order: {
         type: OrderType,
-        resolve(transaction) {
-          // If it's a sequelize model transaction, it means it has the method getOrder
-          // otherwise we return null
-          return transaction.getOrder ? transaction.getOrder() : null;
+        resolve(transaction, _, req) {
+          if (transaction.OrderId) {
+            return req.loaders.Order.byId.load(transaction.OrderId);
+          }
         },
       },
       subscription: {
         type: SubscriptionType,
-        resolve(transaction) {
-          // If it's a sequelize model transaction, it means it has the method getOrder
-          // otherwise we return null
-          return transaction.getOrder ? transaction.getOrder().then(order => order && order.getSubscription()) : null;
+        async resolve(transaction, _, req) {
+          if (transaction.OrderId) {
+            const order = await req.loaders.Order.byId.load(transaction.OrderId);
+            if (order?.SubscriptionId) {
+              return req.loaders.Subscription.byId.load(order.SubscriptionId);
+            }
+          }
         },
       },
     };
@@ -402,15 +360,6 @@ export const TransactionType = new GraphQLEnumType({
   values: {
     CREDIT: {},
     DEBIT: {},
-  },
-});
-
-export const OrderDirectionType = new GraphQLEnumType({
-  name: 'OrderDirection',
-  description: 'Possible directions in which to order a list of items when provided an orderBy argument.',
-  values: {
-    ASC: {},
-    DESC: {},
   },
 });
 

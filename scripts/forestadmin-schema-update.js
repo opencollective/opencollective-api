@@ -7,4 +7,8 @@ if (!process.env.FOREST_ENV_SECRET || !process.env.FOREST_AUTH_SECRET) {
   process.exit();
 }
 
-forest.init();
+async function main() {
+  await forest.init();
+}
+
+main();

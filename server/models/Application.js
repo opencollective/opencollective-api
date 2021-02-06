@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+
 import { merge } from 'lodash';
 
 export default function (Sequelize, DataTypes) {

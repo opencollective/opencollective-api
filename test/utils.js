@@ -1,25 +1,25 @@
-import config from 'config';
-import debug from 'debug';
-import nock from 'nock';
-import { expect } from 'chai';
+import { execSync } from 'child_process';
 
 import Promise from 'bluebird';
+import { expect } from 'chai';
+import config from 'config';
+import debug from 'debug';
 import { graphql } from 'graphql';
-import { isArray, values, get, cloneDeep } from 'lodash';
-import { execSync } from 'child_process';
+import { cloneDeep, get, isArray, values } from 'lodash';
+import nock from 'nock';
+
+import * as dbRestore from '../scripts/db_restore';
+import { loaders } from '../server/graphql/loaders';
+import schemaV1 from '../server/graphql/v1/schema';
+import schemaV2 from '../server/graphql/v2/schema';
+import cache from '../server/lib/cache';
+import * as libpayments from '../server/lib/payments';
+/* Server code being used */
+import stripe from '../server/lib/stripe';
+import { sequelize } from '../server/models';
 
 /* Test data */
 import jsonData from './mocks/data';
-
-/* Server code being used */
-import stripe from '../server/lib/stripe';
-import schemaV1 from '../server/graphql/v1/schema';
-import schemaV2 from '../server/graphql/v2/schema';
-import { loaders } from '../server/graphql/loaders';
-import { sequelize } from '../server/models';
-import cache from '../server/lib/cache';
-import * as libpayments from '../server/lib/payments';
-import * as dbRestore from '../scripts/db_restore';
 
 if (process.env.RECORD) {
   nock.recorder.rec();
@@ -77,6 +77,7 @@ export const inspectSpy = (spy, argsCount) => {
  * E.g. await waitForCondition(() => emailSendMessageSpy.callCount === 1)
  * @param {*} cond
  * @param {*} options: { timeout, delay }
+ * @returns {Promise}
  */
 export const waitForCondition = (cond, options = { timeout: 10000, delay: 0 }) =>
   new Promise(resolve => {
@@ -141,7 +142,7 @@ export const graphqlQuery = async (query, variables, remoteUser, schema = schema
  * @param {object} variables - Variables to use in the queries and mutations. Example: { id: 1 }
  * @param {object} remoteUser - The user to add to the context. It is not required.
  */
-export async function graphqlQueryV2(query, variables, remoteUser) {
+export async function graphqlQueryV2(query, variables, remoteUser = null) {
   return graphqlQuery(query, variables, remoteUser, schemaV2);
 }
 
@@ -220,7 +221,8 @@ export function stubStripeCreate(sandbox, overloadDefaults) {
     customer: { id: 'cus_BM7mGwp1Ea8RtL' },
     token: { id: 'tok_1AzPXGD8MNtzsDcgwaltZuvp' },
     charge: { id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' },
-    paymentIntent: { charges: { data: [{ id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' }] }, status: 'succeeded' },
+    paymentIntent: { id: 'pi_1F82vtBYycQg1OMfS2Rctiau', status: 'requires_confirmation' },
+    paymentIntentConfirmed: { charges: { data: [{ id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' }] }, status: 'succeeded' },
     ...overloadDefaults,
   };
   /* Little helper function that returns the stub with a given
@@ -238,6 +240,7 @@ export function stubStripeCreate(sandbox, overloadDefaults) {
 
   sandbox.stub(stripe.customers, 'retrieve').callsFake(factory('customer'));
   sandbox.stub(stripe.paymentIntents, 'create').callsFake(factory('paymentIntent'));
+  sandbox.stub(stripe.paymentIntents, 'confirm').callsFake(factory('paymentIntentConfirmed'));
 }
 
 export function stubStripeBalance(sandbox, amount, currency, applicationFee = 0, stripeFee = 0) {

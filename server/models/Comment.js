@@ -1,14 +1,13 @@
 /**
  * Dependencies.
  */
+import Promise from 'bluebird';
 import _ from 'lodash';
 import Temporal from 'sequelize-temporal';
-import activities from '../constants/activities';
-import Promise from 'bluebird';
-import showdown from 'showdown';
-const markdownConverter = new showdown.Converter();
 
-import { buildSanitizerOptions, sanitizeHTML, stripHTML } from '../lib/sanitize-html';
+import activities from '../constants/activities';
+import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
+
 import { sequelize } from '.';
 
 // Options for sanitizing comment's body
@@ -97,13 +96,9 @@ export default function (Sequelize, DataTypes) {
         allowNull: true,
       },
 
+      // @deprecated
       markdown: {
         type: DataTypes.TEXT,
-        set(value) {
-          if (value) {
-            this.setDataValue('markdown', stripHTML(value));
-          }
-        },
       },
 
       html: {
@@ -113,11 +108,6 @@ export default function (Sequelize, DataTypes) {
             const cleanHtml = sanitizeHTML(value, sanitizeOptions).trim();
             this.setDataValue('html', cleanHtml);
           }
-        },
-        get() {
-          return this.getDataValue('html')
-            ? this.getDataValue('html')
-            : markdownConverter.makeHtml(this.getDataValue('markdown'));
         },
       },
 

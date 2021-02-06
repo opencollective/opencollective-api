@@ -1,19 +1,18 @@
-// Test tools
+import { expect } from 'chai';
+import gql from 'fake-tag';
 import nock from 'nock';
 import sinon from 'sinon';
-import { expect } from 'chai';
-import * as utils from '../../../utils';
 
-// Code components used for setting up the tests
-import models from '../../../../server/models';
 import * as constants from '../../../../server/constants/transactions';
 import * as paymentsLib from '../../../../server/lib/payments';
 import { extractFees } from '../../../../server/lib/stripe';
+import models from '../../../../server/models';
+import * as utils from '../../../utils';
 
 // The GraphQL query that will refund a transaction (it returns the
 // transaction being refunded)
-const refundQuery = `
-  mutation refundTransaction($id: Int!) {
+const refundTransactionMutation = gql`
+  mutation RefundTransaction($id: Int!) {
     refundTransaction(id: $id) {
       id
     }
@@ -142,7 +141,7 @@ describe('server/graphql/v1/refundTransaction', () => {
 
     // When a refunded attempt happens on a transaction that does not
     // exist in the database
-    const result = await utils.graphqlQuery(refundQuery, { id: 919191 }, user);
+    const result = await utils.graphqlQuery(refundTransactionMutation, { id: 919191 }, user);
 
     // Then it should error out with the right error
     const [{ message }] = result.errors;
@@ -158,11 +157,11 @@ describe('server/graphql/v1/refundTransaction', () => {
     const anotherUser = await models.User.createUserWithCollective(utils.data('user2'));
 
     // When a refunded attempt happens from another user
-    const result = await utils.graphqlQuery(refundQuery, { id: transaction.id }, anotherUser);
+    const result = await utils.graphqlQuery(refundTransactionMutation, { id: transaction.id }, anotherUser);
 
     // Then it should error out with the right error
     const [{ message }] = result.errors;
-    expect(message).to.equal('Not a site admin or host collective admin');
+    expect(message).to.equal('Cannot refund this transaction');
   });
 
   describe('Save CreatedByUserId', () => {
@@ -186,7 +185,7 @@ describe('server/graphql/v1/refundTransaction', () => {
       const anotherUser = await models.User.createUserWithCollective(utils.data('user3'));
 
       // When a refunded attempt happens from the above user
-      const result = await utils.graphqlQuery(refundQuery, { id: transaction.id }, anotherUser);
+      const result = await utils.graphqlQuery(refundTransactionMutation, { id: transaction.id }, anotherUser);
 
       // Then there should be no errors
       if (result.errors) {
@@ -240,7 +239,7 @@ describe('server/graphql/v1/refundTransaction', () => {
       const { user, collective, host, transaction } = await setupTestObjects();
 
       // When the above transaction is refunded
-      const result = await utils.graphqlQuery(refundQuery, { id: transaction.id }, host);
+      const result = await utils.graphqlQuery(refundTransactionMutation, { id: transaction.id }, host);
 
       // Then there should be no errors
       if (result.errors) {
@@ -336,7 +335,7 @@ describe('server/graphql/v1/refundTransaction', () => {
       const { user, collective, host, transaction } = await setupTestObjects();
 
       // When the above transaction is refunded
-      const result = await utils.graphqlQuery(refundQuery, { id: transaction.id }, host);
+      const result = await utils.graphqlQuery(refundTransactionMutation, { id: transaction.id }, host);
 
       // Then there should be no errors
       if (result.errors) {

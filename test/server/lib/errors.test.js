@@ -1,5 +1,6 @@
-import errors from '../../../server/lib/errors';
 import { expect } from 'chai';
+
+import errors from '../../../server/lib/errors';
 
 /**
  * Tests.

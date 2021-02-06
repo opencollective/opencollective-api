@@ -3,12 +3,12 @@
  * This tests all the GraphQL API methods that interact with user
  * invoices. */
 
-import sinon from 'sinon';
 import { expect } from 'chai';
+import gql from 'fake-tag';
+import sinon from 'sinon';
 
-/* Test utilities */
-import * as utils from '../../../utils';
 import * as store from '../../../stores';
+import * as utils from '../../../utils';
 
 /** Create host, collective, payment method and make a donation
  *
@@ -53,8 +53,8 @@ describe('server/graphql/v1/invoices', () => {
 
   describe('return transactions', () => {
     it('fails to return list of invoices for a given user if not logged in as that user', async () => {
-      const query = `
-        query allInvoices($fromCollectiveSlug: String!) {
+      const query = gql`
+        query AllInvoices($fromCollectiveSlug: String!) {
           allInvoices(fromCollectiveSlug: $fromCollectiveSlug) {
             year
             month
@@ -73,8 +73,8 @@ describe('server/graphql/v1/invoices', () => {
     });
 
     it('returns list of invoices for a given user', async () => {
-      const query = `
-        query allInvoices($fromCollectiveSlug: String!) {
+      const query = gql`
+        query AllInvoices($fromCollectiveSlug: String!) {
           allInvoices(fromCollectiveSlug: $fromCollectiveSlug) {
             year
             month
@@ -105,7 +105,7 @@ describe('server/graphql/v1/invoices', () => {
     });
 
     it('returns invoice data for a given year/month', async () => {
-      const query = `
+      const query = gql`
         query Invoice($invoiceSlug: String!) {
           Invoice(invoiceSlug: $invoiceSlug) {
             year

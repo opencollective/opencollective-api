@@ -1,6 +1,7 @@
 import { expect } from 'chai';
-import { sanitizeActivity, enrichActivity } from '../../../server/lib/webhooks';
+
 import { activities } from '../../../server/constants';
+import { enrichActivity, sanitizeActivity } from '../../../server/lib/webhooks';
 
 describe('server/lib/webhooks', () => {
   describe('sanitizeActivity', () => {
@@ -9,7 +10,7 @@ describe('server/lib/webhooks', () => {
       expect(sanitized.data).to.be.empty;
     });
 
-    it('COLLECTIVE_TRANSACTION_CREATED', () => {
+    it('COLLECTIVE_MEMBER_CREATED', () => {
       const sanitized = sanitizeActivity({
         type: activities.COLLECTIVE_MEMBER_CREATED,
         data: {

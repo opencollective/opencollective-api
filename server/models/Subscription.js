@@ -1,5 +1,6 @@
-import CustomDataTypes from './DataTypes';
 import Temporal from 'sequelize-temporal';
+
+import CustomDataTypes from './DataTypes';
 
 export default (Sequelize, DataTypes) => {
   const Subscription = Sequelize.define(

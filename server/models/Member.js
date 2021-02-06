@@ -1,6 +1,6 @@
 import roles from '../constants/roles';
-import { days } from '../lib/utils';
 import { invalidateContributorsCache } from '../lib/contributors';
+import { days } from '../lib/utils';
 
 export default function (Sequelize, DataTypes) {
   const invalidateContributorsCacheUsingInstance = instance => {

@@ -1,13 +1,14 @@
-import { GraphQLString, GraphQLObjectType, GraphQLNonNull, GraphQLBoolean } from 'graphql';
+import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import GraphQLJSON from 'graphql-type-json';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
-import PayoutMethodType from '../enum/PayoutMethodType';
+
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
+import PayoutMethodType from '../enum/PayoutMethodType';
+import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
 const PayoutMethod = new GraphQLObjectType({
   name: 'PayoutMethod',
   description: 'A payout method',
-  fields: {
+  fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.PAYOUT_METHOD),
@@ -23,7 +24,7 @@ const PayoutMethod = new GraphQLObjectType({
       resolve: (payoutMethod, _, req): string => {
         // Only collective admins can see the name of a payout method
         if (req.remoteUser?.isAdmin(payoutMethod.CollectiveId)) {
-          return payoutMethod.isSaved;
+          return payoutMethod.name;
         }
       },
     },
@@ -49,7 +50,7 @@ const PayoutMethod = new GraphQLObjectType({
         }
       },
     },
-  },
+  }),
 });
 
 export default PayoutMethod;

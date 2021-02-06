@@ -1,9 +1,10 @@
-import paypalAdaptive from './adaptiveGateway';
-import { get, isNil } from 'lodash';
 import config from 'config';
+import { get, isNil } from 'lodash';
 import { v1 as uuid } from 'uuid';
-import logger from '../../lib/logger';
+
 import errors from '../../lib/errors';
+
+import paypalAdaptive from './adaptiveGateway';
 
 /**
  * PayPal paymentProvider
@@ -107,7 +108,6 @@ export default {
       const updatedPM = await getPreapprovalDetailsAndUpdatePaymentMethod(paymentMethod);
       return { amount: updatedPM.data.balance, currency: updatedPM.currency };
     } catch (e) {
-      logger.error('getBalance for PayPal pre-approval failed', e);
       return { amount: 0, currency: paymentMethod.currency };
     }
   },
