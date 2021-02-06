@@ -213,59 +213,6 @@ const getTopDonorsForCollective = (CollectiveId, options = {}) => {
 };
 
 /**
- * Returns an array with the top (default 3) expense submitters by amount for
- * a given CollectiveId.
- * @param {*} CollectiveId
- * @param {*} options
- */
-const getTopExpenseSubmitters = (CollectiveId, options = {}) => {
-  options.limit = options.limit || 3;
-  const since = options.since ? `AND t."createdAt" >= '${options.since.toISOString()}'` : '';
-  const until = options.until ? `AND t."createdAt" < '${options.until.toISOString()}'` : '';
-  return sequelize.query(
-    `
-    SELECT MAX(c.slug) as slug, MAX(c."twitterHandle") as "twitterHandle", MAX(c.image) as image, MAX(c.name) as name, SUM("netAmountInCollectiveCurrency") as "totalExpenses"
-    FROM "Transactions" t LEFT JOIN "Collectives" c ON t."FromCollectiveId" = c.id
-    WHERE t."CollectiveId"=:CollectiveId
-      AND t.type='DEBIT'
-      AND t."deletedAt" IS NULL
-      AND t."ExpenseId" IS NOT NULL
-      ${since} ${until}
-    GROUP BY c.id ORDER BY "totalExpenses" ASC LIMIT :limit
-  `,
-    {
-      replacements: { CollectiveId, limit: options.limit },
-      type: sequelize.QueryTypes.SELECT,
-    },
-  );
-};
-
-/**
- * Get the top expense categories for a given collective with total amount and total number of expenses
- * @param {*} CollectiveId
- * @param {*} options
- */
-const getTopExpenseCategories = (CollectiveId, options = {}) => {
-  options.limit = options.limit || 3;
-  const since = options.since ? `AND e."createdAt" >= '${options.since.toISOString()}'` : '';
-  const until = options.until ? `AND e."createdAt" < '${options.until.toISOString()}'` : '';
-
-  return sequelize.query(
-    `
-    SELECT tags[1] as category, COUNT(*) as "count", SUM("amount") as "totalExpenses"
-    FROM "Expenses" e
-    WHERE "CollectiveId"=:CollectiveId AND e.status!='REJECTED' ${since} ${until}
-    GROUP BY category
-    ORDER BY "totalExpenses" DESC LIMIT :limit
-  `,
-    {
-      replacements: { CollectiveId, limit: options.limit },
-      type: sequelize.QueryTypes.SELECT,
-    },
-  );
-};
-
-/**
  * Returns the top backers (Collectives) in a given time range in given tags
  * E.g. top backers in open source collectives last June
  */
@@ -1049,6 +996,25 @@ const getBalances = async (collectiveIds, until = new Date()) =>
     { type: sequelize.QueryTypes.SELECT, replacements: { ids: collectiveIds, until } },
   );
 
+const getBalancesInHostCurrency = async (collectiveIds, hostCollectiveId, until = new Date()) =>
+  sequelize.query(
+    `
+      SELECT
+        t."CollectiveId",
+        COALESCE(SUM(ROUND(t."netAmountInCollectiveCurrency" * t."hostCurrencyFxRate")), 0) AS "balance"
+      FROM
+        "Transactions" t
+      WHERE
+        t."CollectiveId" IN (:ids)
+        AND t."HostCollectiveId" = :hostCollectiveId
+        AND t."deletedAt" IS NULL
+        AND t."createdAt" < :until
+      GROUP BY
+        t."CollectiveId";
+      `,
+    { type: sequelize.QueryTypes.SELECT, replacements: { ids: collectiveIds, hostCollectiveId, until } },
+  );
+
 const serializeCollectivesResult = JSON.stringify;
 
 const unserializeCollectivesResult = string => {
@@ -1072,31 +1038,30 @@ const getCollectivesWithMinBackers = memoize(getCollectivesWithMinBackersQuery, 
 });
 
 const queries = {
-  getHosts,
   getBalances,
-  getTaxFormsRequiredForExpenses,
-  getTaxFormsRequiredForAccounts,
+  getBalancesInHostCurrency,
+  getCollectivesByTag,
   getCollectivesOrderedByMonthlySpending,
   getCollectivesOrderedByMonthlySpendingQuery,
-  getTotalDonationsByCollectiveType,
-  getTotalAnnualBudgetForHost,
-  getTopDonorsForCollective,
-  getTopExpenseSubmitters,
-  getTopExpenseCategories,
-  getTotalAnnualBudget,
-  getMembersOfCollectiveWithRole,
-  getMembersWithTotalDonations,
-  getMembersWithBalance,
-  getTopSponsors,
-  getTopBackers,
-  getCollectivesByTag,
-  getTotalNumberOfActiveCollectives,
-  getTotalNumberOfDonors,
   getCollectivesWithBalance,
-  getUniqueCollectiveTags,
-  getVirtualCardBatchesForCollective,
   getCollectivesWithMinBackers,
   getCollectivesWithMinBackersQuery,
+  getHosts,
+  getMembersOfCollectiveWithRole,
+  getMembersWithBalance,
+  getMembersWithTotalDonations,
+  getTaxFormsRequiredForAccounts,
+  getTaxFormsRequiredForExpenses,
+  getTopBackers,
+  getTopDonorsForCollective,
+  getTopSponsors,
+  getTotalAnnualBudget,
+  getTotalAnnualBudgetForHost,
+  getTotalDonationsByCollectiveType,
+  getTotalNumberOfActiveCollectives,
+  getTotalNumberOfDonors,
+  getUniqueCollectiveTags,
+  getVirtualCardBatchesForCollective,
 };
 
 export default queries;

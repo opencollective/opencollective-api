@@ -6,12 +6,23 @@ import { Op } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
 import { maxInteger } from '../constants/math';
-import { capitalize, days, formatCurrency, stripTags } from '../lib/utils';
+import logger from '../lib/logger';
+import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
+import { capitalize, days, formatCurrency } from '../lib/utils';
 import { isSupportedVideoProvider, supportedVideoProviders } from '../lib/validators';
 
 import CustomDataTypes from './DataTypes';
 
 const debug = debugLib('models:Tier');
+
+const longDescriptionSanitizerOpts = buildSanitizerOptions({
+  titles: true,
+  basicTextFormatting: true,
+  multilineTextFormatting: true,
+  images: true,
+  links: true,
+  videoIframes: true,
+});
 
 export default function (Sequelize, DataTypes) {
   const { models } = Sequelize;
@@ -98,7 +109,7 @@ export default function (Sequelize, DataTypes) {
           if (!content) {
             this.setDataValue('longDescription', null);
           } else {
-            this.setDataValue('longDescription', stripTags(content));
+            this.setDataValue('longDescription', sanitizeHTML(content, longDescriptionSanitizerOpts));
           }
         },
       },
@@ -366,6 +377,15 @@ export default function (Sequelize, DataTypes) {
 
   Tier.prototype.checkAvailableQuantity = function (quantityNeeded = 1) {
     return this.availableQuantity().then(available => available - quantityNeeded >= 0);
+  };
+
+  Tier.prototype.setCurrency = async function (currency) {
+    // Nothing to do
+    if (currency === this.currency) {
+      return this;
+    }
+
+    return this.update({ currency });
   };
 
   /**

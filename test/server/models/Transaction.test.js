@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import sinon from 'sinon';
 
 import models from '../../../server/models';
-import { fakeCollective, fakeHost, fakeOrder, fakeUser } from '../../test-helpers/fake-data';
+import { fakeCollective, fakeHost, fakeOrder, fakeTier, fakeUser } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
 const { Transaction } = models;
@@ -346,5 +346,53 @@ describe('server/models/Transaction', () => {
       const allTransactions = await Transaction.findAll({ where: { OrderId: order.id } });
       expect(allTransactions).to.have.length(2);
     });
+  });
+
+  it('should convert properly when using setCurrency', async () => {
+    const order = await fakeOrder({
+      CreatedByUserId: user.id,
+      FromCollectiveId: user.CollectiveId,
+      CollectiveId: collective.id,
+      currency: 'USD',
+    });
+
+    const transaction = {
+      description: 'Financial contribution to Booky Foundation',
+      amount: 500,
+      currency: 'USD',
+      amountInHostCurrency: 402,
+      hostCurrency: 'EUR',
+      hostCurrencyFxRate: 0.804,
+      platformFeeInHostCurrency: 0,
+      hostFeeInHostCurrency: 0,
+      paymentProcessorFeeInHostCurrency: -31,
+      type: 'CREDIT',
+      PaymentMethodId: 1,
+      OrderId: order.id,
+      data: {
+        charge: { currency: 'usd' },
+        balanceTransaction: {
+          currency: 'eur',
+          exchange_rate: 0.803246, // eslint-disable-line camelcase
+        },
+      },
+    };
+
+    const credit = await Transaction.createFromPayload({
+      transaction,
+      CreatedByUserId: user.id,
+      FromCollectiveId: user.CollectiveId,
+      CollectiveId: collective.id,
+    });
+
+    await Transaction.validate(credit);
+
+    await credit.setCurrency('EUR');
+
+    await Transaction.validate(credit);
+
+    expect(credit).to.have.property('currency').equal('EUR');
+
+    expect(credit).to.have.property('amount').equal(402);
   });
 });

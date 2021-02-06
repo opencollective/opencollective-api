@@ -13,7 +13,7 @@ import {
 import { Kind } from 'graphql/language';
 import GraphQLJSON from 'graphql-type-json';
 
-import { DateString, IsoDateString, PayoutMethodTypeEnum } from './types';
+import { DateString, IsoDateString } from './types';
 
 const EmailType = new GraphQLScalarType({
   name: 'Email',
@@ -442,7 +442,7 @@ export const UpdateInputType = new GraphQLInputObjectType({
     image: { type: GraphQLString },
     isPrivate: { type: GraphQLBoolean },
     makePublicOn: { type: IsoDateString },
-    markdown: { type: GraphQLString },
+    markdown: { type: GraphQLString, deprecationReason: '2021-01-25: Please use html' },
     html: { type: GraphQLString },
     fromCollective: { type: CollectiveAttributesInputType },
     collective: { type: new GraphQLNonNull(CollectiveAttributesInputType) },
@@ -461,79 +461,11 @@ export const UpdateAttributesInputType = new GraphQLInputObjectType({
     image: { type: GraphQLString },
     isPrivate: { type: GraphQLBoolean },
     makePublicOn: { type: IsoDateString },
-    markdown: { type: GraphQLString },
+    markdown: { type: GraphQLString, deprecationReason: '2021-01-25: Please use html' },
     html: { type: GraphQLString },
     fromCollective: { type: CollectiveAttributesInputType },
     tier: { type: TierInputType },
   }),
-});
-
-export const ExpenseItemInputType = new GraphQLInputObjectType({
-  name: 'ExpenseItemInputType',
-  description: 'Fields for creating or editing an expense item',
-  deprecationReason: '2020-04-08: Please use API V2 to create expenses',
-  fields: {
-    id: { type: GraphQLInt },
-    url: { type: GraphQLString },
-    amount: { type: new GraphQLNonNull(GraphQLInt) },
-    incurredAt: { type: DateString },
-    description: { type: GraphQLString },
-  },
-});
-
-export const PayoutMethodInputType = new GraphQLInputObjectType({
-  name: 'PayoutMethodInput',
-  fields: {
-    id: { type: GraphQLInt },
-    data: { type: GraphQLJSON },
-    name: { type: GraphQLString },
-    isSaved: { type: GraphQLBoolean },
-    type: { type: PayoutMethodTypeEnum },
-  },
-});
-
-export const ExpenseInputType = new GraphQLInputObjectType({
-  name: 'ExpenseInputType',
-  description: 'Input type for ExpenseType',
-  fields: () => {
-    return {
-      id: { type: GraphQLInt },
-      amount: { type: GraphQLInt },
-      currency: {
-        type: GraphQLString,
-        deprecationReason: '2020-01-16: Expense currency is based on collective currency',
-      },
-      createdAt: { type: DateString },
-      incurredAt: { type: DateString },
-      description: { type: GraphQLString },
-      category: { type: GraphQLString },
-      status: { type: GraphQLString },
-      type: { type: GraphQLString },
-      payoutMethod: {
-        type: GraphQLString,
-        description: 'Can be: paypal, other. Also deprecated: donation, manual',
-        deprecationReason: '2020-21-01: Please use PayoutMethod',
-      },
-      PayoutMethod: {
-        type: PayoutMethodInputType,
-      },
-      privateMessage: { type: GraphQLString },
-      attachment: {
-        type: GraphQLString,
-        deprecationReason: '2020-01-13 - Expenses now support multiple attachments. Please use attachments instead.',
-      },
-      attachments: {
-        type: new GraphQLList(ExpenseItemInputType),
-        deprecationReason: '2020-04-08 - Please use items instead.',
-      },
-      items: { type: new GraphQLList(ExpenseItemInputType) },
-      user: {
-        type: UserInputType,
-        deprecationReason: '2020-21-01: Please use PayoutMethod to pass the paypal email',
-      },
-      collective: { type: CollectiveAttributesInputType },
-    };
-  },
 });
 
 export const InvoiceInputType = new GraphQLInputObjectType({

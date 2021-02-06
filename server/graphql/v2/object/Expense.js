@@ -24,7 +24,7 @@ import ExpensePermissions from './ExpensePermissions';
 import { Location } from './Location';
 import PayoutMethod from './PayoutMethod';
 
-const EXPENSE_DRAFT_PUBLIC_FIELDS = ['items', 'payee', 'recipientNote', 'invitedByCollectiveId'];
+const EXPENSE_DRAFT_PUBLIC_FIELDS = ['items', 'payee', 'recipientNote', 'invitedByCollectiveId', 'attachedFiles'];
 
 const Expense = new GraphQLObjectType({
   name: 'Expense',

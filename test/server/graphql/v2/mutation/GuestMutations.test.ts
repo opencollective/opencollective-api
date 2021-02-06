@@ -16,8 +16,8 @@ const sendConfirmationMutation = gqlV2/* GraphQL */ `
 `;
 
 const confirmGuestAccountMutation = gqlV2/* GraphQL */ `
-  mutation ConfirmGuestAccount($email: EmailAddress!, $emailConfirmationToken: String!, $guestTokens: [String!]) {
-    confirmGuestAccount(email: $email, emailConfirmationToken: $emailConfirmationToken, guestTokens: $guestTokens) {
+  mutation ConfirmGuestAccount($email: EmailAddress!, $emailConfirmationToken: String!) {
+    confirmGuestAccount(email: $email, emailConfirmationToken: $emailConfirmationToken) {
       accessToken
       account {
         id
@@ -32,8 +32,8 @@ const callSendConfirmation = (email, remoteUser = null) => {
   return graphqlQueryV2(sendConfirmationMutation, { email }, remoteUser);
 };
 
-const callConfirmGuestAccount = (email, emailConfirmationToken, guestTokens = [], remoteUser = null) => {
-  return graphqlQueryV2(confirmGuestAccountMutation, { email, emailConfirmationToken, guestTokens }, remoteUser);
+const callConfirmGuestAccount = (email, emailConfirmationToken, remoteUser = null) => {
+  return graphqlQueryV2(confirmGuestAccountMutation, { email, emailConfirmationToken }, remoteUser);
 };
 
 describe('server/graphql/v2/mutation/GuestMutations', () => {

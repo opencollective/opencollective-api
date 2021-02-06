@@ -8,6 +8,7 @@ import bayes from 'bayes';
 import geoip from 'geoip-lite'; // eslint-disable-line node/no-unpublished-import
 import { get } from 'lodash';
 
+import { collectiveBayesContent } from '../server/lib/spam';
 import models, { Op, sequelize } from '../server/models';
 
 const classifier = bayes();
@@ -15,7 +16,7 @@ const classifier = bayes();
 async function getIpString(collective) {
   let user = await models.User.findByPk(collective.CreatedByUserId, { paranoid: false });
   if (!user) {
-    const adminUsers = await collective.getAdminUsers();
+    const adminUsers = await collective.getAdminUsers({ paranoid: false });
     if (adminUsers.length > 0) {
       user = adminUsers[0];
     }
@@ -45,9 +46,7 @@ async function run() {
   for (const collective of collectives) {
     console.log(collective.slug, collective.createdAt);
     const ipString = await getIpString(collective);
-    const content = `${collective.slug.split('-').join(' ')} ${collective.name} ${collective.description} ${
-      collective.longDescription
-    } ${collective.website} ${ipString}`;
+    const content = await collectiveBayesContent(collective, ipString);
 
     if (collective.data?.isBanned || collective.data?.seo === true) {
       await classifier.learn(content, 'spam');
@@ -68,9 +67,7 @@ async function run() {
   for (const collective of approvedCollectives) {
     console.log(collective.slug, collective.createdAt);
     const ipString = await getIpString(collective);
-    const content = `${collective.slug.split('-').join(' ')} ${collective.name} ${collective.description} ${
-      collective.longDescription
-    } ${collective.website} ${ipString}`;
+    const content = await collectiveBayesContent(collective, ipString);
 
     await classifier.learn(content, 'ham');
   }

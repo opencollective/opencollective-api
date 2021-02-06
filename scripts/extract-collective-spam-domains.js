@@ -3,8 +3,9 @@ import '../server/env';
 
 import getUrls from 'get-urls'; // eslint-disable-line node/no-unpublished-import
 import { union } from 'lodash';
+import moment from 'moment';
 
-import { NON_SPAMMERS_DOMAINS, SPAMMERS_DOMAINS } from '../server/lib/spam';
+import { NON_SPAMMERS_DOMAINS, resolveRedirect, SPAMMERS_DOMAINS } from '../server/lib/spam';
 import models, { Op, sequelize } from '../server/models';
 
 const domains = {};
@@ -18,9 +19,9 @@ async function run() {
     where: {
       approvedAt: { [Op.is]: null },
       longDescription: { [Op.not]: null },
-      createdAt: { [Op.gt]: '2020-07-21' },
+      updatedAt: { [Op.gte]: moment().subtract(3, 'month').toDate() },
     },
-    order: [['createdAt', 'DESC']],
+    order: [['updatedAt', 'DESC']],
     paranoid: false,
   });
 
@@ -28,12 +29,12 @@ async function run() {
     if (collective.data?.isBanned !== true && collective.data?.seo !== true) {
       continue;
     }
-    console.log(collective.slug, collective.createdAt);
+    // console.log(collective.slug, collective.createdAt);
 
     const content = `${collective.slug} ${collective.name} ${collective.description} ${collective.longDescription} ${collective.website}`;
     const urls = getUrls(content);
     for (const url of urls) {
-      const parsedUrl = new URL(url);
+      const parsedUrl = resolveRedirect(new URL(url));
       if (NON_SPAMMERS_DOMAINS.includes(parsedUrl.hostname)) {
         continue;
       }
@@ -49,9 +50,9 @@ async function run() {
   const entries = Object.entries(domains);
   entries.sort(compareEntries);
 
-  const topDomains = entries.slice(0, 120).map(el => el[0]);
+  const topDomains = entries.slice(0, 100).map(el => el[0]);
 
-  console.log('Updated SPAMMERS_DOMAINS', JSON.stringify(union(SPAMMERS_DOMAINS, topDomains).sort(), null, 2));
+  console.log('Updated SPAMMERS_DOMAINS = ', JSON.stringify(union(SPAMMERS_DOMAINS, topDomains).sort(), null, 2));
 
   await sequelize.close();
 }

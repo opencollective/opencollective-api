@@ -19,6 +19,7 @@ export const GuestInfoInput = new GraphQLInputObjectType({
     token: {
       type: GraphQLString,
       description: 'The unique guest token',
+      deprecationReason: '2021-01-26: Guest tokens are not used anymore',
     },
     location: {
       type: LocationInput,

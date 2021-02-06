@@ -13,10 +13,9 @@ import {
 } from 'graphql';
 import { Kind } from 'graphql/language';
 import GraphQLJSON from 'graphql-type-json';
-import { get, omit, pick } from 'lodash';
+import { omit, pick } from 'lodash';
 import moment from 'moment';
 
-import status from '../../constants/expense_status';
 import intervals from '../../constants/intervals';
 import { maxInteger } from '../../constants/math';
 import orderStatus from '../../constants/order_status';
@@ -24,12 +23,11 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPES } from '../../constants/pa
 import roles from '../../constants/roles';
 import { getCollectiveAvatarUrl } from '../../lib/collectivelib';
 import { getContributorsForTier } from '../../lib/contributors';
-import { stripTags } from '../../lib/utils';
 import models, { Op, sequelize } from '../../models';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import * as commonComment from '../common/comment';
 import { allowContextPermission, PERMISSION_TYPE } from '../common/context-permissions';
-import { canComment, canSeeExpenseAttachments, canSeeExpensePayoutMethod, getExpenseItems } from '../common/expenses';
+import { canSeeExpenseAttachments, canSeeExpensePayoutMethod, getExpenseItems } from '../common/expenses';
 import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
 
 import { CollectiveInterfaceType, CollectiveSearchResultsType } from './CollectiveInterface';
@@ -233,18 +231,6 @@ export const UserType = new GraphQLObjectType({
               },
             ],
           });
-        },
-      },
-      paypalEmail: {
-        type: GraphQLString,
-        deprecationReason: '2020-01-20 - Payout methods are now attached to collectives',
-        async resolve(user, args, req) {
-          if (!req.remoteUser || !(await req.loaders.User.canSeeUserPrivateInfo.load(user))) {
-            return null;
-          } else {
-            const payoutMethods = await req.loaders.PayoutMethod.paypalByCollectiveId.load(user.CollectiveId);
-            return get(payoutMethods[0], 'data.email');
-          }
         },
       },
       isLimited: {
@@ -839,13 +825,6 @@ export const ExpenseType = new GraphQLObjectType({
           return expense.description;
         },
       },
-      category: {
-        type: GraphQLString,
-        deprecationReason: '2020-04-01 - Please use tags',
-        resolve(expense) {
-          return expense.tags?.[0] || null;
-        },
-      },
       tags: {
         type: new GraphQLList(GraphQLString),
         resolve(expense) {
@@ -862,13 +841,6 @@ export const ExpenseType = new GraphQLObjectType({
         type: GraphQLString,
         resolve(expense) {
           return expense.type;
-        },
-      },
-      payoutMethod: {
-        type: GraphQLString,
-        deprecationReason: '2020-01-23 - Please use the private field instead.',
-        resolve(expense) {
-          return expense.legacyPayoutMethod;
         },
       },
       PayoutMethod: {
@@ -899,32 +871,6 @@ export const ExpenseType = new GraphQLObjectType({
           }
         },
       },
-      attachment: {
-        type: GraphQLString,
-        deprecationReason: '2020-01-13 - Expenses now support multiple attachments. Please use attachments instead.',
-        async resolve(expense, args, req) {
-          if (!(await canSeeExpenseAttachments(req, expense))) {
-            return null;
-          } else {
-            const attachments = await getExpenseItems(expense.id, req);
-            return attachments[0] && attachments[0].url;
-          }
-        },
-      },
-      attachments: {
-        type: new GraphQLList(ExpenseItemType),
-        deprecationReason: '2020-04-09 - Please use items',
-        async resolve(expense, _, req) {
-          const canSeeAttachments = await canSeeExpenseAttachments(req, expense);
-          return (await getExpenseItems(expense.id, req)).map(async item => {
-            if (canSeeAttachments) {
-              return item;
-            } else {
-              return omit(item, ['url']);
-            }
-          });
-        },
-      },
       items: {
         type: new GraphQLList(ExpenseItemType),
         async resolve(expense, _, req) {
@@ -946,13 +892,6 @@ export const ExpenseType = new GraphQLObjectType({
           }
         },
       },
-      userTaxFormRequiredBeforePayment: {
-        type: GraphQLBoolean,
-        deprecationReason: '2020-11-17: [LegacyExpenseFlow] Please use API V2',
-        async resolve(expense, _, req) {
-          return req.loaders.Expense.userTaxFormRequiredBeforePayment.load(expense.id);
-        },
-      },
       user: {
         type: UserType,
         async resolve(expense, _, req) {
@@ -963,26 +902,6 @@ export const ExpenseType = new GraphQLObjectType({
         type: CollectiveInterfaceType,
         resolve(expense, _, req) {
           return req.loaders.Collective.byId.load(expense.FromCollectiveId);
-        },
-      },
-      comments: {
-        type: CommentListType,
-        description: 'Returns the list of comments for this expense, or `null` if user is not allowed to see them',
-        deprecationReason: '2020-11-17: [LegacyExpenseFlow] Now using GQLV2 for that',
-        args: {
-          limit: { type: GraphQLInt },
-          offset: { type: GraphQLInt },
-        },
-        async resolve(expense, args, req) {
-          if (!(await canComment(req, expense))) {
-            return null;
-          }
-
-          return {
-            where: { ExpenseId: expense.id },
-            limit: args.limit,
-            offset: args.offset,
-          };
         },
       },
       collective: {
@@ -1105,19 +1024,16 @@ export const UpdateType = new GraphQLObjectType({
         resolve(update, _, req) {
           if (update.isPrivate && !(req.remoteUser && req.remoteUser.canSeePrivateUpdates(update.CollectiveId))) {
             return null;
+          } else {
+            return update.html;
           }
-
-          return stripTags(update.html || '');
         },
       },
       markdown: {
         type: GraphQLString,
-        resolve(update, _, req) {
-          if (update.isPrivate && !(req.remoteUser && req.remoteUser.canSeePrivateUpdates(update.CollectiveId))) {
-            return null;
-          }
-
-          return stripTags(update.markdown || '');
+        deprecationReason: '2020-01-25: Use html',
+        resolve() {
+          return null;
         },
       },
       tags: {
@@ -1235,11 +1151,11 @@ export const CommentType = new GraphQLObjectType({
       },
       html: {
         type: GraphQLString,
-        resolve: commonComment.getStripTagsResolver('html'),
       },
       markdown: {
         type: GraphQLString,
-        resolve: commonComment.getStripTagsResolver('markdown'),
+        deprecationReason: '2020-01-25: Use html',
+        resolve: () => null,
       },
       createdByUser: {
         type: UserType,
@@ -2243,12 +2159,6 @@ export const SubscriptionType = new GraphQLObjectType({
   },
 });
 
-export const ExpenseStatusType = new GraphQLEnumType({
-  name: 'ExpenseStatus',
-  description: 'Possible statuses for an Expense',
-  values: Object.keys(status).reduce((values, key) => ({ ...values, [key]: {} }), {}),
-});
-
 export const UserInputType = new GraphQLInputObjectType({
   name: 'UserInput',
   description: 'Create and edit options for users',
@@ -2274,53 +2184,6 @@ export const OrderDirectionType = new GraphQLEnumType({
   values: {
     ASC: {},
     DESC: {},
-  },
-});
-
-export const OrderByType = new GraphQLInputObjectType({
-  name: 'OrderByType',
-  description: 'Ordering options',
-  fields: {
-    field: {
-      description: '',
-      defaultValue: 'createdAt',
-      type: new GraphQLEnumType({
-        name: 'OrderByField',
-        description: 'Properties by which results can be ordered.',
-        values: {
-          createdAt: {
-            description: 'Order result by creation time.',
-          },
-          updatedAt: {
-            description: 'Order result by updated time.',
-          },
-        },
-      }),
-    },
-    direction: {
-      description: 'The ordering direction',
-      defaultValue: 'DESC',
-      type: OrderDirectionType,
-    },
-  },
-});
-
-OrderByType.defaultValue = Object.entries(OrderByType.getFields()).reduce(
-  (values, [key, value]) => ({
-    ...values,
-    [key]: value.defaultValue,
-  }),
-  {},
-);
-
-export const PaginatedExpensesType = new GraphQLObjectType({
-  name: 'PaginatedExpenses',
-  description: 'A list of expenses with pagination info',
-  fields: {
-    expenses: { type: new GraphQLList(ExpenseType) },
-    limit: { type: GraphQLInt },
-    offset: { type: GraphQLInt },
-    total: { type: GraphQLInt },
   },
 });
 

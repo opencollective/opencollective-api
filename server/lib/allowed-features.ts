@@ -26,7 +26,7 @@ const FeatureAllowedForTypes = {
   [FEATURE.COLLECTIVE_GOALS]: [types.COLLECTIVE, types.ORGANIZATION],
   [FEATURE.TOP_FINANCIAL_CONTRIBUTORS]: [types.COLLECTIVE, types.ORGANIZATION, types.FUND],
   [FEATURE.CONVERSATIONS]: [types.COLLECTIVE, types.ORGANIZATION],
-  [FEATURE.UPDATES]: [types.COLLECTIVE, types.ORGANIZATION],
+  [FEATURE.UPDATES]: [types.COLLECTIVE, types.ORGANIZATION, types.FUND],
   [FEATURE.TEAM]: [types.ORGANIZATION, types.COLLECTIVE, types.EVENT, types.FUND, types.PROJECT],
   [FEATURE.CONTACT_FORM]: [types.COLLECTIVE, types.EVENT, types.ORGANIZATION],
   [FEATURE.TRANSFERWISE]: [types.ORGANIZATION],
@@ -39,7 +39,6 @@ const FeatureAllowedForTypes = {
  */
 export const OPT_OUT_FEATURE_FLAGS = {
   [FEATURE.CONTACT_FORM]: 'settings.features.contactForm',
-  [FEATURE.UPDATES]: 'settings.features.updates',
 };
 
 export const OPT_IN_FEATURE_FLAGS = {
@@ -48,7 +47,6 @@ export const OPT_IN_FEATURE_FLAGS = {
   [FEATURE.PAYPAL_PAYOUTS]: 'settings.features.paypalPayouts',
   [FEATURE.PAYPAL_DONATIONS]: 'settings.features.paypalDonations',
   [FEATURE.RECEIVE_HOST_APPLICATIONS]: 'settings.apply',
-  [FEATURE.CONVERSATIONS]: 'settings.features.conversations',
 };
 
 const FEATURES_ONLY_FOR_HOST_ORGS = new Set([

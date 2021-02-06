@@ -3,7 +3,7 @@ import config from 'config';
 import sinon from 'sinon';
 
 import slackLib from '../../../server/lib/slack';
-import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective } from '../../../server/lib/spam';
+import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective, resolveRedirect } from '../../../server/lib/spam';
 import { fakeCollective } from '../../test-helpers/fake-data';
 
 describe('server/lib/spam', () => {
@@ -81,6 +81,38 @@ describe('server/lib/spam', () => {
         data: collectiveWithBlockedWebsite.info,
       });
     });
+
+    it('detects bad domains in the URL', async () => {
+      const collective = await fakeCollective({
+        longDescription: 'Come and buy stuff on <a href="https://dasilex.co.uk/test">our website</a>!',
+      });
+
+      expect(await collectiveSpamCheck(collective)).to.deep.eq({
+        score: 1,
+        keywords: [],
+        domains: ['dasilex.co.uk'],
+        bayes: 'ham',
+        context: undefined,
+        date: '2020-01-01T00:00:00.000Z',
+        data: collective.info,
+      });
+    });
+
+    it('is ok with legit domains', async () => {
+      const collective = await fakeCollective({
+        longDescription: 'Come and buy stuff on <a href="https://google.fr">our website</a>!',
+      });
+
+      expect(await collectiveSpamCheck(collective)).to.deep.eq({
+        score: 0,
+        keywords: [],
+        domains: [],
+        bayes: 'ham',
+        context: undefined,
+        date: '2020-01-01T00:00:00.000Z',
+        data: collective.info,
+      });
+    });
   });
 
   describe('notifyTeamAboutSuspiciousCollective', () => {
@@ -104,6 +136,29 @@ describe('server/lib/spam', () => {
         '*Suspicious collective data was submitted for collective:* https://opencollective.com/ketoooo\nScore: 0.3\nKeywords: `keto`',
       );
       expect(args[1]).to.eq(config.slack.webhooks.abuse);
+    });
+  });
+
+  describe('unredirectUrl', () => {
+    it('does nothing if not a redirected URL', () => {
+      expect(resolveRedirect(new URL('https://google.fr')).hostname).to.eq('google.fr');
+      expect(resolveRedirect(new URL(`${config.host.website}/test`)).origin).to.eq(config.host.website);
+    });
+
+    it('does not crash for invalid redirects', () => {
+      expect(resolveRedirect(new URL(`${config.host.website}/redirect`)).origin).to.eq(config.host.website);
+      expect(resolveRedirect(new URL(`${config.host.website}/redirect?url=something`)).origin).to.eq(
+        config.host.website,
+      );
+    });
+
+    it('returns the base URL', () => {
+      expect(resolveRedirect(new URL(`${config.host.website}/redirect?url=https://google.fr`)).hostname).to.eq(
+        'google.fr',
+      );
+      expect(resolveRedirect(new URL(`${config.host.website}/redirect?url=https://google.fr/test`)).hostname).to.eq(
+        'google.fr',
+      );
     });
   });
 });

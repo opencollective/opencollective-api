@@ -76,7 +76,6 @@ export const payExpensesBatch = async (expenses: any[]): Promise<any[]> => {
 export const checkBatchItemStatus = async (item: PayoutItemDetails, expense: any, host: any) => {
   // Reload up-to-date values to avoid race conditions when processing batches.
   await expense.reload();
-
   if (expense.data.payout_batch_id !== item.payout_batch_id) {
     throw new Error(`Item does not belongs to expense it claims it does.`);
   }

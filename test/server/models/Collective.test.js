@@ -434,6 +434,7 @@ describe('server/models/Collective', () => {
       const plan = await hostUser.collective.getPlan();
 
       expect(plan).to.deep.equal({
+        id: 3,
         name: 'default',
         hostedCollectives: 2,
         addedFunds: 0,
@@ -1066,7 +1067,7 @@ describe('server/models/Collective', () => {
       await utils.resetTestDB();
     });
 
-    let gbpHost, socialCollective;
+    let gbpHost, socialCollective, metrics;
     before(async () => {
       await utils.resetTestDB();
       const user = await fakeUser({ id: 30 }, { id: 20, slug: 'pia' });
@@ -1085,6 +1086,7 @@ describe('server/models/Collective', () => {
 
       socialCollective = await fakeCollective({ HostCollectiveId: gbpHost.id });
       const transactionProps = {
+        amount: 100,
         type: 'CREDIT',
         CollectiveId: socialCollective.id,
         currency: 'GBP',
@@ -1131,11 +1133,24 @@ describe('server/models/Collective', () => {
         createdAt: lastMonth,
         PaymentMethodId: stripePaymentMethod.id,
       });
+      // Different Currency Transaction
+      const otherCollective = await fakeCollective({ currency: 'USD', HostCollectiveId: gbpHost.id });
+      await fakeTransaction({
+        type: 'CREDIT',
+        CollectiveId: otherCollective.id,
+        amount: 1000,
+        currency: 'USD',
+        hostCurrency: 'GBP',
+        HostCollectiveId: gbpHost.id,
+        hostCurrencyFxRate: 0.8,
+        createdAt: lastMonth,
+      });
+
+      metrics = await gbpHost.getHostMetrics(lastMonth);
     });
 
     it('returns acurate metrics for requested month', async () => {
-      const metrics = await gbpHost.getHostMetrics(lastMonth);
-      const expectedTotalMoneyManaged = await socialCollective.getBalance();
+      const expectedTotalMoneyManaged = 2400 + 4000 + 100 + 1000 * 0.8;
 
       expect(metrics).to.deep.equal({
         hostFees: 800,

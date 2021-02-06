@@ -22,9 +22,6 @@
     "images": "https://images.opencollective.com",
     "pdf": "https://pdf.opencollective.com"
   },
-  "guestContributions": {
-    "enable": false
-  },
   "log": {
     "slowRequest": true
   },

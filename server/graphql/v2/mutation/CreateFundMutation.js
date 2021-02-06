@@ -14,7 +14,6 @@ import { Fund } from '../object/Fund';
 const DEFAULT_COLLECTIVE_SETTINGS = {
   features: { conversations: false },
   collectivePage: {
-    useNewSections: true,
     sections: [
       {
         name: 'BUDGET',

@@ -2,30 +2,32 @@ import { expect } from 'chai';
 import config from 'config';
 import crypto from 'crypto-js';
 import gqlV2 from 'fake-tag';
-import { pick } from 'lodash';
+import { omit, pick } from 'lodash';
 import sinon from 'sinon';
 import speakeasy from 'speakeasy';
 
 import { expenseStatus } from '../../../../../server/constants';
-import { payExpense } from '../../../../../server/graphql/v1/mutations/expenses.js';
+import { payExpense } from '../../../../../server/graphql/common/expenses';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import { getFxRate } from '../../../../../server/lib/currency';
 import emailLib from '../../../../../server/lib/email';
 import models from '../../../../../server/models';
 import { PayoutMethodTypes } from '../../../../../server/models/PayoutMethod';
 import paymentProviders from '../../../../../server/paymentProviders';
-import { randEmail, randUrl } from '../../../../stores';
+import paypalAdaptive from '../../../../../server/paymentProviders/paypal/adaptiveGateway';
+import { newCollectiveWithHost, newUser, randEmail, randUrl } from '../../../../stores';
 import {
   fakeCollective,
   fakeConnectedAccount,
   fakeExpense,
   fakeExpenseItem,
+  fakePaymentMethod,
   fakePayoutMethod,
   fakeTransaction,
   fakeUser,
   randStr,
 } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, makeRequest, waitForCondition } from '../../../../utils';
+import { graphqlQueryV2, makeRequest, resetTestDB, waitForCondition } from '../../../../utils';
 
 const SECRET_KEY = config.dbEncryption.secretKey;
 const CIPHER = config.dbEncryption.cipher;
@@ -140,7 +142,16 @@ const convertExpenseItemId = item => {
 };
 
 describe('server/graphql/v2/mutation/ExpenseMutations', () => {
+  before(async () => {
+    // It seems that a previous test doesn't free the sendMessage stub. This corrects it
+    await resetTestDB();
+    if (emailLib.sendMessage.restore) {
+      emailLib.sendMessage.restore();
+    }
+  });
+
   describe('createExpense', () => {
+    let sandbox, emailSendMessageSpy;
     const getValidExpenseData = () => ({
       description: 'A valid expense',
       type: 'INVOICE',
@@ -150,9 +161,33 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       payeeLocation: { address: '123 Potatoes street', country: 'BE' },
     });
 
-    it('creates the expense with the linked items', async () => {
+    beforeEach(() => {
+      sandbox = sinon.createSandbox();
+      emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage');
+    });
+
+    afterEach(() => {
+      emailSendMessageSpy.restore();
+      sandbox.restore();
+    });
+
+    it('fails if not logged in', async () => {
       const user = await fakeUser();
       const collective = await fakeCollective();
+      const expenseData = getValidExpenseData();
+      const result = await graphqlQueryV2(createExpenseMutation, {
+        expense: { ...expenseData, payee: { legacyId: user.CollectiveId } },
+        account: { legacyId: collective.id },
+      });
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('You need to be logged in to create an expense');
+    });
+
+    it('creates the expense with the linked items', async () => {
+      const user = await fakeUser();
+      const collectiveAdmin = await fakeUser();
+      const collective = await fakeCollective({ admin: collectiveAdmin.collective });
       const payee = await fakeCollective({ type: 'ORGANIZATION', admin: user.collective, address: null });
       const expenseData = { ...getValidExpenseData(), payee: { legacyId: payee.id } };
 
@@ -177,6 +212,19 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       await payee.reload();
       expect(payee.address).to.eq('123 Potatoes street');
       expect(payee.countryISO).to.eq('BE');
+
+      // And then an email should have been sent to the admin. This
+      // call to the function `waitForCondition()` is required because
+      // notifications are sent asynchronously.
+      await waitForCondition(() => emailSendMessageSpy.callCount === 1);
+      expect(emailSendMessageSpy.callCount).to.equal(1);
+      expect(emailSendMessageSpy.firstCall.args[0]).to.equal(collectiveAdmin.email);
+      expect(emailSendMessageSpy.firstCall.args[1]).to.equal(
+        `New expense on ${collective.name}: $42.00 for A valid expense`,
+      );
+      expect(emailSendMessageSpy.firstCall.args[2]).to.contain(
+        `/${collective.slug}/expenses/${createdExpense.legacyId}`,
+      );
     });
 
     it("use collective's location if not provided", async () => {
@@ -299,7 +347,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         items: [
           pick(items[0], ['id', 'url', 'amount']), // Don't change the first one (value=2000)
           { ...pick(items[1], ['id', 'url']), amount: 7000 }, // Update amount for the second one
-          { amount: 1000, url: randUrl() }, // Remove the third one and create another instead
+          { amount: 8000, url: randUrl() }, // Remove the third one and create another instead
         ],
       };
 
@@ -307,7 +355,9 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(result.errors).to.not.exist;
       const returnedItems = result.data.editExpense.items;
       const sumItems = returnedItems.reduce((total, item) => total + item.amount, 0);
-      expect(sumItems).to.equal(10000);
+
+      expect(sumItems).to.equal(17000);
+      expect(result.data.editExpense.amount).to.equal(17000);
       expect(returnedItems.find(a => a.id === items[0].id)).to.exist;
       expect(returnedItems.find(a => a.id === items[1].id)).to.exist;
       expect(returnedItems.find(a => a.id === items[2].id)).to.not.exist;
@@ -446,6 +496,20 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
     });
 
     describe('cannot delete', () => {
+      it('if not logged in as author, admin or host', async () => {
+        const randomUser = await fakeUser();
+        const collective = await fakeCollective();
+        const expense = await fakeExpense({ status: expenseStatus.REJECTED, CollectiveId: collective.id });
+        const result = await graphqlQueryV2(deleteExpenseMutation, prepareGQLParams(expense), randomUser);
+
+        await expense.reload({ paranoid: false });
+        expect(expense.deletedAt).to.not.exist;
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq(
+          "You don't have permission to delete this expense or it needs to be rejected before being deleted",
+        );
+      });
+
       it('if backer', async () => {
         const collectiveBackerUser = await fakeUser();
         const collective = await fakeCollective();
@@ -486,17 +550,42 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
   });
 
   describe('processExpense', () => {
-    let collective, host, collectiveAdmin, hostAdmin;
+    let collective, host, collectiveAdmin, hostAdmin, hostPaypalPm;
 
     before(async () => {
       hostAdmin = await fakeUser();
       collectiveAdmin = await fakeUser();
-      host = await fakeCollective({ admin: hostAdmin.collective });
+      host = await fakeCollective({ admin: hostAdmin.collective, plan: 'network-host-plan' });
       collective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdmin.collective });
       await hostAdmin.populateRoles();
+      hostPaypalPm = await fakePaymentMethod({
+        name: randEmail(),
+        service: 'paypal',
+        CollectiveId: host.id,
+        token: 'abcdefg',
+        confirmedAt: new Date(),
+      });
+      await fakeConnectedAccount({
+        CollectiveId: host.id,
+        service: 'transferwise',
+        token: 'faketoken',
+        data: { type: 'business', id: 0 },
+      });
     });
 
     describe('APPROVE', () => {
+      let sandbox, emailSendMessageSpy;
+
+      beforeEach(() => {
+        sandbox = sinon.createSandbox();
+        emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage');
+      });
+
+      afterEach(() => {
+        emailSendMessageSpy.restore();
+        sandbox.restore();
+      });
+
       it('Needs to be authenticated', async () => {
         const expense = await fakeExpense({ CollectiveId: collective.id, status: 'PENDING' });
         const mutationParams = { expenseId: expense.id, action: 'APPROVE' };
@@ -518,6 +607,15 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const mutationParams = { expenseId: expense.id, action: 'APPROVE' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, collectiveAdmin);
         expect(result.data.processExpense.status).to.eq('APPROVED');
+
+        // Send emails to host admin and author
+        await waitForCondition(() => emailSendMessageSpy.callCount === 2);
+        expect(emailSendMessageSpy.callCount).to.equal(2);
+        expect(emailSendMessageSpy.firstCall.args[0]).to.equal(expense.User.email);
+        expect(emailSendMessageSpy.firstCall.args[1]).to.contain('Your expense');
+        expect(emailSendMessageSpy.firstCall.args[1]).to.contain('has been approved');
+        expect(emailSendMessageSpy.secondCall.args[0]).to.equal(hostAdmin.email);
+        expect(emailSendMessageSpy.secondCall.args[1]).to.contain('New expense approved');
       });
 
       it('Expense needs to be pending', async () => {
@@ -617,6 +715,18 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
     });
 
     describe('PAY', () => {
+      let sandbox, emailSendMessageSpy;
+
+      beforeEach(() => {
+        sandbox = sinon.createSandbox();
+        emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage');
+      });
+
+      afterEach(() => {
+        emailSendMessageSpy.restore();
+        sandbox.restore();
+      });
+
       it('Needs to be authenticated', async () => {
         const expense = await fakeExpense({ CollectiveId: collective.id, status: 'APPROVED' });
         const mutationParams = { expenseId: expense.id, action: 'PAY' };
@@ -641,17 +751,64 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.errors[0].message).to.eq("You don't have permission to pay this expense");
       });
 
-      it('Expense needs to be approved', async () => {
-        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'REJECTED' });
+      it('Expense needs to be approved or error', async () => {
+        const statuses = Object.keys(omit(expenseStatus, ['APPROVED', 'ERROR', 'SCHEDULED_FOR_PAYMENT']));
+        for (const status of statuses) {
+          const expense = await fakeExpense({ status, CollectiveId: collective.id });
+          const mutationParams = { expenseId: expense.id, action: 'PAY' };
+          const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+          expect(result.errors).to.exist;
+          if (expense.status === expenseStatus.PROCESSING) {
+            expect(result.errors[0].message).to.eq(
+              `Expense is currently being processed, this means someone already started the payment process`,
+            );
+          } else if (expense.status === expenseStatus.PAID) {
+            expect(result.errors[0].message).to.eq(`Expense has already been paid`);
+          } else {
+            expect(result.errors[0].message).to.eq(
+              `Expense needs to be approved. Current status of the expense: ${expense.status}.`,
+            );
+          }
+        }
+      });
+
+      it('Fails if balance is too low', async () => {
+        const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+        const expense = await fakeExpense({
+          amount: 1000,
+          CollectiveId: collective.id,
+          status: 'APPROVED',
+          PayoutMethodId: payoutMethod.id,
+        });
+
         const mutationParams = { expenseId: expense.id, action: 'PAY' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.eq(
-          'Expense needs to be approved. Current status of the expense: REJECTED.',
+          "You don't have enough funds to pay this expense. Current balance: $0, Expense amount: $10",
         );
       });
 
-      it('Pays the expense', async () => {
+      it('Fails if balance is too low to cover the fees', async () => {
+        const payoutMethod = await fakePayoutMethod({ type: 'PAYPAL' });
+        const expense = await fakeExpense({
+          amount: 1000,
+          CollectiveId: collective.id,
+          status: 'APPROVED',
+          PayoutMethodId: payoutMethod.id,
+        });
+
+        const mutationParams = { expenseId: expense.id, action: 'PAY' };
+        await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: expense.amount });
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq(
+          "You don't have enough funds to cover for the fees of this payment method. Current balance: $10, Expense amount: $10, Estimated PAYPAL fees: $1",
+        );
+      });
+
+      it('Pays the expense manually', async () => {
+        const paymentProcessorFee = 100;
         const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
         const expense = await fakeExpense({
           amount: 1000,
@@ -661,10 +818,205 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         });
 
         // Updates the collective balance and pay the expense
-        await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: expense.amount });
-        const mutationParams = { expenseId: expense.id, action: 'PAY' };
+        const initialBalance = await collective.getBalance();
+        const expensePlusFees = expense.amount + paymentProcessorFee;
+        await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: expensePlusFees });
+        expect(await collective.getBalance()).to.equal(initialBalance + expensePlusFees);
+        const mutationParams = { expenseId: expense.id, action: 'PAY', paymentParams: { paymentProcessorFee } };
+        emailSendMessageSpy.resetHistory();
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+        expect(await collective.getBalance()).to.equal(initialBalance);
+        result.errors && console.error(result.errors);
         expect(result.data.processExpense.status).to.eq('PAID');
+
+        // Check transactions
+        const debitTransaction = await models.Transaction.findOne({
+          where: {
+            type: 'DEBIT',
+            ExpenseId: expense.id,
+          },
+        });
+
+        expect(debitTransaction.currency).to.equal(expense.currency);
+        expect(debitTransaction.hostCurrency).to.equal(host.currency);
+        expect(debitTransaction.netAmountInCollectiveCurrency).to.equal(-expensePlusFees);
+        expect(debitTransaction.paymentProcessorFeeInHostCurrency).to.equal(
+          Math.round(-paymentProcessorFee * debitTransaction.hostCurrencyFxRate),
+        );
+        const creditTransaction = await models.Transaction.findOne({
+          where: {
+            type: 'CREDIT',
+            ExpenseId: expense.id,
+          },
+        });
+        expect(creditTransaction.netAmountInCollectiveCurrency).to.equal(expense.amount);
+        expect(creditTransaction.amount).to.equal(expensePlusFees);
+
+        // Check sent emails
+        await waitForCondition(() => emailSendMessageSpy.callCount === 2);
+        expect(emailSendMessageSpy.callCount).to.equal(2);
+        expect(emailSendMessageSpy.args[0][0]).to.equal(expense.User.email);
+        expect(emailSendMessageSpy.args[0][2]).to.contain(`has just been paid`);
+        expect(emailSendMessageSpy.args[1][0]).to.equal(hostAdmin.email);
+        expect(emailSendMessageSpy.args[1][1]).to.contain(`Expense paid on ${collective.name}`);
+
+        // User should be added as a CONTRIBUTOR
+        const membership = await models.Member.findOne({
+          where: { MemberCollectiveId: expense.FromCollectiveId, CollectiveId: collective.id, role: 'CONTRIBUTOR' },
+        });
+        expect(membership).to.exist;
+      });
+
+      describe('With PayPal', () => {
+        it('fails if not enough funds on the paypal preapproved key', async () => {
+          const callPaypal = sandbox.stub(paypalAdaptive, 'callPaypal').callsFake(() => {
+            return Promise.reject(
+              new Error(
+                'PayPal error: The total amount of all payments exceeds the maximum total amount for all payments (error id: 579031)',
+              ),
+            );
+          });
+
+          const fromUser = await fakeUser();
+          const payoutMethod = await fakePayoutMethod({ type: 'PAYPAL', CollectiveId: fromUser.CollectiveId });
+          const expense = await fakeExpense({
+            amount: 1000,
+            CollectiveId: collective.id,
+            status: 'APPROVED',
+            PayoutMethodId: payoutMethod.id,
+            UserId: fromUser.id,
+            FromCollectiveId: fromUser.CollectiveId,
+          });
+
+          // Updates the collective balance and pay the expense
+          const estimatedPayPalFees = 1000;
+          await fakeTransaction({
+            type: 'CREDIT',
+            CollectiveId: collective.id,
+            amount: expense.amount + estimatedPayPalFees,
+          });
+
+          const mutationParams = { expenseId: expense.id, action: 'PAY' };
+          const res = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+          expect(callPaypal.firstCall.args[0]).to.equal('pay');
+          expect(callPaypal.firstCall.args[1].currencyCode).to.equal(expense.currency);
+          expect(callPaypal.firstCall.args[1].memo).to.include('Reimbursement from');
+          expect(callPaypal.firstCall.args[1].memo).to.include(expense.description);
+          expect(res.errors).to.exist;
+          expect(res.errors[0].message).to.contain('Not enough funds in your existing Paypal preapproval');
+          const updatedExpense = await models.Expense.findByPk(expense.id);
+          expect(updatedExpense.status).to.equal('APPROVED');
+          const transactions = await models.Transaction.findAll({ where: { ExpenseId: expense.id } });
+          expect(transactions.length).to.equal(0);
+        });
+
+        it('when hosts paypal and payout method paypal are the same', async () => {
+          const callPaypal = sandbox.stub(paypalAdaptive, 'callPaypal');
+          const fromUser = await fakeUser();
+          const payoutMethod = await fakePayoutMethod({
+            type: 'PAYPAL',
+            CollectiveId: fromUser.CollectiveId,
+            data: { email: hostPaypalPm.name },
+          });
+          const expense = await fakeExpense({
+            amount: 1000,
+            CollectiveId: collective.id,
+            status: 'APPROVED',
+            PayoutMethodId: payoutMethod.id,
+            UserId: fromUser.id,
+            FromCollectiveId: fromUser.CollectiveId,
+          });
+
+          // Updates the collective balance and pay the expense
+          await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: expense.amount });
+
+          const mutationParams = { expenseId: expense.id, action: 'PAY' };
+          const res = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+          res.errors && console.error(res.errors);
+          expect(res.errors).to.not.exist;
+          expect(res.data.processExpense.status).to.equal('PAID');
+          expect(callPaypal.called).to.be.false;
+        });
+      });
+
+      describe('With transferwise', () => {
+        const fee = 1.74;
+        let getTemporaryQuote, expense;
+
+        before(async () => {
+          // Updates the collective balance and pay the expense
+          await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 15000000 });
+        });
+
+        beforeEach(() => {
+          getTemporaryQuote = sandbox.stub(paymentProviders.transferwise, 'getTemporaryQuote').resolves({ fee });
+          sandbox.stub(paymentProviders.transferwise, 'payExpense').resolves({ quote: { fee } });
+        });
+
+        beforeEach(async () => {
+          const user = await fakeUser();
+          const payoutMethod = await fakePayoutMethod({
+            type: PayoutMethodTypes.BANK_ACCOUNT,
+            CollectiveId: user.CollectiveId,
+            data: {
+              accountHolderName: 'Leo Kewitz',
+              currency: 'EUR',
+              type: 'iban',
+              legalType: 'PRIVATE',
+              details: {
+                IBAN: 'DE89370400440532013000',
+              },
+            },
+          });
+          expense = await fakeExpense({
+            payoutMethod: 'transferwise',
+            status: expenseStatus.APPROVED,
+            amount: 1000000,
+            FromCollectiveId: user.CollectiveId,
+            CollectiveId: collective.id,
+            UserId: user.id,
+            currency: 'USD',
+            PayoutMethodId: payoutMethod.id,
+            category: 'Engineering',
+            type: 'INVOICE',
+            description: 'January Invoice',
+          });
+        });
+
+        it('includes TransferWise fees', async () => {
+          const mutationParams = { expenseId: expense.id, action: 'PAY' };
+          const res = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+          res.errors && console.error(res.errors);
+          expect(res.errors).to.not.exist;
+          const [transaction] = await models.Transaction.findAll({ where: { ExpenseId: expense.id } });
+
+          expect(getTemporaryQuote.called).to.be.true;
+          expect(transaction)
+            .to.have.nested.property('paymentProcessorFeeInHostCurrency')
+            .to.equal(Math.round(fee * -100));
+        });
+
+        it('should update expense status to PROCESSING', async () => {
+          const mutationParams = { expenseId: expense.id, action: 'PAY' };
+          const res = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+          res.errors && console.error(res.errors);
+          expect(res.errors).to.not.exist;
+          await expense.reload();
+          expect(expense.status).to.equal(expenseStatus.PROCESSING);
+        });
+
+        it('should send a notification email to the payee', async () => {
+          emailSendMessageSpy.resetHistory();
+          const mutationParams = { expenseId: expense.id, action: 'PAY' };
+          const res = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+          res.errors && console.error(res.errors);
+          expect(res.errors).to.not.exist;
+          await waitForCondition(() => emailSendMessageSpy.callCount === 1);
+          expect(emailSendMessageSpy.args[0][0]).to.equal(expense.User.email);
+          expect(emailSendMessageSpy.args[0][1]).to.contain(
+            `Expense from ${collective.name} for January Invoice is being Processed`,
+          );
+        });
       });
 
       it('Cannot double-pay', async () => {
@@ -681,6 +1033,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const mutationParams = { expenseId: expense.id, action: 'PAY' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
         const result2 = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+        result.errors && console.error(result.errors);
         expect(result.data.processExpense.status).to.eq('PAID');
         expect(result2.errors).to.exist;
         expect(result2.errors[0].message).to.eq('Expense has already been paid');

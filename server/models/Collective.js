@@ -19,6 +19,7 @@ import {
   sumBy,
   trim,
   uniqBy,
+  unset,
 } from 'lodash';
 import moment from 'moment';
 import fetch from 'node-fetch';
@@ -46,6 +47,7 @@ import {
   isCollectiveSlugReserved,
   validateSettings,
 } from '../lib/collectivelib';
+import { invalidateContributorsCache } from '../lib/contributors';
 import { getFxRate } from '../lib/currency';
 import emailLib from '../lib/email';
 import logger from '../lib/logger';
@@ -55,16 +57,7 @@ import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
 import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective } from '../lib/spam';
 import { canUseFeature } from '../lib/user-permissions';
 import userlib from '../lib/userlib';
-import {
-  capitalize,
-  cleanTags,
-  flattenArray,
-  formatCurrency,
-  getDomain,
-  md5,
-  stripTags,
-  sumByWhen,
-} from '../lib/utils';
+import { capitalize, cleanTags, flattenArray, formatCurrency, getDomain, md5, sumByWhen } from '../lib/utils';
 
 import CustomDataTypes from './DataTypes';
 import { PayoutMethodTypes } from './PayoutMethod';
@@ -100,10 +93,19 @@ const defaultTiers = currency => {
 
 const validTypes = ['USER', 'COLLECTIVE', 'ORGANIZATION', 'EVENT', 'PROJECT', 'FUND', 'BOT'];
 
-const sanitizeOptions = buildSanitizerOptions({
+const policiesSanitizeOptions = buildSanitizerOptions({
   basicTextFormatting: true,
   multilineTextFormatting: true,
   links: true,
+});
+
+const longDescriptionSanitizerOptions = buildSanitizerOptions({
+  titles: true,
+  basicTextFormatting: true,
+  multilineTextFormatting: true,
+  images: true,
+  links: true,
+  videoIframes: true,
 });
 
 /**
@@ -240,7 +242,7 @@ export default function (Sequelize, DataTypes) {
         type: DataTypes.TEXT,
         set(longDescription) {
           if (longDescription) {
-            this.setDataValue('longDescription', stripTags(longDescription));
+            this.setDataValue('longDescription', sanitizeHTML(longDescription, longDescriptionSanitizerOptions));
           } else {
             this.setDataValue('longDescription', null);
           }
@@ -254,7 +256,7 @@ export default function (Sequelize, DataTypes) {
         },
         set(expensePolicy) {
           if (expensePolicy) {
-            this.setDataValue('expensePolicy', sanitizeHTML(expensePolicy, sanitizeOptions));
+            this.setDataValue('expensePolicy', sanitizeHTML(expensePolicy, policiesSanitizeOptions));
           } else {
             this.setDataValue('expensePolicy', null);
           }
@@ -268,7 +270,7 @@ export default function (Sequelize, DataTypes) {
         },
         set(contributionPolicy) {
           if (contributionPolicy) {
-            this.setDataValue('contributionPolicy', sanitizeHTML(contributionPolicy, sanitizeOptions));
+            this.setDataValue('contributionPolicy', sanitizeHTML(contributionPolicy, policiesSanitizeOptions));
           } else {
             this.setDataValue('contributionPolicy', null);
           }
@@ -959,7 +961,25 @@ export default function (Sequelize, DataTypes) {
     // TODO unsubscribe from OpenCollective tier plan.
 
     await this.deactivateBudget({ remoteUser });
-    await this.update({ isHostAccount: false });
+
+    const settings = { ...this.settings };
+    unset(settings, 'paymentMethods.manual');
+
+    await this.update({ isHostAccount: false, plan: null, settings });
+
+    await models.PayoutMethod.destroy({
+      where: {
+        data: { isManualBankTransfer: true },
+        CollectiveId: this.id,
+      },
+    });
+
+    await models.ConnectedAccount.destroy({
+      where: {
+        service: 'stripe',
+        CollectiveId: this.id,
+      },
+    });
 
     await models.Activity.create({
       type: activities.DEACTIVATED_COLLECTIVE_AS_HOST,
@@ -993,13 +1013,6 @@ export default function (Sequelize, DataTypes) {
       HostCollectiveId: this.id,
       settings: { ...this.settings, hostCollective: { id: this.id } },
       approvedAt: new Date(),
-    });
-
-    await models.Member.create({
-      role: roles.HOST,
-      CreatedByUserId: remoteUser ? remoteUser.id : this.CreatedByUserId || this.LastEditedByUserId,
-      MemberCollectiveId: this.id,
-      CollectiveId: this.id,
     });
 
     await models.PaymentMethod.create({
@@ -1155,12 +1168,22 @@ export default function (Sequelize, DataTypes) {
     }).map(member => member.memberCollective);
   };
 
+  Collective.prototype.getMemberships = function ({ role } = {}) {
+    return models.Member.findAll({
+      where: {
+        MemberCollectiveId: this.id,
+        role: role,
+      },
+      include: [{ model: models.Collective, as: 'collective' }],
+    }).map(member => member.collective);
+  };
+
   /**
    * Get the admin users { id, email } of this collective
    */
-  Collective.prototype.getAdminUsers = async function ({ userQueryParams } = {}) {
+  Collective.prototype.getAdminUsers = async function ({ userQueryParams, paranoid = true } = {}) {
     if (this.type === 'USER') {
-      return [await this.getUser(userQueryParams)];
+      return [await this.getUser({ paranoid, ...userQueryParams })];
     }
 
     const collectiveId = ['EVENT', 'PROJECT'].includes(this.type) ? this.ParentCollectiveId : this.id;
@@ -1170,10 +1193,12 @@ export default function (Sequelize, DataTypes) {
         CollectiveId: collectiveId,
         role: roles.ADMIN,
       },
+      paranoid,
     });
 
     return models.User.findAll({
       where: { CollectiveId: { [Op.in]: admins.map(m => m.MemberCollectiveId) } },
+      paranoid,
       ...userQueryParams,
     });
   };
@@ -1700,7 +1725,13 @@ export default function (Sequelize, DataTypes) {
   Collective.prototype.getTotalMoneyManaged = async function (until) {
     const hostedCollectives = await this.getHostedCollectives();
     const ids = hostedCollectives.map(c => c.id);
-    const balances = await queries.getBalances(ids, until.toISOString());
+    if (this.isActive) {
+      ids.push(this.id);
+    }
+    if (ids.length === 0) {
+      return 0;
+    }
+    const balances = await queries.getBalancesInHostCurrency(ids, this.id, until.toISOString());
     return sumBy(balances, 'balance');
   };
 
@@ -1790,13 +1821,15 @@ export default function (Sequelize, DataTypes) {
       return this;
     }
 
-    const error = 'Only Users and Organisation that are not hosts can update currency';
-    if (![types.USER, types.ORGANIZATION].includes(this.type)) {
-      throw new Error(error);
+    if ([types.COLLECTIVE, types.FUND].includes(this.type) && this.isActive) {
+      throw new Error(
+        `Active Collectives or Funds can't edit their currency. Contact support@opencollective.com if it's an issue.`,
+      );
     }
+
     const isHost = await this.isHost();
     if (isHost) {
-      throw new Error(error);
+      throw new Error(`Fiscal Hosts can't edit their currency. Contact support@opencollective.com if it's an issue.`);
     }
 
     return this.setCurrency(currency);
@@ -1815,21 +1848,66 @@ export default function (Sequelize, DataTypes) {
     const isHost = await this.isHost();
     if (isHost) {
       // We only expect currency change at the beginning of the history of the Host
-      const transactionCount = await models.Transaction.count({ where: { HostCollectiveId: this.id } });
+      // We're however good with it if currency is already recorded as hostCurrency in the ledger
+      const transactionCount = await models.Transaction.count({
+        where: { HostCollectiveId: this.id, hostCurrency: { [Op.not]: currency } },
+      });
       if (transactionCount > 0) {
         throw new Error(
           'You cannot change the currency of an Host with transactions. Please contact support@opencollective.com.',
         );
       }
-      const collectives = await this.getHostedCollectives();
+      let collectives = await this.getHostedCollectives();
+      collectives = collectives.filter(collective => collective.id !== this.id);
       // We use setCurrency so that it will cascade to Tiers
-      await Promise.map(collectives, collective => collective.setCurrency(currency), { concurrency: 3 });
+      if (collectives.length > 0) {
+        await Promise.map(
+          collectives,
+          async collective => {
+            const collectiveTransactionCount = await models.Transaction.count({
+              where: { CollectiveId: collective.id },
+            });
+            // We only proceed with Collectives without Transactions
+            if (collectiveTransactionCount === 0) {
+              return collective.setCurrency(currency);
+            }
+          },
+          { concurrency: 3 },
+        );
+      }
     }
 
-    // This is currently for COLLECTIVE and EVENTS but we make it generic
+    // Update all transactions
+    // Ensure consistency between collective.currency and transaction.currency
+    const transactions = await models.Transaction.findAll({ where: { CollectiveId: this.id } });
+    if (transactions.length > 0) {
+      await Promise.map(transactions, transaction => transaction.setCurrency(currency), { concurrency: 3 });
+    }
+
+    // Update tiers, skip or delete when they are already used?
     const tiers = await this.getTiers();
     if (tiers.length > 0) {
-      await Promise.map(tiers, tier => tier.update({ currency }), { concurrency: 3 });
+      await Promise.map(
+        tiers,
+        async tier => {
+          // We only proceed with Tiers without Orders
+          const orderCount = await models.Order.count({ where: { TierId: tier.id } });
+          if (orderCount === 0) {
+            return tier.setCurrency(currency);
+          }
+        },
+        { concurrency: 3 },
+      );
+    }
+
+    // Cascade currency to events and projects
+    const events = await this.getEvents();
+    if (events.length > 0) {
+      await Promise.map(events, event => event.setCurrency(currency), { concurrency: 3 });
+    }
+    const projects = await this.getProjects();
+    if (projects.length > 0) {
+      await Promise.map(projects, project => project.setCurrency(currency), { concurrency: 3 });
     }
 
     return this.update({ currency });
@@ -2026,11 +2104,17 @@ export default function (Sequelize, DataTypes) {
    * @param {*} remoteUser { id }
    */
   Collective.prototype.changeHost = async function (newHostCollectiveId, remoteUser, message) {
+    // Skip
+    if (this.HostCollectiveId == newHostCollectiveId) {
+      return this;
+    }
+
     const balance = await this.getBalance();
     if (balance > 0) {
       throw new Error(`Unable to change host: you still have a balance of ${formatCurrency(balance, this.currency)}`);
     }
-    const membership = await models.Member.findOne({
+
+    await models.Member.destroy({
       where: {
         CollectiveId: this.id,
         MemberCollectiveId: this.HostCollectiveId,
@@ -2038,13 +2122,16 @@ export default function (Sequelize, DataTypes) {
       },
     });
 
-    if (membership) {
-      await membership.destroy();
-    }
-
     // Self Hosted Collective
     if (this.id === this.HostCollectiveId) {
       this.isHostAccount = false;
+      this.plan = null;
+      await models.ConnectedAccount.destroy({
+        where: {
+          service: 'stripe',
+          CollectiveId: this.id,
+        },
+      });
     }
 
     // Prepare collective to receive a new host
@@ -2053,6 +2140,7 @@ export default function (Sequelize, DataTypes) {
     this.approvedAt = null;
     this.hostFeePercent = null;
     this.platformFeePercent = null;
+
     // Prepare events and projects to receive a new host
     const events = await this.getEvents();
     if (events?.length > 0) {
@@ -2194,6 +2282,14 @@ export default function (Sequelize, DataTypes) {
       }
     }
 
+    /**
+     * Because we don't update the model directly (we use Model.update(..., {where}))
+     * when removing members, Member's `afterUpdate` hook is not triggered. Therefore it
+     * is necessary to update the cache used in the collective page so that removed team
+     * members don't persist in the Team section on the frontend.
+     */
+    invalidateContributorsCache(this.id);
+
     return this.getMembers({
       where: { role: { [Op.in]: allowedRoles } },
     });
@@ -2316,13 +2412,6 @@ export default function (Sequelize, DataTypes) {
     return models.Update.findAll({
       where,
       order: [['createdAt', 'DESC']],
-    });
-  };
-
-  Collective.prototype.getTopExpenseCategories = function (startDate, endDate) {
-    return queries.getTopExpenseCategories(this.id, {
-      since: startDate,
-      until: endDate,
     });
   };
 
@@ -2942,6 +3031,7 @@ export default function (Sequelize, DataTypes) {
       if (planData) {
         const extraPlanData = get(this.data, 'plan', {});
         const plan = {
+          id: this.id,
           name: this.plan,
           hostedCollectives,
           addedFunds,
@@ -2956,6 +3046,7 @@ export default function (Sequelize, DataTypes) {
     }
 
     const plan = {
+      id: this.id,
       name: 'default',
       hostedCollectives,
       addedFunds,
