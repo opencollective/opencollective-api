@@ -5,20 +5,21 @@ import '../server/env';
  * This script is useful for sending a one-time email to all users.
  */
 
+console.log('This script is being deprecated.');
+console.log('To re-enable it, remove this message with a Pull Request explaining the use case.');
+process.exit();
+
+/*
 process.env.PORT = 3066;
 
-import _ from 'lodash';
-import moment from 'moment';
-import config from 'config';
 import Promise from 'bluebird';
 import debugLib from 'debug';
-import models, { sequelize, Op } from '../server/models';
+import models, { Op } from '../server/models';
 import emailLib from '../server/lib/email';
-import roles from '../server/constants/roles';
 
 const debug = debugLib('onetime.email');
 
-const { Collective, Member, User } = models;
+const { User } = models;
 
 const init = () => {
   console.log('\nStarting script to send a one-time email...\n');
@@ -50,7 +51,7 @@ const sendEmail = recipients => {
   const data = {};
   if (recipients.length === 0) return;
   return Promise.map(recipients, recipient => {
-    data.recipient = recipient;
+    data.recipient = recipient.info;
     if (process.env.ONLY && recipient.email !== process.env.ONLY) {
       debug('Skipping ', recipient.email);
       return Promise.resolve();
@@ -60,3 +61,5 @@ const sendEmail = recipients => {
 };
 
 init();
+
+*/

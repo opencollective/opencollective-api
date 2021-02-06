@@ -1,7 +1,15 @@
 import roles from '../constants/roles';
+import { invalidateContributorsCache } from '../lib/contributors';
 import { days } from '../lib/utils';
 
-export default function(Sequelize, DataTypes) {
+export default function (Sequelize, DataTypes) {
+  const invalidateContributorsCacheUsingInstance = instance => {
+    if (instance.role !== roles.FOLLOWER) {
+      invalidateContributorsCache(instance.CollectiveId);
+    }
+    return null;
+  };
+
   const Member = Sequelize.define(
     'Member',
     {
@@ -59,24 +67,17 @@ export default function(Sequelize, DataTypes) {
         defaultValue: 'member',
         validate: {
           isIn: {
-            args: [
-              [
-                roles.HOST,
-                roles.ADMIN,
-                roles.MEMBER,
-                roles.BACKER,
-                roles.CONTRIBUTOR,
-                roles.ATTENDEE,
-                roles.FOLLOWER,
-                roles.FUNDRAISER,
-              ],
-            ],
-            msg: 'Must be host, admin, member, backer, contributor, attendee, fundraiser or follower',
+            args: [Object.values(roles)],
+            msg: `Must be one of ${Object.values(roles)}`,
           },
         },
       },
 
       description: DataTypes.STRING,
+
+      publicMessage: {
+        type: DataTypes.STRING,
+      },
 
       // Dates.
       createdAt: {
@@ -106,6 +107,7 @@ export default function(Sequelize, DataTypes) {
           return {
             role: this.role,
             description: this.description,
+            publicMessage: this.publicMessage,
             CreatedByUserId: this.CreatedByUserId,
             CollectiveId: this.CollectiveId,
             MemberCollectiveId: this.MemberCollectiveId,
@@ -116,6 +118,10 @@ export default function(Sequelize, DataTypes) {
           };
         },
       },
+      hooks: {
+        afterCreate: instance => invalidateContributorsCacheUsingInstance(instance),
+        afterUpdate: instance => invalidateContributorsCacheUsingInstance(instance),
+      },
     },
   );
 
@@ -124,10 +130,18 @@ export default function(Sequelize, DataTypes) {
    * @param {*} member { tier: { interval }, lastDonation}
    */
   Member.isActive = member => {
-    if (!member.tier || !member.tier.interval) return true;
-    if (!member.lastDonation) return false;
-    if (member.tier.interval === 'month' && days(new Date(member.lastDonation)) <= 31) return true;
-    if (member.tier.interval === 'year' && days(new Date(member.lastDonation)) <= 365) return true;
+    if (!member.tier || !member.tier.interval) {
+      return true;
+    }
+    if (!member.lastDonation) {
+      return false;
+    }
+    if (member.tier.interval === 'month' && days(new Date(member.lastDonation)) <= 31) {
+      return true;
+    }
+    if (member.tier.interval === 'year' && days(new Date(member.lastDonation)) <= 365) {
+      return true;
+    }
     return false;
   };
 

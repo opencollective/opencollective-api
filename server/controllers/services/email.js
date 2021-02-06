@@ -1,13 +1,13 @@
 import Promise from 'bluebird';
 import config from 'config';
-import request from 'request-promise';
 import debug from 'debug';
-import { pick, get } from 'lodash';
+import { get, pick } from 'lodash';
+import request from 'request-promise';
 
-import models, { sequelize, Op } from '../../models';
-import errors from '../../lib/errors';
 import emailLib from '../../lib/email';
-import { md5 } from '../../lib/utils';
+import errors from '../../lib/errors';
+import logger from '../../lib/logger';
+import models, { Op, sequelize } from '../../models';
 
 const debugEmail = debug('email');
 const debugWebhook = debug('webhook');
@@ -15,15 +15,15 @@ const debugWebhook = debug('webhook');
 export const unsubscribe = (req, res, next) => {
   const { type, email, slug, token } = req.params;
 
-  const identifier = `${email}.${slug || 'any'}.${type}.${config.keys.opencollective.jwtSecret}`;
-  const computedToken = md5(identifier);
-  if (token !== computedToken) {
+  if (!emailLib.isValidUnsubscribeToken(token, email, slug, type)) {
     return next(new errors.BadRequest('Invalid token'));
   }
 
   Promise.all([models.Collective.findOne({ where: { slug } }), models.User.findOne({ where: { email } })])
     .then(results => {
-      if (!results[1]) throw new errors.NotFound(`Cannot find a user with email "${email}"`);
+      if (!results[1]) {
+        throw new errors.NotFound(`Cannot find a user with email "${email}"`);
+      }
 
       return results[1].unsubscribe(results[0] && results[0].id, type, 'email');
     })
@@ -35,13 +35,14 @@ export const unsubscribe = (req, res, next) => {
 const sendEmailToList = (to, email) => {
   debugEmail('sendEmailToList', to, 'email data: ', email);
   const { mailinglist, collectiveSlug, type } = getNotificationType(to);
-  email.from = email.from || `${collectiveSlug} collective <hello@${collectiveSlug}.opencollective.com>`;
+  email.from = email.from || `${collectiveSlug} collective <no-reply@${collectiveSlug}.opencollective.com>`;
   email.collective = email.collective || { slug: collectiveSlug }; // used for the unsubscribe url
 
   return models.Notification.getSubscribersUsers(collectiveSlug, mailinglist)
     .tap(subscribers => {
-      if (subscribers.length === 0)
+      if (subscribers.length === 0) {
         throw new errors.NotFound(`No subscribers found in ${collectiveSlug} for email type ${type}`);
+      }
     })
     .then(results => results.map(r => r.email))
     .then(recipients => {
@@ -62,17 +63,30 @@ const sendEmailToList = (to, email) => {
           });
         }
       });
-    })
-    .catch(e => {
-      console.error('error in sendEmailToList', e);
-      throw e;
     });
+};
+
+/**
+ * Only take the param from request if it's a two letter country code
+ */
+const getMailServer = req => {
+  if (req.query.mailserver?.match(/^[a-z]{2}$/i)) {
+    return req.query.mailserver;
+  } else {
+    return 'so';
+  }
 };
 
 export const approve = (req, res, next) => {
   const { messageId } = req.query;
   const approverEmail = req.query.approver;
-  const mailserver = req.query.mailserver || 'so';
+  const mailserver = getMailServer(req);
+
+  if (!messageId) {
+    return next(new errors.BadRequest('No messageId provided'));
+  } else if (!messageId.match(/^[a-z0-9]+=*$/i)) {
+    return next(new errors.BadRequest('Invalid messageId provided'));
+  }
 
   let approver, sender;
   let email = {};
@@ -100,7 +114,7 @@ export const approve = (req, res, next) => {
         });
       })
       .catch(e => {
-        console.error('err: ', e);
+        logger.error(e);
       });
   };
 
@@ -127,7 +141,9 @@ export const approve = (req, res, next) => {
         to: email.To,
         sender: pick(sender, ['email', 'name', 'image']),
       };
-      if (approver && approver.email !== sender.email) emailData.approver = pick(approver, ['email', 'name', 'image']);
+      if (approver && approver.email !== sender.email) {
+        emailData.approver = pick(approver, ['email', 'name', 'image']);
+      }
 
       return sendEmailToList(email.To, emailData);
     })
@@ -135,9 +151,12 @@ export const approve = (req, res, next) => {
       res.send(`Email from ${email.sender} with subject "${email.Subject}" approved for the ${email.To} mailing list`),
     )
     .catch(e => {
-      if (e.statusCode === 404)
+      if (e.statusCode === 404) {
         return next(new errors.NotFound(`Message ${messageId} not found on the ${mailserver} server`));
-      else return next(e);
+      } else {
+        logger.error(e);
+        return next(new errors.ServerError('Unexpected error'));
+      }
     });
 };
 
@@ -149,7 +168,9 @@ export const getNotificationType = email => {
   } else {
     tokens = email.match(/(.+)@(.+)\.opencollective\.com/i);
   }
-  if (!tokens) return {};
+  if (!tokens) {
+    return {};
+  }
   const collectiveSlug = tokens[2];
   let mailinglist = tokens[1];
   if (['info', 'hello', 'members', 'admins', 'admins'].indexOf(mailinglist) !== -1) {
@@ -161,7 +182,7 @@ export const getNotificationType = email => {
   return res;
 };
 
-export const webhook = (req, res, next) => {
+export const webhook = async (req, res, next) => {
   const email = req.body;
   const { recipient } = email;
   debugWebhook('>>> webhook received', JSON.stringify(email));
@@ -186,16 +207,23 @@ export const webhook = (req, res, next) => {
   // If an email is sent to [info|hello|members|admins|organizers]@:collectiveSlug.opencollective.com,
   // we simply forward it to admins who subscribed to that mailinglist (no approval process)
   if (mailinglist === 'admins') {
-    return sendEmailToList(recipient, {
-      subject: email.subject,
-      body,
-      from: email.from,
-    })
-      .then(() => res.send('ok'))
-      .catch(e => {
-        debugWebhook('Error: ', e);
-        next(e);
+    const collective = await models.Collective.findOne({ where: { slug: collectiveSlug } });
+    if (!collective) {
+      return res.send({
+        error: { message: `This Collective doesn't exist or can't be emailed directly using this address` },
       });
+    } else if (!get(collective.settings, 'features.forwardEmails') || !(await collective.canContact())) {
+      return res.send({
+        error: { message: `This Collective can't be emailed directly using this address` },
+      });
+    } else {
+      return sendEmailToList(recipient, { subject: email.subject, body, from: email.from })
+        .then(() => res.send('ok'))
+        .catch(e => {
+          logger.error(e);
+          return next(new errors.ServerError('Unexpected error'));
+        });
+    }
   }
 
   // If the email is sent to :tierSlug or :eventSlug@:collectiveSlug.opencollective.com
@@ -205,14 +233,18 @@ export const webhook = (req, res, next) => {
   let subscribers;
   models.Collective.findOne({ where: { slug: collectiveSlug } })
     .tap(g => {
-      if (!g) throw new Error('collective_not_found');
+      if (!g) {
+        throw new Error('collective_not_found');
+      }
       collective = g;
     })
     // We fetch all the recipients of that mailing list to give a preview in the approval email
     .then(collective => models.Notification.getSubscribersCollectives(collective.slug, mailinglist))
     .tap(results => {
       debugWebhook('getSubscribers', mailinglist, results);
-      if (results.length === 0) throw new Error('no_subscribers');
+      if (results.length === 0) {
+        throw new Error('no_subscribers');
+      }
       subscribers = results.map(s => {
         if (s.image) {
           s.roundedAvatar = `https://res.cloudinary.com/opencollective/image/fetch/c_thumb,g_face,h_48,r_max,w_48,bo_3px_solid_white/c_thumb,h_48,r_max,w_48,bo_2px_solid_rgb:66C71A/e_trim/f_auto/${encodeURIComponent(
@@ -239,7 +271,9 @@ export const webhook = (req, res, next) => {
       );
     })
     .tap(admins => {
-      if (admins.length === 0) throw new Error('no_admins');
+      if (admins.length === 0) {
+        throw new Error('no_admins');
+      }
     })
     .then(admins => {
       const messageId = email['message-url'].substr(email['message-url'].lastIndexOf('/') + 1);
@@ -251,7 +285,7 @@ export const webhook = (req, res, next) => {
           body: email['body-html'] || email['body-plain'],
           subscribers,
           latestSubscribers: subscribers.slice(0, 15),
-          approve_url: `${
+          approveUrl: `${
             config.host.website
           }/api/services/email/approve?mailserver=${mailserver}&messageId=${messageId}&approver=${encodeURIComponent(
             user.email,
@@ -313,8 +347,8 @@ export const webhook = (req, res, next) => {
           });
 
         default:
-          debugWebhook('Unknown error:', e);
-          return next(e);
+          logger.error(e);
+          return next(new errors.ServerError('Unexpected error'));
       }
     });
 };

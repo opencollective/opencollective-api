@@ -1,15 +1,31 @@
-import models, { sequelize, Op } from '../models';
-import _ from 'lodash';
-import { convertToCurrency } from '../lib/currency';
 import Promise from 'bluebird';
+import _ from 'lodash';
 
-export function getHostedCollectives(hostid, endDate = new Date()) {
+import { convertToCurrency } from '../lib/currency';
+import models, { Op, sequelize } from '../models';
+
+export function getHostedCollectives(hostid, startDate, endDate = new Date()) {
   return sequelize.query(
     `
-    SELECT g.* FROM "Collectives" g LEFT JOIN "Members" ug ON g.id = ug."CollectiveId" WHERE ug.role='HOST' AND ug."MemberCollectiveId"=:hostid AND g."deletedAt" IS NULL AND ug."deletedAt" IS NULL AND ug."createdAt" < :endDate AND g."createdAt" < :endDate
+    with "members" as (
+      SELECT m."CollectiveId"
+      FROM "Members" m
+      WHERE m.role='HOST'
+        AND m."MemberCollectiveId" = :hostid
+        AND (m."deletedAt" IS NULL OR m."deletedAt" > :startDate)
+        AND m."createdAt" < :endDate
+    ), "transactions" as (
+      SELECT DISTINCT t."CollectiveId" FROM "Transactions" t WHERE t."HostCollectiveId" = :hostid AND t."createdAt" < :endDate AND t."createdAt" > :startDate
+    )
+
+    SELECT DISTINCT *
+    FROM "Collectives" c
+    WHERE
+      c.id IN (SELECT "CollectiveId" FROM "members" UNION SELECT "CollectiveId" FROM "transactions")
+      AND c."createdAt" < :endDate;
   `,
     {
-      replacements: { hostid, endDate },
+      replacements: { hostid, endDate, startDate },
       model: models.Collective,
       type: sequelize.QueryTypes.SELECT,
     },

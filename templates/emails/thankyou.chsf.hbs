@@ -1,7 +1,7 @@
 {{#if interval }}
-Subject: Thank you for your {{{currency order.totalAmount currency=order.currency}}}/{{interval}} donation to {{collective.name}}
+Subject: Thank you for your {{currency order.totalAmount currency=order.currency}}/{{interval}} contribution to {{collective.name}}
 {{else}}
-Subject: Thank you for your {{{currency order.totalAmount currency=order.currency}}} donation to {{collective.name}} {{#if matchingFund}}(matched {{matchingFund.matching}}x by {{matchingFund.collective.name}}!){{/if}}
+Subject: Thank you for your {{currency order.totalAmount currency=order.currency}} contribution to {{collective.name}}
 {{/if}}
 
 {{> header}}
@@ -18,21 +18,17 @@ Subject: Thank you for your {{{currency order.totalAmount currency=order.currenc
 
 {{#if interval}}
   {{#if firstPayment }}
-    <p>We would like to thank you for your pledge to give {{{currency order.totalAmount currency=order.currency}}} per {{interval}}.
-      Your first payment was received on {{{moment order.createdAt}}}. Your donation helps us continue our work.</p>
+    <p>We would like to thank you for your pledge to give {{currency order.totalAmount currency=order.currency}} per {{interval}}.
+      Your first payment was received on {{moment order.createdAt}}. Your contribution helps us continue our work.</p>
       {{> charge_date_notice}}
   {{else}}
-    <p>We would like to thank you for your continued support. Your latest {{interval}}ly donation of {{{currency order.totalAmount currency=order.currency}}} was received on {{{moment transaction.createdAt}}}.
-      Your donation helps us continue our work.</p>
+    <p>We would like to thank you for your continued support. Your latest {{interval}}ly contribution of {{currency order.totalAmount currency=order.currency}} was received on {{moment transaction.createdAt}}.
+      Your contribution helps us continue our work.</p>
   {{/if}}
 {{else}}
 
-<p>We would like to thank you for your donation of {{{currency order.totalAmount currency=order.currency}}} on {{{moment order.createdAt}}}.
+<p>We would like to thank you for your contribution of {{currency order.totalAmount currency=order.currency}} on {{moment order.createdAt}}.
   Your gift will help us continue our work.</p>
-{{/if}}
-
-{{#if matchingFund}}
-<p>🎉 Your donation has been matched {{matchingFund.matching}}x by <a href="https://opencollective.com/{{matchingFund.collective.slug}}">{{matchingFund.collective.name}}</a>!</p>
 {{/if}}
 
 <p>As a CH member, you get 1 free event per month. To get your free event, all you have to do is type in the email address you used to register for membership in eventbrite's purchase ticket section "<a href="https://res.cloudinary.com/opencollective/image/upload/v1515428737/Screen_Shot_2018-01-08_at_4.02.31_PM_qydkx7.png">Enter Promotional Code"</a> ...and your coded access will be accessed! </p>
@@ -44,21 +40,21 @@ Subject: Thank you for your {{{currency order.totalAmount currency=order.currenc
 </p>
 
 <h2>Help us raise more money!</h2>
-<p>Share this URL: <a href="https://opencollective.com/{{collective.slug}}/donate?referral={{fromCollective.id}}">https://opencollective.com/{{collective.slug}}/donate?referral={{fromCollective.id}}</a><br />
-The total amount that you will help us raise will be shown on your profile! <a href="https://opencollective.com/{{fromCollective.slug}}">https://opencollective.com/{{fromCollective.slug}}</a>
+<p>Share this URL: <a href="https://opencollective.com/{{collective.slug}}/donate">https://opencollective.com/{{collective.slug}}/donate</a><br />
 </p>
 
-<p>
-  P.S: You can download a PDF receipt for your donation <a href="{{config.host.invoices}}/{{collective.slug}}/transactions/{{transaction.uuid}}/invoice.pdf">here</a>{{#if subscriptionsLink}}, and you can manage your subscriptions <a href="{{subscriptionsLink}}">here</a>{{/if}}.
-</p>
+{{#if transactionPdf}}
+<h2>📎 Attachments</h2>
+<ul>
+  <li>A PDF receipt of your transaction</li>
+</ul>
+{{/if}}
 
 <p>Warmly,</p>
 
 <p>
   – The {{collective.name}} open collective
 </p>
-
-{{> relatedcollectives}}
 
 {{> footer}}
 

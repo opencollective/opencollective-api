@@ -13,10 +13,10 @@ import '../server/env';
  *
  * More info here https://github.com/brianc/node-postgres/issues/1337
  */
-
 import format from 'pg-format';
-import { URL } from 'url';
+
 import * as libdb from '../server/lib/db';
+import { sequelize } from '../server/models';
 
 /** Create a user in postgres if it doesn't exist.
  *
@@ -38,13 +38,18 @@ async function createUser(client, name, password) {
 
 /** Kick things off */
 async function main() {
-  /* Connect with maintainance account */
+  /* Connect with maintenance account */
   const client = await libdb.getConnectedClient(libdb.getDBUrl('maintenancedb'));
   const { username, password } = libdb.getDBConf('database');
   await createUser(client, username, password);
   const destroy = process.env.DB_DESTROY ? true : false;
   const [clientMaint, clientApp] = await libdb.recreateDatabase(destroy);
+  await sequelize.sync({ force: true });
+  await sequelize.close();
+  console.log('schema created or reseted');
   await Promise.all([client.end(), clientMaint.end(), clientApp.end()]);
 }
 
-if (!module.parent) main();
+if (!module.parent) {
+  main();
+}

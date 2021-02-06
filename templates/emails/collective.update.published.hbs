@@ -1,4 +1,4 @@
-Subject: {{update.title}}
+Subject: {{{update.title}}}
 
 {{> header}}
 
@@ -24,21 +24,29 @@ Subject: {{update.title}}
       <img src="{{collective.previewImage}}" height="96" border=0 alt="{{collective.name}} logo" />
     </a>
   </center>
-{{else}}
-  <center>
-    <a href="{{config.host.website}}/{{collective.slug}}">
-      <h3>{{collective.name}}</h3>
-    </a>
-  </center>
 {{/if}}
+
+<center>
+  <a href="{{config.host.website}}/{{collective.slug}}">
+    <h3>{{collective.name}}</h3>
+  </a>
+</center>
 
 <br />
 
-<h2>{{update.title}}</h2>
-<div class="byline">by <a href="{{config.host.website}}/{{update.fromCollective.slug}}">{{update.fromCollective.name}}</a></div>
+<h2>{{{update.title}}}</h2>
+<div class="byline">by <a href="{{config.host.website}}/{{fromCollective.slug}}">{{fromCollective.name}}</a></div>
 
 <div class="updateHtml">
   {{{update.html}}}
 </div>
+
+<hr style="margin: 40px 0; background-color: #dadada; border: none; height: 1px;">
+
+<p>
+  <center>
+    <a href="{{url}}" class="btn blue"><div>Comment on this update</div></a>
+  </center>
+</p>
 
 {{> footer}}

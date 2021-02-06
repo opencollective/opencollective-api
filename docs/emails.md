@@ -1,9 +1,8 @@
 # Developing with Emails
 
-## Receving Emails
+## Receiving Emails
 
-- Launch the API server with `MAILDEV=true npm run dev`
-- In a separate terminal, launch [MailDev](https://danfarrelly.nyc/MailDev/) with `npm run maildev`
+- By default, [MailDev](https://github.com/maildev/maildev) is configured in development environment
 - Open `http://localhost:1080` to browse outgoing emails
 
 ## Email Templates
