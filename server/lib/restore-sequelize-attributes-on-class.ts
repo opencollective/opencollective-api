@@ -8,14 +8,16 @@ import { Model } from 'sequelize';
  * Must be called from the constructor.
  */
 export default function restoreSequelizeAttributesOnClass(newTarget, self: Model): void {
-  Object.keys(newTarget.rawAttributes).forEach((propertyKey: keyof Model) => {
-    Object.defineProperty(self, propertyKey, {
-      get() {
-        return self.getDataValue(propertyKey);
-      },
-      set(value) {
-        self.setDataValue(propertyKey, value);
-      },
-    });
-  });
+  [...Object.keys(newTarget.rawAttributes), ...Object.keys(newTarget.associations)].forEach(
+    (propertyKey: keyof Model) => {
+      Object.defineProperty(self, propertyKey, {
+        get() {
+          return self.getDataValue(propertyKey);
+        },
+        set(value) {
+          self.setDataValue(propertyKey, value);
+        },
+      });
+    },
+  );
 }

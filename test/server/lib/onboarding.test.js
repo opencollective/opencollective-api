@@ -51,9 +51,14 @@ describe('server/lib/onboarding', () => {
     expect(emailLibSendSpy.firstCall.args[3].from).to.equal('Open Collective <support@opencollective.com>');
     expect(emailLibSendSpy.callCount).to.equal(2);
     admins.map((admin, i) => {
-      expect(emailLibSendSpy.args[i][0]).to.equal('onboarding.day2.organization');
-      expect(emailLibSendSpy.args[i][1]).to.equal(admin.email);
-      expect(emailLibSendSpy.args[i][2].unsubscribeUrl).to.contain(encodeURIComponent(admin.email));
+      const emailServiceCall = emailLibSendSpy.args.find(([_, email]) => email === admin.email);
+      if (!emailServiceCall) {
+        throw new Error(`Looks like onboarding email was not sent to ${admin.email}`);
+      }
+
+      expect(emailServiceCall[0]).to.equal('onboarding.day2.organization');
+      expect(emailServiceCall[1]).to.equal(admin.email);
+      expect(emailServiceCall[2].unsubscribeUrl).to.contain(encodeURIComponent(admin.email));
     });
   });
 });

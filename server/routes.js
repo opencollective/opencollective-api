@@ -1,11 +1,7 @@
-import { ApolloServer } from 'apollo-server-express';
+import { ApolloError, ApolloServer } from 'apollo-server-express';
 import config from 'config';
-import expressBasicAuth from 'express-basic-auth';
-import GraphHTTP from 'express-graphql';
 import expressLimiter from 'express-limiter';
-import serverStatus from 'express-server-status';
-import expressWs from 'express-ws';
-import { get } from 'lodash';
+import { get, pick } from 'lodash';
 import multer from 'multer';
 import redis from 'redis';
 
@@ -14,11 +10,13 @@ import helloworks from './controllers/helloworks';
 import uploadImage from './controllers/images';
 import * as email from './controllers/services/email';
 import * as users from './controllers/users';
-import { stripeWebhook, transferwiseWebhook } from './controllers/webhooks';
+import { paypalWebhook, stripeWebhook, transferwiseWebhook } from './controllers/webhooks';
+import { getGraphqlCacheKey } from './graphql/cache';
 import graphqlSchemaV1 from './graphql/v1/schema';
 import graphqlSchemaV2 from './graphql/v2/schema';
-import hyperwatch from './lib/hyperwatch';
+import cache from './lib/cache';
 import logger from './lib/logger';
+import { SentryGraphQLPlugin } from './lib/sentry';
 import { parseToBoolean } from './lib/utils';
 import * as authentication from './middleware/authentication';
 import errorHandler from './middleware/error_handler';
@@ -29,12 +27,12 @@ import * as paypal from './paymentProviders/paypal/payment';
 
 const upload = multer();
 
-export default app => {
-  /**
-   * Status.
-   */
-  app.use('/status', serverStatus(app));
+const noCache = (req, res, next) => {
+  res.set('Cache-Control', 'no-cache');
+  next();
+};
 
+export default app => {
   /**
    * Extract GraphQL API Key
    */
@@ -87,10 +85,13 @@ export default app => {
   }
 
   /**
-   * User reset password or new token flow (no jwt verification)
+   * User reset password or new token flow (no jwt verification) or 2FA
    */
   app.post('/users/signin', required('user'), users.signin);
+  // check JWT and update token if no 2FA, but send back 2FA JWT if there is 2FA enabled
   app.post('/users/update-token', authentication.mustBeLoggedIn, users.updateToken);
+  // check the 2FA code against the token in the db to let 2FA-enabled users log in
+  app.post('/users/two-factor-auth', authentication.checkTwoFactorAuthJWT, users.twoFactorAuthAndUpdateToken);
 
   /**
    * Moving forward, all requests will try to authenticate the user if there is a JWT token provided
@@ -109,37 +110,92 @@ export default app => {
   app.param('expenseid', params.expenseid);
 
   const isDevelopment = config.env === 'development';
+  const isProduction = config.env === 'production';
+
+  /**
+   * GraphQL caching
+   */
+  app.use('/graphql', async (req, res, next) => {
+    req.startAt = req.startAt || new Date();
+    const cacheKey = getGraphqlCacheKey(req);
+    const enabled = parseToBoolean(config.graphql.cache.enabled);
+    if (cacheKey && enabled) {
+      const fromCache = await cache.get(cacheKey);
+      if (fromCache) {
+        res.servedFromGraphqlCache = true;
+        req.endAt = req.endAt || new Date();
+        const executionTime = req.endAt - req.startAt;
+        res.set('Execution-Time', executionTime);
+        res.send(fromCache);
+        return;
+      }
+      req.cacheKey = cacheKey;
+    }
+    next();
+  });
+
+  /* GraphQL server generic options */
+
+  const graphqlServerOptions = {
+    introspection: true,
+    playground: isDevelopment,
+    plugins: config.sentry?.dsn ? [SentryGraphQLPlugin] : undefined,
+    // Align with behavior from express-graphql
+    context: ({ req }) => {
+      return req;
+    },
+    formatError: err => {
+      logger.error(`GraphQL error: ${err.message}`);
+      const extra = pick(err, ['locations', 'path']);
+      if (Object.keys(extra).length) {
+        logger.error(extra);
+      }
+      const stacktrace = get(err, 'err.extensions.exception.stacktrace');
+      if (stacktrace) {
+        logger.error(stacktrace);
+      }
+      return err;
+    },
+    formatResponse: (response, ctx) => {
+      const req = ctx.context;
+
+      if (req.cacheKey) {
+        cache.set(req.cacheKey, response, Number(config.graphql.cache.ttl));
+      }
+
+      req.endAt = req.endAt || new Date();
+      const executionTime = req.endAt - req.startAt;
+      req.res.set('Execution-Time', executionTime);
+      return response;
+    },
+  };
 
   /**
    * GraphQL v1
    */
-  const graphqlServerV1 = GraphHTTP({
-    customFormatErrorFn: error => {
-      logger.error(`GraphQL v1 error: ${error.message}`);
-      logger.debug(error);
-      return error;
-    },
+  const graphqlServerV1 = new ApolloServer({
     schema: graphqlSchemaV1,
-    pretty: isDevelopment,
-    graphiql: isDevelopment,
+    engine: {
+      reportSchema: isProduction,
+      variant: 'current',
+      apiKey: get(config, 'graphql.apolloEngineAPIKey'),
+    },
+    ...graphqlServerOptions,
   });
 
-  app.use('/graphql/v1', graphqlServerV1);
+  graphqlServerV1.applyMiddleware({ app, path: '/graphql/v1' });
 
   /**
    * GraphQL v2
    */
   const graphqlServerV2 = new ApolloServer({
     schema: graphqlSchemaV2,
-    introspection: true,
-    playground: isDevelopment,
     engine: {
-      apiKey: get(config, 'graphql.apolloEngineAPIKey'),
+      reportSchema: isProduction,
+      variant: 'current',
+      apiKey: get(config, 'graphql.apolloEngineAPIKeyV2'),
     },
-    // Align with behavior from express-graphql
-    context: ({ req }) => {
-      return req;
-    },
+    ...graphqlServerOptions,
   });
 
   graphqlServerV2.applyMiddleware({ app, path: '/graphql/v2' });
@@ -147,16 +203,21 @@ export default app => {
   /**
    * GraphQL default (v1)
    */
-  app.use('/graphql', graphqlServerV1);
+  graphqlServerV1.applyMiddleware({ app, path: '/graphql' });
 
   /**
    * Webhooks that should bypass api key check
    */
   app.post('/webhooks/stripe', stripeWebhook); // when it gets a new subscription invoice
   app.post('/webhooks/transferwise', transferwiseWebhook); // when it gets a new subscription invoice
+  app.post('/webhooks/paypal', paypalWebhook);
   app.post('/webhooks/mailgun', email.webhook); // when receiving an email
-  app.get('/connected-accounts/:service/callback', authentication.authenticateServiceCallback); // oauth callback
-  app.delete('/connected-accounts/:service/disconnect/:collectiveId', authentication.authenticateServiceDisconnect);
+  app.get('/connected-accounts/:service/callback', noCache, authentication.authenticateServiceCallback); // oauth callback
+  app.delete(
+    '/connected-accounts/:service/disconnect/:collectiveId',
+    noCache,
+    authentication.authenticateServiceDisconnect,
+  );
 
   app.use(sanitizer()); // note: this break /webhooks/mailgun /graphiql
 
@@ -173,12 +234,18 @@ export default app => {
   /**
    * Generic OAuth (ConnectedAccounts)
    */
-  app.get('/connected-accounts/:service(github)', authentication.authenticateService); // backward compatibility
+  app.get('/connected-accounts/:service(github)', noCache, authentication.authenticateService); // backward compatibility
   app.get(
-    '/connected-accounts/:service(github|twitter|meetup|stripe|paypal)/oauthUrl',
+    '/connected-accounts/:service(github|twitter|stripe|paypal)/oauthUrl',
+    noCache,
     authentication.authenticateService,
   );
-  app.get('/connected-accounts/:service/verify', authentication.parseJwtNoExpiryCheck, connectedAccounts.verify);
+  app.get(
+    '/connected-accounts/:service/verify',
+    noCache,
+    authentication.parseJwtNoExpiryCheck,
+    connectedAccounts.verify,
+  );
 
   /* PayPal Payment Method Helpers */
   app.post('/services/paypal/create-payment', paypal.createPayment);
@@ -193,26 +260,11 @@ export default app => {
    * Github API - fetch all repositories using the user's access_token
    */
   app.get('/github-repositories', connectedAccounts.fetchAllRepositories); // used in Frontend by createCollective "GitHub flow"
-  app.get('/github/repo', connectedAccounts.getRepo); // used in Frontend claimCollective
-  app.get('/github/orgMemberships', connectedAccounts.getOrgMemberships); // used in Frontend claimCollective
 
   /**
    * Hello Works API - Helloworks hits this endpoint when a document has been completed.
    */
   app.post('/helloworks/callback', helloworks.callback);
-
-  // Mount Hyperwatch API and Websocket
-  if (config.hyperwatch && config.hyperwatch.secret && parseToBoolean(config.hyperwatch.enabled) === true) {
-    // We need to setup express-ws here to make Hyperwatch's websocket works
-    expressWs(app);
-    const hyperwatchBasicAuth = expressBasicAuth({
-      users: { [config.hyperwatch.username]: config.hyperwatch.secret },
-      challenge: true,
-      realm: config.hyperwatch.realm,
-    });
-    app.use(config.hyperwatch.path, hyperwatchBasicAuth, hyperwatch.app.api);
-    app.use(config.hyperwatch.path, hyperwatchBasicAuth, hyperwatch.app.websocket);
-  }
 
   /**
    * Override default 404 handler to make sure to obfuscate api_key visible in URL

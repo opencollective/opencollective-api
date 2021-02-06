@@ -14,6 +14,7 @@ const minutesToSeconds = minutes => moment.duration({ minutes }).asSeconds();
 export const TOKEN_EXPIRATION_LOGIN = minutesToSeconds(75);
 export const TOKEN_EXPIRATION_CONNECTED_ACCOUNT = daysToSeconds(1);
 export const TOKEN_EXPIRATION_SESSION = daysToSeconds(90);
+export const TOKEN_EXPIRATION_PDF = minutesToSeconds(75);
 
 const ALGORITHM = 'HS256';
 const KID = 'HS256-2019-09-02';

@@ -145,7 +145,7 @@ export default {
 
         // Adds the opencollective payment method to enable the host to allocate funds to collectives
         // Note that it's not expected anymore to connect Stripe if you're not an host
-        await collective.becomeHost();
+        // await collective.becomeHost({ remoteUser: { id: CreatedByUserId } });
 
         await collective.setCurrency(account.default_currency.toUpperCase());
 
@@ -194,7 +194,8 @@ export default {
   webhook: requestBody => {
     // Stripe sends test events to production as well
     // don't do anything if the event is not livemode
-    if (process.env.NODE_ENV === 'production' && !requestBody.livemode) {
+    // NOTE: not using config.env because of ugly tests
+    if (process.env.OC_ENV === 'production' && !requestBody.livemode) {
       return Promise.resolve();
     }
     /**

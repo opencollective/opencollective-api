@@ -10,7 +10,7 @@ describe('server/lib/webhooks', () => {
       expect(sanitized.data).to.be.empty;
     });
 
-    it('COLLECTIVE_TRANSACTION_CREATED', () => {
+    it('COLLECTIVE_MEMBER_CREATED', () => {
       const sanitized = sanitizeActivity({
         type: activities.COLLECTIVE_MEMBER_CREATED,
         data: {

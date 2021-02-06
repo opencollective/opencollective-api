@@ -13,7 +13,8 @@ on:
 env:
   TZ: UTC
   CI: true
-  NODE_ENV: ci
+  OC_ENV: ci
+  NODE_ENV: test
   AWS_KEY: ${{ secrets.AWS_KEY }}
   AWS_SECRET: ${{ secrets.AWS_SECRET }}
   CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
@@ -28,10 +29,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2-beta
 
-      # - name: Setup node
-      #   uses: actions/setup-node@v1
-      #   with:
-      #     node-version: '12.x'
+      - name: Setup node
+        uses: actions/setup-node@v1
+        with:
+          node-version: '12.x'
 
       - name: Restore node_modules
         uses: actions/cache@v1
@@ -65,10 +66,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2-beta
 
-      # - name: Setup node
-      #   uses: actions/setup-node@v1
-      #   with:
-      #     node-version: '12.x'
+      - name: Setup node
+        uses: actions/setup-node@v1
+        with:
+          node-version: '12.x'
 
       - name: Restore node_modules
         uses: actions/cache@v1
@@ -102,10 +103,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2-beta
 
-      # - name: Setup node
-      #   uses: actions/setup-node@v1
-      #   with:
-      #     node-version: '12.x'
+      - name: Setup node
+        uses: actions/setup-node@v1
+        with:
+          node-version: '12.x'
 
       - name: Restore node_modules
         uses: actions/cache@v1
@@ -139,10 +140,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2-beta
 
-      # - name: Setup node
-      #   uses: actions/setup-node@v1
-      #   with:
-      #     node-version: '12.x'
+      - name: Setup node
+        uses: actions/setup-node@v1
+        with:
+          node-version: '12.x'
 
       - name: Restore node_modules
         uses: actions/cache@v1
@@ -176,10 +177,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2-beta
 
-      # - name: Setup node
-      #   uses: actions/setup-node@v1
-      #   with:
-      #     node-version: '12.x'
+      - name: Setup node
+        uses: actions/setup-node@v1
+        with:
+          node-version: '12.x'
 
       - name: Restore node_modules
         uses: actions/cache@v1
@@ -235,10 +236,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2-beta
 
-      # - name: Setup node
-      #   uses: actions/setup-node@v1
-      #   with:
-      #     node-version: '12.x'
+      - name: Setup node
+        uses: actions/setup-node@v1
+        with:
+          node-version: '12.x'
 
       - name: Restore node_modules
         uses: actions/cache@v1
@@ -291,10 +292,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2-beta
 
-      # - name: Setup node
-      #   uses: actions/setup-node@v1
-      #   with:
-      #     node-version: '12.x'
+      - name: Setup node
+        uses: actions/setup-node@v1
+        with:
+          node-version: '12.x'
 
       - name: Restore node_modules
         uses: actions/cache@v1
@@ -322,3 +323,65 @@ jobs:
       - run: npm run test:graphql
 
       - run: npm run test:coverage
+
+  schema-update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@master
+      - name: Restore node_modules
+        uses: actions/cache@v1
+        id: api-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}
+      - name: Restore .npm cache
+        if: steps.api-node-modules.outputs.cache-hit != 'true'
+        uses: actions/cache@v1
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            - ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}
+            - ${{ runner.os }}-api-npm-cache-
+      - name: Install dependencies
+        if: steps.api-node-modules.outputs.cache-hit != 'true'
+        run: npm ci --prefer-offline --no-audit
+      - name: Generate & check schemas
+        run: ./scripts/check-schemas.sh
+
+  graphql-inspector:
+    needs: schema-update
+    name: GraphQL Inspector
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
+        options: --entrypoint redis-server
+      postgres:
+        image: mdillon/postgis:9.6
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@master
+      - name: GraphQL Inspector (V1)
+        uses: kamilkisiela/graphql-inspector@master
+        with:
+          name: 'GraphQL Inspector - Schema v1'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          schema: 'master:server/graphql/schemaV1.graphql'
+          fail-on-breaking: false
+      - name: GraphQL Inspector (V2)
+        uses: kamilkisiela/graphql-inspector@master
+        with:
+          name: 'GraphQL Inspector - Schema v2'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          schema: 'master:server/graphql/schemaV2.graphql'
+          fail-on-breaking: false

@@ -127,6 +127,11 @@ export default function (Sequelize, DataTypes) {
         defaultValue: false,
       },
 
+      notificationAudience: {
+        type: DataTypes.STRING,
+        defaultValue: null,
+      },
+
       tags: {
         type: DataTypes.ARRAY(DataTypes.STRING),
       },
@@ -191,6 +196,8 @@ export default function (Sequelize, DataTypes) {
             id: this.id,
             slug: this.slug,
             title: this.title,
+            html: this.html,
+            notificationAudience: this.notificationAudience,
             CollectiveId: this.CollectiveId,
             FromCollectiveId: this.FromCollectiveId,
             TierId: this.TierId,
@@ -208,6 +215,11 @@ export default function (Sequelize, DataTypes) {
           if (!instance.publishedAt || !instance.slug) {
             return instance.generateSlug();
           }
+        },
+        beforeDestroy: async instance => {
+          const newSlug = `${instance.slug}-${Date.now()}`;
+          instance.slug = newSlug;
+          await instance.save({ paranoid: false, hooks: false });
         },
         afterCreate: instance => {
           models.Activity.create({
@@ -258,15 +270,19 @@ export default function (Sequelize, DataTypes) {
   };
 
   // Publish update
-  Update.prototype.publish = async function (remoteUser) {
+  Update.prototype.publish = async function (remoteUser, notificationAudience) {
     mustHaveRole(remoteUser, 'ADMIN', this.CollectiveId, 'publish this update');
     this.publishedAt = new Date();
+    this.notificationAudience = notificationAudience;
     this.collective = this.collective || (await models.Collective.findByPk(this.CollectiveId));
+    this.fromCollective = this.fromCollective || (await models.Collective.findByPk(this.FromCollectiveId));
+
     models.Activity.create({
       type: activities.COLLECTIVE_UPDATE_PUBLISHED,
       UserId: remoteUser.id,
       CollectiveId: this.CollectiveId,
       data: {
+        fromCollective: this.fromCollective.activity,
         collective: this.collective.activity,
         update: this.activity,
         url: `${config.host.website}/${this.collective.slug}/updates/${this.slug}`,
@@ -284,6 +300,7 @@ export default function (Sequelize, DataTypes) {
 
   Update.prototype.delete = async function (remoteUser) {
     mustHaveRole(remoteUser, 'ADMIN', this.CollectiveId, 'delete this update');
+    await models.Comment.destroy({ where: { UpdateId: this.id } });
     return this.destroy();
   };
 
@@ -354,21 +371,6 @@ export default function (Sequelize, DataTypes) {
     return Promise.map(updates, u => Update.create(defaults({}, u, defaultValues)), { concurrency: 1 }).catch(
       console.error,
     );
-  };
-
-  Update.findBySlug = (slug, options = {}) => {
-    if (!slug || slug.length < 1) {
-      return Promise.resolve(null);
-    }
-    return Update.findOne({
-      where: { slug: slug.toLowerCase() },
-      ...options,
-    }).then(Update => {
-      if (!Update) {
-        throw new Error(`No update found with slug ${slug}`);
-      }
-      return Update;
-    });
   };
 
   Update.associate = m => {

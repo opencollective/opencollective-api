@@ -5,6 +5,8 @@ import { stripTags } from '../../lib/utils';
 import models from '../../models';
 import { NotFound, Unauthorized, ValidationFailed } from '../errors';
 
+import { canComment } from './expenses';
+
 /**
  * Return the collective ID for the given comment based on it's association (conversation,
  * expense or update).
@@ -65,7 +67,8 @@ async function deleteComment(id, remoteUser) {
   return comment.destroy();
 }
 
-async function createCommentResolver(_, { comment: commentData }, { remoteUser }) {
+async function createCommentResolver(_, { comment: commentData }, req) {
+  const { remoteUser } = req;
   mustBeLoggedInTo(remoteUser, 'create a comment');
 
   if (!commentData.markdown && !commentData.html) {
@@ -83,6 +86,13 @@ async function createCommentResolver(_, { comment: commentData }, { remoteUser }
   const CollectiveId = await getCollectiveIdForCommentEntity(commentData);
   if (!CollectiveId) {
     throw new ValidationFailed("The item you're trying to comment doesn't exist or has been deleted.");
+  }
+
+  if (ExpenseId) {
+    const expense = await req.loaders.Expense.byId.load(ExpenseId);
+    if (!expense || !(await canComment(req, expense))) {
+      throw new ValidationFailed('You are not allowed to comment on this expense');
+    }
   }
 
   // Create comment

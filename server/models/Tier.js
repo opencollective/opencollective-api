@@ -76,7 +76,17 @@ export default function (Sequelize, DataTypes) {
         defaultValue: 'TIER',
       },
 
-      description: DataTypes.STRING(510),
+      description: {
+        type: DataTypes.STRING(510),
+        validate: {
+          length(description) {
+            if (description?.length > 510) {
+              const tierName = this.getDataValue('name');
+              throw new Error(`In "${tierName}" tier, the description is too long (must be less than 510 characters)`);
+            }
+          },
+        },
+      },
 
       longDescription: {
         type: DataTypes.TEXT,
@@ -91,6 +101,12 @@ export default function (Sequelize, DataTypes) {
             this.setDataValue('longDescription', stripTags(content));
           }
         },
+      },
+
+      useStandalonePage: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
       },
 
       videoUrl: {
@@ -177,24 +193,12 @@ export default function (Sequelize, DataTypes) {
         },
       },
 
-      // Max quantity of tickets per user (0 for unlimited)
-      maxQuantityPerUser: {
-        type: DataTypes.INTEGER,
-        validate: {
-          min: 0,
-        },
-      },
-
       // Goal to reach
       goal: {
         type: DataTypes.INTEGER,
         validate: {
           min: 0,
         },
-      },
-
-      password: {
-        type: DataTypes.STRING,
       },
 
       customFields: {
@@ -338,7 +342,6 @@ export default function (Sequelize, DataTypes) {
     });
   };
 
-  // TODO: Check for maxQuantityPerUser
   Tier.prototype.availableQuantity = function () {
     if (!this.maxQuantity) {
       return Promise.resolve(maxInteger);

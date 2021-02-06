@@ -1,70 +1,6 @@
-import config from 'config';
-import debugLib from 'debug';
-import pg from 'pg';
 import Sequelize from 'sequelize';
 
-import { getDBConf } from '../lib/db';
-import logger from '../lib/logger';
-
-// this is needed to prevent sequelize from converting integers to strings, when model definition isn't clear
-// like in case of the key totalOrders and raw query (like User.getTopBackers())
-pg.defaults.parseInt8 = true;
-
-const dbConfig = getDBConf('database');
-const debug = debugLib('psql');
-
-/**
- * Database connection.
- */
-logger.info(`Connecting to postgres://${dbConfig.host}/${dbConfig.database}`);
-
-// If we launch the process with DEBUG=psql, we log the postgres queries
-if (process.env.DEBUG && process.env.DEBUG.match(/psql/)) {
-  config.database.options.logging = true;
-}
-
-if (process.env.PGSSLMODE === 'require') {
-  config.database.options.dialectOptions = config.database.options.dialectOptions || {};
-  config.database.options.dialectOptions = { ssl: { rejectUnauthorized: false } };
-}
-
-if (config.database.options.logging) {
-  if (process.env.NODE_ENV === 'production') {
-    config.database.options.logging = (query, executionTime) => {
-      if (executionTime > 50) {
-        debug(query.replace(/(\n|\t| +)/g, ' ').slice(0, 100), '|', executionTime, 'ms');
-      }
-    };
-  } else {
-    config.database.options.logging = (query, executionTime) => {
-      debug(
-        '\n-------------------- <query> --------------------\n',
-        query,
-        `\n-------------------- </query executionTime="${executionTime}"> --------------------\n`,
-      );
-    };
-  }
-}
-
-if (config.database.options.pool) {
-  if (config.database.options.pool.min) {
-    config.database.options.pool.min = parseInt(config.database.options.pool.min, 10);
-  }
-  if (config.database.options.pool.max) {
-    config.database.options.pool.max = parseInt(config.database.options.pool.max, 10);
-  }
-}
-
-export const sequelize = new Sequelize(dbConfig.database, dbConfig.username, dbConfig.password, {
-  host: dbConfig.host,
-  port: dbConfig.port,
-  dialect: dbConfig.dialect,
-  ...config.database.options,
-});
-
-const models = setupModels(sequelize);
-
-export default models;
+import sequelize from '../lib/sequelize';
 
 /**
  * Separate function to be able to use in scripts
@@ -82,11 +18,15 @@ export function setupModels(client) {
     'ConnectedAccount',
     'Collective',
     'Comment',
+    'CommentReaction',
     'Conversation',
     'ConversationFollower',
+    'CurrencyExchangeRate',
     'Expense',
     'ExpenseAttachedFile',
     'ExpenseItem',
+    'GuestToken',
+    'HostApplication',
     'LegalDocument',
     'Member',
     'MemberInvitation',
@@ -132,6 +72,10 @@ export function setupModels(client) {
     foreignKey: 'CollectiveId',
     constraints: false,
   });
+
+  // GuestTokens
+  m.GuestToken.belongsTo(m.Collective, { as: 'collective', foreignKey: 'CollectiveId' });
+  m.GuestToken.belongsTo(m.User, { as: 'user', foreignKey: 'UserId' });
 
   // Members
   m.Member.belongsTo(m.User, {
@@ -225,6 +169,10 @@ export function setupModels(client) {
   // Expense attached files
   m.ExpenseAttachedFile.belongsTo(m.Expense);
 
+  // Comment reactions
+  m.CommentReaction.belongsTo(m.Comment);
+  m.CommentReaction.belongsTo(m.User);
+
   // Order.
   m.Order.belongsTo(m.User, {
     foreignKey: 'CreatedByUserId',
@@ -242,9 +190,13 @@ export function setupModels(client) {
   // m.Collective.hasMany(m.Order); // makes the test `mocha test/graphql.transaction.test.js -g "insensitive" fail
   m.Collective.hasMany(m.Member, { foreignKey: 'CollectiveId', as: 'members' });
   m.Collective.hasMany(m.Order, { foreignKey: 'CollectiveId', as: 'orders' });
+  m.Collective.hasMany(m.LegalDocument, { foreignKey: 'CollectiveId', as: 'legalDocuments' });
   m.Transaction.belongsTo(m.Order);
   m.Order.hasMany(m.Transaction);
   m.Tier.hasMany(m.Order);
+
+  // Legal documents
+  m.LegalDocument.belongsTo(m.Collective);
 
   // Subscription
   m.Order.belongsTo(m.Subscription); // adds SubscriptionId to the Orders table
@@ -271,4 +223,8 @@ export function setupModels(client) {
   return m;
 }
 
-export const Op = Sequelize.Op;
+const Op = Sequelize.Op;
+const models = setupModels(sequelize);
+
+export { sequelize, Op };
+export default models;

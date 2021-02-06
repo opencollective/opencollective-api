@@ -7,10 +7,13 @@ export const ExpenseType = new GraphQLEnumType({
   description: 'All supported expense types',
   values: {
     [expenseType.INVOICE]: {
-      description: 'Invoice: Get paid back for a purchase already made.',
+      description: 'Invoice: Charge for your time or get paid in advance.',
     },
     [expenseType.RECEIPT]: {
-      description: 'Receipt: Charge for your time or get paid in advance',
+      description: 'Receipt:  Get paid back for a purchase already made.',
+    },
+    [expenseType.FUNDING_REQUEST]: {
+      description: 'Funding Request: Request funding for a project or initiative.',
     },
     [expenseType.UNCLASSIFIED]: {
       description: 'Unclassified expense',
