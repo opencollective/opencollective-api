@@ -10,7 +10,6 @@ import helmet from 'helmet';
 import { get, has } from 'lodash';
 import passport from 'passport';
 import { Strategy as GitHubStrategy } from 'passport-github';
-import { Strategy as MeetupStrategy } from 'passport-meetup-oauth2';
 import { Strategy as TwitterStrategy } from 'passport-twitter';
 import redis from 'redis';
 
@@ -23,7 +22,12 @@ import logger from './logger';
 export default async function (app) {
   app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal'].concat(cloudflareIps));
 
-  app.use(helmet());
+  app.use(
+    helmet({
+      // It's currently breaking GraphQL playgrounds, to consider when activating this
+      contentSecurityPolicy: false,
+    }),
+  );
 
   // Loaders are attached to the request to batch DB queries per request
   // It also creates in-memory caching (based on request auth);
@@ -49,7 +53,7 @@ export default async function (app) {
   await hyperwatch(app);
 
   // Error handling.
-  if (process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'staging') {
+  if (config.env !== 'production' && config.env !== 'staging') {
     app.use(errorHandler());
   }
 
@@ -65,11 +69,6 @@ export default async function (app) {
     passport.use(new GitHubStrategy(get(config, 'github'), verify));
   } else {
     logger.info('Configuration missing for passport GitHubStrategy, skipping.');
-  }
-  if (has(config, 'meetup.clientID') && has(config, 'meetup.clientSecret')) {
-    passport.use(new MeetupStrategy(get(config, 'meetup'), verify));
-  } else {
-    logger.info('Configuration missing for passport MeetupStrategy, skipping.');
   }
   if (has(config, 'twitter.consumerKey') && has(config, 'twitter.consumerSecret')) {
     passport.use(new TwitterStrategy(get(config, 'twitter'), verify));

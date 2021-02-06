@@ -13,9 +13,7 @@ async function handleTransferStateChange(event: TransferStateChangeEvent): Promi
     where: {
       data: { transfer: { id: event.data.resource.id } },
       updatedAt: {
-        [Op.gte]: moment()
-          .subtract(10, 'days')
-          .toDate(),
+        [Op.gte]: moment().subtract(10, 'days').toDate(),
       },
     },
     include: [{ model: models.Expense, as: 'Expense' }],
@@ -31,7 +29,8 @@ async function handleTransferStateChange(event: TransferStateChangeEvent): Promi
   if (event.data.current_state === 'outgoing_payment_sent') {
     logger.info(`Transfer sent, marking expense as paid.`, event);
     await expense.setPaid(expense.lastEditedById);
-    await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID);
+    const user = await models.User.findByPk(expense.lastEditedById);
+    await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID, user);
   } else if (event.data.current_state === 'funds_refunded') {
     logger.info(`Transfer failed, setting status to Error and deleting existing transactions.`, event);
     await models.Transaction.destroy({ where: { ExpenseId: expense.id } });

@@ -1,6 +1,6 @@
 import Debug from 'debug';
 import { Request } from 'express';
-import { toNumber } from 'lodash';
+import { get, toNumber } from 'lodash';
 
 import logger from '../../lib/logger';
 import { validateWebhookEvent } from '../../lib/paypal';
@@ -29,7 +29,7 @@ async function handlePayoutTransactionUpdate(req: Request): Promise<void> {
     where: { service: 'paypal', deletedAt: null },
   });
   if (!connectedAccount) {
-    throw new Error(`Host is not connected to PayPal Payouts.`);
+    throw new Error(`Host ${host.slug} is not connected to PayPal Payouts.`);
   }
   await validateWebhookEvent(connectedAccount, req);
 
@@ -39,10 +39,11 @@ async function handlePayoutTransactionUpdate(req: Request): Promise<void> {
 
 async function webhook(req: Request): Promise<void> {
   debug('new event', req.body);
-  if (req.body.event_type.includes('PAYMENT.PAYOUTS-ITEM')) {
+  const eventType = get(req, 'body.event_type');
+  if (eventType?.includes('PAYMENT.PAYOUTS-ITEM')) {
     await handlePayoutTransactionUpdate(req);
   } else {
-    logger.info(`Received unexpected PayPal Payout event, ignoring it.`);
+    logger.info(`Received unexpected PayPal Payout event (${eventType}), ignoring it.`);
   }
 }
 

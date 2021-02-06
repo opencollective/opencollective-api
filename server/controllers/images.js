@@ -3,7 +3,7 @@ import path from 'path';
 import config from 'config';
 import { v1 as uuid } from 'uuid';
 
-import s3 from '../lib/awsS3';
+import s3, { uploadToS3 } from '../lib/awsS3';
 import errors from '../lib/errors';
 
 // Use a 2 minutes timeout for image upload requests as the default 25 seconds
@@ -58,16 +58,14 @@ export default function uploadImage(req, res, next) {
 
   req.setTimeout(IMAGE_UPLOAD_TIMEOUT);
 
-  // call S3 to retrieve upload file to specified bucket
-  s3.upload(uploadParams, (err, data) => {
-    if (err) {
-      return next(new errors.ServerError(`Error: ${err}`));
-    }
-    if (data) {
+  uploadToS3(uploadParams)
+    .then(data => {
       res.send({
         status: 200,
         url: data.Location,
       });
-    }
-  });
+    })
+    .catch(err => {
+      next(new errors.ServerError(`Error: ${err}`));
+    });
 }

@@ -74,7 +74,6 @@ export default (sequelize, DataTypes): typeof ExpenseAttachedFile => {
         type: DataTypes.STRING,
         allowNull: false,
         validate: {
-          isUrl: true,
           isValidImage(url: string): void {
             if (url && !isValidUploadedImage(url)) {
               throw new Error('The attached file URL is not valid');

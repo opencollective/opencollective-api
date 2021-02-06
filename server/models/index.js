@@ -18,11 +18,14 @@ export function setupModels(client) {
     'ConnectedAccount',
     'Collective',
     'Comment',
+    'CommentReaction',
     'Conversation',
     'ConversationFollower',
+    'CurrencyExchangeRate',
     'Expense',
     'ExpenseAttachedFile',
     'ExpenseItem',
+    'HostApplication',
     'LegalDocument',
     'Member',
     'MemberInvitation',
@@ -161,6 +164,10 @@ export function setupModels(client) {
   // Expense attached files
   m.ExpenseAttachedFile.belongsTo(m.Expense);
 
+  // Comment reactions
+  m.CommentReaction.belongsTo(m.Comment);
+  m.CommentReaction.belongsTo(m.User);
+
   // Order.
   m.Order.belongsTo(m.User, {
     foreignKey: 'CreatedByUserId',
@@ -178,9 +185,13 @@ export function setupModels(client) {
   // m.Collective.hasMany(m.Order); // makes the test `mocha test/graphql.transaction.test.js -g "insensitive" fail
   m.Collective.hasMany(m.Member, { foreignKey: 'CollectiveId', as: 'members' });
   m.Collective.hasMany(m.Order, { foreignKey: 'CollectiveId', as: 'orders' });
+  m.Collective.hasMany(m.LegalDocument, { foreignKey: 'CollectiveId', as: 'legalDocuments' });
   m.Transaction.belongsTo(m.Order);
   m.Order.hasMany(m.Transaction);
   m.Tier.hasMany(m.Order);
+
+  // Legal documents
+  m.LegalDocument.belongsTo(m.Collective);
 
   // Subscription
   m.Order.belongsTo(m.Subscription); // adds SubscriptionId to the Orders table

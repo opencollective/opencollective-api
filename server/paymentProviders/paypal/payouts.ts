@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/camelcase, camelcase */
+/* eslint-disable camelcase */
 
 import { isNil, round, toNumber } from 'lodash';
 import moment from 'moment';
@@ -8,12 +8,18 @@ import status from '../../constants/expense_status';
 import logger from '../../lib/logger';
 import * as paypal from '../../lib/paypal';
 import { createFromPaidExpense as createTransactionFromPaidExpense } from '../../lib/transactions';
+import models from '../../models';
+import { PayoutItemDetails } from '../../types/paypal';
 
 export const payExpensesBatch = async (expenses: any[]): Promise<any[]> => {
   const [firstExpense] = expenses;
-  const isSameHost = expenses.every(e => !isNil(e.CollectiveId) && e.CollectiveId === firstExpense.CollectiveId);
+  const isSameHost = expenses.every(
+    e =>
+      !isNil(e.collective?.HostCollectiveId) &&
+      e.collective.HostCollectiveId === firstExpense.collective.HostCollectiveId,
+  );
   if (!isSameHost) {
-    throw new Error('All expenses in the batch should belong to the same Collective.');
+    throw new Error('All expenses should have collective prop populated and belong to the same Host.');
   }
 
   const host = await firstExpense.collective.getHostCollective();
@@ -49,15 +55,27 @@ export const payExpensesBatch = async (expenses: any[]): Promise<any[]> => {
     items: expenses.map(getExpenseItem),
   };
 
-  const response = await paypal.executePayouts(connectedAccount, requestBody);
-  const updateExpenses = expenses.map(async e => {
-    await e.update({ data: response.batch_header, status: status.PROCESSING });
-    await e.createActivity(activities.COLLECTIVE_EXPENSE_PROCESSING);
-  });
-  return Promise.all(updateExpenses);
+  try {
+    const response = await paypal.executePayouts(connectedAccount, requestBody);
+    const updateExpenses = expenses.map(async e => {
+      await e.update({ data: { ...e.data, ...response.batch_header }, status: status.PROCESSING });
+      const user = await models.User.findByPk(e.lastEditedById);
+      await e.createActivity(activities.COLLECTIVE_EXPENSE_PROCESSING, user);
+    });
+    return Promise.all(updateExpenses);
+  } catch (error) {
+    const updateExpenses = expenses.map(async e => {
+      await e.update({ status: status.ERROR });
+      const user = await models.User.findByPk(e.lastEditedById);
+      await e.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, user, { error: { message: error.message } });
+    });
+    return Promise.all(updateExpenses);
+  }
 };
 
-export const checkBatchItemStatus = async (item: any, expense: any, host: any) => {
+export const checkBatchItemStatus = async (item: PayoutItemDetails, expense: any, host: any) => {
+  // Reload up-to-date values to avoid race conditions when processing batches.
+  await expense.reload();
   if (expense.data.payout_batch_id !== item.payout_batch_id) {
     throw new Error(`Item does not belongs to expense it claims it does.`);
   }
@@ -78,7 +96,8 @@ export const checkBatchItemStatus = async (item: any, expense: any, host: any) =
           item,
         );
         await expense.setPaid(expense.lastEditedById);
-        await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID);
+        const user = await models.User.findByPk(expense.lastEditedById);
+        await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID, user);
       }
       break;
     case 'FAILED':
@@ -88,7 +107,11 @@ export const checkBatchItemStatus = async (item: any, expense: any, host: any) =
     case 'REVERSED':
       if (expense.status !== status.ERROR) {
         await expense.setError(expense.lastEditedById);
-        await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR);
+        await expense.createActivity(
+          activities.COLLECTIVE_EXPENSE_ERROR,
+          { id: expense.lastEditedById },
+          { error: item.errors },
+        );
       }
       break;
     // Ignore cases

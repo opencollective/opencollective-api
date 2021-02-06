@@ -95,13 +95,18 @@ export async function createFromPaidExpense(
         );
 
       case 'ERROR':
+        // Backward compatible error message parsing
+        // eslint-disable-next-line no-case-declarations
+        const errorMessage =
+          executePaymentResponse.payErrorList?.payError?.[0].error?.message ||
+          executePaymentResponse.payErrorList?.[0].error?.message;
         throw new errors.ServerError(
-          `Error while paying the expense with PayPal: "${executePaymentResponse.payErrorList[0].error.message}". Please contact support@opencollective.com`,
+          `Error while paying the expense with PayPal: "${errorMessage}". Please contact support@opencollective.com or pay it manually through PayPal.`,
         );
 
       default:
         throw new errors.ServerError(
-          `Error while paying the expense with PayPal. Please contact support@opencollective.com`,
+          `Error while paying the expense with PayPal. Please contact support@opencollective.com or pay it manually through PayPal.`,
         );
     }
 
@@ -146,6 +151,7 @@ export async function createFromPaidExpense(
     description: expense.description,
     CreatedByUserId: UserId,
     CollectiveId: expense.CollectiveId,
+    FromCollectiveId: expense.FromCollectiveId,
     HostCollectiveId: host.id,
     PaymentMethodId: paymentMethod ? paymentMethod.id : null,
     data: transactionData,
@@ -153,8 +159,6 @@ export async function createFromPaidExpense(
 
   transaction.hostCurrencyFxRate = hostCurrencyFxRate;
   transaction.amountInHostCurrency = -Math.round(hostCurrencyFxRate * expense.amount); // amountInHostCurrency is an INTEGER (in cents)
-  const user = await models.User.findByPk(UserId);
-  transaction.FromCollectiveId = user.CollectiveId;
   return models.Transaction.createDoubleEntry(transaction);
 }
 

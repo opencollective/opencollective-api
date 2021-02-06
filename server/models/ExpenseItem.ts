@@ -104,7 +104,7 @@ export default (sequelize, DataTypes): typeof ExpenseItem => {
         },
       },
       description: {
-        type: DataTypes.STRING,
+        type: DataTypes.TEXT,
         allowNull: true,
       },
       createdAt: {

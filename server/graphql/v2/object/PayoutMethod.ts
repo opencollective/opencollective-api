@@ -8,7 +8,7 @@ import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 const PayoutMethod = new GraphQLObjectType({
   name: 'PayoutMethod',
   description: 'A payout method',
-  fields: {
+  fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.PAYOUT_METHOD),
@@ -50,7 +50,7 @@ const PayoutMethod = new GraphQLObjectType({
         }
       },
     },
-  },
+  }),
 });
 
 export default PayoutMethod;

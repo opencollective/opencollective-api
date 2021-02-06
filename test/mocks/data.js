@@ -123,7 +123,7 @@ export default {
     {
       name: 'Reinventing Brussels',
       slug: 'reinventingbrussels',
-      mission: 'connect all the initiatives that create a welcoming &amp; sustainable city with deep human values',
+      description: 'connect all the initiatives that create a welcoming &amp; sustainable city with deep human values',
       image: 'https://opencollective-production.s3-us-west-1.amazonaws.com/1738fae0-9a20-11e6-8650-f92e594d5de8.png',
       currency: 'EUR',
       settings: {
@@ -135,7 +135,7 @@ export default {
     {
       name: 'Refugees Got Talent',
       slug: 'refugeesgottalent',
-      mission: 'offer a space and artistic material to refugees artists, so they can practice their art again.',
+      description: 'offer a space and artistic material to refugees artists, so they can practice their art again.',
       image: 'https://cl.ly/0Q3N193Z1e3u/BrusselsTogetherLogo.png',
       currency: 'EUR',
       tags: ['#brusselstogether'],
@@ -144,7 +144,7 @@ export default {
     {
       name: 'Brussels Smart City',
       slug: 'brusselssmartcity',
-      mission: 'improve the life of Brussels Citizens by the use of technology',
+      description: 'improve the life of Brussels Citizens by the use of technology',
       image: 'https://cl.ly/0Q3N193Z1e3u/BrusselsTogetherLogo.png',
       currency: 'EUR',
       tags: ['#brusselstogether'],
@@ -212,8 +212,6 @@ export default {
       },
       { type: 'user.created', UserId: 3, data: {} },
       { type: 'collective.created', UserId: 1, CollectiveId: 1, data: {} },
-      { type: 'collective.user.added', UserId: 1, CollectiveId: 1, data: {} },
-      { type: 'collective.user.added', UserId: 3, CollectiveId: 1, data: {} },
       { type: 'collective.updated', UserId: 1, CollectiveId: 1, data: {} },
       { type: 'collective.updated', UserId: 3, CollectiveId: 1, data: {} },
       { type: 'collective.updated', UserId: 1, CollectiveId: 1, data: {} },
@@ -367,20 +365,6 @@ export default {
         data: {
           user: {
             email: 'jussi@kuohujoki.fi',
-          },
-          collective: {
-            name: 'Blah',
-            slug: 'blah',
-            publicUrl: 'https://opencollective.com/blah',
-          },
-        },
-      },
-      {
-        type: 'collective.user.added',
-        data: {
-          user: {
-            image: 'http://image.githubusercontent.com/asood123',
-            id: 2,
           },
           collective: {
             name: 'Blah',

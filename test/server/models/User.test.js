@@ -42,34 +42,6 @@ describe('server/models/User', () => {
         expect(user).to.have.property('createdAt');
         expect(user).to.have.property('updatedAt');
       }));
-
-    it('successfully creates a user with a password that is a number', () => {
-      const email = 'john.doe@doe.com';
-
-      return User.create({
-        email,
-        password: 123456,
-      }).tap(user => {
-        expect(user).to.have.property('email', email);
-        expect(user).to.have.property('createdAt');
-        expect(user).to.have.property('password_hash');
-        expect(user).to.have.property('updatedAt');
-      });
-    });
-
-    it('successfully creates a user with a password that is a string', () => {
-      const email = 'john.doe@doe.com';
-
-      return User.create({
-        email,
-        password: '123456',
-      }).tap(user => {
-        expect(user).to.have.property('email', email);
-        expect(user).to.have.property('createdAt');
-        expect(user).to.have.property('password_hash');
-        expect(user).to.have.property('updatedAt');
-      });
-    });
   });
 
   describe('#createUserWithCollective', () => {

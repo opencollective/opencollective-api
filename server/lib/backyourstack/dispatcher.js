@@ -125,7 +125,7 @@ export async function dispatchFunds(order) {
         description: `Monthly financial contribution to ${collective.name} through BackYourStack`,
         totalAmount,
         currency: order.currency,
-        status: status.PENDING,
+        status: status.NEW,
       };
       const orderCreated = await models.Order.create(orderData);
 

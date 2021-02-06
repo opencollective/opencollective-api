@@ -9,6 +9,11 @@ import ExpenseQuery from './ExpenseQuery';
 import ExpensesQuery from './ExpensesQuery';
 import HostQuery from './HostQuery';
 import IndividualQuery from './IndividualQuery';
+import OrderQuery from './OrderQuery';
+import OrdersQuery from './OrdersQuery';
+import TierQuery from './TierQuery';
+import TransactionsQuery from './TransactionsQuery';
+import UpdateQuery from './UpdateQuery';
 
 const query = {
   account: AccountQuery,
@@ -19,8 +24,12 @@ const query = {
   expenses: ExpensesQuery,
   expense: ExpenseQuery,
   hosts: HostsCollectionQuery,
+  order: OrderQuery,
+  orders: OrdersQuery,
+  tier: TierQuery,
   // transaction: TransactionQuery,
-  // transactions: TransactionsQuery,
+  transactions: TransactionsQuery,
+  update: UpdateQuery,
   loggedInAccount: {
     type: Account,
     resolve(_, args, req) {

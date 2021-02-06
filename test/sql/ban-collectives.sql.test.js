@@ -171,6 +171,7 @@ describe('sql/ban-collectives', () => {
     expect(udpatedUser2.data).to.deep.eqInAnyOrder({ isBanned: true, existingDataIsPreserved: true });
 
     const updatedCollective = await collective.reload({ paranoid: false });
-    expect(updatedCollective.data).to.deep.eqInAnyOrder({ isBanned: true, hello: 'world' });
+    expect(updatedCollective.data.isBanned).to.eq(true);
+    expect(updatedCollective.data.hello).to.eq('world');
   });
 });
