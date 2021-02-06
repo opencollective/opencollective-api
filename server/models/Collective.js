@@ -47,6 +47,7 @@ import {
   isCollectiveSlugReserved,
   validateSettings,
 } from '../lib/collectivelib';
+import { invalidateContributorsCache } from '../lib/contributors';
 import { getFxRate } from '../lib/currency';
 import emailLib from '../lib/email';
 import logger from '../lib/logger';
@@ -2277,6 +2278,14 @@ export default function (Sequelize, DataTypes) {
       }
     }
 
+    /**
+     * Because we don't update the model directly (we use Model.update(..., {where}))
+     * when removing members, Member's `afterUpdate` hook is not triggered. Therefore it
+     * is necessary to update the cache used in the collective page so that removed team
+     * members don't persist in the Team section on the frontend.
+     */
+    invalidateContributorsCache(this.id);
+
     return this.getMembers({
       where: { role: { [Op.in]: allowedRoles } },
     });
@@ -2399,13 +2408,6 @@ export default function (Sequelize, DataTypes) {
     return models.Update.findAll({
       where,
       order: [['createdAt', 'DESC']],
-    });
-  };
-
-  Collective.prototype.getTopExpenseCategories = function (startDate, endDate) {
-    return queries.getTopExpenseCategories(this.id, {
-      since: startDate,
-      until: endDate,
     });
   };
 

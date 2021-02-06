@@ -11,6 +11,21 @@ const checkIsActive = (
   return promise.then(result => (result ? FEATURE_STATUS.ACTIVE : fallback));
 };
 
+const checkReceiveFinancialContributions = collective => {
+  if (!collective.HostCollectiveId || !collective.approvedAt) {
+    return FEATURE_STATUS.DISABLED;
+  } else if (!collective.isActive) {
+    return FEATURE_STATUS.UNSUPPORTED;
+  } else {
+    return checkIsActive(
+      models.Order.count({
+        where: { CollectiveId: collective.id, status: { [Op.or]: ['PAID', 'ACTIVE'] } },
+        limit: 1,
+      }),
+    );
+  }
+};
+
 /**
  * Returns a resolved that will give the `FEATURE_STATUS` for the given collective/feature.
  */
@@ -28,6 +43,10 @@ export const getFeatureStatusResolver = (feature: FEATURE) => async (
   // Add some special cases that check for data to see if the feature is `ACTIVE` or just `AVAILABLE`
   // Right now only UPDATES, CONVERSATIONS, and RECURRING CONTRIBUTIONS
   switch (feature) {
+    case FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS:
+      return checkReceiveFinancialContributions(collective);
+    case FEATURE.RECEIVE_EXPENSES:
+      return checkIsActive(models.Expense.count({ where: { CollectiveId: collective.id }, limit: 1 }));
     case FEATURE.UPDATES:
       return checkIsActive(
         models.Update.count({
@@ -36,12 +55,7 @@ export const getFeatureStatusResolver = (feature: FEATURE) => async (
         }),
       );
     case FEATURE.CONVERSATIONS:
-      return checkIsActive(
-        models.Conversation.count({
-          where: { CollectiveId: collective.id, deletedAt: { [Op.eq]: null } },
-          limit: 1,
-        }),
-      );
+      return checkIsActive(models.Conversation.count({ where: { CollectiveId: collective.id }, limit: 1 }));
     case FEATURE.RECURRING_CONTRIBUTIONS:
       return checkIsActive(
         models.Order.count({

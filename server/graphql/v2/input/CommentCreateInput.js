@@ -1,4 +1,4 @@
-import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
+import { GraphQLInputObjectType, GraphQLString } from 'graphql';
 
 import { ExpenseReferenceInput } from './ExpenseReferenceInput';
 import { UpdateReferenceInput } from './UpdateReferenceInput';
@@ -13,10 +13,6 @@ export const CommentCreateInput = new GraphQLInputObjectType({
     expense: {
       type: ExpenseReferenceInput,
       description: 'If your comment is linked to an expense, set it here',
-    },
-    ExpenseId: {
-      type: GraphQLInt,
-      deprecationReason: '2019-02-26: Please use the expense field',
     },
     ConversationId: { type: GraphQLString },
     update: { type: UpdateReferenceInput },

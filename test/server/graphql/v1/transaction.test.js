@@ -66,9 +66,6 @@ describe('server/graphql/v1/transaction', () => {
                 id
                 slug
               }
-              ... on Expense {
-                attachment
-              }
               ... on Order {
                 paymentMethod {
                   id
@@ -109,9 +106,6 @@ describe('server/graphql/v1/transaction', () => {
               id
               slug
             }
-            ... on Expense {
-              attachment
-            }
             ... on Order {
               paymentMethod {
                 id
@@ -143,9 +137,6 @@ describe('server/graphql/v1/transaction', () => {
             host {
               id
               slug
-            }
-            ... on Expense {
-              attachment
             }
             ... on Order {
               paymentMethod {
@@ -280,9 +271,6 @@ describe('server/graphql/v1/transaction', () => {
               id
               slug
             }
-            ... on Expense {
-              attachment
-            }
             ... on Order {
               paymentMethod {
                 id
@@ -336,9 +324,6 @@ describe('server/graphql/v1/transaction', () => {
                   id
                   slug
                 }
-                ... on Expense {
-                  attachment
-                }
                 ... on Order {
                   paymentMethod {
                     id
@@ -388,9 +373,6 @@ describe('server/graphql/v1/transaction', () => {
                 host {
                   id
                   slug
-                }
-                ... on Expense {
-                  attachment
                 }
                 ... on Order {
                   paymentMethod {
@@ -443,9 +425,6 @@ describe('server/graphql/v1/transaction', () => {
                   id
                   slug
                 }
-                ... on Expense {
-                  attachment
-                }
                 ... on Order {
                   paymentMethod {
                     id
@@ -493,9 +472,6 @@ describe('server/graphql/v1/transaction', () => {
                 host {
                   id
                   slug
-                }
-                ... on Expense {
-                  attachment
                 }
                 ... on Order {
                   paymentMethod {

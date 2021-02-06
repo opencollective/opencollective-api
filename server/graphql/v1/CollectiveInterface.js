@@ -519,22 +519,6 @@ export const CollectiveStatsType = new GraphQLObjectType({
           }
         },
       },
-      topExpenses: {
-        type: GraphQLJSON,
-        deprecationReason: '[LegacyExpenseFlow] 2020-11-17: Not used anymore',
-        resolve(collective) {
-          return Promise.all([
-            queries.getTopExpenseCategories(collective.id),
-            queries.getTopExpenseSubmitters(collective.id),
-          ]).then(results => {
-            const res = {
-              byCategory: results[0],
-              byCollective: results[1],
-            };
-            return res;
-          });
-        },
-      },
       topFundingSources: {
         type: GraphQLJSON,
         resolve(collective) {
