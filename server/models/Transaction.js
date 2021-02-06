@@ -199,6 +199,7 @@ export default (Sequelize, DataTypes) => {
             netAmountInHostCurrency: this.netAmountInHostCurrency,
             amountSentToHostInHostCurrency: this.amountSentToHostInHostCurrency,
             hostCurrency: this.hostCurrency,
+            ExpenseId: this.ExpenseId,
           };
         },
       },

@@ -4,6 +4,7 @@ import { hostResolver } from '../../common/collective';
 import { Account, AccountFields } from '../interface/Account';
 
 import { Collective } from './Collective';
+import { Host } from './Host';
 
 export const Event = new GraphQLObjectType({
   name: 'Event',
@@ -23,7 +24,7 @@ export const Event = new GraphQLObjectType({
       },
       host: {
         description: 'Get the host collective that is receiving the money on behalf of this collective',
-        type: Account,
+        type: Host,
         resolve: hostResolver,
       },
       isApproved: {

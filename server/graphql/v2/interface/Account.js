@@ -53,6 +53,9 @@ const accountFieldsDefinition = () => ({
   description: {
     type: GraphQLString,
   },
+  longDescription: {
+    type: GraphQLString,
+  },
   tags: {
     type: new GraphQLList(GraphQLString),
   },
@@ -160,6 +163,13 @@ const accountFieldsDefinition = () => ({
   conversationsTags: {
     type: new GraphQLList(TagStats),
     description: "Returns conversation's tags for collective sorted by popularity",
+    args: {
+      limit: { type: GraphQLInt, defaultValue: 30 },
+    },
+  },
+  expensesTags: {
+    type: new GraphQLList(TagStats),
+    description: 'Returns expense tags for collective sorted by popularity',
     args: {
       limit: { type: GraphQLInt, defaultValue: 30 },
     },
@@ -368,6 +378,16 @@ export const AccountFields = {
     },
     async resolve(collective, _, { limit }) {
       return models.Conversation.getMostPopularTagsForCollective(collective.id, limit);
+    },
+  },
+  expensesTags: {
+    type: new GraphQLList(TagStats),
+    description: 'Returns expense tags for collective sorted by popularity',
+    args: {
+      limit: { type: GraphQLInt, defaultValue: 30 },
+    },
+    async resolve(collective, _, { limit }) {
+      return models.Expense.getMostPopularExpenseTagsForCollective(collective.id, limit);
     },
   },
   payoutMethods: {

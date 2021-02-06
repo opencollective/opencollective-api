@@ -1160,7 +1160,13 @@ export default function (Sequelize, DataTypes) {
         return 1;
       }
     });
-    return orders;
+
+    // Prepare objects to consumption in templates
+    return orders.map(order => ({
+      ...order.info,
+      fromCollective: order.fromCollective.info,
+      Tier: order.Tier ? order.Tier.info : null,
+    }));
   };
 
   /**
@@ -1202,7 +1208,13 @@ export default function (Sequelize, DataTypes) {
       }
     });
 
-    return orders;
+    // Prepare objects to consumption in templates
+    return orders.map(order => ({
+      ...order.info,
+      fromCollective: order.fromCollective.info,
+      Tier: order.Tier ? order.Tier.info : null,
+      totalTransactions: order.totalTransactions,
+    }));
   };
 
   /**

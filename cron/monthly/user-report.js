@@ -216,7 +216,7 @@ const processBacker = async FromCollectiveId => {
     if (ordersByCollectiveId[collective.id]) {
       collectivesWithOrders.push({
         ...collective,
-        orders: ordersByCollectiveId[collective.id],
+        orders: ordersByCollectiveId[collective.id].map(order => order.info),
         order: computeOrderSummary(ordersByCollectiveId[collective.id]),
       });
     }
@@ -230,17 +230,17 @@ const processBacker = async FromCollectiveId => {
     false,
     'c."createdAt"',
     'DESC',
-  );
+  ).then(({ collectives }) => collectives);
 
   try {
     await Promise.each(subscribers, user => {
       const data = {
         config: { host: config.host },
         month,
-        fromCollective: backerCollective,
+        fromCollective: backerCollective.info,
         collectives: collectivesWithOrders,
         manageSubscriptionsUrl: `${config.host.website}/subscriptions`,
-        relatedCollectives: relatedCollectives.map(collectives => collectives.info),
+        relatedCollectives: relatedCollectives,
         stats,
         tags: stats.allTags || {},
       };
@@ -279,9 +279,9 @@ const processEvents = events => {
     });
 
     if (new Date(event.startsAt) > now) {
-      res.upcoming.push(event);
+      res.upcoming.push(event.info);
     } else {
-      res.past.push(event);
+      res.past.push(event.info);
     }
   });
   return res;
@@ -369,9 +369,9 @@ const processCollective = async CollectiveId => {
       ? Object.keys(collective.data.githubContributors).length
       : data.collective.stats.backers.lastMonth;
   data.collective.yearlyIncome = results[5];
-  data.collective.expenses = results[6];
+  data.collective.expenses = results[6].map(expense => expense.info);
   data.collective.events = processEvents(results[7]);
-  data.collective.updates = results[8];
+  data.collective.updates = results[8].map(update => update.info);
   data.collective.stats.updates = results[8].length;
   const nextGoal = results[9];
   if (nextGoal) {
@@ -421,7 +421,7 @@ const computeOrderSummary = orders => {
       orderSummary.totalAmountPerCurrency[order.currency] += order.totalAmount;
 
       if (order.Subscription && order.Subscription.isActive) {
-        orderSummary.Subscription = order.Subscription;
+        orderSummary.Subscription = order.Subscription.dataValues;
       }
     }
   }

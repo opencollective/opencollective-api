@@ -231,6 +231,9 @@ async function notifyByEmail(activity) {
       activity.data.collective = await models.Collective.findByPk(activity.data.conversation.CollectiveId);
       activity.data.fromCollective = await models.Collective.findByPk(activity.data.conversation.FromCollectiveId);
       activity.data.rootComment = await models.Comment.findByPk(activity.data.conversation.RootCommentId);
+      activity.data.collective = activity.data.collective?.info;
+      activity.data.fromCollective = activity.data.fromCollective?.info;
+      activity.data.rootComment = activity.data.rootComment?.info;
       notifyAdminsOfCollective(activity.data.conversation.CollectiveId, activity, { exclude: [activity.UserId] });
       break;
     case activityType.COLLECTIVE_COMMENT_CREATED:

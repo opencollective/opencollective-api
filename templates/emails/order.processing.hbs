@@ -3,7 +3,7 @@ currency=order.currency}}} {{order.type}} to {{collective.name}} is pending
 
 <style>
   code {
-    display: inline-block;
+    display: block;
     border: 1px solid #ccc;
     background: #ddd;
     padding: 1px 3px;
@@ -29,7 +29,7 @@ currency=order.currency}}} {{order.type}} to {{collective.name}} is pending
 {{#if instructions}}
 <section>
   <h2>Instructions</h2>
-  <p>{{instructions}}</p>
+  <pre>{{instructions}}</pre>
 </section>
 {{/if}}
 

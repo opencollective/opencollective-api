@@ -23,6 +23,11 @@ if (process.env.DEBUG && process.env.DEBUG.match(/psql/)) {
   config.database.options.logging = true;
 }
 
+if (process.env.PGSSLMODE === 'require') {
+  config.database.options.dialectOptions = config.database.options.dialectOptions || {};
+  config.database.options.dialectOptions = { ssl: { rejectUnauthorized: false } };
+}
+
 if (config.database.options.logging) {
   if (process.env.NODE_ENV === 'production') {
     config.database.options.logging = (query, executionTime) => {
@@ -256,6 +261,7 @@ export function setupModels(client) {
   // Payout method
   m.PayoutMethod.belongsTo(m.User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
   m.PayoutMethod.belongsTo(m.Collective);
+  m.Collective.hasMany(m.PayoutMethod);
 
   // Tier
   m.Tier.belongsTo(m.Collective);

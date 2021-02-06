@@ -333,7 +333,7 @@ describe('server/graphql/v1/expenses', () => {
       await store.createExpense(hostAdmin, {
         items: [{ url: store.randUrl(), amount: 1000 }],
         amount: 1000,
-        category: 'LEGAL',
+        category: 'legal',
         description: 'Pizza',
         ...data,
       });
@@ -350,7 +350,7 @@ describe('server/graphql/v1/expenses', () => {
       await store.createExpense(hostAdmin, {
         items: [{ url: store.randUrl(), amount: 3000 }],
         amount: 3000,
-        category: 'LEGAL',
+        category: 'legal',
         description: 'Banner',
         ...data,
       });
@@ -375,7 +375,7 @@ describe('server/graphql/v1/expenses', () => {
       // counting expenses from the two collectives hosted by
       // `hostCollective` that are under the `legal` category.
       expect(result.data.allExpenses).to.have.length(2);
-      result.data.allExpenses.forEach(e => expect(e.category).to.equal('LEGAL'));
+      result.data.allExpenses.forEach(e => expect(e.category).to.equal('legal'));
     }); /* End of "gets the latest expenses from all the hosted collectives for one category" */
 
     it('gets the latest expenses from all the hosted collectives for one author', async () => {
@@ -752,8 +752,8 @@ describe('server/graphql/v1/expenses', () => {
       };
 
       const result = await utils.graphqlQuery(createExpenseQuery, { expense: expenseData }, user);
-      expect(result.data.createExpense.category).to.equal(expenseData.category.toUpperCase());
-      expect(result.data.createExpense.tags[0]).to.equal(expenseData.category.toUpperCase());
+      expect(result.data.createExpense.category).to.equal(expenseData.category.toLowerCase());
+      expect(result.data.createExpense.tags[0]).to.equal(expenseData.category.toLowerCase());
     });
   }); /* End of "#createExpense" */
 
@@ -1522,7 +1522,7 @@ describe('server/graphql/v1/expenses', () => {
       const expense = await fakeExpense({ amount: 10000, category: 'BOAT' });
       const updatedExpenseData = {
         id: expense.id,
-        category: 'KUNF-FU',
+        category: 'kunf-fu',
       };
 
       const result = await utils.graphqlQuery(editExpenseMutation, { expense: updatedExpenseData }, expense.User);
