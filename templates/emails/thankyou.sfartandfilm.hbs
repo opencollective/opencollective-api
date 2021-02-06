@@ -1,7 +1,7 @@
 {{#if interval }}
-Subject: Thank you for your {{{currency order.totalAmount currency=order.currency}}}/{{interval}} donation to {{collective.name}}
+Subject: Thank you for your {{currency order.totalAmount currency=order.currency}}/{{interval}} contribution to {{collective.name}}
 {{else}}
-Subject: Thank you for your {{{currency order.totalAmount currency=order.currency}}} donation to {{collective.name}}
+Subject: Thank you for your {{currency order.totalAmount currency=order.currency}} contribution to {{collective.name}}
 {{/if}}
 
 {{> header}}
@@ -16,14 +16,14 @@ Subject: Thank you for your {{{currency order.totalAmount currency=order.currenc
 
 {{#if interval}}
   {{#if firstPayment }}
-    <p>We want to thank you for your contribution of {{{currency order.totalAmount currency=order.currency}}} per {{interval}} to San Francisco Art & Film for Teenagers.
-      Your first payment was received on {{{moment order.createdAt}}}.</p>
+    <p>We want to thank you for your contribution of {{currency order.totalAmount currency=order.currency}} per {{interval}} to San Francisco Art & Film for Teenagers.
+      Your first payment was received on {{moment order.createdAt}}.</p>
     {{> charge_date_notice }}
   {{else}}
-    <p>We would like to thank you for your continued support. Your latest {{interval}}ly donation of {{{currency order.totalAmount currency=order.currency}}} was received on {{{moment transaction.createdAt}}}.</p>
+    <p>We would like to thank you for your continued support. Your latest {{interval}}ly contribution of {{currency order.totalAmount currency=order.currency}} was received on {{moment transaction.createdAt}}.</p>
   {{/if}}
 {{else}}
-<p>We would like to thank you for your donation of {{{currency order.totalAmount currency=order.currency}}} on {{{moment order.createdAt}}}.</p>
+<p>We would like to thank you for your contribution of {{currency order.totalAmount currency=order.currency}} on {{moment order.createdAt}}.</p>
 {{/if}}
 
 <p>SF Art & Film remains steadfast in its goal of making the arts a vital presence in the lives of young people and your extraordinary generosity is what makes it possible. We hope you’ll continue to introduce people like yourself—people who understand the importance of art education—to our program.</p>
@@ -39,13 +39,14 @@ Subject: Thank you for your {{{currency order.totalAmount currency=order.currenc
   Director
   San Francisco Art & Film for Teenagers
 </p>
-<p>Your donation is tax-deductible to the extent allowed by law. You may save this receipt for your records. San Francisco Art & Film for Teenagers is a qualified non-profit organization with 501-C status, tax ID: 94-3310464.</p>
+<p>Your contribution is tax-deductible to the extent allowed by law. You may save this receipt for your records. San Francisco Art & Film for Teenagers is a qualified non-profit organization with 501-C status, tax ID: 94-3310464.</p>
 
-<p>
-  P.S: You can download a PDF receipt for your donation <a href="{{config.host.invoices}}/{{collective.slug}}/transactions/{{transaction.uuid}}/invoice.pdf">here</a>{{#if subscriptionsLink}}, and you can manage your subscriptions <a href="{{subscriptionsLink}}">here</a>{{/if}}.
-</p>
-
-{{> relatedcollectives}}
+{{#if transactionPdf}}
+<h2>📎 Attachments</h2>
+<ul>
+  <li>A PDF receipt of your transaction</li>
+</ul>
+{{/if}}
 
 {{> footer}}
 

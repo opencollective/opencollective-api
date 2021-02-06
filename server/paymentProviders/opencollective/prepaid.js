@@ -1,8 +1,9 @@
-import models, { Op } from '../../models';
-import * as libpayments from '../../lib/payments';
-import * as currency from '../../lib/currency';
-import { TransactionTypes, OC_FEE_PERCENT } from '../../constants/transactions';
 import { get } from 'lodash';
+
+import { TransactionTypes } from '../../constants/transactions';
+import * as currency from '../../lib/currency';
+import { createRefundTransaction, getHostFee, getPlatformFee, isProvider } from '../../lib/payments';
+import models, { Op } from '../../models';
 
 /** Get the balance of a prepaid credit card
  *
@@ -16,7 +17,7 @@ import { get } from 'lodash';
  * @return {Object} with amount & currency from the payment method.
  */
 async function getBalance(paymentMethod) {
-  if (!libpayments.isProvider('opencollective.prepaid', paymentMethod)) {
+  if (!isProvider('opencollective.prepaid', paymentMethod)) {
     throw new Error(`Expected opencollective.prepaid but got ${paymentMethod.service}.${paymentMethod.type}`);
   }
   /* Result will be negative (We're looking for DEBIT transactions) */
@@ -66,13 +67,15 @@ async function processOrder(order) {
   } = order;
   // Making sure the paymentMethod has the information we need to
   // process a prepaid card
-  if (!get(data, 'HostCollectiveId'))
+  if (!get(data, 'HostCollectiveId')) {
     throw new Error('Prepaid payment method must have a value for `data.HostCollectiveId`');
+  }
 
   // Check that target Collective's Host is same as gift card issuer
   const hostCollective = await order.collective.getHostCollective();
-  if (hostCollective.id !== data.HostCollectiveId)
+  if (hostCollective.id !== data.HostCollectiveId) {
     throw new Error('Prepaid method can only be used in collectives from the same host');
+  }
 
   // Checking if balance is ok or will still be after completing the order
   const balance = await getBalance(order.paymentMethod);
@@ -80,9 +83,10 @@ async function processOrder(order) {
     throw new Error("This payment method doesn't have enough funds to complete this order");
   }
 
+  const platformFeeInHostCurrency = await getPlatformFee(order.totalAmount, order, hostCollective);
+  const hostFeeInHostCurrency = await getHostFee(order.totalAmount, order, hostCollective);
+
   // Use the above payment method to donate to Collective
-  const hostFeeInHostCurrency = libpayments.calcFee(order.totalAmount, order.collective.hostFeePercent);
-  const platformFeeInHostCurrency = libpayments.calcFee(order.totalAmount, OC_FEE_PERCENT);
   const transactions = await models.Transaction.createFromPayload({
     CreatedByUserId: user.id,
     FromCollectiveId: order.FromCollectiveId,
@@ -112,10 +116,7 @@ async function processOrder(order) {
 
 async function refundTransaction(transaction, user) {
   /* Create negative transactions for the received transaction */
-  const refundTransaction = await libpayments.createRefundTransaction(transaction, 0, null, user);
-
-  /* Associate RefundTransactionId to all the transactions created */
-  return libpayments.associateTransactionRefundId(transaction, refundTransaction);
+  return await createRefundTransaction(transaction, 0, null, user);
 }
 
 /* Expected API of a Payment Method Type */

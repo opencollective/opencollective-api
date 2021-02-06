@@ -5,11 +5,16 @@ import '../server/env';
  * This script runs breaks out how many new and old backers are added per active month per collective
  */
 
-import Promise from 'bluebird';
+console.log('This script is being deprecated.');
+console.log('To re-enable it, remove this message with a Pull Request explaining the use case.');
+process.exit();
+
+/*
 import fs from 'fs';
 import moment from 'moment';
 import { parse as json2csv } from 'json2csv';
-import models, { sequelize, Op } from '../server/models';
+
+import models, { Op } from '../server/models';
 
 const done = err => {
   if (err) console.log(err);
@@ -83,9 +88,6 @@ const calculateBackersPerCollective = () => {
 
   return models.Order.findAll({
     where: {
-      /*PaymentMethodId: {
-        [Op.not]: null
-      }*/
       CollectiveId: {
         [Op.notIn]: [1],
       },
@@ -101,17 +103,17 @@ const calculateBackersPerCollective = () => {
       if (order.FromCollectiveId in seenFromCollectiveIdList) {
         // means this is now an old backer
         if (order.CollectiveId in results) {
-          //results[order.CollectiveId]['oldBackerCount'] += 1;
+          // results[order.CollectiveId]['oldBackerCount'] += 1;
           countOrderInStats(order, false);
         } else {
-          //results[order.CollectiveId] = { id: order.CollectiveId, slug: order.collective.slug, newBackerCount: 0, oldBackerCount: 1};
+          // results[order.CollectiveId] = { id: order.CollectiveId, slug: order.collective.slug, newBackerCount: 0, oldBackerCount: 1};
           results[order.CollectiveId] = initiateNewCollectiveStats(order, false);
         }
       } else {
         // means this is a new backer
         seenFromCollectiveIdList[order.FromCollectiveId] = true;
         if (order.CollectiveId in results) {
-          //results[order.CollectiveId]['newBackerCount'] += 1;
+          // results[order.CollectiveId]['newBackerCount'] += 1;
           countOrderInStats(order, true);
         } else {
           // results[order.CollectiveId] = { id: order.CollectiveId, slug: order.collective.slug, newBackerCount: 1, oldBackerCount: 0};
@@ -129,7 +131,7 @@ const calculateBackersPerCollective = () => {
 
       console.log(csvFields);
 
-      //console.log(results);
+      // console.log(results);
 
       console.log(array);
 
@@ -164,3 +166,5 @@ const run = () => {
 };
 
 run();
+
+*/

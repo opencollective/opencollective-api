@@ -8,7 +8,9 @@
         "acquire": 60000
       },
       "dialectOptions": {
-        "ssl": true
+        "ssl": {
+          "rejectUnauthorized": false
+        }
       },
       "benchmark": true
     }
@@ -16,21 +18,25 @@
   "host": {
     "api": "https://api.opencollective.com",
     "frontend": "https://frontend.opencollective.com",
-    "webapp": "https://app.opencollective.com",
     "website": "https://opencollective.com",
     "images": "https://images.opencollective.com",
-    "invoices": "https://invoices.opencollective.com"
+    "pdf": "https://pdf.opencollective.com"
+  },
+  "log": {
+    "slowRequest": true
   },
   "stripe": {
     "redirectUri": "https://api.opencollective.com/connected-accounts/stripe/callback"
-  },
-  "slack": {
-    "privateActivityChannel": "#activity-private",
-    "publicActivityChannel": "#activity-public"
   },
   "paypal": {
     "rest": {
       "mode": "live"
     }
+  },
+  "transferwise": {
+    "apiUrl": "https://api.transferwise.com"
+  },
+  "pdfService": {
+    "fetchTransactionsReceipts": true
   }
 }

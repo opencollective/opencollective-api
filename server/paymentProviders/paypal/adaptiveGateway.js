@@ -1,7 +1,7 @@
-import Paypal from 'paypal-adaptive';
-import config from 'config';
 import Promise from 'bluebird';
+import config from 'config';
 import { get } from 'lodash';
+import Paypal from 'paypal-adaptive';
 
 const paypalAdaptiveClient = new Paypal({
   userId: config.paypal.classic.userId,
@@ -27,7 +27,15 @@ paypalAdaptive.callPaypal = (endpointName, payload) => {
     paypalAdaptiveClient[endpointName](Object.assign({}, payload, { requestEnvelope }), (err, res) => {
       console.log(`Paypal ${endpointName} response: ${JSON.stringify(res)}`); // leave this in permanently
       if (get(res, 'responseEnvelope.ack') === 'Failure') {
-        return reject(new Error(`PayPal error: ${res.error[0].message} (error id: ${res.error[0].errorId})`));
+        if (res.error[0].errorId === '579024') {
+          return reject(
+            new Error(
+              `Your PayPal pre-approval has expired, please reconnect your account by clicking on 'Refill Balance'.`,
+            ),
+          );
+        } else {
+          return reject(new Error(`PayPal error: ${res.error[0].message} (error id: ${res.error[0].errorId})`));
+        }
       }
       if (err) {
         console.log(`Paypal ${endpointName} error: ${JSON.stringify(err)}`); // leave this in permanently

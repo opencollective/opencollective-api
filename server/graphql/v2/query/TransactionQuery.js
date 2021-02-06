@@ -1,12 +1,9 @@
 import { GraphQLString } from 'graphql';
 
-import { Transaction } from '../interface/Transaction';
-
 import models from '../../../models';
-
-import { idDecode } from '../identifiers';
-
 import { NotFound } from '../../errors';
+import { idDecode } from '../identifiers';
+import { Transaction } from '../interface/Transaction';
 
 const TransactionQuery = {
   type: Transaction,
@@ -25,7 +22,7 @@ const TransactionQuery = {
       return new Error('Please provide an id');
     }
     if (!transaction) {
-      throw new NotFound({ message: 'Transaction Not Found' });
+      throw new NotFound('Transaction Not Found');
     }
     return transaction;
   },

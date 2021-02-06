@@ -22,18 +22,17 @@ import '../server/env';
  * don't block the database for other transactions.
  */
 import fs from 'fs';
-import moment from 'moment';
-import { ArgumentParser } from 'argparse';
 import { promisify } from 'util';
-import { result, includes } from 'lodash';
 
-import models, { sequelize } from '../server/models';
-import * as transactionsLib from '../server/lib/transactions';
-import * as paymentsLib from '../server/lib/payments';
-import { OC_FEE_PERCENT } from '../server/constants/transactions';
-import { sleep } from '../server/lib/utils';
-import { toNegative } from '../server/lib/math';
+import { ArgumentParser } from 'argparse';
+import { includes, result } from 'lodash';
+import moment from 'moment';
+
 import libemail from '../server/lib/email';
+import { toNegative } from '../server/lib/math';
+import * as transactionsLib from '../server/lib/transactions';
+import { sleep } from '../server/lib/utils';
+import models, { sequelize } from '../server/models';
 
 const REPORT_EMAIL = 'ops@opencollective.com';
 
@@ -73,9 +72,15 @@ export class Migration {
 
   /** Saves what type of change was made to a given field in a transaction */
   saveTransactionChange = (tr, field, oldValue, newValue) => {
-    if (!tr.data) tr.data = {};
-    if (!tr.data.migration) tr.data.migration = {};
-    if (!tr.data.migration[this.date]) tr.data.migration[this.date] = {};
+    if (!tr.data) {
+      tr.data = {};
+    }
+    if (!tr.data.migration) {
+      tr.data.migration = {};
+    }
+    if (!tr.data.migration[this.date]) {
+      tr.data.migration[this.date] = {};
+    }
     tr.data.migration[this.date][field] = { oldValue, newValue };
 
     // Sequelize isn't really that great detecting changes in JSON
@@ -111,7 +116,9 @@ export class Migration {
           newHostFeeInHostCurrency,
         );
         credit.hostFeeInHostCurrency = newHostFeeInHostCurrency;
-        if (!changed.includes(credit)) changed.push(credit);
+        if (!changed.includes(credit)) {
+          changed.push(credit);
+        }
       }
       if (newHostFeeInHostCurrency !== debit.hostFeeInHostCurrency) {
         this.saveTransactionChange(
@@ -121,7 +128,9 @@ export class Migration {
           newHostFeeInHostCurrency,
         );
         debit.hostFeeInHostCurrency = newHostFeeInHostCurrency;
-        if (!changed.includes(debit)) changed.push(debit);
+        if (!changed.includes(debit)) {
+          changed.push(debit);
+        }
       }
     }
     // Update platformFeeInHostCurrency
@@ -137,7 +146,9 @@ export class Migration {
           newPlatformFeeInHostCurrency,
         );
         credit.platformFeeInHostCurrency = newPlatformFeeInHostCurrency;
-        if (!changed.includes(credit)) changed.push(credit);
+        if (!changed.includes(credit)) {
+          changed.push(credit);
+        }
       }
       if (newPlatformFeeInHostCurrency !== debit.platformFeeInHostCurrency) {
         this.saveTransactionChange(
@@ -147,7 +158,9 @@ export class Migration {
           newPlatformFeeInHostCurrency,
         );
         debit.platformFeeInHostCurrency = newPlatformFeeInHostCurrency;
-        if (!changed.includes(debit)) changed.push(debit);
+        if (!changed.includes(debit)) {
+          changed.push(debit);
+        }
       }
     }
     // Update paymentProcessorFeeInHostCurrency
@@ -163,7 +176,9 @@ export class Migration {
           newPaymentProcessorFeeInHostCurrency,
         );
         credit.paymentProcessorFeeInHostCurrency = newPaymentProcessorFeeInHostCurrency;
-        if (!changed.includes(credit)) changed.push(credit);
+        if (!changed.includes(credit)) {
+          changed.push(credit);
+        }
       }
       if (newPaymentProcessorFeeInHostCurrency !== debit.paymentProcessorFeeInHostCurrency) {
         this.saveTransactionChange(
@@ -173,7 +188,9 @@ export class Migration {
           newPaymentProcessorFeeInHostCurrency,
         );
         debit.paymentProcessorFeeInHostCurrency = newPaymentProcessorFeeInHostCurrency;
-        if (!changed.includes(debit)) changed.push(debit);
+        if (!changed.includes(debit)) {
+          changed.push(debit);
+        }
       }
     }
     return changed;
@@ -445,7 +462,7 @@ export class Migration {
     // console.log('    * D:hostFee.....: ', debit.hostFeeInHostCurrency);
     // console.log('    * D:platformFee.: ', debit.platformFeeInHostCurrency);
     // console.log('    * D:ppFee.......: ', debit.paymentProcessorFeeInHostCurrency);
-    return false;
+    // return false;
   };
 
   /** Run the whole migration */
@@ -526,7 +543,9 @@ export class Migration {
   };
 
   incr = counter => {
-    if (!this.counters[counter]) this.counters[counter] = 0;
+    if (!this.counters[counter]) {
+      this.counters[counter] = 0;
+    }
     this.counters[counter]++;
   };
 
@@ -557,7 +576,9 @@ export class Migration {
   /** Print out a CSV line */
   logChange = tr => {
     const fields = result(tr.data, `migration['${this.date}']`);
-    if (!fields) return;
+    if (!fields) {
+      return;
+    }
     for (const k of Object.keys(fields)) {
       this.log(
         'changes.csv',
@@ -607,31 +628,32 @@ async function emailReport(subject, text, attachments) {
 /* -- Utilities & Script Entry Point -- */
 
 /** Return the options passed by the user to run the script */
+/* eslint-disable camelcase */
 function parseCommandLineArguments() {
   const parser = new ArgumentParser({
     addHelp: true,
     description: 'Charge due subscriptions',
   });
-  parser.addArgument(['-q', '--quiet'], {
+  parser.add_argument('-q', '--quiet', {
     help: 'Silence output',
-    defaultValue: true,
-    action: 'storeConst',
+    default: true,
+    action: 'store_const',
     constant: false,
   });
-  parser.addArgument(['--notdryrun'], {
+  parser.add_argument('--notdryrun', {
     help: "Pass this flag when you're ready to run the script for real",
-    defaultValue: false,
-    action: 'storeConst',
+    default: false,
+    action: 'store_const',
     constant: true,
   });
-  parser.addArgument(['-l', '--limit'], {
+  parser.add_argument('-l', '--limit', {
     help: 'total subscriptions to process',
   });
-  parser.addArgument(['-b', '--batch-size'], {
+  parser.add_argument('-b', '--batch-size', {
     help: 'batch size to fetch at a time',
-    defaultValue: 100,
+    default: 100,
   });
-  const args = parser.parseArgs();
+  const args = parser.parse_args();
   return {
     dryRun: !args.notdryrun,
     verbose: !args.quiet,
@@ -639,6 +661,7 @@ function parseCommandLineArguments() {
     batchSize: args.batch_size,
   };
 }
+/* eslint-enable camelcase */
 
 /** Print `message` to console if `options.verbose` is true */
 function vprint(options, message) {
@@ -662,4 +685,6 @@ async function entryPoint(options) {
 }
 
 /* Only call entry point if we're arg[0] */
-if (!module.parent) entryPoint(parseCommandLineArguments());
+if (!module.parent) {
+  entryPoint(parseCommandLineArguments());
+}
