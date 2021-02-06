@@ -1,20 +1,26 @@
 #!/usr/bin/env ./node_modules/.bin/babel-node
-import { get, last } from 'lodash';
 import '../server/env';
-import { listCharges } from '../server/paymentProviders/stripe/gateway';
+
+import { get, last } from 'lodash';
+
+import stripe from '../server/lib/stripe';
 import models from '../server/models';
 
-/**
-  Usage: ./scripts/diff-stripe-transactions.js [NB_CHARGES_TO_CHECK=100]
-*/
+if (process.argv.length < 3) {
+  console.error('Usage: ./scripts/diff-stripe-transactions.js HOST_SLUG [NB_CHARGES_TO_CHECK=100] [LAST_CHARGE_ID]');
+  process.exit(1);
+}
 
-const NB_CHARGES_TO_CHECK = parseInt(process.argv[2]) || 100;
+const HOST_SLUG = process.argv[2];
+const NB_CHARGES_TO_CHECK = parseInt(process.argv[3]) || 100;
+const LAST_CHARGE_ID = process.argv[4] || undefined;
 const NB_CHARGES_PER_QUERY = 100; // Max allowed by Stripe
 const NB_PAGES = NB_CHARGES_TO_CHECK / NB_CHARGES_PER_QUERY;
 
 async function checkCharge(charge) {
   if (charge.failure_code) {
     // Ignore failed transaction
+    console.log(`Ignoring ${charge.id} (failed transaction)`);
     return;
   }
 
@@ -37,10 +43,6 @@ async function checkCharge(charge) {
   });
 
   if (!transaction) {
-    console.warn(
-      `...Did not find any transaction for ${charge.id} matching the customer_id. Starting extensive search...`,
-    );
-
     // This is an expensive query, we only run it if the above fails
     transaction = await models.Transaction.findOne({
       where: { data: { charge: { id: charge.id } } },
@@ -53,8 +55,23 @@ async function checkCharge(charge) {
   }
 }
 
+const getHostStripeAccountUsername = async slug => {
+  const hostId = (await models.Collective.findOne({ where: { slug } }))?.id;
+  if (!hostId) {
+    throw new Error('Host not found');
+  }
+
+  const stripeAccount = await models.ConnectedAccount.findOne({ where: { service: 'stripe', CollectiveId: hostId } });
+  if (!stripeAccount) {
+    throw new Error('No stripe account found for this host');
+  }
+
+  return stripeAccount.username;
+};
+
 async function main() {
-  let lastChargeId;
+  const stripeUserName = await getHostStripeAccountUsername(HOST_SLUG);
+  let lastChargeId = LAST_CHARGE_ID;
   let totalAlreadyChecked = 0;
 
   console.info(`Starting the diff of Stripe VS Transactions for the latest ${NB_CHARGES_TO_CHECK} charges`);
@@ -64,7 +81,10 @@ async function main() {
     console.info(`🔎️ Checking transactions ${totalAlreadyChecked} to ${totalAlreadyChecked + nbToCheckInThisPage}`);
 
     // Retrieve the list and check all charges
-    const charges = await listCharges({ limit: nbToCheckInThisPage, starting_after: lastChargeId });
+    const charges = await stripe.charges.list(
+      { limit: nbToCheckInThisPage, starting_after: lastChargeId }, // eslint-disable-line camelcase
+      { stripeAccount: stripeUserName },
+    );
     for (let idx = 0; idx < charges.data.length; idx++) {
       await checkCharge(charges.data[idx]);
       totalAlreadyChecked += 1;
@@ -73,8 +93,8 @@ async function main() {
       }
     }
 
-    // If list length is less than NB_CHARGES_PER_QUERY, we reached the end
-    if (charges.data.length < NB_CHARGES_PER_QUERY) {
+    // We reached the end
+    if (!charges.has_more) {
       break;
     }
 
@@ -85,4 +105,9 @@ async function main() {
   console.info('--------------------------------------\nDone!');
 }
 
-main().then(() => process.exit());
+main()
+  .then(() => process.exit())
+  .catch(e => {
+    console.error(e);
+    process.exit(1);
+  });

@@ -4,14 +4,15 @@
  * ORM. There are functions for creating databases, loading databases
  * and things that have to be done before the database exists.
  */
-import config from 'config';
+import { exec } from 'child_process';
 import path from 'path';
+import { promisify } from 'util';
+
+import config from 'config';
+import { get, has } from 'lodash';
 import pg from 'pg';
 import pgConnectionString from 'pg-connection-string';
 import format from 'pg-format';
-import { promisify } from 'util';
-import { exec } from 'child_process';
-import { has, get } from 'lodash';
 
 /** Load a dump file into the current database.
  *
@@ -154,7 +155,9 @@ export async function recreateDatabase(destroy = true) {
 
   /* Operations that require connecting to a maintenance database. */
   const client = await getConnectedClient(getDBUrl('maintenancedb'));
-  if (destroy) await dropDatabaseQuery(client, database);
+  if (destroy) {
+    await dropDatabaseQuery(client, database);
+  }
   await createDatabaseQuery(client, database, username);
 
   /* Operations that require connecting to the application

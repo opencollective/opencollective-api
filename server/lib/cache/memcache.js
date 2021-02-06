@@ -1,5 +1,5 @@
-import memjs from 'memjs';
 import debug from 'debug';
+import memjs from 'memjs';
 
 const debugCache = debug('cache');
 

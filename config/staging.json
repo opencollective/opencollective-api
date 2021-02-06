@@ -8,7 +8,9 @@
         "acquire": 60000
       },
       "dialectOptions": {
-        "ssl": true
+        "ssl": {
+          "rejectUnauthorized": false
+        }
       }
     }
   },
@@ -17,7 +19,16 @@
     "frontend": "https://frontend-staging.opencollective.com",
     "website": "https://staging.opencollective.com"
   },
+  "log": {
+    "slowRequest": true
+  },
   "stripe": {
     "redirectUri": "https://api-staging.opencollective.com/connected-accounts/stripe/callback"
+  },
+  "githubFlow": {
+    "minNbStars": 0
+  },
+  "pdfService": {
+    "fetchTransactionsReceipts": true
   }
 }

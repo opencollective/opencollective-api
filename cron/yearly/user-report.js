@@ -1,21 +1,23 @@
 #!/usr/bin/env node
 import '../../server/env';
 
+import Promise from 'bluebird';
+import config from 'config';
+import _ from 'lodash';
+
+import emailLib from '../../server/lib/email';
+import queries from '../../server/lib/queries';
+import { formatArrayToString, formatCurrency, formatCurrencyObject } from '../../server/lib/utils';
+import models, { Op, sequelize } from '../../server/models';
+
 // Only run on the first of the year
 const today = new Date();
-if (process.env.NODE_ENV === 'production' && today.getDate() !== 1 && today.getMonth() !== 0) {
-  console.log('NODE_ENV is production and today is not the first of year, script aborted!');
+if (config.env === 'production' && today.getDate() !== 1 && today.getMonth() !== 0 && !process.env.OFFCYCLE) {
+  console.log('OC_ENV is production and today is not the first of year, script aborted!');
   process.exit();
 }
 
 process.env.PORT = 3066;
-
-import models, { sequelize, Op } from '../../server/models';
-import _ from 'lodash';
-import Promise from 'bluebird';
-import { formatCurrency, formatArrayToString, formatCurrencyObject } from '../../server/lib/utils';
-import emailLib from '../../server/lib/email';
-import queries from '../../server/lib/queries';
 
 const d = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date();
 const startDate = new Date(`${d.getFullYear() - 1}`);
@@ -47,8 +49,8 @@ SELECT
   ut.*,
   host.slug as "hostSlug",
   host.name as "hostName",
-  host.image as "hostLogo", host."twitterHandle" as "hostTwitterHandle", host.description as "hostDescription", host.mission as "hostMission",
-  c.slug, c.name, c.mission, c.description, c.image, c."backgroundImage", c."twitterHandle", c.settings, c.data
+  host.image as "hostLogo", host."twitterHandle" as "hostTwitterHandle", host.description as "hostDescription",
+  c.slug, c.name, c.description, c.image, c."backgroundImage", c."twitterHandle", c.settings, c.data
 FROM "CollectiveTransactions" ut
 LEFT JOIN "Collectives" c ON ut."CollectiveId" = c.id
 LEFT JOIN "Collectives" host ON ut."HostCollectiveId" = host.id
@@ -74,7 +76,9 @@ const buildTweet = (fromCollective, collectives, totalDonations) => {
       totalDonations,
     )} across ${totalCollectives} collectives`;
     const listCollectives = formatArrayToString(collectivesNames);
-    if (`${tweet}: ${listCollectives}`.length < 120) tweet = `${tweet}: ${listCollectives}`;
+    if (`${tweet}: ${listCollectives}`.length < 120) {
+      tweet = `${tweet}: ${listCollectives}`;
+    }
   } else if (totalCollectives === 1) {
     tweet = `🎁 In ${year}, ${pronoun} have contributed ${collectivesDonationsNames[0].replace(
       ' to ',
@@ -124,7 +128,7 @@ const processCollective = collective => {
             name: row.hostName.trim() || row.hostSlug,
             image: row.hostLogo,
             twitterHandle: row.hostTwitterHandle,
-            description: row.hostDescription || row.hostMission,
+            description: row.hostDescription,
             collectivesBySlug: {},
           };
         }
@@ -132,7 +136,7 @@ const processCollective = collective => {
         collectivesBySlug[row.slug] = {
           slug: row.slug,
           name: row.name || row.slug,
-          description: row.mission || row.description,
+          description: row.description,
           image: row.image,
           backgroundImage:
             row.backgroundImage || 'https://opencollective.com/public/images/collectives/default-header-bg.jpg',
@@ -146,7 +150,9 @@ const processCollective = collective => {
 
         hosts[row.hostSlug].collectivesBySlug[row.slug] = collectivesBySlug[row.slug];
 
-        if (typeof totalDonations[row.hostCurrency] === 'undefined') totalDonations[row.hostCurrency] = 0;
+        if (typeof totalDonations[row.hostCurrency] === 'undefined') {
+          totalDonations[row.hostCurrency] = 0;
+        }
 
         _.set(hosts, [row.hostSlug, 'totalFees', row.hostCurrency], 0);
         _.set(hosts, ['stripe', 'totalFees', row.hostCurrency], 0);
@@ -159,14 +165,19 @@ const processCollective = collective => {
       });
 
       for (const hostSlug in hosts) {
-        if (!hosts[hostSlug].collectivesBySlug) continue;
+        if (!hosts[hostSlug].collectivesBySlug) {
+          continue;
+        }
         for (const collectiveSlug in hosts[hostSlug].collectivesBySlug) {
           hosts[hostSlug].collectives = hosts[hostSlug].collectives || [];
           hosts[hostSlug].collectives.push(hosts[hostSlug].collectivesBySlug[collectiveSlug]);
         }
         hosts[hostSlug].collectives.sort((a, b) => {
-          if (a.totalDonations > b.totalDonations) return -1;
-          else return 1;
+          if (a.totalDonations > b.totalDonations) {
+            return -1;
+          } else {
+            return 1;
+          }
         });
       }
 
@@ -198,7 +209,7 @@ const processCollective = collective => {
     })
     .then(data => {
       return getUsers(collective).then(users => {
-        data.collective = collective;
+        data.collective = collective.info;
         data.platformStats = platformStats;
         data.recipients = users.map(u => u.email);
         if (data.recipients.length > 1) {

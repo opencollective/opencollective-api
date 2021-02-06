@@ -1,20 +1,27 @@
 /**
  * Dependencies.
  */
-import _, { pick } from 'lodash';
-import Historical from 'sequelize-historical';
-import activities from '../constants/activities';
-import { mustBeLoggedInTo } from '../lib/auth';
 import Promise from 'bluebird';
-import showdown from 'showdown';
-const markdownConverter = new showdown.Converter();
-import { sanitizeObject } from '../lib/utils';
+import _ from 'lodash';
+import Temporal from 'sequelize-temporal';
 
-import * as errors from '../graphql/errors';
+import activities from '../constants/activities';
+import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
+
+import { sequelize } from '.';
+
+// Options for sanitizing comment's body
+const sanitizeOptions = buildSanitizerOptions({
+  basicTextFormatting: true,
+  multilineTextFormatting: true,
+  links: true,
+  images: true,
+});
+
 /**
  * Comment Model.
  */
-export default function(Sequelize, DataTypes) {
+export default function (Sequelize, DataTypes) {
   const { models } = Sequelize;
 
   const Comment = Sequelize.define(
@@ -81,13 +88,26 @@ export default function(Sequelize, DataTypes) {
         allowNull: true,
       },
 
-      markdown: DataTypes.TEXT,
+      ConversationId: {
+        type: DataTypes.INTEGER,
+        references: { key: 'id', model: 'Conversations' },
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE',
+        allowNull: true,
+      },
+
+      // @deprecated
+      markdown: {
+        type: DataTypes.TEXT,
+      },
+
       html: {
         type: DataTypes.TEXT,
-        get() {
-          return this.getDataValue('html')
-            ? this.getDataValue('html')
-            : markdownConverter.makeHtml(this.getDataValue('markdown'));
+        set(value) {
+          if (value) {
+            const cleanHtml = sanitizeHTML(value, sanitizeOptions).trim();
+            this.setDataValue('html', cleanHtml);
+          }
         },
       },
 
@@ -136,8 +156,8 @@ export default function(Sequelize, DataTypes) {
 
       hooks: {
         beforeCreate: instance => {
-          if (!instance.ExpenseId && !instance.UpdateId) {
-            throw new Error('Missing target expense or update');
+          if (!instance.ExpenseId && !instance.UpdateId && !instance.ConversationId) {
+            throw new Error('Comment must be linked to an expense, an update or a conversation');
           }
         },
         afterCreate: instance => {
@@ -154,6 +174,7 @@ export default function(Sequelize, DataTypes) {
               FromCollectiveId: instance.FromCollectiveId,
               ExpenseId: instance.ExpenseId,
               UpdateId: instance.UpdateId,
+              ConversationId: instance.ConversationId,
             },
           });
         },
@@ -161,37 +182,44 @@ export default function(Sequelize, DataTypes) {
     },
   );
 
-  /**
-   * Instance Methods
-   */
+  Comment.prototype._internalDestroy = Comment.prototype.destroy;
+  Comment.prototype._internalUpdate = Comment.prototype.update;
 
-  // Edit a comment
-  Comment.prototype.edit = async function(remoteUser, newCommentData) {
-    mustBeLoggedInTo(remoteUser, 'edit this comment');
-    if (remoteUser.id !== this.CreatedByUserId || !remoteUser.isAdmin(this.CollectiveId)) {
-      throw new errors.Unauthorized({
-        message: 'You must be the author or an admin of this collective to edit this comment',
-      });
+  Comment.prototype.destroy = async function () {
+    // If comment is the root comment of a conversation, we delete the conversation and all linked comments
+    if (this.ConversationId) {
+      const conversation = await models.Conversation.findOne({ where: { RootCommentId: this.id } });
+      if (conversation) {
+        await conversation.destroy();
+        await models.Comment.destroy({ where: { ConversationId: conversation.id } });
+        return this;
+      }
     }
-    const editableAttributes = ['FromCollectiveId', 'markdown', 'html'];
-    sanitizeObject(newCommentData, ['markdown', 'html']);
-    return await this.update({
-      ...pick(newCommentData, editableAttributes),
+
+    return this._internalDestroy(...arguments);
+  };
+
+  Comment.prototype.update = async function (values, sequelizeOpts, ...args) {
+    if (!this.ConversationId) {
+      return this._internalUpdate(values, sequelizeOpts, ...args);
+    }
+
+    // If comment is the root comment of a conversation, we need tu update its summary
+    const withTransaction = func =>
+      sequelizeOpts && sequelizeOpts.transaction ? func(sequelizeOpts.transaction) : sequelize.transaction(func);
+
+    return withTransaction(async transaction => {
+      const conversation = await models.Conversation.findOne({ where: { RootCommentId: this.id } }, { transaction });
+      if (conversation) {
+        await conversation.update({ summary: values.html }, { transaction });
+      }
+
+      return this._internalUpdate(values, { ...sequelizeOpts, transaction }, ...args);
     });
   };
 
-  Comment.prototype.delete = async function(remoteUser) {
-    mustBeLoggedInTo(remoteUser, 'delete this comment');
-    if (remoteUser.id !== this.CreatedByUserId || !remoteUser.isAdmin(this.CollectiveId)) {
-      throw new errors.Unauthorized({
-        message: 'You need to be logged in as a core contributor or as a host to delete this comment',
-      });
-    }
-    return this.destroy();
-  };
-
   // Returns the User model of the User that created this Update
-  Comment.prototype.getUser = function() {
+  Comment.prototype.getUser = function () {
     return models.User.findByPk(this.CreatedByUserId);
   };
 
@@ -215,7 +243,7 @@ export default function(Sequelize, DataTypes) {
     Comment.belongsTo(m.User, { foreignKey: 'CreatedByUserId', as: 'user' });
   };
 
-  Historical(Comment, Sequelize);
+  Temporal(Comment, Sequelize);
 
   return Comment;
 }

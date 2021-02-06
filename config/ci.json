@@ -1,0 +1,46 @@
+{
+  "database": {
+    "url": "postgres://opencollective@localhost:5432/opencollective_dvl",
+    "options": {
+      "logging": false,
+      "benchmark": true
+    }
+  },
+  "fees": {
+    "default": {
+      "hostPercent": 5,
+      "platformPercent": 5
+    }
+  },
+  "maintenancedb": {
+    "url": "postgres://postgres@localhost:5432/postgres"
+  },
+  "limits": {
+    "virtualCards": {
+      "maxPerDay": 1000
+    }
+  },
+  "redis": {
+    "serverUrl": "redis://localhost"
+  },
+  "log": {
+    "level": "warn"
+  },
+  "aws": {
+    "s3": {
+      "bucket": "opencollective-test"
+    }
+  },
+  "slack": {
+    "webhooks": {
+      "abuse": "SLACK_ABUSE_TEST_URL"
+    }
+  },
+  "mailgun": {
+    "user": "",
+    "password": ""
+  },
+  "fixer": {
+    "accessKey": "UNDEFINED_FIXER_ACCESS_KEY"
+  }
+}

@@ -1,135 +1,134 @@
-import Promise from 'bluebird';
-import { get } from 'lodash';
 import config from 'config';
+import { get } from 'lodash';
 
-import models, { Op } from '../models';
+import { mustBeLoggedInTo } from '../lib/auth';
 import errors from '../lib/errors';
-import paymentProviders from '../paymentProviders';
 import * as github from '../lib/github';
+import models from '../models';
+import paymentProviders from '../paymentProviders';
 
-const { ConnectedAccount, User } = models;
+export const createOrUpdate = async (req, res, next, accessToken, data) => {
+  if (!req.remoteUser) {
+    throw new Error('Please login to edit connected account');
+  }
 
-const GITHUB_REPO_MIN_STAR = 100;
-
-export const createOrUpdate = (req, res, next, accessToken, data, emails) => {
-  const { utm_source, redirect } = req.query;
+  const { CollectiveId, context } = req.query;
   const { service } = req.params;
-  const attrs = { service };
+
+  let collective, connectedAccount;
 
   switch (service) {
     case 'github': {
-      let fetchUserPromise, caId, user, userCollective;
       const profile = data.profile._json;
-      const image = `https://avatars.githubusercontent.com/${data.profile.username}`;
 
-      // TODO should simplify using findOrCreate but need to upgrade Sequelize to have this fix:
-      // https://github.com/sequelize/sequelize/issues/4631
-      if (req.remoteUser) {
-        fetchUserPromise = Promise.resolve(req.remoteUser);
-      } else {
-        fetchUserPromise = User.findOne({
-          where: {
-            email: { [Op.in]: emails.map(email => email.toLowerCase()) },
-          },
-        }).then(
-          u =>
-            u ||
-            User.createUserWithCollective({
-              name: profile.name || profile.login,
-              image,
-              email: emails[0],
-            }),
-        );
+      const userCollective = await models.Collective.findByPk(req.remoteUser.CollectiveId);
+
+      userCollective.description = userCollective.description || profile.bio;
+      userCollective.locationName = userCollective.locationName || profile.location;
+      userCollective.website = userCollective.website || profile.blog || profile.html_url;
+      userCollective.image = userCollective.image || `https://avatars.githubusercontent.com/${data.profile.username}`;
+      userCollective.githubHandle = data.profile.username;
+
+      await userCollective.save();
+
+      let connectedAccount = await models.ConnectedAccount.findOne({
+        where: { service, CollectiveId: userCollective.id },
+      });
+      if (!connectedAccount) {
+        connectedAccount = await models.ConnectedAccount.create({
+          service,
+          CollectiveId: userCollective.id,
+          clientId: profile.id,
+          data: profile,
+          CreatedByUserId: req.remoteUser.id,
+        });
       }
-      return fetchUserPromise
-        .then(u => {
-          user = u;
-          attrs.CollectiveId = user.CollectiveId;
-          attrs.clientId = profile.id;
-          attrs.data = profile;
-          attrs.CreatedByUserId = user.id;
-          return models.Collective.findByPk(user.CollectiveId);
-        })
-        .then(c => {
-          userCollective = c;
-          userCollective.description = userCollective.description || profile.bio;
-          userCollective.locationName = userCollective.locationName || profile.location;
-          userCollective.website = userCollective.website || profile.blog || profile.html_url;
-          userCollective.image = userCollective.image || image;
-          userCollective.githubHandle = data.profile.username;
-          userCollective.save();
-        })
-        .then(() =>
-          ConnectedAccount.findOne({
-            where: { service, CollectiveId: user.CollectiveId },
-          }),
-        )
-        .then(ca => ca || ConnectedAccount.create(attrs))
-        .then(ca => {
-          caId = ca.id;
-          return ca.update({
-            username: data.profile.username,
-            token: accessToken,
-          });
-        })
-        .then(() => {
-          const token = user.generateConnectedAccountVerifiedToken(caId, data.profile.username);
-          const newLocation = redirect
-            ? `${redirect}?token=${token}`
-            : `${config.host.website}/github/apply/${token}?utm_source=${utm_source}`;
+      await connectedAccount.update({
+        username: data.profile.username,
+        token: accessToken,
+      });
 
-          res.redirect(newLocation);
-        })
-        .catch(next);
+      const token = req.remoteUser.generateConnectedAccountVerifiedToken(connectedAccount.id, data.profile.username);
+      if (context === 'createCollective') {
+        res.redirect(`${config.host.website}/create/opensource?token=${token}`);
+      } else {
+        res.redirect(`${config.host.website}/${userCollective.slug}/edit/connected-accounts`);
+      }
+
+      break;
     }
 
-    case 'meetup':
-      return createConnectedAccountForCollective(req.query.CollectiveId, service)
-        .then(ca =>
-          ca.update({
-            clientId: accessToken,
-            token: data.tokenSecret,
-            CreatedByUserId: req.remoteUser.id,
-          }),
-        )
-        .then(() => res.redirect(redirect || `${config.host.website}/${req.query.slug}/edit/connected-accounts`))
-        .catch(next);
-
     case 'twitter': {
-      let collective;
       const profile = data.profile._json;
 
-      return models.Collective.findByPk(req.query.CollectiveId)
-        .then(c => {
-          collective = c;
-          collective.image =
-            collective.image ||
-            (profile.profile_image_url_https ? profile.profile_image_url_https.replace(/_normal/, '') : null);
-          collective.description = collective.description || profile.description;
-          collective.backgroundImage =
-            collective.backgroundImage ||
-            (profile.profile_banner_url ? `${profile.profile_banner_url}/1500x500` : null);
-          collective.website = collective.website || profile.url;
-          collective.locationName = collective.locationName || profile.location;
-          collective.twitterHandle = profile.screen_name;
-          collective.save();
-        })
-        .then(() => createConnectedAccountForCollective(req.query.CollectiveId, service))
-        .then(ca =>
-          ca.update({
-            username: data.profile.username,
-            clientId: accessToken,
-            token: data.tokenSecret,
-            data: data.profile._json,
-            CreatedByUserId: req.remoteUser.id,
-          }),
-        )
-        .then(() => res.redirect(redirect || `${config.host.website}/${collective.slug}/edit/connected-accounts`))
-        .catch(next);
+      if (!CollectiveId) {
+        return next(new errors.ValidationFailed('Please provide a CollectiveId as a query parameter'));
+      }
+
+      collective = await models.Collective.findByPk(CollectiveId);
+      if (!req.remoteUser.isAdminOfCollective(collective)) {
+        throw new errors.Unauthorized('Please login as an admin of this collective to add a connected account');
+      }
+
+      collective.image =
+        collective.image ||
+        (profile.profile_image_url_https ? profile.profile_image_url_https.replace(/_normal/, '') : null);
+      collective.description = collective.description || profile.description;
+      collective.backgroundImage =
+        collective.backgroundImage || (profile.profile_banner_url ? `${profile.profile_banner_url}/1500x500` : null);
+      collective.website = collective.website || profile.url;
+      collective.locationName = collective.locationName || profile.location;
+      collective.twitterHandle = profile.screen_name;
+      await collective.save();
+
+      connectedAccount = await createConnectedAccountForCollective(collective.id, service);
+      await connectedAccount.update({
+        username: data.profile.username,
+        clientId: accessToken,
+        token: data.tokenSecret,
+        data: data.profile._json,
+        CreatedByUserId: req.remoteUser.id,
+      });
+
+      res.redirect(`${config.host.website}/${collective.slug}/edit/connected-accounts`);
+
+      break;
     }
 
     default:
-      return next(new errors.BadRequest(`unsupported service ${service}`));
+      throw new errors.BadRequest(`unsupported service ${service}`);
+  }
+};
+
+export const disconnect = async (req, res) => {
+  const { collectiveId: CollectiveId, service } = req.params;
+  const { remoteUser } = req;
+
+  try {
+    mustBeLoggedInTo(remoteUser, 'disconnect this connected account');
+
+    if (!remoteUser.isAdmin(CollectiveId)) {
+      throw new errors.Unauthorized('You are either logged out or not authorized to disconnect this account');
+    }
+
+    const account = await models.ConnectedAccount.findOne({
+      where: { service, CollectiveId },
+    });
+
+    if (account) {
+      await account.destroy();
+    }
+
+    res.send({
+      deleted: true,
+      service,
+    });
+  } catch (err) {
+    res.send({
+      error: {
+        message: err.message,
+      },
+    });
   }
 };
 
@@ -141,7 +140,9 @@ export const verify = (req, res, next) => {
     return paymentProviders[service].oauth.verify(req, res, next);
   }
 
-  if (!payload) return next(new errors.Unauthorized());
+  if (!payload) {
+    return next(new errors.Unauthorized());
+  }
   if (payload.scope === 'connected-account' && payload.username) {
     res.send({
       service,
@@ -164,13 +165,18 @@ const getGithubAccount = async req => {
   return githubAccount;
 };
 
+// Use a 1 minutes timeout as the default 25 seconds can leads to failing requests.
+const GITHUB_REPOS_FETCH_TIMEOUT = 1 * 60 * 1000;
+
+// used in Frontend by createCollective "GitHub flow"
 export const fetchAllRepositories = async (req, res, next) => {
   const githubAccount = await getGithubAccount(req);
   try {
+    req.setTimeout(GITHUB_REPOS_FETCH_TIMEOUT);
     let repos = await github.getAllUserPublicRepos(githubAccount.token);
     if (repos.length !== 0) {
       repos = repos.filter(repo => {
-        return repo.stargazers_count >= GITHUB_REPO_MIN_STAR && repo.fork === false;
+        return repo.stargazers_count >= config.githubFlow.minNbStars && repo.fork === false;
       });
     }
     res.send(repos);
@@ -179,31 +185,10 @@ export const fetchAllRepositories = async (req, res, next) => {
   }
 };
 
-export const getRepo = async (req, res, next) => {
-  const githubAccount = await getGithubAccount(req);
-  try {
-    const repo = await github.getRepo(req.query.name, githubAccount.token);
-    res.send(repo);
-  } catch (e) {
-    next(e);
-  }
-};
-
-export const getOrgMemberships = async (req, res, next) => {
-  const githubAccount = await getGithubAccount(req);
-  try {
-    const memberships = await github.getOrgMemberships(githubAccount.token);
-    res.send(memberships);
-  } catch (e) {
-    console.log(e);
-    next(e);
-  }
-};
-
 function createConnectedAccountForCollective(CollectiveId, service) {
   const attrs = { service };
   return models.Collective.findByPk(CollectiveId)
     .then(collective => (attrs.CollectiveId = collective.id))
-    .then(() => ConnectedAccount.findOne({ where: attrs }))
-    .then(ca => ca || ConnectedAccount.create(attrs));
+    .then(() => models.ConnectedAccount.findOne({ where: attrs }))
+    .then(ca => ca || models.ConnectedAccount.create(attrs));
 }
