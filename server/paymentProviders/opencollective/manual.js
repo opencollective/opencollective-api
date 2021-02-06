@@ -1,8 +1,10 @@
-import { get, pick } from 'lodash';
-import models from '../../models';
-import { TransactionTypes } from '../../constants/transactions';
+import { pick } from 'lodash';
+
 import { maxInteger } from '../../constants/math';
-import { createRefundTransaction, associateTransactionRefundId } from '../../lib/payments';
+import { TransactionTypes } from '../../constants/transactions';
+import { FEATURE, hasOptedInForFeature } from '../../lib/allowed-features';
+import { createRefundTransaction, getHostFee, getPlatformFee } from '../../lib/payments';
+import models from '../../models';
 
 /**
  * Manual Payment method
@@ -28,15 +30,22 @@ async function processOrder(order) {
   const payload = pick(order, ['CreatedByUserId', 'FromCollectiveId', 'CollectiveId', 'PaymentMethodId']);
   const host = await order.collective.getHostCollective();
 
-  if (host.currency !== order.currency) {
+  if (host.currency !== order.currency && !hasOptedInForFeature(host, FEATURE.CROSS_CURRENCY_MANUAL_TRANSACTIONS)) {
     throw Error(
       `Cannot manually record a transaction in a different currency than the currency of the host ${host.currency}`,
     );
   }
 
-  const hostFeePercent = get(order, 'data.hostFeePercent', order.collective.hostFeePercent);
-  const hostFeeInHostCurrency = -Math.round((hostFeePercent / 100) * order.totalAmount);
-  const platformFeeInHostCurrency = 0;
+  // In some tests, we don't have an order.paymentMethod set ...
+  if (!order.paymentMethod) {
+    order.paymentMethod = { service: 'opencollective', type: 'manual' };
+  }
+
+  const platformFeeInHostCurrency = await getPlatformFee(order.totalAmount, order, host);
+  const hostFeeInHostCurrency = await getHostFee(order.totalAmount, order, host);
+
+  const isFeesOnTop = order.data?.isFeesOnTop || false;
+
   const paymentProcessorFeeInHostCurrency = 0;
 
   payload.transaction = {
@@ -53,9 +62,13 @@ async function processOrder(order) {
     paymentProcessorFeeInHostCurrency,
     taxAmount: order.taxAmount,
     description: order.description,
+    data: {
+      isFeesOnTop,
+    },
   };
 
   const creditTransaction = await models.Transaction.createFromPayload(payload);
+
   return creditTransaction;
 }
 
@@ -65,8 +78,7 @@ async function processOrder(order) {
  * they want to actually refund the money.
  */
 const refundTransaction = async (transaction, user) => {
-  const refundTransaction = await createRefundTransaction(transaction, 0, null, user);
-  return associateTransactionRefundId(transaction, refundTransaction);
+  return await createRefundTransaction(transaction, 0, null, user);
 };
 
 /* Expected API of a Payment Method Type */

@@ -1,16 +1,11 @@
-/* Test utilities */
 import { expect } from 'chai';
 
-/* Support code */
-import models from '../../../server/models';
-
-/* Code being tested */
 import * as libtransactions from '../../../server/lib/transactions';
-
-import * as utils from '../../utils';
+import models from '../../../server/models';
 import * as store from '../../stores';
+import * as utils from '../../utils';
 
-describe('lib.transactions.test.js', () => {
+describe('server/lib/transactions', () => {
   beforeEach(utils.resetTestDB);
 
   it('exports transactions', async () => {

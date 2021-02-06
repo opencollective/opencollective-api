@@ -1,11 +1,13 @@
-import { expect } from 'chai';
-import { describe, it } from 'mocha';
-import models from '../../../../server/models';
 import Promise from 'bluebird';
-import * as utils from '../../../utils';
-import emailLib from '../../../../server/lib/email';
+import { expect } from 'chai';
+import gql from 'fake-tag';
+import { describe, it } from 'mocha';
 import sinon from 'sinon';
+
+import emailLib from '../../../../server/lib/email';
+import models from '../../../../server/models';
 import { randEmail } from '../../../stores';
+import * as utils from '../../../utils';
 
 describe('server/graphql/v1/orders', () => {
   const backers = [],
@@ -77,24 +79,28 @@ describe('server/graphql/v1/orders', () => {
   });
 
   describe('query', () => {
-    const allOrdersQuery = `
-    query allOrders($collectiveSlug: String!, $status: String, $includeHostedCollectives: Boolean) {
-      allOrders(collectiveSlug: $collectiveSlug, status: $status, includeHostedCollectives: $includeHostedCollectives) {
-        id
-        collective {
+    const allOrdersQuery = gql`
+      query AllOrders($collectiveSlug: String!, $status: String, $includeHostedCollectives: Boolean) {
+        allOrders(
+          collectiveSlug: $collectiveSlug
+          status: $status
+          includeHostedCollectives: $includeHostedCollectives
+        ) {
           id
-          slug
+          collective {
+            id
+            slug
+          }
+          fromCollective {
+            id
+            slug
+          }
+          description
+          totalAmount
+          currency
+          status
         }
-        fromCollective {
-          id
-          slug
-        }
-        description
-        totalAmount
-        currency
-        status
       }
-    }
     `;
 
     it('gets all the PENDING orders for one collective', async () => {
@@ -125,17 +131,17 @@ describe('server/graphql/v1/orders', () => {
   });
 
   describe('mutation', () => {
-    const markOrderAsPaidQuery = `
-    mutation markOrderAsPaid($id: Int!) {
-      markOrderAsPaid(id: $id) {
-        id
-        status
+    const markOrderAsPaidMutation = gql`
+      mutation MarkOrderAsPaid($id: Int!) {
+        markOrderAsPaid(id: $id) {
+          id
+          status
+        }
       }
-    }
     `;
 
-    const markPendingOrderAsExpiredQuery = `
-      mutation markPendingOrderAsExpired($id: Int!) {
+    const markPendingOrderAsExpiredMutation = gql`
+      mutation MarkPendingOrderAsExpired($id: Int!) {
         markPendingOrderAsExpired(id: $id) {
           id
           status
@@ -143,14 +149,14 @@ describe('server/graphql/v1/orders', () => {
       }
     `;
     it('fails if not authenticated', async () => {
-      const result = await utils.graphqlQuery(markOrderAsPaidQuery, {
+      const result = await utils.graphqlQuery(markOrderAsPaidMutation, {
         id: orders[0].id,
       });
       expect(result.errors[0].message).to.equal('You need to be authenticated to perform this action');
     });
     it('fails if not authenticated as an admin of the host', async () => {
       const result = await utils.graphqlQuery(
-        markOrderAsPaidQuery,
+        markOrderAsPaidMutation,
         {
           id: orders[0].id,
         },
@@ -160,7 +166,7 @@ describe('server/graphql/v1/orders', () => {
     });
     it('fails if order not found', async () => {
       const result = await utils.graphqlQuery(
-        markOrderAsPaidQuery,
+        markOrderAsPaidMutation,
         {
           id: 123,
         },
@@ -170,7 +176,7 @@ describe('server/graphql/v1/orders', () => {
     });
     it('marks a pending order as paid', async () => {
       const result = await utils.graphqlQuery(
-        markOrderAsPaidQuery,
+        markOrderAsPaidMutation,
         {
           id: orders[0].id,
         },
@@ -197,12 +203,12 @@ describe('server/graphql/v1/orders', () => {
       await utils.waitForCondition(() => emailSendMessageSpy.callCount === 1);
       expect(emailSendMessageSpy.callCount).to.equal(1);
       expect(emailSendMessageSpy.firstCall.args[0]).to.equal(backers[1].email);
-      expect(emailSendMessageSpy.firstCall.args[1]).to.match(/Thank you for your €\s?150 contribution to codenplay/);
+      expect(emailSendMessageSpy.firstCall.args[1]).to.match(/Thank you for your 150\s?€ contribution to codenplay/);
     });
 
     it('marks a pending order as expired', async () => {
       const result = await utils.graphqlQuery(
-        markPendingOrderAsExpiredQuery,
+        markPendingOrderAsExpiredMutation,
         {
           id: orders[1].id,
         },

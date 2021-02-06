@@ -1,10 +1,11 @@
 import { expect } from 'chai';
+
 import models from '../../../server/models';
 import * as utils from '../../utils';
 
 const { RequiredLegalDocument, Collective } = models;
 
-describe('RequiredLegalDocument model', () => {
+describe('server/models/RequiredLegalDocument', () => {
   // globals to be set in the before hooks.
   let hostCollective;
 

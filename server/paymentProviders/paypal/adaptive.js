@@ -1,9 +1,10 @@
-import paypalAdaptive from './adaptiveGateway';
-import { get, isNil } from 'lodash';
 import config from 'config';
-import uuidv1 from 'uuid/v1';
-import logger from '../../lib/logger';
+import { get, isNil } from 'lodash';
+import { v1 as uuid } from 'uuid';
+
 import errors from '../../lib/errors';
+
+import paypalAdaptive from './adaptiveGateway';
 
 /**
  * PayPal paymentProvider
@@ -14,7 +15,7 @@ import errors from '../../lib/errors';
  * Confirms that the preapprovalKey has been approved by PayPal
  * and updates the paymentMethod
  */
-const getPreapprovalDetailsAndUpdatePaymentMethod = async function(paymentMethod) {
+const getPreapprovalDetailsAndUpdatePaymentMethod = async function (paymentMethod) {
   if (!paymentMethod) {
     return Promise.reject(new Error('No payment method provided to getPreapprovalDetailsAndUpdatePaymentMethod'));
   }
@@ -75,7 +76,7 @@ export default {
       currencyCode: expense.currency,
       feesPayer: 'SENDER',
       memo: `Reimbursement from ${collective.name}: ${expense.description}`,
-      trackingId: [uuidv1().substr(0, 8), expense.id].join(':'),
+      trackingId: [uuid().substr(0, 8), expense.id].join(':'),
       preapprovalKey,
       returnUrl: `${expenseUrl}?result=success&service=paypal`,
       cancelUrl: `${expenseUrl}?result=cancel&service=paypal`,
@@ -107,7 +108,6 @@ export default {
       const updatedPM = await getPreapprovalDetailsAndUpdatePaymentMethod(paymentMethod);
       return { amount: updatedPM.data.balance, currency: updatedPM.currency };
     } catch (e) {
-      logger.error('getBalance for PayPal pre-approval failed', e);
       return { amount: 0, currency: paymentMethod.currency };
     }
   },

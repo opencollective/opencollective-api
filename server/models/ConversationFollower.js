@@ -1,6 +1,6 @@
 import { sequelize } from '.';
 
-export default function(Sequelize, DataTypes) {
+export default function (Sequelize, DataTypes) {
   const ConversationFollower = Sequelize.define(
     'ConversationFollowers',
     {
@@ -115,6 +115,5 @@ export default function(Sequelize, DataTypes) {
     });
   };
 
-  ConversationFollower.schema('public');
   return ConversationFollower;
 }

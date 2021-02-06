@@ -1,5 +1,6 @@
-import CustomDataTypes from './DataTypes';
 import Temporal from 'sequelize-temporal';
+
+import CustomDataTypes from './DataTypes';
 
 export default (Sequelize, DataTypes) => {
   const Subscription = Sequelize.define(
@@ -37,7 +38,7 @@ export default (Sequelize, DataTypes) => {
 
       chargeNumber: DataTypes.INTEGER,
 
-      data: DataTypes.JSON,
+      data: DataTypes.JSONB,
 
       stripeSubscriptionId: DataTypes.STRING,
 
@@ -50,16 +51,14 @@ export default (Sequelize, DataTypes) => {
     },
   );
 
-  Subscription.schema('public');
-
-  Subscription.prototype.activate = function() {
+  Subscription.prototype.activate = function () {
     this.isActive = true;
     this.activatedAt = new Date();
 
     return this.save();
   };
 
-  Subscription.prototype.deactivate = function() {
+  Subscription.prototype.deactivate = function () {
     this.isActive = false;
     this.deactivatedAt = new Date();
 

@@ -1,10 +1,11 @@
-import errors from '../../../server/lib/errors';
 import { expect } from 'chai';
+
+import errors from '../../../server/lib/errors';
 
 /**
  * Tests.
  */
-describe('lib.errors.test.js', () => {
+describe('server/lib/errors', () => {
   it('BadRequest', () => {
     const e = new errors.BadRequest('message');
     expect(e).to.have.property('message', 'message');

@@ -13,9 +13,9 @@ import '../server/env';
 import Promise from 'bluebird';
 import debug from 'debug';
 
-import models from '../server/models';
+import { purgeCacheForCollective } from '../server/lib/cache';
 import * as libPayments from '../server/lib/payments';
-import { purgeCacheForPage } from '../server/lib/cloudflare';
+import models from '../server/models';
 
 // the user id of the one who's running this script, will be set on the field `CreatedByUserId`.
 const UPDATER_USER_ID = parseInt(process.env.UPDATER_USER_ID);
@@ -78,10 +78,10 @@ async function refundTransaction(transaction) {
   const fromCollective = await transaction.getFromCollective();
   // purging cloudflare cache
   if (collective) {
-    purgeCacheForPage(`/${collective.slug}`);
+    purgeCacheForCollective(collective.slug);
   }
   if (fromCollective) {
-    purgeCacheForPage(`/${fromCollective.slug}`);
+    purgeCacheForCollective(fromCollective.slug);
   }
 
   return models.Transaction.findByPk(transaction.id);

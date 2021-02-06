@@ -1,0 +1,48 @@
+Subject: 🚨 Transaction failed on {{collective.name}}
+{{currency transaction.netAmountInCollectiveCurrency currency=transaction.currency}} for {{expense.description}}
+
+{{> header}}
+
+<center>
+  <h3>
+    {{#if payoutMethod}}
+    {{#ifCond payoutMethod.type '===' 'PAYPAL'}}
+    Hi there! Just a note to let you know that a PayPal payout failed for an expense submitted to
+    {{payoutMethod.data.email}}.
+    {{/ifCond}}
+    {{#ifCond payoutMethod.type '===' 'BANK_ACCOUNT'}}
+    Hi there! Just a note to let you know that a TransferWise payment failed for an expense submitted to
+    {{payoutMethod.data.accountHolderName}}.
+    {{/ifCond}}
+    {{/if}}
+  </h3>
+  <h2>{{currency transaction.netAmountInCollectiveCurrency currency=transaction.currency precision=2}}</h2>
+  <div>{{expense.description}}</div>
+  <div>To: {{fromCollective.name}}</div>
+  <div>
+    {{#if payoutMethod}}
+    {{#ifCond payoutMethod.type '===' 'PAYPAL'}}
+    {{#if error}}
+    PayPal wasn't able to execute this transaction because: {{error.message}}.
+    {{/if}}
+    {{#unless error}}
+    Please, make sure you check in PayPal what happened exactly, you might need to create this transaction
+    manually and mark as paid.<br />
+    {{/unless}}
+    {{/ifCond}}
+    {{#ifCond payoutMethod.type '===' 'BANK_ACCOUNT'}}
+    Please, make sure you check in TransferWise what happened exactly, you might need to create this transaction
+    manually and mark as paid.<br />
+    If you think this error shouldn't happen again, you can also retry our "Pay with TransferWise" button.
+    {{/ifCond}}
+    {{/if}}
+  </div>
+
+  <br /><br />
+  <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}" class="btn">
+    <div>View Expense</div>
+  </a>
+
+</center>
+
+{{> footer}}
