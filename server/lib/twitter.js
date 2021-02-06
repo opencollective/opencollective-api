@@ -1,15 +1,15 @@
-import config from 'config';
 import Promise from 'bluebird';
-import Twitter from 'twitter';
-import IntlMessageFormat from 'intl-messageformat';
+import config from 'config';
 import debugLib from 'debug';
-import { has, get } from 'lodash';
-
-import models from '../models';
-import logger from './logger';
-import { formatCurrency } from './utils';
+import IntlMessageFormat from 'intl-messageformat';
+import { get, has } from 'lodash';
+import Twitter from 'twitter';
 
 import activityType from '../constants/activities';
+import models from '../models';
+
+import logger from './logger';
+import { formatCurrency } from './utils';
 
 const debug = debugLib('twitter');
 
@@ -63,10 +63,10 @@ const tweetNewMember = async activity => {
   const template = settings.tweet;
 
   // todo: we should use the handlebar templating system to support {{#if}}{{/if}}
+  const amount = get(activity, 'data.order.totalAmount') - get(activity, 'data.order.data.platformFee', 0);
   const status = template
     .replace('{backerTwitterHandle}', `@${get(activity, 'data.member.memberCollective.twitterHandle')}`)
-    .replace('{referralTwitterHandle}', `@${get(activity, 'data.order.referral.twitterHandle')}`)
-    .replace('{amount}', formatCurrency(get(activity, 'data.order.totalAmount'), get(activity, 'data.order.currency')));
+    .replace('{amount}', formatCurrency(amount, get(activity, 'data.order.currency')));
 
   return await twitterLib.tweetStatus(
     twitterAccount,
@@ -100,19 +100,21 @@ const tweetStatus = (twitterAccount, status, url, options = {}) => {
 
   debug('tweeting status: ', status, 'with options:', options);
   if (has(config, 'twitter.consumerKey') && has(config, 'twitter.consumerSecret')) {
+    /* eslint-disable camelcase */
     const client = new Twitter({
       consumer_key: get(config, 'twitter.consumerKey'),
       consumer_secret: get(config, 'twitter.consumerSecret'),
       access_token_key: twitterAccount.clientId,
       access_token_secret: twitterAccount.token,
     });
+    /* eslint-enable camelcase */
 
     return client.post('statuses/update', { status, ...options }).catch(err => {
       err = Array.isArray(err) ? err.shift() : err;
       logger.info(`Tweet not sent: ${err.message}`);
     });
   } else {
-    logger.warn('Tweet not sent: missing twitter consumerKey or consumerSecret configuration');
+    logger.info('Tweet not sent: missing twitter consumerKey or consumerSecret configuration');
     return Promise.resolve();
   }
 };
@@ -126,13 +128,13 @@ Support them too!`,
 Support them too!`,
       oneHundred: `🎉 {collective} just reached 100 backers!! 🙌
 Support them too!`,
-      oneThousandBackers: `🎉 {collective} just reached 1,0000 backers!!! 🙌
+      oneThousandBackers: `🎉 {collective} just reached 1,000 backers!!! 🙌
 Support them too!`,
       updatePublished: 'Latest update from the collective: {title}',
       monthlyStats: `In {month}, {totalNewBackers, select,
   0 {we}
   1 {one new backer joined. We}
-  other {{totalNewBackers} {totalNewBackers, plural, one {backer} other {backers}} joined ({newBackersTwitterHandles}) - you are the best! 🙌 
+  other {{totalNewBackers} {totalNewBackers, plural, one {backer} other {backers}} joined ({newBackersTwitterHandles}) - you are the best! 🙌
 
 We}
 } received {totalAmountReceived} from {totalActiveBackers} {totalActiveBackers, plural, one {backer} other {backers}}{totalAmountSpent, plural,
@@ -142,7 +144,7 @@ We}
       other {{totalAmountSpent} on {topExpenseCategories}}}.}} Our current balance is {balance}.
 
 Top backers: {topBackersTwitterHandles}`,
-      monthlyStatsNoNewDonation: `In {month}, we haven't received any new donation. 
+      monthlyStatsNoNewDonation: `In {month}, we haven't received any new donation.
 
 Our current balance is {balance}.
 

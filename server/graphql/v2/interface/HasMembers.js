@@ -1,22 +1,25 @@
 import { GraphQLInt, GraphQLList } from 'graphql';
 
+import models, { Op } from '../../../models';
 import { MemberCollection } from '../collection/MemberCollection';
 import { AccountType, AccountTypeToModelMapping } from '../enum/AccountType';
 import { MemberRole } from '../enum/MemberRole';
-
-import models, { Op } from '../../../models';
 
 export const HasMembersFields = {
   members: {
     description: 'Get all members (admins, members, backers, followers)',
     type: MemberCollection,
     args: {
-      limit: { type: GraphQLInt },
-      offset: { type: GraphQLInt },
+      limit: { type: GraphQLInt, defaultValue: 100 },
+      offset: { type: GraphQLInt, defaultValue: 0 },
       role: { type: new GraphQLList(MemberRole) },
       accountType: { type: new GraphQLList(AccountType) },
     },
-    resolve(collective, args) {
+    async resolve(collective, args, req) {
+      if (collective.isIncognito && !req.remoteUser?.isAdmin(collective.id)) {
+        return { offset: args.offset, limit: args.limit, totalCount: 0, nodes: [] };
+      }
+
       const where = { CollectiveId: collective.id };
 
       if (args.role && args.role.length > 0) {
@@ -28,7 +31,8 @@ export const HasMembersFields = {
           [Op.in]: args.accountType.map(value => AccountTypeToModelMapping[value]),
         };
       }
-      return models.Member.findAndCountAll({
+
+      const result = await models.Member.findAndCountAll({
         where,
         limit: args.limit,
         offset: args.offset,
@@ -40,6 +44,8 @@ export const HasMembersFields = {
           },
         ],
       });
+
+      return { nodes: result.rows, totalCount: result.count, limit: args.limit, offset: args.offset };
     },
   },
 };

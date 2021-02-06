@@ -1,7 +1,7 @@
 {{#if interval }}
-Subject: Thank you for your {{{currency order.totalAmount currency=order.currency}}}/{{interval}} donation to {{collective.name}}
+Subject: Thank you for your {{currency order.totalAmount currency=order.currency}}/{{interval}} contribution to {{collective.name}}
 {{else}}
-Subject: Thank you for your {{{currency order.totalAmount currency=order.currency}}} donation to {{collective.name}} {{#if matchingFund}}(matched {{matchingFund.matching}}x by {{matchingFund.collective.name}}!){{/if}}
+Subject: Thank you for your {{currency order.totalAmount currency=order.currency}} contribution to {{collective.name}}
 {{/if}}
 
 {{> header}}
@@ -16,21 +16,17 @@ Subject: Thank you for your {{{currency order.totalAmount currency=order.currenc
 
 {{#if interval}}
   {{#if firstPayment }}
-    <p>We would like to thank you for your pledge to give {{{currency order.totalAmount currency=order.currency}}} per {{interval}}.
-      Your first payment was received on {{{moment order.createdAt}}}. Your donation helps us continue our work.</p>
+    <p>We would like to thank you for your pledge to give {{currency order.totalAmount currency=order.currency}} per {{interval}}.
+      Your first payment was received on {{moment order.createdAt}}. Your contribution helps us continue our work.</p>
       {{> charge_date_notice}}
   {{else}}
-    <p>We would like to thank you for your continued support. Your latest {{interval}}ly donation of {{{currency order.totalAmount currency=order.currency}}} was received on {{{moment transaction.createdAt}}}.
-      Your donation helps us continue our work.</p>
+    <p>We would like to thank you for your continued support. Your latest {{interval}}ly contribution of {{currency order.totalAmount currency=order.currency}} was received on {{moment transaction.createdAt}}.
+      Your contribution helps us continue our work.</p>
   {{/if}}
 {{else}}
 
-<p>We would like to thank you for your donation of {{{currency order.totalAmount currency=order.currency}}} on {{{moment order.createdAt}}}.
+<p>We would like to thank you for your contribution of {{currency order.totalAmount currency=order.currency}} on {{moment order.createdAt}}.
   Your gift will help us continue our work.</p>
-{{/if}}
-
-{{#if matchingFund}}
-<p>🎉 Your donation has been matched {{matchingFund.matching}}x by <a href="https://opencollective.com/{{matchingFund.collective.slug}}">{{matchingFund.collective.name}}</a>!</p>
 {{/if}}
 
 <p>You can follow our future activities and how we will be spending the money on our open collective page:
@@ -38,24 +34,35 @@ Subject: Thank you for your {{{currency order.totalAmount currency=order.currenc
 </p>
 
 <h2>Help us raise more money!</h2>
-<p>Share this URL: <a href="https://opencollective.com/{{collective.slug}}/donate?referral={{fromCollective.id}}">https://opencollective.com/{{collective.slug}}/donate?referral={{fromCollective.id}}</a><br />
-The total amount that you will help us raise will be shown on your profile! <a href="https://opencollective.com/{{fromCollective.slug}}">https://opencollective.com/{{fromCollective.slug}}</a>
+<p>Share this URL: <a href="https://opencollective.com/{{collective.slug}}">https://opencollective.com/{{collective.slug}}</a>
 </p>
 
-<p>
-  P.S: You can download a PDF receipt for your donation <a href="{{config.host.invoices}}/{{collective.slug}}/transactions/{{transaction.uuid}}/invoice.pdf">here</a>{{#if subscriptionsLink}}, and you can manage your subscriptions <a href="{{subscriptionsLink}}">here</a>{{/if}}.
-</p>
+{{#if transactionPdf}}
+<h2>📎 Attachments</h2>
+<ul>
+  <li>A PDF receipt of your contribution to {{collective.name}}</li>
+  {{#if platformTipPdf}}
+    <li>A PDF receipt of your contribution to Open Collective</li>
+  {{/if}}
+</ul>
+{{/if}}
+
+{{#if order.platformTipAmount}}
+<h2>Payment Details</h2>
+
+<ul>
+  <li>Contribution to {{collective.name}}: {{currency order.netAmount currency=order.currency precision=2}}</li>
+  <li>Tip to Open Collective: {{currency order.platformTipAmount currency=order.currency precision=2}}</li>
+  <li>Total amount: {{currency order.chargeAmount currency=order.currency precision=2}}</li>
+</ul>
+
+<p>Your payment will appear on your statement as {{currency order.chargeAmount currency=order.currency precision=2}}</p>
+{{/if}}
 
 <p>Warmly,</p>
 
 <p>
   – The {{collective.name}} open collective
 </p>
-
-{{#if recommendedCollectives.length}}
-  {{> recommendedcollectives}}
-{{else if relatedCollectives.length}}
-  {{> relatedcollectives}}
-{{/if}}
 
 {{> footer}}

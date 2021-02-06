@@ -1,23 +1,24 @@
-import config from 'config';
-import jwt from 'jsonwebtoken';
-import axios from 'axios';
 import { URLSearchParams } from 'url';
 
-import models from '../../models';
-import errors from '../../lib/errors';
-import { retrieveEvent } from './gateway';
-import creditcard from './creditcard';
-import stripeLib from 'stripe';
+import axios from 'axios';
+import config from 'config';
 import debugLib from 'debug';
+import jwt from 'jsonwebtoken';
 import { get } from 'lodash';
+
+import errors from '../../lib/errors';
+import stripe from '../../lib/stripe';
 import { addParamsToUrl } from '../../lib/utils';
+import models from '../../models';
+
+import creditcard from './creditcard';
 
 const debug = debugLib('stripe');
+
 const AUTHORIZE_URI = 'https://connect.stripe.com/oauth/authorize';
 const TOKEN_URI = 'https://connect.stripe.com/oauth/token';
 
-const stripe = stripeLib(config.stripe.secret);
-
+/* eslint-disable camelcase */
 const getToken = code => () =>
   axios
     .post(TOKEN_URI, {
@@ -27,11 +28,14 @@ const getToken = code => () =>
       code,
     })
     .then(res => res.data);
+/* eslint-enable camelcase */
 
 const getAccountInformation = data => {
   return new Promise((resolve, reject) => {
     return stripe.accounts.retrieve(data.stripe_user_id, (err, account) => {
-      if (err) return reject(err);
+      if (err) {
+        return reject(err);
+      }
       data.account = account;
       return resolve(data);
     });
@@ -64,6 +68,7 @@ export default {
         },
       );
 
+      /* eslint-disable camelcase */
       const params = new URLSearchParams({
         response_type: 'code',
         scope: 'read_write',
@@ -71,6 +76,8 @@ export default {
         redirect_uri: config.stripe.redirectUri,
         state,
       });
+      /* eslint-enable camelcase */
+
       return Promise.resolve(`${AUTHORIZE_URI}?${params.toString()}`);
     },
 
@@ -113,7 +120,7 @@ export default {
        * with the default currency of the bank account connected to the stripe account and legal address
        * @param {*} connectedAccount
        */
-      const updateHost = connectedAccount => {
+      const updateHost = async connectedAccount => {
         if (!connectedAccount) {
           console.error('>>> updateHost: error: no connectedAccount');
         }
@@ -121,17 +128,29 @@ export default {
         if (!collective.address && account.legal_entity) {
           const { address } = account.legal_entity;
           const addressLines = [address.line1];
-          if (address.line2) addressLines.push(address.line2);
-          if (address.country === 'US') addressLines.push(`${address.city} ${address.state} ${address.postal_code}`);
-          else if (address.country === 'UK') addressLines.push(`${address.city} ${address.postal_code}`);
-          else addressLines.push(`${address.postal_code} ${address.city}`);
+          if (address.line2) {
+            addressLines.push(address.line2);
+          }
+          if (address.country === 'US') {
+            addressLines.push(`${address.city} ${address.state} ${address.postal_code}`);
+          } else if (address.country === 'UK') {
+            addressLines.push(`${address.city} ${address.postal_code}`);
+          } else {
+            addressLines.push(`${address.postal_code} ${address.city}`);
+          }
 
           addressLines.push(address.country);
           collective.address = addressLines.join('\n');
         }
-        collective.currency = account.default_currency.toUpperCase();
+
+        // Adds the opencollective payment method to enable the host to allocate funds to collectives
+        // Note that it's not expected anymore to connect Stripe if you're not an host
+        // await collective.becomeHost({ remoteUser: { id: CreatedByUserId } });
+
+        await collective.setCurrency(account.default_currency.toUpperCase());
+
         collective.timezone = collective.timezone || account.timezone;
-        collective.becomeHost(); // adds the opencollective payment method to enable the host to allocate funds to collectives
+
         return collective.save();
       };
 
@@ -175,14 +194,15 @@ export default {
   webhook: requestBody => {
     // Stripe sends test events to production as well
     // don't do anything if the event is not livemode
-    if (process.env.NODE_ENV === 'production' && !requestBody.livemode) {
+    // NOTE: not using config.env because of ugly tests
+    if (process.env.OC_ENV === 'production' && !requestBody.livemode) {
       return Promise.resolve();
     }
     /**
      * We check the event on stripe directly to be sure we don't get a fake event from
      * someone else
      */
-    return retrieveEvent({ username: requestBody.user_id }, requestBody.id).then(event => {
+    return stripe.events.retrieve(requestBody.id, { stripeAccount: requestBody.user_id }).then(event => {
       if (!event || (event && !event.type)) {
         throw new errors.BadRequest('Event not found');
       }

@@ -21,15 +21,15 @@ currency=order.currency}}} {{order.type}} to {{collective.name}} is pending
 <p>Hi!</p>
 {{/if}}
 
-<p>We would like to thank you for your donation of {{{currency order.totalAmount currency=order.currency}}} on
-  {{{moment order.createdAt}}}. Your order is currently pending - we'll let you know once the host of collective (<a
+<p>We would like to thank you for your donation of {{currency order.totalAmount currency=order.currency}} on
+  {{moment order.createdAt}}. Your order is currently pending - we'll let you know once the host of collective (<a
     href="https://opencollective.com/{{host.slug}}">{{host.name}}</a>) will have received
   the funds and attributed them to {{collective.name}}.</p>
 
 {{#if instructions}}
 <section>
   <h2>Instructions</h2>
-  <p>{{instructions}}</p>
+  <pre>{{instructions}}</pre>
 </section>
 {{/if}}
 
@@ -37,21 +37,19 @@ currency=order.currency}}} {{order.type}} to {{collective.name}} is pending
   <a href="https://opencollective.com/{{collective.slug}}">https://opencollective.com/{{collective.slug}}</a>.
 </p>
 
+
+{{#if fromCollective.isIncognito}}
+{{else}}
 <h2>Help us raise more money!</h2>
-<p>Share this URL: <a href="https://opencollective.com/{{collective.slug}}/donate?referral={{fromCollective.id}}">https://opencollective.com/{{collective.slug}}/donate?referral={{fromCollective.id}}</a><br />
-  The total amount that you will help us raise will be shown on your profile! <a href="https://opencollective.com/{{fromCollective.slug}}">https://opencollective.com/{{fromCollective.slug}}</a>
+<p>Share this URL: <a
+    href="https://opencollective.com/{{collective.slug}}/donate">https://opencollective.com/{{collective.slug}}/donate</a>
 </p>
+{{/if}}
 
 <p>Warmly,</p>
 
 <p>
   – The {{collective.name}} open collective
 </p>
-
-{{#if recommendedCollectives.length}}
-{{> recommendedcollectives}}
-{{else if relatedCollectives.length}}
-{{> relatedcollectives}}
-{{/if}}
 
 {{> footer}}

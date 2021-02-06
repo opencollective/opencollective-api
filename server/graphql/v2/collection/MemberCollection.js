@@ -1,23 +1,17 @@
-import { GraphQLInt, GraphQLList, GraphQLObjectType } from 'graphql';
+import { GraphQLList, GraphQLObjectType } from 'graphql';
 
+import { Collection, CollectionFields } from '../interface/Collection';
 import { Member, MemberOf } from '../object/Member';
 
 export const MemberCollection = new GraphQLObjectType({
   name: 'MemberCollection',
+  interfaces: [Collection],
   description: 'A collection of "Members" (ie: Organization backing a Collective)',
   fields: () => {
     return {
-      totalCount: {
-        type: GraphQLInt,
-        resolve(result) {
-          return result.count;
-        },
-      },
+      ...CollectionFields,
       nodes: {
         type: new GraphQLList(Member),
-        resolve(result) {
-          return result.rows;
-        },
       },
     };
   },
@@ -25,20 +19,13 @@ export const MemberCollection = new GraphQLObjectType({
 
 export const MemberOfCollection = new GraphQLObjectType({
   name: 'MemberOfCollection',
+  interfaces: [Collection],
   description: 'A collection of "MemberOf" (ie: Collective backed by an Organization)',
   fields: () => {
     return {
-      totalCount: {
-        type: GraphQLInt,
-        resolve(result) {
-          return result.count;
-        },
-      },
+      ...CollectionFields,
       nodes: {
         type: new GraphQLList(MemberOf),
-        resolve(result) {
-          return result.rows;
-        },
       },
     };
   },

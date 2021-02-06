@@ -1,9 +1,9 @@
-Subject: New expense approved on {{collective.name}}: {{{currency expense.amount currency=expense.currency}}} for {{expense.description}}
+Subject: New expense approved on {{collective.name}}: {{currency expense.amount currency=expense.currency precision=2}} for {{expense.description}}
 
 {{> header}}
 
 <center>
-  <h1>{{{currency expense.amount currency=expense.currency}}}</h1>
+  <h1>{{currency expense.amount currency=expense.currency precision=2}}</h1>
   <div>{{expense.description}}</div>
 </center>
 
@@ -12,8 +12,10 @@ Subject: New expense approved on {{collective.name}}: {{{currency expense.amount
 
 <table>
   <tr><th>Submitted by:</th><td><a href="{{config.host.website}}/{{fromCollective.slug}}">{{fromCollective.name}}</a></td></tr>
-  <tr><th>Payout method:</th><td>{{expense.payoutMethod}}</td></tr>
-  <tr><th valign="top">Private instructions:</th><td>{{expense.privateMessage}}</td></tr>
+  <tr><th>Payout method:</th><td>{{expense.payoutMethodLabel}}</td></tr>
+  {{#if expense.privateMessage}}
+    <tr><th valign="top">Private instructions:</th><td>{{expense.privateMessage}}</td></tr>
+  {{/if}}
 </table>
 
 <br />
@@ -25,7 +27,7 @@ Subject: New expense approved on {{collective.name}}: {{{currency expense.amount
   </a>
 
   <br /><br />
-  <a href="{{actions.viewLatestExpenses}}" class="btn"><div>View Latest Expenses</div></a>
+  <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}" class="btn"><div>View Expense</div></a>
 </center>
 
 {{> footer}}

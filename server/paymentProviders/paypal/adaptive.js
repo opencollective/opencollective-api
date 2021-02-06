@@ -1,15 +1,47 @@
-import models from '../../models';
-import paypalAdaptive from './adaptiveGateway';
 import config from 'config';
-import uuidv1 from 'uuid/v1';
-import { formatCurrency } from '../../lib/utils';
-import debugLib from 'debug';
-const debug = debugLib('paypal');
+import { get, isNil } from 'lodash';
+import { v1 as uuid } from 'uuid';
+
+import errors from '../../lib/errors';
+
+import paypalAdaptive from './adaptiveGateway';
 
 /**
  * PayPal paymentProvider
  * Provides a oAuth flow to creates a payment method that can be used to pay up to $2,000 USD or equivalent
  */
+
+/*
+ * Confirms that the preapprovalKey has been approved by PayPal
+ * and updates the paymentMethod
+ */
+const getPreapprovalDetailsAndUpdatePaymentMethod = async function (paymentMethod) {
+  if (!paymentMethod) {
+    return Promise.reject(new Error('No payment method provided to getPreapprovalDetailsAndUpdatePaymentMethod'));
+  }
+
+  const response = await paypalAdaptive.preapprovalDetails(paymentMethod.token);
+  if (response.approved === 'false') {
+    throw new errors.BadRequest('This preapprovalkey is not approved yet.');
+  }
+
+  const balance = parseFloat(response.maxTotalAmountOfAllPayments) - parseFloat(response.curPaymentsAmount);
+  const balanceInCents = Math.trunc(balance * 100);
+
+  const data = {
+    redirect: paymentMethod.data.redirect,
+    details: response,
+    balance: balanceInCents,
+    currency: response.currencyCode,
+    transactionsCount: response.curPayments,
+  };
+
+  return paymentMethod.update({
+    confirmedAt: new Date(),
+    name: response.senderEmail,
+    data,
+  });
+};
 
 export default {
   features: {
@@ -18,7 +50,7 @@ export default {
   },
 
   fees: async ({ amount, currency, host }) => {
-    if (host.currency === currency)
+    if (host.currency === currency) {
       /*
         Paypal fees can vary from 2.9% + $0.30 to as much as 5% (maybe higher)
         with 2.9%, we saw a collective go in negative. Changing minimum to 3.9% to
@@ -26,7 +58,7 @@ export default {
         able to be paid out)
        */
       return 0.039 * amount + 30;
-    else {
+    } else {
       return 0.05 * amount + 30;
     }
   },
@@ -44,7 +76,7 @@ export default {
       currencyCode: expense.currency,
       feesPayer: 'SENDER',
       memo: `Reimbursement from ${collective.name}: ${expense.description}`,
-      trackingId: [uuidv1().substr(0, 8), expense.id].join(':'),
+      trackingId: [uuid().substr(0, 8), expense.id].join(':'),
       preapprovalKey,
       returnUrl: `${expenseUrl}?result=success&service=paypal`,
       cancelUrl: `${expenseUrl}?result=cancel&service=paypal`,
@@ -64,43 +96,23 @@ export default {
   },
 
   // Returns the balance in the currency of the paymentMethod
-  getBalance: paymentMethod => {
-    // TODO: fix using call to paypal to get real balance
-    let totalSpent = 0,
-      totalTransactions = 0,
-      firstTransactionAt,
-      lastTransactionAt;
-    return models.Transaction.findAll({
-      attributes: [
-        'amountInHostCurrency',
-        'paymentProcessorFeeInHostCurrency',
-        'platformFeeInHostCurrency',
-        'hostFeeInHostCurrency',
-      ],
-      where: {
-        type: 'DEBIT',
-        PaymentMethodId: paymentMethod.id,
-      },
-    })
-      .map(t => {
-        totalTransactions++;
-        if (!firstTransactionAt) {
-          firstTransactionAt = t.createdAt;
-        }
-        lastTransactionAt = t.createdAt;
-        totalSpent += t.netAmountInHostCurrency;
-      })
-      .then(() => {
-        debug(
-          `Total spent: ${formatCurrency(
-            totalSpent,
-            paymentMethod.currency,
-          )} across ${totalTransactions} transactions between ${firstTransactionAt} and ${lastTransactionAt}`,
-        );
-        const paypalPreApprovalLimit = 200000;
-        const initialBalance = paymentMethod.data.balance || paypalPreApprovalLimit;
-        // total spent has a negative value (in cents)
-        return { amount: initialBalance + totalSpent, currency: paymentMethod.currency };
-      });
+  getBalance: async paymentMethod => {
+    try {
+      // If balance is already available for the PM
+      const balance = get(paymentMethod, 'data.balance');
+      if (!isNil(balance)) {
+        return { amount: Math.trunc(balance), currency: paymentMethod.currency };
+      }
+
+      // Otherwise we fetch is from PayPal API
+      const updatedPM = await getPreapprovalDetailsAndUpdatePaymentMethod(paymentMethod);
+      return { amount: updatedPM.data.balance, currency: updatedPM.currency };
+    } catch (e) {
+      return { amount: 0, currency: paymentMethod.currency };
+    }
+  },
+
+  updateBalance: async paymentMethod => {
+    return await getPreapprovalDetailsAndUpdatePaymentMethod(paymentMethod);
   },
 };

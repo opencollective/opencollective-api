@@ -1,9 +1,9 @@
 #!/bin/bash
 
 usage() {
-  echo "Usage: db_restore.sh -d DBNAME -U dbuser -f DBDUMP_FILE";
+  echo "Usage: db_restore.sh -d DBNAME -U DBUSER -f DBDUMP_FILE";
   echo "e.g.";
-  echo "> db_restore.sh -d opencollective_dvl -U dbuser -f opencollective-api/test/dbdumps/opencollective_dvl.pgsql"
+  echo "> db_restore.sh -d opencollective_dvl -U opencollective -f test/dbdumps/opencollective_dvl.pgsql"
   exit 0;
 }
 
@@ -32,6 +32,8 @@ shift # past argument or value
 done
 
 LOCALDBUSER=${LOCALDBUSER:-"opencollective"}
+LOCALDBNAME=${LOCALDBNAME:-"opencollective_dvl"}
+DBDUMP_FILE=${DBDUMP_FILE:-"test/dbdumps/opencollective_dvl.pgsql"}
 
 echo "LOCALDBUSER=$LOCALDBUSER"
 echo "LOCALDBNAME=$LOCALDBNAME"
@@ -81,7 +83,17 @@ echo "DB restored to postgres://localhost/${LOCALDBNAME}"
   # Change ownership of the database
   psql "${LOCALDBNAME}" -c "alter database ${LOCALDBNAME} owner to ${LOCALDBUSER};"
 
+  # Change ownership of custom types (necessary if we want to modify it in migrations)
+  # Would be great to find a way to do that for all custom types
+  psql "${LOCALDBNAME}" -c "alter type \"enum_Expenses_type\" owner to ${LOCALDBUSER};"
+  psql "${LOCALDBNAME}" -c "alter type \"enum_ExpenseHistories_type\" owner to ${LOCALDBUSER};"
+  psql "${LOCALDBNAME}" -c "alter type \"enum_MemberInvitations_role\" owner to ${LOCALDBUSER};"
+
   psql "${LOCALDBNAME}" -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ${LOCALDBUSER};"
   psql "${LOCALDBNAME}" -c "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ${LOCALDBUSER};"
 
 } | tee >/dev/null
+
+# Note: I have to run after this script:
+# $> psql opencollective_test -c "REASSIGN OWNED BY xdamman TO opencollective;"
+# Because the views created by the CIS extension are not owned by the opencollective user

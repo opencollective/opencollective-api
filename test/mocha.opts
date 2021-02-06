@@ -1,6 +1,0 @@
---timeout 20000
---reporter mocha-circleci-reporter
---require @babel/register
---file ./test/setup.js
---file ./server/env.js
---exit

@@ -1,31 +1,60 @@
-/*
- * Create a notification to receive certain type of events
- *
- * Notification.create({
- *  UserId, CollectiveId, type = 'collective.transaction.created', channel='email'
- * })
- * Notification.unsubscribe(); // To disable a notification
- */
 import Promise from 'bluebird';
-import _ from 'lodash';
 import debugLib from 'debug';
-const debug = debugLib('notification');
+import { defaults, isNil } from 'lodash';
+import { Op } from 'sequelize';
 
-export default function(Sequelize, DataTypes) {
-  const { models, Op } = Sequelize;
+import channels from '../constants/channels';
+import { ValidationFailed } from '../graphql/errors';
+
+const debug = debugLib('models:Notification');
+
+export default function (Sequelize, DataTypes) {
+  const { models } = Sequelize;
 
   const Notification = Sequelize.define(
     'Notification',
     {
-      channel: { defaultValue: 'email', type: DataTypes.STRING }, // in the future: Slack, iPhone, Android, etc.
+      channel: {
+        defaultValue: 'email',
+        type: DataTypes.STRING,
+        validate: {
+          isIn: {
+            args: [Object.values(channels)],
+            msg: `Must be one of ${Object.values(channels).join(', ')}`,
+          },
+        },
+      },
 
-      type: DataTypes.STRING,
+      type: {
+        type: DataTypes.STRING,
+        // Can't do what's bellow because of the `mailinglist.___` thing
+        // See https://github.com/opencollective/opencollective-api/blob/f8ac13a1b8176a69d4ea380bcfcca1bd789889b0/server/controllers/services/email.js#L155
+        // validate: {
+        //   isIn: {
+        //     args: [Object.values(activities)],
+        //     msg: `Must be one of ${Object.values(activities).join(', ')}`,
+        //   },
+        // },
+      },
 
-      active: { defaultValue: true, type: DataTypes.BOOLEAN },
+      active: {
+        defaultValue: true,
+        type: DataTypes.BOOLEAN,
+      },
 
       createdAt: {
         type: DataTypes.DATE,
         defaultValue: Sequelize.NOW,
+      },
+
+      CollectiveId: {
+        type: DataTypes.INTEGER,
+        references: { key: 'id', model: 'Collectives' },
+      },
+
+      UserId: {
+        type: DataTypes.INTEGER,
+        references: { key: 'id', model: 'Users' },
       },
 
       webhookUrl: {
@@ -33,20 +62,39 @@ export default function(Sequelize, DataTypes) {
         validate: {
           isUrl: true,
         },
+        set(url) {
+          if (!url) {
+            this.setDataValue('webhookUrl', null);
+          } else {
+            // Enforce 'https://`
+            this.setDataValue('webhookUrl', `https://${url.replace(/https?:\/\//, '')}`);
+          }
+        },
       },
     },
     {
       indexes: [
         {
-          fields: ['type', 'CollectiveId', 'UserId'],
+          fields: ['channel', 'type', 'webhookUrl', 'CollectiveId'],
           type: 'unique',
         },
       ],
+      hooks: {
+        beforeCreate(instance) {
+          if (instance.channel === channels.WEBHOOK && isNil(instance.webhookUrl)) {
+            throw new ValidationFailed('Webhook URL can not be undefined');
+          }
+        },
+      },
     },
   );
 
+  Notification.prototype.getUser = function () {
+    return models.User.findByPk(this.UserId);
+  };
+
   Notification.createMany = (notifications, defaultValues) => {
-    return Promise.map(notifications, u => Notification.create(_.defaults({}, u, defaultValues))).catch(console.error);
+    return Promise.map(notifications, u => Notification.create(defaults({}, u, defaultValues))).catch(console.error);
   };
 
   /**
@@ -62,7 +110,9 @@ export default function(Sequelize, DataTypes) {
       models.Collective.findOne({
         where: { slug: mailinglist, type: 'EVENT' },
       }).then(event => {
-        if (!event) throw new Error('mailinglist_not_found');
+        if (!event) {
+          throw new Error('mailinglist_not_found');
+        }
         debug('getMembersForEvent', event.slug);
         return event.getMembers();
       });
@@ -70,7 +120,9 @@ export default function(Sequelize, DataTypes) {
     debug('getSubscribers', findByAttribute, collectiveSlug, 'found:', collective.slug, 'mailinglist:', mailinglist);
     const excludeUnsubscribed = members => {
       debug('excludeUnsubscribed: need to filter', members && members.length, 'members');
-      if (!members || members.length === 0) return [];
+      if (!members || members.length === 0) {
+        return [];
+      }
 
       return Notification.getUnsubscribersUserIds(`mailinglist.${mailinglist}`, collective.id).then(excludeIds => {
         debug('excluding', excludeIds.length, 'members');
@@ -95,7 +147,9 @@ export default function(Sequelize, DataTypes) {
   Notification.getSubscribersUsers = async (collectiveSlug, mailinglist) => {
     debug('getSubscribersUsers', collectiveSlug, mailinglist);
     const getUsers = memberships => {
-      if (!memberships || memberships.length === 0) return [];
+      if (!memberships || memberships.length === 0) {
+        return [];
+      }
       return models.User.findAll({
         where: {
           CollectiveId: { [Op.in]: memberships.map(m => m.MemberCollectiveId) },
@@ -109,7 +163,9 @@ export default function(Sequelize, DataTypes) {
   Notification.getSubscribersCollectives = async (collectiveSlug, mailinglist) => {
     debug('getSubscribersCollectives', collectiveSlug, mailinglist);
     const getCollectives = memberships => {
-      if (!memberships || memberships.length === 0) return [];
+      if (!memberships || memberships.length === 0) {
+        return [];
+      }
       return models.Collective.findAll({
         where: {
           id: { [Op.in]: memberships.map(m => m.MemberCollectiveId) },
@@ -161,6 +217,16 @@ export default function(Sequelize, DataTypes) {
     });
   };
 
+  /**
+   * Counts registered webhooks for a user, for a collective.
+   * @param {number} UserId
+   * @param {number} CollectiveId
+   * @returns {Promise<number>} count
+   */
+  Notification.countRegisteredWebhooks = CollectiveId => {
+    return models.Notification.count({ where: { CollectiveId, channel: channels.WEBHOOK } });
+  };
+
   return Notification;
 }
 
@@ -192,9 +258,6 @@ Types:
   - collective.deleted
       data: collective.name, user.info
 
-  + collective.user.added
-      data: collective, user (caller), target (the new user), collectiveuser
-      2* Userid: the new user + the caller
   - collective.user.updated
       data: collective, user (caller), target (the updated user), collectiveuser (updated values)
       2* Userid: the updated user + the caller
