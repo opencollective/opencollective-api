@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 
 import config from 'config';
-import Hashids from 'hashids';
+import Hashids from 'hashids/cjs';
 
 const alphabet = '1234567890abcdefghijklmnopqrstuvwxyz';
 
@@ -13,20 +13,77 @@ if (!salt) {
 
 const instances = {};
 
+export const IDENTIFIER_TYPES = {
+  ACCOUNT: 'account',
+  ACTIVITY: 'activity',
+  COMMENT: 'comment',
+  COMMENT_REACTION: 'comment-reaction',
+  CONVERSATION: 'conversation',
+  HOST_APPLICATION: 'host-application',
+  PAYOUT_METHOD: 'payout-method',
+  PAYMENT_METHOD: 'paymentMethod',
+  EXPENSE: 'expense',
+  CONNECTED_ACCOUNT: 'connected-account',
+  EXPENSE_ATTACHED_FILE: 'expense-attached-file',
+  EXPENSE_ITEM: 'expense-item',
+  TRANSACTION: 'transaction',
+  UPDATE: 'update',
+};
+
+const getDefaultInstance = type => {
+  switch (type) {
+    case IDENTIFIER_TYPES.CONVERSATION:
+      return new Hashids(salt + type, 8, alphabet);
+    default:
+      return new Hashids(salt + type, 32, alphabet);
+  }
+};
+
 const getInstance = type => {
   let instance = instances[type];
   if (!instance) {
-    instance = instances[type] = new Hashids(salt + type, 32, alphabet);
+    instance = instances[type] = getDefaultInstance(type);
   }
+
   return instance;
 };
 
+function chunkStr(str, size) {
+  const chunks = [];
+  for (let i = 0; i < str.length; i += size) {
+    chunks.push(str.substring(i, i + size));
+  }
+
+  return chunks;
+}
+
 export const idEncode = (integer, type) => {
   const string = getInstance(type).encode(integer);
-  const sliced = [string.substring(0, 8), string.substring(8, 16), string.substring(16, 24), string.substring(24, 32)];
-  return sliced.join('-');
+  if (string.length > 8) {
+    return chunkStr(string, 8).join('-');
+  } else {
+    return string;
+  }
 };
 
 export const idDecode = (string, type) => {
-  return getInstance(type).decode(string.split('-').join(''));
+  const decoded = getInstance(type).decode(string.split('-').join(''));
+  return Number(decoded[0]);
 };
+
+/**
+ * Returns a function to be used as the resolver for identifier fields.
+ * The returned resolver function encodes the identifier field (idField)
+ * @param {string} type - Type the fields belongs to. For example: 'comment' and 'transaction'
+ * @param {string} idField - Field that represents the id. By default 'id'
+ */
+export const getIdEncodeResolver = (type, idField = 'id') => entity => idEncode(entity[idField], type);
+
+/**
+ * Resolve original id by decoding if string, otherwise return as is.
+ * @param {number|string} id - id to decode
+ * @returns {number} decoded id
+ */
+export function getDecodedId(id) {
+  return isNaN(id) && typeof id === 'string' ? idDecode(id) : id;
+}

@@ -1,10 +1,11 @@
-import { get } from 'lodash';
 import config from 'config';
 import HelloWorks from 'helloworks-sdk';
-import s3 from '../lib/awsS3';
-import models from '../models';
-import fs from 'fs';
+import { get } from 'lodash';
+
+import { uploadToS3 } from '../lib/awsS3';
+import { secretbox } from '../lib/encryption';
 import logger from '../lib/logger';
+import models from '../models';
 
 const { User, LegalDocument, RequiredLegalDocument } = models;
 const {
@@ -19,34 +20,85 @@ const HELLO_WORKS_SECRET = get(config, 'helloworks.secret');
 const HELLO_WORKS_WORKFLOW_ID = get(config, 'helloworks.workflowId');
 
 const HELLO_WORKS_S3_BUCKET = get(config, 'helloworks.aws.s3.bucket');
+const ENCRYPTION_KEY = get(config, 'helloworks.documentEncryptionKey');
 
-const client = new HelloWorks({
-  apiKeyId: HELLO_WORKS_KEY,
-  apiKeySecret: HELLO_WORKS_SECRET,
-});
+// Put legacy workflows here
+const SUPPORTED_WORKFLOWS = new Set([
+  HELLO_WORKS_WORKFLOW_ID,
+  'MfmOZErmhz1qPgMp',
+  'MkFBvG39RIA61OnD',
+  'qdUbX5nw8sMZzykz',
+]);
+
+function processMetadata(metadata) {
+  // Check if metadata is malformed
+  // ie: {"email,a@example.com":"1","userId,258567":"0","year,2019":"2"}
+  const metadataNeedsFix = Math.max(...Object.values(metadata).map(value => value.length)) === 1;
+  if (!metadataNeedsFix) {
+    return metadata;
+  }
+
+  return Object.keys(metadata).reduce((acc, string) => {
+    const [key, value] = string.split(',');
+    acc[key] = value;
+    return acc;
+  }, {});
+}
 
 async function callback(req, res) {
+  logger.info('Tax Form callback (raw):', req.rawBody);
+  logger.info('Tax Form callback (parsed):', req.body);
+
+  const client = new HelloWorks({
+    apiKeyId: HELLO_WORKS_KEY,
+    apiKeySecret: HELLO_WORKS_SECRET,
+  });
+
   const {
-    body: { status, workflow_id: workflowId, data, id, metadata },
+    body: { status, workflow_id: workflowId, data, id, metadata: metadataReceived },
   } = req;
 
-  if (status && status === 'completed' && workflowId == HELLO_WORKS_WORKFLOW_ID) {
-    const { email, year } = metadata;
+  const metadata = processMetadata(metadataReceived);
+  if (status && status === 'completed' && SUPPORTED_WORKFLOWS.has(workflowId)) {
+    const { userId, accountId, email, year } = metadata;
     const documentId = Object.keys(data)[0];
+    const documentType = US_TAX_FORM;
 
-    const user = await User.findOne({
-      where: {
-        email,
-      },
-    });
-    const doc = await LegalDocument.findByTypeYearUser({ year, documentType: US_TAX_FORM, user });
+    logger.info('Completed Tax form. Metadata:', metadata);
 
-    client.workflowInstances
-      .getInstanceDocument({
-        instanceId: id,
-        documentId,
-      })
-      .then(UploadToS3({ id: user.id, year, documentType: US_TAX_FORM }))
+    let user, collective;
+
+    if (accountId) {
+      collective = await models.Collective.findByPk(accountId);
+    }
+
+    if (userId) {
+      user = await User.findOne({ where: { id: userId } });
+    } else if (email) {
+      user = await User.findOne({ where: { email } });
+    }
+    if (!user) {
+      logger.error('Tax Form: could not find user matching metadata', metadata);
+      return res.sendStatus(400);
+    } else if (!collective) {
+      collective = await user.getCollective();
+    }
+
+    if (!collective) {
+      logger.error('Tax Form: could not find collective matching metadata', metadata);
+      return res.sendStatus(400);
+    }
+
+    const doc = await LegalDocument.findByTypeYearCollective({ year, documentType, collective });
+    if (!doc) {
+      logger.error(`No legal document  found for ${documentType}/${year}/${collective.slug}`);
+      return res.sendStatus(400);
+    }
+
+    return client.workflowInstances
+      .getInstanceDocument({ instanceId: id, documentId })
+      .then(buff => Promise.resolve(secretbox.encrypt(buff, ENCRYPTION_KEY)))
+      .then(buffer => uploadTaxFormToS3(buffer, { id: collective.name, year, documentType: US_TAX_FORM }))
       .then(({ Location: location }) => {
         doc.requestStatus = RECEIVED;
         doc.documentLink = location;
@@ -64,33 +116,11 @@ async function callback(req, res) {
   }
 }
 
-function UploadToS3({ id, year, documentType }) {
-  return function uploadToS3(buffer) {
-    const bucket = HELLO_WORKS_S3_BUCKET;
-    const key = createTaxFormFilename({ id, year, documentType });
+function uploadTaxFormToS3(buffer, { id, year, documentType }) {
+  const bucket = HELLO_WORKS_S3_BUCKET;
+  const key = createTaxFormFilename({ id, year, documentType });
 
-    if (!s3) {
-      // s3 may not be set in a dev env
-      logger.error('s3 is not set, saving file to temp folder. This should only be done in development');
-      saveFileToTempStorage({ filename: key, buffer });
-      return Promise.resolve({ Location: key });
-    }
-
-    return new Promise((resolve, reject) => {
-      s3.upload({ Body: buffer, bucket, key }, (err, data) => {
-        if (err) {
-          logger.error('error uploading file to s3: ', err);
-          reject();
-        } else {
-          resolve(data);
-        }
-      });
-    });
-  };
-}
-
-function saveFileToTempStorage({ buffer, filename }) {
-  fs.writeFile(`/tmp/${filename}`, buffer, logger.info);
+  return uploadToS3({ Body: buffer, Bucket: bucket, Key: key });
 }
 
 function createTaxFormFilename({ id, year, documentType }) {

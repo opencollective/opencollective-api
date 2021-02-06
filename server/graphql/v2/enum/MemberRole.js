@@ -12,5 +12,6 @@ export const MemberRole = new GraphQLEnumType({
     MEMBER: {},
     FUNDRAISER: {},
     FOLLOWER: {},
+    ACCOUNTANT: {},
   },
 });
