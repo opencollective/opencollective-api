@@ -1,5 +1,5 @@
-import { get } from 'lodash';
 import DataLoader from 'dataloader';
+import { get } from 'lodash';
 
 /** A default getter that returns item's id */
 const defaultKeyGetter = (item): number | string => item.id;
@@ -62,7 +62,7 @@ export function sortResultsArray<ResultType>(
 }
 
 /**
- * @deprecated Prefer to use `simpleSortResults`.
+ * @deprecated Prefer to use `sortResultsSimple`.
  *
  * The legacy implementation of `sortResults`. Provides a complex mechanism for using sub-fields
  * for attributes with `:` which not standard nor documented. There's also some magic happening

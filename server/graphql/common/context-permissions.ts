@@ -10,25 +10,24 @@
  *
  * This small helper stores this information in a standardized way within the GraphQl context.
  * It works as an opt-in for all permissions: everything is forbidden by default and you need
- * to explicitely set the flag to true with `allowContextPermission` to allow something.
+ * to explicitly set the flag to true with `allowContextPermission` to allow something.
  *
  * Permissions are stored inside the `req` as an object that looks like:
  * {
  *    // Action type as the key
- *    SEE_ACCOUNT_LOCATION: {
+ *    SEE_PAYOUT_METHOD_DATA: {
  *      // [EntityId (ie. UserId, CollectiveId)]: hasAccess
  *      45: true
  *    }
  * }
  */
 
-import { get, set, has, isNil } from 'lodash';
+import { get, has, isNil, set } from 'lodash';
 
 /**
  * Context permissions types to use with `setContextPermission` and `getContextPermission`
  */
 export enum PERMISSION_TYPE {
-  SEE_ACCOUNT_LOCATION = 'SEE_ACCOUNT_LOCATION',
   SEE_EXPENSE_ATTACHMENTS_URL = 'SEE_EXPENSE_ATTACHMENTS_URL',
   SEE_PAYOUT_METHOD_DATA = 'SEE_PAYOUT_METHOD_DATA',
   SEE_INCOGNITO_ACCOUNT_DETAILS = 'SEE_INCOGNITO_ACCOUNT_DETAILS',

@@ -1,15 +1,19 @@
-import { GraphQLString, GraphQLInputObjectType, GraphQLNonNull, GraphQLList } from 'graphql';
+import { GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+
 import { ExpenseType } from '../enum/ExpenseType';
+
+import { NewAccountOrReferenceInput } from './AccountReferenceInput';
+import { ExpenseAttachedFileInput } from './ExpenseAttachedFileInput';
+import { ExpenseItemInput } from './ExpenseItemInput';
+import { LocationInput } from './LocationInput';
 import { PayoutMethodInput } from './PayoutMethodInput';
-import { ExpenseAttachmentInput } from './ExpenseAttachmentInput';
-import { AccountReferenceInput } from './AccountReferenceInput';
 
 /**
  * Input type to use as the type for the comment input in editComment mutation.
  */
 export const ExpenseUpdateInput = new GraphQLInputObjectType({
   name: 'ExpenseUpdateInput',
-  fields: {
+  fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'ID of the expense that you are trying to edit',
@@ -17,6 +21,10 @@ export const ExpenseUpdateInput = new GraphQLInputObjectType({
     description: {
       type: GraphQLString,
       description: 'Main title of the expense',
+    },
+    longDescription: {
+      type: GraphQLString,
+      description: 'Longer text to attach to the expense',
     },
     tags: {
       type: new GraphQLList(GraphQLString),
@@ -28,7 +36,7 @@ export const ExpenseUpdateInput = new GraphQLInputObjectType({
     },
     privateMessage: {
       type: GraphQLString,
-      description: 'A private note that will be attached to your invoice',
+      description: 'A private note that will be attached to your invoice, as HTML',
     },
     invoiceInfo: {
       type: GraphQLString,
@@ -39,12 +47,25 @@ export const ExpenseUpdateInput = new GraphQLInputObjectType({
       description: 'The payout method that will be used to reimburse the expense',
     },
     attachments: {
-      type: new GraphQLList(ExpenseAttachmentInput),
-      description: 'The list of attachments for this expense. Total amount will be computed from them.',
+      type: new GraphQLList(ExpenseItemInput),
+      description:
+        '@deprecated 2020-04-08: Please use the items field - The list of items for this expense. Total amount will be computed from them.',
+    },
+    items: {
+      type: new GraphQLList(ExpenseItemInput),
+      description: 'The list of items for this expense. Total amount will be computed from them.',
+    },
+    attachedFiles: {
+      type: new GraphQLList(new GraphQLNonNull(ExpenseAttachedFileInput)),
+      description: '(Optional) A list of files that you want to attach to this expense',
     },
     payee: {
-      type: AccountReferenceInput,
+      type: NewAccountOrReferenceInput,
       description: 'Account to reimburse',
     },
-  },
+    payeeLocation: {
+      type: LocationInput,
+      description: 'The address of the payee',
+    },
+  }),
 });

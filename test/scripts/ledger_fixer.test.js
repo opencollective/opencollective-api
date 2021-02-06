@@ -1,5 +1,6 @@
-import sinon from 'sinon';
 import { expect } from 'chai';
+import sinon from 'sinon';
+
 import { Migration } from '../../scripts/ledger_fixer';
 
 describe('scripts/ledger_fixer', () => {
@@ -34,7 +35,7 @@ describe('scripts/ledger_fixer', () => {
       const transaction = {
         data: {
           migration: {
-            '20180320': { hostCurrencyFxRate: { oldValue: null, newValue: 1 } },
+            20180320: { hostCurrencyFxRate: { oldValue: null, newValue: 1 } },
           },
         },
         changed: sinon.spy(),

@@ -1,7 +1,15 @@
+/* eslint-disable camelcase */
+
 import { expect } from 'chai';
 import sinon from 'sinon';
 import request from 'supertest';
 
+import { roles } from '../../../../server/constants';
+import status from '../../../../server/constants/expense_status';
+import app from '../../../../server/index';
+import emailLib from '../../../../server/lib/email';
+import * as transferwiseLib from '../../../../server/lib/transferwise';
+import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
 import {
   fakeCollective,
   fakeConnectedAccount,
@@ -11,18 +19,17 @@ import {
   fakeTransaction,
   fakeUser,
 } from '../../../test-helpers/fake-data';
-import app from '../../../../server/index';
 import * as utils from '../../../utils';
-import emailLib from '../../../../server/lib/email';
-import * as transferwiseLib from '../../../../server/lib/transferwise';
-import status from '../../../../server/constants/expense_status';
-import { roles } from '../../../../server/constants';
-import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
 
-describe('paymentMethods/transferwise/webhook.ts', () => {
+describe('server/paymentProviders/transferwise/webhook', () => {
+  let expressApp, api;
+  before(async () => {
+    expressApp = await app();
+    api = request(expressApp) as any;
+  });
+
   const sandbox = sinon.createSandbox();
-  const api = request(app) as any;
-  /* eslint-disable @typescript-eslint/camelcase */
+
   const event = {
     data: {
       resource: {
@@ -98,10 +105,7 @@ describe('paymentMethods/transferwise/webhook.ts', () => {
   });
 
   it('assigns rawBody to request and verifies the event signature', async () => {
-    await api
-      .post('/webhooks/transferwise')
-      .send(event)
-      .expect(200);
+    await api.post('/webhooks/transferwise').send(event).expect(200);
 
     sinon.assert.calledOnce(verifyEvent);
     const { args } = verifyEvent.getCall(0);
@@ -109,10 +113,7 @@ describe('paymentMethods/transferwise/webhook.ts', () => {
   });
 
   it('should complete processing transactions if transfer was sent', async () => {
-    await api
-      .post('/webhooks/transferwise')
-      .send(event)
-      .expect(200);
+    await api.post('/webhooks/transferwise').send(event).expect(200);
 
     await expense.reload();
     expect(expense).to.have.property('status', status.PAID);
@@ -122,10 +123,7 @@ describe('paymentMethods/transferwise/webhook.ts', () => {
     const refundEvent = { ...event, data: { ...event.data, current_state: 'funds_refunded' } };
     verifyEvent.returns(refundEvent);
 
-    await api
-      .post('/webhooks/transferwise')
-      .send(event)
-      .expect(200);
+    await api.post('/webhooks/transferwise').send(event).expect(200);
 
     await expense.reload();
     expect(expense).to.have.property('status', status.ERROR);
@@ -139,10 +137,7 @@ describe('paymentMethods/transferwise/webhook.ts', () => {
     const refundEvent = { ...event, data: { ...event.data, current_state: 'funds_refunded' } };
     verifyEvent.returns(refundEvent);
 
-    await api
-      .post('/webhooks/transferwise')
-      .send(event)
-      .expect(200);
+    await api.post('/webhooks/transferwise').send(event).expect(200);
 
     await utils.waitForCondition(() => sendMessage.callCount === 2);
 
@@ -151,18 +146,13 @@ describe('paymentMethods/transferwise/webhook.ts', () => {
       `Payment from ${collective.name} for ${expense.description} expense failed`,
     );
     expect(sendMessage.args[1][0]).to.equal(admin.email);
-    expect(sendMessage.args[1][1]).to.contain(
-      `🚨 Transaction failed on ${collective.name}  for ${expense.description}`,
-    );
+    expect(sendMessage.args[1][1]).to.contain(`🚨 Transaction failed on ${collective.name}`);
   });
 
   it('should return 200 OK if the transaction is not associated to any expense', async () => {
     const refundEvent = { ...event, data: { ...event.data, resource: { id: 0 } } };
     verifyEvent.returns(refundEvent);
 
-    await api
-      .post('/webhooks/transferwise')
-      .send(event)
-      .expect(200);
+    await api.post('/webhooks/transferwise').send(event).expect(200);
   });
 });

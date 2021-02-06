@@ -1,14 +1,15 @@
-import { GraphQLString, GraphQLInt, GraphQLInputObjectType } from 'graphql';
+import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
+
 import models from '../../../models';
-import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { NotFound } from '../../errors';
+import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
 /**
  * An input for referencing ConnectedAccounts.
  */
 export const ConnectedAccountReferenceInput = new GraphQLInputObjectType({
   name: 'ConnectedAccountReferenceInput',
-  fields: {
+  fields: () => ({
     id: {
       type: GraphQLString,
       description: 'The public id identifying the connected account (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
@@ -17,7 +18,7 @@ export const ConnectedAccountReferenceInput = new GraphQLInputObjectType({
       type: GraphQLInt,
       description: 'The internal id of the account (ie: 580)',
     },
-  },
+  }),
 });
 
 export const fetchConnectedAccountWithReference = async (
@@ -34,7 +35,7 @@ export const fetchConnectedAccountWithReference = async (
     throw new Error('Please provide an id or a legacyId');
   }
   if (!connectedAccount && throwIfMissing) {
-    throw new NotFound({ message: 'ConnectedAccount Not Found' });
+    throw new NotFound('ConnectedAccount Not Found');
   }
   return connectedAccount;
 };

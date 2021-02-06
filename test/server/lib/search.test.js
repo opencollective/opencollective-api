@@ -1,9 +1,10 @@
 import { expect } from 'chai';
 import config from 'config';
+
 import { CollectiveType } from '../../../server/graphql/v1/CollectiveInterface';
-import { searchCollectivesInDB, searchCollectivesByEmail } from '../../../server/lib/search';
+import { searchCollectivesByEmail, searchCollectivesInDB } from '../../../server/lib/search';
 import { newUser } from '../../stores';
-import { fakeUser, fakeCollective } from '../../test-helpers/fake-data';
+import { fakeCollective, fakeUser } from '../../test-helpers/fake-data';
 
 describe('server/lib/search', () => {
   describe('Search in DB', () => {
@@ -37,7 +38,7 @@ describe('server/lib/search', () => {
     it("Doesn't return items with the wrong type", async () => {
       const typeFilter = [CollectiveType.ORGANIZATION];
       const { userCollective } = await newUser();
-      const [results, count] = await searchCollectivesInDB(userCollective.slug, 0, 10000, typeFilter);
+      const [results, count] = await searchCollectivesInDB(userCollective.slug, 0, 10000, { types: typeFilter });
       expect(results.length).to.eq(0);
       expect(count).to.eq(0);
     });

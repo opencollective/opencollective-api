@@ -3,8 +3,8 @@ export enum Service {
   STRIPE = 'stripe',
   GITHUB = 'github',
   TWITTER = 'twitter',
-  MEETUP = 'meetup',
   TRANSFERWISE = 'transferwise',
+  MEETUP = 'meetup', // @deprecated
 }
 
 export const supportedServices = Object.values(Service);

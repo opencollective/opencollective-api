@@ -1,35 +1,39 @@
 #!/usr/bin/env node
 import '../../server/env';
 
+import fs from 'fs';
+import path from 'path';
+
+import Promise from 'bluebird';
+import config from 'config';
+import debugLib from 'debug';
+import { groupBy, isEmpty, pick, uniq } from 'lodash';
+import moment from 'moment';
+
+import ORDER_STATUS from '../../server/constants/order_status';
+import roles from '../../server/constants/roles';
+import emailLib from '../../server/lib/email';
+import { getConsolidatedInvoicePdfs } from '../../server/lib/pdf';
+import { formatCurrencyObject, parseToBoolean } from '../../server/lib/utils';
+import models, { Op } from '../../server/models';
+
+if (parseToBoolean(process.env.SKIP_USER_REPORT) && !process.env.OFFCYCLE) {
+  console.log('Skipping because SKIP_USER_REPORT is set.');
+  process.exit();
+}
+
 // Only run on the first of the month
 const today = new Date();
-if (process.env.NODE_ENV === 'production' && today.getDate() !== 1 && !process.env.OFFCYCLE) {
-  console.log('NODE_ENV is production and today is not the first of month, script aborted!');
+if (config.env === 'production' && today.getDate() !== 1 && !process.env.OFFCYCLE) {
+  console.log('OC_ENV is production and today is not the first of month, script aborted!');
   process.exit();
 }
 
 process.env.PORT = 3066;
 
-import { get, pick, uniq, groupBy } from 'lodash';
-import moment from 'moment';
-import config from 'config';
-import Promise from 'bluebird';
-import fetch from 'node-fetch';
-import debugLib from 'debug';
-import models, { Op } from '../../server/models';
-import emailLib from '../../server/lib/email';
-import roles from '../../server/constants/roles';
-import ORDER_STATUS from '../../server/constants/order_status';
-import { formatCurrencyObject, formatArrayToString } from '../../server/lib/utils';
-import { convertToCurrency } from '../../server/lib/currency';
-import path from 'path';
-import fs from 'fs';
-
 const d = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date();
 d.setMonth(d.getMonth() - 1);
-const year = d.getFullYear();
 const month = moment(d).format('MMMM');
-const month2digit = moment(d).format('MM');
 
 const startDate = new Date(d.getFullYear(), d.getMonth(), 1);
 const endDate = new Date(d.getFullYear(), d.getMonth() + 1, 1);
@@ -58,7 +62,7 @@ const fetchUserSubscribers = async (notificationType, backerCollective) => {
   );
 
   const admins = await backerCollective.getAdminUsers();
-  const subscribers = admins.filter(a => unsubscribedUserIds.indexOf(a.id) === -1);
+  const subscribers = admins.filter(a => a && unsubscribedUserIds.indexOf(a.id) === -1);
 
   return subscribers;
 };
@@ -151,44 +155,6 @@ const processBacker = async FromCollectiveId => {
     return;
   }
 
-  const attachments = [];
-  if (get(backerCollective, 'settings.sendInvoiceByEmail')) {
-    const distinctHostCollectiveIds = uniq(distinctTransactions.map(t => t.dataValues.HostCollectiveId));
-    const hosts = await Promise.map(distinctHostCollectiveIds, HostCollectiveId =>
-      models.Collective.findByPk(HostCollectiveId, {
-        attributes: ['id', 'slug'],
-      }),
-    );
-
-    const token = subscribers[0].jwt();
-    const headers = { Authorization: `Bearer ${token}` };
-    await Promise.map(
-      hosts,
-      async host => {
-        const filename = `${year}${month2digit}-${host.slug}-${backerCollective.slug}.pdf`;
-        const invoiceUrl = `${config.host.website}/${backerCollective.slug}/invoices/${filename}`;
-        console.log('>>> downloading', invoiceUrl);
-        await fetch(invoiceUrl, { headers })
-          .then(response => {
-            if (response.status === 200) {
-              return response.buffer();
-            } else {
-              console.error(`Unable to download the invoice ${invoiceUrl}`);
-            }
-          })
-          .then(blob => {
-            if (!blob) {
-              return;
-            }
-            attachments.push({
-              filename,
-              content: blob,
-            });
-          });
-      },
-      { concurrency: 4 },
-    );
-  }
   const orders = await models.Order.findAll({
     attributes: ['id', 'CollectiveId', 'totalAmount', 'currency'],
     where: {
@@ -214,40 +180,34 @@ const processBacker = async FromCollectiveId => {
     if (ordersByCollectiveId[collective.id]) {
       collectivesWithOrders.push({
         ...collective,
-        orders: ordersByCollectiveId[collective.id],
+        orders: ordersByCollectiveId[collective.id].map(order => order.info),
         order: computeOrderSummary(ordersByCollectiveId[collective.id]),
       });
     }
   });
-  const stats = await computeStats(collectivesWithOrders, backerCollective.currency);
-  const relatedCollectives = await models.Collective.getCollectivesSummaryByTag(
-    stats.topTags,
-    3,
-    null,
-    0,
-    false,
-    'c."createdAt"',
-    'DESC',
-  );
+  const stats = await computeStats(collectivesWithOrders);
+
+  // monthlyConsolidatedInvoices is array of attachments
+  const monthlyConsolidatedInvoices = await getConsolidatedInvoicePdfs(backerCollective);
 
   try {
     await Promise.each(subscribers, user => {
       const data = {
         config: { host: config.host },
         month,
-        fromCollective: backerCollective,
+        fromCollective: backerCollective.info,
         collectives: collectivesWithOrders,
-        manageSubscriptionsUrl: `${config.host.website}/subscriptions`,
-        relatedCollectives,
+        manageSubscriptionsUrl: `${config.host.website}/recurring-contributions`,
         stats,
         tags: stats.allTags || {},
+        consolidatedPdfs: isEmpty(monthlyConsolidatedInvoices) ? null : true,
       };
       if (data.tags['open source']) {
         data.tags.opensource = true;
       }
       data[backerCollective.type] = true;
       const options = {
-        attachments,
+        attachments: monthlyConsolidatedInvoices,
       };
       return sendEmail(user, data, options);
     });
@@ -277,9 +237,9 @@ const processEvents = events => {
     });
 
     if (new Date(event.startsAt) > now) {
-      res.upcoming.push(event);
+      res.upcoming.push(event.info);
     } else {
-      res.past.push(event);
+      res.past.push(event.info);
     }
   });
   return res;
@@ -356,8 +316,8 @@ const processCollective = async CollectiveId => {
     'settings',
     'totalDonations',
     'contributorsCount',
+    'description',
   ]);
-  data.collective.description = collective.description || collective.mission;
   data.collective.stats = results[0];
   data.collective.stats.balance = results[1];
   data.collective.stats.totalDonations = results[2];
@@ -367,9 +327,9 @@ const processCollective = async CollectiveId => {
       ? Object.keys(collective.data.githubContributors).length
       : data.collective.stats.backers.lastMonth;
   data.collective.yearlyIncome = results[5];
-  data.collective.expenses = results[6];
+  data.collective.expenses = results[6].map(expense => expense.info);
   data.collective.events = processEvents(results[7]);
-  data.collective.updates = results[8];
+  data.collective.updates = results[8].map(update => update.info);
   data.collective.stats.updates = results[8].length;
   const nextGoal = results[9];
   if (nextGoal) {
@@ -390,11 +350,11 @@ const getTopKeysFromObject = (obj, valueAttr, limit = 3) => {
   Object.keys(obj).map(t => {
     values.push({
       value: t,
-      occurences: valueAttr ? obj[t][valueAttr] : obj[t],
+      occurrences: valueAttr ? obj[t][valueAttr] : obj[t],
     });
   });
   values.sort((a, b) => {
-    if (a.occurences > b.occurences) {
+    if (a.occurrences > b.occurrences) {
       return -1;
     } else {
       return 1;
@@ -419,7 +379,7 @@ const computeOrderSummary = orders => {
       orderSummary.totalAmountPerCurrency[order.currency] += order.totalAmount;
 
       if (order.Subscription && order.Subscription.isActive) {
-        orderSummary.Subscription = order.Subscription;
+        orderSummary.Subscription = order.Subscription.dataValues;
       }
     }
   }
@@ -428,8 +388,7 @@ const computeOrderSummary = orders => {
   return orderSummary;
 };
 
-const computeStats = async (collectives, currency = 'USD') => {
-  const categories = {};
+const computeStats = async collectives => {
   const tagsIndex = {};
   const stats = {
     collectives: collectives.length,
@@ -437,7 +396,7 @@ const computeStats = async (collectives, currency = 'USD') => {
     totalSpentPerCurrency: {},
     totalDonatedPerCurrency: {},
   };
-  await Promise.map(collectives, async collective => {
+  collectives.forEach(collective => {
     const expenses = collective.expenses;
     if (collective.tags) {
       collective.tags.map(t => {
@@ -453,36 +412,15 @@ const computeStats = async (collectives, currency = 'USD') => {
     }
     if (expenses && expenses.length > 0) {
       stats.expenses += expenses.length;
-      await Promise.map(expenses, async expense => {
-        const amountInBackerCurrency = await convertToCurrency(expense.amount, expense.currency, currency);
-        categories[expense.category] = categories[expense.category] || {
-          occurences: 0,
-          totalAmountPerCurrency: {},
-          totalAmountInBackerCurrency: 0,
-        };
-        categories[expense.category].occurences++;
-        categories[expense.category].totalAmountPerCurrency[expense.currency] =
-          categories[expense.category].totalAmountPerCurrency[expense.currency] || 0;
-        categories[expense.category].totalAmountPerCurrency[expense.currency] += expense.amount;
-        categories[expense.category].totalAmountInBackerCurrency += amountInBackerCurrency;
+      expenses.forEach(expense => {
         stats.totalSpentPerCurrency[expense.currency] = stats.totalSpentPerCurrency[expense.currency] || 0;
         stats.totalSpentPerCurrency[expense.currency] += expense.amount;
       });
     }
   });
-  stats.topTags = getTopKeysFromObject(tagsIndex);
   stats.allTags = tagsIndex;
-  stats.topCategories = getTopKeysFromObject(categories, 'totalAmountInBackerCurrency');
-  stats.categories = categories;
   stats.totalSpentString = formatCurrencyObject(stats.totalSpentPerCurrency);
   stats.totalDonatedString = formatCurrencyObject(stats.totalDonatedPerCurrency);
-  const ar = [];
-  stats.topCategories.map(category => {
-    ar.push(`${category} (${formatCurrencyObject(categories[category].totalAmountPerCurrency)})`);
-  });
-  stats.expensesBreakdownString = `${Object.keys(categories).length > 3 ? ', mostly in' : ' in'} ${formatArrayToString(
-    ar,
-  )}`;
   console.log(`>>> Stats: ${JSON.stringify(stats, null, 2)}`);
   return stats;
 };

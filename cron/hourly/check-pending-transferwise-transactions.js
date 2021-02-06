@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 import '../../server/env';
 
-import { Op } from 'sequelize';
 import moment from 'moment';
+import { Op } from 'sequelize';
 
-import models from '../../server/models';
+import activities from '../../server/constants/activities';
 import status from '../../server/constants/expense_status';
 import * as transferwiseLib from '../../server/lib/transferwise';
-import activities from '../../server/constants/activities';
+import models from '../../server/models';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 
 async function processExpense(expense) {
@@ -32,7 +32,8 @@ async function processExpense(expense) {
   } else if (expense.status === status.PROCESSING && transfer.status === 'outgoing_payment_sent') {
     console.log(`Transfer sent, marking expense as paid.`);
     await expense.setPaid(expense.lastEditedById);
-    await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID);
+    const user = await models.User.findByPk(expense.lastEditedById);
+    await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID, user);
   } else if (transfer.status === 'funds_refunded') {
     console.warn(`Transfer ${transfer.status}, setting status to Error and deleting existing transactions.`);
     await models.Transaction.destroy({ where: { ExpenseId: expense.id } });
@@ -60,7 +61,7 @@ export async function run() {
     },
     include: [
       { model: models.Collective, as: 'collective' },
-      { model: models.Transaction },
+      { model: models.Transaction, where: { data: { transfer: { [Op.ne]: null } } } },
       { model: models.PayoutMethod, as: 'PayoutMethod', where: { type: PayoutMethodTypes.BANK_ACCOUNT } },
     ],
   });

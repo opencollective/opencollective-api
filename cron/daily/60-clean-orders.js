@@ -7,11 +7,12 @@ import { sequelize } from '../../server/models';
 // https://github.com/sequelize/sequelize/issues/3957
 
 Promise.all([
-  // Mark all Manual Payments as ERROR after 2 months
+  // Mark all Manual Payments as EXPIRED after 2 months
+  // (Until August 2020, it used to be ERROR instead of EXPIRED)
   // Make sure to not include pledges
   sequelize.query(
     `UPDATE "Orders"
-  SET "status" = 'ERROR', "updatedAt" = NOW()
+  SET "status" = 'EXPIRED', "updatedAt" = NOW()
   FROM "Collectives"
   WHERE "Orders"."status" = 'PENDING'
   AND "Orders"."PaymentMethodId" IS NULL

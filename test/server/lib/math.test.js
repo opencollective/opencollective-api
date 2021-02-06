@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+
 import { toNegative } from '../../../server/lib/math';
 
 describe('server/lib/math', () => {

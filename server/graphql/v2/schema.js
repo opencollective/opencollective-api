@@ -1,8 +1,8 @@
 import { GraphQLObjectType, GraphQLSchema } from 'graphql';
 
-import types from './types';
-import query from './query';
 import mutation from './mutation';
+import query from './query';
+import types from './types';
 
 const Query = new GraphQLObjectType({
   name: 'Query',

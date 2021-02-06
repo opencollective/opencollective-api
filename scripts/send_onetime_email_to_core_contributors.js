@@ -70,7 +70,7 @@ const sendEmail = recipients => {
   const data = {};
   if (recipients.length === 0) return;
   return Promise.map(recipients, recipient => {
-    data.recipient = recipient;
+    data.recipient = recipient.info;
     if (process.env.ONLY && recipient.email !== process.env.ONLY) {
       debug('Skipping ', recipient.email);
       return Promise.resolve();

@@ -8,6 +8,38 @@ export default function (Sequelize, DataTypes) {
 
       data: DataTypes.JSONB,
 
+      CollectiveId: {
+        type: DataTypes.INTEGER,
+        references: {
+          model: 'Collectives',
+          key: 'id',
+        },
+      },
+
+      UserId: {
+        type: DataTypes.INTEGER,
+        references: {
+          model: 'Users',
+          key: 'id',
+        },
+      },
+
+      TransactionId: {
+        type: DataTypes.INTEGER,
+        references: {
+          model: 'Transactions',
+          key: 'id',
+        },
+      },
+
+      ExpenseId: {
+        type: DataTypes.INTEGER,
+        references: {
+          model: 'Expenses',
+          key: 'id',
+        },
+      },
+
       createdAt: {
         type: DataTypes.DATE,
         defaultValue: Sequelize.NOW,
@@ -19,6 +51,7 @@ export default function (Sequelize, DataTypes) {
       hooks: {
         afterCreate(activity) {
           notify(Sequelize, activity); // intentionally no return statement, needs to be async
+          return Promise.resolve();
         },
       },
     },
@@ -55,9 +88,6 @@ Types:
   - collective.deleted
       data: collective.name, user.info
 
-  + collective.user.added
-      data: collective, user (caller), target (the new user), collectiveuser
-      2* Userid: the new user + the caller
   - collective.user.updated
       data: collective, user (caller), target (the updated user), collectiveuser (updated values)
       2* Userid: the updated user + the caller

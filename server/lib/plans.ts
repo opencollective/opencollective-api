@@ -1,6 +1,8 @@
 import { get } from 'lodash';
 
 import plans, { PLANS_COLLECTIVE_SLUG } from '../constants/plans';
+import cache from '../lib/cache';
+
 import { notifyAdminsOfCollective } from './notifications';
 
 const isSubscribeOrUpgrade = (newPlan: string, oldPlan?: string | null): boolean => {
@@ -20,6 +22,8 @@ export async function subscribeOrUpgradePlan(order): Promise<void> {
     // features until the end of the billing. Downgrades are dealt in a cronjob.
     if (newPlan && plans[newPlan] && isSubscribeOrUpgrade(newPlan, oldPlan)) {
       await order.fromCollective.update({ plan: newPlan });
+      await cache.del(`plan_${order.fromCollective.id}`);
+
       const emailData = {
         name: order.fromCollective.name,
         plan: get(order, 'tier.name'),
@@ -84,14 +88,21 @@ export async function handleHostPlanAddedFundsLimit(
   }
 }
 
-export async function handleHostPlanBankTransfersLimit(host, { throwException = false }): Promise<void> {
+export async function handleHostPlanBankTransfersLimit(host): Promise<void> {
   const hostPlan = await host.getPlan();
   if (hostPlan.bankTransfersLimit && hostPlan.bankTransfers >= hostPlan.bankTransfersLimit) {
-    if (throwException) {
-      throw new Error(
-        `${host.name} can’t receive Bank Transfers right now via Open Collective because they’ve reached their free plan limit. Once they upgrade to a paid plan, Bank Transfers will be available again.`,
-      );
-    }
+    throw new Error(
+      `${host.name} can’t receive Bank Transfers right now via Open Collective because they’ve reached their free plan limit. Once they upgrade to a paid plan, Bank Transfers will be available again.`,
+    );
+  }
+}
+
+export async function handleTransferwisePayoutsLimit(host): Promise<void> {
+  const hostPlan = await host.getPlan();
+  if (hostPlan.transferwisePayoutsLimit !== null && hostPlan.transferwisePayouts >= hostPlan.transferwisePayoutsLimit) {
+    throw new Error(
+      `You can't pay this expense with TransferWise because you’ve reached your free plan limit. Once you upgrade to a paid plan payments with TransferWise will be available again.`,
+    );
   }
 }
 

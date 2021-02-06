@@ -1,28 +1,24 @@
-import debugLib from 'debug';
 import Promise from 'bluebird';
+import config from 'config';
+import debugLib from 'debug';
 import { get, intersection } from 'lodash';
 import { Op } from 'sequelize';
 
+import { maxInteger } from '../constants/math';
+import { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPES } from '../constants/paymentMethods';
 import { TransactionTypes } from '../constants/transactions';
-
-import { sumTransactions } from '../lib/hostlib';
-import { formatCurrency, formatArrayToString, cleanTags } from '../lib/utils';
 import { getFxRate } from '../lib/currency';
-
-import CustomDataTypes from './DataTypes';
+import { sumTransactions } from '../lib/hostlib';
 import * as libpayments from '../lib/payments';
 import { isTestToken } from '../lib/stripe';
+import { cleanTags, formatArrayToString, formatCurrency } from '../lib/utils';
 
-import { maxInteger } from '../constants/math';
+import CustomDataTypes from './DataTypes';
 
 const debug = debugLib('models:PaymentMethod');
 
 export default function (Sequelize, DataTypes) {
   const { models } = Sequelize;
-
-  const payoutMethods = ['paypal', 'stripe', 'opencollective', 'prepaid'];
-
-  const payoutTypes = ['creditcard', 'prepaid', 'payment', 'collective', 'adaptive', 'virtualcard'];
 
   const PaymentMethod = Sequelize.define(
     'PaymentMethod',
@@ -85,8 +81,8 @@ export default function (Sequelize, DataTypes) {
         defaultValue: 'stripe',
         validate: {
           isIn: {
-            args: [payoutMethods],
-            msg: `Must be in ${payoutMethods}`,
+            args: [PAYMENT_METHOD_SERVICES],
+            msg: `Must be in ${PAYMENT_METHOD_SERVICES}`,
           },
         },
       },
@@ -95,8 +91,8 @@ export default function (Sequelize, DataTypes) {
         type: DataTypes.STRING,
         validate: {
           isIn: {
-            args: [payoutTypes],
-            msg: `Must be in ${payoutTypes}`,
+            args: [PAYMENT_METHOD_TYPES],
+            msg: `Must be in ${PAYMENT_METHOD_TYPES}`,
           },
         },
       },
@@ -155,11 +151,6 @@ export default function (Sequelize, DataTypes) {
         },
       },
 
-      limitedToCollectiveIds: {
-        type: DataTypes.ARRAY(DataTypes.INTEGER),
-        description: 'if not null, this payment method can only be used for collectives listed by their id',
-      },
-
       limitedToHostCollectiveIds: {
         type: DataTypes.ARRAY(DataTypes.INTEGER),
         description: 'if not null, this payment method can only be used for collectives hosted by these collective ids',
@@ -190,7 +181,7 @@ export default function (Sequelize, DataTypes) {
               throw new Error(`${instance.service} payment method requires a token`);
             }
             if (instance.service === 'stripe' && !instance.token.match(/^(tok|src|pm)_[a-zA-Z0-9]{24}/)) {
-              if (process.env.NODE_ENV !== 'production' && isTestToken(instance.token)) {
+              if (config.env !== 'production' && isTestToken(instance.token)) {
                 // test token for end to end tests
               } else {
                 throw new Error(`Invalid Stripe token ${instance.token}`);
@@ -236,7 +227,7 @@ export default function (Sequelize, DataTypes) {
     },
   );
 
-  PaymentMethod.payoutMethods = payoutMethods;
+  PaymentMethod.payoutMethods = PAYMENT_METHOD_SERVICES;
 
   /**
    * Instance Methods
@@ -285,16 +276,6 @@ export default function (Sequelize, DataTypes) {
       );
     };
 
-    if (this.limitedToCollectiveIds) {
-      const collective = order.collective || (await order.getCollective());
-      if (!this.limitedToCollectiveIds.includes(collective.HostCollectiveId)) {
-        const collectives = await Promise.map(this.limitedToCollectiveIds, fetchCollectiveName);
-        throw new Error(
-          `This payment method can only be used for the following collectives ${formatArrayToString(collectives)}`,
-        );
-      }
-    }
-
     if (this.limitedToHostCollectiveIds) {
       const collective = order.collective || (await order.getCollective());
       if (!this.limitedToHostCollectiveIds.includes(collective.HostCollectiveId)) {
@@ -314,15 +295,17 @@ export default function (Sequelize, DataTypes) {
         );
       }
     } else {
+      const collective = await models.Collective.findByPk(this.CollectiveId);
+
       // If there is a monthly limit per member, the user needs to be a member or admin of the collective that owns the payment method
-      if (this.monthlyLimitPerMember && !user.isMember(this.CollectiveId)) {
+      if (this.monthlyLimitPerMember && !user.isMemberOfCollective(collective)) {
         throw new Error(
           "You don't have enough permissions to use this payment method (you need to be a member or an admin of the collective that owns this payment method)",
         );
       }
 
       // If there is no monthly limit, the user needs to be an admin of the collective that owns the payment method
-      if (!this.monthlyLimitPerMember && !user.isAdmin(this.CollectiveId) && this.type !== 'manual') {
+      if (!this.monthlyLimitPerMember && !user.isAdminOfCollective(collective) && this.type !== 'manual') {
         throw new Error(
           "You don't have enough permissions to use this payment method (you need to be an admin of the collective that owns this payment method)",
         );

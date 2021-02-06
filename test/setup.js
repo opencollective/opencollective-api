@@ -1,8 +1,8 @@
 import chai from 'chai';
-import chaiJestSnapshot from 'chai-jest-snapshot';
 import chaiAsPromised from 'chai-as-promised';
-import Sequelize from 'sequelize';
+import chaiJestSnapshot from 'chai-jest-snapshot';
 import { mapValues } from 'lodash';
+import Sequelize from 'sequelize';
 
 // setting up NODE_ENV to test when running the tests.
 if (!process.env.NODE_ENV) {

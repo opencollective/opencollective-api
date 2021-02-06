@@ -1,20 +1,30 @@
-import { GraphQLString, GraphQLObjectType, GraphQLInt, GraphQLNonNull, GraphQLList } from 'graphql';
-import models, { Op } from '../../../models';
+import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLDateTime } from 'graphql-iso-date';
+import GraphQLJSON from 'graphql-type-json';
+import { pick } from 'lodash';
 
-import { PERMISSION_TYPE, allowContextPermission } from '../../common/context-permissions';
+import expenseStatus from '../../../constants/expense_status';
+import models, { Op } from '../../../models';
+import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import * as ExpensePermissionsLib from '../../common/expenses';
 import { CommentCollection } from '../collection/CommentCollection';
+import { Currency } from '../enum';
+import ExpenseStatus from '../enum/ExpenseStatus';
+import { ExpenseType } from '../enum/ExpenseType';
+import { LegalDocumentType } from '../enum/LegalDocumentType';
+import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
 import { Account } from '../interface/Account';
 import { CollectionArgs } from '../interface/Collection';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
-import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
-import PayoutMethod from './PayoutMethod';
-import { ExpenseType } from '../enum/ExpenseType';
-import { Currency } from '../enum';
-import ExpenseAttachment from './ExpenseAttachment';
+import { Activity } from './Activity';
+import ExpenseAttachedFile from './ExpenseAttachedFile';
+import ExpenseItem from './ExpenseItem';
 import ExpensePermissions from './ExpensePermissions';
-import ExpenseStatus from '../enum/ExpenseStatus';
+import { Location } from './Location';
+import PayoutMethod from './PayoutMethod';
+
+const EXPENSE_DRAFT_PUBLIC_FIELDS = ['items', 'payee', 'recipientNote', 'invitedByCollectiveId', 'attachedFiles'];
 
 const Expense = new GraphQLObjectType({
   name: 'Expense',
@@ -36,9 +46,17 @@ const Expense = new GraphQLObjectType({
         type: new GraphQLNonNull(GraphQLString),
         description: 'Title/main description for this expense',
       },
+      longDescription: {
+        type: GraphQLString,
+        description: 'Longer description for this expense',
+      },
       amount: {
         type: new GraphQLNonNull(GraphQLInt),
-        description: 'Total amount of the expense (sum of the attachments).',
+        description: "Total amount of the expense (sum of the item's amounts).",
+      },
+      createdAt: {
+        type: new GraphQLNonNull(GraphQLDateTime),
+        description: 'The time of creation',
       },
       currency: {
         type: new GraphQLNonNull(Currency),
@@ -53,7 +71,8 @@ const Expense = new GraphQLObjectType({
         description: 'The state of the expense (pending, approved, paid, rejected...etc)',
       },
       comments: {
-        type: new GraphQLNonNull(CommentCollection),
+        type: CommentCollection,
+        description: 'Returns the list of comments for this expense, or `null` if user is not allowed to see them',
         args: {
           ...CollectionArgs,
           orderBy: {
@@ -61,7 +80,11 @@ const Expense = new GraphQLObjectType({
             defaultValue: { field: 'createdAt', direction: 'ASC' },
           },
         },
-        async resolve(expense, { limit, offset, orderBy }) {
+        async resolve(expense, { limit, offset, orderBy }, req) {
+          if (!(await ExpensePermissionsLib.canComment(req, expense))) {
+            return null;
+          }
+
           const { count, rows } = await models.Comment.findAndCountAll({
             where: {
               ExpenseId: { [Op.eq]: expense.id },
@@ -70,12 +93,8 @@ const Expense = new GraphQLObjectType({
             offset,
             limit,
           });
-          return {
-            offset,
-            limit,
-            totalCount: count,
-            nodes: rows,
-          };
+
+          return { offset, limit, totalCount: count, nodes: rows };
         },
       },
       account: {
@@ -89,14 +108,15 @@ const Expense = new GraphQLObjectType({
         type: new GraphQLNonNull(Account),
         description: 'The account being paid by this expense',
         async resolve(expense, _, req) {
-          // Set the permissions for account's fields
-          const canSeeLocation = await ExpensePermissionsLib.canSeeExpensePayeeLocation(req, expense);
-          if (canSeeLocation) {
-            allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_LOCATION, expense.FromCollectiveId, true);
-          }
-
-          // Return fromCollective
           return req.loaders.Collective.byId.load(expense.FromCollectiveId);
+        },
+      },
+      payeeLocation: {
+        type: Location,
+        description: 'The address of the payee',
+        async resolve(expense, _, req) {
+          const canSeeLocation = await ExpensePermissionsLib.canSeeExpensePayeeLocation(req, expense);
+          return !canSeeLocation ? null : expense.payeeLocation;
         },
       },
       createdByAccount: {
@@ -117,7 +137,7 @@ const Expense = new GraphQLObjectType({
         description: 'The payout method to use for this expense',
         async resolve(expense, _, req) {
           if (expense.PayoutMethodId) {
-            if (await ExpensePermissionsLib.canSeeExpensePayoutMethod(expense, req)) {
+            if (await ExpensePermissionsLib.canSeeExpensePayoutMethod(req, expense)) {
               allowContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DATA, expense.PayoutMethodId);
             }
 
@@ -125,19 +145,39 @@ const Expense = new GraphQLObjectType({
           }
         },
       },
+      attachedFiles: {
+        type: new GraphQLList(new GraphQLNonNull(ExpenseAttachedFile)),
+        description: '(Optional) files attached to the expense',
+        async resolve(expense, _, req) {
+          if (await ExpensePermissionsLib.canSeeExpenseAttachments(req, expense)) {
+            return req.loaders.Expense.attachedFiles.load(expense.id);
+          }
+        },
+      },
       attachments: {
-        type: new GraphQLList(ExpenseAttachment),
+        type: new GraphQLList(ExpenseItem),
+        deprecationReason: '2020-04-08: Field has been renamed to "items"',
         async resolve(expense, _, req) {
           if (await ExpensePermissionsLib.canSeeExpenseAttachments(req, expense)) {
             allowContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_ATTACHMENTS_URL, expense.id);
           }
 
-          return ExpensePermissionsLib.getExpenseAttachments(expense.id, req);
+          return ExpensePermissionsLib.getExpenseItems(expense.id, req);
+        },
+      },
+      items: {
+        type: new GraphQLList(ExpenseItem),
+        async resolve(expense, _, req) {
+          if (await ExpensePermissionsLib.canSeeExpenseAttachments(req, expense)) {
+            allowContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_ATTACHMENTS_URL, expense.id);
+          }
+
+          return ExpensePermissionsLib.getExpenseItems(expense.id, req);
         },
       },
       privateMessage: {
         type: GraphQLString,
-        description: 'Additional information about the payment. Only visible to user and admins.',
+        description: 'Additional information about the payment as HTML. Only visible to user and admins.',
         async resolve(expense, _, req) {
           if (await ExpensePermissionsLib.canSeeExpensePayoutMethod(req, expense)) {
             return expense.privateMessage;
@@ -158,6 +198,49 @@ const Expense = new GraphQLObjectType({
         description: 'The permissions given to current logged in user for this expense',
         async resolve(expense) {
           return expense; // Individual fields are set by ExpensePermissions's resolvers
+        },
+      },
+      activities: {
+        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Activity))),
+        description: 'The list of activities (ie. approved, edited, etc) for this expense ordered by date ascending',
+        resolve(expense, _, req) {
+          return req.loaders.Expense.activities.load(expense.id);
+        },
+      },
+      tags: {
+        type: new GraphQLNonNull(new GraphQLList(GraphQLString)),
+        resolve(expense) {
+          return expense.tags || [];
+        },
+      },
+      requiredLegalDocuments: {
+        type: new GraphQLList(LegalDocumentType),
+        description:
+          'Returns the list of legal documents required from the payee before the expense can be payed. Must be logged in.',
+        async resolve(expense, _, req) {
+          if (!(await ExpensePermissionsLib.canViewRequiredLegalDocuments(req, expense))) {
+            return null;
+          } else {
+            return req.loaders.Expense.requiredLegalDocuments.load(expense.id);
+          }
+        },
+      },
+      draft: {
+        type: GraphQLJSON,
+        description: 'Drafted field values that were still not persisted',
+        async resolve(expense) {
+          if (expense.status == expenseStatus.DRAFT) {
+            return pick(expense.data, EXPENSE_DRAFT_PUBLIC_FIELDS);
+          }
+        },
+      },
+      requestedByAccount: {
+        type: Account,
+        description: 'The account that requested this expense to be submitted',
+        async resolve(expense, _, req) {
+          if (expense.data?.invitedByCollectiveId) {
+            return await req.loaders.Collective.byId.load(expense.data.invitedByCollectiveId);
+          }
         },
       },
     };
