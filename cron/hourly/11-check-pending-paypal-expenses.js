@@ -20,10 +20,13 @@ export async function run() {
         {
           status: { [Op.notIn]: [status.PAID, status.ERROR] },
           updatedAt: {
-            [Op.gte]: moment().subtract(15, 'days').toDate(),
+            // 40 so we can cover the 30 day limit
+            [Op.gte]: moment().subtract(40, 'days').toDate(),
           },
         },
       ],
+      // 30 minutes window to avoid race conditions with the webhook interface
+      updatedAt: { [Op.lte]: moment().subtract(30, 'minutes').toDate() },
       'data.payout_batch_id': { [Op.not]: null },
     },
     include: [

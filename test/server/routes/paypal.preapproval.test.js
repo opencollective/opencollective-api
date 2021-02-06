@@ -121,7 +121,7 @@ describe('server/routes/paypal.preapproval', () => {
           .set('Authorization', `Bearer ${user.jwt()}`)
           .expect(302)
           .end((e, res) => {
-            expect(res.headers.location).to.include('paypal/redirect?status=success&service=paypal');
+            expect(res.headers.location).to.include('paypal/redirect?paypalApprovalStatus=success');
 
             models.PaymentMethod.findAndCountAll({
               where: { token: preapprovalkey },
@@ -163,7 +163,7 @@ describe('server/routes/paypal.preapproval', () => {
           .set('Authorization', `Bearer ${user.jwt()}`)
           .end((e, res) => {
             expect(res.headers.location).to.contain(
-              'paypal/redirect?status=error&service=paypal&error=Error%20while%20contacting%20PayPal&errorMessage=This%20preapprovalkey%20is%20not%20approved%20yet',
+              'paypal/redirect?paypalApprovalStatus=error&paypalApprovalError=This+preapprovalkey+is+not+approved+yet',
             );
             done();
           });
@@ -187,7 +187,7 @@ describe('server/routes/paypal.preapproval', () => {
           .set('Authorization', `Bearer ${user.jwt()}`)
           .end((e, res) => {
             expect(res.headers.location).to.contain(
-              '/paypal/redirect?status=error&service=paypal&error=Error%20while%20contacting%20PayPal',
+              '/paypal/redirect?paypalApprovalStatus=error&paypalApprovalError=Error+while+contacting+PayPal',
             );
             done();
           });

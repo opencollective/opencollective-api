@@ -19,7 +19,6 @@ describe('server/lib/twitter', () => {
       totalAmountReceived: '$1,277',
       topBackersTwitterHandles: '@webflowapp, @dalmaer, @stickermule',
       newBackersTwitterHandles: '@bakkenbaeck, @mziehlke',
-      topExpenseCategories: 'none',
     };
 
     it('with no amount spent', () => {
@@ -35,11 +34,10 @@ Thank you! 🙏`);
 
     it('with amount spent', () => {
       data.totalAmountSpent = '$542';
-      data.topExpenseCategories = 'engineering and travel';
       const tweet = twitter.compileTweet('monthlyStats', data);
       expect(tweet).to.equal(`In December, 2 backers joined (@bakkenbaeck, @mziehlke) - you are the best! 🙌
 
-We received $1,277 from 82 backers and we spent $542 on engineering and travel. Our current balance is $1,200.
+We received $1,277 from 82 backers and we spent $542. Our current balance is $1,200.
 
 Top backers: @webflowapp, @dalmaer, @stickermule
 

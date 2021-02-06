@@ -13,10 +13,14 @@ import { PayoutMethodInput } from './PayoutMethodInput';
  */
 export const ExpenseCreateInput = new GraphQLInputObjectType({
   name: 'ExpenseCreateInput',
-  fields: {
+  fields: () => ({
     description: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'Main title of the expense',
+    },
+    longDescription: {
+      type: GraphQLString,
+      description: 'Longer text to attach to the expense',
     },
     tags: {
       type: new GraphQLList(GraphQLString),
@@ -28,7 +32,7 @@ export const ExpenseCreateInput = new GraphQLInputObjectType({
     },
     privateMessage: {
       type: GraphQLString,
-      description: 'A private note that will be attached to your invoice',
+      description: 'A private note that will be attached to your invoice, as HTML',
     },
     invoiceInfo: {
       type: GraphQLString,
@@ -37,11 +41,6 @@ export const ExpenseCreateInput = new GraphQLInputObjectType({
     payoutMethod: {
       type: new GraphQLNonNull(PayoutMethodInput),
       description: 'The payout method that will be used to reimburse the expense',
-    },
-    attachments: {
-      type: new GraphQLList(ExpenseItemCreateInput),
-      description:
-        '@deprecated 2020-04-08: Please use the items field - The list of items for this expense. Total amount will be computed from them.',
     },
     items: {
       type: new GraphQLList(ExpenseItemCreateInput),
@@ -59,5 +58,5 @@ export const ExpenseCreateInput = new GraphQLInputObjectType({
       type: LocationInput,
       description: 'The address of the payee',
     },
-  },
+  }),
 });

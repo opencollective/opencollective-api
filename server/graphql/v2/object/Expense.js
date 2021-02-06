@@ -1,10 +1,10 @@
 import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
-import moment from 'moment';
+import GraphQLJSON from 'graphql-type-json';
+import { pick } from 'lodash';
 
-import { isUserTaxFormRequiredBeforePayment } from '../../../lib/tax-forms';
+import expenseStatus from '../../../constants/expense_status';
 import models, { Op } from '../../../models';
-import { LEGAL_DOCUMENT_TYPE } from '../../../models/LegalDocument';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import * as ExpensePermissionsLib from '../../common/expenses';
 import { CommentCollection } from '../collection/CommentCollection';
@@ -23,6 +23,8 @@ import ExpenseItem from './ExpenseItem';
 import ExpensePermissions from './ExpensePermissions';
 import { Location } from './Location';
 import PayoutMethod from './PayoutMethod';
+
+const EXPENSE_DRAFT_PUBLIC_FIELDS = ['items', 'payee', 'recipientNote', 'invitedByCollectiveId', 'attachedFiles'];
 
 const Expense = new GraphQLObjectType({
   name: 'Expense',
@@ -43,6 +45,10 @@ const Expense = new GraphQLObjectType({
       description: {
         type: new GraphQLNonNull(GraphQLString),
         description: 'Title/main description for this expense',
+      },
+      longDescription: {
+        type: GraphQLString,
+        description: 'Longer description for this expense',
       },
       amount: {
         type: new GraphQLNonNull(GraphQLInt),
@@ -171,7 +177,7 @@ const Expense = new GraphQLObjectType({
       },
       privateMessage: {
         type: GraphQLString,
-        description: 'Additional information about the payment. Only visible to user and admins.',
+        description: 'Additional information about the payment as HTML. Only visible to user and admins.',
         async resolve(expense, _, req) {
           if (await ExpensePermissionsLib.canSeeExpensePayoutMethod(req, expense)) {
             return expense.privateMessage;
@@ -212,19 +218,29 @@ const Expense = new GraphQLObjectType({
         description:
           'Returns the list of legal documents required from the payee before the expense can be payed. Must be logged in.',
         async resolve(expense, _, req) {
-          if (!req.remoteUser?.isAdmin(expense.FromCollectiveId)) {
-            return [];
+          if (!(await ExpensePermissionsLib.canViewRequiredLegalDocuments(req, expense))) {
+            return null;
+          } else {
+            return req.loaders.Expense.requiredLegalDocuments.load(expense.id);
           }
-
-          const incurredYear = moment(expense.incurredAt).year();
-          const isW9FormRequired = await isUserTaxFormRequiredBeforePayment({
-            year: incurredYear,
-            invoiceTotalThreshold: 600e2,
-            expenseCollectiveId: expense.CollectiveId,
-            UserId: expense.UserId,
-          });
-
-          return isW9FormRequired ? [LEGAL_DOCUMENT_TYPE.US_TAX_FORM] : [];
+        },
+      },
+      draft: {
+        type: GraphQLJSON,
+        description: 'Drafted field values that were still not persisted',
+        async resolve(expense) {
+          if (expense.status == expenseStatus.DRAFT) {
+            return pick(expense.data, EXPENSE_DRAFT_PUBLIC_FIELDS);
+          }
+        },
+      },
+      requestedByAccount: {
+        type: Account,
+        description: 'The account that requested this expense to be submitted',
+        async resolve(expense, _, req) {
+          if (expense.data?.invitedByCollectiveId) {
+            return await req.loaders.Collective.byId.load(expense.data.invitedByCollectiveId);
+          }
         },
       },
     };

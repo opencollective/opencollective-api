@@ -47,6 +47,7 @@ export const fakeUser = async (userData, collectiveData) => {
     HostCollectiveId: null,
     CreatedByUserId: user.id,
     ...collectiveData,
+    isActive: false,
   });
 
   await user.update({ CollectiveId: userCollective.id });
@@ -67,10 +68,16 @@ export const fakeHost = async hostData => {
 };
 
 /**
- * Creates a fake update. All params are optionals.
+ * Creates a fake collective. All params are optionals.
  */
 export const fakeCollective = async (collectiveData = {}) => {
   const type = collectiveData.type || CollectiveType.COLLECTIVE;
+  if (!collectiveData.CreatedByUserId) {
+    collectiveData.CreatedByUserId = (await fakeUser()).id;
+  }
+  if (collectiveData.HostCollectiveId === undefined) {
+    collectiveData.HostCollectiveId = (await fakeHost()).id;
+  }
   const collective = await models.Collective.create({
     type,
     name: collectiveData.isHostAccount ? randStr('Test Host ') : randStr('Test Collective '),
@@ -82,10 +89,8 @@ export const fakeCollective = async (collectiveData = {}) => {
     hostFeePercent: 10,
     tags: [randStr(), randStr()],
     isActive: true,
+    approvedAt: collectiveData.HostCollectiveId ? new Date() : null,
     ...collectiveData,
-    CreatedByUserId: collectiveData.CreatedByUserId || (await fakeUser()).id,
-    HostCollectiveId:
-      collectiveData.HostCollectiveId === undefined ? (await fakeHost()).id : collectiveData.HostCollectiveId,
   });
 
   collective.host = collective.HostCollectiveId && (await models.Collective.findByPk(collective.HostCollectiveId));
@@ -314,7 +319,7 @@ export const fakeConversation = async (conversationData = {}) => {
 export const fakeTier = async (tierData = {}) => {
   const name = randStr('tier');
   const interval = sample(['month', 'year']);
-  const currency = sample(['USD', 'EUR']);
+  const currency = tierData.currency || sample(['USD', 'EUR']);
   const amount = tierData.amount || randAmount(1, 100) * 100;
   const description = `$${amount / 100}/${interval}`;
 
@@ -334,7 +339,7 @@ export const fakeTier = async (tierData = {}) => {
 /**
  * Creates a fake order. All params are optionals.
  */
-export const fakeOrder = async (orderData = {}) => {
+export const fakeOrder = async (orderData = {}, { withSubscription = false, withTransactions = false } = {}) => {
   const CreatedByUserId = orderData.CreatedByUserId || (await fakeUser()).id;
   const user = await models.User.findByPk(CreatedByUserId);
   const FromCollectiveId = orderData.FromCollectiveId || (await models.Collective.findByPk(user.CollectiveId)).id;
@@ -353,6 +358,35 @@ export const fakeOrder = async (orderData = {}) => {
 
   if (order.PaymentMethodId) {
     order.paymentMethod = await models.PaymentMethod.findByPk(order.PaymentMethodId);
+  }
+
+  if (withSubscription) {
+    const subscription = await models.Subscription.create({
+      amount: order.totalAmount,
+      interval: 'month',
+      currency: order.currency,
+      isActive: true,
+    });
+    await order.update({ SubscriptionId: subscription.id });
+  }
+
+  if (withTransactions) {
+    order.transactions = await Promise.all([
+      fakeTransaction({
+        OrderId: order.id,
+        type: 'CREDIT',
+        FromCollectiveId: order.FromCollectiveId,
+        CollectiveId: order.CollectiveId,
+        amount: order.amount,
+      }),
+      fakeTransaction({
+        OrderId: order.id,
+        type: 'DEBIT',
+        CollectiveId: order.FromCollectiveId,
+        FromCollectiveId: order.CollectiveId,
+        amount: -order.amount,
+      }),
+    ]);
   }
 
   order.fromCollective = await models.Collective.findByPk(order.FromCollectiveId);
@@ -390,6 +424,7 @@ export const fakeTransaction = async (transactionData = {}) => {
     hostCurrencyFxRate: 1,
     netAmountInCollectiveCurrency: amount,
     amountInHostCurrency: amount,
+    TransactionGroup: uuid(),
     ...transactionData,
     amount,
     CreatedByUserId,
@@ -424,5 +459,14 @@ export const fakePaymentMethod = async data => {
     service: data.service || sample(PAYMENT_METHOD_SERVICES),
     CollectiveId: data.CollectiveId || (await fakeCollective().then(c => c.id)),
     currency: data.currency || 'USD',
+  });
+};
+
+export const fakeLegalDocument = async (data = {}) => {
+  return models.LegalDocument.create({
+    year: new Date().getFullYear(),
+    requestStatus: 'REQUESTED',
+    ...data,
+    CollectiveId: data.CollectiveId || (await fakeCollective().then(c => c.id)),
   });
 };

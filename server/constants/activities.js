@@ -23,11 +23,11 @@ export default {
   COLLECTIVE_EXPENSE_PROCESSING: 'collective.expense.processing',
   COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT: 'collective.expense.scheduledForPayment',
   COLLECTIVE_EXPENSE_ERROR: 'collective.expense.error',
+  COLLECTIVE_EXPENSE_INVITE_DRAFTED: 'collective.expense.invite.drafted',
   COLLECTIVE_MEMBER_CREATED: 'collective.member.created',
   COLLECTIVE_TRANSACTION_CREATED: 'collective.transaction.created',
   COLLECTIVE_UPDATE_CREATED: 'collective.update.created',
   COLLECTIVE_UPDATE_PUBLISHED: 'collective.update.published',
-  COLLECTIVE_USER_ADDED: 'collective.user.added',
   COLLECTIVE_CONTACT: 'collective.contact',
   ORGANIZATION_COLLECTIVE_CREATED: 'organization.collective.created',
   SUBSCRIPTION_ACTIVATED: 'subscription.activated',
@@ -46,4 +46,5 @@ export default {
 
   // Not used anymore, leaving for historical reference
   COLLECTIVE_TRANSACTION_PAID: 'collective.transaction.paid', // replaced with COLLECTIVE_EXPENSE_PAID
+  COLLECTIVE_USER_ADDED: 'collective.user.added',
 };

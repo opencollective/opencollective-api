@@ -18,15 +18,14 @@ export const templateNames = [
   'collective.apply',
   'collective.apply.for.host',
   'collective.approved',
-  'collective.approved.the-social-change-agency',
+  'collective.approved.the-social-change-nest',
   'collective.rejected',
   'collective.comment.created',
   'collective.conversation.created',
   'collective.confirm',
   'collective.created',
-  'collective.created.the-social-change-agency',
+  'collective.created.the-social-change-nest',
   'collective.contact',
-  'collective.created.meetup',
   'collective.created.opensource',
   'collective.expense.approved',
   'collective.expense.approved.for.host',
@@ -36,16 +35,19 @@ export const templateNames = [
   'collective.expense.error.for.host',
   'collective.expense.paid',
   'collective.expense.paid.for.host',
+  'collective.expense.invite.drafted',
   'collective.member.created',
   'collective.monthlyreport',
   'collective.monthlyreport.text',
   'collective.newmember',
   'collective.update.published',
+  'confirm-guest-account',
   'event.newmember',
   'event.reminder.1d',
   'event.reminder.7d',
   'fund.created.foundation',
   'fund.approved.foundation',
+  'host.application.contact',
   'host.report',
   'host.report.text',
   'host.report.summary',
@@ -69,7 +71,6 @@ export const templateNames = [
   'payment.creditcard.confirmation',
   'payment.creditcard.confirmation.text',
   'payment.creditcard.expiring',
-  'pledge.complete',
   'order.processing',
   'order.new.pendingFinancialContribution',
   'order.reminder.pendingFinancialContribution',
@@ -114,6 +115,7 @@ export const templateNames = [
   'hostplan.renewal.thankyou',
   'hostplan.first.subscription.confirmation',
   'hostplan.upgrade.subscription.confirmation',
+  'contribution.rejected',
 ];
 
 const templatesPath = `${__dirname}/../../templates`;
@@ -125,7 +127,6 @@ const footertxt = fs.readFileSync(`${templatesPath}/partials/footer.text.hbs`, '
 const toplogo = fs.readFileSync(`${templatesPath}/partials/toplogo.hbs`, 'utf8');
 const eventsnippet = fs.readFileSync(`${templatesPath}/partials/eventsnippet.hbs`, 'utf8');
 const eventdata = fs.readFileSync(`${templatesPath}/partials/eventdata.hbs`, 'utf8');
-const relatedcollectives = fs.readFileSync(`${templatesPath}/partials/relatedcollectives.hbs`, 'utf8');
 const collectivecard = fs.readFileSync(`${templatesPath}/partials/collectivecard.hbs`, 'utf8');
 const chargeDateNotice = fs.readFileSync(`${templatesPath}/partials/charge_date_notice.hbs`, 'utf8');
 const mthReportFooter = fs.readFileSync(`${templatesPath}/partials/monthlyreport.footer.hbs`, 'utf8');
@@ -138,7 +139,6 @@ handlebars.registerPartial('toplogo', toplogo);
 handlebars.registerPartial('collectivecard', collectivecard);
 handlebars.registerPartial('eventsnippet', eventsnippet);
 handlebars.registerPartial('eventdata', eventdata);
-handlebars.registerPartial('relatedcollectives', relatedcollectives);
 handlebars.registerPartial('charge_date_notice', chargeDateNotice);
 handlebars.registerPartial('mr-footer', mthReportFooter);
 handlebars.registerPartial('mr-subscription', mthReportSubscription);

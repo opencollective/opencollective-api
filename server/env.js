@@ -6,6 +6,15 @@ if (!process.env.NODE_ENV) {
   process.env.NODE_ENV = 'development';
 }
 
+if (!process.env.OC_ENV) {
+  process.env.OC_ENV = process.env.NODE_ENV;
+}
+
+// This will be used by the "config" package
+if (!process.env.NODE_CONFIG_ENV) {
+  process.env.NODE_CONFIG_ENV = process.env.OC_ENV;
+}
+
 dotenv.config();
 debug.enable(process.env.DEBUG);
 

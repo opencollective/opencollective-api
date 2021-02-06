@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import gqlV2 from 'fake-tag';
 
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import { fakeComment, fakeCommentReaction, fakeExpense, fakeUser } from '../../../../test-helpers/fake-data';
@@ -9,8 +10,8 @@ describe('server/graphql/v2/mutation/CommentReactionMutations', () => {
   before(utils.resetTestDB);
 
   describe('addCommentReaction', () => {
-    const addCommentReactionMutation = `
-      mutation addCommentReaction($emoji: String!, $comment: CommentReferenceInput!) {
+    const addCommentReactionMutation = gqlV2/* GraphQL */ `
+      mutation AddCommentReaction($emoji: String!, $comment: CommentReferenceInput!) {
         addCommentReaction(emoji: $emoji, comment: $comment) {
           id
           reactions
@@ -92,8 +93,8 @@ describe('server/graphql/v2/mutation/CommentReactionMutations', () => {
   });
 
   describe('removeCommentReaction', () => {
-    const removeCommentReactionMutation = `
-      mutation removeCommentReaction($emoji: String!, $comment: CommentReferenceInput!) {
+    const removeCommentReactionMutation = gqlV2/* GraphQL */ `
+      mutation RemoveCommentReaction($emoji: String!, $comment: CommentReferenceInput!) {
         removeCommentReaction(emoji: $emoji, comment: $comment) {
           id
           reactions

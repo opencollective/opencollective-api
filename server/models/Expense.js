@@ -1,4 +1,4 @@
-import { get, pick } from 'lodash';
+import { get, isEmpty, pick } from 'lodash';
 import Temporal from 'sequelize-temporal';
 import { isISO31661Alpha2 } from 'validator';
 
@@ -6,11 +6,19 @@ import status from '../constants/expense_status';
 import expenseType from '../constants/expense_type';
 import { TransactionTypes } from '../constants/transactions';
 import { reduceArrayToCurrency } from '../lib/currency';
+import { buildSanitizerOptions, sanitizeHTML, stripHTML } from '../lib/sanitize-html';
 import { sanitizeTags, validateTags } from '../lib/tags';
 import CustomDataTypes from '../models/DataTypes';
 
 import { PayoutMethodTypes } from './PayoutMethod';
 import models, { Op } from './';
+
+// Options for sanitizing private messages
+const PRIVATE_MESSAGE_SANITIZE_OPTS = buildSanitizerOptions({
+  basicTextFormatting: true,
+  multilineTextFormatting: true,
+  links: true,
+});
 
 export default function (Sequelize, DataTypes) {
   const Expense = Sequelize.define(
@@ -92,6 +100,18 @@ export default function (Sequelize, DataTypes) {
         allowNull: false,
       },
 
+      longDescription: {
+        type: DataTypes.TEXT,
+        set(value) {
+          if (value) {
+            const cleanHtml = sanitizeHTML(value, PRIVATE_MESSAGE_SANITIZE_OPTS).trim();
+            this.setDataValue('longDescription', cleanHtml || null);
+          } else {
+            this.setDataValue('longDescription', null);
+          }
+        },
+      },
+
       /**
        * @deprecated Now using PaymentMethodId. The reason why this hadn't been removed yet
        * is because we'd need to migrate the legacy `donation` payout types that exist in the
@@ -118,7 +138,18 @@ export default function (Sequelize, DataTypes) {
         allowNull: true,
       },
 
-      privateMessage: DataTypes.STRING,
+      privateMessage: {
+        type: DataTypes.TEXT,
+        set(value) {
+          if (value) {
+            const cleanHtml = sanitizeHTML(value, PRIVATE_MESSAGE_SANITIZE_OPTS).trim();
+            this.setDataValue('privateMessage', cleanHtml || null);
+          } else {
+            this.setDataValue('privateMessage', null);
+          }
+        },
+      },
+
       invoiceInfo: DataTypes.TEXT,
       vat: DataTypes.INTEGER,
 
@@ -202,7 +233,7 @@ export default function (Sequelize, DataTypes) {
             tags: this.tags,
             legacyPayoutMethod: this.legacyPayoutMethod,
             vat: this.vat,
-            privateMessage: this.privateMessage,
+            privateMessage: this.privateMessage && stripHTML(this.privateMessage),
             lastEditedById: this.lastEditedById,
             status: this.status,
             incurredAt: this.incurredAt,
@@ -249,7 +280,7 @@ export default function (Sequelize, DataTypes) {
    * @param {string} type: type of the activity, see `constants/activities.js`
    * @param {object} user: the user who triggered the activity. Leave blank for system activities.
    */
-  Expense.prototype.createActivity = async function (type, user) {
+  Expense.prototype.createActivity = async function (type, user, data) {
     const submittedByUser = this.user || (await models.User.findByPk(this.UserId));
     const submittedByUserCollective = await models.Collective.findByPk(submittedByUser.CollectiveId);
     const fromCollective = this.fromCollective || (await models.Collective.findByPk(this.FromCollectiveId));
@@ -258,7 +289,7 @@ export default function (Sequelize, DataTypes) {
     }
     const host = await this.collective.getHostCollective(); // may be null
     const payoutMethod = await this.getPayoutMethod();
-    const items = this.items || (await this.getItems());
+    const items = this.items || this.data?.items || (await this.getItems());
     const transaction =
       this.status === status.PAID &&
       (await models.Transaction.findOne({
@@ -270,6 +301,7 @@ export default function (Sequelize, DataTypes) {
       CollectiveId: this.collective.id,
       ExpenseId: this.id,
       data: {
+        ...pick(data, ['isManualPayout', 'error', 'payee', 'draftKey', 'inviteUrl', 'recipientNote']),
         host: get(host, 'minimal'),
         collective: { ...this.collective.minimal, isActive: this.collective.isActive },
         user: submittedByUserCollective.minimal,
@@ -277,13 +309,15 @@ export default function (Sequelize, DataTypes) {
         expense: this.info,
         transaction: transaction.info,
         payoutMethod: payoutMethod && pick(payoutMethod.dataValues, ['id', 'type', 'data']),
-        items: items.map(item => ({
-          id: item.id,
-          incurredAt: item.incurredAt,
-          description: item.description,
-          amount: item.amount,
-          url: item.url,
-        })),
+        items:
+          !isEmpty(items) &&
+          items.map(item => ({
+            id: item.id,
+            incurredAt: item.incurredAt,
+            description: item.description,
+            amount: item.amount,
+            url: item.url,
+          })),
       },
     });
   };

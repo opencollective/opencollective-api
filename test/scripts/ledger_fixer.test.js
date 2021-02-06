@@ -35,7 +35,7 @@ describe('scripts/ledger_fixer', () => {
       const transaction = {
         data: {
           migration: {
-            '20180320': { hostCurrencyFxRate: { oldValue: null, newValue: 1 } },
+            20180320: { hostCurrencyFxRate: { oldValue: null, newValue: 1 } },
           },
         },
         changed: sinon.spy(),

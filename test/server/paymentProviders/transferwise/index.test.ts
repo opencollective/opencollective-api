@@ -242,5 +242,14 @@ describe('server/paymentProviders/transferwise/index', () => {
     it('should return an array of available currencies for host', async () => {
       expect(data).to.deep.include({ code: 'EUR', minInvoiceAmount: 1 });
     });
+
+    it('should block currencies for business accounts by default', async () => {
+      expect(data).to.not.deep.include({ code: 'BRL', minInvoiceAmount: 1 });
+    });
+
+    it('should return blocked currencies if explicitly requested', async () => {
+      const otherdata = await transferwise.getAvailableCurrencies(host, false);
+      expect(otherdata).to.deep.include({ code: 'BRL', minInvoiceAmount: 1 });
+    });
   });
 });

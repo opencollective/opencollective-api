@@ -1,6 +1,7 @@
 import DataLoader from 'dataloader';
 import { createContext } from 'dataloader-sequelize';
 import { get, groupBy } from 'lodash';
+import moment from 'moment';
 
 import { types as CollectiveType } from '../../constants/collectives';
 import { maxInteger } from '../../constants/math';
@@ -37,6 +38,11 @@ export const loaders = req => {
   context.loaders.Expense.activities = expenseLoaders.generateExpenseActivitiesLoader(req, cache);
   context.loaders.Expense.attachedFiles = expenseLoaders.attachedFiles(req, cache);
   context.loaders.Expense.items = expenseLoaders.generateExpenseItemsLoader(req, cache);
+  context.loaders.Expense.userTaxFormRequiredBeforePayment = expenseLoaders.userTaxFormRequiredBeforePayment(
+    req,
+    cache,
+  );
+  context.loaders.Expense.requiredLegalDocuments = expenseLoaders.requiredLegalDocuments(req, cache);
 
   // Payout method
   context.loaders.PayoutMethod.paypalByCollectiveId = generateCollectivePaypalPayoutMethodsLoader(req, cache);
@@ -261,7 +267,11 @@ export const loaders = req => {
       .then(results => {
         return tierIds.map(tierId => {
           const result = results.find(({ id }) => id === tierId);
-          return result ? result.availableQuantity : maxInteger;
+          if (result) {
+            return result.availableQuantity > 0 ? result.availableQuantity : 0;
+          } else {
+            return null;
+          }
         });
       }),
   );
@@ -325,7 +335,7 @@ export const loaders = req => {
         `
         SELECT "Order"."TierId" AS "TierId", COALESCE(SUM("Transaction"."netAmountInCollectiveCurrency"), 0) AS "totalDonated"
         FROM "Transactions" AS "Transaction"
-        INNER JOIN "Orders" AS "Order" ON "Transaction"."OrderId" = "Order"."id" AND ("Order"."deletedAt" IS NULL)
+        INNER JOIN "Orders" AS "Order" ON "Transaction"."OrderId" = "Order"."id" AND "Transaction"."CollectiveId" = "Order"."CollectiveId" AND ("Order"."deletedAt" IS NULL)
         WHERE "TierId" IN (?)
         AND "Transaction"."deletedAt" IS NULL
         AND "Transaction"."RefundTransactionId" IS NULL
@@ -436,8 +446,10 @@ export const loaders = req => {
       where: {
         CollectiveId: { [Op.in]: CollectiveIds },
         name: { [Op.ne]: null },
-        expiryDate: { [Op.or]: [null, { [Op.gte]: new Date() }] },
         archivedAt: null,
+        expiryDate: {
+          [Op.or]: [null, { [Op.gte]: moment().subtract(6, 'month') }],
+        },
       },
       order: [['id', 'DESC']],
     }).then(results => sortResults(CollectiveIds, results, 'CollectiveId', [])),
@@ -457,12 +469,12 @@ export const loaders = req => {
     }).then(results => sortResults(combinedKeys, results, 'CollectiveId:FromCollectiveId', [])),
   );
 
-  // Order - findPendingOrdersForCollective
-  context.loaders.Order.findPendingOrdersForCollective = new DataLoader(CollectiveIds =>
+  // Order - findPledgedOrdersForCollective
+  context.loaders.Order.findPledgedOrdersForCollective = new DataLoader(CollectiveIds =>
     models.Order.findAll({
       where: {
         CollectiveId: { [Op.in]: CollectiveIds },
-        status: 'PENDING',
+        status: 'PLEDGED',
       },
       order: [['createdAt', 'DESC']],
     }).then(results => sortResults(CollectiveIds, results, 'CollectiveId', [])),
@@ -512,6 +524,12 @@ export const loaders = req => {
 
   /** *** Transaction *****/
   context.loaders.Transaction = {
+    byOrderId: new DataLoader(async keys => {
+      const where = { OrderId: { [Op.in]: keys } };
+      const order = [['createdAt', 'ASC']];
+      const transactions = await models.Transaction.findAll({ where, order });
+      return sortResults(keys, transactions, 'OrderId', []);
+    }),
     findByOrderId: options =>
       createDataLoaderWithOptions(
         (OrderIds, options) => {

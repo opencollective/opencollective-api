@@ -1,7 +1,7 @@
 {{#if interval }}
-Subject: Thank you for your {{{currency order.totalAmount currency=order.currency}}}/{{interval}} contribution to {{collective.name}}
+Subject: Thank you for your {{currency order.totalAmount currency=order.currency}}/{{interval}} contribution to {{collective.name}}
 {{else}}
-Subject: Thank you for your {{{currency order.totalAmount currency=order.currency}}} contribution to {{collective.name}}
+Subject: Thank you for your {{currency order.totalAmount currency=order.currency}} contribution to {{collective.name}}
 {{/if}}
 
 {{> header}}
@@ -16,15 +16,15 @@ Subject: Thank you for your {{{currency order.totalAmount currency=order.currenc
 
 {{#if interval}}
   {{#if firstPayment }}
-    <p>We would like to thank you for your pledge to give {{{currency order.totalAmount currency=order.currency}}} per {{interval}}.
-      Your first payment was received on {{{moment order.createdAt}}}. Your contribution helps us continue our activities.</p>
+    <p>We would like to thank you for your pledge to give {{currency order.totalAmount currency=order.currency}} per {{interval}}.
+      Your first payment was received on {{moment order.createdAt}}. Your contribution helps us continue our activities.</p>
   {{else}}
-    <p>We would like to thank you for your continued support. Your latest {{interval}}ly contribution of {{{currency order.totalAmount currency=order.currency}}} was received on {{{moment transaction.createdAt}}}.
+    <p>We would like to thank you for your continued support. Your latest {{interval}}ly contribution of {{currency order.totalAmount currency=order.currency}} was received on {{moment transaction.createdAt}}.
       Your contribution helps us continue our activities.</p>
   {{/if}}
   {{> charge_date_notice }}
 {{else}}
-<p>We would like to thank you for your contribution of {{{currency order.totalAmount currency=order.currency}}} on {{{moment order.createdAt}}}.
+<p>We would like to thank you for your contribution of {{currency order.totalAmount currency=order.currency}} on {{moment order.createdAt}}.
   Your gift will help us make the first Fearless Cities Brussels a reality. Thank you! 🙏</p>
 {{/if}}
 
@@ -35,17 +35,18 @@ Subject: Thank you for your {{{currency order.totalAmount currency=order.currenc
 <p>We are also looking for volunteers to help us with the organization of the event.
 Please take a look at the <a href="https://docs.google.com/spreadsheets/d/1x_z1CpyjfRfogYa0iIBpKHiwAMcyWUNi7laXMn2ePWY/edit?usp=sharing">list of things that we still need to do</a> and see if there is anyway you can help. That would be amazing. Among other things, we are still looking for people to help us with child care, video recording, distributing flyers.</p>
 
-<p>
-  P.S: You can download a PDF receipt for your contribution <a href="{{config.host.website}}/{{fromCollective.slug}}/transactions">on your transactions page</a>{{#if subscriptionsLink}}, and you can manage your subscriptions <a href="{{subscriptionsLink}}">here</a>{{/if}}.
-</p>
+{{#if transactionPdf}}
+<h2>📎 Attachments</h2>
+<ul>
+  <li>A PDF receipt of your transaction</li>
+</ul>
+{{/if}}
 
 <p>Warmly,</p>
 
 <p>
   – The {{collective.name}} collective
 </p>
-
-{{> relatedcollectives}}
 
 {{> footer}}
 

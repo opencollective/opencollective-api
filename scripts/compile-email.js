@@ -130,10 +130,10 @@ data['github.signup'] = {
     slug: 'webpack',
   },
 };
-data['collective.created.the-social-change-agency'] = data['collective.approved.the-social-change-agency'] = {
+data['collective.created.the-social-change-nest'] = data['collective.approved.the-social-change-nest'] = {
   host: {
-    slug: 'the-social-change-agency',
-    name: 'The Social Change Agency',
+    slug: 'the-social-change-nest',
+    name: 'The Social Change Nest',
   },
   collective: {
     slug: 'coinbase',
@@ -391,7 +391,7 @@ data['user.monthlyreport'] = {
   recipient: { firstName: 'Xavier' },
   month: 'march',
   year: '2017',
-  manageSubscriptionsUrl: 'https://opencollective.com/subscriptions',
+  manageSubscriptionsUrl: 'https://opencollective.com/recurring-contributions',
   utm: Date.now(),
   fallbackUrl: 'opencollective.com/email/some_id',
   subscriptions: [
@@ -453,7 +453,7 @@ data['user.monthlyreport'] = {
       backgroundImage: 'http://opencollective.com/proxy/images/?src=https://cldup.com/Gj243bgI0f.jpg&width=1024',
       slug: 'cyclejs',
       name: 'Cycle.js',
-      mission: 'We are on a mission to provide a framework for clean code, easy debugging experience, and fun.',
+      description: 'We are on a mission to provide a framework for clean code, easy debugging experience, and fun.',
       // totalDonations: 41,
       tier: 'backer',
       yearlyIncome: 6271 * 100,
@@ -465,7 +465,7 @@ data['user.monthlyreport'] = {
       backgroundImage: 'http://opencollective.com/proxy/images/?src=https://cldup.com/Gj243bgI0f.jpg&width=1024',
       slug: 'cyclejs',
       name: 'Cycle.js',
-      mission: 'We are on a mission to provide a framework for clean code, easy debugging experience, and fun.',
+      description: 'We are on a mission to provide a framework for clean code, easy debugging experience, and fun.',
       // totalDonations: 41,
       tier: 'backer',
       yearlyIncome: 6271 * 100,
@@ -477,30 +477,13 @@ data['user.monthlyreport'] = {
       backgroundImage: 'http://opencollective.com/proxy/images/?src=https://cldup.com/Gj243bgI0f.jpg&width=1024',
       slug: 'cyclejs',
       name: 'Cycle.js',
-      mission: 'We are on a mission to provide a framework for clean code, easy debugging experience, and fun.',
+      description: 'We are on a mission to provide a framework for clean code, easy debugging experience, and fun.',
       // totalDonations: 41,
       tier: 'backer',
       yearlyIncome: 6271 * 100,
       contributorsCount: 0,
     },
   ],
-};
-
-data['pledge.complete'] = {
-  collective: {
-    name: 'Johnny Five',
-    slug: 'johnny-five',
-  },
-  fromCollective: {
-    name: 'Jane Doe',
-    slug: 'jane-doe',
-  },
-  interval: 'month',
-  order: {
-    currency: 'USD',
-    id: '123456',
-    totalAmount: 1000,
-  },
 };
 
 const defaultData = {

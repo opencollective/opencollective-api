@@ -27,5 +27,8 @@
   },
   "githubFlow": {
     "minNbStars": 0
+  },
+  "pdfService": {
+    "fetchTransactionsReceipts": true
   }
 }
