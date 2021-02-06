@@ -1,12 +1,11 @@
-import uuidv4 from 'uuid/v4';
 import { expect } from 'chai';
+import { v4 as uuid } from 'uuid';
 
 import models from '../../../../server/models';
 import prepaid from '../../../../server/paymentProviders/opencollective/prepaid';
-
 import { randEmail } from '../../../stores';
 
-describe('paymentMethods.opencollective.prepaid', () => {
+describe('server/paymentProviders/opencollective/prepaid', () => {
   const PREPAID_INITIAL_BALANCE = 5000;
   const CURRENCY = 'USD';
   let user = null;
@@ -50,7 +49,7 @@ describe('paymentMethods.opencollective.prepaid', () => {
       currency: CURRENCY,
       CollectiveId: user.collective.id,
       customerId: user.id,
-      uuid: uuidv4(),
+      uuid: uuid(),
       data: { HostCollectiveId: hostCollective.id },
       service: 'opencollective',
       type: 'prepaid',

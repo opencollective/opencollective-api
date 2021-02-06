@@ -6,12 +6,12 @@ export default {
     username: 'wwcode',
     hostFeePercent: 10,
     email: 'finance+wwcode@opencollective.com',
-    paypalEmail: 'paypal+wwcode@opencollective.com',
     description: 'engineer',
     longDescription: 'This is a long description with some *markdown* **style**',
     twitterHandle: 'wwcode',
     address: 'Paradize street\nSan Francisco CA 94100\nUSA',
     currency: 'USD',
+    isHostAccount: true,
     settings: { apply: true },
   },
   user1: {
@@ -20,7 +20,6 @@ export default {
     name: 'Phil Mod',
     username: 'philmod',
     email: 'user1@opencollective.com',
-    paypalEmail: 'User1+paypal@opencollective.com',
     description: 'engineer',
     longDescription: 'This is a long description with some *markdown* **style**',
     twitterHandle: 'philmod',
@@ -124,7 +123,7 @@ export default {
     {
       name: 'Reinventing Brussels',
       slug: 'reinventingbrussels',
-      mission: 'connect all the initiatives that create a welcoming &amp; sustainable city with deep human values',
+      description: 'connect all the initiatives that create a welcoming &amp; sustainable city with deep human values',
       image: 'https://opencollective-production.s3-us-west-1.amazonaws.com/1738fae0-9a20-11e6-8650-f92e594d5de8.png',
       currency: 'EUR',
       settings: {
@@ -136,7 +135,7 @@ export default {
     {
       name: 'Refugees Got Talent',
       slug: 'refugeesgottalent',
-      mission: 'offer a space and artistic material to refugees artists, so they can practice their art again.',
+      description: 'offer a space and artistic material to refugees artists, so they can practice their art again.',
       image: 'https://cl.ly/0Q3N193Z1e3u/BrusselsTogetherLogo.png',
       currency: 'EUR',
       tags: ['#brusselstogether'],
@@ -145,7 +144,7 @@ export default {
     {
       name: 'Brussels Smart City',
       slug: 'brusselssmartcity',
-      mission: 'improve the life of Brussels Citizens by the use of technology',
+      description: 'improve the life of Brussels Citizens by the use of technology',
       image: 'https://cl.ly/0Q3N193Z1e3u/BrusselsTogetherLogo.png',
       currency: 'EUR',
       tags: ['#brusselstogether'],
@@ -213,8 +212,6 @@ export default {
       },
       { type: 'user.created', UserId: 3, data: {} },
       { type: 'collective.created', UserId: 1, CollectiveId: 1, data: {} },
-      { type: 'collective.user.added', UserId: 1, CollectiveId: 1, data: {} },
-      { type: 'collective.user.added', UserId: 3, CollectiveId: 1, data: {} },
       { type: 'collective.updated', UserId: 1, CollectiveId: 1, data: {} },
       { type: 'collective.updated', UserId: 3, CollectiveId: 1, data: {} },
       { type: 'collective.updated', UserId: 1, CollectiveId: 1, data: {} },
@@ -377,20 +374,6 @@ export default {
         },
       },
       {
-        type: 'collective.user.added',
-        data: {
-          user: {
-            image: 'http://image.githubusercontent.com/asood123',
-            id: 2,
-          },
-          collective: {
-            name: 'Blah',
-            slug: 'blah',
-            publicUrl: 'https://opencollective.com/blah',
-          },
-        },
-      },
-      {
         type: 'collective.expense.created',
         data: {
           user: {
@@ -405,6 +388,11 @@ export default {
             amount: 1234,
             currency: 'EUR',
             description: 'for pizza',
+            payoutMethod: {
+              id: 42,
+              type: 'PAYPAL',
+              data: { email: 'support@opencollective.com' },
+            },
           },
         },
       },
@@ -458,21 +446,18 @@ export default {
       description: 'Donation to that great project',
       amount: 100,
       currency: 'USD',
-      paypalEmail: 'userpaypal@gmail.com',
       createdAt: '2015-05-29T07:00:00.000Z',
     },
     {
       description: 'Donation to that other great project',
       amount: 999,
       currency: 'USD',
-      paypalEmail: 'userpaypal@gmail.com',
       createdAt: '2015-05-29T07:00:00.000Z',
     },
     {
       description: 'Donation to that amazing project',
       amount: 12000,
       currency: 'USD',
-      paypalEmail: 'user2paypal@gmail.com',
       createdAt: '2016-09-29T07:00:00.000Z',
     },
   ],
@@ -538,7 +523,6 @@ export default {
         netAmountInCollectiveCurrency: 9000,
         type: 'CREDIT',
         currency: 'USD',
-        paypalEmail: 'userpaypal@gmail.com',
         createdAt: '2015-05-29T07:00:00.000Z',
         PaymentMethodId: 1,
       },
@@ -581,7 +565,6 @@ export default {
       description: 'engineer',
       createdAt: '2016-01-30T07:31:37.747Z',
       updatedAt: '2016-01-30T07:31:37.889Z',
-      paypalEmail: 'philmod+paypal@email.com',
     },
 
     collective: {
@@ -618,9 +601,8 @@ export default {
     category: 'Engineering',
     amount: 12000,
     currency: 'EUR',
-    paypalEmail: 'newPaypal2@gmail.com',
     incurredAt: '2016-03-06 UTC+0300',
-    payoutMethod: 'paypal',
+    legacyPayoutMethod: 'paypal',
     attachment: 'https://opencollective-production.s3-us-west-1.amazonaws.com/d6618050-82be-11e6-a262-73c13d37e1af.JPG',
   },
   expense2: {
@@ -629,9 +611,8 @@ export default {
     category: 'Engineering',
     amount: 3737,
     currency: 'USD',
-    paypalEmail: 'Userpaypal2@gmail.com',
     incurredAt: '2016-03-09 UTC+0300',
-    payoutMethod: 'manual',
+    legacyPayoutMethod: 'manual',
   },
   expense3: {
     description: 'Expense 3: Lunch with Jenn',
@@ -640,7 +621,7 @@ export default {
     amount: 12000,
     currency: 'USD',
     incurredAt: '2016-03-06 UTC+0300',
-    payoutMethod: 'paypal',
+    legacyPayoutMethod: 'paypal',
     attachment: 'https://opencollective-production.s3-us-west-1.amazonaws.com/d6618050-82be-11e6-a262-73c13d37e1af.JPG',
   },
 

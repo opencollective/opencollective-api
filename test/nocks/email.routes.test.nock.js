@@ -1,6 +1,6 @@
 import nock from 'nock';
 
-export default function() {
+export default function () {
   nock('http://127.0.0.1:62354')
     .post('/webhooks/mailgun', {
       recipient: 'info@testcollective.opencollective.com',

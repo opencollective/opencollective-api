@@ -1,14 +1,18 @@
+/* eslint-disable camelcase */
+
 import path from 'path';
-import { readFileSync } from 'fs-extra';
+
 import { expect } from 'chai';
+import { readFileSync } from 'fs-extra';
+
 import { sequelize } from '../../server/models';
-import { fakeUser, fakeCollective, fakeEvent, fakeUpdate } from '../test-helpers/fake-data';
+import { fakeCollective, fakeEvent, fakeUpdate, fakeUser } from '../test-helpers/fake-data';
 
 const banCollectivesQuery = readFileSync(path.join(__dirname, '../../sql/ban-collectives.sql'), 'utf8');
 
 const createCollectiveWithData = async () => {
   const user = await fakeUser();
-  const collective = await fakeCollective();
+  const collective = await fakeCollective({ HostCollectiveId: null });
   const collectiveAdminMember = await collective.addUserWithRole(user, 'ADMIN');
   const event = await fakeEvent({ ParentCollectiveId: collective.id });
   const eventAdminMember = await event.addUserWithRole(user, 'ADMIN');
@@ -133,7 +137,7 @@ describe('sql/ban-collectives', () => {
     createCollectiveWithData(); // To create additional data that shouldn't be touched
     const user1 = await fakeUser();
     const user2 = await fakeUser({ data: { isBanned: false, existingDataIsPreserved: true } });
-    const collective = await fakeCollective({ data: { hello: 'world' } });
+    const collective = await fakeCollective({ data: { hello: 'world' }, HostCollectiveId: null });
     createCollectiveWithData(); // To create additional data that shouldn't be touched
 
     const [result] = await sequelize.query(banCollectivesQuery, {
@@ -167,6 +171,7 @@ describe('sql/ban-collectives', () => {
     expect(udpatedUser2.data).to.deep.eqInAnyOrder({ isBanned: true, existingDataIsPreserved: true });
 
     const updatedCollective = await collective.reload({ paranoid: false });
-    expect(updatedCollective.data).to.deep.eqInAnyOrder({ isBanned: true, hello: 'world' });
+    expect(updatedCollective.data.isBanned).to.eq(true);
+    expect(updatedCollective.data.hello).to.eq('world');
   });
 });

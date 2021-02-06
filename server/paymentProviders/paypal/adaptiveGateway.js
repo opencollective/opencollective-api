@@ -1,7 +1,7 @@
-import Paypal from 'paypal-adaptive';
-import config from 'config';
 import Promise from 'bluebird';
+import config from 'config';
 import { get } from 'lodash';
+import Paypal from 'paypal-adaptive';
 
 const paypalAdaptiveClient = new Paypal({
   userId: config.paypal.classic.userId,

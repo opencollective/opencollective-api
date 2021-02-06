@@ -1,10 +1,13 @@
-import { pick } from 'lodash';
 import { URLSearchParams } from 'url';
 
+import { pick } from 'lodash';
+
+import ORDER_STATUS from '../../../constants/order_status';
+import emailLib from '../../../lib/email';
+import logger from '../../../lib/logger';
+import models, { Op } from '../../../models';
 import virtualcard from '../../../paymentProviders/opencollective/virtualcard';
 import { setupCreditCard } from '../../../paymentProviders/stripe/creditcard';
-import emailLib from '../../../lib/email';
-import models, { Op } from '../../../models';
 import { Forbidden, ValidationFailed } from '../../errors';
 
 /** Create a Payment Method through a collective(organization or user)
@@ -140,7 +143,7 @@ export async function claimPaymentMethod(args, remoteUser) {
       name,
       currency,
       expiryDate,
-      emitter,
+      emitter: emitter.info,
     });
   }
 
@@ -148,9 +151,9 @@ export async function claimPaymentMethod(args, remoteUser) {
 }
 
 /** Archive the given payment method */
-const PaymentMethodPermissionError = new Forbidden({
-  message: "This payment method does not exist or you don't have the permission to edit it.",
-});
+const PaymentMethodPermissionError = new Forbidden(
+  "This payment method does not exist or you don't have the permission to edit it.",
+);
 
 export async function removePaymentMethod(paymentMethodId, remoteUser) {
   if (!remoteUser) {
@@ -166,6 +169,7 @@ export async function removePaymentMethod(paymentMethodId, remoteUser) {
 
   // Block the removal if the payment method has subscriptions linked
   const subscriptions = await paymentMethod.getOrders({
+    where: { status: { [Op.or]: [ORDER_STATUS.ACTIVE, ORDER_STATUS.ERROR] } },
     include: [
       {
         model: models.Subscription,
@@ -176,10 +180,7 @@ export async function removePaymentMethod(paymentMethodId, remoteUser) {
   });
 
   if (subscriptions.length > 0) {
-    throw new ValidationFailed({
-      message: 'The payment method has active subscriptions',
-      data: { errorId: 'PM.Remove.HasActiveSubscriptions' },
-    });
+    throw new ValidationFailed('The payment method has active subscriptions', 'PM.Remove.HasActiveSubscriptions');
   }
 
   return paymentMethod.destroy();
@@ -194,4 +195,38 @@ export async function updatePaymentMethod(args, remoteUser) {
   }
 
   return models.PaymentMethod.update(pick(args, allowedFields), { where: { id: paymentMethod.id } });
+}
+
+/** Update payment method with given args */
+export async function replaceCreditCard(args, remoteUser) {
+  logger.info(`Replacing Credit Card: ${args.id} ${remoteUser.id}`);
+  const oldPaymentMethod = await models.PaymentMethod.findByPk(args.id);
+  if (!oldPaymentMethod || !remoteUser || !remoteUser.isAdmin(oldPaymentMethod.CollectiveId)) {
+    throw PaymentMethodPermissionError;
+  }
+
+  const createArgs = {
+    ...pick(args, ['CollectiveId', 'name', 'token', 'data']),
+    service: 'stripe',
+    type: 'creditcard',
+  };
+
+  const newPaymentMethod = await createPaymentMethod(createArgs, remoteUser);
+
+  // Update orders (using Sequelize)
+  // first arg in new thing, second arg is old thing it's replacing
+  await models.Order.update(
+    { PaymentMethodId: newPaymentMethod.id },
+    {
+      where: {
+        PaymentMethodId: oldPaymentMethod.id,
+        status: 'ACTIVE',
+      },
+    },
+  );
+
+  // Delete or hide the old Payment Method (using Sequelize) - destroy instead of delete
+  await oldPaymentMethod.destroy();
+
+  return newPaymentMethod;
 }

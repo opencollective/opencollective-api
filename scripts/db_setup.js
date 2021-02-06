@@ -13,7 +13,6 @@ import '../server/env';
  *
  * More info here https://github.com/brianc/node-postgres/issues/1337
  */
-
 import format from 'pg-format';
 
 import * as libdb from '../server/lib/db';
@@ -39,7 +38,7 @@ async function createUser(client, name, password) {
 
 /** Kick things off */
 async function main() {
-  /* Connect with maintainance account */
+  /* Connect with maintenance account */
   const client = await libdb.getConnectedClient(libdb.getDBUrl('maintenancedb'));
   const { username, password } = libdb.getDBConf('database');
   await createUser(client, username, password);

@@ -1,20 +1,20 @@
-import sinon from 'sinon';
-import config from 'config';
-import { expect } from 'chai';
 import { URL } from 'url';
+
+import { expect } from 'chai';
+import config from 'config';
 import { SequelizeValidationError } from 'sequelize';
+import sinon from 'sinon';
 
-import models from '../../../server/models';
 import * as auth from '../../../server/lib/auth';
-
-import * as utils from '../../utils';
+import models from '../../../server/models';
 import { randEmail } from '../../stores';
+import * as utils from '../../utils';
 
 const userData = utils.data('user1');
 
 const { User } = models;
 
-describe('user.model.test.js', () => {
+describe('server/models/User', () => {
   beforeEach(() => utils.resetTestDB());
 
   /**
@@ -42,34 +42,6 @@ describe('user.model.test.js', () => {
         expect(user).to.have.property('createdAt');
         expect(user).to.have.property('updatedAt');
       }));
-
-    it('successfully creates a user with a password that is a number', () => {
-      const email = 'john.doe@doe.com';
-
-      return User.create({
-        email,
-        password: 123456,
-      }).tap(user => {
-        expect(user).to.have.property('email', email);
-        expect(user).to.have.property('createdAt');
-        expect(user).to.have.property('password_hash');
-        expect(user).to.have.property('updatedAt');
-      });
-    });
-
-    it('successfully creates a user with a password that is a string', () => {
-      const email = 'john.doe@doe.com';
-
-      return User.create({
-        email,
-        password: '123456',
-      }).tap(user => {
-        expect(user).to.have.property('email', email);
-        expect(user).to.have.property('createdAt');
-        expect(user).to.have.property('password_hash');
-        expect(user).to.have.property('updatedAt');
-      });
-    });
   });
 
   describe('#createUserWithCollective', () => {
@@ -110,7 +82,6 @@ describe('user.model.test.js', () => {
     it('successfully get a user, user.info and user.public return correct information', done => {
       User.findOne({}).then(user => {
         expect(user.info).to.have.property('email');
-        expect(user.info).to.have.property('paypalEmail');
         expect(user.public).to.not.have.property('email');
         expect(user.public).to.not.have.property('paypalEmail');
         done();

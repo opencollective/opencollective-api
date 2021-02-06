@@ -1,9 +1,10 @@
 import { expect } from 'chai';
-import models from '../../../server/models';
-import { randEmail, newCollectiveWithHost } from '../../stores';
 import { SequelizeValidationError } from 'sequelize';
 
-describe('Conversation model', () => {
+import models from '../../../server/models';
+import { newCollectiveWithHost, randEmail } from '../../stores';
+
+describe('server/models/Conversation', () => {
   let collective, user, validConversationParams;
 
   before(async () => {
@@ -52,7 +53,7 @@ describe('Conversation model', () => {
         tags: ['  SUPER    SAFE   ', '', '          ', 'OPENSOURCE'],
       });
 
-      expect(conversation.tags).to.have.members(['SUPER SAFE', 'OPENSOURCE']);
+      expect(conversation.tags).to.have.members(['super safe', 'opensource']);
     });
 
     it('rejects tags longer than 30 characters', () => {
@@ -69,7 +70,7 @@ describe('Conversation model', () => {
 
     it('normalizes to uppercase', async () => {
       const conversation = await models.Conversation.create({ ...validConversationParams, tags: ['changeCase'] });
-      expect(conversation.tags).to.have.members(['CHANGECASE']);
+      expect(conversation.tags).to.have.members(['changecase']);
     });
 
     it('de-deplucates', async () => {
@@ -79,7 +80,7 @@ describe('Conversation model', () => {
       });
 
       expect(conversation.tags.length).to.eq(3);
-      expect(conversation.tags).to.have.members(['I', 'REPEAT', 'MYSELF']);
+      expect(conversation.tags).to.have.members(['i', 'repeat', 'myself']);
     });
   });
 });

@@ -1,23 +1,25 @@
 #!/usr/bin/env node
 import '../../server/env';
 
+import Promise from 'bluebird';
+import config from 'config';
+import debugLib from 'debug';
+import { filter, isEmpty, pick, without } from 'lodash';
+import moment from 'moment';
+
+import { notifyAdminsOfCollective } from '../../server/lib/notifications';
+import { getConsolidatedInvoicePdfs } from '../../server/lib/pdf';
+import { getTiersStats } from '../../server/lib/utils';
+import models, { Op } from '../../server/models';
+
 // Only run on the first of the month
 const today = new Date();
-if (process.env.NODE_ENV === 'production' && today.getDate() !== 1) {
-  console.log('NODE_ENV is production and today is not the first of month, script aborted!');
+if (config.env === 'production' && today.getDate() !== 1 && !process.env.OFFCYCLE) {
+  console.log('OC_ENV is production and today is not the first of month, script aborted!');
   process.exit();
 }
 
 process.env.PORT = 3066;
-
-import _ from 'lodash';
-import moment from 'moment';
-import config from 'config';
-import Promise from 'bluebird';
-import debugLib from 'debug';
-import { getTiersStats } from '../../server/lib/utils';
-import models, { Op } from '../../server/models';
-import { notifyAdminsOfCollective } from '../../server/lib/notifications';
 
 const d = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date();
 d.setMonth(d.getMonth() - 1);
@@ -41,7 +43,10 @@ const init = () => {
 
   const query = {
     attributes: ['id', 'slug', 'name', 'twitterHandle', 'currency', 'settings', 'tags'],
-    where: { type: 'COLLECTIVE', isActive: true },
+    where: {
+      type: { [Op.in]: ['COLLECTIVE', 'ORGANIZATION'] },
+      isActive: true,
+    },
   };
 
   let slugs;
@@ -92,7 +97,7 @@ const getTopBackers = (startDate, endDate, tags) => {
         return Promise.map(backers, backer => processBacker(backer, startDate, endDate, tags));
       })
       .then(backers => {
-        backers = _.without(backers, null);
+        backers = without(backers, null);
         topBackersCache[cacheKey] = backers;
         return backers;
       });
@@ -153,7 +158,7 @@ const processBacker = (backer, startDate, endDate, tags) => {
       if (!donationsString || !backer.website) {
         return null;
       }
-      backer = _.pick(backer, ['name', 'slug', 'image', 'website']);
+      backer = pick(backer, ['name', 'slug', 'image', 'website']);
       backer.donationsString = donationsString;
       return backer;
     });
@@ -181,7 +186,7 @@ const processCollective = collective => {
 
   let emailData = {};
   const options = {};
-  const csv_filename = `${moment(d).format(dateFormat)}-${collective.slug}-transactions.csv`;
+  const csvFilename = `${collective.slug}-${moment(d).format(dateFormat)}-transactions.csv`;
 
   return Promise.all(promises)
     .then(results => {
@@ -192,10 +197,14 @@ const processCollective = collective => {
         year,
         collective: {},
       };
-      data.topBackers = _.filter(results[0], backer => backer.donationsString.text.indexOf(collective.slug) === -1); // we omit own backers
+      data.topBackers = filter(results[0], backer => backer.donationsString.text.indexOf(collective.slug) === -1); // we omit own backers
       return getTiersStats(results[1], startDate, endDate).then(res => {
-        data.collective = _.pick(collective, ['id', 'name', 'slug', 'currency', 'publicUrl']);
-        data.collective.tiers = res.tiers;
+        data.collective = pick(collective, ['id', 'name', 'slug', 'currency', 'publicUrl']);
+        data.collective.tiers = res.tiers.map(tier => ({
+          ...tier.info,
+          amountStr: tier.amountStr,
+          activeBackers: tier.activeBackers,
+        }));
         data.collective.backers = res.backers;
         data.collective.stats = results[7];
         data.collective.newOrders = results[8];
@@ -203,11 +212,8 @@ const processCollective = collective => {
         data.collective.stats.balance = results[2];
         data.collective.stats.totalDonations = results[3];
         data.collective.stats.totalExpenses = results[4];
-        data.collective.expenses = results[5];
-        data.relatedCollectives = (results[6] || []).map(c => {
-          c.description = c.description || c.mission;
-          return c;
-        });
+        data.collective.expenses = results[5].map(expense => expense.info);
+        data.relatedCollectives = results[6] || [];
         data.collective.updates = results[10];
         data.collective.transactions = results[12];
         const nextGoal = results[11];
@@ -226,7 +232,7 @@ const processCollective = collective => {
 
           options.attachments = [
             {
-              filename: csv_filename,
+              filename: csvFilename,
               content: csv,
             },
           ];
@@ -236,7 +242,15 @@ const processCollective = collective => {
         return collective;
       });
     })
-    .then(collective => {
+    .then(async collective => {
+      if (collective.type === 'ORGANIZATION') {
+        const monthlyConsolidatedInvoices = await getConsolidatedInvoicePdfs(collective);
+
+        if (!isEmpty(monthlyConsolidatedInvoices)) {
+          options.attachments.push(...monthlyConsolidatedInvoices);
+          emailData.consolidatedPdfs = true;
+        }
+      }
       const activity = {
         type: 'collective.monthlyreport',
         data: emailData,

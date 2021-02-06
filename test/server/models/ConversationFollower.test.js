@@ -1,9 +1,10 @@
 import { expect } from 'chai';
 import { SequelizeUniqueConstraintError } from 'sequelize';
-import models from '../../../server/models';
-import { randEmail, newCollectiveWithHost } from '../../stores';
 
-describe('ConversationFollower Model', () => {
+import models from '../../../server/models';
+import { newCollectiveWithHost, randEmail } from '../../stores';
+
+describe('server/models/ConversationFollower', () => {
   let collective, user, conversation;
 
   before(async () => {

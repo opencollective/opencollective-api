@@ -1,18 +1,22 @@
 import Promise from 'bluebird';
-import nock from 'nock';
-import config from 'config';
 import { expect } from 'chai';
+import config from 'config';
+import nock from 'nock';
 import sinon from 'sinon';
 
-import models from '../../../server/models';
-import * as utils from '../../utils';
-import * as payments from '../../../server/lib/payments';
-import roles from '../../../server/constants/roles';
 import status from '../../../server/constants/order_status';
-import stripe from '../../../server/lib/stripe';
+import { PLANS_COLLECTIVE_SLUG } from '../../../server/constants/plans';
+import roles from '../../../server/constants/roles';
+import { FEES_ON_TOP_TRANSACTION_PROPERTIES } from '../../../server/constants/transactions';
 import emailLib from '../../../server/lib/email';
-
+import * as payments from '../../../server/lib/payments';
+import * as plansLib from '../../../server/lib/plans';
+import stripe from '../../../server/lib/stripe';
+import models from '../../../server/models';
+import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 import stripeMocks from '../../mocks/stripe';
+import { fakeCollective, fakeHost, fakeOrder, fakePayoutMethod } from '../../test-helpers/fake-data';
+import * as utils from '../../utils';
 
 const AMOUNT = 1099;
 const AMOUNT2 = 199;
@@ -20,8 +24,9 @@ const CURRENCY = 'EUR';
 const STRIPE_TOKEN = 'tok_123456781234567812345678';
 const EMAIL = 'anotheruser@email.com';
 const userData = utils.data('user3');
+const PLAN_NAME = 'small';
 
-describe('lib.payments.test.js', () => {
+describe('server/lib/payments', () => {
   let host, user, user2, collective, order, collective2, sandbox, emailSendSpy;
 
   before(() => {
@@ -29,7 +34,7 @@ describe('lib.payments.test.js', () => {
       .get('/latest')
       .times(19)
       .query({
-        access_key: config.fixer.accessKey,
+        access_key: config.fixer.accessKey, // eslint-disable-line camelcase
         base: 'EUR',
         symbols: 'USD',
       })
@@ -49,12 +54,19 @@ describe('lib.payments.test.js', () => {
     sandbox.stub(stripe.tokens, 'create').callsFake(() => Promise.resolve({ id: 'tok_1AzPXGD8MNtzsDcgwaltZuvp' }));
     sandbox.stub(stripe.paymentIntents, 'create').callsFake(() =>
       Promise.resolve({
+        id: 'pi_1F82vtBYycQg1OMfS2Rctiau',
+        status: 'requires_confirmation',
+      }),
+    );
+    sandbox.stub(stripe.paymentIntents, 'confirm').callsFake(() =>
+      Promise.resolve({
         charges: { data: [{ id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' }] },
         status: 'succeeded',
       }),
     );
     sandbox.stub(stripe.balanceTransactions, 'retrieve').callsFake(() => Promise.resolve(stripeMocks.balance));
     emailSendSpy = sandbox.spy(emailLib, 'send');
+    sandbox.stub(plansLib, 'subscribeOrUpgradePlan').resolves();
   });
 
   afterEach(() => sandbox.restore());
@@ -73,22 +85,29 @@ describe('lib.payments.test.js', () => {
     }).then(u => (host = u)),
   );
   beforeEach('create a collective', () =>
-    models.Collective.create(utils.data('collective1')).then(g => (collective = g)),
+    models.Collective.create({
+      ...utils.data('collective1'),
+      slug: PLANS_COLLECTIVE_SLUG,
+    }).then(g => (collective = g)),
   );
   beforeEach('create a collective', () =>
     models.Collective.create(utils.data('collective2')).then(g => (collective2 = g)),
   );
-  beforeEach('create an order', () =>
-    models.Order.create({
+  beforeEach('create an order', async () => {
+    const tier = await models.Tier.create({
+      ...utils.data('tier1'),
+      slug: PLAN_NAME,
+    });
+    const o = await models.Order.create({
       CreatedByUserId: user.id,
       FromCollectiveId: user.CollectiveId,
       CollectiveId: collective.id,
       totalAmount: AMOUNT,
       currency: CURRENCY,
-    })
-      .then(o => o.setPaymentMethod({ token: STRIPE_TOKEN }))
-      .then(t => (order = t)),
-  );
+      TierId: tier.id,
+    });
+    order = await o.setPaymentMethod({ token: STRIPE_TOKEN });
+  });
   beforeEach('add host to collective', () => collective.addHost(host.collective, host));
   beforeEach('add host to collective2', () => collective2.addHost(host.collective, host));
 
@@ -203,6 +222,12 @@ describe('lib.payments.test.js', () => {
               }).then(member => {
                 expect(member).to.exist;
               }));
+
+            it('calls subscribeOrUpgradePlan', async () => {
+              expect(plansLib.subscribeOrUpgradePlan.callCount).to.equal(1);
+              // This test is too fast and that can lead to deadlock issues
+              await new Promise(res => setTimeout(res, 100));
+            });
 
             it('successfully sends out an email to donor1', async () => {
               await utils.waitForCondition(() => emailSendSpy.callCount > 0);
@@ -345,14 +370,94 @@ describe('lib.payments.test.js', () => {
       const [creditRefundTransaction] = refundTransactions.filter(t => t.type === 'CREDIT');
       expect(creditRefundTransaction.FromCollectiveId).to.equal(collective.id);
       expect(creditRefundTransaction.CollectiveId).to.equal(order.FromCollectiveId);
-      expect(creditRefundTransaction.data).to.deep.equal({ dataField: 'foo' });
 
       // And then the values for the transaction from the donor to the
       // collective also look correct
       const [debitRefundTransaction] = refundTransactions.filter(t => t.type === 'DEBIT');
       expect(debitRefundTransaction.FromCollectiveId).to.equal(order.FromCollectiveId);
       expect(debitRefundTransaction.CollectiveId).to.equal(collective.id);
-      expect(debitRefundTransaction.data).to.deep.equal({ dataField: 'foo' });
+    });
+
+    it('should refund platform fees on top when refunding original transaction', async () => {
+      // Create Open Collective Inc
+      await fakeHost({ id: 8686 });
+      const order = await fakeOrder({ status: 'ACTIVE' });
+      const transaction = await models.Transaction.createFromPayload({
+        CreatedByUserId: order.CreatedByUserId,
+        FromCollectiveId: order.FromCollectiveId,
+        CollectiveId: order.CollectiveId,
+        PaymentMethodId: order.PaymentMethodId,
+        transaction: {
+          type: 'CREDIT',
+          OrderId: order.id,
+          amount: 5000,
+          currency: 'USD',
+          hostCurrency: 'USD',
+          amountInHostCurrency: 5000,
+          hostCurrencyFxRate: 1,
+          hostFeeInHostCurrency: 250,
+          platformFeeInHostCurrency: 500,
+          paymentProcessorFeeInHostCurrency: 175,
+          description: 'Monthly subscription to Webpack',
+          data: { charge: { id: 'ch_refunded_charge' }, isFeesOnTop: true },
+        },
+      });
+
+      const originalTransactions = await order.getTransactions();
+      expect(originalTransactions).to.have.lengthOf(4);
+
+      await payments.createRefundTransaction(transaction, 0, null, user);
+
+      const refundedTransactions = await order.getTransactions({ where: { isRefund: true } });
+      expect(refundedTransactions).to.have.lengthOf(4);
     });
   }); /* createRefundTransaction */
+
+  describe('sendOrderProcessingEmail', () => {
+    let order;
+
+    beforeEach(async () => {
+      const host = await fakeHost({
+        settings: {
+          paymentMethods: {
+            manual: {
+              instructions:
+                'Please make a bank transfer as follows:\n\n<code>\n    Amount: {amount}\n    Reference/Communication: {OrderId}\n    {account}\n</code>\n\nPlease note that it will take a few days to process your payment.',
+            },
+          },
+        },
+      });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      await fakePayoutMethod({
+        CollectiveId: host.id,
+        type: PayoutMethodTypes.BANK_ACCOUNT,
+        data: {
+          type: 'sort_code',
+          accountHolderName: 'John Malkovich',
+          currency: 'GBP',
+          details: {
+            IBAN: 'DE893219828398123',
+            sortCode: '40-30-20',
+            legalType: 'PRIVATE',
+            accountNumber: '12345678',
+            address: {
+              country: 'US',
+              state: 'NY',
+              city: 'New York',
+              zip: '10001',
+            },
+          },
+          isManualBankTransfer: true,
+        },
+      });
+      order = await fakeOrder({ CollectiveId: collective.id });
+    });
+
+    it('should include account information', async () => {
+      await payments.sendOrderProcessingEmail(order);
+
+      expect(emailSendSpy.lastCall.args[2]).to.have.property('account');
+      expect(emailSendSpy.lastCall.args[2].instructions).to.include('IBAN: DE893219828398123');
+    });
+  });
 });

@@ -1,12 +1,14 @@
-import * as utils from '../../../utils';
-import models from '../../../../server/models';
 import { expect } from 'chai';
+import gql from 'fake-tag';
+
+import models from '../../../../server/models';
 import { randEmail } from '../../../stores';
+import * as utils from '../../../utils';
 
 describe('server/graphql/v1/connectedAccounts', () => {
   let user, admin, backer, collective, connectedAccount, connectedAccountData;
-  const editConnectedAccountQuery = `
-    mutation editConnectedAccount($connectedAccount: ConnectedAccountInputType!) {
+  const editConnectedAccountMutation = gql`
+    mutation EditConnectedAccount($connectedAccount: ConnectedAccountInputType!) {
       editConnectedAccount(connectedAccount: $connectedAccount) {
         id
         service
@@ -36,7 +38,7 @@ describe('server/graphql/v1/connectedAccounts', () => {
 
   describe('failure', () => {
     it('fails if not logged in', async () => {
-      const res = await utils.graphqlQuery(editConnectedAccountQuery, {
+      const res = await utils.graphqlQuery(editConnectedAccountMutation, {
         connectedAccount: connectedAccountData,
       });
       expect(res.errors).to.exist;
@@ -45,7 +47,7 @@ describe('server/graphql/v1/connectedAccounts', () => {
 
     it('fails if connected account not found', async () => {
       const res = await utils.graphqlQuery(
-        editConnectedAccountQuery,
+        editConnectedAccountMutation,
         { connectedAccount: { ...connectedAccountData, id: 100 } },
         user,
       );
@@ -55,10 +57,10 @@ describe('server/graphql/v1/connectedAccounts', () => {
 
     it('fails to update a connected account if not connected as admin of CollectiveId', async () => {
       let res;
-      res = await utils.graphqlQuery(editConnectedAccountQuery, { connectedAccount: connectedAccountData }, user);
+      res = await utils.graphqlQuery(editConnectedAccountMutation, { connectedAccount: connectedAccountData }, user);
       expect(res.errors).to.exist;
       expect(res.errors[0].message).to.contain("You don't have permission to edit this connected account");
-      res = await utils.graphqlQuery(editConnectedAccountQuery, { connectedAccount: connectedAccountData }, backer);
+      res = await utils.graphqlQuery(editConnectedAccountMutation, { connectedAccount: connectedAccountData }, backer);
       expect(res.errors).to.exist;
       expect(res.errors[0].message).to.contain("You don't have permission to edit this connected account");
     });
@@ -67,7 +69,7 @@ describe('server/graphql/v1/connectedAccounts', () => {
   describe('success', () => {
     it('successfully updates a connected account', async () => {
       const res = await utils.graphqlQuery(
-        editConnectedAccountQuery,
+        editConnectedAccountMutation,
         { connectedAccount: connectedAccountData },
         admin,
       );

@@ -2,16 +2,17 @@
 import '../../server/env';
 
 import Promise from 'bluebird';
-import models, { Op } from '../../server/models';
 import { get } from 'lodash';
+
 import { processOnBoardingTemplate } from '../../server/lib/onboarding';
+import models, { Op } from '../../server/models';
 
 const XDaysAgo = days => {
   const d = new Date();
   return new Date(d.getFullYear(), d.getMonth(), d.getDate() - days);
 };
 
-Date.prototype.toString = function() {
+Date.prototype.toString = function () {
   const mm = this.getMonth() + 1; // getMonth() is zero-based
   const dd = this.getDate();
 
@@ -50,12 +51,11 @@ const onlyCollectivesWithoutTwitterActivated = collective => {
 
 Promise.all([
   processOnBoardingTemplate('onboarding.day35.inactive', XDaysAgo(35), onlyInactiveCollectives),
-  processOnBoardingTemplate('onboarding.day28', XDaysAgo(28)),
+  processOnBoardingTemplate('onboarding.day7', XDaysAgo(7)),
   processOnBoardingTemplate('onboarding.day21.noTwitter', XDaysAgo(21), onlyCollectivesWithoutTwitterActivated),
   processOnBoardingTemplate('onboarding.noExpenses', XDaysAgo(14), onlyCollectivesWithoutExpenses),
-  processOnBoardingTemplate('onboarding.noExpenses', XDaysAgo(35), onlyCollectivesWithoutExpenses), // another reminder after 35 days if no expenses filed yet
-  processOnBoardingTemplate('onboarding.noUpdates', XDaysAgo(42), onlyCollectivesWithoutUpdates),
-  processOnBoardingTemplate('onboarding.day7', XDaysAgo(7)),
+  processOnBoardingTemplate('onboarding.noUpdates', XDaysAgo(21), onlyCollectivesWithoutUpdates),
+  processOnBoardingTemplate('onboarding.day3', XDaysAgo(3)),
   processOnBoardingTemplate('onboarding.day2', XDaysAgo(2)),
 ]).then(() => {
   console.log('>>> all done');

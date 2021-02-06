@@ -5,20 +5,11 @@ import errors from '../lib/errors';
  */
 export default function required(properties) {
   properties = [].slice.call(arguments);
-  return _required_options({ include: ['query', 'body', 'headers'] }, properties);
+  return requiredOptions({ include: ['query', 'body', 'headers'] }, properties);
 }
 
-/**
- * Check that the middlewares have populated the needed values
- * (such as `req.remoteUser` or `reg.collective` or any other model)
- */
-export function required_valid(properties) {
-  properties = [].slice.call(arguments);
-  return _required_options({ include: ['query', 'body', 'headers', 'params', ''] }, properties);
-}
-
-function _required_options(options, properties) {
-  return function(req, res, next) {
+function requiredOptions(options, properties) {
+  return function (req, res, next) {
     const missing = {};
     req.required = req.required || {};
 
