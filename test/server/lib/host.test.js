@@ -1,12 +1,11 @@
-import sinon from 'sinon';
 import { expect } from 'chai';
+import sinon from 'sinon';
 
-import * as libhost from '../../../server/lib/hostlib';
 import * as libcurrency from '../../../server/lib/currency';
+import * as libhost from '../../../server/lib/hostlib';
 import { Op } from '../../../server/models';
-
-import * as utils from '../../utils';
 import * as store from '../../stores';
+import * as utils from '../../utils';
 
 async function donation(collective, user, amount, currency, createdAt) {
   return store.stripeOneTimeDonation({
@@ -22,7 +21,7 @@ async function donation(collective, user, amount, currency, createdAt) {
  * The goal here is to test a host with collectives in multiple currencies
  * We use sanitized data from wwcode for this
  */
-describe('libhost', () => {
+describe('server/lib/host', () => {
   const where = {}; // Will be filled in by 'get hosted collectives'
   const startDate = new Date('2017-02-01');
   const endDate = new Date('2017-03-01');
@@ -75,7 +74,7 @@ describe('libhost', () => {
   after(() => sandbox.restore());
 
   beforeEach('get hosted collectives', async () => {
-    const collectives = await libhost.getHostedCollectives(hostId);
+    const collectives = await libhost.getHostedCollectives(hostId, '2017-01-01');
     collectiveids = collectives.map(g => g.id).filter(id => id !== hostId); // We remove the host collective
     where.CollectiveId = { [Op.in]: collectiveids };
     expect(collectives.length).to.equal(4);

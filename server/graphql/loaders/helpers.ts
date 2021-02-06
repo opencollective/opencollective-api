@@ -1,8 +1,8 @@
-import { get } from 'lodash';
-import debugLib from 'debug';
 import DataLoader from 'dataloader';
+import { get } from 'lodash';
 
-const debug = debugLib('loaders');
+/** A default getter that returns item's id */
+const defaultKeyGetter = (item): number | string => item.id;
 
 /**
  * A newer implementation of `sortResults`.
@@ -11,29 +11,58 @@ const debug = debugLib('loaders');
  *
  * @param keys: the keys to use as a reference for sorting (usually a list of ids)
  * @param results: the results as a list of entities
- * @param attribute: the attribute to use to get the key
+ * @param getKeyFromResult: a function to get the id to match keys
  * @param defaultValue: a default value used when there's no result in `results`
  */
-export const sortResultsSimple = (
-  keys: readonly any[],
-  results: readonly any[],
-  attribute: string = 'id',
-  defaultValue: any = undefined,
-) => {
-  // Group items by ids
+export function sortResultsSimple<ResultType>(
+  keys: readonly (string | number)[],
+  results: readonly ResultType[],
+  getKeyFromResult = defaultKeyGetter,
+  defaultValue: ResultType = undefined,
+): ResultType[] {
   const resultsById = {};
   results.forEach(item => {
-    const id = item[attribute];
+    const id = getKeyFromResult(item);
     if (id) {
       resultsById[id] = item;
     }
   });
 
   return keys.map(id => resultsById[id] || defaultValue);
-};
+}
 
 /**
- * @deprecated Prefer to use `simpleSortResults`.
+ * Similar to `sortResultsSimple`, but stack items in arrays to allow storing multiple
+ * results for each key.
+ *
+ * @param keys: the keys to use as a reference for sorting (usually a list of ids)
+ * @param results: the results as a list of entities
+ * @param getKeyFromResult: a function to get the id to match keys
+ * @param defaultValue: a default value used when there's no result in `results`
+ */
+export function sortResultsArray<ResultType>(
+  keys: readonly (string | number)[],
+  results: readonly ResultType[],
+  getKeyFromResult = defaultKeyGetter,
+  defaultValue = [],
+): ResultType[][] {
+  const resultsById = {};
+  results.forEach(item => {
+    const id = getKeyFromResult(item);
+    if (id) {
+      if (resultsById[id]) {
+        resultsById[id].push(item);
+      } else {
+        resultsById[id] = [item];
+      }
+    }
+  });
+
+  return keys.map(id => resultsById[id] || defaultValue);
+}
+
+/**
+ * @deprecated Prefer to use `sortResultsSimple`.
  *
  * The legacy implementation of `sortResults`. Provides a complex mechanism for using sub-fields
  * for attributes with `:` which not standard nor documented. There's also some magic happening
@@ -49,10 +78,9 @@ export const sortResultsSimple = (
 export const sortResults = (
   keys: readonly any[],
   results: readonly any[],
-  attribute: string = 'id',
-  defaultValue: any = undefined,
+  attribute = 'id',
+  defaultValue = undefined,
 ) => {
-  debug('sortResults', attribute, 'number of results:', results.length);
   const resultsById = {};
   results.forEach(r => {
     let key;

@@ -4,13 +4,13 @@ import models from '../../../../server/models';
 import ManualPaymentMethod from '../../../../server/paymentProviders/opencollective/manual';
 import * as store from '../../../stores';
 
-describe('Manual Payment Method', () => {
+describe('server/paymentProviders/opencollective/manual', () => {
   const hostFeePercent = 5;
 
   let user, host, collective;
 
   /** Create a test PENDING order from `user` to `collective` */
-  const createOrder = async (amount = 5000) => {
+  const createOrder = async (amount = 5000, collective, options) => {
     const order = await models.Order.create({
       CreatedByUserId: user.id,
       FromCollectiveId: user.CollectiveId,
@@ -18,6 +18,7 @@ describe('Manual Payment Method', () => {
       totalAmount: amount,
       currency: 'USD',
       status: 'PENDING',
+      ...options,
     });
 
     // Bind some required properties
@@ -59,7 +60,7 @@ describe('Manual Payment Method', () => {
   describe('processOrder', () => {
     it('Returns the CREDIT transaction', async () => {
       const amount = 5000;
-      const order = await createOrder(amount);
+      const order = await createOrder(amount, collective);
       const transaction = await ManualPaymentMethod.processOrder(order);
 
       expect(transaction.type).to.equal('CREDIT');
@@ -82,10 +83,28 @@ describe('Manual Payment Method', () => {
     it('Is not fooled by floating issues', async () => {
       // (hostFeePercent = 5 / 100) * 28 = 1.4000000000000001
       const amount = 28;
-      const order = await createOrder(amount);
+      const order = await createOrder(amount, collective);
       const transaction = await ManualPaymentMethod.processOrder(order);
       expect(transaction.amountInHostCurrency).to.equal(amount);
       expect(transaction.hostFeeInHostCurrency).to.equal(-1);
+    });
+
+    it("throws if Collective currency doesn't match Host currency unless CROSS_CURRENCY_MANUAL_TRANSACTIONS is enabled", async () => {
+      const otherCollective = await models.Collective.create({
+        name: 'collective4',
+        currency: 'FKA',
+        HostCollectiveId: host.id,
+        isActive: true,
+        hostFeePercent,
+      });
+
+      const order = await createOrder(50, otherCollective, { currency: 'FKA' });
+      await expect(ManualPaymentMethod.processOrder(order)).to.be.eventually.rejectedWith(Error);
+
+      await host.update({ settings: { features: { crossCurrencyManualTransactions: true } } });
+
+      const transaction = await ManualPaymentMethod.processOrder(order);
+      expect(transaction.currency).to.equal('FKA');
     });
   });
 
@@ -93,7 +112,7 @@ describe('Manual Payment Method', () => {
   describe('refundTransaction', () => {
     it('Create opposite transactions', async () => {
       const amount = 5000;
-      const order = await createOrder(amount);
+      const order = await createOrder(amount, collective);
       const transaction = await ManualPaymentMethod.processOrder(order);
 
       // Check that the original transaction is correctly updated

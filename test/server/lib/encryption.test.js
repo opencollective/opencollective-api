@@ -1,20 +1,23 @@
 import { expect } from 'chai';
-import { generateKey, encrypt, decrypt } from '../../../server/lib/encryption';
 
-describe('lib.encryption', () => {
-  it('it encrypts and decrypts ok', () => {
-    const message = 'OpenCollective Rules';
-    const buff = Buffer.from(message);
-    const key = generateKey();
+import { generateKey, secretbox } from '../../../server/lib/encryption';
 
-    const encrypted = encrypt(buff, key);
+describe('server/lib/encryption', () => {
+  describe('secretbox', () => {
+    it('it encrypts and decrypts ok', () => {
+      const message = 'OpenCollective Rules';
+      const buff = Buffer.from(message);
+      const key = generateKey();
 
-    expect(Buffer.isBuffer(encrypted)).to.be.true;
+      const encrypted = secretbox.encrypt(buff, key);
 
-    expect(encrypted).to.not.eq(message);
+      expect(Buffer.isBuffer(encrypted)).to.be.true;
 
-    const result = decrypt(encrypted, key);
+      expect(encrypted).to.not.eq(message);
 
-    expect(result).to.eq(message);
+      const result = secretbox.decrypt(encrypted, key);
+
+      expect(result).to.eq(message);
+    });
   });
 });

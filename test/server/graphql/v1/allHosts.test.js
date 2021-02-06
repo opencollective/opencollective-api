@@ -1,7 +1,8 @@
 import { expect } from 'chai';
+import gql from 'fake-tag';
 import { describe, it } from 'mocha';
-import models from '../../../../server/models';
 
+import models from '../../../../server/models';
 import * as utils from '../../../utils';
 
 describe('server/graphql/v1/allHosts', () => {
@@ -21,18 +22,24 @@ describe('server/graphql/v1/allHosts', () => {
       currency: 'EUR',
       tags: ['host', 'brussels'],
       settings: { apply: { title: 'apply' } },
+      plan: 'custom',
+      isHostAccount: true,
     });
     await models.Collective.create({
       name: 'Open Collective Paris',
       currency: 'EUR',
       tags: ['host', 'paris', 'chapter'],
       settings: { apply: { title: 'apply' } },
+      plan: 'custom',
+      isHostAccount: true,
     });
     await models.Collective.create({
       name: 'wwcodeinc',
       currency: 'USD',
       tags: ['host'],
       settings: { apply: { title: 'apply' } },
+      plan: 'custom',
+      isHostAccount: true,
     });
     privateHost = await models.Collective.create({ name: 'Xavier' });
     await publicHost.addUserWithRole(hostAdmin, 'ADMIN');
@@ -51,20 +58,20 @@ describe('server/graphql/v1/allHosts', () => {
   });
 
   describe('hosts', () => {
-    const allHostsQuery = `
-    query allHosts($tags: [String], $currency: String) {
-      allHosts(tags: $tags, currency: $currency) {
-        total
-        collectives {
-          id
-          type
-          slug
-          tags
-          settings
-          canApply
+    const allHostsQuery = gql`
+      query AllHosts($tags: [String], $currency: String) {
+        allHosts(tags: $tags, currency: $currency) {
+          total
+          collectives {
+            id
+            type
+            slug
+            tags
+            settings
+            canApply
+          }
         }
       }
-    }
     `;
 
     it('gets all the hosts where we can apply', async () => {

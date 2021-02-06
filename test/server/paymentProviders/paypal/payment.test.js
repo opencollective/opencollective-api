@@ -1,20 +1,26 @@
-import config from 'config';
-import uuidv4 from 'uuid/v4';
-import nock from 'nock';
-import request from 'supertest';
-import sinon from 'sinon';
 import { expect } from 'chai';
+import config from 'config';
+import nock from 'nock';
+import sinon from 'sinon';
+import request from 'supertest';
+import { v4 as uuid } from 'uuid';
 
 import app from '../../../../server/index';
 import models from '../../../../server/models';
 import * as paypalPayment from '../../../../server/paymentProviders/paypal/payment';
-
-import * as utils from '../../../utils';
 import * as store from '../../../stores';
+import { fakeCollective } from '../../../test-helpers/fake-data';
+import * as utils from '../../../utils';
 
 const application = utils.data('application');
 
-describe('paypal.payment', () => {
+describe('server/paymentProviders/paypal/payment', () => {
+  let expressApp;
+
+  before(async () => {
+    expressApp = await app();
+  });
+
   describe('#paypalUrl', () => {
     let configStub;
 
@@ -41,23 +47,40 @@ describe('paypal.payment', () => {
        the PayPal url `/v1/oauth2/token'. Which is pretty much
        everything besides `paypalUrl` and`retrieveOAuthToken`. */
 
-    let configStub;
+    before(utils.resetTestDB);
 
+    let configStub;
     before(() => {
       /* Stub out the configuration with authentication information
          and environment name. */
       configStub = sinon.stub(config.paypal, 'payment').get(() => ({
         environment: 'sandbox',
-        clientId: 'my-client-id',
-        clientSecret: 'my-client-secret',
       }));
       /* Catch the retrieval of auth tokens */
       nock('https://api.sandbox.paypal.com')
         .persist()
         .post('/v1/oauth2/token')
         .basicAuth({ user: 'my-client-id', pass: 'my-client-secret' })
-        .reply(200, { access_token: 'dat-token' });
+        .reply(200, { access_token: 'dat-token' }); // eslint-disable-line camelcase
     }); /* End of "before()" */
+
+    const secrets = {
+      clientId: 'my-client-id',
+      clientSecret: 'my-client-secret',
+    };
+    let collective, host;
+    beforeEach(async () => {
+      const paypal = await models.ConnectedAccount.create({
+        service: 'paypal',
+        clientId: secrets.clientId,
+        token: secrets.clientSecret,
+      });
+      host = await fakeCollective({});
+      await host.addConnectedAccount(paypal);
+      collective = await fakeCollective({
+        HostCollectiveId: host.id,
+      });
+    });
 
     after(() => {
       configStub.restore();
@@ -66,7 +89,7 @@ describe('paypal.payment', () => {
 
     describe('#retrieveOAuthToken', () => {
       it('should retrieve the oauth token from PayPal API', async () => {
-        const token = await paypalPayment.retrieveOAuthToken();
+        const token = await paypalPayment.retrieveOAuthToken(secrets);
         expect(token).to.equal('dat-token');
       }); /* End of "should retrieve the oauth token from PayPal API" */
     }); /* End of "#retrieveOAuthToken" */
@@ -80,7 +103,7 @@ describe('paypal.payment', () => {
       }); /* End of "before()" */
 
       it('should request PayPal API endpoints', async () => {
-        const output = await paypalPayment.paypalRequest('path/we/are/testing');
+        const output = await paypalPayment.paypalRequest('path/we/are/testing', {}, host);
         expect(output).to.deep.equal({ success: 1 });
       }); /* End of "#paypalRequest" */
     }); /* End of "#paypalRequest" */
@@ -94,9 +117,9 @@ describe('paypal.payment', () => {
       }); /* End of "before()" */
 
       it('should call payments/payment endpoint of the PayPal API', async () => {
-        const output = await request(app)
+        const output = await request(expressApp)
           .post(`/services/paypal/create-payment?api_key=${application.api_key}`)
-          .send({ amount: '50', currency: 'USD' })
+          .send({ amount: '50', currency: 'USD', hostId: host.id })
           .expect(200);
         expect(output.body.id).to.equal('a very legit payment id');
       }); /* End of "should call payments/payment endpoint of the PayPal API" */
@@ -110,13 +133,12 @@ describe('paypal.payment', () => {
           .reply(200, { success: 'Reply from payment execution' });
       }); /* End of "before()" */
 
-      beforeEach(utils.resetTestDB);
-
       it('should call payments/payment/<pm-id>/execute endpoint of PayPal API', async () => {
         const order = {
           paymentMethod: {
             data: { paymentID: 'my-payment-id', payerID: 'my-payer-id' },
           },
+          collective,
         };
         const output = await paypalPayment.executePayment(order);
         expect(output.success).to.equal('Reply from payment execution');
@@ -138,7 +160,7 @@ describe('paypal.payment', () => {
           createdAt: new Date(),
           updatedAt: new Date(),
           CreatedByUserId: user.id,
-          uuid: uuidv4(),
+          uuid: uuid(),
           token: 'EC-88888888888888888',
         });
 
@@ -156,6 +178,7 @@ describe('paypal.payment', () => {
         order.collective = collective;
         order.paymentMethod = paymentMethod;
 
+        /* eslint-disable camelcase */
         const paymentInfo = {
           transactions: [
             {
@@ -168,6 +191,7 @@ describe('paypal.payment', () => {
             },
           ],
         };
+        /* eslint-enable camelcase */
 
         const tr = await paypalPayment.createTransaction(order, paymentInfo);
 
@@ -196,7 +220,7 @@ describe('paypal.payment', () => {
           createdAt: new Date(),
           updatedAt: new Date(),
           CreatedByUserId: user.id,
-          uuid: uuidv4(),
+          uuid: uuid(),
           token: 'EC-88888888888888888',
         });
 
@@ -213,6 +237,7 @@ describe('paypal.payment', () => {
         order.collective = collective;
         order.paymentMethod = paymentMethod;
 
+        /* eslint-disable camelcase */
         const genPaymentInfo = fee => ({
           transactions: [
             {
@@ -225,6 +250,7 @@ describe('paypal.payment', () => {
             },
           ],
         });
+        /* eslint-enable camelcase */
 
         let tr = await paypalPayment.createTransaction(order, genPaymentInfo('0.28'));
         expect(tr.paymentProcessorFeeInHostCurrency).to.equal(-28);

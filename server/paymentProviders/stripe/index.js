@@ -1,21 +1,25 @@
-import config from 'config';
-import jwt from 'jsonwebtoken';
-import axios from 'axios';
-import debugLib from 'debug';
-import { get } from 'lodash';
 import { URLSearchParams } from 'url';
 
-import models from '../../models';
+import axios from 'axios';
+import config from 'config';
+import debugLib from 'debug';
+import jwt from 'jsonwebtoken';
+import { get } from 'lodash';
+
 import errors from '../../lib/errors';
-import creditcard from './creditcard';
-import { addParamsToUrl } from '../../lib/utils';
+import logger from '../../lib/logger';
 import stripe from '../../lib/stripe';
+import { addParamsToUrl } from '../../lib/utils';
+import models from '../../models';
+
+import creditcard from './creditcard';
 
 const debug = debugLib('stripe');
 
 const AUTHORIZE_URI = 'https://connect.stripe.com/oauth/authorize';
 const TOKEN_URI = 'https://connect.stripe.com/oauth/token';
 
+/* eslint-disable camelcase */
 const getToken = code => () =>
   axios
     .post(TOKEN_URI, {
@@ -25,6 +29,7 @@ const getToken = code => () =>
       code,
     })
     .then(res => res.data);
+/* eslint-enable camelcase */
 
 const getAccountInformation = data => {
   return new Promise((resolve, reject) => {
@@ -64,6 +69,7 @@ export default {
         },
       );
 
+      /* eslint-disable camelcase */
       const params = new URLSearchParams({
         response_type: 'code',
         scope: 'read_write',
@@ -71,6 +77,8 @@ export default {
         redirect_uri: config.stripe.redirectUri,
         state,
       });
+      /* eslint-enable camelcase */
+
       return Promise.resolve(`${AUTHORIZE_URI}?${params.toString()}`);
     },
 
@@ -91,6 +99,14 @@ export default {
       }
 
       let redirectUrl = redirect;
+
+      const deleteStripeAccounts = () =>
+        models.ConnectedAccount.destroy({
+          where: {
+            service: 'stripe',
+            CollectiveId,
+          },
+        });
 
       const createStripeAccount = data =>
         models.ConnectedAccount.create({
@@ -113,10 +129,11 @@ export default {
        * with the default currency of the bank account connected to the stripe account and legal address
        * @param {*} connectedAccount
        */
-      const updateHost = connectedAccount => {
+      const updateHost = async connectedAccount => {
         if (!connectedAccount) {
           console.error('>>> updateHost: error: no connectedAccount');
         }
+
         const { account } = connectedAccount.data;
         if (!collective.address && account.legal_entity) {
           const { address } = account.legal_entity;
@@ -135,9 +152,15 @@ export default {
           addressLines.push(address.country);
           collective.address = addressLines.join('\n');
         }
-        collective.currency = account.default_currency.toUpperCase();
+
+        try {
+          await collective.setCurrency(account.default_currency.toUpperCase());
+        } catch (error) {
+          logger.error(`Unable to set currency for '${collective.slug}': ${error.message}`);
+        }
+
         collective.timezone = collective.timezone || account.timezone;
-        collective.becomeHost(); // adds the opencollective payment method to enable the host to allocate funds to collectives
+
         return collective.save();
       };
 
@@ -146,6 +169,7 @@ export default {
           collective = c;
           redirectUrl = redirectUrl || `${config.host.website}/${collective.slug}`;
         })
+        .then(deleteStripeAccounts)
         .then(getToken(req.query.code))
         .then(getAccountInformation)
         .then(createStripeAccount)
@@ -181,14 +205,15 @@ export default {
   webhook: requestBody => {
     // Stripe sends test events to production as well
     // don't do anything if the event is not livemode
-    if (process.env.NODE_ENV === 'production' && !requestBody.livemode) {
+    // NOTE: not using config.env because of ugly tests
+    if (process.env.OC_ENV === 'production' && !requestBody.livemode) {
       return Promise.resolve();
     }
     /**
      * We check the event on stripe directly to be sure we don't get a fake event from
      * someone else
      */
-    return stripe.events.retrieve(requestBody.id, { stripe_account: requestBody.user_id }).then(event => {
+    return stripe.events.retrieve(requestBody.id, { stripeAccount: requestBody.user_id }).then(event => {
       if (!event || (event && !event.type)) {
         throw new errors.BadRequest('Event not found');
       }

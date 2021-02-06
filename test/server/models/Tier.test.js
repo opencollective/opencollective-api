@@ -1,12 +1,14 @@
 import { expect } from 'chai';
+import { random, times } from 'lodash';
 import { SequelizeValidationError } from 'sequelize';
+
 import models from '../../../server/models';
+import { newCollectiveWithHost, randEmail } from '../../stores';
 import * as utils from '../../utils';
-import { randEmail, newCollectiveWithHost } from '../../stores';
 
 const { Collective, User } = models;
 
-describe('Collective model', () => {
+describe('server/models/Tier', () => {
   let collective = {},
     tiers;
 
@@ -132,6 +134,16 @@ describe('Collective model', () => {
       it('Fallback gracefully if the slug cannot be generated', async () => {
         const tier = await models.Tier.create({ ...validTierParams, name: '😵️' });
         expect(tier.slug).to.eq('tier');
+      });
+    });
+
+    describe('description', () => {
+      it('must be appropriate length', async () => {
+        const veryLongDescription = times(520, () => random(35).toString(36)).join('');
+        const createPromise = models.Tier.create({ ...validTierParams, description: veryLongDescription });
+        await expect(createPromise).to.be.rejectedWith(
+          'Validation error: In "A valid tier name" tier, the description is too long (must be less than 510 characters)',
+        );
       });
     });
   });

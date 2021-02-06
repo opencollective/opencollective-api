@@ -4,14 +4,14 @@ import '../server/env';
 /*
  * This script runs through a few checks and lets us know if something is off
  */
-
 import Promise from 'bluebird';
+
 // import { parse as json2csv } from 'json2csv';
-import models, { sequelize, Op } from '../server/models';
+// import moment from 'moment';
 import emailLib from '../server/lib/email';
 // import * as transactionsLib from '../../server/lib/transactions';
 import { formatCurrency } from '../server/lib/utils';
-// import moment from 'moment';
+import models, { Op, sequelize } from '../server/models';
 
 const VERBOSE = true;
 const attachments = [];
@@ -323,10 +323,10 @@ const checkTransactions = () => {
         sequelize.query(
           `
     with "invalidExpenses" AS (
-      SELECT MAX(e.id) as "ExpenseId", max(e."payoutMethod") as "payoutMethod", count(*) as "numberOfTransactions",
+      SELECT MAX(e.id) as "ExpenseId", max(e."legacyPayoutMethod") as "legacyPayoutMethod", count(*) as "numberOfTransactions",
         CASE
-        WHEN (MAX(e."payoutMethod") = 'donation' AND COUNT(*) = 4) THEN true
-        WHEN (MAX(e."payoutMethod") != 'donation' AND COUNT(*) != 2) THEN false
+        WHEN (MAX(e."legacyPayoutMethod") = 'donation' AND COUNT(*) = 4) THEN true
+        WHEN (MAX(e."legacyPayoutMethod") != 'donation' AND COUNT(*) != 2) THEN false
         ELSE true
         END as valid
       FROM "Transactions" t LEFT JOIN "Expenses" e ON t."ExpenseId" = e.id
@@ -334,7 +334,7 @@ const checkTransactions = () => {
                 GROUP BY "ExpenseId"
                 HAVING COUNT(*) != 2
       )
-      SELECT ie."ExpenseId", ie."numberOfTransactions", c.slug as collective, e.category, e.amount, e.currency, e.description, e."payoutMethod", u.email as "user email", u."paypalEmail", e.attachment, e."incurredAt", e."createdAt", e."updatedAt" FROM "invalidExpenses" ie LEFT JOIN "Expenses" e ON ie."ExpenseId" = e.id LEFT JOIN "Users" u ON u.id=e."UserId" LEFT JOIN "Collectives" c ON c.id=e."CollectiveId" WHERE e.id IN (select "ExpenseId" FROM "invalidExpenses" WHERE valid is false)
+      SELECT ie."ExpenseId", ie."numberOfTransactions", c.slug as collective, e.tags[1] as category, e.amount, e.currency, e.description, e."legacyPayoutMethod", u.email as "user email", e."incurredAt", e."createdAt", e."updatedAt" FROM "invalidExpenses" ie LEFT JOIN "Expenses" e ON ie."ExpenseId" = e.id LEFT JOIN "Users" u ON u.id=e."UserId" LEFT JOIN "Collectives" c ON c.id=e."CollectiveId" WHERE e.id IN (select "ExpenseId" FROM "invalidExpenses" WHERE valid is false)
     `,
           { type: sequelize.QueryTypes.SELECT },
         ),

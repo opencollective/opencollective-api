@@ -1,14 +1,14 @@
 import { expect } from 'chai';
+import gql from 'fake-tag';
 import { describe, it } from 'mocha';
 import sinon from 'sinon';
 
-import models, { Op } from '../../../../server/models';
+import * as expenses from '../../../../server/graphql/common/expenses';
 import cache from '../../../../server/lib/cache';
-import * as expenses from '../../../../server/graphql/v1/mutations/expenses';
-
-import * as utils from '../../../utils';
+import models, { Op } from '../../../../server/models';
 import * as store from '../../../stores';
 import { fakeUser } from '../../../test-helpers/fake-data';
+import * as utils from '../../../utils';
 
 describe('server/graphql/v1/collective', () => {
   beforeEach(async () => {
@@ -17,10 +17,16 @@ describe('server/graphql/v1/collective', () => {
 
   it('should display a nice error message if collective is not found', async () => {
     // Given the following query
-    const query = `query Collective($slug: String) {
-      Collective(slug: $slug) { id slug } }`;
+    const collectiveQuery = gql`
+      query Collective($slug: String) {
+        Collective(slug: $slug) {
+          id
+          slug
+        }
+      }
+    `;
     // When a collective that doesn't exist is retrieved
-    const result = await utils.graphqlQuery(query, { slug: 'apex' });
+    const result = await utils.graphqlQuery(collectiveQuery, { slug: 'apex' });
     // Than we're supposed to see some errors
     expect(result.errors).to.exist;
     expect(result.errors[0].message).to.equal('No collective found with slug apex');
@@ -28,10 +34,16 @@ describe('server/graphql/v1/collective', () => {
 
   it("won't generate an error if told not to", async () => {
     // Given the following query
-    const query = `query Collective($slug: String) {
-      Collective(slug: $slug, throwIfMissing: false) { id slug } }`;
+    const collectiveQuery = gql`
+      query Collective($slug: String) {
+        Collective(slug: $slug, throwIfMissing: false) {
+          id
+          slug
+        }
+      }
+    `;
     // When a collective that doesn't exist is retrieved
-    const result = await utils.graphqlQuery(query, { slug: 'apex' });
+    const result = await utils.graphqlQuery(collectiveQuery, { slug: 'apex' });
     // Than we're supposed to see some errors
     expect(result.errors).to.not.exist;
     expect(result.data.Collective).to.be.null;
@@ -74,57 +86,75 @@ describe('server/graphql/v1/collective', () => {
       });
       // And given some expenses
       const expense = await store.createApprovedExpense(user, {
-        category: 'Engineering',
+        category: 'engineering',
         amount: 100 * (i + 1),
         description: 'test',
         currency,
-        payoutMethod: 'manual',
+        legacyPayoutMethod: 'manual',
+        items: [{ amount: 100 * (i + 1), url: store.randUrl() }],
         collective: { id: apex.id },
       });
-      await expenses.payExpense(hostAdmin, { id: expense.id });
+      await expenses.payExpense(utils.makeRequest(hostAdmin), { id: expense.id });
     }
 
     // When the following query is executed
-    const query = `
-    query Collective($slug: String) {
-      Collective(slug: $slug) {
-        id
-        slug
-        type
-        createdByUser {
-          id
-          firstName,
-          email
-          __typename
-        }
-        name
-        website
-        twitterHandle
-        githubHandle
-        image
-        description
-        longDescription
-        currency
-        settings
-        tiers {
+    const collectiveQuery = gql`
+      query Collective($slug: String) {
+        Collective(slug: $slug) {
           id
           slug
           type
-          name
-          description
-          amount
-          presets
-          interval
-          currency
-          maxQuantity
-          orders {
+          createdByUser {
             id
-            publicMessage
-            createdAt
-            stats {
-              totalTransactions
+            firstName
+            email
+            __typename
+          }
+          name
+          website
+          twitterHandle
+          githubHandle
+          image
+          description
+          longDescription
+          currency
+          settings
+          tiers {
+            id
+            slug
+            type
+            name
+            description
+            amount
+            presets
+            interval
+            currency
+            maxQuantity
+            orders {
+              id
+              publicMessage
+              createdAt
+              stats {
+                totalTransactions
+              }
+              fromCollective {
+                id
+                name
+                image
+                slug
+                twitterHandle
+                description
+                __typename
+              }
+              __typename
             }
-            fromCollective {
+            __typename
+          }
+          members {
+            id
+            createdAt
+            role
+            member {
               id
               name
               image
@@ -135,38 +165,21 @@ describe('server/graphql/v1/collective', () => {
             }
             __typename
           }
-          __typename
-        }
-        members {
-          id
-          createdAt
-          role
-          member {
-            id
-            name
-            image
-            slug
-            twitterHandle
-            description
-            __typename
+          stats {
+            backers {
+              all
+              users
+              organizations
+            }
+            yearlyBudget
+            topFundingSources
           }
           __typename
         }
-        stats {
-          backers {
-            all
-            users
-            organizations
-          }
-          yearlyBudget
-          topExpenses
-          topFundingSources
-        }
-        __typename
       }
-    }`;
+    `;
 
-    const result = await utils.graphqlQuery(query, { slug: 'apex' });
+    const result = await utils.graphqlQuery(collectiveQuery, { slug: 'apex' });
     result.errors && console.error(result.errors);
     expect(result.errors).to.not.exist;
 
@@ -211,33 +224,6 @@ describe('server/graphql/v1/collective', () => {
       ],
       byCollectiveType: [{ type: 'USER', totalDonations: 49500 }],
     });
-
-    expect(collective.stats.topExpenses).to.deep.equal({
-      byCategory: [{ category: 'Engineering', count: 10, totalExpenses: 5500 }],
-      byCollective: [
-        {
-          slug: 'testuser9',
-          image: null,
-          name: 'testuser9',
-          totalExpenses: -1000,
-          twitterHandle: null,
-        },
-        {
-          slug: 'testuser8',
-          image: null,
-          name: 'testuser8',
-          totalExpenses: -900,
-          twitterHandle: null,
-        },
-        {
-          slug: 'testuser7',
-          image: null,
-          name: 'testuser7',
-          totalExpenses: -800,
-          twitterHandle: null,
-        },
-      ],
-    });
   });
 
   it('gets the url path and the host collective for an event', async () => {
@@ -250,7 +236,7 @@ describe('server/graphql/v1/collective', () => {
     await event.update({ type: 'EVENT', ParentCollectiveId: collective.id });
 
     // When the following query is executed
-    const query = `
+    const query = gql`
       query Collective($slug: String) {
         Collective(slug: $slug) {
           slug
@@ -293,8 +279,9 @@ describe('server/graphql/v1/collective', () => {
       amount,
       description,
       currency: 'EUR',
-      payoutMethod: 'manual',
+      legacyPayoutMethod: 'manual',
       collective: { id: cid },
+      items: [{ url: store.randUrl(), amount }],
     });
 
     // And given that we add some expenses to brussels together:
@@ -320,44 +307,44 @@ describe('server/graphql/v1/collective', () => {
     await store.createRejectedExpense(user, d(50000, 'Non vegan t-shirts', veganizerbxl.id));
 
     // When the following query is executed
-    const query = `
-    query Collective($slug: String) {
-      Collective(slug: $slug) {
-        id
-        slug
-        stats {
-          collectives {
-            all
-            hosted
-            memberOf
+    const collectiveQuery = gql`
+      query Collective($slug: String) {
+        Collective(slug: $slug) {
+          id
+          slug
+          stats {
+            collectives {
+              all
+              hosted
+              memberOf
+            }
+            expenses {
+              pending
+              approved
+              paid
+            }
           }
-          expenses {
-            pending
-            approved
-            paid
-          }
-        }
-        collectives {
-          total
           collectives {
-            id
-            slug
-            stats {
-              expenses {
-                all
-                paid
-                pending
-                rejected
-                approved
+            total
+            collectives {
+              id
+              slug
+              stats {
+                expenses {
+                  all
+                  paid
+                  pending
+                  rejected
+                  approved
+                }
               }
             }
           }
         }
       }
-    }
     `;
 
-    const result = await utils.graphqlQuery(query, {
+    const result = await utils.graphqlQuery(collectiveQuery, {
       slug: 'brusselstogether',
     });
     result.errors && console.error(result.errors);
@@ -469,34 +456,34 @@ describe('server/graphql/v1/collective', () => {
     });
 
     // When the query is performed
-    const query = `
-    query Collective($slug: String, $type: String) {
-      Collective(slug: $slug) {
-        members(type: $type, limit: 10, offset: 0) {
-          id
-          role
-          stats {
-            totalDonations
-          }
-          transactions {
+    const collectiveQuery = gql`
+      query Collective($slug: String, $type: String) {
+        Collective(slug: $slug) {
+          members(type: $type, limit: 10, offset: 0) {
             id
-            amount
-          }
-          orders {
-            id
-            totalAmount
-          }
-          member {
-            id
-            type
-            slug
+            role
+            stats {
+              totalDonations
+            }
+            transactions {
+              id
+              amount
+            }
+            orders {
+              id
+              totalAmount
+            }
+            member {
+              id
+              type
+              slug
+            }
           }
         }
       }
-    }
     `;
     const fetchMembersByType = async type => {
-      const result = await utils.graphqlQuery(query, { slug: 'apex', type });
+      const result = await utils.graphqlQuery(collectiveQuery, { slug: 'apex', type });
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       return result.data.Collective.members;
@@ -524,35 +511,51 @@ describe('server/graphql/v1/collective', () => {
   });
 
   describe('allMembers query', () => {
-    const allMembersQuery = `
-    query allMembers($collectiveSlug: String, $memberCollectiveSlug: String, $orderBy: String, $role: String, $type: String, $isActive: Boolean) {
-      allMembers(collectiveSlug: $collectiveSlug, memberCollectiveSlug: $memberCollectiveSlug, role: $role, type: $type, limit: 10, offset: 0, orderBy: $orderBy, isActive: $isActive) {
-        id
-        role
-        stats {
-          totalDonations
-        }
-        collective {
+    const allMembersQuery = gql`
+      query AllMembers(
+        $collectiveSlug: String
+        $memberCollectiveSlug: String
+        $orderBy: String
+        $role: String
+        $type: String
+        $isActive: Boolean
+      ) {
+        allMembers(
+          collectiveSlug: $collectiveSlug
+          memberCollectiveSlug: $memberCollectiveSlug
+          role: $role
+          type: $type
+          limit: 10
+          offset: 0
+          orderBy: $orderBy
+          isActive: $isActive
+        ) {
           id
-          slug
-        }
-        member {
-          id
-          slug
-          ... on User {
-            email
+          role
+          stats {
+            totalDonations
           }
-          ... on Organization {
-            email
+          collective {
+            id
+            slug
           }
-        }
-        tier {
-          id
-          slug
-          interval
+          member {
+            id
+            slug
+            ... on User {
+              email
+            }
+            ... on Organization {
+              email
+            }
+          }
+          tier {
+            id
+            slug
+            interval
+          }
         }
       }
-    }
     `;
 
     let brusselsTogetherHostAdmin;
@@ -770,20 +773,22 @@ describe('server/graphql/v1/collective', () => {
     });
 
     it('gets totalAmountSpent by collective', async () => {
-      const query = `query TotalCollectiveContributions($slug: String, $type: String) {
-        Collective(slug: $slug) {
-          id
-          currency
-          stats {
+      const query = gql`
+        query TotalCollectiveContributions($slug: String, $type: String) {
+          Collective(slug: $slug) {
             id
-            totalAmountSpent
-          }
-          transactions(type: $type) {
             currency
-            netAmountInCollectiveCurrency
+            stats {
+              id
+              totalAmountSpent
+            }
+            transactions(type: $type) {
+              currency
+              netAmountInCollectiveCurrency
+            }
           }
         }
-      }`;
+      `;
 
       const result = await utils.graphqlQuery(query, {
         slug: 'olu',
@@ -850,28 +855,28 @@ describe('server/graphql/v1/collective', () => {
         location: {},
       };
 
-      const query = `
-    mutation editCollective($collective: CollectiveInputType!) {
-      editCollective(collective: $collective) {
-        id,
-        slug,
-        members {
-          id
-          role
-          member {
-            name
-            createdByUser {
+      const editCollectiveMutation = gql`
+        mutation EditCollective($collective: CollectiveInputType!) {
+          editCollective(collective: $collective) {
+            id
+            slug
+            members {
               id
-            }
-            ... on User {
-              email
+              role
+              member {
+                name
+                createdByUser {
+                  id
+                }
+                ... on User {
+                  email
+                }
+              }
             }
           }
         }
-      }
-    }
-    `;
-      const res = await utils.graphqlQuery(query, { collective }, pubnubAdmin);
+      `;
+      const res = await utils.graphqlQuery(editCollectiveMutation, { collective }, pubnubAdmin);
       res.errors && console.error(res.errors);
       expect(res.errors).to.not.exist;
       const members = res.data.editCollective.members;
@@ -892,41 +897,53 @@ describe('server/graphql/v1/collective', () => {
 
       const member1 = coreContributors.find(m => m.MemberCollectiveId === newUser1.CollectiveId);
       expect(member1.role).to.equal('MEMBER');
-      const res2 = await utils.graphqlQuery(query, { collective }, newUser1);
+      const res2 = await utils.graphqlQuery(editCollectiveMutation, { collective }, newUser1);
       expect(res2.errors).to.exist;
       expect(res2.errors[0].message).to.equal(
         'You must be logged in as an admin or as the host of this collective collective to edit it',
       );
 
-      const res3 = await utils.graphqlQuery(query, { collective }, newUser2);
-      expect(res3.errors[0].message).to.equal(
-        'You cannot remove yourself as a Collective admin. If you are the only admin, please add a new one and ask them to remove you.',
+      const res3 = await utils.graphqlQuery(
+        editCollectiveMutation,
+        { collective: { ...collective, members: collective.members.filter(m => m.role !== 'ADMIN') } },
+        newUser2,
       );
+
+      expect(res3.errors[0].message).to.equal('There must be at least one admin for the account');
     });
 
     it('apply to host', async () => {
-      const { hostCollective } = await store.newHost('brusselstogether', 'EUR', 5);
+      const { hostCollective } = await store.newHost(
+        'brusselstogether',
+        'EUR',
+        5,
+        {},
+        {
+          type: 'ORGANIZATION',
+          isHostAccount: true,
+        },
+      );
 
       const collective = {
         id: pubnubCollective.id,
         HostCollectiveId: hostCollective.id,
       };
 
-      const query = `
-    mutation editCollective($collective: CollectiveInputType!) {
-      editCollective(collective: $collective) {
-        id,
-        slug,
-        host {
-          id
-          slug
-          currency
+      const editCollectiveMutation = gql`
+        mutation EditCollective($collective: CollectiveInputType!) {
+          editCollective(collective: $collective) {
+            id
+            slug
+            host {
+              id
+              slug
+              currency
+            }
+            currency
+          }
         }
-        currency,
-      }
-    }
-    `;
-      const res = await utils.graphqlQuery(query, { collective }, pubnubAdmin);
+      `;
+      const res = await utils.graphqlQuery(editCollectiveMutation, { collective }, pubnubAdmin);
       res.errors && console.error(res.errors);
       expect(res.errors).to.not.exist;
       const updatedCollective = res.data.editCollective;
@@ -936,8 +953,8 @@ describe('server/graphql/v1/collective', () => {
     });
   });
   describe('edits member public message', () => {
-    const QUERY = `
-      mutation editPublicMessage($FromCollectiveId: Int!, $CollectiveId: Int!, $message: String) {
+    const editPublicMessageMutation = gql`
+      mutation EditPublicMessage($FromCollectiveId: Int!, $CollectiveId: Int!, $message: String) {
         editPublicMessage(FromCollectiveId: $FromCollectiveId, CollectiveId: $CollectiveId, message: $message) {
           id
           publicMessage
@@ -966,8 +983,9 @@ describe('server/graphql/v1/collective', () => {
         amount: 20000,
       });
       const message = 'I am happy to support this collective!';
+      cacheDelSpy.resetHistory();
       const res = await utils.graphqlQuery(
-        QUERY,
+        editPublicMessageMutation,
         {
           FromCollectiveId: pubnubAdmin.collective.id,
           CollectiveId: pubnubCollective.id,
@@ -1019,8 +1037,9 @@ describe('server/graphql/v1/collective', () => {
         },
       );
       expect(quantityUpdated).to.equal(2);
+      cacheDelSpy.resetHistory();
       const res = await utils.graphqlQuery(
-        QUERY,
+        editPublicMessageMutation,
         {
           FromCollectiveId: pubnubAdmin.collective.id,
           CollectiveId: pubnubCollective.id,
@@ -1052,7 +1071,7 @@ describe('server/graphql/v1/collective', () => {
     it('error trying to edit members public message where user is not admin', async () => {
       const { user } = await store.newUser('test');
       const res = await utils.graphqlQuery(
-        QUERY,
+        editPublicMessageMutation,
         {
           FromCollectiveId: user.collective.id,
           CollectiveId: pubnubCollective.id,
@@ -1067,7 +1086,7 @@ describe('server/graphql/v1/collective', () => {
     it('error trying to edit members that do not exists ', async () => {
       const { user } = await store.newUser('test');
       const res = await utils.graphqlQuery(
-        QUERY,
+        editPublicMessageMutation,
         {
           FromCollectiveId: user.collective.id,
           CollectiveId: pubnubCollective.id,
