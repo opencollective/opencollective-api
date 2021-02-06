@@ -1,15 +1,18 @@
 import { expect } from 'chai';
+import gql from 'fake-tag';
 
-/* Support code */
 import models from '../../../../server/models';
-
-/* Test tools */
-import * as utils from '../../../utils';
 import * as store from '../../../stores';
+import * as utils from '../../../utils';
 
-const addFundsToOrgQuery = `
-  mutation addFundsToOrg($totalAmount: Int!, $CollectiveId: Int!, $HostCollectiveId: Int!, $description: String) {
-    addFundsToOrg(totalAmount: $totalAmount, CollectiveId: $CollectiveId, HostCollectiveId: $HostCollectiveId, description: $description) {
+const addFundsToOrgMutation = gql`
+  mutation AddFundsToOrg($totalAmount: Int!, $CollectiveId: Int!, $HostCollectiveId: Int!, $description: String) {
+    addFundsToOrg(
+      totalAmount: $totalAmount
+      CollectiveId: $CollectiveId
+      HostCollectiveId: $HostCollectiveId
+      description: $description
+    ) {
       id
     }
   }
@@ -33,7 +36,7 @@ describe('server/graphql/v1/addFunds', () => {
     };
 
     // When the funds are added
-    const gqlResult = await utils.graphqlQuery(addFundsToOrgQuery, args, user);
+    const gqlResult = await utils.graphqlQuery(addFundsToOrgMutation, args, user);
 
     // Then it should be a successful call
     gqlResult.errors && console.error(gqlResult.errors[0]);
@@ -59,7 +62,7 @@ describe('server/graphql/v1/addFunds', () => {
     };
 
     // When the funds are added twice
-    const gqlResult0 = await utils.graphqlQuery(addFundsToOrgQuery, args, user);
+    const gqlResult0 = await utils.graphqlQuery(addFundsToOrgMutation, args, user);
     gqlResult0.errors && console.error(gqlResult0.errors[0]);
     expect(gqlResult0.errors).to.be.undefined;
 
@@ -68,7 +71,7 @@ describe('server/graphql/v1/addFunds', () => {
     args.description = 'second test on adding funds';
 
     // executing second query
-    const gqlResult1 = await utils.graphqlQuery(addFundsToOrgQuery, args, user);
+    const gqlResult1 = await utils.graphqlQuery(addFundsToOrgMutation, args, user);
     gqlResult1.errors && console.error(gqlResult1.errors[0]);
     expect(gqlResult1.errors).to.be.undefined;
 
@@ -77,7 +80,7 @@ describe('server/graphql/v1/addFunds', () => {
     args.description = 'third test on adding funds';
 
     // executing second query
-    const gqlResult2 = await utils.graphqlQuery(addFundsToOrgQuery, args, user);
+    const gqlResult2 = await utils.graphqlQuery(addFundsToOrgMutation, args, user);
     gqlResult2.errors && console.error(gqlResult2.errors[0]);
     expect(gqlResult2.errors).to.be.undefined;
 

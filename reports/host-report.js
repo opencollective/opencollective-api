@@ -1,13 +1,16 @@
-import _ from 'lodash';
-import moment from 'moment';
 import Promise from 'bluebird';
-import debugLib from 'debug';
-import models, { sequelize, Op } from '../server/models';
-import emailLib from '../server/lib/email';
 import config from 'config';
-import { exportToPDF } from '../server/lib/utils';
+import debugLib from 'debug';
+import { groupBy, keyBy, pick, round, sumBy } from 'lodash';
+import moment from 'moment';
+
+import MemberRoles from '../server/constants/roles.ts';
+import emailLib from '../server/lib/email';
+import { getBackersStats, getHostedCollectives, sumTransactions } from '../server/lib/hostlib';
+import { stripHTML } from '../server/lib/sanitize-html';
 import { getTransactions } from '../server/lib/transactions';
-import { getHostedCollectives, getBackersStats, sumTransactions } from '../server/lib/hostlib';
+import { exportToPDF, sumByWhen } from '../server/lib/utils';
+import models, { Op, sequelize } from '../server/models';
 
 const debug = debugLib('hostreport');
 
@@ -40,9 +43,7 @@ async function HostReport(year, month, hostId) {
     endDate = new Date(d.getFullYear() + 1, 0, 1);
   }
 
-  const endDateIncluded = moment(endDate)
-    .subtract(1, 'days')
-    .toDate();
+  const endDateIncluded = moment(endDate).subtract(1, 'days').toDate();
 
   const dateRange = {
     createdAt: { [Op.gte]: startDate, [Op.lt]: endDate },
@@ -51,8 +52,8 @@ async function HostReport(year, month, hostId) {
   const emailTemplate = yearlyReport ? 'host.yearlyreport' : 'host.monthlyreport'; // NOTE: this will be later converted to 'host.report'
   const reportName = yearlyReport ? `${year} Yearly Host Report` : `${year}/${month + 1} Monthly Host Report`;
   const dateFormat = yearlyReport ? 'YYYY' : 'YYYYMM';
-  const csv_filename = `${moment(d).format(dateFormat)}-transactions.csv`;
-  const pdf_filename = `${moment(d).format(dateFormat)}-expenses.pdf`;
+  const csvFilename = `${moment(d).format(dateFormat)}-transactions.csv`;
+  const pdfFilename = `${moment(d).format(dateFormat)}-expenses.pdf`;
   console.log('startDate', startDate, 'endDate', endDate);
 
   year = year || startDate.getFullYear();
@@ -76,287 +77,317 @@ async function HostReport(year, month, hostId) {
     previewCondition = `AND c.slug NOT IN ('${slugs.join("','")}')`;
   }
 
-  const getHostStats = (host, collectiveids) => {
+  const getHostStats = async (host, collectiveids) => {
     // Since collectives can change host,
     // we don't fetch transactions based on the CollectiveId but based on the HostCollectiveId
     // at the time of the transaction
     const where = { HostCollectiveId: host.id };
     const whereWithDateRange = { ...where, ...dateRange };
 
-    const payoutProcessorFeesQuery = service => {
-      // When using Sequelize query.include[].where it performs the condition on the join and it doesn't work
-      // that's why have to do the query this this way.
-      if (service === 'paypal') {
-        where['$PaymentMethod.service$'] = 'paypal';
-      } else {
-        where['$PaymentMethod.service$'] = {
-          [Op.or]: { [Op.ne]: 'paypal', [Op.is]: null },
-        };
-      }
-
-      return {
-        where: { ...where, ...dateRange, type: 'DEBIT' },
-        raw: true,
-        include: [
-          {
-            model: models.PaymentMethod,
-            attributes: [[sequelize.fn('MAX', sequelize.col('service')), 'service']],
-          },
-        ],
-      };
-    };
-
-    return Promise.props({
-      balance: sumTransactions(
+    return {
+      balance: await sumTransactions(
         'netAmountInCollectiveCurrency',
         { where: { ...where, createdAt: { [Op.lt]: endDate } } },
         host.currency,
       ), // total host balance
-      delta: sumTransactions('netAmountInCollectiveCurrency', { where: whereWithDateRange }, host.currency), // delta host balance last month
-      totalAmountDonations: sumTransactions(
-        'amount',
-        { where: { ...whereWithDateRange, type: 'CREDIT' } },
-        host.currency,
-      ), // total donations last month
-      totalNetAmountReceivedForCollectives: sumTransactions(
-        'netAmountInCollectiveCurrency',
-        { where: { ...whereWithDateRange, type: 'CREDIT' } },
-        host.currency,
-      ), // total net amount received last month
-      totalAmountPaidExpenses: sumTransactions(
-        'netAmountInCollectiveCurrency',
-        { where: { ...whereWithDateRange, type: 'DEBIT' } },
-        host.currency,
-      ), // total net amount paid out last month
-      totalTaxAmountCollected: sumTransactions(
-        'taxAmount',
-        { where: whereWithDateRange, type: 'CREDIT' },
-        host.currency,
-      ), // total tax collected
-      totalTaxAmountPaid: sumTransactions('taxAmount', { where: whereWithDateRange, type: 'DEBIT' }, host.currency), // total tax paid
-      // We only count HostFees on CREDIT transactions with an Order and on DEBIT transactions with an Expense
-      // (because the host fee of the destination host is recorded in the DEBIT transaction when making a donation to another host)
-      totalHostFees: sumTransactions(
-        'hostFeeInHostCurrency',
-        {
-          where: {
-            ...whereWithDateRange,
-            [Op.or]: [
-              { type: 'CREDIT', OrderId: { [Op.ne]: null } },
-              { type: 'DEBIT', ExpenseId: { [Op.ne]: null } },
-            ],
-          },
-        },
-        host.currency,
-      ),
-      backers: getBackersStats(startDate, endDate, collectiveids),
-      platformFees: sumTransactions(
-        'platformFeeInHostCurrency',
-        { where: { ...whereWithDateRange, type: 'CREDIT' } },
-        host.currency,
-      ),
-      paymentProcessorFees: sumTransactions(
-        'paymentProcessorFeeInHostCurrency',
-        { where: { ...whereWithDateRange, type: 'CREDIT' } },
-        host.currency,
-      ), // total stripe fees
-      payoutProcessorFeesPaypal: sumTransactions(
-        'paymentProcessorFeeInHostCurrency',
-        payoutProcessorFeesQuery('paypal'),
-        host.currency,
-      ), // total paypal fees
-      payoutProcessorFeesOther: sumTransactions(
-        'paymentProcessorFeeInHostCurrency',
-        payoutProcessorFeesQuery('other'),
-        host.currency,
-      ), // total other payout processor fees (manually recorded)
-    });
+      totalMoneyManaged:
+        (
+          await sumTransactions(
+            'amountInHostCurrency',
+            { where: { ...where, createdAt: { [Op.lt]: endDate } } },
+            host.currency,
+          )
+        ).totalInHostCurrency +
+        (
+          await sumTransactions(
+            'paymentProcessorFeeInHostCurrency',
+            { where: { ...where, createdAt: { [Op.lt]: endDate } } },
+            host.currency,
+          )
+        ).totalInHostCurrency +
+        (
+          await sumTransactions(
+            'platformFeeInHostCurrency',
+            { where: { ...where, createdAt: { [Op.lt]: endDate } } },
+            host.currency,
+          )
+        ).totalInHostCurrency,
+      delta: await sumTransactions('netAmountInCollectiveCurrency', { where: whereWithDateRange }, host.currency), // delta host balance last month
+      backers: await getBackersStats(startDate, endDate, collectiveids),
+    };
   };
 
-  const processHost = host => {
-    summary.totalHosts++;
-    console.log('>>> Processing host', host.slug);
-    const data = {},
-      attachments = [];
-    const note = 'using fxrate of the day of the transaction as provided by the ECB. Your effective fxrate may vary.';
-    const expensesPerPage = 30; // number of expenses per page of the Table Of Content (for PDF export)
+  const processHost = async host => {
+    try {
+      summary.totalHosts++;
+      console.log('>>> Processing host', host.slug);
+      const data = {},
+        attachments = [];
+      const note = 'using fxrate of the day of the transaction as provided by the ECB. Your effective fxrate may vary.';
+      const expensesPerPage = 30; // number of expenses per page of the Table Of Content (for PDF export)
 
-    let collectivesById = {};
-    let page = 1;
-    let currentPage = 0;
+      let collectivesById = {};
+      let page = 1;
+      let currentPage = 0;
 
-    data.host = host;
-    data.collective = host;
-    data.reportDate = endDate;
-    data.reportName = reportName;
-    data.month = !yearlyReport && moment(startDate).format('MMMM');
-    data.year = year;
-    data.startDate = startDate;
-    data.endDate = endDate;
-    data.endDateIncluded = endDateIncluded;
-    data.config = _.pick(config, 'host');
-    data.maxSlugSize = 0;
-    data.notes = null;
-    data.expensesPerPage = [[]];
-    data.stats = {
-      numberPaidExpenses: 0,
-    };
+      data.host = host.info;
+      data.collective = host.info;
+      data.reportDate = endDate;
+      data.reportName = reportName;
+      data.month = !yearlyReport && moment(startDate).format('MMMM');
+      data.year = year;
+      data.startDate = startDate;
+      data.endDate = endDate;
+      data.endDateIncluded = endDateIncluded;
+      data.config = pick(config, 'host');
+      data.maxSlugSize = 0;
+      data.notes = null;
+      data.expensesPerPage = [[]];
+      data.taxType = host.getTaxType() || 'Taxes';
+      data.stats = {};
 
-    const getHostAdminsEmails = host => {
-      if (host.type === 'USER') {
-        return models.User.findAll({ where: { CollectiveId: host.id } }).map(u => u.email);
-      }
-      return models.Member.findAll({
-        where: {
-          CollectiveId: host.id,
-          role: 'ADMIN',
-        },
-      }).map(
-        admin => {
-          return models.User.findOne({
-            attributes: ['email'],
-            where: { CollectiveId: admin.MemberCollectiveId },
-          }).then(user => user.email);
-        },
-        { concurrency: 1 },
-      );
-    };
-
-    const processTransaction = transaction => {
-      const t = transaction;
-      t.collective = collectivesById[t.CollectiveId].dataValues;
-      t.collective.shortSlug = t.collective.slug.replace(/^wwcode-?(.)/, '$1');
-      t.notes = t.Expense && t.Expense.privateMessage;
-      if (t.data && t.data.fxrateSource) {
-        t.notes = t.notes ? `${t.notes} (${note})` : note;
-        data.notes = note;
-      }
-
-      // We prepare expenses for the PDF export
-      if (t.type === 'DEBIT' && t.ExpenseId) {
-        t.page = page++;
-        data.stats.numberPaidExpenses++;
-        if ((page - 1) % expensesPerPage === 0) {
-          currentPage++;
-          data.expensesPerPage[currentPage] = [];
+      const getHostAdminsEmails = host => {
+        if (host.type === 'USER') {
+          return models.User.findAll({ where: { CollectiveId: host.id } }).map(u => u.email);
         }
-        data.expensesPerPage[currentPage].push(t);
-      }
+        return models.Member.findAll({
+          where: {
+            CollectiveId: host.id,
+            role: { [Op.or]: [MemberRoles.ADMIN, MemberRoles.ACCOUNTANT] },
+          },
+        }).map(
+          admin => {
+            return models.User.findOne({
+              attributes: ['email'],
+              where: { CollectiveId: admin.MemberCollectiveId },
+            }).then(user => user.email);
+          },
+          { concurrency: 1 },
+        );
+      };
 
-      data.maxSlugSize = Math.max(data.maxSlugSize, t.collective.shortSlug.length + 1);
-      if (!t.description) {
-        return transaction.getSource().then(source => {
-          if (!source) {
-            console.log('>>> no source found for ', transaction);
-            return t;
+      const processTransaction = async transaction => {
+        const t = {
+          ...transaction.info,
+          Expense: transaction.Expense
+            ? {
+                ...transaction.Expense.info,
+                items: transaction.Expense.items.map(item => item.dataValues),
+                PayoutMethod: transaction.Expense.PayoutMethod,
+              }
+            : null,
+        };
+        t.collective = collectivesById[t.CollectiveId].dataValues;
+        t.collective.shortSlug = t.collective.slug.replace(/^wwcode-?(.)/, '$1');
+        t.notes = t.Expense && t.Expense.privateMessage && stripHTML(t.Expense.privateMessage);
+        if (t.data && t.data.fxrateSource) {
+          t.notes = t.notes ? `${t.notes} (${note})` : note;
+          data.notes = note;
+        }
+        t.source = t.ExpenseId ? 'EXPENSE' : t.OrderId ? 'ORDER' : 'OTHER';
+
+        // We prepare expenses for the PDF export
+        if (t.type === 'DEBIT' && t.ExpenseId) {
+          t.page = page++;
+          if ((page - 1) % expensesPerPage === 0) {
+            currentPage++;
+            data.expensesPerPage[currentPage] = [];
           }
+          data.expensesPerPage[currentPage].push(t);
+        }
+
+        data.maxSlugSize = Math.max(data.maxSlugSize, t.collective.shortSlug.length + 1);
+        if (!t.description) {
+          const source = await transaction.getSource();
           t.description = source.description;
-          return t;
-        });
-      } else {
-        return Promise.resolve(t);
-      }
-    };
+        }
+        return t;
+      };
 
-    return getHostedCollectives(host.id, endDate)
-      .tap(collectives => {
-        collectivesById = _.keyBy(collectives, 'id');
-        data.stats.totalCollectives = collectives.filter(c => c.type === 'COLLECTIVE').length;
-        summary.totalCollectives += data.stats.totalCollectives;
-        console.log(`>>> processing ${data.stats.totalCollectives} collectives`);
-      })
-      .then(() =>
-        getTransactions(Object.keys(collectivesById), startDate, endDate, {
-          include: [{ model: models.Expense }, { model: models.User, as: 'createdByUser' }],
-        }),
-      )
-      .tap(transactions => {
-        if (!transactions || transactions.length == 0) {
-          throw new Error('No transaction found');
-        }
-        console.log(`>>> processing ${transactions.length} transactions`);
-      })
-      .map(processTransaction)
-      .tap(transactions => {
-        const csv = models.Transaction.exportCSV(transactions, collectivesById);
-        attachments.push({
-          filename: csv_filename,
-          content: csv,
-        });
-      })
-      .then(transactions => (data.transactions = transactions))
-      .then(() => {
-        // Don't generate PDF in email if it's the yearly report
-        if (yearlyReport) {
-          return;
-        }
-        return exportToPDF('expenses', data, {
-          paper: host.currency === 'USD' ? 'Letter' : 'A4',
-        });
-      })
-      .then(pdf => {
-        if (pdf) {
-          attachments.push({
-            filename: pdf_filename,
-            content: pdf,
-          });
-          data.expensesPdf = true;
-        }
-      })
-      .then(() => getHostStats(host, Object.keys(collectivesById)))
-      .then(stats => {
-        stats.totalAmountPaid = {
-          totalInHostCurrency:
-            stats.totalAmountPaidExpenses.totalInHostCurrency +
-            stats.paymentProcessorFees.totalInHostCurrency +
-            stats.platformFees.totalInHostCurrency,
-        };
-        stats.totalAmountSpent = {
-          totalInHostCurrency:
-            stats.totalAmountPaidExpenses.totalInHostCurrency +
-            stats.payoutProcessorFeesPaypal.totalInHostCurrency +
-            stats.payoutProcessorFeesOther.totalInHostCurrency,
-        };
-        stats.totalHostRevenue = {
-          totalInHostCurrency: stats.totalHostFees.totalInHostCurrency,
-        };
-        // Total net amount received on the host's bank account = total amount - payment processor fees and platform fees
-        stats.totalNetAmountReceived = {
-          totalInHostCurrency:
-            stats.totalAmountDonations.totalInHostCurrency +
-            stats.paymentProcessorFees.totalInHostCurrency +
-            stats.platformFees.totalInHostCurrency,
-        };
-
-        data.stats = {
-          ...data.stats,
-          ...stats,
-          totalActiveCollectives: Object.keys(_.keyBy(data.transactions, 'CollectiveId')).length,
-          numberTransactions: data.transactions.length,
-          numberDonations: data.transactions.length - data.stats.numberPaidExpenses,
-        };
-        summary.hosts.push({
-          host: { name: host.name, slug: host.slug, currency: host.currency },
-          stats: data.stats,
-        });
-        summary.totalActiveHosts++;
-        summary.totalActiveCollectives += data.stats.totalActiveCollectives;
-        summary.numberTransactions += data.stats.numberTransactions;
-        summary.numberDonations += data.stats.numberDonations;
-        summary.numberPaidExpenses += data.stats.numberPaidExpenses;
-        summary.totalAmountPaidExpenses += data.stats.totalAmountPaidExpenses;
-
-        // Don't send transactions in email if there is more than 1000
-        if (data.transactions.length > 1000) {
-          delete data.transactions;
-        }
-      })
-      .then(() => getHostAdminsEmails(host))
-      .then(admins => sendEmail(admins, data, attachments))
-      .catch(e => {
-        console.error(`Error in processing host ${host.slug}:`, e.message);
-        debug(e);
+      const collectives = await getHostedCollectives(host.id, startDate, endDate);
+      collectivesById = keyBy(collectives, 'id');
+      data.stats.totalCollectives = collectives.filter(c => c.type === 'COLLECTIVE').length;
+      summary.totalCollectives += data.stats.totalCollectives;
+      console.log(`>>> processing ${data.stats.totalCollectives} collectives`);
+      let transactions = await getTransactions(Object.keys(collectivesById), startDate, endDate, {
+        where: { HostCollectiveId: host.id },
+        include: [
+          {
+            model: models.Expense,
+            include: [
+              'fromCollective',
+              {
+                model: models.ExpenseItem,
+                as: 'items',
+                where: {
+                  url: { [Op.not]: null },
+                },
+              },
+              { model: models.PayoutMethod, attributes: ['type'] },
+            ],
+          },
+          {
+            model: models.User,
+            as: 'createdByUser',
+          },
+          { model: models.PaymentMethod, attributes: ['service', 'type'] },
+        ],
       });
+
+      if (!transactions || transactions.length == 0) {
+        throw new Error('No transaction found');
+      }
+      console.log(`>>> processing ${transactions.length} transactions`);
+      transactions = await Promise.all(transactions.map(processTransaction));
+      const csv = models.Transaction.exportCSV(transactions, collectivesById);
+      attachments.push({
+        filename: `${host.slug}-${csvFilename}`,
+        content: csv,
+      });
+      data.transactions = transactions;
+      // Don't generate PDF in email if it's the yearly report
+      let pdf;
+      if (!yearlyReport && !process.env.SKIP_PDF) {
+        pdf = await exportToPDF('expenses', data, {
+          paper: host.currency === 'USD' ? 'Letter' : 'A4',
+        }).catch(error => {
+          console.error(error);
+          return;
+        });
+      }
+
+      // Mailgun limit is 25MB
+      if (pdf && pdf.length < 24000000) {
+        attachments.push({
+          filename: `${host.slug}-${pdfFilename}`,
+          content: pdf,
+        });
+        data.expensesPdf = true;
+      }
+      const stats = await getHostStats(host, Object.keys(collectivesById));
+
+      const groupedTransactions = groupBy(data.transactions, t => {
+        if (t.OrderId && t.type === 'CREDIT') {
+          return 'donations';
+        } else if (t.ExpenseId && t.type === 'DEBIT') {
+          return 'expenses';
+          // TODO REPLACE WITH OTHER INCOMES AND OTHER EXPENSES
+        } else if (t.type === 'DEBIT') {
+          return 'otherDebits';
+        } else if (t.type === 'CREDIT') {
+          return 'otherCredits';
+        }
+      });
+
+      const donations = groupedTransactions.donations || [];
+      const expenses = groupedTransactions.expenses || [];
+      const otherCredits = groupedTransactions.otherCredits || [];
+      const otherDebits = groupedTransactions.otherDebits || [];
+
+      const plan = await host.getPlan();
+
+      const totalAmountDonations = sumBy(donations, 'amountInHostCurrency');
+      const paymentProcessorFees = sumBy(donations, 'paymentProcessorFeeInHostCurrency');
+      const platformFees = sumBy(donations, 'platformFeeInHostCurrency');
+      const totalAmountOtherCredits = sumBy(otherCredits, 'amountInHostCurrency');
+      const paymentProcessorFeesOtherCredits = sumBy(otherCredits, 'paymentProcessorFeeInHostCurrency');
+      const platformFeesOtherCredits = sumBy(otherCredits, 'platformFeeInHostCurrency');
+      const totalAmountOtherDebits = sumBy(otherDebits, 'amountInHostCurrency');
+      const paymentProcessorFeesOtherDebits = sumBy(otherDebits, 'paymentProcessorFeeInHostCurrency');
+      const platformFeesOtherDebits = sumBy(otherDebits, 'platformFeeInHostCurrency');
+      const payoutProcessorFeesPaypal = sumByWhen(
+        expenses,
+        'paymentProcessorFeeInHostCurrency',
+        t => t.Expense?.PayoutMethod?.type === 'PAYPAL',
+      );
+      const payoutProcessorFeesTransferWise = sumByWhen(
+        expenses,
+        'paymentProcessorFeeInHostCurrency',
+        t => t.Expense?.PayoutMethod?.type === 'BANK_ACCOUNT',
+      );
+      const payoutProcessorFeesOther = sumByWhen(
+        expenses,
+        'paymentProcessorFeeInHostCurrency',
+        t => (t.Expense && !t.Expense.PayoutMethod) || t.Expense?.PayoutMethod?.type === 'OTHER',
+      );
+      const totalNetAmountReceived =
+        totalAmountDonations +
+        paymentProcessorFees +
+        platformFees +
+        totalAmountOtherCredits +
+        paymentProcessorFeesOtherCredits +
+        platformFeesOtherCredits;
+      const totalTaxAmountCollected = sumByWhen(transactions, 'taxAmount', t => t.type === 'CREDIT');
+      const totalAmountPaidExpenses = sumByWhen(expenses, 'netAmountInHostCurrency');
+      const totalHostFees = sumBy([...donations, ...otherCredits], 'hostFeeInHostCurrency');
+      const totalNetAmountReceivedForCollectives = sumBy([...donations, ...otherCredits], 'netAmountInHostCurrency');
+      const totalAmountSpent =
+        totalAmountPaidExpenses +
+        payoutProcessorFeesOther +
+        payoutProcessorFeesPaypal +
+        totalAmountOtherDebits +
+        paymentProcessorFeesOtherDebits +
+        platformFeesOtherDebits;
+
+      const totalSharedRevenue = sumByWhen(
+        donations,
+        t => (t.hostFeeInHostCurrency * (t.data?.hostFeeSharePercent || plan.hostFeeSharePercent)) / 100,
+        t => !t.platformFeeInHostCurrency && t.hostFeeInHostCurrency,
+      );
+      const hostNetRevenue = Math.abs(totalHostFees) + totalSharedRevenue;
+
+      data.stats = {
+        ...data.stats,
+        ...stats,
+        plan,
+        numberDonations: donations.length,
+        numberOtherCredits: otherCredits?.length || 0,
+        numberOtherDebits: otherDebits?.length || 0,
+        numberPaidExpenses: expenses.length,
+        numberTransactions: transactions.length,
+        paymentProcessorFees,
+        paymentProcessorFeesOtherCredits,
+        paymentProcessorFeesOtherDebits,
+        payoutProcessorFeesOther,
+        payoutProcessorFeesPaypal,
+        payoutProcessorFeesTransferWise,
+        platformFees,
+        platformFeesOtherCredits,
+        platformFeesOtherDebits,
+        totalActiveCollectives: Object.keys(keyBy(data.transactions, 'CollectiveId')).length,
+        totalAmountDonations,
+        totalAmountOtherCredits,
+        totalAmountOtherDebits,
+        totalAmountPaidExpenses,
+        totalAmountSpent,
+        totalHostFees,
+        totalNetAmountReceived,
+        totalNetAmountReceivedForCollectives,
+        totalTaxAmountCollected,
+        totalSharedRevenue,
+        hostNetRevenue,
+      };
+
+      summary.hosts.push({
+        host: { name: host.name, slug: host.slug, currency: host.currency },
+        stats: data.stats,
+      });
+      summary.totalActiveHosts++;
+      summary.totalActiveCollectives += data.stats.totalActiveCollectives;
+      summary.numberTransactions += data.stats.numberTransactions;
+      summary.numberDonations += data.stats.numberDonations;
+      summary.numberPaidExpenses += data.stats.numberPaidExpenses;
+      summary.totalAmountPaidExpenses += data.stats.totalAmountPaidExpenses;
+      // Don't send transactions in email if there is more than 1000
+      if (data.transactions.length > 1000) {
+        delete data.transactions;
+      }
+      const admins = await getHostAdminsEmails(host);
+      await sendEmail(admins, data, attachments);
+    } catch (e) {
+      console.error(`Error in processing host ${host.slug}:`, e);
+      debug(e);
+    }
   };
 
   const sendEmail = (recipients, data, attachments) => {
@@ -365,9 +396,7 @@ async function HostReport(year, month, hostId) {
       console.error('Unable to send host report for ', data.host.slug, 'No recipient to send to');
       return;
     }
-    // debug("email data transactions", data.transactions);
-    debug('email data stats', data.stats);
-    debug('email data stats.backers', data.stats.backers);
+    debug('email data stats', JSON.stringify(data.stats, null, 2));
     const options = { attachments };
     return emailLib.send(emailTemplate, recipients, data, options);
   };

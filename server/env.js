@@ -1,9 +1,18 @@
 import debug from 'debug';
 import dotenv from 'dotenv';
-import { has, get } from 'lodash';
+import { get, has } from 'lodash';
 
 if (!process.env.NODE_ENV) {
   process.env.NODE_ENV = 'development';
+}
+
+if (!process.env.OC_ENV) {
+  process.env.OC_ENV = process.env.NODE_ENV;
+}
+
+// This will be used by the "config" package
+if (!process.env.NODE_CONFIG_ENV) {
+  process.env.NODE_CONFIG_ENV = process.env.OC_ENV;
 }
 
 dotenv.config();

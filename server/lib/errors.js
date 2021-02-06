@@ -1,55 +1,55 @@
 import { inherits } from 'util';
 const errors = {
-  BadRequest: function(msg) {
+  BadRequest: function (msg) {
     this.code = 400;
     this.type = 'bad_request';
     this.message = msg;
     Error.call(this, msg);
   },
 
-  ValidationFailed: function(type, fields, msg) {
+  ValidationFailed: function (type, fields, msg) {
     this.code = 400;
     this.type = type || 'validation_failed';
     this.message = msg || 'Missing required fields';
     this.fields = fields;
   },
 
-  Unauthorized: function(msg) {
+  Unauthorized: function (msg) {
     this.code = 401;
     this.type = 'unauthorized';
     this.message = msg;
     Error.call(this, msg);
   },
 
-  Forbidden: function(msg) {
+  Forbidden: function (msg) {
     this.code = 403;
     this.type = 'forbidden';
     this.message = msg;
     Error.call(this, msg);
   },
 
-  SpamDetected: function(msg) {
+  SpamDetected: function (msg) {
     this.code = 403;
     this.type = 'spam_detected';
     this.message = msg;
     Error.call(this, msg);
   },
 
-  NotFound: function(msg) {
+  NotFound: function (msg) {
     this.code = 404;
     this.type = 'not_found';
     this.message = msg;
     Error.call(this, msg);
   },
 
-  ServerError: function(msg) {
+  ServerError: function (msg) {
     this.code = 500;
     this.type = 'server_error';
     this.message = msg;
     Error.call(this, msg);
   },
 
-  Timeout: function(url, ms) {
+  Timeout: function (url, ms) {
     this.code = 408;
     this.timeout = ms;
     this.type = 'timeout';
@@ -57,7 +57,7 @@ const errors = {
     Error.call(this, this.message);
   },
 
-  ConflictError: function(msg, data) {
+  ConflictError: function (msg, data) {
     this.code = 409;
     this.type = 'conflict';
     this.message = msg;
@@ -67,14 +67,14 @@ const errors = {
     Error.call(this, msg);
   },
 
-  NotImplemented: function(msg) {
+  NotImplemented: function (msg) {
     this.code = 501;
     this.type = 'not_implemented';
     this.message = msg || 'This is not implemented.';
     Error.call(this, msg);
   },
 
-  CustomError: function(code, type, msg) {
+  CustomError: function (code, type, msg) {
     this.code = code;
     this.type = type;
     this.message = msg;
@@ -86,7 +86,7 @@ Object.keys(errors).forEach(error => {
   inherits(errors[error], Error);
 });
 
-Error.prototype.info = function() {
+Error.prototype.info = function () {
   const result = {
     type: this.type,
     message: this.message || '',

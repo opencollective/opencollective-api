@@ -7,15 +7,18 @@
  * contributors should surface only unique collectives.
  */
 
-import cache from './cache';
-import { sequelize } from '../models';
+import { omit } from 'lodash';
+
 import MemberRoles from '../constants/roles';
+import { sequelize } from '../models';
+
+import cache from './cache';
 import { filterUntil } from './utils';
 
 /**
  * Represent a single contributor.
  */
-export interface IContributor {
+export interface Contributor {
   id: string;
   name: string;
   roles: Array<MemberRoles>;
@@ -24,6 +27,7 @@ export interface IContributor {
   isBacker: boolean;
   isFundraiser: boolean;
   isIncognito: boolean;
+  isGuest: boolean;
   tiersIds: Array<number | null>;
   type: string;
   since: string;
@@ -37,7 +41,7 @@ export interface IContributor {
 /**
  * An entry in the cache to group contributors for a collective.
  */
-interface IContributorsCacheEntry {
+interface ContributorsCacheEntry {
   all: ContributorsList;
   tiers: {
     [tierId: string]: ContributorsList;
@@ -45,7 +49,7 @@ interface IContributorsCacheEntry {
 }
 
 /** An array of contributor */
-type ContributorsList = Array<IContributor>;
+type ContributorsList = Array<Contributor>;
 
 /** Time in seconds before contributors cache for a collective expires */
 const CACHE_VALIDITY = 3600; // 1h
@@ -78,7 +82,7 @@ const storeContributorsInCache = (collectiveId: number, allContributors: Contrib
     return tiers;
   }, {});
 
-  const cacheEntry: IContributorsCacheEntry = { all: allContributors, tiers: contributorsByTier };
+  const cacheEntry: ContributorsCacheEntry = { all: allContributors, tiers: contributorsByTier };
   cache.set(cacheKey, cacheEntry, CACHE_VALIDITY);
   return cacheEntry;
 };
@@ -86,61 +90,75 @@ const storeContributorsInCache = (collectiveId: number, allContributors: Contrib
 /**
  * Load contributors cache, filling it from DB if necessary.
  */
-const loadContributors = async (collectiveId: number): Promise<IContributorsCacheEntry> => {
+const loadContributors = async (collectiveId: number): Promise<ContributorsCacheEntry> => {
   const cacheKey = getCacheKey(collectiveId);
   const fromCache = await cache.get(cacheKey);
   if (fromCache) {
     return fromCache;
   }
 
-  // Subquery to get the total amount contributed for each member
-  const TotalAmountContributedQuery = `
-    SELECT  COALESCE(SUM(amount), 0)
-    FROM    "Transactions"
-    WHERE   "CollectiveId" = :collectiveId
-    AND     TYPE = 'CREDIT'
-    AND     "deletedAt" IS NULL
-    AND     "RefundTransactionId" IS NULL
-    AND     ("FromCollectiveId" = mc.id OR "UsingVirtualCardFromCollectiveId" = mc.id)
-  `;
-
   const allContributors = await sequelize.query(
     `
-      WITH member_collectives_matching_roles AS (
-        SELECT      c.*
-        FROM        "Collectives" c
-        INNER JOIN  "Members" m ON m."MemberCollectiveId" = c.id
-        WHERE       m."CollectiveId" = :collectiveId
-        AND         m."deletedAt" IS NULL AND c."deletedAt" IS NULL
-        GROUP BY    c.id
-      ) SELECT
-        mc.id,
-        MAX(mc.name) AS name,
-        MAX(mc.slug) AS "collectiveSlug",
-        MAX(mc.image) AS image,
-        MAX(mc.type) AS type,
-        MIN(m.since) AS since,
+     WITH member_collectives_matching_roles AS (
+      SELECT
+        c.*,
+        ARRAY_AGG(DISTINCT m."role") AS "roles",
+        MIN(m."since") as "since",
+        ARRAY_AGG(DISTINCT m."TierId") as "tiersIds",
+        COALESCE(MAX(m.description), MAX(t.name)) AS "memberDescription",
         MAX(m."publicMessage") AS "publicMessage",
-        BOOL_OR(mc."isIncognito") AS "isIncognito",
-        ARRAY_AGG(DISTINCT m."role") AS roles,
-        ARRAY_AGG(DISTINCT tier."id") AS "tiersIds",
-        COALESCE(MAX(m.description), MAX(tier.name)) AS description,
-        (${TotalAmountContributedQuery}) AS "totalAmountDonated"
+        BOOL_OR(COALESCE((c."data" ->> 'isGuest') :: boolean, FALSE)) AS "isGuest"
       FROM
-        "member_collectives_matching_roles" mc
-      INNER JOIN
-        "Members" m ON m."MemberCollectiveId" = mc.id
-      LEFT JOIN
-        "Tiers" tier ON m."TierId" = tier.id
+        "Collectives" c
+        LEFT JOIN "Members" m ON m."MemberCollectiveId" = c.id
+        LEFT JOIN "Tiers" t ON t.id = m."TierId"
       WHERE
         m."CollectiveId" = :collectiveId
-      AND
-        m."deletedAt" IS NULL AND mc."deletedAt" IS NULL
+        AND m."MemberCollectiveId" != :collectiveId
+        AND m."deletedAt" IS NULL
+        AND c."deletedAt" IS NULL
       GROUP BY
-        mc.id
-      ORDER BY
-        "totalAmountDonated" DESC,
-        "since" ASC
+        c.id
+    ),
+    total_contributed AS (
+      SELECT
+        "UsingVirtualCardFromCollectiveId",
+        "FromCollectiveId",
+        COALESCE(SUM("amount"), 0) AS "totalAmountDonated"
+      FROM
+        "Transactions"
+      WHERE
+        "CollectiveId" = :collectiveId
+        AND TYPE = 'CREDIT'
+        AND "deletedAt" IS NULL
+        AND "RefundTransactionId" IS NULL
+      GROUP BY
+        "UsingVirtualCardFromCollectiveId",
+        "FromCollectiveId"
+    )
+    SELECT
+      mc.id,
+      MAX(mc.name) AS name,
+      MAX(mc.slug) AS "collectiveSlug",
+      MAX(mc.image) AS image,
+      MAX(mc.type) AS type,
+      MIN(mc.since) as "since",
+      MAX(mc.roles) as "roles",
+      MAX(mc."tiersIds") as "tiersIds",
+      MAX(mc."publicMessage") as "publicMessage",
+      BOOL_AND(mc."isIncognito") as "isIncognito",
+      BOOL_AND(mc."isGuest") as "isGuest",
+      MAX(mc."memberDescription") as "description",
+      COALESCE(SUM(tc."totalAmountDonated"), 0) AS "totalAmountDonated"
+    FROM
+      "member_collectives_matching_roles" mc
+      LEFT JOIN "total_contributed" tc ON tc."UsingVirtualCardFromCollectiveId" = mc.id
+      OR tc."FromCollectiveId" = mc.id
+    GROUP BY
+      mc.id
+    ORDER BY
+      "totalAmountDonated" DESC,
+      "since" ASC 
     `,
     {
       raw: true,
@@ -150,7 +168,7 @@ const loadContributors = async (collectiveId: number): Promise<IContributorsCach
   );
 
   // Pre-fill some properties for contributors so we don't have to re-compute them
-  allContributors.forEach((c: IContributor) => {
+  allContributors.forEach((c: Contributor) => {
     // Fill boolean flags for roles to easily check them
     c.isAdmin = c.roles.includes(MemberRoles.ADMIN);
     c.isCore = c.isAdmin || c.roles.includes(MemberRoles.MEMBER);
@@ -162,13 +180,13 @@ const loadContributors = async (collectiveId: number): Promise<IContributorsCach
 };
 
 /** Accepted params to filters contributors list */
-interface IContributorsFilters {
+interface ContributorsFilters {
   limit?: number;
   offset?: number;
   roles?: Array<MemberRoles>;
 }
 
-type ContributorsFilteringFunc = (contributors: IContributor) => boolean;
+type ContributorsFilteringFunc = (contributors: Contributor) => boolean;
 
 /**
  * Provide an optimized function to check the roles of a contributor. Most used filters for
@@ -201,7 +219,7 @@ const getContributorsFilteringFuncForRoles = (roles: Array<MemberRoles>): Contri
 /**
  * Filter and slice a list of contributors.
  */
-const filterContributors = (contributors: ContributorsList, filters: IContributorsFilters | null): ContributorsList => {
+const filterContributors = (contributors: ContributorsList, filters: ContributorsFilters | null): ContributorsList => {
   if (!filters) {
     return contributors;
   }
@@ -218,7 +236,11 @@ const filterContributors = (contributors: ContributorsList, filters: IContributo
     }
   }
 
-  return contributors.slice(filters.offset || 0, filters.limit);
+  if (filters.offset || filters.limit) {
+    return contributors.slice(filters.offset || 0, filters.limit);
+  } else {
+    return contributors;
+  }
 };
 
 // ---- Public API ----
@@ -228,11 +250,34 @@ const filterContributors = (contributors: ContributorsList, filters: IContributo
  */
 export const getContributorsForCollective = async (
   collectiveId: number,
-  filters: IContributorsFilters | null,
+  filters: ContributorsFilters | null,
 ): Promise<ContributorsList> => {
-  const contributorsCache: IContributorsCacheEntry = await loadContributors(collectiveId);
+  const contributorsCache: ContributorsCacheEntry = await loadContributors(collectiveId);
   const contributors = contributorsCache.all || [];
   return filterContributors(contributors, filters);
+};
+
+/**
+ * Returns all the contributors for given collective
+ */
+export const getPaginatedContributorsForCollective = async (
+  collectiveId: number,
+  filters: ContributorsFilters | null,
+): Promise<{
+  offset: number;
+  limit: number;
+  totalCount: number;
+  nodes: ContributorsList;
+}> => {
+  const contributorsCache: ContributorsCacheEntry = await loadContributors(collectiveId);
+  const contributors = contributorsCache.all || [];
+  const filteredContributors = filterContributors(contributors, omit(filters, ['offset', 'limit']));
+  return {
+    offset: filters?.offset || 0,
+    limit: filters?.limit || 0,
+    totalCount: filteredContributors.length,
+    nodes: !filters ? filteredContributors : filteredContributors.slice(filters.offset || 0, filters.limit),
+  };
 };
 
 /**
@@ -241,9 +286,9 @@ export const getContributorsForCollective = async (
 export const getContributorsForTier = async (
   collectiveId: number,
   tierId: number,
-  filters: IContributorsFilters | null,
-) => {
-  const contributorsCache: IContributorsCacheEntry = await loadContributors(collectiveId);
+  filters: ContributorsFilters | null,
+): Promise<ContributorsList> => {
+  const contributorsCache: ContributorsCacheEntry = await loadContributors(collectiveId);
   const contributors = contributorsCache.tiers[tierId.toString()] || [];
   return filterContributors(contributors, filters);
 };
@@ -253,9 +298,9 @@ export const getContributorsForTier = async (
  */
 export const getContributorsWithoutTier = async (
   collectiveId: number,
-  filters: IContributorsFilters | null,
+  filters: ContributorsFilters | null,
 ): Promise<ContributorsList> => {
-  const contributorsCache: IContributorsCacheEntry = await loadContributors(collectiveId);
+  const contributorsCache: ContributorsCacheEntry = await loadContributors(collectiveId);
   const contributors = contributorsCache[CONTRIBUTORS_WITHOUT_TIER_KEY] || [];
   return filterContributors(contributors, filters);
 };

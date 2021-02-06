@@ -6,13 +6,16 @@
 // This lib is a superset of `utils.data` that generates values that are random and safe
 // to use in loops and repeted tests.
 
-import uuid from 'uuid/v4';
 import { get, sample } from 'lodash';
-import models from '../../server/models';
-import { types as CollectiveType } from '../../server/constants/collectives';
-import { randEmail, randUrl } from '../stores';
-import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
+import { v4 as uuid } from 'uuid';
+
 import { roles } from '../../server/constants';
+import { types as CollectiveType } from '../../server/constants/collectives';
+import { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPES } from '../../server/constants/paymentMethods';
+import { REACTION_EMOJI } from '../../server/constants/reaction-emoji';
+import models from '../../server/models';
+import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
+import { randEmail, randUrl } from '../stores';
 
 export const randStr = (prefix = '') => `${prefix}${uuid().split('-')[0]}`;
 export const randNumber = (min = 0, max = 10000000) => Math.floor(Math.random() * max) + min;
@@ -28,7 +31,7 @@ export const randArray = (generateFunc, min = 1, max = 1) => {
 /**
  * Creates a fake user. All params are optionals.
  */
-export const fakeUser = async userData => {
+export const fakeUser = async (userData, collectiveData) => {
   const user = await models.User.create({
     email: randEmail(),
     firstName: randStr('FirstName '),
@@ -43,6 +46,8 @@ export const fakeUser = async userData => {
     data: { UserId: user.id },
     HostCollectiveId: null,
     CreatedByUserId: user.id,
+    ...collectiveData,
+    isActive: false,
   });
 
   await user.update({ CollectiveId: userCollective.id });
@@ -63,14 +68,20 @@ export const fakeHost = async hostData => {
 };
 
 /**
- * Creates a fake update. All params are optionals.
+ * Creates a fake collective. All params are optionals.
  */
 export const fakeCollective = async (collectiveData = {}) => {
   const type = collectiveData.type || CollectiveType.COLLECTIVE;
+  if (!collectiveData.CreatedByUserId) {
+    collectiveData.CreatedByUserId = (await fakeUser()).id;
+  }
+  if (collectiveData.HostCollectiveId === undefined) {
+    collectiveData.HostCollectiveId = (await fakeHost()).id;
+  }
   const collective = await models.Collective.create({
     type,
-    name: randStr('Test Collective '),
-    slug: randStr('collective-'),
+    name: collectiveData.isHostAccount ? randStr('Test Host ') : randStr('Test Collective '),
+    slug: collectiveData.isHostAccount ? randStr('host-') : randStr('collective-'),
     description: randStr('Description '),
     currency: 'USD',
     twitterHandle: randStr('twitter'),
@@ -78,10 +89,8 @@ export const fakeCollective = async (collectiveData = {}) => {
     hostFeePercent: 10,
     tags: [randStr(), randStr()],
     isActive: true,
+    approvedAt: collectiveData.HostCollectiveId ? new Date() : null,
     ...collectiveData,
-    CreatedByUserId: collectiveData.CreatedByUserId || (await fakeUser()).id,
-    HostCollectiveId:
-      collectiveData.HostCollectiveId === undefined ? (await fakeHost()).id : collectiveData.HostCollectiveId,
   });
 
   collective.host = collective.HostCollectiveId && (await models.Collective.findByPk(collective.HostCollectiveId));
@@ -92,6 +101,18 @@ export const fakeCollective = async (collectiveData = {}) => {
         MemberCollectiveId: collective.host.id,
         role: roles.HOST,
         CreatedByUserId: collective.CreatedByUserId,
+      });
+    } catch {
+      // Ignore if host is already linked
+    }
+  }
+  if (collectiveData.admin) {
+    try {
+      await models.Member.create({
+        CollectiveId: collective.id,
+        MemberCollectiveId: collectiveData.admin.id,
+        role: roles.ADMIN,
+        CreatedByUserId: collectiveData.admin.CreatedByUserId,
       });
     } catch {
       // Ignore if host is already linked
@@ -133,15 +154,15 @@ export const fakeUpdate = async (updateData = {}) => {
 };
 
 /**
- * Creates a fake expense attachment
+ * Creates a fake expense item
  */
-export const fakeExpenseAttachment = async (attachmentData = {}) => {
-  return models.ExpenseAttachment.create({
+export const fakeExpenseItem = async (attachmentData = {}) => {
+  return models.ExpenseItem.create({
     amount: randAmount(),
     url: `${randUrl()}.pdf`,
     description: randStr(),
     ...attachmentData,
-    ExpenseId: attachmentData.ExpenseId || (await fakeExpense({ attachments: [] })).id,
+    ExpenseId: attachmentData.ExpenseId || (await fakeExpense({ items: [] })).id,
     CreatedByUserId: attachmentData.CreatedByUserId || (await fakeUser()).id,
   });
 };
@@ -155,6 +176,13 @@ export const fakePayoutMethod = async (data = {}) => {
       return { email: randEmail() };
     } else if (type === PayoutMethodTypes.OTHER) {
       return { content: randStr() };
+    } else if (type === PayoutMethodTypes.BANK_ACCOUNT) {
+      return {
+        accountHolderName: 'Jesse Pinkman',
+        currency: 'EUR',
+        type: 'iban',
+        details: { iban: 'DE1237812738192OK' },
+      };
     } else {
       return null;
     }
@@ -193,7 +221,7 @@ export const fakeExpense = async (expenseData = {}) => {
   const expense = await models.Expense.create({
     amount: randAmount(),
     currency: 'USD',
-    category: 'Engineering',
+    tags: ['Engineering'],
     description: randStr('Test expense '),
     incurredAt: new Date(),
     ...expenseData,
@@ -205,16 +233,16 @@ export const fakeExpense = async (expenseData = {}) => {
     legacyPayoutMethod,
   });
 
-  if (!expenseData || typeof expenseData.attachments === 'undefined') {
-    // Helper to generate an attachment. Ensures that attachments match expense amount
+  if (!expenseData || typeof expenseData.items === 'undefined') {
+    // Helper to generate an attachment. Ensures that items match expense amount
     const generateAttachment = (idx, nbItems) => {
       const baseAmount = Math.floor(expense.amount / nbItems);
       const remainder = expense.amount % nbItems;
       const realAmount = idx !== nbItems - 1 ? baseAmount : baseAmount + remainder;
-      return fakeExpenseAttachment({ ExpenseId: expense.id, amount: realAmount });
+      return fakeExpenseItem({ ExpenseId: expense.id, amount: realAmount });
     };
 
-    expense.attachments = await Promise.all(randArray(generateAttachment, 1, 5));
+    expense.items = await Promise.all(randArray(generateAttachment, 1, 5));
   }
 
   expense.User = await models.User.findByPk(expense.UserId);
@@ -255,12 +283,43 @@ export const fakeComment = async commentData => {
 };
 
 /**
+ * Creates a fake comment reaction. All params are optionals.
+ */
+export const fakeCommentReaction = async (reactionData = {}) => {
+  const UserId = reactionData.UserId || (await fakeUser()).id;
+  const user = await models.User.findByPk(UserId);
+  const FromCollectiveId = reactionData.FromCollectiveId || (await models.Collective.findByPk(user.CollectiveId)).id;
+  const ConversationId = (await fakeConversation()).id;
+  const CommentId = reactionData.CommentId || (await fakeComment({ ConversationId })).id;
+  return models.CommentReaction.create({
+    UserId,
+    FromCollectiveId,
+    CommentId,
+    emoji: sample(REACTION_EMOJI),
+  });
+};
+
+export const fakeConversation = async (conversationData = {}) => {
+  const RootCommentId = conversationData.RootCommentId || (await fakeComment()).id;
+  const rootComment = await models.Comment.findByPk(RootCommentId);
+  return models.Conversation.create({
+    title: randStr('Update '),
+    summary: rootComment.html,
+    FromCollectiveId: conversationData.FromCollectiveId || (await fakeCollective()).id,
+    CollectiveId: conversationData.CollectiveId || (await fakeCollective()).id,
+    CreatedByUserId: conversationData.CreatedByUserId || (await fakeUser()).id,
+    RootCommentId: conversationData.RootCommentId || (await fakeComment()).id,
+    ...conversationData,
+  });
+};
+
+/**
  * Creates a fake tier. All params are optionals.
  */
 export const fakeTier = async (tierData = {}) => {
   const name = randStr('tier');
   const interval = sample(['month', 'year']);
-  const currency = sample(['USD', 'EUR']);
+  const currency = tierData.currency || sample(['USD', 'EUR']);
   const amount = tierData.amount || randAmount(1, 100) * 100;
   const description = `$${amount / 100}/${interval}`;
 
@@ -280,7 +339,7 @@ export const fakeTier = async (tierData = {}) => {
 /**
  * Creates a fake order. All params are optionals.
  */
-export const fakeOrder = async (orderData = {}) => {
+export const fakeOrder = async (orderData = {}, { withSubscription = false, withTransactions = false } = {}) => {
   const CreatedByUserId = orderData.CreatedByUserId || (await fakeUser()).id;
   const user = await models.User.findByPk(CreatedByUserId);
   const FromCollectiveId = orderData.FromCollectiveId || (await models.Collective.findByPk(user.CollectiveId)).id;
@@ -299,6 +358,35 @@ export const fakeOrder = async (orderData = {}) => {
 
   if (order.PaymentMethodId) {
     order.paymentMethod = await models.PaymentMethod.findByPk(order.PaymentMethodId);
+  }
+
+  if (withSubscription) {
+    const subscription = await models.Subscription.create({
+      amount: order.totalAmount,
+      interval: 'month',
+      currency: order.currency,
+      isActive: true,
+    });
+    await order.update({ SubscriptionId: subscription.id });
+  }
+
+  if (withTransactions) {
+    order.transactions = await Promise.all([
+      fakeTransaction({
+        OrderId: order.id,
+        type: 'CREDIT',
+        FromCollectiveId: order.FromCollectiveId,
+        CollectiveId: order.CollectiveId,
+        amount: order.amount,
+      }),
+      fakeTransaction({
+        OrderId: order.id,
+        type: 'DEBIT',
+        CollectiveId: order.FromCollectiveId,
+        FromCollectiveId: order.CollectiveId,
+        amount: -order.amount,
+      }),
+    ]);
   }
 
   order.fromCollective = await models.Collective.findByPk(order.FromCollectiveId);
@@ -336,10 +424,49 @@ export const fakeTransaction = async (transactionData = {}) => {
     hostCurrencyFxRate: 1,
     netAmountInCollectiveCurrency: amount,
     amountInHostCurrency: amount,
+    TransactionGroup: uuid(),
     ...transactionData,
     amount,
     CreatedByUserId,
     FromCollectiveId,
     CollectiveId,
+  });
+};
+
+/**
+ * Creates a fake member. All params are optionals.
+ */
+export const fakeMember = async data => {
+  const collective = data.CollectiveId ? await models.Collective.findByPk(data.CollectiveId) : await fakeCollective();
+  const memberCollective = data.MemberCollectiveId
+    ? await models.Collective.findByPk(data.MemberCollectiveId)
+    : await fakeCollective();
+  return models.Member.create({
+    CollectiveId: collective.id,
+    MemberCollectiveId: memberCollective.id,
+    role: data.role || roles.ADMIN,
+    CreatedByUserId: collective.CreatedByUserId,
+  });
+};
+
+/**
+ * Creates a fake Payment Method. All params are optionals.
+ */
+export const fakePaymentMethod = async data => {
+  return models.PaymentMethod.create({
+    ...data,
+    type: data.type || sample(PAYMENT_METHOD_TYPES),
+    service: data.service || sample(PAYMENT_METHOD_SERVICES),
+    CollectiveId: data.CollectiveId || (await fakeCollective().then(c => c.id)),
+    currency: data.currency || 'USD',
+  });
+};
+
+export const fakeLegalDocument = async (data = {}) => {
+  return models.LegalDocument.create({
+    year: new Date().getFullYear(),
+    requestStatus: 'REQUESTED',
+    ...data,
+    CollectiveId: data.CollectiveId || (await fakeCollective().then(c => c.id)),
   });
 };

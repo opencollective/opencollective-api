@@ -1,11 +1,11 @@
 import Promise from 'bluebird';
-import sinon from 'sinon';
 import { expect } from 'chai';
+import sinon from 'sinon';
 
-import * as utils from '../../utils';
-import models from '../../../server/models';
 import roles from '../../../server/constants/roles';
 import emailLib from '../../../server/lib/email';
+import models from '../../../server/models';
+import * as utils from '../../utils';
 
 const { User, Collective, Notification, Tier, Order } = models;
 
@@ -119,13 +119,20 @@ describe('server/models/Notification', () => {
       });
 
       await expense.createActivity('collective.expense.paid');
+
+      await utils.waitForCondition(() => emailSendMessageSpy.callCount === 1, {
+        tag: 'webpack would love to be hosted by host',
+      });
+
       emailSendMessageSpy.resetHistory();
     });
 
     it('notifies the author of the expense and the admin of host when expense is paid', async () => {
       // host admin pays the expense
       await expense.setPaid(hostAdmin.id);
-      await utils.waitForCondition(() => emailSendMessageSpy.callCount > 1);
+      await utils.waitForCondition(() => emailSendMessageSpy.callCount === 2, {
+        tag: '$100.00 from webpack for pizza AND Expense paid on webpack',
+      });
       expect(emailSendMessageSpy.callCount).to.equal(2);
       expect(emailSendMessageSpy.firstCall.args[0]).to.equal(user.email);
       expect(emailSendMessageSpy.secondCall.args[0]).to.equal(hostAdmin.email);
@@ -142,8 +149,8 @@ describe('server/models/Notification', () => {
 
       // host admin pays the expense
       await expense.setPaid(hostAdmin.id);
-      await utils.waitForCondition(() => emailSendMessageSpy.callCount > 0, {
-        delay: 500,
+      await utils.waitForCondition(() => emailSendMessageSpy.callCount === 1, {
+        tag: '$100.00 from webpack for pizza',
       });
       expect(emailSendMessageSpy.callCount).to.equal(1);
       expect(emailSendMessageSpy.firstCall.args[0]).to.equal(user.email);

@@ -1,7 +1,8 @@
 import crypto from 'crypto';
+
 import { merge } from 'lodash';
 
-export default function(Sequelize, DataTypes) {
+export default function (Sequelize, DataTypes) {
   const Application = Sequelize.define(
     'Application',
     {
@@ -98,8 +99,6 @@ export default function(Sequelize, DataTypes) {
     }
     return Application.build(props).save();
   };
-
-  Application.schema('public');
 
   return Application;
 }

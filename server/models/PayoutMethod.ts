@@ -1,6 +1,7 @@
+import { get, pick } from 'lodash';
 import { Model, Transaction } from 'sequelize';
-import { pick, get } from 'lodash';
 import { isEmail } from 'validator';
+
 import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
 import { objHasOnlyKeys } from '../lib/utils';
 
@@ -11,6 +12,7 @@ export enum PayoutMethodTypes {
   OTHER = 'OTHER',
   PAYPAL = 'PAYPAL',
   BANK_ACCOUNT = 'BANK_ACCOUNT',
+  ACCOUNT_BALANCE = 'ACCOUNT_BALANCE',
 }
 
 /** An interface for the values stored in `data` field for PayPal payout methods */
@@ -121,6 +123,19 @@ export class PayoutMethod extends Model<PayoutMethod> {
     return PayoutMethod.update(cleanData, { where: { id }, transaction: dbTransaction });
   }
 
+  static getLabel(payoutMethod): string {
+    if (!payoutMethod) {
+      return 'Other';
+    } else if (payoutMethod.type === PayoutMethodTypes.PAYPAL) {
+      const email = payoutMethod.data?.email;
+      return !email ? 'PayPal' : `PayPal (${email})`;
+    } else if (payoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
+      return 'Wire Transfer';
+    } else {
+      return 'Other';
+    }
+  }
+
   /** Filters out all the fields that cannot be edited by user */
   private static cleanData(data: object): object {
     return pick(data, PayoutMethod.editableFields);
@@ -148,7 +163,7 @@ export default (sequelize, DataTypes): typeof PayoutMethod => {
         },
       },
       data: {
-        type: DataTypes.JSON,
+        type: DataTypes.JSONB,
         allowNull: false,
         validate: {
           isValidValue(value): void {
@@ -165,14 +180,7 @@ export default (sequelize, DataTypes): typeof PayoutMethod => {
                 throw new Error('Data for this payout method contains too much information');
               }
             } else if (this.type === PayoutMethodTypes.BANK_ACCOUNT) {
-              if (
-                !value ||
-                !value.accountHolderName ||
-                !value.currency ||
-                !value.type ||
-                !value.legalType ||
-                !value.details
-              ) {
+              if (!value || !value.accountHolderName || !value.currency || !value.type || !value.details) {
                 throw new Error('Invalid format of BANK_ACCOUNT payout method data');
               }
             } else if (!value || Object.keys(value).length > 0) {
@@ -197,6 +205,11 @@ export default (sequelize, DataTypes): typeof PayoutMethod => {
       name: {
         type: DataTypes.STRING,
         allowNull: true,
+      },
+      isSaved: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: true,
       },
       CollectiveId: {
         type: DataTypes.INTEGER,

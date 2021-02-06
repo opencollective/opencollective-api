@@ -1,9 +1,11 @@
 import crypto from 'crypto';
+
 import config from 'config';
-import models from '../../../models';
-import { Unauthorized, ValidationFailed, InvalidToken, RateLimitExceeded } from '../../errors';
+
 import cache from '../../../lib/cache';
 import emailLib from '../../../lib/email';
+import models from '../../../models';
+import { InvalidToken, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 
 const oneHourInSeconds = 60 * 60;
 
@@ -14,6 +16,8 @@ const oneHourInSeconds = 60 * 60;
 export const updateUserEmail = async (user, newEmail) => {
   if (!user) {
     throw new Unauthorized();
+  } else if (!user.confirmedAt) {
+    throw new Error('You need to verify your account before changing your email address');
   }
 
   // Put some rate limiting for user so they can't bruteforce the system to guess emails
@@ -36,7 +40,7 @@ export const updateUserEmail = async (user, newEmail) => {
   // Ensure this email is not already used by another user
   const existingEmail = await models.User.findOne({ where: { email: newEmail } });
   if (existingEmail) {
-    throw new ValidationFailed({ message: 'A user with that email already exists' });
+    throw new ValidationFailed('A user with that email already exists');
   }
 
   // If user tries to update again with the same email, we send the email without
@@ -49,8 +53,15 @@ export const updateUserEmail = async (user, newEmail) => {
     });
   }
 
+  const data = {
+    user: {
+      ...user.info,
+      emailConfirmationToken: user.emailConfirmationToken,
+    },
+  };
+
   // Send the email and return updated user
-  await emailLib.send('user.changeEmail', user.emailWaitingForValidation, { user });
+  await emailLib.send('user.changeEmail', user.emailWaitingForValidation, data);
 
   // Update the cache
   cache.set(countCacheKey, existingCount + 1, oneHourInSeconds);
@@ -64,13 +75,13 @@ export const updateUserEmail = async (user, newEmail) => {
  */
 export const confirmUserEmail = async emailConfirmationToken => {
   if (!emailConfirmationToken) {
-    throw new ValidationFailed({ message: 'Email confirmation token must be set' });
+    throw new ValidationFailed('Email confirmation token must be set');
   }
 
   const user = await models.User.findOne({ where: { emailConfirmationToken } });
 
   if (!user) {
-    throw new InvalidToken({ internalData: { emailConfirmationToken } });
+    throw new InvalidToken('Invalid email confirmation token', { internalData: { emailConfirmationToken } });
   }
 
   return user.update({

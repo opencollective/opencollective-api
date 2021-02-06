@@ -2,7 +2,7 @@
 
 You need to have PostgreSQL 9.x, 10.x or 11.x with the Postgis extension.
 
-In production, we're currently running 9.6.11.
+In production, we're currently running 9.6.17.
 
 ## Installation
 
@@ -42,11 +42,17 @@ brew install libpq
 echo 'export PATH="/usr/local/opt/libpq/bin:$PATH"' >> ~/.bash_profile
 ```
 
+For Ubuntu 16.04 and above you can execute the following to install Postgres client tools:
+
+```
+sudo apt-get install postgresql-client
+```
+
 ## Setup
 
 #### Development
 
-Please be aware of the `NODE_ENV` variable. By default, it's set to `development` and the `opencollective_dvl` database will be used.
+Please be aware of the `NODE_ENV`/`OC_ENV` variable. By default, it's set to `development` and the `opencollective_dvl` database will be used.
 
 The development database should be automatically installed after `npm install`.
 
@@ -56,7 +62,7 @@ To force a restore run `npm run db:restore`, then `npm run db:migrate`.
 
 #### Test
 
-Please be aware of the `NODE_ENV` variable. By default, it's set to `development` and the `opencollective_dvl` database will be used. You have to set it yourself to `test` to switch to the test environment and use `opencollective_test` instead.
+Please be aware of the `NODE_ENV`/`OC_ENV` variable. By default, it's set to `development` and the `opencollective_dvl` database will be used. You have to set it yourself to `test` to switch to the test environment and use `opencollective_test` instead.
 
 To setup the database for tests, run `npm run db:setup` or run `NODE_ENV=test npm run db:setup` to force the environment.
 

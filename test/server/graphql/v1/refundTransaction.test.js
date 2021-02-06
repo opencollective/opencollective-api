@@ -1,19 +1,18 @@
-// Test tools
+import { expect } from 'chai';
+import gql from 'fake-tag';
 import nock from 'nock';
 import sinon from 'sinon';
-import { expect } from 'chai';
-import * as utils from '../../../utils';
 
-// Code components used for setting up the tests
-import models from '../../../../server/models';
 import * as constants from '../../../../server/constants/transactions';
 import * as paymentsLib from '../../../../server/lib/payments';
 import { extractFees } from '../../../../server/lib/stripe';
+import models from '../../../../server/models';
+import * as utils from '../../../utils';
 
 // The GraphQL query that will refund a transaction (it returns the
 // transaction being refunded)
-const refundQuery = `
-  mutation refundTransaction($id: Int!) {
+const refundTransactionMutation = gql`
+  mutation RefundTransaction($id: Int!) {
     refundTransaction(id: $id) {
       id
     }
@@ -43,6 +42,7 @@ async function setupTestObjects() {
     CollectiveId: collective.id,
     PaymentMethodId: paymentMethod.id,
   });
+  /* eslint-disable camelcase */
   const charge = {
     id: 'ch_1Bs9ECBYycQg1OMfGIYoPFvk',
     object: 'charge',
@@ -70,6 +70,7 @@ async function setupTestObjects() {
     status: 'pending',
     type: 'charge',
   };
+  /* eslint-enable camelcase */
   const fees = extractFees(balanceTransaction);
   const payload = {
     CreatedByUserId: user.id,
@@ -95,6 +96,7 @@ async function setupTestObjects() {
   return { user, host, collective, tier, paymentMethod, order, transaction };
 }
 
+/* eslint-disable camelcase */
 function initStripeNock({ amount, fee, fee_details, net }) {
   const refund = {
     id: 're_1Bvu79LzdXg9xKNSFNBqv7Jn',
@@ -102,19 +104,15 @@ function initStripeNock({ amount, fee, fee_details, net }) {
     balance_transaction: 'txn_1Bvu79LzdXg9xKNSWEVCLSUu',
   };
 
-  nock('https://api.stripe.com:443')
-    .post('/v1/refunds')
-    .reply(200, refund);
+  nock('https://api.stripe.com:443').post('/v1/refunds').reply(200, refund);
 
-  nock('https://api.stripe.com:443')
-    .get('/v1/balance_transactions/txn_1Bvu79LzdXg9xKNSWEVCLSUu')
-    .reply(200, {
-      id: 'txn_1Bvu79LzdXg9xKNSWEVCLSUu',
-      amount,
-      fee,
-      fee_details,
-      net,
-    });
+  nock('https://api.stripe.com:443').get('/v1/balance_transactions/txn_1Bvu79LzdXg9xKNSWEVCLSUu').reply(200, {
+    id: 'txn_1Bvu79LzdXg9xKNSWEVCLSUu',
+    amount,
+    fee,
+    fee_details,
+    net,
+  });
 
   nock('https://api.stripe.com:443')
     .get('/v1/charges/ch_1Bs9ECBYycQg1OMfGIYoPFvk')
@@ -129,6 +127,7 @@ function initStripeNock({ amount, fee, fee_details, net }) {
       },
     });
 }
+/* eslint-enable camelcase */
 
 describe('server/graphql/v1/refundTransaction', () => {
   /* All the tests will touch the database, so resetting it is the
@@ -142,7 +141,7 @@ describe('server/graphql/v1/refundTransaction', () => {
 
     // When a refunded attempt happens on a transaction that does not
     // exist in the database
-    const result = await utils.graphqlQuery(refundQuery, { id: 919191 }, user);
+    const result = await utils.graphqlQuery(refundTransactionMutation, { id: 919191 }, user);
 
     // Then it should error out with the right error
     const [{ message }] = result.errors;
@@ -158,11 +157,11 @@ describe('server/graphql/v1/refundTransaction', () => {
     const anotherUser = await models.User.createUserWithCollective(utils.data('user2'));
 
     // When a refunded attempt happens from another user
-    const result = await utils.graphqlQuery(refundQuery, { id: transaction.id }, anotherUser);
+    const result = await utils.graphqlQuery(refundTransactionMutation, { id: transaction.id }, anotherUser);
 
     // Then it should error out with the right error
     const [{ message }] = result.errors;
-    expect(message).to.equal('Not a site admin or host collective admin');
+    expect(message).to.equal('Cannot refund this transaction');
   });
 
   describe('Save CreatedByUserId', () => {
@@ -172,6 +171,7 @@ describe('server/graphql/v1/refundTransaction', () => {
     });
     afterEach(() => userStub.restore());
 
+    // eslint-disable-next-line camelcase
     beforeEach(() => initStripeNock({ amount: -5000, fee: 0, fee_details: [], net: -5000 }));
 
     afterEach(nock.cleanAll);
@@ -185,7 +185,7 @@ describe('server/graphql/v1/refundTransaction', () => {
       const anotherUser = await models.User.createUserWithCollective(utils.data('user3'));
 
       // When a refunded attempt happens from the above user
-      const result = await utils.graphqlQuery(refundQuery, { id: transaction.id }, anotherUser);
+      const result = await utils.graphqlQuery(refundTransactionMutation, { id: transaction.id }, anotherUser);
 
       // Then there should be no errors
       if (result.errors) {
@@ -226,7 +226,7 @@ describe('server/graphql/v1/refundTransaction', () => {
       initStripeNock({
         amount: -5000,
         fee: -175,
-        fee_details: [{ amount: -175, type: 'stripe_fee' }],
+        fee_details: [{ amount: -175, type: 'stripe_fee' }], // eslint-disable-line camelcase
         net: -4825,
       }),
     );
@@ -239,7 +239,7 @@ describe('server/graphql/v1/refundTransaction', () => {
       const { user, collective, host, transaction } = await setupTestObjects();
 
       // When the above transaction is refunded
-      const result = await utils.graphqlQuery(refundQuery, { id: transaction.id }, host);
+      const result = await utils.graphqlQuery(refundTransactionMutation, { id: transaction.id }, host);
 
       // Then there should be no errors
       if (result.errors) {
@@ -324,6 +324,7 @@ describe('server/graphql/v1/refundTransaction', () => {
     });
     afterEach(() => userStub.restore());
 
+    // eslint-disable-next-line camelcase
     beforeEach(() => initStripeNock({ amount: -5000, fee: 0, fee_details: [], net: -5000 }));
 
     afterEach(nock.cleanAll);
@@ -334,7 +335,7 @@ describe('server/graphql/v1/refundTransaction', () => {
       const { user, collective, host, transaction } = await setupTestObjects();
 
       // When the above transaction is refunded
-      const result = await utils.graphqlQuery(refundQuery, { id: transaction.id }, host);
+      const result = await utils.graphqlQuery(refundTransactionMutation, { id: transaction.id }, host);
 
       // Then there should be no errors
       if (result.errors) {
