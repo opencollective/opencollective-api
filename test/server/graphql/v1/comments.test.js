@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import gql from 'fake-tag';
 import { describe, it } from 'mocha';
 import sinon from 'sinon';
 
@@ -7,6 +8,8 @@ import { idEncode } from '../../../../server/graphql/v2/identifiers';
 import emailLib from '../../../../server/lib/email';
 import models from '../../../../server/models';
 import * as utils from '../../../utils';
+
+const gqlV2 = gql;
 
 let host,
   collectiveAdmin,
@@ -133,27 +136,26 @@ describe('server/graphql/v1/comments', () => {
   }
 
   describe('create a comment', () => {
-    const createCommentQuery = `
-    mutation createComment($comment: CommentInputType!) {
-      createComment(comment: $comment) {
-        id
-        markdown
-        html
-        expense {
+    const createCommentMutation = gql`
+      mutation CreateComment($comment: CommentInputType!) {
+        createComment(comment: $comment) {
           id
+          html
+          expense {
+            id
+          }
         }
       }
-    }
     `;
 
     it('fails if not authenticated', async () => {
-      const result = await utils.graphqlQuery(createCommentQuery, { comment });
+      const result = await utils.graphqlQuery(createCommentMutation, { comment });
       expect(result.errors).to.have.length(1);
       expect(result.errors[0].message).to.equal('You must be logged in to create a comment');
     });
 
     it('creates a comment', async () => {
-      const result = await utils.graphqlQuery(createCommentQuery, { comment }, user1);
+      const result = await utils.graphqlQuery(createCommentMutation, { comment }, user1);
       utils.expectNoErrorsFromResult(result);
       const createdComment = result.data.createComment;
       expect(createdComment.html).to.equal('<p>This is the <strong>comment</strong></p>');
@@ -173,20 +175,19 @@ describe('server/graphql/v1/comments', () => {
   });
 
   describe('edit a comment', () => {
-    const editCommentQuery = `
-    mutation editComment($comment: CommentAttributesInputType!) {
-      editComment(comment: $comment) {
-        id
-        markdown
-        html
+    const editCommentMutation = gql`
+      mutation EditComment($comment: CommentAttributesInputType!) {
+        editComment(comment: $comment) {
+          id
+          html
+        }
       }
-    }
     `;
 
     beforeEach(() => createComment());
 
     it('fails if not authenticated', async () => {
-      const result = await utils.graphqlQuery(editCommentQuery, {
+      const result = await utils.graphqlQuery(editCommentMutation, {
         comment: { id: comment1.id },
       });
       expect(result.errors).to.exist;
@@ -194,7 +195,7 @@ describe('server/graphql/v1/comments', () => {
     });
 
     it('fails if not authenticated as author or admin of collective', async () => {
-      const result = await utils.graphqlQuery(editCommentQuery, { comment: { id: comment1.id } }, user1);
+      const result = await utils.graphqlQuery(editCommentMutation, { comment: { id: comment1.id } }, user1);
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal(
         'You must be the author or an admin of this collective to edit this comment',
@@ -203,7 +204,7 @@ describe('server/graphql/v1/comments', () => {
 
     it('edits a comment successfully', async () => {
       const result = await utils.graphqlQuery(
-        editCommentQuery,
+        editCommentMutation,
         { comment: { id: comment1.id, html: 'new <em>comment</em> text' } },
         collectiveAdmin,
       );
@@ -213,17 +214,18 @@ describe('server/graphql/v1/comments', () => {
   });
 
   describe('delete Comment', () => {
-    const deleteCommentQuery = `
-      mutation deleteComment($id: Int!) {
+    const deleteCommentMutation = gql`
+      mutation DeleteComment($id: Int!) {
         deleteComment(id: $id) {
           id
         }
-      }`;
+      }
+    `;
 
     beforeEach(() => createComment());
 
     it('fails to delete a comment if not logged in', async () => {
-      const result = await utils.graphqlQuery(deleteCommentQuery, {
+      const result = await utils.graphqlQuery(deleteCommentMutation, {
         id: comment1.id,
       });
       expect(result.errors).to.exist;
@@ -234,7 +236,7 @@ describe('server/graphql/v1/comments', () => {
     });
 
     it('fails to delete a comment if logged in as another user', async () => {
-      const result = await utils.graphqlQuery(deleteCommentQuery, { id: comment1.id }, user1);
+      const result = await utils.graphqlQuery(deleteCommentMutation, { id: comment1.id }, user1);
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal(
         'You need to be logged in as a core contributor or as a host to delete this comment',
@@ -245,7 +247,7 @@ describe('server/graphql/v1/comments', () => {
     });
 
     it('deletes a comment', async () => {
-      const res = await utils.graphqlQuery(deleteCommentQuery, { id: comment1.id }, collectiveAdmin);
+      const res = await utils.graphqlQuery(deleteCommentMutation, { id: comment1.id }, collectiveAdmin);
       utils.expectNoErrorsFromResult(res);
       expect(res.errors).to.not.exist;
       return models.Comment.findByPk(comment1.id).then(commentFound => {
@@ -257,11 +259,10 @@ describe('server/graphql/v1/comments', () => {
   describe('query comments', () => {
     it('get all the comments', async () => {
       await populateComments();
-      const allCommentsQuery = `
-        query allComments($ExpenseId: Int, $limit: Int, $offset: Int) {
+      const allCommentsQuery = gql`
+        query AllComments($ExpenseId: Int, $limit: Int, $offset: Int) {
           allComments(ExpenseId: $ExpenseId, limit: $limit, offset: $offset) {
             id
-            markdown
             html
           }
         }
@@ -279,7 +280,7 @@ describe('server/graphql/v1/comments', () => {
 
     it('get an expense with associated comments as unauthenticated', async () => {
       await populateComments();
-      const expenseQuery = `
+      const expenseQuery = gql`
         query Expense($id: Int!, $limit: Int) {
           Expense(id: $id) {
             description
@@ -288,7 +289,6 @@ describe('server/graphql/v1/comments', () => {
               total
               comments {
                 id
-                markdown
                 html
               }
             }
@@ -306,7 +306,7 @@ describe('server/graphql/v1/comments', () => {
 
     it('get an expense with associated comments as collective admin', async () => {
       await populateComments();
-      const expenseQuery = `
+      const expenseQuery = gql`
         query Expense($id: Int!, $limit: Int) {
           Expense(id: $id) {
             description
@@ -315,7 +315,6 @@ describe('server/graphql/v1/comments', () => {
               total
               comments {
                 id
-                markdown
                 html
               }
             }
@@ -337,8 +336,8 @@ describe('server/graphql/v1/comments', () => {
     });
 
     it('get an expense with associated comments empty', async () => {
-      const ExpenseQuery = `
-        query ExpenseQuery($id: Int!, $limit: Int) {
+      const expenseQuery = gql`
+        query Expense($id: Int!, $limit: Int) {
           Expense(id: $id) {
             description
             amount
@@ -346,7 +345,6 @@ describe('server/graphql/v1/comments', () => {
               total
               comments {
                 id
-                markdown
                 html
               }
             }
@@ -354,7 +352,7 @@ describe('server/graphql/v1/comments', () => {
         }
       `;
       const result = await utils.graphqlQuery(
-        ExpenseQuery,
+        expenseQuery,
         {
           id: expense1.id,
           limit: 5,
@@ -370,8 +368,8 @@ describe('server/graphql/v1/comments', () => {
 
   // Api version 2 tests.
   before('V2 - query comments', () => {
-    const expenseQuery = `
-      query ExpenseQuery($id: String!, $limit: Int, $offset: Int) {
+    const expenseQuery = gqlV2/* GraphQL */ `
+      query Expense($id: String!, $limit: Int, $offset: Int) {
         expense(id: $id) {
           id
           comments(limit: $limit, offset: $offset) {
@@ -385,7 +383,7 @@ describe('server/graphql/v1/comments', () => {
                 slug
                 currency
                 name
-                ...on Collective {
+                ... on Collective {
                   balance
                   host {
                     id
@@ -458,11 +456,10 @@ describe('server/graphql/v1/comments', () => {
   });
 
   describe('V2 - edit a comment', () => {
-    const editCommentQuery = `
-      mutation editComment($comment: CommentUpdateInput!) {
+    const editCommentMutation = gqlV2/* GraphQL */ `
+      mutation EditComment($comment: CommentUpdateInput!) {
         editComment(comment: $comment) {
           id
-          markdown
           html
         }
       }
@@ -471,7 +468,7 @@ describe('server/graphql/v1/comments', () => {
     beforeEach(() => createComment());
 
     it('fails to delete a comment if not logged in', async () => {
-      const result = await utils.graphqlQueryV2(editCommentQuery, {
+      const result = await utils.graphqlQueryV2(editCommentMutation, {
         comment: { id: idEncode(comment1.id) },
       });
       expect(result.errors).to.exist;
@@ -479,7 +476,7 @@ describe('server/graphql/v1/comments', () => {
     });
 
     it('fails if not authenticated as author or admin of collective', async () => {
-      const result = await utils.graphqlQueryV2(editCommentQuery, { comment: { id: idEncode(comment1.id) } }, user1);
+      const result = await utils.graphqlQueryV2(editCommentMutation, { comment: { id: idEncode(comment1.id) } }, user1);
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal(
         'You must be the author or an admin of this collective to edit this comment',
@@ -488,7 +485,7 @@ describe('server/graphql/v1/comments', () => {
     it('edits a comment successfully', async () => {
       const html = '<p>new <em>comment</em> text</p>';
       const result = await utils.graphqlQueryV2(
-        editCommentQuery,
+        editCommentMutation,
         { comment: { id: idEncode(comment1.id), html } },
         collectiveAdmin,
       );
@@ -504,18 +501,17 @@ describe('server/graphql/v1/comments', () => {
   });
 
   describe('V2 - create a comment', () => {
-    const createCommentQuery = `
-      mutation createComment($comment: CommentCreateInput!) {
+    const createCommentMutation = gqlV2/* GraphQL */ `
+      mutation CreateComment($comment: CommentCreateInput!) {
         createComment(comment: $comment) {
           id
-          markdown
           html
         }
       }
     `;
 
     it('fails if not authenticated', async () => {
-      const result = await utils.graphqlQueryV2(createCommentQuery, {
+      const result = await utils.graphqlQueryV2(createCommentMutation, {
         comment: { html: comment.html, expense: { legacyId: comment.ExpenseId } },
       });
       expect(result.errors).to.have.length(1);
@@ -524,7 +520,7 @@ describe('server/graphql/v1/comments', () => {
 
     it('creates a comment', async () => {
       const result = await utils.graphqlQueryV2(
-        createCommentQuery,
+        createCommentMutation,
         { comment: { html: comment.html, expense: { legacyId: comment.ExpenseId } } },
         user1,
       );
@@ -547,17 +543,18 @@ describe('server/graphql/v1/comments', () => {
   });
 
   describe('V2 - delete Comment', () => {
-    const deleteCommentQuery = `
-      mutation deleteComment($id: String!) {
+    const deleteCommentMutation = gqlV2/* GraphQL */ `
+      mutation DeleteComment($id: String!) {
         deleteComment(id: $id) {
           id
         }
-      }`;
+      }
+    `;
 
     beforeEach(() => createComment());
 
     it('fails to delete a comment if not logged in', async () => {
-      const result = await utils.graphqlQueryV2(deleteCommentQuery, {
+      const result = await utils.graphqlQueryV2(deleteCommentMutation, {
         id: idEncode(comment1.id),
       });
       expect(result.errors).to.exist;
@@ -568,7 +565,7 @@ describe('server/graphql/v1/comments', () => {
     });
 
     it('fails to delete a comment if logged in as another user', async () => {
-      const result = await utils.graphqlQueryV2(deleteCommentQuery, { id: idEncode(comment1.id) }, user1);
+      const result = await utils.graphqlQueryV2(deleteCommentMutation, { id: idEncode(comment1.id) }, user1);
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal(
         'You need to be logged in as a core contributor or as a host to delete this comment',
@@ -579,7 +576,7 @@ describe('server/graphql/v1/comments', () => {
     });
 
     it('deletes a comment', async () => {
-      const res = await utils.graphqlQueryV2(deleteCommentQuery, { id: idEncode(comment1.id) }, collectiveAdmin);
+      const res = await utils.graphqlQueryV2(deleteCommentMutation, { id: idEncode(comment1.id) }, collectiveAdmin);
       utils.expectNoErrorsFromResult(res);
       expect(res.errors).to.not.exist;
       return models.Comment.findByPk(comment1.id).then(commentFound => {

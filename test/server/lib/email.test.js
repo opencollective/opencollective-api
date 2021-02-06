@@ -141,7 +141,6 @@ describe('server/lib/email', () => {
           slug: 'brusselstogether',
           image: 'https://cl.ly/0Q3N193Z1e3u/BrusselsTogetherLogo.png',
         },
-        relatedCollectives: utils.data('relatedCollectives'),
       };
       const from = 'BrusselsTogether <info@brusselstogether.opencollective.com>';
       return emailLib.send('thankyou', data.user.email, data, { from }).tap(() => {
@@ -157,10 +156,6 @@ describe('server/lib/email', () => {
         expect(nm.sendMail.lastCall.args[0].to).to.equal('emailbcc+user1-at-opencollective.com@opencollective.com');
         expect(nm.sendMail.lastCall.args[0].subject).to.contain(
           `Thank you for your ${amountStr}/month contribution to #BrusselsTogether`,
-        );
-        expect(nm.sendMail.lastCall.args[0].html).to.contain(data.relatedCollectives[0].name);
-        expect(nm.sendMail.lastCall.args[0].html).to.contain(
-          `${config.host.website}/${data.fromCollective.slug}/transactions`,
         );
       });
     });

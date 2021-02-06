@@ -101,6 +101,7 @@ export default function (Sequelize, DataTypes) {
         info() {
           return {
             id: this.id,
+            hashId: this.hashId,
             title: this.title,
             slug: this.slug,
             summary: this.summary,

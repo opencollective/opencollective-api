@@ -4,6 +4,7 @@
  * expenses. */
 
 import { expect } from 'chai';
+import gql from 'fake-tag';
 import { pick } from 'lodash';
 import sinon from 'sinon';
 
@@ -28,43 +29,106 @@ import {
 import * as utils from '../../../utils';
 
 /* Queries used throughout these tests */
-const allExpensesQuery = `
-  query allExpenses($CollectiveId: Int!, $category: String, $fromCollectiveSlug: String, $limit: Int, $includeHostedCollectives: Boolean) {
-    allExpenses(CollectiveId: $CollectiveId, category: $category, fromCollectiveSlug: $fromCollectiveSlug, limit: $limit, includeHostedCollectives: $includeHostedCollectives) {
+const allExpensesQuery = gql`
+  query AllExpenses(
+    $CollectiveId: Int!
+    $category: String
+    $fromCollectiveSlug: String
+    $limit: Int
+    $includeHostedCollectives: Boolean
+  ) {
+    allExpenses(
+      CollectiveId: $CollectiveId
+      category: $category
+      fromCollectiveSlug: $fromCollectiveSlug
+      limit: $limit
+      includeHostedCollectives: $includeHostedCollectives
+    ) {
       id
       description
       amount
       category
-      user { id email collective { id slug } }
-      collective { id slug }
+      user {
+        id
+        email
+        collective {
+          id
+          slug
+        }
+      }
+      collective {
+        id
+        slug
+      }
       attachment
     }
-  }`;
+  }
+`;
 
-const expensesQuery = `
-  query expenses($CollectiveId: Int, $CollectiveSlug: String, $category: String, $FromCollectiveId: Int, $FromCollectiveSlug: String, $status: ExpenseStatus, $offset: Int, $limit: Int, $orderBy: OrderByType) {
-    expenses(CollectiveId: $CollectiveId, CollectiveSlug: $CollectiveSlug, category: $category, FromCollectiveId: $FromCollectiveId, FromCollectiveSlug: $FromCollectiveSlug, status: $status, offset: $offset, limit: $limit, orderBy: $orderBy) {
+const expensesQuery = gql`
+  query Expenses(
+    $CollectiveId: Int
+    $CollectiveSlug: String
+    $category: String
+    $FromCollectiveId: Int
+    $FromCollectiveSlug: String
+    $status: ExpenseStatus
+    $offset: Int
+    $limit: Int
+    $orderBy: OrderByType
+  ) {
+    expenses(
+      CollectiveId: $CollectiveId
+      CollectiveSlug: $CollectiveSlug
+      category: $category
+      FromCollectiveId: $FromCollectiveId
+      FromCollectiveSlug: $FromCollectiveSlug
+      status: $status
+      offset: $offset
+      limit: $limit
+      orderBy: $orderBy
+    ) {
       expenses {
         id
         description
         amount
         category
-        user { id email collective { id slug } }
-        collective { id slug }
+        user {
+          id
+          email
+          collective {
+            id
+            slug
+          }
+        }
+        collective {
+          id
+          slug
+        }
       }
     }
   }
 `;
 
-const expenseQuery = `
-  query expense($id: Int!) {
+const expenseQuery = gql`
+  query Expense($id: Int!) {
     Expense(id: $id) {
       id
       description
       amount
       category
-      user { id email collective { id slug } }
-      collective { id slug }
+      user {
+        id
+        email
+        collective {
+          id
+          slug
+        }
+      }
+      collective {
+        id
+        slug
+      }
       attachment
       items {
         id
@@ -76,12 +140,20 @@ const expenseQuery = `
   }
 `;
 
-const createExpenseQuery = `
-  mutation createExpense($expense: ExpenseInputType!) {
+const createExpenseMutation = gql`
+  mutation CreateExpense($expense: ExpenseInputType!) {
     createExpense(expense: $expense) {
       id
       status
-      user { id name collective { id name slug } }
+      user {
+        id
+        name
+        collective {
+          id
+          name
+          slug
+        }
+      }
       amount
       tags
       category
@@ -94,14 +166,23 @@ const createExpenseQuery = `
         incurredAt
       }
     }
-  }`;
+  }
+`;
 
-const editExpenseMutation = `
-  mutation editExpense($expense: ExpenseInputType!) {
+const editExpenseMutation = gql`
+  mutation EditExpense($expense: ExpenseInputType!) {
     editExpense(expense: $expense) {
       id
       status
-      user { id name collective { id name slug } }
+      user {
+        id
+        name
+        collective {
+          id
+          name
+          slug
+        }
+      }
       amount
       tags
       category
@@ -114,26 +195,61 @@ const editExpenseMutation = `
         incurredAt
       }
     }
-  }`;
+  }
+`;
 
-const approveExpenseQuery = `
-  mutation approveExpense($id: Int!) {
-    approveExpense(id: $id) { id status } }`;
+const approveExpenseMutation = gql`
+  mutation ApproveExpense($id: Int!) {
+    approveExpense(id: $id) {
+      id
+      status
+    }
+  }
+`;
 
-const deleteExpenseQuery = `
-  mutation deleteExpense($id: Int!) { deleteExpense(id: $id) { id } }`;
+const deleteExpenseMutation = gql`
+  mutation DeleteExpense($id: Int!) {
+    deleteExpense(id: $id) {
+      id
+    }
+  }
+`;
 
-const payExpenseQuery = `
-  mutation payExpense($id: Int!, $paymentProcessorFeeInCollectiveCurrency: Int, $hostFeeInCollectiveCurrency: Int, $platformFeeInCollectiveCurrency: Int) {
-    payExpense(id: $id, paymentProcessorFeeInCollectiveCurrency: $paymentProcessorFeeInCollectiveCurrency, hostFeeInCollectiveCurrency: $hostFeeInCollectiveCurrency, platformFeeInCollectiveCurrency: $platformFeeInCollectiveCurrency) { id status } }`;
+const payExpenseMutation = gql`
+  mutation PayExpense(
+    $id: Int!
+    $paymentProcessorFeeInCollectiveCurrency: Int
+    $hostFeeInCollectiveCurrency: Int
+    $platformFeeInCollectiveCurrency: Int
+  ) {
+    payExpense(
+      id: $id
+      paymentProcessorFeeInCollectiveCurrency: $paymentProcessorFeeInCollectiveCurrency
+      hostFeeInCollectiveCurrency: $hostFeeInCollectiveCurrency
+      platformFeeInCollectiveCurrency: $platformFeeInCollectiveCurrency
+    ) {
+      id
+      status
+    }
+  }
+`;
 
-const markExpenseAsUnpaidQuery = `
-  mutation markExpenseAsUnpaid($id: Int!, $processorFeeRefunded: Boolean!) {
-    markExpenseAsUnpaid(id: $id, processorFeeRefunded: $processorFeeRefunded) { id status } }`;
+const markExpenseAsUnpaidMutation = gql`
+  mutation MarkExpenseAsUnpaid($id: Int!, $processorFeeRefunded: Boolean!) {
+    markExpenseAsUnpaid(id: $id, processorFeeRefunded: $processorFeeRefunded) {
+      id
+      status
+    }
+  }
+`;
 
-const unapproveExpenseQuery = `
-  mutation unapproveExpense($id: Int!) {
-    unapproveExpense(id: $id) { id status } }
+const unapproveExpenseMutation = gql`
+  mutation UnapproveExpense($id: Int!) {
+    unapproveExpense(id: $id) {
+      id
+      status
+    }
+  }
 `;
 
 const addFunds = async (user, hostCollective, collective, amount) => {
@@ -591,7 +707,7 @@ describe('server/graphql/v1/expenses', () => {
         payoutMethod: 'manual',
         collective: { id: collective.id },
       };
-      const result = await utils.graphqlQuery(createExpenseQuery, {
+      const result = await utils.graphqlQuery(createExpenseMutation, {
         expense: data,
       });
       // Then there should be an error
@@ -626,7 +742,7 @@ describe('server/graphql/v1/expenses', () => {
         incurredAt: new Date(),
         collective: { id: collective.id },
       };
-      const result = await utils.graphqlQuery(createExpenseQuery, { expense: data }, user);
+      const result = await utils.graphqlQuery(createExpenseMutation, { expense: data }, user);
       result.errors && console.log(result.errors);
 
       // Then there should be no errors in the response
@@ -639,13 +755,6 @@ describe('server/graphql/v1/expenses', () => {
       expect(result.data.createExpense.user.id).to.equal(user.id);
       expect(result.data.createExpense.attachment).to.equal(data.attachment);
       expect(result.data.createExpense.items[0].url).to.equal(data.attachment);
-
-      // And then the user should become a member of the project
-      const membership = await models.Member.findOne({
-        where: { CollectiveId: collective.id, role: 'CONTRIBUTOR' },
-      });
-      expect(membership).to.exist;
-      expect(membership.MemberCollectiveId).to.equal(user.CollectiveId);
 
       // And then an email should have been sent to the admin. This
       // call to the function `waitForCondition()` is required because
@@ -663,7 +772,7 @@ describe('server/graphql/v1/expenses', () => {
       // XXX: This was just copied over. I don't know what this is
       // actually testing:
       // doesn't scream when adding another expense from same user
-      const res = await utils.graphqlQuery(createExpenseQuery, { expense: data }, user);
+      const res = await utils.graphqlQuery(createExpenseMutation, { expense: data }, user);
       expect(res.errors).to.not.exist;
     }); /* End of "creates a new expense logged in and send email to collective admin for approval" */
 
@@ -692,7 +801,7 @@ describe('server/graphql/v1/expenses', () => {
         ],
       };
 
-      const result = await utils.graphqlQuery(createExpenseQuery, { expense: expenseData }, user);
+      const result = await utils.graphqlQuery(createExpenseMutation, { expense: expenseData }, user);
       const items = result.data.createExpense.items;
       expect(result.data.createExpense.amount).to.equal(expenseData.amount);
       items.forEach(attachment => {
@@ -725,7 +834,7 @@ describe('server/graphql/v1/expenses', () => {
         ],
       };
 
-      const result = await utils.graphqlQuery(createExpenseQuery, { expense: expenseData }, user);
+      const result = await utils.graphqlQuery(createExpenseMutation, { expense: expenseData }, user);
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal(
         "The sum of all items must be equal to the total expense's amount. Expense's total is 500, but the total of items was 650.",
@@ -751,7 +860,7 @@ describe('server/graphql/v1/expenses', () => {
         ],
       };
 
-      const result = await utils.graphqlQuery(createExpenseQuery, { expense: expenseData }, user);
+      const result = await utils.graphqlQuery(createExpenseMutation, { expense: expenseData }, user);
       expect(result.data.createExpense.category).to.equal(expenseData.category.toLowerCase());
       expect(result.data.createExpense.tags[0]).to.equal(expenseData.category.toLowerCase());
     });
@@ -787,7 +896,7 @@ describe('server/graphql/v1/expenses', () => {
         status: 'PAID',
       });
       // When there's an attempt to approve an already paid expense
-      const result = await utils.graphqlQuery(approveExpenseQuery, { id: expense.id }, hostAdmin);
+      const result = await utils.graphqlQuery(approveExpenseMutation, { id: expense.id }, hostAdmin);
       // Then there should be an error
       expect(result.errors).to.exist;
       // And then the error message should be set accordingly
@@ -822,7 +931,7 @@ describe('server/graphql/v1/expenses', () => {
       });
       emailSendMessageSpy.resetHistory();
       // When the expense is approved by the admin of host
-      const result = await utils.graphqlQuery(approveExpenseQuery, { id: expense.id }, hostAdmin);
+      const result = await utils.graphqlQuery(approveExpenseMutation, { id: expense.id }, hostAdmin);
       result.errors && console.log(result.errors);
       // Then there should be no errors in the result
       expect(result.errors).to.not.exist;
@@ -872,7 +981,7 @@ describe('server/graphql/v1/expenses', () => {
       });
       emailSendMessageSpy.resetHistory();
       // When the expense is approved by the admin of collective
-      const result = await utils.graphqlQuery(approveExpenseQuery, { id: expense.id }, admin);
+      const result = await utils.graphqlQuery(approveExpenseMutation, { id: expense.id }, admin);
       result.errors && console.log(result.errors);
       // Then there should be no errors in the result
       expect(result.errors).to.not.exist;
@@ -930,7 +1039,7 @@ describe('server/graphql/v1/expenses', () => {
         id: expense.id,
         paymentProcessorFeeInCollectiveCurrency: 0,
       };
-      const result = await utils.graphqlQuery(payExpenseQuery, parameters, hostAdmin);
+      const result = await utils.graphqlQuery(payExpenseMutation, parameters, hostAdmin);
       // Then there should be errors
       expect(result.errors).to.exist;
       // And then the message of the error should be set accordingly
@@ -961,7 +1070,7 @@ describe('server/graphql/v1/expenses', () => {
         id: expense.id,
         paymentProcessorFeeInCollectiveCurrency: 0,
       };
-      const result = await utils.graphqlQuery(payExpenseQuery, parameters, hostAdmin);
+      const result = await utils.graphqlQuery(payExpenseMutation, parameters, hostAdmin);
       // Then there should be errors
       expect(result.errors).to.exist;
       // And then the message of the error should be set accordingly
@@ -985,7 +1094,7 @@ describe('server/graphql/v1/expenses', () => {
         id: expense.id,
         paymentProcessorFeeInCollectiveCurrency: 0,
       };
-      const result = await utils.graphqlQuery(payExpenseQuery, parameters, hostAdmin);
+      const result = await utils.graphqlQuery(payExpenseMutation, parameters, hostAdmin);
       // Then there should be errors
       expect(result.errors).to.exist;
       // And then the message of the error should be set accordingly
@@ -1020,7 +1129,7 @@ describe('server/graphql/v1/expenses', () => {
       await addFunds(user, hostCollective, collective, 500);
       // When the expense is paid by the host admin
       const result = await utils.graphqlQuery(
-        payExpenseQuery,
+        payExpenseMutation,
         { id: expense.id, paymentProcessorFeeInCollectiveCurrency: 0 },
         hostAdmin,
       );
@@ -1063,7 +1172,7 @@ describe('server/graphql/v1/expenses', () => {
         id: expense.id,
         paymentProcessorFeeInCollectiveCurrency: 0,
       };
-      const result = await utils.graphqlQuery(payExpenseQuery, parameters, hostAdmin);
+      const result = await utils.graphqlQuery(payExpenseMutation, parameters, hostAdmin);
       // Then there should be errors
       expect(result.errors).to.exist;
       // And then the error message should be set appropriately
@@ -1129,7 +1238,7 @@ describe('server/graphql/v1/expenses', () => {
         await addFunds(user, hostCollective, collective, initialBalance);
         // When the expense is paid by the host admin
         const res = await utils.graphqlQuery(
-          payExpenseQuery,
+          payExpenseMutation,
           { id: expense.id, paymentProcessorFeeInCollectiveCurrency },
           hostAdmin,
         );
@@ -1200,7 +1309,7 @@ describe('server/graphql/v1/expenses', () => {
       });
 
       it('includes TransferWise fees', async () => {
-        await utils.graphqlQuery(payExpenseQuery, { id: expense.id }, hostAdmin);
+        await utils.graphqlQuery(payExpenseMutation, { id: expense.id }, hostAdmin);
 
         const [transaction] = await models.Transaction.findAll({ where: { ExpenseId: expense.id } });
 
@@ -1211,7 +1320,7 @@ describe('server/graphql/v1/expenses', () => {
       });
 
       it('should update expense status to PROCESSING', async () => {
-        await utils.graphqlQuery(payExpenseQuery, { id: expense.id }, hostAdmin);
+        await utils.graphqlQuery(payExpenseMutation, { id: expense.id }, hostAdmin);
 
         await expense.reload();
         expect(expense.status).to.equal(expenseStatus.PROCESSING);
@@ -1220,7 +1329,7 @@ describe('server/graphql/v1/expenses', () => {
       it('should send a notification email to the payee', async () => {
         emailSendMessageSpy.resetHistory();
 
-        await utils.graphqlQuery(payExpenseQuery, { id: expense.id }, hostAdmin);
+        await utils.graphqlQuery(payExpenseMutation, { id: expense.id }, hostAdmin);
 
         await utils.waitForCondition(() => emailSendMessageSpy.callCount === 1);
         expect(emailSendMessageSpy.args[0][0]).to.equal(user.email);
@@ -1276,7 +1385,7 @@ describe('server/graphql/v1/expenses', () => {
         let balance = await collective.getBalance();
         expect(balance).to.equal(1500);
         const res = await utils.graphqlQuery(
-          payExpenseQuery,
+          payExpenseMutation,
           {
             id: expense.id,
             paymentProcessorFeeInCollectiveCurrency,
@@ -1352,7 +1461,7 @@ describe('server/graphql/v1/expenses', () => {
         let balance = await collective.getBalance();
         expect(balance).to.equal(1500);
         const res = await utils.graphqlQuery(
-          payExpenseQuery,
+          payExpenseMutation,
           { id: expense.id, paymentProcessorFeeInCollectiveCurrency: 0 },
           hostAdmin,
         );
@@ -1365,6 +1474,32 @@ describe('server/graphql/v1/expenses', () => {
           delay: 500,
         });
         expect(emailSendMessageSpy.callCount).to.equal(2);
+      });
+
+      it('makes the expense creator a contributor member of the collective', async () => {
+        emailSendMessageSpy.resetHistory();
+
+        await expense.save();
+
+        // And then add funds to the collective
+        const initialBalance = 1500;
+        await addFunds(user, hostCollective, collective, initialBalance);
+
+        const res = await utils.graphqlQuery(
+          payExpenseMutation,
+          { id: expense.id, paymentProcessorFeeInCollectiveCurrency: 0 },
+          hostAdmin,
+        );
+        res.errors && console.log(res.errors);
+        expect(res.errors).to.not.exist;
+        expect(res.data.payExpense.status).to.equal('PAID');
+
+        // And then the expense creator should become a member of the project
+        const membership = await models.Member.findOne({
+          where: { CollectiveId: collective.id, role: 'CONTRIBUTOR' },
+        });
+        expect(membership).to.exist;
+        expect(membership.MemberCollectiveId).to.equal(expense.FromCollectiveId);
       });
     });
   }); /* End of #payExpense */
@@ -1548,7 +1683,7 @@ describe('server/graphql/v1/expenses', () => {
         ...data,
       });
       // When trying to delete the expense without passing a user
-      const result = await utils.graphqlQuery(deleteExpenseQuery, {
+      const result = await utils.graphqlQuery(deleteExpenseMutation, {
         id: expense.id,
       });
       // Then there should be an error
@@ -1576,7 +1711,7 @@ describe('server/graphql/v1/expenses', () => {
       // above collective and expense.
       const { user } = await store.newUser('some random internet user');
       // When trying to delete the expense passing the user above
-      const result = await utils.graphqlQuery(deleteExpenseQuery, { id: expense.id }, user);
+      const result = await utils.graphqlQuery(deleteExpenseMutation, { id: expense.id }, user);
       // Then there should be an error
       expect(result.errors).to.exist;
       // And then the error message should be set accordingly.
@@ -1610,7 +1745,7 @@ describe('server/graphql/v1/expenses', () => {
         role: 'BACKER',
       });
       // When the above expense is attempted to be deleted by the backer
-      const result = await utils.graphqlQuery(deleteExpenseQuery, { id: expense.id }, backer);
+      const result = await utils.graphqlQuery(deleteExpenseMutation, { id: expense.id }, backer);
       // Then there should be an error
       expect(result.errors).to.exist;
       // And then the error message should be set accordingly.
@@ -1639,7 +1774,7 @@ describe('server/graphql/v1/expenses', () => {
       expense.status = 'REJECTED';
       await expense.save();
       // When the above user tries to delete the expense
-      const result = await utils.graphqlQuery(deleteExpenseQuery, { id: expense.id }, user);
+      const result = await utils.graphqlQuery(deleteExpenseMutation, { id: expense.id }, user);
       result.errors && console.log(result.errors);
       // Then there should be no errors
       expect(result.errors).to.not.exist;
@@ -1670,7 +1805,7 @@ describe('server/graphql/v1/expenses', () => {
       });
 
       // When the admin of the collective tries to delete the expense
-      const result = await utils.graphqlQuery(deleteExpenseQuery, { id: expense.id }, admin);
+      const result = await utils.graphqlQuery(deleteExpenseMutation, { id: expense.id }, admin);
       expect(result.errors).to.exist;
       // And then the error message should be set accordingly.
       expect(result.errors[0].message).to.equal(
@@ -1702,7 +1837,7 @@ describe('server/graphql/v1/expenses', () => {
       expense.status = 'REJECTED';
       await expense.save();
       // When the admin of the collective tries to delete the expense
-      const result = await utils.graphqlQuery(deleteExpenseQuery, { id: expense.id }, admin);
+      const result = await utils.graphqlQuery(deleteExpenseMutation, { id: expense.id }, admin);
       result.errors && console.log(result.errors);
       // Then there should be no errors
       expect(result.errors).to.not.exist;
@@ -1732,7 +1867,7 @@ describe('server/graphql/v1/expenses', () => {
       expense.status = 'REJECTED';
       await expense.save();
       // When the admin of the host collective tries to delete the expense
-      const result = await utils.graphqlQuery(deleteExpenseQuery, { id: expense.id }, hostAdmin);
+      const result = await utils.graphqlQuery(deleteExpenseMutation, { id: expense.id }, hostAdmin);
       result.errors && console.log(result.errors);
       // Then there should be no errors
       expect(result.errors).to.not.exist;
@@ -1777,7 +1912,7 @@ describe('server/graphql/v1/expenses', () => {
       expect(balance).to.equal(1500);
       // Then expense is paid by host admin
       const res = await utils.graphqlQuery(
-        payExpenseQuery,
+        payExpenseMutation,
         {
           id: expense.id,
           paymentProcessorFeeInHostCurrency: 0,
@@ -1792,7 +1927,7 @@ describe('server/graphql/v1/expenses', () => {
       expect(balance).to.equal(initialBalance - expenseAmount);
       // Then mark the expense as unpaid
       const result = await utils.graphqlQuery(
-        markExpenseAsUnpaidQuery,
+        markExpenseAsUnpaidMutation,
         {
           id: expense.id,
           processorFeeRefunded: false,
@@ -1830,13 +1965,13 @@ describe('server/graphql/v1/expenses', () => {
         ...data,
       });
       // approve the expense
-      const res = await utils.graphqlQuery(approveExpenseQuery, { id: expense.id }, hostAdmin);
+      const res = await utils.graphqlQuery(approveExpenseMutation, { id: expense.id }, hostAdmin);
       res.errors && console.log(res.errors);
       expect(res.errors).to.not.exist;
       // expect expense to be first approved
       expect(res.data.approveExpense.status).to.equal('APPROVED');
       // When the expense is approved by the admin of host
-      const result = await utils.graphqlQuery(unapproveExpenseQuery, { id: expense.id }, hostAdmin);
+      const result = await utils.graphqlQuery(unapproveExpenseMutation, { id: expense.id }, hostAdmin);
       result.errors && console.log(result.errors);
       // Then there should be no errors in the result
       expect(result.errors).to.not.exist;

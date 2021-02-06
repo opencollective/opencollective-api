@@ -1,5 +1,6 @@
 import { GraphQLString } from 'graphql';
 
+import expenseStatus from '../../../constants/expense_status';
 import { ExpenseReferenceInput, fetchExpenseWithReference } from '../input/ExpenseReferenceInput';
 import { Expense } from '../object/Expense';
 
@@ -15,10 +16,23 @@ const ExpenseQuery = {
       type: ExpenseReferenceInput,
       description: 'Identifiers to retrieve the expense.',
     },
+    draftKey: {
+      type: GraphQLString,
+      description: 'Submit-on-behalf key to access drafted Expenses',
+    },
   },
   async resolve(_, args, req) {
     if (args.expense) {
-      return fetchExpenseWithReference(args.expense, req);
+      const expense = await fetchExpenseWithReference(args.expense, req);
+      if (
+        expense?.status === expenseStatus.DRAFT &&
+        expense.data?.draftKey !== args.draftKey &&
+        !req.remoteUser?.isAdmin(expense.FromCollectiveId)
+      ) {
+        return null;
+      }
+
+      return expense;
     } else if (args.id) {
       return req.loaders.Expense.byId.load(args.id);
     } else {

@@ -1,9 +1,18 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLObjectType, GraphQLString } from 'graphql';
 
+import { idEncode } from '../identifiers';
+
 export const HostPlan = new GraphQLObjectType({
   name: 'HostPlan',
   description: 'The name of the current plan and its characteristics.',
-  fields: {
+  fields: () => ({
+    id: {
+      type: GraphQLString,
+      description: 'The public id identifying the account (ie: 5v08jk63-w4g9nbpz-j7qmyder-p7ozax5g)',
+      resolve(account) {
+        return idEncode(account.id, 'account');
+      },
+    },
     name: {
       type: GraphQLString,
       description: 'The name of the plan',
@@ -48,5 +57,13 @@ export const HostPlan = new GraphQLObjectType({
       type: GraphQLInt,
       description: 'Amount limit for the transferwise payouts feature under this plan',
     },
-  },
+    hostFees: {
+      type: GraphQLBoolean,
+      description: 'Ability to charge Host Fees.',
+    },
+    hostFeeSharePercent: {
+      type: GraphQLInt,
+      description: 'Charge on revenues made through Host Fees.',
+    },
+  }),
 });

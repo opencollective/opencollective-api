@@ -6,12 +6,21 @@ Subject: Open Collective: Login
 
 <center>
   <h3>You are one click away from logging into your Open Collective account.</h3>
-  <a href="{{loginLink}}" class="btn blue"><div>One-click login</div></a>
+  <a href="{{{loginLink}}}" class="btn blue"><div>One-click login</div></a>
+  <br/>
+  <br/>
+  <br/>
+  <hr/>
+  <br/>
+  <p>
+    Link not working? Try this:<br/>
+    <a href="{{loginLink}}" style="word-break: break-all; font-size: 12px;">{{loginLink}}</a>
+  </p>
 </center>
 
 <div itemscope itemtype="http://schema.org/EmailMessage">
   <div itemprop="potentialAction" itemscope itemtype="http://schema.org/ViewAction">
-    <link itemprop="url" content="{{loginLink}}"/>
+    <link itemprop="url" content="{{{loginLink}}}"/>
     <meta itemprop="name" content="login"/>
   </div>
   <meta itemprop="description" content="Login to opencollective.com"/>
@@ -25,6 +34,6 @@ Subject: Open Collective: Login
     <span style="padding: .2em .4em; margin: 0; background-color: rgba(27,31,35,.05); border-radius: 3px;">
       {{clientIP}}
     </span>. 
-    If you did not request this email, please inform <a href="support@opencollective.com">support@opencollective.com</a>.
+    If you did not request this email, please inform <a href="mailto:support@opencollective.com">support@opencollective.com</a>.
 </div>
 </center>

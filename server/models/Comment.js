@@ -4,12 +4,9 @@
 import Promise from 'bluebird';
 import _ from 'lodash';
 import Temporal from 'sequelize-temporal';
-import showdown from 'showdown';
 
 import activities from '../constants/activities';
-const markdownConverter = new showdown.Converter();
-
-import { buildSanitizerOptions, sanitizeHTML, stripHTML } from '../lib/sanitize-html';
+import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
 
 import { sequelize } from '.';
 
@@ -99,13 +96,9 @@ export default function (Sequelize, DataTypes) {
         allowNull: true,
       },
 
+      // @deprecated
       markdown: {
         type: DataTypes.TEXT,
-        set(value) {
-          if (value) {
-            this.setDataValue('markdown', stripHTML(value));
-          }
-        },
       },
 
       html: {
@@ -115,11 +108,6 @@ export default function (Sequelize, DataTypes) {
             const cleanHtml = sanitizeHTML(value, sanitizeOptions).trim();
             this.setDataValue('html', cleanHtml);
           }
-        },
-        get() {
-          return this.getDataValue('html')
-            ? this.getDataValue('html')
-            : markdownConverter.makeHtml(this.getDataValue('markdown'));
         },
       },
 

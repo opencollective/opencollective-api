@@ -77,6 +77,7 @@ export const inspectSpy = (spy, argsCount) => {
  * E.g. await waitForCondition(() => emailSendMessageSpy.callCount === 1)
  * @param {*} cond
  * @param {*} options: { timeout, delay }
+ * @returns {Promise}
  */
 export const waitForCondition = (cond, options = { timeout: 10000, delay: 0 }) =>
   new Promise(resolve => {
@@ -220,7 +221,8 @@ export function stubStripeCreate(sandbox, overloadDefaults) {
     customer: { id: 'cus_BM7mGwp1Ea8RtL' },
     token: { id: 'tok_1AzPXGD8MNtzsDcgwaltZuvp' },
     charge: { id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' },
-    paymentIntent: { charges: { data: [{ id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' }] }, status: 'succeeded' },
+    paymentIntent: { id: 'pi_1F82vtBYycQg1OMfS2Rctiau', status: 'requires_confirmation' },
+    paymentIntentConfirmed: { charges: { data: [{ id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' }] }, status: 'succeeded' },
     ...overloadDefaults,
   };
   /* Little helper function that returns the stub with a given
@@ -238,6 +240,7 @@ export function stubStripeCreate(sandbox, overloadDefaults) {
 
   sandbox.stub(stripe.customers, 'retrieve').callsFake(factory('customer'));
   sandbox.stub(stripe.paymentIntents, 'create').callsFake(factory('paymentIntent'));
+  sandbox.stub(stripe.paymentIntents, 'confirm').callsFake(factory('paymentIntentConfirmed'));
 }
 
 export function stubStripeBalance(sandbox, amount, currency, applicationFee = 0, stripeFee = 0) {

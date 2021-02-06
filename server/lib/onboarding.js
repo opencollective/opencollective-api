@@ -1,4 +1,5 @@
 import Promise from 'bluebird';
+import { get } from 'lodash';
 
 import logger from '../lib/logger';
 import models, { Op } from '../models';
@@ -13,6 +14,12 @@ const emailOptions = {
 
 export async function processCollective(collective, template) {
   logger.info('-', collective.slug);
+
+  // Exclude Funds from onboarding, Funds MVP, remove me after migration to FUND type
+  if (get(collective, 'settings.fund') === true) {
+    return;
+  }
+
   const users = await collective.getAdminUsers();
   const unsubscribers = await models.Notification.getUnsubscribersUserIds('onboarding', collective.id);
   const recipients = users.filter(u => u && unsubscribers.indexOf(u.id) === -1).map(u => u.email);

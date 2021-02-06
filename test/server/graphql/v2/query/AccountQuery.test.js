@@ -1,11 +1,12 @@
 import { expect } from 'chai';
+import gqlV2 from 'fake-tag';
 
 import { roles } from '../../../../../server/constants';
 import { fakeCollective, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
 
-const ACCOUNT_QUERY = `
-  query account($slug: String!) {
+const accountQuery = gqlV2/* GraphQL */ `
+  query Account($slug: String!) {
     account(slug: $slug) {
       id
       memberOf {
@@ -29,7 +30,7 @@ describe('server/graphql/v2/query/AccountQuery', () => {
         const user = await fakeUser();
         const incognitoProfile = await fakeCollective({ type: 'USER', isIncognito: true, CreatedByUserId: user.id });
         await incognitoProfile.addUserWithRole(user, roles.ADMIN);
-        const result = await graphqlQueryV2(ACCOUNT_QUERY, { slug: user.collective.slug }, user);
+        const result = await graphqlQueryV2(accountQuery, { slug: user.collective.slug }, user);
 
         expect(result.data.account.memberOf.nodes[0].account.slug).to.eq(incognitoProfile.slug);
       });
@@ -39,8 +40,8 @@ describe('server/graphql/v2/query/AccountQuery', () => {
         const otherUser = await fakeUser();
         const incognitoProfile = await fakeCollective({ type: 'USER', isIncognito: true, CreatedByUserId: user.id });
         await incognitoProfile.addUserWithRole(user, roles.ADMIN);
-        const resultUnauthenticated = await graphqlQueryV2(ACCOUNT_QUERY, { slug: user.collective.slug });
-        const resultAsAnotherUser = await graphqlQueryV2(ACCOUNT_QUERY, { slug: user.collective.slug }, otherUser);
+        const resultUnauthenticated = await graphqlQueryV2(accountQuery, { slug: user.collective.slug });
+        const resultAsAnotherUser = await graphqlQueryV2(accountQuery, { slug: user.collective.slug }, otherUser);
 
         expect(resultUnauthenticated.data.account.memberOf.totalCount).to.eq(0);
         expect(resultAsAnotherUser.data.account.memberOf.totalCount).to.eq(0);

@@ -6,12 +6,23 @@ import { Op } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
 import { maxInteger } from '../constants/math';
-import { capitalize, days, formatCurrency, stripTags } from '../lib/utils';
+import logger from '../lib/logger';
+import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
+import { capitalize, days, formatCurrency } from '../lib/utils';
 import { isSupportedVideoProvider, supportedVideoProviders } from '../lib/validators';
 
 import CustomDataTypes from './DataTypes';
 
 const debug = debugLib('models:Tier');
+
+const longDescriptionSanitizerOpts = buildSanitizerOptions({
+  titles: true,
+  basicTextFormatting: true,
+  multilineTextFormatting: true,
+  images: true,
+  links: true,
+  videoIframes: true,
+});
 
 export default function (Sequelize, DataTypes) {
   const { models } = Sequelize;
@@ -76,7 +87,17 @@ export default function (Sequelize, DataTypes) {
         defaultValue: 'TIER',
       },
 
-      description: DataTypes.STRING(510),
+      description: {
+        type: DataTypes.STRING(510),
+        validate: {
+          length(description) {
+            if (description?.length > 510) {
+              const tierName = this.getDataValue('name');
+              throw new Error(`In "${tierName}" tier, the description is too long (must be less than 510 characters)`);
+            }
+          },
+        },
+      },
 
       longDescription: {
         type: DataTypes.TEXT,
@@ -88,9 +109,15 @@ export default function (Sequelize, DataTypes) {
           if (!content) {
             this.setDataValue('longDescription', null);
           } else {
-            this.setDataValue('longDescription', stripTags(content));
+            this.setDataValue('longDescription', sanitizeHTML(content, longDescriptionSanitizerOpts));
           }
         },
+      },
+
+      useStandalonePage: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
       },
 
       videoUrl: {
@@ -177,24 +204,12 @@ export default function (Sequelize, DataTypes) {
         },
       },
 
-      // Max quantity of tickets per user (0 for unlimited)
-      maxQuantityPerUser: {
-        type: DataTypes.INTEGER,
-        validate: {
-          min: 0,
-        },
-      },
-
       // Goal to reach
       goal: {
         type: DataTypes.INTEGER,
         validate: {
           min: 0,
         },
-      },
-
-      password: {
-        type: DataTypes.STRING,
       },
 
       customFields: {
@@ -338,7 +353,6 @@ export default function (Sequelize, DataTypes) {
     });
   };
 
-  // TODO: Check for maxQuantityPerUser
   Tier.prototype.availableQuantity = function () {
     if (!this.maxQuantity) {
       return Promise.resolve(maxInteger);
@@ -363,6 +377,15 @@ export default function (Sequelize, DataTypes) {
 
   Tier.prototype.checkAvailableQuantity = function (quantityNeeded = 1) {
     return this.availableQuantity().then(available => available - quantityNeeded >= 0);
+  };
+
+  Tier.prototype.setCurrency = async function (currency) {
+    // Nothing to do
+    if (currency === this.currency) {
+      return this;
+    }
+
+    return this.update({ currency });
   };
 
   /**

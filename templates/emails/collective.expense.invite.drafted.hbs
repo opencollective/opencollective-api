@@ -1,0 +1,61 @@
+Subject: {{collective.name}} wants you to submit an expense
+
+
+{{> header}}
+
+<center>
+  <h1>
+    {{collective.name}} wants you to submit an expense
+  </h1>
+</center>
+<p>
+  This means <a href="{{config.host.website}}/{{collective.slug}}">{{collective.name}}</a> want to compensate
+  you for your contribution to the Collective.
+</p>
+
+
+
+<br />
+<br />
+
+<table>
+  <tr>
+    <th>Requested by </th>
+    <td><a href="{{config.host.website}}/{{fromCollective.slug}}">{{fromCollective.name}}</a></td>
+  </tr>
+  {{#if recipientNote}}
+  <tr>
+    <th>Note: </th>
+    <td>{{recipientNote}}</td>
+  </tr>
+  {{/if}}
+  {{#if items}}
+  <tr>
+    <th colspan="2"><br />Invoice Items:</th>
+  </tr>
+  {{#each items}}
+  <tr>
+    <td>{{description}}</td>
+    <td>{{currency amount currency=@root.expense.currency precision=2}}</td>
+  </tr>
+  {{/each}}
+  {{/if}}
+</table>
+
+<br />
+<br />
+
+<div class="info">
+  Don't worry, you'll be able to edit this before submitting for compensation.
+</div>
+
+<br />
+<br />
+
+<center>
+  <a href="{{inviteUrl}}" class="btn blue">
+    <div>OK, let's go!</div>
+  </a>
+</center>
+
+{{> footer}}

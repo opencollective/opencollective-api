@@ -13,10 +13,14 @@ import { PayoutMethodInput } from './PayoutMethodInput';
  */
 export const ExpenseCreateInput = new GraphQLInputObjectType({
   name: 'ExpenseCreateInput',
-  fields: {
+  fields: () => ({
     description: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'Main title of the expense',
+    },
+    longDescription: {
+      type: GraphQLString,
+      description: 'Longer text to attach to the expense',
     },
     tags: {
       type: new GraphQLList(GraphQLString),
@@ -28,7 +32,7 @@ export const ExpenseCreateInput = new GraphQLInputObjectType({
     },
     privateMessage: {
       type: GraphQLString,
-      description: 'A private note that will be attached to your invoice',
+      description: 'A private note that will be attached to your invoice, as HTML',
     },
     invoiceInfo: {
       type: GraphQLString,
@@ -59,5 +63,5 @@ export const ExpenseCreateInput = new GraphQLInputObjectType({
       type: LocationInput,
       description: 'The address of the payee',
     },
-  },
+  }),
 });

@@ -6,7 +6,8 @@ env:
   CI: true
   TZ: UTC
   E2E_TEST: 1
-  NODE_ENV: ci
+  OC_ENV: ci
+  NODE_ENV: ci # TODO: should be ideally development, test or production
   PGHOST: localhost
   PGUSER: postgres
   WEBSITE_URL: http://localhost:3000
@@ -86,14 +87,17 @@ jobs:
       - name: Checkout (api)
         uses: actions/checkout@v2-beta
 
+      - name: Set REF in env, removing the `refs/` part
+        run: echo "MATCHING_BRANCH_REF=$(echo $GITHUB_REF | sed 's|refs/||')" >> $GITHUB_ENV
+
       - name: Check matching branch
         id: check-matching-branch
         uses: octokit/request-action@v2.x
         with:
-          route: GET /repos/:owner/:repo/git/:ref
+          route: GET /repos/{owner}/{repo}/git/ref/{ref}
           owner: opencollective
           repo: opencollective-frontend
-          ref: ${{ github.ref }}
+          ref: ${{ env.MATCHING_BRANCH_REF }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true

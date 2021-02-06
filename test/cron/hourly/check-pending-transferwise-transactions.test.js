@@ -96,6 +96,7 @@ describe('cron/hourly/check-pending-transferwise-transactions.js', () => {
       type: 'DEBIT',
       amount: -1 * manualExpense.amount,
       ExpenseId: manualExpense.id,
+      data: { unrelatedDataKey: true },
     });
 
     const spy = sandbox.spy(console, 'log');
@@ -130,8 +131,6 @@ describe('cron/hourly/check-pending-transferwise-transactions.js', () => {
       `Payment from ${collective.name} for ${expense.description} expense failed`,
     );
     expect(sendMessage.args[1][0]).to.equal(admin.email);
-    expect(sendMessage.args[1][1]).to.contain(
-      `🚨 Transaction failed on ${collective.name}  for ${expense.description}`,
-    );
+    expect(sendMessage.args[1][1]).to.contain(`🚨 Transaction failed on ${collective.name}`);
   });
 });
