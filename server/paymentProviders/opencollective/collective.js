@@ -1,13 +1,10 @@
 import Promise from 'bluebird';
-import { get } from 'lodash';
 
-import logger from '../../lib/logger';
-import models, { sequelize } from '../../models';
 import { TransactionTypes } from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
-import * as paymentsLib from '../../lib/payments';
+import { calcFee, createRefundTransaction, getHostFeePercent, getPlatformFeePercent } from '../../lib/payments';
 import { formatCurrency } from '../../lib/utils';
-import { maxInteger } from '../../constants/math';
+import models from '../../models';
 
 const paymentMethodProvider = {};
 
@@ -19,99 +16,45 @@ paymentMethodProvider.features = {
 // Returns the balance in the currency of the paymentMethod (ie. currency of the Collective)
 paymentMethodProvider.getBalance = paymentMethod => {
   return paymentMethod.getCollective().then(collective => {
-    // For gift cards turned into opencollective credit
-    // overloaded 'monthlyLimitPerMember' to use as a one-time limit
-    if (paymentMethod.monthlyLimitPerMember) {
-      return models.Transaction.findOne({
-        attributes: [
-          [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('netAmountInCollectiveCurrency')), 0), 'amount'],
-        ],
-        where: {
-          PaymentMethodId: paymentMethod.Id,
-          FromCollectiveId: paymentMethod.CollectiveId,
-        },
-      }).then(result => Promise.resolve(paymentMethod.monthlyLimitPerMember - result.dataValues.amount));
-    }
-
-    // If the collective is a host (USER or ORGANIZATION)
-    if (collective.type === 'ORGANIZATION' || collective.type === 'USER') {
-      return collective.isHost().then(isHost => {
-        if (!isHost) {
-          return 0;
-        } else {
-          return maxInteger;
-        } // GraphQL doesn't like Infinity
-      });
-    }
-
-    // Otherwise we compute the balance based on all previous transactions for this collective
-    return models.Transaction.findOne({
-      attributes: [
-        [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('netAmountInCollectiveCurrency')), 0), 'amount'],
-      ],
-      where: {
-        CollectiveId: paymentMethod.CollectiveId,
-      },
-    }).then(result => {
-      return result.dataValues.amount;
-    });
+    return collective.getBalance();
   });
 };
 
 paymentMethodProvider.processOrder = async order => {
+  if (!order.fromCollective.isActive) {
+    throw new Error('Cannot use the Open Collective payment method if not active.');
+  }
+  if (order.paymentMethod.CollectiveId !== order.fromCollective.id) {
+    throw new Error('Cannot use the Open Collective payment method to make a payment on behalf of another collective');
+  }
+
   // Get the host of the fromCollective and collective
   const fromCollectiveHost = await order.fromCollective.getHostCollective();
   const collectiveHost = await order.collective.getHostCollective();
-
-  // If the paymentMethod is the one of the host to make a payment on behalf of another of its collective,
-  // we need to use the payment method of the fromCollective (to make sure it has enough funds)
-  if (
-    fromCollectiveHost &&
-    order.paymentMethod.CollectiveId === fromCollectiveHost.id &&
-    fromCollectiveHost.id === collectiveHost.id
-  ) {
-    // Defensive code that might be deleted if not used. Check the logs.
-    if (!order.paymentMethod) {
-      logger.warn('opencollective.collective.processOrder: no paymentMethod set in order');
-      order.paymentMethod = await models.PaymentMethod.findOne({
-        where: { CollectiveId: order.fromCollective.id },
-      });
-    }
-    // We need to recheck the balance
-    const balance = await paymentMethodProvider.getBalance(order.paymentMethod);
-    // FIXME: balance and totalAmount should be tested according to their respective currencies
-    // https://github.com/opencollective/opencollective/issues/1634
-    if (balance < order.totalAmount) {
-      throw new Error(
-        `You don't have enough funds available (${formatCurrency(
-          balance,
-          order.paymentMethod.currency,
-        )} left) to execute this order (${formatCurrency(order.totalAmount, order.currency)})`,
-      );
-    }
-  }
-
-  if (order.paymentMethod.CollectiveId !== order.fromCollective.id && order.fromCollective.type === 'COLLECTIVE') {
-    throw new Error('Cannot use the opencollective payment method to make a payment on behalf of another collective');
-  }
-
-  const hostFeePercent = get(order, 'data.hostFeePercent', 0);
-  const platformFeePercent = get(order, 'data.platformFeePercent', 0);
-
   if (!fromCollectiveHost) {
-    // If the fromCollective has no Host (ie. when we add fund on behalf of a user/organization),
-    // we check if the payment method belongs to the Host of the Order.collective (aka add funds)
-    if (order.collective.HostCollectiveId !== order.paymentMethod.CollectiveId) {
-      throw new Error(
-        `You need to use the payment method of the host (${order.collective.HostCollectiveId}) to add funds to this collective`,
-      );
-    }
-  } else if (fromCollectiveHost.id !== collectiveHost.id) {
-    // NOTE: this used to be supported, check git history if you want to understand why and how
+    throw new Error('Cannot use the Open Collective payment method without an Host.');
+  }
+  if (!collectiveHost) {
+    throw new Error('Cannot use the Open Collective payment method to a recipient without an Host.');
+  }
+  if (fromCollectiveHost.id !== collectiveHost.id) {
     throw new Error(
-      `Cannot use the opencollective payment method to make a payment between different hosts: ${fromCollectiveHost.name} -> ${collectiveHost.name}`,
+      `Cannot use the Open Collective payment method to make a payment between different hosts: ${fromCollectiveHost.name} -> ${collectiveHost.name}`,
     );
   }
+
+  const balance = await paymentMethodProvider.getBalance(order.paymentMethod);
+  if (balance < order.totalAmount) {
+    throw new Error(
+      `Not enough funds available (${formatCurrency(
+        balance,
+        order.paymentMethod.currency,
+      )} left) to execute this order (${formatCurrency(order.totalAmount, order.currency)})`,
+    );
+  }
+
+  const hostFeePercent = await getHostFeePercent(order);
+  const platformFeePercent = await getPlatformFeePercent(order);
 
   const payload = {
     CreatedByUserId: order.CreatedByUserId,
@@ -128,9 +71,11 @@ paymentMethodProvider.processOrder = async order => {
   const fxrate = await getFxRate(order.currency, order.paymentMethod.currency);
   const totalAmountInPaymentMethodCurrency = order.totalAmount * fxrate;
 
-  const hostFeeInHostCurrency = paymentsLib.calcFee(order.totalAmount * fxrate, hostFeePercent);
-
-  const platformFeeInHostCurrency = paymentsLib.calcFee(order.totalAmount * fxrate, platformFeePercent);
+  const feeOnTop = order.data?.platformFee || 0;
+  const hostFeeInHostCurrency = calcFee((order.totalAmount - feeOnTop) * fxrate, hostFeePercent);
+  const platformFeeInHostCurrency = !feeOnTop
+    ? calcFee(order.totalAmount * fxrate, platformFeePercent)
+    : feeOnTop * fxrate;
 
   payload.transaction = {
     type: TransactionTypes.CREDIT,
@@ -146,6 +91,9 @@ paymentMethodProvider.processOrder = async order => {
     taxAmount: order.taxAmount,
     paymentProcessorFeeInHostCurrency: 0,
     description: order.description,
+    data: {
+      isFeesOnTop: order.data?.isFeesOnTop,
+    },
   };
 
   const transactions = await models.Transaction.createFromPayload(payload);
@@ -172,14 +120,21 @@ paymentMethodProvider.refundTransaction = async (transaction, user) => {
     throw new Error('Cannot process refunds for collectives without a host');
   } else if (fromCollective.HostCollectiveId !== collective.HostCollectiveId) {
     throw new Error('Cannot process refunds for collectives with different hosts');
-  } else if ((await collective.getBalance()) < transaction.amount) {
-    throw new Error("The collective doesn't have enough funds to process this refund");
+  }
+
+  const balance = await collective.getBalance();
+  if (balance < transaction.amount) {
+    throw new Error(
+      `Not enough funds available (${formatCurrency(
+        balance,
+        collective.currency,
+      )} left) to process this refund (${formatCurrency(transaction.amount, transaction.currency)})`,
+    );
   }
 
   // Use 0 for processor fees because there's no fees for collective to collective
   // transactions within the same host.
-  const refundTransaction = await paymentsLib.createRefundTransaction(transaction, 0, null, user);
-  return paymentsLib.associateTransactionRefundId(transaction, refundTransaction);
+  return await createRefundTransaction(transaction, 0, null, user);
 };
 
 export default paymentMethodProvider;

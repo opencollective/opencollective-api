@@ -7,8 +7,8 @@ import '../server/env';
 import config from 'config';
 import juice from 'juice';
 
-import libEmailTemplates from '../server/lib/emailTemplates';
 import { getMailer } from '../server/lib/email';
+import libEmailTemplates from '../server/lib/emailTemplates';
 
 const templateName = process.argv[2];
 const data = {};
@@ -124,40 +124,20 @@ data['ticket.confirmed'] = {
   },
 };
 data['ticket.confirmed.fearlesscitiesbrussels'] = data['ticket.confirmed'];
-data['ticket.confirmed.drupalatx.texas-camp-2019-19178ev'] = {
-  recipient: {
-    name: 'John Taylor',
-  },
-  event: {
-    name: 'Texas Camp 2019',
-    slug: 'texas-camp-2019-19178ev',
-    startsAt: '2019-10-18 17:15:00+00',
-    endsAt: '2019-10-19 21:15:00+00',
-    timezone: 'America/Chicago',
-    locationName: 'Codeup',
-    address: '600 Navarro St. #350, San Antonio, Texas',
-  },
-  collective: {
-    slug: 'drualatx',
-  },
-  tier: {
-    id: 1,
-    name: 'Regular Ticket',
-    description: 'This gives you access to all the workshops',
-    amount: 75,
-    currency: 'USD',
-  },
-  order: {
-    id: 2312329,
-    quantity: 1,
-    totalAmount: 75,
-    currency: 'USD',
-  },
-};
 data['github.signup'] = {
   collective: {
     name: 'webpack',
     slug: 'webpack',
+  },
+};
+data['collective.created.the-social-change-nest'] = data['collective.approved.the-social-change-nest'] = {
+  host: {
+    slug: 'the-social-change-nest',
+    name: 'The Social Change Nest',
+  },
+  collective: {
+    slug: 'coinbase',
+    name: 'Coinbase',
   },
 };
 data['organization.collective.created'] = {
@@ -411,7 +391,7 @@ data['user.monthlyreport'] = {
   recipient: { firstName: 'Xavier' },
   month: 'march',
   year: '2017',
-  manageSubscriptionsUrl: 'https://opencollective.com/subscriptions',
+  manageSubscriptionsUrl: 'https://opencollective.com/recurring-contributions',
   utm: Date.now(),
   fallbackUrl: 'opencollective.com/email/some_id',
   subscriptions: [
@@ -473,7 +453,7 @@ data['user.monthlyreport'] = {
       backgroundImage: 'http://opencollective.com/proxy/images/?src=https://cldup.com/Gj243bgI0f.jpg&width=1024',
       slug: 'cyclejs',
       name: 'Cycle.js',
-      mission: 'We are on a mission to provide a framework for clean code, easy debugging experience, and fun.',
+      description: 'We are on a mission to provide a framework for clean code, easy debugging experience, and fun.',
       // totalDonations: 41,
       tier: 'backer',
       yearlyIncome: 6271 * 100,
@@ -485,7 +465,7 @@ data['user.monthlyreport'] = {
       backgroundImage: 'http://opencollective.com/proxy/images/?src=https://cldup.com/Gj243bgI0f.jpg&width=1024',
       slug: 'cyclejs',
       name: 'Cycle.js',
-      mission: 'We are on a mission to provide a framework for clean code, easy debugging experience, and fun.',
+      description: 'We are on a mission to provide a framework for clean code, easy debugging experience, and fun.',
       // totalDonations: 41,
       tier: 'backer',
       yearlyIncome: 6271 * 100,
@@ -497,30 +477,13 @@ data['user.monthlyreport'] = {
       backgroundImage: 'http://opencollective.com/proxy/images/?src=https://cldup.com/Gj243bgI0f.jpg&width=1024',
       slug: 'cyclejs',
       name: 'Cycle.js',
-      mission: 'We are on a mission to provide a framework for clean code, easy debugging experience, and fun.',
+      description: 'We are on a mission to provide a framework for clean code, easy debugging experience, and fun.',
       // totalDonations: 41,
       tier: 'backer',
       yearlyIncome: 6271 * 100,
       contributorsCount: 0,
     },
   ],
-};
-
-data['pledge.complete'] = {
-  collective: {
-    name: 'Johnny Five',
-    slug: 'johnny-five',
-  },
-  fromCollective: {
-    name: 'Jane Doe',
-    slug: 'jane-doe',
-  },
-  interval: 'month',
-  order: {
-    currency: 'USD',
-    id: '123456',
-    totalAmount: 1000,
-  },
 };
 
 const defaultData = {
@@ -546,10 +509,7 @@ const getTemplateAttributes = str => {
     }
   } while (tokens);
 
-  attributes.body = lines
-    .slice(index)
-    .join('\n')
-    .trim();
+  attributes.body = lines.slice(index).join('\n').trim();
   return attributes;
 };
 
@@ -560,10 +520,10 @@ if (!templateName) {
   console.log('./server/lib/emailTemplates\n');
   console.log('  Example 1: npm run -s compile:email user.monthlyreport\n');
   console.log('  Example 2: npm run -s compile:email email.approve > email-approve.html\n');
-  console.log('Note: `-s` switch is requried to suppress warnings from npm.');
+  console.log('Note: `-s` switch is required to suppress warnings from npm.');
   console.log('Note: Edit the script to specify the data that is passed to the template.');
 } else if (!data[templateName]) {
-  console.log('There is no mocked data defined for this template.');
+  console.log('There is no mocked data defined for this template:', templateName);
   console.log('Please add mocked data by editing `scripts/compile-email.js`.');
 } else {
   const template = libEmailTemplates[templateName];

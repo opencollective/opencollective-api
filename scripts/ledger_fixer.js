@@ -22,16 +22,17 @@ import '../server/env';
  * don't block the database for other transactions.
  */
 import fs from 'fs';
-import moment from 'moment';
-import { ArgumentParser } from 'argparse';
 import { promisify } from 'util';
-import { result, includes } from 'lodash';
 
-import models, { sequelize } from '../server/models';
+import { ArgumentParser } from 'argparse';
+import { includes, result } from 'lodash';
+import moment from 'moment';
+
+import libemail from '../server/lib/email';
+import { toNegative } from '../server/lib/math';
 import * as transactionsLib from '../server/lib/transactions';
 import { sleep } from '../server/lib/utils';
-import { toNegative } from '../server/lib/math';
-import libemail from '../server/lib/email';
+import models, { sequelize } from '../server/models';
 
 const REPORT_EMAIL = 'ops@opencollective.com';
 
@@ -627,31 +628,32 @@ async function emailReport(subject, text, attachments) {
 /* -- Utilities & Script Entry Point -- */
 
 /** Return the options passed by the user to run the script */
+/* eslint-disable camelcase */
 function parseCommandLineArguments() {
   const parser = new ArgumentParser({
     addHelp: true,
     description: 'Charge due subscriptions',
   });
-  parser.addArgument(['-q', '--quiet'], {
+  parser.add_argument('-q', '--quiet', {
     help: 'Silence output',
-    defaultValue: true,
-    action: 'storeConst',
+    default: true,
+    action: 'store_const',
     constant: false,
   });
-  parser.addArgument(['--notdryrun'], {
+  parser.add_argument('--notdryrun', {
     help: "Pass this flag when you're ready to run the script for real",
-    defaultValue: false,
-    action: 'storeConst',
+    default: false,
+    action: 'store_const',
     constant: true,
   });
-  parser.addArgument(['-l', '--limit'], {
+  parser.add_argument('-l', '--limit', {
     help: 'total subscriptions to process',
   });
-  parser.addArgument(['-b', '--batch-size'], {
+  parser.add_argument('-b', '--batch-size', {
     help: 'batch size to fetch at a time',
-    defaultValue: 100,
+    default: 100,
   });
-  const args = parser.parseArgs();
+  const args = parser.parse_args();
   return {
     dryRun: !args.notdryrun,
     verbose: !args.quiet,
@@ -659,6 +661,7 @@ function parseCommandLineArguments() {
     batchSize: args.batch_size,
   };
 }
+/* eslint-enable camelcase */
 
 /** Print `message` to console if `options.verbose` is true */
 function vprint(options, message) {

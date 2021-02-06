@@ -1,6 +1,6 @@
 import nock from 'nock';
 
-export default function() {
+export default function () {
   nock('https://backyourstack.com:443', { encodedQueryParams: true })
     .get('/test/backing.json')
     .reply(200, [

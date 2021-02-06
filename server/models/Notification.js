@@ -1,13 +1,14 @@
 import Promise from 'bluebird';
-import { defaults } from 'lodash';
 import debugLib from 'debug';
+import { defaults, isNil } from 'lodash';
 import { Op } from 'sequelize';
 
 import channels from '../constants/channels';
+import { ValidationFailed } from '../graphql/errors';
 
 const debug = debugLib('models:Notification');
 
-export default function(Sequelize, DataTypes) {
+export default function (Sequelize, DataTypes) {
   const { models } = Sequelize;
 
   const Notification = Sequelize.define(
@@ -78,12 +79,17 @@ export default function(Sequelize, DataTypes) {
           type: 'unique',
         },
       ],
+      hooks: {
+        beforeCreate(instance) {
+          if (instance.channel === channels.WEBHOOK && isNil(instance.webhookUrl)) {
+            throw new ValidationFailed('Webhook URL can not be undefined');
+          }
+        },
+      },
     },
   );
 
-  Notification.schema('public');
-
-  Notification.prototype.getUser = function() {
+  Notification.prototype.getUser = function () {
     return models.User.findByPk(this.UserId);
   };
 
@@ -252,9 +258,6 @@ Types:
   - collective.deleted
       data: collective.name, user.info
 
-  + collective.user.added
-      data: collective, user (caller), target (the new user), collectiveuser
-      2* Userid: the new user + the caller
   - collective.user.updated
       data: collective, user (caller), target (the updated user), collectiveuser (updated values)
       2* Userid: the updated user + the caller

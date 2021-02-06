@@ -2,6 +2,12 @@
   "database": {
     "url": "postgres://opencollective@127.0.0.1:5432/opencollective_test"
   },
+  "fees": {
+    "default": {
+      "hostPercent": 5,
+      "platformPercent": 5
+    }
+  },
   "log": {
     "level": "warn"
   },
@@ -10,11 +16,21 @@
       "bucket": "opencollective-test"
     }
   },
+  "slack": {
+    "webhooks": {
+      "abuse": "SLACK_ABUSE_TEST_URL"
+    }
+  },
   "mailgun": {
     "user": "",
     "password": ""
   },
   "fixer": {
     "accessKey": "UNDEFINED_FIXER_ACCESS_KEY"
+  },
+  "limits": {
+    "sendGuestConfirmPerMinutePerEmail": 100000,
+    "sendGuestConfirmPerMinutePerIp": 100000,
+    "confirmGuestAccountPerMinutePerIp": 100000
   }
 }

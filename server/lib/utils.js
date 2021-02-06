@@ -3,13 +3,15 @@ import fs from 'fs';
 import path from 'path';
 import { URL } from 'url';
 
-import config from 'config';
 import Promise from 'bluebird';
+import config from 'config';
 import pdf from 'html-pdf';
-import sanitizeHtml from 'sanitize-html';
-import { get, cloneDeep, isEqual } from 'lodash';
+import { filter, get, isEqual, padStart, sumBy } from 'lodash';
 
+import errors from './errors';
 import handlebars from './handlebars';
+
+const { BadRequest } = errors;
 
 export function addParamsToUrl(url, obj) {
   const u = new URL(url);
@@ -55,105 +57,6 @@ export function getDomain(url = '') {
   }
   return domain;
 }
-
-/**
- * @deprecated Please use the functions in `server/lib/sanitize-html.js`
- */
-export function strip_tags(str, allowedTags) {
-  return sanitizeHtml(str, {
-    allowedTags: allowedTags || sanitizeHtml.defaults.allowedTags.concat(['img', 'h1', 'h2', 'h3']),
-    allowedAttributes: {
-      a: ['href', 'name', 'target'],
-      img: ['src'],
-      iframe: [
-        'src',
-        'allowfullscreen',
-        'frameborder',
-        'autoplay',
-        'width',
-        'height',
-        {
-          name: 'allow',
-          multiple: true,
-          values: ['autoplay', 'encrypted-media', 'gyroscope'],
-        },
-      ],
-    },
-    allowedIframeHostnames: ['www.youtube.com', 'www.youtube-nocookie.com', 'player.vimeo.com'],
-  });
-}
-
-export const sanitizeObject = (obj, attributes, sanitizerFn) => {
-  const sanitizer = typeof sanitizerFn === 'function' ? sanitizerFn : strip_tags;
-
-  attributes.forEach(attr => {
-    if (!obj[attr]) {
-      return;
-    }
-    if (typeof obj[attr] === 'object') {
-      return sanitizeObject(obj[attr], Object.keys(obj[attr]), sanitizerFn);
-    }
-    obj[attr] = sanitizer(obj[attr] || '');
-  });
-  return obj;
-};
-
-/**
- * recursively reads all values of an object and hide emails and tokens
- * @param {*} obj
- */
-export const sanitizeForLogs = obj => {
-  const sanitizer = value => {
-    if (!value) {
-      return;
-    }
-    if (typeof value === 'string') {
-      if (value.indexOf('@') !== -1) {
-        return '(email obfuscated)';
-      }
-      if (value.substr(0, 4) === 'tok_') {
-        return '(token obfuscated)';
-      }
-    }
-    return value;
-  };
-
-  return sanitizeObject(cloneDeep(obj), Object.keys(obj), sanitizer);
-};
-
-String.prototype.trunc = function(n, useWordBoundary) {
-  if (this.length <= n) {
-    return this;
-  }
-  const subString = this.substr(0, n - 1);
-  return `${useWordBoundary ? subString.substr(0, subString.lastIndexOf(' ')) : subString}&hellip;`;
-};
-
-/**
- * Add parameters to an url.
- */
-export const addParameterUrl = (url, parameters) => {
-  const parsedUrl = new URL(url);
-
-  function removeTrailingChar(str, char) {
-    if (str.substr(-1) === char) {
-      return str.substr(0, str.length - 1);
-    }
-
-    return str;
-  }
-
-  parsedUrl.pathname = removeTrailingChar(parsedUrl.pathname, '/');
-
-  parsedUrl.searchParams.delete('search'); // Otherwise .search is used in place of .query
-  parsedUrl.searchParams.delete('api_key'); // make sure we don't surface the api_key publicly
-
-  for (const p in parameters) {
-    parsedUrl.searchParams.set(p, parameters[p]);
-  }
-
-  return parsedUrl.toString();
-};
 
 /**
  * Gives the number of days between two dates
@@ -365,16 +268,20 @@ export function exportToPDF(template, data, options) {
  * @param {"opensource" | null} category of the collective
  */
 export const defaultHostCollective = category => {
-  if (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging') {
+  if (config.env === 'production' || config.env === 'staging') {
     if (category === 'opensource') {
       return { id: 772, CollectiveId: 11004, ParentCollectiveId: 83 }; // Open Source Host Collective
+    } else if (category === 'foundation') {
+      return { CollectiveId: 11049 };
     } else {
       return {}; // Don't automatically assign a host anymore
     }
   }
-  if (process.env.NODE_ENV === 'development' || process.env.E2E_TEST) {
+  if (config.env === 'development' || process.env.E2E_TEST) {
     if (category === 'opensource') {
       return { CollectiveId: 9805, ParentCollectiveId: 83 }; // Open Source Host Collective
+    } else if (category === 'foundation') {
+      return { CollectiveId: 9805 };
     } else {
       return {}; // Don't automatically assign a host anymore
     }
@@ -516,21 +423,6 @@ export function isUUID(str) {
   return str.length === 36 && str.match(/^[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i);
 }
 
-export function hashCode(str) {
-  let hash = 0,
-    i,
-    chr;
-  if (str.length === 0) {
-    return hash;
-  }
-  for (i = 0; i < str.length; i++) {
-    chr = str.charCodeAt(i);
-    hash = (hash << 5) - hash + chr;
-    hash |= 0; // Convert to 32bit integer
-  }
-  return hash;
-}
-
 /** Sleeps for MS milliseconds */
 export function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -559,6 +451,11 @@ export function promiseSeq(arr, predicate, consecutive = 100) {
 }
 
 export function parseToBoolean(value) {
+  // If value is already a boolean, don't bother converting it
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
   let lowerValue = value;
   // check whether it's string
   if (lowerValue && (typeof lowerValue === 'string' || lowerValue instanceof String)) {
@@ -589,11 +486,9 @@ export const cleanTags = tags => {
   return cleanTagsList.length > 0 ? cleanTagsList : null;
 };
 
-export const md5 = value =>
-  crypto
-    .createHash('md5')
-    .update(value)
-    .digest('hex');
+export const md5 = value => crypto.createHash('md5').update(value).digest('hex');
+
+export const sha512 = value => crypto.createHash('sha512').update(value).digest('hex');
 
 /**
  * Filter `list` with `filterFunc` until `conditionFunc` returns true.
@@ -619,3 +514,31 @@ export const objHasOnlyKeys = (obj, keys) => {
   const sortedKeys = [...keys].sort();
   return isEqual(sortedObjKeys, sortedKeys);
 };
+
+/**
+ * Format a datetime object to an ISO date like `YYYY-MM-DD`
+ */
+export const toIsoDateStr = date => {
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const day = date.getUTCDate();
+  return `${year}-${padStart(month.toString(), 2, '0')}-${padStart(day.toString(), 2, '0')}`;
+};
+
+export const getTokenFromRequestHeaders = req => {
+  const header = req.headers && req.headers.authorization;
+  if (!header) {
+    return null;
+  }
+
+  const parts = header.split(' ');
+  const scheme = parts[0];
+  const token = parts[1];
+  if (!/^Bearer$/i.test(scheme) || !token) {
+    throw new BadRequest('Format is Authorization: Bearer [token]');
+  }
+
+  return token;
+};
+
+export const sumByWhen = (vector, iteratee, predicate) => sumBy(filter(vector, predicate), iteratee);

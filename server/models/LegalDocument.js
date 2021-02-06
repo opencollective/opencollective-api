@@ -1,10 +1,12 @@
-export default function(Sequelize, DataTypes) {
+export const LEGAL_DOCUMENT_TYPE = {
+  US_TAX_FORM: 'US_TAX_FORM',
+};
+
+export default function (Sequelize, DataTypes) {
   const NOT_REQUESTED = 'NOT_REQUESTED';
   const REQUESTED = 'REQUESTED';
   const RECEIVED = 'RECEIVED';
   const ERROR = 'ERROR';
-
-  const US_TAX_FORM = 'US_TAX_FORM';
 
   const LegalDocument = Sequelize.define(
     'LegalDocument',
@@ -25,9 +27,9 @@ export default function(Sequelize, DataTypes) {
       },
       documentType: {
         type: DataTypes.ENUM,
-        values: [US_TAX_FORM],
+        values: [LEGAL_DOCUMENT_TYPE.US_TAX_FORM],
         allowNull: false,
-        defaultValue: US_TAX_FORM,
+        defaultValue: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
         unique: 'yearTypeCollective',
       },
       documentLink: {
@@ -67,32 +69,18 @@ export default function(Sequelize, DataTypes) {
     },
   );
 
-  LegalDocument.schema('public');
-
-  LegalDocument.findByTypeYearUser = ({ documentType, year, user }) => {
-    return user.getCollective().then(collective => {
-      if (collective) {
-        return LegalDocument.findOne({
-          where: {
-            year,
-            CollectiveId: collective.id,
-            documentType,
-          },
-        });
-      }
+  LegalDocument.findByTypeYearCollective = ({ documentType, year, collective }) => {
+    return LegalDocument.findOne({
+      where: {
+        year,
+        CollectiveId: collective.id,
+        documentType,
+      },
     });
   };
 
-  LegalDocument.hasUserCompletedDocument = async ({ documentType, year, user }) => {
-    const doc = await LegalDocument.findByTypeYearUser({ documentType, year, user });
-
-    return doc !== null && doc.requestStatus == RECEIVED;
-  };
-
-  LegalDocument.doesUserNeedToBeSentDocument = async ({ documentType, year, user }) => {
-    const doc = await LegalDocument.findByTypeYearUser({ documentType, year, user });
-
-    return doc == null || doc.requestStatus == NOT_REQUESTED || doc.requestStatus == ERROR;
+  LegalDocument.prototype.shouldBeRequested = function () {
+    return this.requestStatus === NOT_REQUESTED || this.requestStatus === ERROR;
   };
 
   LegalDocument.requestStatus = {

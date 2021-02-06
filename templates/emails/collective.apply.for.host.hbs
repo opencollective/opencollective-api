@@ -35,14 +35,10 @@ Dear admin of {{host.name}},
     <th>Url</th>
     <td><a href="https://opencollective.com/{{collective.slug}}">https://opencollective.com/{{collective.slug}}</a></td>
   </tr>
+  {{#if collective.website}}
   <tr>
     <th>Website</th>
     <td>{{collective.website}}</td>
-  </tr>
-  {{#if collective.data.meetupSlug}}
-  <tr>
-    <th>Meetup</th>
-    <td>https://meetup.com/{{collective.data.meetupSlug}}</td>
   </tr>
   {{/if}}
   {{#if collective.data.members}}
@@ -51,19 +47,28 @@ Dear admin of {{host.name}},
     <td>{{collective.data.members}}</td>
   </tr>
   {{/if}}
+  {{#if collective.twitterHandle}}
   <tr>
     <th>Twitter</th>
     <td>{{collective.twitterHandle}}</td>
   </tr>
+  {{/if}}
   <tr>
     <th>Description</th>
     <td>{{collective.description}}</td>
   </tr>
   <tr>
     <th>Tags</th>
-    <td>{{{json collective.tags}}}</td>
+    <td>{{json collective.tags}}</td>
   </tr>
 </table>
+
+{{#if application.message}}
+  <h2>Message</h2>
+  <p>
+    <blockquote style="color: #6a737d;font-size: 14px;text-align: left;padding: 0.5em 0.75em;margin: 1em 0;border-left: 3px solid #e4e4e4;white-space: pre-line;">{{application.message}}</blockquote>
+  </p>
+{{/if}}
 
 <h2>Creator</h2>
 https://opencollective.com/{{user.collective.slug}}

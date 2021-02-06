@@ -1,17 +1,18 @@
-import sinon from 'sinon';
 import { expect } from 'chai';
+import gql from 'fake-tag';
+import sinon from 'sinon';
 
 import models from '../../../../server/models';
-import CollectivePaymentProvider from '../../../../server/paymentProviders/opencollective/collective';
-
-import * as utils from '../../../utils';
+import collectivePaymentProvider from '../../../../server/paymentProviders/opencollective/collective';
+import testPaymentProvider from '../../../../server/paymentProviders/opencollective/test';
 import * as store from '../../../stores';
+import * as utils from '../../../utils';
 
 const ORDER_TOTAL_AMOUNT = 1000;
 const STRIPE_FEE_STUBBED_VALUE = 300;
 
-const createOrderQuery = `
-  mutation createOrder($order: OrderInputType!) {
+const createOrderMutation = gql`
+  mutation CreateOrder($order: OrderInputType!) {
     createOrder(order: $order) {
       id
       fromCollective {
@@ -231,13 +232,15 @@ describe('server/paymentProviders/opencollective/collective', () => {
         totalAmount: ocPaymentMethodBalance.amount,
       };
       // Executing queries
-      const res = await utils.graphqlQuery(createOrderQuery, { order });
-      const resWithUserParam = await utils.graphqlQuery(createOrderQuery, { order }, user2);
+      const res = await utils.graphqlQuery(createOrderMutation, {
+        order: { ...order, guestInfo: { email: store.randEmail() } },
+      });
+      const resWithUserParam = await utils.graphqlQuery(createOrderMutation, { order }, user2);
 
       // Then there should be Errors for the Result of the query without any user defined as param
       expect(res.errors).to.exist;
       expect(res.errors).to.not.be.empty;
-      expect(res.errors[0].message).to.contain('You need to be authenticated to perform this action');
+      expect(res.errors[0].message).to.contain('You need to be logged in to be able to use an existing payment method');
 
       // Then there should also be Errors for the Result of the query through user2
       expect(resWithUserParam.errors).to.exist;
@@ -273,7 +276,7 @@ describe('server/paymentProviders/opencollective/collective', () => {
       };
 
       // Executing queries
-      const res = await utils.graphqlQuery(createOrderQuery, { order }, user1);
+      const res = await utils.graphqlQuery(createOrderMutation, { order }, user1);
 
       // Then there should be no errors
       res.errors && console.error(res.errors);
@@ -335,7 +338,7 @@ describe('server/paymentProviders/opencollective/collective', () => {
       };
 
       // Executing queries
-      const res = await utils.graphqlQuery(createOrderQuery, { order }, user1);
+      const res = await utils.graphqlQuery(createOrderMutation, { order }, user1);
 
       // Then there should be errors
       expect(res.errors).to.exist;
@@ -378,7 +381,7 @@ describe('server/paymentProviders/opencollective/collective', () => {
         interval: 'month',
       };
       // Executing queries
-      const res = await utils.graphqlQuery(createOrderQuery, { order }, user1);
+      const res = await utils.graphqlQuery(createOrderMutation, { order }, user1);
 
       // Then there should be no errors
       res.errors && console.error(res.errors);
@@ -430,13 +433,13 @@ describe('server/paymentProviders/opencollective/collective', () => {
         interval: 'month',
       };
       // Executing queries
-      const res = await utils.graphqlQuery(createOrderQuery, { order }, user1);
+      const res = await utils.graphqlQuery(createOrderMutation, { order }, user1);
 
       // Then there should be errors
       expect(res.errors).to.exist;
       expect(res.errors).to.not.be.empty;
       expect(res.errors[0].message).to.contain(
-        'Cannot use the opencollective payment method to make a payment between different hosts',
+        'Cannot use the Open Collective payment method to make a payment between different hosts',
       );
     });
   }); /** END OF "Recurring donations between Collectives with different hosts must be allowed"*/
@@ -490,10 +493,10 @@ describe('server/paymentProviders/opencollective/collective', () => {
     it('Creates the opposite transactions', async () => {
       await checkBalances(0, 0);
       const orderData = await createOrder(fromCollective, toCollective);
-      const transaction = await CollectivePaymentProvider.processOrder(orderData);
+      const transaction = await testPaymentProvider.processOrder(orderData);
       await checkBalances(-5000, 5000);
 
-      const refund = await CollectivePaymentProvider.refundTransaction(transaction, user);
+      const refund = await collectivePaymentProvider.refundTransaction(transaction, user);
       await checkBalances(0, 0);
 
       expect(refund.amount).to.eq(transaction.amount);
@@ -506,13 +509,13 @@ describe('server/paymentProviders/opencollective/collective', () => {
     it('Cannot reimburse money if it exceeds the Collective balance', async () => {
       await checkBalances(0, 0);
       const orderData = await createOrder(fromCollective, toCollective);
-      const transaction = await CollectivePaymentProvider.processOrder(orderData);
+      const transaction = await testPaymentProvider.processOrder(orderData);
       await checkBalances(-5000, 5000);
       const orderData2 = await createOrder(toCollective, fromCollective, 2500);
-      await CollectivePaymentProvider.processOrder(orderData2);
+      await testPaymentProvider.processOrder(orderData2);
       await checkBalances(-2500, 2500);
-      expect(CollectivePaymentProvider.refundTransaction(transaction, user)).to.be.rejectedWith(
-        "The collective doesn't have enough funds to process this refund",
+      await expect(collectivePaymentProvider.refundTransaction(transaction, user)).to.be.rejectedWith(
+        'Not enough funds available ($25 left) to process this refund ($50)',
       );
     }); /** END OF "Cannot send money that exceeds Collective balance" */
   });
