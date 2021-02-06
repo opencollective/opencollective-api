@@ -1,11 +1,11 @@
 import Promise from 'bluebird';
-import sinon from 'sinon';
 import { expect } from 'chai';
+import sinon from 'sinon';
 
-import * as utils from '../../utils';
-import models from '../../../server/models';
 import roles from '../../../server/constants/roles';
 import emailLib from '../../../server/lib/email';
+import models from '../../../server/models';
+import * as utils from '../../utils';
 
 const { User, Collective, Notification, Tier, Order } = models;
 

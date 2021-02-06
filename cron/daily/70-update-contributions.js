@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 import '../../server/env';
 
-import PQueue from 'p-queue';
 import { assign, get, isArray, pick } from 'lodash';
+import PQueue from 'p-queue';
 
-import models, { Op } from '../../server/models';
 import cache from '../../server/lib/cache';
-import logger from '../../server/lib/logger';
 import * as github from '../../server/lib/github';
+import logger from '../../server/lib/logger';
+import models, { Op } from '../../server/models';
 
 const { Collective } = models;
 
@@ -47,12 +47,12 @@ const getAllContributors = async repo => {
 
   const octokit = github.getOctokit();
 
-  const fetchParameters = { page: 1, per_page: 100 };
+  const fetchParameters = { page: 1, per_page: 100 }; // eslint-disable-line camelcase
 
   let contributors = [];
   let fetchContributors;
   do {
-    // https://octokit.github.io/rest.js/#api-Repos-listContributors
+    // https://octokit.github.io/rest.js/v18#repos-list-contributors
     // https://developer.github.com/v3/repos/#list-contributors
     logger.verbose(`Fetching contributors for ${repo.owner}/${repo.repo}, page ${fetchParameters.page}`);
     fetchContributors = await octokit.repos
@@ -131,7 +131,8 @@ const run = async () => {
   logger.info(`Found ${collectives.length} total collective(s)`);
 
   collectives = collectives.filter(
-    collective => get(collective, 'settings.githubOrg') || get(collective, 'settings.githubRepo'),
+    collective =>
+      get(collective, 'settings.githubOrg') || get(collective, 'settings.githubRepo') || collective.githubHandle,
   );
 
   logger.info(`Found ${collectives.length} collective(s) with GitHub settings`);

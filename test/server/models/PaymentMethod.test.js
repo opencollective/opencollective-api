@@ -1,10 +1,11 @@
-import config from 'config';
-import sinon from 'sinon';
 import { expect } from 'chai';
+import config from 'config';
 import nock from 'nock';
-import * as utils from '../../utils';
+import sinon from 'sinon';
+
 import models from '../../../server/models';
 import { randEmail } from '../../stores';
+import * as utils from '../../utils';
 
 describe('server/models/PaymentMethod', () => {
   let timer, user, collective, organization, paymentMethod;
@@ -12,7 +13,7 @@ describe('server/models/PaymentMethod', () => {
   before(async () => {
     nock('https://data.fixer.io')
       .get(/.*/)
-      .query({ access_key: config.fixer.accessKey, base: 'EUR', symbols: 'USD' })
+      .query({ access_key: config.fixer.accessKey, base: 'EUR', symbols: 'USD' }) // eslint-disable-line camelcase
       .reply(200, { base: 'EUR', date: '2017-09-01', rates: { USD: 1.192 } });
     await utils.resetTestDB();
     timer = sinon.useFakeTimers(new Date('2017-09-01 00:00:00').getTime());

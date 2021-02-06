@@ -1,12 +1,12 @@
 import { expect } from 'chai';
 import { map } from 'lodash/fp';
 
-import { fakeCollective, fakeTier, multiple } from '../../test-helpers/fake-data';
-import * as utils from '../../utils';
-import models from '../../../server/models';
+import { run as verifyPlans } from '../../../cron/monthly/verify-plans';
 import orderStatus from '../../../server/constants/order_status';
 import plans, { PLANS_COLLECTIVE_SLUG } from '../../../server/constants/plans';
-import { run as verifyPlans } from '../../../cron/monthly/verify-plans';
+import models from '../../../server/models';
+import { fakeCollective, fakeTier, multiple } from '../../test-helpers/fake-data';
+import * as utils from '../../utils';
 
 const arrayToJSON = map(a => a.toJSON());
 

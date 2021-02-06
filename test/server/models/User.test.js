@@ -1,14 +1,14 @@
-import sinon from 'sinon';
-import config from 'config';
-import { expect } from 'chai';
 import { URL } from 'url';
+
+import { expect } from 'chai';
+import config from 'config';
 import { SequelizeValidationError } from 'sequelize';
+import sinon from 'sinon';
 
-import models from '../../../server/models';
 import * as auth from '../../../server/lib/auth';
-
-import * as utils from '../../utils';
+import models from '../../../server/models';
 import { randEmail } from '../../stores';
+import * as utils from '../../utils';
 
 const userData = utils.data('user1');
 
@@ -42,34 +42,6 @@ describe('server/models/User', () => {
         expect(user).to.have.property('createdAt');
         expect(user).to.have.property('updatedAt');
       }));
-
-    it('successfully creates a user with a password that is a number', () => {
-      const email = 'john.doe@doe.com';
-
-      return User.create({
-        email,
-        password: 123456,
-      }).tap(user => {
-        expect(user).to.have.property('email', email);
-        expect(user).to.have.property('createdAt');
-        expect(user).to.have.property('password_hash');
-        expect(user).to.have.property('updatedAt');
-      });
-    });
-
-    it('successfully creates a user with a password that is a string', () => {
-      const email = 'john.doe@doe.com';
-
-      return User.create({
-        email,
-        password: '123456',
-      }).tap(user => {
-        expect(user).to.have.property('email', email);
-        expect(user).to.have.property('createdAt');
-        expect(user).to.have.property('password_hash');
-        expect(user).to.have.property('updatedAt');
-      });
-    });
   });
 
   describe('#createUserWithCollective', () => {

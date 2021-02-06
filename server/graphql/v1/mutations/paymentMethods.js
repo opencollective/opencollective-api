@@ -1,11 +1,13 @@
-import { pick } from 'lodash';
 import { URLSearchParams } from 'url';
 
-import virtualcard from '../../../paymentProviders/opencollective/virtualcard';
-import { setupCreditCard } from '../../../paymentProviders/stripe/creditcard';
+import { pick } from 'lodash';
+
+import ORDER_STATUS from '../../../constants/order_status';
 import emailLib from '../../../lib/email';
 import logger from '../../../lib/logger';
 import models, { Op } from '../../../models';
+import virtualcard from '../../../paymentProviders/opencollective/virtualcard';
+import { setupCreditCard } from '../../../paymentProviders/stripe/creditcard';
 import { Forbidden, ValidationFailed } from '../../errors';
 
 /** Create a Payment Method through a collective(organization or user)
@@ -141,7 +143,7 @@ export async function claimPaymentMethod(args, remoteUser) {
       name,
       currency,
       expiryDate,
-      emitter,
+      emitter: emitter.info,
     });
   }
 
@@ -149,9 +151,9 @@ export async function claimPaymentMethod(args, remoteUser) {
 }
 
 /** Archive the given payment method */
-const PaymentMethodPermissionError = new Forbidden({
-  message: "This payment method does not exist or you don't have the permission to edit it.",
-});
+const PaymentMethodPermissionError = new Forbidden(
+  "This payment method does not exist or you don't have the permission to edit it.",
+);
 
 export async function removePaymentMethod(paymentMethodId, remoteUser) {
   if (!remoteUser) {
@@ -167,6 +169,7 @@ export async function removePaymentMethod(paymentMethodId, remoteUser) {
 
   // Block the removal if the payment method has subscriptions linked
   const subscriptions = await paymentMethod.getOrders({
+    where: { status: { [Op.or]: [ORDER_STATUS.ACTIVE, ORDER_STATUS.ERROR] } },
     include: [
       {
         model: models.Subscription,
@@ -177,10 +180,7 @@ export async function removePaymentMethod(paymentMethodId, remoteUser) {
   });
 
   if (subscriptions.length > 0) {
-    throw new ValidationFailed({
-      message: 'The payment method has active subscriptions',
-      data: { errorId: 'PM.Remove.HasActiveSubscriptions' },
-    });
+    throw new ValidationFailed('The payment method has active subscriptions', 'PM.Remove.HasActiveSubscriptions');
   }
 
   return paymentMethod.destroy();

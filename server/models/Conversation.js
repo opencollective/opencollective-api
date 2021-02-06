@@ -1,11 +1,13 @@
 import slugify from 'limax';
 
 import { activities } from '../constants';
-import { stripHTML, generateSummaryForHTML } from '../lib/sanitize-html';
-import models, { sequelize } from '.';
 import { idEncode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
+import { generateSummaryForHTML } from '../lib/sanitize-html';
+import { sanitizeTags, validateTags } from '../lib/tags';
 
-export default function(Sequelize, DataTypes) {
+import models, { sequelize } from '.';
+
+export default function (Sequelize, DataTypes) {
   const Conversation = Sequelize.define(
     'Conversation',
     {
@@ -59,47 +61,14 @@ export default function(Sequelize, DataTypes) {
       tags: {
         type: DataTypes.ARRAY(DataTypes.STRING),
         set(tags) {
-          if (tags) {
-            tags = tags
-              .map(tag => {
-                if (tag) {
-                  const upperCase = tag.toUpperCase();
-                  const cleanTag = upperCase.trim().replace(/\s+/g, ' ');
-                  return stripHTML(cleanTag);
-                }
-              })
-              .filter(tag => {
-                return tag && tag.length > 0;
-              });
-          }
-
-          if (!tags || tags.length === 0) {
+          const sanitizedTags = sanitizeTags(tags);
+          if (!tags || sanitizedTags.length === 0) {
             this.setDataValue('tags', null);
-          } else if (tags) {
-            this.setDataValue('tags', Array.from(new Set(tags)));
+          } else {
+            this.setDataValue('tags', sanitizedTags);
           }
         },
-        validate: {
-          validateTags(tags) {
-            if (tags) {
-              // Limit to max 30 tags
-              if (tags.length > 30) {
-                throw new Error(
-                  `Conversations cannot have more than 30 tags. Please remove ${30 - tags.length} tag(s).`,
-                );
-              }
-
-              // Validate each individual tags
-              tags.forEach(tag => {
-                if (tag.length === 0) {
-                  throw new Error("Can't add empty tags");
-                } else if (tag.length > 32) {
-                  throw new Error(`Tag ${tag} is too long, must me shorter than 32 characters`);
-                }
-              });
-            }
-          },
-        },
+        validate: { validateTags },
       },
       CollectiveId: {
         type: DataTypes.INTEGER,
@@ -128,12 +97,31 @@ export default function(Sequelize, DataTypes) {
     },
     {
       paranoid: true,
+      getterMethods: {
+        info() {
+          return {
+            id: this.id,
+            hashId: this.hashId,
+            title: this.title,
+            slug: this.slug,
+            summary: this.summary,
+            createdAt: this.createdAt,
+            updatedAt: this.updatedAt,
+            deletedAt: this.deletedAt,
+            tags: this.tags,
+            CollectiveId: this.CollectiveId,
+            CreatedByUserId: this.CreatedByUserId,
+            FromCollectiveId: this.FromCollectiveId,
+            RootCommentId: this.RootCommentId,
+          };
+        },
+      },
     },
   );
 
   // ---- Static methods ----
 
-  Conversation.createWithComment = async function(user, collective, title, html, tags = null) {
+  Conversation.createWithComment = async function (user, collective, title, html, tags = null) {
     // Use a transaction to make sure conversation is not created if comment creation fails
     const conversation = await sequelize.transaction(async t => {
       // Create conversation
@@ -192,7 +180,7 @@ export default function(Sequelize, DataTypes) {
     return conversation;
   };
 
-  Conversation.getMostPopularTagsForCollective = async function(collectiveId, limit = 100) {
+  Conversation.getMostPopularTagsForCollective = async function (collectiveId, limit = 100) {
     return Sequelize.query(
       `
       SELECT UNNEST(tags) AS id, UNNEST(tags) AS tag, COUNT(id)
@@ -216,7 +204,7 @@ export default function(Sequelize, DataTypes) {
    * - Collective admins who haven't unsubscribed from the conversation
    * - Conversation followers
    */
-  Conversation.prototype.getUsersFollowing = async function() {
+  Conversation.prototype.getUsersFollowing = async function () {
     const followers = await models.ConversationFollower.findAll({
       include: ['user'],
       where: { ConversationId: this.id, isActive: true },
@@ -238,6 +226,5 @@ export default function(Sequelize, DataTypes) {
     });
   };
 
-  Conversation.schema('public');
   return Conversation;
 }

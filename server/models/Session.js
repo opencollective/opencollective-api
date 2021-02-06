@@ -1,4 +1,4 @@
-export default function(Sequelize, DataTypes) {
+export default function (Sequelize, DataTypes) {
   const Session = Sequelize.define(
     'Session',
     {
@@ -31,8 +31,6 @@ export default function(Sequelize, DataTypes) {
       paranoid: true,
     },
   );
-
-  Session.schema('public');
 
   return Session;
 }

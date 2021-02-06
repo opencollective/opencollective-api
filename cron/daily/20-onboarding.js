@@ -2,16 +2,17 @@
 import '../../server/env';
 
 import Promise from 'bluebird';
-import models, { Op } from '../../server/models';
 import { get } from 'lodash';
+
 import { processOnBoardingTemplate } from '../../server/lib/onboarding';
+import models, { Op } from '../../server/models';
 
 const XDaysAgo = days => {
   const d = new Date();
   return new Date(d.getFullYear(), d.getMonth(), d.getDate() - days);
 };
 
-Date.prototype.toString = function() {
+Date.prototype.toString = function () {
   const mm = this.getMonth() + 1; // getMonth() is zero-based
   const dd = this.getDate();
 

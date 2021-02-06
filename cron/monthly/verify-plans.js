@@ -1,21 +1,23 @@
 #!/usr/bin/env node
 import '../../server/env';
 
+import config from 'config';
+import debugLib from 'debug';
+import { groupBy } from 'lodash';
+import { Op } from 'sequelize';
+
+import orderStatus from '../../server/constants/order_status';
+import plans, { PLANS_COLLECTIVE_SLUG } from '../../server/constants/plans';
+import cache from '../../server/lib/cache';
+import emailLib from '../../server/lib/email';
+import models from '../../server/models';
+
 // Only run on the first of the month
 const today = new Date();
-if (process.env.NODE_ENV === 'production' && today.getDate() !== 1) {
-  console.log('NODE_ENV is production and today is not the first of month, script aborted!');
+if (config.env === 'production' && today.getDate() !== 1) {
+  console.log('OC_ENV is production and today is not the first of month, script aborted!');
   process.exit();
 }
-
-import { Op } from 'sequelize';
-import { groupBy } from 'lodash';
-import debugLib from 'debug';
-
-import models from '../../server/models';
-import plans, { PLANS_COLLECTIVE_SLUG } from '../../server/constants/plans';
-import orderStatus from '../../server/constants/order_status';
-import emailLib from '../../server/lib/email';
 
 const debug = debugLib('verify-plans');
 
@@ -79,6 +81,7 @@ export async function run() {
       const message = `Collective ${collective.slug} cancelled ${collective.plan}.`;
       debug(message);
       await collective.update({ plan: null });
+      await cache.del(`plan_${collective.id}`);
       return info.push({
         level: LEVELS.CANCEL,
         message,
@@ -90,6 +93,7 @@ export async function run() {
       const message = `Collective ${collective.slug} downgraded from ${collective.plan} to ${lastOrderPlan}.`;
       debug(message);
       await collective.update({ plan: lastOrderPlan });
+      await cache.del(`plan_${collective.id}`);
       return info.push({
         level: LEVELS.DOWNGRADE,
         message,

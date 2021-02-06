@@ -1,10 +1,11 @@
 import { expect } from 'chai';
-import { describe, it } from 'mocha';
-import schema from '../../../../server/graphql/v1/schema';
+import gql from 'fake-tag';
 import { graphql } from 'graphql';
+import { describe, it } from 'mocha';
 
-import * as utils from '../../../utils';
+import schema from '../../../../server/graphql/v1/schema';
 import models from '../../../../server/models';
+import * as utils from '../../../utils';
 
 describe('server/graphql/v1/query', () => {
   let user1, user2, user3, collective1, collective2, collective3, event1, event2, ticket1, ticket2;
@@ -59,17 +60,17 @@ describe('server/graphql/v1/query', () => {
 
     describe('returns nothing', () => {
       it('when given a non-existent slug', async () => {
-        const query = `
-          query getMultipleEvents {
+        const multipleEventsQuery = gql`
+          query MultipleEvents {
             allEvents(slug: "non-existent-slug") {
-              id,
-              name,
+              id
+              name
               description
             }
           }
         `;
         const req = utils.makeRequest(null);
-        const result = await graphql(schema, query, null, req);
+        const result = await graphql(schema, multipleEventsQuery, null, req);
         expect(result).to.deep.equal({
           data: {
             allEvents: [],
@@ -78,17 +79,17 @@ describe('server/graphql/v1/query', () => {
       });
 
       it('when given an existing collective slug when it has no events', async () => {
-        const query = `
-          query getMultipleEvents {
-            allEvents(slug: "${collective3.slug}") {
-              id,
-              name,
+        const multipleEventsQuery = gql`
+          query MultipleEvents($slug: String!) {
+            allEvents(slug: $slug) {
+              id
+              name
               description
             }
           }
         `;
         const req = utils.makeRequest(null);
-        const result = await graphql(schema, query, null, req);
+        const result = await graphql(schema, multipleEventsQuery, null, req, { slug: collective3.slug });
         expect(result).to.deep.equal({
           data: {
             allEvents: [],
@@ -99,14 +100,14 @@ describe('server/graphql/v1/query', () => {
 
     describe('returns event(s)', () => {
       it('when given an event slug and collectiveSlug (case insensitive)', async () => {
-        const query = `
-          query getOneEvent {
-            Collective(slug:"Jan-Meetup") {
-              id,
-              name,
-              description,
+        const oneEventQuery = gql`
+          query OneEvent {
+            Collective(slug: "Jan-Meetup") {
+              id
+              name
+              description
               parentCollective {
-                slug,
+                slug
                 twitterHandle
               }
               timezone
@@ -114,7 +115,7 @@ describe('server/graphql/v1/query', () => {
           }
         `;
         const req = utils.makeRequest(null);
-        const result = await graphql(schema, query, null, req);
+        const result = await graphql(schema, oneEventQuery, null, req);
         expect(result).to.deep.equal({
           data: {
             Collective: {
@@ -133,17 +134,17 @@ describe('server/graphql/v1/query', () => {
 
       describe('returns multiple events', () => {
         it('when given only a collective slug', async () => {
-          const query = `
-            query getMultipleEvents {
-              allEvents(slug: "${collective1.slug}") {
-                id,
-                name,
+          const multipleEventsQuery = gql`
+            query MultipleEvents($slug: String!) {
+              allEvents(slug: $slug) {
+                id
+                name
                 description
               }
             }
           `;
           const req = utils.makeRequest(null);
-          const result = await graphql(schema, query, null, req);
+          const result = await graphql(schema, multipleEventsQuery, null, req, { slug: collective1.slug });
           expect(result).to.deep.equal({
             data: {
               allEvents: [
@@ -225,26 +226,26 @@ describe('server/graphql/v1/query', () => {
         );
 
         it('sends order data', async () => {
-          const query = `
-            query getOneCollective {
-              Collective(slug: "${event1.slug}") {
+          const query = gql`
+            query getOneCollective($slug: String!) {
+              Collective(slug: $slug) {
                 orders {
-                  createdAt,
+                  createdAt
                 }
               }
             }
           `;
           const req = utils.makeRequest(null);
-          const result = await graphql(schema, query, null, req);
+          const result = await graphql(schema, query, null, req, { slug: event1.slug });
           result.errors && console.error(result.errors);
           const order = result.data.Collective.orders[0];
           expect(order).to.have.property('createdAt');
         });
 
         it('when given only a collective slug1', async () => {
-          const query = `
-            query allEvents {
-              allEvents(slug: "${collective1.slug}") {
+          const allEventsQuery = gql`
+            query AllEvents($slug: String!) {
+              allEvents(slug: $slug) {
                 id
                 name
                 description
@@ -279,7 +280,7 @@ describe('server/graphql/v1/query', () => {
             }
           `;
           const req = utils.makeRequest(null);
-          const result = await graphql(schema, query, null, req);
+          const result = await graphql(schema, allEventsQuery, null, req, { slug: collective1.slug });
           const expectedResult = {
             data: {
               allEvents: [

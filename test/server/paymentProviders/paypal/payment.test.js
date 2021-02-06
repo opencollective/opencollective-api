@@ -1,21 +1,26 @@
-import config from 'config';
-import { v4 as uuid } from 'uuid';
-import nock from 'nock';
-import request from 'supertest';
-import sinon from 'sinon';
 import { expect } from 'chai';
+import config from 'config';
+import nock from 'nock';
+import sinon from 'sinon';
+import request from 'supertest';
+import { v4 as uuid } from 'uuid';
 
 import app from '../../../../server/index';
 import models from '../../../../server/models';
 import * as paypalPayment from '../../../../server/paymentProviders/paypal/payment';
-
-import * as utils from '../../../utils';
 import * as store from '../../../stores';
 import { fakeCollective } from '../../../test-helpers/fake-data';
+import * as utils from '../../../utils';
 
 const application = utils.data('application');
 
 describe('server/paymentProviders/paypal/payment', () => {
+  let expressApp;
+
+  before(async () => {
+    expressApp = await app();
+  });
+
   describe('#paypalUrl', () => {
     let configStub;
 
@@ -56,7 +61,7 @@ describe('server/paymentProviders/paypal/payment', () => {
         .persist()
         .post('/v1/oauth2/token')
         .basicAuth({ user: 'my-client-id', pass: 'my-client-secret' })
-        .reply(200, { access_token: 'dat-token' });
+        .reply(200, { access_token: 'dat-token' }); // eslint-disable-line camelcase
     }); /* End of "before()" */
 
     const secrets = {
@@ -112,7 +117,7 @@ describe('server/paymentProviders/paypal/payment', () => {
       }); /* End of "before()" */
 
       it('should call payments/payment endpoint of the PayPal API', async () => {
-        const output = await request(app)
+        const output = await request(expressApp)
           .post(`/services/paypal/create-payment?api_key=${application.api_key}`)
           .send({ amount: '50', currency: 'USD', hostId: host.id })
           .expect(200);
@@ -173,6 +178,7 @@ describe('server/paymentProviders/paypal/payment', () => {
         order.collective = collective;
         order.paymentMethod = paymentMethod;
 
+        /* eslint-disable camelcase */
         const paymentInfo = {
           transactions: [
             {
@@ -185,6 +191,7 @@ describe('server/paymentProviders/paypal/payment', () => {
             },
           ],
         };
+        /* eslint-enable camelcase */
 
         const tr = await paypalPayment.createTransaction(order, paymentInfo);
 
@@ -230,6 +237,7 @@ describe('server/paymentProviders/paypal/payment', () => {
         order.collective = collective;
         order.paymentMethod = paymentMethod;
 
+        /* eslint-disable camelcase */
         const genPaymentInfo = fee => ({
           transactions: [
             {
@@ -242,6 +250,7 @@ describe('server/paymentProviders/paypal/payment', () => {
             },
           ],
         });
+        /* eslint-enable camelcase */
 
         let tr = await paypalPayment.createTransaction(order, genPaymentInfo('0.28'));
         expect(tr.paymentProcessorFeeInHostCurrency).to.equal(-28);

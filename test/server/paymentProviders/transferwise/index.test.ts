@@ -1,14 +1,14 @@
 import { expect } from 'chai';
 import sinon from 'sinon';
 
-import * as utils from '../../../utils';
-import { fakeCollective, fakeConnectedAccount, fakeExpense, fakePayoutMethod } from '../../../test-helpers/fake-data';
-import transferwise from '../../../../server/paymentProviders/transferwise';
-import * as transferwiseLib from '../../../../server/lib/transferwise';
 import cache from '../../../../server/lib/cache';
+import * as transferwiseLib from '../../../../server/lib/transferwise';
 import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
+import transferwise from '../../../../server/paymentProviders/transferwise';
+import { fakeCollective, fakeConnectedAccount, fakeExpense, fakePayoutMethod } from '../../../test-helpers/fake-data';
+import * as utils from '../../../utils';
 
-describe('paymentMethods.transferwise', () => {
+describe('server/paymentProviders/transferwise/index', () => {
   const sandbox = sinon.createSandbox();
   const quote = {
     id: 1234,
@@ -19,13 +19,28 @@ describe('paymentMethods.transferwise', () => {
     rate: 0.9044,
     fee: 1.14,
   };
-  let createQuote, createRecipientAccount, createTransfer, fundTransfer, getAccountRequirements, cacheSpy;
+  let createQuote,
+    createRecipientAccount,
+    createTransfer,
+    fundTransfer,
+    getAccountRequirements,
+    cacheSpy,
+    getBorderlessAccount,
+    validateAccountRequirements;
   let connectedAccount, collective, host, payoutMethod, expense;
 
   after(sandbox.restore);
   before(utils.resetTestDB);
   before(() => {
     createQuote = sandbox.stub(transferwiseLib, 'createQuote').resolves(quote);
+    getBorderlessAccount = sandbox.stub(transferwiseLib, 'getBorderlessAccount').resolves({
+      balances: [
+        {
+          currency: 'USD',
+          amount: { value: 100000 },
+        },
+      ],
+    });
     sandbox.stub(transferwiseLib, 'getTemporaryQuote').resolves(quote);
     sandbox.stub(transferwiseLib, 'getProfiles').resolves([
       {
@@ -62,6 +77,9 @@ describe('paymentMethods.transferwise', () => {
       ],
     });
     getAccountRequirements = sandbox.stub(transferwiseLib, 'getAccountRequirements').resolves({ success: true });
+    validateAccountRequirements = sandbox
+      .stub(transferwiseLib, 'validateAccountRequirements')
+      .resolves({ success: true });
     cacheSpy = sandbox.spy(cache);
   });
   before(async () => {
@@ -137,6 +155,10 @@ describe('paymentMethods.transferwise', () => {
       expect(data).to.have.nested.property('quote');
     });
 
+    it('should check for existing balance', () => {
+      expect(getBorderlessAccount.called).to.be.true;
+    });
+
     it('should create recipient account and update data.recipient', () => {
       expect(createRecipientAccount.called).to.be.true;
       expect(data).to.have.nested.property('recipient');
@@ -150,6 +172,20 @@ describe('paymentMethods.transferwise', () => {
     it('should fund transfer account and update data.fund', () => {
       expect(fundTransfer.called).to.be.true;
       expect(data).to.have.nested.property('fund');
+    });
+
+    it('should throw if balance is not enough to cover the transfer', async () => {
+      getBorderlessAccount.resolves({
+        balances: [
+          {
+            currency: 'USD',
+            amount: { value: 0 },
+          },
+        ],
+      });
+
+      const payExpensePromise = transferwise.payExpense(connectedAccount, payoutMethod, expense);
+      await expect(payExpensePromise).to.be.eventually.rejectedWith(Error, "You don't have enough funds");
     });
   });
 
@@ -166,12 +202,26 @@ describe('paymentMethods.transferwise', () => {
       sinon.assert.calledWithMatch(cacheSpy.set, `transferwise_required_bank_info_${host.id}_to_EUR`);
     });
 
-    it('should create a quote with desired currency', () => {
-      sinon.assert.calledWithMatch(createQuote, connectedAccount.token, {
+    it('should request account requirements with transaction params', () => {
+      sinon.assert.calledWithMatch(getAccountRequirements, connectedAccount.token, {
         sourceCurrency: host.currency,
         targetCurrency: 'EUR',
+        sourceAmount: 20,
       });
-      sinon.assert.calledWithMatch(getAccountRequirements, connectedAccount.token, quote.id);
+    });
+
+    it('should validate account requirements if accountDetails is passed as argument', async () => {
+      await transferwise.getRequiredBankInformation(host, 'EUR', { details: { bankAccount: 'fake' } });
+      sinon.assert.calledWithMatch(
+        validateAccountRequirements,
+        connectedAccount.token,
+        {
+          sourceCurrency: host.currency,
+          targetCurrency: 'EUR',
+          sourceAmount: 20,
+        },
+        { details: { bankAccount: 'fake' } },
+      );
     });
   });
 
@@ -193,8 +243,13 @@ describe('paymentMethods.transferwise', () => {
       expect(data).to.deep.include({ code: 'EUR', minInvoiceAmount: 1 });
     });
 
-    it('should remove blackListed currencies', async () => {
+    it('should block currencies for business accounts by default', async () => {
       expect(data).to.not.deep.include({ code: 'BRL', minInvoiceAmount: 1 });
+    });
+
+    it('should return blocked currencies if explicitly requested', async () => {
+      const otherdata = await transferwise.getAvailableCurrencies(host, false);
+      expect(otherdata).to.deep.include({ code: 'BRL', minInvoiceAmount: 1 });
     });
   });
 });

@@ -1,10 +1,11 @@
-import * as errors from '../../errors';
 import { get } from 'lodash';
+
 import * as common from '../../common/comment';
+import { ValidationFailed } from '../../errors';
 
 function require(args, path) {
   if (!get(args, path)) {
-    throw new errors.ValidationFailed({ message: `${path} required` });
+    throw new ValidationFailed(`${path} required`);
   }
 }
 

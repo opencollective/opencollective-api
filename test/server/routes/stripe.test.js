@@ -1,18 +1,24 @@
+/* eslint-disable camelcase */
+
+import { expect } from 'chai';
 import config from 'config';
+import jwt from 'jsonwebtoken';
 import nock from 'nock';
 import request from 'supertest';
-import jwt from 'jsonwebtoken';
-import { expect } from 'chai';
 
-import * as utils from '../../utils';
+import roles from '../../../server/constants/roles';
 import app from '../../../server/index';
 import models from '../../../server/models';
-import roles from '../../../server/constants/roles';
+import * as utils from '../../utils';
 
 const application = utils.data('application');
 
 describe('server/routes/stripe', () => {
-  let host, user, collective;
+  let host, user, collective, expressApp;
+
+  before(async () => {
+    expressApp = await app();
+  });
 
   beforeEach(() => utils.resetTestDB());
 
@@ -30,7 +36,7 @@ describe('server/routes/stripe', () => {
 
   describe('authorize', () => {
     it('should return an error if the user is not logged in', done => {
-      request(app)
+      request(expressApp)
         .get('/connected-accounts/stripe/oauthUrl?api_key=${application.api_key}')
         .expect(401)
         .end(done);
@@ -41,7 +47,7 @@ describe('server/routes/stripe', () => {
         service: 'stripe',
         CollectiveId: collective.id,
       }).then(() =>
-        request(app)
+        request(expressApp)
           .get(`/connected-accounts/stripe/oauthUrl?api_key=${application.api_key}&CollectiveId=${collective.id}`)
           .set('Authorization', `Bearer ${user.jwt()}`)
           .then(response => {
@@ -55,7 +61,7 @@ describe('server/routes/stripe', () => {
     });
 
     it('should redirect to stripe', done => {
-      request(app)
+      request(expressApp)
         .get(`/connected-accounts/stripe/oauthUrl?api_key=${application.api_key}&CollectiveId=${collective.id}`)
         .set('Authorization', `Bearer ${host.jwt()}`)
         .expect(200)
@@ -132,14 +138,14 @@ describe('server/routes/stripe', () => {
     });
 
     it('should fail if the state is empty', done => {
-      request(app)
+      request(expressApp)
         .get(`/connected-accounts/stripe/callback?api_key=${application.api_key}`)
         .expect(400)
         .end(done);
     });
 
     it('should fail if the state is not a valid JWT', done => {
-      request(app)
+      request(expressApp)
         .get(`/connected-accounts/stripe/callback?api_key=${application.api_key}&state=123412312`)
         .expect(400)
         .end((err, res) => {
@@ -162,7 +168,7 @@ describe('server/routes/stripe', () => {
       );
 
       const url = `/connected-accounts/stripe/callback?state=${encodedJWT}&code=abc&api_key=${application.api_key}`;
-      const result = await request(app).get(url);
+      const result = await request(expressApp).get(url);
       expect(result.statusCode).to.eq(302);
 
       // This is veriyfing that a a connected account was properly created
