@@ -1,24 +1,19 @@
-import bcrypt from 'bcrypt';
-import config from 'config';
 import Promise from 'bluebird';
-import slugify from 'limax';
-import debugLib from 'debug';
-import { defaults, intersection, pick, get } from 'lodash';
-import { Op } from 'sequelize';
 import { isEmailBurner } from 'burner-email-providers';
+import config from 'config';
+import debugLib from 'debug';
+import slugify from 'limax';
+import { defaults, get, intersection, pick } from 'lodash';
+import { Op } from 'sequelize';
+import Temporal from 'sequelize-temporal';
 
-import logger from '../lib/logger';
-import * as auth from '../lib/auth';
 import roles from '../constants/roles';
-import { isValidEmail } from '../lib/utils';
+import * as auth from '../lib/auth';
 import emailLib from '../lib/email';
+import logger from '../lib/logger';
+import { isValidEmail } from '../lib/utils';
 
 const debug = debugLib('models:User');
-
-/**
- * Constants.
- */
-const SALT_WORK_FACTOR = 10;
 
 /**
  * Model.
@@ -35,7 +30,7 @@ export default (Sequelize, DataTypes) => {
       email: {
         type: DataTypes.STRING,
         allowNull: false,
-        unique: true, // need that? http://stackoverflow.com/questions/16356856/sequelize-js-custom-validator-check-for-unique-username-password
+        unique: true,
         set(val) {
           if (val && val.toLowerCase) {
             this.setDataValue('email', val.toLowerCase());
@@ -49,7 +44,7 @@ export default (Sequelize, DataTypes) => {
           isEmail: {
             msg: 'Email must be valid',
           },
-          isBurnerEmail: function(val) {
+          isBurnerEmail: function (val) {
             if (isEmailBurner(val.toLowerCase()) && !emailLib.isWhitelistedDomain(val.toLowerCase())) {
               throw new Error(
                 'This email provider is not allowed on Open Collective. If you think that it should be, please email us at support@opencollective.com.',
@@ -73,42 +68,6 @@ export default (Sequelize, DataTypes) => {
         type: DataTypes.STRING,
       },
 
-      _salt: {
-        type: DataTypes.STRING,
-        defaultValue: bcrypt.genSaltSync(SALT_WORK_FACTOR),
-      },
-      refresh_token: {
-        type: DataTypes.STRING,
-        defaultValue: bcrypt.genSaltSync(SALT_WORK_FACTOR),
-      },
-      password_hash: DataTypes.STRING,
-      password: {
-        type: DataTypes.VIRTUAL,
-        set(val) {
-          const password = String(val);
-          this.setDataValue('password', password);
-          this.setDataValue('password_hash', bcrypt.hashSync(password, this._salt));
-        },
-        validate: {
-          len: {
-            args: [6, 128],
-            msg: 'Password must be between 6 and 128 characters in length',
-          },
-        },
-      },
-
-      resetPasswordTokenHash: DataTypes.STRING,
-      // hash the token to avoid someone with access to the db to generate passwords
-      resetPasswordToken: {
-        type: DataTypes.VIRTUAL,
-        set(val) {
-          this.setDataValue('resetPasswordToken', val);
-          this.setDataValue('resetPasswordTokenHash', bcrypt.hashSync(val, this._salt));
-        },
-      },
-
-      resetPasswordSentAt: DataTypes.DATE,
-
       createdAt: {
         type: DataTypes.DATE,
         defaultValue: Sequelize.NOW,
@@ -117,6 +76,12 @@ export default (Sequelize, DataTypes) => {
       updatedAt: {
         type: DataTypes.DATE,
         defaultValue: Sequelize.NOW,
+      },
+
+      confirmedAt: {
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW,
+        allowNull: true,
       },
 
       lastLoginAt: {
@@ -130,7 +95,12 @@ export default (Sequelize, DataTypes) => {
       },
 
       data: {
-        type: DataTypes.JSON,
+        type: DataTypes.JSONB,
+        allowNull: true,
+      },
+
+      twoFactorAuthToken: {
+        type: DataTypes.STRING,
         allowNull: true,
       },
     },
@@ -229,8 +199,6 @@ export default (Sequelize, DataTypes) => {
     },
   );
 
-  User.schema('public');
-
   /** Instance Methods */
 
   /**
@@ -239,12 +207,12 @@ export default (Sequelize, DataTypes) => {
    * @param {object} `payload` - data to attach to the token
    * @param {Number} `expiration` - expiration period in seconds
    */
-  User.prototype.jwt = function(payload, expiration) {
+  User.prototype.jwt = function (payload, expiration) {
     expiration = expiration || auth.TOKEN_EXPIRATION_LOGIN;
     return auth.createJwt(this.id, payload, expiration);
   };
 
-  User.prototype.generateLoginLink = function(redirect = '/', websiteUrl) {
+  User.prototype.generateLoginLink = function (redirect = '/', websiteUrl) {
     const lastLoginAt = this.lastLoginAt ? this.lastLoginAt.getTime() : null;
     const token = this.jwt({ scope: 'login', lastLoginAt });
     // if a different websiteUrl is passed
@@ -256,7 +224,7 @@ export default (Sequelize, DataTypes) => {
     }
   };
 
-  User.prototype.generateConnectedAccountVerifiedToken = function(connectedAccountId, username) {
+  User.prototype.generateConnectedAccountVerifiedToken = function (connectedAccountId, username) {
     const payload = {
       scope: 'connected-account',
       connectedAccountId,
@@ -265,7 +233,7 @@ export default (Sequelize, DataTypes) => {
     return this.jwt(payload, auth.TOKEN_EXPIRATION_CONNECTED_ACCOUNT);
   };
 
-  User.prototype.getMemberships = function(options = {}) {
+  User.prototype.getMemberships = function (options = {}) {
     const query = {
       where: {
         MemberCollectiveId: this.CollectiveId,
@@ -275,7 +243,7 @@ export default (Sequelize, DataTypes) => {
     return models.Member.findAll(query);
   };
 
-  User.prototype.unsubscribe = function(CollectiveId, type, channel = 'email') {
+  User.prototype.unsubscribe = function (CollectiveId, type, channel = 'email') {
     const notification = {
       UserId: this.id,
       CollectiveId,
@@ -292,11 +260,11 @@ export default (Sequelize, DataTypes) => {
     });
   };
 
-  User.prototype.getIncognitoProfile = function() {
+  User.prototype.getIncognitoProfile = function () {
     return models.Collective.findOne({ where: { isIncognito: true, CreatedByUserId: this.id } });
   };
 
-  User.prototype.populateRoles = async function() {
+  User.prototype.populateRoles = async function () {
     if (this.rolesByCollectiveId) {
       debug('roles already populated');
       return Promise.resolve(this);
@@ -334,7 +302,7 @@ export default (Sequelize, DataTypes) => {
     return this;
   };
 
-  User.prototype.hasRole = function(roles, CollectiveId) {
+  User.prototype.hasRole = function (roles, CollectiveId) {
     if (!CollectiveId) {
       return false;
     }
@@ -355,35 +323,53 @@ export default (Sequelize, DataTypes) => {
   };
 
   // Adding some sugars
-  User.prototype.isAdmin = function(CollectiveId) {
+  User.prototype.isAdmin = function (CollectiveId) {
     const result = this.CollectiveId === Number(CollectiveId) || this.hasRole([roles.HOST, roles.ADMIN], CollectiveId);
     debug('isAdmin of CollectiveId', CollectiveId, '?', result);
     return result;
   };
 
-  User.prototype.isRoot = function() {
-    const result = this.hasRole([roles.ADMIN], 1);
+  // Slightly better API than the former
+  User.prototype.isAdminOfCollective = function (collective) {
+    if (collective.type === 'EVENT' || collective.type === 'PROJECT') {
+      return this.isAdmin(collective.id) || this.isAdmin(collective.ParentCollectiveId);
+    } else {
+      return this.isAdmin(collective.id);
+    }
+  };
+
+  User.prototype.isRoot = function () {
+    const result = this.hasRole([roles.ADMIN], 1) || this.hasRole([roles.ADMIN], 8686);
     debug('isRoot?', result);
     return result;
   };
 
-  User.prototype.isMember = function(CollectiveId) {
+  User.prototype.isMember = function (CollectiveId) {
     const result =
       this.CollectiveId === CollectiveId || this.hasRole([roles.HOST, roles.ADMIN, roles.MEMBER], CollectiveId);
     debug('isMember of CollectiveId', CollectiveId, '?', result);
     return result;
   };
 
+  // Slightly better API than the former
+  User.prototype.isMemberOfCollective = function (collective) {
+    if (collective.type === 'EVENT' || collective.type === 'PROJECT') {
+      return this.isMember(collective.id) || this.isMember(collective.ParentCollectiveId);
+    } else {
+      return this.isMember(collective.id);
+    }
+  };
+
   // Determines whether a user can see updates for a collective based on their roles.
-  User.prototype.canSeeUpdates = function(CollectiveId) {
+  User.prototype.canSeePrivateUpdates = function (CollectiveId) {
     const result =
       this.CollectiveId === CollectiveId ||
       this.hasRole([roles.HOST, roles.ADMIN, roles.MEMBER, roles.CONTRIBUTOR, roles.BACKER], CollectiveId);
-    debug('userid:', this.id, 'canSeeUpdates', CollectiveId, '?', result);
+    debug('userid:', this.id, 'canSeePrivateUpdates', CollectiveId, '?', result);
     return result;
   };
 
-  User.prototype.getPersonalDetails = function(remoteUser) {
+  User.prototype.getPersonalDetails = function (remoteUser) {
     if (!remoteUser) {
       return Promise.resolve(this.public);
     }
@@ -422,7 +408,7 @@ export default (Sequelize, DataTypes) => {
    * Limit the user account, preventing most actions on the platoform
    * @param spamReport: an optional spam report to attach to the account limitation. See `server/lib/spam.ts`.
    */
-  User.prototype.limitAcount = async function(spamReport = null) {
+  User.prototype.limitAccount = async function (spamReport = null) {
     const newData = { ...this.data, features: { ...get(this.data, 'features'), ALL: false } };
     if (spamReport) {
       newData.spamReports = [...get(this.data, 'spamReports', []), spamReport];
@@ -449,8 +435,8 @@ export default (Sequelize, DataTypes) => {
     );
   };
 
-  User.findByEmail = email => {
-    return User.findOne({ where: { email } });
+  User.findByEmail = (email, transaction) => {
+    return User.findOne({ where: { email } }, { transaction });
   };
 
   User.createUserWithCollective = async (userData, transaction) => {
@@ -481,7 +467,6 @@ export default (Sequelize, DataTypes) => {
       type: 'USER',
       name: collectiveName,
       image: userData.image,
-      mission: userData.mission,
       description: userData.description,
       longDescription: userData.longDescription,
       website: userData.website,
@@ -489,17 +474,19 @@ export default (Sequelize, DataTypes) => {
       githubHandle: userData.githubHandle,
       currency: userData.currency,
       hostFeePercent: userData.hostFeePercent,
-      isActive: true,
+      isActive: false,
       isHostAccount: Boolean(userData.isHostAccount),
       CreatedByUserId: userData.CreatedByUserId || user.id,
       data: { UserId: user.id },
       settings: userData.settings,
+      countryISO: userData.location?.country,
+      address: userData.location?.address,
     };
     user.collective = await models.Collective.create(userCollectiveData, sequelizeParams);
 
     // It's difficult to predict when the image will be updated by findImageForUser
     // So we skip that in test environment to make it more predictable
-    if (!['ci', 'circleci', 'test'].includes(config.env)) {
+    if (!['ci', 'test'].includes(config.env)) {
       user.collective.findImageForUser(user);
     }
     user.CollectiveId = user.collective.id;
@@ -517,6 +504,8 @@ export default (Sequelize, DataTypes) => {
     }
     return { firstName, lastName };
   };
+
+  Temporal(User, Sequelize);
 
   return User;
 };

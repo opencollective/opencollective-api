@@ -1,7 +1,8 @@
+import { URLSearchParams } from 'url';
+
 import config from 'config';
 import debug from 'debug';
 import fetch from 'node-fetch';
-import { URLSearchParams } from 'url';
 
 const recaptchaVerifyUrl = 'https://www.google.com/recaptcha/api/siteverify';
 const recaptchaSecretKey = config.recaptcha.secretKey;

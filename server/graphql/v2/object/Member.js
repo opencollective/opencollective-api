@@ -1,14 +1,11 @@
-import { GraphQLString, GraphQLObjectType } from 'graphql';
-// import { GraphQLInt } from 'graphql';
-
+import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 
+import { MemberRole } from '../enum/MemberRole';
+import { idEncode } from '../identifiers';
 import { Account } from '../interface/Account';
 import { Amount } from '../object/Amount';
 import { Tier } from '../object/Tier';
-import { MemberRole } from '../enum/MemberRole';
-
-import { idEncode } from '../identifiers';
 
 const MemberFields = {
   // _internal_id: {
@@ -59,19 +56,36 @@ const MemberFields = {
     },
   },
   totalDonations: {
-    type: Amount,
+    type: new GraphQLNonNull(Amount),
     description: 'Total amount donated',
     async resolve(member, args, req) {
       if (member.totalDonations) {
         return { value: member.totalDonations };
       }
+      const collective = await req.loaders.Collective.byId.load(member.CollectiveId);
       const value = await req.loaders.Transaction.totalAmountDonatedFromTo.load({
         FromCollectiveId: member.MemberCollectiveId,
         CollectiveId: member.CollectiveId,
       });
-      return { value };
+      return { value, currency: collective.currency };
     },
   },
+  publicMessage: {
+    type: GraphQLString,
+    description: 'Custom user message from member to the collective',
+    resolve(member) {
+      return member.publicMessage;
+    },
+  },
+};
+
+const getMemberAccountResolver = field => async (member, args, req) => {
+  const memberAccount = member.memberCollective || (await req.loaders.Collective.byId.load(member.MemberCollectiveId));
+  const account = member.collective || (await req.loaders.Collective.byId.load(member.CollectiveId));
+
+  if (!account?.isIncognito || req.remoteUser?.isAdmin(memberAccount.id)) {
+    return field === 'collective' ? account : memberAccount;
+  }
 };
 
 export const Member = new GraphQLObjectType({
@@ -82,9 +96,7 @@ export const Member = new GraphQLObjectType({
       ...MemberFields,
       account: {
         type: Account,
-        resolve(member, args, req) {
-          return member.memberCollective || req.loaders.Collective.byId.load(member.MemberCollectiveId);
-        },
+        resolve: getMemberAccountResolver('memberCollective'),
       },
     };
   },
@@ -98,9 +110,7 @@ export const MemberOf = new GraphQLObjectType({
       ...MemberFields,
       account: {
         type: Account,
-        resolve(member, args, req) {
-          return member.collective || req.loaders.Collective.byId.load(member.CollectiveId);
-        },
+        resolve: getMemberAccountResolver('collective'),
       },
     };
   },

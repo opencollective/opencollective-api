@@ -1,11 +1,11 @@
 import config from 'config';
 import { get, result } from 'lodash';
 
-import models from '../../models';
-import logger from '../../lib/logger';
-import stripe, { extractFees } from '../../lib/stripe';
 import * as constants from '../../constants/transactions';
-import * as paymentsLib from '../../lib/payments';
+import logger from '../../lib/logger';
+import { createRefundTransaction, getHostFee, getPlatformFee } from '../../lib/payments';
+import stripe, { extractFees } from '../../lib/stripe';
+import models from '../../models';
 
 const UNKNOWN_ERROR_MSG = 'Something went wrong with the payment, please contact support@opencollective.com.';
 
@@ -44,7 +44,20 @@ const getOrCreateCustomerOnHostAccount = async (hostStripeAccount, { paymentMeth
   // to the platform stripe account, not to the host's stripe
   // account. Since payment methods had no name before that
   // migration, we're using it to test for pre-migration users;
+
+  // Well, DISCARD what is written above, these customers are coming from the Host
   if (!paymentMethod.name) {
+    const customer = await stripe.customers.retrieve(paymentMethod.customerId, {
+      stripeAccount: hostStripeAccount.username,
+    });
+
+    if (customer) {
+      logger.info(`Pre-migration customer found: ${paymentMethod.customerId}`);
+      logger.info(JSON.stringify(customer));
+      return customer;
+    }
+
+    logger.info(`Pre-migration customer not found: ${paymentMethod.customerId}`);
     return { id: paymentMethod.customerId };
   }
 
@@ -97,22 +110,27 @@ const getOrCreateCustomerOnHostAccount = async (hostStripeAccount, { paymentMeth
  * See: Shared Customers: https://stripe.com/docs/connect/shared-customers
  */
 const createChargeAndTransactions = async (hostStripeAccount, { order, hostStripeCustomer }) => {
-  const platformFeePercent = get(order, 'data.platformFeePercent', constants.OC_FEE_PERCENT);
-  const platformFee = isNaN(order.platformFee)
-    ? parseInt((order.totalAmount * platformFeePercent) / 100, 10)
-    : order.platformFee;
+  const host = await order.collective.getHostCollective();
+  const hostPlan = await host.getPlan();
+  const isSharedRevenue = !!hostPlan.hostFeeSharePercent;
+
+  // Read or compute Platform Fee
+  const platformFee = await getPlatformFee(order.totalAmount, order, host, { hostPlan });
+  const platformTip = order.data?.platformFee;
 
   // Make sure data is available (breaking in some old tests)
   order.data = order.data || {};
 
-  let paymentIntent;
-  if (!order.data || !order.data.paymentIntent) {
-    const payload = {
+  /* eslint-disable camelcase */
+
+  let paymentIntent = order.data.paymentIntent;
+  if (!paymentIntent) {
+    const createPayload = {
       amount: order.totalAmount,
       currency: order.currency,
       customer: hostStripeCustomer.id,
       description: order.description,
-      confirm: true,
+      confirm: false,
       confirmation_method: 'manual',
       metadata: {
         from: `${config.host.website}/${order.fromCollective.slug}`,
@@ -121,29 +139,31 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
     };
     // We don't add a platform fee if the host is the root account
     if (platformFee && hostStripeAccount.username !== config.stripe.accountId) {
-      payload.application_fee_amount = platformFee;
+      createPayload.application_fee_amount = platformFee;
     }
     if (order.interval) {
-      payload.setup_future_usage = 'off_session';
+      createPayload.setup_future_usage = 'off_session';
     } else if (!order.processedAt && order.data.savePaymentMethod) {
-      payload.setup_future_usage = 'on_session';
+      createPayload.setup_future_usage = 'on_session';
     }
     // Add Payment Method ID if it's available
     const paymentMethodId = get(hostStripeCustomer, 'default_source', get(hostStripeCustomer, 'sources.data[0].id'));
     if (paymentMethodId) {
-      payload.payment_method = paymentMethodId;
+      createPayload.payment_method = paymentMethodId;
     } else {
       logger.info('paymentMethod is missing in hostStripeCustomer to pass to Payment Intent.');
       logger.info(JSON.stringify(hostStripeCustomer));
     }
-    paymentIntent = await stripe.paymentIntents.create(payload, {
-      stripeAccount: hostStripeAccount.username,
-    });
-  } else {
-    paymentIntent = await stripe.paymentIntents.confirm(order.data.paymentIntent.id, {
+    paymentIntent = await stripe.paymentIntents.create(createPayload, {
       stripeAccount: hostStripeAccount.username,
     });
   }
+
+  paymentIntent = await stripe.paymentIntents.confirm(paymentIntent.id, {
+    stripeAccount: hostStripeAccount.username,
+  });
+
+  /* eslint-enable camelcase */
 
   if (paymentIntent.next_action) {
     order.data.paymentIntent = { id: paymentIntent.id, status: paymentIntent.status };
@@ -160,12 +180,6 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
     throw new Error(UNKNOWN_ERROR_MSG);
   }
 
-  // Success: delete reference to paymentIntent
-  if (order.data.paymentIntent) {
-    delete order.data.paymentIntent;
-    await order.update({ data: order.data });
-  }
-
   const charge = paymentIntent.charges.data[0];
 
   const balanceTransaction = await stripe.balanceTransactions.retrieve(charge.balance_transaction, {
@@ -174,8 +188,24 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
 
   // Create a Transaction
   const fees = extractFees(balanceTransaction);
-  const hostFeePercent = get(order, 'data.hostFeePercent', order.collective.hostFeePercent);
-  const hostFeeInHostCurrency = paymentsLib.calcFee(balanceTransaction.amount, hostFeePercent);
+  const hostFeeInHostCurrency = await getHostFee(balanceTransaction.amount, order);
+  const data = {
+    charge,
+    balanceTransaction,
+    isFeesOnTop: order.data?.isFeesOnTop,
+    isSharedRevenue,
+    settled: true,
+    platformFee: platformFee,
+    platformTip,
+  };
+
+  let platformFeeInHostCurrency = fees.applicationFee;
+  if (isSharedRevenue) {
+    // Platform Fee In Host Currency makes no sense in the shared revenue model.
+    platformFeeInHostCurrency = platformTip || 0;
+    data.hostFeeSharePercent = hostPlan.hostFeeSharePercent;
+  }
+
   const payload = {
     CreatedByUserId: order.CreatedByUserId,
     FromCollectiveId: order.FromCollectiveId,
@@ -189,12 +219,12 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
       hostCurrency: balanceTransaction.currency,
       amountInHostCurrency: balanceTransaction.amount,
       hostCurrencyFxRate: balanceTransaction.amount / order.totalAmount,
-      hostFeeInHostCurrency,
-      platformFeeInHostCurrency: fees.applicationFee,
       paymentProcessorFeeInHostCurrency: fees.stripeFee,
       taxAmount: order.taxAmount,
       description: order.description,
-      data: { charge, balanceTransaction },
+      hostFeeInHostCurrency,
+      platformFeeInHostCurrency,
+      data,
     },
   };
 
@@ -235,7 +265,7 @@ export const setupCreditCard = async (paymentMethod, { user, collective } = {}) 
   if (!setupIntent) {
     setupIntent = await stripe.setupIntents.create({
       customer: platformStripeCustomer.id,
-      payment_method: paymentMethodId,
+      payment_method: paymentMethodId, // eslint-disable-line camelcase
       confirm: true,
     });
   }
@@ -279,13 +309,54 @@ export default {
         hostStripeCustomer,
       });
     } catch (error) {
-      if (error.message !== 'Payment Intent require action') {
-        logger.error(`Stripe Payment Error: ${error.message}`);
-        logger.error(error);
-        logger.error(error.stack);
-        throw new Error(UNKNOWN_ERROR_MSG);
+      // Here, we check strictly the error message
+      const knownErrors = [
+        'Your card has insufficient funds.',
+        'Your card was declined.',
+        'Your card does not support this type of purchase.',
+        'Your card has expired.',
+        "Your card's security code is incorrect.",
+        'Your card number is incorrect.',
+        'The zip code you supplied failed validation.',
+        'Invalid amount.',
+        'Payment Intent require action',
+      ];
+
+      if (knownErrors.includes(error.message)) {
+        throw error;
       }
-      throw error;
+
+      // Here, we do a partial check and rewrite the error.
+      const identifiedErrors = {
+        // This object cannot be accessed right now because another API request or Stripe process is currently accessing it.
+        // If you see this error intermittently, retry the request.
+        // If you see this error frequently and are making multiple concurrent requests to a single object, make your requests serially or at a lower rate.
+        'This object cannot be accessed right now because another API request or Stripe process is currently accessing it.':
+          'Payment Processing error (API request).',
+        // You cannot confirm this PaymentIntent because it's missing a payment method.
+        // To confirm the PaymentIntent with cus_9cNHqpdWYOV4aH, specify a payment method attached to this customer along with the customer ID.
+        "You cannot confirm this PaymentIntent because it's missing a payment method.":
+          'Internal Payment error (invalid PaymentIntent)',
+        // You have exceeded the maximum number of declines on this card in the last 24 hour period.
+        // Please contact us via https://support.stripe.com/contact if you need further assistance.
+        'You have exceeded the maximum number of declines on this card': 'Your card was declined.',
+        // An error occurred while processing your card. Try again in a little bit.
+        'An error occurred while processing your card.': 'Payment Processing error (API error).',
+        // This account cannot currently make live charges.
+        // If you are a customer trying to make a purchase, please contact the owner of this site.
+        // Your transaction has not been processed.
+        'This account cannot currently make live charges.': 'Payment Processing error (Host error).',
+      };
+      const errorKey = Object.keys(identifiedErrors).find(errorMessage => error.message.includes(errorMessage));
+      if (errorKey) {
+        throw new Error(identifiedErrors[errorKey]);
+      }
+
+      logger.error(`Unknown Stripe Payment Error: ${error.message}`);
+      logger.error(error);
+      logger.error(error.stack);
+
+      throw new Error(UNKNOWN_ERROR_MSG);
     }
 
     await order.paymentMethod.update({ confirmedAt: new Date() });
@@ -305,8 +376,9 @@ export default {
     const hostStripeAccount = await collective.getHostStripeAccount();
 
     /* Refund both charge & application fee */
+    const shouldRefundApplicationFee = transaction.platformFeeInHostCurrency > 0;
     const refund = await stripe.refunds.create(
-      { charge: chargeId, refund_application_fee: true },
+      { charge: chargeId, refund_application_fee: shouldRefundApplicationFee }, // eslint-disable-line camelcase
       { stripeAccount: hostStripeAccount.username },
     );
     const charge = await stripe.charges.retrieve(chargeId, { stripeAccount: hostStripeAccount.username });
@@ -316,21 +388,17 @@ export default {
     const fees = extractFees(refundBalance);
 
     /* Create negative transactions for the received transaction */
-    const refundTransaction = await paymentsLib.createRefundTransaction(
+    return await createRefundTransaction(
       transaction,
       fees.stripeFee,
       {
+        ...transaction.data,
         refund,
         balanceTransaction: refundBalance,
+        charge,
       },
       user,
     );
-
-    /* Associate RefundTransactionId to all the transactions created */
-    return paymentsLib.associateTransactionRefundId(transaction, refundTransaction, {
-      ...transaction.data,
-      charge,
-    });
   },
 
   /** Refund a given transaction that was already refunded
@@ -357,21 +425,12 @@ export default {
     const fees = extractFees(refundBalance);
 
     /* Create negative transactions for the received transaction */
-    const refundTransaction = await paymentsLib.createRefundTransaction(
+    return await createRefundTransaction(
       transaction,
       fees.stripeFee,
-      {
-        refund,
-        balanceTransaction: refundBalance,
-      },
+      { ...transaction.data, charge, refund, balanceTransaction: refundBalance },
       user,
     );
-
-    /* Associate RefundTransactionId to all the transactions created */
-    return paymentsLib.associateTransactionRefundId(transaction, refundTransaction, {
-      ...transaction.data,
-      charge,
-    });
   },
 
   webhook: (/* requestBody, event */) => {

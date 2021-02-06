@@ -1,12 +1,15 @@
 import Promise from 'bluebird';
 import { expect } from 'chai';
+import gql from 'fake-tag';
 import { describe, it } from 'mocha';
 import sinon from 'sinon';
 
-import * as utils from '../../../utils';
+import { VAT_OPTIONS } from '../../../../server/constants/vat';
 import stripe from '../../../../server/lib/stripe';
 import models from '../../../../server/models';
-import { VAT_OPTIONS } from '../../../../server/constants/vat';
+import { randEmail } from '../../../stores';
+import { fakeHost, fakeUser } from '../../../test-helpers/fake-data';
+import * as utils from '../../../utils';
 
 describe('server/graphql/v1/tiers', () => {
   let user1, user2, host, collective1, collective2, tier1, tierWithCustomFields, tierProduct, paymentMethod1;
@@ -80,7 +83,16 @@ describe('server/graphql/v1/tiers', () => {
     sandbox.stub(stripe.customers, 'create').callsFake(() => Promise.resolve({ id: 'cus_B5s4wkqxtUtNyM' }));
     sandbox.stub(stripe.customers, 'retrieve').callsFake(() => Promise.resolve({ id: 'cus_B5s4wkqxtUtNyM' }));
 
-    sandbox.stub(stripe.paymentIntents, 'create').callsFake(data =>
+    /* eslint-disable camelcase */
+
+    sandbox.stub(stripe.paymentIntents, 'create').callsFake(() =>
+      Promise.resolve({
+        id: 'pi_1F82vtBYycQg1OMfS2Rctiau',
+        status: 'requires_confirmation',
+      }),
+    );
+
+    sandbox.stub(stripe.paymentIntents, 'confirm').callsFake(data =>
       Promise.resolve({
         charges: {
           data: [
@@ -119,6 +131,8 @@ describe('server/graphql/v1/tiers', () => {
       type: 'charge',
     };
     sandbox.stub(stripe.balanceTransactions, 'retrieve').callsFake(() => Promise.resolve(balanceTransaction));
+
+    /* eslint-enable camelcase */
   });
 
   describe('graphql.tiers.test.js', () => {
@@ -132,19 +146,20 @@ describe('server/graphql/v1/tiers', () => {
       );
       beforeEach(() => collective1.createTier({ slug: 'gold-sponsor', name: 'gold sponsor', amount: 0 }));
 
-      const getTiersQuery = `
-      query Collective($collectiveSlug: String, $tierSlug: String, $tierId: Int) {
-        Collective(slug: $collectiveSlug) {
-          tiers(slug: $tierSlug, id: $tierId) {
-            id
-            name
-            customFields
+      const collectiveTiersQuery = gql`
+        query CollectiveTiers($collectiveSlug: String, $tierSlug: String, $tierId: Int) {
+          Collective(slug: $collectiveSlug) {
+            tiers(slug: $tierSlug, id: $tierId) {
+              id
+              name
+              customFields
+            }
           }
         }
-      }`;
+      `;
 
       it('fetch all tiers', async () => {
-        const res = await utils.graphqlQuery(getTiersQuery, {
+        const res = await utils.graphqlQuery(collectiveTiersQuery, {
           collectiveSlug: collective1.slug,
         });
         res.errors && console.error(res.errors[0]);
@@ -154,7 +169,7 @@ describe('server/graphql/v1/tiers', () => {
       });
 
       it('fetch tier with customFields', async () => {
-        const res = await utils.graphqlQuery(getTiersQuery, {
+        const res = await utils.graphqlQuery(collectiveTiersQuery, {
           collectiveSlug: collective1.slug,
           tierId: tierWithCustomFields.id,
         });
@@ -167,7 +182,7 @@ describe('server/graphql/v1/tiers', () => {
       });
 
       it('filter tiers by slug', async () => {
-        const res = await utils.graphqlQuery(getTiersQuery, {
+        const res = await utils.graphqlQuery(collectiveTiersQuery, {
           collectiveSlug: collective1.slug,
           tierSlug: 'bronze-sponsor',
         });
@@ -179,7 +194,7 @@ describe('server/graphql/v1/tiers', () => {
       });
 
       it('filter tiers by tierId', async () => {
-        const res = await utils.graphqlQuery(getTiersQuery, {
+        const res = await utils.graphqlQuery(collectiveTiersQuery, {
           collectiveSlug: collective1.slug,
           tierId: 1,
         });
@@ -192,20 +207,21 @@ describe('server/graphql/v1/tiers', () => {
     });
 
     describe('payment methods', () => {
-      const createOrderQuery = `
-      mutation createOrder($order: OrderInputType!) {
-        createOrder(order: $order) {
-          createdByUser {
-            id,
-            email
-          },
-          paymentMethod {
-            data,
-            name
-          },
-          data
+      const createOrderMutation = gql`
+        mutation CreateOrder($order: OrderInputType!) {
+          createOrder(order: $order) {
+            createdByUser {
+              id
+              email
+            }
+            paymentMethod {
+              data
+              name
+            }
+            data
+          }
         }
-      }`;
+      `;
 
       const generateLoggedInOrder = () => {
         return {
@@ -243,16 +259,20 @@ describe('server/graphql/v1/tiers', () => {
         const order = generateLoggedOutOrder(user1.email);
         order.paymentMethod = { uuid: paymentMethod1.uuid, service: 'stripe' };
 
-        const result = await utils.graphqlQuery(createOrderQuery, { order });
+        const result = await utils.graphqlQuery(createOrderMutation, {
+          order: { ...order, guestInfo: { email: randEmail() } },
+        });
         expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.equal('You need to be authenticated to perform this action');
+        expect(result.errors[0].message).to.equal(
+          'You need to be logged in to be able to use an existing payment method',
+        );
       });
 
       it('fails to use a payment method on file if not logged in as the owner', async () => {
         const order = generateLoggedInOrder();
         order.paymentMethod = { uuid: paymentMethod1.uuid };
 
-        const result = await utils.graphqlQuery(createOrderQuery, { order }, user2);
+        const result = await utils.graphqlQuery(createOrderMutation, { order }, user2);
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.equal(
           "You don't have enough permissions to use this payment method (you need to be an admin of the collective that owns this payment method)",
@@ -262,7 +282,7 @@ describe('server/graphql/v1/tiers', () => {
       it('it create order with customData', async () => {
         const orderInput = generateLoggedInOrderWithCustomData();
         orderInput.paymentMethod = { uuid: paymentMethod1.uuid };
-        const queryResult = await utils.graphqlQuery(createOrderQuery, { order: orderInput }, user1);
+        const queryResult = await utils.graphqlQuery(createOrderMutation, { order: orderInput }, user1);
         expect(queryResult.errors).to.not.exist;
         const createdOrder = queryResult.data.createOrder;
         expect(createdOrder.data.customData).to.exist;
@@ -272,7 +292,7 @@ describe('server/graphql/v1/tiers', () => {
         const orderInput = generateLoggedInOrder();
         orderInput.paymentMethod = { uuid: paymentMethod1.uuid };
 
-        const result = await utils.graphqlQuery(createOrderQuery, { order: orderInput }, user1);
+        const result = await utils.graphqlQuery(createOrderMutation, { order: orderInput }, user1);
         result.errors && console.error(result.errors[0]);
         expect(result.errors).to.not.exist;
 
@@ -307,7 +327,7 @@ describe('server/graphql/v1/tiers', () => {
       });
 
       it('user1 becomes a backer of collective1 using a new payment method', async () => {
-        const result = await utils.graphqlQuery(createOrderQuery, { order: generateLoggedInOrder() }, user1);
+        const result = await utils.graphqlQuery(createOrderMutation, { order: generateLoggedInOrder() }, user1);
         result.errors && console.error(result.errors[0]);
         expect(result.errors).to.not.exist;
         const members = await models.Member.findAll({
@@ -325,16 +345,18 @@ describe('server/graphql/v1/tiers', () => {
     });
 
     describe('VAT', () => {
-      const createOrderQuery = `
-        mutation createOrder($order: OrderInputType!) {
+      const createOrderMutation = gql`
+        mutation CreateOrder($order: OrderInputType!) {
           createOrder(order: $order) {
+            id
             taxAmount
             data
             transactions {
               taxAmount
             }
           }
-        }`;
+        }
+      `;
 
       it('stores tax in order and transaction', async () => {
         const belgiumVAT = 21;
@@ -349,7 +371,7 @@ describe('server/graphql/v1/tiers', () => {
           countryISO: 'BE', // Required when order has tax
         };
 
-        const res = await utils.graphqlQuery(createOrderQuery, { order }, user1);
+        const res = await utils.graphqlQuery(createOrderMutation, { order }, user1);
 
         // There should be no errors
         res.errors && console.error(res.errors);
@@ -379,7 +401,7 @@ describe('server/graphql/v1/tiers', () => {
           countryISO: 'FR', // Required when order has tax
           taxIDNumber: 'FRXX999999998',
         };
-        const res = await utils.graphqlQuery(createOrderQuery, { order }, user1);
+        const res = await utils.graphqlQuery(createOrderMutation, { order }, user1);
 
         // There should be no errors
         res.errors && console.error(res.errors);
@@ -405,7 +427,7 @@ describe('server/graphql/v1/tiers', () => {
           countryISO: 'BE',
           taxIDNumber: 'BE0414445663',
         };
-        const res = await utils.graphqlQuery(createOrderQuery, { order }, user1);
+        const res = await utils.graphqlQuery(createOrderMutation, { order }, user1);
 
         // There should be no errors
         res.errors && console.error(res.errors);
@@ -429,7 +451,7 @@ describe('server/graphql/v1/tiers', () => {
           taxIDNumber: 'FRXX999999998',
         };
 
-        const queryResult = await utils.graphqlQuery(createOrderQuery, { order }, user1);
+        const queryResult = await utils.graphqlQuery(createOrderMutation, { order }, user1);
         expect(queryResult.errors[0].message).to.equal('This order has a tax attached, you must set a country');
       });
 
@@ -445,7 +467,7 @@ describe('server/graphql/v1/tiers', () => {
           taxIDNumber: 'Not a valid number!',
         };
 
-        const queryResult = await utils.graphqlQuery(createOrderQuery, { order }, user1);
+        const queryResult = await utils.graphqlQuery(createOrderMutation, { order }, user1);
         expect(queryResult.errors[0].message).to.equal('Invalid VAT number');
       });
 
@@ -460,10 +482,51 @@ describe('server/graphql/v1/tiers', () => {
           countryISO: 'BE', // Required when order has tax
         };
 
-        const queryResult = await utils.graphqlQuery(createOrderQuery, { order }, user1);
+        const queryResult = await utils.graphqlQuery(createOrderMutation, { order }, user1);
         expect(queryResult.errors[0].message).to.equal(
           'This tier uses a fixed amount. Order total must be $50.00 + $10.50 tax. You set: $50.00',
         );
+      });
+
+      describe('feesOnTop', () => {
+        beforeEach(async () => {
+          const user = await fakeUser({}, { id: 10 });
+          await fakeHost({ id: 8686, slug: 'opencollectiveinc', CreatedByUserId: user.id });
+        });
+
+        it('rejects invalid platform fees', async () => {
+          const order = {
+            description: 'test order with platform fees',
+            collective: { id: collective1.id },
+            tier: { id: tierProduct.id },
+            paymentMethod: { uuid: paymentMethod1.uuid },
+            totalAmount: tierProduct.amount + 1050,
+            taxAmount: 1050,
+            platformFee: 30,
+            countryISO: 'BE',
+          };
+
+          const queryResult = await utils.graphqlQuery(createOrderMutation, { order }, user1);
+          expect(queryResult.errors[0].message).to.equal(
+            'This tier uses a fixed amount. Order total must be $50.00 + $10.50 tax + $0.30 fees. You set: $60.50',
+          );
+        });
+
+        it('works with valid platform fees', async () => {
+          const order = {
+            description: 'test order with platform fees',
+            collective: { id: collective1.id },
+            tier: { id: tierProduct.id },
+            paymentMethod: { uuid: paymentMethod1.uuid },
+            totalAmount: tierProduct.amount + 1050 + 30,
+            taxAmount: 1050,
+            platformFee: 30,
+            countryISO: 'BE',
+          };
+
+          const queryResult = await utils.graphqlQuery(createOrderMutation, { order }, user1);
+          expect(queryResult.data.createOrder.id).to.exist;
+        });
       });
     });
   });

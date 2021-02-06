@@ -1,16 +1,15 @@
-import sinon from 'sinon';
-import nock from 'nock';
-import moment from 'moment';
 import { expect } from 'chai';
+import gql from 'fake-tag';
 import { cloneDeep } from 'lodash';
-
-import models from '../../../../server/models';
-
-import * as utils from '../../../utils';
-import * as store from '../../../stores';
+import moment from 'moment';
+import nock from 'nock';
+import sinon from 'sinon';
 
 import { dispatch } from '../../../../server/lib/backyourstack/dispatcher';
+import models from '../../../../server/models';
 import initNock from '../../../nocks/graphql.createOrder.backyourstack.nock';
+import * as store from '../../../stores';
+import * as utils from '../../../utils';
 
 const baseOrder = Object.freeze({
   quantity: 1,
@@ -32,8 +31,8 @@ const baseOrder = Object.freeze({
   },
 });
 
-const createOrderQuery = `
-  mutation createOrder($order: OrderInputType!) {
+const createOrderMutation = gql`
+  mutation CreateOrder($order: OrderInputType!) {
     createOrder(order: $order) {
       id
       status
@@ -66,15 +65,15 @@ const createOrderQuery = `
       }
     }
   }
-  `;
+`;
 
-const backyourstackDispatchOrder = `
-  mutation backyourstackDispatchOrder($id: Int!) {
+const backyourstackDispatchOrderMutation = gql`
+  mutation BackyourstackDispatchOrder($id: Int!) {
     backyourstackDispatchOrder(id: $id) {
       dispatching
     }
   }
-  `;
+`;
 
 const constants = Object.freeze({
   paymentMethod: {
@@ -163,7 +162,7 @@ describe('server/graphql/v1/createOrder.backyourstack', () => {
     order.tier = { id: 1 };
 
     // When the order is created
-    const res = await utils.graphqlQuery(createOrderQuery, { order }, xdamman);
+    const res = await utils.graphqlQuery(createOrderMutation, { order }, xdamman);
 
     // There should be no errors
     res.errors && console.error(res.errors);
@@ -207,7 +206,7 @@ describe('server/graphql/v1/createOrder.backyourstack', () => {
     // When the order is created
     const subscription = await models.Subscription.findByPk(orderCreated.subscription.id);
     const nextDispatchDate = moment(subscription.data.nextDispatchDate).format('ll');
-    const res = await utils.graphqlQuery(backyourstackDispatchOrder, { id: orderCreated.id }, xdamman);
+    const res = await utils.graphqlQuery(backyourstackDispatchOrderMutation, { id: orderCreated.id }, xdamman);
     expect(res.errors).to.exist;
     expect(res.errors[0].message).to.equal(
       `Your BackYourStack order is already complete for this month. The next dispatch of funds will be on ${nextDispatchDate}`,

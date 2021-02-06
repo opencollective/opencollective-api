@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 import '../../server/env';
 
-import models, { Op } from '../../server/models';
-import emailLib from '../../server/lib/email';
 import { get } from 'lodash';
+
+import emailLib from '../../server/lib/email';
+import models, { Op } from '../../server/models';
 
 let totalEvents = 0;
 
-Date.prototype.toString = function() {
+Date.prototype.toString = function () {
   const mm = this.getMonth() + 1; // getMonth() is zero-based
   const dd = this.getDate();
   const hours = this.getHours();

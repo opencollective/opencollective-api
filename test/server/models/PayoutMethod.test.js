@@ -1,9 +1,10 @@
 import { expect } from 'chai';
 import { SequelizeValidationError, ValidationError } from 'sequelize';
-import { fakeUser } from '../../test-helpers/fake-data';
+
 import models from '../../../server/models';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 import { randEmail } from '../../stores';
+import { fakeUser } from '../../test-helpers/fake-data';
 
 describe('server/models/PayoutMethod', () => {
   describe('validate data', () => {

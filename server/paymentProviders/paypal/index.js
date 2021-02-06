@@ -1,15 +1,16 @@
-import debug from 'debug';
 import config from 'config';
+import debug from 'debug';
+import { get } from 'lodash';
 import moment from 'moment';
 
-import models, { Op } from '../../models';
-import errors from '../../lib/errors';
-import paypalAdaptive from './adaptiveGateway';
 import { convertToCurrency } from '../../lib/currency';
+import errors from '../../lib/errors';
 import { formatCurrency } from '../../lib/utils';
+import models, { Op } from '../../models';
+
 import adaptive from './adaptive';
+import paypalAdaptive from './adaptiveGateway';
 import payment from './payment';
-import { get } from 'lodash';
 
 const debugPaypal = debug('paypal');
 
@@ -22,7 +23,7 @@ const debugPaypal = debug('paypal');
  * Confirms that the preapprovalKey has been approved by PayPal
  * and updates the paymentMethod
  */
-const getPreapprovalDetailsAndUpdatePaymentMethod = async function(paymentMethod) {
+const getPreapprovalDetailsAndUpdatePaymentMethod = async function (paymentMethod) {
   if (!paymentMethod) {
     return Promise.reject(new Error('No payment method provided to getPreapprovalDetailsAndUpdatePaymentMethod'));
   }
@@ -61,7 +62,7 @@ export default {
       if (!redirect) {
         throw new Error('Please provide a redirect url as a query parameter (?redirect=)');
       }
-      const expiryDate = moment().add(1, 'years');
+      const expiryDate = moment().add(10, 'months');
 
       let collective, response;
 
@@ -106,7 +107,8 @@ export default {
     },
 
     callback: (req, res, next) => {
-      let paymentMethod;
+      let paymentMethod, oldPmName, newPmName;
+
       return models.PaymentMethod.findOne({
         where: {
           service: 'paypal',
@@ -124,26 +126,27 @@ export default {
             );
           }
 
+          const redirectUrl = new URL(paymentMethod.data.redirect);
+          redirectUrl.searchParams.set('paypalApprovalStatus', req.query.paypalApprovalStatus);
+
           if (req.query.paypalApprovalStatus !== 'success') {
             pm.destroy();
-            const redirect = `${paymentMethod.data.redirect}?status=error&service=paypal&error=User%20cancelled%20the%20request`;
-            return res.redirect(redirect);
+            redirectUrl.searchParams.set('paypalApprovalError', 'User cancelled the request');
+            return res.redirect(redirectUrl.href);
           }
 
           return (
             getPreapprovalDetailsAndUpdatePaymentMethod(pm)
               .catch(e => {
                 debugPaypal('>>> paypal callback error:', e);
-                const redirect = `${
-                  paymentMethod.data.redirect
-                }?status=error&service=paypal&error=Error%20while%20contacting%20PayPal&errorMessage=${encodeURIComponent(
-                  e.message,
-                )}`;
-                debugPaypal('>>> redirect', redirect);
-                res.redirect(redirect);
+                redirectUrl.searchParams.set('paypalApprovalStatus', 'error');
+                redirectUrl.searchParams.set('paypalApprovalError', e.message || 'Error while contacting PayPal');
+                debugPaypal('>>> redirect', redirectUrl.href);
+                res.redirect(redirectUrl.href);
                 throw e; // make sure we skip what follows until next catch()
               })
               .then(pm => {
+                newPmName = pm.info.name;
                 return models.Activity.create({
                   type: 'user.paymentMethod.created',
                   UserId: paymentMethod.CreatedByUserId,
@@ -167,11 +170,22 @@ export default {
               )
 
               // TODO: Call paypal to cancel preapproval keys before marking as deleted.
-              .then(oldPMs => oldPMs && oldPMs.map(pm => pm.destroy()))
+              .then(
+                oldPMs =>
+                  oldPMs &&
+                  oldPMs.map(pm => {
+                    oldPmName = pm.info.name;
+                    if (oldPmName && newPmName && oldPmName !== newPmName) {
+                      redirectUrl.searchParams.set('paypalApprovalError', `PRE_APPROVAL_EMAIL_CHANGED`);
+                      redirectUrl.searchParams.set('oldPaypalEmail', oldPmName);
+                      redirectUrl.searchParams.set('newPaypalEmail', newPmName);
+                    }
+                    return pm.destroy();
+                  }),
+              )
 
               .then(() => {
-                const redirect = `${paymentMethod.data.redirect}?status=success&service=paypal`;
-                return res.redirect(redirect);
+                return res.redirect(redirectUrl.href);
               })
           );
         })

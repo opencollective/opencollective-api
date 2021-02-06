@@ -6,7 +6,8 @@ env:
   CI: true
   TZ: UTC
   E2E_TEST: 1
-  NODE_ENV: ci
+  OC_ENV: ci
+  NODE_ENV: ci # TODO: should be ideally development, test or production
   PGHOST: localhost
   PGUSER: postgres
   WEBSITE_URL: http://localhost:3000
@@ -17,6 +18,10 @@ env:
   CYPRESS_VIDEO: false
   CYPRESS_VIDEO_UPLOAD_ON_PASSES: false
   CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }}
+  FOREST_AUTH_SECRET: ${{ secrets.FOREST_AUTH_SECRET }}
+  FOREST_ENV_SECRET: ${{ secrets.FOREST_ENV_SECRET }}
+  GITHUB_CLIENT_ID: ${{ secrets.GH_CLIENT_ID }}
+  GITHUB_CLIENT_SECRET: ${{ secrets.GH_CLIENT_SECRET }}
   API_FOLDER: /home/runner/work/opencollective-api/opencollective-api
   FRONTEND_FOLDER: /home/runner/work/opencollective-api/opencollective-api/opencollective-frontend
   IMAGES_FOLDER: /home/runner/work/opencollective-api/opencollective-api/opencollective-images
@@ -25,6 +30,8 @@ env:
 jobs:
   e2e:
     runs-on: ubuntu-latest
+
+    timeout-minutes: 30
 
     strategy:
       matrix:
@@ -62,7 +69,7 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v1
         with:
-          node-version: '12.x'
+          node-version: '14.x'
 
       # Npm cache
 
@@ -80,14 +87,17 @@ jobs:
       - name: Checkout (api)
         uses: actions/checkout@v2-beta
 
+      - name: Set REF in env, removing the `refs/` part
+        run: echo "MATCHING_BRANCH_REF=$(echo $GITHUB_REF | sed 's|refs/||')" >> $GITHUB_ENV
+
       - name: Check matching branch
         id: check-matching-branch
         uses: octokit/request-action@v2.x
         with:
-          route: GET /repos/:owner/:repo/git/:ref
+          route: GET /repos/{owner}/{repo}/git/ref/{ref}
           owner: opencollective
           repo: opencollective-frontend
-          ref: ${{ github.ref }}
+          ref: ${{ env.MATCHING_BRANCH_REF }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
