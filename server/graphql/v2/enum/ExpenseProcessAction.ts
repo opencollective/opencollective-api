@@ -16,6 +16,9 @@ export const ExpenseProcessAction = new GraphQLEnumType({
     MARK_AS_UNPAID: {
       description: 'To mark the expense as rejected',
     },
+    SCHEDULE_FOR_PAYMENT: {
+      description: 'To schedule the expense for payment',
+    },
     PAY: {
       description: 'To trigger the payment',
     },

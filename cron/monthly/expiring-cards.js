@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import '../../server/env';
 
+import config from 'config';
+
 import logger from '../../server/lib/logger';
 import * as libPayments from '../../server/lib/payments';
 import models from '../../server/models';
@@ -11,8 +13,8 @@ const date = today.getDate();
 const month = today.getMonth() + 1;
 const year = today.getFullYear();
 
-if (process.env.NODE_ENV === 'production' && date !== 7 && date !== 21 && !process.env.OFFCYCLE) {
-  console.log('NODE_ENV is production and today is not the 7th or 21st of month, script aborted!');
+if (config.env === 'production' && date !== 7 && date !== 21 && !process.env.OFFCYCLE) {
+  console.log('OC_ENV is production and today is not the 7th or 21st of month, script aborted!');
   process.exit();
 }
 

@@ -1,120 +1,131 @@
 import config from 'config';
-import { uniqBy } from 'lodash';
 
-import models from '../models';
+import models, { Op } from '../models';
 
 import logger from './logger';
+import queries from './queries';
 import { isEmailInternal } from './utils';
 
-const { RequiredLegalDocument, LegalDocument, Collective, User } = models;
+const { RequiredLegalDocument, LegalDocument } = models;
 const {
   documentType: { US_TAX_FORM },
 } = RequiredLegalDocument;
 
-export async function findUsersThatNeedToBeSentTaxForm({ invoiceTotalThreshold, year }) {
-  const users = await RequiredLegalDocument.findAll({
-    where: { documentType: US_TAX_FORM },
-  })
-    .map(requiredUsTaxDoc => requiredUsTaxDoc.getHostCollective())
-    .map(host => host.getUsersWhoHaveTotalExpensesOverThreshold({ threshold: invoiceTotalThreshold, year }))
-    .reduce((acc, item) => {
-      return [...acc, ...item];
-    }, [])
-    .filter(user => {
-      return LegalDocument.doesUserNeedToBeSentDocument({ documentType: US_TAX_FORM, year, user });
+/**
+ * @returns {Collective} all the accounts that need to be sent a tax form (both users and orgs)
+ * @param {number} year
+ */
+export async function findAccountsThatNeedToBeSentTaxForm(year) {
+  const results = await queries.getTaxFormsRequiredForAccounts(null, new Date(year, 1));
+  if (!results.length) {
+    return [];
+  } else {
+    return models.Collective.findAll({
+      where: { id: { [Op.in]: results.map(result => result.collectiveId) } },
+      include: [{ association: 'legalDocuments', required: false, where: { year } }],
+    }).then(collectives => {
+      return collectives.filter(
+        collective =>
+          !collective.legalDocuments.length ||
+          collective.legalDocuments.some(legalDocument => legalDocument.shouldBeRequested()),
+      );
+    });
+  }
+}
+
+const getAdminsForAccount = async account => {
+  const adminUsers = await account.getAdminUsers({
+    userQueryParams: { include: [{ association: 'collective', required: true }] },
+  });
+
+  if (config.env === 'production') {
+    return adminUsers;
+  } else {
+    // Don't send emails on dev/staging environments to ensure we never trigger a notification
+    // from HelloWorks for users when we shouldn't.
+    return adminUsers.filter(user => {
+      if (isEmailInternal(user.email)) {
+        return true;
+      } else {
+        logger.info(
+          `Tax form: skipping user ${user.id} (${user.email}) because it's not an internal Open Collective email and we're not in production`,
+        );
+        return false;
+      }
+    });
+  }
+};
+
+/**
+ * From an admins list, try to detect which one is the most appropriate to contact.
+ * Because HelloWorks don't support sending to multiple recipants.
+ */
+const getMainAdminToContact = async (account, adminUsers) => {
+  if (adminUsers.length > 1) {
+    const latestExpense = await models.Expense.findOne({
+      order: [['createdAt', 'DESC']],
+      where: {
+        FromCollectiveId: account.id,
+        UserId: { [Op.in]: adminUsers.map(u => u.id) },
+      },
     });
 
-  return uniqBy(users, 'id');
-}
-
-export async function isUserTaxFormRequiredBeforePayment({ invoiceTotalThreshold, year, expenseCollectiveId, UserId }) {
-  const collective = await Collective.findOne({
-    where: { id: expenseCollectiveId },
-    include: {
-      association: 'HostCollective',
-    },
-  });
-
-  // Host can be null (we allow submitting expenses to collectives without a host)
-  if (!collective.HostCollective) {
-    return false;
-  }
-
-  const { HostCollective: host } = collective;
-  const user = await User.findByPk(UserId);
-  const requiredDocuments = await host.getRequiredLegalDocuments({
-    where: {
-      documentType: US_TAX_FORM,
-    },
-  });
-
-  if (requiredDocuments.length == 0) {
-    return false;
-  }
-
-  const isOverThreshold = await host.doesUserHaveTotalExpensesOverThreshold({
-    threshold: invoiceTotalThreshold,
-    year,
-    UserId,
-  });
-
-  if (!isOverThreshold) {
-    return false;
-  }
-
-  const hasUserCompletedDocument = await LegalDocument.hasUserCompletedDocument({
-    documentType: US_TAX_FORM,
-    year,
-    user,
-  });
-
-  return !hasUserCompletedDocument;
-}
-
-export function SendHelloWorksTaxForm({ client, callbackUrl, workflowId, year }) {
-  return async function sendHelloWorksUsTaxForm(user) {
-    const userCollective = await user.getCollective();
-
-    const participants = {
-      // eslint-disable-next-line camelcase
-      participant_swVuvW: {
-        type: 'email',
-        value: user.email,
-        fullName: `${userCollective.name}`,
-      },
-    };
-
-    const saveDocumentStatus = status => {
-      return LegalDocument.findOrCreate({
-        where: { documentType: US_TAX_FORM, year, CollectiveId: userCollective.id },
-      }).then(([doc]) => {
-        doc.requestStatus = status;
-        return doc.save();
-      });
-    };
-
-    try {
-      // Don't send emails on dev/staging environments to ensure we never trigger a notification
-      // from HelloWorks for users when we shouldn't.
-      if (config.env === 'production' || isEmailInternal(user.email)) {
-        await client.workflowInstances.createInstance({
-          callbackUrl,
-          workflowId,
-          documentDelivery: true,
-          participants,
-          metadata: {
-            userId: user.id,
-            email: user.email,
-            year,
-          },
-        });
-        return saveDocumentStatus(LegalDocument.requestStatus.REQUESTED);
-      } else {
-        logger.info(`${user.email} is an external email address, skipping HelloWorks in development environment`);
-      }
-    } catch (error) {
-      logger.info(`Failed to initialize tax form for user #${user.id} (${user.email})`);
-      return saveDocumentStatus(LegalDocument.requestStatus.ERROR);
+    const mainUser = latestExpense && adminUsers.find(u => u.id === latestExpense.UserId);
+    if (mainUser) {
+      return mainUser;
     }
+  }
+
+  return adminUsers[0];
+};
+
+export async function sendHelloWorksUsTaxForm(client, account, year, callbackUrl, workflowId) {
+  const adminUsers = await getAdminsForAccount(account);
+  const mainUser = await getMainAdminToContact(account, adminUsers);
+
+  if (!mainUser) {
+    logger.error(`No contact found for account #${account.id} (@${account.slug}). Skipping tax form.`);
+    return;
+  }
+
+  const isTaxFormForUser = account.id === mainUser.collective.id;
+  const participants = {
+    // eslint-disable-next-line camelcase
+    participant_swVuvW: {
+      type: 'email',
+      value: mainUser.email,
+      fullName: isTaxFormForUser ? account.name : `${account.slug} (${mainUser.collective.name})`,
+    },
   };
+
+  const saveDocumentStatus = status => {
+    return LegalDocument.findOrCreate({
+      where: { documentType: US_TAX_FORM, year, CollectiveId: account.id },
+    }).then(([doc]) => {
+      doc.requestStatus = status;
+      return doc.save();
+    });
+  };
+
+  try {
+    await client.workflowInstances.createInstance({
+      callbackUrl,
+      workflowId,
+      documentDelivery: true,
+      participants,
+      metadata: {
+        accountType: account.type,
+        accountId: account.id,
+        adminEmails: adminUsers.map(u => u.email).join(', '),
+        userId: mainUser.id,
+        email: mainUser.email,
+        year,
+      },
+    });
+
+    return saveDocumentStatus(LegalDocument.requestStatus.REQUESTED);
+  } catch (error) {
+    logger.error(`Failed to initialize tax form for account #${account.id} (${mainUser.email})`, error);
+    return saveDocumentStatus(LegalDocument.requestStatus.ERROR);
+  }
 }

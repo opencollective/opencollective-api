@@ -4,6 +4,7 @@
  * invoices. */
 
 import { expect } from 'chai';
+import gql from 'fake-tag';
 import moment from 'moment';
 import sinon from 'sinon';
 
@@ -58,37 +59,37 @@ describe('server/graphql/v1/invoicesByRange', () => {
   });
 
   describe('return transactions', () => {
-    const query = `
-        query InvoiceByDateRange($invoiceInputType: InvoiceInputType!) {
-          InvoiceByDateRange(invoiceInputType: $invoiceInputType) {
-            dateFrom
-            dateTo
-            totalAmount
-            currency
-            host {
-              id
-              slug
-              location {
-                name
-                address
-              }
-            }
-            fromCollective {
-              id
-              slug
-              location {
-                name
-                address
-              }
-            }
-            transactions {
-              id
-              amount
-              description
+    const query = gql`
+      query InvoiceByDateRange($invoiceInputType: InvoiceInputType!) {
+        InvoiceByDateRange(invoiceInputType: $invoiceInputType) {
+          dateFrom
+          dateTo
+          totalAmount
+          currency
+          host {
+            id
+            slug
+            location {
+              name
+              address
             }
           }
+          fromCollective {
+            id
+            slug
+            location {
+              name
+              address
+            }
+          }
+          transactions {
+            id
+            amount
+            description
+          }
         }
-      `;
+      }
+    `;
 
     it('returns an error if the dateTo is before dateFrom', async () => {
       const result = await utils.graphqlQuery(

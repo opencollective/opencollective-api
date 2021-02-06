@@ -52,7 +52,7 @@ const getAllContributors = async repo => {
   let contributors = [];
   let fetchContributors;
   do {
-    // https://octokit.github.io/rest.js/#api-Repos-listContributors
+    // https://octokit.github.io/rest.js/v18#repos-list-contributors
     // https://developer.github.com/v3/repos/#list-contributors
     logger.verbose(`Fetching contributors for ${repo.owner}/${repo.repo}, page ${fetchParameters.page}`);
     fetchContributors = await octokit.repos
@@ -131,7 +131,8 @@ const run = async () => {
   logger.info(`Found ${collectives.length} total collective(s)`);
 
   collectives = collectives.filter(
-    collective => get(collective, 'settings.githubOrg') || get(collective, 'settings.githubRepo'),
+    collective =>
+      get(collective, 'settings.githubOrg') || get(collective, 'settings.githubRepo') || collective.githubHandle,
   );
 
   logger.info(`Found ${collectives.length} collective(s) with GitHub settings`);

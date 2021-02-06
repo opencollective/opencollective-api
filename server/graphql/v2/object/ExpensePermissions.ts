@@ -5,7 +5,7 @@ import * as ExpenseLib from '../../common/expenses';
 const ExpensePermissions = new GraphQLObjectType({
   name: 'ExpensePermissions',
   description: 'Fields for the user permissions on an expense',
-  fields: {
+  fields: () => ({
     canEdit: {
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Whether the current user can edit the expense',
@@ -62,7 +62,14 @@ const ExpensePermissions = new GraphQLObjectType({
         return ExpenseLib.canMarkAsUnpaid(req, expense);
       },
     },
-  },
+    canComment: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can comment and see comments for this expense',
+      async resolve(expense, _, req): Promise<boolean> {
+        return ExpenseLib.canComment(req, expense);
+      },
+    },
+  }),
 });
 
 export default ExpensePermissions;

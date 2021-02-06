@@ -13,7 +13,7 @@ import '../server/env';
 import Promise from 'bluebird';
 import debug from 'debug';
 
-import { purgeCacheForPage } from '../server/lib/cloudflare';
+import { purgeCacheForCollective } from '../server/lib/cache';
 import * as libPayments from '../server/lib/payments';
 import models from '../server/models';
 
@@ -78,10 +78,10 @@ async function refundTransaction(transaction) {
   const fromCollective = await transaction.getFromCollective();
   // purging cloudflare cache
   if (collective) {
-    purgeCacheForPage(`/${collective.slug}`);
+    purgeCacheForCollective(collective.slug);
   }
   if (fromCollective) {
-    purgeCacheForPage(`/${fromCollective.slug}`);
+    purgeCacheForCollective(fromCollective.slug);
   }
 
   return models.Transaction.findByPk(transaction.id);

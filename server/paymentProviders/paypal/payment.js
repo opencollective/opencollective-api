@@ -1,10 +1,11 @@
 import config from 'config';
 import { get } from 'lodash';
+import fetch from 'node-fetch';
 
 import * as constants from '../../constants/transactions';
 import logger from '../../lib/logger';
 import { floatAmountToCents } from '../../lib/math';
-import * as libpayments from '../../lib/payments';
+import { getHostFee, getPlatformFee } from '../../lib/payments';
 import models from '../../models';
 
 /** Build an URL for the PayPal API */
@@ -128,11 +129,9 @@ export async function createTransaction(order, paymentInfo) {
   const paypalFeeInCents = floatAmountToCents(paypalFee);
   const currencyFromPayPal = transaction.amount.currency;
 
-  const hostFeeInHostCurrency = libpayments.calcFee(amountFromPayPalInCents, order.collective.hostFeePercent);
-  const defaultPlatformFee =
-    order.collective.platformFeePercent === null ? constants.OC_FEE_PERCENT : order.collective.platformFeePercent;
-  const platformFeePercent = get(order, 'data.platformFeePercent', defaultPlatformFee);
-  const platformFeeInHostCurrency = libpayments.calcFee(amountFromPayPalInCents, platformFeePercent);
+  // TODO: Double check why in one case we're using amountFromPayPalInCents and in the other order.totalAmount
+  const hostFeeInHostCurrency = await getHostFee(amountFromPayPalInCents, order);
+  const platformFeeInHostCurrency = await getPlatformFee(order.totalAmount, order);
 
   const payload = {
     CreatedByUserId: order.createdByUser.id,
@@ -153,7 +152,10 @@ export async function createTransaction(order, paymentInfo) {
     paymentProcessorFeeInHostCurrency: paypalFeeInCents,
     taxAmount: order.taxAmount,
     description: order.description,
-    data: paymentInfo,
+    data: {
+      ...paymentInfo,
+      isFeesOnTop: order.data?.isFeesOnTop,
+    },
   };
   return models.Transaction.createFromPayload(payload);
 }

@@ -5,6 +5,7 @@ import Temporal from 'sequelize-temporal';
 
 import status from '../constants/order_status';
 import { TransactionTypes } from '../constants/transactions';
+import * as libPayments from '../lib/payments';
 
 import CustomDataTypes from './DataTypes';
 
@@ -120,7 +121,7 @@ export default function (Sequelize, DataTypes) {
 
       status: {
         type: DataTypes.STRING,
-        defaultValue: status.PENDING,
+        defaultValue: status.NEW,
         allowNull: false,
         validate: {
           isIn: {
@@ -186,11 +187,24 @@ export default function (Sequelize, DataTypes) {
         activity() {
           return {
             id: this.id,
-            totalAmount: this.totalAmount,
+            // totalAmount should not be changed, it's confusing
+            totalAmount:
+              this.data?.isFeesOnTop && this.data?.platformFee
+                ? this.totalAmount - this.data.platformFee
+                : this.totalAmount,
+            // introducing 3 new values to clarify
+            netAmount:
+              this.data?.isFeesOnTop && this.data?.platformFee
+                ? this.totalAmount - this.data.platformFee
+                : this.totalAmount,
+            platformTipAmount: this.data?.isFeesOnTop && this.data?.platformFee ? this.data?.platformFee : null,
+            chargeAmount: this.totalAmount,
             currency: this.currency,
             description: this.description,
             publicMessage: this.publicMessage,
             interval: this.interval,
+            quantity: this.quantity,
+            createdAt: this.createdAt,
           };
         },
       },
@@ -245,6 +259,22 @@ export default function (Sequelize, DataTypes) {
         return null;
       }
     });
+  };
+
+  Order.prototype.markAsExpired = async function () {
+    // TODO: We should create an activity to record who rejected the order
+    return this.update({ status: status.EXPIRED });
+  };
+
+  Order.prototype.markAsPaid = async function (user) {
+    this.paymentMethod = {
+      service: 'opencollective',
+      type: 'manual',
+      paid: true,
+    };
+
+    await libPayments.executeOrder(user, this);
+    return this;
   };
 
   Order.prototype.getUser = function () {

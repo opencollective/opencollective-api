@@ -1,4 +1,4 @@
-import { GraphQLInputObjectType,GraphQLInt, GraphQLString } from 'graphql';
+import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
 import { DateString } from '../../v1/types';
 import URL from '../scalar/URL';
@@ -8,7 +8,7 @@ import URL from '../scalar/URL';
  */
 export const ExpenseItemInput = new GraphQLInputObjectType({
   name: 'ExpenseItemInput',
-  fields: {
+  fields: () => ({
     id: {
       type: GraphQLString,
       description: 'ID of the item',
@@ -29,5 +29,5 @@ export const ExpenseItemInput = new GraphQLInputObjectType({
       type: DateString,
       description: 'When was the money spent?',
     },
-  },
+  }),
 });

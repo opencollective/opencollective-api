@@ -14,13 +14,20 @@ if (!salt) {
 const instances = {};
 
 export const IDENTIFIER_TYPES = {
+  ACCOUNT: 'account',
   ACTIVITY: 'activity',
+  COMMENT: 'comment',
+  COMMENT_REACTION: 'comment-reaction',
   CONVERSATION: 'conversation',
+  HOST_APPLICATION: 'host-application',
   PAYOUT_METHOD: 'payout-method',
+  PAYMENT_METHOD: 'paymentMethod',
   EXPENSE: 'expense',
   CONNECTED_ACCOUNT: 'connected-account',
   EXPENSE_ATTACHED_FILE: 'expense-attached-file',
   EXPENSE_ITEM: 'expense-item',
+  TRANSACTION: 'transaction',
+  UPDATE: 'update',
 };
 
 const getDefaultInstance = type => {

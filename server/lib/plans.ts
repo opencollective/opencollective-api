@@ -1,6 +1,7 @@
 import { get } from 'lodash';
 
 import plans, { PLANS_COLLECTIVE_SLUG } from '../constants/plans';
+import cache from '../lib/cache';
 
 import { notifyAdminsOfCollective } from './notifications';
 
@@ -21,6 +22,8 @@ export async function subscribeOrUpgradePlan(order): Promise<void> {
     // features until the end of the billing. Downgrades are dealt in a cronjob.
     if (newPlan && plans[newPlan] && isSubscribeOrUpgrade(newPlan, oldPlan)) {
       await order.fromCollective.update({ plan: newPlan });
+      await cache.del(`plan_${order.fromCollective.id}`);
+
       const emailData = {
         name: order.fromCollective.name,
         plan: get(order, 'tier.name'),

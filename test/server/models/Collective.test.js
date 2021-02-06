@@ -1,11 +1,13 @@
 import { expect } from 'chai';
+import moment from 'moment';
+import { SequelizeValidationError } from 'sequelize';
 import sinon from 'sinon';
 
-import { roles } from '../../../server/constants';
+import { expenseStatus, roles } from '../../../server/constants';
 import plans from '../../../server/constants/plans';
 import { getFxRate } from '../../../server/lib/currency';
 import emailLib from '../../../server/lib/email';
-import models, { Op } from '../../../server/models';
+import models, { Op, sequelize } from '../../../server/models';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 import {
   fakeCollective,
@@ -17,6 +19,8 @@ import {
   fakePayoutMethod,
   fakeTransaction,
   fakeUser,
+  multiple,
+  randStr,
 } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
@@ -118,6 +122,10 @@ describe('server/models/Collective', () => {
     },
   ];
 
+  beforeEach(async () => {
+    await utils.resetCaches();
+  });
+
   before(() => {
     sandbox = sinon.createSandbox();
     sendEmailSpy = sandbox.spy(emailLib, 'sendMessage');
@@ -198,6 +206,22 @@ describe('server/models/Collective', () => {
       ),
   );
 
+  it('validates name', async () => {
+    // Invalid
+    await expect(models.Collective.create({ name: '' })).to.be.eventually.rejectedWith(SequelizeValidationError);
+
+    // Valid
+    await expect(models.Collective.create({ name: 'joe', slug: randStr() })).to.be.eventually.fulfilled;
+    await expect(models.Collective.create({ name: 'frank zappa', slug: randStr() })).to.be.eventually.fulfilled;
+    await expect(models.Collective.create({ name: '王继磊', slug: randStr() })).to.be.eventually.fulfilled;
+    await expect(models.Collective.create({ name: 'جهاد', slug: randStr() })).to.be.eventually.fulfilled;
+  });
+
+  it('trims name', async () => {
+    const collective = await models.Collective.create({ name: '   Frank   Zappa    ', slug: randStr() });
+    expect(collective.name).to.eq('Frank Zappa');
+  });
+
   it('creates a unique slug', () => {
     return Collective.create({ slug: 'piamancini' })
       .tap(collective => {
@@ -239,33 +263,7 @@ describe('server/models/Collective', () => {
     expect(/-\d+$/.test(collective.slug)).to.be.true;
   });
 
-  it('prevents collective creation and limit user if spam is detected', async () => {
-    const user = await fakeUser();
-    const spamCollectiveData = {
-      name: 'BUY MY KETO',
-      website: 'https://supplementslove.com/buy-stuff',
-      CreatedByUserId: user.id,
-    };
-
-    // Should prevent collective creation
-    await expect(models.Collective.create(spamCollectiveData)).to.be.eventually.rejectedWith(
-      Error,
-      'Collective creation failed',
-    );
-
-    // Should limit user account
-    await user.reload();
-    expect(user.data.features.ALL).to.be.false;
-
-    // User should not be able to create any new collectives
-    const legitCollectiveData = { name: 'Legit project', CreatedByUserId: user.id };
-    await expect(models.Collective.create(legitCollectiveData)).to.be.eventually.rejectedWith(
-      Error,
-      "You're not authorized to create new collectives at the moment.",
-    );
-  });
-
-  it('does not create collective with a blacklisted slug', () => {
+  it('does not create collective with a blocked slug', () => {
     return Collective.create({ name: 'learn more' }).then(collective => {
       // `https://host/learn-more` is a protected page.
       expect(collective.slug).to.not.equal('learn-more');
@@ -295,7 +293,7 @@ describe('server/models/Collective', () => {
       const ics = await event.getICS();
       expect(ics).to.contain('STATUS:CONFIRMED');
       expect(ics).to.contain('/tipbox/events/sustainoss-london');
-      expect(ics).to.contain('hello@tipbox.opencollective.com');
+      expect(ics).to.contain('no-reply@tipbox.opencollective.com');
     });
   });
 
@@ -359,7 +357,7 @@ describe('server/models/Collective', () => {
 
     it('fails to deactivate as host if it is hosting any collective', async () => {
       try {
-        await hostUser.collective.deactivateAsHost();
+        await hostUser.collective.deactivateAsHost({ remoteUser: hostUser });
         throw new Error("Didn't throw expected error!");
       } catch (e) {
         expect(e.message).to.contain("You can't deactivate hosting while still hosting");
@@ -408,7 +406,7 @@ describe('server/models/Collective', () => {
       const applyArgs = sendEmailSpy.args.find(callArgs => callArgs[1].includes('Thanks for applying'));
       expect(applyArgs).to.exist;
       expect(applyArgs[0]).to.equal(user1.email);
-      expect(applyArgs[3].from).to.equal('hello@wwcode.opencollective.com');
+      expect(applyArgs[3].from).to.equal('no-reply@wwcode.opencollective.com');
     });
 
     it('updates hostFeePercent for collective and events when adding or changing host', async () => {
@@ -436,6 +434,7 @@ describe('server/models/Collective', () => {
       const plan = await hostUser.collective.getPlan();
 
       expect(plan).to.deep.equal({
+        id: 3,
         name: 'default',
         hostedCollectives: 2,
         addedFunds: 0,
@@ -500,6 +499,37 @@ describe('server/models/Collective', () => {
       expect(balance).to.equal(sum);
       done();
     });
+  });
+
+  it('computes the balance deducting expenses scheduled for payment', async () => {
+    const collective = await fakeCollective();
+    await fakeTransaction({
+      createdAt: new Date(),
+      CollectiveId: collective.id,
+      amount: 500,
+      amountInHostCurrency: 50000,
+      netAmountInCollectiveCurrency: 45000,
+      currency: 'USD',
+      type: 'CREDIT',
+      CreatedByUserId: 2,
+      FromCollectiveId: 2,
+      platformFeeInHostCurrency: 0,
+    });
+    await fakeExpense({
+      CollectiveId: collective.id,
+      status: expenseStatus.SCHEDULED_FOR_PAYMENT,
+      amount: 20000,
+    });
+    await fakeExpense({
+      CollectiveId: collective.id,
+      status: expenseStatus.PROCESSING,
+      amount: 10000,
+      // eslint-disable-next-line camelcase
+      data: { payout_batch_id: 1 },
+    });
+
+    const balance = await collective.getBalance();
+    expect(balance).to.equal(45000 - 30000);
   });
 
   it('computes the number of backers', () =>
@@ -643,12 +673,14 @@ describe('server/models/Collective', () => {
       shouldBeUsableAsPayout(await fakeCollective({ type: 'USER' }));
       shouldBeUsableAsPayout(await fakeCollective({ type: 'ORGANIZATION' }));
       shouldBeUsableAsPayout(await fakeCollective({ type: 'ORGANIZATION', isHostAccount: true }));
+      shouldBeUsableAsPayout(await fakeCollective({ type: 'COLLECTIVE' }));
+      shouldBeUsableAsPayout(await fakeCollective({ type: 'EVENT' }));
+      shouldBeUsableAsPayout(await fakeCollective({ type: 'PROJECT' }));
+      shouldBeUsableAsPayout(await fakeCollective({ type: 'FUND' }));
     });
 
-    it('is false for incognito profiles, collectives and events', async () => {
+    it('is false for incognito profiles', async () => {
       shouldNotBeUsableAsPayout(await fakeCollective({ type: 'USER', isIncognito: true }));
-      shouldNotBeUsableAsPayout(await fakeCollective({ type: 'COLLECTIVE' }));
-      shouldNotBeUsableAsPayout(await fakeCollective({ type: 'EVENT' }));
     });
   });
 
@@ -763,6 +795,11 @@ describe('server/models/Collective', () => {
           where: { CollectiveId: collective.id, role: { [Op.in]: [roles.ADMIN, roles.MEMBER] } },
         });
       };
+
+      // Remove all existing members to stash from fresh
+      await models.Member.destroy({
+        where: { CollectiveId: collective.id, role: { [Op.in]: [roles.ADMIN, roles.MEMBER] } },
+      });
 
       let members = await collective.editMembers(
         [
@@ -930,7 +967,7 @@ describe('server/models/Collective', () => {
       collective = await fakeCollective({ isHostAccount: true });
       paymentMethod = await fakePaymentMethod({
         service: 'opencollective',
-        type: 'collective',
+        type: 'host',
         data: {},
         CollectiveId: collective.id,
       });
@@ -1020,6 +1057,112 @@ describe('server/models/Collective', () => {
       const fx = await getFxRate('EUR', 'USD');
       const totalAddedFunds = await collective.getTotalTransferwisePayouts();
       expect(totalAddedFunds).to.equals(100000 + 50000 * fx);
+    });
+  });
+
+  describe('getHostMetrics()', () => {
+    const lastMonth = moment.utc().subtract(1, 'month');
+
+    after(async () => {
+      await utils.resetTestDB();
+    });
+
+    let gbpHost, socialCollective, metrics;
+    before(async () => {
+      await utils.resetTestDB();
+      const user = await fakeUser({ id: 30 }, { id: 20, slug: 'pia' });
+      const opencollective = await fakeHost({ id: 8686, slug: 'opencollective', CreatedByUserId: user.id });
+      // Move Collectives ID auto increment pointer up, so we don't collide with the manually created id:1
+      await sequelize.query(`ALTER SEQUENCE "Collectives_id_seq" RESTART WITH 1453`);
+      await fakePayoutMethod({
+        id: 2955,
+        CollectiveId: opencollective.id,
+        type: 'BANK_ACCOUNT',
+      });
+
+      gbpHost = await fakeHost({ currency: 'GBP' });
+
+      const stripePaymentMethod = await fakePaymentMethod({ service: 'stripe', token: 'tok_bypassPending' });
+
+      socialCollective = await fakeCollective({ HostCollectiveId: gbpHost.id });
+      const transactionProps = {
+        amount: 100,
+        type: 'CREDIT',
+        CollectiveId: socialCollective.id,
+        currency: 'GBP',
+        hostCurrency: 'GBP',
+        HostCollectiveId: gbpHost.id,
+        createdAt: lastMonth,
+      };
+      // Create Platform Fees
+      await fakeTransaction({
+        ...transactionProps,
+        amount: 3000,
+        platformFeeInHostCurrency: -300,
+        hostFeeInHostCurrency: -300,
+        netAmountInCollectiveCurrency: 3000 - 300 - 300,
+      });
+      await fakeTransaction({
+        ...transactionProps,
+        amount: 5000,
+        platformFeeInHostCurrency: -500,
+        hostFeeInHostCurrency: -500,
+        PaymentMethodId: stripePaymentMethod.id,
+        netAmountInCollectiveCurrency: 5000 - 500 - 500,
+      });
+      // Add Platform Tips
+      const t = await fakeTransaction(transactionProps);
+      await fakeTransaction({
+        type: 'CREDIT',
+        CollectiveId: opencollective.id,
+        HostCollectiveId: opencollective.id,
+        amount: 100,
+        currency: 'USD',
+        data: { hostToPlatformFxRate: 1.23 },
+        PlatformTipForTransactionGroup: t.TransactionGroup,
+        createdAt: lastMonth,
+      });
+      await fakeTransaction({
+        type: 'CREDIT',
+        CollectiveId: opencollective.id,
+        HostCollectiveId: opencollective.id,
+        amount: 300,
+        currency: 'USD',
+        data: { hostToPlatformFxRate: 1.2 },
+        PlatformTipForTransactionGroup: t.TransactionGroup,
+        createdAt: lastMonth,
+        PaymentMethodId: stripePaymentMethod.id,
+      });
+      // Different Currency Transaction
+      const otherCollective = await fakeCollective({ currency: 'USD', HostCollectiveId: gbpHost.id });
+      await fakeTransaction({
+        type: 'CREDIT',
+        CollectiveId: otherCollective.id,
+        amount: 1000,
+        currency: 'USD',
+        hostCurrency: 'GBP',
+        HostCollectiveId: gbpHost.id,
+        hostCurrencyFxRate: 0.8,
+        createdAt: lastMonth,
+      });
+
+      metrics = await gbpHost.getHostMetrics(lastMonth);
+    });
+
+    it('returns acurate metrics for requested month', async () => {
+      const expectedTotalMoneyManaged = 2400 + 4000 + 100 + 1000 * 0.8;
+
+      expect(metrics).to.deep.equal({
+        hostFees: 800,
+        platformFees: 800,
+        pendingPlatformFees: 300,
+        platformTips: 331,
+        pendingPlatformTips: 81,
+        hostFeeShare: 0,
+        pendingHostFeeShare: 0,
+        hostFeeSharePercent: 0,
+        totalMoneyManaged: expectedTotalMoneyManaged,
+      });
     });
   });
 });

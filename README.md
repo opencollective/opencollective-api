@@ -1,6 +1,8 @@
 # Open Collective API
 
 [![Dependency Status](https://david-dm.org/opencollective/opencollective-api.svg)](https://david-dm.org/opencollective/opencollective-api)
+![CI](https://github.com/opencollective/opencollective-api/workflows/CI/badge.svg)
+![E2E](https://github.com/opencollective/opencollective-api/workflows/E2E/badge.svg)
 
 ## Foreword
 
@@ -64,5 +66,5 @@ See: [docs/deployment.md](docs/deployment.md)
 ## Discussion
 
 If you have any questions, ping us on Slack
-(https://slack.opencollective.org) or on Twitter
+(https://slack.opencollective.com) or on Twitter
 ([@opencollect](https://twitter.com/opencollect)).

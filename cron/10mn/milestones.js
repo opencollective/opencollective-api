@@ -17,7 +17,7 @@ import models, { Op, sequelize } from '../../server/models';
 const TenMinutesAgo = new Date();
 TenMinutesAgo.setMinutes(TenMinutesAgo.getMinutes() - 10);
 
-if (process.env.NODE_ENV !== 'production') {
+if (config.env !== 'production') {
   TenMinutesAgo.setDate(TenMinutesAgo.getDate() - 40);
 }
 
@@ -97,6 +97,11 @@ const processNewMembersCount = async newMembersCount => {
     collective,
     dataValues: { count },
   } = newMembersCount;
+
+  if (collective.settings?.disableTweets) {
+    return;
+  }
+
   const backersCount = await collective.getBackersCount();
   if (backersCount < 10) {
     debug(`${collective.slug} only has ${backersCount} ${pluralize('backer', backersCount)}, skipping`);
@@ -180,24 +185,16 @@ const postSlackMessage = async (message, webhookUrl, options = {}) => {
 };
 
 const postToSlack = async (message, slackAccount) => {
-  // post to slack.opencollective.com (bug: we send it twice if both `collective` and `host` have set up a Slack webhook)
-  await postSlackMessage(message, config.slack.webhookUrl, {
-    channel: config.slack.publicActivityChannel,
-    linkTwitterMentions: true,
-  });
-
   if (!slackAccount) {
     return console.warn(`No slack account to post ${message}`);
   }
 
-  await postSlackMessage(message, slackAccount.webhookUrl, {
-    linkTwitterMentions: true,
-  });
+  await postSlackMessage(message, slackAccount.webhookUrl, { linkTwitterMentions: true });
 };
 
 const sendTweet = async (tweet, twitterAccount, template) => {
   console.log('>>> sending tweet:', tweet.length, tweet);
-  if (process.env.NODE_ENV === 'production') {
+  if (config.env === 'production') {
     try {
       const res = await twitter.tweetStatus(twitterAccount, tweet, null, {
         // We thread the tweet with the previous milestone

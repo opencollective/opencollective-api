@@ -23,7 +23,7 @@ export const sanitizeTags = (tags: string[]): string[] => {
     tags
       ?.map(tag => {
         if (tag) {
-          const upperCase = tag.toUpperCase();
+          const upperCase = tag.toLowerCase();
           return upperCase.trim().replace(/\s+/g, ' ');
         }
       })

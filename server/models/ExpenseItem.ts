@@ -2,8 +2,8 @@ import { pick } from 'lodash';
 import { Model, Transaction } from 'sequelize';
 
 import { diffDBEntries } from '../lib/data';
-import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
 import { isValidUploadedImage } from '../lib/images';
+import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
 
 /**
  * Sequelize model to represent an ExpenseItem, linked to the `ExpenseItems` table.
@@ -104,7 +104,7 @@ export default (sequelize, DataTypes): typeof ExpenseItem => {
         },
       },
       description: {
-        type: DataTypes.STRING,
+        type: DataTypes.TEXT,
         allowNull: true,
       },
       createdAt: {

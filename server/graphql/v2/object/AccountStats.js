@@ -1,4 +1,4 @@
-import { GraphQLInt, GraphQLObjectType } from 'graphql';
+import { GraphQLInt, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 import { get, has } from 'lodash';
 
 import queries from '../../../lib/queries';
@@ -18,7 +18,7 @@ export const AccountStats = new GraphQLObjectType({
       },
       balance: {
         description: 'Amount of money in cents in the currency of the collective currently available to spend',
-        type: Amount,
+        type: new GraphQLNonNull(Amount),
         async resolve(collective, args, req) {
           return {
             value: await req.loaders.Collective.balance.load(collective.id),
@@ -28,7 +28,7 @@ export const AccountStats = new GraphQLObjectType({
       },
       monthlySpending: {
         description: 'Average amount spent per month based on the last 90 days',
-        type: Amount,
+        type: new GraphQLNonNull(Amount),
         async resolve(collective) {
           // if we fetched the collective with the raw query to sort them by their monthly spending we don't need to recompute it
           if (has(collective, 'dataValues.monthlySpending')) {
@@ -46,7 +46,7 @@ export const AccountStats = new GraphQLObjectType({
       },
       totalAmountSpent: {
         description: 'Total amount spent',
-        type: Amount,
+        type: new GraphQLNonNull(Amount),
         async resolve(collective) {
           return {
             value: await collective.getTotalAmountSpent(),
@@ -56,7 +56,7 @@ export const AccountStats = new GraphQLObjectType({
       },
       totalAmountReceived: {
         description: 'Net amount received',
-        type: Amount,
+        type: new GraphQLNonNull(Amount),
         async resolve(collective) {
           return {
             value: await collective.getTotalAmountReceived(),
@@ -65,19 +65,28 @@ export const AccountStats = new GraphQLObjectType({
         },
       },
       yearlyBudget: {
-        type: Amount,
+        type: new GraphQLNonNull(Amount),
         async resolve(collective) {
-          // If the current account is a host, we aggregate the yearly budget across all the hosted collectives
+          return {
+            value: await collective.getYearlyIncome(),
+            currency: collective.currency,
+          };
+        },
+      },
+      yearlyBudgetManaged: {
+        type: new GraphQLNonNull(Amount),
+        async resolve(collective) {
           if (collective.isHostAccount) {
             return {
               value: await queries.getTotalAnnualBudgetForHost(collective.id),
               currency: collective.currency,
             };
+          } else {
+            return {
+              value: 0,
+              currency: collective.currency,
+            };
           }
-          return {
-            value: await collective.getYearlyIncome(),
-            currency: collective.currency,
-          };
         },
       },
     };
