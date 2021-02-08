@@ -71,6 +71,7 @@ describe('server/models/Collective', () => {
       createdAt: new Date('2016-06-14'),
       amount: -1000,
       netAmountInCollectiveCurrency: -1000,
+      amountInHostCurrency: -1000,
       currency: 'USD',
       type: 'DEBIT',
       description: 'pizza',
@@ -82,6 +83,7 @@ describe('server/models/Collective', () => {
       createdAt: new Date('2016-07-14'),
       amount: -15000,
       netAmountInCollectiveCurrency: -15000,
+      amountInHostCurrency: -15000,
       currency: 'USD',
       type: 'DEBIT',
       description: 'stickers',
@@ -94,6 +96,7 @@ describe('server/models/Collective', () => {
       amount: 25000,
       amountInHostCurrency: 25000,
       netAmountInCollectiveCurrency: 22500,
+      paymentProcessorFeeInHostCurrency: -2500,
       currency: 'USD',
       type: 'CREDIT',
       CreatedByUserId: 1,
@@ -104,6 +107,7 @@ describe('server/models/Collective', () => {
       amount: 50000,
       amountInHostCurrency: 50000,
       netAmountInCollectiveCurrency: 45000,
+      paymentProcessorFeeInHostCurrency: -5000,
       currency: 'USD',
       type: 'CREDIT',
       CreatedByUserId: 1,
@@ -114,6 +118,7 @@ describe('server/models/Collective', () => {
       amount: 500,
       amountInHostCurrency: 50000,
       netAmountInCollectiveCurrency: 45000,
+      paymentProcessorFeeInHostCurrency: -5000,
       currency: 'USD',
       type: 'CREDIT',
       CreatedByUserId: 2,
@@ -509,6 +514,7 @@ describe('server/models/Collective', () => {
       amount: 500,
       amountInHostCurrency: 50000,
       netAmountInCollectiveCurrency: 45000,
+      paymentProcessorFeeInHostCurrency: -5000,
       currency: 'USD',
       type: 'CREDIT',
       CreatedByUserId: 2,
@@ -1143,6 +1149,10 @@ describe('server/models/Collective', () => {
         hostCurrency: 'GBP',
         HostCollectiveId: gbpHost.id,
         hostCurrencyFxRate: 0.8,
+        amountInHostCurrency: 800,
+        platformFeeInHostCurrency: -1,
+        hostFeeInHostCurrency: -2,
+        paymentProcessorFeeInHostCurrency: -4,
         createdAt: lastMonth,
       });
 
@@ -1150,12 +1160,12 @@ describe('server/models/Collective', () => {
     });
 
     it('returns acurate metrics for requested month', async () => {
-      const expectedTotalMoneyManaged = 2400 + 4000 + 100 + 1000 * 0.8;
+      const expectedTotalMoneyManaged = 800 - 7 + 100 + 2400 + 4000;
 
       expect(metrics).to.deep.equal({
-        hostFees: 800,
-        platformFees: 800,
-        pendingPlatformFees: 300,
+        hostFees: 802,
+        platformFees: 801,
+        pendingPlatformFees: 301,
         platformTips: 331,
         pendingPlatformTips: 81,
         hostFeeShare: 0,

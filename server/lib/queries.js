@@ -962,36 +962,68 @@ const getTaxFormsRequiredForAccounts = async (accountIds = [], date = new Date()
 const getBalances = async (collectiveIds, until = new Date()) =>
   sequelize.query(
     `
-        WITH "blockedFunds" AS (
-          SELECT
-            e."CollectiveId", COALESCE(sum(e.amount), 0) as sum
-          FROM
-            "Expenses" e
-          WHERE
-            e."CollectiveId" IN (:ids)
-            AND e."deletedAt" IS NULL
-            AND e."createdAt" < :until
-            AND (
-              e.status = 'SCHEDULED_FOR_PAYMENT'
-              OR (
-                e.status = 'PROCESSING' AND e.data ->> 'payout_batch_id' IS NOT NULL
-              )
+      WITH blockedfunds AS (
+        SELECT
+          e."CollectiveId",
+          COALESCE(sum(e.amount), 0) AS sum
+        FROM
+          "Expenses" e
+        WHERE
+          e."CollectiveId" IN (:ids)
+          AND e."deletedAt" IS NULL
+          AND e."createdAt" < :until
+          AND (
+            e.status = 'SCHEDULED_FOR_PAYMENT'
+            OR (
+              e.status = 'PROCESSING'
+              AND e.data ->> 'payout_batch_id' IS NOT NULL
+            )
           )
-          GROUP BY
-            e."CollectiveId"
-        )
+        GROUP BY
+          e."CollectiveId"
+      ),
+      netamount AS (
         SELECT
           t."CollectiveId",
-          COALESCE(sum(t."netAmountInCollectiveCurrency") - COALESCE(max(bf.sum), 0), 0) AS "balance"
+          SUM(t."amountInHostCurrency" + COALESCE(t."platformFeeInHostCurrency", 0) + COALESCE(t."hostFeeInHostCurrency", 0) + COALESCE(t."paymentProcessorFeeInHostCurrency", 0)) AS "balance",
+          t."currency",
+          t."hostCurrency",
+          (
+            SELECT
+              CASE
+                WHEN cer."from" = t."hostCurrency" THEN cer."rate"
+                WHEN cer."to" = t."hostCurrency" THEN 1 / cer."rate"
+              END
+            FROM
+              "CurrencyExchangeRates" cer
+            WHERE
+              (
+                cer."from" = t."hostCurrency"
+                AND cer."to" = t."currency"
+              )
+              OR (
+                cer."to" = t."hostCurrency"
+                AND cer."from" = t."currency"
+              )
+            ORDER BY
+              cer."createdAt" DESC
+            LIMIT 1
+          ) AS "rate"
         FROM
           "Transactions" t
-        LEFT JOIN "blockedFunds" bf ON t."CollectiveId" = bf."CollectiveId"
         WHERE
           t."CollectiveId" IN (:ids)
           AND t."deletedAt" IS NULL
           AND t."createdAt" < :until
         GROUP BY
-          t."CollectiveId";
+          t."CollectiveId",
+          t."currency",
+          t."hostCurrency"
+      )
+
+      SELECT na."CollectiveId", ROUND(na."balance" * COALESCE(na."rate", 1)) - COALESCE(bf."sum", 0) AS "balance"
+      FROM netamount na
+      LEFT JOIN blockedfunds bf ON bf."CollectiveId" = na."CollectiveId"
       `,
     { type: sequelize.QueryTypes.SELECT, replacements: { ids: collectiveIds, until } },
   );
@@ -1001,7 +1033,7 @@ const getBalancesInHostCurrency = async (collectiveIds, hostCollectiveId, until 
     `
       SELECT
         t."CollectiveId",
-        COALESCE(SUM(ROUND(t."netAmountInCollectiveCurrency" * t."hostCurrencyFxRate")), 0) AS "balance"
+        SUM(t."amountInHostCurrency" + COALESCE(t."platformFeeInHostCurrency", 0) + COALESCE(t."hostFeeInHostCurrency", 0) + COALESCE(t."paymentProcessorFeeInHostCurrency", 0))  AS "balance"
       FROM
         "Transactions" t
       WHERE
