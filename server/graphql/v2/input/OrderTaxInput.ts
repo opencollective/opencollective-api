@@ -16,7 +16,7 @@ export const OrderTaxInput = new GraphQLInputObjectType({
       type: new GraphQLNonNull(AmountInput),
     },
     country: {
-      type: new GraphQLNonNull(CountryISO),
+      type: CountryISO,
       description: 'Country of the account ordering, to know from where to apply the tax',
     },
     idNumber: {
