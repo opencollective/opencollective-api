@@ -181,6 +181,7 @@ export default function (Sequelize, DataTypes) {
             SubscriptionId: this.SubscriptionId,
             createdAt: this.createdAt,
             updatedAt: this.updatedAt,
+            isGuest: Boolean(this.data?.isGuest),
           };
         },
 
@@ -205,6 +206,7 @@ export default function (Sequelize, DataTypes) {
             interval: this.interval,
             quantity: this.quantity,
             createdAt: this.createdAt,
+            isGuest: Boolean(this.data?.isGuest),
           };
         },
       },

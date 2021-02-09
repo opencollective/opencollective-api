@@ -78,7 +78,7 @@ describe('server/lib/email', () => {
         expect(nm.sendMail.lastCall.args[0].from).to.equal(options.from);
         expect(nm.sendMail.lastCall.args[0].to).to.equal('emailbcc+user1-at-opencollective.com@opencollective.com');
         expect(nm.sendMail.lastCall.args[0].subject).to.contain(
-          `Merci pour votre donation de ${amountStr}/mois à En Marche`,
+          `Merci pour votre contribution de ${amountStr}/mois à En Marche`,
         );
         expect(nm.sendMail.lastCall.args[0].html).to.contain('Merci pour continuer à nous soutenir');
         expect(nm.sendMail.lastCall.args[0].html).to.contain('donate');

@@ -487,6 +487,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
         savePaymentMethod: Boolean(!isGuest && order.paymentMethod?.save),
         isFeesOnTop: order.isFeesOnTop,
         guestToken, // For guest contributions, this token is a way to authenticate to confirm the order
+        isGuest,
       },
       status: orderStatus,
     };

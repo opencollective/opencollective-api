@@ -1,7 +1,7 @@
 {{#if interval }}
-Subject: Merci pour votre donation de {{currency order.totalAmount currency=order.currency}}/{{interval}} à {{collective.name}}
+Subject: Merci pour votre contribution de {{currency order.totalAmount currency=order.currency}}/{{interval}} à {{collective.name}}
 {{else}}
-Subject: Merci pour votre donation de {{currency order.totalAmount currency=order.currency}} à {{collective.name}}
+Subject: Merci pour votre contribution de {{currency order.totalAmount currency=order.currency}} à {{collective.name}}
 {{/if}}
 
 {{> header}}
@@ -15,16 +15,16 @@ Subject: Merci pour votre donation de {{currency order.totalAmount currency=orde
 {{/if}}
 
 {{#if interval}}
-<p>Nous venons de recevoir votre donation 1ère donation récurrente de {{currency order.totalAmount currency=order.currency}} par {{interval}}. Merci énormément pour votre engagement à nous aider dans la durée, votre don nous sera précieux pour faire de LaPrimaire.org un succès !</p>
+<p>Nous venons de recevoir votre 1ère contribution récurrente de {{currency order.totalAmount currency=order.currency}} par {{interval}}. Merci énormément pour votre engagement à nous aider dans la durée, votre don nous sera précieux pour faire de LaPrimaire.org un succès !</p>
 {{else}}
-<p>Merci pour votre donation de {{currency order.totalAmount currency=order.currency}}.
-  Votre don nous aidera à continuer nos activités.</p>
+<p>Merci pour votre contribution de {{currency order.totalAmount currency=order.currency}}.
+  Votre contribution nous aidera à continuer nos activités.</p>
 {{/if}}
 <p>Pour suivre l'utilisation qui est faite de votre argent, nous tenons des comptes transparents que vous pouvez consulter ici : <a href="https://laprimaire.org/transparence/">https://laprimaire.org/transparence/</a> (et très bientôt ici : <a href="https://opencollective.com/laprimaire">https://opencollective.com/laprimaire</a>).</p>
 
 {{#if subscriptionsLink}}
   <p>
-    Vous pouvez modifier ou annuler votre donation quand vous le souhaitez <a href="{{subscriptionsLink}}">ici</a>.
+    Vous pouvez modifier ou annuler votre contribution quand vous le souhaitez <a href="{{subscriptionsLink}}">ici</a>.
   </p>
 {{/if}}
 
@@ -33,6 +33,17 @@ Subject: Merci pour votre donation de {{currency order.totalAmount currency=orde
 <ul>
   <li>Un reçu de votre transaction au format PDF</li>
 </ul>
+{{/if}}
+
+{{#if order.isGuest}}
+<p>
+  {{#if order.interval}}
+    Pour gérer vos contributions récurrentes, <a href="{{config.host.website}}/signin?next={{fromCollective.slug}}/recurring-contributions">connectez-vous</a> et
+    rendez-vous sur votre page de profil.
+    <br/>
+  {{/if}}
+  Si vous avez besoin d'aide avec cette contribution, n'hésitez pas à contacter <a href="mailto:support@opencollective.com">le support</a>.
+</p>
 {{/if}}
 
 <p>Encore merci, votre preuve de confiance nous encourage et nous motive pour ne rien lacher et aller jusqu'au bout !</p>
