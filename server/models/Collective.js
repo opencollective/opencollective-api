@@ -2099,7 +2099,7 @@ export default function (Sequelize, DataTypes) {
    * @param {*} newHostCollective: { id }
    * @param {*} remoteUser { id }
    */
-  Collective.prototype.changeHost = async function (newHostCollectiveId, remoteUser, message) {
+  Collective.prototype.changeHost = async function (newHostCollectiveId, remoteUser, options) {
     // Skip
     if (this.HostCollectiveId == newHostCollectiveId) {
       return this;
@@ -2155,7 +2155,10 @@ export default function (Sequelize, DataTypes) {
       if (!newHostCollective.isHostAccount) {
         await newHostCollective.becomeHost({ remoteUser });
       }
-      return this.addHost(newHostCollective, remoteUser, { message });
+      return this.addHost(newHostCollective, remoteUser, {
+        message: options?.message,
+        applicationData: options?.applicationData,
+      });
     } else {
       // if we remove the host
       return this.save();
