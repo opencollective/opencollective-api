@@ -6024,7 +6024,7 @@
           "validations": []
         },
         {
-          "field": "usingVirtualCardFromCollective",
+          "field": "usingGiftCardFromCollective",
           "type": "Number",
           "defaultValue": null,
           "enums": null,
@@ -6034,7 +6034,7 @@
           "isRequired": false,
           "isSortable": true,
           "isVirtual": false,
-          "reference": "Collective.UsingVirtualCardFromCollectiveId",
+          "reference": "Collective.UsingGiftCardFromCollectiveId",
           "inverseOf": null,
           "relationship": "BelongsTo",
           "validations": []

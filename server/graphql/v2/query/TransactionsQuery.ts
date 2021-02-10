@@ -103,7 +103,7 @@ const TransactionsQuery = {
 
       where.push({
         [Op.or]: [
-          { UsingVirtualCardFromCollectiveId: fromAccount.id, type: 'CREDIT' },
+          { UsingGiftCardFromCollectiveId: fromAccount.id, type: 'CREDIT' },
           { FromCollectiveId: fromCollectiveCondition },
         ],
       });
@@ -111,7 +111,7 @@ const TransactionsQuery = {
     if (account) {
       const accountConditions = [
         { CollectiveId: account.id },
-        { UsingVirtualCardFromCollectiveId: account.id, type: 'DEBIT' },
+        { UsingGiftCardFromCollectiveId: account.id, type: 'DEBIT' },
       ];
 
       // When users are admins, also fetch their incognito contributions

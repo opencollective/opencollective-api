@@ -126,8 +126,8 @@ export function setupModels(client) {
     as: 'fromCollective',
   });
   m.Transaction.belongsTo(m.Collective, {
-    foreignKey: 'UsingVirtualCardFromCollectiveId',
-    as: 'usingVirtualCardFromCollective',
+    foreignKey: 'UsingGiftCardFromCollectiveId',
+    as: 'usingGiftCardFromCollective',
   });
 
   m.Transaction.belongsTo(m.User, {

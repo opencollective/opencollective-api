@@ -384,8 +384,8 @@ export default function (Sequelize, DataTypes) {
     if (user) {
       await user.populateRoles();
     }
-    // virtualcard monthlyLimitPerMember are calculated differently so the getBalance already returns the right result
-    if (this.type === 'virtualcard') {
+    // giftcard monthlyLimitPerMember are calculated differently so the getBalance already returns the right result
+    if (this.type === 'giftcard') {
       return getBalance(this);
     }
 
@@ -431,7 +431,7 @@ export default function (Sequelize, DataTypes) {
   };
 
   /**
-   * Returns the sum of the children PaymenMethod values (aka the virtual cards which
+   * Returns the sum of the children PaymenMethod values (aka the gift cards which
    * have `sourcePaymentMethod` set to this PM).
    */
   PaymentMethod.prototype.getChildrenPMTotalSum = async function () {
@@ -446,11 +446,11 @@ export default function (Sequelize, DataTypes) {
   };
 
   /**
-   * Check if virtual card is claimed.
+   * Check if gift card is claimed.
    * Always return true for other payment methods.
    */
   PaymentMethod.prototype.isConfirmed = function () {
-    return this.type !== 'virtualcard' || this.confirmedAt !== null;
+    return this.type !== 'giftcard' || this.confirmedAt !== null;
   };
 
   /**

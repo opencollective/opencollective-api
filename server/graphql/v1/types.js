@@ -19,7 +19,7 @@ import moment from 'moment';
 import intervals from '../../constants/intervals';
 import { maxInteger } from '../../constants/math';
 import orderStatus from '../../constants/order_status';
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPES } from '../../constants/paymentMethods';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE, PAYMENT_METHOD_TYPES } from '../../constants/paymentMethods';
 import roles from '../../constants/roles';
 import { getCollectiveAvatarUrl } from '../../lib/collectivelib';
 import { getContributorsForTier } from '../../lib/contributors';
@@ -272,19 +272,14 @@ export const StatsMemberType = new GraphQLObjectType({
       donationsThroughEmittedVirtualCards: {
         type: GraphQLInt,
         description: 'total amount donated by this member through gift cards',
-        resolve(member, args, req) {
-          return (
-            member.donationsThroughEmittedVirtualCards ||
-            req.loaders.Transaction.donationsThroughEmittedVirtualCardsFromTo.load({
-              FromCollectiveId: member.MemberCollectiveId,
-              CollectiveId: member.CollectiveId,
-            })
-          );
+        deprecationReason: '2021-02-08: Not used anymore. Virtual cards have been renamed to gift cards',
+        resolve() {
+          return 0;
         },
       },
       totalDonations: {
         type: GraphQLInt,
-        description: 'total amount donated by this member either directly or using a virtual card it has emitted',
+        description: 'total amount donated by this member either directly or using a gift card it has emitted',
         resolve(member, args, req) {
           return (
             member.totalDonations ||
@@ -727,7 +722,7 @@ export const InvoiceType = new GraphQLObjectType({
           const where = {
             [Op.or]: {
               FromCollectiveId: invoice.FromCollectiveId,
-              UsingVirtualCardFromCollectiveId: invoice.FromCollectiveId,
+              UsingGiftCardFromCollectiveId: invoice.FromCollectiveId,
             },
             type: 'CREDIT',
             createdAt: { [Op.gte]: invoice.dateFrom, [Op.lt]: invoice.dateTo },
@@ -1886,8 +1881,9 @@ export const PaymentMethodType = new GraphQLObjectType({
       uuid: {
         type: GraphQLString,
         resolve(paymentMethod, _, req) {
-          const isUnconfirmedVirtualCard = paymentMethod.type === 'virtualcard' && !paymentMethod.confirmedAt;
-          if (isUnconfirmedVirtualCard && (!req.remoteUser || !req.remoteUser.isAdmin(paymentMethod.CollectiveId))) {
+          const isUnconfirmedGiftCard =
+            paymentMethod.type === PAYMENT_METHOD_TYPE.GIFT_CARD && !paymentMethod.confirmedAt;
+          if (isUnconfirmedGiftCard && (!req.remoteUser || !req.remoteUser.isAdmin(paymentMethod.CollectiveId))) {
             return null;
           }
 
@@ -1902,7 +1898,7 @@ export const PaymentMethodType = new GraphQLObjectType({
       },
       isConfirmed: {
         type: GraphQLBoolean,
-        description: 'Will be true for virtual card if claimed. Always true for other payment methods.',
+        description: 'Will be true for gift card if claimed. Always true for other payment methods.',
         resolve(paymentMethod) {
           return paymentMethod.isConfirmed();
         },
@@ -1943,8 +1939,8 @@ export const PaymentMethodType = new GraphQLObjectType({
             return null;
           }
 
-          // Protect and whitelist fields for virtualcard
-          if (paymentMethod.type === 'virtualcard') {
+          // Protect and whitelist fields for gift cards
+          if (paymentMethod.type === PAYMENT_METHOD_TYPE.GIFT_CARD) {
             if (!req.remoteUser || !req.remoteUser.isAdmin(paymentMethod.CollectiveId)) {
               return null;
             }

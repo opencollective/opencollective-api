@@ -73,7 +73,7 @@ export const COLLECTIVE_SETTINGS_KEYS_LIST = [
   'twitter',
   'VAT',
   'GST',
-  'virtualCardsMaxDailyCount',
+  'giftCardsMaxDailyCount',
   'W9',
 ];
 

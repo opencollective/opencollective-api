@@ -56,7 +56,11 @@ export const TransactionInterfaceType = new GraphQLInterfaceType({
       host: { type: CollectiveInterfaceType },
       paymentMethod: { type: PaymentMethodType },
       fromCollective: { type: CollectiveInterfaceType },
-      usingVirtualCardFromCollective: { type: CollectiveInterfaceType },
+      usingVirtualCardFromCollective: {
+        type: CollectiveInterfaceType,
+        deprecationReason: '2021-02-08: Renamed to usingGiftCardFromCollective',
+      },
+      usingGiftCardFromCollective: { type: CollectiveInterfaceType },
       collective: { type: CollectiveInterfaceType },
       type: { type: GraphQLString },
       description: { type: GraphQLString },
@@ -223,14 +227,29 @@ const TransactionFields = () => {
     },
     usingVirtualCardFromCollective: {
       type: CollectiveInterfaceType,
+      deprecationReason: '2021-02-08: Renamed to usingGiftCardFromCollective',
       resolve(transaction) {
-        // If it's a sequelize model transaction, it means it has the method getVirtualCardEmitterCollective
-        // otherwise we find the collective by id if transactions has UsingVirtualCardFromCollectiveId, if not we return null
-        if (transaction && transaction.getVirtualCardEmitterCollective) {
-          return transaction.getVirtualCardEmitterCollective();
+        // If it's a sequelize model transaction, it means it has the method getGiftCardEmitterCollective
+        // otherwise we find the collective by id if transactions has UsingGiftCardFromCollectiveId, if not we return null
+        if (transaction && transaction.getGiftCardEmitterCollective) {
+          return transaction.getGiftCardEmitterCollective();
         }
-        if (transaction && transaction.UsingVirtualCardFromCollectiveId) {
-          return models.Collective.findByPk(transaction.UsingVirtualCardFromCollectiveId);
+        if (transaction && transaction.UsingGiftCardFromCollectiveId) {
+          return models.Collective.findByPk(transaction.UsingGiftCardFromCollectiveId);
+        }
+        return null;
+      },
+    },
+    usingGiftCardFromCollective: {
+      type: CollectiveInterfaceType,
+      resolve(transaction) {
+        // If it's a sequelize model transaction, it means it has the method getGiftCardEmitterCollective
+        // otherwise we find the collective by id if transactions has UsingGiftCardFromCollectiveId, if not we return null
+        if (transaction && transaction.getGiftCardEmitterCollective) {
+          return transaction.getGiftCardEmitterCollective();
+        }
+        if (transaction && transaction.UsingGiftCardFromCollectiveId) {
+          return models.Collective.findByPk(transaction.UsingGiftCardFromCollectiveId);
         }
         return null;
       },

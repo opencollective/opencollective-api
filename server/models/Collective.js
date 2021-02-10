@@ -2515,7 +2515,7 @@ export default function (Sequelize, DataTypes) {
 
   /**
    * Get the total amount spent by this collective, either directly or by
-   * others through generated VirtualCards.
+   * others through generated gift cards.
    */
   Collective.prototype.getTotalAmountSpent = function (startDate, endDate) {
     endDate = endDate || new Date();
@@ -2533,7 +2533,7 @@ export default function (Sequelize, DataTypes) {
         ExpenseId: null,
         [Op.or]: {
           CollectiveId: this.id,
-          UsingVirtualCardFromCollectiveId: this.id,
+          UsingGiftCardFromCollectiveId: this.id,
         },
       },
       raw: true,
@@ -2564,24 +2564,21 @@ export default function (Sequelize, DataTypes) {
   /**
    * A sequelize OR condition that will select all collective transactions:
    * - Debit transactions made by collective
-   * - Debit transactions made using a virtual card from collective
+   * - Debit transactions made using a gift card from collective
    * - Credit transactions made to collective
    *
-   * @param {bool} includeUsedVirtualCardsEmittedByOthers will remove transactions using virtual
+   * @param {bool} includeUsedGiftCardsEmittedByOthers will remove transactions using gift
    *  cards from other collectives when set to false.
    */
-  Collective.prototype.transactionsWhereQuery = function (includeUsedVirtualCardsEmittedByOthers = true) {
-    const debitTransactionOrQuery = includeUsedVirtualCardsEmittedByOthers
+  Collective.prototype.transactionsWhereQuery = function (includeUsedGiftCardsEmittedByOthers = true) {
+    const debitTransactionOrQuery = includeUsedGiftCardsEmittedByOthers
       ? // Include all transactions made by this collective or using one of its
-        // virtual cards
-        { CollectiveId: this.id, UsingVirtualCardFromCollectiveId: this.id }
-      : // Either Collective made the transaction without using a virtual card,
-        // or a transaction was made using one of its virtual cards - but don't
-        // include virtual cards used emitted by other collectives
-        [
-          { CollectiveId: this.id, UsingVirtualCardFromCollectiveId: null },
-          { UsingVirtualCardFromCollectiveId: this.id },
-        ];
+        // gift cards
+        { CollectiveId: this.id, UsingGiftCardFromCollectiveId: this.id }
+      : // Either Collective made the transaction without using a gift card,
+        // or a transaction was made using one of its gift cards - but don't
+        // include gift cards used emitted by other collectives
+        [{ CollectiveId: this.id, UsingGiftCardFromCollectiveId: null }, { UsingGiftCardFromCollectiveId: this.id }];
 
     return {
       [Op.or]: [
@@ -2611,11 +2608,11 @@ export default function (Sequelize, DataTypes) {
     limit,
     attributes,
     order = [['createdAt', 'DESC']],
-    includeUsedVirtualCardsEmittedByOthers = true,
+    includeUsedGiftCardsEmittedByOthers = true,
     includeExpenseTransactions = true,
   }) {
     // Base query
-    const query = { where: this.transactionsWhereQuery(includeUsedVirtualCardsEmittedByOthers) };
+    const query = { where: this.transactionsWhereQuery(includeUsedGiftCardsEmittedByOthers) };
 
     // Select attributes
     if (attributes) {

@@ -280,8 +280,8 @@ export const TransactionFields = () => {
       type: Account,
       description: 'Account that emitted the gift card used for this transaction (if any)',
       async resolve(transaction, _, req) {
-        return transaction.UsingVirtualCardFromCollectiveId
-          ? await req.loaders.Collective.byId.load(transaction.UsingVirtualCardFromCollectiveId)
+        return transaction.UsingGiftCardFromCollectiveId
+          ? await req.loaders.Collective.byId.load(transaction.UsingGiftCardFromCollectiveId)
           : null;
       },
     },

@@ -5,6 +5,7 @@ import { isEmail } from 'validator';
 
 import { roles } from '../../constants';
 import { types as CollectiveTypes } from '../../constants/collectives';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import { fetchCollectiveId } from '../../lib/cache';
 import { getConsolidatedInvoicesData } from '../../lib/pdf';
 import rawQueries from '../../lib/queries';
@@ -157,8 +158,8 @@ const queries = {
 
       const where = {
         [Op.or]: [
-          { FromCollectiveId: fromCollective.id, UsingVirtualCardFromCollectiveId: null },
-          { UsingVirtualCardFromCollectiveId: fromCollective.id },
+          { FromCollectiveId: fromCollective.id, UsingGiftCardFromCollectiveId: null },
+          { UsingGiftCardFromCollectiveId: fromCollective.id },
         ],
         HostCollectiveId: host.id,
         createdAt: { [Op.gte]: startsAt, [Op.lt]: endsAt },
@@ -237,8 +238,8 @@ const queries = {
 
       const where = {
         [Op.or]: [
-          { FromCollectiveId: fromCollective.id, UsingVirtualCardFromCollectiveId: null },
-          { UsingVirtualCardFromCollectiveId: fromCollective.id },
+          { FromCollectiveId: fromCollective.id, UsingGiftCardFromCollectiveId: null },
+          { UsingGiftCardFromCollectiveId: fromCollective.id },
         ],
         HostCollectiveId: host.id,
         createdAt: { [Op.gte]: dateFrom, [Op.lte]: dateTo },
@@ -292,7 +293,7 @@ const queries = {
         throw new NotFound(`Transaction ${args.transactionUuid} doesn't exists`);
       }
 
-      // If using a virtualcard, then billed collective will be the emitter
+      // If using a gift card, then billed collective will be the emitter
       const fromCollectiveId = transaction.paymentMethodProviderCollectiveId();
 
       // Load transaction host
@@ -329,8 +330,8 @@ const queries = {
     type: new GraphQLList(TransactionInterfaceType),
     description: `
     Given a collective, returns all its transactions:
-    - Debit transactions made by collective without using a virtual card
-    - Debit transactions made using a virtual card from collective
+    - Debit transactions made by collective without using a gift card
+    - Debit transactions made using a gift card from collective
     - Credit transactions made to collective
     `,
     args: {
@@ -341,8 +342,6 @@ const queries = {
       offset: { type: GraphQLInt },
       dateFrom: { type: GraphQLString },
       dateTo: { type: GraphQLString },
-      /** @deprecated since 2018-11-29: Virtual cards now included by default when necessary */
-      includeVirtualCards: { type: GraphQLBoolean },
       includeExpenseTransactions: {
         type: GraphQLBoolean,
         default: true,
@@ -1216,8 +1215,8 @@ const queries = {
             sequelize.where(sequelize.cast(sequelize.col('uuid'), 'text'), {
               [Op.like]: `${args.code}%`,
             }),
-            { service: 'opencollective' },
-            { type: 'virtualcard' },
+            { service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE },
+            { type: PAYMENT_METHOD_TYPE.GIFT_CARD },
           ),
         });
       } else {

@@ -254,7 +254,7 @@ const accountFieldsDefinition = () => ({
     args: {
       types: {
         type: new GraphQLList(GraphQLString),
-        description: 'Filter on given types (creditcard, virtualcard...)',
+        description: 'Filter on given types (creditcard, giftcard...)',
       },
       includeExpired: {
         type: GraphQLBoolean,
@@ -561,6 +561,7 @@ export const AccountFields = {
   paymentMethods: {
     type: new GraphQLNonNull(new GraphQLList(PaymentMethod)),
     args: {
+      // TODO: Should filter by providerType
       types: { type: new GraphQLList(GraphQLString) },
       includeExpired: {
         type: GraphQLBoolean,
@@ -571,10 +572,12 @@ export const AccountFields = {
     description: 'The list of payment methods that this collective can use to pay for Orders',
     async resolve(collective, args, req) {
       const now = new Date();
+      // @deprecated 2021-02-08: virtualcard renamed to giftcard
+      const types = args.types?.map(type => (type === 'virtualcard' ? 'giftcard' : type));
       const paymentMethods = await req.loaders.PaymentMethod.findByCollectiveId.load(collective.id);
 
       return paymentMethods.filter(pm => {
-        if (args.types && !args.types.includes(pm.type)) {
+        if (types && !types.includes(pm.type)) {
           return false;
         } else if (pm.data?.hidden) {
           return false;

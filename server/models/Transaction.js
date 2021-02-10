@@ -96,13 +96,13 @@ export default (Sequelize, DataTypes) => {
         allowNull: true, // the opposite transaction that records the CREDIT to the User that submitted an expense doesn't have a HostCollectiveId, see https://github.com/opencollective/opencollective/issues/1154
       },
 
-      UsingVirtualCardFromCollectiveId: {
+      UsingGiftCardFromCollectiveId: {
         type: DataTypes.INTEGER,
         references: { model: 'Collectives', key: 'id' },
         onDelete: 'SET NULL',
         onUpdate: 'CASCADE',
         allowNull: true,
-        description: 'References the collective that created the virtual card used for this order',
+        description: 'References the collective that created the gift card used for this order',
       },
 
       OrderId: {
@@ -216,7 +216,7 @@ export default (Sequelize, DataTypes) => {
             CreatedByUserId: this.CreatedByUserId,
             FromCollectiveId: this.FromCollectiveId,
             CollectiveId: this.CollectiveId,
-            UsingVirtualCardFromCollectiveId: this.UsingVirtualCardFromCollectiveId,
+            UsingGiftCardFromCollectiveId: this.UsingGiftCardFromCollectiveId,
             platformFee: this.platformFee,
             platformFeeInHostCurrency: this.platformFeeInHostCurrency,
             hostFee: this.hostFee,
@@ -251,9 +251,9 @@ export default (Sequelize, DataTypes) => {
     return models.User.findByPk(this.CreatedByUserId);
   };
 
-  Transaction.prototype.getVirtualCardEmitterCollective = function () {
-    if (this.UsingVirtualCardFromCollectiveId) {
-      return models.Collective.findByPk(this.UsingVirtualCardFromCollectiveId);
+  Transaction.prototype.getGiftCardEmitterCollective = function () {
+    if (this.UsingGiftCardFromCollectiveId) {
+      return models.Collective.findByPk(this.UsingGiftCardFromCollectiveId);
     }
   };
 
@@ -278,12 +278,12 @@ export default (Sequelize, DataTypes) => {
 
   /**
    * Returns the transaction payment method provider collective ID, which is
-   * either the virtual card provider if using a virtual card or
+   * either the gift card provider if using a gift card or
    * `CollectiveId` otherwise.
    */
   Transaction.prototype.paymentMethodProviderCollectiveId = function () {
-    if (this.UsingVirtualCardFromCollectiveId) {
-      return this.UsingVirtualCardFromCollectiveId;
+    if (this.UsingGiftCardFromCollectiveId) {
+      return this.UsingGiftCardFromCollectiveId;
     }
     return this.type === 'DEBIT' ? this.CollectiveId : this.FromCollectiveId;
   };
