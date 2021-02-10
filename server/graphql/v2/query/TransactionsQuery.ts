@@ -172,8 +172,8 @@ const TransactionsQuery = {
     if (args.dateTo) {
       where.push({ createdAt: { [Op.lte]: args.dateTo } });
     }
-    if (args.hasExpense) {
-      where.push({ ExpenseId: { [Op.ne]: null } });
+    if (args.hasExpense !== undefined) {
+      where.push({ ExpenseId: { [args.hasExpense ? Op.ne : Op.eq]: null } });
     }
     if (args.hasOrder) {
       where.push({ OrderId: { [Op.ne]: null } });
