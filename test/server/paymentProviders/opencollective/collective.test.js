@@ -240,7 +240,17 @@ describe('server/paymentProviders/opencollective/collective', () => {
       // Then there should be Errors for the Result of the query without any user defined as param
       expect(res.errors).to.exist;
       expect(res.errors).to.not.be.empty;
-      expect(res.errors[0].message).to.contain('You need to be logged in to be able to use an existing payment method');
+      expect(res.errors[0].message).to.contain('You need to be logged in to specify a contributing profile');
+
+      // Logged out - no fromCollective
+      const resWithoutFromCollective = await utils.graphqlQuery(createOrderMutation, {
+        order: { ...order, fromCollective: null, guestInfo: { email: store.randEmail() } },
+      });
+      expect(resWithoutFromCollective.errors).to.exist;
+      expect(resWithoutFromCollective.errors).to.not.be.empty;
+      expect(resWithoutFromCollective.errors[0].message).to.contain(
+        'You need to be logged in to be able to use an existing payment method',
+      );
 
       // Then there should also be Errors for the Result of the query through user2
       expect(resWithUserParam.errors).to.exist;

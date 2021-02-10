@@ -340,7 +340,6 @@ export async function sendArchivedCollectiveEmail(order) {
       order: order.info,
       collective: order.collective.info,
       fromCollective: order.fromCollective.minimal,
-      subscriptionsLink: user.generateLoginLink(`/${order.fromCollective.slug}/recurring-contributions`),
     },
     {
       from: `${order.collective.name} <no-reply@${order.collective.slug}.opencollective.com>`,
