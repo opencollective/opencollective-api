@@ -168,6 +168,7 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
       'HostCollectiveId',
       'PaymentMethodId',
       'OrderId',
+      'ExpenseId',
       'hostCurrencyFxRate',
       'hostCurrency',
       'hostFeeInHostCurrency',
