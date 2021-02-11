@@ -5,7 +5,10 @@ import emailLib from '../lib/email';
 import errors from '../lib/errors';
 import logger from '../lib/logger';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../lib/rate-limit';
-import { verifyTwoFactorAuthenticatorCode } from '../lib/two-factor-authentication';
+import {
+  verifyTwoFactorAuthenticationRecoveryCode,
+  verifyTwoFactorAuthenticatorCode,
+} from '../lib/two-factor-authentication';
 import { isValidEmail } from '../lib/utils';
 import models from '../models';
 
@@ -92,11 +95,10 @@ export const updateToken = async (req, res) => {
 };
 
 /**
- * Verify the 2FA code the user has entered when
- * logging in and send back another JWT.
+ * Verify the 2FA code or recovery code the user has entered when logging in and send back another JWT.
  */
 export const twoFactorAuthAndUpdateToken = async (req, res, next) => {
-  const { twoFactorAuthenticatorCode } = req.body;
+  const { twoFactorAuthenticatorCode, recoveryCode } = req.body;
 
   const userId = Number(req.jwtPayload.sub);
   const user = await User.findByPk(userId);
@@ -106,11 +108,25 @@ export const twoFactorAuthAndUpdateToken = async (req, res, next) => {
     return;
   }
 
-  // we need to verify the 2FA code before returning the token
-  const verified = verifyTwoFactorAuthenticatorCode(user.twoFactorAuthToken, twoFactorAuthenticatorCode);
-  if (!verified) {
-    return next(new Unauthorized('Two-factor authentication code failed. Please try again'));
+  if (twoFactorAuthenticatorCode) {
+    // if there is a 2FA code, we need to verify it before returning the token
+    const verified = verifyTwoFactorAuthenticatorCode(user.twoFactorAuthToken, twoFactorAuthenticatorCode);
+    if (!verified) {
+      return next(new Unauthorized('Two-factor authentication code failed. Please try again'));
+    }
+  } else if (recoveryCode) {
+    // or if there is a recovery code try to verify it
+    const { twoFactorAuthRecoveryCodes } = user;
+    const validatedRemainingRecoveryCodes = verifyTwoFactorAuthenticationRecoveryCode(
+      recoveryCode,
+      twoFactorAuthRecoveryCodes,
+    );
+    if (!validatedRemainingRecoveryCodes) {
+      return next(new Unauthorized('Two-factor authentication recovery code failed. Please try again'));
+    }
+    await user.update({ twoFactorAuthRecoveryCodes: validatedRemainingRecoveryCodes });
   }
+
   const token = user.jwt({}, auth.TOKEN_EXPIRATION_SESSION);
   res.send({ token: token });
 };

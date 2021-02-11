@@ -22,6 +22,20 @@ export function verifyTwoFactorAuthenticatorCode(encryptedTwoFactorAuthToken, tw
   return verified;
 }
 
+/** Verifies a submitted recovery code against the hashed ones saved for them in the DB.
+ * If the recovery code is valid, it returns the remaining recovery codes to update the user with.
+ * If the recovery code is not valid, it returns null so we can throw an error.
+ */
+export function verifyTwoFactorAuthenticationRecoveryCode(recoveryCode, hashedRecoveryCodes) {
+  const verified = hashedRecoveryCodes.includes(crypto.hash(recoveryCode));
+  if (verified) {
+    return hashedRecoveryCodes.filter(code => crypto.hash(recoveryCode) !== code);
+  } else {
+    return null;
+  }
+}
+
+/** Host 2FA rolling limit functions*/
 const getTwoFactorAuthenticationLimitKey = userId => {
   return `${userId}_2fa_payment_limit`;
 };
