@@ -358,21 +358,23 @@ export async function run() {
         console.error(`Warning: We don't have a way to submit the expense to ${HostName}, ignoring.\n`);
         continue;
       }
-      // Credit the Host with platform tips collected during the month
-      await models.Transaction.create({
-        amount: totalAmountCredited,
-        amountInHostCurrency: totalAmountCredited,
-        CollectiveId: chargedHostId,
-        CreatedByUserId: SETTLEMENT_EXPENSE_PROPERTIES.UserId,
-        currency: currency,
-        description: `Platform Fees and Tips collected in ${moment.utc().subtract(1, 'month').format('MMMM')}`,
-        FromCollectiveId: chargedHostId,
-        HostCollectiveId: hostId,
-        hostCurrency: currency,
-        hostCurrencyFxRate: 1,
-        netAmountInCollectiveCurrency: totalAmountCredited,
-        type: TransactionTypes.CREDIT,
-      });
+      if (totalAmountCharged > 0) {
+        // Credit the Host with platform tips collected during the month
+        await models.Transaction.create({
+          amount: totalAmountCredited,
+          amountInHostCurrency: totalAmountCredited,
+          CollectiveId: chargedHostId,
+          CreatedByUserId: SETTLEMENT_EXPENSE_PROPERTIES.UserId,
+          currency: currency,
+          description: `Platform Fees and Tips collected in ${moment.utc().subtract(1, 'month').format('MMMM')}`,
+          FromCollectiveId: chargedHostId,
+          HostCollectiveId: hostId,
+          hostCurrency: currency,
+          hostCurrencyFxRate: 1,
+          netAmountInCollectiveCurrency: totalAmountCredited,
+          type: TransactionTypes.CREDIT,
+        });
+      }
 
       const connectedAccounts = await host.getConnectedAccounts({
         where: { deletedAt: null },
