@@ -40,5 +40,8 @@
   },
   "pdfService": {
     "fetchTransactionsReceipts": true
+  },
+  "privacy": {
+    "apiUrl": "https://api.privacy.com"
   }
 }
