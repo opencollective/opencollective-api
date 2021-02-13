@@ -187,6 +187,7 @@ export const SUPPORTED_CURRENCIES = [
   'ISK',
   'JPY',
   'MXN',
+  'MYR',
   'NGN',
   'NOK',
   'NZD',
