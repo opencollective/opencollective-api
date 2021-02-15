@@ -2500,9 +2500,10 @@ export default function (Sequelize, DataTypes) {
   Collective.prototype.getTotalAmountReceived = function (startDate, endDate) {
     endDate = endDate || new Date();
     const where = {
-      amount: { [Op.gt]: 0 },
+      type: 'CREDIT',
       createdAt: { [Op.lt]: endDate },
       CollectiveId: this.id,
+      RefundTransactionId: { [Op.is]: null }, // Exclude refunded transactions
     };
     if (startDate) {
       where.createdAt[Op.gte] = startDate;
@@ -2510,15 +2511,16 @@ export default function (Sequelize, DataTypes) {
     return models.Transaction.findOne({
       attributes: [[Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('amount')), 0), 'total']],
       where,
-    }).then(result => Promise.resolve(parseInt(result.toJSON().total, 10)));
+    }).then(result => parseInt(result.dataValues.total, 10));
   };
 
   Collective.prototype.getTotalNetAmountReceived = function (startDate, endDate) {
     endDate = endDate || new Date();
     const where = {
-      netAmountInCollectiveCurrency: { [Op.gt]: 0 },
+      type: 'CREDIT',
       createdAt: { [Op.lt]: endDate },
       CollectiveId: this.id,
+      RefundTransactionId: { [Op.is]: null }, // Exclude refunded transactions
     };
     if (startDate) {
       where.createdAt[Op.gte] = startDate;
@@ -2528,7 +2530,7 @@ export default function (Sequelize, DataTypes) {
         [Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('netAmountInCollectiveCurrency')), 0), 'total'],
       ],
       where,
-    }).then(result => Promise.resolve(parseInt(result.toJSON().total, 10)));
+    }).then(result => parseInt(result.dataValues.total, 10));
   };
 
   /**
