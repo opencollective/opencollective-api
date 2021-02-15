@@ -2513,6 +2513,24 @@ export default function (Sequelize, DataTypes) {
     }).then(result => Promise.resolve(parseInt(result.toJSON().total, 10)));
   };
 
+  Collective.prototype.getTotalNetAmountReceived = function (startDate, endDate) {
+    endDate = endDate || new Date();
+    const where = {
+      netAmountInCollectiveCurrency: { [Op.gt]: 0 },
+      createdAt: { [Op.lt]: endDate },
+      CollectiveId: this.id,
+    };
+    if (startDate) {
+      where.createdAt[Op.gte] = startDate;
+    }
+    return models.Transaction.findOne({
+      attributes: [
+        [Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('netAmountInCollectiveCurrency')), 0), 'total'],
+      ],
+      where,
+    }).then(result => Promise.resolve(parseInt(result.toJSON().total, 10)));
+  };
+
   /**
    * Get the total amount spent by this collective, either directly or by
    * others through generated gift cards.
