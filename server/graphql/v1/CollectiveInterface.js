@@ -482,7 +482,7 @@ export const CollectiveStatsType = new GraphQLObjectType({
         },
       },
       totalAmountReceived: {
-        description: 'Net amount received',
+        description: 'Total amount received',
         type: GraphQLInt,
         args: {
           startDate: { type: DateString },
@@ -502,6 +502,13 @@ export const CollectiveStatsType = new GraphQLObjectType({
           }
 
           return collective.getTotalAmountReceived(startDate, endDate);
+        },
+      },
+      totalNetAmountReceived: {
+        description: 'Total net amount received',
+        type: GraphQLInt,
+        resolve(collective) {
+          return collective.getTotalNetAmountReceived();
         },
       },
       yearlyBudget: {
