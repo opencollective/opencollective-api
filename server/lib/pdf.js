@@ -38,9 +38,12 @@ export const getConsolidatedInvoicesData = async fromCollective => {
   const transactions = await models.Transaction.findAll({
     attributes: ['createdAt', 'HostCollectiveId', 'amountInHostCurrency', 'hostCurrency', 'CollectiveId'],
     where: {
-      type: 'CREDIT',
       CollectiveId: { [Op.not]: fromCollective.id },
+      ExpenseId: { [Op.eq]: null },
+      // createdAt: { [Op.lt]: moment().startOf('month') },
       [Op.or]: [
+        { FromCollectiveId: fromCollective.id, type: 'DEBIT', isRefund: true },
+        { FromCollectiveId: fromCollective.id, type: 'CREDIT' },
         { FromCollectiveId: fromCollective.id, UsingGiftCardFromCollectiveId: null },
         { UsingGiftCardFromCollectiveId: fromCollective.id },
       ],
@@ -51,15 +54,17 @@ export const getConsolidatedInvoicesData = async fromCollective => {
   const invoicesByKey = {};
   let invoices = [];
 
+  console.log(JSON.stringify(transactions, null, 2));
+
   for (const transaction of transactions) {
     const HostCollectiveId = transaction.HostCollectiveId;
     if (!HostCollectiveId) {
       continue;
     }
 
-    if (moment(transaction.createdAt).isSame(new Date(), 'month')) {
-      continue;
-    }
+    // if (moment(transaction.createdAt).isSame(new Date(), 'month')) {
+    //   continue;
+    // }
 
     if (!hostsById[HostCollectiveId]) {
       hostsById[HostCollectiveId] = await models.Collective.findByPk(HostCollectiveId, {
