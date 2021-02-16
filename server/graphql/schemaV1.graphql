@@ -273,26 +273,7 @@ type Collective implements CollectiveInterface {
   """
   List all the gift cards batches emitted by this collective. May include `null` for unbatched gift cards.
   """
-  virtualCardsBatches: [PaymentMethodBatchInfo] @deprecated(reason: "2020-02-05: Use giftCardsBatches")
-
-  """
-  List all the gift cards batches emitted by this collective. May include `null` for unbatched gift cards.
-  """
   giftCardsBatches: [PaymentMethodBatchInfo]
-
-  """
-  Get the gift cards created by this collective. RemoteUser must be a collective admin.
-  """
-  createdVirtualCards(
-    limit: Int
-    offset: Int
-    batch: String
-
-    """
-    Wether the gift card has been claimed or not
-    """
-    isConfirmed: Boolean
-  ): PaginatedPaymentMethod @deprecated(reason: "2020-02-05: Use createdGiftCards")
 
   """
   Get the gift cards created by this collective. RemoteUser must be a collective admin.
@@ -629,22 +610,7 @@ interface CollectiveInterface {
   """
   List all the gift cards batches emitted by this collective. May include `null` as key for unbatched gift cards.
   """
-  virtualCardsBatches: [PaymentMethodBatchInfo] @deprecated(reason: "2021-02-08: Renamed to giftCardBatches")
-
-  """
-  List all the gift cards batches emitted by this collective. May include `null` as key for unbatched gift cards.
-  """
   giftCardsBatches: [PaymentMethodBatchInfo]
-  createdVirtualCards(
-    limit: Int
-    offset: Int
-    batch: String
-
-    """
-    Wether the gift card has been claimed or not
-    """
-    isConfirmed: Boolean
-  ): PaginatedPaymentMethod @deprecated(reason: "2021-02-08: Renamed to giftCardBatches")
   createdGiftCards(
     limit: Int
     offset: Int
@@ -804,7 +770,7 @@ type CollectiveStatsType {
   totalAmountSpent: Int
 
   """
-  Net amount received
+  Total amount received
   """
   totalAmountReceived(
     startDate: DateString
@@ -815,6 +781,11 @@ type CollectiveStatsType {
     """
     periodInMonths: Int
   ): Int
+
+  """
+  Total net amount received
+  """
+  totalNetAmountReceived: Int
   yearlyBudget: Int
   yearlyBudgetManaged: Int
   topFundingSources: JSON @deprecated(reason: "2021-01-29: Not used anymore")
@@ -1267,26 +1238,7 @@ type Event implements CollectiveInterface {
   """
   List all the gift cards batches emitted by this collective. May include `null` for unbatched gift cards.
   """
-  virtualCardsBatches: [PaymentMethodBatchInfo] @deprecated(reason: "2020-02-05: Use giftCardsBatches")
-
-  """
-  List all the gift cards batches emitted by this collective. May include `null` for unbatched gift cards.
-  """
   giftCardsBatches: [PaymentMethodBatchInfo]
-
-  """
-  Get the gift cards created by this collective. RemoteUser must be a collective admin.
-  """
-  createdVirtualCards(
-    limit: Int
-    offset: Int
-    batch: String
-
-    """
-    Wether the gift card has been claimed or not
-    """
-    isConfirmed: Boolean
-  ): PaginatedPaymentMethod @deprecated(reason: "2020-02-05: Use createdGiftCards")
 
   """
   Get the gift cards created by this collective. RemoteUser must be a collective admin.
@@ -1360,8 +1312,6 @@ type Expense implements Transaction {
   host: User
   createdByUser: UserDetails
   fromCollective: CollectiveInterface
-  usingVirtualCardFromCollective: CollectiveInterface
-    @deprecated(reason: "2021-02-08: Renamed to usingGiftCardFromCollective")
   usingGiftCardFromCollective: CollectiveInterface
   collective: CollectiveInterface
   createdAt: DateString
@@ -1655,26 +1605,7 @@ type Fund implements CollectiveInterface {
   """
   List all the gift cards batches emitted by this collective. May include `null` for unbatched gift cards.
   """
-  virtualCardsBatches: [PaymentMethodBatchInfo] @deprecated(reason: "2020-02-05: Use giftCardsBatches")
-
-  """
-  List all the gift cards batches emitted by this collective. May include `null` for unbatched gift cards.
-  """
   giftCardsBatches: [PaymentMethodBatchInfo]
-
-  """
-  Get the gift cards created by this collective. RemoteUser must be a collective admin.
-  """
-  createdVirtualCards(
-    limit: Int
-    offset: Int
-    batch: String
-
-    """
-    Wether the gift card has been claimed or not
-    """
-    isConfirmed: Boolean
-  ): PaginatedPaymentMethod @deprecated(reason: "2020-02-05: Use createdGiftCards")
 
   """
   Get the gift cards created by this collective. RemoteUser must be a collective admin.
@@ -2064,67 +1995,6 @@ type Mutation {
     token: String!
     data: StripeCreditCardDataInputType!
   ): PaymentMethodType
-  createVirtualCards(
-    CollectiveId: Int!
-    PaymentMethodId: Int
-
-    """
-    A list of emails to generate gift cards for (only if numberOfVirtualCards is not provided)
-    """
-    emails: [String]
-
-    """
-    Number of gift cards to generate (only if emails is not provided)
-    """
-    numberOfVirtualCards: Int
-
-    """
-    An optional currency. If not provided, will use the collective currency.
-    """
-    currency: String
-
-    """
-    The amount as an Integer with cents.
-    """
-    amount: Int
-
-    """
-    Batch name for the created gift cards.
-    """
-    batch: String
-    monthlyLimitPerMember: Int
-
-    """
-    Limit this payment method to make donations to collectives having those tags
-    """
-    limitedToTags: [String]
-
-    """
-    Limit this payment method to make donations to those collectives
-    """
-    limitedToCollectiveIds: [Int]
-
-    """
-    Limit this payment method to make donations to the collectives hosted by those hosts
-    """
-    limitedToHostCollectiveIds: [Int]
-
-    """
-    Set `limitedToHostCollectiveIds` to open-source collectives only
-    """
-    limitedToOpenSourceCollectives: Boolean
-
-    """
-    A custom message attached to the email that will be sent for this gift card
-    """
-    description: String
-
-    """
-    A custom message that will be sent in the invitation email
-    """
-    customMessage: String
-    expiryDate: String
-  ): [PaymentMethodType] @deprecated(reason: "2021-02-08: Renamed to createGiftCards")
   createGiftCards(
     CollectiveId: Int!
     PaymentMethodId: Int
@@ -2378,8 +2248,6 @@ type Order implements Transaction {
   host: User
   createdByUser: UserDetails
   fromCollective: CollectiveInterface
-  usingVirtualCardFromCollective: CollectiveInterface
-    @deprecated(reason: "2021-02-08: Renamed to usingGiftCardFromCollective")
   usingGiftCardFromCollective: CollectiveInterface
   collective: CollectiveInterface
   createdAt: DateString
@@ -2764,26 +2632,7 @@ type Organization implements CollectiveInterface {
   """
   List all the gift cards batches emitted by this collective. May include `null` for unbatched gift cards.
   """
-  virtualCardsBatches: [PaymentMethodBatchInfo] @deprecated(reason: "2020-02-05: Use giftCardsBatches")
-
-  """
-  List all the gift cards batches emitted by this collective. May include `null` for unbatched gift cards.
-  """
   giftCardsBatches: [PaymentMethodBatchInfo]
-
-  """
-  Get the gift cards created by this collective. RemoteUser must be a collective admin.
-  """
-  createdVirtualCards(
-    limit: Int
-    offset: Int
-    batch: String
-
-    """
-    Wether the gift card has been claimed or not
-    """
-    isConfirmed: Boolean
-  ): PaginatedPaymentMethod @deprecated(reason: "2020-02-05: Use createdGiftCards")
 
   """
   Get the gift cards created by this collective. RemoteUser must be a collective admin.
@@ -3170,26 +3019,7 @@ type Project implements CollectiveInterface {
   """
   List all the gift cards batches emitted by this collective. May include `null` for unbatched gift cards.
   """
-  virtualCardsBatches: [PaymentMethodBatchInfo] @deprecated(reason: "2020-02-05: Use giftCardsBatches")
-
-  """
-  List all the gift cards batches emitted by this collective. May include `null` for unbatched gift cards.
-  """
   giftCardsBatches: [PaymentMethodBatchInfo]
-
-  """
-  Get the gift cards created by this collective. RemoteUser must be a collective admin.
-  """
-  createdVirtualCards(
-    limit: Int
-    offset: Int
-    batch: String
-
-    """
-    Wether the gift card has been claimed or not
-    """
-    isConfirmed: Boolean
-  ): PaginatedPaymentMethod @deprecated(reason: "2020-02-05: Use createdGiftCards")
 
   """
   Get the gift cards created by this collective. RemoteUser must be a collective admin.
@@ -3492,12 +3322,6 @@ type StatsMemberType {
   directDonations: Int
 
   """
-  total amount donated by this member through gift cards
-  """
-  donationsThroughEmittedVirtualCards: Int
-    @deprecated(reason: "2021-02-08: Not used anymore. Virtual cards have been renamed to gift cards")
-
-  """
   total amount donated by this member either directly or using a gift card it has emitted
   """
   totalDonations: Int
@@ -3733,8 +3557,6 @@ interface Transaction {
   host: CollectiveInterface
   paymentMethod: PaymentMethodType
   fromCollective: CollectiveInterface
-  usingVirtualCardFromCollective: CollectiveInterface
-    @deprecated(reason: "2021-02-08: Renamed to usingGiftCardFromCollective")
   usingGiftCardFromCollective: CollectiveInterface
   collective: CollectiveInterface
   type: String
@@ -4091,26 +3913,7 @@ type User implements CollectiveInterface {
   """
   List all the gift cards batches emitted by this collective. May include `null` for unbatched gift cards.
   """
-  virtualCardsBatches: [PaymentMethodBatchInfo] @deprecated(reason: "2020-02-05: Use giftCardsBatches")
-
-  """
-  List all the gift cards batches emitted by this collective. May include `null` for unbatched gift cards.
-  """
   giftCardsBatches: [PaymentMethodBatchInfo]
-
-  """
-  Get the gift cards created by this collective. RemoteUser must be a collective admin.
-  """
-  createdVirtualCards(
-    limit: Int
-    offset: Int
-    batch: String
-
-    """
-    Wether the gift card has been claimed or not
-    """
-    isConfirmed: Boolean
-  ): PaginatedPaymentMethod @deprecated(reason: "2020-02-05: Use createdGiftCards")
 
   """
   Get the gift cards created by this collective. RemoteUser must be a collective admin.

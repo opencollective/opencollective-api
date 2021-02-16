@@ -28,7 +28,7 @@ export async function createPaymentMethod(args, remoteUser) {
     if (!args.amount && !args.monthlyLimitPerMember) {
       throw Error('you need to define either the amount or the monthlyLimitPerMember of the payment method.');
     }
-    return createVirtualPaymentMethod(args, remoteUser);
+    return createGiftCardPaymentMethod(args, remoteUser);
   } else if (args.service === 'stripe' && args.type === 'creditcard') {
     return createStripeCreditCard(args, remoteUser);
   } else {
@@ -36,7 +36,7 @@ export async function createPaymentMethod(args, remoteUser) {
   }
 }
 
-/** Create the Virtual Card Payment Method through an organization
+/** Create the Gift Card Payment Method through an organization
  *
  * @param {Object} args contains the parameters to create the new
  *  payment method.
@@ -53,7 +53,7 @@ export async function createPaymentMethod(args, remoteUser) {
  * @param {Object} remoteUser logged in user
  * @returns {models.PaymentMethod} return the gift card payment method.
  */
-async function createVirtualPaymentMethod(args, remoteUser) {
+async function createGiftCardPaymentMethod(args, remoteUser) {
   // making sure it's a string, trim and uppercase it.
   args.currency = args.currency.toString().toUpperCase();
   if (!['USD', 'EUR'].includes(args.currency)) {
@@ -115,7 +115,7 @@ async function createStripeCreditCard(args, remoteUser) {
   return paymentMethod;
 }
 
-/** Claim the Virtual Card Payment Method By an (existing or not) user
+/** Claim the Gift Card Payment Method By an (existing or not) user
  * @param {Object} args contains the parameters
  * @param {String} args.code The 8 last digits of the UUID
  * @param {String} args.email The email of the user claiming the gift card

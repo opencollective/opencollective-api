@@ -10,7 +10,6 @@ async function processOrder(order) {
   switch (order.paymentMethod.type) {
     case 'prepaid':
       return prepaid.processOrder(order);
-    case 'virtualcard': // @deprecated 2021-02-08: legacy value
     case 'giftcard':
       return giftcard.processOrder(order);
     case 'manual':

@@ -269,14 +269,6 @@ export const StatsMemberType = new GraphQLObjectType({
           );
         },
       },
-      donationsThroughEmittedVirtualCards: {
-        type: GraphQLInt,
-        description: 'total amount donated by this member through gift cards',
-        deprecationReason: '2021-02-08: Not used anymore. Virtual cards have been renamed to gift cards',
-        resolve() {
-          return 0;
-        },
-      },
       totalDonations: {
         type: GraphQLInt,
         description: 'total amount donated by this member either directly or using a gift card it has emitted',
