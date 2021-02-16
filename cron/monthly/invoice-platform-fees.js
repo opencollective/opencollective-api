@@ -20,12 +20,8 @@ const date = process.env.START_DATE ? moment.utc(process.env.START_DATE) : momen
 const DRY = process.env.DRY;
 const HOST_ID = process.env.HOST_ID;
 const isProduction = config.env === 'production';
-if (isProduction && date.date() !== 5 && !process.env.OFFCYCLE) {
+if (isProduction && date.date() !== 1 && !process.env.OFFCYCLE) {
   console.log('OC_ENV is production and today is not the 5th of month, script aborted!');
-  process.exit();
-}
-if (isProduction && !process.env.OFFCYCLE) {
-  console.log('OC_ENV is production and this script is currently only running manually. Use OFFCYCLE=1.');
   process.exit();
 }
 if (DRY) {
@@ -362,21 +358,23 @@ export async function run() {
         console.error(`Warning: We don't have a way to submit the expense to ${HostName}, ignoring.\n`);
         continue;
       }
-      // Credit the Host with platform tips collected during the month
-      await models.Transaction.create({
-        amount: totalAmountCredited,
-        amountInHostCurrency: totalAmountCredited,
-        CollectiveId: chargedHostId,
-        CreatedByUserId: SETTLEMENT_EXPENSE_PROPERTIES.UserId,
-        currency: currency,
-        description: `Platform Fees and Tips collected in ${moment.utc().subtract(1, 'month').format('MMMM')}`,
-        FromCollectiveId: chargedHostId,
-        HostCollectiveId: hostId,
-        hostCurrency: currency,
-        hostCurrencyFxRate: 1,
-        netAmountInCollectiveCurrency: totalAmountCredited,
-        type: TransactionTypes.CREDIT,
-      });
+      if (totalAmountCharged > 0) {
+        // Credit the Host with platform tips collected during the month
+        await models.Transaction.create({
+          amount: totalAmountCredited,
+          amountInHostCurrency: totalAmountCredited,
+          CollectiveId: chargedHostId,
+          CreatedByUserId: SETTLEMENT_EXPENSE_PROPERTIES.UserId,
+          currency: currency,
+          description: `Platform Fees and Tips collected in ${moment.utc().subtract(1, 'month').format('MMMM')}`,
+          FromCollectiveId: chargedHostId,
+          HostCollectiveId: hostId,
+          hostCurrency: currency,
+          hostCurrencyFxRate: 1,
+          netAmountInCollectiveCurrency: totalAmountCredited,
+          type: TransactionTypes.CREDIT,
+        });
+      }
 
       const connectedAccounts = await host.getConnectedAccounts({
         where: { deletedAt: null },
