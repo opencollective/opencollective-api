@@ -350,21 +350,35 @@ export const getOAuthUrl = (state: string): string => {
   return `${config.transferwise.oauthUrl}/oauth/authorize/?client_id=${config.transferwise.clientId}&redirect_uri=${config.transferwise.redirectUri}&state=${state}`;
 };
 
-export const getOrRefreshUserToken = async ({
+export const getOrRefreshToken = async ({
   code,
   refreshToken,
+  application,
 }: {
   code?: string;
   refreshToken?: string;
+  application?: boolean;
 }): Promise<AccessToken> => {
-  const data = refreshToken
-    ? { grant_type: 'refresh_token', refresh_token: refreshToken }
-    : {
+  let data;
+  // Refresh Token
+  if (refreshToken) {
+    data = { grant_type: 'refresh_token', refresh_token: refreshToken };
+  }
+  // Request user token
+  else if (code) {
+    data = {
         grant_type: 'authorization_code',
         client_id: config.transferwise.clientId,
         code,
         redirect_uri: config.transferwise.redirectUri,
       };
+  }
+  // Request application token
+  else if (application) {
+    data = { grant_type: 'client_credentials' };
+  } else {
+    return;
+  }
 
   const params = new url.URLSearchParams(data);
   const token: AccessToken = await axios

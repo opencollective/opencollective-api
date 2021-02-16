@@ -212,7 +212,7 @@ async function getToken(connectedAccount: ConnectedAccount): Promise<string> {
   const diff = moment.duration(moment().diff(updatedAt)).asSeconds();
   const isOutdated = diff > connectedAccount.data.expires_in - 60;
   if (isOutdated) {
-    const newToken = await transferwise.getOrRefreshUserToken({ refreshToken: connectedAccount.refreshToken });
+    const newToken = await transferwise.getOrRefreshToken({ refreshToken: connectedAccount.refreshToken });
     const { access_token: token, refresh_token: refreshToken, ...data } = newToken;
     await connectedAccount.update({ token, refreshToken, data: { ...connectedAccount.data, data } });
     return token;
@@ -252,7 +252,7 @@ const oauth = {
     const redirectUrl = new URL(redirect);
     try {
       const { code, profileId } = req.query;
-      const accessToken = await transferwise.getOrRefreshUserToken({ code });
+      const accessToken = await transferwise.getOrRefreshToken({ code });
       const { access_token: token, refresh_token: refreshToken, ...data } = accessToken;
 
       const existingConnectedAccount = await models.ConnectedAccount.findOne({
