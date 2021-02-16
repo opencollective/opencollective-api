@@ -26,8 +26,7 @@ export function verifyTwoFactorAuthenticatorCode(encryptedTwoFactorAuthToken, tw
  * Returns true or false for whether the code is valid or not.
  */
 export function verifyTwoFactorAuthenticationRecoveryCode(hashedRecoveryCodes, recoveryCode) {
-  const verified = hashedRecoveryCodes.includes(crypto.hash(recoveryCode.toUpperCase()));
-  return verified;
+  return hashedRecoveryCodes.includes(crypto.hash(recoveryCode.toUpperCase()));
 }
 
 /** Host 2FA rolling limit functions*/

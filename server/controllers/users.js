@@ -13,7 +13,8 @@ import {
 import { isValidEmail } from '../lib/utils';
 import models from '../models';
 
-const { Unauthorized, ValidationFailed } = errors;
+const { Unauthorized, ValidationFailed, TooManyRequests } = errors;
+
 const { User } = models;
 
 /**
@@ -111,7 +112,7 @@ export const twoFactorAuthAndUpdateToken = async (req, res, next) => {
   };
 
   if (await rateLimit.hasReachedLimit()) {
-    return next(new Unauthorized('Too many attempts. Please try again in an hour'));
+    return next(new TooManyRequests('Too many attempts. Please try again in an hour'));
   }
 
   const user = await User.findByPk(userId);
@@ -125,19 +126,19 @@ export const twoFactorAuthAndUpdateToken = async (req, res, next) => {
     // if there is a 2FA code, we need to verify it before returning the token
     const verified = verifyTwoFactorAuthenticatorCode(user.twoFactorAuthToken, twoFactorAuthenticatorCode);
     if (!verified) {
-      return await fail(new Unauthorized('Two-factor authentication code failed. Please try again'));
+      return fail(new Unauthorized('Two-factor authentication code failed. Please try again'));
     }
   } else if (twoFactorAuthenticationRecoveryCode) {
     // or if there is a recovery code try to verify it
     if (typeof twoFactorAuthenticationRecoveryCode !== 'string') {
-      return await fail(new ValidationFailed('2FA recovery code must be a string'));
+      return fail(new ValidationFailed('2FA recovery code must be a string'));
     }
     const verified = verifyTwoFactorAuthenticationRecoveryCode(
       user.twoFactorAuthRecoveryCodes,
       twoFactorAuthenticationRecoveryCode,
     );
     if (!verified) {
-      return await fail(new Unauthorized('Two-factor authentication recovery code failed. Please try again'));
+      return fail(new Unauthorized('Two-factor authentication recovery code failed. Please try again'));
     }
     const remainingRecoveryCodes = user.twoFactorAuthRecoveryCodes.filter(
       code => crypto.hash(twoFactorAuthenticationRecoveryCode.toUpperCase()) !== code,

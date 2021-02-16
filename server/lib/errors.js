@@ -67,6 +67,16 @@ const errors = {
     Error.call(this, msg);
   },
 
+  TooManyRequests: function (msg, data) {
+    this.code = 429;
+    this.type = 'too_many_requests';
+    this.message = msg;
+    if (data) {
+      this.data = data;
+    }
+    Error.call(this, msg);
+  },
+
   NotImplemented: function (msg) {
     this.code = 501;
     this.type = 'not_implemented';
