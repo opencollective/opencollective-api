@@ -56,10 +56,6 @@ export const TransactionInterfaceType = new GraphQLInterfaceType({
       host: { type: CollectiveInterfaceType },
       paymentMethod: { type: PaymentMethodType },
       fromCollective: { type: CollectiveInterfaceType },
-      usingVirtualCardFromCollective: {
-        type: CollectiveInterfaceType,
-        deprecationReason: '2021-02-08: Renamed to usingGiftCardFromCollective',
-      },
       usingGiftCardFromCollective: { type: CollectiveInterfaceType },
       collective: { type: CollectiveInterfaceType },
       type: { type: GraphQLString },
@@ -221,21 +217,6 @@ const TransactionFields = () => {
         }
         if (get(transaction, 'fromCollective.id')) {
           return models.Collective.findByPk(get(transaction, 'fromCollective.id'));
-        }
-        return null;
-      },
-    },
-    usingVirtualCardFromCollective: {
-      type: CollectiveInterfaceType,
-      deprecationReason: '2021-02-08: Renamed to usingGiftCardFromCollective',
-      resolve(transaction) {
-        // If it's a sequelize model transaction, it means it has the method getGiftCardEmitterCollective
-        // otherwise we find the collective by id if transactions has UsingGiftCardFromCollectiveId, if not we return null
-        if (transaction && transaction.getGiftCardEmitterCollective) {
-          return transaction.getGiftCardEmitterCollective();
-        }
-        if (transaction && transaction.UsingGiftCardFromCollectiveId) {
-          return models.Collective.findByPk(transaction.UsingGiftCardFromCollectiveId);
         }
         return null;
       },

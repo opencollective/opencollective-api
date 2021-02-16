@@ -12,7 +12,6 @@ import * as backyourstackMutations from './mutations/backyourstack';
 import {
   activateBudget,
   activateCollectiveAsHost,
-  approveCollective,
   archiveCollective,
   createCollective,
   createCollectiveFromGithub,
@@ -21,7 +20,6 @@ import {
   deleteCollective,
   deleteUserCollective,
   editCollective,
-  rejectCollective,
   sendMessageToCollective,
   unarchiveCollective,
 } from './mutations/collectives';
@@ -29,7 +27,6 @@ import * as commentMutations from './mutations/comments';
 import { editConnectedAccount } from './mutations/connectedAccounts';
 import { createWebhook, deleteNotification, editWebhooks } from './mutations/notifications';
 import {
-  addFundsToCollective,
   addFundsToOrg,
   confirmOrder,
   createOrder,
@@ -51,7 +48,6 @@ import {
   MemberInputType,
   NotificationInputType,
   OrderInputType,
-  PaymentMethodDataGiftCardInputType,
   StripeCreditCardDataInputType,
   TierInputType,
   UpdateAttributesInputType,
@@ -116,29 +112,6 @@ const mutations = {
     },
     resolve(_, args, req) {
       return deleteUserCollective(_, args, req);
-    },
-  },
-  approveCollective: {
-    type: CollectiveInterfaceType,
-    description: 'Approve a collective',
-    deprecationReason: '2020-11-16: Please use API V2',
-    args: {
-      id: { type: new GraphQLNonNull(GraphQLInt) },
-    },
-    resolve(_, args, req) {
-      return approveCollective(req.remoteUser, args.id);
-    },
-  },
-  rejectCollective: {
-    type: CollectiveInterfaceType,
-    description: 'Reject a collective',
-    deprecationReason: '2020-11-16: Please use API V2',
-    args: {
-      id: { type: new GraphQLNonNull(GraphQLInt) },
-      rejectionReason: { type: GraphQLString },
-    },
-    resolve(_, args, req) {
-      return rejectCollective(_, args, req);
     },
   },
   archiveCollective: {
@@ -264,6 +237,7 @@ const mutations = {
   },
   markOrderAsPaid: {
     type: OrderType,
+    deprecationReason: '2021-01-29: Not used anymore',
     args: {
       id: { type: new GraphQLNonNull(GraphQLInt) },
     },
@@ -273,6 +247,7 @@ const mutations = {
   },
   markPendingOrderAsExpired: {
     type: OrderType,
+    deprecationReason: '2021-01-29: Not used anymore',
     args: {
       id: { type: new GraphQLNonNull(GraphQLInt) },
     },
@@ -359,20 +334,9 @@ const mutations = {
       return confirmOrder(args.order, req.remoteUser);
     },
   },
-  addFundsToCollective: {
-    type: OrderType,
-    args: {
-      order: {
-        type: new GraphQLNonNull(OrderInputType),
-      },
-    },
-    resolve(_, args, req) {
-      return addFundsToCollective(args.order, req.remoteUser);
-    },
-  },
   createUpdate: {
     type: UpdateType,
-    deprecationReason: 'This endpoint has been moved to GQLV2',
+    deprecationReason: '2021-01-29: This endpoint has been moved to GQLV2',
     args: {
       update: {
         type: new GraphQLNonNull(UpdateInputType),
@@ -384,6 +348,7 @@ const mutations = {
   },
   editUpdate: {
     type: UpdateType,
+    deprecationReason: '2021-01-29: Not used anymore',
     args: {
       update: {
         type: new GraphQLNonNull(UpdateAttributesInputType),
@@ -395,6 +360,7 @@ const mutations = {
   },
   publishUpdate: {
     type: UpdateType,
+    deprecationReason: '2021-01-29: Not used anymore',
     args: {
       id: {
         type: new GraphQLNonNull(GraphQLInt),
@@ -409,6 +375,7 @@ const mutations = {
   },
   unpublishUpdate: {
     type: UpdateType,
+    deprecationReason: '2021-01-29: Not used anymore',
     args: {
       id: {
         type: new GraphQLNonNull(GraphQLInt),
@@ -420,6 +387,7 @@ const mutations = {
   },
   deleteUpdate: {
     type: UpdateType,
+    deprecationReason: '2021-01-29: Not used anymore',
     args: {
       id: {
         type: new GraphQLNonNull(GraphQLInt),
@@ -431,6 +399,7 @@ const mutations = {
   },
   createComment: {
     type: CommentType,
+    deprecationReason: '2021-01-29: Not used anymore',
     args: {
       comment: {
         type: new GraphQLNonNull(CommentInputType),
@@ -446,6 +415,7 @@ const mutations = {
   },
   editComment: {
     type: CommentType,
+    deprecationReason: '2021-01-29: Not used anymore',
     args: {
       comment: {
         type: new GraphQLNonNull(CommentAttributesInputType),
@@ -455,6 +425,7 @@ const mutations = {
   },
   deleteComment: {
     type: CommentType,
+    deprecationReason: '2021-01-29: Not used anymore',
     args: {
       id: {
         type: new GraphQLNonNull(GraphQLInt),
@@ -520,6 +491,7 @@ const mutations = {
   createCreditCard: {
     type: PaymentMethodType,
     description: 'Add a new credit card to the given collective',
+    deprecationReason: '2021-01-29: Not used anymore',
     args: {
       CollectiveId: { type: new GraphQLNonNull(GraphQLInt) },
       name: { type: new GraphQLNonNull(GraphQLString) },
@@ -546,90 +518,6 @@ const mutations = {
     },
     resolve: async (_, args, req) => {
       return paymentMethodsMutation.replaceCreditCard(args, req.remoteUser);
-    },
-  },
-  createVirtualCards: {
-    type: new GraphQLList(PaymentMethodType),
-    deprecationReason: '2021-02-08: Renamed to createGiftCards',
-    args: {
-      CollectiveId: { type: new GraphQLNonNull(GraphQLInt) },
-      PaymentMethodId: { type: GraphQLInt },
-      emails: {
-        type: new GraphQLList(GraphQLString),
-        description: 'A list of emails to generate gift cards for (only if numberOfVirtualCards is not provided)',
-      },
-      numberOfVirtualCards: {
-        type: GraphQLInt,
-        description: 'Number of gift cards to generate (only if emails is not provided)',
-      },
-      currency: {
-        type: GraphQLString,
-        description: 'An optional currency. If not provided, will use the collective currency.',
-      },
-      amount: {
-        type: GraphQLInt,
-        description: 'The amount as an Integer with cents.',
-      },
-      batch: {
-        type: GraphQLString,
-        description: 'Batch name for the created gift cards.',
-      },
-      monthlyLimitPerMember: { type: GraphQLInt },
-      limitedToTags: {
-        type: new GraphQLList(GraphQLString),
-        description: 'Limit this payment method to make donations to collectives having those tags',
-      },
-      limitedToCollectiveIds: {
-        type: new GraphQLList(GraphQLInt),
-        description: 'Limit this payment method to make donations to those collectives',
-        deprecationReason: '2020-08-11: This field does not exist anymore',
-      },
-      limitedToHostCollectiveIds: {
-        type: new GraphQLList(GraphQLInt),
-        description: 'Limit this payment method to make donations to the collectives hosted by those hosts',
-      },
-      limitedToOpenSourceCollectives: {
-        type: GraphQLBoolean,
-        description: 'Set `limitedToHostCollectiveIds` to open-source collectives only',
-      },
-      description: {
-        type: GraphQLString,
-        description: 'A custom message attached to the email that will be sent for this gift card',
-      },
-      customMessage: {
-        type: GraphQLString,
-        description: 'A custom message that will be sent in the invitation email',
-      },
-      expiryDate: { type: GraphQLString },
-    },
-    resolve: async (_, { emails, numberOfVirtualCards, ...args }, { remoteUser }) => {
-      const numberOfGiftCards = numberOfVirtualCards;
-      if (numberOfGiftCards && emails && numberOfGiftCards !== emails.length) {
-        throw Error("numberOfVirtualCards and emails counts doesn't match");
-      } else if (args.limitedToOpenSourceCollectives && args.limitedToHostCollectiveIds) {
-        throw Error('limitedToOpenSourceCollectives and limitedToHostCollectiveIds cannot be used at the same time');
-      }
-
-      if (args.limitedToOpenSourceCollectives) {
-        const openSourceHost = await models.Collective.findOne({
-          attributes: ['id'],
-          where: { slug: 'opensource' },
-        });
-        if (!openSourceHost) {
-          throw new Error(
-            'Cannot find the host "Open Source Collective". You can disable the opensource-only limitation, or contact us at support@opencollective.com if this keeps happening',
-          );
-        }
-        args.limitedToHostCollectiveIds = [openSourceHost.id];
-      }
-
-      if (numberOfGiftCards) {
-        return await bulkCreateGiftCards(args, remoteUser, numberOfGiftCards);
-      } else if (emails) {
-        return await createGiftCardsForEmails(args, remoteUser, emails, args.customMessage);
-      }
-
-      throw new Error('You must either pass numberOfVirtualCards or an email list');
     },
   },
   createGiftCards: {

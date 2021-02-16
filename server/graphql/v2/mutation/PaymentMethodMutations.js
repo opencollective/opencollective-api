@@ -127,10 +127,6 @@ const confirmCreditCard = {
 
 const paymentMethodMutations = {
   addCreditCard,
-  addStripeCreditCard: {
-    ...addCreditCard,
-    deprecationReason: '2020-10-23: Use addCreditCard',
-  },
   confirmCreditCard,
 };
 

@@ -529,6 +529,7 @@ export const CollectiveStatsType = new GraphQLObjectType({
       },
       topFundingSources: {
         type: GraphQLJSON,
+        deprecationReason: '2021-01-29: Not used anymore',
         resolve(collective) {
           return Promise.all([
             queries.getTopDonorsForCollective(collective.id),
@@ -810,11 +811,6 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
           offset: { type: GraphQLInt },
         },
       },
-      childCollectives: {
-        type: new GraphQLList(CollectiveType),
-        description: "Get all child collectives (with type=COLLECTIVE, doesn't return events)",
-        deprecationReason: '2020/01/08 - Connected-collectives are now handled through members',
-      },
       paymentMethods: {
         type: new GraphQLList(PaymentMethodType),
         args: {
@@ -834,12 +830,6 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
             type: PaymentMethodOrderFieldType,
             description: 'Order entries based on given column. Set to null for no ordering.',
           },
-          includeOrganizationCollectivePaymentMethod: {
-            type: GraphQLBoolean,
-            defaultValue: false,
-            description: 'Defines if the organization "collective" payment method should be returned',
-            deprecationReason: '2019-12-20: Replaced by includeHostCollectivePaymentMethod',
-          },
           includeHostCollectivePaymentMethod: {
             type: GraphQLBoolean,
             defaultValue: false,
@@ -851,29 +841,10 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
         type: new GraphQLList(PayoutMethodType),
         description: 'The list of payout methods that this collective can use to get paid',
       },
-      virtualCardsBatches: {
-        type: new GraphQLList(PaymentMethodBatchInfo),
-        deprecationReason: '2021-02-08: Renamed to giftCardBatches',
-        description:
-          'List all the gift cards batches emitted by this collective. May include `null` as key for unbatched gift cards.',
-      },
       giftCardsBatches: {
         type: new GraphQLList(PaymentMethodBatchInfo),
         description:
           'List all the gift cards batches emitted by this collective. May include `null` as key for unbatched gift cards.',
-      },
-      createdVirtualCards: {
-        type: PaginatedPaymentMethodsType,
-        deprecationReason: '2021-02-08: Renamed to giftCardBatches',
-        args: {
-          limit: { type: GraphQLInt },
-          offset: { type: GraphQLInt },
-          batch: { type: GraphQLString },
-          isConfirmed: {
-            type: GraphQLBoolean,
-            description: 'Wether the gift card has been claimed or not',
-          },
-        },
       },
       createdGiftCards: {
         type: PaginatedPaymentMethodsType,
@@ -1727,14 +1698,6 @@ const CollectiveFields = () => {
         return models.Collective.findAll(query);
       },
     },
-    childCollectives: {
-      type: new GraphQLList(CollectiveType),
-      description: "Get all child collectives (with type=COLLECTIVE, doesn't return events)",
-      deprecationReason: '2020/01/08 - Connected-collectives are now handled through members',
-      resolve(collective, _, req) {
-        return req.loaders.Collective.childCollectives.load(collective.id);
-      },
-    },
     paymentMethods: {
       type: new GraphQLList(PaymentMethodType),
       args: {
@@ -1746,12 +1709,6 @@ const CollectiveFields = () => {
         orderBy: {
           type: PaymentMethodOrderFieldType,
           defaultValue: 'type',
-        },
-        includeOrganizationCollectivePaymentMethod: {
-          type: GraphQLBoolean,
-          defaultValue: false,
-          description: 'Defines if the organization "collective" payment method should be returned',
-          deprecationReason: '2019-12-20: Replaced by includeHostCollectivePaymentMethod',
         },
         includeHostCollectivePaymentMethod: {
           type: GraphQLBoolean,
@@ -1766,7 +1723,6 @@ const CollectiveFields = () => {
         let paymentMethods = await req.loaders.PaymentMethod.findByCollectiveId.load(collective.id);
         // Filter Payment Methods used by Hosts for "Add Funds"
         if (
-          !args.includeOrganizationCollectivePaymentMethod &&
           !args.includeHostCollectivePaymentMethod &&
           (collective.type === 'ORGANIZATION' || collective.type === 'USER')
         ) {
@@ -1782,9 +1738,7 @@ const CollectiveFields = () => {
           paymentMethods = paymentMethods.filter(pm => pm.service === args.service);
         }
         if (args.types) {
-          // @deprecated 2021-02-08: virtualcard renamed to giftcard
-          const types = args.types?.map(type => (type === 'virtualcard' ? 'giftcard' : type));
-          paymentMethods = paymentMethods.filter(pm => types.includes(pm.type));
+          paymentMethods = paymentMethods.filter(pm => args.types.includes(pm.type));
         }
         if (args.isConfirmed !== undefined) {
           paymentMethods = paymentMethods.filter(pm => pm.isConfirmed() === args.isConfirmed);
@@ -1824,20 +1778,6 @@ const CollectiveFields = () => {
         }
       },
     },
-    virtualCardsBatches: {
-      type: new GraphQLList(PaymentMethodBatchInfo),
-      deprecationReason: '2020-02-05: Use giftCardsBatches',
-      description:
-        'List all the gift cards batches emitted by this collective. May include `null` for unbatched gift cards.',
-      resolve: async (collective, _args, req) => {
-        // Must be admin of the collective
-        if (!req.remoteUser || !req.remoteUser.isAdminOfCollective(collective)) {
-          return [];
-        }
-
-        return queries.getGiftCardBatchesForCollective(collective.id);
-      },
-    },
     giftCardsBatches: {
       type: new GraphQLList(PaymentMethodBatchInfo),
       description:
@@ -1849,64 +1789,6 @@ const CollectiveFields = () => {
         }
 
         return queries.getGiftCardBatchesForCollective(collective.id);
-      },
-    },
-    createdVirtualCards: {
-      type: PaginatedPaymentMethodsType,
-      deprecationReason: '2020-02-05: Use createdGiftCards',
-      description: 'Get the gift cards created by this collective. RemoteUser must be a collective admin.',
-      args: {
-        limit: { type: GraphQLInt },
-        offset: { type: GraphQLInt },
-        batch: { type: GraphQLString },
-        isConfirmed: {
-          type: GraphQLBoolean,
-          description: 'Wether the gift card has been claimed or not',
-        },
-      },
-      resolve: async (collective, args, req) => {
-        // Must be admin of the collective
-        if (!req.remoteUser || !req.remoteUser.isAdminOfCollective(collective)) {
-          return [];
-        }
-
-        const offset = args.offset || 0;
-        const limit = args.limit || 15;
-        const query = {
-          where: { type: PAYMENT_METHOD_TYPE.GIFT_CARD, service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE },
-          limit: args.limit,
-          offset: args.offset,
-          order: [
-            ['createdAt', 'DESC'],
-            ['id', 'DESC'],
-          ],
-          include: [
-            {
-              model: models.PaymentMethod,
-              as: 'sourcePaymentMethod',
-              where: { CollectiveId: collective.id },
-              required: true,
-              attributes: [],
-            },
-          ],
-        };
-
-        if (args.isConfirmed !== undefined) {
-          query.where.confirmedAt = { [args.isConfirmed ? Op.ne : Op.eq]: null };
-        }
-
-        if (args.batch !== undefined) {
-          query.where.batch = args.batch;
-        }
-
-        const result = await models.PaymentMethod.findAndCountAll(query);
-
-        return {
-          paymentMethods: result.rows,
-          total: result.count,
-          limit,
-          offset,
-        };
       },
     },
     createdGiftCards: {

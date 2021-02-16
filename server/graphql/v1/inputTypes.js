@@ -60,14 +60,6 @@ export const PaymentMethodInputType = new GraphQLInputObjectType({
   }),
 });
 
-export const PaymentMethodDataGiftCardInputType = new GraphQLInputObjectType({
-  name: 'PaymentMethodDataGiftCardInputType',
-  description: 'Input for gift card (meta)data',
-  fields: () => ({
-    email: { type: GraphQLString, description: 'The email gift card is generated for' },
-  }),
-});
-
 const CustomFieldType = new GraphQLEnumType({
   name: 'CustomFieldType',
   description: 'Type of custom field',

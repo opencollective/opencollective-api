@@ -47,7 +47,6 @@ const createGiftCardsMutation = gql`
       collective {
         id
       }
-      SourcePaymentMethodId
       initialBalance
       monthlyLimitPerMember
       expiryDate
@@ -62,7 +61,6 @@ const claimPaymentMethodMutation = gql`
   mutation ClaimPaymentMethod($user: UserInputType, $code: String!) {
     claimPaymentMethod(user: $user, code: $code) {
       id
-      SourcePaymentMethodId
       expiryDate
       collective {
         id
@@ -853,7 +851,8 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
         // payment method should exist
         expect(paymentMethod).to.exist;
         // then paymentMethod SourcePaymentMethodId should be paymentMethod1.id(the PM of the organization collective1)
-        expect(paymentMethod.SourcePaymentMethodId).to.equal(paymentMethod1.id);
+        const pmFromDb = await models.PaymentMethod.findByPk(paymentMethod.id);
+        expect(pmFromDb.SourcePaymentMethodId).to.equal(paymentMethod1.id);
         expect(paymentMethod.collective.name).to.equal(args.user.name);
         expect(paymentMethod.collective.twitterHandle).to.equal(args.user.twitterHandle);
         // and collective id of "original" gift card should be different than the one returned

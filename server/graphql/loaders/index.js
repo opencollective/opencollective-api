@@ -3,8 +3,6 @@ import { createContext } from 'dataloader-sequelize';
 import { get, groupBy } from 'lodash';
 import moment from 'moment';
 
-import { types as CollectiveType } from '../../constants/collectives';
-import { maxInteger } from '../../constants/math';
 import { TransactionTypes } from '../../constants/transactions';
 import { getListOfAccessibleMembers } from '../../lib/auth';
 import queries from '../../lib/queries';
@@ -23,7 +21,6 @@ export const loaders = req => {
   const context = createContext(sequelize);
 
   // Comment
-  context.loaders.Comment.findAllByAttribute = commentsLoader.findAllByAttribute(req, cache);
   context.loaders.Comment.countByExpenseId = commentsLoader.countByExpenseId(req, cache);
 
   // Comment Reactions
@@ -55,13 +52,6 @@ export const loaders = req => {
 
   // Collective - by UserId
   context.loaders.Collective.byUserId = collectiveLoaders.byUserId(req, cache);
-
-  // Collective - ChildCollectives
-  context.loaders.Collective.childCollectives = new DataLoader(parentIds =>
-    models.Collective.findAll({
-      where: { ParentCollectiveId: { [Op.in]: parentIds }, type: CollectiveType.COLLECTIVE },
-    }).then(collectives => sortResults(parentIds, collectives, 'ParentCollectiveId', [])),
-  );
 
   // Collective - Balance
   context.loaders.Collective.balance = new DataLoader(ids =>

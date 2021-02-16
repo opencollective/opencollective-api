@@ -2756,6 +2756,11 @@ enum Currency {
   MXN
 
   """
+  Malaysian Ringgit
+  """
+  MYR
+
+  """
   Naira
   """
   NGN
@@ -5194,6 +5199,11 @@ type Mutation {
     A message to attach for the host to review the application
     """
     message: String
+
+    """
+    Further information about collective applying to host
+    """
+    applicationData: JSON
   ): Account!
 
   """
@@ -5339,11 +5349,6 @@ type Mutation {
     The key that you want to edit in settings
     """
     emailConfirmationToken: String!
-
-    """
-    This can be used to link the other guest contributions to the user
-    """
-    guestTokens: [String!]
   ): ConfirmGuestAccountResponse!
 
   """
@@ -5443,31 +5448,6 @@ type Mutation {
     """
     account: AccountReferenceInput!
   ): CreditCardWithStripeError!
-
-  """
-  Add a new payment method to be used with an Order
-  """
-  addStripeCreditCard(
-    """
-    The credit card info
-    """
-    creditCardInfo: CreditCardCreateInput!
-
-    """
-    Name associated to this credit card
-    """
-    name: String!
-
-    """
-    Whether this credit card should be saved for future payments
-    """
-    isSavedForLater: Boolean = true
-
-    """
-    Account to add the credit card to
-    """
-    account: AccountReferenceInput!
-  ): CreditCardWithStripeError! @deprecated(reason: "2020-10-23: Use addCreditCard")
 
   """
   Confirm a credit card is ready for use after strong customer authentication
