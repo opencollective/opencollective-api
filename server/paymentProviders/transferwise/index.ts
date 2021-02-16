@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 
+import config from 'config';
 import { find, has, pick, toNumber } from 'lodash';
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
@@ -288,6 +289,27 @@ const oauth = {
   },
 };
 
+async function setUpWebhook(): Promise<void> {
+  const url = `${config.host.api}/webhooks/transferwise`;
+  const existingWebhooks = await transferwise.listApplicationWebhooks();
+
+  if (existingWebhooks?.find(w => w.trigger_on === 'transfers#state-change' && w.delivery.url === url)) {
+    logger.info(`TransferWise App Webhook already exists for ${url}.`);
+    return;
+  }
+
+  logger.info(`Creating TransferWise App Webhook on ${url}...`);
+  await transferwise.createApplicationWebhook({
+    name: 'Open Collective',
+    // eslint-disable-next-line camelcase
+    trigger_on: 'transfers#state-change',
+    delivery: {
+      version: '2.0.0',
+      url,
+    },
+  });
+}
+
 export default {
   getAvailableCurrencies,
   getRequiredBankInformation,
@@ -296,5 +318,6 @@ export default {
   getToken,
   quoteExpense,
   payExpense,
+  setUpWebhook,
   oauth,
 };

@@ -125,7 +125,6 @@ export type TransferStatus =
   | 'funds_refunded'
   | 'bounced_back';
 
-/* eslint-disable camelcase */
 export interface WebhookEvent {
   data: Record<string, any>;
   subscription_id: string;
@@ -148,7 +147,6 @@ export interface TransferStateChangeEvent extends WebhookEvent {
   };
   event_type: 'transfers#state-change';
 }
-/* eslint-enable camelcase */
 
 export type Transfer = {
   id: number;
@@ -231,3 +229,28 @@ export type AccessToken = {
   expires_in: number;
   scope: string;
 };
+
+export type Webhook = {
+  id: string;
+  name: string;
+  delivery: {
+    version: '2.0.0';
+    url: string;
+  };
+  trigger_on:
+    | 'transfers#state-change' // Profile and Application
+    | 'transfers#active-cases' // Profile
+    | 'balances#credit' // Profile
+    | 'profiles#verification-state-change'; // Application
+  scope: {
+    domain: 'application' | 'profile';
+    id: string;
+  };
+  created_by: {
+    type: 'application' | 'user';
+    id: string;
+  };
+  created_at: string;
+};
+
+export type WebhookCreateInput = Pick<Webhook, 'name' | 'delivery' | 'trigger_on'>;

@@ -19,6 +19,8 @@ import {
   Quote,
   RecipientAccount,
   Transfer,
+  Webhook,
+  WebhookCreateInput,
   WebhookEvent,
 } from '../types/transferwise';
 
@@ -367,11 +369,11 @@ export const getOrRefreshToken = async ({
   // Request user token
   else if (code) {
     data = {
-        grant_type: 'authorization_code',
-        client_id: config.transferwise.clientId,
-        code,
-        redirect_uri: config.transferwise.redirectUri,
-      };
+      grant_type: 'authorization_code',
+      client_id: config.transferwise.clientId,
+      code,
+      redirect_uri: config.transferwise.redirectUri,
+    };
   }
   // Request application token
   else if (application) {
@@ -390,25 +392,33 @@ export const getOrRefreshToken = async ({
   return token;
 };
 
-export const getApplicationToken = async (): Promise<AccessToken> => {
-  const params = new url.URLSearchParams({
-    grant_type: 'client_credentials',
-  });
-  const token = await axios
-    .post(`/oauth/token`, params.toString(), {
-      auth: { username: config.transferwise.clientId, password: config.transferwise.clientSecret },
-    })
-    .then(getData);
-  debug(`getApplicationToken: ${JSON.stringify(token, null, 2)}`);
-  return token;
-};
-
-export const listApplicationWebhooks = async (): Promise<any> => {
-  const { access_token } = await getApplicationToken();
+export const listApplicationWebhooks = async (): Promise<Webhook[]> => {
+  const { access_token } = await getOrRefreshToken({ application: true });
   const webhooks = await axios
     .get(`/v3/applications/${config.transferwise.clientKey}/subscriptions`, {
       headers: { Authorization: `Bearer ${access_token}` },
     })
     .then(getData);
   return webhooks;
+};
+
+export const createApplicationWebhook = async (webhookInfo: WebhookCreateInput): Promise<Webhook> => {
+  const { access_token } = await getOrRefreshToken({ application: true });
+  debug(`createApplicationWebhook: ${JSON.stringify(webhookInfo, null, 2)}`);
+  const webhook: Webhook = await axios
+    .post(`/v3/applications/${config.transferwise.clientKey}/subscriptions`, webhookInfo, {
+      headers: { Authorization: `Bearer ${access_token}` },
+    })
+    .then(getData);
+  return webhook;
+};
+
+export const deleteApplicationWebhook = async (id: string | number): Promise<any> => {
+  const { access_token } = await getOrRefreshToken({ application: true });
+  debug(`deleteApplicationWebhook: id ${id}`);
+  return await axios
+    .delete(`/v3/applications/${config.transferwise.clientKey}/subscriptions/${id}`, {
+      headers: { Authorization: `Bearer ${access_token}` },
+    })
+    .then(getData);
 };
