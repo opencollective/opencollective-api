@@ -12,7 +12,6 @@ import * as backyourstackMutations from './mutations/backyourstack';
 import {
   activateBudget,
   activateCollectiveAsHost,
-  approveCollective,
   archiveCollective,
   createCollective,
   createCollectiveFromGithub,
@@ -21,7 +20,6 @@ import {
   deleteCollective,
   deleteUserCollective,
   editCollective,
-  rejectCollective,
   sendMessageToCollective,
   unarchiveCollective,
 } from './mutations/collectives';
@@ -29,7 +27,6 @@ import * as commentMutations from './mutations/comments';
 import { editConnectedAccount } from './mutations/connectedAccounts';
 import { createWebhook, deleteNotification, editWebhooks } from './mutations/notifications';
 import {
-  addFundsToCollective,
   addFundsToOrg,
   confirmOrder,
   createOrder,
@@ -51,7 +48,6 @@ import {
   MemberInputType,
   NotificationInputType,
   OrderInputType,
-  PaymentMethodDataGiftCardInputType,
   StripeCreditCardDataInputType,
   TierInputType,
   UpdateAttributesInputType,
