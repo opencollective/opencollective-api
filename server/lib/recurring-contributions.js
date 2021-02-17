@@ -400,7 +400,7 @@ export async function sendThankYouEmail(order, transaction) {
     fromCollective: order.fromCollective.minimal,
     relatedCollectives,
     config: { host: config.host },
-    interval: order.Subscription.interval,
+    interval: order.Subscription?.interval || order.interval,
     subscriptionsLink: `${config.host.website}/${order.fromCollective.slug}/recurring-contributions`,
   };
 

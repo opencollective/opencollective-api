@@ -10,7 +10,7 @@ export { MemberRole } from './MemberRole';
 export { OrderDirectionType } from './OrderDirectionType';
 export { ContributionFrequency } from './ContributionFrequency';
 export { OrderStatus } from './OrderStatus';
-export { PaymentMethodType } from './PaymentMethodType';
+export { PaymentMethodLegacyType } from './PaymentMethodLegacyType';
 export { PayoutMethodType } from './PayoutMethodType';
 export { ProcessHostApplicationAction } from './ProcessHostApplicationAction';
 export { TierAmountType } from './TierAmountType';

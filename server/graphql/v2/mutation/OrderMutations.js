@@ -3,6 +3,7 @@ import { isNil, isNull, isUndefined } from 'lodash';
 
 import activities from '../../../constants/activities';
 import status from '../../../constants/order_status';
+import { PAYMENT_METHOD_SERVICE } from '../../../constants/paymentMethods';
 import models from '../../../models';
 import { BadRequest, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { confirmOrder as confirmOrderLegacy, createOrder as createOrderLegacy } from '../../v1/mutations/orders';
@@ -74,6 +75,12 @@ const orderMutations = {
       const tier = order.tier && (await fetchTierWithReference(order.tier, loadersParams));
       const fromCollective = order.fromAccount && (await loadAccount(order.fromAccount));
       const collective = await loadAccount(order.toAccount);
+      const paymentMethod = await getLegacyPaymentMethodFromPaymentMethodInput(order.paymentMethod);
+
+      // Limit Braintree to root users for now
+      if (paymentMethod.service === PAYMENT_METHOD_SERVICE.BRAINTREE && !req.remoteUser?.isRoot()) {
+        throw new Error('Braintree payments are only available to root users at the moment');
+      }
 
       const legacyOrderObj = {
         quantity: order.quantity,
@@ -84,7 +91,7 @@ const orderMutations = {
         countryISO: tax?.country,
         taxIDNumber: tax?.idNumber,
         isFeesOnTop: !isNil(platformFee),
-        paymentMethod: await getLegacyPaymentMethodFromPaymentMethodInput(order.paymentMethod),
+        paymentMethod,
         fromCollective: fromCollective && { id: fromCollective.id },
         collective: { id: collective.id },
         totalAmount: getOrderTotalAmount(order),
