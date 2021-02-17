@@ -366,6 +366,7 @@ export const TransactionType = new GraphQLEnumType({
 export const TransactionOrder = new GraphQLInputObjectType({
   name: 'TransactionOrder',
   description: 'Ordering options for transactions',
+  deprecationReason: '2021-02-17: Not used anymore',
   fields: {
     field: {
       description: 'The field to order transactions by.',
@@ -400,6 +401,7 @@ TransactionOrder.defaultValue = Object.entries(TransactionOrder.getFields()).red
 export const PaginatedTransactionsType = new GraphQLObjectType({
   name: 'PaginatedTransactions',
   description: 'List of transactions with pagination data',
+  deprecationReason: '2021-02-17: Not used anymore',
   fields: () => ({
     transactions: { type: new GraphQLList(TransactionInterfaceType) },
     limit: { type: GraphQLInt },
