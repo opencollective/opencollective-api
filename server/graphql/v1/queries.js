@@ -309,6 +309,7 @@ const queries = {
    */
   transactions: {
     type: PaginatedTransactionsType,
+    deprecationReason: '2021-02-17: Not used anymore',
     args: {
       limit: {
         defaultValue: 100,
