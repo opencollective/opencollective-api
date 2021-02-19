@@ -16,7 +16,7 @@ const {
  * @param {number} year
  */
 export async function findAccountsThatNeedToBeSentTaxForm(year) {
-  const results = await queries.getTaxFormsRequiredForAccounts(null, new Date(year, 1));
+  const results = await queries.getTaxFormsRequiredForAccounts(null, year);
   if (!results.length) {
     return [];
   } else {

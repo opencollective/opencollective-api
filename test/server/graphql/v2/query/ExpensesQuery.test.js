@@ -129,7 +129,7 @@ describe('server/graphql/v2/query/ExpensesQuery', () => {
       // Add a tax form from last year on expense
       const expenseWithOutdatedTaxForm = expensesNotReadyToPay.find(({ description }) => description.includes('NRLY'));
       await fakeLegalDocument({
-        year: expenseWithOutdatedTaxForm.incurredAt.getFullYear() - 1,
+        year: expenseWithOutdatedTaxForm.incurredAt.getFullYear() - 4,
         CollectiveId: expenseWithOutdatedTaxForm.FromCollectiveId,
         requestStatus: 'RECEIVED',
         documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
