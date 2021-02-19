@@ -39,7 +39,7 @@ import plans, { PLANS_COLLECTIVE_SLUG } from '../constants/plans';
 import roles, { MemberRoleLabels } from '../constants/roles';
 import { FEES_ON_TOP_TRANSACTION_PROPERTIES, TransactionTypes } from '../constants/transactions';
 import { hasOptedOutOfFeature, isFeatureAllowedForCollectiveType } from '../lib/allowed-features';
-import cache from '../lib/cache';
+import cache, { purgeCacheForCollective } from '../lib/cache';
 import {
   collectiveSlugReservedlist,
   filterCollectiveSettings,
@@ -2288,6 +2288,7 @@ export default function (Sequelize, DataTypes) {
      * members don't persist in the Team section on the frontend.
      */
     invalidateContributorsCache(this.id);
+    purgeCacheForCollective(this.slug);
 
     return this.getMembers({
       where: { role: { [Op.in]: allowedRoles } },
