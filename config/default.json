@@ -46,7 +46,8 @@
       "perAccountForCollective": 2,
       "perEmail": 10,
       "perEmailForCollective": 2,
-      "perIp": 5
+      "perIp": 5,
+      "forCollective": 10
     },
     "giftCards": {
       "maxPerDay": 100
