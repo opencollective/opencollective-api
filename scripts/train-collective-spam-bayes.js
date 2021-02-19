@@ -37,7 +37,7 @@ async function run() {
     where: {
       approvedAt: { [Op.is]: null },
       longDescription: { [Op.not]: null },
-      createdAt: { [Op.gt]: '2020-06-21' },
+      createdAt: { [Op.gt]: '2020-06-01' },
     },
     order: [['createdAt', 'DESC']],
     paranoid: false,
