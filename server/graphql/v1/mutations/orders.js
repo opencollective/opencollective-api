@@ -915,8 +915,6 @@ export async function addFundsToCollective(order, remoteUser) {
   if (!isNil(order.platformFeePercent)) {
     orderData.data.platformFeePercent = order.platformFeePercent;
   }
-  // Invalidate Cloudflare cache for the collective pages
-  purgeCacheForCollective(collective.slug);
 
   const orderCreated = await models.Order.create(orderData);
 
@@ -929,6 +927,10 @@ export async function addFundsToCollective(order, remoteUser) {
   } else {
     await libPayments.executeOrder(remoteUser || user, orderCreated);
   }
+
+  // Invalidate Cloudflare cache for the collective pages
+  purgeCacheForCollective(collective.slug);
+  purgeCacheForCollective(fromCollective.slug);
 
   // Check if the maximum fund limit has been reached after execution
   await handleHostPlanAddedFundsLimit(host, { notifyAdmins: true });
