@@ -1,4 +1,5 @@
 import { GraphQLFloat, GraphQLInputObjectType, GraphQLString } from 'graphql';
+import GraphQLJSON from 'graphql-type-json';
 
 import { CountryISO } from '../enum/CountryISO';
 
@@ -25,6 +26,10 @@ export const LocationInput = new GraphQLInputObjectType({
     long: {
       type: GraphQLFloat,
       description: 'Longitude',
+    },
+    structured: {
+      type: GraphQLJSON,
+      description: 'Structured JSON address',
     },
   }),
 });
