@@ -1005,7 +1005,7 @@ export async function markExpenseAsUnpaid(req, ExpenseId, processorFeeRefunded):
     }
 
     const transaction = await models.Transaction.findOne({
-      where: { ExpenseId },
+      where: { ExpenseId, RefundTransactionId: null },
       include: [{ model: models.Expense }],
     });
 
