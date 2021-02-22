@@ -427,6 +427,7 @@ export function isUUID(str) {
 export function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
+
 export function chunkArray(startArray, chunkSize) {
   let j = -1;
   return startArray.reduce((arr, item, ix) => {
