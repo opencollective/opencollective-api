@@ -40,17 +40,14 @@ const oneHourInSeconds = 60 * 60;
 
 const debug = debugLib('orders');
 
-async function checkOrdersLimit(order, reqIp) {
-  if (['ci', 'test'].includes(config.env)) {
-    return;
-  }
+function getOrdersLimit(order, reqIp) {
+  const limits = [];
 
   const ordersLimits = config.limits.ordersPerHour;
   const collectiveId = get(order, 'collective.id');
   const fromCollectiveId = get(order, 'fromCollective.id');
   const userEmail = get(order, 'user.email');
-
-  const limits = [];
+  const guestInfo = get(order, 'guestInfo');
 
   if (fromCollectiveId) {
     // Limit on authenticated users
@@ -88,6 +85,27 @@ async function checkOrdersLimit(order, reqIp) {
     }
   }
 
+  // Guest Contributions
+  if (guestInfo && collectiveId) {
+    limits.push({
+      key: `order_limit_to_account_${collectiveId}`,
+      value: ordersLimits.forCollective,
+    });
+  }
+
+  return limits;
+}
+
+async function checkOrdersLimit(order, reqIp) {
+  if (['ci', 'test'].includes(config.env)) {
+    return;
+  }
+
+  // Generic error message
+  const errorMessage = 'Error while processing your request, please try again or contact support@opencollective.com.';
+
+  const limits = getOrdersLimit(order, reqIp);
+
   for (const limit of limits) {
     const count = (await cache.get(limit.key)) || 0;
     debug(`${count} orders for limit '${limit.key}'`);
@@ -95,15 +113,21 @@ async function checkOrdersLimit(order, reqIp) {
     cache.set(limit.key, count + 1, oneHourInSeconds);
     if (limitReached) {
       debug(`Order limit reached for limit '${limit.key}'`);
-      const errorMessage =
-        'Error while processing your request, please try again or contact support@opencollective.com';
       // Show a developer-friendly message in DEV
       if (config.env === 'development') {
-        throw new Error(`${errorMessage} - Orders limit reached`);
+        throw new Error(`${errorMessage} Orders limit reached.`);
       } else {
         throw new Error(errorMessage);
       }
     }
+  }
+}
+
+async function cleanOrdersLimit(order, reqIp) {
+  const limits = getOrdersLimit(order, reqIp);
+
+  for (const limit of limits) {
+    cache.del(limit.key);
   }
 }
 
@@ -563,7 +587,10 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
     purgeCacheForCollective(collective.slug);
     purgeCacheForCollective(fromCollective.slug);
 
+    cleanOrdersLimit(order, reqIp);
+
     order = await models.Order.findByPk(orderCreated.id);
+
     return { order, guestToken };
   } catch (error) {
     if (orderCreated) {
