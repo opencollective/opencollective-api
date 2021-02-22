@@ -1,4 +1,5 @@
 import { GraphQLFloat, GraphQLObjectType, GraphQLString } from 'graphql';
+import GraphQLJSON from 'graphql-type-json';
 
 export const Location = new GraphQLObjectType({
   name: 'Location',
@@ -23,6 +24,10 @@ export const Location = new GraphQLObjectType({
     long: {
       type: GraphQLFloat,
       description: 'Longitude',
+    },
+    structured: {
+      type: GraphQLJSON,
+      description: 'Structured JSON address',
     },
   }),
 });

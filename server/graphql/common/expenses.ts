@@ -464,12 +464,16 @@ export async function createExpense(remoteUser, expenseData): Promise<typeof mod
 
   // Update payee's location
   if (!expenseData.payeeLocation?.address && fromCollective.location) {
-    expenseData.payeeLocation = pick(fromCollective.location, ['address', 'country']);
-  } else if (expenseData.payeeLocation?.address && !fromCollective.location.address) {
+    expenseData.payeeLocation = pick(fromCollective.location, ['address', 'country', 'structured']);
+  } else if (
+    expenseData.payeeLocation?.address &&
+    (!fromCollective.location.address || !fromCollective.location.structured)
+  ) {
     // Let's take the opportunity to update collective's location
     await fromCollective.update({
       address: expenseData.payeeLocation.address,
       countryISO: expenseData.payeeLocation.country,
+      setttings: { ...fromCollective.settings, address: expenseData.payeeLocation.structured },
     });
   }
 

@@ -503,10 +503,9 @@ export default function (Sequelize, DataTypes) {
             name: this.locationName,
             address: this.address,
             country: this.countryISO,
-            lat:
-              this.geoLocationLatLong && this.geoLocationLatLong.coordinates && this.geoLocationLatLong.coordinates[0],
-            long:
-              this.geoLocationLatLong && this.geoLocationLatLong.coordinates && this.geoLocationLatLong.coordinates[1],
+            structured: this.settings?.address,
+            lat: this.geoLocationLatLong?.coordinates?.[0],
+            long: this.geoLocationLatLong?.coordinates?.[1],
           };
         },
 
