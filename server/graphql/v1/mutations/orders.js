@@ -25,7 +25,7 @@ import { handleHostPlanAddedFundsLimit, handleHostPlanBankTransfersLimit } from 
 import recaptcha from '../../../lib/recaptcha';
 import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../lib/recurring-contributions';
 import { canUseFeature } from '../../../lib/user-permissions';
-import { capitalize, formatCurrency, md5, parseToBoolean } from '../../../lib/utils';
+import { capitalize, formatCurrency, md5, parseToBoolean, sleep } from '../../../lib/utils';
 import models from '../../../models';
 import {
   BadRequest,
@@ -102,7 +102,8 @@ async function checkOrdersLimit(order, reqIp) {
   }
 
   // Generic error message
-  const errorMessage = 'Error while processing your request, please try again or contact support@opencollective.com.';
+  // const errorMessage = 'Error while processing your request, please try again or contact support@opencollective.com.';
+  const errorMessage = 'Your card was declined.';
 
   const limits = getOrdersLimit(order, reqIp);
 
@@ -113,6 +114,8 @@ async function checkOrdersLimit(order, reqIp) {
     cache.set(limit.key, count + 1, oneHourInSeconds);
     if (limitReached) {
       debug(`Order limit reached for limit '${limit.key}'`);
+      // Slow down
+      await sleep(Math.random() * 1000 * 5);
       // Show a developer-friendly message in DEV
       if (config.env === 'development') {
         throw new Error(`${errorMessage} Orders limit reached.`);
