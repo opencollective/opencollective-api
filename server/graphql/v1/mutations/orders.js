@@ -21,6 +21,7 @@ import * as github from '../../../lib/github';
 import { getOrCreateGuestProfile } from '../../../lib/guest-accounts';
 import logger from '../../../lib/logger';
 import * as libPayments from '../../../lib/payments';
+import { calcFee } from '../../../lib/payments';
 import { handleHostPlanAddedFundsLimit, handleHostPlanBankTransfersLimit } from '../../../lib/plans';
 import recaptcha from '../../../lib/recaptcha';
 import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../lib/recurring-contributions';
@@ -944,6 +945,12 @@ export async function addFundsToCollective(order, remoteUser) {
 
   if (!isNil(order.platformFeePercent)) {
     orderData.data.platformFeePercent = order.platformFeePercent;
+  }
+
+  if (!isNil(order.platformTipPercent)) {
+    orderData.data.isFeesOnTop = true;
+    orderData.data.platformFee = calcFee(order.totalAmount, order.platformTipPercent);
+    orderData.data.platformTipPercent = order.platformTipPercent;
   }
 
   const orderCreated = await models.Order.create(orderData);
