@@ -143,6 +143,11 @@
   },
   "transferwise": {
     "apiUrl": "TRANSFERWISE_API_URL",
+    "oauthUrl": "TRANSFERWISE_OAUTH_URL",
+    "clientKey": "TRANSFERWISE_CLIENT_KEY",
+    "clientId": "TRANSFERWISE_CLIENT_ID",
+    "clientSecret": "TRANSFERWISE_CLIENT_SECRET",
+    "redirectUri": "TRANSFERWISE_REDIRECT_URI",
     "privateKey": "TRANSFERWISE_PRIVATE_KEY"
   },
   "fixie": {

@@ -9,6 +9,7 @@ import status from '../../server/constants/expense_status';
 import * as transferwiseLib from '../../server/lib/transferwise';
 import models from '../../server/models';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
+import transferwise from '../../server/paymentProviders/transferwise';
 
 async function processExpense(expense) {
   console.log(`\nProcessing expense #${expense.id}...`);
@@ -26,7 +27,8 @@ async function processExpense(expense) {
   if (!transaction) {
     throw new Error(`Could not find any transactions associated with expense.`);
   }
-  const transfer = await transferwiseLib.getTransfer(connectedAccount.token, transaction.data.transfer.id);
+  const token = await transferwise.getToken(connectedAccount);
+  const transfer = await transferwiseLib.getTransfer(token, transaction.data.transfer.id);
   if (transfer.status === 'processing') {
     console.warn(`Transfer is still being processed, nothing to do but wait.`);
   } else if (expense.status === status.PROCESSING && transfer.status === 'outgoing_payment_sent') {
