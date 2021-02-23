@@ -15,15 +15,17 @@ import { generateKey } from '../../server/lib/encryption';
 import models, { sequelize } from '../../server/models';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 
-// Only run on the 5th of the month
 const date = process.env.START_DATE ? moment.utc(process.env.START_DATE) : moment.utc();
 const DRY = process.env.DRY;
 const HOST_ID = process.env.HOST_ID;
 const isProduction = config.env === 'production';
+
+// Only run on the 1th of the month
 if (isProduction && date.date() !== 1 && !process.env.OFFCYCLE) {
-  console.log('OC_ENV is production and today is not the 5th of month, script aborted!');
+  console.log('OC_ENV is production and today is not the 1st of month, script aborted!');
   process.exit();
 }
+
 if (DRY) {
   console.info('Running dry, changes are not going to be persisted to the DB.');
 }
@@ -386,7 +388,10 @@ export async function run() {
         connectedAccounts?.find(c => c.service === 'transferwise') &&
         payoutMethods[PayoutMethodTypes.BANK_ACCOUNT]?.[0]
       ) {
-        PayoutMethod = payoutMethods[PayoutMethodTypes.BANK_ACCOUNT]?.[0];
+        const currencyCompatibleAccount = payoutMethods[PayoutMethodTypes.BANK_ACCOUNT].find(
+          pm => pm.data?.currency === currency,
+        );
+        PayoutMethod = currencyCompatibleAccount || payoutMethods[PayoutMethodTypes.BANK_ACCOUNT]?.[0];
       } else if (
         connectedAccounts?.find(c => c.service === 'paypal') &&
         !host.settings?.disablePaypalPayouts &&
