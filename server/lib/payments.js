@@ -19,6 +19,7 @@ import { getTransactionPdf } from './pdf';
 import { subscribeOrUpgradePlan, validatePlanRequest } from './plans';
 import { createPrepaidPaymentMethod, isPrepaidBudgetOrder } from './prepaid-budget';
 import { getNextChargeAndPeriodStartDates } from './recurring-contributions';
+import { stripHTML } from './sanitize-html';
 import { netAmount } from './transactions';
 import { formatAccountDetails } from './transferwise';
 import { formatCurrency, toIsoDateStr } from './utils';
@@ -492,11 +493,11 @@ export const sendOrderProcessingEmail = async order => {
       // @deprecated but we still have some entries in the DB
       OrderId: order.id,
     };
-    data.instructions = instructions.replace(/{([\s\S]+?)}/g, (match, key) => {
+    data.instructions = stripHTML(instructions).replace(/{([\s\S]+?)}/g, (match, key) => {
       if (key && formatValues[key]) {
-        return formatValues[key];
+        return `<strong>${stripHTML(formatValues[key])}</strong>`;
       } else {
-        return match;
+        return stripHTML(match);
       }
     });
   }

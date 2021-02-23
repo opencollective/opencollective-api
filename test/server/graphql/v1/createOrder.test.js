@@ -303,7 +303,7 @@ describe('server/graphql/v1/createOrder', () => {
     expect(actionRequiredEmailArgs[0]).to.equal(remoteUser.email);
     expect(actionRequiredEmailArgs[2]).to.match(/IBAN 1234567890987654321/);
     expect(actionRequiredEmailArgs[2]).to.match(
-      /for the amount of \$20\.00 with the mention: webpack event backer order: [0-9]+/,
+      /for the amount of <strong>\$20\.00<\/strong> with the mention: <strong>webpack event<\/strong> <strong>backer<\/strong> order: <strong>[0-9]+<\/strong>/,
     );
     expect(actionRequiredEmailArgs[1]).to.equal('ACTION REQUIRED: your $20 registration to meetup is pending');
   });
