@@ -1,6 +1,6 @@
 import Promise from 'bluebird';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
-import { get, pick, uniq } from 'lodash';
+import { get, uniq } from 'lodash';
 import { isEmail } from 'validator';
 
 import { roles } from '../../constants';
@@ -23,12 +23,7 @@ import {
   TypeOfCollectiveType,
 } from './CollectiveInterface';
 import { InvoiceInputType } from './inputTypes';
-import {
-  PaginatedTransactionsType,
-  TransactionInterfaceType,
-  TransactionOrder,
-  TransactionType,
-} from './TransactionInterface';
+import { TransactionInterfaceType } from './TransactionInterface';
 import {
   InvoiceType,
   MemberInvitationType,
@@ -301,58 +296,6 @@ const queries = {
         endDate: args.dateTo,
         includeExpenseTransactions: args.includeExpenseTransactions,
       });
-    },
-  },
-
-  /*
-   * Returns all transactions
-   */
-  transactions: {
-    type: PaginatedTransactionsType,
-    deprecationReason: '2021-02-17: Not used anymore',
-    args: {
-      limit: {
-        defaultValue: 100,
-        description: 'Defaults to 100',
-        type: GraphQLInt,
-      },
-      offset: {
-        defaultValue: 0,
-        type: GraphQLInt,
-      },
-      orderBy: {
-        defaultValue: TransactionOrder.defaultValue,
-        type: TransactionOrder,
-      },
-      type: {
-        description: 'CREDIT or DEBIT are accepted values',
-        type: TransactionType,
-      },
-    },
-    async resolve(_, args) {
-      const { limit, offset, orderBy, type } = args;
-      const query = {
-        limit,
-        offset,
-        order: [Object.values(orderBy)],
-        where: {},
-      };
-
-      if (type) {
-        query.where = { type };
-      }
-
-      const [total, transactions] = await Promise.all([
-        models.Transaction.count({ where: query.where }),
-        models.Transaction.findAll(query),
-      ]);
-
-      return {
-        limit,
-        offset,
-        total,
-        transactions,
-      };
     },
   },
 
