@@ -583,6 +583,9 @@ export const AccountFields = {
           return false;
         } else if (!args.includeExpired && pm.expiryDate && pm.expiryDate <= now) {
           return false;
+          // Exclude unclaimed Gift Cards
+        } else if (pm.type === 'giftcard' && !pm.confirmedAt) {
+          return false;
         } else {
           return true;
         }
