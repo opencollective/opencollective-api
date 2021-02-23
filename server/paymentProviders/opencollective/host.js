@@ -27,12 +27,7 @@ paymentMethodProvider.processOrder = async order => {
 
   const hostFeePercent = await getHostFeePercent(order);
 
-  let platformFeePercent;
-  if (order.data.platformTipPercent) {
-    platformFeePercent = order.data.platformTipPercent;
-  } else {
-    platformFeePercent = await getPlatformFeePercent(order);
-  }
+  const platformFeePercent = await getPlatformFeePercent(order);
 
   const payload = {
     CreatedByUserId: order.CreatedByUserId,
@@ -66,7 +61,7 @@ paymentMethodProvider.processOrder = async order => {
     paymentProcessorFeeInHostCurrency: 0,
     description: order.description,
     data: {
-      isFeesOnTop: order.data?.isFeesOnTop,
+      isFeesOnTop: Boolean(order.data?.isFeesOnTop),
     },
   };
 
