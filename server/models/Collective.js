@@ -897,7 +897,7 @@ export default function (Sequelize, DataTypes) {
 
   // run when attaching a Stripe Account to this user/organization collective
   // this Payment Method will be used for "Add Funds"
-  Collective.prototype.becomeHost = async function ({ remoteUser }) {
+  Collective.prototype.becomeHost = async function () {
     if (!this.isHostAccount) {
       const updatedValues = { isHostAccount: true, plan: 'start-plan-2021' };
       // hostFeePercent and platformFeePercent are not supposed to be set at this point
@@ -921,7 +921,7 @@ export default function (Sequelize, DataTypes) {
       });
     }
 
-    await this.activateBudget({ remoteUser });
+    await this.activateBudget();
 
     return this;
   };
@@ -949,7 +949,7 @@ export default function (Sequelize, DataTypes) {
    * If the collective is a host, it needs to remove existing hosted collectives before
    * deactivating it as a host.
    */
-  Collective.prototype.deactivateAsHost = async function ({ remoteUser }) {
+  Collective.prototype.deactivateAsHost = async function () {
     const hostedCollectives = await this.getHostedCollectivesCount();
     if (hostedCollectives >= 1) {
       throw new Error(
@@ -959,7 +959,7 @@ export default function (Sequelize, DataTypes) {
 
     // TODO unsubscribe from OpenCollective tier plan.
 
-    await this.deactivateBudget({ remoteUser });
+    await this.deactivateBudget();
 
     const settings = { ...this.settings };
     unset(settings, 'paymentMethods.manual');
@@ -1002,7 +1002,7 @@ export default function (Sequelize, DataTypes) {
   /**
    * Activate Budget (so the "Host Organization" can receive financial contributions and manage expenses)
    */
-  Collective.prototype.activateBudget = async function ({ remoteUser }) {
+  Collective.prototype.activateBudget = async function () {
     if (!this.isHostAccount || ![types.ORGANIZATION].includes(this.type)) {
       return;
     }
@@ -2044,6 +2044,7 @@ export default function (Sequelize, DataTypes) {
           },
           application: {
             message: options?.message,
+            customData: options?.applicationData,
           },
         };
 
@@ -2152,7 +2153,7 @@ export default function (Sequelize, DataTypes) {
         throw new Error('Host not found');
       }
       if (!newHostCollective.isHostAccount) {
-        await newHostCollective.becomeHost({ remoteUser });
+        await newHostCollective.becomeHost();
       }
       return this.addHost(newHostCollective, remoteUser, {
         message: options?.message,

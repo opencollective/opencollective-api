@@ -1,4 +1,5 @@
 import handlebars from 'handlebars';
+import { lowercase } from 'lodash';
 import moment from 'moment-timezone';
 
 import { capitalize, formatCurrencyObject, pluralize, resizeImage } from './utils';
@@ -145,6 +146,13 @@ handlebars.registerHelper('number', (value, props) => {
 handlebars.registerHelper('resizeImage', (imageUrl, props) => resizeImage(imageUrl, props.hash));
 handlebars.registerHelper('capitalize', str => capitalize(str));
 handlebars.registerHelper('pluralize', (str, props) => pluralize(str, props.hash.n || props.hash.count));
+
+/**
+ * From totalAmountToBeRaised, return "Total amount to be raised"
+ */
+handlebars.registerHelper('prettifyVariableName', str => {
+  return capitalize(lowercase(str));
+});
 
 handlebars.registerHelper('encodeURIComponent', str => {
   return encodeURIComponent(str);
