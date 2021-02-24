@@ -91,6 +91,7 @@ const orderMutations = {
         customData: order.customData,
         tier: tier && { id: tier.id },
         guestInfo: order.guestInfo,
+        context: order.context,
         platformFee,
       };
 
