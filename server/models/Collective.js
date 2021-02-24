@@ -1556,6 +1556,19 @@ export default function (Sequelize, DataTypes) {
       ...defaultAttributes,
     };
 
+    const existingMember = await models.Member.findOne({
+      where: {
+        role,
+        MemberCollectiveId: user.CollectiveId,
+        CollectiveId: this.id,
+        TierId: defaultAttributes?.TierId || null,
+      },
+    });
+
+    if (existingMember) {
+      return existingMember;
+    }
+
     debug('addUserWithRole', user.id, role, 'member', memberAttributes);
 
     const member = await models.Member.create(memberAttributes, sequelizeParams);
