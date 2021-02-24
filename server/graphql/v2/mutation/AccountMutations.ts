@@ -274,6 +274,9 @@ const accountMutations = {
       if (plan === 'start-plan-2021' || plan === 'grow-plan-2021') {
         // This should cascade to all Collectives
         await account.updatePlatformFee(0, req.remoteUser);
+
+        // Make sure budget is activated
+        await account.activateBudget();
       }
 
       await cache.del(`plan_${account.id}`);
