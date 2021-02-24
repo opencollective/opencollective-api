@@ -1120,13 +1120,11 @@ export default function (Sequelize, DataTypes) {
   };
 
   // Returns the User model of the User that created this collective
-  Collective.prototype.getUser = function (queryParams) {
-    switch (this.type) {
-      case types.USER:
-      case types.ORGANIZATION:
-        return models.User.findByPk(this.CreatedByUserId, queryParams);
-      default:
-        return Promise.resolve(null);
+  Collective.prototype.getUser = async function (queryParams) {
+    if (this.type === types.USER) {
+      return models.User.findOne({ where: { CollectiveId: this.id, isIncognito: false }, ...queryParams });
+    } else {
+      return null;
     }
   };
 
