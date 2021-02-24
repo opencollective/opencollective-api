@@ -2044,6 +2044,7 @@ export default function (Sequelize, DataTypes) {
           },
           application: {
             message: options?.message,
+            customData: options?.applicationData,
           },
         };
 
