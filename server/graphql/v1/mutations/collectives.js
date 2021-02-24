@@ -796,7 +796,7 @@ export async function activateCollectiveAsHost(_, args, req) {
     throw new Unauthorized('You need to be logged in as an Admin.');
   }
 
-  return collective.becomeHost({ remoteUser: req.remoteUser });
+  return collective.becomeHost();
 }
 
 export async function deactivateCollectiveAsHost(_, args, req) {
@@ -813,7 +813,7 @@ export async function deactivateCollectiveAsHost(_, args, req) {
     throw new Unauthorized('You need to be logged in as an Admin.');
   }
 
-  return collective.deactivateAsHost({ remoteUser: req.remoteUser });
+  return collective.deactivateAsHost();
 }
 
 export async function activateBudget(_, args, req) {
@@ -830,7 +830,7 @@ export async function activateBudget(_, args, req) {
     throw new Unauthorized('You need to be logged in as an Admin.');
   }
 
-  return collective.activateBudget({ remoteUser: req.remoteUser });
+  return collective.activateBudget();
 }
 
 export async function deactivateBudget(_, args, req) {
@@ -847,5 +847,5 @@ export async function deactivateBudget(_, args, req) {
     throw new Unauthorized('You need to be logged in as an Admin.');
   }
 
-  return collective.deactivateBudget({ remoteUser: req.remoteUser });
+  return collective.deactivateBudget();
 }
