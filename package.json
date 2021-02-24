@@ -106,7 +106,7 @@
     "winston": "3.3.3"
   },
   "devDependencies": {
-    "@babel/cli": "7.12.16",
+    "@babel/cli": "7.13.0",
     "@babel/register": "7.12.13",
     "@typescript-eslint/eslint-plugin": "^4.0.0",
     "@typescript-eslint/parser": "^3.10.1",
