@@ -2,12 +2,12 @@ import Promise from 'bluebird';
 import debugLib from 'debug';
 import slugify from 'limax';
 import { defaults } from 'lodash';
-import { Op } from 'sequelize';
+import { DataTypes, Op, Sequelize } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
 import { maxInteger } from '../constants/math';
-import logger from '../lib/logger';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
+import sequelize from '../lib/sequelize';
 import { capitalize, days, formatCurrency } from '../lib/utils';
 import { isSupportedVideoProvider, supportedVideoProviders } from '../lib/validators';
 
@@ -24,10 +24,10 @@ const longDescriptionSanitizerOpts = buildSanitizerOptions({
   videoIframes: true,
 });
 
-export default function (Sequelize, DataTypes) {
-  const { models } = Sequelize;
+function defineModel() {
+  const { models } = sequelize;
 
-  const Tier = Sequelize.define(
+  const Tier = sequelize.define(
     'Tier',
     {
       id: {
@@ -420,7 +420,13 @@ export default function (Sequelize, DataTypes) {
     });
   };
 
-  Temporal(Tier, Sequelize);
+  Temporal(Tier, sequelize);
 
   return Tier;
 }
+
+// We're using the defineModel method to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const Tier = defineModel();
+
+export default Tier;

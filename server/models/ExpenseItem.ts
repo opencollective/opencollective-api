@@ -1,9 +1,10 @@
 import { pick } from 'lodash';
-import { Model, Transaction } from 'sequelize';
+import { DataTypes, Model } from 'sequelize';
 
 import { diffDBEntries } from '../lib/data';
 import { isValidUploadedImage } from '../lib/images';
 import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
+import sequelize from '../lib/sequelize';
 
 /**
  * Sequelize model to represent an ExpenseItem, linked to the `ExpenseItems` table.
@@ -71,7 +72,7 @@ export class ExpenseItem extends Model<ExpenseItem> {
   }
 }
 
-export default (sequelize, DataTypes): typeof ExpenseItem => {
+function setupModel(ExpenseItem) {
   // Link the model to database fields
   ExpenseItem.init(
     {
@@ -146,6 +147,10 @@ export default (sequelize, DataTypes): typeof ExpenseItem => {
       tableName: 'ExpenseItems',
     },
   );
+}
 
-  return ExpenseItem;
-};
+// We're using the setupModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+setupModel(ExpenseItem);
+
+export default ExpenseItem;

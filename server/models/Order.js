@@ -1,20 +1,22 @@
 import Promise from 'bluebird';
 import debugLib from 'debug';
 import { get } from 'lodash';
+import { DataTypes, Sequelize } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
 import status from '../constants/order_status';
 import { TransactionTypes } from '../constants/transactions';
 import * as libPayments from '../lib/payments';
+import sequelize from '../lib/sequelize';
 
 import CustomDataTypes from './DataTypes';
 
 const debug = debugLib('models:Order');
 
-export default function (Sequelize, DataTypes) {
-  const { models } = Sequelize;
+function defineModel() {
+  const { models } = sequelize;
 
-  const Order = Sequelize.define(
+  const Order = sequelize.define(
     'Order',
     {
       id: {
@@ -341,7 +343,13 @@ export default function (Sequelize, DataTypes) {
     });
   };
 
-  Temporal(Order, Sequelize);
+  Temporal(Order, sequelize);
 
   return Order;
 }
+
+// We're using the defineModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const Order = defineModel();
+
+export default Order;

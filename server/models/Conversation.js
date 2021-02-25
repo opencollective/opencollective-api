@@ -1,14 +1,16 @@
 import slugify from 'limax';
+import { DataTypes, Sequelize } from 'sequelize';
 
 import { activities } from '../constants';
 import { idEncode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
 import { generateSummaryForHTML } from '../lib/sanitize-html';
+import sequelize from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
 
-import models, { sequelize } from '.';
+function defineModel() {
+  const { models } = sequelize;
 
-export default function (Sequelize, DataTypes) {
-  const Conversation = Sequelize.define(
+  const Conversation = sequelize.define(
     'Conversation',
     {
       id: {
@@ -228,3 +230,9 @@ export default function (Sequelize, DataTypes) {
 
   return Conversation;
 }
+
+// We're using the defineModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const Conversation = defineModel();
+
+export default Conversation;

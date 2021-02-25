@@ -1,17 +1,18 @@
 import Promise from 'bluebird';
 import debugLib from 'debug';
 import { defaults, isNil } from 'lodash';
-import { Op } from 'sequelize';
+import { DataTypes, Op, Sequelize } from 'sequelize';
 
 import channels from '../constants/channels';
 import { ValidationFailed } from '../graphql/errors';
+import sequelize from '../lib/sequelize';
 
 const debug = debugLib('models:Notification');
 
-export default function (Sequelize, DataTypes) {
-  const { models } = Sequelize;
+function defineModel() {
+  const { models } = sequelize;
 
-  const Notification = Sequelize.define(
+  const Notification = sequelize.define(
     'Notification',
     {
       channel: {
@@ -229,6 +230,12 @@ export default function (Sequelize, DataTypes) {
 
   return Notification;
 }
+
+// We're using the defineModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const Notification = defineModel();
+
+export default Notification;
 
 /*
 Types:

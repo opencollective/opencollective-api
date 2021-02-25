@@ -1,8 +1,9 @@
 import { get, pick } from 'lodash';
-import { Model, Transaction } from 'sequelize';
+import { DataTypes, Model } from 'sequelize';
 import { isEmail } from 'validator';
 
 import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
+import sequelize from '../lib/sequelize';
 import { objHasOnlyKeys } from '../lib/utils';
 
 /**
@@ -142,7 +143,7 @@ export class PayoutMethod extends Model<PayoutMethod> {
   }
 }
 
-export default (sequelize, DataTypes): typeof PayoutMethod => {
+function setupModel(PayoutMethod) {
   // Link the model to database fields
   PayoutMethod.init(
     {
@@ -240,6 +241,10 @@ export default (sequelize, DataTypes): typeof PayoutMethod => {
       },
     },
   );
+}
 
-  return PayoutMethod;
-};
+// We're using the setupModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+setupModel(PayoutMethod);
+
+export default PayoutMethod;

@@ -1,4 +1,5 @@
 import { get, isEmpty, pick } from 'lodash';
+import { DataTypes, Op, Sequelize } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 import { isISO31661Alpha2 } from 'validator';
 
@@ -9,11 +10,11 @@ import { TransactionTypes } from '../constants/transactions';
 import { reduceArrayToCurrency } from '../lib/currency';
 import logger from '../lib/logger';
 import { buildSanitizerOptions, sanitizeHTML, stripHTML } from '../lib/sanitize-html';
+import sequelize from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
 import CustomDataTypes from '../models/DataTypes';
 
 import { PayoutMethodTypes } from './PayoutMethod';
-import models, { Op } from './';
 
 // Options for sanitizing private messages
 const PRIVATE_MESSAGE_SANITIZE_OPTS = buildSanitizerOptions({
@@ -22,8 +23,10 @@ const PRIVATE_MESSAGE_SANITIZE_OPTS = buildSanitizerOptions({
   links: true,
 });
 
-export default function (Sequelize, DataTypes) {
-  const Expense = Sequelize.define(
+function defineModel() {
+  const { models } = sequelize;
+
+  const Expense = sequelize.define(
     'Expense',
     {
       id: {
@@ -463,7 +466,13 @@ export default function (Sequelize, DataTypes) {
     );
   };
 
-  Temporal(Expense, Sequelize);
+  Temporal(Expense, sequelize);
 
   return Expense;
 }
+
+// We're using the defineModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const Expense = defineModel();
+
+export default Expense;

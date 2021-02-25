@@ -1,9 +1,12 @@
+import { DataTypes } from 'sequelize';
 import Temporal from 'sequelize-temporal';
+
+import sequelize from '../lib/sequelize';
 
 import CustomDataTypes from './DataTypes';
 
-export default (Sequelize, DataTypes) => {
-  const Subscription = Sequelize.define(
+function defineModel() {
+  const Subscription = sequelize.define(
     'Subscription',
     {
       amount: {
@@ -65,7 +68,13 @@ export default (Sequelize, DataTypes) => {
     return this.save();
   };
 
-  Temporal(Subscription, Sequelize);
+  Temporal(Subscription, sequelize);
 
   return Subscription;
-};
+}
+
+// We're using the defineModel method to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const Subscription = defineModel();
+
+export default Subscription;

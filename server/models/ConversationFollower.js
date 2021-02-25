@@ -1,7 +1,9 @@
-import { sequelize } from '.';
+import { DataTypes } from 'sequelize';
 
-export default function (Sequelize, DataTypes) {
-  const ConversationFollower = Sequelize.define(
+import sequelize from '../lib/sequelize';
+
+function defineModel() {
+  const ConversationFollower = sequelize.define(
     'ConversationFollowers',
     {
       id: {
@@ -117,3 +119,9 @@ export default function (Sequelize, DataTypes) {
 
   return ConversationFollower;
 }
+
+// We're using the defineModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const ConversationFollower = defineModel();
+
+export default ConversationFollower;

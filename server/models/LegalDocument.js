@@ -1,14 +1,18 @@
+import { DataTypes, Sequelize } from 'sequelize';
+
+import sequelize from '../lib/sequelize';
+
 export const LEGAL_DOCUMENT_TYPE = {
   US_TAX_FORM: 'US_TAX_FORM',
 };
 
-export default function (Sequelize, DataTypes) {
+function defineModel() {
   const NOT_REQUESTED = 'NOT_REQUESTED';
   const REQUESTED = 'REQUESTED';
   const RECEIVED = 'RECEIVED';
   const ERROR = 'ERROR';
 
-  const LegalDocument = Sequelize.define(
+  const LegalDocument = sequelize.define(
     'LegalDocument',
     {
       id: {
@@ -99,3 +103,9 @@ export default function (Sequelize, DataTypes) {
 
   return LegalDocument;
 }
+
+// We're using the defineModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const LegalDocument = defineModel();
+
+export default LegalDocument;

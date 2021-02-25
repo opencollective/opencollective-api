@@ -1,8 +1,11 @@
+import { DataTypes, Sequelize } from 'sequelize';
+
 import roles from '../constants/roles';
 import { invalidateContributorsCache } from '../lib/contributors';
+import sequelize from '../lib/sequelize';
 import { days } from '../lib/utils';
 
-export default function (Sequelize, DataTypes) {
+function defineModel() {
   const invalidateContributorsCacheUsingInstance = instance => {
     if (instance.role !== roles.FOLLOWER) {
       invalidateContributorsCache(instance.CollectiveId);
@@ -10,7 +13,7 @@ export default function (Sequelize, DataTypes) {
     return null;
   };
 
-  const Member = Sequelize.define(
+  const Member = sequelize.define(
     'Member',
     {
       id: {
@@ -147,3 +150,9 @@ export default function (Sequelize, DataTypes) {
 
   return Member;
 }
+
+// We're using the defineModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const Member = defineModel();
+
+export default Member;

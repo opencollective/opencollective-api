@@ -4,6 +4,7 @@ import Promise from 'bluebird';
 import debugLib from 'debug';
 import { defaultsDeep, get, isNil, isNull, isUndefined, pick } from 'lodash';
 import moment from 'moment';
+import { DataTypes, Sequelize } from 'sequelize';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../constants/activities';
@@ -12,20 +13,17 @@ import { getFxRate } from '../lib/currency';
 import { toNegative } from '../lib/math';
 import { calcFee } from '../lib/payments';
 import { stripHTML } from '../lib/sanitize-html';
+import sequelize from '../lib/sequelize';
 import { exportToCSV } from '../lib/utils';
 
 import CustomDataTypes from './DataTypes';
 
 const debug = debugLib('models:Transaction');
 
-/*
- * Transaction model
- * - this indicates that money was moved in the system
- */
-export default (Sequelize, DataTypes) => {
-  const { models } = Sequelize;
+function defineModel() {
+  const { models } = sequelize;
 
-  const Transaction = Sequelize.define(
+  const Transaction = sequelize.define(
     'Transaction',
     {
       type: DataTypes.STRING, // DEBIT or CREDIT
@@ -950,4 +948,10 @@ export default (Sequelize, DataTypes) => {
   };
 
   return Transaction;
-};
+}
+
+// We're using the defineModel method to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const Transaction = defineModel();
+
+export default Transaction;

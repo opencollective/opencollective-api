@@ -1,9 +1,12 @@
+import { DataTypes } from 'sequelize';
+
 import { REACTION_EMOJI } from '../constants/reaction-emoji';
+import sequelize from '../lib/sequelize';
 
-import models from './index';
+function defineModel() {
+  const { models } = sequelize;
 
-export default function (Sequelize, DataTypes) {
-  const CommentReaction = Sequelize.define(
+  const CommentReaction = sequelize.define(
     'CommentReaction',
     {
       id: {
@@ -105,3 +108,9 @@ export default function (Sequelize, DataTypes) {
 
   return CommentReaction;
 }
+
+// We're using the defineModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const CommentReaction = defineModel();
+
+export default CommentReaction;

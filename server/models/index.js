@@ -2,6 +2,34 @@ import Sequelize from 'sequelize';
 
 import sequelize from '../lib/sequelize';
 
+import Activity from './Activity';
+import Application from './Application';
+import Collective from './Collective';
+import Comment from './Comment';
+import CommentReaction from './CommentReaction';
+import ConnectedAccount from './ConnectedAccount';
+import Conversation from './Conversation';
+import ConversationFollower from './ConversationFollower';
+import CurrencyExchangeRate from './CurrencyExchangeRate';
+import Expense from './Expense';
+import ExpenseAttachedFile from './ExpenseAttachedFile';
+import ExpenseItem from './ExpenseItem';
+import HostApplication from './HostApplication';
+import LegalDocument from './LegalDocument';
+import Member from './Member';
+import MemberInvitation from './MemberInvitation';
+import Notification from './Notification';
+import Order from './Order';
+import PaymentMethod from './PaymentMethod';
+import PayoutMethod from './PayoutMethod';
+import RequiredLegalDocument from './RequiredLegalDocument';
+import Session from './Session';
+import Subscription from './Subscription';
+import Tier from './Tier';
+import Transaction from './Transaction';
+import Update from './Update';
+import User from './User';
+
 /**
  * Separate function to be able to use in scripts
  */
@@ -11,33 +39,33 @@ export function setupModels() {
   /**
    * Models.
    */
-  m['Activity'] = require('./Activity');
-  m['Application'] = require('./Application');
-  m['ConnectedAccount'] = require('./ConnectedAccount');
-  m['Collective'] = require('./Collective');
-  m['Comment'] = require('./Comment');
-  m['CommentReaction'] = require('./CommentReaction');
-  m['Conversation'] = require('./Conversation');
-  m['ConversationFollower'] = require('./ConversationFollower');
-  m['CurrencyExchangeRate'] = require('./CurrencyExchangeRate.ts');
-  m['Expense'] = require('./Expense');
-  m['ExpenseAttachedFile'] = require('./ExpenseAttachedFile.ts');
-  m['ExpenseItem'] = require('./ExpenseItem.ts');
-  m['HostApplication'] = require('./HostApplication.ts');
-  m['LegalDocument'] = require('./LegalDocument');
-  m['Member'] = require('./Member');
-  m['MemberInvitation'] = require('./MemberInvitation');
-  m['Notification'] = require('./Notification');
-  m['Order'] = require('./Order');
-  m['PaymentMethod'] = require('./PaymentMethod');
-  m['PayoutMethod'] = require('./PayoutMethod.ts');
-  m['RequiredLegalDocument'] = require('./RequiredLegalDocument');
-  m['Session'] = require('./Session');
-  m['Subscription'] = require('./Subscription');
-  m['Tier'] = require('./Tier');
-  m['Transaction'] = require('./Transaction');
-  m['Update'] = require('./Update');
-  m['User'] = require('./User');
+  m['Activity'] = Activity;
+  m['Activity'] = Application;
+  m['ConnectedAccount'] = ConnectedAccount;
+  m['Collective'] = Collective;
+  m['Comment'] = Comment;
+  m['CommentReaction'] = CommentReaction;
+  m['Conversation'] = Conversation;
+  m['ConversationFollower'] = ConversationFollower;
+  m['CurrencyExchangeRate'] = CurrencyExchangeRate;
+  m['Expense'] = Expense;
+  m['ExpenseAttachedFile'] = ExpenseAttachedFile;
+  m['ExpenseItem'] = ExpenseItem;
+  m['HostApplication'] = HostApplication;
+  m['LegalDocument'] = LegalDocument;
+  m['Member'] = Member;
+  m['MemberInvitation'] = MemberInvitation;
+  m['Notification'] = Notification;
+  m['Order'] = Order;
+  m['PaymentMethod'] = PaymentMethod;
+  m['PayoutMethod'] = PayoutMethod;
+  m['RequiredLegalDocument'] = RequiredLegalDocument;
+  m['Session'] = Session;
+  m['Subscription'] = Subscription;
+  m['Tier'] = Tier;
+  m['Transaction'] = Transaction;
+  m['Update'] = Update;
+  m['User'] = User;
 
   /**
    * Relationships

@@ -1,13 +1,13 @@
 import config from 'config';
 import { isNil } from 'lodash';
+import { DataTypes, Sequelize } from 'sequelize';
 
 import { supportedServices } from '../constants/connected_account';
 import { crypto } from '../lib/encryption';
-/**
- * Model.
- */
-export default (Sequelize, DataTypes) => {
-  const ConnectedAccount = Sequelize.define(
+import sequelize from '../lib/sequelize';
+
+function defineModel() {
+  const ConnectedAccount = sequelize.define(
     'ConnectedAccount',
     {
       service: {
@@ -97,4 +97,10 @@ export default (Sequelize, DataTypes) => {
   };
 
   return ConnectedAccount;
-};
+}
+
+// We're using the defineModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const ConnectedAccount = defineModel();
+
+export default ConnectedAccount;

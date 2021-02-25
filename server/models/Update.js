@@ -1,11 +1,8 @@
-/**
- * Dependencies.
- */
 import Promise from 'bluebird';
 import config from 'config';
 import slugify from 'limax';
 import { defaults, pick } from 'lodash';
-import { Op } from 'sequelize';
+import { DataTypes, Op, Sequelize } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
 import activities from '../constants/activities';
@@ -13,6 +10,7 @@ import * as errors from '../graphql/errors';
 import { mustHaveRole } from '../lib/auth';
 import logger from '../lib/logger';
 import { buildSanitizerOptions, generateSummaryForHTML, sanitizeHTML } from '../lib/sanitize-html';
+import sequelize from '../lib/sequelize';
 
 const sanitizerOptions = buildSanitizerOptions({
   titles: true,
@@ -24,13 +22,10 @@ const sanitizerOptions = buildSanitizerOptions({
   videoIframes: true,
 });
 
-/**
- * Update Model.
- */
-export default function (Sequelize, DataTypes) {
-  const { models } = Sequelize;
+function defineModel() {
+  const { models } = sequelize;
 
-  const Update = Sequelize.define(
+  const Update = sequelize.define(
     'Update',
     {
       id: {
@@ -380,7 +375,13 @@ export default function (Sequelize, DataTypes) {
     Update.belongsTo(m.User, { foreignKey: 'LastEditedByUserId', as: 'user' });
   };
 
-  Temporal(Update, Sequelize);
+  Temporal(Update, sequelize);
 
   return Update;
 }
+
+// We're using the defineModel method to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const Update = defineModel();
+
+export default Update;

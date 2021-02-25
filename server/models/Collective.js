@@ -24,7 +24,7 @@ import {
 import moment from 'moment';
 import fetch from 'node-fetch';
 import prependHttp from 'prepend-http';
-import { Op } from 'sequelize';
+import { DataTypes, Op, Sequelize } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 import { v4 as uuid } from 'uuid';
 import { isISO31661Alpha2 } from 'validator';
@@ -61,6 +61,7 @@ import logger from '../lib/logger';
 import { handleHostCollectivesLimit } from '../lib/plans';
 import queries from '../lib/queries';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
+import sequelize from '../lib/sequelize';
 import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective } from '../lib/spam';
 import { canUseFeature } from '../lib/user-permissions';
 import userlib from '../lib/userlib';
@@ -115,18 +116,10 @@ const longDescriptionSanitizerOptions = buildSanitizerOptions({
   videoIframes: true,
 });
 
-/**
- * Collective Model.
- *
- * There 3 types of collective at the moment
- * - Collective
- * - User: Collective with only one ADMIN
- * - Event: Time based collective with a parent collective
- */
-export default function (Sequelize, DataTypes) {
-  const { models } = Sequelize;
+function defineModel() {
+  const { models } = sequelize;
 
-  const Collective = Sequelize.define(
+  const Collective = sequelize.define(
     'Collective',
     {
       id: {
@@ -3323,7 +3316,13 @@ export default function (Sequelize, DataTypes) {
     Collective.belongsTo(m.Collective, { as: 'HostCollective' });
   };
 
-  Temporal(Collective, Sequelize);
+  Temporal(Collective, sequelize);
 
   return Collective;
 }
+
+// We're using the defineModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const Collective = defineModel();
+
+export default Collective;
