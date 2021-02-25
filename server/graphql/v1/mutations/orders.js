@@ -948,10 +948,10 @@ export async function addFundsToCollective(order, remoteUser) {
     orderData.data.platformFeePercent = order.platformFeePercent;
   }
 
-  if (!isNil(order.platformTipPercent)) {
+  if (!isNil(order.platformTip)) {
     orderData.data.isFeesOnTop = true;
-    orderData.data.platformFee = calcFee(order.totalAmount, order.platformTipPercent);
-    orderData.data.platformTipPercent = order.platformTipPercent;
+    orderData.data.platformFee = order.platformTip;
+    orderData.data.platformTip = order.platformTip;
   }
 
   const orderCreated = await models.Order.create(orderData);

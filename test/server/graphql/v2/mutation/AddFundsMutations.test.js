@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
 
 import { roles } from '../../../../../server/constants';
-import { fakeCollective, fakeHost, fakeUser } from '../../../../test-helpers/fake-data';
+import { fakeCollective, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
 import * as utils from '../../../../utils';
 
@@ -14,7 +14,7 @@ const addFundsMutation = gqlV2/* GraphQL */ `
     $description: String!
     $hostFeePercent: Int!
     $platformFeePercent: Int
-    $platformTipPercent: Int
+    $platformTip: AmountInput
   ) {
     addFunds(
       account: $account
@@ -23,7 +23,7 @@ const addFundsMutation = gqlV2/* GraphQL */ `
       description: $description
       hostFeePercent: $hostFeePercent
       platformFeePercent: $platformFeePercent
-      platformTipPercent: $platformTipPercent
+      platformTip: $platformTip
     ) {
       id
       toAccount {
@@ -70,7 +70,7 @@ describe('server/graphql/v2/mutation/AddFundsMutations', () => {
           description: 'add funds as non-admin',
           hostFeePercent: 6,
           platformFeePercent: 0,
-          platformTipPercent: 10,
+          platformTip: { valueInCents: 800 },
         },
         randomUser,
       );
@@ -88,7 +88,7 @@ describe('server/graphql/v2/mutation/AddFundsMutations', () => {
           description: 'add funds as admin',
           hostFeePercent: 6,
           platformFeePercent: 0,
-          platformTipPercent: 10,
+          platformTip: { valueInCents: 800 },
         },
         collectiveAdmin,
       );
@@ -108,7 +108,7 @@ describe('server/graphql/v2/mutation/AddFundsMutations', () => {
           description: 'add funds as admin',
           hostFeePercent: 6,
           platformFeePercent: 0,
-          platformTipPercent: 2,
+          platformTip: { valueInCents: 700 },
         },
         hostAdmin,
       );

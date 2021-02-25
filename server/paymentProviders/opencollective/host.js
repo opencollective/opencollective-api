@@ -27,7 +27,12 @@ paymentMethodProvider.processOrder = async order => {
 
   const hostFeePercent = await getHostFeePercent(order);
 
-  const platformFeePercent = await getPlatformFeePercent(order);
+  let platformFeePercent;
+  if (order.data.platformTip) {
+    platformFeePercent = (order.data.platformTip * 100) / order.totalAmount;
+  } else {
+    platformFeePercent = await getPlatformFeePercent(order);
+  }
 
   const payload = {
     CreatedByUserId: order.CreatedByUserId,

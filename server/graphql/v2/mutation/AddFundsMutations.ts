@@ -16,7 +16,7 @@ export const addFundsMutation = {
     description: { type: new GraphQLNonNull(GraphQLString) },
     hostFeePercent: { type: new GraphQLNonNull(GraphQLInt) },
     platformFeePercent: { type: GraphQLInt, description: 'Can only be set if root' },
-    platformTipPercent: { type: GraphQLInt },
+    platformTip: { type: AmountInput },
   },
   resolve: async (_, args, req): Promise<Record<string, unknown>> => {
     const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
@@ -32,8 +32,6 @@ export const addFundsMutation = {
       percentValidationFailPoint = 'hostFeePercent';
     } else if (!(args.platformFeePercent >= 0 && args.platformFeePercent <= 100)) {
       percentValidationFailPoint = 'platformFeePercent';
-    } else if (!(args.platformTipPercent >= 0 && args.platformTipPercent <= 100)) {
-      percentValidationFailPoint = 'platformTipPercent';
     }
 
     if (percentValidationFailPoint) {
@@ -50,7 +48,7 @@ export const addFundsMutation = {
         description: args.description,
         hostFeePercent: args.hostFeePercent,
         platformFeePercent: args.platformFeePercent,
-        platformTipPercent: args.platformTipPercent,
+        platformTip: getValueInCentsFromAmountInput(args.platformTip),
       },
       req.remoteUser,
     );

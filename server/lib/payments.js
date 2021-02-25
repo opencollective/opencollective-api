@@ -586,7 +586,7 @@ export const getPlatformFee = async (totalAmount, order, host = null, { hostPlan
 export const getPlatformFeePercent = async (order, host = null) => {
   const possibleValues = [
     // Fixed in the Order (special tiers: BackYourStack, Pre-Paid)
-    order.data?.platformTipPercent || order.data?.platformFeePercent,
+    order.data?.platformFeePercent,
   ];
 
   if (order.paymentMethod.service === 'opencollective' && order.paymentMethod.type === 'manual') {
