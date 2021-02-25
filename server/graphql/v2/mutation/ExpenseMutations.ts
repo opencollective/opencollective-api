@@ -3,6 +3,7 @@ import { GraphQLBoolean, GraphQLInputObjectType, GraphQLInt, GraphQLNonNull, Gra
 import { pick, size } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
+import activities from '../../../constants/activities';
 import activityType from '../../../constants/activities';
 import { types as collectiveTypes } from '../../../constants/collectives';
 import expenseStatus from '../../../constants/expense_status';
@@ -435,6 +436,13 @@ const expenseMutations = {
         throw new Unauthorized("You don't have the permission to edit this expense.");
       }
       await expense.update({ status: expenseStatus.PENDING });
+
+      // Technically the expense was already created, but it was a draft. It truly becomes visible
+      // for everyone (especially admins) at this point, so it's the right time to trigger `COLLECTIVE_EXPENSE_CREATED`
+      await expense
+        .createActivity(activities.COLLECTIVE_EXPENSE_CREATED, req.remoteUser, { skipEmail: true })
+        .catch(e => logger.error('An error happened when creating the COLLECTIVE_EXPENSE_CREATED activity', e));
+
       return expense;
     },
   },

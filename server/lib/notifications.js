@@ -215,6 +215,12 @@ async function notifyMembersOfCollective(CollectiveId, activity, options) {
 async function notifyByEmail(activity) {
   debug('notifyByEmail', activity.type);
   let collective, conversation;
+
+  // A special flag used to prevent some activities from triggering email notifications
+  if (activity.data?.skipEmail) {
+    return;
+  }
+
   switch (activity.type) {
     case activityType.TICKET_CONFIRMED:
       notifyUserId(activity.data.UserId, activity);
