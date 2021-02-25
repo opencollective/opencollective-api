@@ -196,6 +196,7 @@ export async function createCollectiveFromGithub(_, args, req) {
     const host = await models.Collective.findByPk(defaultHostCollective('opensource').CollectiveId);
     const promises = [
       collective.addUserWithRole(user, roles.ADMIN),
+      host.addUserWithRole(user, roles.ADMIN),
       collective.addHost(host, user, { shouldAutomaticallyApprove: true }),
       collective.update({ isActive: true, approvedAt: new Date() }),
     ];
