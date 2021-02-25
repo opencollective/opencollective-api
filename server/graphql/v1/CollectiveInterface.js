@@ -501,7 +501,7 @@ export const CollectiveStatsType = new GraphQLObjectType({
             endDate = null;
           }
 
-          return collective.getTotalAmountReceived(startDate, endDate);
+          return collective.getTotalAmountReceived({ startDate, endDate });
         },
       },
       totalNetAmountReceived: {
