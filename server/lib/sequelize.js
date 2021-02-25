@@ -62,5 +62,6 @@ const sequelize = new Sequelize(dbConfig.database, dbConfig.username, dbConfig.p
   ...config.database.options,
 });
 
-export { Op } from 'sequelize';
+export { Op, DataTypes, Model, QueryTypes, Sequelize, Transaction } from 'sequelize';
+
 export default sequelize;

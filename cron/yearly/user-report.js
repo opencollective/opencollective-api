@@ -223,11 +223,12 @@ const processCollective = collective => {
     .catch(console.error);
 };
 
-const getHosts = () => {
-  return models.Member.findAll({
+const getHosts = async () => {
+  const members = await models.Member.findAll({
     attributes: [[sequelize.fn('DISTINCT', sequelize.col('MemberCollectiveId')), 'MemberCollectiveId']],
     where: { role: 'HOST' },
-  }).map(m => m.MemberCollectiveId);
+  });
+  return members.map(m => m.MemberCollectiveId);
 };
 
 const getCollectives = () => {

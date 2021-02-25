@@ -1541,7 +1541,7 @@ const CollectiveFields = () => {
         includeHostedCollectives: { type: GraphQLBoolean },
         status: { type: GraphQLString },
       },
-      resolve(collective, args) {
+      async resolve(collective, args) {
         const query = { where: {} };
         if (args.status) {
           query.where.status = args.status;
@@ -1553,23 +1553,23 @@ const CollectiveFields = () => {
           query.offset = args.offset;
         }
         query.order = [['createdAt', 'DESC']];
-        const getCollectiveIds = () => {
-          // if is host, we get all the expenses across all the hosted collectives
-          if (args.includeHostedCollectives) {
-            return models.Member.findAll({
-              where: {
-                MemberCollectiveId: collective.id,
-                role: 'HOST',
-              },
-            }).map(members => members.CollectiveId);
-          } else {
-            return Promise.resolve([collective.id]);
-          }
-        };
-        return getCollectiveIds().then(collectiveIds => {
-          query.where.CollectiveId = { [Op.in]: collectiveIds };
-          return models.Expense.findAll(query);
-        });
+
+        let collectiveIds;
+        // if is host, we get all the expenses across all the hosted collectives
+        if (args.includeHostedCollectives) {
+          const members = await models.Member.findAll({
+            where: {
+              MemberCollectiveId: collective.id,
+              role: 'HOST',
+            },
+          });
+          collectiveIds = members.map(members => members.CollectiveId);
+        } else {
+          collectiveIds = [collective.id];
+        }
+
+        query.where.CollectiveId = { [Op.in]: collectiveIds };
+        return models.Expense.findAll(query);
       },
     },
     role: {

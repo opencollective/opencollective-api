@@ -24,8 +24,12 @@ describe('server/graphql/v1/tiers', () => {
    * - Host is the host of both collective1 and collective2. It has a tax on "PRODUCT" tiers.
    */
   // Create users
-  beforeEach(() => models.User.createUserWithCollective(utils.data('user1')).tap(u => (user1 = u)));
-  beforeEach(() => models.User.createUserWithCollective(utils.data('user2')).tap(u => (user2 = u)));
+  beforeEach(async () => {
+    user1 = await models.User.createUserWithCollective(utils.data('user1'));
+  });
+  beforeEach(async () => {
+    user2 = await models.User.createUserWithCollective(utils.data('user2'));
+  });
 
   // Create host
   beforeEach(async () => {
@@ -34,41 +38,47 @@ describe('server/graphql/v1/tiers', () => {
   });
 
   // Create payment method
-  beforeEach(() =>
-    models.PaymentMethod.create({
+  beforeEach(async () => {
+    paymentMethod1 = await models.PaymentMethod.create({
       ...utils.data('paymentMethod2'),
       CreatedByUserId: user1.id,
       CollectiveId: user1.CollectiveId,
-    }).tap(c => (paymentMethod1 = c)),
-  );
+    });
+  });
 
   // Create test collectives
-  beforeEach(() =>
-    models.Collective.create({
+  beforeEach(async () => {
+    collective1 = await models.Collective.create({
       ...utils.data('collective1'),
       settings: { VAT: { type: VAT_OPTIONS.HOST } },
-    }).tap(g => (collective1 = g)),
-  );
-  beforeEach(() => models.Collective.create(utils.data('collective2')).tap(g => (collective2 = g)));
+    });
+  });
+  beforeEach(async () => {
+    collective2 = await models.Collective.create(utils.data('collective2'));
+  });
 
   // Create tiers
-  beforeEach(() => collective1.createTier(utils.data('tier1')).tap(t => (tier1 = t)));
-  beforeEach(() => collective1.createTier(utils.data('tierWithCustomFields')).tap(t => (tierWithCustomFields = t)));
-  beforeEach(() => collective1.createTier(utils.data('tierProduct')).tap(t => (tierProduct = t)));
+  beforeEach(async () => {
+    tier1 = await collective1.createTier(utils.data('tier1'));
+  });
+  beforeEach(async () => {
+    tierWithCustomFields = await collective1.createTier(utils.data('tierWithCustomFields'));
+  });
+  beforeEach(async () => {
+    tierProduct = await collective1.createTier(utils.data('tierProduct'));
+  });
 
   // Add hosts to collectives
   beforeEach(() => collective1.addHost(host.collective, host));
   beforeEach(() => collective2.addHost(host.collective, host));
   beforeEach(() => collective2.addUserWithRole(user1, 'ADMIN'));
 
-  beforeEach('create stripe account', done => {
-    models.ConnectedAccount.create({
+  beforeEach('create stripe account', async () => {
+    await models.ConnectedAccount.create({
       service: 'stripe',
       CollectiveId: host.collective.id,
       token: 'abc',
-    })
-      .tap(() => done())
-      .catch(done);
+    });
   });
 
   before(() => {

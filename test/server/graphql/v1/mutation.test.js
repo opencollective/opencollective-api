@@ -56,41 +56,45 @@ describe('server/graphql/v1/mutation', () => {
     await utils.resetTestDB();
   });
 
-  beforeEach('create user1', () => models.User.createUserWithCollective(utils.data('user1')).tap(u => (user1 = u)));
-  beforeEach('create host user 1', () =>
-    models.User.createUserWithCollective({
+  beforeEach('create user1', async () => {
+    user1 = await models.User.createUserWithCollective(utils.data('user1'));
+  });
+  beforeEach('create host user 1', async () => {
+    host = await models.User.createUserWithCollective({
       ...utils.data('host1'),
       currency: 'EUR',
-    }).tap(u => (host = u)),
-  );
+    });
+  });
 
-  beforeEach('create user2', () => models.User.createUserWithCollective(utils.data('user2')).tap(u => (user2 = u)));
-  beforeEach('create user3', () => models.User.createUserWithCollective(utils.data('user3')).tap(u => (user3 = u)));
-  beforeEach('create collective1', () =>
-    models.Collective.create(utils.data('collective1')).tap(g => (collective1 = g)),
-  );
+  beforeEach('create user2', async () => {
+    user2 = await models.User.createUserWithCollective(utils.data('user2'));
+  });
+  beforeEach('create user3', async () => {
+    user3 = await models.User.createUserWithCollective(utils.data('user3'));
+  });
+  beforeEach('create collective1', async () => {
+    collective1 = await models.Collective.create(utils.data('collective1'));
+  });
   beforeEach('add host', () => collective1.addHost(host.collective, host));
   beforeEach('add user1 as admin to collective1', () => collective1.addUserWithRole(user1, roles.ADMIN));
   beforeEach('add user2 as admin to collective1', () => collective1.addUserWithRole(user2, roles.ADMIN));
 
-  beforeEach('create stripe account', done => {
-    models.ConnectedAccount.create({
+  beforeEach('create stripe account', async () => {
+    await models.ConnectedAccount.create({
       service: 'stripe',
       token: 'abc',
       CollectiveId: host.collective.id,
-    })
-      .tap(() => done())
-      .catch(done);
+    });
   });
 
-  beforeEach('create an event collective', () =>
-    models.Collective.create(
+  beforeEach('create an event collective', async () => {
+    event1 = await models.Collective.create(
       Object.assign(utils.data('event1'), {
         CreatedByUserId: user1.id,
         ParentCollectiveId: collective1.id,
       }),
-    ).tap(e => (event1 = e)),
-  );
+    );
+  });
 
   describe('createCollective tests', () => {
     const createCollectiveMutation = gql`
@@ -342,9 +346,9 @@ describe('server/graphql/v1/mutation', () => {
   });
 
   describe('createOrder tests', () => {
-    beforeEach('create ticket 1', () =>
-      models.Tier.create(Object.assign(utils.data('ticket1'), { CollectiveId: event1.id })).tap(t => (ticket1 = t)),
-    );
+    beforeEach('create ticket 1', async () => {
+      ticket1 = await models.Tier.create(Object.assign(utils.data('ticket1'), { CollectiveId: event1.id }));
+    });
 
     beforeEach('create ticket 2', () =>
       models.Tier.create(Object.assign(utils.data('ticket2'), { CollectiveId: event1.id })),

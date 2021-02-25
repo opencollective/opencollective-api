@@ -32,7 +32,9 @@ describe('server/routes/images', () => {
    * Create user
    */
 
-  beforeEach(() => models.User.create(userData).tap(u => (user = u)));
+  beforeEach(async () => {
+    user = await models.User.create(userData);
+  });
 
   it('should upload an image to S3', done => {
     const originalImage = fs.readFileSync(path.join(__dirname, '../../mocks/images/camera.png'), {

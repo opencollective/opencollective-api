@@ -1,9 +1,12 @@
 import crypto from 'crypto';
 
 import { merge } from 'lodash';
+import { DataTypes } from 'sequelize';
 
-export default function (Sequelize, DataTypes) {
-  const Application = Sequelize.define(
+import sequelize from '../lib/sequelize';
+
+function defineModel() {
+  const Application = sequelize.define(
     'Application',
     {
       id: {
@@ -102,3 +105,9 @@ export default function (Sequelize, DataTypes) {
 
   return Application;
 }
+
+// We're using the defineModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const Application = defineModel();
+
+export default Application;

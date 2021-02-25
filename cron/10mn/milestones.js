@@ -6,7 +6,7 @@ process.env.PORT = 3066;
 import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
-import _, { get, pick, set } from 'lodash';
+import { get, pick, set, uniq } from 'lodash';
 
 import { types as collectiveTypes } from '../../server/constants/collectives';
 import slackLib from '../../server/lib/slack';
@@ -24,8 +24,8 @@ if (config.env !== 'production') {
 const debug = debugLib('milestones');
 const startTime = new Date();
 
-const init = () => {
-  models.Member.findAll({
+const init = async () => {
+  const transactionsGroups = await models.Member.findAll({
     attributes: [[sequelize.fn('COUNT', sequelize.col('Member.id')), 'count'], 'CollectiveId'],
     where: {
       createdAt: { [Op.gte]: TenMinutesAgo },
@@ -34,16 +34,15 @@ const init = () => {
     limit: 30,
     group: ['CollectiveId', 'collective.id'],
     include: [{ model: models.Collective, where: { type: { [Op.ne]: collectiveTypes.EVENT } }, as: 'collective' }],
-  })
-    .tap(transactionsGroups => {
-      console.log(`${transactionsGroups.length} different collectives got new backers since ${TenMinutesAgo}`);
-    })
-    .map(processNewMembersCount)
-    .then(() => {
-      const timeLapsed = new Date() - startTime;
-      console.log(`Total run time: ${timeLapsed}ms`);
-      process.exit(0);
-    });
+  });
+
+  console.log(`${transactionsGroups.length} different collectives got new backers since ${TenMinutesAgo}`);
+
+  return Promise.map(transactionsGroups, processNewMembersCount).then(() => {
+    const timeLapsed = new Date() - startTime;
+    console.log(`Total run time: ${timeLapsed}ms`);
+    process.exit(0);
+  });
 };
 
 const notifyCollective = async (CollectiveId, milestone, collective) => {
@@ -145,7 +144,7 @@ const processNewMembersCount = async newMembersCount => {
 const compileTwitterHandles = (userCollectives, total, limit) => {
   const twitterHandles = userCollectives.map(backer => backer.twitterHandle).filter(handle => Boolean(handle));
   const limitToShow = Math.min(twitterHandles.length, limit);
-  let res = _.uniq(twitterHandles)
+  let res = uniq(twitterHandles)
     .map(handle => `@${handle}`)
     .slice(0, limitToShow)
     .join(', ');

@@ -1,13 +1,14 @@
-import { Model, Transaction } from 'sequelize';
+import { DataTypes, Model, Transaction } from 'sequelize';
 
 import { diffDBEntries } from '../lib/data';
 import { isValidUploadedImage } from '../lib/images';
 import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
+import sequelize from '../lib/sequelize';
 
 /**
  * Sequelize model to represent an ExpenseAttachedFile, linked to the `ExpenseAttachedFiles` table.
  */
-export class ExpenseAttachedFile extends Model<ExpenseAttachedFile> {
+export class ExpenseAttachedFile extends Model {
   public readonly id!: number;
   public ExpenseId!: number;
   public CreatedByUserId: number;
@@ -47,7 +48,7 @@ export class ExpenseAttachedFile extends Model<ExpenseAttachedFile> {
   };
 }
 
-export default (sequelize, DataTypes): typeof ExpenseAttachedFile => {
+function setupModel(ExpenseAttachedFile) {
   // Link the model to database fields
   ExpenseAttachedFile.init(
     {
@@ -92,6 +93,10 @@ export default (sequelize, DataTypes): typeof ExpenseAttachedFile => {
       tableName: 'ExpenseAttachedFiles',
     },
   );
+}
 
-  return ExpenseAttachedFile;
-};
+// We're using the setupModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+setupModel(ExpenseAttachedFile);
+
+export default ExpenseAttachedFile;

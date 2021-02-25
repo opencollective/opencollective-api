@@ -1,14 +1,10 @@
-/**
- * Dependencies.
- */
 import Promise from 'bluebird';
-import _ from 'lodash';
+import { defaults } from 'lodash';
 import Temporal from 'sequelize-temporal';
 
 import activities from '../constants/activities';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
-
-import { sequelize } from '.';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
 // Options for sanitizing comment's body
 const sanitizeOptions = buildSanitizerOptions({
@@ -18,13 +14,10 @@ const sanitizeOptions = buildSanitizerOptions({
   images: true,
 });
 
-/**
- * Comment Model.
- */
-export default function (Sequelize, DataTypes) {
-  const { models } = Sequelize;
+function defineModel() {
+  const { models } = sequelize;
 
-  const Comment = Sequelize.define(
+  const Comment = sequelize.define(
     'Comment',
     {
       id: {
@@ -113,12 +106,12 @@ export default function (Sequelize, DataTypes) {
 
       createdAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
 
       updatedAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
 
       deletedAt: {
@@ -224,7 +217,7 @@ export default function (Sequelize, DataTypes) {
   };
 
   Comment.createMany = (comments, defaultValues) => {
-    return Promise.map(comments, u => Comment.create(_.defaults({}, u, defaultValues)), { concurrency: 1 }).catch(
+    return Promise.map(comments, u => Comment.create(defaults({}, u, defaultValues)), { concurrency: 1 }).catch(
       console.error,
     );
   };
@@ -243,7 +236,13 @@ export default function (Sequelize, DataTypes) {
     Comment.belongsTo(m.User, { foreignKey: 'CreatedByUserId', as: 'user' });
   };
 
-  Temporal(Comment, Sequelize);
+  Temporal(Comment, sequelize);
 
   return Comment;
 }
+
+// We're using the defineModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const Comment = defineModel();
+
+export default Comment;

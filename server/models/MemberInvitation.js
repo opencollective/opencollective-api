@@ -4,11 +4,12 @@ import { pick } from 'lodash';
 import { types } from '../constants/collectives';
 import roles, { MemberRoleLabels } from '../constants/roles';
 import emailLib from '../lib/email';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
-import models from '.';
+function defineModel() {
+  const { models } = sequelize;
 
-export default function (Sequelize, DataTypes) {
-  const MemberInvitation = Sequelize.define(
+  const MemberInvitation = sequelize.define(
     'MemberInvitation',
     {
       id: {
@@ -77,15 +78,14 @@ export default function (Sequelize, DataTypes) {
       // Dates.
       createdAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
       updatedAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
       deletedAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
       },
       since: {
         type: DataTypes.DATE,
@@ -200,7 +200,7 @@ export default function (Sequelize, DataTypes) {
       include: [{ model: models.Collective, as: 'collective' }],
     });
 
-    const invitation = await await MemberInvitation.create({
+    const invitation = await MemberInvitation.create({
       ...memberParams,
       CollectiveId: collective.id,
     });
@@ -216,3 +216,9 @@ export default function (Sequelize, DataTypes) {
 
   return MemberInvitation;
 }
+
+// We're using the defineModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const MemberInvitation = defineModel();
+
+export default MemberInvitation;

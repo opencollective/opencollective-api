@@ -12,20 +12,17 @@ import { getFxRate } from '../lib/currency';
 import { toNegative } from '../lib/math';
 import { calcFee } from '../lib/payments';
 import { stripHTML } from '../lib/sanitize-html';
+import sequelize, { DataTypes } from '../lib/sequelize';
 import { exportToCSV } from '../lib/utils';
 
 import CustomDataTypes from './DataTypes';
 
 const debug = debugLib('models:Transaction');
 
-/*
- * Transaction model
- * - this indicates that money was moved in the system
- */
-export default (Sequelize, DataTypes) => {
-  const { models } = Sequelize;
+function defineModel() {
+  const { models } = sequelize;
 
-  const Transaction = Sequelize.define(
+  const Transaction = sequelize.define(
     'Transaction',
     {
       type: DataTypes.STRING, // DEBIT or CREDIT
@@ -179,7 +176,12 @@ export default (Sequelize, DataTypes) => {
 
       createdAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
+      },
+
+      updatedAt: {
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW,
       },
 
       deletedAt: {
@@ -950,4 +952,10 @@ export default (Sequelize, DataTypes) => {
   };
 
   return Transaction;
-};
+}
+
+// We're using the defineModel method to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const Transaction = defineModel();
+
+export default Transaction;

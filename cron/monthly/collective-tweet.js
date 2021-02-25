@@ -30,7 +30,7 @@ console.log('startDate', startDate, 'endDate', endDate);
 
 const debug = debugLib('monthlyreport');
 
-const init = () => {
+const init = async () => {
   const startTime = new Date();
 
   const query = {
@@ -49,15 +49,15 @@ const init = () => {
     query.include[0].where.slug = process.env.SLUG;
   }
 
-  models.ConnectedAccount.findAll(query)
-    .tap(connectedAccounts => {
-      console.log(`Preparing the ${month} report for ${connectedAccounts.length} collectives`);
-    })
-    .map(connectedAccount => {
-      const collective = connectedAccount.collective;
-      collective.twitterAccount = connectedAccount;
-      return collective;
-    })
+  const connectedAccounts = await models.ConnectedAccount.findAll(query);
+
+  console.log(`Preparing the ${month} report for ${connectedAccounts.length} collectives`);
+
+  Promise.map(connectedAccounts, connectedAccount => {
+    const collective = connectedAccount.collective;
+    collective.twitterAccount = connectedAccount;
+    return collective;
+  })
     .map(processCollective)
     .then(() => {
       const timeLapsed = Math.round((new Date() - startTime) / 1000);
