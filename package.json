@@ -79,7 +79,7 @@
     "node-slack": "0.0.7",
     "nodemailer": "6.4.18",
     "p-queue": "6.6.2",
-    "p-throttle": "4.0.0",
+    "p-throttle": "4.1.0",
     "passport": "0.4.1",
     "passport-github": "1.1.0",
     "passport-twitter": "1.0.4",
