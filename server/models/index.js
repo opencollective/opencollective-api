@@ -5,44 +5,39 @@ import sequelize from '../lib/sequelize';
 /**
  * Separate function to be able to use in scripts
  */
-export function setupModels(client) {
+export function setupModels() {
   const m = {}; // models
 
   /**
    * Models.
    */
-
-  [
-    'Activity',
-    'Application',
-    'ConnectedAccount',
-    'Collective',
-    'Comment',
-    'CommentReaction',
-    'Conversation',
-    'ConversationFollower',
-    'CurrencyExchangeRate',
-    'Expense',
-    'ExpenseAttachedFile',
-    'ExpenseItem',
-    'HostApplication',
-    'LegalDocument',
-    'Member',
-    'MemberInvitation',
-    'Notification',
-    'Order',
-    'PaymentMethod',
-    'PayoutMethod',
-    'RequiredLegalDocument',
-    'Session',
-    'Subscription',
-    'Tier',
-    'Transaction',
-    'Update',
-    'User',
-  ].forEach(model => {
-    m[model] = client.import(`${__dirname}/${model}`);
-  });
+  m['Activity'] = require('./Activity');
+  m['Application'] = require('./Application');
+  m['ConnectedAccount'] = require('./ConnectedAccount');
+  m['Collective'] = require('./Collective');
+  m['Comment'] = require('./Comment');
+  m['CommentReaction'] = require('./CommentReaction');
+  m['Conversation'] = require('./Conversation');
+  m['ConversationFollower'] = require('./ConversationFollower');
+  m['CurrencyExchangeRate'] = require('./CurrencyExchangeRate.ts');
+  m['Expense'] = require('./Expense');
+  m['ExpenseAttachedFile'] = require('./ExpenseAttachedFile.ts');
+  m['ExpenseItem'] = require('./ExpenseItem.ts');
+  m['HostApplication'] = require('./HostApplication.ts');
+  m['LegalDocument'] = require('./LegalDocument');
+  m['Member'] = require('./Member');
+  m['MemberInvitation'] = require('./MemberInvitation');
+  m['Notification'] = require('./Notification');
+  m['Order'] = require('./Order');
+  m['PaymentMethod'] = require('./PaymentMethod');
+  m['PayoutMethod'] = require('./PayoutMethod.ts');
+  m['RequiredLegalDocument'] = require('./RequiredLegalDocument');
+  m['Session'] = require('./Session');
+  m['Subscription'] = require('./Subscription');
+  m['Tier'] = require('./Tier');
+  m['Transaction'] = require('./Transaction');
+  m['Update'] = require('./Update');
+  m['User'] = require('./User');
 
   /**
    * Relationships
@@ -219,7 +214,7 @@ export function setupModels(client) {
 }
 
 const Op = Sequelize.Op;
-const models = setupModels(sequelize);
+const models = setupModels();
 
 export { sequelize, Op };
 export default models;
