@@ -16,7 +16,7 @@ paymentMethodProvider.features = {
 // Returns the balance in the currency of the paymentMethod (ie. currency of the Collective)
 paymentMethodProvider.getBalance = paymentMethod => {
   return paymentMethod.getCollective().then(collective => {
-    return collective.getBalance();
+    return collective.getBalanceWithBlockedFunds();
   });
 };
 
@@ -122,7 +122,7 @@ paymentMethodProvider.refundTransaction = async (transaction, user) => {
     throw new Error('Cannot process refunds for collectives with different hosts');
   }
 
-  const balance = await collective.getBalance();
+  const balance = await collective.getBalanceWithBlockedFunds();
   if (balance < transaction.amount) {
     throw new Error(
       `Not enough funds available (${formatCurrency(

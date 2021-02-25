@@ -2,7 +2,7 @@ import assert from 'assert';
 
 import Promise from 'bluebird';
 import debugLib from 'debug';
-import { defaultsDeep, get, isNull, isUndefined, pick } from 'lodash';
+import { defaultsDeep, get, isNil, isNull, isUndefined, pick } from 'lodash';
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
@@ -479,7 +479,6 @@ export default (Sequelize, DataTypes) => {
       transaction.amountInHostCurrency = Math.round(transaction.amountInHostCurrency);
     }
 
-    const collective = await models.Collective.findByPk(transaction.CollectiveId);
     const fromCollective = await models.Collective.findByPk(transaction.FromCollectiveId);
     const fromCollectiveHost = await fromCollective.getHostCollective();
 
@@ -504,32 +503,24 @@ export default (Sequelize, DataTypes) => {
       };
     } else {
       // Is the target "collective" (account) "Active" (has an host, manage its own budget)
-      const currency = fromCollective.currency;
       const hostCurrency = fromCollectiveHost.currency;
-
-      const hostCurrencyFxRate = await Transaction.getFxRate(currency, hostCurrency, transaction);
-      const oppositeTransactionCurrencyFxRate = await Transaction.getFxRate(
-        transaction.currency,
-        currency,
-        transaction,
-      );
+      const hostCurrencyFxRate = await Transaction.getFxRate(transaction.currency, hostCurrency, transaction);
       const oppositeTransactionHostCurrencyFxRate = await Transaction.getFxRate(
         transaction.hostCurrency,
         hostCurrency,
         transaction,
       );
 
-      const amount = -Math.round(transaction.netAmountInCollectiveCurrency * oppositeTransactionCurrencyFxRate);
-
       oppositeTransaction = {
         ...oppositeTransaction,
+        // TODO: credit card transactions (and similar) should not be marked with the HostCollectiveId
+        //       only Collective to Collective (and such) should be
         HostCollectiveId: fromCollectiveHost.id,
-        currency,
         hostCurrency,
         hostCurrencyFxRate,
-        amount,
-        netAmountInCollectiveCurrency: -Math.round(transaction.amount * oppositeTransactionCurrencyFxRate),
-        amountInHostCurrency: Math.round(amount * hostCurrencyFxRate),
+        amount: -Math.round(transaction.netAmountInCollectiveCurrency),
+        netAmountInCollectiveCurrency: -Math.round(transaction.amount),
+        amountInHostCurrency: Math.round(transaction.netAmountInCollectiveCurrency * hostCurrencyFxRate),
         hostFeeInHostCurrency: Math.round(transaction.hostFeeInHostCurrency * oppositeTransactionHostCurrencyFxRate),
         platformFeeInHostCurrency: Math.round(
           transaction.platformFeeInHostCurrency * oppositeTransactionHostCurrencyFxRate,
@@ -537,15 +528,15 @@ export default (Sequelize, DataTypes) => {
         paymentProcessorFeeInHostCurrency: Math.round(
           transaction.paymentProcessorFeeInHostCurrency * oppositeTransactionHostCurrencyFxRate,
         ),
-        data: { ...transaction.data, oppositeTransactionCurrencyFxRate, oppositeTransactionHostCurrencyFxRate },
+        data: { ...transaction.data, oppositeTransactionHostCurrencyFxRate },
+      };
+
+      // Also keep rate on original transaction
+      transaction.data = {
+        ...transaction.data,
+        oppositeTransactionHostCurrencyFxRate: 1 / oppositeTransactionHostCurrencyFxRate,
       };
     }
-
-    // Adjust currency of the transaction if necessary
-    // NOTE: disabled for now, many tests failing
-    // if (transaction.currency !== collective.currency) {
-    //   transaction = await Transaction.updateCurrency(collective.currency, transaction);
-    // }
 
     debug('createDoubleEntry', transaction, 'opposite', oppositeTransaction);
 
@@ -762,7 +753,7 @@ export default (Sequelize, DataTypes) => {
       return 1;
     }
 
-    // If Stripe transaction, we check if we have the rate stored locally in the transaction
+    // If Stripe transaction, we check if we have the rate stored locally
     // eslint-disable-next-line camelcase
     if (transaction.data?.balanceTransaction?.exchange_rate) {
       if (
@@ -776,6 +767,22 @@ export default (Sequelize, DataTypes) => {
         transaction.data?.balanceTransaction?.currency === fromCurrency.toLowerCase()
       ) {
         return 1 / transaction.data.balanceTransaction.exchange_rate; // eslint-disable-line camelcase
+      }
+    }
+
+    // If Transferwise transaction, we check if we have the rate stored locally
+    if (transaction.data?.transfer?.rate) {
+      if (
+        transaction.data?.transfer?.sourceCurrency === fromCurrency &&
+        transaction.data?.transfer?.targetCurrency === toCurrency
+      ) {
+        return transaction.data.transfer.rate;
+      }
+      if (
+        transaction.data?.transfer?.sourceCurrency === toCurrency &&
+        transaction.data?.transfer?.targetCurrency === fromCurrency
+      ) {
+        return 1 / transaction.data.transfer.rate;
       }
     }
 
@@ -811,7 +818,7 @@ export default (Sequelize, DataTypes) => {
     return transaction;
   };
 
-  Transaction.validate = async transaction => {
+  Transaction.validate = async (transaction, { validateOppositeTransaction = true } = {}) => {
     // Skip as there is a known bug there
     // https://github.com/opencollective/opencollective/issues/3935
     if (transaction.PlatformTipForTransactionGroup) {
@@ -824,12 +831,27 @@ export default (Sequelize, DataTypes) => {
       return;
     }
 
+    for (const key of [
+      'TransactionGroup',
+      'amount',
+      'currency',
+      'amountInHostCurrency',
+      'hostCurrency',
+      'hostCurrencyFxRate',
+      'netAmountInCollectiveCurrency',
+      'hostFeeInHostCurrency',
+      'platformFeeInHostCurrency',
+      'paymentProcessorFeeInHostCurrency',
+    ]) {
+      assert(!isNil(transaction[key]), `${key} should be set`);
+    }
+
     const hostCurrencyFxRate = transaction.hostCurrencyFxRate || 1;
 
     Transaction.assertAmountsLooselyEqual(
-      transaction.amount,
       Math.round(transaction.amountInHostCurrency / hostCurrencyFxRate),
-      'amount and amountInHostCurrency should match',
+      transaction.amount,
+      'amountInHostCurrency should match amount',
     );
 
     const netAmountInCollectiveCurrency = Transaction.calculateNetAmountInCollectiveCurrency(transaction);
@@ -839,6 +861,16 @@ export default (Sequelize, DataTypes) => {
       'netAmountInCollectiveCurrency should be accurate',
     );
 
+    if (transaction.currency === transaction.hostCurrency) {
+      assert(transaction.hostCurrencyFxRate === 1, 'hostCurrencyFxRate should be 1');
+    } else {
+      assert(transaction.hostCurrencyFxRate !== 1, 'hostCurrencyFxRate should not be 1');
+    }
+
+    if (!validateOppositeTransaction) {
+      return;
+    }
+
     // Stop there in this case, no need to check oppositeTransaction as it doesn't exist
     if (transaction.CollectiveId === transaction.FromCollectiveId) {
       return;
@@ -847,43 +879,66 @@ export default (Sequelize, DataTypes) => {
     const oppositeTransaction = await transaction.getOppositeTransaction();
     assert(oppositeTransaction, 'oppositeTransaction should be existing');
 
-    // Opposite transaction should match
-    if (transaction.currency === oppositeTransaction.currency) {
-      // Simple case
-      Transaction.assertAmountsStrictlyEqual(
-        oppositeTransaction.netAmountInCollectiveCurrency,
-        -1 * transaction.amount,
-        'netAmountInCollectiveCurrency in oppositeTransaction should match',
-      );
-      Transaction.assertAmountsStrictlyEqual(
-        oppositeTransaction.amount,
-        -1 * transaction.netAmountInCollectiveCurrency,
-        'amount in oppositeTransaction should match',
-      );
-    } else {
-      // Complex case
-      const oppositeTransactionCurrencyFxRate =
-        // Use the one stored locally in oppositeTransaction
-        oppositeTransaction.data?.oppositeTransactionCurrencyFxRate ||
-        // Use the one stored locally in transaction
-        (transaction.data?.oppositeTransactionCurrencyFxRate
-          ? 1 / transaction.data?.oppositeTransactionCurrencyFxRate
-          : null) ||
-        // Fetch from getFxRate
-        (await Transaction.getFxRate(transaction.currency, oppositeTransaction.currency, transaction));
+    // Ideally, but we should not enforce it at this point
+    /*
+    assert(transaction.currency === oppositeTransaction.currency, 'oppositeTransaction currency should match');
+    Transaction.assertAmountsStrictlyEqual(
+      oppositeTransaction.netAmountInCollectiveCurrency,
+      -1 * transaction.amount,
+      'netAmountInCollectiveCurrency in oppositeTransaction should match',
+    );
+    Transaction.assertAmountsStrictlyEqual(
+      oppositeTransaction.amount,
+      -1 * transaction.netAmountInCollectiveCurrency,
+      'amount in oppositeTransaction should match',
+    );
+    */
 
-      Transaction.assertAmountsLooselyEqual(
-        oppositeTransaction.netAmountInCollectiveCurrency,
-        -Math.round(transaction.amount * oppositeTransactionCurrencyFxRate),
-        'netAmountInCollectiveCurrency in oppositeTransaction should match',
-      );
+    const oppositeTransactionHostCurrencyFxRate =
+      // Use the one stored locally in oppositeTransaction
+      oppositeTransaction.data?.oppositeTransactionHostCurrencyFxRate ||
+      oppositeTransaction.data?.oppositeTransactionFeesCurrencyFxRate ||
+      // Use the one stored locally in transaction
+      (transaction.data?.oppositeTransactionHostCurrencyFxRate
+        ? 1 / transaction.data?.oppositeTransactionHostCurrencyFxRate
+        : null) ||
+      (transaction.data?.oppositeTransactionFeesCurrencyFxRate
+        ? 1 / transaction.data?.oppositeTransactionFeesCurrencyFxRate
+        : null) ||
+      // Fetch from getFxRate
+      (await Transaction.getFxRate(transaction.hostCurrency, oppositeTransaction.hostCurrency, transaction));
 
-      Transaction.assertAmountsLooselyEqual(
-        oppositeTransaction.amount,
-        -Math.round(transaction.netAmountInCollectiveCurrency * oppositeTransactionCurrencyFxRate),
-        'amount in oppositeTransaction should match',
-      );
-    }
+    Transaction.assertAmountsStrictlyEqual(
+      oppositeTransaction.platformFeeInHostCurrency || 0,
+      Math.round((transaction.platformFeeInHostCurrency || 0) * oppositeTransactionHostCurrencyFxRate),
+      'platformFeeInHostCurrency in oppositeTransaction should match',
+    );
+
+    Transaction.assertAmountsStrictlyEqual(
+      oppositeTransaction.hostFeeInHostCurrency || 0,
+      Math.round((transaction.hostFeeInHostCurrency || 0) * oppositeTransactionHostCurrencyFxRate),
+      'hostFeeInHostCurrency in oppositeTransaction should match',
+    );
+
+    Transaction.assertAmountsStrictlyEqual(
+      oppositeTransaction.paymentProcessorFeeInHostCurrency || 0,
+      Math.round((transaction.paymentProcessorFeeInHostCurrency || 0) * oppositeTransactionHostCurrencyFxRate),
+      'paymentProcessorFeeInHostCurrency in oppositeTransaction should match',
+    );
+
+    /*
+    Transaction.assertAmountsStrictlyEqual(
+      oppositeTransaction.amountInHostCurrency,
+      Math.round(transaction.netAmountInCollectiveCurrency * oppositeTransactionHostCurrencyFxRate),
+      'amountInHostCurrency in oppositeTransaction should match',
+    );
+
+    Transaction.assertAmountsLooselyEqual(
+      oppositeTransaction.amount,
+      -Math.round(transaction.netAmountInCollectiveCurrency * oppositeTransactionCurrencyFxRate),
+      'amount in oppositeTransaction should match',
+    );
+    */
   };
 
   Transaction.assertAmountsStrictlyEqual = (actual, expected, message) => {
@@ -891,7 +946,7 @@ export default (Sequelize, DataTypes) => {
   };
 
   Transaction.assertAmountsLooselyEqual = (actual, expected, message) => {
-    assert(Math.abs(actual - expected) <= 1, `${message}: ${actual} doesn't loosely equal to ${expected}`);
+    assert(Math.abs(actual - expected) <= 100, `${message}: ${actual} doesn't loosely equal to ${expected}`);
   };
 
   return Transaction;

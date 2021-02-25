@@ -173,7 +173,7 @@ export async function run() {
         pm."service" AS "PaymentService",
         spm."service" AS "SourcePaymentService",
         'Shared Revenue'::TEXT AS "source",
-        h.plan, 
+        h.plan,
         CASE
           WHEN h."isActive" THEN h.id
           ELSE (h."settings"->'hostCollective'->>'id')::INT
@@ -365,6 +365,9 @@ export async function run() {
         await models.Transaction.create({
           amount: totalAmountCredited,
           amountInHostCurrency: totalAmountCredited,
+          hostFeeInHostCurrency: 0,
+          platformFeeInHostCurrency: 0,
+          paymentProcessorFeeInHostCurrency: 0,
           CollectiveId: chargedHostId,
           CreatedByUserId: SETTLEMENT_EXPENSE_PROPERTIES.UserId,
           currency: currency,

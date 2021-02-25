@@ -19,7 +19,6 @@ import {
   fakePayoutMethod,
   fakeTransaction,
   fakeUser,
-  multiple,
   randStr,
 } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
@@ -489,7 +488,7 @@ describe('server/models/Collective', () => {
 
   it('computes the balance until a certain month', done => {
     const until = new Date('2016-07-01');
-    collective.getBalance(until).then(balance => {
+    collective.getBalance({ endDate: until }).then(balance => {
       let sum = 0;
       transactions.map(t => {
         if (t.createdAt < until) {
@@ -528,7 +527,7 @@ describe('server/models/Collective', () => {
       data: { payout_batch_id: 1 },
     });
 
-    const balance = await collective.getBalance();
+    const balance = await collective.getBalanceWithBlockedFunds();
     expect(balance).to.equal(45000 - 30000);
   });
 

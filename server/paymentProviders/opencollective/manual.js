@@ -3,6 +3,7 @@ import { pick } from 'lodash';
 import { maxInteger } from '../../constants/math';
 import { TransactionTypes } from '../../constants/transactions';
 import { FEATURE, hasOptedInForFeature } from '../../lib/allowed-features';
+import { getFxRate } from '../../lib/currency';
 import { createRefundTransaction, getHostFee, getPlatformFee } from '../../lib/payments';
 import models from '../../models';
 
@@ -41,8 +42,12 @@ async function processOrder(order) {
     order.paymentMethod = { service: 'opencollective', type: 'manual' };
   }
 
-  const platformFeeInHostCurrency = await getPlatformFee(order.totalAmount, order, host);
-  const hostFeeInHostCurrency = await getHostFee(order.totalAmount, order, host);
+  const hostCurrency = host.currency;
+  const hostCurrencyFxRate = await getFxRate(order.currency, hostCurrency);
+  const amountInHostCurrency = Math.round(order.totalAmount * hostCurrencyFxRate);
+
+  const platformFeeInHostCurrency = await getPlatformFee(amountInHostCurrency, order, host);
+  const hostFeeInHostCurrency = await getHostFee(amountInHostCurrency, order, host);
 
   const isFeesOnTop = order.data?.isFeesOnTop || false;
 
@@ -53,10 +58,9 @@ async function processOrder(order) {
     OrderId: order.id,
     amount: order.totalAmount,
     currency: order.currency,
-    hostCurrency: host.currency,
-    hostCurrencyFxRate: 1,
-    netAmountInCollectiveCurrency: order.totalAmount - hostFeeInHostCurrency - platformFeeInHostCurrency,
-    amountInHostCurrency: order.totalAmount,
+    hostCurrency,
+    hostCurrencyFxRate,
+    amountInHostCurrency,
     hostFeeInHostCurrency,
     platformFeeInHostCurrency,
     paymentProcessorFeeInHostCurrency,
