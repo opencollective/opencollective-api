@@ -343,7 +343,7 @@ const queries = {
       limit: { type: GraphQLInt },
       offset: { type: GraphQLInt },
     },
-    resolve(_, args, req) {
+    async resolve(_, args, req) {
       const query = { where: {} };
       if (args.limit) {
         query.limit = args.limit;
@@ -358,29 +358,24 @@ const queries = {
       if (!req.remoteUser || !req.remoteUser.isAdmin(args.CollectiveId)) {
         query.where.publishedAt = { [Op.ne]: null };
       }
-      return req.loaders.Collective.byId.load(args.CollectiveId).then(collective => {
-        if (!collective) {
-          throw new Error('Collective not found');
-        }
-        const getCollectiveIds = () => {
-          // if is host, we get all the updates across all the hosted collectives
-          if (args.includeHostedCollectives) {
-            const members = await models.Member.findAll({
-              where: {
-                MemberCollectiveId: collective.id,
-                role: 'HOST',
-              },
-            });
-            return members.map(member => member.CollectiveId);
-          } else {
-            return Promise.resolve([args.CollectiveId]);
-          }
-        };
-        return getCollectiveIds().then(collectiveIds => {
-          query.where.CollectiveId = { [Op.in]: collectiveIds };
-          return models.Update.findAll(query);
+      const collective = await req.loaders.Collective.byId.load(args.CollectiveId);
+      if (!collective) {
+        throw new Error('Collective not found');
+      }
+      let collectiveIds;
+      if (args.includeHostedCollectives) {
+        const members = await models.Member.findAll({
+          where: {
+            MemberCollectiveId: collective.id,
+            role: 'HOST',
+          },
         });
-      });
+        collectiveIds = members.map(member => member.CollectiveId);
+      } else {
+        collectiveIds = [args.CollectiveId];
+      }
+      query.where.CollectiveId = { [Op.in]: collectiveIds };
+      return models.Update.findAll(query);
     },
   },
 
