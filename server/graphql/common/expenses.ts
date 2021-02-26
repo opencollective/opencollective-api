@@ -22,6 +22,7 @@ import { ExpenseItem } from '../../models/ExpenseItem';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import paymentProviders from '../../paymentProviders';
 import { BadRequest, FeatureNotAllowedForUser, Forbidden, NotFound, Unauthorized, ValidationFailed } from '../errors';
+
 const debug = debugLib('expenses');
 
 const isOwner = async (req, expense): Promise<boolean> => {
@@ -654,6 +655,7 @@ export async function editExpense(req, expenseData, options = {}): Promise<typeo
   });
 
   await updatedExpense.createActivity(activities.COLLECTIVE_EXPENSE_UPDATED, remoteUser);
+
   return updatedExpense;
 }
 

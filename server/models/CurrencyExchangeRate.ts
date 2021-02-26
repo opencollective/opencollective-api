@@ -4,7 +4,7 @@ import sequelize, { DataTypes, Model } from '../lib/sequelize';
 /**
  * Sequelize model to represent an CurrencyExchangeRate, linked to the `CurrencyExchangeRates` table.
  */
-export class CurrencyExchangeRate extends Model<CurrencyExchangeRate> {
+export class CurrencyExchangeRate extends Model {
   public readonly id!: number;
   public rate!: number;
   public from!: string;

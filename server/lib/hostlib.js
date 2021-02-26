@@ -1,5 +1,5 @@
 import Promise from 'bluebird';
-import _ from 'lodash';
+import { intersection } from 'lodash';
 
 import { convertToCurrency } from '../lib/currency';
 import models, { Op, sequelize } from '../models';
@@ -57,7 +57,7 @@ export function getBackersStats(startDate = new Date('2015-01-01'), endDate = ne
     getBackersIds(startDate, endDate),
   ]).then(results => {
     stats.total = results[0].length;
-    stats.repeat = _.intersection(results[1], results[2]).length;
+    stats.repeat = intersection(results[1], results[2]).length;
     stats.new = results[2].length - stats.repeat;
     stats.inactive = stats.total - (stats.repeat + stats.new);
     return stats;
@@ -70,6 +70,7 @@ export function sumTransactionsBy(groupBy, attribute, query) {
     group: [`Transaction.${groupBy}`],
     ...query,
   };
+  // TODO(sequelize-update): refactor without Bluebird (map)
   return models.Transaction.findAll(findAllQuery).then(rows => {
     // when it's a raw query, the result is not in dataValues
     if (query.raw) {

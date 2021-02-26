@@ -1,12 +1,14 @@
+import { DataTypes, Model, Transaction } from 'sequelize';
+
 import { diffDBEntries } from '../lib/data';
 import { isValidUploadedImage } from '../lib/images';
 import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import sequelize from '../lib/sequelize';
 
 /**
  * Sequelize model to represent an ExpenseAttachedFile, linked to the `ExpenseAttachedFiles` table.
  */
-export class ExpenseAttachedFile extends Model<ExpenseAttachedFile> {
+export class ExpenseAttachedFile extends Model {
   public readonly id!: number;
   public ExpenseId!: number;
   public CreatedByUserId: number;

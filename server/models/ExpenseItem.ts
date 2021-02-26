@@ -9,7 +9,7 @@ import sequelize from '../lib/sequelize';
 /**
  * Sequelize model to represent an ExpenseItem, linked to the `ExpenseItems` table.
  */
-export class ExpenseItem extends Model<ExpenseItem> {
+export class ExpenseItem extends Model {
   public readonly id!: number;
   public ExpenseId!: number;
   public CreatedByUserId!: number;
@@ -60,10 +60,10 @@ export class ExpenseItem extends Model<ExpenseItem> {
    * Updates an expense item from user-submitted data.
    * @param itemData: The (potentially unsafe) user data. Fields will be whitelisted.
    */
-  static async updateFromData(itemData: object, dbTransaction: Transaction | null): Promise<ExpenseItem> {
+  static async updateFromData(itemData: object, dbTransaction: Transaction | null): Promise<void> {
     const id = itemData['id'];
     const cleanData = ExpenseItem.cleanData(itemData);
-    return ExpenseItem.update(cleanData, { where: { id }, transaction: dbTransaction });
+    await ExpenseItem.update(cleanData, { where: { id }, transaction: dbTransaction });
   }
 
   /** Filters out all the fields that cannot be edited by user */

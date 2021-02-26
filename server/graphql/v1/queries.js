@@ -365,6 +365,7 @@ const queries = {
         const getCollectiveIds = () => {
           // if is host, we get all the updates across all the hosted collectives
           if (args.includeHostedCollectives) {
+            // TODO(sequelize-update): refactor without Bluebird
             return models.Member.findAll({
               where: {
                 MemberCollectiveId: collective.id,
