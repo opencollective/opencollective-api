@@ -3,6 +3,7 @@ import { get } from 'lodash';
 import fetch from 'node-fetch';
 
 import * as constants from '../../constants/transactions';
+import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { floatAmountToCents } from '../../lib/math';
 import { getHostFee, getPlatformFee } from '../../lib/payments';
@@ -123,15 +124,24 @@ export async function executePayment(order) {
 /** Create transaction in our database to reflect a PayPal charge */
 export async function createTransaction(order, paymentInfo) {
   const transaction = paymentInfo.transactions[0];
-  const amountFromPayPal = parseFloat(transaction.amount.total);
-  const paypalFee = parseFloat(get(transaction, 'related_resources.0.sale.transaction_fee.value', '0.0'));
-  const amountFromPayPalInCents = floatAmountToCents(amountFromPayPal);
-  const paypalFeeInCents = floatAmountToCents(paypalFee);
-  const currencyFromPayPal = transaction.amount.currency;
 
-  // TODO: Double check why in one case we're using amountFromPayPalInCents and in the other order.totalAmount
-  const hostFeeInHostCurrency = await getHostFee(amountFromPayPalInCents, order);
-  const platformFeeInHostCurrency = await getPlatformFee(order.totalAmount, order);
+  const amount = floatAmountToCents(parseFloat(transaction.amount.total));
+  const currency = transaction.amount.currency;
+
+  const paypalTransactionFee = parseFloat(get(transaction, 'related_resources.0.sale.transaction_fee.value', '0.0'));
+  const paymentProcessorFee = floatAmountToCents(paypalTransactionFee);
+
+  const host = await order.collective.getHostCollective();
+  if (!host) {
+    throw new Error(`Cannot create transaction: collective id ${order.collective.id} doesn't have a host`);
+  }
+  const hostCurrency = host.currency;
+
+  const hostCurrencyFxRate = await getFxRate(currency, hostCurrency);
+  const amountInHostCurrency = Math.round(hostCurrencyFxRate * amount);
+  const paymentProcessorFeeInHostCurrency = Math.round(hostCurrencyFxRate * paymentProcessorFee);
+  const hostFeeInHostCurrency = await getHostFee(amountInHostCurrency, order);
+  const platformFeeInHostCurrency = await getPlatformFee(amountInHostCurrency, order);
 
   const payload = {
     CreatedByUserId: order.createdByUser.id,
@@ -139,17 +149,18 @@ export async function createTransaction(order, paymentInfo) {
     CollectiveId: order.collective.id,
     PaymentMethodId: order.paymentMethod.id,
   };
+
   payload.transaction = {
     type: constants.TransactionTypes.CREDIT,
     OrderId: order.id,
-    amount: order.totalAmount,
-    currency: order.currency,
-    hostCurrency: currencyFromPayPal,
-    amountInHostCurrency: amountFromPayPalInCents,
-    hostCurrencyFxRate: order.totalAmount / amountFromPayPalInCents,
+    amount,
+    currency,
+    amountInHostCurrency,
+    hostCurrency,
+    hostCurrencyFxRate,
     hostFeeInHostCurrency,
     platformFeeInHostCurrency,
-    paymentProcessorFeeInHostCurrency: paypalFeeInCents,
+    paymentProcessorFeeInHostCurrency,
     taxAmount: order.taxAmount,
     description: order.description,
     data: {
@@ -157,6 +168,7 @@ export async function createTransaction(order, paymentInfo) {
       isFeesOnTop: order.data?.isFeesOnTop,
     },
   };
+
   return models.Transaction.createFromPayload(payload);
 }
 
