@@ -38,7 +38,7 @@ export function setupModels() {
    * Models.
    */
   m['Activity'] = Activity;
-  m['Activity'] = Application;
+  m['Application'] = Application;
   m['ConnectedAccount'] = ConnectedAccount;
   m['Collective'] = Collective;
   m['Comment'] = Comment;
