@@ -406,11 +406,18 @@ export const CollectiveStatsType = new GraphQLObjectType({
           return collective.id;
         },
       },
-      balance: {
+      balanceWithBlockedFunds: {
         description: 'Amount of money in cents in the currency of the collective currently available to spend',
         type: GraphQLInt,
         resolve(collective, args, req) {
-          return req.loaders.Collective.balance.load(collective.id);
+          return collective.getBalanceWithBlockedFunds({ loaders: req.loaders });
+        },
+      },
+      balance: {
+        description: 'Amount of money in cents in the currency of the collective.',
+        type: GraphQLInt,
+        resolve(collective, args, req) {
+          return collective.getBalance({ loaders: req.loaders });
         },
       },
       backers: {

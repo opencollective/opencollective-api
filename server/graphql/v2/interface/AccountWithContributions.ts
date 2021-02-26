@@ -78,7 +78,7 @@ export const AccountWithContributionsFields = {
     deprecationReason: '2020/04/09 - Should not have been introduced. Use stats.balance.value',
     type: GraphQLInt,
     resolve(account, _, req): Promise<number> {
-      return req.loaders.Collective.balance.load(account.id);
+      return account.getBalanceWithBlockedFunds({ loaders: req.loaders });
     },
   },
   contributionPolicy: {

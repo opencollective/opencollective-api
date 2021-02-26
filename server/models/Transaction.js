@@ -832,6 +832,7 @@ export default (Sequelize, DataTypes) => {
     }
 
     for (const key of [
+      'uuid',
       'TransactionGroup',
       'amount',
       'currency',
