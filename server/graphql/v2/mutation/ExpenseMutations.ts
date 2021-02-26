@@ -440,7 +440,7 @@ const expenseMutations = {
       // Technically the expense was already created, but it was a draft. It truly becomes visible
       // for everyone (especially admins) at this point, so it's the right time to trigger `COLLECTIVE_EXPENSE_CREATED`
       await expense
-        .createActivity(activities.COLLECTIVE_EXPENSE_CREATED, req.remoteUser, { skipEmail: true })
+        .createActivity(activities.COLLECTIVE_EXPENSE_CREATED, req.remoteUser)
         .catch(e => logger.error('An error happened when creating the COLLECTIVE_EXPENSE_CREATED activity', e));
 
       return expense;

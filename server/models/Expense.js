@@ -301,7 +301,7 @@ export default function (Sequelize, DataTypes) {
       CollectiveId: this.collective.id,
       ExpenseId: this.id,
       data: {
-        ...pick(data, ['isManualPayout', 'error', 'payee', 'draftKey', 'inviteUrl', 'recipientNote', 'skipEmail']),
+        ...pick(data, ['isManualPayout', 'error', 'payee', 'draftKey', 'inviteUrl', 'recipientNote']),
         host: get(host, 'minimal'),
         collective: { ...this.collective.minimal, isActive: this.collective.isActive },
         user: submittedByUserCollective.minimal,
