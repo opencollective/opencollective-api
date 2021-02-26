@@ -4,14 +4,13 @@ import config from 'config';
 import debugLib from 'debug';
 import slugify from 'limax';
 import { defaults, get, intersection, pick } from 'lodash';
-import { DataTypes, Op, Sequelize } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
 import roles from '../constants/roles';
 import * as auth from '../lib/auth';
 import emailLib from '../lib/email';
 import logger from '../lib/logger';
-import sequelize from '../lib/sequelize';
+import sequelize, { DataTypes, Op, Sequelize } from '../lib/sequelize';
 import { isValidEmail } from '../lib/utils';
 
 const debug = debugLib('models:User');

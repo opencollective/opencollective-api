@@ -1,5 +1,4 @@
 import { get, isEmpty, pick } from 'lodash';
-import { DataTypes, Op, Sequelize } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 import { isISO31661Alpha2 } from 'validator';
 
@@ -10,7 +9,7 @@ import { TransactionTypes } from '../constants/transactions';
 import { reduceArrayToCurrency } from '../lib/currency';
 import logger from '../lib/logger';
 import { buildSanitizerOptions, sanitizeHTML, stripHTML } from '../lib/sanitize-html';
-import sequelize from '../lib/sequelize';
+import sequelize, { DataTypes, Op, QueryTypes, Sequelize } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
 import CustomDataTypes from '../models/DataTypes';
 
@@ -449,7 +448,7 @@ function defineModel() {
   };
 
   Expense.getMostPopularExpenseTagsForCollective = async function (collectiveId, limit = 100) {
-    return Sequelize.query(
+    return sequelize.query(
       `
       SELECT UNNEST(tags) AS id, UNNEST(tags) AS tag, COUNT(id)
       FROM "Expenses"
@@ -460,7 +459,7 @@ function defineModel() {
       LIMIT $limit
     `,
       {
-        type: Sequelize.QueryTypes.SELECT,
+        type: QueryTypes.SELECT,
         bind: { collectiveId, limit },
       },
     );

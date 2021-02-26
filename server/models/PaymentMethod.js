@@ -2,7 +2,6 @@ import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
 import { get, intersection } from 'lodash';
-import { DataTypes, Op, Sequelize } from 'sequelize';
 
 import { maxInteger } from '../constants/math';
 import { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPES } from '../constants/paymentMethods';
@@ -10,7 +9,7 @@ import { TransactionTypes } from '../constants/transactions';
 import { getFxRate } from '../lib/currency';
 import { sumTransactions } from '../lib/hostlib';
 import * as libpayments from '../lib/payments';
-import sequelize from '../lib/sequelize';
+import sequelize, { DataTypes, Op, Sequelize } from '../lib/sequelize';
 import { isTestToken } from '../lib/stripe';
 import { cleanTags, formatArrayToString, formatCurrency } from '../lib/utils';
 

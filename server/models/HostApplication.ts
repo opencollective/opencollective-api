@@ -1,8 +1,7 @@
 import { pick } from 'lodash';
-import { DataTypes, Model } from 'sequelize';
 
 import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
-import sequelize from '../lib/sequelize';
+import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 export enum HostApplicationStatus {
   PENDING = 'PENDING',

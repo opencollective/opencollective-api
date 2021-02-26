@@ -1,9 +1,7 @@
-import { DataTypes, Model } from 'sequelize';
-
 import { diffDBEntries } from '../lib/data';
 import { isValidUploadedImage } from '../lib/images';
 import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
-import sequelize from '../lib/sequelize';
+import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 /**
  * Sequelize model to represent an ExpenseAttachedFile, linked to the `ExpenseAttachedFiles` table.

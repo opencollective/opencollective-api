@@ -1,6 +1,4 @@
-import { DataTypes, Sequelize } from 'sequelize';
-
-import sequelize from '../lib/sequelize';
+import sequelize, { DataTypes, Sequelize } from '../lib/sequelize';
 
 export const LEGAL_DOCUMENT_TYPE = {
   US_TAX_FORM: 'US_TAX_FORM',

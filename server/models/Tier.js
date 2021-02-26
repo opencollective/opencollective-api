@@ -2,12 +2,11 @@ import Promise from 'bluebird';
 import debugLib from 'debug';
 import slugify from 'limax';
 import { defaults } from 'lodash';
-import { DataTypes, Op, Sequelize } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
 import { maxInteger } from '../constants/math';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
-import sequelize from '../lib/sequelize';
+import sequelize, { DataTypes, Op, Sequelize } from '../lib/sequelize';
 import { capitalize, days, formatCurrency } from '../lib/utils';
 import { isSupportedVideoProvider, supportedVideoProviders } from '../lib/validators';
 

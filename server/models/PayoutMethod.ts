@@ -1,5 +1,5 @@
 import { get, pick } from 'lodash';
-import { DataTypes, Model } from 'sequelize';
+import { DataTypes, Model, Transaction } from 'sequelize';
 import { isEmail } from 'validator';
 
 import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';

@@ -1,10 +1,9 @@
 import config from 'config';
 import { isNil } from 'lodash';
-import { DataTypes, Sequelize } from 'sequelize';
 
 import { supportedServices } from '../constants/connected_account';
 import { crypto } from '../lib/encryption';
-import sequelize from '../lib/sequelize';
+import sequelize, { DataTypes, Sequelize } from '../lib/sequelize';
 
 function defineModel() {
   const ConnectedAccount = sequelize.define(

@@ -1,11 +1,10 @@
 import Promise from 'bluebird';
 import debugLib from 'debug';
 import { defaults, isNil } from 'lodash';
-import { DataTypes, Op, Sequelize } from 'sequelize';
 
 import channels from '../constants/channels';
 import { ValidationFailed } from '../graphql/errors';
-import sequelize from '../lib/sequelize';
+import sequelize, { DataTypes, Op, Sequelize } from '../lib/sequelize';
 
 const debug = debugLib('models:Notification');
 

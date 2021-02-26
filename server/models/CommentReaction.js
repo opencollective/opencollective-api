@@ -1,7 +1,5 @@
-import { DataTypes } from 'sequelize';
-
 import { REACTION_EMOJI } from '../constants/reaction-emoji';
-import sequelize from '../lib/sequelize';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
 function defineModel() {
   const { models } = sequelize;

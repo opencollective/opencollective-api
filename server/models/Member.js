@@ -1,8 +1,6 @@
-import { DataTypes, Sequelize } from 'sequelize';
-
 import roles from '../constants/roles';
 import { invalidateContributorsCache } from '../lib/contributors';
-import sequelize from '../lib/sequelize';
+import sequelize, { DataTypes, Sequelize } from '../lib/sequelize';
 import { days } from '../lib/utils';
 
 function defineModel() {

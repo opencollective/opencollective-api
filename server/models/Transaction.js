@@ -4,7 +4,6 @@ import Promise from 'bluebird';
 import debugLib from 'debug';
 import { defaultsDeep, get, isNil, isNull, isUndefined, pick } from 'lodash';
 import moment from 'moment';
-import { DataTypes, Sequelize } from 'sequelize';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../constants/activities';
@@ -13,7 +12,7 @@ import { getFxRate } from '../lib/currency';
 import { toNegative } from '../lib/math';
 import { calcFee } from '../lib/payments';
 import { stripHTML } from '../lib/sanitize-html';
-import sequelize from '../lib/sequelize';
+import sequelize, { DataTypes, Sequelize } from '../lib/sequelize';
 import { exportToCSV } from '../lib/utils';
 
 import CustomDataTypes from './DataTypes';

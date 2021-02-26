@@ -1,6 +1,4 @@
-import { DataTypes } from 'sequelize';
-
-import sequelize from '../lib/sequelize';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
 function defineModel() {
   const ConversationFollower = sequelize.define(

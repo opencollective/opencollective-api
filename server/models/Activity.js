@@ -1,7 +1,5 @@
-import { DataTypes, Sequelize } from 'sequelize';
-
 import notify from '../lib/notifications';
-import sequelize from '../lib/sequelize';
+import sequelize, { DataTypes, Sequelize } from '../lib/sequelize';
 
 function defineModel() {
   const Activity = sequelize.define(

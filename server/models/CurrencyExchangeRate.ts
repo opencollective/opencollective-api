@@ -1,7 +1,5 @@
-import { DataTypes, Model } from 'sequelize';
-
 import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
-import sequelize from '../lib/sequelize';
+import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 /**
  * Sequelize model to represent an CurrencyExchangeRate, linked to the `CurrencyExchangeRates` table.

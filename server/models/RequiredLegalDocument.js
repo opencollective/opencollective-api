@@ -1,6 +1,4 @@
-import { DataTypes, Sequelize } from 'sequelize';
-
-import sequelize from '../lib/sequelize';
+import sequelize, { DataTypes, Sequelize } from '../lib/sequelize';
 
 function defineModel() {
   const US_TAX_FORM = 'US_TAX_FORM';

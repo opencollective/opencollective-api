@@ -1,7 +1,6 @@
-import { DataTypes } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
-import sequelize from '../lib/sequelize';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
 import CustomDataTypes from './DataTypes';
 

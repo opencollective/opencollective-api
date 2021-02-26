@@ -1,11 +1,10 @@
 import config from 'config';
 import { pick } from 'lodash';
-import { DataTypes, Sequelize } from 'sequelize';
 
 import { types } from '../constants/collectives';
 import roles, { MemberRoleLabels } from '../constants/roles';
 import emailLib from '../lib/email';
-import sequelize from '../lib/sequelize';
+import sequelize, { DataTypes, Sequelize } from '../lib/sequelize';
 
 function defineModel() {
   const { models } = sequelize;

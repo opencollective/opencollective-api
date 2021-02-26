@@ -1,13 +1,12 @@
 import Promise from 'bluebird';
 import debugLib from 'debug';
 import { get } from 'lodash';
-import { DataTypes, Sequelize } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
 import status from '../constants/order_status';
 import { TransactionTypes } from '../constants/transactions';
 import * as libPayments from '../lib/payments';
-import sequelize from '../lib/sequelize';
+import sequelize, { DataTypes, Sequelize } from '../lib/sequelize';
 
 import CustomDataTypes from './DataTypes';
 

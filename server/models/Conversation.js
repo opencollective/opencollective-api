@@ -1,10 +1,9 @@
 import slugify from 'limax';
-import { DataTypes, Sequelize } from 'sequelize';
 
 import { activities } from '../constants';
 import { idEncode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
 import { generateSummaryForHTML } from '../lib/sanitize-html';
-import sequelize from '../lib/sequelize';
+import sequelize, { DataTypes, QueryTypes } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
 
 function defineModel() {
@@ -183,7 +182,7 @@ function defineModel() {
   };
 
   Conversation.getMostPopularTagsForCollective = async function (collectiveId, limit = 100) {
-    return Sequelize.query(
+    return sequelize.query(
       `
       SELECT UNNEST(tags) AS id, UNNEST(tags) AS tag, COUNT(id)
       FROM "Conversations"
@@ -193,7 +192,7 @@ function defineModel() {
       LIMIT $limit
     `,
       {
-        type: Sequelize.QueryTypes.SELECT,
+        type: QueryTypes.SELECT,
         bind: { collectiveId, limit },
       },
     );

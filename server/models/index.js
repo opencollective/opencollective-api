@@ -1,6 +1,4 @@
-import Sequelize from 'sequelize';
-
-import sequelize from '../lib/sequelize';
+import sequelize, { Op } from '../lib/sequelize';
 
 import Activity from './Activity';
 import Application from './Application';
@@ -241,8 +239,8 @@ export function setupModels() {
   return m;
 }
 
-const Op = Sequelize.Op;
 const models = setupModels();
 
 export { sequelize, Op };
+
 export default models;

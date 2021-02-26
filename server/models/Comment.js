@@ -1,11 +1,10 @@
 import Promise from 'bluebird';
 import { defaults } from 'lodash';
-import { DataTypes, Sequelize } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
 import activities from '../constants/activities';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
-import sequelize from '../lib/sequelize';
+import sequelize, { DataTypes, Sequelize } from '../lib/sequelize';
 
 // Options for sanitizing comment's body
 const sanitizeOptions = buildSanitizerOptions({
