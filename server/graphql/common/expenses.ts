@@ -131,7 +131,7 @@ export const canVerifyDraftExpense = async (req, expense): Promise<boolean> => {
 /**
  * Returns the list of items for this expense.
  */
-export const getExpenseItems = async (expenseId, req): Promise<typeof ExpenseItem[]> => {
+export const getExpenseItems = async (expenseId, req): Promise<ExpenseItem[]> => {
   return req.loaders.Expense.items.load(expenseId);
 };
 
