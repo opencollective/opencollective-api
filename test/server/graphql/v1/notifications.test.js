@@ -17,25 +17,31 @@ describe('server/graphql/v1/notifications', () => {
   });
 
   // Create test users
-  beforeEach(() => models.User.createUserWithCollective(utils.data('user1')).tap(u => (user1 = u)));
-  beforeEach(() => models.User.createUserWithCollective(utils.data('user2')).tap(u => (user2 = u)));
+  beforeEach(async () => {
+    user1 = await models.User.createUserWithCollective(utils.data('user1'));
+  });
+  beforeEach(async () => {
+    user2 = await models.User.createUserWithCollective(utils.data('user2'));
+  });
 
   // Create test collective
-  beforeEach(() => models.Collective.create(utils.data('collective1')).tap(c => (collective1 = c)));
+  beforeEach(async () => {
+    collective1 = await models.Collective.create(utils.data('collective1'));
+  });
 
   // Set `user1` as collective admin
   beforeEach(() => collective1.addUserWithRole(user1, roles.ADMIN));
 
   // Create test notification
-  beforeEach(() =>
-    models.Notification.create({
+  beforeEach(async () => {
+    notification = await models.Notification.create({
       channel: channels.WEBHOOK,
       type: activities.COLLECTIVE_EXPENSE_CREATED,
       webhookUrl: randUrl(),
       UserId: user1.id,
       CollectiveId: collective1.id,
-    }).tap(n => (notification = n)),
-  );
+    });
+  });
 
   describe('create webhook notifications', () => {
     const createWebhookMutation = gql`

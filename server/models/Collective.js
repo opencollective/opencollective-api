@@ -1133,27 +1133,25 @@ function defineModel() {
    * Returns all the users of a collective (admins, members, backers, followers, attendees, ...)
    * including all the admins of the organizations that are members/backers of this collective
    */
-  Collective.prototype.getUsers = function () {
+  Collective.prototype.getUsers = async function () {
     debug('getUsers for ', this.id);
-    return models.Member.findAll({
+    const memberships = await models.Member.findAll({
       where: { CollectiveId: this.id },
       include: [{ model: models.Collective, as: 'memberCollective', required: true }],
-    })
-      .tap(memberships => debug('>>> members found', memberships.length))
-      .map(membership => membership.memberCollective)
-      .map(memberCollective => {
-        debug('>>> fetching user for', memberCollective.slug, memberCollective.type);
-        if (memberCollective.type === types.USER) {
-          return memberCollective.getUser().then(user => [user]);
-        } else {
-          debug('User', memberCollective.slug, 'type: ', memberCollective.type);
-          return memberCollective.getAdminUsers();
-        }
-      })
-      .then(users => {
-        const usersFlattened = flattenArray(users);
-        return uniqBy(usersFlattened, 'id');
-      });
+    });
+    debug('>>> members found', memberships.length);
+    const memberCollectives = memberships.map(membership => membership.memberCollective);
+    const users = Promise.map(memberCollectives, memberCollective => {
+      debug('>>> fetching user for', memberCollective.slug, memberCollective.type);
+      if (memberCollective.type === types.USER) {
+        return memberCollective.getUser().then(user => [user]);
+      } else {
+        debug('User', memberCollective.slug, 'type: ', memberCollective.type);
+        return memberCollective.getAdminUsers();
+      }
+    });
+    const usersFlattened = flattenArray(users);
+    return uniqBy(usersFlattened, 'id');
   };
 
   Collective.prototype.getAdmins = function () {
@@ -2437,13 +2435,13 @@ function defineModel() {
     } else {
       query.order = [['createdAt', 'DESC']];
     }
-    return models.PaymentMethod.findOne(query).tap(paymentMethod => {
-      if (!paymentMethod) {
-        throw new Error('No payment method found');
-      } else if (paymentMethod.endDate && paymentMethod.endDate < new Date()) {
-        throw new Error('Payment method expired');
-      }
-    });
+    const paymentMethod = await models.PaymentMethod.findOne(query);
+    if (!paymentMethod) {
+      throw new Error('No payment method found');
+    } else if (paymentMethod.endDate && paymentMethod.endDate < new Date()) {
+      throw new Error('Payment method expired');
+    }
+    return paymentMethod;
   };
 
   Collective.prototype.getBalanceWithBlockedFunds = function (options) {
@@ -2784,15 +2782,16 @@ function defineModel() {
     }
   };
 
-  Collective.prototype.getTopBackers = function (since, until, limit) {
-    return queries
-      .getMembersWithTotalDonations({ CollectiveId: this.id, role: 'BACKER' }, { since, until, limit })
-      .tap(backers =>
-        debug(
-          'getTopBackers',
-          backers.map(b => b.dataValues),
-        ),
-      );
+  Collective.prototype.getTopBackers = async function (since, until, limit) {
+    const backers = await queries.getMembersWithTotalDonations(
+      { CollectiveId: this.id, role: 'BACKER' },
+      { since, until, limit },
+    );
+    debug(
+      'getTopBackers',
+      backers.map(b => b.dataValues),
+    );
+    return backers;
   };
 
   Collective.prototype.getImageUrl = function (args = {}) {
@@ -3112,32 +3111,29 @@ function defineModel() {
   /**
    * Class Methods
    */
-  Collective.createOrganization = (collectiveData, adminUser, creator = {}) => {
+  Collective.createOrganization = async (collectiveData, adminUser, creator = {}) => {
     const CreatedByUserId = creator.id || adminUser.id;
-    return Collective.create({
+    const collective = await Collective.create({
       CreatedByUserId,
       ...collectiveData,
       type: types.ORGANIZATION,
       isActive: true,
-    })
-      .tap(collective => {
-        return models.Member.create({
-          CreatedByUserId,
-          CollectiveId: collective.id,
-          MemberCollectiveId: adminUser.CollectiveId,
-          role: roles.ADMIN,
-        });
-      })
-      .tap(collective => {
-        return models.Activity.create({
-          type: activities.ORGANIZATION_COLLECTIVE_CREATED,
-          UserId: adminUser.id,
-          CollectiveId: collective.id,
-          data: {
-            collective: pick(collective, ['name', 'slug']),
-          },
-        });
-      });
+    });
+    await models.Member.create({
+      CreatedByUserId,
+      CollectiveId: collective.id,
+      MemberCollectiveId: adminUser.CollectiveId,
+      role: roles.ADMIN,
+    });
+    await models.Activity.create({
+      type: activities.ORGANIZATION_COLLECTIVE_CREATED,
+      UserId: adminUser.id,
+      CollectiveId: collective.id,
+      data: {
+        collective: pick(collective, ['name', 'slug']),
+      },
+    });
+    return collective;
   };
 
   Collective.createMany = (collectives, defaultValues) => {
@@ -3146,13 +3142,13 @@ function defineModel() {
     );
   };
 
-  Collective.getTopBackers = (since, until, tags, limit) => {
-    return queries.getTopBackers(since || 0, until || new Date(), tags, limit || 5).tap(backers =>
-      debug(
-        'getTopBackers',
-        backers.map(b => b.dataValues),
-      ),
+  Collective.getTopBackers = async (since, until, tags, limit) => {
+    const backers = await queries.getTopBackers(since || 0, until || new Date(), tags, limit || 5);
+    debug(
+      'getTopBackers',
+      backers.map(b => b.dataValues),
     );
+    return backers;
   };
 
   Collective.prototype.doesUserHaveTotalExpensesOverThreshold = async function ({ threshold, year, UserId }) {

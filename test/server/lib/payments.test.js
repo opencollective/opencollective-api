@@ -111,14 +111,12 @@ describe('server/lib/payments', () => {
   beforeEach('add host to collective', () => collective.addHost(host.collective, host));
   beforeEach('add host to collective2', () => collective2.addHost(host.collective, host));
 
-  beforeEach('create stripe account', done => {
-    models.ConnectedAccount.create({
+  beforeEach('create stripe account', async () => {
+    await models.ConnectedAccount.create({
       service: 'stripe',
       token: 'abc',
       CollectiveId: host.collective.id,
-    })
-      .tap(() => done())
-      .catch(done);
+    });
   });
 
   /**

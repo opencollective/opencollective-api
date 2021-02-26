@@ -134,76 +134,59 @@ describe('server/models/Collective', () => {
 
   before(() => utils.resetTestDB());
 
-  before(() =>
-    User.createUserWithCollective(users[0])
-      .tap(u => (user1 = u))
-      .then(() => User.createUserWithCollective(users[1]))
-      .tap(u => (user2 = u))
-      .then(() => User.createUserWithCollective(utils.data('host1')))
-      .tap(u => (hostUser = u))
-      .then(() => Collective.create(collectiveData))
-      .then(g => (collective = g))
-      .then(() =>
-        Collective.create({
-          slug: 'webpack',
-          tags: ['open source'],
-          isActive: true,
-        }),
-      )
-      .then(g => (opensourceCollective = g))
-      .then(() => collective.addUserWithRole(user1, 'BACKER'))
-      .then(() =>
-        models.Expense.create({
-          description: 'pizza',
-          amount: 1000,
-          currency: 'USD',
-          UserId: user1.id,
-          FromCollectiveId: user1.CollectiveId,
-          lastEditedById: user1.id,
-          incurredAt: transactions[0].createdAt,
-          createdAt: transactions[0].createdAt,
-          CollectiveId: collective.id,
-        }),
-      )
-      .then(() =>
-        models.Expense.create({
-          description: 'stickers',
-          amount: 15000,
-          currency: 'USD',
-          UserId: user1.id,
-          FromCollectiveId: user1.CollectiveId,
-          lastEditedById: user1.id,
-          incurredAt: transactions[1].createdAt,
-          createdAt: transactions[1].createdAt,
-          CollectiveId: collective.id,
-        }),
-      )
-      .then(() =>
-        models.Expense.create({
-          description: 'community gardening',
-          amount: 60100,
-          currency: 'USD',
-          UserId: user2.id,
-          FromCollectiveId: user2.CollectiveId,
-          lastEditedById: user2.id,
-          incurredAt: transactions[1].createdAt,
-          createdAt: transactions[1].createdAt,
-          CollectiveId: opensourceCollective.id,
-        }),
-      )
-      .then(() =>
-        Transaction.createManyDoubleEntry([transactions[2]], {
-          CollectiveId: opensourceCollective.id,
-          HostCollectiveId: hostUser.CollectiveId,
-        }),
-      )
-      .then(() =>
-        Transaction.createManyDoubleEntry(transactions, {
-          CollectiveId: collective.id,
-          HostCollectiveId: hostUser.CollectiveId,
-        }),
-      ),
-  );
+  before(async () => {
+    user1 = await User.createUserWithCollective(users[0]);
+    user2 = await User.createUserWithCollective(users[1]);
+    hostUser = await User.createUserWithCollective(utils.data('host1'));
+    collective = await Collective.create(collectiveData);
+    opensourceCollective = await Collective.create({
+      slug: 'webpack',
+      tags: ['open source'],
+      isActive: true,
+    });
+    await collective.addUserWithRole(user1, 'BACKER');
+    await models.Expense.create({
+      description: 'pizza',
+      amount: 1000,
+      currency: 'USD',
+      UserId: user1.id,
+      FromCollectiveId: user1.CollectiveId,
+      lastEditedById: user1.id,
+      incurredAt: transactions[0].createdAt,
+      createdAt: transactions[0].createdAt,
+      CollectiveId: collective.id,
+    });
+    await models.Expense.create({
+      description: 'stickers',
+      amount: 15000,
+      currency: 'USD',
+      UserId: user1.id,
+      FromCollectiveId: user1.CollectiveId,
+      lastEditedById: user1.id,
+      incurredAt: transactions[1].createdAt,
+      createdAt: transactions[1].createdAt,
+      CollectiveId: collective.id,
+    });
+    await models.Expense.create({
+      description: 'community gardening',
+      amount: 60100,
+      currency: 'USD',
+      UserId: user2.id,
+      FromCollectiveId: user2.CollectiveId,
+      lastEditedById: user2.id,
+      incurredAt: transactions[1].createdAt,
+      createdAt: transactions[1].createdAt,
+      CollectiveId: opensourceCollective.id,
+    });
+    await Transaction.createManyDoubleEntry([transactions[2]], {
+      CollectiveId: opensourceCollective.id,
+      HostCollectiveId: hostUser.CollectiveId,
+    });
+    await Transaction.createManyDoubleEntry(transactions, {
+      CollectiveId: collective.id,
+      HostCollectiveId: hostUser.CollectiveId,
+    });
+  });
 
   it('validates name', async () => {
     // Invalid
