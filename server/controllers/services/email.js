@@ -84,7 +84,7 @@ export const approve = (req, res, next) => {
 
   if (!messageId) {
     return next(new errors.BadRequest('No messageId provided'));
-  } else if (!messageId.match(/^[a-z0-9]+=*$/i)) {
+  } else if (!messageId.match(/^\w+=*$/i)) {
     return next(new errors.BadRequest('Invalid messageId provided'));
   }
 
