@@ -18,6 +18,7 @@ import {
 import { canUseFeature } from '../../lib/user-permissions';
 import { formatCurrency } from '../../lib/utils';
 import models, { sequelize } from '../../models';
+import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile';
 import { ExpenseItem } from '../../models/ExpenseItem';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import paymentProviders from '../../paymentProviders';
@@ -130,7 +131,7 @@ export const canVerifyDraftExpense = async (req, expense): Promise<boolean> => {
 /**
  * Returns the list of items for this expense.
  */
-export const getExpenseItems = async (expenseId, req): Promise<ExpenseItem[]> => {
+export const getExpenseItems = async (expenseId, req): Promise<typeof ExpenseItem[]> => {
   return req.loaders.Expense.items.load(expenseId);
 };
 
@@ -631,9 +632,9 @@ export async function editExpense(req, expenseData, options = {}): Promise<typeo
       );
 
       await createAttachedFiles(expense, newAttachedFiles, remoteUser, t);
-      await Promise.all(removedAttachedFiles.map(file => file.destroy()));
+      await Promise.all(removedAttachedFiles.map((file: ExpenseAttachedFile) => file.destroy()));
       await Promise.all(
-        updatedAttachedFiles.map(file =>
+        updatedAttachedFiles.map((file: ExpenseAttachedFile) =>
           models.ExpenseAttachedFile.update({ url: file.url }, { where: { id: file.id, ExpenseId: expense.id } }),
         ),
       );
