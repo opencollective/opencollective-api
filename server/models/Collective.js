@@ -1141,7 +1141,7 @@ function defineModel() {
     });
     debug('>>> members found', memberships.length);
     const memberCollectives = memberships.map(membership => membership.memberCollective);
-    const users = Promise.map(memberCollectives, memberCollective => {
+    const users = await Promise.map(memberCollectives, memberCollective => {
       debug('>>> fetching user for', memberCollective.slug, memberCollective.type);
       if (memberCollective.type === types.USER) {
         return memberCollective.getUser().then(user => [user]);
