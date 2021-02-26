@@ -35,13 +35,13 @@ describe('server/models/User', () => {
       User.create({ firstName: 'blah' }).catch(err => expect(err).to.exist);
     });
 
-    it('successfully creates a user and lowercase email', () =>
-      User.create({ firstName: userData.firstName, email: userData.email }).tap(user => {
-        expect(user).to.have.property('firstName', userData.firstName);
-        expect(user).to.have.property('email', userData.email.toLowerCase());
-        expect(user).to.have.property('createdAt');
-        expect(user).to.have.property('updatedAt');
-      }));
+    it('successfully creates a user and lowercase email', async () => {
+      const user = await User.create({ firstName: userData.firstName, email: userData.email });
+      expect(user).to.have.property('firstName', userData.firstName);
+      expect(user).to.have.property('email', userData.email.toLowerCase());
+      expect(user).to.have.property('createdAt');
+      expect(user).to.have.property('updatedAt');
+    });
   });
 
   describe('#createUserWithCollective', () => {

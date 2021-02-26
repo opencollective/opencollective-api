@@ -221,36 +221,30 @@ describe('server/models/Collective', () => {
     expect(collective.name).to.eq('Frank Zappa');
   });
 
-  it('creates a unique slug', () => {
-    return Collective.create({ slug: 'piamancini' })
-      .tap(collective => {
-        expect(collective.slug).to.equal('piamancini');
-      })
-      .then(() => Collective.create({ name: 'XavierDamman' }))
-      .then(collective => {
-        expect(collective.slug).to.equal('xavierdamman');
-      })
-      .then(() => Collective.create({ name: 'piamancini2' }))
-      .then(() => Collective.create({ twitterHandle: '@piamancini' }))
-      .then(collective => {
-        expect(collective.slug).to.equal('piamancini1');
-        expect(collective.twitterHandle).to.equal('piamancini');
-      })
-      .then(() => Collective.create({ name: 'XavierDamman' }))
-      .then(collective => {
-        expect(collective.slug).to.equal('xavierdamman1');
-      })
-      .then(() => Collective.create({ name: 'hélène & les g.arçons' }))
-      .then(collective => {
-        expect(collective.slug).to.equal('helene-and-les-g-arcons');
-      });
+  it('creates a unique slug', async () => {
+    const collective1 = await Collective.create({ slug: 'piamancini' });
+    expect(collective1.slug).to.equal('piamancini');
+
+    const collective2 = await Collective.create({ name: 'XavierDamman' });
+    expect(collective2.slug).to.equal('xavierdamman');
+
+    await Collective.create({ name: 'piamancini2' });
+
+    const collective3 = await Collective.create({ twitterHandle: '@piamancini' });
+    expect(collective3.slug).to.equal('piamancini1');
+    expect(collective3.twitterHandle).to.equal('piamancini');
+
+    const collective4 = await Collective.create({ name: 'XavierDamman' });
+    expect(collective4.slug).to.equal('xavierdamman1');
+
+    const collective5 = await Collective.create({ name: 'hélène & les g.arçons' });
+    expect(collective5.slug).to.equal('helene-and-les-g-arcons');
   });
 
-  it('creates a unique slug for incognito profile', () => {
-    return Collective.create({ isIncognito: true }).tap(collective => {
-      expect(collective.slug).to.contain('incognito-');
-      expect(collective.slug.length).to.equal(18);
-    });
+  it('creates a unique slug for incognito profile', async () => {
+    const collective = await Collective.create({ isIncognito: true });
+    expect(collective.slug).to.contain('incognito-');
+    expect(collective.slug.length).to.equal(18);
   });
 
   it('frees up current slug when deleted', async () => {
@@ -888,13 +882,12 @@ describe('server/models/Collective', () => {
   });
 
   describe('third party accounts handles', () => {
-    it('stores Github handle and strip first @ character', () => {
-      return Collective.create({
+    it('stores Github handle and strip first @ character', async () => {
+      const collective = await Collective.create({
         slug: 'my-collective',
         githubHandle: '@test',
-      }).tap(collective => {
-        expect(collective.githubHandle).to.equal('test');
       });
+      expect(collective.githubHandle).to.equal('test');
     });
   });
 

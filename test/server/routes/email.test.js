@@ -88,31 +88,25 @@ describe('server/routes/email', () => {
     nock.cleanAll();
   });
 
-  before('create collective and members', done => {
-    Collective.create(collectiveData)
-      .tap(g => (collective = g))
-      .then(() => Promise.map(usersData, u => models.User.createUserWithCollective(u)))
-      .tap(users => {
-        return Promise.map(users, (user, index) => {
-          return collective.addUserWithRole(user, usersData[index].role);
-        });
-      })
-      .tap(usersRows => {
-        users = usersRows;
-        return Promise.map(usersRows, (user, index) => {
-          const lists = usersData[index].lists || [];
-          return Promise.map(lists, list =>
-            models.Notification.create({
-              channel: 'email',
-              UserId: user.id,
-              CollectiveId: collective.id,
-              type: list,
-            }),
-          );
-        });
-      })
-      .then(() => done())
-      .catch(console.error);
+  before('create collective and members', async () => {
+    collective = await Collective.create(collectiveData);
+    const usersWithCollectives = await Promise.map(usersData, u => models.User.createUserWithCollective(u));
+
+    users = await Promise.map(usersWithCollectives, (user, index) =>
+      collective.addUserWithRole(user, usersData[index].role),
+    );
+
+    await Promise.map(users, (user, index) => {
+      const lists = usersData[index].lists || [];
+      return Promise.map(lists, list =>
+        models.Notification.create({
+          channel: 'email',
+          UserId: user.id,
+          CollectiveId: collective.id,
+          type: list,
+        }),
+      );
+    });
   });
 
   it('forwards emails sent to info@:slug.opencollective.com if enabled', async () => {
