@@ -835,6 +835,11 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
             defaultValue: false,
             description: 'Defines if the host "collective" payment method should be returned',
           },
+          includeRecentlyExpiredGiftCards: {
+            type: GraphQLBoolean,
+            defaultValue: false,
+            description: 'Include gift cards that have expired recently (30 days)',
+          },
         },
       },
       payoutMethods: {
@@ -1715,6 +1720,11 @@ const CollectiveFields = () => {
           defaultValue: false,
           description: 'Defines if the host "collective" payment method should be returned',
         },
+        includeRecentlyExpiredGiftCards: {
+          type: GraphQLBoolean,
+          defaultValue: false,
+          description: 'Include gift cards that have expired recently (30 days)',
+        },
       },
       async resolve(collective, args, req) {
         if (!req.remoteUser || !req.remoteUser.isAdminOfCollective(collective)) {
@@ -1727,6 +1737,10 @@ const CollectiveFields = () => {
           (collective.type === 'ORGANIZATION' || collective.type === 'USER')
         ) {
           paymentMethods = paymentMethods.filter(pm => !(pm.service === 'opencollective' && pm.type === 'host'));
+        }
+        // Remove payment methods that have expired
+        if (!args.includeRecentlyExpiredGiftCards) {
+          paymentMethods = paymentMethods.filter(pm => +new Date(pm.expiry) > +new Date());
         }
         // Filter only "saved" stripe Payment Methods
         // In the future we should only return the "saved" whatever the service
