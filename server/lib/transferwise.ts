@@ -5,6 +5,7 @@ import url from 'url';
 
 import Axios, { AxiosError } from 'axios';
 import config from 'config';
+import Debug from 'debug';
 import { Request } from 'express';
 import { isNull, omitBy, startCase, toInteger, toUpper } from 'lodash';
 
@@ -21,6 +22,7 @@ import {
 
 import logger from './logger';
 
+const debug = Debug('transferwise');
 const fixieUrl = config.fixie.url && new url.URL(config.fixie.url);
 const proxyOptions = fixieUrl
   ? {
@@ -57,6 +59,7 @@ const requestDataAndThrowParsedError = async (request: Promise<any>, defaultErro
     const response = await request;
     return getData(response);
   } catch (e) {
+    debug(e);
     const error = parseError(e, defaultErrorMessage);
     logger.error(error.toString());
     throw error;
@@ -202,10 +205,37 @@ export const getTransfer = async (token: string, transferId: number): Promise<Tr
   );
 };
 
-export const getAccountRequirements = async (token: string, quoteId: number): Promise<any> => {
+export const getAccountRequirements = async (
+  token: string,
+  { sourceCurrency, targetCurrency, ...amount }: GetTemporaryQuote,
+): Promise<any> => {
+  const params = {
+    source: sourceCurrency,
+    target: targetCurrency,
+    ...amount,
+  };
   return requestDataAndThrowParsedError(
-    axios.get(`/v1/quotes/${quoteId}/account-requirements`, {
+    axios.get(`/v1/account-requirements`, {
       headers: { Authorization: `Bearer ${token}` },
+      params,
+    }),
+  );
+};
+
+export const validateAccountRequirements = async (
+  token: string,
+  { sourceCurrency, targetCurrency, ...amount }: GetTemporaryQuote,
+  accountDetails: any,
+): Promise<any> => {
+  const params = {
+    source: sourceCurrency,
+    target: targetCurrency,
+    ...amount,
+  };
+  return requestDataAndThrowParsedError(
+    axios.post(`/v1/account-requirements`, accountDetails, {
+      headers: { Authorization: `Bearer ${token}` },
+      params,
     }),
   );
 };
