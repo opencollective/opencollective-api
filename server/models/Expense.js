@@ -2,10 +2,12 @@ import { get, isEmpty, pick } from 'lodash';
 import Temporal from 'sequelize-temporal';
 import { isISO31661Alpha2 } from 'validator';
 
+import { roles } from '../constants';
 import status from '../constants/expense_status';
 import expenseType from '../constants/expense_type';
 import { TransactionTypes } from '../constants/transactions';
 import { reduceArrayToCurrency } from '../lib/currency';
+import logger from '../lib/logger';
 import { buildSanitizerOptions, sanitizeHTML, stripHTML } from '../lib/sanitize-html';
 import { sanitizeTags, validateTags } from '../lib/tags';
 import CustomDataTypes from '../models/DataTypes';
@@ -340,10 +342,34 @@ export default function (Sequelize, DataTypes) {
     return this.save();
   };
 
-  Expense.prototype.setPaid = function (lastEditedById) {
-    this.status = status.PAID;
-    this.lastEditedById = lastEditedById;
-    return this.save();
+  Expense.prototype.setPaid = async function (lastEditedById) {
+    await this.update({ status: status.PAID, lastEditedById });
+
+    try {
+      await this.createContributorMember();
+    } catch (e) {
+      // Don't crash if member can't be added as a contributor
+      logger.error(`Error when trying to add MEMBER in setPaid for expense ${this.id}: ${e}`);
+    }
+  };
+
+  /**
+   * Register the payee as a `CONTRIBUTOR` member if it's a USER
+   */
+  Expense.prototype.createContributorMember = async function () {
+    // This will return `null` if the payee is not a user
+    const fromUser = await models.User.findOne({ where: { CollectiveId: this.FromCollectiveId } });
+    if (!fromUser) {
+      return null;
+    }
+
+    const collective = this.collective || (await this.getCollective());
+    await collective.addUserWithRole(fromUser, roles.CONTRIBUTOR).catch(e => {
+      // Ignore if member already exists
+      if (e.name === 'SequelizeUniqueConstraintError') {
+        logger.debug('User ', fromUser.id, 'is already a contributor');
+      }
+    });
   };
 
   Expense.prototype.setProcessing = function (lastEditedById) {

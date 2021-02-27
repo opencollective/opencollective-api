@@ -485,6 +485,24 @@ data['user.monthlyreport'] = {
     },
   ],
 };
+data['collective.member.created'] = {
+  member: {
+    memberCollective: {
+      name: 'John Doe',
+    },
+    role: 'contributor',
+  },
+  collective: {
+    name: 'TheCollective',
+  },
+  order: {
+    currency: 'USD',
+    totalAmount: 64 * 100,
+    subscription: {
+      interval: 'month',
+    },
+  },
+};
 
 const defaultData = {
   config: {
