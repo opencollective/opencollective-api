@@ -248,7 +248,7 @@ export async function createGiftCardsForEmails(args, remoteUser, emails, customM
     const createArgs = { ...args, data: { email, customMessage } };
     return getCreateParams(createArgs, collective, sourcePaymentMethod, remoteUser);
   });
-  const giftCards = models.PaymentMethod.bulkCreate(giftCardsParams);
+  const giftCards = await models.PaymentMethod.bulkCreate(giftCardsParams);
   giftCards.map(vc => sendGiftCardCreatedEmail(vc, collective.info));
   registerCreateInCache(args.CollectiveId, giftCards.length);
   return giftCards;
