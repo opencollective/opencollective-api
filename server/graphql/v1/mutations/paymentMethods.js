@@ -3,10 +3,11 @@ import { URLSearchParams } from 'url';
 import { pick } from 'lodash';
 
 import ORDER_STATUS from '../../../constants/order_status';
+import { PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import emailLib from '../../../lib/email';
 import logger from '../../../lib/logger';
 import models, { Op } from '../../../models';
-import virtualcard from '../../../paymentProviders/opencollective/virtualcard';
+import GiftCard from '../../../paymentProviders/opencollective/giftcard';
 import { setupCreditCard } from '../../../paymentProviders/stripe/creditcard';
 import { Forbidden, ValidationFailed } from '../../errors';
 
@@ -22,12 +23,12 @@ export async function createPaymentMethod(args, remoteUser) {
     throw new Error('You must be an admin of this Collective.');
   } else if (!args || !args.type) {
     throw Error('Missing PaymentMethod type');
-  } else if (args.type === 'virtualcard') {
+  } else if (args.type === PAYMENT_METHOD_TYPE.GIFT_CARD) {
     // either amount or monthlyLimitPerMember needs to be present
     if (!args.amount && !args.monthlyLimitPerMember) {
       throw Error('you need to define either the amount or the monthlyLimitPerMember of the payment method.');
     }
-    return createVirtualPaymentMethod(args, remoteUser);
+    return createGiftCardPaymentMethod(args, remoteUser);
   } else if (args.service === 'stripe' && args.type === 'creditcard') {
     return createStripeCreditCard(args, remoteUser);
   } else {
@@ -35,30 +36,30 @@ export async function createPaymentMethod(args, remoteUser) {
   }
 }
 
-/** Create the Virtual Card Payment Method through an organization
+/** Create the Gift Card Payment Method through an organization
  *
  * @param {Object} args contains the parameters to create the new
  *  payment method.
  * @param {String} [args.description] The description of the new payment
  *  method.
- * @param {Number} args.CollectiveId The ID of the organization creating the virtual card.
+ * @param {Number} args.CollectiveId The ID of the organization creating the gift card.
  * @param {Number} [args.PaymentMethodId] The ID of the Source Payment method the
  *                 organization wants to use
  * @param {Number} args.amount The total amount that will be
  *  credited to the newly created payment method.
- * @param {String} args.currency The currency of the virtual card
+ * @param {String} args.currency The currency of the gift card
  * @param {[limitedToTags]} [args.limitedToTags] Limit this payment method to donate to collectives having those tags
  * @param {Date} [args.expiryDate] The expiry date of the payment method
  * @param {Object} remoteUser logged in user
- * @returns {models.PaymentMethod} return the virtual card payment method.
+ * @returns {models.PaymentMethod} return the gift card payment method.
  */
-async function createVirtualPaymentMethod(args, remoteUser) {
+async function createGiftCardPaymentMethod(args, remoteUser) {
   // making sure it's a string, trim and uppercase it.
   args.currency = args.currency.toString().toUpperCase();
   if (!['USD', 'EUR'].includes(args.currency)) {
     throw new Error(`Currency ${args.currency} not supported. We only support USD and EUR at the moment.`);
   }
-  const paymentMethod = await virtualcard.create(args, remoteUser);
+  const paymentMethod = await GiftCard.create(args, remoteUser);
   return paymentMethod;
 }
 
@@ -114,14 +115,14 @@ async function createStripeCreditCard(args, remoteUser) {
   return paymentMethod;
 }
 
-/** Claim the Virtual Card Payment Method By an (existing or not) user
+/** Claim the Gift Card Payment Method By an (existing or not) user
  * @param {Object} args contains the parameters
  * @param {String} args.code The 8 last digits of the UUID
- * @param {String} args.email The email of the user claiming the virtual card
- * @returns {models.PaymentMethod} return the virtual card payment method.
+ * @param {String} args.email The email of the user claiming the gift card
+ * @returns {models.PaymentMethod} return the gift card payment method.
  */
 export async function claimPaymentMethod(args, remoteUser) {
-  const paymentMethod = await virtualcard.claim(args, remoteUser);
+  const paymentMethod = await GiftCard.claim(args, remoteUser);
   const user = await models.User.findOne({
     where: { CollectiveId: paymentMethod.CollectiveId },
   });

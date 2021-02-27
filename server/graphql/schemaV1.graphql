@@ -251,12 +251,6 @@ type Collective implements CollectiveInterface {
     includeInactive: Boolean = false
   ): [Event]
   projects(limit: Int, offset: Int): [Project]
-
-  """
-  Get all child collectives (with type=COLLECTIVE, doesn't return events)
-  """
-  childCollectives: [Collective]
-    @deprecated(reason: "2020/01/08 - Connected-collectives are now handled through members")
   paymentMethods(
     service: String
     limit: Int
@@ -264,11 +258,6 @@ type Collective implements CollectiveInterface {
     isConfirmed: Boolean = true
     types: [String]
     orderBy: PaymenMethodOrderField = type
-
-    """
-    Defines if the organization "collective" payment method should be returned
-    """
-    includeOrganizationCollectivePaymentMethod: Boolean = false
 
     """
     Defines if the host "collective" payment method should be returned
@@ -284,18 +273,18 @@ type Collective implements CollectiveInterface {
   """
   List all the gift cards batches emitted by this collective. May include `null` for unbatched gift cards.
   """
-  virtualCardsBatches: [PaymentMethodBatchInfo]
+  giftCardsBatches: [PaymentMethodBatchInfo]
 
   """
-  Get the virtual cards created by this collective. RemoteUser must be a collective admin.
+  Get the gift cards created by this collective. RemoteUser must be a collective admin.
   """
-  createdVirtualCards(
+  createdGiftCards(
     limit: Int
     offset: Int
     batch: String
 
     """
-    Wether the virtual card has been claimed or not
+    Wether the gift card has been claimed or not
     """
     isConfirmed: Boolean
   ): PaginatedPaymentMethod
@@ -587,12 +576,6 @@ interface CollectiveInterface {
     includeInactive: Boolean = false
   ): [Event]
   projects(limit: Int, offset: Int): [Project]
-
-  """
-  Get all child collectives (with type=COLLECTIVE, doesn't return events)
-  """
-  childCollectives: [Collective]
-    @deprecated(reason: "2020/01/08 - Connected-collectives are now handled through members")
   paymentMethods(
     service: String
     limit: Int
@@ -604,7 +587,7 @@ interface CollectiveInterface {
     isConfirmed: Boolean = true
 
     """
-    Filter on given types (creditcard, virtualcard...)
+    Filter on given types  (creditcard, giftcard, etc.)
     """
     types: [String]
 
@@ -612,11 +595,6 @@ interface CollectiveInterface {
     Order entries based on given column. Set to null for no ordering.
     """
     orderBy: PaymenMethodOrderField
-
-    """
-    Defines if the organization "collective" payment method should be returned
-    """
-    includeOrganizationCollectivePaymentMethod: Boolean = false
 
     """
     Defines if the host "collective" payment method should be returned
@@ -632,14 +610,14 @@ interface CollectiveInterface {
   """
   List all the gift cards batches emitted by this collective. May include `null` as key for unbatched gift cards.
   """
-  virtualCardsBatches: [PaymentMethodBatchInfo]
-  createdVirtualCards(
+  giftCardsBatches: [PaymentMethodBatchInfo]
+  createdGiftCards(
     limit: Int
     offset: Int
     batch: String
 
     """
-    Wether the virtual card has been claimed or not
+    Wether the gift card has been claimed or not
     """
     isConfirmed: Boolean
   ): PaginatedPaymentMethod
@@ -792,7 +770,7 @@ type CollectiveStatsType {
   totalAmountSpent: Int
 
   """
-  Net amount received
+  Total amount received
   """
   totalAmountReceived(
     startDate: DateString
@@ -803,9 +781,14 @@ type CollectiveStatsType {
     """
     periodInMonths: Int
   ): Int
+
+  """
+  Total net amount received
+  """
+  totalNetAmountReceived: Int
   yearlyBudget: Int
   yearlyBudgetManaged: Int
-  topFundingSources: JSON
+  topFundingSources: JSON @deprecated(reason: "2021-01-29: Not used anymore")
   activeRecurringContributions: JSON
 }
 
@@ -838,16 +821,6 @@ input CommentInputType {
 }
 
 """
-List of comments with pagination info
-"""
-type CommentListType {
-  comments: [CommentType]
-  limit: Int
-  offset: Int
-  total: Int
-}
-
-"""
 This represents a Comment
 """
 type CommentType {
@@ -855,7 +828,6 @@ type CommentType {
   createdAt: DateString
   updatedAt: DateString
   html: String
-  markdown: String @deprecated(reason: "2020-01-25: Use html")
   createdByUser: UserDetails
   fromCollective: CollectiveInterface
   collective: CollectiveInterface
@@ -1244,12 +1216,6 @@ type Event implements CollectiveInterface {
     includeInactive: Boolean = false
   ): [Event]
   projects(limit: Int, offset: Int): [Project]
-
-  """
-  Get all child collectives (with type=COLLECTIVE, doesn't return events)
-  """
-  childCollectives: [Collective]
-    @deprecated(reason: "2020/01/08 - Connected-collectives are now handled through members")
   paymentMethods(
     service: String
     limit: Int
@@ -1257,11 +1223,6 @@ type Event implements CollectiveInterface {
     isConfirmed: Boolean = true
     types: [String]
     orderBy: PaymenMethodOrderField = type
-
-    """
-    Defines if the organization "collective" payment method should be returned
-    """
-    includeOrganizationCollectivePaymentMethod: Boolean = false
 
     """
     Defines if the host "collective" payment method should be returned
@@ -1277,18 +1238,18 @@ type Event implements CollectiveInterface {
   """
   List all the gift cards batches emitted by this collective. May include `null` for unbatched gift cards.
   """
-  virtualCardsBatches: [PaymentMethodBatchInfo]
+  giftCardsBatches: [PaymentMethodBatchInfo]
 
   """
-  Get the virtual cards created by this collective. RemoteUser must be a collective admin.
+  Get the gift cards created by this collective. RemoteUser must be a collective admin.
   """
-  createdVirtualCards(
+  createdGiftCards(
     limit: Int
     offset: Int
     batch: String
 
     """
-    Wether the virtual card has been claimed or not
+    Wether the gift card has been claimed or not
     """
     isConfirmed: Boolean
   ): PaginatedPaymentMethod
@@ -1351,7 +1312,7 @@ type Expense implements Transaction {
   host: User
   createdByUser: UserDetails
   fromCollective: CollectiveInterface
-  usingVirtualCardFromCollective: CollectiveInterface
+  usingGiftCardFromCollective: CollectiveInterface
   collective: CollectiveInterface
   createdAt: DateString
   updatedAt: DateString
@@ -1622,12 +1583,6 @@ type Fund implements CollectiveInterface {
     includeInactive: Boolean = false
   ): [Event]
   projects(limit: Int, offset: Int): [Project]
-
-  """
-  Get all child collectives (with type=COLLECTIVE, doesn't return events)
-  """
-  childCollectives: [Collective]
-    @deprecated(reason: "2020/01/08 - Connected-collectives are now handled through members")
   paymentMethods(
     service: String
     limit: Int
@@ -1635,11 +1590,6 @@ type Fund implements CollectiveInterface {
     isConfirmed: Boolean = true
     types: [String]
     orderBy: PaymenMethodOrderField = type
-
-    """
-    Defines if the organization "collective" payment method should be returned
-    """
-    includeOrganizationCollectivePaymentMethod: Boolean = false
 
     """
     Defines if the host "collective" payment method should be returned
@@ -1655,18 +1605,18 @@ type Fund implements CollectiveInterface {
   """
   List all the gift cards batches emitted by this collective. May include `null` for unbatched gift cards.
   """
-  virtualCardsBatches: [PaymentMethodBatchInfo]
+  giftCardsBatches: [PaymentMethodBatchInfo]
 
   """
-  Get the virtual cards created by this collective. RemoteUser must be a collective admin.
+  Get the gift cards created by this collective. RemoteUser must be a collective admin.
   """
-  createdVirtualCards(
+  createdGiftCards(
     limit: Int
     offset: Int
     batch: String
 
     """
-    Wether the virtual card has been claimed or not
+    Wether the gift card has been claimed or not
     """
     isConfirmed: Boolean
   ): PaginatedPaymentMethod
@@ -1919,17 +1869,6 @@ type Mutation {
   editCollective(collective: CollectiveInputType!): CollectiveInterface
   deleteCollective(id: Int!): CollectiveInterface
   deleteUserCollective(id: Int!): CollectiveInterface
-
-  """
-  Approve a collective
-  """
-  approveCollective(id: Int!): CollectiveInterface @deprecated(reason: "2020-11-16: Please use API V2")
-
-  """
-  Reject a collective
-  """
-  rejectCollective(id: Int!, rejectionReason: String): CollectiveInterface
-    @deprecated(reason: "2020-11-16: Please use API V2")
   archiveCollective(id: Int!): CollectiveInterface
   unarchiveCollective(id: Int!): CollectiveInterface
   sendMessageToCollective(collectiveId: Int!, message: String!, subject: String): SendMessageToCollectiveResult
@@ -1989,8 +1928,8 @@ type Mutation {
     token: String!
   ): UserDetails
   editConnectedAccount(connectedAccount: ConnectedAccountInputType!): ConnectedAccountType
-  markOrderAsPaid(id: Int!): OrderType
-  markPendingOrderAsExpired(id: Int!): OrderType
+  markOrderAsPaid(id: Int!): OrderType @deprecated(reason: "2021-01-29: Not used anymore")
+  markPendingOrderAsExpired(id: Int!): OrderType @deprecated(reason: "2021-01-29: Not used anymore")
 
   """
   Update a single tier
@@ -2015,49 +1954,20 @@ type Mutation {
   createOrder(order: OrderInputType!): OrderType
     @deprecated(reason: "2020-10-13: This endpoint has been moved to GQLV2")
   confirmOrder(order: ConfirmOrderInputType!): OrderType
-  addFundsToCollective(order: OrderInputType!): OrderType
-  createUpdate(update: UpdateInputType!): UpdateType @deprecated(reason: "This endpoint has been moved to GQLV2")
-  editUpdate(update: UpdateAttributesInputType!): UpdateType
+  createUpdate(update: UpdateInputType!): UpdateType
+    @deprecated(reason: "2021-01-29: This endpoint has been moved to GQLV2")
+  editUpdate(update: UpdateAttributesInputType!): UpdateType @deprecated(reason: "2021-01-29: Not used anymore")
   publishUpdate(id: Int!, notificationAudience: UpdateAudienceTypeEnum!): UpdateType
-  unpublishUpdate(id: Int!): UpdateType
-  deleteUpdate(id: Int!): UpdateType
-  createComment(comment: CommentInputType!): CommentType
-  editComment(comment: CommentAttributesInputType!): CommentType
-  deleteComment(id: Int!): CommentType
+    @deprecated(reason: "2021-01-29: Not used anymore")
+  unpublishUpdate(id: Int!): UpdateType @deprecated(reason: "2021-01-29: Not used anymore")
+  deleteUpdate(id: Int!): UpdateType @deprecated(reason: "2021-01-29: Not used anymore")
+  createComment(comment: CommentInputType!): CommentType @deprecated(reason: "2021-01-29: Not used anymore")
+  editComment(comment: CommentAttributesInputType!): CommentType @deprecated(reason: "2021-01-29: Not used anymore")
+  deleteComment(id: Int!): CommentType @deprecated(reason: "2021-01-29: Not used anymore")
   refundTransaction(id: Int!): Transaction
   addFundsToOrg(totalAmount: Int!, CollectiveId: Int!, HostCollectiveId: Int!, description: String): PaymentMethodType
   createApplication(application: ApplicationInput!): Application
   deleteApplication(id: Int!): Application
-  createPaymentMethod(
-    type: String!
-    currency: String!
-    amount: Int
-    monthlyLimitPerMember: Int
-
-    """
-    Limit this payment method to make donations to collectives having those tags
-    """
-    limitedToTags: [String]
-
-    """
-    Limit this payment method to make donations to those collectives
-    """
-    limitedToCollectiveIds: [Int]
-
-    """
-    Limit this payment method to make donations to the collectives hosted by those hosts
-    """
-    limitedToHostCollectiveIds: [Int]
-    CollectiveId: Int!
-    PaymentMethodId: Int
-    description: String
-    expiryDate: String
-
-    """
-    The data attached to this PaymentMethod
-    """
-    data: PaymentMethodDataVirtualCardInputType
-  ): PaymentMethodType @deprecated(reason: "Please use createVirtualCards")
 
   """
   Update a payment method
@@ -2073,7 +1983,7 @@ type Mutation {
     token: String!
     data: StripeCreditCardDataInputType!
     monthlyLimitPerMember: Int
-  ): PaymentMethodType
+  ): PaymentMethodType @deprecated(reason: "2021-01-29: Not used anymore")
 
   """
   Replace a payment method
@@ -2085,19 +1995,19 @@ type Mutation {
     token: String!
     data: StripeCreditCardDataInputType!
   ): PaymentMethodType
-  createVirtualCards(
+  createGiftCards(
     CollectiveId: Int!
     PaymentMethodId: Int
 
     """
-    A list of emails to generate virtual cards for (only if numberOfVirtualCards is not provided)
+    A list of emails to generate gift cards for (only if numberOfGiftCards is not provided)
     """
     emails: [String]
 
     """
-    Number of virtual cards to generate (only if emails is not provided)
+    Number of gift cards to generate (only if emails is not provided)
     """
-    numberOfVirtualCards: Int
+    numberOfGiftCards: Int
 
     """
     An optional currency. If not provided, will use the collective currency.
@@ -2136,7 +2046,7 @@ type Mutation {
     limitedToOpenSourceCollectives: Boolean
 
     """
-    A custom message attached to the email that will be sent for this virtual card
+    A custom message attached to the email that will be sent for this gift card
     """
     description: String
 
@@ -2338,7 +2248,7 @@ type Order implements Transaction {
   host: User
   createdByUser: UserDetails
   fromCollective: CollectiveInterface
-  usingVirtualCardFromCollective: CollectiveInterface
+  usingGiftCardFromCollective: CollectiveInterface
   collective: CollectiveInterface
   createdAt: DateString
   updatedAt: DateString
@@ -2700,12 +2610,6 @@ type Organization implements CollectiveInterface {
     includeInactive: Boolean = false
   ): [Event]
   projects(limit: Int, offset: Int): [Project]
-
-  """
-  Get all child collectives (with type=COLLECTIVE, doesn't return events)
-  """
-  childCollectives: [Collective]
-    @deprecated(reason: "2020/01/08 - Connected-collectives are now handled through members")
   paymentMethods(
     service: String
     limit: Int
@@ -2713,11 +2617,6 @@ type Organization implements CollectiveInterface {
     isConfirmed: Boolean = true
     types: [String]
     orderBy: PaymenMethodOrderField = type
-
-    """
-    Defines if the organization "collective" payment method should be returned
-    """
-    includeOrganizationCollectivePaymentMethod: Boolean = false
 
     """
     Defines if the host "collective" payment method should be returned
@@ -2733,18 +2632,18 @@ type Organization implements CollectiveInterface {
   """
   List all the gift cards batches emitted by this collective. May include `null` for unbatched gift cards.
   """
-  virtualCardsBatches: [PaymentMethodBatchInfo]
+  giftCardsBatches: [PaymentMethodBatchInfo]
 
   """
-  Get the virtual cards created by this collective. RemoteUser must be a collective admin.
+  Get the gift cards created by this collective. RemoteUser must be a collective admin.
   """
-  createdVirtualCards(
+  createdGiftCards(
     limit: Int
     offset: Int
     batch: String
 
     """
-    Wether the virtual card has been claimed or not
+    Wether the gift card has been claimed or not
     """
     isConfirmed: Boolean
   ): PaginatedPaymentMethod
@@ -2772,21 +2671,11 @@ type PaginatedPaymentMethod {
 }
 
 """
-List of transactions with pagination data
-"""
-type PaginatedTransactions {
-  transactions: [Transaction]
-  limit: Int
-  offset: Int
-  total: Int
-}
-
-"""
 Properties by which PaymenMethods can be ordered
 """
 enum PaymenMethodOrderField {
   """
-  Order payment methods by type (creditcard, virtualcard...)
+  Order payment methods by type (creditcard, giftcard, etc.)
   """
   type
 }
@@ -2807,16 +2696,6 @@ type PaymentMethodBatchInfo {
 }
 
 """
-Input for virtual card (meta)data
-"""
-input PaymentMethodDataVirtualCardInputType {
-  """
-  The email virtual card is generated for
-  """
-  email: String
-}
-
-"""
 Input type for PaymentMethod (paypal/stripe)
 """
 input PaymentMethodInputType {
@@ -2826,7 +2705,7 @@ input PaymentMethodInputType {
   service: String
 
   """
-  creditcard, virtualcard, prepaid, manual...
+  creditcard, giftcard, prepaid, manual...
   """
   type: String
   customerId: String
@@ -2847,7 +2726,7 @@ type PaymentMethodType {
   createdAt: DateString
 
   """
-  Will be true for virtual card if claimed. Always true for other payment methods.
+  Will be true for gift card if claimed. Always true for other payment methods.
   """
   isConfirmed: Boolean
   expiryDate: DateString
@@ -2857,7 +2736,6 @@ type PaymentMethodType {
   To group multiple payment methods. Used for Gift Cards
   """
   batch: String
-  SourcePaymentMethodId: Int @deprecated(reason: "2020-09-28: Not used")
   type: String
   data: JSON
   name: String
@@ -3109,12 +2987,6 @@ type Project implements CollectiveInterface {
     includeInactive: Boolean = false
   ): [Event]
   projects(limit: Int, offset: Int): [Project]
-
-  """
-  Get all child collectives (with type=COLLECTIVE, doesn't return events)
-  """
-  childCollectives: [Collective]
-    @deprecated(reason: "2020/01/08 - Connected-collectives are now handled through members")
   paymentMethods(
     service: String
     limit: Int
@@ -3122,11 +2994,6 @@ type Project implements CollectiveInterface {
     isConfirmed: Boolean = true
     types: [String]
     orderBy: PaymenMethodOrderField = type
-
-    """
-    Defines if the organization "collective" payment method should be returned
-    """
-    includeOrganizationCollectivePaymentMethod: Boolean = false
 
     """
     Defines if the host "collective" payment method should be returned
@@ -3142,18 +3009,18 @@ type Project implements CollectiveInterface {
   """
   List all the gift cards batches emitted by this collective. May include `null` for unbatched gift cards.
   """
-  virtualCardsBatches: [PaymentMethodBatchInfo]
+  giftCardsBatches: [PaymentMethodBatchInfo]
 
   """
-  Get the virtual cards created by this collective. RemoteUser must be a collective admin.
+  Get the gift cards created by this collective. RemoteUser must be a collective admin.
   """
-  createdVirtualCards(
+  createdGiftCards(
     limit: Int
     offset: Int
     batch: String
 
     """
-    Wether the virtual card has been claimed or not
+    Wether the gift card has been claimed or not
     """
     isConfirmed: Boolean
   ): PaginatedPaymentMethod
@@ -3184,14 +3051,8 @@ type Query {
   ): CollectiveInterface
   Tier(id: Int!): Tier
   LoggedInUser: UserDetails
-  AuthenticatedUser: CollectiveInterface
+  AuthenticatedUser: CollectiveInterface @deprecated(reason: "2021-01-29: Not used anymore")
   allInvoices(fromCollectiveSlug: String!): [InvoiceType]
-  Invoice(
-    """
-    Slug of the invoice. Format: :year:2digitMonth.:hostSlug.:fromCollectiveSlug
-    """
-    invoiceSlug: String!
-  ): InvoiceType @deprecated(reason: "2020-03-09: This field was deprecated after introducing InvoiceByDateRange")
   InvoiceByDateRange(
     """
     Like the Slug of the invoice but spilt out into parts and includes dateFrom
@@ -3208,8 +3069,8 @@ type Query {
 
   """
   Given a collective, returns all its transactions:
-  - Debit transactions made by collective without using a virtual card
-  - Debit transactions made using a virtual card from collective
+  - Debit transactions made by collective without using a gift card
+  - Debit transactions made using a gift card from collective
   - Credit transactions made to collective
   """
   allTransactions(
@@ -3220,7 +3081,6 @@ type Query {
     offset: Int
     dateFrom: String
     dateTo: String
-    includeVirtualCards: Boolean
 
     """
     If false, only the transactions not linked to an expense (orders/refunds) will be returned
@@ -3229,23 +3089,9 @@ type Query {
     fetchDataFromLedger: Boolean
     includeHostedCollectivesTransactions: Boolean
   ): [Transaction]
-  transactions(
-    """
-    Defaults to 100
-    """
-    limit: Int = 100
-    offset: Int = 0
-    orderBy: TransactionOrder = { field: CREATED_AT, direction: DESC }
-
-    """
-    CREDIT or DEBIT are accepted values
-    """
-    type: TransactionType
-  ): PaginatedTransactions
   Update(collectiveSlug: String, updateSlug: String, id: Int): UpdateType
+    @deprecated(reason: "2021-01-29: Not used anymore")
   Application(id: Int): Application
-  allComments(ExpenseId: Int, UpdateId: Int, limit: Int, offset: Int): [UpdateType]
-    @deprecated(reason: "2020-11-17: [LegacyExpenseFlow] Please use API V2")
   allUpdates(CollectiveId: Int!, includeHostedCollectives: Boolean, limit: Int, offset: Int): [UpdateType]
   allOrders(
     CollectiveId: Int
@@ -3258,7 +3104,7 @@ type Query {
     status: String
     limit: Int
     offset: Int
-  ): [OrderType]
+  ): [OrderType] @deprecated(reason: "2021-01-29: Not used anymore")
   Transaction(id: Int, uuid: String): Transaction
   allCollectives(
     """
@@ -3342,8 +3188,6 @@ type Query {
     minNbCollectivesHosted: Int! = 0
   ): CollectiveSearchResults
   allCollectiveTags: [String]
-  member(id: Int, CollectiveId: Int, MemberCollectiveId: Int, TierId: Int): Member
-    @deprecated(reason: "2020-09-08: This endpoint does not seems to be used anymore")
   allMembers(
     CollectiveId: Int
     collectiveSlug: String
@@ -3435,8 +3279,8 @@ type Query {
     offset: Int
     dateFrom: String
     dateTo: String
-  ): [Transaction]
-  Order(id: Int!): OrderType
+  ): [Transaction] @deprecated(reason: "2021-01-29: Not used anymore")
+  Order(id: Int!): OrderType @deprecated(reason: "2021-01-29: Not used anymore")
 }
 
 type SendMessageToCollectiveResult {
@@ -3455,12 +3299,7 @@ type StatsMemberType {
   directDonations: Int
 
   """
-  total amount donated by this member through gift cards
-  """
-  donationsThroughEmittedVirtualCards: Int
-
-  """
-  total amount donated by this member either directly or using a virtual card it has emitted
+  total amount donated by this member either directly or using a gift card it has emitted
   """
   totalDonations: Int
 }
@@ -3695,38 +3534,13 @@ interface Transaction {
   host: CollectiveInterface
   paymentMethod: PaymentMethodType
   fromCollective: CollectiveInterface
-  usingVirtualCardFromCollective: CollectiveInterface
+  usingGiftCardFromCollective: CollectiveInterface
   collective: CollectiveInterface
   type: String
   description: String
   createdAt: DateString
   updatedAt: DateString
   refundTransaction: Transaction
-}
-
-"""
-Ordering options for transactions
-"""
-input TransactionOrder {
-  """
-  The field to order transactions by.
-  """
-  field: TransactionOrderField = CREATED_AT
-
-  """
-  The ordering direction.
-  """
-  direction: OrderDirection = DESC
-}
-
-"""
-Properties by which transactions can be ordered.
-"""
-enum TransactionOrderField {
-  """
-  Order transactions by creation time.
-  """
-  CREATED_AT
 }
 
 """
@@ -3745,14 +3559,6 @@ type TransactionsStatsType {
   Returns the number of DEBIT transactions
   """
   debit: Int
-}
-
-"""
-Type of transaction in the ledger
-"""
-enum TransactionType {
-  CREDIT
-  DEBIT
 }
 
 enum TypeOfCollective {
@@ -3842,14 +3648,11 @@ type UpdateType {
   publishedAt: DateString
   summary: String
   html: String
-  markdown: String @deprecated(reason: "2020-01-25: Use html")
   tags: [String]
   createdByUser: UserDetails
   fromCollective: CollectiveInterface
   collective: CollectiveInterface
   tier: Tier
-  comments(limit: Int, offset: Int): CommentListType
-    @deprecated(reason: "Deprecated since 2020-03-18: This field has never been active and will be removed soon.")
 }
 
 """
@@ -4032,12 +3835,6 @@ type User implements CollectiveInterface {
     includeInactive: Boolean = false
   ): [Event]
   projects(limit: Int, offset: Int): [Project]
-
-  """
-  Get all child collectives (with type=COLLECTIVE, doesn't return events)
-  """
-  childCollectives: [Collective]
-    @deprecated(reason: "2020/01/08 - Connected-collectives are now handled through members")
   paymentMethods(
     service: String
     limit: Int
@@ -4045,11 +3842,6 @@ type User implements CollectiveInterface {
     isConfirmed: Boolean = true
     types: [String]
     orderBy: PaymenMethodOrderField = type
-
-    """
-    Defines if the organization "collective" payment method should be returned
-    """
-    includeOrganizationCollectivePaymentMethod: Boolean = false
 
     """
     Defines if the host "collective" payment method should be returned
@@ -4065,18 +3857,18 @@ type User implements CollectiveInterface {
   """
   List all the gift cards batches emitted by this collective. May include `null` for unbatched gift cards.
   """
-  virtualCardsBatches: [PaymentMethodBatchInfo]
+  giftCardsBatches: [PaymentMethodBatchInfo]
 
   """
-  Get the virtual cards created by this collective. RemoteUser must be a collective admin.
+  Get the gift cards created by this collective. RemoteUser must be a collective admin.
   """
-  createdVirtualCards(
+  createdGiftCards(
     limit: Int
     offset: Int
     batch: String
 
     """
-    Wether the virtual card has been claimed or not
+    Wether the gift card has been claimed or not
     """
     isConfirmed: Boolean
   ): PaginatedPaymentMethod

@@ -340,7 +340,6 @@ export async function sendArchivedCollectiveEmail(order) {
       order: order.info,
       collective: order.collective.info,
       fromCollective: order.fromCollective.minimal,
-      subscriptionsLink: user.generateLoginLink(`/${order.fromCollective.slug}/recurring-contributions`),
     },
     {
       from: `${order.collective.name} <no-reply@${order.collective.slug}.opencollective.com>`,
@@ -406,7 +405,7 @@ export async function sendThankYouEmail(order, transaction) {
   };
 
   // hit PDF service and get PDF (unless payment method type is gift card)
-  if (transaction && paymentMethod?.type !== PAYMENT_METHOD_TYPE.VIRTUALCARD) {
+  if (transaction && paymentMethod?.type !== PAYMENT_METHOD_TYPE.GIFT_CARD) {
     const transactionPdf = await getTransactionPdf(transaction, user);
     if (transactionPdf) {
       const createdAtString = toIsoDateStr(transaction.createdAt ? new Date(transaction.createdAt) : new Date());

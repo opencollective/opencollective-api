@@ -19,6 +19,7 @@ import { getTransactionPdf } from './pdf';
 import { subscribeOrUpgradePlan, validatePlanRequest } from './plans';
 import { createPrepaidPaymentMethod, isPrepaidBudgetOrder } from './prepaid-budget';
 import { getNextChargeAndPeriodStartDates } from './recurring-contributions';
+import { stripHTML } from './sanitize-html';
 import { netAmount } from './transactions';
 import { formatAccountDetails } from './transferwise';
 import { formatCurrency, toIsoDateStr } from './utils';
@@ -28,7 +29,7 @@ const debug = debugLib('payments');
 /** Check if paymentMethod has a given fully qualified name
  *
  * Payment Provider names are composed by service and type joined with
- * a dot. E.g.: `opencollective.virtualcard`, `stripe.creditcard`,
+ * a dot. E.g.: `opencollective.giftcard`, `stripe.creditcard`,
  * etc. This function returns true if a *paymentMethod* instance has a
  * given *fqn*.
  *
@@ -39,7 +40,7 @@ const debug = debugLib('payments');
  * @returns {Boolean} true if *paymentMethod* has a fully qualified
  *  name that equals *fqn*.
  * @example
- * > isProvider('opencollective.virtualcard', { service: 'foo', type: 'bar' })
+ * > isProvider('opencollective.giftcard', { service: 'foo', type: 'bar' })
  * false
  * > isProvider('stripe.creditcard', { service: 'stripe', type: 'creditcard' })
  * true
@@ -168,6 +169,7 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
       'HostCollectiveId',
       'PaymentMethodId',
       'OrderId',
+      'ExpenseId',
       'hostCurrencyFxRate',
       'hostCurrency',
       'hostFeeInHostCurrency',
@@ -359,10 +361,10 @@ export const executeOrder = async (user, order, options) => {
 
   sendEmailNotifications(order, transaction);
 
-  // Register VirtualCard emitter as collective backer too
-  if (transaction && transaction.UsingVirtualCardFromCollectiveId) {
+  // Register gift card emitter as collective backer too
+  if (transaction && transaction.UsingGiftCardFromCollectiveId) {
     await order.collective.findOrAddUserWithRole(
-      { id: user.id, CollectiveId: transaction.UsingVirtualCardFromCollectiveId },
+      { id: user.id, CollectiveId: transaction.UsingGiftCardFromCollectiveId },
       roles.BACKER,
       { TierId: get(order, 'tier.id') },
       { order, skipActivity: true },
@@ -424,7 +426,7 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
     };
 
     // hit PDF service and get PDF (unless payment method type is gift card)
-    if (paymentMethod?.type !== PAYMENT_METHOD_TYPE.VIRTUALCARD) {
+    if (paymentMethod?.type !== PAYMENT_METHOD_TYPE.GIFT_CARD) {
       const transactionPdf = await getTransactionPdf(transaction, user);
       if (transactionPdf) {
         const createdAtString = toIsoDateStr(transaction.createdAt ? new Date(transaction.createdAt) : new Date());
@@ -491,11 +493,11 @@ export const sendOrderProcessingEmail = async order => {
       // @deprecated but we still have some entries in the DB
       OrderId: order.id,
     };
-    data.instructions = instructions.replace(/{([\s\S]+?)}/g, (match, key) => {
+    data.instructions = stripHTML(instructions).replace(/{([\s\S]+?)}/g, (match, key) => {
       if (key && formatValues[key]) {
-        return formatValues[key];
+        return `<strong>${stripHTML(formatValues[key])}</strong>`;
       } else {
-        return match;
+        return stripHTML(match);
       }
     });
   }

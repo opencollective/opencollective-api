@@ -88,7 +88,7 @@ async function run() {
       currency: host.currency,
       CollectiveId: host.id,
       FromCollectiveId: host.id,
-      HostCollectiveId: null,
+      HostCollectiveId: host.id,
       hostCurrency: host.currency,
       hostCurrencyFxRate: 1,
       amountInHostCurrency: amount,

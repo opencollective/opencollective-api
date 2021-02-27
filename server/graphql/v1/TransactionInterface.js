@@ -56,7 +56,7 @@ export const TransactionInterfaceType = new GraphQLInterfaceType({
       host: { type: CollectiveInterfaceType },
       paymentMethod: { type: PaymentMethodType },
       fromCollective: { type: CollectiveInterfaceType },
-      usingVirtualCardFromCollective: { type: CollectiveInterfaceType },
+      usingGiftCardFromCollective: { type: CollectiveInterfaceType },
       collective: { type: CollectiveInterfaceType },
       type: { type: GraphQLString },
       description: { type: GraphQLString },
@@ -221,16 +221,16 @@ const TransactionFields = () => {
         return null;
       },
     },
-    usingVirtualCardFromCollective: {
+    usingGiftCardFromCollective: {
       type: CollectiveInterfaceType,
       resolve(transaction) {
-        // If it's a sequelize model transaction, it means it has the method getVirtualCardEmitterCollective
-        // otherwise we find the collective by id if transactions has UsingVirtualCardFromCollectiveId, if not we return null
-        if (transaction && transaction.getVirtualCardEmitterCollective) {
-          return transaction.getVirtualCardEmitterCollective();
+        // If it's a sequelize model transaction, it means it has the method getGiftCardEmitterCollective
+        // otherwise we find the collective by id if transactions has UsingGiftCardFromCollectiveId, if not we return null
+        if (transaction && transaction.getGiftCardEmitterCollective) {
+          return transaction.getGiftCardEmitterCollective();
         }
-        if (transaction && transaction.UsingVirtualCardFromCollectiveId) {
-          return models.Collective.findByPk(transaction.UsingVirtualCardFromCollectiveId);
+        if (transaction && transaction.UsingGiftCardFromCollectiveId) {
+          return models.Collective.findByPk(transaction.UsingGiftCardFromCollectiveId);
         }
         return null;
       },
@@ -352,58 +352,4 @@ export const TransactionOrderType = new GraphQLObjectType({
       },
     };
   },
-});
-
-export const TransactionType = new GraphQLEnumType({
-  name: 'TransactionType',
-  description: 'Type of transaction in the ledger',
-  values: {
-    CREDIT: {},
-    DEBIT: {},
-  },
-});
-
-export const TransactionOrder = new GraphQLInputObjectType({
-  name: 'TransactionOrder',
-  description: 'Ordering options for transactions',
-  fields: {
-    field: {
-      description: 'The field to order transactions by.',
-      defaultValue: 'createdAt',
-      type: new GraphQLEnumType({
-        name: 'TransactionOrderField',
-        description: 'Properties by which transactions can be ordered.',
-        values: {
-          CREATED_AT: {
-            value: 'createdAt',
-            description: 'Order transactions by creation time.',
-          },
-        },
-      }),
-    },
-    direction: {
-      description: 'The ordering direction.',
-      defaultValue: 'DESC',
-      type: OrderDirectionType,
-    },
-  },
-});
-
-TransactionOrder.defaultValue = Object.entries(TransactionOrder.getFields()).reduce(
-  (values, [key, value]) => ({
-    ...values,
-    [key]: value.defaultValue,
-  }),
-  {},
-);
-
-export const PaginatedTransactionsType = new GraphQLObjectType({
-  name: 'PaginatedTransactions',
-  description: 'List of transactions with pagination data',
-  fields: () => ({
-    transactions: { type: new GraphQLList(TransactionInterfaceType) },
-    limit: { type: GraphQLInt },
-    offset: { type: GraphQLInt },
-    total: { type: GraphQLInt },
-  }),
 });

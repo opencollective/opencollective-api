@@ -2,14 +2,19 @@ import config from 'config';
 
 import * as auth from '../lib/auth';
 import emailLib from '../lib/email';
+import { crypto } from '../lib/encryption';
 import errors from '../lib/errors';
 import logger from '../lib/logger';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../lib/rate-limit';
-import { verifyTwoFactorAuthenticatorCode } from '../lib/two-factor-authentication';
+import {
+  verifyTwoFactorAuthenticationRecoveryCode,
+  verifyTwoFactorAuthenticatorCode,
+} from '../lib/two-factor-authentication';
 import { isValidEmail } from '../lib/utils';
 import models from '../models';
 
-const { Unauthorized } = errors;
+const { Unauthorized, ValidationFailed, TooManyRequests } = errors;
+
 const { User } = models;
 
 /**
@@ -92,13 +97,24 @@ export const updateToken = async (req, res) => {
 };
 
 /**
- * Verify the 2FA code the user has entered when
- * logging in and send back another JWT.
+ * Verify the 2FA code or recovery code the user has entered when logging in and send back another JWT.
  */
 export const twoFactorAuthAndUpdateToken = async (req, res, next) => {
-  const { twoFactorAuthenticatorCode } = req.body;
+  const { twoFactorAuthenticatorCode, twoFactorAuthenticationRecoveryCode } = req.body;
 
   const userId = Number(req.jwtPayload.sub);
+
+  // Both 2FA and recovery codes rate limited to 10 tries per hour
+  const rateLimit = new RateLimit(`user_2FA_endpoint_${userId}`, 10, ONE_HOUR_IN_SECONDS);
+  const fail = async exception => {
+    await rateLimit.registerCall();
+    next(exception);
+  };
+
+  if (await rateLimit.hasReachedLimit()) {
+    return next(new TooManyRequests('Too many attempts. Please try again in an hour'));
+  }
+
   const user = await User.findByPk(userId);
   if (!user) {
     logger.warn(`User id ${userId} not found`);
@@ -106,11 +122,30 @@ export const twoFactorAuthAndUpdateToken = async (req, res, next) => {
     return;
   }
 
-  // we need to verify the 2FA code before returning the token
-  const verified = verifyTwoFactorAuthenticatorCode(user.twoFactorAuthToken, twoFactorAuthenticatorCode);
-  if (!verified) {
-    return next(new Unauthorized('Two-factor authentication code failed. Please try again'));
+  if (twoFactorAuthenticatorCode) {
+    // if there is a 2FA code, we need to verify it before returning the token
+    const verified = verifyTwoFactorAuthenticatorCode(user.twoFactorAuthToken, twoFactorAuthenticatorCode);
+    if (!verified) {
+      return fail(new Unauthorized('Two-factor authentication code failed. Please try again'));
+    }
+  } else if (twoFactorAuthenticationRecoveryCode) {
+    // or if there is a recovery code try to verify it
+    if (typeof twoFactorAuthenticationRecoveryCode !== 'string') {
+      return fail(new ValidationFailed('2FA recovery code must be a string'));
+    }
+    const verified = verifyTwoFactorAuthenticationRecoveryCode(
+      user.twoFactorAuthRecoveryCodes,
+      twoFactorAuthenticationRecoveryCode,
+    );
+    if (!verified) {
+      return fail(new Unauthorized('Two-factor authentication recovery code failed. Please try again'));
+    }
+    const remainingRecoveryCodes = user.twoFactorAuthRecoveryCodes.filter(
+      code => crypto.hash(twoFactorAuthenticationRecoveryCode.toUpperCase()) !== code,
+    );
+    await user.update({ twoFactorAuthRecoveryCodes: remainingRecoveryCodes });
   }
+
   const token = user.jwt({}, auth.TOKEN_EXPIRATION_SESSION);
   res.send({ token: token });
 };

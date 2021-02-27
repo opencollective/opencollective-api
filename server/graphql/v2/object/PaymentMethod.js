@@ -2,7 +2,7 @@ import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLStri
 import GraphQLJSON from 'graphql-type-json';
 import { get, pick } from 'lodash';
 
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPES } from '../../../constants/paymentMethods';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE, PAYMENT_METHOD_TYPES } from '../../../constants/paymentMethods';
 import { getPaymentMethodType, PaymentMethodType } from '../enum/PaymentMethodType';
 import { idEncode } from '../identifiers';
 import { Account } from '../interface/Account';
@@ -85,8 +85,8 @@ export const PaymentMethod = new GraphQLObjectType({
             return null;
           }
 
-          // Protect and whitelist fields for virtualcard
-          if (paymentMethod.type === 'virtualcard') {
+          // Protect and whitelist fields for gift cards
+          if (paymentMethod.type === PAYMENT_METHOD_TYPE.GIFT_CARD) {
             if (!req.remoteUser || !req.remoteUser.isAdminOfCollective(paymentMethod.CollectiveId)) {
               return null;
             }
@@ -111,7 +111,7 @@ export const PaymentMethod = new GraphQLObjectType({
             }
             const host = await req.loaders.Collective.byId.load(hostId);
             hosts = [host];
-          } else if (paymentMethod.type === 'virtualcard' && paymentMethod.limitedToHostCollectiveIds) {
+          } else if (paymentMethod.type === PAYMENT_METHOD_TYPE.GIFT_CARD && paymentMethod.limitedToHostCollectiveIds) {
             hosts = paymentMethod.limitedToHostCollectiveIds.map(id => {
               return req.loaders.Collective.byId.load(id);
             });

@@ -172,7 +172,9 @@ const IBANCurrencies = {
 };
 
 export const SUPPORTED_CURRENCIES = [
+  'ARS',
   'AUD',
+  'BDT',
   'BGN',
   'BRL',
   'CAD',
@@ -181,20 +183,25 @@ export const SUPPORTED_CURRENCIES = [
   'DKK',
   'EUR',
   'GBP',
+  'HKD',
   'HRK',
   'HUF',
   'INR',
   'ISK',
   'JPY',
   'MXN',
+  'MYR',
   'NGN',
   'NOK',
+  'NPR',
   'NZD',
   'PLN',
   'RON',
   'SEK',
+  'SGD',
   'USD',
   'UYU',
+  'ZAR',
 ];
 
 export const SupportedCurrencies = pick(IBANCurrencies, SUPPORTED_CURRENCIES);

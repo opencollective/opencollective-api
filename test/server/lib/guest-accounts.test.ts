@@ -19,10 +19,13 @@ describe('server/lib/guest-accounts.ts', () => {
       expect(user.email).to.eq(email);
     });
 
-    it('Rejects if a verified account already exists for this email', async () => {
-      const user = await fakeUser();
-      const guestAccountPromise = getOrCreateGuestProfile({ email: user.email });
-      await expect(guestAccountPromise).to.be.rejectedWith('An account already exists for this email, please sign in');
+    it('Works even if a verified account already exists for this email, but does not update the profile', async () => {
+      const user = await fakeUser({ confirmedAt: new Date() });
+      const { collective } = await getOrCreateGuestProfile({ email: user.email, name: 'TOTO' });
+      expect(collective).to.exist;
+      expect(collective.id).to.eq(user.CollectiveId);
+      expect(collective.name).to.eq(user.collective.name);
+      expect(collective.name).to.not.eq('TOTO');
     });
 
     it('Re-use the same profile if a non-verified account already exists', async () => {

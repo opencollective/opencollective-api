@@ -10,7 +10,7 @@ import models from '../server/models';
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
-    // Fetch all transactions where a virtual card was used but no member associated
+    // Fetch all transactions where a gift card was used but no member associated
     const fetchedQuery = await queryInterface.sequelize.query(
       `
       SELECT

@@ -268,7 +268,7 @@ const processCollective = async CollectiveId => {
   const collective = await models.Collective.findByPk(CollectiveId);
   const promises = [
     collective.getBackersStats(startDate, endDate),
-    collective.getBalance(endDate),
+    collective.getBalance({ endDate }),
     collective.getTotalTransactions(startDate, endDate, 'donation'),
     collective.getTotalTransactions(startDate, endDate, 'expense'),
     collective.getExpenses(null, startDate, endDate),

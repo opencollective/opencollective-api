@@ -13,11 +13,9 @@ import roles from '../../../constants/roles';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import emailLib from '../../../lib/email';
 import * as github from '../../../lib/github';
-import { handleHostCollectivesLimit } from '../../../lib/plans';
 import { canUseFeature } from '../../../lib/user-permissions';
 import { defaultHostCollective } from '../../../lib/utils';
 import models, { Op } from '../../../models';
-import { HostApplicationStatus } from '../../../models/HostApplication';
 import { FeatureNotAllowedForUser, NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 
 const DEFAULT_COLLECTIVE_SETTINGS = {
@@ -183,7 +181,7 @@ export async function createCollectiveFromGithub(_, args, req) {
     settings: { ...DEFAULT_COLLECTIVE_SETTINGS, ...args.collective.settings },
   };
 
-  // For e2e testing, we enable testuser+(admin|member)@opencollective.com to create collective without github validation
+  // For e2e testing, we enable testuser+(admin|member|host)@opencollective.com to create collective without github validation
   if (config.env !== 'production' && user.email.match(/.*test.*@opencollective.com$/)) {
     const existingCollective = models.Collective.findOne({
       where: { slug: collectiveData.slug.toLowerCase() },
@@ -196,6 +194,9 @@ export async function createCollectiveFromGithub(_, args, req) {
     collectiveData.LastEditedByUserId = user.id;
     collective = await models.Collective.create(collectiveData);
     const host = await models.Collective.findByPk(defaultHostCollective('opensource').CollectiveId);
+    if (user.email.match(/.*test.*host@opencollective.com$/)) {
+      await host.addUserWithRole(user, roles.ADMIN);
+    }
     const promises = [
       collective.addUserWithRole(user, roles.ADMIN),
       collective.addHost(host, user, { shouldAutomaticallyApprove: true }),
@@ -401,69 +402,6 @@ export function editCollective(_, args, req) {
     });
 }
 
-export async function approveCollective(remoteUser, CollectiveId) {
-  if (!remoteUser) {
-    throw new Unauthorized('You need to be logged in to approve a collective');
-  }
-
-  const collective = await models.Collective.findByPk(CollectiveId);
-  if (!collective) {
-    throw new NotFound(`Collective with id ${CollectiveId} not found`);
-  }
-
-  const host = await collective.getHostCollective();
-  if (!host) {
-    throw new ValidationFailed(
-      'We could not get the Host data for the Collective. Maybe they cancelled their application.',
-    );
-  }
-
-  if (!remoteUser.isAdmin(host.id)) {
-    throw new Unauthorized(
-      'You need to be logged in as an admin of the host of this collective to approve it',
-      undefined,
-      { HostCollectiveId: host.id },
-    );
-  }
-
-  // Check limits
-  await handleHostCollectivesLimit(host, { throwHostException: true, notifyAdmins: true });
-
-  // Approve all events and projects created by this collective
-  const events = await collective.getEvents();
-  await Promise.all(
-    events.map(event => {
-      event.update({ isActive: true, approvedAt: new Date() });
-    }),
-  );
-  const projects = await collective.getProjects();
-  await Promise.all(
-    projects.map(project => {
-      project.update({ isActive: true, approvedAt: new Date() });
-    }),
-  );
-
-  purgeCacheForCollective(collective.slug);
-
-  // Approve the collective and return it
-  await collective.update({ isActive: true, approvedAt: new Date() });
-  await models.HostApplication.updatePendingApplications(host, collective, HostApplicationStatus.APPROVED);
-  await models.Activity.create({
-    type: activities.COLLECTIVE_APPROVED,
-    UserId: remoteUser.id,
-    CollectiveId: host.id,
-    data: {
-      collective: collective.info,
-      host: host.info,
-      user: {
-        email: remoteUser.email,
-      },
-    },
-  });
-
-  return collective;
-}
-
 export async function archiveCollective(_, args, req) {
   if (!req.remoteUser) {
     throw new Unauthorized('You need to be logged in to archive a collective');
@@ -485,7 +423,6 @@ export async function archiveCollective(_, args, req) {
   }
 
   const balance = await collective.getBalance();
-
   if (balance > 0) {
     throw new Error('Cannot archive collective with balance > 0');
   }
@@ -847,54 +784,6 @@ export async function sendMessageToCollective(_, args, req) {
   return { success: true };
 }
 
-export async function rejectCollective(_, args, req) {
-  if (!req.remoteUser) {
-    throw new Unauthorized('You need to be logged in to reject a collective');
-  }
-
-  const collective = await models.Collective.findByPk(args.id);
-  if (!collective) {
-    throw new NotFound(`Collective with id ${args.id} not found`);
-  }
-
-  const hostCollective = await collective.getHostCollective();
-  if (!hostCollective) {
-    throw new ValidationFailed(
-      'We could not get the Host data for the Collective. Maybe they cancel their application.',
-    );
-  }
-
-  if (!req.remoteUser.isAdmin(hostCollective.id)) {
-    throw new Unauthorized(
-      'You need to be logged in as an admin of the host of this collective to reject it',
-      undefined,
-      { HostCollectiveId: hostCollective.id },
-    );
-  }
-
-  const rejectionReason =
-    args.rejectionReason && sanitize(args.rejectionReason, { allowedTags: [], allowedAttributes: {} }).trim();
-
-  await collective.changeHost(null, req.remoteUser);
-  await models.HostApplication.updatePendingApplications(hostCollective, collective, HostApplicationStatus.REJECTED);
-  await models.Activity.create({
-    type: activities.COLLECTIVE_REJECTED,
-    UserId: req.remoteUser.id,
-    CollectiveId: hostCollective.id,
-    data: {
-      collective: collective.info,
-      host: hostCollective.info,
-      user: {
-        email: req.remoteUser.email,
-      },
-      rejectionReason: rejectionReason || null,
-    },
-  });
-
-  purgeCacheForCollective(collective.slug);
-  return collective;
-}
-
 export async function activateCollectiveAsHost(_, args, req) {
   if (!req.remoteUser) {
     throw new Unauthorized('You need to be logged in to activate a collective as Host.');
@@ -909,7 +798,7 @@ export async function activateCollectiveAsHost(_, args, req) {
     throw new Unauthorized('You need to be logged in as an Admin.');
   }
 
-  return collective.becomeHost({ remoteUser: req.remoteUser });
+  return collective.becomeHost();
 }
 
 export async function deactivateCollectiveAsHost(_, args, req) {
@@ -926,7 +815,7 @@ export async function deactivateCollectiveAsHost(_, args, req) {
     throw new Unauthorized('You need to be logged in as an Admin.');
   }
 
-  return collective.deactivateAsHost({ remoteUser: req.remoteUser });
+  return collective.deactivateAsHost();
 }
 
 export async function activateBudget(_, args, req) {
@@ -943,7 +832,7 @@ export async function activateBudget(_, args, req) {
     throw new Unauthorized('You need to be logged in as an Admin.');
   }
 
-  return collective.activateBudget({ remoteUser: req.remoteUser });
+  return collective.activateBudget();
 }
 
 export async function deactivateBudget(_, args, req) {
@@ -960,5 +849,5 @@ export async function deactivateBudget(_, args, req) {
     throw new Unauthorized('You need to be logged in as an Admin.');
   }
 
-  return collective.deactivateBudget({ remoteUser: req.remoteUser });
+  return collective.deactivateBudget();
 }

@@ -313,7 +313,7 @@ export const scheduleExpenseForPayment = async (req, expense): Promise<typeof mo
     throw new Forbidden("You're authenticated but you can't schedule this expense for payment");
   }
 
-  const balance = await expense.collective.getBalance();
+  const balance = await expense.collective.getBalanceWithBlockedFunds();
   if (expense.amount > balance) {
     throw new Unauthorized(
       `You don't have enough funds to pay this expense. Current balance: ${formatCurrency(
@@ -464,12 +464,16 @@ export async function createExpense(remoteUser, expenseData): Promise<typeof mod
 
   // Update payee's location
   if (!expenseData.payeeLocation?.address && fromCollective.location) {
-    expenseData.payeeLocation = pick(fromCollective.location, ['address', 'country']);
-  } else if (expenseData.payeeLocation?.address && !fromCollective.location.address) {
+    expenseData.payeeLocation = pick(fromCollective.location, ['address', 'country', 'structured']);
+  } else if (
+    expenseData.payeeLocation?.address &&
+    (!fromCollective.location.address || !fromCollective.location.structured)
+  ) {
     // Let's take the opportunity to update collective's location
     await fromCollective.update({
       address: expenseData.payeeLocation.address,
       countryISO: expenseData.payeeLocation.country,
+      setttings: { ...fromCollective.settings, address: expenseData.payeeLocation.structured },
     });
   }
 
@@ -583,7 +587,7 @@ export async function editExpense(req, expenseData, options = {}): Promise<typeo
   let payoutMethod = await expense.getPayoutMethod();
   const updatedExpense = await sequelize.transaction(async t => {
     // Update payout method if we get new data from one of the param for it
-    if (expenseData.payoutMethod !== undefined && expenseData.payoutMethod !== expense.legacyPayoutMethod) {
+    if (expenseData.payoutMethod !== undefined && expenseData.payoutMethod?.id !== expense.PayoutMethodId) {
       payoutMethod = await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, t);
     }
 
@@ -841,7 +845,7 @@ export async function payExpense(req, args): Promise<typeof models.Expense> {
       throw new Error('"In kind" donations are not supported anymore');
     }
 
-    const balance = await expense.collective.getBalance();
+    const balance = await expense.collective.getBalanceWithBlockedFunds();
     if (expense.amount > balance) {
       throw new Unauthorized(
         `You don't have enough funds to pay this expense. Current balance: ${formatCurrency(
@@ -1005,7 +1009,7 @@ export async function markExpenseAsUnpaid(req, ExpenseId, processorFeeRefunded):
     }
 
     const transaction = await models.Transaction.findOne({
-      where: { ExpenseId },
+      where: { ExpenseId, RefundTransactionId: null },
       include: [{ model: models.Expense }],
     });
 

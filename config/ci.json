@@ -16,7 +16,7 @@
     "url": "postgres://postgres@localhost:5432/postgres"
   },
   "limits": {
-    "virtualCards": {
+    "giftCards": {
       "maxPerDay": 1000
     }
   },

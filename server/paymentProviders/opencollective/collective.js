@@ -16,7 +16,7 @@ paymentMethodProvider.features = {
 // Returns the balance in the currency of the paymentMethod (ie. currency of the Collective)
 paymentMethodProvider.getBalance = paymentMethod => {
   return paymentMethod.getCollective().then(collective => {
-    return collective.getBalance();
+    return collective.getBalanceWithBlockedFunds();
   });
 };
 
@@ -54,7 +54,7 @@ paymentMethodProvider.processOrder = async order => {
   }
 
   const hostFeePercent = await getHostFeePercent(order);
-  const platformFeePercent = await getPlatformFeePercent(order);
+  const platformFeePercent = await getPlatformFeePercent(order); // it's gonna be 0 usually, unless specified in the order
 
   const payload = {
     CreatedByUserId: order.CreatedByUserId,
@@ -68,14 +68,14 @@ paymentMethodProvider.processOrder = async order => {
   // of the collective for display purposes (using the fxrate at the time of display)
   // Anyway, until we change that, when we give money to a collective that has a different currency
   // we need to compute the equivalent using the fxrate of the day
-  const fxrate = await getFxRate(order.currency, order.paymentMethod.currency);
-  const totalAmountInPaymentMethodCurrency = order.totalAmount * fxrate;
+  const fxRate = await getFxRate(order.currency, collectiveHost.currency);
+  const amountInHostCurrency = order.totalAmount * fxRate;
 
   const feeOnTop = order.data?.platformFee || 0;
-  const hostFeeInHostCurrency = calcFee((order.totalAmount - feeOnTop) * fxrate, hostFeePercent);
+  const hostFeeInHostCurrency = calcFee((order.totalAmount - feeOnTop) * fxRate, hostFeePercent);
   const platformFeeInHostCurrency = !feeOnTop
-    ? calcFee(order.totalAmount * fxrate, platformFeePercent)
-    : feeOnTop * fxrate;
+    ? calcFee(order.totalAmount * fxRate, platformFeePercent)
+    : feeOnTop * fxRate;
 
   payload.transaction = {
     type: TransactionTypes.CREDIT,
@@ -83,9 +83,9 @@ paymentMethodProvider.processOrder = async order => {
     amount: order.totalAmount,
     currency: order.currency,
     hostCurrency: collectiveHost.currency,
-    hostCurrencyFxRate: fxrate,
+    hostCurrencyFxRate: fxRate,
     netAmountInCollectiveCurrency: order.totalAmount * (1 - hostFeePercent / 100),
-    amountInHostCurrency: totalAmountInPaymentMethodCurrency,
+    amountInHostCurrency,
     hostFeeInHostCurrency,
     platformFeeInHostCurrency,
     taxAmount: order.taxAmount,
@@ -122,7 +122,7 @@ paymentMethodProvider.refundTransaction = async (transaction, user) => {
     throw new Error('Cannot process refunds for collectives with different hosts');
   }
 
-  const balance = await collective.getBalance();
+  const balance = await collective.getBalanceWithBlockedFunds();
   if (balance < transaction.amount) {
     throw new Error(
       `Not enough funds available (${formatCurrency(

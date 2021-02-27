@@ -103,48 +103,5 @@ describe('server/graphql/v1/invoices', () => {
       expect(invoices[0].host.slug).to.equal('brusselstogether-host');
       expect(invoices[0].fromCollective.slug).to.equal('xdamman');
     });
-
-    it('returns invoice data for a given year/month', async () => {
-      const query = gql`
-        query Invoice($invoiceSlug: String!) {
-          Invoice(invoiceSlug: $invoiceSlug) {
-            year
-            month
-            totalAmount
-            currency
-            host {
-              id
-              slug
-              location {
-                name
-                address
-              }
-            }
-            fromCollective {
-              id
-              slug
-              location {
-                name
-                address
-              }
-            }
-            transactions {
-              id
-              amount
-              description
-            }
-          }
-        }
-      `;
-      const result = await utils.graphqlQuery(query, { invoiceSlug: '201710.brusselstogether-host.xdamman' }, xdamman);
-      result.errors && console.error(result.errors[0]);
-      expect(result.errors).to.not.exist;
-      const invoice = result.data.Invoice;
-      expect(invoice.host.slug).to.equal('brusselstogether-host');
-      expect(invoice.fromCollective.slug).to.equal('xdamman');
-      expect(invoice.totalAmount).to.equal(1500);
-      expect(invoice.currency).to.equal('EUR');
-      expect(invoice.transactions).to.have.length(2);
-    });
   });
 });

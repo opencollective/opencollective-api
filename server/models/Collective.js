@@ -39,7 +39,14 @@ import plans, { PLANS_COLLECTIVE_SLUG } from '../constants/plans';
 import roles, { MemberRoleLabels } from '../constants/roles';
 import { FEES_ON_TOP_TRANSACTION_PROPERTIES, TransactionTypes } from '../constants/transactions';
 import { hasOptedOutOfFeature, isFeatureAllowedForCollectiveType } from '../lib/allowed-features';
-import cache from '../lib/cache';
+import {
+  getBalance,
+  getBalanceWithBlockedFunds,
+  getTotalAmountReceived,
+  getTotalNetAmountReceived,
+  getYearlyIncome,
+} from '../lib/budget';
+import cache, { purgeCacheForCollective } from '../lib/cache';
 import {
   collectiveSlugReservedlist,
   filterCollectiveSettings,
@@ -503,10 +510,9 @@ export default function (Sequelize, DataTypes) {
             name: this.locationName,
             address: this.address,
             country: this.countryISO,
-            lat:
-              this.geoLocationLatLong && this.geoLocationLatLong.coordinates && this.geoLocationLatLong.coordinates[0],
-            long:
-              this.geoLocationLatLong && this.geoLocationLatLong.coordinates && this.geoLocationLatLong.coordinates[1],
+            structured: this.settings?.address,
+            lat: this.geoLocationLatLong?.coordinates?.[0],
+            long: this.geoLocationLatLong?.coordinates?.[1],
           };
         },
 
@@ -745,7 +751,7 @@ export default function (Sequelize, DataTypes) {
       }
       if (goal.type === 'balance') {
         if (!stats.balance) {
-          stats.balance = await this.getBalance(until);
+          stats.balance = await this.getBalance({ endDate: until });
         }
         if (stats.balance < goal.amount) {
           nextGoal = goal;
@@ -757,7 +763,7 @@ export default function (Sequelize, DataTypes) {
       }
       if (goal.type === 'yearlyBudget') {
         if (!stats.yearlyBudget) {
-          stats.yearlyBudget = await this.getYearlyIncome(until);
+          stats.yearlyBudget = await this.getYearlyIncome();
         }
         if (stats.yearlyBudget < goal.amount) {
           nextGoal = goal;
@@ -898,7 +904,7 @@ export default function (Sequelize, DataTypes) {
 
   // run when attaching a Stripe Account to this user/organization collective
   // this Payment Method will be used for "Add Funds"
-  Collective.prototype.becomeHost = async function ({ remoteUser }) {
+  Collective.prototype.becomeHost = async function () {
     if (!this.isHostAccount) {
       const updatedValues = { isHostAccount: true, plan: 'start-plan-2021' };
       // hostFeePercent and platformFeePercent are not supposed to be set at this point
@@ -922,7 +928,7 @@ export default function (Sequelize, DataTypes) {
       });
     }
 
-    await this.activateBudget({ remoteUser });
+    await this.activateBudget();
 
     return this;
   };
@@ -950,7 +956,7 @@ export default function (Sequelize, DataTypes) {
    * If the collective is a host, it needs to remove existing hosted collectives before
    * deactivating it as a host.
    */
-  Collective.prototype.deactivateAsHost = async function ({ remoteUser }) {
+  Collective.prototype.deactivateAsHost = async function () {
     const hostedCollectives = await this.getHostedCollectivesCount();
     if (hostedCollectives >= 1) {
       throw new Error(
@@ -960,7 +966,7 @@ export default function (Sequelize, DataTypes) {
 
     // TODO unsubscribe from OpenCollective tier plan.
 
-    await this.deactivateBudget({ remoteUser });
+    await this.deactivateBudget();
 
     const settings = { ...this.settings };
     unset(settings, 'paymentMethods.manual');
@@ -1003,7 +1009,7 @@ export default function (Sequelize, DataTypes) {
   /**
    * Activate Budget (so the "Host Organization" can receive financial contributions and manage expenses)
    */
-  Collective.prototype.activateBudget = async function ({ remoteUser }) {
+  Collective.prototype.activateBudget = async function () {
     if (!this.isHostAccount || ![types.ORGANIZATION].includes(this.type)) {
       return;
     }
@@ -1877,12 +1883,8 @@ export default function (Sequelize, DataTypes) {
       }
     }
 
-    // Update all transactions
-    // Ensure consistency between collective.currency and transaction.currency
-    const transactions = await models.Transaction.findAll({ where: { CollectiveId: this.id } });
-    if (transactions.length > 0) {
-      await Promise.map(transactions, transaction => transaction.setCurrency(currency), { concurrency: 3 });
-    }
+    // What about transactions?
+    // No, the currency should not matter, and for the Hosts it's forbidden to change currency
 
     // Update tiers, skip or delete when they are already used?
     const tiers = await this.getTiers();
@@ -1972,7 +1974,7 @@ export default function (Sequelize, DataTypes) {
     const promises = [models.Member.create(member), this.update(updatedValues)];
 
     // Invalidate current collective payment method if there's one
-    const collectivePaymentMethod = await models.PaymentMethod.findOne({
+    await models.PaymentMethod.destroy({
       where: {
         CollectiveId: this.id,
         service: 'opencollective',
@@ -1980,10 +1982,6 @@ export default function (Sequelize, DataTypes) {
         deletedAt: null,
       },
     });
-
-    if (collectivePaymentMethod) {
-      promises.push(collectivePaymentMethod.destroy());
-    }
 
     // Create the new payment method with host's currency
     if ([types.COLLECTIVE, types.FUND, types.EVENT, types.PROJECT].includes(this.type)) {
@@ -2049,6 +2047,7 @@ export default function (Sequelize, DataTypes) {
           },
           application: {
             message: options?.message,
+            customData: options?.applicationData,
           },
         };
 
@@ -2103,7 +2102,7 @@ export default function (Sequelize, DataTypes) {
    * @param {*} newHostCollective: { id }
    * @param {*} remoteUser { id }
    */
-  Collective.prototype.changeHost = async function (newHostCollectiveId, remoteUser, message) {
+  Collective.prototype.changeHost = async function (newHostCollectiveId, remoteUser, options) {
     // Skip
     if (this.HostCollectiveId == newHostCollectiveId) {
       return this;
@@ -2157,9 +2156,12 @@ export default function (Sequelize, DataTypes) {
         throw new Error('Host not found');
       }
       if (!newHostCollective.isHostAccount) {
-        await newHostCollective.becomeHost({ remoteUser });
+        await newHostCollective.becomeHost();
       }
-      return this.addHost(newHostCollective, remoteUser, { message });
+      return this.addHost(newHostCollective, remoteUser, {
+        message: options?.message,
+        applicationData: options?.applicationData,
+      });
     } else {
       // if we remove the host
       return this.save();
@@ -2289,6 +2291,7 @@ export default function (Sequelize, DataTypes) {
      * members don't persist in the Team section on the frontend.
      */
     invalidateContributorsCache(this.id);
+    purgeCacheForCollective(this.slug);
 
     return this.getMembers({
       where: { role: { [Op.in]: allowedRoles } },
@@ -2438,85 +2441,29 @@ export default function (Sequelize, DataTypes) {
     });
   };
 
-  Collective.prototype.getBalance = async function (until) {
-    until = until || new Date();
-    const result = await queries.getBalances([this.id], until);
-    return get(result, '[0].balance') || 0;
+  Collective.prototype.getBalanceWithBlockedFunds = function (options) {
+    return getBalanceWithBlockedFunds(this, options);
+  };
+
+  Collective.prototype.getBalance = function (options) {
+    return getBalance(this, options);
   };
 
   Collective.prototype.getYearlyIncome = function () {
-    /*
-      Three cases:
-      1) All active monthly subscriptions. Multiply by 12
-      2) All one-time and yearly subscriptions
-      3) All inactive monthly subscriptions that have contributed in the past
-    */
-    return Sequelize.query(
-      `
-      WITH "activeMonthlySubscriptions" as (
-        SELECT DISTINCT d."SubscriptionId", t."netAmountInCollectiveCurrency"
-        FROM "Transactions" t
-        LEFT JOIN "Orders" d ON d.id = t."OrderId"
-        LEFT JOIN "Subscriptions" s ON s.id = d."SubscriptionId"
-        WHERE t."CollectiveId"=:CollectiveId
-          AND t."RefundTransactionId" IS NULL
-          AND s."isActive" IS TRUE
-          AND s.interval = 'month'
-          AND s."deletedAt" IS NULL
-      )
-      SELECT
-        (SELECT
-          COALESCE(SUM("netAmountInCollectiveCurrency"*12),0) FROM "activeMonthlySubscriptions")
-        +
-        (SELECT
-          COALESCE(SUM(t."netAmountInCollectiveCurrency"),0) FROM "Transactions" t
-          LEFT JOIN "Orders" d ON t."OrderId" = d.id
-          LEFT JOIN "Subscriptions" s ON d."SubscriptionId" = s.id
-          WHERE t."CollectiveId" = :CollectiveId
-            AND t."RefundTransactionId" IS NULL
-            AND t.type = 'CREDIT'
-            AND t."deletedAt" IS NULL
-            AND t."createdAt" > (current_date - INTERVAL '12 months')
-            AND ((s.interval = 'year' AND s."isActive" IS TRUE AND s."deletedAt" IS NULL) OR s.interval IS NULL))
-        +
-        (SELECT
-          COALESCE(SUM(t."netAmountInCollectiveCurrency"),0) FROM "Transactions" t
-          LEFT JOIN "Orders" d ON t."OrderId" = d.id
-          LEFT JOIN "Subscriptions" s ON d."SubscriptionId" = s.id
-          WHERE t."CollectiveId" = :CollectiveId
-            AND t."RefundTransactionId" IS NULL
-            AND t.type = 'CREDIT'
-            AND t."deletedAt" IS NULL
-            AND t."createdAt" > (current_date - INTERVAL '12 months')
-            AND s.interval = 'month' AND s."isActive" IS FALSE AND s."deletedAt" IS NULL)
-        "yearlyIncome"
-      `.replace(/\s\s+/g, ' '), // this is to remove the new lines and save log space.
-      {
-        replacements: { CollectiveId: this.id },
-        type: Sequelize.QueryTypes.SELECT,
-      },
-    ).then(result => Promise.resolve(parseInt(result[0].yearlyIncome, 10)));
+    return getYearlyIncome(this);
   };
 
-  Collective.prototype.getTotalAmountReceived = function (startDate, endDate) {
-    endDate = endDate || new Date();
-    const where = {
-      amount: { [Op.gt]: 0 },
-      createdAt: { [Op.lt]: endDate },
-      CollectiveId: this.id,
-    };
-    if (startDate) {
-      where.createdAt[Op.gte] = startDate;
-    }
-    return models.Transaction.findOne({
-      attributes: [[Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('amount')), 0), 'total']],
-      where,
-    }).then(result => Promise.resolve(parseInt(result.toJSON().total, 10)));
+  Collective.prototype.getTotalAmountReceived = function (options) {
+    return getTotalAmountReceived(this, options);
+  };
+
+  Collective.prototype.getTotalNetAmountReceived = function (options) {
+    return getTotalNetAmountReceived(this, options);
   };
 
   /**
    * Get the total amount spent by this collective, either directly or by
-   * others through generated VirtualCards.
+   * others through generated gift cards.
    */
   Collective.prototype.getTotalAmountSpent = function (startDate, endDate) {
     endDate = endDate || new Date();
@@ -2534,7 +2481,7 @@ export default function (Sequelize, DataTypes) {
         ExpenseId: null,
         [Op.or]: {
           CollectiveId: this.id,
-          UsingVirtualCardFromCollectiveId: this.id,
+          UsingGiftCardFromCollectiveId: this.id,
         },
       },
       raw: true,
@@ -2565,24 +2512,21 @@ export default function (Sequelize, DataTypes) {
   /**
    * A sequelize OR condition that will select all collective transactions:
    * - Debit transactions made by collective
-   * - Debit transactions made using a virtual card from collective
+   * - Debit transactions made using a gift card from collective
    * - Credit transactions made to collective
    *
-   * @param {bool} includeUsedVirtualCardsEmittedByOthers will remove transactions using virtual
+   * @param {bool} includeUsedGiftCardsEmittedByOthers will remove transactions using gift
    *  cards from other collectives when set to false.
    */
-  Collective.prototype.transactionsWhereQuery = function (includeUsedVirtualCardsEmittedByOthers = true) {
-    const debitTransactionOrQuery = includeUsedVirtualCardsEmittedByOthers
+  Collective.prototype.transactionsWhereQuery = function (includeUsedGiftCardsEmittedByOthers = true) {
+    const debitTransactionOrQuery = includeUsedGiftCardsEmittedByOthers
       ? // Include all transactions made by this collective or using one of its
-        // virtual cards
-        { CollectiveId: this.id, UsingVirtualCardFromCollectiveId: this.id }
-      : // Either Collective made the transaction without using a virtual card,
-        // or a transaction was made using one of its virtual cards - but don't
-        // include virtual cards used emitted by other collectives
-        [
-          { CollectiveId: this.id, UsingVirtualCardFromCollectiveId: null },
-          { UsingVirtualCardFromCollectiveId: this.id },
-        ];
+        // gift cards
+        { CollectiveId: this.id, UsingGiftCardFromCollectiveId: this.id }
+      : // Either Collective made the transaction without using a gift card,
+        // or a transaction was made using one of its gift cards - but don't
+        // include gift cards used emitted by other collectives
+        [{ CollectiveId: this.id, UsingGiftCardFromCollectiveId: null }, { UsingGiftCardFromCollectiveId: this.id }];
 
     return {
       [Op.or]: [
@@ -2612,11 +2556,11 @@ export default function (Sequelize, DataTypes) {
     limit,
     attributes,
     order = [['createdAt', 'DESC']],
-    includeUsedVirtualCardsEmittedByOthers = true,
+    includeUsedGiftCardsEmittedByOthers = true,
     includeExpenseTransactions = true,
   }) {
     // Base query
-    const query = { where: this.transactionsWhereQuery(includeUsedVirtualCardsEmittedByOthers) };
+    const query = { where: this.transactionsWhereQuery(includeUsedGiftCardsEmittedByOthers) };
 
     // Select attributes
     if (attributes) {

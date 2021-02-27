@@ -103,7 +103,7 @@ const TransactionsQuery = {
 
       where.push({
         [Op.or]: [
-          { UsingVirtualCardFromCollectiveId: fromAccount.id, type: 'CREDIT' },
+          { UsingGiftCardFromCollectiveId: fromAccount.id, type: 'CREDIT' },
           { FromCollectiveId: fromCollectiveCondition },
         ],
       });
@@ -111,7 +111,7 @@ const TransactionsQuery = {
     if (account) {
       const accountConditions = [
         { CollectiveId: account.id },
-        { UsingVirtualCardFromCollectiveId: account.id, type: 'DEBIT' },
+        { UsingGiftCardFromCollectiveId: account.id, type: 'DEBIT' },
       ];
 
       // When users are admins, also fetch their incognito contributions
@@ -172,8 +172,8 @@ const TransactionsQuery = {
     if (args.dateTo) {
       where.push({ createdAt: { [Op.lte]: args.dateTo } });
     }
-    if (args.hasExpense) {
-      where.push({ ExpenseId: { [Op.ne]: null } });
+    if (args.hasExpense !== undefined) {
+      where.push({ ExpenseId: { [args.hasExpense ? Op.ne : Op.eq]: null } });
     }
     if (args.hasOrder) {
       where.push({ OrderId: { [Op.ne]: null } });

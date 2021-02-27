@@ -1,7 +1,7 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import models from '../../models';
-import { bulkCreateVirtualCards, createVirtualCardsForEmails } from '../../paymentProviders/opencollective/virtualcard';
+import { bulkCreateGiftCards, createGiftCardsForEmails } from '../../paymentProviders/opencollective/giftcard';
 import { editPublicMessage } from '../common/members';
 import * as updateMutations from '../common/update';
 import { createUser } from '../common/user';
@@ -12,7 +12,6 @@ import * as backyourstackMutations from './mutations/backyourstack';
 import {
   activateBudget,
   activateCollectiveAsHost,
-  approveCollective,
   archiveCollective,
   createCollective,
   createCollectiveFromGithub,
@@ -21,7 +20,6 @@ import {
   deleteCollective,
   deleteUserCollective,
   editCollective,
-  rejectCollective,
   sendMessageToCollective,
   unarchiveCollective,
 } from './mutations/collectives';
@@ -29,7 +27,6 @@ import * as commentMutations from './mutations/comments';
 import { editConnectedAccount } from './mutations/connectedAccounts';
 import { createWebhook, deleteNotification, editWebhooks } from './mutations/notifications';
 import {
-  addFundsToCollective,
   addFundsToOrg,
   confirmOrder,
   createOrder,
@@ -51,7 +48,6 @@ import {
   MemberInputType,
   NotificationInputType,
   OrderInputType,
-  PaymentMethodDataVirtualCardInputType,
   StripeCreditCardDataInputType,
   TierInputType,
   UpdateAttributesInputType,
@@ -116,29 +112,6 @@ const mutations = {
     },
     resolve(_, args, req) {
       return deleteUserCollective(_, args, req);
-    },
-  },
-  approveCollective: {
-    type: CollectiveInterfaceType,
-    description: 'Approve a collective',
-    deprecationReason: '2020-11-16: Please use API V2',
-    args: {
-      id: { type: new GraphQLNonNull(GraphQLInt) },
-    },
-    resolve(_, args, req) {
-      return approveCollective(req.remoteUser, args.id);
-    },
-  },
-  rejectCollective: {
-    type: CollectiveInterfaceType,
-    description: 'Reject a collective',
-    deprecationReason: '2020-11-16: Please use API V2',
-    args: {
-      id: { type: new GraphQLNonNull(GraphQLInt) },
-      rejectionReason: { type: GraphQLString },
-    },
-    resolve(_, args, req) {
-      return rejectCollective(_, args, req);
     },
   },
   archiveCollective: {
@@ -264,6 +237,7 @@ const mutations = {
   },
   markOrderAsPaid: {
     type: OrderType,
+    deprecationReason: '2021-01-29: Not used anymore',
     args: {
       id: { type: new GraphQLNonNull(GraphQLInt) },
     },
@@ -273,6 +247,7 @@ const mutations = {
   },
   markPendingOrderAsExpired: {
     type: OrderType,
+    deprecationReason: '2021-01-29: Not used anymore',
     args: {
       id: { type: new GraphQLNonNull(GraphQLInt) },
     },
@@ -359,20 +334,9 @@ const mutations = {
       return confirmOrder(args.order, req.remoteUser);
     },
   },
-  addFundsToCollective: {
-    type: OrderType,
-    args: {
-      order: {
-        type: new GraphQLNonNull(OrderInputType),
-      },
-    },
-    resolve(_, args, req) {
-      return addFundsToCollective(args.order, req.remoteUser);
-    },
-  },
   createUpdate: {
     type: UpdateType,
-    deprecationReason: 'This endpoint has been moved to GQLV2',
+    deprecationReason: '2021-01-29: This endpoint has been moved to GQLV2',
     args: {
       update: {
         type: new GraphQLNonNull(UpdateInputType),
@@ -384,6 +348,7 @@ const mutations = {
   },
   editUpdate: {
     type: UpdateType,
+    deprecationReason: '2021-01-29: Not used anymore',
     args: {
       update: {
         type: new GraphQLNonNull(UpdateAttributesInputType),
@@ -395,6 +360,7 @@ const mutations = {
   },
   publishUpdate: {
     type: UpdateType,
+    deprecationReason: '2021-01-29: Not used anymore',
     args: {
       id: {
         type: new GraphQLNonNull(GraphQLInt),
@@ -409,6 +375,7 @@ const mutations = {
   },
   unpublishUpdate: {
     type: UpdateType,
+    deprecationReason: '2021-01-29: Not used anymore',
     args: {
       id: {
         type: new GraphQLNonNull(GraphQLInt),
@@ -420,6 +387,7 @@ const mutations = {
   },
   deleteUpdate: {
     type: UpdateType,
+    deprecationReason: '2021-01-29: Not used anymore',
     args: {
       id: {
         type: new GraphQLNonNull(GraphQLInt),
@@ -431,6 +399,7 @@ const mutations = {
   },
   createComment: {
     type: CommentType,
+    deprecationReason: '2021-01-29: Not used anymore',
     args: {
       comment: {
         type: new GraphQLNonNull(CommentInputType),
@@ -446,6 +415,7 @@ const mutations = {
   },
   editComment: {
     type: CommentType,
+    deprecationReason: '2021-01-29: Not used anymore',
     args: {
       comment: {
         type: new GraphQLNonNull(CommentAttributesInputType),
@@ -455,6 +425,7 @@ const mutations = {
   },
   deleteComment: {
     type: CommentType,
+    deprecationReason: '2021-01-29: Not used anymore',
     args: {
       id: {
         type: new GraphQLNonNull(GraphQLInt),
@@ -505,37 +476,6 @@ const mutations = {
       return applicationMutations.deleteApplication(_, args, req);
     },
   },
-  createPaymentMethod: {
-    type: PaymentMethodType,
-    deprecationReason: 'Please use createVirtualCards',
-    args: {
-      type: { type: new GraphQLNonNull(GraphQLString) },
-      currency: { type: new GraphQLNonNull(GraphQLString) },
-      amount: { type: GraphQLInt },
-      monthlyLimitPerMember: { type: GraphQLInt },
-      limitedToTags: {
-        type: new GraphQLList(GraphQLString),
-        description: 'Limit this payment method to make donations to collectives having those tags',
-      },
-      limitedToCollectiveIds: {
-        type: new GraphQLList(GraphQLInt),
-        description: 'Limit this payment method to make donations to those collectives',
-        deprecationReason: '2020-08-11: This field does not exist anymore',
-      },
-      limitedToHostCollectiveIds: {
-        type: new GraphQLList(GraphQLInt),
-        description: 'Limit this payment method to make donations to the collectives hosted by those hosts',
-      },
-      CollectiveId: { type: new GraphQLNonNull(GraphQLInt) },
-      PaymentMethodId: { type: GraphQLInt },
-      description: { type: GraphQLString },
-      expiryDate: { type: GraphQLString },
-      data: { type: PaymentMethodDataVirtualCardInputType, description: 'The data attached to this PaymentMethod' },
-    },
-    resolve: async (_, args, req) => {
-      return paymentMethodsMutation.createPaymentMethod(args, req.remoteUser);
-    },
-  },
   updatePaymentMethod: {
     type: PaymentMethodType,
     description: 'Update a payment method',
@@ -551,6 +491,7 @@ const mutations = {
   createCreditCard: {
     type: PaymentMethodType,
     description: 'Add a new credit card to the given collective',
+    deprecationReason: '2021-01-29: Not used anymore',
     args: {
       CollectiveId: { type: new GraphQLNonNull(GraphQLInt) },
       name: { type: new GraphQLNonNull(GraphQLString) },
@@ -579,18 +520,18 @@ const mutations = {
       return paymentMethodsMutation.replaceCreditCard(args, req.remoteUser);
     },
   },
-  createVirtualCards: {
+  createGiftCards: {
     type: new GraphQLList(PaymentMethodType),
     args: {
       CollectiveId: { type: new GraphQLNonNull(GraphQLInt) },
       PaymentMethodId: { type: GraphQLInt },
       emails: {
         type: new GraphQLList(GraphQLString),
-        description: 'A list of emails to generate virtual cards for (only if numberOfVirtualCards is not provided)',
+        description: 'A list of emails to generate gift cards for (only if numberOfGiftCards is not provided)',
       },
-      numberOfVirtualCards: {
+      numberOfGiftCards: {
         type: GraphQLInt,
-        description: 'Number of virtual cards to generate (only if emails is not provided)',
+        description: 'Number of gift cards to generate (only if emails is not provided)',
       },
       currency: {
         type: GraphQLString,
@@ -624,7 +565,7 @@ const mutations = {
       },
       description: {
         type: GraphQLString,
-        description: 'A custom message attached to the email that will be sent for this virtual card',
+        description: 'A custom message attached to the email that will be sent for this gift card',
       },
       customMessage: {
         type: GraphQLString,
@@ -632,9 +573,9 @@ const mutations = {
       },
       expiryDate: { type: GraphQLString },
     },
-    resolve: async (_, { emails, numberOfVirtualCards, ...args }, { remoteUser }) => {
-      if (numberOfVirtualCards && emails && numberOfVirtualCards !== emails.length) {
-        throw Error("numberOfVirtualCards and emails counts doesn't match");
+    resolve: async (_, { emails, numberOfGiftCards, ...args }, { remoteUser }) => {
+      if (numberOfGiftCards && emails && numberOfGiftCards !== emails.length) {
+        throw Error("numberOfGiftCards and emails counts doesn't match");
       } else if (args.limitedToOpenSourceCollectives && args.limitedToHostCollectiveIds) {
         throw Error('limitedToOpenSourceCollectives and limitedToHostCollectiveIds cannot be used at the same time');
       }
@@ -652,13 +593,13 @@ const mutations = {
         args.limitedToHostCollectiveIds = [openSourceHost.id];
       }
 
-      if (numberOfVirtualCards) {
-        return await bulkCreateVirtualCards(args, remoteUser, numberOfVirtualCards);
+      if (numberOfGiftCards) {
+        return await bulkCreateGiftCards(args, remoteUser, numberOfGiftCards);
       } else if (emails) {
-        return await createVirtualCardsForEmails(args, remoteUser, emails, args.customMessage);
+        return await createGiftCardsForEmails(args, remoteUser, emails, args.customMessage);
       }
 
-      throw new Error('You must either pass numberOfVirtualCards of an email list');
+      throw new Error('You must either pass numberOfGiftCards of an email list');
     },
   },
   claimPaymentMethod: {

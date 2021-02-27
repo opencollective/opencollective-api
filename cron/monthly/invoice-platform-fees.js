@@ -15,19 +15,17 @@ import { generateKey } from '../../server/lib/encryption';
 import models, { sequelize } from '../../server/models';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 
-// Only run on the 5th of the month
 const date = process.env.START_DATE ? moment.utc(process.env.START_DATE) : moment.utc();
 const DRY = process.env.DRY;
 const HOST_ID = process.env.HOST_ID;
 const isProduction = config.env === 'production';
-if (isProduction && date.date() !== 5 && !process.env.OFFCYCLE) {
-  console.log('OC_ENV is production and today is not the 5th of month, script aborted!');
+
+// Only run on the 1th of the month
+if (isProduction && date.date() !== 1 && !process.env.OFFCYCLE) {
+  console.log('OC_ENV is production and today is not the 1st of month, script aborted!');
   process.exit();
 }
-if (isProduction && !process.env.OFFCYCLE) {
-  console.log('OC_ENV is production and this script is currently only running manually. Use OFFCYCLE=1.');
-  process.exit();
-}
+
 if (DRY) {
   console.info('Running dry, changes are not going to be persisted to the DB.');
 }
@@ -175,7 +173,7 @@ export async function run() {
         pm."service" AS "PaymentService",
         spm."service" AS "SourcePaymentService",
         'Shared Revenue'::TEXT AS "source",
-        h.plan, 
+        h.plan,
         CASE
           WHEN h."isActive" THEN h.id
           ELSE (h."settings"->'hostCollective'->>'id')::INT
@@ -362,21 +360,26 @@ export async function run() {
         console.error(`Warning: We don't have a way to submit the expense to ${HostName}, ignoring.\n`);
         continue;
       }
-      // Credit the Host with platform tips collected during the month
-      await models.Transaction.create({
-        amount: totalAmountCredited,
-        amountInHostCurrency: totalAmountCredited,
-        CollectiveId: chargedHostId,
-        CreatedByUserId: SETTLEMENT_EXPENSE_PROPERTIES.UserId,
-        currency: currency,
-        description: `Platform Fees and Tips collected in ${moment.utc().subtract(1, 'month').format('MMMM')}`,
-        FromCollectiveId: chargedHostId,
-        HostCollectiveId: hostId,
-        hostCurrency: currency,
-        hostCurrencyFxRate: 1,
-        netAmountInCollectiveCurrency: totalAmountCredited,
-        type: TransactionTypes.CREDIT,
-      });
+      if (totalAmountCharged > 0) {
+        // Credit the Host with platform tips collected during the month
+        await models.Transaction.create({
+          amount: totalAmountCredited,
+          amountInHostCurrency: totalAmountCredited,
+          hostFeeInHostCurrency: 0,
+          platformFeeInHostCurrency: 0,
+          paymentProcessorFeeInHostCurrency: 0,
+          CollectiveId: chargedHostId,
+          CreatedByUserId: SETTLEMENT_EXPENSE_PROPERTIES.UserId,
+          currency: currency,
+          description: `Platform Fees and Tips collected in ${moment.utc().subtract(1, 'month').format('MMMM')}`,
+          FromCollectiveId: chargedHostId,
+          HostCollectiveId: hostId,
+          hostCurrency: currency,
+          hostCurrencyFxRate: 1,
+          netAmountInCollectiveCurrency: totalAmountCredited,
+          type: TransactionTypes.CREDIT,
+        });
+      }
 
       const connectedAccounts = await host.getConnectedAccounts({
         where: { deletedAt: null },
@@ -388,7 +391,10 @@ export async function run() {
         connectedAccounts?.find(c => c.service === 'transferwise') &&
         payoutMethods[PayoutMethodTypes.BANK_ACCOUNT]?.[0]
       ) {
-        PayoutMethod = payoutMethods[PayoutMethodTypes.BANK_ACCOUNT]?.[0];
+        const currencyCompatibleAccount = payoutMethods[PayoutMethodTypes.BANK_ACCOUNT].find(
+          pm => pm.data?.currency === currency,
+        );
+        PayoutMethod = currencyCompatibleAccount || payoutMethods[PayoutMethodTypes.BANK_ACCOUNT]?.[0];
       } else if (
         connectedAccounts?.find(c => c.service === 'paypal') &&
         !host.settings?.disablePaypalPayouts &&

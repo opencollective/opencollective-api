@@ -174,7 +174,7 @@ interface Account {
   """
   paymentMethods(
     """
-    Filter on given types (creditcard, virtualcard...)
+    Filter on given types (creditcard, giftcard...)
     """
     types: [String]
 
@@ -477,6 +477,21 @@ enum ActivityType {
 }
 
 """
+Response for the addTwoFactorAuthTokenToIndividual mutation
+"""
+type AddTwoFactorAuthTokenToIndividualResponse {
+  """
+  The Individual that the 2FA has been enabled for
+  """
+  account: Individual!
+
+  """
+  The recovery codes for the Individual to write down
+  """
+  recoveryCodes: [String]
+}
+
+"""
 A financial amount.
 """
 type Amount {
@@ -563,7 +578,17 @@ type Bot implements Account {
   """
   Get all members (admins, members, backers, followers)
   """
-  members(limit: Int = 100, offset: Int = 0, role: [MemberRole], accountType: [AccountType]): MemberCollection
+  members(
+    limit: Int = 100
+    offset: Int = 0
+    role: [MemberRole]
+    accountType: [AccountType]
+
+    """
+    Order of the results
+    """
+    orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+  ): MemberCollection
   memberOf(
     limit: Int
     offset: Int
@@ -782,7 +807,17 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   """
   Get all members (admins, members, backers, followers)
   """
-  members(limit: Int = 100, offset: Int = 0, role: [MemberRole], accountType: [AccountType]): MemberCollection
+  members(
+    limit: Int = 100
+    offset: Int = 0
+    role: [MemberRole]
+    accountType: [AccountType]
+
+    """
+    Order of the results
+    """
+    orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+  ): MemberCollection
   memberOf(
     limit: Int
     offset: Int
@@ -2666,9 +2701,19 @@ All supported currencies
 """
 enum Currency {
   """
+  Argentine Peso
+  """
+  ARS
+
+  """
   Australian Dollar
   """
   AUD
+
+  """
+  Taka
+  """
+  BDT
 
   """
   Bulgarian Lev
@@ -2711,6 +2756,11 @@ enum Currency {
   GBP
 
   """
+  Hong Kong Dollar
+  """
+  HKD
+
+  """
   Kuna
   """
   HRK
@@ -2741,6 +2791,11 @@ enum Currency {
   MXN
 
   """
+  Malaysian Ringgit
+  """
+  MYR
+
+  """
   Naira
   """
   NGN
@@ -2749,6 +2804,11 @@ enum Currency {
   Norwegian Krone
   """
   NOK
+
+  """
+  Nepalese Rupee
+  """
+  NPR
 
   """
   New Zealand Dollar
@@ -2771,6 +2831,11 @@ enum Currency {
   SEK
 
   """
+  Singapore Dollar
+  """
+  SGD
+
+  """
   US Dollar
   """
   USD
@@ -2779,6 +2844,11 @@ enum Currency {
   Peso Uruguayo
   """
   UYU
+
+  """
+  Rand
+  """
+  ZAR
 }
 
 scalar DateString
@@ -2904,7 +2974,17 @@ type Event implements Account & AccountWithHost & AccountWithContributions {
   """
   Get all members (admins, members, backers, followers)
   """
-  members(limit: Int = 100, offset: Int = 0, role: [MemberRole], accountType: [AccountType]): MemberCollection
+  members(
+    limit: Int = 100
+    offset: Int = 0
+    role: [MemberRole]
+    accountType: [AccountType]
+
+    """
+    Order of the results
+    """
+    orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+  ): MemberCollection
   memberOf(
     limit: Int
     offset: Int
@@ -3770,7 +3850,17 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   """
   Get all members (admins, members, backers, followers)
   """
-  members(limit: Int = 100, offset: Int = 0, role: [MemberRole], accountType: [AccountType]): MemberCollection
+  members(
+    limit: Int = 100
+    offset: Int = 0
+    role: [MemberRole]
+    accountType: [AccountType]
+
+    """
+    Order of the results
+    """
+    orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+  ): MemberCollection
   memberOf(
     limit: Int
     offset: Int
@@ -4066,7 +4156,17 @@ type Host implements Account & AccountWithContributions {
   """
   Get all members (admins, members, backers, followers)
   """
-  members(limit: Int = 100, offset: Int = 0, role: [MemberRole], accountType: [AccountType]): MemberCollection
+  members(
+    limit: Int = 100
+    offset: Int = 0
+    role: [MemberRole]
+    accountType: [AccountType]
+
+    """
+    Order of the results
+    """
+    orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+  ): MemberCollection
   memberOf(
     limit: Int
     offset: Int
@@ -4563,7 +4663,17 @@ type Individual implements Account {
   """
   Get all members (admins, members, backers, followers)
   """
-  members(limit: Int = 100, offset: Int = 0, role: [MemberRole], accountType: [AccountType]): MemberCollection
+  members(
+    limit: Int = 100
+    offset: Int = 0
+    role: [MemberRole]
+    accountType: [AccountType]
+
+    """
+    Order of the results
+    """
+    orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+  ): MemberCollection
   memberOf(
     limit: Int
     offset: Int
@@ -4773,6 +4883,11 @@ type Location {
   Longitude
   """
   long: Float
+
+  """
+  Structured JSON address
+  """
+  structured: JSON
 }
 
 """
@@ -4803,6 +4918,11 @@ input LocationInput {
   Longitude
   """
   long: Float
+
+  """
+  Structured JSON address
+  """
+  structured: JSON
 }
 
 """
@@ -4904,6 +5024,7 @@ type Mutation {
     Can only be set if root
     """
     platformFeePercent: Int
+    platformTip: AmountInput
   ): Order!
   createCollective(
     """
@@ -5179,6 +5300,11 @@ type Mutation {
     A message to attach for the host to review the application
     """
     message: String
+
+    """
+    Further information about collective applying to host
+    """
+    applicationData: JSON
   ): Account!
 
   """
@@ -5247,22 +5373,22 @@ type Mutation {
   ): Account!
 
   """
-  Add 2FA to the Account if it does not have it
+  Add 2FA to the Individual if it does not have it
   """
   addTwoFactorAuthTokenToIndividual(
     """
-    Account that will have 2FA added to it
+    Individual that will have 2FA added to it
     """
     account: AccountReferenceInput!
 
     """
-    The generated secret to save to the Account
+    The generated secret to save to the Individual
     """
     token: String!
-  ): Individual!
+  ): AddTwoFactorAuthTokenToIndividualResponse!
 
   """
-  Remove 2FA from the Account if it has been enabled
+  Remove 2FA from the Individual if it has been enabled
   """
   removeTwoFactorAuthTokenFromIndividual(
     """
@@ -5324,11 +5450,6 @@ type Mutation {
     The key that you want to edit in settings
     """
     emailConfirmationToken: String!
-
-    """
-    This can be used to link the other guest contributions to the user
-    """
-    guestTokens: [String!]
   ): ConfirmGuestAccountResponse!
 
   """
@@ -5428,31 +5549,6 @@ type Mutation {
     """
     account: AccountReferenceInput!
   ): CreditCardWithStripeError!
-
-  """
-  Add a new payment method to be used with an Order
-  """
-  addStripeCreditCard(
-    """
-    The credit card info
-    """
-    creditCardInfo: CreditCardCreateInput!
-
-    """
-    Name associated to this credit card
-    """
-    name: String!
-
-    """
-    Whether this credit card should be saved for future payments
-    """
-    isSavedForLater: Boolean = true
-
-    """
-    Account to add the credit card to
-    """
-    account: AccountReferenceInput!
-  ): CreditCardWithStripeError! @deprecated(reason: "2020-10-23: Use addCreditCard")
 
   """
   Confirm a credit card is ready for use after strong customer authentication
@@ -5597,6 +5693,16 @@ type OrderCollection implements Collection {
 }
 
 """
+Some context about how an order was created
+"""
+input OrderContextInput {
+  """
+  Whether this order was created using the embedded contribution flow
+  """
+  isEmbed: Boolean
+}
+
+"""
 Input to create a new order
 """
 input OrderCreateInput {
@@ -5647,6 +5753,11 @@ input OrderCreateInput {
   If the tier has some "customFields", use this field to set their values
   """
   customData: JSON
+
+  """
+  Some context about how this order was created
+  """
+  context: OrderContextInput
 }
 
 """
@@ -5710,7 +5821,7 @@ input OrderTaxInput {
   """
   Country of the account ordering, to know from where to apply the tax
   """
-  country: CountryISO!
+  country: CountryISO
 
   """
   Tax identification number, if any
@@ -5808,7 +5919,17 @@ type Organization implements Account & AccountWithContributions {
   """
   Get all members (admins, members, backers, followers)
   """
-  members(limit: Int = 100, offset: Int = 0, role: [MemberRole], accountType: [AccountType]): MemberCollection
+  members(
+    limit: Int = 100
+    offset: Int = 0
+    role: [MemberRole]
+    accountType: [AccountType]
+
+    """
+    Order of the results
+    """
+    orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+  ): MemberCollection
   memberOf(
     limit: Int
     offset: Int
@@ -6267,7 +6388,17 @@ type Project implements Account & AccountWithHost & AccountWithContributions {
   """
   Get all members (admins, members, backers, followers)
   """
-  members(limit: Int = 100, offset: Int = 0, role: [MemberRole], accountType: [AccountType]): MemberCollection
+  members(
+    limit: Int = 100
+    offset: Int = 0
+    role: [MemberRole]
+    accountType: [AccountType]
+
+    """
+    Order of the results
+    """
+    orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+  ): MemberCollection
   memberOf(
     limit: Int
     offset: Int

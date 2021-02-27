@@ -103,7 +103,7 @@ const processCollective = collective => {
   const promises = [
     collective.getTopBackers(null, null, 10),
     collective.getTopBackers(startDate, endDate, 10),
-    collective.getBalance(endDate),
+    collective.getBalance({ endDate }),
     collective.getTotalTransactions(startDate, endDate, 'donation', 'amount'),
     collective.getTotalTransactions(startDate, endDate, 'expense', 'amount'),
     collective.getBackersStats(startDate, endDate),

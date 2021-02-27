@@ -1,5 +1,5 @@
 import config from 'config';
-import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import { TOKEN_EXPIRATION_SESSION } from '../../../lib/auth';
 import emailLib from '../../../lib/email';
@@ -107,11 +107,6 @@ const guestMutations = {
       emailConfirmationToken: {
         type: new GraphQLNonNull(GraphQLString),
         description: 'The key that you want to edit in settings',
-      },
-      guestTokens: {
-        type: new GraphQLList(new GraphQLNonNull(GraphQLString)),
-        description: 'This can be used to link the other guest contributions to the user',
-        deprecationReason: '2021-01-26: Guest tokens are not used anymore',
       },
     },
     async resolve(

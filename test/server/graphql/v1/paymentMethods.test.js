@@ -41,7 +41,7 @@ describe('server/graphql/v1/paymentMethods', () => {
       currency: 'USD',
     })
       .tap(c => (host = c))
-      .then(c => c.becomeHost({ remoteUser: admin })),
+      .then(c => c.becomeHost()),
   );
 
   beforeEach(() =>

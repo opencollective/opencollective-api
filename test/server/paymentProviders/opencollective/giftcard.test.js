@@ -7,9 +7,9 @@ import sinon from 'sinon';
 import { maxInteger } from '../../../../server/constants/math';
 import emailLib from '../../../../server/lib/email';
 import models from '../../../../server/models';
-import virtualcard from '../../../../server/paymentProviders/opencollective/virtualcard';
+import giftcard from '../../../../server/paymentProviders/opencollective/giftcard';
 import creditCardLib from '../../../../server/paymentProviders/stripe/creditcard';
-import initNock from '../../../nocks/paymentMethods.opencollective.virtualcard.nock';
+import initNock from '../../../nocks/paymentMethods.opencollective.giftcard.nock';
 import * as store from '../../../stores';
 import { fakeOrder } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
@@ -17,30 +17,29 @@ import * as utils from '../../../utils';
 const ORDER_TOTAL_AMOUNT = 5000;
 const STRIPE_FEE_STUBBED_VALUE = 300;
 
-const createPaymentMethodMutation = gql`
-  mutation CreatePaymentMethod(
+const createGiftCardsMutation = gql`
+  mutation CreateGiftCards(
     $amount: Int
     $monthlyLimitPerMember: Int
     $CollectiveId: Int!
     $PaymentMethodId: Int
     $description: String
     $expiryDate: String
-    $type: String!
     $currency: String!
     $limitedToTags: [String]
     $limitedToHostCollectiveIds: [Int]
   ) {
-    createPaymentMethod(
+    createGiftCards(
       amount: $amount
       monthlyLimitPerMember: $monthlyLimitPerMember
       CollectiveId: $CollectiveId
       PaymentMethodId: $PaymentMethodId
       description: $description
       expiryDate: $expiryDate
-      type: $type
       currency: $currency
       limitedToTags: $limitedToTags
       limitedToHostCollectiveIds: $limitedToHostCollectiveIds
+      numberOfGiftCards: 1
     ) {
       id
       name
@@ -48,7 +47,6 @@ const createPaymentMethodMutation = gql`
       collective {
         id
       }
-      SourcePaymentMethodId
       initialBalance
       monthlyLimitPerMember
       expiryDate
@@ -63,7 +61,6 @@ const claimPaymentMethodMutation = gql`
   mutation ClaimPaymentMethod($user: UserInputType, $code: String!) {
     claimPaymentMethod(user: $user, code: $code) {
       id
-      SourcePaymentMethodId
       expiryDate
       collective {
         id
@@ -101,7 +98,7 @@ const createOrderMutation = gql`
   }
 `;
 
-describe('server/paymentProviders/opencollective/virtualcard', () => {
+describe('server/paymentProviders/opencollective/giftcard', () => {
   let sandbox, sendEmailSpy;
 
   before(initNock);
@@ -125,7 +122,7 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
 
   afterEach(() => sandbox.restore());
 
-  describe('paymentProviders.opencollective.virtualcard', () => {
+  describe('paymentProviders.opencollective.giftcard', () => {
     describe('#create', async () => {
       let collective1, user1;
 
@@ -164,26 +161,26 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
         }),
       );
 
-      it('should create a U$100 virtual card payment method', async () => {
+      it('should create a U$100 gift card payment method', async () => {
         const args = {
-          description: 'virtual card test',
+          description: 'gift card test',
           CollectiveId: collective1.id,
           amount: 10000,
           currency: 'USD',
         };
-        const paymentMethod = await virtualcard.create(args, user1);
+        const paymentMethod = await giftcard.create(args, user1);
         expect(paymentMethod).to.exist;
         expect(paymentMethod.CollectiveId).to.be.equal(collective1.id);
         expect(paymentMethod.initialBalance).to.be.equal(args.amount);
         expect(paymentMethod.service).to.be.equal('opencollective');
-        expect(paymentMethod.type).to.be.equal('virtualcard');
+        expect(paymentMethod.type).to.be.equal('giftcard');
         expect(moment(paymentMethod.expiryDate).format('YYYY-MM-DD')).to.be.equal(
           moment().add(24, 'months').format('YYYY-MM-DD'),
         );
         expect(paymentMethod.description).to.be.equal(args.description);
-      }); /** End Of "should create a U$100 virtual card payment method" */
+      }); /** End Of "should create a U$100 gift card payment method" */
 
-      it('should create a U$100 virtual card payment method defining an expiry date', async () => {
+      it('should create a U$100 gift card payment method defining an expiry date', async () => {
         const expiryDate = moment().add(6, 'months').format('YYYY-MM-DD');
         const args = {
           CollectiveId: collective1.id,
@@ -191,28 +188,28 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
           currency: 'USD',
           expiryDate: expiryDate,
         };
-        const paymentMethod = await virtualcard.create(args, user1);
+        const paymentMethod = await giftcard.create(args, user1);
         expect(paymentMethod).to.exist;
         expect(paymentMethod.CollectiveId).to.be.equal(collective1.id);
         expect(paymentMethod.initialBalance).to.be.equal(args.amount);
         expect(paymentMethod.service).to.be.equal('opencollective');
-        expect(paymentMethod.type).to.be.equal('virtualcard');
+        expect(paymentMethod.type).to.be.equal('giftcard');
         expect(moment(paymentMethod.expiryDate).format('YYYY-MM-DD')).to.be.equal(expiryDate);
         expect(paymentMethod.description).to.contain('Gift Card from');
         expect(paymentMethod.description).to.not.contain('Monthly Gift Card');
-      }); /** End Of "should create a U$100 virtual card payment method defining an expiry date" */
+      }); /** End Of "should create a U$100 gift card payment method defining an expiry date" */
 
-      it('should create a virtual card with monthly limit member of U$100 per month', async () => {
+      it('should create a gift card with monthly limit member of U$100 per month', async () => {
         const args = {
           CollectiveId: collective1.id,
           monthlyLimitPerMember: 10000,
           currency: 'USD',
         };
-        const paymentMethod = await virtualcard.create(args, user1);
+        const paymentMethod = await giftcard.create(args, user1);
         expect(paymentMethod).to.exist;
         expect(paymentMethod.CollectiveId).to.be.equal(collective1.id);
         expect(paymentMethod.service).to.be.equal('opencollective');
-        expect(paymentMethod.type).to.be.equal('virtualcard');
+        expect(paymentMethod.type).to.be.equal('giftcard');
         expect(moment(paymentMethod.expiryDate).format('YYYY-MM-DD')).to.be.equal(
           moment().add(24, 'months').format('YYYY-MM-DD'),
         );
@@ -220,31 +217,31 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
         // if there is a monthlyLimitPerMember balance must not exist
         expect(paymentMethod.balance).to.not.exist;
         expect(paymentMethod.description).to.contain('Monthly Gift Card from');
-      }); /** End Of "should create a virtual card with monthly limit member of U$100 per month" */
+      }); /** End Of "should create a gift card with monthly limit member of U$100 per month" */
 
-      it('should create a virtual card with monthly limit member of U$100 per month defining an expiry date', async () => {
+      it('should create a gift card with monthly limit member of U$100 per month defining an expiry date', async () => {
         const expiryDate = moment().add(6, 'months').format('YYYY-MM-DD');
         const args = {
-          description: 'virtual card test',
+          description: 'gift card test',
           CollectiveId: collective1.id,
           monthlyLimitPerMember: 10000,
           currency: 'USD',
           expiryDate: expiryDate,
         };
-        const paymentMethod = await virtualcard.create(args, user1);
+        const paymentMethod = await giftcard.create(args, user1);
         expect(paymentMethod).to.exist;
         expect(paymentMethod.CollectiveId).to.be.equal(collective1.id);
         expect(paymentMethod.service).to.be.equal('opencollective');
-        expect(paymentMethod.type).to.be.equal('virtualcard');
+        expect(paymentMethod.type).to.be.equal('giftcard');
         expect(moment(paymentMethod.expiryDate).format('YYYY-MM-DD')).to.be.equal(expiryDate);
         expect(paymentMethod.monthlyLimitPerMember).to.be.equal(args.monthlyLimitPerMember);
         // if there is a monthlyLimitPerMember balance must not exist
         expect(paymentMethod.balance).to.not.exist;
-      }); /** End Of "should create a virtual card with monthly limit member of U$100 per month defining an expiry date" */
+      }); /** End Of "should create a gift card with monthly limit member of U$100 per month defining an expiry date" */
     }); /** End Of "#create" */
 
     describe('#claim', async () => {
-      let collective1, paymentMethod1, user1, virtualCardPaymentMethod;
+      let collective1, paymentMethod1, user1, giftCardPaymentMethod;
 
       before(() => utils.resetTestDB());
       before('create collective1(currency USD, No Host)', () =>
@@ -281,31 +278,31 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
         }).then(() => user1.populateRoles()),
       );
 
-      before('create a virtual card payment method', () => {
+      before('create a gift card payment method', () => {
         const createParams = {
-          description: 'virtual card test',
+          description: 'gift card test',
           CollectiveId: collective1.id,
           amount: 10000,
           currency: 'USD',
         };
-        return virtualcard.create(createParams, user1).then(pm => (virtualCardPaymentMethod = pm));
+        return giftcard.create(createParams, user1).then(pm => (giftCardPaymentMethod = pm));
       });
 
-      it('new User should claim a virtual card', async () => {
-        // setting correct code to claim virtual card by new User
-        const virtualCardCode = virtualCardPaymentMethod.uuid.substring(0, 8);
+      it('new User should claim a gift card', async () => {
+        // setting correct code to claim gift card by new User
+        const giftCardCode = giftCardPaymentMethod.uuid.substring(0, 8);
         const args = {
           user: { email: 'new@user.com' },
-          code: virtualCardCode,
+          code: giftCardCode,
         };
-        // claim virtual
-        const paymentMethod = await virtualcard.claim(args);
+        // claim gift card
+        const paymentMethod = await giftcard.claim(args);
         // payment method should exist
         expect(paymentMethod).to.exist;
         // then paymentMethod SourcePaymentMethodId should be paymentMethod1.id(the PM of the organization collective1)
         expect(paymentMethod.SourcePaymentMethodId).to.be.equal(paymentMethod1.id);
-        // and collective id of "original" virtual card should be different than the one returned
-        expect(virtualCardPaymentMethod.CollectiveId).not.to.be.equal(paymentMethod.CollectiveId);
+        // and collective id of "original" gift card should be different than the one returned
+        expect(giftCardPaymentMethod.CollectiveId).not.to.be.equal(paymentMethod.CollectiveId);
         // then find collective of created user
         const userCollective = await models.Collective.findByPk(paymentMethod.CollectiveId);
         // then find the user
@@ -317,16 +314,16 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
         // then check if the user email matches the email on the argument used on the claim
         expect(user.email).to.be.equal(args.user.email);
         // then check if both have the same uuid
-        expect(paymentMethod.uuid).not.to.be.equal(virtualCardPaymentMethod.id);
+        expect(paymentMethod.uuid).not.to.be.equal(giftCardPaymentMethod.id);
         // and check if both have the same expiry
         expect(moment(paymentMethod.expiryDate).format()).to.be.equal(
-          moment(virtualCardPaymentMethod.expiryDate).format(),
+          moment(giftCardPaymentMethod.expiryDate).format(),
         );
-      }); /** End Of "new User should claim a virtual card" */
+      }); /** End Of "new User should claim a gift card" */
     }); /** End Of "#claim" */
 
     describe('#processOrder', async () => {
-      let host1, collective1, collective2, paymentMethod1, virtualCardPaymentMethod, user, user1, userCollective;
+      let host1, collective1, collective2, paymentMethod1, giftCardPaymentMethod, user, user1, userCollective;
 
       before(() => utils.resetTestDB());
 
@@ -387,29 +384,29 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
         }).then(pm => (paymentMethod1 = pm)),
       );
 
-      beforeEach('create a virtual card payment method', () =>
-        virtualcard
+      beforeEach('create a gift card payment method', () =>
+        giftcard
           .create(
             {
-              description: 'virtual card test',
+              description: 'gift card test',
               CollectiveId: collective1.id,
               amount: 10000,
               currency: 'USD',
             },
             user1,
           )
-          .then(pm => (virtualCardPaymentMethod = pm)),
+          .then(pm => (giftCardPaymentMethod = pm)),
       );
 
-      beforeEach('new user claims a virtual card', () =>
-        virtualcard
+      beforeEach('new user claims a gift card', () =>
+        giftcard
           .claim({
             user: { email: 'new@user.com' },
-            code: virtualCardPaymentMethod.uuid.substring(0, 8),
+            code: giftCardPaymentMethod.uuid.substring(0, 8),
           })
           .then(async pm => {
-            virtualCardPaymentMethod = await models.PaymentMethod.findByPk(pm.id);
-            userCollective = await models.Collective.findByPk(virtualCardPaymentMethod.CollectiveId);
+            giftCardPaymentMethod = await models.PaymentMethod.findByPk(pm.id);
+            userCollective = await models.Collective.findByPk(giftCardPaymentMethod.CollectiveId);
             user = await models.User.findOne({
               where: {
                 CollectiveId: userCollective.id,
@@ -418,64 +415,64 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
           }),
       );
 
-      it('Order should NOT be executed because its amount exceeds the balance of the virtual card', async () => {
-        expect(virtualCardPaymentMethod.SourcePaymentMethodId).to.be.equal(paymentMethod1.id);
+      it('Order should NOT be executed because its amount exceeds the balance of the gift card', async () => {
+        expect(giftCardPaymentMethod.SourcePaymentMethodId).to.be.equal(paymentMethod1.id);
         const order = await models.Order.create({
           CreatedByUserId: user.id,
           FromCollectiveId: userCollective.id,
           CollectiveId: collective2.id,
-          PaymentMethodId: virtualCardPaymentMethod.id,
+          PaymentMethodId: giftCardPaymentMethod.id,
           totalAmount: maxInteger,
           currency: 'USD',
         });
         order.fromCollective = userCollective;
         order.collective = collective2;
         order.createdByUser = user;
-        order.paymentMethod = virtualCardPaymentMethod;
+        order.paymentMethod = giftCardPaymentMethod;
 
         try {
-          await virtualcard.processOrder(order);
+          await giftcard.processOrder(order);
           throw Error('Process should not be executed...');
         } catch (error) {
           expect(error).to.exist;
           expect(error.toString()).to.contain('Order amount exceeds balance');
         }
-      }); /** End Of "Order should NOT be executed because its amount exceeds the balance of the virtual card" */
+      }); /** End Of "Order should NOT be executed because its amount exceeds the balance of the gift card" */
 
-      it('Order should NOT be executed because the virtual card has not enough balance', async () => {
-        expect(virtualCardPaymentMethod.SourcePaymentMethodId).to.be.equal(paymentMethod1.id);
+      it('Order should NOT be executed because the gift card has not enough balance', async () => {
+        expect(giftCardPaymentMethod.SourcePaymentMethodId).to.be.equal(paymentMethod1.id);
         const order = await models.Order.create({
           CreatedByUserId: user.id,
           FromCollectiveId: userCollective.id,
           CollectiveId: collective2.id,
-          PaymentMethodId: virtualCardPaymentMethod.id,
+          PaymentMethodId: giftCardPaymentMethod.id,
           totalAmount: 10000,
           currency: 'USD',
         });
         order.fromCollective = userCollective;
         order.collective = collective2;
         order.createdByUser = user;
-        order.paymentMethod = virtualCardPaymentMethod;
+        order.paymentMethod = giftCardPaymentMethod;
 
         try {
           // should succeed because card has balance
-          await virtualcard.processOrder(order);
-          // should fail because virtual card has $0 balance
-          await virtualcard.processOrder(order);
+          await giftcard.processOrder(order);
+          // should fail because gift card has $0 balance
+          await giftcard.processOrder(order);
           throw Error('Process should not be executed...');
         } catch (error) {
           expect(error).to.exist;
           expect(error.toString()).to.contain('This payment method has no balance to complete this order');
         }
-      }); /** End Of "Order should NOT be executed because its amount exceeds the balance of the virtual card" */
+      }); /** End Of "Order should NOT be executed because its amount exceeds the balance of the gift card" */
 
       it('Order should NOT be executed because its amount exceeds the balance with transactions of different currencies', async () => {
-        expect(virtualCardPaymentMethod.SourcePaymentMethodId).to.be.equal(paymentMethod1.id);
+        expect(giftCardPaymentMethod.SourcePaymentMethodId).to.be.equal(paymentMethod1.id);
         const orderEUR = await models.Order.create({
           CreatedByUserId: user.id,
           FromCollectiveId: userCollective.id,
           CollectiveId: collective2.id,
-          PaymentMethodId: virtualCardPaymentMethod.id,
+          PaymentMethodId: giftCardPaymentMethod.id,
           totalAmount: 5000,
           currency: 'EUR',
         });
@@ -483,19 +480,19 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
           CreatedByUserId: user.id,
           FromCollectiveId: userCollective.id,
           CollectiveId: collective2.id,
-          PaymentMethodId: virtualCardPaymentMethod.id,
+          PaymentMethodId: giftCardPaymentMethod.id,
           totalAmount: 9000,
           currency: 'USD',
         });
         orderEUR.fromCollective = orderUSD.fromCollective = userCollective;
         orderEUR.collective = orderUSD.collective = collective2;
         orderEUR.createdByUser = orderUSD.createdByUser = user;
-        orderEUR.paymentMethod = orderUSD.paymentMethod = virtualCardPaymentMethod;
+        orderEUR.paymentMethod = orderUSD.paymentMethod = giftCardPaymentMethod;
         try {
           // executing order in USD, has balance
-          await virtualcard.processOrder(orderEUR);
+          await giftcard.processOrder(orderEUR);
           // executing order in EUR, still has balance
-          await virtualcard.processOrder(orderUSD);
+          await giftcard.processOrder(orderUSD);
           throw Error('Process should not be executed...');
         } catch (error) {
           expect(error).to.exist;
@@ -503,39 +500,37 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
         }
       }); /** End Of "Order should NOT be executed because its amount exceeds the balance with transactions of different currencies" */
 
-      it('Process order of a virtual card', async () => {
+      it('Process order of a gift card', async () => {
         const order = await models.Order.create({
           CreatedByUserId: user.id,
           FromCollectiveId: userCollective.id,
           CollectiveId: collective2.id,
-          PaymentMethodId: virtualCardPaymentMethod.id,
+          PaymentMethodId: giftCardPaymentMethod.id,
           totalAmount: ORDER_TOTAL_AMOUNT,
           currency: 'USD',
         });
         order.fromCollective = userCollective;
         order.collective = collective2;
         order.createdByUser = user;
-        order.paymentMethod = virtualCardPaymentMethod;
+        order.paymentMethod = giftCardPaymentMethod;
 
-        const virtualCardEmitterCollectiveId = paymentMethod1.CollectiveId;
+        const giftCardEmitterCollectiveId = paymentMethod1.CollectiveId;
 
         // checking if transaction generated(CREDIT) matches the correct payment method
         // amount, currency and collectives...
-        const creditTransaction = await virtualcard.processOrder(order);
+        const creditTransaction = await giftcard.processOrder(order);
         expect(creditTransaction.type).to.be.equal('CREDIT');
-        expect(creditTransaction.PaymentMethodId).to.be.equal(virtualCardPaymentMethod.id);
-        expect(creditTransaction.UsingVirtualCardFromCollectiveId).to.be.equal(virtualCardEmitterCollectiveId);
+        expect(creditTransaction.PaymentMethodId).to.be.equal(giftCardPaymentMethod.id);
+        expect(creditTransaction.UsingGiftCardFromCollectiveId).to.be.equal(giftCardEmitterCollectiveId);
         expect(creditTransaction.FromCollectiveId).to.be.equal(userCollective.id);
         expect(creditTransaction.CollectiveId).to.be.equal(collective2.id);
         expect(creditTransaction.amount).to.be.equal(ORDER_TOTAL_AMOUNT);
         expect(creditTransaction.amountInHostCurrency).to.be.equal(ORDER_TOTAL_AMOUNT);
         expect(creditTransaction.currency).to.be.equal('USD');
         expect(creditTransaction.hostCurrency).to.be.equal('USD');
-        // checking balance of virtual card(should be initial balance - order amount)
-        const virtualCardCurrentBalance = await virtualcard.getBalance(virtualCardPaymentMethod);
-        expect(virtualCardCurrentBalance.amount).to.be.equal(
-          virtualCardPaymentMethod.initialBalance - ORDER_TOTAL_AMOUNT,
-        );
+        // checking balance of gift card(should be initial balance - order amount)
+        const giftCardBalance = await giftcard.getBalance(giftCardPaymentMethod);
+        expect(giftCardBalance.amount).to.be.equal(giftCardPaymentMethod.initialBalance - ORDER_TOTAL_AMOUNT);
         // User should now be a member of collective
         const userMember = models.Member.findOne({
           where: {
@@ -545,15 +540,15 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
         });
         expect(userMember).to.exist;
 
-        // Collective that emitted the VirtualCard should be a member too
+        // Collective that emitted the gift card should be a member too
         const collectiveMember = models.Member.findOne({
           where: {
             CollectiveId: collective2.id,
-            MemberCollectiveId: virtualCardEmitterCollectiveId,
+            MemberCollectiveId: giftCardEmitterCollectiveId,
           },
         });
         expect(collectiveMember).to.exist;
-      }); /** End Of "Process order of a virtual card" */
+      }); /** End Of "Process order of a gift card" */
 
       describe('if the transaction fails', () => {
         let creditCardProcessOrderMock;
@@ -567,7 +562,7 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
         });
 
         it('does not mess up with the PaymentMethodId', async () => {
-          const order = await fakeOrder({ PaymentMethodId: virtualCardPaymentMethod.id, totalAmount: 100 });
+          const order = await fakeOrder({ PaymentMethodId: giftCardPaymentMethod.id, totalAmount: 100 });
           creditCardProcessOrderMock.callsFake(order =>
             order.save().then(() => {
               throw new Error();
@@ -575,13 +570,13 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
           );
 
           try {
-            await virtualcard.processOrder(order);
+            await giftcard.processOrder(order);
           } catch {
             // Ignore error
           }
 
           await order.reload();
-          expect(order.PaymentMethodId).to.eq(virtualCardPaymentMethod.id);
+          expect(order.PaymentMethodId).to.eq(giftCardPaymentMethod.id);
         });
       });
     }); /** End Of "#processOrder" */
@@ -593,7 +588,7 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
       let hostCollective = null;
       let targetCollective = null;
       let sourcePm = null;
-      let virtualCardPm = null;
+      let giftCardPm = null;
 
       before(async () => {
         hostCollective = await models.Collective.create({
@@ -635,7 +630,7 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
       });
 
       before(async () => {
-        virtualCardPm = await models.PaymentMethod.create({
+        giftCardPm = await models.PaymentMethod.create({
           name: 'Test VC',
           SourcePaymentMethodId: sourcePm.id,
           initialBalance: INITIAL_BALANCE,
@@ -645,7 +640,7 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
           customerId: user.id,
           data: { HostCollectiveId: hostCollective.id },
           service: 'opencollective',
-          type: 'virtualcard',
+          type: 'giftcard',
           createdAt: new Date(),
           updatedAt: new Date(),
           expiryDate: new Date(2042, 22, 10),
@@ -653,32 +648,32 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
       });
 
       it('refunds transaction and restore balance', async () => {
-        const initialBalance = await virtualcard.getBalance(virtualCardPm);
+        const initialBalance = await giftcard.getBalance(giftCardPm);
         const order = await fakeOrder({
           CreatedByUserId: user.id,
           FromCollectiveId: user.collective.id,
           CollectiveId: targetCollective.id,
-          PaymentMethodId: virtualCardPm.id,
+          PaymentMethodId: giftCardPm.id,
           totalAmount: 1000,
           currency: 'USD',
         });
 
-        const transaction = await virtualcard.processOrder(order);
+        const transaction = await giftcard.processOrder(order);
         expect(transaction).to.exist;
 
         // Check balance decreased
-        const balanceAfterOrder = await virtualcard.getBalance(virtualCardPm);
+        const balanceAfterOrder = await giftcard.getBalance(giftCardPm);
         expect(balanceAfterOrder.amount).to.be.equal(initialBalance.amount - 1000);
 
         // Make refund
-        await virtualcard.refundTransaction(transaction, user);
-        const balanceAfterRefund = await virtualcard.getBalance(virtualCardPm);
+        await giftcard.refundTransaction(transaction, user);
+        const balanceAfterRefund = await giftcard.getBalance(giftCardPm);
         expect(balanceAfterRefund.amount).to.be.equal(initialBalance.amount);
       });
     });
-  }); /** End Of "paymentProviders.opencollective.virtualcard" */
+  }); /** End Of "paymentProviders.opencollective.giftcard" */
 
-  describe('graphql.mutations.paymentMethods.virtualcard', () => {
+  describe('graphql.mutations.paymentMethods.giftcard', () => {
     describe('#create', async () => {
       let collective1, collective2, creditCard2, user1;
 
@@ -716,69 +711,62 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
         store.createCreditCard(collective2.id).then(c => (creditCard2 = c)),
       );
 
-      it('should fail creating a virtual card because there is no currency defined', async () => {
-        const args = {
-          type: 'virtualcard',
-          CollectiveId: collective1.id,
-          amount: 10000,
-        };
+      it('should fail creating a gift card because there is no currency defined', async () => {
+        const args = { CollectiveId: collective1.id, amount: 10000 };
         // call graphql mutation
-        const gqlResult = await utils.graphqlQuery(createPaymentMethodMutation, args, user1);
+        const gqlResult = await utils.graphqlQuery(createGiftCardsMutation, args, user1);
         expect(gqlResult.errors[0]).to.exist;
         expect(gqlResult.errors[0].toString()).to.contain('"$currency" of required type "String!" was not provided.');
-      }); /** End of "should fail creating a virtual card because there is no currency defined" */
+      }); /** End of "should fail creating a gift card because there is no currency defined" */
 
-      it('should fail creating a virtual card because there is no amount or monthlyLimitPerMember defined', async () => {
+      it('should fail creating a gift card because there is no amount or monthlyLimitPerMember defined', async () => {
         const args = {
-          type: 'virtualcard',
           currency: 'USD',
           CollectiveId: collective1.id,
         };
         // call graphql mutation
-        const gqlResult = await utils.graphqlQuery(createPaymentMethodMutation, args, user1);
+        const gqlResult = await utils.graphqlQuery(createGiftCardsMutation, args, user1);
         expect(gqlResult.errors[0]).to.exist;
         expect(gqlResult.errors[0].toString()).to.contain(
           'you need to define either the amount or the monthlyLimitPerMember of the payment method.',
         );
-      }); /** End of "should fail creating a virtual card because there is amount or monthlyLimitPerMember defined" */
+      }); /** End of "should fail creating a gift card because there is amount or monthlyLimitPerMember defined" */
 
-      it('should create a U$100 virtual card payment method limited to open source', async () => {
+      it('should create a U$100 gift card payment method limited to open source', async () => {
         const args = {
-          type: 'virtualcard',
           CollectiveId: collective1.id,
           amount: 10000,
           currency: 'USD',
           limitedToTags: ['open source'],
         };
         // call graphql mutation
-        const gqlResult = await utils.graphqlQuery(createPaymentMethodMutation, args, user1);
+        const gqlResult = await utils.graphqlQuery(createGiftCardsMutation, args, user1);
 
         gqlResult.errors && console.error(gqlResult.errors[0]);
         expect(gqlResult.errors).to.be.undefined;
 
-        const paymentMethod = await models.PaymentMethod.findByPk(gqlResult.data.createPaymentMethod.id);
+        const paymentMethod = await models.PaymentMethod.findByPk(gqlResult.data.createGiftCards[0].id);
         expect(paymentMethod).to.exist;
         expect(paymentMethod.limitedToTags).to.contain('open source');
         expect(paymentMethod.CreatedByUserId).to.be.equal(user1.id);
         expect(paymentMethod.CollectiveId).to.be.equal(collective1.id);
         expect(paymentMethod.initialBalance).to.be.equal(args.amount);
         expect(paymentMethod.service).to.be.equal('opencollective');
-        expect(paymentMethod.type).to.be.equal('virtualcard');
+        expect(paymentMethod.type).to.be.equal('giftcard');
         expect(moment(paymentMethod.expiryDate).format('YYYY-MM-DD')).to.be.equal(
           moment().add(24, 'months').format('YYYY-MM-DD'),
         );
-      }); /** End of "should create a U$100 virtual card payment method" */
+      }); /** End of "should create a U$100 gift card payment method" */
 
       it("should fail if payment method does't belongs to collective", async () => {
         const args = {
-          type: 'virtualcard',
           currency: 'USD',
           CollectiveId: collective1.id,
           amount: 10000,
           PaymentMethodId: creditCard2.id,
         };
         // call graphql mutation
-        const gqlResult = await utils.graphqlQuery(createPaymentMethodMutation, args, user1);
+        const gqlResult = await utils.graphqlQuery(createGiftCardsMutation, args, user1);
         expect(gqlResult.errors).to.exist;
         expect(gqlResult.errors[0]).to.exist;
         expect(gqlResult.errors[0].toString()).to.contain('Invalid PaymentMethodId');
@@ -786,7 +774,7 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
     }); /** End Of "#create" */
 
     describe('#claim', async () => {
-      let collective1, paymentMethod1, virtualCardPaymentMethod, user1;
+      let collective1, paymentMethod1, giftCardPaymentMethod, user1;
 
       before(() => utils.resetTestDB());
 
@@ -827,32 +815,32 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
         });
       });
 
-      beforeEach('create a virtual card payment method', () =>
-        virtualcard
+      beforeEach('create a gift card payment method', () =>
+        giftcard
           .create(
             {
-              description: 'virtual card test',
+              description: 'gift card test',
               CollectiveId: collective1.id,
               amount: 10000,
               currency: 'USD',
             },
             user1,
           )
-          .then(pm => (virtualCardPaymentMethod = pm)),
+          .then(pm => (giftCardPaymentMethod = pm)),
       );
 
-      it('new User should claim a virtual card', async () => {
-        // setting correct code to claim virtual card by new User
-        const virtualCardCode = virtualCardPaymentMethod.uuid.substring(0, 8);
+      it('new User should claim a gift card', async () => {
+        // setting correct code to claim gift card by new User
+        const giftCardCode = giftCardPaymentMethod.uuid.substring(0, 8);
         const args = {
           user: {
             name: 'New User',
             email: 'new@user.com',
             twitterHandle: 'xdamman',
           },
-          code: virtualCardCode,
+          code: giftCardCode,
         };
-        // claim virtual card
+        // claim gift card
         // call graphql mutation
         const gqlResult = await utils.graphqlQuery(claimPaymentMethodMutation, args);
 
@@ -863,11 +851,12 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
         // payment method should exist
         expect(paymentMethod).to.exist;
         // then paymentMethod SourcePaymentMethodId should be paymentMethod1.id(the PM of the organization collective1)
-        expect(paymentMethod.SourcePaymentMethodId).to.equal(paymentMethod1.id);
+        const pmFromDb = await models.PaymentMethod.findByPk(paymentMethod.id);
+        expect(pmFromDb.SourcePaymentMethodId).to.equal(paymentMethod1.id);
         expect(paymentMethod.collective.name).to.equal(args.user.name);
         expect(paymentMethod.collective.twitterHandle).to.equal(args.user.twitterHandle);
-        // and collective id of "original" virtual card should be different than the one returned
-        expect(virtualCardPaymentMethod.CollectiveId).not.to.equal(paymentMethod.collective.id);
+        // and collective id of "original" gift card should be different than the one returned
+        expect(giftCardPaymentMethod.CollectiveId).not.to.equal(paymentMethod.collective.id);
         // then find collective of created user
         const userCollective = paymentMethod.collective;
 
@@ -880,10 +869,10 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
         // then check if the user email matches the email on the argument used on the claim
         expect(user.email).to.be.equal(args.user.email);
         // then check if both have the same uuid
-        expect(paymentMethod.uuid).not.to.be.equal(virtualCardPaymentMethod.id);
+        expect(paymentMethod.uuid).not.to.be.equal(giftCardPaymentMethod.id);
         // and check if both have the same expiry
         expect(moment(new Date(paymentMethod.expiryDate)).format()).to.be.equal(
-          moment(virtualCardPaymentMethod.expiryDate).format(),
+          moment(giftCardPaymentMethod.expiryDate).format(),
         );
 
         await utils.waitForCondition(() => sendEmailSpy.callCount > 0);
@@ -891,23 +880,23 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
         expect(sendEmailSpy.firstCall.args[1]).to.contain(
           'You received $100 from collective1 to donate on Open Collective',
         );
-        expect(sendEmailSpy.firstCall.args[2]).to.contain(`next=/redeemed?code=${virtualCardCode}`);
+        expect(sendEmailSpy.firstCall.args[2]).to.contain(`next=/redeemed?code=${giftCardCode}`);
         expect(sendEmailSpy.firstCall.args[2]).to.contain(
           collective1.image.substr(collective1.image.lastIndexOf('/') + 1),
         );
-      }); /** End Of "#new User should claim a virtual card" */
+      }); /** End Of "#new User should claim a gift card" */
 
-      it('Existing User should claim a virtual card', async () => {
+      it('Existing User should claim a gift card', async () => {
         const existingUser = await models.User.createUserWithCollective({
           email: store.randEmail(),
           name: 'Existing User',
         });
-        // setting correct code to claim virtual card by new User
-        const virtualCardCode = virtualCardPaymentMethod.uuid.substring(0, 8);
+        // setting correct code to claim gift card by new User
+        const giftCardCode = giftCardPaymentMethod.uuid.substring(0, 8);
         const args = {
-          code: virtualCardCode,
+          code: giftCardCode,
         };
-        // claim virtual card
+        // claim gift card
         // call graphql mutation
         const gqlResult = await utils.graphqlQuery(claimPaymentMethodMutation, args, existingUser);
 
@@ -920,8 +909,8 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
         expect(paymentMethod).to.exist;
         // then paymentMethod SourcePaymentMethodId should be paymentMethod1.id(the PM of the organization collective1)
         expect(paymentMethod.SourcePaymentMethodId).to.be.equal(paymentMethod1.id);
-        // and collective id of "original" virtual card should be different than the one returned
-        expect(virtualCardPaymentMethod.CollectiveId).not.to.be.equal(paymentMethod.CollectiveId);
+        // and collective id of "original" gift card should be different than the one returned
+        expect(giftCardPaymentMethod.CollectiveId).not.to.be.equal(paymentMethod.CollectiveId);
         // then find collective of created user
         const userCollective = await models.Collective.findByPk(paymentMethod.CollectiveId);
         // then find the user
@@ -934,23 +923,16 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
         expect(user.email).to.be.equal(existingUser.email);
         expect(userCollective.id).to.be.equal(existingUser.CollectiveId);
         // then check if both have the same uuid
-        expect(paymentMethod.uuid).not.to.be.equal(virtualCardPaymentMethod.id);
+        expect(paymentMethod.uuid).not.to.be.equal(giftCardPaymentMethod.id);
         // and check if both have the same expiry
         expect(moment(paymentMethod.expiryDate).format()).to.be.equal(
-          moment(virtualCardPaymentMethod.expiryDate).format(),
+          moment(giftCardPaymentMethod.expiryDate).format(),
         );
-      }); /** End Of "Existing User should claim a virtual card" */
+      }); /** End Of "Existing User should claim a gift card" */
     }); /** End Of "#claim" */
 
     describe('#processOrder2', async () => {
-      let host1,
-        host2,
-        collective1,
-        collective2,
-        virtualCardPaymentMethod,
-        user1,
-        userVirtualCard,
-        userVirtualCardCollective;
+      let host1, host2, collective1, collective2, giftCardPaymentMethod, user1, userGiftCard, userGiftCardCollective;
 
       before(() => utils.resetTestDB());
 
@@ -1023,11 +1005,11 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
         }),
       );
 
-      before('create a virtual card payment method', () =>
-        virtualcard
+      before('create a gift card payment method', () =>
+        giftcard
           .create(
             {
-              description: 'virtual card test',
+              description: 'gift card test',
               CollectiveId: collective1.id,
               amount: 10000,
               currency: 'USD',
@@ -1036,51 +1018,51 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
             },
             user1,
           )
-          .then(pm => (virtualCardPaymentMethod = pm)),
+          .then(pm => (giftCardPaymentMethod = pm)),
       );
 
-      before('new user claims a virtual card', () =>
-        virtualcard
+      before('new user claims a gift card', () =>
+        giftcard
           .claim({
             user: { email: 'new@user.com' },
-            code: virtualCardPaymentMethod.uuid.substring(0, 8),
+            code: giftCardPaymentMethod.uuid.substring(0, 8),
           })
           .then(async pm => {
-            virtualCardPaymentMethod = await models.PaymentMethod.findByPk(pm.id);
-            userVirtualCardCollective = await models.Collective.findByPk(virtualCardPaymentMethod.CollectiveId);
-            userVirtualCard = await models.User.findOne({
+            giftCardPaymentMethod = await models.PaymentMethod.findByPk(pm.id);
+            userGiftCardCollective = await models.Collective.findByPk(giftCardPaymentMethod.CollectiveId);
+            userGiftCard = await models.User.findOne({
               where: {
-                CollectiveId: userVirtualCardCollective.id,
+                CollectiveId: userGiftCardCollective.id,
               },
             });
           }),
       );
 
-      it('Order should NOT be executed because its amount exceeds the balance of the virtual card', async () => {
+      it('Order should NOT be executed because its amount exceeds the balance of the gift card', async () => {
         // Setting up order
         const order = {
-          fromCollective: { id: userVirtualCard.CollectiveId },
+          fromCollective: { id: userGiftCard.CollectiveId },
           collective: { id: collective1.id },
-          paymentMethod: { uuid: virtualCardPaymentMethod.uuid },
+          paymentMethod: { uuid: giftCardPaymentMethod.uuid },
           totalAmount: 1000000,
         };
         // Executing queries
-        const gqlResult = await utils.graphqlQuery(createOrderMutation, { order }, userVirtualCard);
+        const gqlResult = await utils.graphqlQuery(createOrderMutation, { order }, userGiftCard);
         expect(gqlResult.errors).to.be.an('array');
         expect(gqlResult.errors[0]).to.exist;
         expect(gqlResult.errors[0].toString()).to.contain("You don't have enough funds available");
-      }); /** End Of "Order should NOT be executed because its amount exceeds the balance of the virtual card" */
+      }); /** End Of "Order should NOT be executed because its amount exceeds the balance of the gift card" */
 
-      it('Order should NOT be executed because the virtual card is limited to be used on collectives with tag open source', async () => {
+      it('Order should NOT be executed because the gift card is limited to be used on collectives with tag open source', async () => {
         // Setting up order
         const order = {
-          fromCollective: { id: userVirtualCard.CollectiveId },
+          fromCollective: { id: userGiftCard.CollectiveId },
           collective: { id: collective2.id },
-          paymentMethod: { uuid: virtualCardPaymentMethod.uuid },
+          paymentMethod: { uuid: giftCardPaymentMethod.uuid },
           totalAmount: 1000,
         };
         // Executing queries
-        const gqlResult = await utils.graphqlQuery(createOrderMutation, { order }, userVirtualCard);
+        const gqlResult = await utils.graphqlQuery(createOrderMutation, { order }, userGiftCard);
         expect(gqlResult.errors).to.be.an('array');
         expect(gqlResult.errors[0]).to.exist;
         expect(gqlResult.errors[0].toString()).to.contain(
@@ -1088,17 +1070,17 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
         );
       });
 
-      it('Order should NOT be executed because the virtual card is limited to be used on another host', async () => {
+      it('Order should NOT be executed because the gift card is limited to be used on another host', async () => {
         // Setting up order
-        await virtualCardPaymentMethod.update({ limitedToTags: null });
+        await giftCardPaymentMethod.update({ limitedToTags: null });
         const order = {
-          fromCollective: { id: userVirtualCard.CollectiveId },
+          fromCollective: { id: userGiftCard.CollectiveId },
           collective: { id: collective2.id },
-          paymentMethod: { uuid: virtualCardPaymentMethod.uuid },
+          paymentMethod: { uuid: giftCardPaymentMethod.uuid },
           totalAmount: 1000,
         };
         // Executing queries
-        const gqlResult = await utils.graphqlQuery(createOrderMutation, { order }, userVirtualCard);
+        const gqlResult = await utils.graphqlQuery(createOrderMutation, { order }, userGiftCard);
         expect(gqlResult.errors).to.be.an('array');
         expect(gqlResult.errors[0]).to.exist;
         expect(gqlResult.errors[0].toString()).to.contain(
@@ -1106,16 +1088,16 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
         );
       });
 
-      it('Process order of a virtual card', async () => {
+      it('Process order of a gift card', async () => {
         // Setting up order
         const order = {
-          fromCollective: { id: userVirtualCard.CollectiveId },
+          fromCollective: { id: userGiftCard.CollectiveId },
           collective: { id: collective1.id },
-          paymentMethod: { uuid: virtualCardPaymentMethod.uuid },
+          paymentMethod: { uuid: giftCardPaymentMethod.uuid },
           totalAmount: ORDER_TOTAL_AMOUNT,
         };
         // Executing queries
-        const gqlResult = await utils.graphqlQuery(createOrderMutation, { order }, userVirtualCard);
+        const gqlResult = await utils.graphqlQuery(createOrderMutation, { order }, userGiftCard);
 
         gqlResult.errors && console.error(gqlResult.errors[0]);
         expect(gqlResult.errors).to.be.undefined;
@@ -1131,37 +1113,35 @@ describe('server/paymentProviders/opencollective/virtualcard', () => {
         // amount, currency and collectives...
         const creditTransaction = transactions[0];
         expect(creditTransaction.type).to.be.equal('CREDIT');
-        expect(creditTransaction.PaymentMethodId).to.be.equal(virtualCardPaymentMethod.id);
-        expect(creditTransaction.FromCollectiveId).to.be.equal(userVirtualCard.CollectiveId);
+        expect(creditTransaction.PaymentMethodId).to.be.equal(giftCardPaymentMethod.id);
+        expect(creditTransaction.FromCollectiveId).to.be.equal(userGiftCard.CollectiveId);
         expect(creditTransaction.CollectiveId).to.be.equal(collective1.id);
         expect(creditTransaction.amount).to.be.equal(ORDER_TOTAL_AMOUNT);
         expect(creditTransaction.amountInHostCurrency).to.be.equal(ORDER_TOTAL_AMOUNT);
         expect(creditTransaction.currency).to.be.equal('USD');
         expect(creditTransaction.hostCurrency).to.be.equal('USD');
-        // checking balance of virtual card(should be initial balance - order amount)
-        const virtualCardCurrentBalance = await virtualcard.getBalance(virtualCardPaymentMethod);
-        expect(virtualCardCurrentBalance.amount).to.be.equal(
-          virtualCardPaymentMethod.initialBalance - ORDER_TOTAL_AMOUNT,
-        );
-      }); /** End Of "Process order of a virtual card" */
+        // checking balance of gift card(should be initial balance - order amount)
+        const giftCardBalance = await giftcard.getBalance(giftCardPaymentMethod);
+        expect(giftCardBalance.amount).to.be.equal(giftCardPaymentMethod.initialBalance - ORDER_TOTAL_AMOUNT);
+      }); /** End Of "Process order of a gift card" */
 
-      it('should fail when multiple orders exceed the balance of the virtual card', async () => {
+      it('should fail when multiple orders exceed the balance of the gift card', async () => {
         // Setting up order
         const order = {
-          fromCollective: { id: userVirtualCard.CollectiveId },
+          fromCollective: { id: userGiftCard.CollectiveId },
           collective: { id: collective1.id },
-          paymentMethod: { uuid: virtualCardPaymentMethod.uuid },
+          paymentMethod: { uuid: giftCardPaymentMethod.uuid },
           totalAmount: ORDER_TOTAL_AMOUNT,
         };
-        // Executing queries that overstep virtual card balance
-        await utils.graphqlQuery(createOrderMutation, { order }, userVirtualCard);
-        await utils.graphqlQuery(createOrderMutation, { order }, userVirtualCard);
-        const gqlResult = await utils.graphqlQuery(createOrderMutation, { order }, userVirtualCard);
+        // Executing queries that overstep gift card balance
+        await utils.graphqlQuery(createOrderMutation, { order }, userGiftCard);
+        await utils.graphqlQuery(createOrderMutation, { order }, userGiftCard);
+        const gqlResult = await utils.graphqlQuery(createOrderMutation, { order }, userGiftCard);
 
         expect(gqlResult.errors).to.be.an('array');
         expect(gqlResult.errors[0]).to.exist;
         expect(gqlResult.errors[0].toString()).to.contain("You don't have enough funds available");
-      }); /** End Of "should fail when multiple orders exceed the balance of the virtual card" */
+      }); /** End Of "should fail when multiple orders exceed the balance of the gift card" */
     }); /** End Of "#processOrder" */
-  }); /** End Of "graphql.mutations.paymentMethods.virtualcard" */
+  }); /** End Of "graphql.mutations.paymentMethods.giftcard" */
 });

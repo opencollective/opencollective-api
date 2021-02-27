@@ -2,7 +2,7 @@ import Promise from 'bluebird';
 import config from 'config';
 import { get, pick } from 'lodash';
 
-import { US_TAX_FORM_THRESHOLD } from '../constants/tax-form';
+import { US_TAX_FORM_THRESHOLD, US_TAX_FORM_VALIDITY_IN_YEARS } from '../constants/tax-form';
 
 import { memoize } from './cache';
 import { convertToCurrency } from './currency';
@@ -411,13 +411,13 @@ const getUniqueCollectiveTags = () => {
  * Get list of all unique batches for collective.
  * Returns an array of objects matching `PaymentMethodBatchInfo`
  */
-const getVirtualCardBatchesForCollective = async collectiveId => {
+const getGiftCardBatchesForCollective = async collectiveId => {
   return sequelize.query(
     `
     SELECT
-      :collectiveId::varchar || '-virtualcard-' || COALESCE(pm.batch, ' __UNGROUPED__ ') AS id,
+      :collectiveId::varchar || '-giftcard-' || COALESCE(pm.batch, ' __UNGROUPED__ ') AS id,
       :collectiveId AS "collectiveId",
-      'virtualcard' AS type,
+      'giftcard' AS type,
       pm.batch AS name,
       COUNT(pm.id) as count
     FROM "PaymentMethods" pm
@@ -629,7 +629,7 @@ const getMembersWithTotalDonations = (where, options = {}) => {
         ${buildTransactionsStatsQuery('FromCollectiveId')}
       ),
       IndirectStats AS (
-        ${buildTransactionsStatsQuery('UsingVirtualCardFromCollectiveId')}
+        ${buildTransactionsStatsQuery('UsingGiftCardFromCollectiveId')}
       )
     SELECT
       ${selector},
@@ -652,13 +652,12 @@ const getMembersWithTotalDonations = (where, options = {}) => {
       max(u.email) as email,
       max(c."twitterHandle") as "twitterHandle",
       COALESCE(max(dstats."totalDonations"), 0) as "directDonations",
-      COALESCE(max(istats."totalDonations"), 0) as "donationsThroughEmittedVirtualCards",
       COALESCE(max(dstats."totalDonations"), 0) +  COALESCE(max(istats."totalDonations"), 0) as "totalDonations",
       LEAST(Max(dstats."firstDonation"), Max(istats."firstDonation")) AS "firstDonation",
       GREATEST(Max(dstats."lastDonation"), Max(istats."lastDonation")) AS "lastDonation"
     FROM "Collectives" c
     LEFT JOIN DirectStats dstats ON c.id = dstats."FromCollectiveId"
-    LEFT JOIN IndirectStats istats ON c.id = istats."UsingVirtualCardFromCollectiveId"
+    LEFT JOIN IndirectStats istats ON c.id = istats."UsingGiftCardFromCollectiveId"
     LEFT JOIN "Members" member ON c.id = member."${groupBy}"
     LEFT JOIN "Users" u ON c.id = u."CollectiveId"
     WHERE member."${memberCondAttribute}" IN (:collectiveids)
@@ -889,7 +888,7 @@ const getTaxFormsRequiredForExpenses = expenseIds => {
       AND all_expenses_collectives."HostCollectiveId" = d."HostCollectiveId"
     LEFT JOIN "LegalDocuments" ld
       ON ld."CollectiveId" = analyzed_expenses."FromCollectiveId"
-      AND ld.year = date_part('year', analyzed_expenses."incurredAt")
+      AND ld.year + :validityInYears >= date_part('year', analyzed_expenses."incurredAt")
       AND ld."documentType" = 'US_TAX_FORM'
     WHERE analyzed_expenses.id IN (:expenseIds)
     AND analyzed_expenses."FromCollectiveId" != d."HostCollectiveId"
@@ -905,13 +904,16 @@ const getTaxFormsRequiredForExpenses = expenseIds => {
   `,
     {
       type: sequelize.QueryTypes.SELECT,
-      replacements: { expenseIds },
       raw: true,
+      replacements: {
+        expenseIds,
+        validityInYears: US_TAX_FORM_VALIDITY_IN_YEARS,
+      },
     },
   );
 };
 
-const getTaxFormsRequiredForAccounts = async (accountIds = [], date = new Date()) => {
+const getTaxFormsRequiredForAccounts = async (accountIds = [], year) => {
   const results = await sequelize.query(
     `
     SELECT
@@ -929,7 +931,7 @@ const getTaxFormsRequiredForAccounts = async (accountIds = [], date = new Date()
       AND d."documentType" = 'US_TAX_FORM'
     LEFT JOIN "LegalDocuments" ld
       ON ld."CollectiveId" = account.id
-      AND ld.year = :year
+      AND ld.year + :validityInYears >= :year
       AND ld."documentType" = 'US_TAX_FORM'
     WHERE all_expenses.type != 'RECEIPT'
     ${accountIds?.length ? 'AND account.id IN (:accountIds)' : ''}
@@ -945,7 +947,8 @@ const getTaxFormsRequiredForAccounts = async (accountIds = [], date = new Date()
       type: sequelize.QueryTypes.SELECT,
       replacements: {
         accountIds,
-        year: date.getFullYear(),
+        year: year,
+        validityInYears: US_TAX_FORM_VALIDITY_IN_YEARS,
       },
     },
   );
@@ -1061,7 +1064,7 @@ const queries = {
   getTotalNumberOfActiveCollectives,
   getTotalNumberOfDonors,
   getUniqueCollectiveTags,
-  getVirtualCardBatchesForCollective,
+  getGiftCardBatchesForCollective,
 };
 
 export default queries;

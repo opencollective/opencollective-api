@@ -29,7 +29,7 @@ currency=order.currency}}} {{order.type}} to {{collective.name}} is pending
 {{#if instructions}}
 <section>
   <h2>Instructions</h2>
-  <pre>{{instructions}}</pre>
+  <pre>{{{instructions}}}</pre>
 </section>
 {{/if}}
 
@@ -37,6 +37,11 @@ currency=order.currency}}} {{order.type}} to {{collective.name}} is pending
   <a href="https://opencollective.com/{{collective.slug}}">https://opencollective.com/{{collective.slug}}</a>.
 </p>
 
+{{#if order.isGuest}}
+<p>
+  If you need help with this contribution, please do not hesitate to contact <a href="mailto:support@opencollective.com">support</a>.
+</p>
+{{/if}}
 
 {{#if fromCollective.isIncognito}}
 {{else}}

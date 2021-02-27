@@ -59,7 +59,7 @@ export default function (Sequelize, DataTypes) {
             }
 
             // Validate keys
-            const validKeys = ['address', 'country', 'name', 'lat', 'long'];
+            const validKeys = ['address', 'country', 'name', 'lat', 'long', 'structured'];
             Object.keys(value).forEach(key => {
               if (!validKeys.includes(key)) {
                 throw new Error(`Invalid location key: ${key}`);

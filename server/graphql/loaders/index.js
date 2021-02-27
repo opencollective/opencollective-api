@@ -3,8 +3,6 @@ import { createContext } from 'dataloader-sequelize';
 import { get, groupBy } from 'lodash';
 import moment from 'moment';
 
-import { types as CollectiveType } from '../../constants/collectives';
-import { maxInteger } from '../../constants/math';
 import { TransactionTypes } from '../../constants/transactions';
 import { getListOfAccessibleMembers } from '../../lib/auth';
 import queries from '../../lib/queries';
@@ -23,7 +21,6 @@ export const loaders = req => {
   const context = createContext(sequelize);
 
   // Comment
-  context.loaders.Comment.findAllByAttribute = commentsLoader.findAllByAttribute(req, cache);
   context.loaders.Comment.countByExpenseId = commentsLoader.countByExpenseId(req, cache);
 
   // Comment Reactions
@@ -55,13 +52,6 @@ export const loaders = req => {
 
   // Collective - by UserId
   context.loaders.Collective.byUserId = collectiveLoaders.byUserId(req, cache);
-
-  // Collective - ChildCollectives
-  context.loaders.Collective.childCollectives = new DataLoader(parentIds =>
-    models.Collective.findAll({
-      where: { ParentCollectiveId: { [Op.in]: parentIds }, type: CollectiveType.COLLECTIVE },
-    }).then(collectives => sortResults(parentIds, collectives, 'ParentCollectiveId', [])),
-  );
 
   // Collective - Balance
   context.loaders.Collective.balance = new DataLoader(ids =>
@@ -564,36 +554,11 @@ export const loaders = req => {
         });
       }),
     ),
-    donationsThroughEmittedVirtualCardsFromTo: new DataLoader(keys =>
-      models.Transaction.findAll({
-        attributes: [
-          'UsingVirtualCardFromCollectiveId',
-          'CollectiveId',
-          [sequelize.fn('SUM', sequelize.col('amount')), 'totalAmount'],
-        ],
-        where: {
-          UsingVirtualCardFromCollectiveId: {
-            [Op.in]: keys.map(k => k.FromCollectiveId),
-          },
-          CollectiveId: { [Op.in]: keys.map(k => k.CollectiveId) },
-          type: TransactionTypes.CREDIT,
-        },
-        group: ['UsingVirtualCardFromCollectiveId', 'CollectiveId'],
-      }).then(results => {
-        const resultsByKey = {};
-        results.forEach(r => {
-          resultsByKey[`${r.UsingVirtualCardFromCollectiveId}-${r.CollectiveId}`] = r.dataValues.totalAmount;
-        });
-        return keys.map(key => {
-          return resultsByKey[`${key.FromCollectiveId}-${key.CollectiveId}`] || 0;
-        });
-      }),
-    ),
     totalAmountDonatedFromTo: new DataLoader(keys =>
       models.Transaction.findAll({
         attributes: [
           'FromCollectiveId',
-          'UsingVirtualCardFromCollectiveId',
+          'UsingGiftCardFromCollectiveId',
           'CollectiveId',
           [sequelize.fn('SUM', sequelize.col('amount')), 'totalAmount'],
         ],
@@ -602,20 +567,20 @@ export const loaders = req => {
             FromCollectiveId: {
               [Op.in]: keys.map(k => k.FromCollectiveId),
             },
-            UsingVirtualCardFromCollectiveId: {
+            UsingGiftCardFromCollectiveId: {
               [Op.in]: keys.map(k => k.FromCollectiveId),
             },
           },
           CollectiveId: { [Op.in]: keys.map(k => k.CollectiveId) },
           type: TransactionTypes.CREDIT,
         },
-        group: ['FromCollectiveId', 'UsingVirtualCardFromCollectiveId', 'CollectiveId'],
+        group: ['FromCollectiveId', 'UsingGiftCardFromCollectiveId', 'CollectiveId'],
       }).then(results => {
         const resultsByKey = {};
-        results.forEach(({ CollectiveId, FromCollectiveId, UsingVirtualCardFromCollectiveId, dataValues }) => {
-          // Credit collective that emitted the virtual card (if any)
-          if (UsingVirtualCardFromCollectiveId) {
-            const key = `${UsingVirtualCardFromCollectiveId}-${CollectiveId}`;
+        results.forEach(({ CollectiveId, FromCollectiveId, UsingGiftCardFromCollectiveId, dataValues }) => {
+          // Credit collective that emitted the gift card (if any)
+          if (UsingGiftCardFromCollectiveId) {
+            const key = `${UsingGiftCardFromCollectiveId}-${CollectiveId}`;
             const donated = resultsByKey[key] || 0;
             resultsByKey[key] = donated + dataValues.totalAmount;
           }

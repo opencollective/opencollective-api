@@ -16,9 +16,12 @@ export async function transferwiseWebhook(
   res: Response,
   next: NextFunction,
 ): Promise<void> {
-  await transferwiseWebhookHandler(req)
-    .then(() => res.sendStatus(200))
-    .catch(next);
+  try {
+    await transferwiseWebhookHandler(req);
+    res.sendStatus(200);
+  } catch (e) {
+    next(e);
+  }
 }
 
 export async function paypalWebhook(req: Request, res: Response, next: NextFunction): Promise<void> {

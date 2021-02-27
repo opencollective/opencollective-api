@@ -103,6 +103,11 @@ export default (Sequelize, DataTypes) => {
         type: DataTypes.STRING,
         allowNull: true,
       },
+
+      twoFactorAuthRecoveryCodes: {
+        type: DataTypes.ARRAY(DataTypes.STRING),
+        allowNull: true,
+      },
     },
     {
       paranoid: true,

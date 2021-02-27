@@ -27,7 +27,7 @@ export const getPaymentMethodType = ({ service, type }: PaymentMethod): PaymentM
       return PaymentMethodTypeEnum.CREDIT_CARD;
     }
   } else if (service === PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE) {
-    if (type === PAYMENT_METHOD_TYPE.VIRTUALCARD) {
+    if (type === PAYMENT_METHOD_TYPE.GIFT_CARD) {
       return PaymentMethodTypeEnum.GIFT_CARD;
     } else if (type === PAYMENT_METHOD_TYPE.HOST) {
       return PaymentMethodTypeEnum.ADDED_FUNDS;
@@ -52,7 +52,7 @@ export const getLegacyServiceTypeFromPaymentMethodType = (type: PaymentMethodTyp
     case PaymentMethodTypeEnum.CREDIT_CARD:
       return { service: PAYMENT_METHOD_SERVICE.STRIPE, type: PAYMENT_METHOD_TYPE.CREDITCARD };
     case PaymentMethodTypeEnum.GIFT_CARD:
-      return { service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE, type: PAYMENT_METHOD_TYPE.VIRTUALCARD };
+      return { service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE, type: PAYMENT_METHOD_TYPE.GIFT_CARD };
     case PaymentMethodTypeEnum.PREPAID_BUDGET:
       return { service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE, type: PAYMENT_METHOD_TYPE.PREPAID };
     case PaymentMethodTypeEnum.ACCOUNT_BALANCE:

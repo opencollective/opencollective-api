@@ -1,4 +1,5 @@
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import GraphQLJSON from 'graphql-type-json';
 
 import { activities } from '../../../constants';
 import { types as CollectiveType } from '../../../constants/collectives';
@@ -46,6 +47,10 @@ const HostApplicationMutations = {
         type: GraphQLString,
         description: 'A message to attach for the host to review the application',
       },
+      applicationData: {
+        type: GraphQLJSON,
+        description: 'Further information about collective applying to host',
+      },
     },
     async resolve(_, args, req): Promise<object> {
       if (!req.remoteUser) {
@@ -70,7 +75,10 @@ const HostApplicationMutations = {
 
       // No need to check the balance, this is being handled in changeHost, along with most other checks
 
-      return collective.changeHost(host.id, req.remoteUser, args.message);
+      return collective.changeHost(host.id, req.remoteUser, {
+        message: args.message,
+        applicationData: args.applicationData,
+      });
     },
   },
   processHostApplication: {

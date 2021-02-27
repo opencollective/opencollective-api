@@ -10,11 +10,12 @@
       "perEmail": 100,
       "perEmailForCollective": 20,
       "perIp": 50,
+      "forCollective": 200,
       "sendGuestConfirmPerMinutePerEmail": 10,
       "sendGuestConfirmPerMinutePerIp": 15,
       "confirmGuestAccountPerMinutePerIp": 15
     },
-    "virtualCards": {
+    "giftCards": {
       "maxPerDay": 1000
     }
   },

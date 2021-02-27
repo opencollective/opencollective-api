@@ -4,7 +4,7 @@ import { isEmpty } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import { types as COLLECTIVE_TYPE } from '../constants/collectives';
-import { BadRequest, InvalidToken, NotFound, Unauthorized } from '../graphql/errors';
+import { BadRequest, InvalidToken, NotFound } from '../graphql/errors';
 import models, { sequelize } from '../models';
 
 export const DEFAULT_GUEST_NAME = 'Guest';
@@ -72,15 +72,11 @@ export const getOrCreateGuestProfile = async ({
         },
         { transaction },
       );
-    } else if (user.confirmedAt) {
-      // We only allow to re-use the same User without token if it's not verified.
-      throw new Unauthorized(
-        'An account already exists for this email, please sign in.',
-        'ACCOUNT_EMAIL_ALREADY_EXISTS',
-      );
     } else if (user.CollectiveId) {
       collective = await models.Collective.findByPk(user.CollectiveId, { transaction });
-      collective = await updateCollective(collective, { name, location }, transaction);
+      if (!user.confirmedAt) {
+        collective = await updateCollective(collective, { name, location }, transaction);
+      }
     }
 
     // Create the public guest profile

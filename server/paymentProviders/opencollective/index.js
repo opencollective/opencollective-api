@@ -1,17 +1,17 @@
 import collective from './collective';
+import giftcard from './giftcard';
 import host from './host';
 import manual from './manual';
 import prepaid from './prepaid';
 import test from './test';
-import virtualcard from './virtualcard';
 
 /** Process orders from Open Collective payment method types */
 async function processOrder(order) {
   switch (order.paymentMethod.type) {
     case 'prepaid':
       return prepaid.processOrder(order);
-    case 'virtualcard':
-      return virtualcard.processOrder(order);
+    case 'giftcard':
+      return giftcard.processOrder(order);
     case 'manual':
       return manual.processOrder(order);
     case 'host':
@@ -35,7 +35,7 @@ export default {
     manual,
     prepaid,
     test,
-    virtualcard,
+    giftcard,
   },
   processOrder,
 };

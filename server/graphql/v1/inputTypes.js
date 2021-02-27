@@ -48,7 +48,7 @@ export const PaymentMethodInputType = new GraphQLInputObjectType({
     service: { type: GraphQLString },
     type: {
       type: GraphQLString,
-      description: 'creditcard, virtualcard, prepaid, manual...',
+      description: 'creditcard, giftcard, prepaid, manual...',
     },
     customerId: { type: GraphQLString },
     data: { type: GraphQLJSON },
@@ -57,14 +57,6 @@ export const PaymentMethodInputType = new GraphQLInputObjectType({
     monthlyLimitPerMember: { type: GraphQLInt },
     currency: { type: GraphQLString },
     save: { type: GraphQLBoolean },
-  }),
-});
-
-export const PaymentMethodDataVirtualCardInputType = new GraphQLInputObjectType({
-  name: 'PaymentMethodDataVirtualCardInputType',
-  description: 'Input for virtual card (meta)data',
-  fields: () => ({
-    email: { type: GraphQLString, description: 'The email virtual card is generated for' },
   }),
 });
 

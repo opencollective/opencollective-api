@@ -131,6 +131,13 @@ export async function getOrg(name, accessToken) {
   return octokit.orgs.get({ org: name }).then(getData);
 }
 
+export async function getUser(name, accessToken) {
+  const octokit = getOctokit(accessToken);
+  // https://octokit.github.io/rest.js/v18#users-get-by-username
+  // https://docs.github.com/en/rest/reference/users#get-a-user
+  return octokit.users.getByUsername({ username: name }).then(getData);
+}
+
 export async function getOrgMemberships(accessToken) {
   const octokit = getOctokit(accessToken);
   // https://octokit.github.io/rest.js/v18#orgs-list-memberships-for-authenticated-user

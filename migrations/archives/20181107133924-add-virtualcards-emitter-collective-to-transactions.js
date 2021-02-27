@@ -17,7 +17,7 @@ module.exports = {
         onDelete: 'SET NULL',
         onUpdate: 'CASCADE',
         allowNull: true,
-        description: 'References the collective that created the virtual card used for this order',
+        description: 'References the collective that created the gift card used for this order',
       })
       .then(() => {
         return queryInterface.sequelize.query(`
@@ -30,7 +30,7 @@ module.exports = {
         `);
       })
       .then(async () => {
-        // Fetch all transactions made using a virtual card
+        // Fetch all transactions made using a gift card
         const transactions = await models.Transaction.findAll({
           attributes: ['CollectiveId', 'FromCollectiveId', 'UsingVirtualCardFromCollectiveId', 'CreatedByUserId'],
           include: [
@@ -53,8 +53,8 @@ module.exports = {
         // Note that we won't be able to rollback these changes as we may
         // delete legit member organizations by doing so.
         transactions.map(t => {
-          // If using a virtual card, we should also credit the organization that
-          // emitted the virtual card as a backer
+          // If using a gift card, we should also credit the organization that
+          // emitted the gift card as a backer
           t.collective.findOrAddUserWithRole(
             {
               id: t.CreatedByUserId,

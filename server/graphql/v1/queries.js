@@ -1,10 +1,11 @@
 import Promise from 'bluebird';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
-import { get, pick, uniq } from 'lodash';
+import { get, uniq } from 'lodash';
 import { isEmail } from 'validator';
 
 import { roles } from '../../constants';
 import { types as CollectiveTypes } from '../../constants/collectives';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import { fetchCollectiveId } from '../../lib/cache';
 import { getConsolidatedInvoicesData } from '../../lib/pdf';
 import rawQueries from '../../lib/queries';
@@ -22,12 +23,7 @@ import {
   TypeOfCollectiveType,
 } from './CollectiveInterface';
 import { InvoiceInputType } from './inputTypes';
-import {
-  PaginatedTransactionsType,
-  TransactionInterfaceType,
-  TransactionOrder,
-  TransactionType,
-} from './TransactionInterface';
+import { TransactionInterfaceType } from './TransactionInterface';
 import {
   InvoiceType,
   MemberInvitationType,
@@ -87,6 +83,7 @@ const queries = {
 
   AuthenticatedUser: {
     type: CollectiveInterfaceType,
+    deprecationReason: '2021-01-29: Not used anymore',
     resolve(_, args, req) {
       return models.Collective.findByPk(req.remoteUser.CollectiveId);
     },
@@ -115,80 +112,6 @@ const queries = {
       const invoices = await getConsolidatedInvoicesData(fromCollective);
 
       return invoices;
-    },
-  },
-
-  Invoice: {
-    type: InvoiceType,
-    deprecationReason: '2020-03-09: This field was deprecated after introducing InvoiceByDateRange',
-    args: {
-      invoiceSlug: {
-        type: new GraphQLNonNull(GraphQLString),
-        description: 'Slug of the invoice. Format: :year:2digitMonth.:hostSlug.:fromCollectiveSlug',
-      },
-    },
-    async resolve(_, args, req) {
-      const year = args.invoiceSlug.substr(0, 4);
-      const month = args.invoiceSlug.substr(4, 2);
-      const hostSlug = args.invoiceSlug.substring(7, args.invoiceSlug.lastIndexOf('.'));
-      const fromCollectiveSlug = args.invoiceSlug.substr(args.invoiceSlug.lastIndexOf('.') + 1);
-      if (!hostSlug || year < 2015 || month < 1 || month > 12) {
-        throw new ValidationFailed(
-          'Invalid invoiceSlug format. Should be :year:2digitMonth.:hostSlug.:fromCollectiveSlug',
-        );
-      }
-      const fromCollective = await models.Collective.findOne({
-        where: { slug: fromCollectiveSlug },
-      });
-      if (!fromCollective) {
-        throw new NotFound(`User or organization not found for slug ${fromCollectiveSlug}`);
-      }
-      const host = await models.Collective.findBySlug(hostSlug);
-      if (!host) {
-        throw new NotFound('Host not found');
-      }
-      if (!req.remoteUser || !req.remoteUser.isAdminOfCollective(fromCollective)) {
-        throw new Unauthorized("You don't have permission to access invoices for this user");
-      }
-
-      const startsAt = new Date(`${year}-${month}-01`);
-      const endsAt = new Date(startsAt);
-      endsAt.setMonth(startsAt.getMonth() + 1);
-
-      const where = {
-        [Op.or]: [
-          { FromCollectiveId: fromCollective.id, UsingVirtualCardFromCollectiveId: null },
-          { UsingVirtualCardFromCollectiveId: fromCollective.id },
-        ],
-        HostCollectiveId: host.id,
-        createdAt: { [Op.gte]: startsAt, [Op.lt]: endsAt },
-        type: 'CREDIT',
-      };
-
-      const order = [['createdAt', 'DESC']];
-      const transactions = await models.Transaction.findAll({ where, order });
-      if (transactions.length === 0) {
-        throw new NotFound('No transactions found');
-      }
-
-      const invoice = {
-        title: get(host, 'settings.invoiceTitle'),
-        extraInfo: get(host, 'settings.invoice.extraInfo'),
-        HostCollectiveId: host.id,
-        slug: args.invoiceSlug,
-        year,
-        month,
-      };
-      let totalAmount = 0;
-      transactions.map(transaction => {
-        totalAmount += transaction.amountInHostCurrency;
-        invoice.currency = transaction.hostCurrency;
-      });
-      invoice.FromCollectiveId = fromCollective.id;
-      invoice.totalAmount = totalAmount;
-      invoice.currency = invoice.currency || host.currency;
-      invoice.transactions = transactions;
-      return invoice;
     },
   },
 
@@ -237,8 +160,8 @@ const queries = {
 
       const where = {
         [Op.or]: [
-          { FromCollectiveId: fromCollective.id, UsingVirtualCardFromCollectiveId: null },
-          { UsingVirtualCardFromCollectiveId: fromCollective.id },
+          { FromCollectiveId: fromCollective.id, UsingGiftCardFromCollectiveId: null },
+          { UsingGiftCardFromCollectiveId: fromCollective.id },
         ],
         HostCollectiveId: host.id,
         createdAt: { [Op.gte]: dateFrom, [Op.lte]: dateTo },
@@ -292,7 +215,7 @@ const queries = {
         throw new NotFound(`Transaction ${args.transactionUuid} doesn't exists`);
       }
 
-      // If using a virtualcard, then billed collective will be the emitter
+      // If using a gift card, then billed collective will be the emitter
       const fromCollectiveId = transaction.paymentMethodProviderCollectiveId();
 
       // Load transaction host
@@ -329,8 +252,8 @@ const queries = {
     type: new GraphQLList(TransactionInterfaceType),
     description: `
     Given a collective, returns all its transactions:
-    - Debit transactions made by collective without using a virtual card
-    - Debit transactions made using a virtual card from collective
+    - Debit transactions made by collective without using a gift card
+    - Debit transactions made using a gift card from collective
     - Credit transactions made to collective
     `,
     args: {
@@ -341,8 +264,6 @@ const queries = {
       offset: { type: GraphQLInt },
       dateFrom: { type: GraphQLString },
       dateTo: { type: GraphQLString },
-      /** @deprecated since 2018-11-29: Virtual cards now included by default when necessary */
-      includeVirtualCards: { type: GraphQLBoolean },
       includeExpenseTransactions: {
         type: GraphQLBoolean,
         default: true,
@@ -378,59 +299,9 @@ const queries = {
     },
   },
 
-  /*
-   * Returns all transactions
-   */
-  transactions: {
-    type: PaginatedTransactionsType,
-    args: {
-      limit: {
-        defaultValue: 100,
-        description: 'Defaults to 100',
-        type: GraphQLInt,
-      },
-      offset: {
-        defaultValue: 0,
-        type: GraphQLInt,
-      },
-      orderBy: {
-        defaultValue: TransactionOrder.defaultValue,
-        type: TransactionOrder,
-      },
-      type: {
-        description: 'CREDIT or DEBIT are accepted values',
-        type: TransactionType,
-      },
-    },
-    async resolve(_, args) {
-      const { limit, offset, orderBy, type } = args;
-      const query = {
-        limit,
-        offset,
-        order: [Object.values(orderBy)],
-        where: {},
-      };
-
-      if (type) {
-        query.where = { type };
-      }
-
-      const [total, transactions] = await Promise.all([
-        models.Transaction.count({ where: query.where }),
-        models.Transaction.findAll(query),
-      ]);
-
-      return {
-        limit,
-        offset,
-        total,
-        transactions,
-      };
-    },
-  },
-
   Update: {
     type: UpdateType,
+    deprecationReason: '2021-01-29: Not used anymore',
     args: {
       collectiveSlug: { type: GraphQLString },
       updateSlug: { type: GraphQLString },
@@ -458,37 +329,6 @@ const queries = {
       } else {
         return new Error('Please provide an id.');
       }
-    },
-  },
-
-  /*
-   * Given an ExpenseId or an UpdateId, returns all comments
-   */
-  allComments: {
-    type: new GraphQLList(UpdateType),
-    deprecationReason: '2020-11-17: [LegacyExpenseFlow] Please use API V2',
-    args: {
-      ExpenseId: { type: GraphQLInt },
-      UpdateId: { type: GraphQLInt },
-      limit: { type: GraphQLInt },
-      offset: { type: GraphQLInt },
-    },
-    resolve(_, args) {
-      const query = { where: {} };
-      if (args.ExpenseId) {
-        query.where.ExpenseId = args.ExpenseId;
-      }
-      if (args.UpdateId) {
-        query.where.UpdateId = args.UpdateId;
-      }
-      if (args.limit) {
-        query.limit = args.limit;
-      }
-      if (args.offset) {
-        query.offset = args.offset;
-      }
-      query.order = [['createdAt', 'ASC']];
-      return models.Comment.findAll(query);
     },
   },
 
@@ -548,6 +388,7 @@ const queries = {
    */
   allOrders: {
     type: new GraphQLList(OrderType),
+    deprecationReason: '2021-01-29: Not used anymore',
     args: {
       CollectiveId: { type: GraphQLInt },
       collectiveSlug: { type: GraphQLString },
@@ -898,42 +739,6 @@ const queries = {
     resolve: rawQueries.getUniqueCollectiveTags,
   },
 
-  /**
-   * Find a specific member. If multiple members match the given criteria, only
-   * one will be returned.
-   */
-  member: {
-    type: MemberType,
-    deprecationReason: '2020-09-08: This endpoint does not seems to be used anymore',
-    args: {
-      id: { type: GraphQLInt },
-      CollectiveId: { type: GraphQLInt },
-      MemberCollectiveId: { type: GraphQLInt },
-      TierId: { type: GraphQLInt },
-    },
-    async resolve(_, args, req) {
-      if (!args.id && !(args.MemberCollectiveId && (args.CollectiveId || args.TierId))) {
-        throw new ValidationFailed(
-          'Must provide either an id, a pair of MemberCollectiveId/CollectiveId or a pair of MemberCollectiveId/TierId',
-        );
-      }
-
-      const member = await models.Member.findOne({
-        where: pick(args, ['id', 'CollectiveId', 'MemberCollectiveId', 'tierId']),
-        include: [
-          { model: models.Collective, as: 'collective' },
-          { model: models.Collective, as: 'memberCollective' },
-        ],
-      });
-
-      if (member.collective?.isIncognito && !req.remoteUser?.isAdmin(member.memberCollective?.id)) {
-        return null;
-      } else {
-        return member;
-      }
-    },
-  },
-
   /*
    * Given a collective slug, returns all members/memberships
    */
@@ -1216,8 +1021,8 @@ const queries = {
             sequelize.where(sequelize.cast(sequelize.col('uuid'), 'text'), {
               [Op.like]: `${args.code}%`,
             }),
-            { service: 'opencollective' },
-            { type: 'virtualcard' },
+            { service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE },
+            { type: PAYMENT_METHOD_TYPE.GIFT_CARD },
           ),
         });
       } else {
@@ -1319,6 +1124,7 @@ const queries = {
    */
   allTransactionsFromPaymentMethod: {
     type: new GraphQLList(TransactionInterfaceType),
+    deprecationReason: '2021-01-29: Not used anymore',
     args: {
       uuid: { type: new GraphQLNonNull(GraphQLString) },
       type: { type: GraphQLString },
@@ -1366,6 +1172,7 @@ const queries = {
 
   Order: {
     type: OrderType,
+    deprecationReason: '2021-01-29: Not used anymore',
     args: {
       id: {
         type: new GraphQLNonNull(GraphQLInt),

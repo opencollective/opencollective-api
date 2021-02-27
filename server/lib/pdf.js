@@ -40,8 +40,8 @@ export const getConsolidatedInvoicesData = async fromCollective => {
     where: {
       type: 'CREDIT',
       [Op.or]: [
-        { FromCollectiveId: fromCollective.id, UsingVirtualCardFromCollectiveId: null },
-        { UsingVirtualCardFromCollectiveId: fromCollective.id },
+        { FromCollectiveId: fromCollective.id, UsingGiftCardFromCollectiveId: null },
+        { UsingGiftCardFromCollectiveId: fromCollective.id },
       ],
     },
   });
