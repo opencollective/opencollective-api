@@ -146,34 +146,28 @@ function defineModel() {
 
   Notification.getSubscribersUsers = async (collectiveSlug, mailinglist) => {
     debug('getSubscribersUsers', collectiveSlug, mailinglist);
-    const getUsers = memberships => {
-      if (!memberships || memberships.length === 0) {
-        return [];
-      }
-      return models.User.findAll({
-        where: {
-          CollectiveId: { [Op.in]: memberships.map(m => m.MemberCollectiveId) },
-        },
-      });
-    };
-
-    return await Notification.getSubscribers(collectiveSlug, mailinglist).then(getUsers);
+    const memberships = await Notification.getSubscribers(collectiveSlug, mailinglist);
+    if (!memberships || memberships.length === 0) {
+      return [];
+    }
+    return models.User.findAll({
+      where: {
+        CollectiveId: { [Op.in]: memberships.map(m => m.MemberCollectiveId) },
+      },
+    });
   };
 
   Notification.getSubscribersCollectives = async (collectiveSlug, mailinglist) => {
     debug('getSubscribersCollectives', collectiveSlug, mailinglist);
-    const getCollectives = memberships => {
-      if (!memberships || memberships.length === 0) {
-        return [];
-      }
-      return models.Collective.findAll({
-        where: {
-          id: { [Op.in]: memberships.map(m => m.MemberCollectiveId) },
-        },
-      });
-    };
-
-    return await Notification.getSubscribers(collectiveSlug, mailinglist).then(getCollectives);
+    const memberships = await Notification.getSubscribers(collectiveSlug, mailinglist);
+    if (!memberships || memberships.length === 0) {
+      return [];
+    }
+    return models.Collective.findAll({
+      where: {
+        id: { [Op.in]: memberships.map(m => m.MemberCollectiveId) },
+      },
+    });
   };
 
   /**
