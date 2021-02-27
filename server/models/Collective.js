@@ -1453,59 +1453,60 @@ function defineModel() {
    *  { name: 'backer', users: [ {UserObject}, {UserObject} ], range: [], ... }
    * ]
    */
-  Collective.prototype.getTiersWithUsers = function (
+  Collective.prototype.getTiersWithUsers = async function (
     options = {
       active: false,
       attributes: ['id', 'username', 'image', 'firstDonation', 'lastDonation', 'totalDonations', 'website'],
     },
   ) {
     const tiersById = {};
+
     // Get the list of tiers for the collective (including deleted ones)
-    return (
-      models.Tier.findAll({ where: { CollectiveId: this.id }, paranoid: false })
-        .then(tiers =>
-          tiers.map(t => {
-            tiersById[t.id] = t;
-          }),
-        )
-        .then(() => queries.getMembersWithTotalDonations({ CollectiveId: this.id, role: 'BACKER' }, options))
-        // Map the users to their respective tier
-        .map(backerCollective => {
-          const include = options.active ? [{ model: models.Subscription, attributes: ['isActive'] }] : [];
-          return models.Order.findOne({
-            attributes: ['TierId'],
-            where: {
-              FromCollectiveId: backerCollective.id,
-              CollectiveId: this.id,
-              TierId: { [Op.ne]: null },
-            },
-            include,
-          }).then(order => {
-            if (!order) {
-              debug('Collective.getTiersWithUsers: no order for a tier for ', {
-                FromCollectiveId: backerCollective.id,
-                CollectiveId: this.id,
-              });
-              return null;
-            }
-            const TierId = order.TierId;
-            tiersById[TierId] = tiersById[TierId] || order.Tier;
-            if (!tiersById[TierId]) {
-              logger.error(">>> Couldn't find a tier with id", order.TierId, 'collective: ', this.slug);
-              tiersById[TierId] = { dataValues: { users: [] } };
-            }
-            tiersById[TierId].dataValues.users = tiersById[TierId].dataValues.users || [];
-            if (options.active) {
-              backerCollective.isActive = order.Subscription.isActive;
-            }
-            debug('adding to tier', TierId, 'backer: ', backerCollective.dataValues.slug);
-            tiersById[TierId].dataValues.users.push(backerCollective.dataValues);
-          });
-        })
-        .then(() => {
-          return Object.values(tiersById);
-        })
+    const tiers = await models.Tier.findAll({ where: { CollectiveId: this.id }, paranoid: false });
+    for (const tier of tiers) {
+      tiersById[tier.id] = tier;
+    }
+
+    const backerCollectives = await queries.getMembersWithTotalDonations(
+      { CollectiveId: this.id, role: 'BACKER' },
+      options,
     );
+
+    // Map the users to their respective tier
+    await Promise.map(backerCollectives, backerCollective => {
+      const include = options.active ? [{ model: models.Subscription, attributes: ['isActive'] }] : [];
+      return models.Order.findOne({
+        attributes: ['TierId'],
+        where: {
+          FromCollectiveId: backerCollective.id,
+          CollectiveId: this.id,
+          TierId: { [Op.ne]: null },
+        },
+        include,
+      }).then(order => {
+        if (!order) {
+          debug('Collective.getTiersWithUsers: no order for a tier for ', {
+            FromCollectiveId: backerCollective.id,
+            CollectiveId: this.id,
+          });
+          return null;
+        }
+        const TierId = order.TierId;
+        tiersById[TierId] = tiersById[TierId] || order.Tier;
+        if (!tiersById[TierId]) {
+          logger.error(">>> Couldn't find a tier with id", order.TierId, 'collective: ', this.slug);
+          tiersById[TierId] = { dataValues: { users: [] } };
+        }
+        tiersById[TierId].dataValues.users = tiersById[TierId].dataValues.users || [];
+        if (options.active) {
+          backerCollective.isActive = order.Subscription.isActive;
+        }
+        debug('adding to tier', TierId, 'backer: ', backerCollective.dataValues.slug);
+        tiersById[TierId].dataValues.users.push(backerCollective.dataValues);
+      });
+    });
+
+    return Object.values(tiersById);
   };
 
   /**

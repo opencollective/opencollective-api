@@ -800,12 +800,14 @@ const queries = {
             where: { id: { [Op.in]: TierIds } },
           });
           tiers.map(t => (tiersById[t.id] = t.dataValues));
-          results = await Promise.filter(results, r =>
-            models.Member.isActive({
-              tier: tiersById[r.dataValues.TierId],
-              lastDonation: r.dataValues.lastDonation,
-            }),
-          ).slice(0, args.limit);
+          results = results
+            .filter(r =>
+              models.Member.isActive({
+                tier: tiersById[r.dataValues.TierId],
+                lastDonation: r.dataValues.lastDonation,
+              }),
+            )
+            .slice(0, args.limit);
         }
 
         return Promise.map(results, collective => {
