@@ -2,7 +2,7 @@ import sequelize, { DataTypes } from '../lib/sequelize';
 
 function defineModel() {
   const ConversationFollower = sequelize.define(
-    'ConversationFollowers',
+    'ConversationFollower',
     {
       id: {
         type: DataTypes.INTEGER,
