@@ -90,11 +90,10 @@ describe('server/routes/email', () => {
 
   before('create collective and members', async () => {
     collective = await Collective.create(collectiveData);
-    const usersWithCollectives = await Promise.map(usersData, u => models.User.createUserWithCollective(u));
 
-    users = await Promise.map(usersWithCollectives, (user, index) =>
-      collective.addUserWithRole(user, usersData[index].role),
-    );
+    users = await Promise.map(usersData, u => models.User.createUserWithCollective(u));
+
+    await Promise.map(users, (user, index) => collective.addUserWithRole(user, usersData[index].role));
 
     await Promise.map(users, (user, index) => {
       const lists = usersData[index].lists || [];
