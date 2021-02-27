@@ -1,4 +1,4 @@
-# Open Collective API
+ Open Collective API
 
 [![Dependency Status](https://david-dm.org/opencollective/opencollective-api.svg)](https://david-dm.org/opencollective/opencollective-api)
 
