@@ -1,4 +1,4 @@
-# Developing with Emails
+Developing with Emails
 
 ## Receiving Emails
 
