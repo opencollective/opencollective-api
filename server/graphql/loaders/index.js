@@ -441,19 +441,20 @@ export const loaders = req => {
 
   /** *** PaymentMethod *****/
   // PaymentMethod - findByCollectiveId
-  context.loaders.PaymentMethod.findByCollectiveId = new DataLoader(CollectiveIds =>
-    models.PaymentMethod.findAll({
+  context.loaders.PaymentMethod.findByCollectiveId = new DataLoader(CollectiveIds => {
+    const oneDayInMilliseonds = 86400000;
+    return models.PaymentMethod.findAll({
       where: {
         CollectiveId: { [Op.in]: CollectiveIds },
-        name: { [Op.ne]: null },
+        name: { [Op.ne]: null  ashinzekene/feat/payment-max-expiry
         archivedAt: null,
         expiryDate: {
           [Op.or]: [null, { [Op.gte]: moment().subtract(6, 'month') }],
         },
       },
       order: [['id', 'DESC']],
-    }).then(results => sortResults(CollectiveIds, results, 'CollectiveId', [])),
-  );
+    }).then(results => sortResults(CollectiveIds, results, 'CollectiveId', []));
+  });
 
   /** *** Order *****/
   // Order - findByMembership
