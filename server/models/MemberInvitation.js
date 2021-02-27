@@ -86,7 +86,6 @@ function defineModel() {
       },
       deletedAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
       },
       since: {
         type: DataTypes.DATE,
