@@ -4,7 +4,7 @@ import Temporal from 'sequelize-temporal';
 
 import activities from '../constants/activities';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
-import sequelize, { DataTypes, Sequelize } from '../lib/sequelize';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
 // Options for sanitizing comment's body
 const sanitizeOptions = buildSanitizerOptions({
@@ -106,12 +106,12 @@ function defineModel() {
 
       createdAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
 
       updatedAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
 
       deletedAt: {

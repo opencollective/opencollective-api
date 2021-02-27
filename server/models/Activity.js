@@ -1,5 +1,5 @@
 import notify from '../lib/notifications';
-import sequelize, { DataTypes, Sequelize } from '../lib/sequelize';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
 function defineModel() {
   const Activity = sequelize.define(
@@ -43,7 +43,7 @@ function defineModel() {
 
       createdAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
     },
     {
@@ -51,7 +51,7 @@ function defineModel() {
 
       hooks: {
         afterCreate(activity) {
-          notify(Sequelize, activity); // intentionally no return statement, needs to be async
+          notify(activity); // intentionally no return statement, needs to be async
           return Promise.resolve();
         },
       },

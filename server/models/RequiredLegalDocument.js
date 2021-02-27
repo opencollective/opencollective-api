@@ -1,4 +1,4 @@
-import sequelize, { DataTypes, Sequelize } from '../lib/sequelize';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
 function defineModel() {
   const US_TAX_FORM = 'US_TAX_FORM';
@@ -17,11 +17,11 @@ function defineModel() {
     },
     createdAt: {
       type: DataTypes.DATE,
-      defaultValue: Sequelize.NOW,
+      defaultValue: DataTypes.NOW,
     },
     updatedAt: {
       type: DataTypes.DATE,
-      defaultValue: Sequelize.NOW,
+      defaultValue: DataTypes.NOW,
     },
     deletedAt: {
       type: DataTypes.DATE,

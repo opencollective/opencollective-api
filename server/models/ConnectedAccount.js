@@ -3,7 +3,7 @@ import { isNil } from 'lodash';
 
 import { supportedServices } from '../constants/connected_account';
 import { crypto } from '../lib/encryption';
-import sequelize, { DataTypes, Sequelize } from '../lib/sequelize';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
 function defineModel() {
   const ConnectedAccount = sequelize.define(
@@ -51,12 +51,12 @@ function defineModel() {
 
       createdAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
 
       updatedAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
 
       hash: {

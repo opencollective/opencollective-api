@@ -9,7 +9,7 @@ import { TransactionTypes } from '../constants/transactions';
 import { getFxRate } from '../lib/currency';
 import { sumTransactions } from '../lib/hostlib';
 import * as libpayments from '../lib/payments';
-import sequelize, { DataTypes, Op, Sequelize } from '../lib/sequelize';
+import sequelize, { DataTypes, Op } from '../lib/sequelize';
 import { isTestToken } from '../lib/stripe';
 import { cleanTags, formatArrayToString, formatCurrency } from '../lib/utils';
 
@@ -101,12 +101,12 @@ function defineModel() {
 
       createdAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
 
       updatedAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
 
       confirmedAt: {

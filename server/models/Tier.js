@@ -6,7 +6,7 @@ import Temporal from 'sequelize-temporal';
 
 import { maxInteger } from '../constants/math';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
-import sequelize, { DataTypes, Op, Sequelize } from '../lib/sequelize';
+import sequelize, { DataTypes, Op } from '../lib/sequelize';
 import { capitalize, days, formatCurrency } from '../lib/utils';
 import { isSupportedVideoProvider, supportedVideoProviders } from '../lib/validators';
 
@@ -229,12 +229,12 @@ function defineModel() {
 
       createdAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
 
       updatedAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
 
       deletedAt: {

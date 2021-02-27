@@ -4,7 +4,7 @@ import { defaults, isNil } from 'lodash';
 
 import channels from '../constants/channels';
 import { ValidationFailed } from '../graphql/errors';
-import sequelize, { DataTypes, Op, Sequelize } from '../lib/sequelize';
+import sequelize, { DataTypes, Op } from '../lib/sequelize';
 
 const debug = debugLib('models:Notification');
 
@@ -44,7 +44,7 @@ function defineModel() {
 
       createdAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
 
       CollectiveId: {

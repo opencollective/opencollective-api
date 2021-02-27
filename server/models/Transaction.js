@@ -12,7 +12,7 @@ import { getFxRate } from '../lib/currency';
 import { toNegative } from '../lib/math';
 import { calcFee } from '../lib/payments';
 import { stripHTML } from '../lib/sanitize-html';
-import sequelize, { DataTypes, Sequelize } from '../lib/sequelize';
+import sequelize, { DataTypes } from '../lib/sequelize';
 import { exportToCSV } from '../lib/utils';
 
 import CustomDataTypes from './DataTypes';
@@ -176,7 +176,12 @@ function defineModel() {
 
       createdAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
+      },
+
+      updatedAt: {
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW,
       },
 
       deletedAt: {

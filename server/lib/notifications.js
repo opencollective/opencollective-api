@@ -18,7 +18,7 @@ import { enrichActivity, sanitizeActivity } from './webhooks';
 
 const debug = debugLib('notifications');
 
-export default async (Sequelize, activity) => {
+export default async activity => {
   notifyByEmail(activity).catch(console.log);
 
   // process notification entries for slack, twitter, gitter

@@ -6,7 +6,7 @@ import Temporal from 'sequelize-temporal';
 import status from '../constants/order_status';
 import { TransactionTypes } from '../constants/transactions';
 import * as libPayments from '../lib/payments';
-import sequelize, { DataTypes, Sequelize } from '../lib/sequelize';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
 import CustomDataTypes from './DataTypes';
 
@@ -144,12 +144,12 @@ function defineModel() {
 
       createdAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
 
       updatedAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
 
       deletedAt: {

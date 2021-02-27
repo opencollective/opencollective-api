@@ -9,7 +9,7 @@ import * as errors from '../graphql/errors';
 import { mustHaveRole } from '../lib/auth';
 import logger from '../lib/logger';
 import { buildSanitizerOptions, generateSummaryForHTML, sanitizeHTML } from '../lib/sanitize-html';
-import sequelize, { DataTypes, Op, QueryTypes, Sequelize } from '../lib/sequelize';
+import sequelize, { DataTypes, Op, QueryTypes } from '../lib/sequelize';
 
 const sanitizerOptions = buildSanitizerOptions({
   titles: true,
@@ -139,12 +139,12 @@ function defineModel() {
 
       createdAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
 
       updatedAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
 
       deletedAt: {

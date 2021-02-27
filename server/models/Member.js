@@ -1,6 +1,6 @@
 import roles from '../constants/roles';
 import { invalidateContributorsCache } from '../lib/contributors';
-import sequelize, { DataTypes, Sequelize } from '../lib/sequelize';
+import sequelize, { DataTypes } from '../lib/sequelize';
 import { days } from '../lib/utils';
 
 function defineModel() {
@@ -83,11 +83,11 @@ function defineModel() {
       // Dates.
       createdAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
       updatedAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
       since: {
         type: DataTypes.DATE,

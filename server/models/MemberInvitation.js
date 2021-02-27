@@ -4,7 +4,7 @@ import { pick } from 'lodash';
 import { types } from '../constants/collectives';
 import roles, { MemberRoleLabels } from '../constants/roles';
 import emailLib from '../lib/email';
-import sequelize, { DataTypes, Sequelize } from '../lib/sequelize';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
 function defineModel() {
   const { models } = sequelize;
@@ -78,11 +78,11 @@ function defineModel() {
       // Dates.
       createdAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
       updatedAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
       deletedAt: {
         type: DataTypes.DATE,
