@@ -1,4 +1,4 @@
-# Deployment
+ Deployment
 
 To deploy to staging or production, you need to be a core member of the Open Collective team.
 
