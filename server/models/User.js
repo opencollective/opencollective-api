@@ -77,6 +77,7 @@ function defineModel() {
 
       confirmedAt: {
         type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW,
         allowNull: true,
       },
 
