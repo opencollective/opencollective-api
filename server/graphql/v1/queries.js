@@ -427,12 +427,13 @@ const queries = {
           },
         });
         const membersCollectiveIds = members.map(member => member.CollectiveId);
-        return [CollectiveId, ...membersCollectiveIds];
+        collectiveIds = [CollectiveId, ...membersCollectiveIds];
       } else {
         collectiveIds = [CollectiveId];
       }
 
       query.where.CollectiveId = { [Op.in]: collectiveIds };
+
       return models.Order.findAll(query);
     },
   },
