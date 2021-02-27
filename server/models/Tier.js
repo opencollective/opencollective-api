@@ -221,12 +221,10 @@ function defineModel() {
 
       startsAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
       },
 
       endsAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
       },
 
       createdAt: {
