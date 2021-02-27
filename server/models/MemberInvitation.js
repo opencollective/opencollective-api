@@ -201,7 +201,7 @@ function defineModel() {
       include: [{ model: models.Collective, as: 'collective' }],
     });
 
-    const invitation = await await MemberInvitation.create({
+    const invitation = await MemberInvitation.create({
       ...memberParams,
       CollectiveId: collective.id,
     });
