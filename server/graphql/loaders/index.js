@@ -441,58 +441,14 @@ export const loaders = req => {
 
   /** *** PaymentMethod *****/
   // PaymentMethod - findByCollectiveId
-  context.loaders.PaymentMethod.findByCollectiveId = new DataLoader(CollectiveIds =>
-    models.PaymentMethod.findAll({
+  context.loaders.PaymentMethod.findByCollectiveId = new DataLoader(CollectiveIds => {
+    const oneDayInMilliseonds = 86400000;
+    return models.PaymentMethod.findAll({
       where: {
         CollectiveId: { [Op.in]: CollectiveIds },
         name: { [Op.ne]: null },
-        archivedAt: null,
-        expiryDate: {
-          [Op.or]: [null, { [Op.gte]: moment().subtract(6, 'month') }],
-        },
-      },
-      order: [['id', 'DESC']],
-    }).then(results => sortResults(CollectiveIds, results, 'CollectiveId', [])),
-  );
-
-  /** *** Order *****/
-  // Order - findByMembership
-  context.loaders.Order.findByMembership = new DataLoader(combinedKeys =>
-    models.Order.findAll({
-      where: {
-        CollectiveId: { [Op.in]: combinedKeys.map(k => k.split(':')[0]) },
-        FromCollectiveId: {
-          [Op.in]: combinedKeys.map(k => k.split(':')[1]),
-        },
-      },
-      order: [['createdAt', 'DESC']],
-    }).then(results => sortResults(combinedKeys, results, 'CollectiveId:FromCollectiveId', [])),
-  );
-
-  // Order - findPledgedOrdersForCollective
-  context.loaders.Order.findPledgedOrdersForCollective = new DataLoader(CollectiveIds =>
-    models.Order.findAll({
-      where: {
-        CollectiveId: { [Op.in]: CollectiveIds },
-        status: 'PLEDGED',
-      },
-      order: [['createdAt', 'DESC']],
-    }).then(results => sortResults(CollectiveIds, results, 'CollectiveId', [])),
-  );
-
-  // Order - stats
-  context.loaders.Order.stats = {
-    transactions: new DataLoader(ids =>
-      models.Transaction.findAll({
-        attributes: ['OrderId', [sequelize.fn('COALESCE', sequelize.fn('COUNT', sequelize.col('id')), 0), 'count']],
-        where: { OrderId: { [Op.in]: ids } },
-        group: ['OrderId'],
-      })
-        .then(results => sortResults(ids, results, 'OrderId'))
-        .map(result => get(result, 'dataValues.count') || 0),
-    ),
-    totalTransactions: new DataLoader(keys =>
-      models.Transaction.findAll({
+< enhancement/get-rid-of-force-true
+ashinzekene/feat/payment-max-expirychivedAt: null
         attributes: ['OrderId', [sequelize.fn('SUM', sequelize.col('amount')), 'totalAmount']],
         where: { OrderId: { [Op.in]: keys } },
         group: ['OrderId'],
