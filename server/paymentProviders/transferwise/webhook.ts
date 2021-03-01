@@ -31,7 +31,7 @@ async function handleTransferStateChange(event: TransferStateChangeEvent): Promi
     await expense.setPaid(expense.lastEditedById);
     const user = await models.User.findByPk(expense.lastEditedById);
     await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID, user);
-  } else if (event.data.current_state === 'funds_refunded') {
+  } else if (event.data.current_state === 'funds_refunded' || event.data.current_state === 'cancelled') {
     logger.info(`Transfer failed, setting status to Error and deleting existing transactions.`, event);
     await models.Transaction.destroy({ where: { ExpenseId: expense.id } });
     await expense.setError(expense.lastEditedById);
