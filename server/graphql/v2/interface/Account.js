@@ -32,6 +32,7 @@ import { PaymentMethod } from '../object/PaymentMethod';
 import PayoutMethod from '../object/PayoutMethod';
 import { TagStats } from '../object/TagStats';
 import { TransferWise } from '../object/TransferWise';
+import EmailAddress from '../scalar/EmailAddress';
 
 import { CollectionArgs } from './Collection';
 
@@ -132,6 +133,10 @@ const accountFieldsDefinition = () => ({
       limit: { type: GraphQLInt, defaultValue: 100 },
       offset: { type: GraphQLInt, defaultValue: 0 },
       role: { type: new GraphQLList(MemberRole) },
+      email: {
+        type: EmailAddress,
+        description: 'Admin only. To filter on the email address of a member, useful to check if a member exists.',
+      },
       accountType: {
         type: new GraphQLList(AccountType),
         description: 'Type of accounts (BOT/COLLECTIVE/EVENT/ORGANIZATION/INDIVIDUAL)',
