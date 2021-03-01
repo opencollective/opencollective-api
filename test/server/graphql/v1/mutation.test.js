@@ -576,7 +576,7 @@ describe('server/graphql/v1/mutation', () => {
           expect(emailSendMessageSpy.firstCall.args[0]).to.equal('user2@opencollective.com');
           expect(emailSendMessageSpy.firstCall.args[1]).to.equal('Your Organization on Open Collective');
           expect(emailSendMessageSpy.secondCall.args[0]).to.equal('user1@opencollective.com');
-          expect(emailSendMessageSpy.secondCall.args[1]).to.equal("Google joined Scouts d'Arlon as backer");
+          expect(emailSendMessageSpy.secondCall.args[1]).to.equal("Google joined Scouts d'Arlon as backer ($20/m)");
           expect(emailSendMessageSpy.secondCall.args[2]).to.contain('Looking forward!'); // publicMessage
           expect(emailSendMessageSpy.secondCall.args[2]).to.contain(
             '@google thanks for your financial contribution to @scouts',

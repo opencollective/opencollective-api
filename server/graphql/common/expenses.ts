@@ -684,21 +684,10 @@ export async function deleteExpense(req, expenseId): Promise<typeof models.Expen
 }
 
 /** Helper that finishes the process of paying an expense */
-async function markExpenseAsPaid(expense, remoteUser): Promise<typeof models.Expense> {
+async function markExpenseAsPaid(expense, remoteUser, isManualPayout = false): Promise<typeof models.Expense> {
   debug('update expense status to PAID', expense.id);
   await expense.setPaid(remoteUser.id);
-
-  // Add user as CONTRIBUTOR
-  const contributor = await expense.getUser();
-  expense.collective.addUserWithRole(contributor, roles.CONTRIBUTOR).catch(e => {
-    if (e.name === 'SequelizeUniqueConstraintError') {
-      console.log('User ', remoteUser.id, 'is already a contributor');
-    } else {
-      console.error(e);
-    }
-  });
-
-  await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID, remoteUser, { isManualPayout: true });
+  await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID, remoteUser, { isManualPayout });
   return expense;
 }
 
@@ -736,7 +725,7 @@ async function payExpenseWithPayPal(remoteUser, expense, host, paymentMethod, to
       fees['hostFeeInHostCurrency'],
       fees['platformFeeInHostCurrency'],
     );
-    expense.setPaid(remoteUser.id);
+    await markExpenseAsPaid(expense, remoteUser);
     await paymentMethod.updateBalance();
   } catch (err) {
     debug('paypal> error', JSON.stringify(err, null, '  '));
@@ -974,7 +963,7 @@ export async function payExpense(req, args): Promise<typeof models.Expense> {
       return error;
     }
 
-    return markExpenseAsPaid(expense, remoteUser);
+    return markExpenseAsPaid(expense, remoteUser, true);
   });
 }
 
