@@ -40,7 +40,7 @@ export const getConsolidatedInvoicesData = async fromCollective => {
     where: {
       CollectiveId: { [Op.not]: fromCollective.id },
       ExpenseId: { [Op.eq]: null },
-      // createdAt: { [Op.lt]: moment().startOf('month') },
+      createdAt: { [Op.lt]: moment().startOf('month') },
       [Op.or]: [
         { FromCollectiveId: fromCollective.id, type: 'DEBIT', isRefund: true },
         { FromCollectiveId: fromCollective.id, type: 'CREDIT' },
@@ -53,8 +53,6 @@ export const getConsolidatedInvoicesData = async fromCollective => {
   const hostsById = {};
   const invoicesByKey = {};
   let invoices = [];
-
-  console.log(JSON.stringify(transactions, null, 2));
 
   for (const transaction of transactions) {
     const HostCollectiveId = transaction.HostCollectiveId;
