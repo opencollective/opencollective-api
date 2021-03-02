@@ -9,7 +9,7 @@
     "npm": "7.5.2"
   },
   "dependencies": {
-    "@babel/core": "7.13.1",
+    "@babel/core": "7.13.8",
     "@babel/node": "7.13.0",
     "@babel/plugin-proposal-class-properties": "7.13.0",
     "@babel/plugin-transform-async-to-generator": "7.13.0",
