@@ -520,7 +520,7 @@ export default (Sequelize, DataTypes) => {
         hostCurrencyFxRate,
         amount: -Math.round(transaction.netAmountInCollectiveCurrency),
         netAmountInCollectiveCurrency: -Math.round(transaction.amount),
-        amountInHostCurrency: Math.round(transaction.netAmountInCollectiveCurrency * hostCurrencyFxRate),
+        amountInHostCurrency: -Math.round(transaction.netAmountInCollectiveCurrency * hostCurrencyFxRate),
         hostFeeInHostCurrency: Math.round(transaction.hostFeeInHostCurrency * oppositeTransactionHostCurrencyFxRate),
         platformFeeInHostCurrency: Math.round(
           transaction.platformFeeInHostCurrency * oppositeTransactionHostCurrencyFxRate,
