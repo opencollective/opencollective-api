@@ -1,7 +1,10 @@
 import Promise from 'bluebird';
 import config from 'config';
+import debug from 'debug';
 import { get } from 'lodash';
 import Paypal from 'paypal-adaptive';
+
+const debugPaypal = debug('paypal');
 
 const paypalAdaptiveClient = new Paypal({
   userId: config.paypal.classic.userId,
@@ -22,10 +25,10 @@ paypalAdaptive.callPaypal = (endpointName, payload) => {
 
   // Note you can't use Promise.promisify because error details are in the response,
   // not always in the err
-  console.log(`Paypal ${endpointName} payload: ${JSON.stringify(payload)}`); // leave this in permanently
+  debugPaypal(`Paypal ${endpointName} payload: ${JSON.stringify(payload)}`); // leave this in permanently
   return new Promise((resolve, reject) => {
     paypalAdaptiveClient[endpointName](Object.assign({}, payload, { requestEnvelope }), (err, res) => {
-      console.log(`Paypal ${endpointName} response: ${JSON.stringify(res)}`); // leave this in permanently
+      debugPaypal(`Paypal ${endpointName} response: ${JSON.stringify(res)}`); // leave this in permanently
       if (get(res, 'responseEnvelope.ack') === 'Failure') {
         if (res.error[0].errorId === '579024') {
           return reject(
@@ -38,7 +41,7 @@ paypalAdaptive.callPaypal = (endpointName, payload) => {
         }
       }
       if (err) {
-        console.log(`Paypal ${endpointName} error: ${JSON.stringify(err)}`); // leave this in permanently
+        debugPaypal(`Paypal ${endpointName} error: ${JSON.stringify(err)}`); // leave this in permanently
         if (err.code === 'ENOTFOUND' && err.syscall === 'getaddrinfo') {
           return reject(new Error(`Unable to reach ${err.hostname}`));
         }
