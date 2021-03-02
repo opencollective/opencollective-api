@@ -54,7 +54,7 @@
     "forest-express-sequelize": "6.7.7",
     "fs-extra": "9.1.0",
     "get-urls": "10.0.0",
-    "googleapis": "67.1.0",
+    "googleapis": "67.1.1",
     "graphql": "15.3.0",
     "graphql-iso-date": "3.6.1",
     "graphql-type-json": "0.3.2",
