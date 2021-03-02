@@ -1,5 +1,5 @@
 #!/usr/bin/env ./node_modules/.bin/babel-node
-import '../../server/env';
+import '../server/env';
 
 import fs from 'fs';
 import readline from 'readline';
@@ -10,7 +10,7 @@ import { google } from 'googleapis';
 import { parse as json2csv } from 'json2csv';
 import moment from 'moment';
 
-import models, { sequelize } from '../../server/models';
+import models, { sequelize } from '../server/models';
 
 const GoogleDrivePath = process.env.OC_GOOGLE_DRIVE || '/tmp';
 
