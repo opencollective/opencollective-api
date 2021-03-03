@@ -5,6 +5,7 @@ import config from 'config';
 import { parse as json2csv } from 'json2csv';
 import { entries, groupBy, pick, round, sumBy } from 'lodash';
 import moment from 'moment';
+import { v4 as uuid } from 'uuid';
 
 import expenseStatus from '../../server/constants/expense_status';
 import expenseTypes from '../../server/constants/expense_type';
@@ -378,6 +379,7 @@ export async function run() {
           hostCurrencyFxRate: 1,
           netAmountInCollectiveCurrency: totalAmountCredited,
           type: TransactionTypes.CREDIT,
+          TransactionGroup: uuid(),
         });
       }
 
