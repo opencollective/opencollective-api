@@ -6,10 +6,10 @@ import fetch from 'node-fetch';
 
 import { currencyFormats } from '../constants/currencies';
 
+import cache from './cache';
 import logger from './logger';
 
 const debug = debugLib('currency');
-const cache = {};
 
 function getDate(date: string | Date = 'latest') {
   if (typeof date == 'string') {
@@ -42,10 +42,6 @@ export async function fetchFxRates(
   date: string | Date = 'latest',
 ): Promise<Record<string, number>> {
   date = getDate(date);
-  let dateKey = date;
-  if (dateKey === 'latest') {
-    dateKey = getDate(new Date());
-  }
 
   const params = {
     access_key: config.fixer.accessKey, // eslint-disable-line camelcase
@@ -66,7 +62,8 @@ export async function fetchFxRates(
     const rates = {};
     keys(json.rates).forEach(to => {
       rates[to] = parseFloat(json.rates[to]);
-      cache[`${dateKey}-${fromCurrency}-${to}`] = rates[to];
+      const cacheTtl = date === 'latest' ? 60 * 60 /* 60 minutes */ : null; /* no expiration */
+      cache.set(`${date}-${fromCurrency}-${to}`, rates[to], cacheTtl);
     });
 
     return rates;
@@ -104,14 +101,10 @@ export async function getFxRate(
   }
 
   date = getDate(date);
-  let dateKey = date;
-  if (dateKey === 'latest') {
-    dateKey = getDate(new Date());
-  }
 
-  const key = `${dateKey}-${fromCurrency}-${toCurrency}`;
-  if (cache[key]) {
-    return cache[key];
+  const fromCache = await cache.get(`${date}-${fromCurrency}-${toCurrency}`);
+  if (fromCache) {
+    return fromCache;
   }
 
   const rates = await fetchFxRates(fromCurrency, [toCurrency], date);
