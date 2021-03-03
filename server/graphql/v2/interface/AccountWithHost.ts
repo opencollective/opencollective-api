@@ -2,6 +2,7 @@ import { GraphQLBoolean, GraphQLFloat, GraphQLInt, GraphQLInterfaceType, GraphQL
 import { GraphQLDateTime } from 'graphql-iso-date';
 
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
+import models from '../../../models';
 import { hostResolver } from '../../common/collective';
 import { HostFeeStructure } from '../enum/HostFeeStructure';
 import { Host } from '../object/Host';
@@ -15,7 +16,7 @@ export const AccountWithHostFields = {
   hostFeesStructure: {
     description: 'Describe how the host charges the collective',
     type: HostFeeStructure,
-    resolve: (account): HOST_FEE_STRUCTURE | null => {
+    resolve: (account: typeof models.Collective): HOST_FEE_STRUCTURE | null => {
       if (!account.HostCollectiveId) {
         return null;
       } else if (account.data?.useCustomHostFee) {
@@ -36,21 +37,21 @@ export const AccountWithHostFields = {
   approvedAt: {
     description: 'Date of approval by the Fiscal Host.',
     type: GraphQLDateTime,
-    resolve(account): Promise<Date> {
+    resolve(account: typeof models.Collective): Promise<Date> {
       return account.approvedAt;
     },
   },
   isApproved: {
     description: "Returns whether it's approved by the Fiscal Host",
     type: GraphQLNonNull(GraphQLBoolean),
-    resolve(account): boolean {
+    resolve(account: typeof models.Collective): boolean {
       return account.isApproved();
     },
   },
   isActive: {
     description: "Returns whether it's active: can accept financial contributions and pay expenses.",
     type: GraphQLNonNull(GraphQLBoolean),
-    resolve(account): boolean {
+    resolve(account: typeof models.Collective): boolean {
       return Boolean(account.isActive);
     },
   },

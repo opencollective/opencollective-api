@@ -25,7 +25,7 @@ describe('server/paymentProviders/transferwise/webhook', () => {
   let expressApp, api;
   before(async () => {
     expressApp = await app();
-    api = request(expressApp) as any;
+    api = request(expressApp);
   });
 
   const sandbox = sinon.createSandbox();

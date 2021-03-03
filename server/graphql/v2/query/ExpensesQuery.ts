@@ -1,3 +1,4 @@
+import express from 'express';
 import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { isEmpty, partition } from 'lodash';
 
@@ -127,7 +128,7 @@ const ExpensesQuery = {
       description: 'The term to search',
     },
   },
-  async resolve(_, args, req): Promise<CollectionReturnType> {
+  async resolve(_: void, args, req: express.Request): Promise<CollectionReturnType> {
     const where = { [Op.and]: [] };
     const include = [];
 

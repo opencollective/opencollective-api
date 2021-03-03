@@ -2,6 +2,7 @@ import { get } from 'lodash';
 
 import { types } from '../constants/collectives';
 import FEATURE from '../constants/feature';
+import models from '../models';
 
 import { isPastEvent } from './collectivelib';
 
@@ -99,12 +100,12 @@ export const isFeatureAllowedForCollectiveType = (collectiveType: types, feature
   return true;
 };
 
-export const hasOptedOutOfFeature = (collective, feature): boolean => {
+export const hasOptedOutOfFeature = (collective: typeof models.Collective, feature: FEATURE): boolean => {
   const optOutFlag = OPT_OUT_FEATURE_FLAGS[feature];
   return optOutFlag ? get(collective, optOutFlag) === false : false;
 };
 
-export const hasOptedInForFeature = (collective, feature): boolean => {
+export const hasOptedInForFeature = (collective: typeof models.Collective, feature: FEATURE): boolean => {
   const optOutFlag = OPT_IN_FEATURE_FLAGS[feature];
   return get(collective, optOutFlag) === true;
 };
@@ -112,7 +113,7 @@ export const hasOptedInForFeature = (collective, feature): boolean => {
 /**
  * If a given feature is allowed for the collective type, check if it is activated for collective.
  */
-export const hasFeature = (collective, feature: FEATURE): boolean => {
+export const hasFeature = (collective: typeof models.Collective, feature: FEATURE): boolean => {
   if (!collective) {
     return false;
   }

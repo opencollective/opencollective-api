@@ -1,3 +1,4 @@
+import express from 'express';
 import { GraphQLNonNull, GraphQLString } from 'graphql';
 
 import orderStatus from '../../../constants/order_status';
@@ -20,7 +21,7 @@ const transactionMutations = {
         description: 'Reference of the transaction to refund',
       },
     },
-    async resolve(_, args, req): Promise<typeof Transaction> {
+    async resolve(_: void, args, req: express.Request): Promise<typeof Transaction> {
       if (!req.remoteUser) {
         throw new Unauthorized();
       }
@@ -41,7 +42,7 @@ const transactionMutations = {
         description: 'Message to send to the contributor whose contribution has been rejected',
       },
     },
-    async resolve(_, args, req): Promise<typeof Transaction> {
+    async resolve(_: void, args, req: express.Request): Promise<typeof Transaction> {
       if (!req.remoteUser) {
         throw new Unauthorized();
       }

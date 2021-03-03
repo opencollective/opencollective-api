@@ -57,7 +57,8 @@
     ],
     "graphql/named-operations": ["error"],
     "graphql/capitalized-type-name": ["error"],
-    "graphql/no-deprecated-fields": ["warn"],
+    // This rule is useful in frontend(s), but it's totally fine to keep tests for deprecated fields in API
+    "graphql/no-deprecated-fields": "off",
     // Already being validated by @typescript-eslint/no-unused-vars
     "no-unused-vars": "off",
     "@typescript-eslint/no-unused-vars": ["error"]

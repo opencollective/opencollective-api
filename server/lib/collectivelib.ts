@@ -11,6 +11,11 @@ import { DEFAULT_GUEST_NAME } from './guest-accounts';
 import logger from './logger';
 import { md5 } from './utils';
 
+type AvatarUrlOpts = {
+  height?: boolean;
+  format?: string;
+};
+
 /**
  * Returns an URL for the given collective params
  * @param {String} collectiveSlug
@@ -20,7 +25,12 @@ import { md5 } from './utils';
  *    - height
  *    - format
  */
-export const getCollectiveAvatarUrl = (collectiveSlug, collectiveType, image, args) => {
+export const getCollectiveAvatarUrl = (
+  collectiveSlug: string,
+  collectiveType: CollectiveTypes,
+  image: string,
+  args: AvatarUrlOpts,
+): string => {
   const sections = [config.host.images, collectiveSlug];
 
   if (image) {

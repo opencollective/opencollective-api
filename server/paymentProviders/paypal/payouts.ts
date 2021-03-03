@@ -11,7 +11,7 @@ import { createFromPaidExpense as createTransactionFromPaidExpense } from '../..
 import models from '../../models';
 import { PayoutItemDetails } from '../../types/paypal';
 
-export const payExpensesBatch = async (expenses: any[]): Promise<any[]> => {
+export const payExpensesBatch = async (expenses: typeof models.Expense[]): Promise<typeof models.Expense[]> => {
   const [firstExpense] = expenses;
   const isSameHost = expenses.every(
     e =>
@@ -73,7 +73,11 @@ export const payExpensesBatch = async (expenses: any[]): Promise<any[]> => {
   }
 };
 
-export const checkBatchItemStatus = async (item: PayoutItemDetails, expense: any, host: any) => {
+export const checkBatchItemStatus = async (
+  item: PayoutItemDetails,
+  expense: typeof models.Expense,
+  host: typeof models.Collective,
+): Promise<typeof models.Expense> => {
   // Reload up-to-date values to avoid race conditions when processing batches.
   await expense.reload();
   if (expense.data.payout_batch_id !== item.payout_batch_id) {
@@ -126,7 +130,7 @@ export const checkBatchItemStatus = async (item: PayoutItemDetails, expense: any
   return expense;
 };
 
-export const checkBatchStatus = async (batch: any[]): Promise<any[]> => {
+export const checkBatchStatus = async (batch: typeof models.Expense[]): Promise<typeof models.Expense[]> => {
   const [firstExpense] = batch;
   const host = await firstExpense.collective.getHostCollective();
   if (!host) {
@@ -142,7 +146,7 @@ export const checkBatchStatus = async (batch: any[]): Promise<any[]> => {
 
   const batchId = firstExpense.data.payout_batch_id;
   const batchInfo = await paypal.getBatchInfo(connectedAccount, batchId);
-  const checkExpense = async (expense: any): Promise<any> => {
+  const checkExpense = async (expense: typeof models.Expense): Promise<void> => {
     try {
       const item = batchInfo.items.find(i => i.payout_item.sender_item_id === expense.id.toString());
       if (!item) {

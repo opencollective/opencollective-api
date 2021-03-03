@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 
 import config from 'config';
+import express from 'express';
 import { find, has, pick, toNumber } from 'lodash';
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
@@ -10,6 +11,7 @@ import cache from '../../lib/cache';
 import logger from '../../lib/logger';
 import * as transferwise from '../../lib/transferwise';
 import models from '../../models';
+import PayoutMethod from '../../models/PayoutMethod';
 import { ConnectedAccount } from '../../types/ConnectedAccount';
 import { Balance, Quote, RecipientAccount, Transfer } from '../../types/transferwise';
 
@@ -19,7 +21,7 @@ export const blockedCurrencies = ['NGN'];
 export const blockedCurrenciesForBusinesProfiles = ['BRL', 'PKR'];
 export const currenciesThatRequireReference = ['RUB'];
 
-async function populateProfileId(connectedAccount, profileId?: number): Promise<void> {
+async function populateProfileId(connectedAccount: typeof models.ConnectedAccount, profileId?: number): Promise<void> {
   if (!connectedAccount.data?.id) {
     const token = await getToken(connectedAccount);
     const profiles = await transferwise.getProfiles(token);
@@ -34,16 +36,24 @@ async function populateProfileId(connectedAccount, profileId?: number): Promise<
   }
 }
 
-async function getTemporaryQuote(connectedAccount, payoutMethod, expense): Promise<Quote> {
+async function getTemporaryQuote(
+  connectedAccount: typeof models.ConnectedAccount,
+  payoutMethod: PayoutMethod,
+  expense: typeof models.Expense,
+): Promise<Quote> {
   const token = await getToken(connectedAccount);
   return await transferwise.getTemporaryQuote(token, {
     sourceCurrency: expense.currency,
-    targetCurrency: payoutMethod.data.currency,
+    targetCurrency: <string>payoutMethod.unfilteredData.currency,
     sourceAmount: expense.amount / 100,
   });
 }
 
-async function quoteExpense(connectedAccount, payoutMethod, expense): Promise<Quote> {
+async function quoteExpense(
+  connectedAccount: typeof models.ConnectedAccount,
+  payoutMethod: PayoutMethod,
+  expense: typeof models.Expense,
+): Promise<Quote> {
   await populateProfileId(connectedAccount);
 
   const token = await getToken(connectedAccount);
@@ -54,7 +64,7 @@ async function quoteExpense(connectedAccount, payoutMethod, expense): Promise<Qu
   const quote = await transferwise.createQuote(token, {
     profileId: connectedAccount.data.id,
     sourceCurrency: expense.currency,
-    targetCurrency: payoutMethod.data.currency,
+    targetCurrency: <string>payoutMethod.unfilteredData.currency,
     targetAmount,
   });
 
@@ -62,9 +72,9 @@ async function quoteExpense(connectedAccount, payoutMethod, expense): Promise<Qu
 }
 
 async function payExpense(
-  connectedAccount,
-  payoutMethod,
-  expense,
+  connectedAccount: typeof models.ConnectedAccount,
+  payoutMethod: PayoutMethod,
+  expense: typeof models.Expense,
 ): Promise<{
   quote: Quote;
   recipient: RecipientAccount;
@@ -74,7 +84,7 @@ async function payExpense(
   const token = await getToken(connectedAccount);
   const quote = await quoteExpense(connectedAccount, payoutMethod, expense);
 
-  const account = await transferwise.getBorderlessAccount(token, connectedAccount.data.id);
+  const account = await transferwise.getBorderlessAccount(token, <number>connectedAccount.data.id);
   if (!account) {
     throw new TransferwiseError(
       `We can't retrieve your Transferwise borderless account. Please re-connect or contact support at support@opencollective.com.`,
@@ -92,7 +102,7 @@ async function payExpense(
 
   const recipient = await transferwise.createRecipientAccount(token, {
     profileId: connectedAccount.data.id,
-    ...payoutMethod.data,
+    ...(<RecipientAccount>payoutMethod.data),
   });
 
   const transferOptions: transferwise.CreateTransfer = {
@@ -101,7 +111,7 @@ async function payExpense(
     uuid: uuid(),
   };
   // Append reference to currencies that require it.
-  if (currenciesThatRequireReference.includes(payoutMethod.data.currency)) {
+  if (currenciesThatRequireReference.includes(<string>payoutMethod.unfilteredData.currency)) {
     transferOptions.details = { reference: `${expense.id}` };
   }
   const transfer = await transferwise.createTransfer(token, transferOptions);
@@ -121,7 +131,7 @@ async function payExpense(
 }
 
 async function getAvailableCurrencies(
-  host: any,
+  host: typeof models.Collective,
   ignoreBlockedCurrencies = true,
 ): Promise<{ code: string; minInvoiceAmount: number }[]> {
   const connectedAccount = await models.ConnectedAccount.findOne({
@@ -155,7 +165,11 @@ async function getAvailableCurrencies(
   return currencies.filter(c => !currencyBlockList.includes(c.code));
 }
 
-async function getRequiredBankInformation(host: any, currency: string, accountDetails?: any): Promise<any> {
+async function getRequiredBankInformation(
+  host: typeof models.Collective,
+  currency: string,
+  accountDetails?: Record<string, unknown>,
+): Promise<any> {
   const cacheKey = accountDetails
     ? `transferwise_required_bank_info_${host.id}_${currency}_${hashObject(
         pick(accountDetails, ['type', 'details.bankCode', 'details.legalType', 'details.address.country']),
@@ -198,7 +212,7 @@ async function getRequiredBankInformation(host: any, currency: string, accountDe
 async function getAccountBalances(connectedAccount: ConnectedAccount): Promise<Balance[]> {
   await populateProfileId(connectedAccount);
   const token = await getToken(connectedAccount);
-  const account = await transferwise.getBorderlessAccount(token, connectedAccount.data.id);
+  const account = await transferwise.getBorderlessAccount(token, <number>connectedAccount.data.id);
   return account?.balances || [];
 }
 
@@ -211,7 +225,7 @@ async function getToken(connectedAccount: ConnectedAccount): Promise<string> {
   // OAuth token, require us to refresh every 12 hours
   const updatedAt = moment(connectedAccount.updatedAt);
   const diff = moment.duration(moment().diff(updatedAt)).asSeconds();
-  const isOutdated = diff > connectedAccount.data.expires_in - 60;
+  const isOutdated = diff > <number>connectedAccount.data.expires_in - 60;
   if (isOutdated) {
     const newToken = await transferwise.getOrRefreshToken({ refreshToken: connectedAccount.refreshToken });
     const { access_token: token, refresh_token: refreshToken, ...data } = newToken;
@@ -234,7 +248,7 @@ const oauth = {
     return transferwise.getOAuthUrl(hash);
   },
 
-  callback: async function (req, res): Promise<void> {
+  callback: async function (req: express.Request, res: express.Response): Promise<void> {
     const state = req.query?.state;
     if (!state) {
       res.sendStatus(401);
@@ -253,7 +267,7 @@ const oauth = {
     const redirectUrl = new URL(redirect);
     try {
       const { code, profileId } = req.query;
-      const accessToken = await transferwise.getOrRefreshToken({ code });
+      const accessToken = await transferwise.getOrRefreshToken({ code: code?.toString() });
       const { access_token: token, refresh_token: refreshToken, ...data } = accessToken;
 
       const existingConnectedAccount = await models.ConnectedAccount.findOne({

@@ -18,11 +18,11 @@ const TransactionReferenceInput = new GraphQLInputObjectType({
   }),
 });
 
-const getDatabaseIdFromTransactionReference = (input: object): number => {
+const getDatabaseIdFromTransactionReference = (input: Record<string, unknown>): number => {
   if (input['id']) {
     return idDecode(input['id'], IDENTIFIER_TYPES.TRANSACTION);
   } else if (input['legacyId']) {
-    return input['legacyId'];
+    return <number>input['legacyId'];
   } else {
     return null;
   }
@@ -32,9 +32,9 @@ const getDatabaseIdFromTransactionReference = (input: object): number => {
  * Retrieve an expense from an `ExpenseReferenceInput`
  */
 const fetchTransactionWithReference = async (
-  input: object,
+  input: Record<string, unknown>,
   { loaders = null, throwIfMissing = false } = {},
-): Promise<any> => {
+): Promise<typeof models.Transaction> => {
   const dbId = getDatabaseIdFromTransactionReference(input);
   let transaction = null;
   if (dbId) {

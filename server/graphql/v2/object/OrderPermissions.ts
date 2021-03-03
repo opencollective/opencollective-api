@@ -1,3 +1,4 @@
+import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 
 import ORDER_STATUS from '../../../constants/order_status';
@@ -18,14 +19,14 @@ const OrderPermissions = new GraphQLObjectType({
     canMarkAsExpired: {
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Whether the current user can mark this order as expired',
-      async resolve(order, _, req): Promise<boolean> {
+      async resolve(order, _, req: express.Request): Promise<boolean> {
         return order.status === ORDER_STATUS.PENDING && isHostAdmin(req, order);
       },
     },
     canMarkAsPaid: {
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Whether the current user can mark this order as unpaid',
-      async resolve(order, _, req): Promise<boolean> {
+      async resolve(order, _, req: express.Request): Promise<boolean> {
         return order.status === ORDER_STATUS.PENDING && isHostAdmin(req, order);
       },
     },

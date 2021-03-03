@@ -6,6 +6,8 @@ import { isValidUploadedImage } from '../lib/images';
 import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
 import sequelize from '../lib/sequelize';
 
+import models from '.';
+
 /**
  * Sequelize model to represent an ExpenseItem, linked to the `ExpenseItems` table.
  */
@@ -33,7 +35,10 @@ export class ExpenseItem extends Model {
    * added, removed or added.
    * @returns [newEntries, removedEntries, updatedEntries]
    */
-  static diffDBEntries = (baseItems, itemsData): [object[], ExpenseItem[], object[]] => {
+  static diffDBEntries = (
+    baseItems: ExpenseItem[],
+    itemsData: Record<string, unknown>[],
+  ): [Record<string, unknown>[], ExpenseItem[], Record<string, unknown>[]] => {
     return diffDBEntries(baseItems, itemsData, ExpenseItem.editableFields);
   };
 
@@ -44,9 +49,9 @@ export class ExpenseItem extends Model {
    * @param expense: The linked expense
    */
   static async createFromData(
-    itemData: object,
-    user,
-    expense,
+    itemData: Record<string, unknown>,
+    user: typeof models.User,
+    expense: typeof models.Expense,
     dbTransaction: Transaction | null,
   ): Promise<ExpenseItem> {
     const cleanData = ExpenseItem.cleanData(itemData);
@@ -60,14 +65,14 @@ export class ExpenseItem extends Model {
    * Updates an expense item from user-submitted data.
    * @param itemData: The (potentially unsafe) user data. Fields will be whitelisted.
    */
-  static async updateFromData(itemData: object, dbTransaction: Transaction | null): Promise<void> {
+  static async updateFromData(itemData: Record<string, unknown>, dbTransaction: Transaction | null): Promise<void> {
     const id = itemData['id'];
     const cleanData = ExpenseItem.cleanData(itemData);
     await ExpenseItem.update(cleanData, { where: { id }, transaction: dbTransaction });
   }
 
   /** Filters out all the fields that cannot be edited by user */
-  private static cleanData(data: object): object {
+  private static cleanData(data: Record<string, unknown>): Record<string, unknown> {
     return pick(data, ExpenseItem.editableFields);
   }
 }

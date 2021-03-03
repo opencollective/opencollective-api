@@ -1,3 +1,4 @@
+import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
 
 import models, { Op } from '../../../models';
@@ -76,7 +77,7 @@ const OrdersQuery = {
       description: 'The term to search',
     },
   },
-  async resolve(_, args, req): Promise<CollectionReturnType> {
+  async resolve(_: void, args, req: express.Request): Promise<CollectionReturnType> {
     const where = { [Op.and]: [] };
     const include = [
       { association: 'fromCollective', required: true, attributes: [] },

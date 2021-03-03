@@ -1,3 +1,4 @@
+import express from 'express';
 import { GraphQLNonNull } from 'graphql';
 import { pick } from 'lodash';
 
@@ -29,7 +30,7 @@ const connectedAccountMutations = {
         description: 'Account where the external account will be connected',
       },
     },
-    async resolve(_, args, req): Promise<object> {
+    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
       if (!req.remoteUser) {
         throw new Unauthorized('You need to be logged in to create a connected account');
       }
@@ -92,7 +93,7 @@ const connectedAccountMutations = {
         description: 'ConnectedAccount reference containing either id or legacyId',
       },
     },
-    async resolve(_, args, req): Promise<object> {
+    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
       if (!req.remoteUser) {
         throw new Unauthorized('You need to be logged in to delete a connected account');
       }

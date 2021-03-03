@@ -1,4 +1,5 @@
 import debugLib from 'debug';
+import express from 'express';
 import { flatten, get, omit, pick, size } from 'lodash';
 
 import { activities, expenseStatus, roles } from '../../constants';
@@ -26,7 +27,7 @@ import { BadRequest, FeatureNotAllowedForUser, Forbidden, NotFound, Unauthorized
 
 const debug = debugLib('expenses');
 
-const isOwner = async (req, expense): Promise<boolean> => {
+const isOwner = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
   }
@@ -38,7 +39,7 @@ const isOwner = async (req, expense): Promise<boolean> => {
   return req.remoteUser.isAdminOfCollective(expense.fromCollective) || req.remoteUser.id === expense.UserId;
 };
 
-const isCollectiveAccountant = async (req, expense): Promise<boolean> => {
+const isCollectiveAccountant = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
   } else if (req.remoteUser.hasRole(roles.ACCOUNTANT, expense.CollectiveId)) {
@@ -57,7 +58,7 @@ const isCollectiveAccountant = async (req, expense): Promise<boolean> => {
   }
 };
 
-const isCollectiveAdmin = async (req, expense): Promise<boolean> => {
+const isCollectiveAdmin = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
   }
@@ -69,7 +70,7 @@ const isCollectiveAdmin = async (req, expense): Promise<boolean> => {
   return req.remoteUser.isAdminOfCollective(expense.collective);
 };
 
-const isHostAdmin = async (req, expense): Promise<boolean> => {
+const isHostAdmin = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
   }
@@ -85,11 +86,17 @@ const isHostAdmin = async (req, expense): Promise<boolean> => {
   return req.remoteUser.isAdmin(expense.collective.HostCollectiveId) && expense.collective.isActive;
 };
 
+type PermissionCondition = (req: express.Request, expense: typeof models.Expense) => Promise<boolean>;
+
 /**
  * Returns true if the expense meets at least one condition.
- * Always returns false for unkauthenticated requests.
+ * Always returns false for unauthenticated requests.
  */
-const remoteUserMeetsOneCondition = async (req, expense, conditions): Promise<boolean> => {
+const remoteUserMeetsOneCondition = async (
+  req: express.Request,
+  expense: typeof models.Expense,
+  conditions: PermissionCondition[],
+): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
   }
@@ -104,34 +111,46 @@ const remoteUserMeetsOneCondition = async (req, expense, conditions): Promise<bo
 };
 
 /** Checks if the user can see expense's attachments (items URLs, attached files) */
-export const canSeeExpenseAttachments = async (req, expense): Promise<boolean> => {
+export const canSeeExpenseAttachments = async (
+  req: express.Request,
+  expense: typeof models.Expense,
+): Promise<boolean> => {
   return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isCollectiveAccountant, isHostAdmin]);
 };
 
 /** Checks if the user can see expense's payout method */
-export const canSeeExpensePayoutMethod = async (req, expense): Promise<boolean> => {
+export const canSeeExpensePayoutMethod = async (
+  req: express.Request,
+  expense: typeof models.Expense,
+): Promise<boolean> => {
   return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isCollectiveAccountant, isHostAdmin]);
 };
 
 /** Checks if the user can see expense's payout method */
-export const canSeeExpenseInvoiceInfo = async (req, expense): Promise<boolean> => {
+export const canSeeExpenseInvoiceInfo = async (
+  req: express.Request,
+  expense: typeof models.Expense,
+): Promise<boolean> => {
   return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isCollectiveAccountant, isHostAdmin]);
 };
 
 /** Checks if the user can see expense's payout method */
-export const canSeeExpensePayeeLocation = async (req, expense): Promise<boolean> => {
+export const canSeeExpensePayeeLocation = async (
+  req: express.Request,
+  expense: typeof models.Expense,
+): Promise<boolean> => {
   return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isCollectiveAccountant, isHostAdmin]);
 };
 
 /** Checks if the user can verify or resend a draft */
-export const canVerifyDraftExpense = async (req, expense): Promise<boolean> => {
+export const canVerifyDraftExpense = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
   return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin]);
 };
 
 /**
  * Returns the list of items for this expense.
  */
-export const getExpenseItems = async (expenseId, req): Promise<ExpenseItem[]> => {
+export const getExpenseItems = async (expenseId: number, req: express.Request): Promise<ExpenseItem[]> => {
   return req.loaders.Expense.items.load(expenseId);
 };
 
@@ -139,7 +158,10 @@ export const getExpenseItems = async (expenseId, req): Promise<ExpenseItem[]> =>
  * Only admin of expense.collective or of expense.collective.host can approve/reject expenses
  * @deprecated: Please use more specific helpers like `canEdit`, `canDelete`, etc.
  */
-export const canUpdateExpenseStatus = async (req, expense): Promise<boolean> => {
+export const canUpdateExpenseStatus = async (
+  req: express.Request,
+  expense: typeof models.Expense,
+): Promise<boolean> => {
   const { remoteUser } = req;
   if (!remoteUser) {
     return false;
@@ -159,7 +181,7 @@ export const canUpdateExpenseStatus = async (req, expense): Promise<boolean> => 
 /**
  * Only the author or an admin of the collective or collective.host can edit an expense when it hasn't been paid yet
  */
-export const canEditExpense = async (req, expense): Promise<boolean> => {
+export const canEditExpense = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
   const nonEditableStatuses = [
     expenseStatus.PAID,
     expenseStatus.PROCESSING,
@@ -180,7 +202,7 @@ export const canEditExpense = async (req, expense): Promise<boolean> => {
  * Only the author or an admin of the collective or collective.host can delete an expense,
  * and only when its status is REJECTED.
  */
-export const canDeleteExpense = async (req, expense): Promise<boolean> => {
+export const canDeleteExpense = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
   if (expense.status !== expenseStatus.REJECTED) {
     return false;
   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
@@ -193,7 +215,7 @@ export const canDeleteExpense = async (req, expense): Promise<boolean> => {
 /**
  * Returns true if expense can be paid by user
  */
-export const canPayExpense = async (req, expense): Promise<boolean> => {
+export const canPayExpense = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
   if (![expenseStatus.APPROVED, expenseStatus.ERROR].includes(expense.status)) {
     return false;
   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
@@ -206,7 +228,7 @@ export const canPayExpense = async (req, expense): Promise<boolean> => {
 /**
  * Returns true if expense can be approved by user
  */
-export const canApprove = async (req, expense): Promise<boolean> => {
+export const canApprove = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
   if (![expenseStatus.PENDING, expenseStatus.REJECTED].includes(expense.status)) {
     return false;
   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
@@ -219,7 +241,7 @@ export const canApprove = async (req, expense): Promise<boolean> => {
 /**
  * Returns true if expense can be rejected by user
  */
-export const canReject = async (req, expense): Promise<boolean> => {
+export const canReject = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
   if (![expenseStatus.PENDING, expenseStatus.UNVERIFIED].includes(expense.status)) {
     return false;
   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
@@ -232,7 +254,7 @@ export const canReject = async (req, expense): Promise<boolean> => {
 /**
  * Returns true if expense can be unapproved by user
  */
-export const canUnapprove = async (req, expense): Promise<boolean> => {
+export const canUnapprove = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
   if (expense.status !== expenseStatus.APPROVED) {
     return false;
   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
@@ -245,7 +267,7 @@ export const canUnapprove = async (req, expense): Promise<boolean> => {
 /**
  * Returns true if expense can be marked as unpaid by user
  */
-export const canMarkAsUnpaid = async (req, expense): Promise<boolean> => {
+export const canMarkAsUnpaid = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
   if (expense.status !== expenseStatus.PAID) {
     return false;
   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
@@ -258,7 +280,7 @@ export const canMarkAsUnpaid = async (req, expense): Promise<boolean> => {
 /**
  * Returns true if user can comment and see others comments for this expense
  */
-export const canComment = async (req, expense): Promise<boolean> => {
+export const canComment = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
   if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     return false;
   } else {
@@ -266,13 +288,19 @@ export const canComment = async (req, expense): Promise<boolean> => {
   }
 };
 
-export const canViewRequiredLegalDocuments = async (req, expense): Promise<boolean> => {
+export const canViewRequiredLegalDocuments = async (
+  req: express.Request,
+  expense: typeof models.Expense,
+): Promise<boolean> => {
   return remoteUserMeetsOneCondition(req, expense, [isHostAdmin, isCollectiveAccountant, isOwner]);
 };
 
 // ---- Expense actions ----
 
-export const approveExpense = async (req, expense): Promise<typeof models.Expense> => {
+export const approveExpense = async (
+  req: express.Request,
+  expense: typeof models.Expense,
+): Promise<typeof models.Expense> => {
   if (expense.status === expenseStatus.APPROVED) {
     return expense;
   } else if (!(await canApprove(req, expense))) {
@@ -284,7 +312,10 @@ export const approveExpense = async (req, expense): Promise<typeof models.Expens
   return updatedExpense;
 };
 
-export const unapproveExpense = async (req, expense): Promise<typeof models.Expense> => {
+export const unapproveExpense = async (
+  req: express.Request,
+  expense: typeof models.Expense,
+): Promise<typeof models.Expense> => {
   if (expense.status === expenseStatus.PENDING) {
     return expense;
   } else if (!(await canUnapprove(req, expense))) {
@@ -296,7 +327,10 @@ export const unapproveExpense = async (req, expense): Promise<typeof models.Expe
   return updatedExpense;
 };
 
-export const rejectExpense = async (req, expense): Promise<typeof models.Expense> => {
+export const rejectExpense = async (
+  req: express.Request,
+  expense: typeof models.Expense,
+): Promise<typeof models.Expense> => {
   if (expense.status === expenseStatus.REJECTED) {
     return expense;
   } else if (!(await canReject(req, expense))) {
@@ -308,7 +342,10 @@ export const rejectExpense = async (req, expense): Promise<typeof models.Expense
   return updatedExpense;
 };
 
-export const scheduleExpenseForPayment = async (req, expense): Promise<typeof models.Expense> => {
+export const scheduleExpenseForPayment = async (
+  req: express.Request,
+  expense: typeof models.Expense,
+): Promise<typeof models.Expense> => {
   if (expense.status === expenseStatus.SCHEDULED_FOR_PAYMENT) {
     throw new BadRequest('Expense is already scheduled for payment');
   } else if (!(await canPayExpense(req, expense))) {
@@ -419,7 +456,23 @@ const createAttachedFiles = async (expense, attachedFilesData, remoteUser, trans
   }
 };
 
-export async function createExpense(remoteUser, expenseData): Promise<typeof models.Expense> {
+type ExpenseData = {
+  id?: number;
+  payoutMethod?: Record<string, unknown>;
+  payeeLocation?: Record<string, unknown>;
+  items?: Record<string, unknown>[];
+  attachedFiles?: Record<string, unknown>[];
+  collective?: Record<string, unknown>;
+  fromCollective?: Record<string, unknown>;
+  tags?: string[];
+  incurredAt?: Date;
+  amount?: number;
+};
+
+export async function createExpense(
+  remoteUser: typeof models.User | null,
+  expenseData: ExpenseData,
+): Promise<typeof models.Expense> {
   if (!remoteUser) {
     throw new Unauthorized('You need to be logged in to create an expense');
   } else if (!canUseFeature(remoteUser, FEATURE.USE_EXPENSES)) {
@@ -475,7 +528,7 @@ export async function createExpense(remoteUser, expenseData): Promise<typeof mod
     await fromCollective.update({
       address: expenseData.payeeLocation.address,
       countryISO: expenseData.payeeLocation.country,
-      setttings: { ...fromCollective.settings, address: expenseData.payeeLocation.structured },
+      settings: { ...fromCollective.settings, address: expenseData.payeeLocation.structured },
     });
   }
 
@@ -522,25 +575,39 @@ export async function createExpense(remoteUser, expenseData): Promise<typeof mod
 }
 
 /** Returns true if the expense should by put back to PENDING after this update */
-export const changesRequireStatusUpdate = (expense, newExpenseData, hasItemsChanges, hasPayoutChanges): boolean => {
+export const changesRequireStatusUpdate = (
+  expense: typeof models.Expense,
+  newExpenseData: ExpenseData,
+  hasItemsChanges: boolean,
+  hasPayoutChanges: boolean,
+): boolean => {
   const updatedValues = { ...expense.dataValues, ...newExpenseData };
   const hasAmountChanges = typeof updatedValues.amount !== 'undefined' && updatedValues.amount !== expense.amount;
   return hasItemsChanges || hasAmountChanges || hasPayoutChanges;
 };
 
 /** Returns infos about the changes made to items */
-export const getItemsChanges = async (expense, expenseData) => {
+export const getItemsChanges = async (
+  expense: typeof models.Expense,
+  expenseData: ExpenseData,
+): Promise<
+  [boolean, Record<string, unknown>[], [Record<string, unknown>[], ExpenseItem[], Record<string, unknown>[]]]
+> => {
   if (expenseData.items) {
     const baseItems = await models.ExpenseItem.findAll({ where: { ExpenseId: expense.id } });
     const itemsDiff = models.ExpenseItem.diffDBEntries(baseItems, expenseData.items);
     const hasItemChanges = flatten(itemsDiff).length > 0;
     return [hasItemChanges, expenseData.items, itemsDiff];
   } else {
-    return [false, [], []];
+    return [false, [], [[], [], []]];
   }
 };
 
-export async function editExpense(req, expenseData, options = {}): Promise<typeof models.Expense> {
+export async function editExpense(
+  req: express.Request,
+  expenseData: ExpenseData,
+  options = {},
+): Promise<typeof models.Expense> {
   const remoteUser = options?.['overrideRemoteUser'] || req.remoteUser;
   if (!remoteUser) {
     throw new Unauthorized('You need to be logged in to edit an expense');
@@ -598,7 +665,7 @@ export async function editExpense(req, expenseData, options = {}): Promise<typeo
     if (hasItemChanges) {
       checkExpenseItems({ ...expense.dataValues, ...cleanExpenseData }, itemsData);
       const [newItemsData, oldItems, itemsToUpdate] = itemsDiff;
-      await Promise.all([
+      await Promise.all(<Promise<void>[]>[
         // Delete
         ...oldItems.map(item => {
           return item.destroy({ transaction: t });
@@ -634,7 +701,7 @@ export async function editExpense(req, expenseData, options = {}): Promise<typeo
       await createAttachedFiles(expense, newAttachedFiles, remoteUser, t);
       await Promise.all(removedAttachedFiles.map((file: ExpenseAttachedFile) => file.destroy()));
       await Promise.all(
-        updatedAttachedFiles.map((file: ExpenseAttachedFile) =>
+        updatedAttachedFiles.map((file: Record<string, unknown>) =>
           models.ExpenseAttachedFile.update({ url: file.url }, { where: { id: file.id, ExpenseId: expense.id } }),
         ),
       );
@@ -660,7 +727,7 @@ export async function editExpense(req, expenseData, options = {}): Promise<typeo
   return updatedExpense;
 }
 
-export async function deleteExpense(req, expenseId): Promise<typeof models.Expense> {
+export async function deleteExpense(req: express.Request, expenseId: number): Promise<typeof models.Expense> {
   const { remoteUser } = req;
   if (!remoteUser) {
     throw new Unauthorized('You need to be logged in to delete an expense');
@@ -792,7 +859,7 @@ const lockExpense = async (id, callback) => {
  * @PRE: fees { id, paymentProcessorFeeInCollectiveCurrency, hostFeeInCollectiveCurrency, platformFeeInCollectiveCurrency }
  * Note: some payout methods like PayPal will automatically define `paymentProcessorFeeInCollectiveCurrency`
  */
-export async function payExpense(req, args): Promise<typeof models.Expense> {
+export async function payExpense(req: express.Request, args: Record<string, unknown>): Promise<typeof models.Expense> {
   const { remoteUser } = req;
   const expenseId = args.id;
   const fees = omit(args, ['id', 'forceManual']);
@@ -970,17 +1037,21 @@ export async function payExpense(req, args): Promise<typeof models.Expense> {
   });
 }
 
-export async function markExpenseAsUnpaid(req, ExpenseId, processorFeeRefunded): Promise<typeof models.Expense> {
+export async function markExpenseAsUnpaid(
+  req: express.Request,
+  expenseId: number,
+  processorFeeRefunded: boolean,
+): Promise<typeof models.Expense> {
   const { remoteUser } = req;
 
-  const updatedExpense = await lockExpense(ExpenseId, async () => {
+  const updatedExpense = await lockExpense(expenseId, async () => {
     if (!remoteUser) {
       throw new Unauthorized('You need to be logged in to unpay an expense');
     } else if (!canUseFeature(remoteUser, FEATURE.USE_EXPENSES)) {
       throw new FeatureNotAllowedForUser();
     }
 
-    const expense = await models.Expense.findByPk(ExpenseId, {
+    const expense = await models.Expense.findByPk(expenseId, {
       include: [
         { model: models.Collective, as: 'collective' },
         { model: models.User, as: 'User' },
@@ -1001,7 +1072,7 @@ export async function markExpenseAsUnpaid(req, ExpenseId, processorFeeRefunded):
     }
 
     const transaction = await models.Transaction.findOne({
-      where: { ExpenseId, RefundTransactionId: null },
+      where: { ExpenseId: expenseId, RefundTransactionId: null },
       include: [{ model: models.Expense }],
     });
 

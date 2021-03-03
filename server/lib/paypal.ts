@@ -1,6 +1,7 @@
 /* eslint-disable camelcase */
 import paypal from '@paypal/payouts-sdk';
 import config from 'config';
+import express from 'express';
 
 import { PayoutBatchDetails, PayoutRequestBody, PayoutRequestResult } from '../types/paypal';
 
@@ -31,7 +32,7 @@ const getPayPalClient = ({ token, clientId }: ConnectedAccount): ReturnType<type
 
 const executeRequest = async (
   connectedAccount: ConnectedAccount,
-  request: PayoutRequestBody | Record<string, any>,
+  request: PayoutRequestBody | Record<string, unknown>,
 ): Promise<any> => {
   try {
     const client = getPayPalClient(connectedAccount);
@@ -69,7 +70,7 @@ export const validateConnectedAccount = async ({ token, clientId }: ConnectedAcc
 
 export const validateWebhookEvent = async (
   { token, clientId, settings }: ConnectedAccount,
-  req: any,
+  req: express.Request,
 ): Promise<void> => {
   const client = getPayPalClient({ token, clientId });
   const request = {

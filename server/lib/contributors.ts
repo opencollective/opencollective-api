@@ -306,7 +306,7 @@ export const getContributorsWithoutTier = async (
 };
 
 /** Invalidates the contributors cache for this collective */
-export const invalidateContributorsCache = async collectiveId => {
+export const invalidateContributorsCache = async (collectiveId: number): Promise<void> => {
   const cacheKey = getCacheKey(collectiveId);
   return cache.del(cacheKey);
 };
