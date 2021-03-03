@@ -33,7 +33,7 @@ const isIgnoredGQLError = err => {
 };
 
 export const SentryGraphQLPlugin = {
-  requestDidStart(_): object {
+  requestDidStart(): object {
     return {
       didEncounterErrors(ctx): void {
         // If we couldn't parse the operation, don't do anything here

@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import sinon from 'sinon';
 
 import models from '../../../server/models';
-import { fakeCollective, fakeHost, fakeOrder, fakeTier, fakeUser } from '../../test-helpers/fake-data';
+import { fakeCollective, fakeHost, fakeOrder, fakeUser } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
 const { Transaction } = models;

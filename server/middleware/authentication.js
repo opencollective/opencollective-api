@@ -5,7 +5,6 @@ import debugLib from 'debug';
 import jwt from 'jsonwebtoken';
 import { get, isNil, omitBy } from 'lodash';
 import passport from 'passport';
-import request from 'request-promise';
 
 import * as connectedAccounts from '../controllers/connectedAccounts';
 import errors from '../lib/errors';

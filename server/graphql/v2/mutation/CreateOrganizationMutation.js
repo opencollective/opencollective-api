@@ -1,7 +1,6 @@
-import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
+import { GraphQLNonNull } from 'graphql';
 import { pick } from 'lodash';
 
-import activities from '../../../constants/activities';
 import roles from '../../../constants/roles';
 import { isCollectiveSlugReserved } from '../../../lib/collectivelib';
 import models from '../../../models';
@@ -14,7 +13,7 @@ const DEFAULT_ORGANIZATION_SETTINGS = {
 };
 
 async function createOrganization(_, args, req) {
-  const { remoteUser, loaders } = req;
+  const { remoteUser } = req;
 
   if (!remoteUser) {
     throw new Unauthorized('You need to be logged in to create an organization');

@@ -234,7 +234,7 @@ const oauth = {
     return transferwise.getOAuthUrl(hash);
   },
 
-  callback: async function (req, res, next): Promise<void> {
+  callback: async function (req, res): Promise<void> {
     const state = req.query?.state;
     if (!state) {
       res.sendStatus(401);

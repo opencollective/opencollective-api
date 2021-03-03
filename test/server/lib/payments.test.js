@@ -7,7 +7,6 @@ import sinon from 'sinon';
 import status from '../../../server/constants/order_status';
 import { PLANS_COLLECTIVE_SLUG } from '../../../server/constants/plans';
 import roles from '../../../server/constants/roles';
-import { FEES_ON_TOP_TRANSACTION_PROPERTIES } from '../../../server/constants/transactions';
 import emailLib from '../../../server/lib/email';
 import * as payments from '../../../server/lib/payments';
 import * as plansLib from '../../../server/lib/plans';

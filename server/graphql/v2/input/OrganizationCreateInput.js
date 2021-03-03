@@ -1,4 +1,4 @@
-import { GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
 import GraphQLJSON from 'graphql-type-json';
 
 export const OrganizationCreateInput = new GraphQLInputObjectType({

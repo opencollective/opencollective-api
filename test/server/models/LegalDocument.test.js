@@ -4,13 +4,7 @@ import moment from 'moment';
 import models from '../../../server/models';
 import * as utils from '../../utils';
 
-const { RequiredLegalDocument, LegalDocument, User, Collective } = models;
-const {
-  documentType: { US_TAX_FORM },
-} = RequiredLegalDocument;
-const {
-  requestStatus: { RECEIVED },
-} = LegalDocument;
+const { LegalDocument, User, Collective } = models;
 
 describe('server/models/LegalDocument', () => {
   // globals to be set in the before hooks.

@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import sinon from 'sinon';
 
 import { roles } from '../../../../server/constants';
-import { canDownloadInvoice, canRefund, canReject } from '../../../../server/graphql/common/transactions';
+import { canDownloadInvoice, canRefund } from '../../../../server/graphql/common/transactions';
 import { fakeCollective, fakeOrder, fakeTransaction, fakeUser } from '../../../test-helpers/fake-data';
 import { makeRequest } from '../../../utils';
 

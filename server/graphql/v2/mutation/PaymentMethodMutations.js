@@ -6,7 +6,6 @@ import { setupCreditCard } from '../../../paymentProviders/stripe/creditcard';
 import { Forbidden } from '../../errors';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { CreditCardCreateInput } from '../input/CreditCardCreateInput';
-import { PaymentMethodCreateInput } from '../input/PaymentMethodCreateInput';
 import { fetchPaymentMethodWithReference, PaymentMethodReferenceInput } from '../input/PaymentMethodReferenceInput';
 import { PaymentMethod } from '../object/PaymentMethod';
 import { StripeError } from '../object/StripeError';

@@ -345,28 +345,6 @@ const processCollective = async CollectiveId => {
   return data.collective;
 };
 
-const getTopKeysFromObject = (obj, valueAttr, limit = 3) => {
-  const values = [];
-  Object.keys(obj).map(t => {
-    values.push({
-      value: t,
-      occurrences: valueAttr ? obj[t][valueAttr] : obj[t],
-    });
-  });
-  values.sort((a, b) => {
-    if (a.occurrences > b.occurrences) {
-      return -1;
-    } else {
-      return 1;
-    }
-  });
-  const topValues = [];
-  for (let i = 0; i < Math.min(values.length, limit); i++) {
-    topValues.push(values[i].value);
-  }
-  return topValues;
-};
-
 const computeOrderSummary = orders => {
   const orderSummary = {
     totalAmount: '',
