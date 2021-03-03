@@ -29,7 +29,7 @@ import { v4 as uuid } from 'uuid';
 import { isISO31661Alpha2 } from 'validator';
 
 import activities from '../constants/activities';
-import { types } from '../constants/collectives';
+import { CollectiveTypesList, types } from '../constants/collectives';
 import expenseStatus from '../constants/expense_status';
 import expenseTypes from '../constants/expense_type';
 import FEATURE from '../constants/feature';
@@ -99,8 +99,6 @@ const defaultTiers = currency => {
   ];
 };
 
-const validTypes = ['USER', 'COLLECTIVE', 'ORGANIZATION', 'EVENT', 'PROJECT', 'FUND', 'BOT'];
-
 const policiesSanitizeOptions = buildSanitizerOptions({
   basicTextFormatting: true,
   multilineTextFormatting: true,
@@ -133,8 +131,8 @@ function defineModel() {
         defaultValue: 'COLLECTIVE',
         validate: {
           isIn: {
-            args: [validTypes],
-            msg: `Must be one of: ${validTypes}`,
+            args: [CollectiveTypesList],
+            msg: `Must be one of: ${CollectiveTypesList}`,
           },
         },
       },
