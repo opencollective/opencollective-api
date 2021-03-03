@@ -60,10 +60,6 @@ export const getConsolidatedInvoicesData = async fromCollective => {
       continue;
     }
 
-    // if (moment(transaction.createdAt).isSame(new Date(), 'month')) {
-    //   continue;
-    // }
-
     if (!hostsById[HostCollectiveId]) {
       hostsById[HostCollectiveId] = await models.Collective.findByPk(HostCollectiveId, {
         attributes: ['id', 'slug'],
