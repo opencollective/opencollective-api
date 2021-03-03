@@ -5,7 +5,7 @@ import moment from 'moment';
 
 import { TransactionTypes } from '../../constants/transactions';
 import { getListOfAccessibleMembers } from '../../lib/auth';
-import queries from '../../lib/queries';
+import { getBalances, getBalancesWithBlockedFunds } from '../../lib/budget';
 import models, { Op, sequelize } from '../../models';
 
 import collectiveLoaders from './collective';
@@ -55,10 +55,10 @@ export const loaders = req => {
 
   // Collective - Balance
   context.loaders.Collective.balance = new DataLoader(ids =>
-    queries
-      .getBalances(ids)
-      .then(results => sortResults(ids, results, 'CollectiveId'))
-      .map(result => get(result, 'balance') || 0),
+    getBalances(ids).then(results => sortResults(ids, Object.values(results), 'CollectiveId')),
+  );
+  context.loaders.Collective.balanceWithBlockedFunds = new DataLoader(ids =>
+    getBalancesWithBlockedFunds(ids).then(results => sortResults(ids, Object.values(results), 'CollectiveId')),
   );
 
   // Collective - ConnectedAccounts

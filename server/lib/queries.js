@@ -962,62 +962,6 @@ const getTaxFormsRequiredForAccounts = async (accountIds = [], year) => {
   });
 };
 
-const getBalances = async (collectiveIds, until = new Date()) =>
-  sequelize.query(
-    `
-        WITH "blockedFunds" AS (
-          SELECT
-            e."CollectiveId", COALESCE(sum(e.amount), 0) as sum
-          FROM
-            "Expenses" e
-          WHERE
-            e."CollectiveId" IN (:ids)
-            AND e."deletedAt" IS NULL
-            AND e."createdAt" < :until
-            AND (
-              e.status = 'SCHEDULED_FOR_PAYMENT'
-              OR (
-                e.status = 'PROCESSING' AND e.data ->> 'payout_batch_id' IS NOT NULL
-              )
-          )
-          GROUP BY
-            e."CollectiveId"
-        )
-        SELECT
-          t."CollectiveId",
-          COALESCE(sum(t."netAmountInCollectiveCurrency") - COALESCE(max(bf.sum), 0), 0) AS "balance"
-        FROM
-          "Transactions" t
-        LEFT JOIN "blockedFunds" bf ON t."CollectiveId" = bf."CollectiveId"
-        WHERE
-          t."CollectiveId" IN (:ids)
-          AND t."deletedAt" IS NULL
-          AND t."createdAt" < :until
-        GROUP BY
-          t."CollectiveId";
-      `,
-    { type: sequelize.QueryTypes.SELECT, replacements: { ids: collectiveIds, until } },
-  );
-
-const getBalancesInHostCurrency = async (collectiveIds, hostCollectiveId, until = new Date()) =>
-  sequelize.query(
-    `
-      SELECT
-        t."CollectiveId",
-        COALESCE(SUM(ROUND(t."netAmountInCollectiveCurrency" * t."hostCurrencyFxRate")), 0) AS "balance"
-      FROM
-        "Transactions" t
-      WHERE
-        t."CollectiveId" IN (:ids)
-        AND t."HostCollectiveId" = :hostCollectiveId
-        AND t."deletedAt" IS NULL
-        AND t."createdAt" < :until
-      GROUP BY
-        t."CollectiveId";
-      `,
-    { type: sequelize.QueryTypes.SELECT, replacements: { ids: collectiveIds, hostCollectiveId, until } },
-  );
-
 const serializeCollectivesResult = JSON.stringify;
 
 const unserializeCollectivesResult = string => {
@@ -1041,8 +985,6 @@ const getCollectivesWithMinBackers = memoize(getCollectivesWithMinBackersQuery, 
 });
 
 const queries = {
-  getBalances,
-  getBalancesInHostCurrency,
   getCollectivesByTag,
   getCollectivesOrderedByMonthlySpending,
   getCollectivesOrderedByMonthlySpendingQuery,

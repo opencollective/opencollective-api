@@ -40,10 +40,11 @@ import roles, { MemberRoleLabels } from '../constants/roles';
 import { FEES_ON_TOP_TRANSACTION_PROPERTIES, TransactionTypes } from '../constants/transactions';
 import { hasOptedOutOfFeature, isFeatureAllowedForCollectiveType } from '../lib/allowed-features';
 import {
-  getBalance,
-  getBalanceWithBlockedFunds,
-  getTotalAmountReceived,
-  getTotalNetAmountReceived,
+  getBalanceAmount,
+  getBalanceWithBlockedFundsAmount,
+  getTotalAmountReceivedAmount,
+  getTotalMoneyManagedAmount,
+  getTotalNetAmountReceivedAmount,
   getYearlyIncome,
 } from '../lib/budget';
 import cache, { purgeCacheForCollective } from '../lib/cache';
@@ -1737,23 +1738,6 @@ export default function (Sequelize, DataTypes) {
     return models.User.findAll({ where: { CollectiveId: { [Op.in]: adminMembersIds } } });
   };
 
-  /**
-   * Returns the sum of the balance of hosted collectives.
-   * @param {Date} [until] Optional: balance on given date-time.
-   */
-  Collective.prototype.getTotalMoneyManaged = async function (until) {
-    const hostedCollectives = await this.getHostedCollectives();
-    const ids = hostedCollectives.map(c => c.id);
-    if (this.isActive) {
-      ids.push(this.id);
-    }
-    if (ids.length === 0) {
-      return 0;
-    }
-    const balances = await queries.getBalancesInHostCurrency(ids, this.id, until.toISOString());
-    return sumBy(balances, 'balance');
-  };
-
   Collective.prototype.updateHostFee = async function (hostFeePercent, remoteUser) {
     if (typeof hostFeePercent === undefined || !remoteUser || hostFeePercent === this.hostFeePercent) {
       return;
@@ -2454,24 +2438,48 @@ export default function (Sequelize, DataTypes) {
     });
   };
 
+  Collective.prototype.getBalanceWithBlockedFundsAmount = function (options) {
+    return getBalanceWithBlockedFundsAmount(this, options);
+  };
+
   Collective.prototype.getBalanceWithBlockedFunds = function (options) {
-    return getBalanceWithBlockedFunds(this, options);
+    return getBalanceWithBlockedFundsAmount(this, options).then(result => result.value);
+  };
+
+  Collective.prototype.getBalanceAmount = function (options) {
+    return getBalanceAmount(this, options);
   };
 
   Collective.prototype.getBalance = function (options) {
-    return getBalance(this, options);
+    return getBalanceAmount(this, options).then(result => result.value);
   };
 
   Collective.prototype.getYearlyIncome = function () {
     return getYearlyIncome(this);
   };
 
+  Collective.prototype.getTotalAmountReceivedAmount = function (options) {
+    return getTotalAmountReceivedAmount(this, options);
+  };
+
   Collective.prototype.getTotalAmountReceived = function (options) {
-    return getTotalAmountReceived(this, options);
+    return getTotalAmountReceivedAmount(this, options).then(result => result.value);
+  };
+
+  Collective.prototype.getTotalNetAmountReceivedAmount = function (options) {
+    return getTotalNetAmountReceivedAmount(this, options);
   };
 
   Collective.prototype.getTotalNetAmountReceived = function (options) {
-    return getTotalNetAmountReceived(this, options);
+    return getTotalNetAmountReceivedAmount(this, options).then(result => result.value);
+  };
+
+  Collective.prototype.getTotalMoneyManaged = function (options) {
+    return getTotalMoneyManagedAmount(this, options).then(result => result.value);
+  };
+
+  Collective.prototype.getTotalMoneyManagedAmount = function (options) {
+    return getTotalMoneyManagedAmount(this, options);
   };
 
   /**
@@ -3095,7 +3103,7 @@ export default function (Sequelize, DataTypes) {
       sumByWhen(tipsTransactions, getTipAmountInHostCurrency, isPendingTransaction),
     );
 
-    const totalMoneyManaged = await this.getTotalMoneyManaged(to);
+    const totalMoneyManaged = await this.getTotalMoneyManaged({ endDate: to });
 
     const metrics = {
       hostFees,

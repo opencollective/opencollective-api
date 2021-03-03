@@ -16,14 +16,18 @@ export const AccountStats = new GraphQLObjectType({
           return idEncode(collective.id);
         },
       },
-      balance: {
+      balanceWithBlockedFunds: {
         description: 'Amount of money in cents in the currency of the collective currently available to spend',
         type: new GraphQLNonNull(Amount),
-        async resolve(collective, args, req) {
-          return {
-            value: await req.loaders.Collective.balance.load(collective.id),
-            currency: collective.currency,
-          };
+        resolve(account, args, req) {
+          return account.getBalanceWithBlockedFundsAmount({ loaders: req.loaders });
+        },
+      },
+      balance: {
+        description: 'Amount of money in cents in the currency of the collective',
+        type: new GraphQLNonNull(Amount),
+        resolve(account, args, req) {
+          return account.getBalanceAmount({ loaders: req.loaders });
         },
       },
       monthlySpending: {
@@ -57,11 +61,8 @@ export const AccountStats = new GraphQLObjectType({
       totalAmountReceived: {
         description: 'Net amount received',
         type: new GraphQLNonNull(Amount),
-        async resolve(collective) {
-          return {
-            value: await collective.getTotalAmountReceived(),
-            currency: collective.currency,
-          };
+        resolve(collective) {
+          return collective.getTotalAmountReceivedAmount();
         },
       },
       yearlyBudget: {

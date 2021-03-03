@@ -1149,7 +1149,10 @@ describe('server/models/Collective', () => {
     });
 
     it('returns acurate metrics for requested month', async () => {
-      const expectedTotalMoneyManaged = 2400 + 4000 + 100 + 1000 * 0.8;
+      // We expect the value returned by getFxRate (fixer API), which is 1.1 in test environment
+      const usdToGbpFxRate = 1.1;
+
+      const expectedTotalMoneyManaged = 2400 + 4000 + 100 + 1000 * usdToGbpFxRate;
 
       expect(metrics).to.deep.equal({
         hostFees: 800,
