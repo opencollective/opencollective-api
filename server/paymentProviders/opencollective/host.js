@@ -1,9 +1,7 @@
-import { isNil } from 'lodash';
-
 import { maxInteger } from '../../constants/math';
 import { TransactionTypes } from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
-import { calcFee, getHostFeePercent, getPlatformFee, getPlatformFeePercent } from '../../lib/payments';
+import { calcFee, getHostFeePercent, getPlatformFeePercent } from '../../lib/payments';
 import models from '../../models';
 
 const paymentMethodProvider = {};
@@ -27,12 +25,7 @@ paymentMethodProvider.processOrder = async order => {
 
   const hostFeePercent = await getHostFeePercent(order);
 
-  let platformFeePercent;
-  if (order.data.platformTip) {
-    platformFeePercent = (order.data.platformTip * 100) / order.totalAmount;
-  } else {
-    platformFeePercent = await getPlatformFeePercent(order);
-  }
+  const platformFeePercent = await getPlatformFeePercent(order);
 
   const payload = {
     CreatedByUserId: order.CreatedByUserId,
@@ -51,6 +44,10 @@ paymentMethodProvider.processOrder = async order => {
 
   const hostFeeInHostCurrency = calcFee(order.totalAmount * fxrate, hostFeePercent);
   const platformFeeInHostCurrency = calcFee(order.totalAmount * fxrate, platformFeePercent);
+  let platformTipInHostCurrency;
+  if (order.data?.platformTip) {
+    platformTipInHostCurrency = order.data?.platformTip * fxrate;
+  }
 
   payload.transaction = {
     type: TransactionTypes.CREDIT,
@@ -63,16 +60,12 @@ paymentMethodProvider.processOrder = async order => {
     amountInHostCurrency: totalAmountInPaymentMethodCurrency,
     hostFeeInHostCurrency,
     platformFeeInHostCurrency,
+    platformTipInHostCurrency,
     paymentProcessorFeeInHostCurrency: 0,
     description: order.description,
-    data: {
-      isFeesOnTop: Boolean(order.data?.isFeesOnTop),
-    },
   };
 
-  const transactions = await models.Transaction.createFromPayload(payload);
-
-  return transactions;
+  return await models.Transaction.createFromPayload(payload);
 };
 
 export default paymentMethodProvider;

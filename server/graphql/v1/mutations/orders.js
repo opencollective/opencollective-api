@@ -15,19 +15,18 @@ import FEATURE from '../../../constants/feature';
 import status from '../../../constants/order_status';
 import roles from '../../../constants/roles';
 import { VAT_OPTIONS } from '../../../constants/vat';
-import { canRefund } from '../../../graphql/common/transactions';
 import cache, { purgeCacheForCollective } from '../../../lib/cache';
 import * as github from '../../../lib/github';
 import { getOrCreateGuestProfile } from '../../../lib/guest-accounts';
 import logger from '../../../lib/logger';
 import * as libPayments from '../../../lib/payments';
-import { calcFee } from '../../../lib/payments';
 import { handleHostPlanAddedFundsLimit, handleHostPlanBankTransfersLimit } from '../../../lib/plans';
 import recaptcha from '../../../lib/recaptcha';
 import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../lib/recurring-contributions';
 import { canUseFeature } from '../../../lib/user-permissions';
 import { capitalize, formatCurrency, md5, parseToBoolean, sleep } from '../../../lib/utils';
 import models from '../../../models';
+import { canRefund } from '../../common/transactions';
 import {
   BadRequest,
   FeatureNotAllowedForUser,
@@ -949,8 +948,6 @@ export async function addFundsToCollective(order, remoteUser) {
   }
 
   if (!isNil(order.platformTip)) {
-    orderData.data.isFeesOnTop = true;
-    orderData.data.platformFee = order.platformTip;
     orderData.data.platformTip = order.platformTip;
   }
 
