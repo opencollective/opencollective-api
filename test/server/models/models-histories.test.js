@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { sequelize } from '../../../server/models';
+import sequelize, { QueryTypes } from '../../../server/lib/sequelize';
 import { resetTestDB } from '../../utils';
 
 const getTableInfo = tableName => {
@@ -11,7 +11,7 @@ const getTableInfo = tableName => {
     AND table_name = ?
     ORDER BY column_name ASC
     `,
-    { replacements: [tableName], type: sequelize.QueryTypes.SELECT, raw: true },
+    { replacements: [tableName], type: QueryTypes.SELECT, raw: true },
   );
 };
 

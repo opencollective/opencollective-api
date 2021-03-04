@@ -81,7 +81,9 @@ describe('server/routes/connectedAccounts', () => {
 
   describe('WHEN calling /connected-accounts/github/verify', () => {
     // Create user.
-    beforeEach(() => models.User.create(utils.data('user1')).tap(u => (user = u)));
+    beforeEach(async () => {
+      user = await models.User.createUserWithCollective(utils.data('user1'));
+    });
 
     beforeEach(done => {
       req = request(expressApp).get('/connected-accounts/github/verify');

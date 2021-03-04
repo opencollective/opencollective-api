@@ -24,7 +24,6 @@ import {
 import moment from 'moment';
 import fetch from 'node-fetch';
 import prependHttp from 'prepend-http';
-import { Op } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 import { v4 as uuid } from 'uuid';
 import { isISO31661Alpha2 } from 'validator';
@@ -62,6 +61,7 @@ import logger from '../lib/logger';
 import { handleHostCollectivesLimit } from '../lib/plans';
 import queries from '../lib/queries';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
+import sequelize, { DataTypes, Op, Sequelize } from '../lib/sequelize';
 import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective } from '../lib/spam';
 import { canUseFeature } from '../lib/user-permissions';
 import userlib from '../lib/userlib';
@@ -116,18 +116,10 @@ const longDescriptionSanitizerOptions = buildSanitizerOptions({
   videoIframes: true,
 });
 
-/**
- * Collective Model.
- *
- * There 3 types of collective at the moment
- * - Collective
- * - User: Collective with only one ADMIN
- * - Event: Time based collective with a parent collective
- */
-export default function (Sequelize, DataTypes) {
-  const { models } = Sequelize;
+function defineModel() {
+  const { models } = sequelize;
 
-  const Collective = Sequelize.define(
+  const Collective = sequelize.define(
     'Collective',
     {
       id: {
@@ -368,24 +360,22 @@ export default function (Sequelize, DataTypes) {
 
       startsAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
       },
 
       endsAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
       },
 
       timezone: DataTypes.STRING,
 
       createdAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
 
       updatedAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
 
       isActive: {
@@ -1142,47 +1132,47 @@ export default function (Sequelize, DataTypes) {
    * Returns all the users of a collective (admins, members, backers, followers, attendees, ...)
    * including all the admins of the organizations that are members/backers of this collective
    */
-  Collective.prototype.getUsers = function () {
+  Collective.prototype.getUsers = async function () {
     debug('getUsers for ', this.id);
-    return models.Member.findAll({
+    const memberships = await models.Member.findAll({
       where: { CollectiveId: this.id },
       include: [{ model: models.Collective, as: 'memberCollective', required: true }],
-    })
-      .tap(memberships => debug('>>> members found', memberships.length))
-      .map(membership => membership.memberCollective)
-      .map(memberCollective => {
-        debug('>>> fetching user for', memberCollective.slug, memberCollective.type);
-        if (memberCollective.type === types.USER) {
-          return memberCollective.getUser().then(user => [user]);
-        } else {
-          debug('User', memberCollective.slug, 'type: ', memberCollective.type);
-          return memberCollective.getAdminUsers();
-        }
-      })
-      .then(users => {
-        const usersFlattened = flattenArray(users);
-        return uniqBy(usersFlattened, 'id');
-      });
+    });
+    debug('>>> members found', memberships.length);
+    const memberCollectives = memberships.map(membership => membership.memberCollective);
+    const users = await Promise.map(memberCollectives, memberCollective => {
+      debug('>>> fetching user for', memberCollective.slug, memberCollective.type);
+      if (memberCollective.type === types.USER) {
+        return memberCollective.getUser().then(user => [user]);
+      } else {
+        debug('User', memberCollective.slug, 'type: ', memberCollective.type);
+        return memberCollective.getAdminUsers();
+      }
+    });
+    const usersFlattened = flattenArray(users);
+    return uniqBy(usersFlattened, 'id');
   };
 
-  Collective.prototype.getAdmins = function () {
-    return models.Member.findAll({
+  Collective.prototype.getAdmins = async function () {
+    const members = await models.Member.findAll({
       where: {
         CollectiveId: this.id,
         role: roles.ADMIN,
       },
       include: [{ model: models.Collective, as: 'memberCollective' }],
-    }).map(member => member.memberCollective);
+    });
+    return members.map(member => member.memberCollective);
   };
 
-  Collective.prototype.getMemberships = function ({ role } = {}) {
-    return models.Member.findAll({
+  Collective.prototype.getMemberships = async function ({ role } = {}) {
+    const members = await models.Member.findAll({
       where: {
         MemberCollectiveId: this.id,
         role: role,
       },
       include: [{ model: models.Collective, as: 'collective' }],
-    }).map(member => member.collective);
+    });
+    return members.map(member => member.collective);
   };
 
   /**
@@ -1304,7 +1294,7 @@ export default function (Sequelize, DataTypes) {
    * @param {*} endDate end of the time period
    */
   Collective.prototype.getCancelledOrders = async function (startDate = 0, endDate = new Date()) {
-    const orders = await models.Order.findAll({
+    let orders = await models.Order.findAll({
       where: {
         CollectiveId: this.id,
       },
@@ -1324,7 +1314,9 @@ export default function (Sequelize, DataTypes) {
           model: models.Tier,
         },
       ],
-    }).map(async order => {
+    });
+
+    orders = Promise.map(orders, async order => {
       order.totalTransactions = await order.getTotalTransactions();
       return order;
     });
@@ -1464,59 +1456,60 @@ export default function (Sequelize, DataTypes) {
    *  { name: 'backer', users: [ {UserObject}, {UserObject} ], range: [], ... }
    * ]
    */
-  Collective.prototype.getTiersWithUsers = function (
+  Collective.prototype.getTiersWithUsers = async function (
     options = {
       active: false,
       attributes: ['id', 'username', 'image', 'firstDonation', 'lastDonation', 'totalDonations', 'website'],
     },
   ) {
     const tiersById = {};
+
     // Get the list of tiers for the collective (including deleted ones)
-    return (
-      models.Tier.findAll({ where: { CollectiveId: this.id }, paranoid: false })
-        .then(tiers =>
-          tiers.map(t => {
-            tiersById[t.id] = t;
-          }),
-        )
-        .then(() => queries.getMembersWithTotalDonations({ CollectiveId: this.id, role: 'BACKER' }, options))
-        // Map the users to their respective tier
-        .map(backerCollective => {
-          const include = options.active ? [{ model: models.Subscription, attributes: ['isActive'] }] : [];
-          return models.Order.findOne({
-            attributes: ['TierId'],
-            where: {
-              FromCollectiveId: backerCollective.id,
-              CollectiveId: this.id,
-              TierId: { [Op.ne]: null },
-            },
-            include,
-          }).then(order => {
-            if (!order) {
-              debug('Collective.getTiersWithUsers: no order for a tier for ', {
-                FromCollectiveId: backerCollective.id,
-                CollectiveId: this.id,
-              });
-              return null;
-            }
-            const TierId = order.TierId;
-            tiersById[TierId] = tiersById[TierId] || order.Tier;
-            if (!tiersById[TierId]) {
-              logger.error(">>> Couldn't find a tier with id", order.TierId, 'collective: ', this.slug);
-              tiersById[TierId] = { dataValues: { users: [] } };
-            }
-            tiersById[TierId].dataValues.users = tiersById[TierId].dataValues.users || [];
-            if (options.active) {
-              backerCollective.isActive = order.Subscription.isActive;
-            }
-            debug('adding to tier', TierId, 'backer: ', backerCollective.dataValues.slug);
-            tiersById[TierId].dataValues.users.push(backerCollective.dataValues);
-          });
-        })
-        .then(() => {
-          return Object.values(tiersById);
-        })
+    const tiers = await models.Tier.findAll({ where: { CollectiveId: this.id }, paranoid: false });
+    for (const tier of tiers) {
+      tiersById[tier.id] = tier;
+    }
+
+    const backerCollectives = await queries.getMembersWithTotalDonations(
+      { CollectiveId: this.id, role: 'BACKER' },
+      options,
     );
+
+    // Map the users to their respective tier
+    await Promise.map(backerCollectives, backerCollective => {
+      const include = options.active ? [{ model: models.Subscription, attributes: ['isActive'] }] : [];
+      return models.Order.findOne({
+        attributes: ['TierId'],
+        where: {
+          FromCollectiveId: backerCollective.id,
+          CollectiveId: this.id,
+          TierId: { [Op.ne]: null },
+        },
+        include,
+      }).then(order => {
+        if (!order) {
+          debug('Collective.getTiersWithUsers: no order for a tier for ', {
+            FromCollectiveId: backerCollective.id,
+            CollectiveId: this.id,
+          });
+          return null;
+        }
+        const TierId = order.TierId;
+        tiersById[TierId] = tiersById[TierId] || order.Tier;
+        if (!tiersById[TierId]) {
+          logger.error(">>> Couldn't find a tier with id", order.TierId, 'collective: ', this.slug);
+          tiersById[TierId] = { dataValues: { users: [] } };
+        }
+        tiersById[TierId].dataValues.users = tiersById[TierId].dataValues.users || [];
+        if (options.active) {
+          backerCollective.isActive = order.Subscription.isActive;
+        }
+        debug('adding to tier', TierId, 'backer: ', backerCollective.dataValues.slug);
+        tiersById[TierId].dataValues.users.push(backerCollective.dataValues);
+      });
+    });
+
+    return Object.values(tiersById);
   };
 
   /**
@@ -2429,13 +2422,13 @@ export default function (Sequelize, DataTypes) {
     } else {
       query.order = [['createdAt', 'DESC']];
     }
-    return models.PaymentMethod.findOne(query).tap(paymentMethod => {
-      if (!paymentMethod) {
-        throw new Error('No payment method found');
-      } else if (paymentMethod.endDate && paymentMethod.endDate < new Date()) {
-        throw new Error('Payment method expired');
-      }
-    });
+    const paymentMethod = await models.PaymentMethod.findOne(query);
+    if (!paymentMethod) {
+      throw new Error('No payment method found');
+    } else if (paymentMethod.endDate && paymentMethod.endDate < new Date()) {
+      throw new Error('Payment method expired');
+    }
+    return paymentMethod;
   };
 
   Collective.prototype.getBalanceWithBlockedFundsAmount = function (options) {
@@ -2800,15 +2793,16 @@ export default function (Sequelize, DataTypes) {
     }
   };
 
-  Collective.prototype.getTopBackers = function (since, until, limit) {
-    return queries
-      .getMembersWithTotalDonations({ CollectiveId: this.id, role: 'BACKER' }, { since, until, limit })
-      .tap(backers =>
-        debug(
-          'getTopBackers',
-          backers.map(b => b.dataValues),
-        ),
-      );
+  Collective.prototype.getTopBackers = async function (since, until, limit) {
+    const backers = await queries.getMembersWithTotalDonations(
+      { CollectiveId: this.id, role: 'BACKER' },
+      { since, until, limit },
+    );
+    debug(
+      'getTopBackers',
+      backers.map(b => b.dataValues),
+    );
+    return backers;
   };
 
   Collective.prototype.getImageUrl = function (args = {}) {
@@ -3128,32 +3122,29 @@ export default function (Sequelize, DataTypes) {
   /**
    * Class Methods
    */
-  Collective.createOrganization = (collectiveData, adminUser, creator = {}) => {
+  Collective.createOrganization = async (collectiveData, adminUser, creator = {}) => {
     const CreatedByUserId = creator.id || adminUser.id;
-    return Collective.create({
+    const collective = await Collective.create({
       CreatedByUserId,
       ...collectiveData,
       type: types.ORGANIZATION,
       isActive: true,
-    })
-      .tap(collective => {
-        return models.Member.create({
-          CreatedByUserId,
-          CollectiveId: collective.id,
-          MemberCollectiveId: adminUser.CollectiveId,
-          role: roles.ADMIN,
-        });
-      })
-      .tap(collective => {
-        return models.Activity.create({
-          type: activities.ORGANIZATION_COLLECTIVE_CREATED,
-          UserId: adminUser.id,
-          CollectiveId: collective.id,
-          data: {
-            collective: pick(collective, ['name', 'slug']),
-          },
-        });
-      });
+    });
+    await models.Member.create({
+      CreatedByUserId,
+      CollectiveId: collective.id,
+      MemberCollectiveId: adminUser.CollectiveId,
+      role: roles.ADMIN,
+    });
+    await models.Activity.create({
+      type: activities.ORGANIZATION_COLLECTIVE_CREATED,
+      UserId: adminUser.id,
+      CollectiveId: collective.id,
+      data: {
+        collective: pick(collective, ['name', 'slug']),
+      },
+    });
+    return collective;
   };
 
   Collective.createMany = (collectives, defaultValues) => {
@@ -3162,13 +3153,13 @@ export default function (Sequelize, DataTypes) {
     );
   };
 
-  Collective.getTopBackers = (since, until, tags, limit) => {
-    return queries.getTopBackers(since || 0, until || new Date(), tags, limit || 5).tap(backers =>
-      debug(
-        'getTopBackers',
-        backers.map(b => b.dataValues),
-      ),
+  Collective.getTopBackers = async (since, until, tags, limit) => {
+    const backers = await queries.getTopBackers(since || 0, until || new Date(), tags, limit || 5);
+    debug(
+      'getTopBackers',
+      backers.map(b => b.dataValues),
     );
+    return backers;
   };
 
   Collective.prototype.doesUserHaveTotalExpensesOverThreshold = async function ({ threshold, year, UserId }) {
@@ -3331,7 +3322,13 @@ export default function (Sequelize, DataTypes) {
     Collective.belongsTo(m.Collective, { as: 'HostCollective' });
   };
 
-  Temporal(Collective, Sequelize);
+  Temporal(Collective, sequelize);
 
   return Collective;
 }
+
+// We're using the defineModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const Collective = defineModel();
+
+export default Collective;

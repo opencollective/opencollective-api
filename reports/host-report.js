@@ -146,16 +146,19 @@ async function HostReport(year, month, hostId) {
       data.taxType = host.getTaxType() || 'Taxes';
       data.stats = {};
 
-      const getHostAdminsEmails = host => {
+      const getHostAdminsEmails = async host => {
         if (host.type === 'USER') {
-          return models.User.findAll({ where: { CollectiveId: host.id } }).map(u => u.email);
+          const users = await models.User.findAll({ where: { CollectiveId: host.id } });
+          return users.map(u => u.email);
         }
-        return models.Member.findAll({
+
+        const members = models.Member.findAll({
           where: {
             CollectiveId: host.id,
             role: { [Op.or]: [MemberRoles.ADMIN, MemberRoles.ACCOUNTANT] },
           },
-        }).map(
+        });
+        return members.map(
           admin => {
             return models.User.findOne({
               attributes: ['email'],

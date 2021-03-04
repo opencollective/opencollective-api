@@ -24,17 +24,29 @@ describe('server/graphql/v1/query', () => {
 
   beforeEach(() => utils.resetTestDB());
 
-  beforeEach(() => models.User.createUserWithCollective(utils.data('user1')).tap(u => (user1 = u)));
+  beforeEach(async () => {
+    user1 = await models.User.createUserWithCollective(utils.data('user1'));
+  });
 
-  beforeEach(() => models.User.createUserWithCollective(utils.data('user2')).tap(u => (user2 = u)));
+  beforeEach(async () => {
+    user2 = await models.User.createUserWithCollective(utils.data('user2'));
+  });
 
-  beforeEach(() => models.User.createUserWithCollective(utils.data('user3')).tap(u => (user3 = u)));
+  beforeEach(async () => {
+    user3 = await models.User.createUserWithCollective(utils.data('user3'));
+  });
 
-  beforeEach(() => models.Collective.create(utils.data('collective1')).tap(g => (collective1 = g)));
+  beforeEach(async () => {
+    collective1 = await models.Collective.create(utils.data('collective1'));
+  });
 
-  beforeEach(() => models.Collective.create(utils.data('collective2')).tap(g => (collective2 = g)));
+  beforeEach(async () => {
+    collective2 = await models.Collective.create(utils.data('collective2'));
+  });
 
-  beforeEach(() => models.Collective.create(utils.data('collective4')).tap(g => (collective3 = g)));
+  beforeEach(async () => {
+    collective3 = await models.Collective.create(utils.data('collective4'));
+  });
 
   describe('Root query tests', () => {
     beforeEach(() =>
@@ -56,7 +68,6 @@ describe('server/graphql/v1/query', () => {
         }),
       ),
     );
-    // .tap(e => event3 = e)); leaving it here, so setup above makes sense.
 
     describe('returns nothing', () => {
       it('when given a non-existent slug', async () => {
@@ -165,13 +176,13 @@ describe('server/graphql/v1/query', () => {
       });
 
       describe('returns multiple events with tiers and orders', () => {
-        beforeEach(() =>
-          models.Tier.create(Object.assign(utils.data('ticket1'), { CollectiveId: event1.id })).tap(t => (ticket1 = t)),
-        );
+        beforeEach(async () => {
+          ticket1 = await models.Tier.create(Object.assign(utils.data('ticket1'), { CollectiveId: event1.id }));
+        });
 
-        beforeEach(() =>
-          models.Tier.create(Object.assign(utils.data('ticket2'), { CollectiveId: event1.id })).tap(t => (ticket2 = t)),
-        );
+        beforeEach(async () => {
+          ticket2 = await models.Tier.create(Object.assign(utils.data('ticket2'), { CollectiveId: event1.id }));
+        });
 
         beforeEach(() => models.Tier.create(Object.assign(utils.data('ticket1'), { CollectiveId: event2.id })));
 

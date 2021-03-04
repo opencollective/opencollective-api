@@ -1,11 +1,10 @@
-import { Model } from 'sequelize';
-
 import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
+import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 /**
  * Sequelize model to represent an CurrencyExchangeRate, linked to the `CurrencyExchangeRates` table.
  */
-export class CurrencyExchangeRate extends Model<CurrencyExchangeRate> {
+export class CurrencyExchangeRate extends Model {
   public readonly id!: number;
   public rate!: number;
   public from!: string;
@@ -18,7 +17,7 @@ export class CurrencyExchangeRate extends Model<CurrencyExchangeRate> {
   }
 }
 
-export default (sequelize, DataTypes): typeof CurrencyExchangeRate => {
+function setupModel(CurrencyExchangeRate) {
   // Link the model to database fields
   CurrencyExchangeRate.init(
     {
@@ -57,6 +56,10 @@ export default (sequelize, DataTypes): typeof CurrencyExchangeRate => {
       tableName: 'CurrencyExchangeRates',
     },
   );
+}
 
-  return CurrencyExchangeRate;
-};
+// We're using the setupModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+setupModel(CurrencyExchangeRate);
+
+export default CurrencyExchangeRate;

@@ -4,24 +4,21 @@ import config from 'config';
 import debugLib from 'debug';
 import slugify from 'limax';
 import { defaults, get, intersection, pick } from 'lodash';
-import { Op } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
 import roles from '../constants/roles';
 import * as auth from '../lib/auth';
 import emailLib from '../lib/email';
 import logger from '../lib/logger';
+import sequelize, { DataTypes, Op } from '../lib/sequelize';
 import { isValidEmail } from '../lib/utils';
 
 const debug = debugLib('models:User');
 
-/**
- * Model.
- */
-export default (Sequelize, DataTypes) => {
-  const { models } = Sequelize;
+function defineModel() {
+  const { models } = sequelize;
 
-  const User = Sequelize.define(
+  const User = sequelize.define(
     'User',
     {
       firstName: DataTypes.STRING,
@@ -70,12 +67,12 @@ export default (Sequelize, DataTypes) => {
 
       createdAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
 
       updatedAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
 
       confirmedAt: {
@@ -510,7 +507,13 @@ export default (Sequelize, DataTypes) => {
     return { firstName, lastName };
   };
 
-  Temporal(User, Sequelize);
+  Temporal(User, sequelize);
 
   return User;
-};
+}
+
+// We're using the defineModel method to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const User = defineModel();
+
+export default User;

@@ -19,30 +19,29 @@ describe('server/graphql/v1/paymentMethods', () => {
     await utils.resetTestDB();
   });
 
-  beforeEach(() =>
-    models.User.createUserWithCollective({
+  beforeEach(async () => {
+    admin = await models.User.createUserWithCollective({
       name: 'Host Admin',
       email: 'admin@email.com',
-    }).tap(u => (admin = u)),
-  );
+    });
+  });
 
-  beforeEach(() =>
-    models.User.createUserWithCollective({
+  beforeEach(async () => {
+    user = await models.User.createUserWithCollective({
       name: 'Xavier',
       currency: 'EUR',
       email: 'xxxx@email.com',
-    }).tap(u => (user = u)),
-  );
+    });
+  });
 
-  beforeEach(() =>
-    models.Collective.create({
+  beforeEach(async () => {
+    host = await models.Collective.create({
       name: 'open source collective',
       type: 'ORGANIZATION',
       currency: 'USD',
-    })
-      .tap(c => (host = c))
-      .then(c => c.becomeHost()),
-  );
+    });
+    await host.becomeHost();
+  });
 
   beforeEach(() =>
     models.ConnectedAccount.create({
@@ -51,16 +50,16 @@ describe('server/graphql/v1/paymentMethods', () => {
     }),
   );
 
-  beforeEach(() =>
-    models.Collective.create({
+  beforeEach(async () => {
+    collective = await models.Collective.create({
       name: 'tipbox',
       type: 'COLLECTIVE',
       isActive: true,
       currency: 'EUR',
       hostFeePercent: 5,
       HostCollectiveId: host.id,
-    }).tap(c => (collective = c)),
-  );
+    });
+  });
 
   beforeEach(() =>
     models.Member.create({

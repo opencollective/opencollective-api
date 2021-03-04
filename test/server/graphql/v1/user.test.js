@@ -23,16 +23,30 @@ describe('server/graphql/v1/user', () => {
 
   beforeEach(() => utils.resetTestDB());
 
-  beforeEach(() => models.User.createUserWithCollective(utils.data('user1')).tap(u => (user1 = u)));
-  beforeEach(() => models.User.createUserWithCollective(utils.data('user2')).tap(u => (user2 = u)));
-  beforeEach(() => models.User.createUserWithCollective(utils.data('host1')).tap(u => (host = u)));
+  beforeEach(async () => {
+    user1 = await models.User.createUserWithCollective(utils.data('user1'));
+  });
+  beforeEach(async () => {
+    user2 = await models.User.createUserWithCollective(utils.data('user2'));
+  });
+  beforeEach(async () => {
+    host = await models.User.createUserWithCollective(utils.data('host1'));
+  });
 
-  beforeEach(() => models.Collective.create(utils.data('collective1')).tap(g => (collective1 = g)));
+  beforeEach(async () => {
+    collective1 = await models.Collective.create(utils.data('collective1'));
+  });
 
-  beforeEach(() => models.Collective.create(utils.data('collective2')).tap(g => (collective2 = g)));
+  beforeEach(async () => {
+    collective2 = await models.Collective.create(utils.data('collective2'));
+  });
 
-  beforeEach(() => collective1.createTier(utils.data('tier1')).tap(t => (tier1 = t)));
-  beforeEach(() => collective1.createTier(utils.data('ticket1')).tap(t => (ticket1 = t)));
+  beforeEach(async () => {
+    tier1 = await collective1.createTier(utils.data('tier1'));
+  });
+  beforeEach(async () => {
+    ticket1 = await collective1.createTier(utils.data('ticket1'));
+  });
 
   beforeEach(() => collective1.addUserWithRole(user1, 'BACKER'));
   beforeEach(() => collective2.addUserWithRole(user1, 'ADMIN'));

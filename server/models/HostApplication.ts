@@ -1,7 +1,7 @@
 import { pick } from 'lodash';
-import { DataTypes, Model, Sequelize } from 'sequelize';
 
 import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
+import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 export enum HostApplicationStatus {
   PENDING = 'PENDING',
@@ -70,7 +70,7 @@ export class HostApplication extends Model<HostApplication> {
   }
 }
 
-export default (sequelize: Sequelize): typeof HostApplication => {
+function setupModel(HostApplication) {
   // Link the model to database fields
   HostApplication.init(
     {
@@ -130,6 +130,10 @@ export default (sequelize: Sequelize): typeof HostApplication => {
       paranoid: true,
     },
   );
+}
 
-  return HostApplication;
-};
+// We're using the setupModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+setupModel(HostApplication);
+
+export default HostApplication;

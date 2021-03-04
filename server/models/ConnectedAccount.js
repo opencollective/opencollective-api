@@ -3,11 +3,10 @@ import { isNil } from 'lodash';
 
 import { supportedServices } from '../constants/connected_account';
 import { crypto } from '../lib/encryption';
-/**
- * Model.
- */
-export default (Sequelize, DataTypes) => {
-  const ConnectedAccount = Sequelize.define(
+import sequelize, { DataTypes } from '../lib/sequelize';
+
+function defineModel() {
+  const ConnectedAccount = sequelize.define(
     'ConnectedAccount',
     {
       service: {
@@ -52,12 +51,12 @@ export default (Sequelize, DataTypes) => {
 
       createdAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
 
       updatedAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
 
       hash: {
@@ -97,4 +96,10 @@ export default (Sequelize, DataTypes) => {
   };
 
   return ConnectedAccount;
-};
+}
+
+// We're using the defineModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const ConnectedAccount = defineModel();
+
+export default ConnectedAccount;
