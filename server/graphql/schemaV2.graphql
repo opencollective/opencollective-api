@@ -83,6 +83,11 @@ interface Account {
     role: [MemberRole]
 
     """
+    Admin only. To filter on the email address of a member, useful to check if a member exists.
+    """
+    email: EmailAddress
+
+    """
     Type of accounts (BOT/COLLECTIVE/EVENT/ORGANIZATION/INDIVIDUAL)
     """
     accountType: [AccountType]
@@ -585,6 +590,11 @@ type Bot implements Account {
     accountType: [AccountType]
 
     """
+    Admin only. To filter on the email address of a member, useful to check if a member exists.
+    """
+    email: EmailAddress
+
+    """
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
@@ -812,6 +822,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     offset: Int = 0
     role: [MemberRole]
     accountType: [AccountType]
+
+    """
+    Admin only. To filter on the email address of a member, useful to check if a member exists.
+    """
+    email: EmailAddress
 
     """
     Order of the results
@@ -2701,9 +2716,19 @@ All supported currencies
 """
 enum Currency {
   """
+  Argentine Peso
+  """
+  ARS
+
+  """
   Australian Dollar
   """
   AUD
+
+  """
+  Taka
+  """
+  BDT
 
   """
   Bulgarian Lev
@@ -2744,6 +2769,11 @@ enum Currency {
   Pound Sterling
   """
   GBP
+
+  """
+  Hong Kong Dollar
+  """
+  HKD
 
   """
   Kuna
@@ -2791,6 +2821,11 @@ enum Currency {
   NOK
 
   """
+  Nepalese Rupee
+  """
+  NPR
+
+  """
   New Zealand Dollar
   """
   NZD
@@ -2811,6 +2846,11 @@ enum Currency {
   SEK
 
   """
+  Singapore Dollar
+  """
+  SGD
+
+  """
   US Dollar
   """
   USD
@@ -2819,6 +2859,11 @@ enum Currency {
   Peso Uruguayo
   """
   UYU
+
+  """
+  Rand
+  """
+  ZAR
 }
 
 scalar DateString
@@ -2949,6 +2994,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions {
     offset: Int = 0
     role: [MemberRole]
     accountType: [AccountType]
+
+    """
+    Admin only. To filter on the email address of a member, useful to check if a member exists.
+    """
+    email: EmailAddress
 
     """
     Order of the results
@@ -3827,6 +3877,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     accountType: [AccountType]
 
     """
+    Admin only. To filter on the email address of a member, useful to check if a member exists.
+    """
+    email: EmailAddress
+
+    """
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
@@ -4131,6 +4186,11 @@ type Host implements Account & AccountWithContributions {
     offset: Int = 0
     role: [MemberRole]
     accountType: [AccountType]
+
+    """
+    Admin only. To filter on the email address of a member, useful to check if a member exists.
+    """
+    email: EmailAddress
 
     """
     Order of the results
@@ -4638,6 +4698,11 @@ type Individual implements Account {
     offset: Int = 0
     role: [MemberRole]
     accountType: [AccountType]
+
+    """
+    Admin only. To filter on the email address of a member, useful to check if a member exists.
+    """
+    email: EmailAddress
 
     """
     Order of the results
@@ -5895,6 +5960,11 @@ type Organization implements Account & AccountWithContributions {
     accountType: [AccountType]
 
     """
+    Admin only. To filter on the email address of a member, useful to check if a member exists.
+    """
+    email: EmailAddress
+
+    """
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
@@ -6362,6 +6432,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions {
     offset: Int = 0
     role: [MemberRole]
     accountType: [AccountType]
+
+    """
+    Admin only. To filter on the email address of a member, useful to check if a member exists.
+    """
+    email: EmailAddress
 
     """
     Order of the results

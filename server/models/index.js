@@ -207,6 +207,13 @@ export function setupModels() {
   m.Collective.hasMany(m.Member, { foreignKey: 'CollectiveId', as: 'members' });
   m.Collective.hasMany(m.Order, { foreignKey: 'CollectiveId', as: 'orders' });
   m.Collective.hasMany(m.LegalDocument, { foreignKey: 'CollectiveId', as: 'legalDocuments' });
+  m.Collective.hasOne(m.User, {
+    as: 'user',
+    foreignKey: 'CollectiveId',
+    constraints: false,
+    allowNull: true,
+    defaultValue: null,
+  });
   m.Transaction.belongsTo(m.Order);
   m.Order.hasMany(m.Transaction);
   m.Tier.hasMany(m.Order);

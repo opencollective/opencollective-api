@@ -1,10 +1,12 @@
 import { GraphQLInt, GraphQLList, GraphQLNonNull } from 'graphql';
 
 import models, { Op } from '../../../models';
+import { BadRequest } from '../../errors';
 import { MemberCollection } from '../collection/MemberCollection';
 import { AccountType, AccountTypeToModelMapping } from '../enum/AccountType';
 import { MemberRole } from '../enum/MemberRole';
 import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
+import EmailAddress from '../scalar/EmailAddress';
 
 export const HasMembersFields = {
   members: {
@@ -15,6 +17,10 @@ export const HasMembersFields = {
       offset: { type: GraphQLInt, defaultValue: 0 },
       role: { type: new GraphQLList(MemberRole) },
       accountType: { type: new GraphQLList(AccountType) },
+      email: {
+        type: EmailAddress,
+        description: 'Admin only. To filter on the email address of a member, useful to check if a member exists.',
+      },
       orderBy: {
         type: new GraphQLNonNull(ChronologicalOrderInput),
         defaultValue: { field: 'createdAt', direction: 'ASC' },
@@ -27,6 +33,7 @@ export const HasMembersFields = {
       }
 
       const where = { CollectiveId: collective.id };
+      const collectiveInclude = [];
 
       if (args.role && args.role.length > 0) {
         where.role = { [Op.in]: args.role };
@@ -36,6 +43,14 @@ export const HasMembersFields = {
         collectiveConditions.type = {
           [Op.in]: args.accountType.map(value => AccountTypeToModelMapping[value]),
         };
+      }
+
+      if (args.email) {
+        if (!req.remoteUser?.isAdminOfCollective(collective)) {
+          throw new BadRequest('Only admins can lookup for members using the "email" argument');
+        } else {
+          collectiveInclude.push({ association: 'user', required: true, where: { email: args.email.toLowerCase() } });
+        }
       }
 
       const result = await models.Member.findAndCountAll({
@@ -48,6 +63,8 @@ export const HasMembersFields = {
             model: models.Collective,
             as: 'memberCollective',
             where: collectiveConditions,
+            include: collectiveInclude,
+            required: true,
           },
         ],
       });
