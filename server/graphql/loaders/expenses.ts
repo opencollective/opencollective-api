@@ -1,4 +1,5 @@
 import DataLoader from 'dataloader';
+import express from 'express';
 
 import ACTIVITY from '../../constants/activities';
 import queries from '../../lib/queries';
@@ -30,7 +31,7 @@ export const generateExpenseItemsLoader = (): DataLoader<number, ExpenseItem[]> 
 /**
  * Load all activities for an expense
  */
-export const generateExpenseActivitiesLoader = (req): DataLoader<number, object> => {
+export const generateExpenseActivitiesLoader = (req: express.Request): DataLoader<number, typeof models.Activity> => {
   return new DataLoader(async (expenseIDs: number[]) => {
     // Optimization: load expenses to get their collective IDs, as filtering on `data` (JSON)
     // can be expensive.
@@ -80,7 +81,7 @@ export const attachedFiles = (): DataLoader<number, ExpenseAttachedFile[]> => {
   });
 };
 
-const loadTaxFormsRequiredForExpenses = async (expenseIds: number[]): Promise<object> => {
+const loadTaxFormsRequiredForExpenses = async (expenseIds: number[]): Promise<Record<string, unknown>> => {
   const expenses = await queries.getTaxFormsRequiredForExpenses(expenseIds);
   const expenseNeedsTaxForm = {};
   expenses.forEach(expense => {
@@ -94,10 +95,12 @@ const loadTaxFormsRequiredForExpenses = async (expenseIds: number[]): Promise<ob
  * Expense loader to check if userTaxForm is required before expense payment
  */
 export const userTaxFormRequiredBeforePayment = (): DataLoader<number, boolean> => {
-  return new DataLoader(async (expenseIds: number[]) => {
-    const expenseNeedsTaxForm = await loadTaxFormsRequiredForExpenses(expenseIds);
-    return expenseIds.map(id => expenseNeedsTaxForm[id] || false);
-  });
+  return new DataLoader<number, boolean>(
+    async (expenseIds: number[]): Promise<boolean[]> => {
+      const expenseNeedsTaxForm = await loadTaxFormsRequiredForExpenses(expenseIds);
+      return expenseIds.map(id => Boolean(expenseNeedsTaxForm[id]));
+    },
+  );
 };
 
 /**

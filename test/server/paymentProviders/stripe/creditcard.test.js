@@ -7,7 +7,7 @@ import nock from 'nock';
 import cache from '../../../../server/lib/cache';
 import models, { sequelize } from '../../../../server/models';
 import creditcard from '../../../../server/paymentProviders/stripe/creditcard';
-import { fakeCollective, fakeHost, fakeUser } from '../../../test-helpers/fake-data';
+import { fakeHost, fakeUser } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
 async function createOrderWithPaymentMethod(paymentMethodName, orderParams = {}) {
@@ -95,7 +95,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
 
     beforeEach(async () => {
       const user = await fakeUser({ id: 30 }, { id: 20, slug: 'pia' });
-      const oc = await fakeHost({ id: 8686, slug: 'opencollectiveinc', CreatedByUserId: user.id });
+      await fakeHost({ id: 8686, slug: 'opencollectiveinc', CreatedByUserId: user.id });
       // Move Collectives ID auto increment pointer up, so we don't collide with the manually created id:1
       await sequelize.query(`ALTER SEQUENCE "Collectives_id_seq" RESTART WITH 1453`);
     });

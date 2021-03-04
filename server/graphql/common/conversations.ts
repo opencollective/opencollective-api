@@ -19,7 +19,10 @@ interface CreateConversationParams {
  *
  * @returns the conversation
  */
-export const createConversation = async (remoteUser, params: CreateConversationParams) => {
+export const createConversation = async (
+  remoteUser: typeof models.User,
+  params: CreateConversationParams,
+): Promise<typeof models.Conversation> => {
   // For now any authenticated user can create a conversation to any collective
   if (!remoteUser) {
     throw new Unauthorized();
@@ -50,7 +53,10 @@ interface EditConversationParams {
  *
  * @returns the conversation
  */
-export const editConversation = async (remoteUser, params: EditConversationParams) => {
+export const editConversation = async (
+  remoteUser: typeof models.User,
+  params: EditConversationParams,
+): Promise<typeof models.Conversation> => {
   if (!remoteUser) {
     throw new Unauthorized();
   } else if (!canUseFeature(remoteUser, FEATURE.CONVERSATIONS)) {

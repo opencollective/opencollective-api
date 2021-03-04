@@ -1,4 +1,4 @@
-export const whiteListDomains = [
+const whiteListDomains = [
   'hush.com',
   'opayq.com',
   'mailhero.io',

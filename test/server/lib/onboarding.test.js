@@ -50,8 +50,8 @@ describe('server/lib/onboarding', () => {
     await processOnBoardingTemplate('onboarding.day2', startsAt);
     expect(emailLibSendSpy.firstCall.args[3].from).to.equal('Open Collective <support@opencollective.com>');
     expect(emailLibSendSpy.callCount).to.equal(2);
-    admins.map((admin, i) => {
-      const emailServiceCall = emailLibSendSpy.args.find(([_, email]) => email === admin.email);
+    admins.map(admin => {
+      const emailServiceCall = emailLibSendSpy.args.find(([, email]) => email === admin.email);
       if (!emailServiceCall) {
         throw new Error(`Looks like onboarding email was not sent to ${admin.email}`);
       }

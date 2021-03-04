@@ -1,3 +1,4 @@
+import express from 'express';
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 import GraphQLJSON from 'graphql-type-json';
@@ -30,7 +31,7 @@ export const Activity = new GraphQLObjectType({
     account: {
       type: Account,
       description: 'The account concerned by this activity, if any',
-      resolve: async (activity, _, req): Promise<object> => {
+      resolve: async (activity, _, req: express.Request): Promise<Record<string, unknown>> => {
         if (activity.CollectiveId) {
           return req.loaders.Collective.byId.load(activity.CollectiveId);
         }
@@ -39,7 +40,7 @@ export const Activity = new GraphQLObjectType({
     individual: {
       type: Individual,
       description: 'The person who triggered the action, if any',
-      resolve: async (activity, _, req): Promise<object> => {
+      resolve: async (activity, _, req: express.Request): Promise<Record<string, unknown>> => {
         if (activity.UserId) {
           const collective = await req.loaders.Collective.byUserId.load(activity.UserId);
           if (!collective?.isIncognito) {
@@ -51,7 +52,7 @@ export const Activity = new GraphQLObjectType({
     data: {
       type: new GraphQLNonNull(GraphQLJSON),
       description: 'Data attached to this activity (if any)',
-      async resolve(activity, _, req): Promise<object> {
+      async resolve(activity, _, req: express.Request): Promise<Record<string, unknown>> {
         const toPick = [];
         if (activity.type === ACTIVITY.COLLECTIVE_EXPENSE_PAID) {
           toPick.push('isManualPayout');

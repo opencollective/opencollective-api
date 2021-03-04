@@ -3,6 +3,8 @@ import { pick } from 'lodash';
 import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
+import models from '.';
+
 export enum HostApplicationStatus {
   PENDING = 'PENDING',
   APPROVED = 'APPROVED',
@@ -28,7 +30,11 @@ export class HostApplication extends Model<HostApplication> {
 
   // ---- Static ----
 
-  static async getByStatus(host, collective, status: HostApplicationStatus): Promise<HostApplication | null> {
+  static async getByStatus(
+    host: typeof models.Collective,
+    collective: typeof models.Collective,
+    status: HostApplicationStatus,
+  ): Promise<HostApplication | null> {
     return this.findOne({
       order: [['createdAt', 'DESC']],
       where: {
@@ -39,7 +45,11 @@ export class HostApplication extends Model<HostApplication> {
     });
   }
 
-  static async recordApplication(host, collective, data: Record<string, unknown>): Promise<HostApplication> {
+  static async recordApplication(
+    host: typeof models.Collective,
+    collective: typeof models.Collective,
+    data: Record<string, unknown>,
+  ): Promise<HostApplication> {
     const existingApplication = await this.getByStatus(host, collective, HostApplicationStatus.PENDING);
     if (existingApplication) {
       return existingApplication.update({ updatedAt: new Date() });
@@ -56,7 +66,11 @@ export class HostApplication extends Model<HostApplication> {
   /**
    * Update the `status` for pending application(s) for this `host` <> `collective` (if any)
    */
-  static async updatePendingApplications(host, collective, status: HostApplicationStatus): Promise<void> {
+  static async updatePendingApplications(
+    host: typeof models.Collective,
+    collective: typeof models.Collective,
+    status: HostApplicationStatus,
+  ): Promise<void> {
     await this.update(
       { status },
       {

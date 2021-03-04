@@ -1,10 +1,12 @@
+import express from 'express';
 import moment from 'moment';
 
 import { roles } from '../../constants';
 import orderStatus from '../../constants/order_status';
 import { TransactionTypes } from '../../constants/transactions';
+import models from '../../models';
 
-const isRoot = async (req): Promise<boolean> => {
+const isRoot = async (req: express.Request): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
   }
@@ -95,7 +97,11 @@ const remoteUserMeetsOneCondition = async (req, transaction, conditions): Promis
 };
 
 /** Checks if the user can see transaction's attachments (items URLs, attached files) */
-export const canRefund = async (transaction, _, req): Promise<boolean> => {
+export const canRefund = async (
+  transaction: typeof models.Transaction,
+  _: void,
+  req: express.Request,
+): Promise<boolean> => {
   if (transaction.type !== TransactionTypes.CREDIT || transaction.OrderId === null) {
     return false;
   }
@@ -109,7 +115,11 @@ export const canRefund = async (transaction, _, req): Promise<boolean> => {
   }
 };
 
-export const canDownloadInvoice = async (transaction, _, req): Promise<boolean> => {
+export const canDownloadInvoice = async (
+  transaction: typeof models.Transaction,
+  _: void,
+  req: express.Request,
+): Promise<boolean> => {
   if (transaction.OrderId) {
     const order = await req.loaders.Order.byId.load(transaction.OrderId);
     if (order.status === orderStatus.REJECTED) {
@@ -124,7 +134,11 @@ export const canDownloadInvoice = async (transaction, _, req): Promise<boolean> 
   ]);
 };
 
-export const canReject = async (transaction, _, req): Promise<boolean> => {
+export const canReject = async (
+  transaction: typeof models.Transaction,
+  _: void,
+  req: express.Request,
+): Promise<boolean> => {
   if (transaction.type !== TransactionTypes.CREDIT || transaction.OrderId === null) {
     return false;
   }

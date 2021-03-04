@@ -1,4 +1,5 @@
 import cryptoRandomString from 'crypto-random-string';
+import express from 'express';
 import { GraphQLBoolean, GraphQLFloat, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import GraphQLJSON from 'graphql-type-json';
 import { cloneDeep, set } from 'lodash';
@@ -51,7 +52,7 @@ const accountMutations = {
         description: 'The value to set for this key',
       },
     },
-    async resolve(_, args, req): Promise<object> {
+    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
       if (!req.remoteUser) {
         throw new Unauthorized();
       }
@@ -100,7 +101,7 @@ const accountMutations = {
         description: 'If using a custom fee, set this to true',
       },
     },
-    async resolve(_, args, req): Promise<object> {
+    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
       return sequelize.transaction(async dbTransaction => {
         const account = await fetchAccountWithReference(args.account, {
           throwIfMissing: true,
@@ -141,7 +142,7 @@ const accountMutations = {
         description: 'The generated secret to save to the Individual',
       },
     },
-    async resolve(_, args, req): Promise<object> {
+    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
       if (!req.remoteUser) {
         throw new Unauthorized();
       }
@@ -201,7 +202,7 @@ const accountMutations = {
         description: 'The 6-digit 2FA code',
       },
     },
-    async resolve(_, args, req): Promise<object> {
+    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
       if (!req.remoteUser) {
         throw new Unauthorized();
       }
@@ -246,7 +247,7 @@ const accountMutations = {
         description: 'The name of the plan to subscribe to.',
       },
     },
-    async resolve(_, args, req): Promise<object> {
+    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
       if (!req.remoteUser) {
         throw new Unauthorized();
       }
@@ -293,7 +294,7 @@ const accountMutations = {
         description: 'Account to edit.',
       },
     },
-    async resolve(_, args, req): Promise<object> {
+    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
       if (!req.remoteUser) {
         throw new Unauthorized();
       }

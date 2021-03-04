@@ -1,3 +1,4 @@
+import express from 'express';
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import GraphQLJSON from 'graphql-type-json';
 
@@ -52,7 +53,7 @@ const HostApplicationMutations = {
         description: 'Further information about collective applying to host',
       },
     },
-    async resolve(_, args, req): Promise<object> {
+    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
       if (!req.remoteUser) {
         throw new Unauthorized('You need to be logged in');
       }
@@ -102,7 +103,7 @@ const HostApplicationMutations = {
         description: 'A message to attach as a reason for the action',
       },
     },
-    resolve: async (_, args, req): Promise<Record<string, unknown>> => {
+    resolve: async (_, args, req: express.Request): Promise<Record<string, unknown>> => {
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
       const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
 

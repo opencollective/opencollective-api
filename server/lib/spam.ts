@@ -8,6 +8,7 @@ import { clamp } from 'lodash';
 import sanitizeHtml from 'sanitize-html';
 
 import slackLib, { OPEN_COLLECTIVE_SLACK_CHANNEL } from '../lib/slack';
+import models from '../models';
 
 /** Return type when running a spam analysis */
 export type SpamAnalysisReport = {
@@ -16,7 +17,7 @@ export type SpamAnalysisReport = {
   /** What's the context of the report */
   context: string;
   /** Data of the entity that was analyzed */
-  data: object;
+  data: Record<string, unknown>;
   /** A score between 0 and 1. 0=NotSpam, 1=IsSpamForSure */
   score: number;
   /** Detected spam keywords */
@@ -29,7 +30,7 @@ export type SpamAnalysisReport = {
 
 export type BayesClassifier = {
   /** Categorize a content string */
-  categorize: Function;
+  categorize(content: string): string;
 };
 
 // Watched content
@@ -505,7 +506,10 @@ const stringifyUrl = url => {
     .join(' ');
 };
 
-export const collectiveBayesContent = async (collective: any, extraString = ''): Promise<string> => {
+export const collectiveBayesContent = async (
+  collective: typeof models.Collective,
+  extraString = '',
+): Promise<string> => {
   const slugString = (collective.slug || '').split('-').join(' ');
   const websiteString = stringifyUrl(collective.website || '');
 
@@ -520,7 +524,7 @@ export const collectiveBayesContent = async (collective: any, extraString = ''):
   return `${slugString} ${collective.name} ${collective.description} ${longDescriptionString} ${urlsString} ${websiteString} ${extraString}`;
 };
 
-export const collectiveBayesCheck = async (collective: any, extraString = ''): Promise<string> => {
+export const collectiveBayesCheck = async (collective: typeof models.Collective, extraString = ''): Promise<string> => {
   const content = await collectiveBayesContent(collective, extraString);
 
   const classifier = await getBayesClassifier();
@@ -531,7 +535,10 @@ export const collectiveBayesCheck = async (collective: any, extraString = ''): P
 /**
  * Checks the values for this collective to try to determinate if it's a spammy profile.
  */
-export const collectiveSpamCheck = async (collective: any, context: string): Promise<SpamAnalysisReport> => {
+export const collectiveSpamCheck = async (
+  collective: typeof models.Collective,
+  context: string,
+): Promise<SpamAnalysisReport> => {
   const result = { score: 0, keywords: new Set<string>(), domains: new Set<string>() };
 
   let bayesCheck = null;

@@ -5,6 +5,8 @@ import { isValidUploadedImage } from '../lib/images';
 import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
 import sequelize from '../lib/sequelize';
 
+import models from '.';
+
 /**
  * Sequelize model to represent an ExpenseAttachedFile, linked to the `ExpenseAttachedFiles` table.
  */
@@ -28,8 +30,8 @@ export class ExpenseAttachedFile extends Model {
    */
   static async createFromData(
     url: string,
-    user,
-    expense,
+    user: typeof models.User,
+    expense: typeof models.Expense,
     dbTransaction: Transaction | null,
   ): Promise<ExpenseAttachedFile> {
     return ExpenseAttachedFile.create(
@@ -43,7 +45,10 @@ export class ExpenseAttachedFile extends Model {
    * added, removed or added.
    * @returns [newEntries, removedEntries, updatedEntries]
    */
-  static diffDBEntries = (baseAttachments, attachmentsData): [object[], ExpenseAttachedFile[], object[]] => {
+  static diffDBEntries = (
+    baseAttachments: ExpenseAttachedFile[],
+    attachmentsData: Record<string, unknown>[],
+  ): [Record<string, unknown>[], ExpenseAttachedFile[], Record<string, unknown>[]] => {
     return diffDBEntries(baseAttachments, attachmentsData, ['url']);
   };
 }

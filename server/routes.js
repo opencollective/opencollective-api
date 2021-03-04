@@ -1,4 +1,4 @@
-import { ApolloError, ApolloServer } from 'apollo-server-express';
+import { ApolloServer } from 'apollo-server-express';
 import config from 'config';
 import expressLimiter from 'express-limiter';
 import { get, pick } from 'lodash';
