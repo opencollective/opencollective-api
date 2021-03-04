@@ -1439,7 +1439,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
     it('should create a new DRAFT expense with a draftKey', async () => {
       expect(expense.status).to.eq(expenseStatus.DRAFT);
       expect(expense.amount).to.eq(4200);
-      expect(expense.payeeLocation).to.deep.equal(invoice.payeeLocation);
+      expect(expense.data.payeeLocation).to.deep.equal(invoice.payeeLocation);
       expect(expense.data.payee).to.deep.equal(invoice.payee);
       expect(expense.data.recipientNote).to.equal(invoice.recipientNote);
       expect(expense.data.draftKey).to.exist;

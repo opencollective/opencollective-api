@@ -333,15 +333,7 @@ const expenseMutations = {
       }
 
       const draftKey = process.env.OC_ENV === 'e2e' || process.env.OC_ENV === 'ci' ? 'draft-key' : uuid();
-      const expenseFields = [
-        'description',
-        'longDescription',
-        'tags',
-        'type',
-        'privateMessage',
-        'invoiceInfo',
-        'payeeLocation',
-      ];
+      const expenseFields = ['description', 'longDescription', 'tags', 'type', 'privateMessage', 'invoiceInfo'];
 
       const fromCollective = await remoteUser.getCollective();
       const payee = expenseData.payee?.id
@@ -363,6 +355,8 @@ const expenseMutations = {
           invitedByCollectiveId: fromCollective.id,
           draftKey,
           recipientNote: expenseData.recipientNote,
+          payoutMethod: expenseData.payoutMethod,
+          payeeLocation: expenseData.payeeLocation,
         },
         status: expenseStatus.DRAFT,
       });
