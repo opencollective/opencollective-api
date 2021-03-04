@@ -2777,22 +2777,6 @@ function defineModel() {
       });
   };
 
-  Collective.prototype.setStripeAccount = function (stripeAccount) {
-    if (!stripeAccount) {
-      return Promise.resolve(null);
-    }
-
-    if (stripeAccount.id) {
-      return models.ConnectedAccount.update({ CollectiveId: this.id }, { where: { id: stripeAccount.id }, limit: 1 });
-    } else {
-      return models.ConnectedAccount.create({
-        service: 'stripe',
-        ...stripeAccount,
-        CollectiveId: this.id,
-      });
-    }
-  };
-
   Collective.prototype.getTopBackers = async function (since, until, limit) {
     const backers = await queries.getMembersWithTotalDonations(
       { CollectiveId: this.id, role: 'BACKER' },
