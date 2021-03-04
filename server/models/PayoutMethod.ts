@@ -147,7 +147,7 @@ function setupModel(PayoutMethod) {
       },
       type: {
         // Enum entries must match `PayoutMethodType`
-        type: DataTypes.ENUM(Object.values(PayoutMethodTypes)),
+        type: DataTypes.ENUM(...Object.values(PayoutMethodTypes)),
         allowNull: false,
         validate: {
           isIn: {

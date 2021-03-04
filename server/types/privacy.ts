@@ -54,7 +54,7 @@ export type Transaction = {
   card: Card;
   // ISOString
   created: string;
-  events: [];
+  events: any[];
   funding: {
     // Absolute value in USD cents
     amount: number;

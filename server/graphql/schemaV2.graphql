@@ -272,6 +272,11 @@ type AccountStats {
   """
   Amount of money in cents in the currency of the collective currently available to spend
   """
+  balanceWithBlockedFunds: Amount!
+
+  """
+  Amount of money in cents in the currency of the collective
+  """
   balance: Amount!
 
   """
@@ -3497,6 +3502,11 @@ input ExpenseInviteDraftInput {
   The address of the payee
   """
   payeeLocation: LocationInput
+
+  """
+  The payout method that will be used to reimburse the expense
+  """
+  payoutMethod: PayoutMethodInput
 }
 
 input ExpenseInvitee {
@@ -7439,6 +7449,11 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
     offset: Int = 0
     role: [MemberRole]
     accountType: [AccountType]
+
+    """
+    Admin only. To filter on the email address of a member, useful to check if a member exists.
+    """
+    email: EmailAddress
 
     """
     Order of the results

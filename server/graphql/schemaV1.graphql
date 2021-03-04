@@ -727,6 +727,11 @@ type CollectiveStatsType {
   """
   Amount of money in cents in the currency of the collective currently available to spend
   """
+  balanceWithBlockedFunds: Int
+
+  """
+  Amount of money in cents in the currency of the collective.
+  """
   balance: Int
 
   """
