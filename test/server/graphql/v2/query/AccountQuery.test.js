@@ -117,7 +117,7 @@ describe('server/graphql/v2/query/AccountQuery', () => {
       expect(members.filter(m => m.role === 'ADMIN').length).to.eq(1);
       expect(members.filter(m => m.role === 'HOST').length).to.eq(1);
       expect(members.filter(m => m.role === 'BACKER').length).to.eq(5);
-      members.forEach(m => expect(m.account.email).to.not.be.null);
+      members.filter(m => ['BACKER', 'ADMIN'].includes(m.role)).forEach(m => expect(m.account.email).to.not.be.null);
     });
 
     it('can fetch by member email if admin', async () => {

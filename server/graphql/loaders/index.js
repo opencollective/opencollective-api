@@ -222,9 +222,11 @@ export const loaders = req => {
         return models.User.findAll({
           attributes: ['id', 'CollectiveId', 'email'],
           where: { id: { [Op.in]: Object.keys(accessibleOrgCreators) } },
-        }).map(u => {
-          u.dataValues.OrgCollectiveId = accessibleOrgCreators[u.id];
-          return u;
+        }).then(users => {
+          return users.map(u => {
+            u.dataValues.OrgCollectiveId = accessibleOrgCreators[u.id];
+            return u;
+          });
         });
       })
       .catch(e => {
