@@ -53,7 +53,7 @@ module.exports = {
     await queryInterface.addIndex('HostApplications', ['HostCollectiveId']);
   },
 
-  down: async (queryInterface, DataTypes) => {
+  down: async queryInterface => {
     await queryInterface.dropTable('HostApplications');
   },
 };

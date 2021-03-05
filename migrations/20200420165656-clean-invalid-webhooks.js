@@ -9,5 +9,7 @@ module.exports = {
     `);
   },
 
-  down: () => {},
+  down: async () => {
+    // No rollback
+  },
 };

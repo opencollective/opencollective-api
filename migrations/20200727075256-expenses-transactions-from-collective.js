@@ -6,9 +6,9 @@
  * CREDIT transactions.
  */
 module.exports = {
-  up: async (queryInterface, Sequelize) => {
+  up: async queryInterface => {
     // Update DEBIT transactions
-    const [_debitTransactions, debitResult] = await queryInterface.sequelize.query(`
+    const [, debitResult] = await queryInterface.sequelize.query(`
       UPDATE ONLY "Transactions" t
       SET "FromCollectiveId" = e."FromCollectiveId"
       FROM "Expenses" e
@@ -23,7 +23,7 @@ module.exports = {
     console.info(`Updated ${debitResult.rowCount} DEBIT transactions`);
 
     // Update CREDIT transactions
-    const [_creditTransactions, creditResult] = await queryInterface.sequelize.query(`
+    const [, creditResult] = await queryInterface.sequelize.query(`
       UPDATE ONLY "Transactions" t
       SET "CollectiveId" = e."FromCollectiveId"
       FROM "Expenses" e

@@ -1,7 +1,6 @@
 'use strict';
 
 import { cloneDeep, remove } from 'lodash';
-import models from '../server/models';
 
 const Sections = {
   TOP_FINANCIAL_CONTRIBUTORS: 'top-financial-contributors',

@@ -5,7 +5,7 @@ module.exports = {
    * Set "Collectives" -> "data" -> "useCustomHostFee" to true when their hostFeePercent
    * is different from the one of the host.
    */
-  up: async (queryInterface, Sequelize) => {
+  up: async queryInterface => {
     await queryInterface.sequelize.query(`
       UPDATE ONLY "Collectives" c
       SET
@@ -24,7 +24,7 @@ module.exports = {
     `);
   },
 
-  down: async (queryInterface, Sequelize) => {
+  down: async () => {
     /**
      * No rollback
      */

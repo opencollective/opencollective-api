@@ -21,7 +21,7 @@ module.exports = {
     }
   },
 
-  down: async (queryInterface, Sequelize) => {
+  down: async () => {
     // No rollback
   },
 };

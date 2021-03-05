@@ -1,48 +1,48 @@
 'use strict';
 
 module.exports = {
-  up: async (queryInterface, Sequelize) => {
+  up: async queryInterface => {
     return queryInterface.dropTable('GuestTokens');
   },
 
   down: async (queryInterface, Sequelize) => {
     return queryInterface.createTable('GuestTokens', {
       id: {
-        type: DataTypes.INTEGER,
+        type: Sequelize.INTEGER,
         primaryKey: true,
         autoIncrement: true,
       },
       UserId: {
-        type: DataTypes.INTEGER,
+        type: Sequelize.INTEGER,
         references: { key: 'id', model: 'Users' },
         onDelete: 'CASCADE',
         onUpdate: 'CASCADE',
         allowNull: false,
       },
       CollectiveId: {
-        type: DataTypes.INTEGER,
+        type: Sequelize.INTEGER,
         references: { key: 'id', model: 'Collectives' },
         onDelete: 'CASCADE',
         onUpdate: 'CASCADE',
         allowNull: false,
       },
       value: {
-        type: DataTypes.STRING,
+        type: Sequelize.STRING,
         allowNull: false,
         unique: true,
       },
       createdAt: {
-        type: DataTypes.DATE,
-        defaultValue: DataTypes.NOW,
+        type: Sequelize.DATE,
+        defaultValue: Sequelize.NOW,
         allowNull: false,
       },
       updatedAt: {
-        type: DataTypes.DATE,
-        defaultValue: DataTypes.NOW,
+        type: Sequelize.DATE,
+        defaultValue: Sequelize.NOW,
         allowNull: false,
       },
       deletedAt: {
-        type: DataTypes.DATE,
+        type: Sequelize.DATE,
         allowNull: true,
       },
     });

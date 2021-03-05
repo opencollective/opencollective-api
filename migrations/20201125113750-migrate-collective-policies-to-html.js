@@ -1,6 +1,7 @@
 'use strict';
 
 import showdown from 'showdown';
+
 import { buildSanitizerOptions, sanitizeHTML } from '../server/lib/sanitize-html';
 
 const converter = new showdown.Converter();

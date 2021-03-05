@@ -4,7 +4,7 @@
  * HostFee was wrongly calculated on top of totalAmount, which includes feesOnTop.
  */
 module.exports = {
-  up: async (queryInterface, Sequelize) => {
+  up: async queryInterface => {
     const [transactions, result] = await queryInterface.sequelize.query(`
       SELECT
         t.id,
@@ -81,5 +81,7 @@ module.exports = {
     console.info(`\nDone! Fixed ${result.rowCount} transaction pairs.`);
   },
 
-  down: async () => {},
+  down: async () => {
+    // No rollback
+  },
 };

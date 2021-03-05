@@ -1,9 +1,9 @@
 'use strict';
 
-import { remove, cloneDeep } from 'lodash';
+import { cloneDeep, remove } from 'lodash';
 
 module.exports = {
-  up: async (queryInterface, Sequelize) => {
+  up: async queryInterface => {
     const [collectives] = await queryInterface.sequelize.query(`
       WITH entries AS (
         SELECT id, "type", settings, jsonb_array_elements(settings -> 'collectivePage' -> 'sections') AS sections
@@ -35,5 +35,7 @@ module.exports = {
     }
   },
 
-  down: async () => {},
+  down: async () => {
+    // No rollback
+  },
 };

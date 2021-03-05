@@ -1,7 +1,7 @@
 'use strict';
 
 module.exports = {
-  up: async (queryInterface, Sequelize) => {
+  up: async queryInterface => {
     await queryInterface.sequelize.query(
       `UPDATE "Orders"
   SET "interval" = "Subscriptions"."interval"
@@ -12,5 +12,7 @@ module.exports = {
     );
   },
 
-  down: async (queryInterface, Sequelize) => {},
+  down: async () => {
+    // No rollback
+  },
 };

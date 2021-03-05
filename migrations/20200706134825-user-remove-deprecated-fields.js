@@ -1,7 +1,7 @@
 'use strict';
 
 module.exports = {
-  up: async (queryInterface, Sequelize) => {
+  up: async queryInterface => {
     await queryInterface.removeColumn('Users', '_salt');
     await queryInterface.removeColumn('Users', 'refresh_token');
     await queryInterface.removeColumn('Users', 'password_hash');

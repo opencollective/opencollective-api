@@ -1,7 +1,7 @@
 'use strict';
 
 module.exports = {
-  up: async (queryInterface, Sequelize) => {
+  up: async queryInterface => {
     await queryInterface.removeColumn('Tiers', 'maxQuantityPerUser');
     await queryInterface.removeColumn('TierHistories', 'maxQuantityPerUser');
     await queryInterface.removeColumn('Tiers', 'password');

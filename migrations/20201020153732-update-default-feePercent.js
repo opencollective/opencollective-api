@@ -1,7 +1,7 @@
 'use strict';
 
 module.exports = {
-  up: async (queryInterface, Sequelize) => {
+  up: async queryInterface => {
     // Update Current Hosts to the previous default which was platformFeePercent=5
     await queryInterface.sequelize.query(`
       UPDATE "Collectives"
@@ -45,5 +45,7 @@ module.exports = {
     `);
   },
 
-  down: async (queryInterface, Sequelize) => {},
+  down: async () => {
+    // No rollback
+  },
 };

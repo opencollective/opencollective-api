@@ -1,7 +1,7 @@
 'use strict';
 
 module.exports = {
-  up: async (queryInterface, Sequelize) => {
+  up: async queryInterface => {
     // create temp table
     await queryInterface.sequelize.query(
       `CREATE TEMPORARY TABLE "tmp_invalid_order_subscriptions" AS
@@ -47,5 +47,7 @@ module.exports = {
     );
   },
 
-  down: async (queryInterface, Sequelize) => {},
+  down: async () => {
+    // No rollback
+  },
 };

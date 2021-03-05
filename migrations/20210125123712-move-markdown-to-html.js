@@ -1,10 +1,11 @@
 'use strict';
 
 import showdown from 'showdown';
+
 import models from '../server/models';
 
 module.exports = {
-  up: async (queryInterface, Sequelize) => {
+  up: async queryInterface => {
     const markdownConverter = new showdown.Converter();
 
     // Updates
@@ -46,5 +47,7 @@ module.exports = {
     }
   },
 
-  down: async () => {},
+  down: async () => {
+    // No rollback
+  },
 };

@@ -1,7 +1,7 @@
 'use strict';
 
 module.exports = {
-  up: async (queryInterface, Sequelize) => {
+  up: async queryInterface => {
     // 1. Add the missing CONTRIBUTOR members (~1143 entries)
     await queryInterface.sequelize.query(`
       INSERT INTO "Members" (
@@ -62,7 +62,7 @@ module.exports = {
     `);
   },
 
-  down: async (queryInterface, Sequelize) => {
+  down: async () => {
     /** Reverting should be done manually (using `createdAt`/`deletedAt`) */
   },
 };
