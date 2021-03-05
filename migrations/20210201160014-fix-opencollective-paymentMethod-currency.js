@@ -1,7 +1,7 @@
 'use strict';
 
 module.exports = {
-  up: async (queryInterface, Sequelize) => {
+  up: async queryInterface => {
     // Fix Payment Methods currency not matching the Host currency
     await queryInterface.sequelize.query(`
       UPDATE "PaymentMethods" as pm
@@ -32,5 +32,7 @@ module.exports = {
     `);
   },
 
-  down: async (queryInterface, Sequelize) => {},
+  down: async () => {
+    // No rollback
+  },
 };

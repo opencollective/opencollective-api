@@ -1,7 +1,7 @@
 'use strict';
 
 module.exports = {
-  up: async (queryInterface, Sequelize) => {
+  up: async queryInterface => {
     await queryInterface.sequelize.query(`
       UPDATE "PaymentMethods" as pm
       SET "name" = CONCAT(c."name", ' (Host)'), "type" = 'host'
@@ -12,5 +12,7 @@ module.exports = {
     `);
   },
 
-  down: async (queryInterface, Sequelize) => {},
+  down: async () => {
+    // No rollback
+  },
 };

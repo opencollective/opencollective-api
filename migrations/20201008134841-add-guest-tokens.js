@@ -40,7 +40,7 @@ module.exports = {
     await queryInterface.addIndex('GuestTokens', ['CollectiveId']);
   },
 
-  down: async (queryInterface, DataTypes) => {
+  down: async queryInterface => {
     await queryInterface.dropTable('GuestTokens');
   },
 };

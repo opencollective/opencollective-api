@@ -2,12 +2,12 @@
 
 import { defaultsDeep, omit } from 'lodash';
 
-import models from '../server/models';
 import { FEES_ON_TOP_TRANSACTION_PROPERTIES } from '../server/constants/transactions';
 import { getFxRate } from '../server/lib/currency';
+import models from '../server/models';
 
 module.exports = {
-  up: async (queryInterface, Sequelize) => {
+  up: async queryInterface => {
     // Since all subscriptions are done in Stripe and the bug only affected Subscriptions (status = ACTIVE),
     // it is safe to group transactions by stripe charge id and verify which group has only 2 transactions instead of 4.
     // 2 transactions meaning that we have a credit/debit pair between donnor and collective and it's lacking the
@@ -88,5 +88,7 @@ module.exports = {
     }
   },
 
-  down: async () => {},
+  down: async () => {
+    // No rollback
+  },
 };

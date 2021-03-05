@@ -10,7 +10,7 @@
  * 'collective.expense.created' is not in the list because we can trust the `UserId` for this one
  */
 module.exports = {
-  up: (queryInterface, Sequelize) => {
+  up: queryInterface => {
     return queryInterface.sequelize.query(`
       UPDATE  "Activities"
       SET     "UserId" = NULL
@@ -26,7 +26,7 @@ module.exports = {
     `);
   },
 
-  down: (queryInterface, Sequelize) => {
+  down: queryInterface => {
     return queryInterface.sequelize.query(`
       UPDATE  "Activities"
       SET     "UserId" = CAST(("data"#>>'{user,id}') AS INT)

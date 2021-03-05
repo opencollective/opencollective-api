@@ -1,7 +1,7 @@
 'use strict';
 
 module.exports = {
-  up: async (queryInterface, Sequelize) => {
+  up: async queryInterface => {
     await queryInterface.sequelize.query(
       `ALTER TYPE "enum_Expenses_type" ADD VALUE 'FUNDING_REQUEST' AFTER 'INVOICE';`,
     );
@@ -10,7 +10,7 @@ module.exports = {
     );
   },
 
-  down: async (queryInterface, Sequelize) => {
+  down: async queryInterface => {
     await queryInterface.sequelize.query(`DELETE FROM pg_enum WHERE enumlabel = 'FUNDING_REQUEST' AND enumtypid = (
       SELECT oid FROM pg_type WHERE typname = 'enum_Expenses_type'
      );`);

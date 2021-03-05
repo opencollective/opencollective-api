@@ -10,7 +10,7 @@ module.exports = {
     });
   },
 
-  down: async (queryInterface, Sequelize) => {
+  down: async queryInterface => {
     await queryInterface.removeColumn('Expenses', 'longDescription');
     await queryInterface.removeColumn('ExpenseHistories', 'longDescription');
   },

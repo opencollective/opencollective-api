@@ -1,7 +1,7 @@
 'use strict';
 
 module.exports = {
-  up: (queryInterface, Sequelize) => {
+  up: queryInterface => {
     return queryInterface.sequelize.query(`
       UPDATE  "Members"
       SET     "role" = 'CONNECTED_COLLECTIVE'
@@ -9,7 +9,7 @@ module.exports = {
     `);
   },
 
-  down: (queryInterface, Sequelize) => {
+  down: queryInterface => {
     return queryInterface.sequelize.query(`
       UPDATE  "Members"
       SET     "role" = 'SUB_COLLECTIVE'

@@ -1,18 +1,18 @@
 'use strict';
 
-import { remove, cloneDeep } from 'lodash';
+import { cloneDeep, remove } from 'lodash';
 
 module.exports = {
-  up: async (queryInterface, Sequelize) => {
+  up: async queryInterface => {
     const [collectives] = await queryInterface.sequelize.query(`
       WITH entries AS (
         SELECT id, "type", settings, jsonb_array_elements(settings -> 'collectivePage' -> 'sections') AS sections
-        FROM "Collectives" c 
+        FROM "Collectives" c
         WHERE settings -> 'collectivePage' -> 'sections' IS NOT NULL
         AND c."type" = 'EVENT'
         AND (settings -> 'collectivePage' ->> 'useNewSections')::boolean IS TRUE
       ) SELECT id, "type", settings
-      FROM entries 
+      FROM entries
       WHERE sections ->> 'name' = 'participants'
     `);
 
@@ -35,5 +35,7 @@ module.exports = {
     }
   },
 
-  down: async () => {},
+  down: async () => {
+    // No rollback
+  },
 };

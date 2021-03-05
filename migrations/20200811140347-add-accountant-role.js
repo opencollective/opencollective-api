@@ -7,7 +7,7 @@ module.exports = {
     );
   },
 
-  down: async queryInterface => {
+  down: async () => {
     /** No rollback, `up` migration is safe because it has IF NOT EXISTS */
   },
 };

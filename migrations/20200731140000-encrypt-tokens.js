@@ -9,7 +9,7 @@ module.exports = {
     );
     console.info(`Encrypting ${accounts.length} ConnectedAccounts...`);
     try {
-      const result = await queryInterface.sequelize.transaction(async transaction => {
+      await queryInterface.sequelize.transaction(async transaction => {
         for (const account of accounts) {
           const hash = crypto.hash(account.service + account.token);
           const token = crypto.encrypt(account.token);
@@ -45,7 +45,7 @@ module.exports = {
     );
     console.info(`Decrypting ${accounts.length} ConnectedAccounts...`);
     try {
-      const result = await queryInterface.sequelize.transaction(async transaction => {
+      await queryInterface.sequelize.transaction(async transaction => {
         for (const account of accounts) {
           const token = crypto.decrypt(account.token);
           const refreshToken = crypto.decrypt(account.refreshToken);

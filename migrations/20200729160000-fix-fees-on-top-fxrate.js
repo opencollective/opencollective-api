@@ -1,7 +1,7 @@
 'use strict';
 
 module.exports = {
-  up: async (queryInterface, Sequelize) => {
+  up: async queryInterface => {
     const [, debitResult] = await queryInterface.sequelize.query(`
       UPDATE "Transactions"
       SET "amountInHostCurrency" = "netAmountInCollectiveCurrency"

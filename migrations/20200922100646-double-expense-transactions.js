@@ -5,7 +5,7 @@ const destroyDuplicatesQuery = `
   SET
     "deletedAt" = NOW(),
     data = (
-      CASE WHEN t.data IS NULL 
+      CASE WHEN t.data IS NULL
       THEN '{"isDuplicateExpenseTransaction": true}'::jsonb
       ELSE t.data::jsonb || '{"isDuplicateExpenseTransaction": true}'::jsonb
     END)
@@ -28,14 +28,14 @@ const destroyDuplicatesQuery = `
 `;
 
 module.exports = {
-  up: async (queryInterface, Sequelize) => {
+  up: async queryInterface => {
     await queryInterface.sequelize.query(destroyDuplicatesQuery, { replacements: { transactionType: 'CREDIT' } });
     await queryInterface.sequelize.query(destroyDuplicatesQuery, { replacements: { transactionType: 'DEBIT' } });
   },
 
-  down: async (queryInterface, Sequelize) => {
+  down: async queryInterface => {
     await queryInterface.sequelize.query(`
-      UPDATE "Transactions" 
+      UPDATE "Transactions"
       SET "deletedAt" = NULL
       WHERE ("data" ->> 'isDuplicateExpenseTransaction')::boolean = TRUE
     `);
