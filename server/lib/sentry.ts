@@ -24,6 +24,10 @@ const IGNORED_GQL_ERRORS = [
     path: ['allMembers'],
     message: /^Invalid collectiveSlug \(not found\)$/,
   },
+  {
+    path: ['createOrder'],
+    message: /^Your card was declined.$/,
+  },
 ];
 
 const isIgnoredGQLError = err => {
