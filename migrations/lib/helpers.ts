@@ -1,4 +1,4 @@
-import { remove, cloneDeep } from 'lodash';
+import { cloneDeep, remove } from 'lodash';
 
 /**
  * Moves a section inside a category
