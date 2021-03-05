@@ -1,5 +1,7 @@
 'use strict';
 
+import { moveSection, removeSection } from './lib/helpers';
+
 /**
  * 1. Move transactions to the budget category
  * 2. Remove deprecated "connect" section
@@ -12,6 +14,7 @@ module.exports = {
         SELECT id, "type", settings, jsonb_array_elements(settings -> 'collectivePage' -> 'sections') AS sections
         FROM "Collectives" c 
         WHERE settings -> 'collectivePage' -> 'sections' IS NOT NULL
+        AND jsonb_typeof(settings -> 'collectivePage' -> 'sections') != 'null'
       ) SELECT id, "type", settings
       FROM entries 
       WHERE sections ->> 'name' = 'transactions'
@@ -21,7 +24,7 @@ module.exports = {
       const newSettings = moveSection(collective.settings, 'transactions', 'BUDGET');
       if (newSettings !== collective.settings) {
         await queryInterface.sequelize.query(`UPDATE "Collectives" SET settings = :settings WHERE id = :id`, {
-          replacements: { settings: JSON.stringify(settings), id: collective.id },
+          replacements: { settings: JSON.stringify(newSettings), id: collective.id },
         });
       }
     }
@@ -32,6 +35,7 @@ module.exports = {
         SELECT id, "type", settings, jsonb_array_elements(settings -> 'collectivePage' -> 'sections') AS sections
         FROM "Collectives" c 
         WHERE settings -> 'collectivePage' -> 'sections' IS NOT NULL
+        AND jsonb_typeof(settings -> 'collectivePage' -> 'sections') != 'null'
       ) SELECT id, "type", settings
       FROM entries 
       WHERE sections ->> 'name' = 'connect' AND sections ->> 'type' = 'SECTION'
@@ -41,7 +45,7 @@ module.exports = {
       const newSettings = removeSection(collective.settings, 'connect');
       if (newSettings !== collective.settings) {
         await queryInterface.sequelize.query(`UPDATE "Collectives" SET settings = :settings WHERE id = :id`, {
-          replacements: { settings: JSON.stringify(settings), id: collective.id },
+          replacements: { settings: JSON.stringify(newSettings), id: collective.id },
         });
       }
     }
