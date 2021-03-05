@@ -10,7 +10,7 @@ module.exports = {
       UPDATE ONLY "Collectives" c
       SET
         data = (
-          CASE WHEN c.data IS NULL 
+          CASE WHEN c.data IS NULL
           THEN '{"useCustomHostFee": true}'::jsonb
           ELSE c.data::jsonb || '{"useCustomHostFee": true}'::jsonb
         END)

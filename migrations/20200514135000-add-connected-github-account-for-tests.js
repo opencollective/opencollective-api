@@ -1,4 +1,5 @@
 'use strict';
+
 import '../server/env';
 
 if (process.env.OC_ENV === 'ci' || process.env.OC_ENV === 'e2e') {

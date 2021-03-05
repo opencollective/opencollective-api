@@ -30,7 +30,7 @@ module.exports = {
         AND e.status = 'PAID'
       GROUP BY
         e."CollectiveId",
-        u."id" 
+        u."id"
       HAVING
         COUNT(m.id) = 0
     `);

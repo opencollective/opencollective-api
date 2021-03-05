@@ -15,7 +15,7 @@ module.exports = {
       WHERE t."ExpenseId" IS NOT NULL
       AND t."ExpenseId" = e.id
       AND t."type" = 'DEBIT'
-      AND t."FromCollectiveId" != e."FromCollectiveId" 
+      AND t."FromCollectiveId" != e."FromCollectiveId"
       -- Only look at problems related to the new expense flow
       AND DATE_PART('year', t."createdAt") >= 2020
     `);
@@ -30,7 +30,7 @@ module.exports = {
       WHERE t."ExpenseId" IS NOT NULL
       AND t."ExpenseId" = e.id
       AND t."type" = 'CREDIT'
-      AND t."CollectiveId" != e."FromCollectiveId" 
+      AND t."CollectiveId" != e."FromCollectiveId"
       -- Only look at problems related to the new expense flow
       AND DATE_PART('year', t."createdAt") >= 2020
     `);
