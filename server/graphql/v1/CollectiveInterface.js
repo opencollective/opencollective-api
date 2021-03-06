@@ -652,6 +652,10 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
         type: GraphQLJSON,
         deprecationReason: '2020-10-08: This field is not provided anymore and will return an empty object',
       },
+      privateInstructions: {
+        type: GraphQLString,
+        description: 'Private instructions related to an event',
+      },
       githubContributors: { type: new GraphQLNonNull(GraphQLJSON) },
       slug: { type: GraphQLString },
       path: { type: GraphQLString },
@@ -1105,6 +1109,18 @@ const CollectiveFields = () => {
       deprecationReason: '2020-10-08: This field is not provided anymore and will return an empty object',
       resolve() {
         return {};
+      },
+    },
+    privateInstructions: {
+      type: GraphQLString,
+      description: 'Private instructions related to an event',
+      resolve(collective, _, req) {
+        if (
+          collective.type === types.EVENT &&
+          (req.remoteUser?.isAdminOfCollective(collective) || req.remoteUser?.hasRole(roles.PARTICIPANT, collective))
+        ) {
+          return collective.data?.privateInstructions;
+        }
       },
     },
     githubContributors: {
