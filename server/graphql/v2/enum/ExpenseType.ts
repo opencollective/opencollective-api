@@ -10,13 +10,16 @@ export const ExpenseType = new GraphQLEnumType({
       description: 'Invoice: Charge for your time or get paid in advance.',
     },
     [expenseType.RECEIPT]: {
-      description: 'Receipt:  Get paid back for a purchase already made.',
+      description: 'Receipt: Get paid back for a purchase already made.',
     },
     [expenseType.FUNDING_REQUEST]: {
       description: 'Funding Request: Request funding for a project or initiative.',
     },
     [expenseType.UNCLASSIFIED]: {
       description: 'Unclassified expense',
+    },
+    [expenseType.CHARGE]: {
+      description: 'Credit Card Charge: Payment done using an issued (virtual) credit card issued by your Fiscal Host.',
     },
   },
 });

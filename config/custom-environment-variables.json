@@ -175,5 +175,8 @@
   },
   "sentry": {
     "dsn": "SENTRY_DSN"
+  },
+  "privacy": {
+    "apiUrl": "PRIVACY_API_URL"
   }
 }

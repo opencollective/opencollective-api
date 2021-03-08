@@ -470,7 +470,7 @@ function defineModel() {
    *
    */
 
-  Transaction.createDoubleEntry = async transaction => {
+  Transaction.createDoubleEntry = async (transaction, opts) => {
     transaction.type = transaction.amount > 0 ? TransactionTypes.CREDIT : TransactionTypes.DEBIT;
     transaction.netAmountInCollectiveCurrency = transaction.netAmountInCollectiveCurrency || transaction.amount;
     transaction.TransactionGroup = transaction.TransactionGroup || uuid();
@@ -559,7 +559,7 @@ function defineModel() {
       transactions.push(transaction);
     }
 
-    return Promise.mapSeries(transactions, t => Transaction.create(t)).then(results => results[index]);
+    return Promise.mapSeries(transactions, t => Transaction.create(t, opts)).then(results => results[index]);
   };
 
   Transaction.createFeesOnTopTransaction = async ({ transaction }) => {

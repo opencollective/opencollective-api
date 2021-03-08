@@ -16,6 +16,7 @@ export enum PayoutMethodTypes {
   PAYPAL = 'PAYPAL',
   BANK_ACCOUNT = 'BANK_ACCOUNT',
   ACCOUNT_BALANCE = 'ACCOUNT_BALANCE',
+  CREDIT_CARD = 'CREDIT_CARD',
 }
 
 /** An interface for the values stored in `data` field for PayPal payout methods */
@@ -146,7 +147,7 @@ function setupModel(PayoutMethod) {
       },
       type: {
         // Enum entries must match `PayoutMethodType`
-        type: DataTypes.ENUM('PAYPAL', 'BANK_ACCOUNT', 'OTHER'),
+        type: DataTypes.ENUM(...Object.values(PayoutMethodTypes)),
         allowNull: false,
         validate: {
           isIn: {
@@ -175,6 +176,10 @@ function setupModel(PayoutMethod) {
             } else if (this.type === PayoutMethodTypes.BANK_ACCOUNT) {
               if (!value || !value.accountHolderName || !value.currency || !value.type || !value.details) {
                 throw new Error('Invalid format of BANK_ACCOUNT payout method data');
+              }
+            } else if (this.type === PayoutMethodTypes.CREDIT_CARD) {
+              if (!value || !value.token) {
+                throw new Error('Invalid format of CREDIT_CARD payout method data');
               }
             } else if (!value || Object.keys(value).length > 0) {
               throw new Error('Data for this payout method is not properly formatted');

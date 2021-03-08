@@ -11,6 +11,7 @@ export const AccountType = new GraphQLEnumType({
     INDIVIDUAL: {},
     ORGANIZATION: {},
     PROJECT: {},
+    VENDOR: {},
   },
 });
 
@@ -22,4 +23,5 @@ export const AccountTypeToModelMapping = {
   INDIVIDUAL: 'USER',
   ORGANIZATION: 'ORGANIZATION',
   PROJECT: 'PROJECT',
+  VENDOR: 'VENDOR',
 };

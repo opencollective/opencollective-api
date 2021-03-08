@@ -11,6 +11,7 @@ import {
   OrganizationCollectiveType,
   ProjectCollectiveType,
   UserCollectiveType,
+  VendorCollectiveType,
 } from './CollectiveInterface';
 import mutation from './mutations';
 import query from './queries';
@@ -48,6 +49,7 @@ const Schema = new GraphQLSchema({
     TransactionInterfaceType,
     TransactionOrderType,
     UserCollectiveType,
+    VendorCollectiveType,
   ],
   query: Query,
   mutation: Mutation,

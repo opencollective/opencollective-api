@@ -52,7 +52,7 @@ const accountFieldsDefinition = () => ({
   },
   type: {
     type: AccountType,
-    description: 'The type of the account (BOT/COLLECTIVE/EVENT/ORGANIZATION/INDIVIDUAL)',
+    description: 'The type of the account (BOT/COLLECTIVE/EVENT/ORGANIZATION/INDIVIDUAL/VENDOR)',
   },
   name: {
     type: GraphQLString,
