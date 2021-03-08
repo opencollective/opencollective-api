@@ -67,7 +67,7 @@ for more info about the tests.
 
 ## Running Scripts
 
-There are many admin scripts in [`/scripts` directory](https://github.com/opencollective/opencollective-api/tree/master/scripts). To run them:
+There are many admin scripts in [`/scripts` directory](https://github.com/opencollective/opencollective-api/tree/main/scripts). To run them:
 
 ```
 # Local development (without Docker)

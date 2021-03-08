@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     branches:
-      - master
+      - main
   pull_request:
     types:
       - opened
@@ -328,7 +328,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@master
+        uses: actions/checkout@main
       - name: Restore node_modules
         uses: actions/cache@v1
         id: api-node-modules
@@ -370,18 +370,18 @@ jobs:
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
       - name: Checkout
-        uses: actions/checkout@master
+        uses: actions/checkout@main
       - name: GraphQL Inspector (V1)
-        uses: kamilkisiela/graphql-inspector@master
+        uses: kamilkisiela/graphql-inspector@main
         with:
           name: 'GraphQL Inspector - Schema v1'
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          schema: 'master:server/graphql/schemaV1.graphql'
+          schema: 'main:server/graphql/schemaV1.graphql'
           fail-on-breaking: false
       - name: GraphQL Inspector (V2)
-        uses: kamilkisiela/graphql-inspector@master
+        uses: kamilkisiela/graphql-inspector@main
         with:
           name: 'GraphQL Inspector - Schema v2'
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          schema: 'master:server/graphql/schemaV2.graphql'
+          schema: 'main:server/graphql/schemaV2.graphql'
           fail-on-breaking: false
