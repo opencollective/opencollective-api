@@ -33,7 +33,7 @@
     "burner-email-providers": "1.0.38",
     "cloudflare": "2.7.0",
     "cloudflare-ip": "0.0.7",
-    "config": "3.3.4",
+    "config": "3.3.6",
     "connect-redis": "5.1.0",
     "cookie": "0.4.1",
     "cookie-parser": "1.4.5",
