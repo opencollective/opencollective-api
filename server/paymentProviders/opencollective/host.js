@@ -16,6 +16,20 @@ paymentMethodProvider.getBalance = () => {
   return Promise.resolve(maxInteger);
 };
 
+paymentMethodProvider.createPlatformTipTransaction = async transaction => {
+  const platformTipTransaction = {
+    ...transaction,
+    amount: transaction.platformTipInHostCurrency,
+    description: 'Financial contribution (Platform Tip) to Open Collective',
+    netAmountInCollectiveCurrency: transaction.platformTipInHostCurrency,
+    FromCollectiveId: transaction.HostCollectiveId,
+    CollectiveId: 8686, // Open Collective (Organization)
+    platformTipInHostCurrency: undefined,
+  };
+
+  return models.Transaction.createDoubleEntry(platformTipTransaction);
+};
+
 paymentMethodProvider.processOrder = async order => {
   const collectiveHost = await order.collective.getHostCollective();
 

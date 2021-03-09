@@ -13,6 +13,7 @@ import { toNegative } from '../lib/math';
 import { calcFee } from '../lib/payments';
 import { stripHTML } from '../lib/sanitize-html';
 import { exportToCSV } from '../lib/utils';
+import paymentMethodProvider from '../paymentProviders/opencollective/host';
 
 import CustomDataTypes from './DataTypes';
 
@@ -435,20 +436,6 @@ export default (Sequelize, DataTypes) => {
     return exportToCSV(transactions, attributes, getColumnName, processValue);
   };
 
-  Transaction.createPlatformTipTransaction = async transaction => {
-    const platformTipTransaction = {
-      ...transaction,
-      amount: transaction.platformTipInHostCurrency,
-      description: 'Financial contribution (Platform Tip) to Open Collective',
-      netAmountInCollectiveCurrency: transaction.platformTipInHostCurrency,
-      FromCollectiveId: transaction.HostCollectiveId,
-      CollectiveId: 8686, // Open Collective (Organization)
-      platformTipInHostCurrency: undefined,
-    };
-
-    return Transaction.createDoubleEntry(platformTipTransaction);
-  };
-
   /**
    * Create the opposite transaction from the perspective of the FromCollective
    * There is no fees
@@ -497,7 +484,7 @@ export default (Sequelize, DataTypes) => {
     const fromCollectiveHost = await fromCollective.getHostCollective();
 
     if (transaction.platformTipInHostCurrency) {
-      await Transaction.createPlatformTipTransaction(transaction);
+      await paymentMethodProvider.createPlatformTipTransaction(transaction);
     }
 
     let oppositeTransaction = {

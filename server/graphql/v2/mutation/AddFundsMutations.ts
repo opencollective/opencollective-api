@@ -27,17 +27,10 @@ export const addFundsMutation = {
       throw new ValidationFailed(`Adding funds is only possible for the following types: ${allowedTypes.join(',')}`);
     }
 
-    let percentValidationFailPoint = null;
-    if (!(args.hostFeePercent >= 0 && args.hostFeePercent <= 100)) {
-      percentValidationFailPoint = 'hostFeePercent';
-    } else if (!(args.platformFeePercent >= 0 && args.platformFeePercent <= 100)) {
-      percentValidationFailPoint = 'platformFeePercent';
-    }
-
-    if (percentValidationFailPoint) {
-      throw new ValidationFailed(
-        `${percentValidationFailPoint} is a percentage and therefore should be between 0 and 100.`,
-      );
+    if (args.hostFeePercent < 0 || args.hostFeePercent > 100) {
+      throw new ValidationFailed('hostFeePercent should be a value between 0 and 100.');
+    } else if (args.platformFeePercent < 0 || args.platformFeePercent > 100) {
+      throw new ValidationFailed('platformFeePercent should be a value between 0 and 100.');
     }
 
     return addFundsToCollectiveLegacy(
