@@ -360,7 +360,7 @@ function getCreateParams(args, collective, sourcePaymentMethod, remoteUser) {
     throw Error('Min monthly limit per member for gift card is $5');
   }
 
-  // Set a default expirity date to 2 years by default
+  // Set a default expiry date to 2 years by default
   const expiryDate = args.expiryDate ? moment(args.expiryDate).format() : moment().add(24, 'months').format();
 
   // If monthlyLimitPerMember is defined, we ignore the amount field and
@@ -481,7 +481,7 @@ async function claim(args, remoteUser) {
   }
   const sourcePaymentMethod = await models.PaymentMethod.findByPk(giftCardPaymentMethod.SourcePaymentMethodId);
   // if the gift card PM Collective Id is different than the Source PM Collective Id
-  // it means this gift card was already claimend
+  // it means this gift card was already claimed
   if (!sourcePaymentMethod || sourcePaymentMethod.CollectiveId !== giftCardPaymentMethod.CollectiveId) {
     throw Error('Gift Card already redeemed');
   } else if (giftCardPaymentMethod.expiryDate < new Date()) {
