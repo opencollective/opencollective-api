@@ -39,7 +39,7 @@ export const payExpensesBatch = async (expenses: typeof models.Expense[]): Promi
     note: `Expense #${expense.id}: ${expense.description}`,
     amount: {
       currency: expense.currency,
-      value: round(expense.amount / 100, 2),
+      value: round(expense.amount / 100, 2).toString(),
     },
     receiver: expense.PayoutMethod.data.email,
     sender_item_id: expense.id,

@@ -12,7 +12,18 @@ export enum HostApplicationStatus {
   EXPIRED = 'EXPIRED',
 }
 
-export class HostApplication extends Model<HostApplication> {
+interface HostApplicationCreationAttributes {
+  CollectiveId: number;
+  HostCollectiveId: number;
+  status: HostApplicationStatus;
+  customData?: Record<string, unknown> | null;
+  message?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+  deletedAt?: Date | null;
+}
+
+export class HostApplication extends Model<HostApplication, HostApplicationCreationAttributes> {
   public readonly id!: number;
   public CollectiveId!: number;
   public HostCollectiveId!: number;
@@ -38,7 +49,7 @@ export class HostApplication extends Model<HostApplication> {
     return this.findOne({
       order: [['createdAt', 'DESC']],
       where: {
-        HostCollectiveId: host.id,
+        HostCollectiveId: <number>host.id,
         CollectiveId: collective.id,
         status,
       },
@@ -58,7 +69,7 @@ export class HostApplication extends Model<HostApplication> {
         HostCollectiveId: host.id,
         CollectiveId: collective.id,
         status: HostApplicationStatus.PENDING,
-        ...pick(data, ['message', 'customData']),
+        ...(<Record<string, unknown>>pick(data, ['message', 'customData'])),
       });
     }
   }

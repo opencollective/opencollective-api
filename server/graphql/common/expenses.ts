@@ -596,7 +596,7 @@ export const getItemsChanges = async (
   if (expenseData.items) {
     const baseItems = await models.ExpenseItem.findAll({ where: { ExpenseId: expense.id } });
     const itemsDiff = models.ExpenseItem.diffDBEntries(baseItems, expenseData.items);
-    const hasItemChanges = flatten(itemsDiff).length > 0;
+    const hasItemChanges = flatten(<unknown[]>itemsDiff).length > 0;
     return [hasItemChanges, expenseData.items, itemsDiff];
   } else {
     return [false, [], [[], [], []]];
@@ -938,10 +938,12 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
     }
 
     feesInHostCurrency['paymentProcessorFeeInHostCurrency'] = Math.round(
-      fxrate * (fees.paymentProcessorFeeInCollectiveCurrency || 0),
+      fxrate * (<number>fees.paymentProcessorFeeInCollectiveCurrency || 0),
     );
-    feesInHostCurrency['hostFeeInHostCurrency'] = Math.round(fxrate * (fees.hostFeeInCollectiveCurrency || 0));
-    feesInHostCurrency['platformFeeInHostCurrency'] = Math.round(fxrate * (fees.platformFeeInCollectiveCurrency || 0));
+    feesInHostCurrency['hostFeeInHostCurrency'] = Math.round(fxrate * (<number>fees.hostFeeInCollectiveCurrency || 0));
+    feesInHostCurrency['platformFeeInHostCurrency'] = Math.round(
+      fxrate * (<number>fees.platformFeeInCollectiveCurrency || 0),
+    );
 
     if (!fees.paymentProcessorFeeInCollectiveCurrency) {
       fees.paymentProcessorFeeInCollectiveCurrency = 0;

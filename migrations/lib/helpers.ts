@@ -3,14 +3,18 @@ import { cloneDeep, remove } from 'lodash';
 /**
  * Moves a section inside a category
  */
-export const moveSection = (existingSettings, sectionName, newCategoryName) => {
-  if (!existingSettings?.collectivePage?.sections) {
+export const moveSection = (
+  existingSettings: Record<string, unknown>,
+  sectionName: string,
+  newCategoryName: string,
+): Record<string, unknown> => {
+  if (!existingSettings?.collectivePage?.['sections']) {
     return existingSettings;
   }
 
   const settings = cloneDeep(existingSettings);
-  const { sections } = settings.collectivePage;
-  const [section] = remove(sections, s => s.name === sectionName);
+  const sections = settings.collectivePage['sections'];
+  const [section] = remove(sections, s => s['name'] === sectionName);
 
   if (!section) {
     return existingSettings;
@@ -37,14 +41,17 @@ export const moveSection = (existingSettings, sectionName, newCategoryName) => {
 /**
  * Update settings, removing the section
  */
-export const removeSection = (existingSettings, sectionName) => {
-  if (!existingSettings?.collectivePage?.sections) {
+export const removeSection = (
+  existingSettings: Record<string, unknown>,
+  sectionName: string,
+): Record<string, unknown> => {
+  if (!existingSettings?.collectivePage?.['sections']) {
     return existingSettings;
   }
 
   const settings = cloneDeep(existingSettings);
-  const { sections } = settings.collectivePage;
-  const [section] = remove(sections, s => s.name === sectionName);
+  const sections = settings.collectivePage['sections'];
+  const [section] = remove(sections, s => s['name'] === sectionName);
 
   if (!section) {
     return existingSettings;

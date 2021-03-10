@@ -54,7 +54,7 @@ const signString = (data: string) => {
   return sign.sign(key, 'base64');
 };
 
-const compactRecipientDetails = <T>(object: T): Partial<T> => omitBy(object, isNull);
+const compactRecipientDetails = <T>(object: T): Partial<T> => <Partial<T>>omitBy(object, isNull);
 
 const getData = <T extends { data?: Record<string, unknown> }>(obj: T | undefined): T['data'] | undefined =>
   obj && obj.data;
