@@ -28,14 +28,18 @@ export const listTransactions = async (
   return response.data;
 };
 
-export const listCards = async (token: string, paging?: PagingParams): Promise<PrivacyResponse<Card[]>> => {
+export const listCards = async (
+  token: string,
+  card_token?: string,
+  paging?: PagingParams,
+): Promise<PrivacyResponse<Card[]>> => {
   const url = `/v1/card`;
   debug(`${url}`);
 
   const response = await axios.get(url, {
     headers: { Authorization: `api-key ${token}` },
-    params: paging,
+    params: { ...paging, card_token },
   });
 
-  return response.data;
+  return response.data?.data;
 };
