@@ -13,13 +13,8 @@ const onSubscriptionChargedSuccessfully = async (braintreeNotification): Promise
     return;
   }
 
-  // These cases are not suppose to happen, but we add some logs just in case
-  const braintreeTransactions = braintreeNotification.subscription.transactions;
-  if (!braintreeTransactions.length) {
-    logger.warn(`No transactions provided for charged subscription ${braintreeNotification.subscription.id}`);
-  } else if (braintreeTransactions.length > 1) {
-    logger.warn(`Got multiple transactions for charged subscription ${braintreeNotification.subscription.id}`);
-  }
+  // Only take the latest transaction (the one concerned by this notification)
+  const braintreeTransaction = braintreeNotification.subscription.transactions[0];
 
   // Retrieve the order and do some sanity checks to make sure the subscription is healthy
   const order = await models.Order.findOne({
@@ -50,12 +45,17 @@ const onSubscriptionChargedSuccessfully = async (braintreeNotification): Promise
     );
   }
 
-  // Record the transaction
-  let transaction;
   try {
-    for (const braintreeTransaction of braintreeTransactions) {
-      transaction = await createTransactionsPairFromBraintreeTransaction(order, braintreeTransaction);
+    // Record the transaction
+    const transaction = await createTransactionsPairFromBraintreeTransaction(order, braintreeTransaction);
+
+    // Update the order
+    if (order.status !== OrderStatus.ACTIVE) {
+      await order.update({ status: 'ACTIVE' });
     }
+
+    // Send thank you email
+    await sendThankYouEmail(order, transaction);
   } catch (error) {
     if (error instanceof BraintreeTransactionAlreadyExistsError) {
       // This will not corrupt the data if we end up here, but it should not happen since we check `currentBillingCycle`
@@ -65,12 +65,6 @@ const onSubscriptionChargedSuccessfully = async (braintreeNotification): Promise
       throw error;
     }
   }
-
-  if (order.status !== OrderStatus.ACTIVE) {
-    await order.update({ status: 'ACTIVE' });
-  }
-
-  await sendThankYouEmail(order, transaction);
 };
 
 export const braintreeWebhookCallback = async (
