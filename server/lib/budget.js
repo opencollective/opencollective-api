@@ -105,6 +105,7 @@ export function getTotalAmountReceivedAmount(collective, { startDate, endDate, c
     column: ['v0', 'v1'].includes(version) ? 'amountInCollectiveCurrency' : 'amountInHostCurrency',
     transactionType: CREDIT,
     hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
+    excludeInternals: true,
   });
 }
 
@@ -118,6 +119,7 @@ export function getTotalNetAmountReceivedAmount(collective, { startDate, endDate
     column: ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency',
     transactionType: CREDIT,
     hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
+    excludeInternals: true,
   });
 }
 
@@ -166,6 +168,7 @@ async function sumCollectivesTransactions(
     withBlockedFunds = false,
     hostCollectiveId = null,
     bogusCurrencyHandling = false,
+    excludeInternals = false,
   } = {},
 ) {
   const groupBy = ['amountInHostCurrency', 'netAmountInHostCurrency'].includes(column) ? 'hostCurrency' : 'currency';
@@ -191,6 +194,10 @@ async function sumCollectivesTransactions(
   if (hostCollectiveId) {
     // Only transactions that are marked under a Fiscal Host
     where.HostCollectiveId = hostCollectiveId;
+  }
+  if (excludeInternals) {
+    // Exclude internal transactions (we can tag some Transactions like "Switching Host" as internal)
+    where.data = { internal: { [Op.not]: true } };
   }
 
   const totals = {};
@@ -307,6 +314,7 @@ export async function getYearlyIncome(collective) {
           LEFT JOIN "Subscriptions" s ON d."SubscriptionId" = s.id
           WHERE t."CollectiveId" = :CollectiveId
             AND t."RefundTransactionId" IS NULL
+            AND CAST(("t"."data"#>>'{internal}') AS BOOLEAN) IS NOT true
             AND t.type = 'CREDIT'
             AND t."deletedAt" IS NULL
             AND t."createdAt" > (current_date - INTERVAL '12 months')
