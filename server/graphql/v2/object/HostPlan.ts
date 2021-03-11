@@ -65,5 +65,9 @@ export const HostPlan = new GraphQLObjectType({
       type: GraphQLInt,
       description: 'Charge on revenues made through Host Fees.',
     },
+    platformTips: {
+      type: GraphQLBoolean,
+      description: 'Ability to collect Platform Tips.',
+    },
   }),
 });
