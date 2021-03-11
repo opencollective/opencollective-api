@@ -3,7 +3,9 @@ import GraphQLJSON from 'graphql-type-json';
 import { get, pick } from 'lodash';
 
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE, PAYMENT_METHOD_TYPES } from '../../../constants/paymentMethods';
-import { getPaymentMethodType, PaymentMethodType } from '../enum/PaymentMethodType';
+import { getLegacyPaymentMethodType, PaymentMethodLegacyType } from '../enum/PaymentMethodLegacyType';
+import { PaymentMethodService } from '../enum/PaymentMethodService';
+import { PaymentMethodType } from '../enum/PaymentMethodType';
 import { idEncode } from '../identifiers';
 import { Account } from '../interface/Account';
 import { Amount } from '../object/Amount';
@@ -41,17 +43,16 @@ export const PaymentMethod = new GraphQLObjectType({
         },
       },
       service: {
-        type: GraphQLString,
-        deprecationReason: '2020-08-18: This field is being deprecated in favor of providerType',
+        type: PaymentMethodService,
       },
       type: {
-        type: GraphQLString,
-        deprecationReason: '2020-08-18: This field is being deprecated in favor of providerType',
+        type: PaymentMethodType,
       },
       providerType: {
         description: 'Defines the type of the payment method. Meant to be moved to "type" in the future.',
-        type: PaymentMethodType,
-        resolve: getPaymentMethodType,
+        deprecationReason: '2021-03-02: Please use service + type',
+        type: PaymentMethodLegacyType,
+        resolve: getLegacyPaymentMethodType,
       },
       balance: {
         type: new GraphQLNonNull(Amount),

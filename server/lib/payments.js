@@ -65,7 +65,8 @@ export function findPaymentMethodProvider(paymentMethod) {
   if (!paymentMethodProvider) {
     throw new Error(`No payment provider found for ${provider}`);
   }
-  paymentMethodProvider = paymentMethodProvider.types[methodType]; // eslint-disable-line import/namespace
+
+  paymentMethodProvider = paymentMethodProvider.types[methodType];
   if (!paymentMethodProvider) {
     throw new Error(`No payment provider found for ${provider}:${methodType}`);
   }
