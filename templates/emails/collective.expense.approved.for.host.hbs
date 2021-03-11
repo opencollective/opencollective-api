@@ -22,9 +22,7 @@ Subject: New expense approved on {{collective.name}}: {{currency expense.amount 
 <br />
 
 <center>
-  <a href="{{actions.view}}">
-    <img src="https://res.cloudinary.com/opencollective/image/fetch/w_640,f_jpg/{{expense.attachment}}" width="100%" />
-  </a>
+  {{> expenseItems items=items}}
 
   <br /><br />
   <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}" class="btn"><div>View Expense</div></a>
