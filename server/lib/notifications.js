@@ -338,7 +338,7 @@ async function notifyByEmail(activity) {
       };
       activity.data.expense.payoutMethodLabel = models.PayoutMethod.getLabel(activity.data.payoutMethod);
       notifyUserId(activity.data.expense.UserId, activity, {
-        replyTo: `no-reply@${activity.data.collective.slug}.opencollective.com`,
+        replyTo: `no-reply@opencollective.com`,
       });
       // We only notify the admins of the host if the collective is active (ie. has been approved by the host)
       if (get(activity, 'data.host.id') && get(activity, 'data.collective.isActive')) {
@@ -355,7 +355,7 @@ async function notifyByEmail(activity) {
       };
       activity.data.expense.payoutMethodLabel = models.PayoutMethod.getLabel(activity.data.payoutMethod);
       notifyUserId(activity.data.expense.UserId, activity, {
-        replyTo: `no-reply@${activity.data.collective.slug}.opencollective.com`,
+        replyTo: `no-reply@opencollective.com`,
       });
       if (get(activity, 'data.host.id')) {
         notifyAdminsOfCollective(activity.data.host.id, activity, {
@@ -370,7 +370,7 @@ async function notifyByEmail(activity) {
         viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
       };
       notifyUserId(activity.data.expense.UserId, activity, {
-        replyTo: `no-reply@${activity.data.collective.slug}.opencollective.com`,
+        replyTo: `no-reply@opencollective.com`,
       });
       if (get(activity, 'data.host.id')) {
         notifyAdminsOfCollective(activity.data.host.id, activity, {
@@ -385,7 +385,7 @@ async function notifyByEmail(activity) {
         viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
       };
       notifyUserId(activity.data.expense.UserId, activity, {
-        replyTo: `no-reply@${activity.data.collective.slug}.opencollective.com`,
+        replyTo: `no-reply@opencollective.com`,
       });
       break;
 
