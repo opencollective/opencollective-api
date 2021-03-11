@@ -337,7 +337,9 @@ async function notifyByEmail(activity) {
         viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
       };
       activity.data.expense.payoutMethodLabel = models.PayoutMethod.getLabel(activity.data.payoutMethod);
-      notifyUserId(activity.data.expense.UserId, activity);
+      notifyUserId(activity.data.expense.UserId, activity, {
+        replyTo: `no-reply@${activity.data.collective.slug}.opencollective.com`,
+      });
       // We only notify the admins of the host if the collective is active (ie. has been approved by the host)
       if (get(activity, 'data.host.id') && get(activity, 'data.collective.isActive')) {
         notifyAdminsOfCollective(activity.data.host.id, activity, {
@@ -352,7 +354,9 @@ async function notifyByEmail(activity) {
         viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
       };
       activity.data.expense.payoutMethodLabel = models.PayoutMethod.getLabel(activity.data.payoutMethod);
-      notifyUserId(activity.data.expense.UserId, activity);
+      notifyUserId(activity.data.expense.UserId, activity, {
+        replyTo: `no-reply@${activity.data.collective.slug}.opencollective.com`,
+      });
       if (get(activity, 'data.host.id')) {
         notifyAdminsOfCollective(activity.data.host.id, activity, {
           template: 'collective.expense.paid.for.host',
@@ -365,7 +369,9 @@ async function notifyByEmail(activity) {
       activity.data.actions = {
         viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
       };
-      notifyUserId(activity.data.expense.UserId, activity);
+      notifyUserId(activity.data.expense.UserId, activity, {
+        replyTo: `no-reply@${activity.data.collective.slug}.opencollective.com`,
+      });
       if (get(activity, 'data.host.id')) {
         notifyAdminsOfCollective(activity.data.host.id, activity, {
           template: 'collective.expense.error.for.host',
@@ -378,7 +384,9 @@ async function notifyByEmail(activity) {
       activity.data.actions = {
         viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
       };
-      notifyUserId(activity.data.expense.UserId, activity);
+      notifyUserId(activity.data.expense.UserId, activity, {
+        replyTo: `no-reply@${activity.data.collective.slug}.opencollective.com`,
+      });
       break;
 
     case activityType.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT:

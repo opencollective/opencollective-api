@@ -36,6 +36,14 @@ Subject: {{#ifCond expense.currency '===' 'USD'}}💵 {{/ifCond}}{{#ifCond expen
   <a href="{{config.host.website}}/{{collective.slug}}/expenses/new" class="btn blue"><div>Submit Another Expenses</div></a>
   <a href="{{config.host.website}}/{{collective.slug}}/expenses" class="btn"><div>View All Expenses</div></a>
 
+  <p>
+    <center>
+      <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}#new-comment-on-expense" class="btn blue">
+        <div>Reply</div>
+      </a>
+    </center>
+  </p>
+
 </center>
 
 {{> footer}}
