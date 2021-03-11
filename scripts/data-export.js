@@ -250,7 +250,7 @@ const uploadFiles = async auth => {
   });
   console.log(`>>> all files uploaded to "${folderMetadata['name']}" folder in google drive`);
 
-  // Delete all the files after succesful upload
+  // Delete all the files after successful upload
   try {
     fs.rmdirSync(`${path}`, { recursive: true });
     console.log(`${path} is deleted!`);
@@ -269,12 +269,12 @@ if (config.env === 'production' && today.getDate() !== 1 && !process.env.MANUAL_
 } else {
   run()
     .then(() => {
-      // If drive credentails are available try to upload generated files to drive
+      // If drive credentials are available try to upload generated files to drive
       if (googleDrive.clientId && googleDrive.clientSecret && googleDrive.redirectUri) {
         // Authorize with credentials, then call the Google Drive API.
         authorize(googleDrive, uploadFiles);
       } else {
-        console.log(`>>> Required google drive credentails weren't provided.`);
+        console.log(`>>> Required google drive credentials weren't provided.`);
         process.exit(0);
       }
     })
