@@ -531,6 +531,7 @@ function defineModel() {
             longDescription: this.longDescription,
             currency: this.currency,
             image: this.image,
+            previewImage: this.previewImage,
             data: this.data,
             backgroundImage: this.backgroundImage,
             maxQuantity: this.maxQuantity,
