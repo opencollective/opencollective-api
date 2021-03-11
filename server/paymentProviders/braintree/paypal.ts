@@ -1,6 +1,6 @@
 import logger from '../../lib/logger';
 import models from '../../models';
-import { PaymentProviderService } from '../PaymentProviderService';
+import { PaymentProviderService } from '../types';
 
 import * as BraintreeGateway from './gateway';
 import { createTransactionsPairFromBraintreeTransaction } from './helpers';

@@ -1,6 +1,6 @@
 import { PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import models from '../../models';
-import { PaymentProvider } from '../PaymentProvider';
+import { PaymentProvider } from '../types';
 
 import PayPal from './paypal';
 
