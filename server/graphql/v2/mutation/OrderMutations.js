@@ -78,7 +78,7 @@ const orderMutations = {
       const paymentMethod = await getLegacyPaymentMethodFromPaymentMethodInput(order.paymentMethod);
 
       // Limit Braintree to root users for now
-      if (paymentMethod.service === PAYMENT_METHOD_SERVICE.BRAINTREE && !req.remoteUser?.isRoot()) {
+      if (paymentMethod?.service === PAYMENT_METHOD_SERVICE.BRAINTREE && !req.remoteUser?.isRoot()) {
         throw new Error('Braintree payments are only available to root users at the moment');
       }
 
