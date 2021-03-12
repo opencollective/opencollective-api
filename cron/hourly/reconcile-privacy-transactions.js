@@ -11,7 +11,7 @@ import models from '../../server/models';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import privacy from '../../server/paymentProviders/privacy';
 
-const START_DATE = '2021-02-01T00:00:00Z';
+const START_DATE = process.env.START_DATE || '2021-01-01T00:00:00Z';
 const DRY = process.env.DRY;
 
 export async function run() {
