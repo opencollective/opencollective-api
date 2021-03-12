@@ -109,7 +109,7 @@ export const searchCollectivesInDB = async (
   }
 
   if (skipRecentAccounts) {
-    dynamicConditions += `AND "createdAt" < (NOW() - interval '2 day')`;
+    dynamicConditions += `AND (COALESCE(("data"#>>'{spamReport,score}')::float, 0) <= 0.2 OR "createdAt" < (NOW() - interval '2 day')) `;
   }
 
   // Cleanup term
