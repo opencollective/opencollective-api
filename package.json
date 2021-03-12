@@ -20,7 +20,7 @@
     "@octokit/rest": "18.3.5",
     "@opencollective/taxes": "3.1.0",
     "@paypal/payouts-sdk": "^1.1.0",
-    "@sentry/node": "6.2.1",
+    "@sentry/node": "6.2.2",
     "apollo-server-express": "2.21.1",
     "argparse": "2.0.1",
     "aws-sdk": "2.862.0",
