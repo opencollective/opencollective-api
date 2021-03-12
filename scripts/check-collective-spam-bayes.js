@@ -58,8 +58,6 @@ async function run() {
   });
 
   for (const collective of collectives) {
-    // console.log(collective.slug);
-
     const ipString = await getIpString(collective);
 
     const bayesResult = await collectiveBayesCheck(collective, ipString);
@@ -75,36 +73,55 @@ async function run() {
       collective.data?.seo !== true &&
       collective.data?.notSpam !== true
     ) {
+      // console.log('CHECK', collective.slug);
       const transactions = await collective.getTransactions({});
       if (transactions.length === 0) {
         let skip = false;
         const admins = await collective.getAdmins();
         for (const admin of admins) {
-          const adminTransactions = await admin.getTransactions({});
-          if (adminTransactions.length === 0) {
-            report(admin, 'ADMIN BY');
-          } else {
-            skip = true;
+          // Skip Accounts that are administrated by people who are administrating other collective with transactions
+          const otherAccounts = await admin.getMemberships({ role: 'ADMIN' });
+          for (const otherAccount of otherAccounts) {
+            const accountTransactions = await otherAccount.getTransactions({});
+            if (accountTransactions.length > 0) {
+              skip = true;
+            }
+          }
+          // Skip Accounts that are administrated by people with transactions
+          if (!skip) {
+            const adminTransactions = await admin.getTransactions({});
+            if (adminTransactions.length > 0) {
+              skip = true;
+            }
           }
         }
         if (collective.type == 'USER') {
+          // Skip Accounts that are administrating account with transactions
           const accounts = await collective.getMemberships({ role: 'ADMIN' });
           for (const account of accounts) {
             const accountTransactions = await account.getTransactions({});
-            if (accountTransactions.length === 0) {
-              report(account, 'ADMIN FROM');
-            } else {
+            if (accountTransactions.length > 0) {
               skip = true;
             }
           }
         }
         if (!skip) {
           report(collective, 'NEW');
+          if (collective.type == 'USER') {
+            const accounts = await collective.getMemberships({ role: 'ADMIN' });
+            for (const account of accounts) {
+              report(account, 'ADMIN FROM');
+            }
+          }
+          const admins = await collective.getAdmins();
+          for (const admin of admins) {
+            report(admin, 'ADMIN BY');
+          }
         } else {
           // report(collective, 'SKIP');
         }
       } else {
-        // report.log(collective, 'HAS_TRANSACTIONS');
+        // report(collective, 'HAS_TRANSACTIONS');
       }
     }
   }
