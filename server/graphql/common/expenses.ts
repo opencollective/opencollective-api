@@ -203,7 +203,7 @@ export const canEditExpense = async (req: express.Request, expense: typeof model
  * and only when its status is REJECTED.
  */
 export const canDeleteExpense = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
-  if (expense.status !== expenseStatus.REJECTED) {
+  if (![expenseStatus.REJECTED, expenseStatus.DRAFT].includes(expense.status)) {
     return false;
   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     return false;
