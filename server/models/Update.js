@@ -1,14 +1,17 @@
 import Promise from 'bluebird';
 import config from 'config';
 import slugify from 'limax';
-import { defaults, pick } from 'lodash';
+import { defaults, pick, uniqBy } from 'lodash';
 import Temporal from 'sequelize-temporal';
 
 import activities from '../constants/activities';
+import { types as CollectiveType } from '../constants/collectives';
+import MemberRoles from '../constants/roles';
 import * as errors from '../graphql/errors';
 import logger from '../lib/logger';
 import { buildSanitizerOptions, generateSummaryForHTML, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize, { DataTypes, Op, QueryTypes } from '../lib/sequelize';
+import { flattenArray } from '../lib/utils';
 
 const sanitizerOptions = buildSanitizerOptions({
   titles: true,
@@ -19,6 +22,21 @@ const sanitizerOptions = buildSanitizerOptions({
   links: true,
   videoIframes: true,
 });
+
+/**
+ * Defines the roles targeted by an update notification. Admins of the parent collective are
+ * always included, regardless of the values in this array.
+ */
+const PRIVATE_UPDATE_TARGET_ROLES = [
+  MemberRoles.HOST,
+  MemberRoles.ADMIN,
+  MemberRoles.MEMBER,
+  MemberRoles.CONTRIBUTOR,
+  MemberRoles.BACKER,
+  MemberRoles.ATTENDEE,
+];
+
+const PUBLIC_UPDATE_TARGET_ROLES = [...PRIVATE_UPDATE_TARGET_ROLES, MemberRoles.FOLLOWER];
 
 function defineModel() {
   const { models } = sequelize;
@@ -173,6 +191,7 @@ function defineModel() {
             createdAt: this.createdAt,
             updatedAt: this.updatedAt,
             publishedAt: this.publishedAt,
+            isPrivate: this.isPrivate,
             slug: this.slug,
             tags: this.tags,
             CollectiveId: this.CollectiveId,
@@ -197,6 +216,7 @@ function defineModel() {
             CollectiveId: this.CollectiveId,
             FromCollectiveId: this.FromCollectiveId,
             TierId: this.TierId,
+            isPrivate: this.isPrivate,
           };
         },
       },
@@ -294,6 +314,41 @@ function defineModel() {
   // Returns the User model of the User that created this Update
   Update.prototype.getUser = function () {
     return models.User.findByPk(this.CreatedByUserId);
+  };
+
+  /**
+   * Get the member users to notify for an update.
+   */
+  Update.prototype.getUsersToNotify = async function () {
+    // Conditions for members of the collective
+    const targetRoles = this.isPrivate ? PRIVATE_UPDATE_TARGET_ROLES : PUBLIC_UPDATE_TARGET_ROLES;
+    const collective = this.collective || (await this.getCollective());
+    const collectiveConditions = { CollectiveId: collective.id, role: { [Op.in]: targetRoles } };
+
+    // Retrieve all direct members + ADMINs of the parent collective (if any)
+    let where = collectiveConditions;
+    if (collective.ParentCollectiveId) {
+      const parentCollectiveConditions = { CollectiveId: collective.ParentCollectiveId, role: 'ADMIN' };
+      where = { [Op.or]: [parentCollectiveConditions, collectiveConditions] };
+    }
+    const memberships = await models.Member.findAll({
+      where,
+      include: [{ model: models.Collective, as: 'memberCollective', required: true }],
+    });
+
+    // Get users from the memberships
+    // TODO: The code below was copied from `collective.getUsers()` and has a huge N+1 factor, we should optimize it.
+    const memberCollectives = memberships.map(membership => membership.memberCollective);
+    const users = await Promise.map(memberCollectives, memberCollective => {
+      if (memberCollective.type === CollectiveType.USER) {
+        return memberCollective.getUser().then(user => [user]);
+      } else {
+        return memberCollective.getAdminUsers();
+      }
+    });
+
+    const usersFlattened = flattenArray(users).filter(Boolean);
+    return uniqBy(usersFlattened, 'id');
   };
 
   /*

@@ -221,7 +221,8 @@ const notifyUpdateSubscribers = async activity => {
 
   // Send to all members
   if (audience === 'ALL' || audience === 'FINANCIAL_CONTRIBUTORS') {
-    const allUsers = await collective.getUsers();
+    const update = await models.Update.findByPk(activity.data.update.id);
+    const allUsers = await update.getUsersToNotify();
     return notifySubscribers(allUsers, activity, emailOpts);
   }
 };

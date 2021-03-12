@@ -18,7 +18,6 @@ import {
   sum,
   sumBy,
   trim,
-  uniqBy,
   unset,
 } from 'lodash';
 import moment from 'moment';
@@ -65,7 +64,7 @@ import sequelize, { DataTypes, Op, Sequelize } from '../lib/sequelize';
 import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective } from '../lib/spam';
 import { canUseFeature } from '../lib/user-permissions';
 import userlib from '../lib/userlib';
-import { capitalize, cleanTags, flattenArray, formatCurrency, getDomain, md5, sumByWhen } from '../lib/utils';
+import { capitalize, cleanTags, formatCurrency, getDomain, md5, sumByWhen } from '../lib/utils';
 
 import CustomDataTypes from './DataTypes';
 import { PayoutMethodTypes } from './PayoutMethod';
@@ -1125,37 +1124,6 @@ function defineModel() {
       default:
         return Promise.resolve(null);
     }
-  };
-
-  /**
-   * Returns all the users of a collective (admins, members, backers, followers, attendees, ...)
-   * including all the admins of the organizations that are members/backers of this collective
-   */
-  Collective.prototype.getUsers = async function () {
-    // Retrieve all direct members + ADMINs of the parent collective (if any)
-    let where = { CollectiveId: this.id };
-    if (this.ParentCollectiveId) {
-      where = {
-        [Op.or]: [{ CollectiveId: this.id }, { CollectiveId: this.ParentCollectiveId, role: 'ADMIN' }],
-      };
-    }
-    const memberships = await models.Member.findAll({
-      where,
-      include: [{ model: models.Collective, as: 'memberCollective', required: true }],
-    });
-    debug('>>> members found', memberships.length);
-    const memberCollectives = memberships.map(membership => membership.memberCollective);
-    const users = await Promise.map(memberCollectives, memberCollective => {
-      debug('>>> fetching user for', memberCollective.slug, memberCollective.type);
-      if (memberCollective.type === types.USER) {
-        return memberCollective.getUser().then(user => [user]);
-      } else {
-        debug('User', memberCollective.slug, 'type: ', memberCollective.type);
-        return memberCollective.getAdminUsers();
-      }
-    });
-    const usersFlattened = flattenArray(users).filter(Boolean);
-    return uniqBy(usersFlattened, 'id');
   };
 
   Collective.prototype.getAdmins = async function () {
