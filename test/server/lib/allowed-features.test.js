@@ -88,7 +88,7 @@ describe('server/lib/allowed-features', () => {
       expect(isFeatureAllowedForCollectiveType('USER', FEATURE.UPDATES)).to.be.false;
       expect(isFeatureAllowedForCollectiveType('EVENT', FEATURE.UPDATES)).to.be.false;
       expect(isFeatureAllowedForCollectiveType('FUND', FEATURE.UPDATES)).to.be.true;
-      expect(isFeatureAllowedForCollectiveType('PROJECT', FEATURE.UPDATES)).to.be.false;
+      expect(isFeatureAllowedForCollectiveType('PROJECT', FEATURE.UPDATES)).to.be.true;
     });
     it('CONVERSATIONS', () => {
       expect(isFeatureAllowedForCollectiveType('COLLECTIVE', FEATURE.CONVERSATIONS)).to.be.true;

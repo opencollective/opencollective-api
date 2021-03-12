@@ -51,8 +51,11 @@ const commentMutations = {
           loaders: req.loaders,
           throwIfMissing: true,
         });
-        if ((update.isPrivate || !update.publishedAt) && !req.remoteUser?.canSeePrivateUpdates(update.CollectiveId)) {
-          throw new Unauthorized('You do not have the permission to post comments on this update');
+        if (update.isPrivate || !update.publishedAt) {
+          update.collective = update.collective || (await req.loaders.Collective.byId.load(update.CollectiveId));
+          if (!req.remoteUser?.canSeePrivateUpdatesForCollective(update.collective)) {
+            throw new Unauthorized('You do not have the permission to post comments on this update');
+          }
         }
         args.comment.UpdateId = update.id;
       }

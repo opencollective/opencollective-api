@@ -363,12 +363,9 @@ function defineModel() {
   };
 
   // Determines whether a user can see updates for a collective based on their roles.
-  User.prototype.canSeePrivateUpdates = function (CollectiveId) {
-    const result =
-      this.CollectiveId === CollectiveId ||
-      this.hasRole([roles.HOST, roles.ADMIN, roles.MEMBER, roles.CONTRIBUTOR, roles.BACKER], CollectiveId);
-    debug('userid:', this.id, 'canSeePrivateUpdates', CollectiveId, '?', result);
-    return result;
+  User.prototype.canSeePrivateUpdatesForCollective = function (collective) {
+    const allowedRoles = [roles.HOST, roles.ADMIN, roles.MEMBER, roles.CONTRIBUTOR, roles.BACKER];
+    return this.hasRole(allowedRoles, collective.id) || this.hasRole(allowedRoles, collective.ParentCollectiveId);
   };
 
   User.prototype.getPersonalDetails = function (remoteUser) {
