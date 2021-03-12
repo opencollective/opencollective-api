@@ -200,6 +200,30 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         const orderFromDb2 = await models.Order.findByPk(order2.legacyId);
         expect(orderFromDb2.data.savePaymentMethod).to.be.false;
       });
+
+      it('works with a free ticket', async () => {
+        const freeTicket = await fakeTier({
+          CollectiveId: toCollective.id,
+          type: 'TICKET',
+          amount: 0,
+          amountType: 'FIXED',
+        });
+        const fromUser = await fakeUser();
+        const orderData = {
+          tier: { legacyId: freeTicket.id },
+          toAccount: { legacyId: toCollective.id },
+          fromAccount: { legacyId: fromUser.CollectiveId },
+          frequency: 'ONETIME',
+          amount: { valueInCents: 0 },
+        };
+
+        const result = await graphqlQueryV2(CREATE_ORDER_MUTATION, { order: orderData }, fromUser);
+        expect(result.errors).to.not.exist;
+
+        const order = result.data.createOrder.order;
+        expect(order.status).to.eq('PAID');
+        expect(order.amount.valueInCents).to.eq(0);
+      });
     });
 
     describe('Guest', () => {
