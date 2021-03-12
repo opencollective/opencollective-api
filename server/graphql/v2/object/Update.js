@@ -1,11 +1,14 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 
+import { types as CollectiveType } from '../../../constants/collectives';
 import models from '../../../models';
 import { CommentCollection } from '../collection/CommentCollection';
 import { UpdateAudienceType } from '../enum';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { Account } from '../interface/Account';
+
+import { UpdateAudienceStats } from './UpdateAudienceStats';
 
 const canSeeUpdateDetails = async (req, update) => {
   if (!update.publishedAt || update.isPrivate) {
@@ -57,6 +60,30 @@ const Update = new GraphQLObjectType({
       updatedAt: { type: new GraphQLNonNull(GraphQLDateTime) },
       publishedAt: { type: GraphQLDateTime },
       notificationAudience: { type: UpdateAudienceType },
+      audienceStats: {
+        type: UpdateAudienceStats,
+        description: `Some stats about the target audience. Will be null if the update is already published or if you don't have enough permissions so see this information. Not backed by a loader, avoid using this field in lists.`,
+        async resolve(update, _, req) {
+          if (!req.remoteUser || update.publishedAt) {
+            return null;
+          }
+
+          update.collective = update.collective || (await req.loaders.Collective.byId.load(update.CollectiveId));
+
+          if (!req.remoteUser.isAdminOfCollective(update.collective)) {
+            return null;
+          }
+
+          const [stats, total] = await Promise.all([update.getAudienceMembersStats(), update.countUsersToNotify()]);
+          return {
+            id: update.id,
+            individuals: stats[CollectiveType.USER] || 0,
+            organizations: stats[CollectiveType.ORGANIZATION] || 0,
+            collectives: stats[CollectiveType.COLLECTIVE] || 0,
+            total: total || 0,
+          };
+        },
+      },
       makePublicOn: { type: GraphQLDateTime },
       summary: {
         type: GraphQLString,

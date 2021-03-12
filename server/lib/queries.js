@@ -310,6 +310,76 @@ const getCollectivesWithBalance = async (where = {}, options) => {
   return { total, collectives };
 };
 
+export const usersToNotifyForUpdateSQLQuery = `
+  SELECT
+    u.*
+  FROM
+    "Members" direct_members
+  INNER JOIN
+    "Collectives" c ON c.id = direct_members."CollectiveId"
+  LEFT JOIN "Collectives" member_collectives
+    ON member_collectives.id = direct_members."MemberCollectiveId"
+    AND member_collectives."deletedAt" IS NULL
+  -- Include all admins of the parent collective
+  LEFT JOIN "Members" admins_of_parent_collective
+    ON (
+      c."ParentCollectiveId" IS NOT NULL
+      AND admins_of_parent_collective."CollectiveId" = c."ParentCollectiveId"
+      AND admins_of_parent_collective."role" IN ('ADMIN', 'MEMBER')
+      AND admins_of_parent_collective."deletedAt" IS NULL
+    )
+  -- For all member_collectives, get admin profiles
+  LEFT JOIN "Members" admins_of_member_collective
+    ON (
+      member_collectives."type" != 'USER'
+      AND admins_of_member_collective."CollectiveId" = member_collectives.id
+      AND admins_of_member_collective."role" IN ('ADMIN', 'MEMBER')
+      AND admins_of_member_collective."deletedAt" IS NULL
+    )
+  -- Get all user entries, either the direct members, the admins of member_collectives or the admins of parent collectives
+  INNER JOIN
+    "Users" u ON (
+      u."deletedAt" IS NULL
+      AND (
+        (member_collectives."type" = 'USER' AND u."CollectiveId" = member_collectives.id)
+        OR u."CollectiveId" = admins_of_member_collective."MemberCollectiveId"
+        OR u."CollectiveId" = admins_of_parent_collective."MemberCollectiveId"
+      )
+    )
+  WHERE
+    c.id = :collectiveId
+    AND direct_members."deletedAt" IS NULL
+    AND direct_members."role" IN (:targetRoles)
+  GROUP BY
+    u.id
+`;
+
+export const countUsersToNotifyForUpdateSQLQuery = `
+  SELECT COUNT(*) FROM (${usersToNotifyForUpdateSQLQuery}) AS users_to_notify
+`;
+
+export const countMembersToNotifyForUpdateSQLQuery = `
+  WITH unique_members_collectives AS (
+    SELECT DISTINCT mc.id, mc."type"
+    FROM "Members" m
+    INNER JOIN "Collectives" collective ON collective.id = :collectiveId
+    LEFT JOIN "Members" parent_admin_members -- Include parent collective admins
+      ON collective."ParentCollectiveId" IS NOT NULL
+      AND parent_admin_members."CollectiveId" = collective."ParentCollectiveId"
+      AND parent_admin_members."role" IN ('ADMIN', 'MEMBER')
+      AND parent_admin_members."deletedAt" IS NULL
+    INNER JOIN "Collectives" mc
+      ON m."MemberCollectiveId" = mc.id
+      OR parent_admin_members."MemberCollectiveId"  = mc.id
+    WHERE m."CollectiveId" = :collectiveId
+    AND m."deletedAt" IS NULL
+    AND m."role" IN (:targetRoles)
+    AND mc."deletedAt" IS NULL
+  ) SELECT "type", COUNT(*) AS "count"
+  FROM unique_members_collectives
+  GROUP BY "type"
+`;
+
 /**
  * Get top collectives based on total donations
  */

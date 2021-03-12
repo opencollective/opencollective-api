@@ -122,6 +122,16 @@ export const fakeCollective = async (collectiveData = {}) => {
   return collective;
 };
 
+export const fakeOrganization = (organizationData = {}) => {
+  return fakeCollective({
+    HostCollectiveId: null,
+    name: organizationData.isHostAccount ? randStr('Test Host ') : randStr('Test Organization '),
+    slug: organizationData.isHostAccount ? randStr('host-') : randStr('org-'),
+    ...organizationData,
+    type: 'ORGANIZATION',
+  });
+};
+
 /**
  * Creates a fake update. All params are optionals.
  */
@@ -142,7 +152,7 @@ export const fakeEvent = async (collectiveData = {}) => {
  * Creates a fake update. All params are optionals.
  */
 export const fakeUpdate = async (updateData = {}) => {
-  return models.Update.create({
+  const update = await models.Update.create({
     slug: randStr('update-'),
     title: randStr('Update '),
     html: '<div><strong>Hello</strong> Test!</div>',
@@ -151,6 +161,10 @@ export const fakeUpdate = async (updateData = {}) => {
     CollectiveId: updateData.CollectiveId || (await fakeCollective()).id,
     CreatedByUserId: updateData.CreatedByUserId || (await fakeUser()).id,
   });
+
+  update.collective = await models.Collective.findByPk(update.CollectiveId);
+  update.fromCollective = await models.Collective.findByPk(update.FromCollectiveId);
+  return update;
 };
 
 /**
