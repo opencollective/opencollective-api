@@ -876,18 +876,20 @@ function defineModel() {
 
   // Save image it if it returns 200
   Collective.prototype.checkAndUpdateImage = async function (image) {
-    try {
-      const response = await fetch(image);
-      if (response.status !== 200) {
-        throw new Error(`status=${response.status}`);
+    if (process.env.OC_ENV !== 'e2e' && process.env.OC_ENV !== 'ci') {
+      try {
+        const response = await fetch(image);
+        if (response.status !== 200) {
+          throw new Error(`status=${response.status}`);
+        }
+        const body = await response.text();
+        if (body.length === 0) {
+          throw new Error(`length=0`);
+        }
+        return this.update({ image });
+      } catch (err) {
+        logger.info(`collective.checkAndUpdateImage: Unable to fetch ${image} (${err.message})`);
       }
-      const body = await response.text();
-      if (body.length === 0) {
-        throw new Error(`length=0`);
-      }
-      return this.update({ image });
-    } catch (err) {
-      logger.info(`collective.checkAndUpdateImage: Unable to fetch ${image} (${err.message})`);
     }
   };
 
