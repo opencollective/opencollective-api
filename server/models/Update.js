@@ -6,7 +6,6 @@ import Temporal from 'sequelize-temporal';
 
 import activities from '../constants/activities';
 import * as errors from '../graphql/errors';
-import { mustHaveRole } from '../lib/auth';
 import logger from '../lib/logger';
 import { buildSanitizerOptions, generateSummaryForHTML, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize, { DataTypes, Op, QueryTypes } from '../lib/sequelize';
@@ -238,7 +237,6 @@ function defineModel() {
 
   // Edit an update
   Update.prototype.edit = async function (remoteUser, newUpdateData) {
-    mustHaveRole(remoteUser, 'ADMIN', this.CollectiveId, 'edit this update');
     if (newUpdateData.TierId) {
       const tier = await models.Tier.findByPk(newUpdateData.TierId);
       if (!tier) {
@@ -259,7 +257,6 @@ function defineModel() {
 
   // Publish update
   Update.prototype.publish = async function (remoteUser, notificationAudience) {
-    mustHaveRole(remoteUser, 'ADMIN', this.CollectiveId, 'publish this update');
     this.publishedAt = new Date();
     this.notificationAudience = notificationAudience;
     this.collective = this.collective || (await models.Collective.findByPk(this.CollectiveId));
@@ -281,15 +278,17 @@ function defineModel() {
 
   // Unpublish update
   Update.prototype.unpublish = async function (remoteUser) {
-    mustHaveRole(remoteUser, 'ADMIN', this.CollectiveId, 'unpublish this update');
-    this.publishedAt = null;
-    return await this.save();
+    return this.update({ LastEditedByUserId: remoteUser.id, publishedAt: null });
   };
 
   Update.prototype.delete = async function (remoteUser) {
-    mustHaveRole(remoteUser, 'ADMIN', this.CollectiveId, 'delete this update');
     await models.Comment.destroy({ where: { UpdateId: this.id } });
-    return this.destroy();
+    await models.Update.update(
+      { deletedAt: new Date(), LastEditedByUserId: remoteUser.id },
+      { where: { id: this.id } },
+    );
+
+    return this;
   };
 
   // Returns the User model of the User that created this Update

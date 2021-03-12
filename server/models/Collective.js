@@ -1132,9 +1132,15 @@ function defineModel() {
    * including all the admins of the organizations that are members/backers of this collective
    */
   Collective.prototype.getUsers = async function () {
-    debug('getUsers for ', this.id);
+    // Retrieve all direct members + ADMINs of the parent collective (if any)
+    let where = { CollectiveId: this.id };
+    if (this.ParentCollectiveId) {
+      where = {
+        [Op.or]: [{ CollectiveId: this.id }, { CollectiveId: this.ParentCollectiveId, role: 'ADMIN' }],
+      };
+    }
     const memberships = await models.Member.findAll({
-      where: { CollectiveId: this.id },
+      where,
       include: [{ model: models.Collective, as: 'memberCollective', required: true }],
     });
     debug('>>> members found', memberships.length);
@@ -1148,7 +1154,7 @@ function defineModel() {
         return memberCollective.getAdminUsers();
       }
     });
-    const usersFlattened = flattenArray(users);
+    const usersFlattened = flattenArray(users).filter(Boolean);
     return uniqBy(usersFlattened, 'id');
   };
 

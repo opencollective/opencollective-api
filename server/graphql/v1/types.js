@@ -964,9 +964,10 @@ export const UpdateType = new GraphQLObjectType({
       userCanSeeUpdate: {
         description: 'Indicates whether or not the user is allowed to see the content of this update',
         type: GraphQLBoolean,
-        resolve(update, _, req) {
+        async resolve(update, _, req) {
           if (!update.publishedAt || update.isPrivate) {
-            return Boolean(req.remoteUser && req.remoteUser.canSeePrivateUpdates(update.CollectiveId));
+            update.collective = update.collective || (await req.loaders.Collective.byId.load(update.CollectiveId));
+            return Boolean(req.remoteUser?.canSeePrivateUpdatesForCollective(update.collective));
           } else {
             return true;
           }
@@ -998,9 +999,12 @@ export const UpdateType = new GraphQLObjectType({
       },
       summary: {
         type: GraphQLString,
-        resolve(update, _, req) {
-          if (update.isPrivate && !(req.remoteUser && req.remoteUser.canSeePrivateUpdates(update.CollectiveId))) {
-            return null;
+        async resolve(update, _, req) {
+          if (update.isPrivate) {
+            update.collective = update.collective || (await req.loaders.Collective.byId.load(update.CollectiveId));
+            if (!req.remoteUser?.canSeePrivateUpdatesForCollective(update.collective)) {
+              return null;
+            }
           }
 
           return update.summary || '';
@@ -1008,12 +1012,15 @@ export const UpdateType = new GraphQLObjectType({
       },
       html: {
         type: GraphQLString,
-        resolve(update, _, req) {
-          if (update.isPrivate && !(req.remoteUser && req.remoteUser.canSeePrivateUpdates(update.CollectiveId))) {
-            return null;
-          } else {
-            return update.html;
+        async resolve(update, _, req) {
+          if (update.isPrivate) {
+            update.collective = update.collective || (await req.loaders.Collective.byId.load(update.CollectiveId));
+            if (!req.remoteUser?.canSeePrivateUpdatesForCollective(update.collective)) {
+              return null;
+            }
           }
+
+          return update.html;
         },
       },
       tags: {

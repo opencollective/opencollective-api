@@ -203,14 +203,28 @@ export async function notififyConversationFollowers(conversation, activity, opti
   return notifySubscribers(toNotify, activity, options);
 }
 
-async function notifyMembersOfCollective(CollectiveId, activity, options) {
-  debug('notify members of CollectiveId', CollectiveId);
-  const collective = await models.Collective.findByPk(CollectiveId);
-  const allUsers = await collective.getUsers();
-  debug('Total users to notify:', allUsers.length);
+const notifyUpdateSubscribers = async activity => {
+  const collective = await models.Collective.findByPk(activity.data.collective.id);
+  activity.data.fromCollective = (await models.Collective.findByPk(activity.data.fromCollective.id))?.info;
+  activity.data.collective = collective.info;
+  activity.data.fromEmail = `${activity.data.collective.name} <no-reply@${activity.data.collective.slug}.opencollective.com>`;
   activity.CollectiveId = collective.id;
-  return notifySubscribers(allUsers, activity, options);
-}
+
+  const audience = activity.data.update.notificationAudience;
+  const isHost = activity.data.collective.isHostAccount;
+  const emailOpts = { from: activity.data.fromEmail };
+
+  // Send to hosted collectives
+  if (isHost && (audience === 'ALL' || audience === 'COLLECTIVE_ADMINS')) {
+    notifyHostedCollectiveAdmins(activity.data.update.CollectiveId, activity, emailOpts);
+  }
+
+  // Send to all members
+  if (audience === 'ALL' || audience === 'FINANCIAL_CONTRIBUTORS') {
+    const allUsers = await collective.getUsers();
+    return notifySubscribers(allUsers, activity, emailOpts);
+  }
+};
 
 async function notifyByEmail(activity) {
   debug('notifyByEmail', activity.type);
@@ -226,40 +240,7 @@ async function notifyByEmail(activity) {
 
     case activityType.COLLECTIVE_UPDATE_PUBLISHED:
       twitter.tweetActivity(activity);
-
-      activity.data.fromCollective = (await models.Collective.findByPk(activity.data.fromCollective.id))?.info;
-      activity.data.collective = await models.Collective.findByPk(activity.data.collective.id);
-      activity.data.collective = activity.data.collective.info;
-      activity.data.fromEmail = `${activity.data.collective.name}<no-reply@${activity.data.collective.slug}.opencollective.com>`;
-      if (activity.data.collective.isHostAccount) {
-        switch (activity.data.update.notificationAudience) {
-          case 'COLLECTIVE_ADMINS':
-            notifyHostedCollectiveAdmins(activity.data.update.CollectiveId, activity, {
-              from: activity.data.fromEmail,
-            });
-            break;
-
-          case 'FINANCIAL_CONTRIBUTORS':
-            notifyMembersOfCollective(activity.data.update.CollectiveId, activity, {
-              from: activity.data.fromEmail,
-            });
-            break;
-
-          case 'ALL':
-            notifyHostedCollectiveAdmins(activity.data.update.CollectiveId, activity, {
-              from: activity.data.fromEmail,
-            });
-
-            notifyMembersOfCollective(activity.data.update.CollectiveId, activity, {
-              from: activity.data.fromEmail,
-            });
-            break;
-        }
-      } else {
-        notifyMembersOfCollective(activity.data.update.CollectiveId, activity, {
-          from: activity.data.fromEmail,
-        });
-      }
+      notifyUpdateSubscribers(activity);
       break;
 
     case activityType.SUBSCRIPTION_CANCELED:
