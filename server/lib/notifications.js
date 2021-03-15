@@ -331,6 +331,15 @@ async function notifyByEmail(activity) {
       }
       break;
 
+    case activityType.COLLECTIVE_EXPENSE_REJECTED:
+      activity.data.actions = {
+        viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
+      };
+      notifyUserId(activity.data.expense.UserId, activity, {
+        replyTo: `no-reply@opencollective.com`,
+      });
+      break;
+
     case activityType.COLLECTIVE_EXPENSE_PAID:
       activity.data.actions = {
         viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
