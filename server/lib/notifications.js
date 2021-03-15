@@ -338,13 +338,6 @@ async function notifyByEmail(activity) {
       notifyUserId(activity.data.expense.UserId, activity, {
         replyTo: `no-reply@opencollective.com`,
       });
-
-      if (get(activity, 'data.host.id') && get(activity, 'data.collective.isActive')) {
-        notifyAdminsOfCollective(activity.data.host.id, activity, {
-          template: 'collective.expense.rejected.for.host',
-          collective: activity.data.host,
-        });
-      }
       break;
 
     case activityType.COLLECTIVE_EXPENSE_PAID:
