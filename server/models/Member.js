@@ -131,6 +131,8 @@ function defineModel() {
    * @param {*} member { tier: { interval }, lastDonation}
    */
   Member.isActive = member => {
+    const { models } = sequelize;
+
     if (!member.tier || !member.tier.interval) {
       return true;
     }
@@ -140,9 +142,10 @@ function defineModel() {
     if (member.tier.interval === 'month' && days(new Date(member.lastDonation)) <= 31) {
       return true;
     }
-    if (member.tier.interval === 'year' && days(new Date(member.lastDonation)) <= 365) {
+    if (['year', 'flexible'].includes(member.tier.interval) && days(new Date(member.lastDonation)) <= 365) {
       return true;
     }
+
     return false;
   };
 

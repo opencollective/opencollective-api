@@ -177,6 +177,7 @@ function defineModel() {
             CollectiveId: this.CollectiveId,
             currency: this.currency,
             quantity: this.quantity,
+            interval: this.interval,
             totalAmount: this.totalAmount,
             description: this.description,
             privateMessage: this.privateMessage,

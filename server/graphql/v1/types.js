@@ -1262,6 +1262,8 @@ export const TierStatsType = new GraphQLObjectType({
             return req.loaders.Tier.totalMonthlyDonations.load(tier.id);
           } else if (tier.interval === intervals.YEAR) {
             return req.loaders.Tier.totalYearlyDonations.load(tier.id);
+          } else if (tier.interval === intervals.FLEXIBLE) {
+            return req.loaders.Tier.totalDonated.load(tier.id);
           } else {
             return 0;
           }

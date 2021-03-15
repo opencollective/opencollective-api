@@ -7250,6 +7250,7 @@ type TierCollection implements Collection {
 enum TierInterval {
   month
   year
+  flexible
 }
 
 input TierReferenceInput {
