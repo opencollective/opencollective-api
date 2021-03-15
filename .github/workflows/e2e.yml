@@ -110,7 +110,7 @@ jobs:
           path: opencollective-frontend
           ref: ${{ github.ref }}
 
-      - name: Checkout (frontend - master)
+      - name: Checkout (frontend - main)
         if: steps.check-matching-branch.outputs.status != 200
         uses: actions/checkout@v2-beta
         with:
