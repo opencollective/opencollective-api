@@ -85,7 +85,7 @@ jobs:
       # Checkouts
 
       - name: Checkout (api)
-        uses: actions/checkout@v2-beta
+        uses: actions/checkout@v2
 
       - name: Set REF in env, removing the `refs/` part
         run: echo "MATCHING_BRANCH_REF=$(echo $GITHUB_REF | sed 's|refs/||')" >> $GITHUB_ENV
@@ -104,7 +104,7 @@ jobs:
 
       - name: Checkout (frontend - matching branch)
         if: steps.check-matching-branch.outputs.status == 200
-        uses: actions/checkout@v2-beta
+        uses: actions/checkout@v2
         with:
           repository: opencollective/opencollective-frontend
           path: opencollective-frontend
@@ -112,13 +112,13 @@ jobs:
 
       - name: Checkout (frontend - main)
         if: steps.check-matching-branch.outputs.status != 200
-        uses: actions/checkout@v2-beta
+        uses: actions/checkout@v2
         with:
           repository: opencollective/opencollective-frontend
           path: opencollective-frontend
 
       - name: Checkout (images)
-        uses: actions/checkout@v2-beta
+        uses: actions/checkout@v2
         with:
           repository: opencollective/opencollective-images
           path: opencollective-images
