@@ -58,7 +58,7 @@ const getAdminsForAccount = async account => {
 
 /**
  * From an admins list, try to detect which one is the most appropriate to contact.
- * Because HelloWorks don't support sending to multiple recipants.
+ * Because HelloWorks doesn't support sending to multiple recipients.
  */
 const getMainAdminToContact = async (account, adminUsers) => {
   if (adminUsers.length > 1) {
