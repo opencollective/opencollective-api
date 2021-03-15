@@ -304,7 +304,7 @@ export async function getYearlyIncome(collective) {
   const result = await sequelize.query(
     `
       WITH "activeMonthlySubscriptions" as (
-        SELECT DISTINCT d."SubscriptionId", t."netAmountInCollectiveCurrency"
+        SELECT d."SubscriptionId", ROUND(AVG(t."netAmountInCollectiveCurrency")) AS "netAmountInCollectiveCurrency"
         FROM "Transactions" t
         LEFT JOIN "Orders" d ON d.id = t."OrderId"
         LEFT JOIN "Subscriptions" s ON s.id = d."SubscriptionId"
@@ -313,6 +313,7 @@ export async function getYearlyIncome(collective) {
           AND s."isActive" IS TRUE
           AND s.interval = 'month'
           AND s."deletedAt" IS NULL
+        GROUP BY d."SubscriptionId"
       )
       SELECT
         (SELECT
