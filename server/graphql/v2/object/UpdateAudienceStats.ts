@@ -1,4 +1,4 @@
-import { GraphQLInt, GraphQLNonNull, GraphQLObjectType } from 'graphql';
+import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 export const UpdateAudienceStats = new GraphQLObjectType({
   name: 'UpdateAudienceStats',
@@ -6,7 +6,7 @@ export const UpdateAudienceStats = new GraphQLObjectType({
   fields: () => {
     return {
       id: {
-        type: new GraphQLNonNull(GraphQLInt),
+        type: new GraphQLNonNull(GraphQLString),
       },
       individuals: {
         type: new GraphQLNonNull(GraphQLInt),
@@ -15,6 +15,9 @@ export const UpdateAudienceStats = new GraphQLObjectType({
         type: new GraphQLNonNull(GraphQLInt),
       },
       collectives: {
+        type: new GraphQLNonNull(GraphQLInt),
+      },
+      hosted: {
         type: new GraphQLNonNull(GraphQLInt),
       },
       total: {

@@ -1,7 +1,7 @@
 import Promise from 'bluebird';
 import config from 'config';
 import slugify from 'limax';
-import { defaults, groupBy, pick } from 'lodash';
+import { defaults, pick } from 'lodash';
 import Temporal from 'sequelize-temporal';
 
 import activities from '../constants/activities';
@@ -314,30 +314,58 @@ function defineModel() {
     return models.User.findByPk(this.CreatedByUserId);
   };
 
+  Update.prototype.includeHostedAccountsInNotification = async function (notificationAudience) {
+    this.collective = this.collective || (await this.getCollective());
+    const audience = notificationAudience || this.notificationAudience || 'ALL';
+    const audiencesForHostedAccounts = ['ALL', 'COLLECTIVE_ADMINS'];
+    return Boolean(this.collective.isHostAccount && audiencesForHostedAccounts.includes(audience));
+  };
+
+  Update.prototype.getTargetMembersRoles = function (notificationAudience) {
+    const audience = notificationAudience || this.audience || 'ALL';
+    if (audience === 'COLLECTIVE_ADMINS') {
+      return ['__NONE__'];
+    } else if (this.isPrivate) {
+      return PRIVATE_UPDATE_TARGET_ROLES;
+    } else {
+      return PUBLIC_UPDATE_TARGET_ROLES;
+    }
+  };
+
   /**
    * Get the member users to notify for this update.
    */
   Update.prototype.getUsersToNotify = async function () {
+    const audience = this.audience || 'ALL';
     return sequelize.query(SQLQueries.usersToNotifyForUpdateSQLQuery, {
       type: sequelize.QueryTypes.SELECT,
       mapToModel: true,
       model: models.User,
       replacements: {
         collectiveId: this.CollectiveId,
-        targetRoles: this.isPrivate ? PRIVATE_UPDATE_TARGET_ROLES : PUBLIC_UPDATE_TARGET_ROLES,
+        targetRoles: this.getTargetMembersRoles(),
+        includeHostedAccounts: await this.includeHostedAccountsInNotification(),
+        includeMembers: audience !== 'COLLECTIVE_ADMINS',
       },
     });
   };
 
   /**
    * Gets a summary of how many users will be notified about this update
+   *
+   * @argument notificationAudience - to override the update audience
    */
-  Update.prototype.countUsersToNotify = async function () {
+  Update.prototype.countUsersToNotify = async function (notificationAudience) {
+    this.collective = this.collective || (await this.getCollective());
+    const audience = notificationAudience || this.audience || 'ALL';
+
     const [result] = await sequelize.query(SQLQueries.countUsersToNotifyForUpdateSQLQuery, {
       type: sequelize.QueryTypes.SELECT,
       replacements: {
         collectiveId: this.CollectiveId,
-        targetRoles: this.isPrivate ? PRIVATE_UPDATE_TARGET_ROLES : PUBLIC_UPDATE_TARGET_ROLES,
+        targetRoles: this.getTargetMembersRoles(audience),
+        includeHostedAccounts: await this.includeHostedAccountsInNotification(audience),
+        includeMembers: audience !== 'COLLECTIVE_ADMINS',
       },
     });
 
@@ -347,12 +375,12 @@ function defineModel() {
   /**
    * Gets a summary of who will be notified about this update
    */
-  Update.prototype.getAudienceMembersStats = async function () {
+  Update.prototype.getAudienceMembersStats = async function (audience) {
     const result = await sequelize.query(SQLQueries.countMembersToNotifyForUpdateSQLQuery, {
       type: sequelize.QueryTypes.SELECT,
       replacements: {
         collectiveId: this.CollectiveId,
-        targetRoles: this.isPrivate ? PRIVATE_UPDATE_TARGET_ROLES : PUBLIC_UPDATE_TARGET_ROLES,
+        targetRoles: this.getTargetMembersRoles(audience),
       },
     });
 

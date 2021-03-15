@@ -63,7 +63,13 @@ const Update = new GraphQLObjectType({
       audienceStats: {
         type: UpdateAudienceStats,
         description: `Some stats about the target audience. Will be null if the update is already published or if you don't have enough permissions so see this information. Not backed by a loader, avoid using this field in lists.`,
-        async resolve(update, _, req) {
+        args: {
+          audience: {
+            type: UpdateAudienceType,
+            description: 'To override the default notificationAudience',
+          },
+        },
+        async resolve(update, args, req) {
           if (!req.remoteUser || update.publishedAt) {
             return null;
           }
@@ -74,13 +80,25 @@ const Update = new GraphQLObjectType({
             return null;
           }
 
-          const [stats, total] = await Promise.all([update.getAudienceMembersStats(), update.countUsersToNotify()]);
+          const audience = args.audience || update.notificationAudience || 'ALL';
+          let membersStats = {};
+          let hostedCollectivesCount = 0;
+
+          if (audience !== 'COLLECTIVE_ADMINS') {
+            membersStats = await update.getAudienceMembersStats(audience);
+          }
+
+          if (update.collective.isHostAccount && (audience === 'ALL' || audience === 'COLLECTIVE_ADMINS')) {
+            hostedCollectivesCount = await update.collective.getHostedCollectivesCount();
+          }
+
           return {
-            id: update.id,
-            individuals: stats[CollectiveType.USER] || 0,
-            organizations: stats[CollectiveType.ORGANIZATION] || 0,
-            collectives: stats[CollectiveType.COLLECTIVE] || 0,
-            total: total || 0,
+            id: `${update.id}-${audience}`,
+            individuals: membersStats[CollectiveType.USER] || 0,
+            organizations: membersStats[CollectiveType.ORGANIZATION] || 0,
+            collectives: membersStats[CollectiveType.COLLECTIVE] || 0,
+            hosted: hostedCollectivesCount || 0,
+            total: await update.countUsersToNotify(audience),
           };
         },
       },

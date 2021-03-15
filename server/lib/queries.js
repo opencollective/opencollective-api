@@ -314,25 +314,54 @@ export const usersToNotifyForUpdateSQLQuery = `
   SELECT
     u.*
   FROM
-    "Members" direct_members
-  INNER JOIN
-    "Collectives" c ON c.id = direct_members."CollectiveId"
-  LEFT JOIN "Collectives" member_collectives
-    ON member_collectives.id = direct_members."MemberCollectiveId"
+    "Collectives" c
+  -- Include direct members
+  FULL OUTER JOIN "Members" direct_members
+    ON direct_members."CollectiveId" = :collectiveId
+    AND direct_members."deletedAt" IS NULL
+    AND direct_members."role" IN (:targetRoles)
+  FULL OUTER JOIN "Collectives" member_collectives
+    ON :includeMembers = TRUE
+    AND member_collectives.id = direct_members."MemberCollectiveId"
     AND member_collectives."deletedAt" IS NULL
+  -- Always include collective admins
+  FULL OUTER JOIN "Members" collective_admins
+    ON collective_admins."CollectiveId" = :collectiveId
+    AND collective_admins."deletedAt" IS NULL
+    AND collective_admins."role" IN ('ADMIN', 'MEMBER')
   -- Include all admins of the parent collective
-  LEFT JOIN "Members" admins_of_parent_collective
+  FULL OUTER JOIN "Members" admins_of_parent_collective
     ON (
       c."ParentCollectiveId" IS NOT NULL
       AND admins_of_parent_collective."CollectiveId" = c."ParentCollectiveId"
       AND admins_of_parent_collective."role" IN ('ADMIN', 'MEMBER')
       AND admins_of_parent_collective."deletedAt" IS NULL
     )
-  -- For all member_collectives, get admin profiles
-  LEFT JOIN "Members" admins_of_member_collective
+  -- Include all hosted collectives
+  FULL OUTER JOIN "Members" hosted_collective_members
+    ON (
+      :includeHostedAccounts = TRUE
+      AND c."isHostAccount" = TRUE
+      AND hosted_collective_members."MemberCollectiveId" = c.id
+      AND hosted_collective_members."role" = 'HOST'
+      AND hosted_collective_members."deletedAt" IS NULL
+    )
+  FULL OUTER JOIN "Collectives" hosted_collectives
+    ON (
+      hosted_collective_members."CollectiveId" = hosted_collectives.id
+      AND hosted_collectives."deletedAt" IS NULL
+      AND hosted_collectives."approvedAt" IS NOT NULL
+    )
+  -- For all member_collectives and hosted_collectives, get admin profiles
+  FULL OUTER JOIN "Members" admins_of_member_collective
     ON (
       member_collectives."type" != 'USER'
       AND admins_of_member_collective."CollectiveId" = member_collectives.id
+      AND admins_of_member_collective."role" IN ('ADMIN', 'MEMBER')
+      AND admins_of_member_collective."deletedAt" IS NULL
+    ) OR (
+      hosted_collectives."type" != 'USER'
+      AND admins_of_member_collective."CollectiveId" = hosted_collectives.id
       AND admins_of_member_collective."role" IN ('ADMIN', 'MEMBER')
       AND admins_of_member_collective."deletedAt" IS NULL
     )
@@ -344,12 +373,11 @@ export const usersToNotifyForUpdateSQLQuery = `
         (member_collectives."type" = 'USER' AND u."CollectiveId" = member_collectives.id)
         OR u."CollectiveId" = admins_of_member_collective."MemberCollectiveId"
         OR u."CollectiveId" = admins_of_parent_collective."MemberCollectiveId"
+        OR u."CollectiveId" = collective_admins."MemberCollectiveId"
       )
     )
   WHERE
     c.id = :collectiveId
-    AND direct_members."deletedAt" IS NULL
-    AND direct_members."role" IN (:targetRoles)
   GROUP BY
     u.id
 `;
