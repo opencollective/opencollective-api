@@ -428,10 +428,7 @@ describe('server/models/Collective', () => {
       website: 'https://opencollective.com',
     });
     // Make sure clearbit image is fetched (done automatically and async in normal conditions)
-    const originalValue = process.env.OC_ENV;
-    process.env.OC_ENV = 'ci-exception';
-    await collective.findImage();
-    process.env.OC_ENV = originalValue;
+    await collective.findImage(true);
     // Fetch back the collective from the database
     collective = await models.Collective.findByPk(collective.id);
     expect(collective.image).to.equal('https://logo.clearbit.com/opencollective.com');
@@ -453,10 +450,7 @@ describe('server/models/Collective', () => {
       email: 'xavier@tribal.be',
     });
     // Make sure gravatar image is fetched (done automatically and async in normal conditions)
-    const originalValue = process.env.OC_ENV;
-    process.env.OC_ENV = 'ci-exception';
-    await user.collective.findImageForUser(user);
-    process.env.OC_ENV = originalValue;
+    await user.collective.findImageForUser(user, true);
     // Fetch back the collective from the database
     const collective = await models.Collective.findByPk(user.collective.id);
     expect(collective.image).to.equal('https://www.gravatar.com/avatar/a97d0fcd96579015da610aa284f8d8df?default=404');
