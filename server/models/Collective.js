@@ -875,7 +875,7 @@ function defineModel() {
   };
 
   // Save image it if it returns 200
-  Collective.prototype.checkAndUpdateImage = async function (image) {
+  Collective.prototype.checkAndUpdateImage = async function (image, force = false) {
     if (force || !['e2e', 'ci', 'test'].includes(process.env.OC_ENV)) {
       try {
         const response = await fetch(image);
