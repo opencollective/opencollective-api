@@ -189,7 +189,14 @@ export const canEditExpense = async (req: express.Request, expense: typeof model
     expenseStatus.SCHEDULED_FOR_PAYMENT,
   ];
 
-  if (nonEditableStatuses.includes(expense.status)) {
+  // Collective Admin can attach receipts to paid charge expenses
+  if (
+    expense.type === expenseType.CHARGE &&
+    expense.status === expenseStatus.PAID &&
+    req.remoteUser?.hasRole([roles.ADMIN], expense.FromCollectiveId)
+  ) {
+    return true;
+  } else if (nonEditableStatuses.includes(expense.status)) {
     return false;
   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     return false;
@@ -420,6 +427,8 @@ const EXPENSE_EDITABLE_FIELDS = [
   'payeeLocation',
 ];
 
+const EXPENSE_PAID_CHARGE_EDITABLE_FIELDS = ['description', 'tags', 'privateMessage', 'invoiceInfo'];
+
 const getPayoutMethodFromExpenseData = async (expenseData, remoteUser, fromCollective, dbTransaction) => {
   if (expenseData.payoutMethod) {
     if (expenseData.payoutMethod.id) {
@@ -583,6 +592,11 @@ export const changesRequireStatusUpdate = (
 ): boolean => {
   const updatedValues = { ...expense.dataValues, ...newExpenseData };
   const hasAmountChanges = typeof updatedValues.amount !== 'undefined' && updatedValues.amount !== expense.amount;
+  const isPaidCreditCardCharge = expense.type === expenseType.CHARGE && expense.status === expenseStatus.PAID;
+
+  if (isPaidCreditCardCharge && !hasAmountChanges) {
+    return false;
+  }
   return hasItemsChanges || hasAmountChanges || hasPayoutChanges;
 };
 
@@ -630,6 +644,8 @@ export async function editExpense(
     throw new Unauthorized("You don't have permission to edit this expense");
   }
 
+  const isPaidCreditCardCharge = expense.type === expenseType.CHARGE && expense.status === expenseStatus.PAID;
+
   if (size(expenseData.attachedFiles) > 15) {
     throw new ValidationFailed('The number of files that you can attach to an expense is limited to 15');
   }
@@ -652,7 +668,10 @@ export async function editExpense(
     });
   }
 
-  const cleanExpenseData = pick(expenseData, EXPENSE_EDITABLE_FIELDS);
+  const cleanExpenseData = pick(
+    expenseData,
+    isPaidCreditCardCharge ? EXPENSE_PAID_CHARGE_EDITABLE_FIELDS : EXPENSE_EDITABLE_FIELDS,
+  );
   let payoutMethod = await expense.getPayoutMethod();
   const updatedExpense = await sequelize.transaction(async t => {
     // Update payout method if we get new data from one of the param for it
