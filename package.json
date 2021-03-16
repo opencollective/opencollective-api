@@ -109,7 +109,7 @@
   "devDependencies": {
     "@babel/cli": "7.13.10",
     "@babel/register": "7.13.8",
-    "@types/braintree": "^2.22.9",
+    "@types/braintree": "^2.22.10",
     "@types/lodash": "^4.14.168",
     "@types/mocha": "^8.2.1",
     "@typescript-eslint/eslint-plugin": "^4.18.0",
