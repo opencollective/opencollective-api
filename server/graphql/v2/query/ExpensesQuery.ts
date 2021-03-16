@@ -225,12 +225,13 @@ const ExpensesQuery = {
       if (req.remoteUser) {
         where[Op.and].push({
           [Op.or]: [
-            { status: { [Op.notIn]: [expenseStatus.DRAFT] } },
+            { status: { [Op.notIn]: [expenseStatus.DRAFT, expenseStatus.SPAM] } },
             { status: expenseStatus.DRAFT, UserId: req.remoteUser.id },
+            // TODO: we should ideally display SPAM expenses in some circumstances
           ],
         });
       } else {
-        where['status'] = { [Op.notIn]: [expenseStatus.DRAFT] };
+        where['status'] = { [Op.notIn]: [expenseStatus.DRAFT, expenseStatus.SPAM] };
       }
     }
 

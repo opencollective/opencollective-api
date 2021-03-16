@@ -11,6 +11,7 @@ import { getFxRate } from '../../lib/currency';
 import { floatAmountToCents } from '../../lib/math';
 import * as libPayments from '../../lib/payments';
 import { handleTransferwisePayoutsLimit } from '../../lib/plans';
+import { notifyTeamAboutSpamExpense } from '../../lib/spam';
 import { createFromPaidExpense as createTransactionFromPaidExpense } from '../../lib/transactions';
 import {
   handleTwoFactorAuthenticationPayoutLimit,
@@ -259,6 +260,19 @@ export const canReject = async (req: express.Request, expense: typeof models.Exp
 };
 
 /**
+ * Returns true if expense can be rejected by user
+ */
+export const canMarkAsSpam = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
+  if (![expenseStatus.REJECTED].includes(expense.status)) {
+    return false;
+  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+    return false;
+  } else {
+    return remoteUserMeetsOneCondition(req, expense, [isHostAdmin]);
+  }
+};
+
+/**
  * Returns true if expense can be unapproved by user
  */
 export const canUnapprove = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
@@ -346,6 +360,31 @@ export const rejectExpense = async (
 
   const updatedExpense = await expense.update({ status: expenseStatus.REJECTED, lastEditedById: req.remoteUser.id });
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_REJECTED, req.remoteUser);
+  return updatedExpense;
+};
+
+export const markExpenseAsSpam = async (
+  req: express.Request,
+  expense: typeof models.Expense,
+): Promise<typeof models.Expense> => {
+  if (expense.status === expenseStatus.SPAM) {
+    return expense;
+  } else if (!(await canMarkAsSpam(req, expense))) {
+    throw new Forbidden();
+  }
+
+  const updatedExpense = await expense.update({ status: expenseStatus.SPAM, lastEditedById: req.remoteUser.id });
+
+  // Limit the user so they can't submit expenses in the future
+  const submittedByUser = await updatedExpense.getSubmitterUser();
+  await submittedByUser.limitFeature(FEATURE.USE_EXPENSES);
+
+  // We create the activity as a good practice but there is no email sent right now
+  const activity = await expense.createActivity(activities.COLLECTIVE_EXPENSE_MARKED_AS_SPAM, req.remoteUser);
+
+  // For now, we send the Slack notification directly from here as there is no framework in activities/notifications
+  notifyTeamAboutSpamExpense(activity);
+
   return updatedExpense;
 };
 

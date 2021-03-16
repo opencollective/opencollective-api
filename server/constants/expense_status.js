@@ -27,4 +27,5 @@ export default {
   ERROR: 'ERROR',
   PAID: 'PAID',
   SCHEDULED_FOR_PAYMENT: 'SCHEDULED_FOR_PAYMENT',
+  SPAM: 'SPAM',
 };

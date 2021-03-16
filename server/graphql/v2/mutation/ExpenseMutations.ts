@@ -18,6 +18,7 @@ import {
   canVerifyDraftExpense,
   createExpense,
   editExpense,
+  markExpenseAsSpam,
   markExpenseAsUnpaid,
   payExpense,
   rejectExpense,
@@ -267,6 +268,8 @@ const expenseMutations = {
           return unapproveExpense(req, expense);
         case 'REJECT':
           return rejectExpense(req, expense);
+        case 'MARK_AS_SPAM':
+          return markExpenseAsSpam(req, expense);
         case 'MARK_AS_UNPAID':
           return markExpenseAsUnpaid(req, expense.id, args.paymentParams?.paymentProcessorFee);
         case 'SCHEDULE_FOR_PAYMENT':

@@ -418,6 +418,18 @@ function defineModel() {
   };
 
   /**
+   * Limit the user account, preventing a specific feature
+   * @param feature:the feature to limit. See `server/constants/feature.ts`.
+   */
+  User.prototype.limitFeature = async function (feature) {
+    const features = get(this.data, 'features', {});
+
+    features[feature] = false;
+
+    return this.update({ data: { ...this.data, features } });
+  };
+
+  /**
    * Class Methods
    */
   User.createMany = (users, defaultValues = {}) => {
