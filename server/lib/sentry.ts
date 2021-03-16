@@ -58,7 +58,7 @@ export const SentryGraphQLPlugin = {
 
             // Log query and variables as extras
             scope.setExtra('query', ctx.request.query);
-            scope.setExtra('variables', ctx.request.variables);
+            scope.setExtra('variables', JSON.stringify(ctx.request.variables));
 
             // Add logged in user (if any)
             if (ctx.context.remoteUser) {
