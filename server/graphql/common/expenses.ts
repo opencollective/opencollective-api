@@ -985,8 +985,12 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
         throw new Error('Host is not connected to Transferwise');
       }
       const quote = await paymentProviders.transferwise.getTemporaryQuote(connectedAccount, payoutMethod, expense);
+      const paymentOption = quote.paymentOptions.find(p => p.payIn === 'BALANCE' && p.payOut === quote.payOut);
+      if (!paymentOption) {
+        throw new BadRequest(`Could not find available payment option for this transaction.`, null, quote);
+      }
       // Notice this is the FX rate between Host and Collective, that's why we use `fxrate`.
-      fees.paymentProcessorFeeInCollectiveCurrency = floatAmountToCents(quote.fee / fxrate);
+      fees.paymentProcessorFeeInCollectiveCurrency = floatAmountToCents(paymentOption.fee.total / fxrate);
     } else if (payoutMethodType === PayoutMethodTypes.PAYPAL && !args.forceManual) {
       fees.paymentProcessorFeeInCollectiveCurrency = await paymentProviders.paypal.types['adaptive'].fees({
         amount: expense.amount,
