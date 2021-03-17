@@ -5,6 +5,8 @@ import express from 'express';
 
 import { PayoutBatchDetails, PayoutRequestBody, PayoutRequestResult } from '../types/paypal';
 
+import { floatAmountToCents } from './math';
+
 const parseError = e => {
   try {
     return JSON.parse(e.message).message;
@@ -97,6 +99,11 @@ export const validateWebhookEvent = async (
   } catch (e) {
     throw new Error(parseError(e));
   }
+};
+
+/** Converts a PayPal amount like '12.50' to its value in cents (1250) */
+export const paypalAmountToCents = (amountStr: string): number => {
+  return floatAmountToCents(parseFloat(amountStr));
 };
 
 export { paypal };

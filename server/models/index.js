@@ -20,6 +20,8 @@ import Notification from './Notification';
 import Order from './Order';
 import PaymentMethod from './PaymentMethod';
 import PayoutMethod from './PayoutMethod';
+import PaypalPlan from './PaypalPlan';
+import PaypalProduct from './PaypalProduct';
 import RequiredLegalDocument from './RequiredLegalDocument';
 import Session from './Session';
 import Subscription from './Subscription';
@@ -57,6 +59,8 @@ export function setupModels() {
   m['Order'] = Order;
   m['PaymentMethod'] = PaymentMethod;
   m['PayoutMethod'] = PayoutMethod;
+  m['PaypalPlan'] = PaypalPlan;
+  m['PaypalProduct'] = PaypalProduct;
   m['RequiredLegalDocument'] = RequiredLegalDocument;
   m['Session'] = Session;
   m['Subscription'] = Subscription;
@@ -237,6 +241,17 @@ export function setupModels() {
   m.PayoutMethod.belongsTo(m.User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
   m.PayoutMethod.belongsTo(m.Collective);
   m.Collective.hasMany(m.PayoutMethod);
+
+  // Paypal
+  m.PaypalPlan.belongsTo(m.PaypalProduct, {
+    foreignKey: 'ProductId',
+    as: 'product',
+  });
+
+  m.PaypalProduct.hasMany(m.PaypalPlan, {
+    foreignKey: 'ProductId',
+    as: 'plans',
+  });
 
   // Tier
   m.Tier.belongsTo(m.Collective);

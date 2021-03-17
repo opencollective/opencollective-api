@@ -1,10 +1,13 @@
-import { GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLInputObjectType, GraphQLString } from 'graphql';
 import GraphQLJSON from 'graphql-type-json';
 
 export const PaypalPaymentInput = new GraphQLInputObjectType({
   name: 'PaypalPaymentInput',
   fields: () => ({
-    token: { type: new GraphQLNonNull(GraphQLString) },
+    token: { type: GraphQLString },
     data: { type: GraphQLJSON },
+    orderId: { type: GraphQLString },
+    subscriptionId: { type: GraphQLString },
+    isNewApi: { type: GraphQLBoolean },
   }),
 });
