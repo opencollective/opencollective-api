@@ -112,14 +112,19 @@ const loadContributors = async (collectiveId: number): Promise<ContributorsCache
       c."isIncognito" as "isIncognito",
       BOOL_OR(COALESCE((c."data" ->> 'isGuest') :: boolean, FALSE)) AS "isGuest",
       COALESCE(MAX(m.description), MAX(tiers.name)) AS "description",
-      COALESCE(SUM(transactions."amount"), 0) AS "totalAmountDonated"
+      COALESCE((
+        SELECT SUM(t."amount")
+        FROM "Transactions" t
+        WHERE t."CollectiveId" = :collectiveId
+        AND (t."FromCollectiveId" = c.id OR t."UsingGiftCardFromCollectiveId" = c.id)
+        AND t."type" = 'CREDIT'
+        AND t."deletedAt" IS NULL
+        AND t."RefundTransactionId" IS NULL
+      ), 0) AS "totalAmountDonated"
     FROM
       "Collectives" c
     INNER JOIN "Members" m
       ON m."MemberCollectiveId" = c.id
-    INNER JOIN "Transactions" transactions
-      ON transactions."CollectiveId" = :collectiveId
-      AND (transactions."FromCollectiveId" = c.id OR transactions."UsingGiftCardFromCollectiveId" = c.id)
     LEFT JOIN "Tiers" tiers
       ON m."TierId" IS NOT NULL AND m."TierId" = tiers.id 
     WHERE
@@ -127,13 +132,10 @@ const loadContributors = async (collectiveId: number): Promise<ContributorsCache
       AND m."MemberCollectiveId" != :collectiveId
       AND m."deletedAt" IS NULL
       AND c."deletedAt" IS NULL
-      AND transactions."type" = 'CREDIT'
-      AND transactions."deletedAt" IS NULL
-      AND transactions."RefundTransactionId" IS NULL
     GROUP BY
       c.id
     ORDER BY
-      COALESCE(SUM(transactions."amount"), 0) DESC,
+      "totalAmountDonated" DESC,
       MIN(m."since") ASC
     `,
     {
