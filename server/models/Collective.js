@@ -844,21 +844,21 @@ function defineModel() {
   };
 
   // If no image has been provided, try to find an image using clearbit and save it
-  Collective.prototype.findImage = function () {
+  Collective.prototype.findImage = function (force = false) {
     if (this.getDataValue('image')) {
       return;
     }
 
     if (this.type === 'ORGANIZATION' && this.website && !this.website.match(/^https:\/\/twitter\.com\//)) {
       const image = `https://logo.clearbit.com/${getDomain(this.website)}`;
-      return this.checkAndUpdateImage(image);
+      return this.checkAndUpdateImage(image, force);
     }
 
     return Promise.resolve();
   };
 
   // If no image has been provided, try to find an image using gravatar and save it
-  Collective.prototype.findImageForUser = function (user) {
+  Collective.prototype.findImageForUser = function (user, force = false) {
     if (this.getDataValue('image')) {
       return;
     }
@@ -867,7 +867,7 @@ function defineModel() {
       if (user && user.email && this.name && this.name !== 'incognito') {
         const emailHash = md5(user.email.toLowerCase().trim());
         const avatar = `https://www.gravatar.com/avatar/${emailHash}?default=404`;
-        return this.checkAndUpdateImage(avatar);
+        return this.checkAndUpdateImage(avatar, force);
       }
     }
 
@@ -875,19 +875,21 @@ function defineModel() {
   };
 
   // Save image it if it returns 200
-  Collective.prototype.checkAndUpdateImage = async function (image) {
-    try {
-      const response = await fetch(image);
-      if (response.status !== 200) {
-        throw new Error(`status=${response.status}`);
+  Collective.prototype.checkAndUpdateImage = async function (image, force = false) {
+    if (force || !['e2e', 'ci', 'test'].includes(process.env.OC_ENV)) {
+      try {
+        const response = await fetch(image);
+        if (response.status !== 200) {
+          throw new Error(`status=${response.status}`);
+        }
+        const body = await response.text();
+        if (body.length === 0) {
+          throw new Error(`length=0`);
+        }
+        return this.update({ image });
+      } catch (err) {
+        logger.info(`collective.checkAndUpdateImage: Unable to fetch ${image} (${err.message})`);
       }
-      const body = await response.text();
-      if (body.length === 0) {
-        throw new Error(`length=0`);
-      }
-      return this.update({ image });
-    } catch (err) {
-      logger.info(`collective.checkAndUpdateImage: Unable to fetch ${image} (${err.message})`);
     }
   };
 
