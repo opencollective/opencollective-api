@@ -16,7 +16,7 @@ import {
   BorderlessAccount,
   CurrencyPair,
   Profile,
-  Quote,
+  QuoteV2,
   RecipientAccount,
   Transfer,
   Webhook,
@@ -126,23 +126,33 @@ interface CreateQuote {
   profileId: number;
   sourceCurrency: string;
   targetCurrency: string;
+  targetAccount?: number;
   targetAmount?: number;
   sourceAmount?: number;
+  payOut?: 'BANK_TRANSFER' | 'BALANCE' | 'SWIFT' | 'INTERAC' | null;
 }
 export const createQuote = async (
   token: string,
-  { profileId: profile, sourceCurrency, targetCurrency, targetAmount, sourceAmount }: CreateQuote,
-): Promise<Quote> => {
-  const data = {
-    profile,
-    source: sourceCurrency,
-    target: targetCurrency,
-    rateType: 'FIXED',
-    type: 'BALANCE_PAYOUT',
+  {
+    profileId: profile,
+    sourceCurrency,
+    targetCurrency,
     targetAmount,
     sourceAmount,
+    payOut,
+    targetAccount,
+  }: CreateQuote,
+): Promise<QuoteV2> => {
+  const data = {
+    payOut,
+    profile,
+    sourceAmount,
+    sourceCurrency,
+    targetAccount,
+    targetAmount,
+    targetCurrency,
   };
-  return requestDataAndThrowParsedError(axios.post, `/v1/quotes`, {
+  return requestDataAndThrowParsedError(axios.post, `/v2/quotes`, {
     headers: { Authorization: `Bearer ${token}` },
     data,
   });
@@ -168,8 +178,8 @@ export const createRecipientAccount = async (
 
 export interface CreateTransfer {
   accountId: number;
-  quoteId: number;
-  uuid: string;
+  quoteUuid: string;
+  customerTransactionId: string;
   details?: {
     reference?: string;
     transferPurpose?: string;
@@ -178,9 +188,9 @@ export interface CreateTransfer {
 }
 export const createTransfer = async (
   token: string,
-  { accountId: targetAccount, quoteId: quote, uuid: customerTransactionId, details }: CreateTransfer,
+  { accountId: targetAccount, quoteUuid, customerTransactionId, details }: CreateTransfer,
 ): Promise<Transfer> => {
-  const data = { targetAccount, quote, customerTransactionId, details };
+  const data = { targetAccount, quoteUuid, customerTransactionId, details };
   return requestDataAndThrowParsedError(axios.post, `/v1/transfers`, {
     data,
     headers: { Authorization: `Bearer ${token}` },
@@ -233,14 +243,13 @@ interface GetTemporaryQuote {
 export const getTemporaryQuote = async (
   token: string,
   { sourceCurrency, targetCurrency, ...amount }: GetTemporaryQuote,
-): Promise<Quote> => {
+): Promise<QuoteV2> => {
   const params = {
-    source: sourceCurrency,
-    target: targetCurrency,
-    rateType: 'FIXED',
+    sourceCurrency,
+    targetCurrency,
     ...amount,
   };
-  return requestDataAndThrowParsedError(axios.get, `/v1/quotes`, {
+  return requestDataAndThrowParsedError(axios.post, `/v2/quotes`, {
     headers: { Authorization: `Bearer ${token}` },
     params,
   });
