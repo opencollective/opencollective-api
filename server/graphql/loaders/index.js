@@ -5,7 +5,7 @@ import moment from 'moment';
 
 import { TransactionTypes } from '../../constants/transactions';
 import { getListOfAccessibleMembers } from '../../lib/auth';
-import queries from '../../lib/queries';
+import { getBalances, getBalancesWithBlockedFunds } from '../../lib/budget';
 import models, { Op, sequelize } from '../../models';
 
 import collectiveLoaders from './collective';
@@ -55,10 +55,10 @@ export const loaders = req => {
 
   // Collective - Balance
   context.loaders.Collective.balance = new DataLoader(ids =>
-    queries
-      .getBalances(ids)
-      .then(results => sortResults(ids, results, 'CollectiveId'))
-      .map(result => get(result, 'balance') || 0),
+    getBalances(ids).then(results => sortResults(ids, Object.values(results), 'CollectiveId')),
+  );
+  context.loaders.Collective.balanceWithBlockedFunds = new DataLoader(ids =>
+    getBalancesWithBlockedFunds(ids).then(results => sortResults(ids, Object.values(results), 'CollectiveId')),
   );
 
   // Collective - ConnectedAccounts
@@ -86,9 +86,7 @@ export const loaders = req => {
         ],
         where: { HostCollectiveId: { [Op.in]: ids } },
         group: ['HostCollectiveId'],
-      })
-        .then(results => sortResults(ids, results, 'TierId'))
-        .map(result => get(result, 'dataValues.count') || 0),
+      }).then(results => sortResults(ids, results, 'TierId').map(result => get(result, 'dataValues.count') || 0)),
     ),
     backers: new DataLoader(ids => {
       return models.Member.findAll({
@@ -224,9 +222,11 @@ export const loaders = req => {
         return models.User.findAll({
           attributes: ['id', 'CollectiveId', 'email'],
           where: { id: { [Op.in]: Object.keys(accessibleOrgCreators) } },
-        }).map(u => {
-          u.dataValues.OrgCollectiveId = accessibleOrgCreators[u.id];
-          return u;
+        }).then(users => {
+          return users.map(u => {
+            u.dataValues.OrgCollectiveId = accessibleOrgCreators[u.id];
+            return u;
+          });
         });
       })
       .catch(e => {
@@ -281,9 +281,7 @@ export const loaders = req => {
       ],
       where: { TierId: { [Op.in]: ids } },
       group: ['TierId'],
-    })
-      .then(results => sortResults(ids, results, 'TierId'))
-      .map(result => get(result, 'dataValues.count') || 0),
+    }).then(results => sortResults(ids, results, 'TierId').map(result => get(result, 'dataValues.count') || 0)),
   );
 
   // Tier - totalOrders
@@ -292,9 +290,7 @@ export const loaders = req => {
       attributes: ['TierId', [sequelize.fn('COALESCE', sequelize.fn('COUNT', sequelize.col('id')), 0), 'count']],
       where: { TierId: { [Op.in]: ids }, processedAt: { [Op.ne]: null } },
       group: ['TierId'],
-    })
-      .then(results => sortResults(ids, results, 'TierId'))
-      .map(result => get(result, 'dataValues.count') || 0),
+    }).then(results => sortResults(ids, results, 'TierId').map(result => get(result, 'dataValues.count') || 0)),
   );
 
   // Tier - totalActiveDistinctOrders
@@ -313,9 +309,7 @@ export const loaders = req => {
       ],
       where: { TierId: { [Op.in]: ids }, processedAt: { [Op.ne]: null }, status: { [Op.in]: ['ACTIVE', 'PAID'] } },
       group: ['TierId'],
-    })
-      .then(results => sortResults(ids, results, 'TierId'))
-      .map(result => get(result, 'dataValues.count') || 0),
+    }).then(results => sortResults(ids, results, 'TierId').map(result => get(result, 'dataValues.count') || 0)),
   );
 
   // Tier - totalDonated
@@ -477,18 +471,16 @@ export const loaders = req => {
         attributes: ['OrderId', [sequelize.fn('COALESCE', sequelize.fn('COUNT', sequelize.col('id')), 0), 'count']],
         where: { OrderId: { [Op.in]: ids } },
         group: ['OrderId'],
-      })
-        .then(results => sortResults(ids, results, 'OrderId'))
-        .map(result => get(result, 'dataValues.count') || 0),
+      }).then(results => sortResults(ids, results, 'OrderId').map(result => get(result, 'dataValues.count') || 0)),
     ),
     totalTransactions: new DataLoader(keys =>
       models.Transaction.findAll({
         attributes: ['OrderId', [sequelize.fn('SUM', sequelize.col('amount')), 'totalAmount']],
         where: { OrderId: { [Op.in]: keys } },
         group: ['OrderId'],
-      })
-        .then(results => sortResults(keys, results, 'OrderId'))
-        .map(result => get(result, 'dataValues.totalAmount') || 0),
+      }).then(results =>
+        sortResults(keys, results, 'OrderId').map(result => get(result, 'dataValues.totalAmount') || 0),
+      ),
     ),
   };
 

@@ -1,5 +1,7 @@
-export default function (Sequelize, DataTypes) {
-  const Session = Sequelize.define(
+import sequelize, { DataTypes } from '../lib/sequelize';
+
+function defineModel() {
+  const Session = sequelize.define(
     'Session',
     {
       sid: {
@@ -34,3 +36,9 @@ export default function (Sequelize, DataTypes) {
 
   return Session;
 }
+
+// We're using the defineModel method to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const Session = defineModel();
+
+export default Session;

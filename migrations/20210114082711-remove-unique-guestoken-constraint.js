@@ -1,14 +1,14 @@
 'use strict';
 
 module.exports = {
-  up: async (queryInterface, Sequelize) => {
+  up: async queryInterface => {
     await queryInterface.sequelize.query(`
       ALTER TABLE "GuestTokens"
       DROP CONSTRAINT "GuestTokens_UserId_key";
     `);
   },
 
-  down: async (queryInterface, Sequelize) => {
+  down: async () => {
     /**
      * Add reverting commands here.
      *

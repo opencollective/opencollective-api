@@ -1,10 +1,10 @@
 import config from 'config';
+import express from 'express';
 import { GraphQLBoolean, GraphQLInputObjectType, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
 import { pick, size } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../../../constants/activities';
-import activityType from '../../../constants/activities';
 import { types as collectiveTypes } from '../../../constants/collectives';
 import expenseStatus from '../../../constants/expense_status';
 import FEATURE from '../../../constants/feature';
@@ -53,7 +53,7 @@ const expenseMutations = {
         description: 'Account where the expense will be created',
       },
     },
-    async resolve(_, args, req): Promise<object> {
+    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
       const payoutMethod = args.expense.payoutMethod;
       if (payoutMethod.id) {
         payoutMethod.id = idDecode(payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD);
@@ -97,7 +97,7 @@ const expenseMutations = {
         description: 'Expense draft key if invited to submit expense',
       },
     },
-    async resolve(_, args, req): Promise<object> {
+    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
       // Support deprecated `attachments` field
       const items = args.expense.items || args.expense.attachments;
       const expense = args.expense;
@@ -197,7 +197,7 @@ const expenseMutations = {
         description: 'Reference of the expense to delete',
       },
     },
-    async resolve(_, args, req): Promise<typeof Expense> {
+    async resolve(_: void, args, req: express.Request): Promise<typeof Expense> {
       if (!req.remoteUser) {
         throw new Unauthorized();
       }
@@ -254,7 +254,7 @@ const expenseMutations = {
         }),
       },
     },
-    async resolve(_, args, req): Promise<typeof Expense> {
+    async resolve(_: void, args, req: express.Request): Promise<typeof Expense> {
       if (!req.remoteUser) {
         throw new Unauthorized();
       }
@@ -296,7 +296,7 @@ const expenseMutations = {
         description: 'Account where the expense will be created',
       },
     },
-    async resolve(_, args, req): Promise<object> {
+    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
       const remoteUser = req.remoteUser;
       const expenseData = args.expense;
 
@@ -333,15 +333,7 @@ const expenseMutations = {
       }
 
       const draftKey = process.env.OC_ENV === 'e2e' || process.env.OC_ENV === 'ci' ? 'draft-key' : uuid();
-      const expenseFields = [
-        'description',
-        'longDescription',
-        'tags',
-        'type',
-        'privateMessage',
-        'invoiceInfo',
-        'payeeLocation',
-      ];
+      const expenseFields = ['description', 'longDescription', 'tags', 'type', 'privateMessage', 'invoiceInfo'];
 
       const fromCollective = await remoteUser.getCollective();
       const payee = expenseData.payee?.id
@@ -363,13 +355,15 @@ const expenseMutations = {
           invitedByCollectiveId: fromCollective.id,
           draftKey,
           recipientNote: expenseData.recipientNote,
+          payoutMethod: expenseData.payoutMethod,
+          payeeLocation: expenseData.payeeLocation,
         },
         status: expenseStatus.DRAFT,
       });
 
       const inviteUrl = `${config.host.website}/${collective.slug}/expenses/${expense.id}?key=${draftKey}`;
       expense
-        .createActivity(activityType.COLLECTIVE_EXPENSE_INVITE_DRAFTED, remoteUser, { ...expense.data, inviteUrl })
+        .createActivity(activities.COLLECTIVE_EXPENSE_INVITE_DRAFTED, remoteUser, { ...expense.data, inviteUrl })
         .catch(e => logger.error('An error happened when creating the COLLECTIVE_EXPENSE_INVITE_DRAFTED activity', e));
 
       if (config.env === 'development') {
@@ -388,7 +382,7 @@ const expenseMutations = {
         description: 'Reference of the expense to process',
       },
     },
-    async resolve(_, args, req): Promise<object> {
+    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
       const expenseId = getDatabaseIdFromExpenseReference(args.expense);
 
       const rateLimit = new RateLimit(`resend_draft_invite_${expenseId}`, 2, 10);
@@ -409,7 +403,7 @@ const expenseMutations = {
 
       const inviteUrl = `${config.host.website}/${expense.collective.slug}/expenses/${expense.id}`;
       expense
-        .createActivity(activityType.COLLECTIVE_EXPENSE_INVITE_DRAFTED, req.remoteUser, { ...expense.data, inviteUrl })
+        .createActivity(activities.COLLECTIVE_EXPENSE_INVITE_DRAFTED, req.remoteUser, { ...expense.data, inviteUrl })
         .catch(e => logger.error('An error happened when creating the COLLECTIVE_EXPENSE_INVITE_DRAFTED activity', e));
 
       return expense;
@@ -428,7 +422,7 @@ const expenseMutations = {
         description: 'Expense draft key if invited to submit expense',
       },
     },
-    async resolve(_, args, req): Promise<object> {
+    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
       const expense = await fetchExpenseWithReference(args.expense, { throwIfMissing: true });
       if (expense.status !== expenseStatus.UNVERIFIED) {
         throw new Unauthorized('Expense can not be verified.');

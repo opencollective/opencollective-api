@@ -12,6 +12,7 @@ import { getFxRate } from '../lib/currency';
 import { toNegative } from '../lib/math';
 import { calcFee } from '../lib/payments';
 import { stripHTML } from '../lib/sanitize-html';
+import sequelize, { DataTypes } from '../lib/sequelize';
 import { exportToCSV } from '../lib/utils';
 import paymentMethodProvider from '../paymentProviders/opencollective/host';
 
@@ -19,14 +20,10 @@ import CustomDataTypes from './DataTypes';
 
 const debug = debugLib('models:Transaction');
 
-/*
- * Transaction model
- * - this indicates that money was moved in the system
- */
-export default (Sequelize, DataTypes) => {
-  const { models } = Sequelize;
+function defineModel() {
+  const { models } = sequelize;
 
-  const Transaction = Sequelize.define(
+  const Transaction = sequelize.define(
     'Transaction',
     {
       type: DataTypes.STRING, // DEBIT or CREDIT
@@ -180,7 +177,12 @@ export default (Sequelize, DataTypes) => {
 
       createdAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
+      },
+
+      updatedAt: {
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW,
       },
 
       deletedAt: {
@@ -469,7 +471,7 @@ export default (Sequelize, DataTypes) => {
    *
    */
 
-  Transaction.createDoubleEntry = async transaction => {
+  Transaction.createDoubleEntry = async (transaction, opts) => {
     transaction.type = transaction.amount > 0 ? TransactionTypes.CREDIT : TransactionTypes.DEBIT;
     transaction.netAmountInCollectiveCurrency = transaction.netAmountInCollectiveCurrency || transaction.amount;
     transaction.TransactionGroup = transaction.TransactionGroup || uuid();
@@ -525,7 +527,7 @@ export default (Sequelize, DataTypes) => {
         hostCurrencyFxRate,
         amount: -Math.round(transaction.netAmountInCollectiveCurrency),
         netAmountInCollectiveCurrency: -Math.round(transaction.amount),
-        amountInHostCurrency: Math.round(transaction.netAmountInCollectiveCurrency * hostCurrencyFxRate),
+        amountInHostCurrency: -Math.round(transaction.netAmountInCollectiveCurrency * hostCurrencyFxRate),
         hostFeeInHostCurrency: Math.round(transaction.hostFeeInHostCurrency * oppositeTransactionHostCurrencyFxRate),
         platformFeeInHostCurrency: Math.round(
           transaction.platformFeeInHostCurrency * oppositeTransactionHostCurrencyFxRate,
@@ -562,7 +564,7 @@ export default (Sequelize, DataTypes) => {
       transactions.push(transaction);
     }
 
-    return Promise.mapSeries(transactions, t => Transaction.create(t)).then(results => results[index]);
+    return Promise.mapSeries(transactions, t => Transaction.create(t, opts)).then(results => results[index]);
   };
 
   Transaction.createFeesOnTopTransaction = async ({ transaction }) => {
@@ -837,6 +839,7 @@ export default (Sequelize, DataTypes) => {
     }
 
     for (const key of [
+      'uuid',
       'TransactionGroup',
       'amount',
       'currency',
@@ -955,4 +958,10 @@ export default (Sequelize, DataTypes) => {
   };
 
   return Transaction;
-};
+}
+
+// We're using the defineModel method to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const Transaction = defineModel();
+
+export default Transaction;

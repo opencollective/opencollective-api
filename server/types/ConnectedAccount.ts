@@ -6,5 +6,5 @@ export interface ConnectedAccount extends Model {
   token: string;
   refreshToken: string;
   hash: string;
-  data: Record<string, any>;
+  data: Record<string, unknown>;
 }

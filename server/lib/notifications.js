@@ -18,7 +18,7 @@ import { enrichActivity, sanitizeActivity } from './webhooks';
 
 const debug = debugLib('notifications');
 
-export default async (Sequelize, activity) => {
+export default async activity => {
   notifyByEmail(activity).catch(console.log);
 
   // process notification entries for slack, twitter, gitter
@@ -203,14 +203,29 @@ export async function notififyConversationFollowers(conversation, activity, opti
   return notifySubscribers(toNotify, activity, options);
 }
 
-async function notifyMembersOfCollective(CollectiveId, activity, options) {
-  debug('notify members of CollectiveId', CollectiveId);
-  const collective = await models.Collective.findByPk(CollectiveId);
-  const allUsers = await collective.getUsers();
-  debug('Total users to notify:', allUsers.length);
+const notifyUpdateSubscribers = async activity => {
+  const collective = await models.Collective.findByPk(activity.data.collective.id);
+  activity.data.fromCollective = (await models.Collective.findByPk(activity.data.fromCollective.id))?.info;
+  activity.data.collective = collective.info;
+  activity.data.fromEmail = `${activity.data.collective.name} <no-reply@${activity.data.collective.slug}.opencollective.com>`;
   activity.CollectiveId = collective.id;
-  return notifySubscribers(allUsers, activity, options);
-}
+
+  const audience = activity.data.update.notificationAudience;
+  const isHost = activity.data.collective.isHostAccount;
+  const emailOpts = { from: activity.data.fromEmail };
+
+  // Send to hosted collectives
+  if (isHost && (audience === 'ALL' || audience === 'COLLECTIVE_ADMINS')) {
+    notifyHostedCollectiveAdmins(activity.data.update.CollectiveId, activity, emailOpts);
+  }
+
+  // Send to all members
+  if (audience === 'ALL' || audience === 'FINANCIAL_CONTRIBUTORS') {
+    const update = await models.Update.findByPk(activity.data.update.id);
+    const allUsers = await update.getUsersToNotify();
+    return notifySubscribers(allUsers, activity, emailOpts);
+  }
+};
 
 async function notifyByEmail(activity) {
   debug('notifyByEmail', activity.type);
@@ -226,40 +241,7 @@ async function notifyByEmail(activity) {
 
     case activityType.COLLECTIVE_UPDATE_PUBLISHED:
       twitter.tweetActivity(activity);
-
-      activity.data.fromCollective = (await models.Collective.findByPk(activity.data.fromCollective.id))?.info;
-      activity.data.collective = await models.Collective.findByPk(activity.data.collective.id);
-      activity.data.collective = activity.data.collective.info;
-      activity.data.fromEmail = `${activity.data.collective.name}<no-reply@${activity.data.collective.slug}.opencollective.com>`;
-      if (activity.data.collective.isHostAccount) {
-        switch (activity.data.update.notificationAudience) {
-          case 'COLLECTIVE_ADMINS':
-            notifyHostedCollectiveAdmins(activity.data.update.CollectiveId, activity, {
-              from: activity.data.fromEmail,
-            });
-            break;
-
-          case 'FINANCIAL_CONTRIBUTORS':
-            notifyMembersOfCollective(activity.data.update.CollectiveId, activity, {
-              from: activity.data.fromEmail,
-            });
-            break;
-
-          case 'ALL':
-            notifyHostedCollectiveAdmins(activity.data.update.CollectiveId, activity, {
-              from: activity.data.fromEmail,
-            });
-
-            notifyMembersOfCollective(activity.data.update.CollectiveId, activity, {
-              from: activity.data.fromEmail,
-            });
-            break;
-        }
-      } else {
-        notifyMembersOfCollective(activity.data.update.CollectiveId, activity, {
-          from: activity.data.fromEmail,
-        });
-      }
+      notifyUpdateSubscribers(activity);
       break;
 
     case activityType.SUBSCRIPTION_CANCELED:
@@ -337,7 +319,9 @@ async function notifyByEmail(activity) {
         viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
       };
       activity.data.expense.payoutMethodLabel = models.PayoutMethod.getLabel(activity.data.payoutMethod);
-      notifyUserId(activity.data.expense.UserId, activity);
+      notifyUserId(activity.data.expense.UserId, activity, {
+        replyTo: `no-reply@opencollective.com`,
+      });
       // We only notify the admins of the host if the collective is active (ie. has been approved by the host)
       if (get(activity, 'data.host.id') && get(activity, 'data.collective.isActive')) {
         notifyAdminsOfCollective(activity.data.host.id, activity, {
@@ -347,12 +331,23 @@ async function notifyByEmail(activity) {
       }
       break;
 
+    case activityType.COLLECTIVE_EXPENSE_REJECTED:
+      activity.data.actions = {
+        viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
+      };
+      notifyUserId(activity.data.expense.UserId, activity, {
+        replyTo: `no-reply@opencollective.com`,
+      });
+      break;
+
     case activityType.COLLECTIVE_EXPENSE_PAID:
       activity.data.actions = {
         viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
       };
       activity.data.expense.payoutMethodLabel = models.PayoutMethod.getLabel(activity.data.payoutMethod);
-      notifyUserId(activity.data.expense.UserId, activity);
+      notifyUserId(activity.data.expense.UserId, activity, {
+        replyTo: `no-reply@opencollective.com`,
+      });
       if (get(activity, 'data.host.id')) {
         notifyAdminsOfCollective(activity.data.host.id, activity, {
           template: 'collective.expense.paid.for.host',
@@ -365,7 +360,9 @@ async function notifyByEmail(activity) {
       activity.data.actions = {
         viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
       };
-      notifyUserId(activity.data.expense.UserId, activity);
+      notifyUserId(activity.data.expense.UserId, activity, {
+        replyTo: `no-reply@opencollective.com`,
+      });
       if (get(activity, 'data.host.id')) {
         notifyAdminsOfCollective(activity.data.host.id, activity, {
           template: 'collective.expense.error.for.host',
@@ -378,7 +375,9 @@ async function notifyByEmail(activity) {
       activity.data.actions = {
         viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
       };
-      notifyUserId(activity.data.expense.UserId, activity);
+      notifyUserId(activity.data.expense.UserId, activity, {
+        replyTo: `no-reply@opencollective.com`,
+      });
       break;
 
     case activityType.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT:

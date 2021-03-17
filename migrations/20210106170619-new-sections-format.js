@@ -1,7 +1,6 @@
 'use strict';
 
 import { cloneDeep, remove } from 'lodash';
-import models from '../server/models';
 
 const Sections = {
   TOP_FINANCIAL_CONTRIBUTORS: 'top-financial-contributors',
@@ -165,7 +164,7 @@ module.exports = {
     // Migrate all sections
     const [collectives] = await queryInterface.sequelize.query(`
       SELECT id, "type", settings
-      FROM "Collectives" c 
+      FROM "Collectives" c
       WHERE settings -> 'collectivePage' -> 'sections' IS NOT NULL
       AND (settings -> 'collectivePage' ->> 'useNewSections')::boolean IS NOT TRUE
     `);

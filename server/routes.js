@@ -1,4 +1,4 @@
-import { ApolloError, ApolloServer } from 'apollo-server-express';
+import { ApolloServer } from 'apollo-server-express';
 import config from 'config';
 import expressLimiter from 'express-limiter';
 import { get, pick } from 'lodash';
@@ -10,7 +10,7 @@ import helloworks from './controllers/helloworks';
 import uploadImage from './controllers/images';
 import * as email from './controllers/services/email';
 import * as users from './controllers/users';
-import { paypalWebhook, stripeWebhook, transferwiseWebhook } from './controllers/webhooks';
+import { braintreeWebhook, paypalWebhook, stripeWebhook, transferwiseWebhook } from './controllers/webhooks';
 import { getGraphqlCacheKey } from './graphql/cache';
 import graphqlSchemaV1 from './graphql/v1/schema';
 import graphqlSchemaV2 from './graphql/v2/schema';
@@ -148,9 +148,10 @@ export default app => {
       logger.error(`GraphQL error: ${err.message}`);
       const extra = pick(err, ['locations', 'path']);
       if (Object.keys(extra).length) {
-        logger.error(extra);
+        logger.error(JSON.stringify(extra));
       }
-      const stacktrace = get(err, 'err.extensions.exception.stacktrace');
+
+      const stacktrace = get(err, 'extensions.exception.stacktrace');
       if (stacktrace) {
         logger.error(stacktrace);
       }
@@ -210,6 +211,7 @@ export default app => {
    */
   app.post('/webhooks/stripe', stripeWebhook); // when it gets a new subscription invoice
   app.post('/webhooks/transferwise', transferwiseWebhook); // when it gets a new subscription invoice
+  app.post('/webhooks/braintree/:hostId', braintreeWebhook);
   app.post('/webhooks/paypal', paypalWebhook);
   app.post('/webhooks/mailgun', email.webhook); // when receiving an email
   app.get('/connected-accounts/:service/callback', noCache, authentication.authenticateServiceCallback); // oauth callback

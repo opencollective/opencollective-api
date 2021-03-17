@@ -7,7 +7,6 @@ import sinon from 'sinon';
 import status from '../../../server/constants/order_status';
 import { PLANS_COLLECTIVE_SLUG } from '../../../server/constants/plans';
 import roles from '../../../server/constants/roles';
-import { FEES_ON_TOP_TRANSACTION_PROPERTIES } from '../../../server/constants/transactions';
 import emailLib from '../../../server/lib/email';
 import * as payments from '../../../server/lib/payments';
 import * as plansLib from '../../../server/lib/plans';
@@ -111,14 +110,12 @@ describe('server/lib/payments', () => {
   beforeEach('add host to collective', () => collective.addHost(host.collective, host));
   beforeEach('add host to collective2', () => collective2.addHost(host.collective, host));
 
-  beforeEach('create stripe account', done => {
-    models.ConnectedAccount.create({
+  beforeEach('create stripe account', async () => {
+    await models.ConnectedAccount.create({
       service: 'stripe',
       token: 'abc',
       CollectiveId: host.collective.id,
-    })
-      .tap(() => done())
-      .catch(done);
+    });
   });
 
   /**

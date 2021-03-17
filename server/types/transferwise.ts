@@ -126,7 +126,7 @@ export type TransferStatus =
   | 'bounced_back';
 
 export interface WebhookEvent {
-  data: Record<string, any>;
+  data: Record<string, unknown>;
   subscription_id: string;
   event_type: string;
   schema_version: '2.0.0';

@@ -163,5 +163,8 @@
   },
   "pdfService": {
     "fetchTransactionsReceipts": false
+  },
+  "privacy": {
+    "apiUrl": "https://sandbox.privacy.com"
   }
 }

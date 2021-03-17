@@ -60,6 +60,7 @@ export const TypeOfCollectiveType = new GraphQLEnumType({
     BOT: {},
     PROJECT: {},
     FUND: {},
+    VENDOR: {},
   },
 });
 
@@ -292,6 +293,9 @@ export const PlanType = new GraphQLObjectType({
     hostFeeSharePercent: {
       type: GraphQLInt,
     },
+    platformTips: {
+      type: GraphQLBoolean,
+    },
   },
 });
 
@@ -406,11 +410,18 @@ export const CollectiveStatsType = new GraphQLObjectType({
           return collective.id;
         },
       },
-      balance: {
+      balanceWithBlockedFunds: {
         description: 'Amount of money in cents in the currency of the collective currently available to spend',
         type: GraphQLInt,
         resolve(collective, args, req) {
-          return req.loaders.Collective.balance.load(collective.id);
+          return collective.getBalanceWithBlockedFunds({ loaders: req.loaders });
+        },
+      },
+      balance: {
+        description: 'Amount of money in cents in the currency of the collective.',
+        type: GraphQLInt,
+        resolve(collective, args, req) {
+          return collective.getBalance({ loaders: req.loaders });
         },
       },
       backers: {
@@ -576,6 +587,9 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
 
       case types.FUND:
         return FundCollectiveType;
+
+      case types.VENDOR:
+        return VendorCollectiveType;
 
       default:
         return null;
@@ -1541,7 +1555,7 @@ const CollectiveFields = () => {
         includeHostedCollectives: { type: GraphQLBoolean },
         status: { type: GraphQLString },
       },
-      resolve(collective, args) {
+      async resolve(collective, args) {
         const query = { where: {} };
         if (args.status) {
           query.where.status = args.status;
@@ -1553,23 +1567,23 @@ const CollectiveFields = () => {
           query.offset = args.offset;
         }
         query.order = [['createdAt', 'DESC']];
-        const getCollectiveIds = () => {
-          // if is host, we get all the expenses across all the hosted collectives
-          if (args.includeHostedCollectives) {
-            return models.Member.findAll({
-              where: {
-                MemberCollectiveId: collective.id,
-                role: 'HOST',
-              },
-            }).map(members => members.CollectiveId);
-          } else {
-            return Promise.resolve([collective.id]);
-          }
-        };
-        return getCollectiveIds().then(collectiveIds => {
-          query.where.CollectiveId = { [Op.in]: collectiveIds };
-          return models.Expense.findAll(query);
-        });
+
+        let collectiveIds;
+        // if is host, we get all the expenses across all the hosted collectives
+        if (args.includeHostedCollectives) {
+          const members = await models.Member.findAll({
+            where: {
+              MemberCollectiveId: collective.id,
+              role: 'HOST',
+            },
+          });
+          collectiveIds = members.map(members => members.CollectiveId);
+        } else {
+          collectiveIds = [collective.id];
+        }
+
+        query.where.CollectiveId = { [Op.in]: collectiveIds };
+        return models.Expense.findAll(query);
       },
     },
     role: {
@@ -2016,6 +2030,13 @@ export const ProjectCollectiveType = new GraphQLObjectType({
 export const FundCollectiveType = new GraphQLObjectType({
   name: 'Fund',
   description: 'This represents a Fund',
+  interfaces: [CollectiveInterfaceType],
+  fields: CollectiveFields,
+});
+
+export const VendorCollectiveType = new GraphQLObjectType({
+  name: 'Vendor',
+  description: 'This represents a Vendor',
   interfaces: [CollectiveInterfaceType],
   fields: CollectiveFields,
 });

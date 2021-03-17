@@ -343,7 +343,7 @@ const queries = {
       limit: { type: GraphQLInt },
       offset: { type: GraphQLInt },
     },
-    resolve(_, args, req) {
+    async resolve(_, args, req) {
       const query = { where: {} };
       if (args.limit) {
         query.limit = args.limit;
@@ -358,28 +358,24 @@ const queries = {
       if (!req.remoteUser || !req.remoteUser.isAdmin(args.CollectiveId)) {
         query.where.publishedAt = { [Op.ne]: null };
       }
-      return req.loaders.Collective.byId.load(args.CollectiveId).then(collective => {
-        if (!collective) {
-          throw new Error('Collective not found');
-        }
-        const getCollectiveIds = () => {
-          // if is host, we get all the updates across all the hosted collectives
-          if (args.includeHostedCollectives) {
-            return models.Member.findAll({
-              where: {
-                MemberCollectiveId: collective.id,
-                role: 'HOST',
-              },
-            }).map(member => member.CollectiveId);
-          } else {
-            return Promise.resolve([args.CollectiveId]);
-          }
-        };
-        return getCollectiveIds().then(collectiveIds => {
-          query.where.CollectiveId = { [Op.in]: collectiveIds };
-          return models.Update.findAll(query);
+      const collective = await req.loaders.Collective.byId.load(args.CollectiveId);
+      if (!collective) {
+        throw new Error('Collective not found');
+      }
+      let collectiveIds;
+      if (args.includeHostedCollectives) {
+        const members = await models.Member.findAll({
+          where: {
+            MemberCollectiveId: collective.id,
+            role: 'HOST',
+          },
         });
-      });
+        collectiveIds = members.map(member => member.CollectiveId);
+      } else {
+        collectiveIds = [args.CollectiveId];
+      }
+      query.where.CollectiveId = { [Op.in]: collectiveIds };
+      return models.Update.findAll(query);
     },
   },
 
@@ -419,27 +415,26 @@ const queries = {
         ['createdAt', 'DESC'],
         ['id', 'DESC'],
       ];
-      const getCollectiveIds = async () => {
-        // if is host, we get all the orders across all the hosted collectives
-        if (args.includeHostedCollectives) {
-          return [
-            CollectiveId,
-            ...(await models.Member.findAll({
-              attributes: ['CollectiveId'],
-              where: {
-                MemberCollectiveId: CollectiveId,
-                role: 'HOST',
-              },
-            }).map(member => member.CollectiveId)),
-          ];
-        } else {
-          return Promise.resolve([CollectiveId]);
-        }
-      };
-      return getCollectiveIds().then(collectiveIds => {
-        query.where.CollectiveId = { [Op.in]: collectiveIds };
-        return models.Order.findAll(query);
-      });
+
+      let collectiveIds;
+      // if is host, we get all the orders across all the hosted collectives
+      if (args.includeHostedCollectives) {
+        const members = await models.Member.findAll({
+          attributes: ['CollectiveId'],
+          where: {
+            MemberCollectiveId: CollectiveId,
+            role: 'HOST',
+          },
+        });
+        const membersCollectiveIds = members.map(member => member.CollectiveId);
+        collectiveIds = [CollectiveId, ...membersCollectiveIds];
+      } else {
+        collectiveIds = [CollectiveId];
+      }
+
+      query.where.CollectiveId = { [Op.in]: collectiveIds };
+
+      return models.Order.findAll(query);
     },
   },
 
@@ -791,59 +786,44 @@ const queries = {
         where.HostCollectiveId = args.MemberCollectiveId;
       }
 
-      const getCollectiveIds = () => {
-        if (args.includeHostedCollectives) {
-          return models.Member.findAll({
-            where: {
-              MemberCollectiveId: args.CollectiveId,
-              role: 'HOST',
-            },
-          }).map(members => members.CollectiveId);
-        } else {
-          return Promise.resolve([args[attr]]);
-        }
-      };
-
       if (['totalDonations', 'balance'].indexOf(args.orderBy) !== -1) {
         const queryName = args.orderBy === 'totalDonations' ? 'getMembersWithTotalDonations' : 'getMembersWithBalance';
         const tiersById = {};
 
         const options = args.isActive ? { ...args, limit: args.limit * 2 } : args;
 
-        return rawQueries[queryName](where, options)
-          .then(results => {
-            if (args.isActive) {
-              const TierIds = uniq(results.map(r => r.dataValues.TierId));
-              return models.Tier.findAll({
-                where: { id: { [Op.in]: TierIds } },
-              }).then(tiers => {
-                tiers.map(t => (tiersById[t.id] = t.dataValues));
-                return results
-                  .filter(r => {
-                    return models.Member.isActive({
-                      tier: tiersById[r.dataValues.TierId],
-                      lastDonation: r.dataValues.lastDonation,
-                    });
-                  })
-                  .slice(0, args.limit);
-              });
-            }
-            return results;
-          })
-          .map(collective => {
-            const res = {
-              id: collective.dataValues.MemberId,
-              role: collective.dataValues.role,
-              createdAt: collective.dataValues.createdAt,
-              CollectiveId: collective.dataValues.CollectiveId,
-              MemberCollectiveId: collective.dataValues.MemberCollectiveId,
-              ParentCollectiveId: collective.dataValues.ParentCollectiveId,
-              totalDonations: collective.dataValues.totalDonations,
-              TierId: collective.dataValues.TierId,
-            };
-            res[memberTable] = collective;
-            return res;
+        let results = await rawQueries[queryName](where, options);
+
+        if (args.isActive) {
+          const TierIds = uniq(results.map(r => r.dataValues.TierId));
+          const tiers = await models.Tier.findAll({
+            where: { id: { [Op.in]: TierIds } },
           });
+          tiers.map(t => (tiersById[t.id] = t.dataValues));
+          results = results
+            .filter(r =>
+              models.Member.isActive({
+                tier: tiersById[r.dataValues.TierId],
+                lastDonation: r.dataValues.lastDonation,
+              }),
+            )
+            .slice(0, args.limit);
+        }
+
+        return Promise.map(results, collective => {
+          const res = {
+            id: collective.dataValues.MemberId,
+            role: collective.dataValues.role,
+            createdAt: collective.dataValues.createdAt,
+            CollectiveId: collective.dataValues.CollectiveId,
+            MemberCollectiveId: collective.dataValues.MemberCollectiveId,
+            ParentCollectiveId: collective.dataValues.ParentCollectiveId,
+            totalDonations: collective.dataValues.totalDonations,
+            TierId: collective.dataValues.TierId,
+          };
+          res[memberTable] = collective;
+          return res;
+        });
       } else {
         const query = { where, include: [] };
         if (args.TierId) {
@@ -873,41 +853,49 @@ const queries = {
           query.offset = args.offset;
         }
 
-        return getCollectiveIds()
-          .then(collectiveIds => {
-            query.where[attr] = { [Op.in]: collectiveIds };
-            query.where.role = { [Op.ne]: 'HOST' };
-            return models.Member.findAll(query);
-          })
-          .then(members => {
-            // also fetch the list of collectives that are members of the host
-            if (args.includeHostedCollectives) {
-              query.where = {
-                MemberCollectiveId: args.CollectiveId,
-                role: 'HOST',
-              };
-              query.order = [[sequelize.literal('collective.name'), 'ASC']];
-              query.include = [
-                {
-                  model: models.Collective,
-                  as: 'collective',
-                  required: true,
-                },
-              ];
-
-              return models.Member.findAll(query)
-                .map(m => {
-                  m.memberCollective = m.collective;
-                  delete m.collective;
-                  members.push(m);
-                })
-                .then(() => members);
-            } else if (args.CollectiveId && !req.remoteUser?.isAdmin(args.CollectiveId)) {
-              return members.filter(m => !m.collective?.isIncognito);
-            } else {
-              return members;
-            }
+        let collectiveIds;
+        if (args.includeHostedCollectives) {
+          const members = await models.Member.findAll({
+            where: {
+              MemberCollectiveId: args.CollectiveId,
+              role: 'HOST',
+            },
           });
+          collectiveIds = members.map(members => members.CollectiveId);
+        } else {
+          collectiveIds = [args[attr]];
+        }
+
+        query.where[attr] = { [Op.in]: collectiveIds };
+        query.where.role = { [Op.ne]: 'HOST' };
+        const members = await models.Member.findAll(query);
+
+        // also fetch the list of collectives that are members of the host
+        if (args.includeHostedCollectives) {
+          query.where = {
+            MemberCollectiveId: args.CollectiveId,
+            role: 'HOST',
+          };
+          query.order = [[sequelize.literal('collective.name'), 'ASC']];
+          query.include = [
+            {
+              model: models.Collective,
+              as: 'collective',
+              required: true,
+            },
+          ];
+          const hostedMembers = await models.Member.findAll(query);
+          await Promise.map(hostedMembers, m => {
+            m.memberCollective = m.collective;
+            delete m.collective;
+            members.push(m);
+          });
+          return members;
+        } else if (args.CollectiveId && !req.remoteUser?.isAdmin(args.CollectiveId)) {
+          return members.filter(m => !m.collective?.isIncognito);
+        } else {
+          return members;
+        }
       }
     },
   },

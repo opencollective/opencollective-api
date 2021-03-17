@@ -1,11 +1,11 @@
 'use strict';
 
 module.exports = {
-  up: (queryInterface, Sequelize) => {
+  up: queryInterface => {
     return queryInterface.renameTable('ExpenseAttachments', 'ExpenseItems');
   },
 
-  down: (queryInterface, Sequelize) => {
+  down: queryInterface => {
     return queryInterface.renameTable('ExpenseItems', 'ExpenseAttachments');
   },
 };

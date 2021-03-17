@@ -1,7 +1,7 @@
 'use strict';
 
 module.exports = {
-  up: async (queryInterface, Sequelize) => {
+  up: async queryInterface => {
     await queryInterface.sequelize.query(
       `UPDATE "Collectives"
       SET "HostCollectiveId" = NULL
@@ -16,7 +16,7 @@ module.exports = {
     );
   },
 
-  down: async (queryInterface, Sequelize) => {
+  down: async () => {
     // Can't undo this without loosing data
   },
 };

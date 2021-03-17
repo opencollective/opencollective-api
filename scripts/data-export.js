@@ -1,5 +1,5 @@
 #!/usr/bin/env ./node_modules/.bin/babel-node
-import '../../server/env';
+import '../server/env';
 
 import fs from 'fs';
 import readline from 'readline';
@@ -10,7 +10,7 @@ import { google } from 'googleapis';
 import { parse as json2csv } from 'json2csv';
 import moment from 'moment';
 
-import models, { sequelize } from '../../server/models';
+import models, { sequelize } from '../server/models';
 
 const GoogleDrivePath = process.env.OC_GOOGLE_DRIVE || '/tmp';
 
@@ -250,7 +250,7 @@ const uploadFiles = async auth => {
   });
   console.log(`>>> all files uploaded to "${folderMetadata['name']}" folder in google drive`);
 
-  // Delete all the files after succesful upload
+  // Delete all the files after successful upload
   try {
     fs.rmdirSync(`${path}`, { recursive: true });
     console.log(`${path} is deleted!`);
@@ -269,12 +269,12 @@ if (config.env === 'production' && today.getDate() !== 1 && !process.env.MANUAL_
 } else {
   run()
     .then(() => {
-      // If drive credentails are available try to upload generated files to drive
+      // If drive credentials are available try to upload generated files to drive
       if (googleDrive.clientId && googleDrive.clientSecret && googleDrive.redirectUri) {
         // Authorize with credentials, then call the Google Drive API.
         authorize(googleDrive, uploadFiles);
       } else {
-        console.log(`>>> Required google drive credentails weren't provided.`);
+        console.log(`>>> Required google drive credentials weren't provided.`);
         process.exit(0);
       }
     })

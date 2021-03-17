@@ -76,11 +76,11 @@ export function sortResultsArray<ResultType>(
  * @param defaultValue: a default value used when there's no result in `results`
  */
 export const sortResults = (
-  keys: readonly any[],
-  results: readonly any[],
+  keys: readonly (string | number)[],
+  results: readonly Record<string, unknown>[],
   attribute = 'id',
   defaultValue = undefined,
-) => {
+): Record<string, unknown>[] => {
   const resultsById = {};
   results.forEach(r => {
     let key;

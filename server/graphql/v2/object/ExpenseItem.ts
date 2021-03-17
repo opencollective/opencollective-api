@@ -1,3 +1,4 @@
+import express from 'express';
 import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 
@@ -36,7 +37,7 @@ const ExpenseItem = new GraphQLObjectType({
     },
     url: {
       type: URL,
-      resolve(item, _, req): string | undefined {
+      resolve(item, _, req: express.Request): string | undefined {
         if (getContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_ATTACHMENTS_URL, item.ExpenseId)) {
           return item.url;
         }

@@ -8,7 +8,7 @@ import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import TransferwiseLib from '../../../paymentProviders/transferwise';
 import { Unauthorized } from '../../errors';
 import { HostApplicationCollection } from '../collection/HostApplicationCollection';
-import { PaymentMethodType, PayoutMethodType } from '../enum';
+import { PaymentMethodLegacyType, PayoutMethodType } from '../enum';
 import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
 import { Account, AccountFields } from '../interface/Account';
 import { AccountWithContributions, AccountWithContributionsFields } from '../interface/AccountWithContributions';
@@ -78,7 +78,7 @@ export const Host = new GraphQLObjectType({
         },
       },
       supportedPaymentMethods: {
-        type: new GraphQLList(PaymentMethodType),
+        type: new GraphQLList(PaymentMethodLegacyType),
         description:
           'The list of payment methods (Stripe, Paypal, manual bank transfer, etc ...) the Host can accept for its Collectives',
         async resolve(collective, _, req) {
@@ -89,6 +89,10 @@ export const Host = new GraphQLObjectType({
 
           if (find(connectedAccounts, ['service', 'stripe'])) {
             supportedPaymentMethods.push('CREDIT_CARD');
+          }
+
+          if (find(connectedAccounts, ['service', 'braintree']) && collective.settings?.beta?.braintree) {
+            supportedPaymentMethods.push('BRAINTREE_PAYPAL');
           }
 
           if (find(connectedAccounts, ['service', 'paypal']) && !collective.settings?.disablePaypalDonations) {

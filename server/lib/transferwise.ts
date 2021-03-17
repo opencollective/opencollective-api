@@ -54,12 +54,13 @@ const signString = (data: string) => {
   return sign.sign(key, 'base64');
 };
 
-const compactRecipientDetails = <T>(object: T): Partial<T> => omitBy(object, isNull);
+const compactRecipientDetails = <T>(object: T): Partial<T> => <Partial<T>>omitBy(object, isNull);
 
-const getData = <T extends { data?: object }>(obj: T | undefined): T['data'] | undefined => obj && obj.data;
+const getData = <T extends { data?: Record<string, unknown> }>(obj: T | undefined): T['data'] | undefined =>
+  obj && obj.data;
 
 const parseError = (
-  error: AxiosError<{ errorCode?: TransferwiseErrorCodes; errors?: any[] }>,
+  error: AxiosError<{ errorCode?: TransferwiseErrorCodes; errors?: Record<string, unknown>[] }>,
   defaultMessage?: string,
   defaultCode?: string,
 ): string | Error => {
@@ -83,7 +84,15 @@ const parseError = (
 export const requestDataAndThrowParsedError = (
   fn: Function,
   url: string,
-  { data, ...options }: { data?: object; headers?: object; params?: object; auth?: object },
+  {
+    data,
+    ...options
+  }: {
+    data?: Record<string, unknown>;
+    headers?: Record<string, unknown>;
+    params?: Record<string, unknown>;
+    auth?: Record<string, unknown>;
+  },
   defaultErrorMessage?: string,
 ): Promise<any> => {
   debug(`calling ${url}`);
@@ -190,7 +199,7 @@ interface FundTransfer {
   transferId: number;
 }
 export const fundTransfer = async (
-  token,
+  token: string,
   { profileId, transferId }: FundTransfer,
 ): Promise<{ status: 'COMPLETED' | 'REJECTED'; errorCode: string }> => {
   return requestDataAndThrowParsedError(
@@ -261,7 +270,7 @@ export const getAccountRequirements = async (
 export const validateAccountRequirements = async (
   token: string,
   { sourceCurrency, targetCurrency, ...amount }: GetTemporaryQuote,
-  accountDetails: any,
+  accountDetails: Record<string, unknown>,
 ): Promise<any> => {
   const params = {
     source: sourceCurrency,
@@ -315,7 +324,7 @@ export const verifyEvent = (req: Request & { rawBody: string }): WebhookEvent =>
   return req.body;
 };
 
-export const formatAccountDetails = (payoutMethodData: Record<string, any>): string => {
+export const formatAccountDetails = (payoutMethodData: Record<string, unknown>): string => {
   const ignoredKeys = ['type', 'isManualBankTransfer', 'currency'];
   const labels = {
     abartn: 'Routing Number',
@@ -331,13 +340,13 @@ export const formatAccountDetails = (payoutMethodData: Record<string, any>): str
     return startCase(s);
   };
 
-  const renderObject = (object: Record<string, any>, prefix = ''): string[] =>
+  const renderObject = (object: Record<string, unknown>, prefix = ''): string[] =>
     Object.entries(object).reduce((acc, [key, value]) => {
       if (ignoredKeys.includes(key)) {
         return acc;
       }
       if (typeof value === 'object') {
-        return [...acc, formatKey(key), ...renderObject(value, '  ')];
+        return [...acc, formatKey(key), ...renderObject(<Record<string, unknown>>value, '  ')];
       }
       return [...acc, `${prefix}${formatKey(key)}: ${value}`];
     }, []);

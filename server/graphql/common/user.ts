@@ -20,15 +20,15 @@ type CreateUserOptions = {
   redirect?: string;
   websiteUrl?: string;
   creationRequest?: {
-    ip: any;
-    userAgent: any;
+    ip: string;
+    userAgent: string;
   };
 };
 
 export const createUser = (
   userData: { firstName: string; lastName: string; email: string; newsletterOptIn: boolean },
   { organizationData, sendSignInLink, throwIfExists, redirect, websiteUrl, creationRequest }: CreateUserOptions,
-): Promise<{ user: any; organization?: any }> => {
+): Promise<{ user: typeof models.User; organization?: typeof models.Collective }> => {
   return sequelize.transaction(async transaction => {
     let user = await models.User.findOne({ where: { email: userData.email.toLowerCase() } }, { transaction });
 

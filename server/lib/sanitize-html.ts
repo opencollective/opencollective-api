@@ -26,9 +26,9 @@ interface AllowedContentType {
 
 interface SanitizeOptions {
   allowedTags: string[];
-  allowedAttributes: Record<string, any>;
+  allowedAttributes: Record<string, unknown>;
   allowedIframeHostnames: string[];
-  transformTags: any;
+  transformTags: Record<string, unknown>;
 }
 
 export const buildSanitizerOptions = (allowedContent: AllowedContentType = {}): SanitizeOptions => {

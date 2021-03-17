@@ -16,7 +16,7 @@ module.exports = {
       });
   },
 
-  down: function (queryInterface, Sequelize) {
+  down: function (queryInterface) {
     return queryInterface
       .removeColumn('Collectives', 'contributionPolicy')
       .then(() => queryInterface.removeColumn('CollectiveHistories', 'contributionPolicy'));

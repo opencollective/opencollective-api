@@ -107,6 +107,11 @@
       "forCollective": "ORDERS_LIMIT_COLLECTIVE"
     }
   },
+  "braintree": {
+    "testGateway": {
+      "privateKey": "BRAINTREE_TEST_GATEWAY_PRIVATE_KEY"
+    }
+  },
   "slack": {
     "webhooks": {
       "abuse": "SLACK_WEBHOOK_ABUSE"
@@ -175,5 +180,8 @@
   },
   "sentry": {
     "dsn": "SENTRY_DSN"
+  },
+  "privacy": {
+    "apiUrl": "PRIVACY_API_URL"
   }
 }

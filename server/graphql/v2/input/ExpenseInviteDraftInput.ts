@@ -11,6 +11,7 @@ import GraphQLJSON from 'graphql-type-json';
 import { ExpenseType } from '../enum/ExpenseType';
 
 import { LocationInput } from './LocationInput';
+import { PayoutMethodInput } from './PayoutMethodInput';
 
 const ExpenseInvitee = new GraphQLInputObjectType({
   name: 'ExpenseInvitee',
@@ -72,6 +73,10 @@ export const ExpenseInviteDraftInput = new GraphQLInputObjectType({
     payeeLocation: {
       type: LocationInput,
       description: 'The address of the payee',
+    },
+    payoutMethod: {
+      type: PayoutMethodInput,
+      description: 'The payout method that will be used to reimburse the expense',
     },
   }),
 });

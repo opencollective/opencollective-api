@@ -1,7 +1,7 @@
 'use strict';
 
 module.exports = {
-  up: async (queryInterface, DataTypes) => {
+  up: async queryInterface => {
     const [, updateTs] = await queryInterface.sequelize.query(`
       UPDATE "Transactions"
       SET "amountInHostCurrency" = "amount", "hostFeeInHostCurrency" = ROUND("hostFeeInHostCurrency"/"hostCurrencyFxRate"), "hostCurrencyFxRate" = 1
@@ -18,5 +18,7 @@ module.exports = {
     console.info(`Fixed ${updateTs.rowCount} transactions`);
   },
 
-  down: async queryInterface => {},
+  down: async () => {
+    // No rollback
+  },
 };

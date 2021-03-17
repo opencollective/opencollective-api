@@ -1,11 +1,13 @@
 'use strict';
 
 module.exports = {
-  up: async (queryInterface, Sequelize) => {
+  up: async queryInterface => {
     await queryInterface.sequelize.query(`
       UPDATE "Members" SET "deletedAt" = NOW() WHERE "CollectiveId" = "MemberCollectiveId" AND "role" = 'HOST';
     `);
   },
 
-  down: async (queryInterface, Sequelize) => {},
+  down: async () => {
+    // No rollback
+  },
 };

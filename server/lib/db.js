@@ -39,7 +39,7 @@ export async function loadDB(name) {
   await pexec(cmd, { env: { PGPASSWORD: password } });
 }
 
-/** Retrieve configuration paratemters of a given database.
+/** Retrieve configuration parameters of a given database.
  *
  * @param {string} name of the key in the configuration that contains
  *  the database parameters. An error is thrown if there's no section

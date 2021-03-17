@@ -9,6 +9,7 @@ import { Individual } from './object/Individual';
 import { Member, MemberOf } from './object/Member';
 import { Organization } from './object/Organization';
 import { TransferWise } from './object/TransferWise';
+import { Vendor } from './object/Vendor';
 
 const types = [
   Account,
@@ -23,6 +24,7 @@ const types = [
   MemberOf,
   Organization,
   TransferWise,
+  Vendor,
 ];
 
 export default types;

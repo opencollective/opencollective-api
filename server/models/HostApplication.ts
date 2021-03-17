@@ -1,7 +1,9 @@
 import { pick } from 'lodash';
-import { DataTypes, Model, Sequelize } from 'sequelize';
 
 import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
+import sequelize, { DataTypes, Model } from '../lib/sequelize';
+
+import models from '.';
 
 export enum HostApplicationStatus {
   PENDING = 'PENDING',
@@ -10,7 +12,18 @@ export enum HostApplicationStatus {
   EXPIRED = 'EXPIRED',
 }
 
-export class HostApplication extends Model<HostApplication> {
+interface HostApplicationCreationAttributes {
+  CollectiveId: number;
+  HostCollectiveId: number;
+  status: HostApplicationStatus;
+  customData?: Record<string, unknown> | null;
+  message?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+  deletedAt?: Date | null;
+}
+
+export class HostApplication extends Model<HostApplication, HostApplicationCreationAttributes> {
   public readonly id!: number;
   public CollectiveId!: number;
   public HostCollectiveId!: number;
@@ -28,18 +41,26 @@ export class HostApplication extends Model<HostApplication> {
 
   // ---- Static ----
 
-  static async getByStatus(host, collective, status: HostApplicationStatus): Promise<HostApplication | null> {
+  static async getByStatus(
+    host: typeof models.Collective,
+    collective: typeof models.Collective,
+    status: HostApplicationStatus,
+  ): Promise<HostApplication | null> {
     return this.findOne({
       order: [['createdAt', 'DESC']],
       where: {
-        HostCollectiveId: host.id,
+        HostCollectiveId: <number>host.id,
         CollectiveId: collective.id,
         status,
       },
     });
   }
 
-  static async recordApplication(host, collective, data: Record<string, unknown>): Promise<HostApplication> {
+  static async recordApplication(
+    host: typeof models.Collective,
+    collective: typeof models.Collective,
+    data: Record<string, unknown>,
+  ): Promise<HostApplication> {
     const existingApplication = await this.getByStatus(host, collective, HostApplicationStatus.PENDING);
     if (existingApplication) {
       return existingApplication.update({ updatedAt: new Date() });
@@ -48,7 +69,7 @@ export class HostApplication extends Model<HostApplication> {
         HostCollectiveId: host.id,
         CollectiveId: collective.id,
         status: HostApplicationStatus.PENDING,
-        ...pick(data, ['message', 'customData']),
+        ...(<Record<string, unknown>>pick(data, ['message', 'customData'])),
       });
     }
   }
@@ -56,7 +77,11 @@ export class HostApplication extends Model<HostApplication> {
   /**
    * Update the `status` for pending application(s) for this `host` <> `collective` (if any)
    */
-  static async updatePendingApplications(host, collective, status: HostApplicationStatus): Promise<void> {
+  static async updatePendingApplications(
+    host: typeof models.Collective,
+    collective: typeof models.Collective,
+    status: HostApplicationStatus,
+  ): Promise<void> {
     await this.update(
       { status },
       {
@@ -70,7 +95,7 @@ export class HostApplication extends Model<HostApplication> {
   }
 }
 
-export default (sequelize: Sequelize): typeof HostApplication => {
+function setupModel(HostApplication) {
   // Link the model to database fields
   HostApplication.init(
     {
@@ -130,6 +155,10 @@ export default (sequelize: Sequelize): typeof HostApplication => {
       paranoid: true,
     },
   );
+}
 
-  return HostApplication;
-};
+// We're using the setupModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+setupModel(HostApplication);
+
+export default HostApplication;

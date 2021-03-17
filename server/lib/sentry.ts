@@ -24,6 +24,10 @@ const IGNORED_GQL_ERRORS = [
     path: ['allMembers'],
     message: /^Invalid collectiveSlug \(not found\)$/,
   },
+  {
+    path: ['createOrder'],
+    message: /^Your card was declined.$/,
+  },
 ];
 
 const isIgnoredGQLError = err => {
@@ -33,7 +37,7 @@ const isIgnoredGQLError = err => {
 };
 
 export const SentryGraphQLPlugin = {
-  requestDidStart(_): object {
+  requestDidStart(): Record<string, unknown> {
     return {
       didEncounterErrors(ctx): void {
         // If we couldn't parse the operation, don't do anything here
@@ -54,7 +58,7 @@ export const SentryGraphQLPlugin = {
 
             // Log query and variables as extras
             scope.setExtra('query', ctx.request.query);
-            scope.setExtra('variables', ctx.request.variables);
+            scope.setExtra('variables', JSON.stringify(ctx.request.variables));
 
             // Add logged in user (if any)
             if (ctx.context.remoteUser) {

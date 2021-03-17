@@ -30,11 +30,18 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
 
   before(() => utils.resetTestDB());
 
-  before(() => models.User.createUserWithCollective(utils.data('user1')).tap(u => (user1 = u)));
-  before(() => models.User.createUserWithCollective(utils.data('host1')).tap(u => (host = u)));
-
-  before(() => models.User.createUserWithCollective(utils.data('user2')).tap(u => (user2 = u)));
-  before(() => models.Collective.create(utils.data('collective1')).tap(g => (collective1 = g)));
+  before(async () => {
+    user1 = await models.User.createUserWithCollective(utils.data('user1'));
+  });
+  before(async () => {
+    host = await models.User.createUserWithCollective(utils.data('host1'));
+  });
+  before(async () => {
+    user2 = await models.User.createUserWithCollective(utils.data('user2'));
+  });
+  before(async () => {
+    collective1 = await models.Collective.create(utils.data('collective1'));
+  });
   before(() => collective1.addUserWithRole(host, roles.HOST));
   before(() => collective1.addUserWithRole(user1, roles.ADMIN));
 
@@ -49,14 +56,14 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
     }).then(u => (update1 = u));
   });
 
-  before('create an event collective', () =>
-    models.Collective.create(
+  before('create an event collective', async () => {
+    event1 = await models.Collective.create(
       Object.assign(utils.data('event1'), {
         CreatedByUserId: user1.id,
         ParentCollectiveId: collective1.id,
       }),
-    ).tap(e => (event1 = e)),
-  );
+    );
+  });
   before(() => event1.addUserWithRole(user1, roles.ADMIN));
 
   let update;

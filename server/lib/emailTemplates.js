@@ -36,6 +36,7 @@ export const templateNames = [
   'collective.expense.paid',
   'collective.expense.paid.for.host',
   'collective.expense.invite.drafted',
+  'collective.expense.rejected',
   'collective.member.created',
   'collective.monthlyreport',
   'collective.monthlyreport.text',
@@ -126,6 +127,7 @@ const footer = fs.readFileSync(`${templatesPath}/partials/footer.hbs`, 'utf8');
 const footertxt = fs.readFileSync(`${templatesPath}/partials/footer.text.hbs`, 'utf8');
 const toplogo = fs.readFileSync(`${templatesPath}/partials/toplogo.hbs`, 'utf8');
 const eventsnippet = fs.readFileSync(`${templatesPath}/partials/eventsnippet.hbs`, 'utf8');
+const expenseItems = fs.readFileSync(`${templatesPath}/partials/expense-items.hbs`, 'utf8');
 const eventdata = fs.readFileSync(`${templatesPath}/partials/eventdata.hbs`, 'utf8');
 const collectivecard = fs.readFileSync(`${templatesPath}/partials/collectivecard.hbs`, 'utf8');
 const chargeDateNotice = fs.readFileSync(`${templatesPath}/partials/charge_date_notice.hbs`, 'utf8');
@@ -138,6 +140,7 @@ handlebars.registerPartial('footer.text', footertxt);
 handlebars.registerPartial('toplogo', toplogo);
 handlebars.registerPartial('collectivecard', collectivecard);
 handlebars.registerPartial('eventsnippet', eventsnippet);
+handlebars.registerPartial('expenseItems', expenseItems);
 handlebars.registerPartial('eventdata', eventdata);
 handlebars.registerPartial('charge_date_notice', chargeDateNotice);
 handlebars.registerPartial('mr-footer', mthReportFooter);

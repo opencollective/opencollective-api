@@ -2,13 +2,13 @@
 
 import { defaultsDeep, omit } from 'lodash';
 
-import models from '../server/models';
 import roles from '../server/constants/roles';
 import { FEES_ON_TOP_TRANSACTION_PROPERTIES } from '../server/constants/transactions';
 import { getFxRate } from '../server/lib/currency';
+import models from '../server/models';
 
 module.exports = {
-  up: async (queryInterface, Sequelize) => {
+  up: async queryInterface => {
     const platform = await models.Collective.findByPk(FEES_ON_TOP_TRANSACTION_PROPERTIES.CollectiveId);
 
     const [orders] = await queryInterface.sequelize.query(`
@@ -105,5 +105,7 @@ module.exports = {
     `);
   },
 
-  down: async () => {},
+  down: async () => {
+    // No rollback
+  },
 };

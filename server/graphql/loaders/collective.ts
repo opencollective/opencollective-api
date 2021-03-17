@@ -8,7 +8,7 @@ export default {
   /**
    * Returns the collective (account) for this user ID, including incognito profiles
    */
-  byUserId: (): DataLoader<number, object> => {
+  byUserId: (): DataLoader<number, typeof models.Collective> => {
     return new DataLoader(async userIds => {
       const collectives = await sequelize.query(
         ` SELECT      c.*, u.id AS __user_id__

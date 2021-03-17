@@ -134,76 +134,59 @@ describe('server/models/Collective', () => {
 
   before(() => utils.resetTestDB());
 
-  before(() =>
-    User.createUserWithCollective(users[0])
-      .tap(u => (user1 = u))
-      .then(() => User.createUserWithCollective(users[1]))
-      .tap(u => (user2 = u))
-      .then(() => User.createUserWithCollective(utils.data('host1')))
-      .tap(u => (hostUser = u))
-      .then(() => Collective.create(collectiveData))
-      .then(g => (collective = g))
-      .then(() =>
-        Collective.create({
-          slug: 'webpack',
-          tags: ['open source'],
-          isActive: true,
-        }),
-      )
-      .then(g => (opensourceCollective = g))
-      .then(() => collective.addUserWithRole(user1, 'BACKER'))
-      .then(() =>
-        models.Expense.create({
-          description: 'pizza',
-          amount: 1000,
-          currency: 'USD',
-          UserId: user1.id,
-          FromCollectiveId: user1.CollectiveId,
-          lastEditedById: user1.id,
-          incurredAt: transactions[0].createdAt,
-          createdAt: transactions[0].createdAt,
-          CollectiveId: collective.id,
-        }),
-      )
-      .then(() =>
-        models.Expense.create({
-          description: 'stickers',
-          amount: 15000,
-          currency: 'USD',
-          UserId: user1.id,
-          FromCollectiveId: user1.CollectiveId,
-          lastEditedById: user1.id,
-          incurredAt: transactions[1].createdAt,
-          createdAt: transactions[1].createdAt,
-          CollectiveId: collective.id,
-        }),
-      )
-      .then(() =>
-        models.Expense.create({
-          description: 'community gardening',
-          amount: 60100,
-          currency: 'USD',
-          UserId: user2.id,
-          FromCollectiveId: user2.CollectiveId,
-          lastEditedById: user2.id,
-          incurredAt: transactions[1].createdAt,
-          createdAt: transactions[1].createdAt,
-          CollectiveId: opensourceCollective.id,
-        }),
-      )
-      .then(() =>
-        Transaction.createManyDoubleEntry([transactions[2]], {
-          CollectiveId: opensourceCollective.id,
-          HostCollectiveId: hostUser.CollectiveId,
-        }),
-      )
-      .then(() =>
-        Transaction.createManyDoubleEntry(transactions, {
-          CollectiveId: collective.id,
-          HostCollectiveId: hostUser.CollectiveId,
-        }),
-      ),
-  );
+  before(async () => {
+    user1 = await User.createUserWithCollective(users[0]);
+    user2 = await User.createUserWithCollective(users[1]);
+    hostUser = await User.createUserWithCollective(utils.data('host1'));
+    collective = await Collective.create(collectiveData);
+    opensourceCollective = await Collective.create({
+      slug: 'webpack',
+      tags: ['open source'],
+      isActive: true,
+    });
+    await collective.addUserWithRole(user1, 'BACKER');
+    await models.Expense.create({
+      description: 'pizza',
+      amount: 1000,
+      currency: 'USD',
+      UserId: user1.id,
+      FromCollectiveId: user1.CollectiveId,
+      lastEditedById: user1.id,
+      incurredAt: transactions[0].createdAt,
+      createdAt: transactions[0].createdAt,
+      CollectiveId: collective.id,
+    });
+    await models.Expense.create({
+      description: 'stickers',
+      amount: 15000,
+      currency: 'USD',
+      UserId: user1.id,
+      FromCollectiveId: user1.CollectiveId,
+      lastEditedById: user1.id,
+      incurredAt: transactions[1].createdAt,
+      createdAt: transactions[1].createdAt,
+      CollectiveId: collective.id,
+    });
+    await models.Expense.create({
+      description: 'community gardening',
+      amount: 60100,
+      currency: 'USD',
+      UserId: user2.id,
+      FromCollectiveId: user2.CollectiveId,
+      lastEditedById: user2.id,
+      incurredAt: transactions[1].createdAt,
+      createdAt: transactions[1].createdAt,
+      CollectiveId: opensourceCollective.id,
+    });
+    await Transaction.createManyDoubleEntry([transactions[2]], {
+      CollectiveId: opensourceCollective.id,
+      HostCollectiveId: hostUser.CollectiveId,
+    });
+    await Transaction.createManyDoubleEntry(transactions, {
+      CollectiveId: collective.id,
+      HostCollectiveId: hostUser.CollectiveId,
+    });
+  });
 
   it('validates name', async () => {
     // Invalid
@@ -221,36 +204,30 @@ describe('server/models/Collective', () => {
     expect(collective.name).to.eq('Frank Zappa');
   });
 
-  it('creates a unique slug', () => {
-    return Collective.create({ slug: 'piamancini' })
-      .tap(collective => {
-        expect(collective.slug).to.equal('piamancini');
-      })
-      .then(() => Collective.create({ name: 'XavierDamman' }))
-      .then(collective => {
-        expect(collective.slug).to.equal('xavierdamman');
-      })
-      .then(() => Collective.create({ name: 'piamancini2' }))
-      .then(() => Collective.create({ twitterHandle: '@piamancini' }))
-      .then(collective => {
-        expect(collective.slug).to.equal('piamancini1');
-        expect(collective.twitterHandle).to.equal('piamancini');
-      })
-      .then(() => Collective.create({ name: 'XavierDamman' }))
-      .then(collective => {
-        expect(collective.slug).to.equal('xavierdamman1');
-      })
-      .then(() => Collective.create({ name: 'hélène & les g.arçons' }))
-      .then(collective => {
-        expect(collective.slug).to.equal('helene-and-les-g-arcons');
-      });
+  it('creates a unique slug', async () => {
+    const collective1 = await Collective.create({ slug: 'piamancini' });
+    expect(collective1.slug).to.equal('piamancini');
+
+    const collective2 = await Collective.create({ name: 'XavierDamman' });
+    expect(collective2.slug).to.equal('xavierdamman');
+
+    await Collective.create({ name: 'piamancini2' });
+
+    const collective3 = await Collective.create({ twitterHandle: '@piamancini' });
+    expect(collective3.slug).to.equal('piamancini1');
+    expect(collective3.twitterHandle).to.equal('piamancini');
+
+    const collective4 = await Collective.create({ name: 'XavierDamman' });
+    expect(collective4.slug).to.equal('xavierdamman1');
+
+    const collective5 = await Collective.create({ name: 'hélène & les g.arçons' });
+    expect(collective5.slug).to.equal('helene-and-les-g-arcons');
   });
 
-  it('creates a unique slug for incognito profile', () => {
-    return Collective.create({ isIncognito: true }).tap(collective => {
-      expect(collective.slug).to.contain('incognito-');
-      expect(collective.slug.length).to.equal(18);
-    });
+  it('creates a unique slug for incognito profile', async () => {
+    const collective = await Collective.create({ isIncognito: true });
+    expect(collective.slug).to.contain('incognito-');
+    expect(collective.slug.length).to.equal(18);
   });
 
   it('frees up current slug when deleted', async () => {
@@ -451,7 +428,7 @@ describe('server/models/Collective', () => {
       website: 'https://opencollective.com',
     });
     // Make sure clearbit image is fetched (done automatically and async in normal conditions)
-    await collective.findImage();
+    await collective.findImage(true);
     // Fetch back the collective from the database
     collective = await models.Collective.findByPk(collective.id);
     expect(collective.image).to.equal('https://logo.clearbit.com/opencollective.com');
@@ -473,7 +450,7 @@ describe('server/models/Collective', () => {
       email: 'xavier@tribal.be',
     });
     // Make sure gravatar image is fetched (done automatically and async in normal conditions)
-    await user.collective.findImageForUser(user);
+    await user.collective.findImageForUser(user, true);
     // Fetch back the collective from the database
     const collective = await models.Collective.findByPk(user.collective.id);
     expect(collective.image).to.equal('https://www.gravatar.com/avatar/a97d0fcd96579015da610aa284f8d8df?default=404');
@@ -888,13 +865,12 @@ describe('server/models/Collective', () => {
   });
 
   describe('third party accounts handles', () => {
-    it('stores Github handle and strip first @ character', () => {
-      return Collective.create({
+    it('stores Github handle and strip first @ character', async () => {
+      const collective = await Collective.create({
         slug: 'my-collective',
         githubHandle: '@test',
-      }).tap(collective => {
-        expect(collective.githubHandle).to.equal('test');
       });
+      expect(collective.githubHandle).to.equal('test');
     });
   });
 
@@ -1149,7 +1125,10 @@ describe('server/models/Collective', () => {
     });
 
     it('returns acurate metrics for requested month', async () => {
-      const expectedTotalMoneyManaged = 2400 + 4000 + 100 + 1000 * 0.8;
+      // We expect the value returned by getFxRate (fixer API), which is 1.1 in test environment
+      const usdToGbpFxRate = 1.1;
+
+      const expectedTotalMoneyManaged = 2400 + 4000 + 100 + 1000 * usdToGbpFxRate;
 
       expect(metrics).to.deep.equal({
         hostFees: 800,

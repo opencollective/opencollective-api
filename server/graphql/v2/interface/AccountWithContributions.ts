@@ -1,4 +1,5 @@
 import config from 'config';
+import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { isNil } from 'lodash';
 
@@ -20,7 +21,7 @@ export const AccountWithContributionsFields = {
         description: 'Type of account (COLLECTIVE/EVENT/ORGANIZATION/INDIVIDUAL)',
       },
     },
-    async resolve(account, args, req): Promise<number> {
+    async resolve(account: typeof models.Collective, args, req: express.Request): Promise<number> {
       if (!account.hasBudget()) {
         return 0;
       }
@@ -37,9 +38,9 @@ export const AccountWithContributionsFields = {
   },
   tiers: {
     type: new GraphQLNonNull(TierCollection),
-    async resolve(account): Promise<object> {
+    async resolve(account: typeof models.Collective): Promise<Record<string, unknown>> {
       if (!account.hasBudget()) {
-        return [];
+        return { nodes: [], totalCount: 0 };
       }
 
       const query = { where: { CollectiveId: account.id }, order: [['amount', 'ASC']] };
@@ -54,14 +55,14 @@ export const AccountWithContributionsFields = {
       ...CollectionArgs,
       roles: { type: new GraphQLList(MemberRole) },
     },
-    resolve(collective, args): Promise<object> {
+    resolve(collective: typeof models.Collective, args): Promise<Record<string, unknown>> {
       return getPaginatedContributorsForCollective(collective.id, args);
     },
   },
   platformFeePercent: {
     type: new GraphQLNonNull(GraphQLInt),
     description: 'How much platform fees are charged for this account',
-    resolve(account): number {
+    resolve(account: typeof models.Collective): number {
       return isNil(account.platformFeePercent) ? config.fees.default.platformPercent : account.platformFeePercent;
     },
   },
@@ -69,7 +70,7 @@ export const AccountWithContributionsFields = {
     type: new GraphQLNonNull(GraphQLBoolean),
     description:
       'Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account',
-    resolve(account): boolean {
+    resolve(account: typeof models.Collective): boolean {
       return account.platformFeePercent === 0 && Boolean(account.data?.disablePlatformTips) !== true;
     },
   },
@@ -77,8 +78,8 @@ export const AccountWithContributionsFields = {
     description: 'Amount of money in cents in the currency of the account currently available to spend',
     deprecationReason: '2020/04/09 - Should not have been introduced. Use stats.balance.value',
     type: GraphQLInt,
-    resolve(account, _, req): Promise<number> {
-      return req.loaders.Collective.balance.load(account.id);
+    resolve(account: typeof models.Collective, _, req: express.Request): Promise<number> {
+      return account.getBalanceWithBlockedFunds({ loaders: req.loaders });
     },
   },
   contributionPolicy: {

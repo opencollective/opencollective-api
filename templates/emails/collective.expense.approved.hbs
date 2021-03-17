@@ -25,12 +25,17 @@ Subject: Your expense to {{collective.name}} for {{currency expense.amount curre
 <br />
 
 <center>
-  <a href="{{actions.view}}">
-    <img src="https://res.cloudinary.com/opencollective/image/fetch/w_640,f_jpg/{{expense.attachment}}" width="100%" />
-  </a>
-
+  {{> expenseItems items=items}}
   <br /><br />
   <a href="{{actions.viewLatestExpenses}}" class="btn"><div>View Latest Expenses</div></a>
+
+  <p>
+    <center>
+      <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}#new-comment-on-expense" class="btn blue">
+        <div>Reply</div>
+      </a>
+    </center>
+  </p>
 
 </center>
 

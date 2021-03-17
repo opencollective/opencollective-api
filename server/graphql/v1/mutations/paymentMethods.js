@@ -195,7 +195,7 @@ export async function updatePaymentMethod(args, remoteUser) {
     throw PaymentMethodPermissionError;
   }
 
-  return models.PaymentMethod.update(pick(args, allowedFields), { where: { id: paymentMethod.id } });
+  return paymentMethod.update(pick(args, allowedFields));
 }
 
 /** Update payment method with given args */

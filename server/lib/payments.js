@@ -65,7 +65,8 @@ export function findPaymentMethodProvider(paymentMethod) {
   if (!paymentMethodProvider) {
     throw new Error(`No payment provider found for ${provider}`);
   }
-  paymentMethodProvider = paymentMethodProvider.types[methodType]; // eslint-disable-line import/namespace
+
+  paymentMethodProvider = paymentMethodProvider.types[methodType];
   if (!paymentMethodProvider) {
     throw new Error(`No payment provider found for ${provider}:${methodType}`);
   }
@@ -292,7 +293,7 @@ export const createSubscription = async order => {
  * @param {Object} order { tier, description, totalAmount, currency, interval (null|month|year), paymentMethod }
  * @param {Object} options { hostFeePercent, platformFeePercent} (only for add funds and if remoteUser is admin of host or root)
  */
-export const executeOrder = async (user, order, options) => {
+export const executeOrder = async (user, order, options = {}) => {
   if (!(user instanceof models.User)) {
     return Promise.reject(new Error('user should be an instance of the User model'));
   }

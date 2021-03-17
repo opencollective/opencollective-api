@@ -1,3 +1,4 @@
+import express from 'express';
 import { GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
 
 import { ValidationFailed } from '../../errors';
@@ -18,7 +19,7 @@ export const addFundsMutation = {
     platformFeePercent: { type: GraphQLInt, description: 'Can only be set if root' },
     platformTip: { type: AmountInput },
   },
-  resolve: async (_, args, req): Promise<Record<string, unknown>> => {
+  resolve: async (_, args, req: express.Request): Promise<Record<string, unknown>> => {
     const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
     const fromAccount = await fetchAccountWithReference(args.fromAccount, { throwIfMissing: true });
 

@@ -8,6 +8,7 @@ import { clamp } from 'lodash';
 import sanitizeHtml from 'sanitize-html';
 
 import slackLib, { OPEN_COLLECTIVE_SLACK_CHANNEL } from '../lib/slack';
+import models from '../models';
 
 /** Return type when running a spam analysis */
 export type SpamAnalysisReport = {
@@ -16,7 +17,7 @@ export type SpamAnalysisReport = {
   /** What's the context of the report */
   context: string;
   /** Data of the entity that was analyzed */
-  data: object;
+  data: Record<string, unknown>;
   /** A score between 0 and 1. 0=NotSpam, 1=IsSpamForSure */
   score: number;
   /** Detected spam keywords */
@@ -29,7 +30,7 @@ export type SpamAnalysisReport = {
 
 export type BayesClassifier = {
   /** Categorize a content string */
-  categorize: Function;
+  categorize(content: string): string;
 };
 
 // Watched content
@@ -77,18 +78,24 @@ const SPAM_KEYWORDS: { [keyword: string]: number } = {
   writer: 0.2,
 };
 
-// Any domain from there gives you a SPAM scrore of 1
+// Any domain from there gives you a SPAM score of 1
 export const SPAMMERS_DOMAINS = [
+  '1.bp.blogspot.com',
+  '513-ohio-ads.com',
   'abellarora.com',
   'addwish.com',
   'adsyellowpages.com',
+  'adulted.instructure.com',
+  'advertise.lachanalebrand.com',
   'advisoroffer.com',
   'afterhourshealth.com',
   'agencymumbai.com',
   'airtravelmart.com',
   'alertpills.com',
+  'alexanderstamps.com',
   'allnutritionhub.com',
   'allsupplementshop.com',
+  'alpha.trinidriver.com',
   'amazonhealthmart.com',
   'amirarticles.com',
   'anime-planet.com',
@@ -110,14 +117,18 @@ export const SPAMMERS_DOMAINS = [
   'bookishelf.com',
   'buddysupplement.com',
   'bumpsweat.com',
+  'butywolka.eu',
+  'butywolka.pl',
   'buypurelifeketo.com',
   'buzrush.com',
   'callgirlsindelhi.co.in',
   'callupcontact.com',
+  'camobear.ca',
   'canvas.elsevier.com',
   'canvas.msstate.edu',
   'canvas.pbsteacherline.org',
   'canvas.redejuntos.org.br',
+  'caramellaapp.com',
   'cartelhealth.com',
   'cashforhomespittsburgh.com',
   'cerld.com',
@@ -139,6 +150,7 @@ export const SPAMMERS_DOMAINS = [
   'dakshi.in',
   'darknetweed.com',
   'dasilex.co.uk',
+  'deadlinenews.co.uk',
   'demandsupplement.com',
   'deutschlandsupplements.de',
   'dietarypillsstore.com',
@@ -153,7 +165,10 @@ export const SPAMMERS_DOMAINS = [
   'ecuadortransparente.org',
   'edu-24.info',
   'elitecaretreatment.com',
+  'examine24x7.com',
   'expatriates.com',
+  'faculdadearidesa.instructure.com',
+  'falseceilingexperts.in',
   'faqssupplement.com',
   'farm1.staticflickr.com',
   'feedsfloor.com',
@@ -166,7 +181,9 @@ export const SPAMMERS_DOMAINS = [
   'fitnessprocentre.com',
   'fitpedia.org',
   'fordtremor.com',
+  'forexinthai.com',
   'forum.fusioncharts.com',
+  'gab.com',
   'getyouroffers.xyz',
   'givebutter.com',
   'gocrowdera.com',
@@ -192,21 +209,27 @@ export const SPAMMERS_DOMAINS = [
   'hearthis.at',
   'herbalsupplementreview.com',
   'herbalweightlossreview.com',
+  'hogheavenbar-b-que.com',
   'hulkdiet.com',
   'hulkpills.com',
   'hulksupplement.com',
   'hyalurolift.fr',
   'hybridwatchshop.wixsite.com',
   'hype.news',
+  'icefabrics.com',
   'identifyscam.com',
+  'iexponet.com',
+  'image.makewebeasy.net',
   'industrialcleaningpros.com',
   'innovationdiet.com',
+  'inova.instructure.com',
   'insta-keto.org',
   'ipsnews.net',
   'isajain.com',
   'itsmyurls.com',
   'janvhikapoor.com',
   'justgiving.com',
+  'kandiez.co.ke',
   'keto-bodytone.com',
   'keto-top.org',
   'keto-ultra-diet.com',
@@ -234,11 +257,15 @@ export const SPAMMERS_DOMAINS = [
   'knowyourmeme.com',
   'ko-fi.com',
   'ktc.instructure.com',
+  'kursovezavseki.com',
   'lakubet.co',
+  'learningatpanania.com.au',
+  'logisticmart.com',
   'lunaireketobhb.blogspot.com',
   'mafiatek.my.id',
   'maleenhancementtips.com',
   'mariamd.com',
+  'market.acesinvensys.com',
   'marketwatch.com',
   'medixocentre.com',
   'medlineplus.gov',
@@ -251,9 +278,11 @@ export const SPAMMERS_DOMAINS = [
   'myfitnesspharm.com',
   'myshorturl.net',
   'myunbiasedreview.wordpress.com',
+  'nananke.com',
   'naturalketopill.com',
   'netchorus.com',
   'netgearextendersetupp.com',
+  'netrockdeals.com',
   'norton.com',
   'note.com',
   'nutraplatform.com',
@@ -265,10 +294,12 @@ export const SPAMMERS_DOMAINS = [
   'onlineairlinesbooking.com',
   'onlinereservationbooking.com',
   'onnitsupplements.com',
+  'oppsofts.com',
   'orderfitness.org',
   'organicsupplementdietprogram.com',
   'ourunbiasedreview.blogspot.com',
   'paper.li',
+  'paste.softver.org.mk',
   'patch.com',
   'penzu.com',
   'petsaw.com',
@@ -281,12 +312,14 @@ export const SPAMMERS_DOMAINS = [
   'plarium.com',
   'pornlike.net',
   'praltrix.info',
+  'prlog.org',
   'products99.com',
   'pubhtml5.com',
   'publons.com',
   'purefiter.com',
   'purefitketopills.com',
   'purnimasingh.com',
+  'redrealestate.com.pk',
   'rembachduong.vn',
   'reviewmypills.com',
   'reviewography.com',
@@ -297,6 +330,7 @@ export const SPAMMERS_DOMAINS = [
   'saatchiart.com',
   'saturdaysale.com',
   'sco.lt',
+  'shanorady.medium.com',
   'sharktankdiets.com',
   'shwetabasu.com',
   'shwetachopra.com',
@@ -307,6 +341,7 @@ export const SPAMMERS_DOMAINS = [
   'slimketopills.com',
   'smore.com',
   'snomoto.com',
+  'softage.net',
   'soo.gd',
   'spa-india.azurewebsites.net',
   'spreaker.com',
@@ -327,6 +362,7 @@ export const SPAMMERS_DOMAINS = [
   'supplementrise.com',
   'supplementscare.co.za',
   'supplementslove.com',
+  'supplementsnewzealand.co.nz',
   'supplementspeak.com',
   'surveensaniya.com',
   'sverigetillskott.se',
@@ -335,6 +371,8 @@ export const SPAMMERS_DOMAINS = [
   'takeapills.com',
   'tans.ca',
   'tanyagupta.in',
+  'tapas.io',
+  'techrum.vn',
   'teletype.in',
   'termpapersite.com',
   'thebackplane.com',
@@ -342,6 +380,7 @@ export const SPAMMERS_DOMAINS = [
   'thefitnesssupplementshop.blogspot.com',
   'thehealthwind.com',
   'thenutritionvibe.com',
+  'theredfork.org',
   'thietkevanan.com',
   'time2trends.com',
   'timeofhealth.info',
@@ -359,6 +398,7 @@ export const SPAMMERS_DOMAINS = [
   'trippleresult.com',
   'tryittoday.xyz',
   'trypurenutrition.com',
+  'uagcasestore.com.au',
   'uchearts.com',
   'udaipurqueen.com',
   'unews.tv',
@@ -379,8 +419,10 @@ export const SPAMMERS_DOMAINS = [
   'worthydiets.com',
   'wow-keto.com',
   'xn--testoultrasterreich-z6b.at',
+  'yarabook.com',
   'yed.yworks.com',
   'zarakan.com',
+  'zephyr.com.pl',
   'zobuz.com',
 ];
 
@@ -412,6 +454,7 @@ export const NON_SPAMMERS_DOMAINS = [
   'k12.instructure.com',
   'linkedin.com',
   'linktr.ee',
+  'm.facebook.com',
   'marketwatch.com',
   'medium.com',
   'mndepted.instructure.com',
@@ -430,6 +473,7 @@ export const NON_SPAMMERS_DOMAINS = [
   'sites.google.com',
   'soundcloud.com',
   'surveymonkey.com',
+  't.me',
   'teespring.com',
   'twitter.com',
   'utah.instructure.com',
@@ -505,7 +549,10 @@ const stringifyUrl = url => {
     .join(' ');
 };
 
-export const collectiveBayesContent = async (collective: any, extraString = ''): Promise<string> => {
+export const collectiveBayesContent = async (
+  collective: typeof models.Collective,
+  extraString = '',
+): Promise<string> => {
   const slugString = (collective.slug || '').split('-').join(' ');
   const websiteString = stringifyUrl(collective.website || '');
 
@@ -520,7 +567,7 @@ export const collectiveBayesContent = async (collective: any, extraString = ''):
   return `${slugString} ${collective.name} ${collective.description} ${longDescriptionString} ${urlsString} ${websiteString} ${extraString}`;
 };
 
-export const collectiveBayesCheck = async (collective: any, extraString = ''): Promise<string> => {
+export const collectiveBayesCheck = async (collective: typeof models.Collective, extraString = ''): Promise<string> => {
   const content = await collectiveBayesContent(collective, extraString);
 
   const classifier = await getBayesClassifier();
@@ -531,7 +578,10 @@ export const collectiveBayesCheck = async (collective: any, extraString = ''): P
 /**
  * Checks the values for this collective to try to determinate if it's a spammy profile.
  */
-export const collectiveSpamCheck = async (collective: any, context: string): Promise<SpamAnalysisReport> => {
+export const collectiveSpamCheck = async (
+  collective: typeof models.Collective,
+  context: string,
+): Promise<SpamAnalysisReport> => {
   const result = { score: 0, keywords: new Set<string>(), domains: new Set<string>() };
 
   let bayesCheck = null;

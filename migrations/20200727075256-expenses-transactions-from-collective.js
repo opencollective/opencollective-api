@@ -6,16 +6,16 @@
  * CREDIT transactions.
  */
 module.exports = {
-  up: async (queryInterface, Sequelize) => {
+  up: async queryInterface => {
     // Update DEBIT transactions
-    const [_debitTransactions, debitResult] = await queryInterface.sequelize.query(`
+    const [, debitResult] = await queryInterface.sequelize.query(`
       UPDATE ONLY "Transactions" t
       SET "FromCollectiveId" = e."FromCollectiveId"
       FROM "Expenses" e
       WHERE t."ExpenseId" IS NOT NULL
       AND t."ExpenseId" = e.id
       AND t."type" = 'DEBIT'
-      AND t."FromCollectiveId" != e."FromCollectiveId" 
+      AND t."FromCollectiveId" != e."FromCollectiveId"
       -- Only look at problems related to the new expense flow
       AND DATE_PART('year', t."createdAt") >= 2020
     `);
@@ -23,14 +23,14 @@ module.exports = {
     console.info(`Updated ${debitResult.rowCount} DEBIT transactions`);
 
     // Update CREDIT transactions
-    const [_creditTransactions, creditResult] = await queryInterface.sequelize.query(`
+    const [, creditResult] = await queryInterface.sequelize.query(`
       UPDATE ONLY "Transactions" t
       SET "CollectiveId" = e."FromCollectiveId"
       FROM "Expenses" e
       WHERE t."ExpenseId" IS NOT NULL
       AND t."ExpenseId" = e.id
       AND t."type" = 'CREDIT'
-      AND t."CollectiveId" != e."FromCollectiveId" 
+      AND t."CollectiveId" != e."FromCollectiveId"
       -- Only look at problems related to the new expense flow
       AND DATE_PART('year', t."createdAt") >= 2020
     `);

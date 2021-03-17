@@ -30,11 +30,13 @@ const SQL = `
 `;
 
 module.exports = {
-  up: async (queryInterface, Sequelize) => {
+  up: async queryInterface => {
     if (process.env.OC_ENV === undefined || process.env.OC_ENV === 'development') {
       return queryInterface.sequelize.query(SQL);
     }
   },
 
-  down: async () => {},
+  down: async () => {
+    // No rollback
+  },
 };

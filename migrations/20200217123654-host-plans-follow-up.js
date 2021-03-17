@@ -1,7 +1,7 @@
 'use strict';
 
 module.exports = {
-  up: async (queryInterface, Sequelize) => {
+  up: async queryInterface => {
     // Lift Added Funds limit whatever the amount of usage before 2020-01-17
 
     await queryInterface.sequelize.query(`
@@ -78,5 +78,7 @@ module.exports = {
     `);
   },
 
-  down: async queryInterface => {},
+  down: async () => {
+    // No rollback
+  },
 };

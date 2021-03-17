@@ -7,9 +7,10 @@ import { UpdateAudienceType } from '../enum';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { Account } from '../interface/Account';
 
-const canSeeUpdateDetails = (req, update) => {
+const canSeeUpdateDetails = async (req, update) => {
   if (!update.publishedAt || update.isPrivate) {
-    return Boolean(req.remoteUser && req.remoteUser.canSeePrivateUpdates(update.CollectiveId));
+    update.collective = update.collective || (await req.loaders.Collective.byId.load(update.CollectiveId));
+    return Boolean(req.remoteUser?.canSeePrivateUpdatesForCollective(update.collective));
   } else {
     return true;
   }
@@ -38,6 +39,18 @@ const Update = new GraphQLObjectType({
           return canSeeUpdateDetails(req, update);
         },
       },
+      userCanPublishUpdate: {
+        description: 'Indicates whether or not the user is allowed to publish this update',
+        type: new GraphQLNonNull(GraphQLBoolean),
+        async resolve(update, _, req) {
+          if (!req.remoteUser || update.publishedAt) {
+            return false;
+          } else {
+            update.collective = update.collective || (await req.loaders.Collective.byId.load(update.CollectiveId));
+            return Boolean(req.remoteUser.isAdminOfCollective(update.collective));
+          }
+        },
+      },
       isPrivate: { type: new GraphQLNonNull(GraphQLBoolean) },
       title: { type: new GraphQLNonNull(GraphQLString) },
       createdAt: { type: new GraphQLNonNull(GraphQLDateTime) },
@@ -47,8 +60,8 @@ const Update = new GraphQLObjectType({
       makePublicOn: { type: GraphQLDateTime },
       summary: {
         type: GraphQLString,
-        resolve(update, _, req) {
-          if (!canSeeUpdateDetails(req, update)) {
+        async resolve(update, _, req) {
+          if (!(await canSeeUpdateDetails(req, update))) {
             return null;
           } else {
             return update.summary || '';
@@ -57,8 +70,8 @@ const Update = new GraphQLObjectType({
       },
       html: {
         type: GraphQLString,
-        resolve(update, _, req) {
-          if (!canSeeUpdateDetails(req, update)) {
+        async resolve(update, _, req) {
+          if (!(await canSeeUpdateDetails(req, update))) {
             return null;
           } else {
             return update.html;
@@ -86,7 +99,7 @@ const Update = new GraphQLObjectType({
           offset: { type: GraphQLInt },
         },
         async resolve(update, args, req) {
-          if (!canSeeUpdateDetails(req, update)) {
+          if (!(await canSeeUpdateDetails(req, update))) {
             return null;
           }
 

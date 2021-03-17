@@ -2,7 +2,7 @@
   "extends": ["plugin:@typescript-eslint/recommended", "plugin:import/typescript", "opencollective"],
   "parser": "@typescript-eslint/parser",
   "env": { "mocha": true },
-  "plugins": ["graphql", "mocha", "simple-import-sort"],
+  "plugins": ["@typescript-eslint", "graphql", "mocha", "simple-import-sort"],
   "rules": {
     // console logs are OK in Node
     "no-console": "off",
@@ -57,9 +57,11 @@
     ],
     "graphql/named-operations": ["error"],
     "graphql/capitalized-type-name": ["error"],
-    "graphql/no-deprecated-fields": ["warn"],
+    // This rule is useful in frontend(s), but it's totally fine to keep tests for deprecated fields in API
+    "graphql/no-deprecated-fields": "off",
     // Already being validated by @typescript-eslint/no-unused-vars
-    "no-unused-vars": "off"
+    "no-unused-vars": "off",
+    "@typescript-eslint/no-unused-vars": ["error"]
   },
   // Disable typescript checks in JS
   "overrides": [

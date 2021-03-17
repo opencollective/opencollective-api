@@ -2,7 +2,6 @@ import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
 import { get, intersection } from 'lodash';
-import { Op } from 'sequelize';
 
 import { maxInteger } from '../constants/math';
 import { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPES } from '../constants/paymentMethods';
@@ -10,6 +9,7 @@ import { TransactionTypes } from '../constants/transactions';
 import { getFxRate } from '../lib/currency';
 import { sumTransactions } from '../lib/hostlib';
 import * as libpayments from '../lib/payments';
+import sequelize, { DataTypes, Op } from '../lib/sequelize';
 import { isTestToken } from '../lib/stripe';
 import { cleanTags, formatArrayToString, formatCurrency } from '../lib/utils';
 
@@ -17,10 +17,10 @@ import CustomDataTypes from './DataTypes';
 
 const debug = debugLib('models:PaymentMethod');
 
-export default function (Sequelize, DataTypes) {
-  const { models } = Sequelize;
+const { models } = sequelize;
 
-  const PaymentMethod = Sequelize.define(
+function defineModel() {
+  const PaymentMethod = sequelize.define(
     'PaymentMethod',
     {
       id: {
@@ -101,12 +101,12 @@ export default function (Sequelize, DataTypes) {
 
       createdAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
 
       updatedAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
 
       confirmedAt: {
@@ -497,3 +497,9 @@ export default function (Sequelize, DataTypes) {
 
   return PaymentMethod;
 }
+
+// We're using the defineModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const PaymentMethod = defineModel();
+
+export default PaymentMethod;

@@ -18,19 +18,17 @@ import {
   sum,
   sumBy,
   trim,
-  uniqBy,
   unset,
 } from 'lodash';
 import moment from 'moment';
 import fetch from 'node-fetch';
 import prependHttp from 'prepend-http';
-import { Op } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 import { v4 as uuid } from 'uuid';
 import { isISO31661Alpha2 } from 'validator';
 
 import activities from '../constants/activities';
-import { types } from '../constants/collectives';
+import { CollectiveTypesList, types } from '../constants/collectives';
 import expenseStatus from '../constants/expense_status';
 import expenseTypes from '../constants/expense_type';
 import FEATURE from '../constants/feature';
@@ -40,10 +38,11 @@ import roles, { MemberRoleLabels } from '../constants/roles';
 import { FEES_ON_TOP_TRANSACTION_PROPERTIES, TransactionTypes } from '../constants/transactions';
 import { hasOptedOutOfFeature, isFeatureAllowedForCollectiveType } from '../lib/allowed-features';
 import {
-  getBalance,
-  getBalanceWithBlockedFunds,
-  getTotalAmountReceived,
-  getTotalNetAmountReceived,
+  getBalanceAmount,
+  getBalanceWithBlockedFundsAmount,
+  getTotalAmountReceivedAmount,
+  getTotalMoneyManagedAmount,
+  getTotalNetAmountReceivedAmount,
   getYearlyIncome,
 } from '../lib/budget';
 import cache, { purgeCacheForCollective } from '../lib/cache';
@@ -61,10 +60,11 @@ import logger from '../lib/logger';
 import { handleHostCollectivesLimit } from '../lib/plans';
 import queries from '../lib/queries';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
+import sequelize, { DataTypes, Op, Sequelize } from '../lib/sequelize';
 import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective } from '../lib/spam';
 import { canUseFeature } from '../lib/user-permissions';
 import userlib from '../lib/userlib';
-import { capitalize, cleanTags, flattenArray, formatCurrency, getDomain, md5, sumByWhen } from '../lib/utils';
+import { capitalize, cleanTags, formatCurrency, getDomain, md5, sumByWhen } from '../lib/utils';
 
 import CustomDataTypes from './DataTypes';
 import { PayoutMethodTypes } from './PayoutMethod';
@@ -98,8 +98,6 @@ const defaultTiers = currency => {
   ];
 };
 
-const validTypes = ['USER', 'COLLECTIVE', 'ORGANIZATION', 'EVENT', 'PROJECT', 'FUND', 'BOT'];
-
 const policiesSanitizeOptions = buildSanitizerOptions({
   basicTextFormatting: true,
   multilineTextFormatting: true,
@@ -115,18 +113,10 @@ const longDescriptionSanitizerOptions = buildSanitizerOptions({
   videoIframes: true,
 });
 
-/**
- * Collective Model.
- *
- * There 3 types of collective at the moment
- * - Collective
- * - User: Collective with only one ADMIN
- * - Event: Time based collective with a parent collective
- */
-export default function (Sequelize, DataTypes) {
-  const { models } = Sequelize;
+function defineModel() {
+  const { models } = sequelize;
 
-  const Collective = Sequelize.define(
+  const Collective = sequelize.define(
     'Collective',
     {
       id: {
@@ -140,8 +130,8 @@ export default function (Sequelize, DataTypes) {
         defaultValue: 'COLLECTIVE',
         validate: {
           isIn: {
-            args: [validTypes],
-            msg: `Must be one of: ${validTypes}`,
+            args: [CollectiveTypesList],
+            msg: `Must be one of: ${CollectiveTypesList}`,
           },
         },
       },
@@ -367,24 +357,22 @@ export default function (Sequelize, DataTypes) {
 
       startsAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
       },
 
       endsAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
       },
 
       timezone: DataTypes.STRING,
 
       createdAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
 
       updatedAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
 
       isActive: {
@@ -542,6 +530,7 @@ export default function (Sequelize, DataTypes) {
             longDescription: this.longDescription,
             currency: this.currency,
             image: this.image,
+            previewImage: this.previewImage,
             data: this.data,
             backgroundImage: this.backgroundImage,
             maxQuantity: this.maxQuantity,
@@ -855,21 +844,21 @@ export default function (Sequelize, DataTypes) {
   };
 
   // If no image has been provided, try to find an image using clearbit and save it
-  Collective.prototype.findImage = function () {
+  Collective.prototype.findImage = function (force = false) {
     if (this.getDataValue('image')) {
       return;
     }
 
     if (this.type === 'ORGANIZATION' && this.website && !this.website.match(/^https:\/\/twitter\.com\//)) {
       const image = `https://logo.clearbit.com/${getDomain(this.website)}`;
-      return this.checkAndUpdateImage(image);
+      return this.checkAndUpdateImage(image, force);
     }
 
     return Promise.resolve();
   };
 
   // If no image has been provided, try to find an image using gravatar and save it
-  Collective.prototype.findImageForUser = function (user) {
+  Collective.prototype.findImageForUser = function (user, force = false) {
     if (this.getDataValue('image')) {
       return;
     }
@@ -878,7 +867,7 @@ export default function (Sequelize, DataTypes) {
       if (user && user.email && this.name && this.name !== 'incognito') {
         const emailHash = md5(user.email.toLowerCase().trim());
         const avatar = `https://www.gravatar.com/avatar/${emailHash}?default=404`;
-        return this.checkAndUpdateImage(avatar);
+        return this.checkAndUpdateImage(avatar, force);
       }
     }
 
@@ -886,19 +875,21 @@ export default function (Sequelize, DataTypes) {
   };
 
   // Save image it if it returns 200
-  Collective.prototype.checkAndUpdateImage = async function (image) {
-    try {
-      const response = await fetch(image);
-      if (response.status !== 200) {
-        throw new Error(`status=${response.status}`);
+  Collective.prototype.checkAndUpdateImage = async function (image, force = false) {
+    if (force || !['e2e', 'ci', 'test'].includes(process.env.OC_ENV)) {
+      try {
+        const response = await fetch(image);
+        if (response.status !== 200) {
+          throw new Error(`status=${response.status}`);
+        }
+        const body = await response.text();
+        if (body.length === 0) {
+          throw new Error(`length=0`);
+        }
+        return this.update({ image });
+      } catch (err) {
+        logger.info(`collective.checkAndUpdateImage: Unable to fetch ${image} (${err.message})`);
       }
-      const body = await response.text();
-      if (body.length === 0) {
-        throw new Error(`length=0`);
-      }
-      return this.update({ image });
-    } catch (err) {
-      logger.info(`collective.checkAndUpdateImage: Unable to fetch ${image} (${err.message})`);
     }
   };
 
@@ -1137,51 +1128,26 @@ export default function (Sequelize, DataTypes) {
     }
   };
 
-  /**
-   * Returns all the users of a collective (admins, members, backers, followers, attendees, ...)
-   * including all the admins of the organizations that are members/backers of this collective
-   */
-  Collective.prototype.getUsers = function () {
-    debug('getUsers for ', this.id);
-    return models.Member.findAll({
-      where: { CollectiveId: this.id },
-      include: [{ model: models.Collective, as: 'memberCollective', required: true }],
-    })
-      .tap(memberships => debug('>>> members found', memberships.length))
-      .map(membership => membership.memberCollective)
-      .map(memberCollective => {
-        debug('>>> fetching user for', memberCollective.slug, memberCollective.type);
-        if (memberCollective.type === types.USER) {
-          return memberCollective.getUser().then(user => [user]);
-        } else {
-          debug('User', memberCollective.slug, 'type: ', memberCollective.type);
-          return memberCollective.getAdminUsers();
-        }
-      })
-      .then(users => {
-        const usersFlattened = flattenArray(users);
-        return uniqBy(usersFlattened, 'id');
-      });
-  };
-
-  Collective.prototype.getAdmins = function () {
-    return models.Member.findAll({
+  Collective.prototype.getAdmins = async function () {
+    const members = await models.Member.findAll({
       where: {
         CollectiveId: this.id,
         role: roles.ADMIN,
       },
       include: [{ model: models.Collective, as: 'memberCollective' }],
-    }).map(member => member.memberCollective);
+    });
+    return members.map(member => member.memberCollective);
   };
 
-  Collective.prototype.getMemberships = function ({ role } = {}) {
-    return models.Member.findAll({
+  Collective.prototype.getMemberships = async function ({ role } = {}) {
+    const members = await models.Member.findAll({
       where: {
         MemberCollectiveId: this.id,
         role: role,
       },
       include: [{ model: models.Collective, as: 'collective' }],
-    }).map(member => member.collective);
+    });
+    return members.map(member => member.collective);
   };
 
   /**
@@ -1303,7 +1269,7 @@ export default function (Sequelize, DataTypes) {
    * @param {*} endDate end of the time period
    */
   Collective.prototype.getCancelledOrders = async function (startDate = 0, endDate = new Date()) {
-    const orders = await models.Order.findAll({
+    let orders = await models.Order.findAll({
       where: {
         CollectiveId: this.id,
       },
@@ -1323,7 +1289,9 @@ export default function (Sequelize, DataTypes) {
           model: models.Tier,
         },
       ],
-    }).map(async order => {
+    });
+
+    orders = Promise.map(orders, async order => {
       order.totalTransactions = await order.getTotalTransactions();
       return order;
     });
@@ -1463,59 +1431,60 @@ export default function (Sequelize, DataTypes) {
    *  { name: 'backer', users: [ {UserObject}, {UserObject} ], range: [], ... }
    * ]
    */
-  Collective.prototype.getTiersWithUsers = function (
+  Collective.prototype.getTiersWithUsers = async function (
     options = {
       active: false,
       attributes: ['id', 'username', 'image', 'firstDonation', 'lastDonation', 'totalDonations', 'website'],
     },
   ) {
     const tiersById = {};
+
     // Get the list of tiers for the collective (including deleted ones)
-    return (
-      models.Tier.findAll({ where: { CollectiveId: this.id }, paranoid: false })
-        .then(tiers =>
-          tiers.map(t => {
-            tiersById[t.id] = t;
-          }),
-        )
-        .then(() => queries.getMembersWithTotalDonations({ CollectiveId: this.id, role: 'BACKER' }, options))
-        // Map the users to their respective tier
-        .map(backerCollective => {
-          const include = options.active ? [{ model: models.Subscription, attributes: ['isActive'] }] : [];
-          return models.Order.findOne({
-            attributes: ['TierId'],
-            where: {
-              FromCollectiveId: backerCollective.id,
-              CollectiveId: this.id,
-              TierId: { [Op.ne]: null },
-            },
-            include,
-          }).then(order => {
-            if (!order) {
-              debug('Collective.getTiersWithUsers: no order for a tier for ', {
-                FromCollectiveId: backerCollective.id,
-                CollectiveId: this.id,
-              });
-              return null;
-            }
-            const TierId = order.TierId;
-            tiersById[TierId] = tiersById[TierId] || order.Tier;
-            if (!tiersById[TierId]) {
-              logger.error(">>> Couldn't find a tier with id", order.TierId, 'collective: ', this.slug);
-              tiersById[TierId] = { dataValues: { users: [] } };
-            }
-            tiersById[TierId].dataValues.users = tiersById[TierId].dataValues.users || [];
-            if (options.active) {
-              backerCollective.isActive = order.Subscription.isActive;
-            }
-            debug('adding to tier', TierId, 'backer: ', backerCollective.dataValues.slug);
-            tiersById[TierId].dataValues.users.push(backerCollective.dataValues);
-          });
-        })
-        .then(() => {
-          return Object.values(tiersById);
-        })
+    const tiers = await models.Tier.findAll({ where: { CollectiveId: this.id }, paranoid: false });
+    for (const tier of tiers) {
+      tiersById[tier.id] = tier;
+    }
+
+    const backerCollectives = await queries.getMembersWithTotalDonations(
+      { CollectiveId: this.id, role: 'BACKER' },
+      options,
     );
+
+    // Map the users to their respective tier
+    await Promise.map(backerCollectives, backerCollective => {
+      const include = options.active ? [{ model: models.Subscription, attributes: ['isActive'] }] : [];
+      return models.Order.findOne({
+        attributes: ['TierId'],
+        where: {
+          FromCollectiveId: backerCollective.id,
+          CollectiveId: this.id,
+          TierId: { [Op.ne]: null },
+        },
+        include,
+      }).then(order => {
+        if (!order) {
+          debug('Collective.getTiersWithUsers: no order for a tier for ', {
+            FromCollectiveId: backerCollective.id,
+            CollectiveId: this.id,
+          });
+          return null;
+        }
+        const TierId = order.TierId;
+        tiersById[TierId] = tiersById[TierId] || order.Tier;
+        if (!tiersById[TierId]) {
+          logger.error(">>> Couldn't find a tier with id", order.TierId, 'collective: ', this.slug);
+          tiersById[TierId] = { dataValues: { users: [] } };
+        }
+        tiersById[TierId].dataValues.users = tiersById[TierId].dataValues.users || [];
+        if (options.active) {
+          backerCollective.isActive = order.Subscription.isActive;
+        }
+        debug('adding to tier', TierId, 'backer: ', backerCollective.dataValues.slug);
+        tiersById[TierId].dataValues.users.push(backerCollective.dataValues);
+      });
+    });
+
+    return Object.values(tiersById);
   };
 
   /**
@@ -1735,23 +1704,6 @@ export default function (Sequelize, DataTypes) {
     });
 
     return models.User.findAll({ where: { CollectiveId: { [Op.in]: adminMembersIds } } });
-  };
-
-  /**
-   * Returns the sum of the balance of hosted collectives.
-   * @param {Date} [until] Optional: balance on given date-time.
-   */
-  Collective.prototype.getTotalMoneyManaged = async function (until) {
-    const hostedCollectives = await this.getHostedCollectives();
-    const ids = hostedCollectives.map(c => c.id);
-    if (this.isActive) {
-      ids.push(this.id);
-    }
-    if (ids.length === 0) {
-      return 0;
-    }
-    const balances = await queries.getBalancesInHostCurrency(ids, this.id, until.toISOString());
-    return sumBy(balances, 'balance');
   };
 
   Collective.prototype.updateHostFee = async function (hostFeePercent, remoteUser) {
@@ -2445,33 +2397,57 @@ export default function (Sequelize, DataTypes) {
     } else {
       query.order = [['createdAt', 'DESC']];
     }
-    return models.PaymentMethod.findOne(query).tap(paymentMethod => {
-      if (!paymentMethod) {
-        throw new Error('No payment method found');
-      } else if (paymentMethod.endDate && paymentMethod.endDate < new Date()) {
-        throw new Error('Payment method expired');
-      }
-    });
+    const paymentMethod = await models.PaymentMethod.findOne(query);
+    if (!paymentMethod) {
+      throw new Error('No payment method found');
+    } else if (paymentMethod.endDate && paymentMethod.endDate < new Date()) {
+      throw new Error('Payment method expired');
+    }
+    return paymentMethod;
+  };
+
+  Collective.prototype.getBalanceWithBlockedFundsAmount = function (options) {
+    return getBalanceWithBlockedFundsAmount(this, options);
   };
 
   Collective.prototype.getBalanceWithBlockedFunds = function (options) {
-    return getBalanceWithBlockedFunds(this, options);
+    return getBalanceWithBlockedFundsAmount(this, options).then(result => result.value);
+  };
+
+  Collective.prototype.getBalanceAmount = function (options) {
+    return getBalanceAmount(this, options);
   };
 
   Collective.prototype.getBalance = function (options) {
-    return getBalance(this, options);
+    return getBalanceAmount(this, options).then(result => result.value);
   };
 
   Collective.prototype.getYearlyIncome = function () {
     return getYearlyIncome(this);
   };
 
+  Collective.prototype.getTotalAmountReceivedAmount = function (options) {
+    return getTotalAmountReceivedAmount(this, options);
+  };
+
   Collective.prototype.getTotalAmountReceived = function (options) {
-    return getTotalAmountReceived(this, options);
+    return getTotalAmountReceivedAmount(this, options).then(result => result.value);
+  };
+
+  Collective.prototype.getTotalNetAmountReceivedAmount = function (options) {
+    return getTotalNetAmountReceivedAmount(this, options);
   };
 
   Collective.prototype.getTotalNetAmountReceived = function (options) {
-    return getTotalNetAmountReceived(this, options);
+    return getTotalNetAmountReceivedAmount(this, options).then(result => result.value);
+  };
+
+  Collective.prototype.getTotalMoneyManaged = function (options) {
+    return getTotalMoneyManagedAmount(this, options).then(result => result.value);
+  };
+
+  Collective.prototype.getTotalMoneyManagedAmount = function (options) {
+    return getTotalMoneyManagedAmount(this, options);
   };
 
   /**
@@ -2776,31 +2752,16 @@ export default function (Sequelize, DataTypes) {
       });
   };
 
-  Collective.prototype.setStripeAccount = function (stripeAccount) {
-    if (!stripeAccount) {
-      return Promise.resolve(null);
-    }
-
-    if (stripeAccount.id) {
-      return models.ConnectedAccount.update({ CollectiveId: this.id }, { where: { id: stripeAccount.id }, limit: 1 });
-    } else {
-      return models.ConnectedAccount.create({
-        service: 'stripe',
-        ...stripeAccount,
-        CollectiveId: this.id,
-      });
-    }
-  };
-
-  Collective.prototype.getTopBackers = function (since, until, limit) {
-    return queries
-      .getMembersWithTotalDonations({ CollectiveId: this.id, role: 'BACKER' }, { since, until, limit })
-      .tap(backers =>
-        debug(
-          'getTopBackers',
-          backers.map(b => b.dataValues),
-        ),
-      );
+  Collective.prototype.getTopBackers = async function (since, until, limit) {
+    const backers = await queries.getMembersWithTotalDonations(
+      { CollectiveId: this.id, role: 'BACKER' },
+      { since, until, limit },
+    );
+    debug(
+      'getTopBackers',
+      backers.map(b => b.dataValues),
+    );
+    return backers;
   };
 
   Collective.prototype.getImageUrl = function (args = {}) {
@@ -3095,7 +3056,7 @@ export default function (Sequelize, DataTypes) {
       sumByWhen(tipsTransactions, getTipAmountInHostCurrency, isPendingTransaction),
     );
 
-    const totalMoneyManaged = await this.getTotalMoneyManaged(to);
+    const totalMoneyManaged = await this.getTotalMoneyManaged({ endDate: to });
 
     const metrics = {
       hostFees,
@@ -3120,32 +3081,29 @@ export default function (Sequelize, DataTypes) {
   /**
    * Class Methods
    */
-  Collective.createOrganization = (collectiveData, adminUser, creator = {}) => {
+  Collective.createOrganization = async (collectiveData, adminUser, creator = {}) => {
     const CreatedByUserId = creator.id || adminUser.id;
-    return Collective.create({
+    const collective = await Collective.create({
       CreatedByUserId,
       ...collectiveData,
       type: types.ORGANIZATION,
       isActive: true,
-    })
-      .tap(collective => {
-        return models.Member.create({
-          CreatedByUserId,
-          CollectiveId: collective.id,
-          MemberCollectiveId: adminUser.CollectiveId,
-          role: roles.ADMIN,
-        });
-      })
-      .tap(collective => {
-        return models.Activity.create({
-          type: activities.ORGANIZATION_COLLECTIVE_CREATED,
-          UserId: adminUser.id,
-          CollectiveId: collective.id,
-          data: {
-            collective: pick(collective, ['name', 'slug']),
-          },
-        });
-      });
+    });
+    await models.Member.create({
+      CreatedByUserId,
+      CollectiveId: collective.id,
+      MemberCollectiveId: adminUser.CollectiveId,
+      role: roles.ADMIN,
+    });
+    await models.Activity.create({
+      type: activities.ORGANIZATION_COLLECTIVE_CREATED,
+      UserId: adminUser.id,
+      CollectiveId: collective.id,
+      data: {
+        collective: pick(collective, ['name', 'slug']),
+      },
+    });
+    return collective;
   };
 
   Collective.createMany = (collectives, defaultValues) => {
@@ -3154,13 +3112,13 @@ export default function (Sequelize, DataTypes) {
     );
   };
 
-  Collective.getTopBackers = (since, until, tags, limit) => {
-    return queries.getTopBackers(since || 0, until || new Date(), tags, limit || 5).tap(backers =>
-      debug(
-        'getTopBackers',
-        backers.map(b => b.dataValues),
-      ),
+  Collective.getTopBackers = async (since, until, tags, limit) => {
+    const backers = await queries.getTopBackers(since || 0, until || new Date(), tags, limit || 5);
+    debug(
+      'getTopBackers',
+      backers.map(b => b.dataValues),
     );
+    return backers;
   };
 
   Collective.prototype.doesUserHaveTotalExpensesOverThreshold = async function ({ threshold, year, UserId }) {
@@ -3323,7 +3281,13 @@ export default function (Sequelize, DataTypes) {
     Collective.belongsTo(m.Collective, { as: 'HostCollective' });
   };
 
-  Temporal(Collective, Sequelize);
+  Temporal(Collective, sequelize);
 
   return Collective;
 }
+
+// We're using the defineModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const Collective = defineModel();
+
+export default Collective;

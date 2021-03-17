@@ -5,12 +5,12 @@ module.exports = {
    * Set "Collectives" -> "data" -> "useCustomHostFee" to true when their hostFeePercent
    * is different from the one of the host.
    */
-  up: async (queryInterface, Sequelize) => {
+  up: async queryInterface => {
     await queryInterface.sequelize.query(`
       UPDATE ONLY "Collectives" c
       SET
         data = (
-          CASE WHEN c.data IS NULL 
+          CASE WHEN c.data IS NULL
           THEN '{"useCustomHostFee": true}'::jsonb
           ELSE c.data::jsonb || '{"useCustomHostFee": true}'::jsonb
         END)
@@ -24,7 +24,7 @@ module.exports = {
     `);
   },
 
-  down: async (queryInterface, Sequelize) => {
+  down: async () => {
     /**
      * No rollback
      */

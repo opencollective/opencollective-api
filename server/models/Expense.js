@@ -9,11 +9,11 @@ import { TransactionTypes } from '../constants/transactions';
 import { reduceArrayToCurrency } from '../lib/currency';
 import logger from '../lib/logger';
 import { buildSanitizerOptions, sanitizeHTML, stripHTML } from '../lib/sanitize-html';
+import sequelize, { DataTypes, Op, QueryTypes } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
 import CustomDataTypes from '../models/DataTypes';
 
 import { PayoutMethodTypes } from './PayoutMethod';
-import models, { Op } from './';
 
 // Options for sanitizing private messages
 const PRIVATE_MESSAGE_SANITIZE_OPTS = buildSanitizerOptions({
@@ -22,8 +22,10 @@ const PRIVATE_MESSAGE_SANITIZE_OPTS = buildSanitizerOptions({
   links: true,
 });
 
-export default function (Sequelize, DataTypes) {
-  const Expense = Sequelize.define(
+function defineModel() {
+  const { models } = sequelize;
+
+  const Expense = sequelize.define(
     'Expense',
     {
       id: {
@@ -190,13 +192,13 @@ export default function (Sequelize, DataTypes) {
 
       createdAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
         allowNull: false,
       },
 
       updatedAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
         allowNull: false,
       },
 
@@ -446,7 +448,7 @@ export default function (Sequelize, DataTypes) {
   };
 
   Expense.getMostPopularExpenseTagsForCollective = async function (collectiveId, limit = 100) {
-    return Sequelize.query(
+    return sequelize.query(
       `
       SELECT UNNEST(tags) AS id, UNNEST(tags) AS tag, COUNT(id)
       FROM "Expenses"
@@ -457,13 +459,19 @@ export default function (Sequelize, DataTypes) {
       LIMIT $limit
     `,
       {
-        type: Sequelize.QueryTypes.SELECT,
+        type: QueryTypes.SELECT,
         bind: { collectiveId, limit },
       },
     );
   };
 
-  Temporal(Expense, Sequelize);
+  Temporal(Expense, sequelize);
 
   return Expense;
 }
+
+// We're using the defineModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const Expense = defineModel();
+
+export default Expense;

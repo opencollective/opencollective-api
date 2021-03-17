@@ -893,10 +893,12 @@ const getTaxFormsRequiredForExpenses = expenseIds => {
     WHERE analyzed_expenses.id IN (:expenseIds)
     AND analyzed_expenses."FromCollectiveId" != d."HostCollectiveId"
     AND analyzed_expenses.type != 'RECEIPT'
+    AND analyzed_expenses.type != 'CHARGE'
     AND analyzed_expenses.status IN ('PENDING', 'APPROVED')
     AND analyzed_expenses."deletedAt" IS NULL
     AND (from_collective."HostCollectiveId" IS NULL OR from_collective."HostCollectiveId" != c."HostCollectiveId")
     AND all_expenses.type != 'RECEIPT'
+    AND all_expenses.type != 'CHARGE'
     AND all_expenses.status NOT IN ('ERROR', 'REJECTED', 'DRAFT', 'UNVERIFIED')
     AND all_expenses."deletedAt" IS NULL
     AND date_trunc('year', all_expenses."incurredAt") = date_trunc('year', analyzed_expenses."incurredAt")
@@ -934,6 +936,7 @@ const getTaxFormsRequiredForAccounts = async (accountIds = [], year) => {
       AND ld.year + :validityInYears >= :year
       AND ld."documentType" = 'US_TAX_FORM'
     WHERE all_expenses.type != 'RECEIPT'
+    AND all_expenses.type != 'CHARGE'
     ${accountIds?.length ? 'AND account.id IN (:accountIds)' : ''}
     AND account.id != d."HostCollectiveId"
     AND (account."HostCollectiveId" IS NULL OR account."HostCollectiveId" != d."HostCollectiveId")
@@ -962,62 +965,6 @@ const getTaxFormsRequiredForAccounts = async (accountIds = [], year) => {
   });
 };
 
-const getBalances = async (collectiveIds, until = new Date()) =>
-  sequelize.query(
-    `
-        WITH "blockedFunds" AS (
-          SELECT
-            e."CollectiveId", COALESCE(sum(e.amount), 0) as sum
-          FROM
-            "Expenses" e
-          WHERE
-            e."CollectiveId" IN (:ids)
-            AND e."deletedAt" IS NULL
-            AND e."createdAt" < :until
-            AND (
-              e.status = 'SCHEDULED_FOR_PAYMENT'
-              OR (
-                e.status = 'PROCESSING' AND e.data ->> 'payout_batch_id' IS NOT NULL
-              )
-          )
-          GROUP BY
-            e."CollectiveId"
-        )
-        SELECT
-          t."CollectiveId",
-          COALESCE(sum(t."netAmountInCollectiveCurrency") - COALESCE(max(bf.sum), 0), 0) AS "balance"
-        FROM
-          "Transactions" t
-        LEFT JOIN "blockedFunds" bf ON t."CollectiveId" = bf."CollectiveId"
-        WHERE
-          t."CollectiveId" IN (:ids)
-          AND t."deletedAt" IS NULL
-          AND t."createdAt" < :until
-        GROUP BY
-          t."CollectiveId";
-      `,
-    { type: sequelize.QueryTypes.SELECT, replacements: { ids: collectiveIds, until } },
-  );
-
-const getBalancesInHostCurrency = async (collectiveIds, hostCollectiveId, until = new Date()) =>
-  sequelize.query(
-    `
-      SELECT
-        t."CollectiveId",
-        COALESCE(SUM(ROUND(t."netAmountInCollectiveCurrency" * t."hostCurrencyFxRate")), 0) AS "balance"
-      FROM
-        "Transactions" t
-      WHERE
-        t."CollectiveId" IN (:ids)
-        AND t."HostCollectiveId" = :hostCollectiveId
-        AND t."deletedAt" IS NULL
-        AND t."createdAt" < :until
-      GROUP BY
-        t."CollectiveId";
-      `,
-    { type: sequelize.QueryTypes.SELECT, replacements: { ids: collectiveIds, hostCollectiveId, until } },
-  );
-
 const serializeCollectivesResult = JSON.stringify;
 
 const unserializeCollectivesResult = string => {
@@ -1041,8 +988,6 @@ const getCollectivesWithMinBackers = memoize(getCollectivesWithMinBackersQuery, 
 });
 
 const queries = {
-  getBalances,
-  getBalancesInHostCurrency,
   getCollectivesByTag,
   getCollectivesOrderedByMonthlySpending,
   getCollectivesOrderedByMonthlySpendingQuery,

@@ -38,7 +38,7 @@ const processCollectives = collectives => {
   return Promise.map(collectives, processCollective, { concurrency: 1 });
 };
 
-const init = () => {
+const init = async () => {
   const startTime = new Date();
 
   const query = {
@@ -70,16 +70,15 @@ const init = () => {
     query.where.slug = { [Op.in]: slugs };
   }
 
-  models.Collective.findAll(query)
-    .tap(collectives => {
-      console.log(`Preparing the ${month} report for ${collectives.length} collectives`);
-    })
-    .then(processCollectives)
-    .then(() => {
-      const timeLapsed = Math.round((new Date() - startTime) / 1000);
-      console.log(`Total run time: ${timeLapsed}s`);
-      process.exit(0);
-    });
+  const collectives = await models.Collective.findAll(query);
+
+  console.log(`Preparing the ${month} report for ${collectives.length} collectives`);
+
+  processCollectives(collectives).then(() => {
+    const timeLapsed = Math.round((new Date() - startTime) / 1000);
+    console.log(`Total run time: ${timeLapsed}s`);
+    process.exit(0);
+  });
 };
 
 const topBackersCache = {};

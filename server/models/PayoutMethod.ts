@@ -1,9 +1,12 @@
 import { get, pick } from 'lodash';
-import { Model, Transaction } from 'sequelize';
+import { DataTypes, Model, Transaction } from 'sequelize';
 import { isEmail } from 'validator';
 
 import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
+import sequelize from '../lib/sequelize';
 import { objHasOnlyKeys } from '../lib/utils';
+
+import models from '.';
 
 /**
  * Match the Postgres enum defined for `PayoutMethods` > `type`
@@ -13,6 +16,7 @@ export enum PayoutMethodTypes {
   PAYPAL = 'PAYPAL',
   BANK_ACCOUNT = 'BANK_ACCOUNT',
   ACCOUNT_BALANCE = 'ACCOUNT_BALANCE',
+  CREDIT_CARD = 'CREDIT_CARD',
 }
 
 /** An interface for the values stored in `data` field for PayPal payout methods */
@@ -26,12 +30,12 @@ export interface OtherPayoutMethodData {
 }
 
 /** Group all the possible types for payout method's data */
-export type PayoutMethodDataType = PaypalPayoutMethodData | OtherPayoutMethodData | object;
+export type PayoutMethodDataType = PaypalPayoutMethodData | OtherPayoutMethodData | Record<string, unknown>;
 
 /**
  * Sequelize model to represent an PayoutMethod, linked to the `PayoutMethods` table.
  */
-export class PayoutMethod extends Model<PayoutMethod> {
+export class PayoutMethod extends Model {
   public readonly id!: number;
   public type!: PayoutMethodTypes;
   public createdAt!: Date;
@@ -62,7 +66,7 @@ export class PayoutMethod extends Model<PayoutMethod> {
   }
 
   /** Returns the raw data for this field. Includes sensitive information that should not be leaked to the user */
-  get unfilteredData(): PayoutMethodDataType {
+  get unfilteredData(): Record<string, unknown> {
     return this.getDataValue('data');
   }
 
@@ -72,9 +76,9 @@ export class PayoutMethod extends Model<PayoutMethod> {
    * @param user: User creating this payout method
    */
   static async createFromData(
-    payoutMethodData: object,
-    user,
-    collective,
+    payoutMethodData: Record<string, unknown>,
+    user: typeof models.User,
+    collective: typeof models.Collective,
     dbTransaction: Transaction | null,
   ): Promise<PayoutMethod> {
     const cleanData = PayoutMethod.cleanData(payoutMethodData);
@@ -90,9 +94,9 @@ export class PayoutMethod extends Model<PayoutMethod> {
    * @param user: User creating this
    */
   static async getOrCreateFromData(
-    payoutMethodData,
-    user,
-    collective,
+    payoutMethodData: Record<string, unknown>,
+    user: typeof models.User,
+    collective: typeof models.Collective,
     dbTransaction: Transaction | null,
   ): Promise<PayoutMethod> {
     // We try to load the existing payment method if it exists for this collective
@@ -113,21 +117,11 @@ export class PayoutMethod extends Model<PayoutMethod> {
     return existingPm || this.createFromData(payoutMethodData, user, collective, dbTransaction);
   }
 
-  /**
-   * Updates a payout method from user-submitted data.
-   * @param payoutMethodData: The (potentially unsafe) user data. Fields will be whitelisted.
-   */
-  static async updateFromData(payoutMethodData: object, dbTransaction: Transaction | null): Promise<PayoutMethod> {
-    const id = payoutMethodData['id'];
-    const cleanData = PayoutMethod.cleanData(payoutMethodData);
-    return PayoutMethod.update(cleanData, { where: { id }, transaction: dbTransaction });
-  }
-
-  static getLabel(payoutMethod): string {
+  static getLabel(payoutMethod: PayoutMethod): string {
     if (!payoutMethod) {
       return 'Other';
     } else if (payoutMethod.type === PayoutMethodTypes.PAYPAL) {
-      const email = payoutMethod.data?.email;
+      const email = (<PaypalPayoutMethodData>payoutMethod.data)?.email;
       return !email ? 'PayPal' : `PayPal (${email})`;
     } else if (payoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
       return 'Wire Transfer';
@@ -137,12 +131,12 @@ export class PayoutMethod extends Model<PayoutMethod> {
   }
 
   /** Filters out all the fields that cannot be edited by user */
-  private static cleanData(data: object): object {
+  private static cleanData(data: Record<string, unknown>): Record<string, unknown> {
     return pick(data, PayoutMethod.editableFields);
   }
 }
 
-export default (sequelize, DataTypes): typeof PayoutMethod => {
+function setupModel(PayoutMethod) {
   // Link the model to database fields
   PayoutMethod.init(
     {
@@ -153,7 +147,7 @@ export default (sequelize, DataTypes): typeof PayoutMethod => {
       },
       type: {
         // Enum entries must match `PayoutMethodType`
-        type: DataTypes.ENUM('PAYPAL', 'BANK_ACCOUNT', 'OTHER'),
+        type: DataTypes.ENUM(...Object.values(PayoutMethodTypes)),
         allowNull: false,
         validate: {
           isIn: {
@@ -182,6 +176,10 @@ export default (sequelize, DataTypes): typeof PayoutMethod => {
             } else if (this.type === PayoutMethodTypes.BANK_ACCOUNT) {
               if (!value || !value.accountHolderName || !value.currency || !value.type || !value.details) {
                 throw new Error('Invalid format of BANK_ACCOUNT payout method data');
+              }
+            } else if (this.type === PayoutMethodTypes.CREDIT_CARD) {
+              if (!value || !value.token) {
+                throw new Error('Invalid format of CREDIT_CARD payout method data');
               }
             } else if (!value || Object.keys(value).length > 0) {
               throw new Error('Data for this payout method is not properly formatted');
@@ -240,6 +238,10 @@ export default (sequelize, DataTypes): typeof PayoutMethod => {
       },
     },
   );
+}
 
-  return PayoutMethod;
-};
+// We're using the setupModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+setupModel(PayoutMethod);
+
+export default PayoutMethod;

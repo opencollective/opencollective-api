@@ -2,6 +2,7 @@ import { get } from 'lodash';
 
 import { types } from '../constants/collectives';
 import FEATURE from '../constants/feature';
+import models from '../models';
 
 import { isPastEvent } from './collectivelib';
 
@@ -26,7 +27,7 @@ const FeatureAllowedForTypes = {
   [FEATURE.COLLECTIVE_GOALS]: [types.COLLECTIVE, types.ORGANIZATION],
   [FEATURE.TOP_FINANCIAL_CONTRIBUTORS]: [types.COLLECTIVE, types.ORGANIZATION, types.FUND],
   [FEATURE.CONVERSATIONS]: [types.COLLECTIVE, types.ORGANIZATION],
-  [FEATURE.UPDATES]: [types.COLLECTIVE, types.ORGANIZATION, types.FUND],
+  [FEATURE.UPDATES]: [types.COLLECTIVE, types.ORGANIZATION, types.FUND, types.PROJECT],
   [FEATURE.TEAM]: [types.ORGANIZATION, types.COLLECTIVE, types.EVENT, types.FUND, types.PROJECT],
   [FEATURE.CONTACT_FORM]: [types.COLLECTIVE, types.EVENT, types.ORGANIZATION],
   [FEATURE.TRANSFERWISE]: [types.ORGANIZATION],
@@ -99,12 +100,12 @@ export const isFeatureAllowedForCollectiveType = (collectiveType: types, feature
   return true;
 };
 
-export const hasOptedOutOfFeature = (collective, feature): boolean => {
+export const hasOptedOutOfFeature = (collective: typeof models.Collective, feature: FEATURE): boolean => {
   const optOutFlag = OPT_OUT_FEATURE_FLAGS[feature];
   return optOutFlag ? get(collective, optOutFlag) === false : false;
 };
 
-export const hasOptedInForFeature = (collective, feature): boolean => {
+export const hasOptedInForFeature = (collective: typeof models.Collective, feature: FEATURE): boolean => {
   const optOutFlag = OPT_IN_FEATURE_FLAGS[feature];
   return get(collective, optOutFlag) === true;
 };
@@ -112,7 +113,7 @@ export const hasOptedInForFeature = (collective, feature): boolean => {
 /**
  * If a given feature is allowed for the collective type, check if it is activated for collective.
  */
-export const hasFeature = (collective, feature: FEATURE): boolean => {
+export const hasFeature = (collective: typeof models.Collective, feature: FEATURE): boolean => {
   if (!collective) {
     return false;
   }

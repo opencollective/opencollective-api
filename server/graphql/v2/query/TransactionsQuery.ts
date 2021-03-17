@@ -1,3 +1,4 @@
+import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 
 import models, { Op, sequelize } from '../../../models';
@@ -72,7 +73,7 @@ const TransactionsQuery = {
         'If the account is a user and this field is true, contributions from the incognito profile will be included too (admins only)',
     },
   },
-  async resolve(_, args, req): Promise<CollectionReturnType> {
+  async resolve(_: void, args, req: express.Request): Promise<CollectionReturnType> {
     const where = [];
     const include = [];
 

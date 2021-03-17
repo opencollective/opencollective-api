@@ -72,6 +72,7 @@ async function run({ dryRun, limit, force } = {}) {
 
     let shouldMarkAsRejected = true;
     let shouldNotifyContributor = true;
+    let actionTaken = false;
 
     // Retrieve latest transaction
     const transaction = await models.Transaction.findOne({
@@ -105,6 +106,11 @@ async function run({ dryRun, limit, force } = {}) {
               await libPayments.refundTransaction(transaction);
             } else if (force) {
               await libPayments.createRefundTransaction(transaction, 0, null);
+            } else {
+              if (order.status === 'PAID') {
+                shouldMarkAsRejected = false;
+                shouldNotifyContributor = false;
+              }
             }
           } catch (e) {
             if (e.message.includes('has already been refunded')) {
@@ -114,6 +120,7 @@ async function run({ dryRun, limit, force } = {}) {
               }
             }
           }
+          actionTaken = true;
         }
       } else {
         logger.info(`  - Transaction already refunded`);
@@ -132,6 +139,7 @@ async function run({ dryRun, limit, force } = {}) {
       if (!dryRun) {
         await order.update({ status: orderStatus.REJECTED });
       }
+      actionTaken = true;
     }
 
     // Deactivate subscription
@@ -142,6 +150,7 @@ async function run({ dryRun, limit, force } = {}) {
         if (!dryRun) {
           await subscription.deactivate();
         }
+        actionTaken = true;
       } else {
         logger.info(`  - Subscription not found`);
       }
@@ -150,22 +159,32 @@ async function run({ dryRun, limit, force } = {}) {
     }
 
     // Remove memberships
-    logger.info(`  - Deleting BACKER membership`);
-    if (!dryRun) {
-      await models.Member.destroy({
-        where: {
-          MemberCollectiveId: fromCollective.id,
-          CollectiveId: collective.id,
-          role: 'BACKER',
-        },
-      });
+
+    const membershipSearchParams = {
+      where: {
+        MemberCollectiveId: fromCollective.id,
+        CollectiveId: collective.id,
+        role: 'BACKER',
+      },
+    };
+    const membership = await models.Member.findOne(membershipSearchParams);
+    if (membership) {
+      logger.info(`  - Deleting BACKER memberships`);
+      if (!dryRun) {
+        await models.Member.destroy(membershipSearchParams);
+      }
+      actionTaken = true;
+    } else {
+      logger.info(`  - No BACKER memberships to delete`);
     }
 
-    logger.info(`  - Purging cache for ${collective.slug}`);
-    logger.info(`  - Purging cache for ${fromCollective.slug}`);
-    if (!dryRun) {
-      purgeCacheForCollective(collective.slug);
-      purgeCacheForCollective(fromCollective.slug);
+    if (actionTaken) {
+      logger.info(`  - Purging cache for ${collective.slug}`);
+      logger.info(`  - Purging cache for ${fromCollective.slug}`);
+      if (!dryRun) {
+        purgeCacheForCollective(collective.slug);
+        purgeCacheForCollective(fromCollective.slug);
+      }
     }
 
     if (shouldNotifyContributor) {
