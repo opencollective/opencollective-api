@@ -59,6 +59,11 @@ const compactRecipientDetails = <T>(object: T): Partial<T> => <Partial<T>>omitBy
 const getData = <T extends { data?: Record<string, unknown> }>(obj: T | undefined): T['data'] | undefined =>
   obj && obj.data;
 
+const tap = fn => data => {
+  fn(data);
+  return data;
+};
+
 const parseError = (
   error: AxiosError<{ errorCode?: TransferwiseErrorCodes; errors?: Record<string, unknown>[] }>,
   defaultMessage?: string,
@@ -95,10 +100,11 @@ export const requestDataAndThrowParsedError = (
   },
   defaultErrorMessage?: string,
 ): Promise<any> => {
-  debug(`calling ${url}`);
+  debug(`calling ${url}: ${JSON.stringify({ data, params: options.params }, null, 2)}`);
   const pRequest = data ? fn(url, data, options) : fn(url, options);
   return pRequest
     .then(getData)
+    .then(tap(data => debug(JSON.stringify(data, null, 2))))
     .catch(e => {
       // Implements Strong Customer Authentication
       // https://api-docs.transferwise.com/#payouts-guide-strong-customer-authentication
