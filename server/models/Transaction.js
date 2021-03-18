@@ -562,7 +562,7 @@ function defineModel() {
     return Promise.mapSeries(transactions, t => Transaction.create(t, opts)).then(results => results[index]);
   };
 
-  Transaction.createFeesOnTopTransaction = async ({ transaction }) => {
+  Transaction.createFeesOnTopTransaction = async ({ transaction, host }) => {
     if (!transaction.data?.isFeesOnTop) {
       throw new Error('This transaction does not have fees on top');
     } else if (!transaction.platformFeeInHostCurrency) {
@@ -571,9 +571,9 @@ function defineModel() {
 
     // Calculate the paymentProcessorFee proportional to the feeOnTop amount
     const feeOnTopPercent = Math.abs(transaction.platformFeeInHostCurrency / transaction.amountInHostCurrency);
-    const feeOnTopPaymentProcessorFee = toNegative(
-      Math.round(transaction.paymentProcessorFeeInHostCurrency * feeOnTopPercent),
-    );
+    const feeOnTopPaymentProcessorFee = host?.data?.reimbursePaymentProcessorFeeOnTips
+      ? toNegative(Math.round(transaction.paymentProcessorFeeInHostCurrency * feeOnTopPercent))
+      : 0;
     const platformCurrencyFxRate = await getFxRate(transaction.currency, FEES_ON_TOP_TRANSACTION_PROPERTIES.currency);
     const donationTransaction = defaultsDeep(
       {},
@@ -630,7 +630,8 @@ function defineModel() {
     }
 
     const collective = await models.Collective.findByPk(CollectiveId);
-    const HostCollectiveId = collective.isHostAccount ? collective.id : await collective.getHostCollectiveId();
+    const host = await collective.getHostCollective();
+    const HostCollectiveId = collective.isHostAccount ? collective.id : host.id;
     if (!HostCollectiveId && !transaction.HostCollectiveId) {
       throw new Error(`Cannot create a transaction: collective id ${CollectiveId} doesn't have a host`);
     }
@@ -652,7 +653,7 @@ function defineModel() {
 
     // Separate donation transaction and remove platformFee from the main transaction
     if (transaction.data?.isFeesOnTop && transaction.platformFeeInHostCurrency) {
-      transaction = await Transaction.createFeesOnTopTransaction({ transaction });
+      transaction = await Transaction.createFeesOnTopTransaction({ transaction, host });
     }
 
     // populate netAmountInCollectiveCurrency for financial contributions
