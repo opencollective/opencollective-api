@@ -111,7 +111,7 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
 
   describe('publish an update', () => {
     const publishUpdateMutation = gqlV2/* GraphQL */ `
-      mutation PublishUpdate($id: String!, $notificationAudience: UpdateAudienceType!) {
+      mutation PublishUpdate($id: String!, $notificationAudience: UpdateAudience!) {
         publishUpdate(id: $id, notificationAudience: $notificationAudience) {
           id
           slug

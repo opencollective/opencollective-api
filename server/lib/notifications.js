@@ -179,14 +179,6 @@ export async function notifyAdminsOfCollective(CollectiveId, activity, options =
 }
 
 /**
- * Notify all admins of hosted collectives
- */
-export async function notifyHostedCollectiveAdmins(CollectiveId, activity, options = {}) {
-  const collective = await models.Collective.findByPk(CollectiveId);
-  const adminUsers = await collective.getHostedCollectiveAdmins();
-  return notifySubscribers(adminUsers, activity, options);
-}
-/**
  * Notify all the followers of the conversation.
  */
 export async function notififyConversationFollowers(conversation, activity, options = {}) {
@@ -210,21 +202,10 @@ const notifyUpdateSubscribers = async activity => {
   activity.data.fromEmail = `${activity.data.collective.name} <no-reply@${activity.data.collective.slug}.opencollective.com>`;
   activity.CollectiveId = collective.id;
 
-  const audience = activity.data.update.notificationAudience;
-  const isHost = activity.data.collective.isHostAccount;
   const emailOpts = { from: activity.data.fromEmail };
-
-  // Send to hosted collectives
-  if (isHost && (audience === 'ALL' || audience === 'COLLECTIVE_ADMINS')) {
-    notifyHostedCollectiveAdmins(activity.data.update.CollectiveId, activity, emailOpts);
-  }
-
-  // Send to all members
-  if (audience === 'ALL' || audience === 'FINANCIAL_CONTRIBUTORS') {
-    const update = await models.Update.findByPk(activity.data.update.id);
-    const allUsers = await update.getUsersToNotify();
-    return notifySubscribers(allUsers, activity, emailOpts);
-  }
+  const update = await models.Update.findByPk(activity.data.update.id);
+  const allUsers = await update.getUsersToNotify();
+  return notifySubscribers(allUsers, activity, emailOpts);
 };
 
 async function notifyByEmail(activity) {
