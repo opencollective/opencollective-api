@@ -1,5 +1,5 @@
 {{#if expense }}
-Subject: {{collective.name}}: New comment on {{#if recipientIsAuthor}}your {{/if}}expense {{expense.description}} by {{fromCollective.name}}
+Subject: {{collective.name}}: New comment on expense {{expense.description}} by {{fromCollective.name}}
 {{else if conversation}}
 Subject: New comment from {{fromCollective.name}} on "{{conversation.title}}"
 {{else if update}}
@@ -46,9 +46,14 @@ Subject: {{collective.name}}: New comment
 
 <p>
   <center>
+  {{#if expense}}
+    <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}#new-comment-on-expense" class="btn blue">
+      <div>Reply</div>
+    </a>
+  {{else}}
     <a href="{{config.host.website}}{{path}}" class="btn blue"><div>View thread online</div></a>
+  {{/if}}
   </center>
 </p>
-
 
 {{> footer}}
