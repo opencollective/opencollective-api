@@ -68,3 +68,7 @@ See: [docs/deployment.md](docs/deployment.md)
 If you have any questions, ping us on Slack
 (https://slack.opencollective.com) or on Twitter
 ([@opencollect](https://twitter.com/opencollect)).
+
+## License
+
+[MIT](LICENSE)

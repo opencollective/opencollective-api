@@ -1,12 +1,32 @@
 {
+  "private": true,
   "name": "opencollective-api",
-  "version": "2.0.567",
   "description": "Open Collective API",
-  "author": "@philmod @arnaudbenard @xdamman @asood123",
+  "license": "MIT",
+  "contributors": [
+    "Arnaud Bénard (https://github.com/arnaudbenard)",
+    "Aseem Sood (https://github.com/asood123)",
+    "Benjamin Piouffle (https://github.com/Betree)",
+    "François Hodierne (https://github.com/znarf)",
+    "Kate Beard (https://github.com/sbinlondon)",
+    "Leo Kewitz (https://github.com/kewitz)",
+    "Lincoln de Sousa (https://github.com/clarete)",
+    "Nick Hehr (https://github.com/HipsterBrown)",
+    "Oluwaseun Omoyajowo (https://github.com/flickz)",
+    "Philippe Modard (https://github.com/Philmod)",
+    "Pia Mancini (https://github.com/piamancini)",
+    "Sébastien Dubois (https://github.com/sedubois)",
+    "Xavier Damman (https://github.com/xdamman)"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/opencollective/opencollective-api.git"
+  },
   "main": "server/index.js",
-  "engines": {
-    "node": "14.15.3",
-    "npm": "7.5.2"
+  "config": {
+    "commitizen": {
+      "path": "./node_modules/cz-conventional-changelog"
+    }
   },
   "dependencies": {
     "@babel/core": "7.13.10",
@@ -212,16 +232,9 @@
     "test:sql": "npm run test test/sql",
     "type:check": "tsc"
   },
-  "nyc": {
-    "reporter": [
-      "lcov"
-    ],
-    "cache": true
-  },
-  "config": {
-    "commitizen": {
-      "path": "./node_modules/cz-conventional-changelog"
-    }
+  "engines": {
+    "node": "14.15.3",
+    "npm": "7.5.2"
   },
   "husky": {
     "hooks": {
@@ -233,10 +246,10 @@
       "prettier --write"
     ]
   },
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/opencollective/opencollective-api.git"
-  },
-  "heroku-run-build-script": true
+  "nyc": {
+    "reporter": [
+      "lcov"
+    ],
+    "cache": true
+  }
 }
