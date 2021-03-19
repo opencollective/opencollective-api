@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { reduce, times } from 'lodash';
+import { flatten, reduce, times } from 'lodash';
 
 import models, { Op } from '../../../server/models';
 import { randEmail } from '../../stores';
@@ -98,6 +98,9 @@ describe('server/models/Update', () => {
     const countAdminsOfMemberOrganizations = () => {
       return reduce(adminsOfMemberOrganizations, (result, users) => result + users.length, 0);
     };
+    const getOrganizationAdminUsers = () => {
+      return flatten(reduce(adminsOfMemberOrganizations, (usersList, users) => [...usersList, ...users], []));
+    };
 
     before(async () => {
       await utils.resetTestDB();
@@ -177,6 +180,7 @@ describe('server/models/Update', () => {
         expectAllEmailsFrom(collectiveAdmins);
         expectAllEmailsFrom(individualBackersUsers);
         expectAllEmailsFrom(collectiveFollowers);
+        expectAllEmailsFrom(getOrganizationAdminUsers());
         expect(usersToNotify.length).to.eq(expectedPublicTotal);
       });
 
@@ -192,6 +196,7 @@ describe('server/models/Update', () => {
         expectAllEmailsFrom(parentCollectiveAdmins);
         expectAllEmailsFrom(collectiveAdmins);
         expectAllEmailsFrom(individualBackersUsers);
+        expectAllEmailsFrom(getOrganizationAdminUsers());
         expect(usersToNotify.length).to.eq(expectedPrivateTotal);
       });
     });

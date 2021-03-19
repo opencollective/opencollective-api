@@ -311,73 +311,78 @@ const getCollectivesWithBalance = async (where = {}, options) => {
 };
 
 export const usersToNotifyForUpdateSQLQuery = `
-  SELECT
-    u.*
-  FROM
-    "Collectives" c
-  -- Include direct members
-  FULL OUTER JOIN "Members" direct_members
-    ON direct_members."CollectiveId" = :collectiveId
-    AND direct_members."deletedAt" IS NULL
-    AND direct_members."role" IN (:targetRoles)
-  FULL OUTER JOIN "Collectives" member_collectives
-    ON :includeMembers = TRUE
-    AND member_collectives.id = direct_members."MemberCollectiveId"
-    AND member_collectives."deletedAt" IS NULL
-  -- Always include collective admins
-  FULL OUTER JOIN "Members" collective_admins
-    ON collective_admins."CollectiveId" = :collectiveId
-    AND collective_admins."deletedAt" IS NULL
-    AND collective_admins."role" IN ('ADMIN', 'MEMBER')
-  -- Include all admins of the parent collective
-  FULL OUTER JOIN "Members" admins_of_parent_collective
-    ON (
-      c."ParentCollectiveId" IS NOT NULL
-      AND admins_of_parent_collective."CollectiveId" = c."ParentCollectiveId"
-      AND admins_of_parent_collective."role" IN ('ADMIN', 'MEMBER')
-      AND admins_of_parent_collective."deletedAt" IS NULL
-    )
-  -- Include all hosted collectives
-  FULL OUTER JOIN "Members" hosted_collective_members
-    ON (
-      :includeHostedAccounts = TRUE
-      AND c."isHostAccount" = TRUE
-      AND hosted_collective_members."MemberCollectiveId" = c.id
-      AND hosted_collective_members."role" = 'HOST'
-      AND hosted_collective_members."deletedAt" IS NULL
-    )
-  FULL OUTER JOIN "Collectives" hosted_collectives
-    ON (
-      hosted_collective_members."CollectiveId" = hosted_collectives.id
-      AND hosted_collectives."deletedAt" IS NULL
-      AND hosted_collectives."approvedAt" IS NOT NULL
-    )
-  -- For all member_collectives and hosted_collectives, get admin profiles
-  FULL OUTER JOIN "Members" admins_of_member_collective
-    ON (
-      member_collectives."type" != 'USER'
-      AND admins_of_member_collective."CollectiveId" = member_collectives.id
-      AND admins_of_member_collective."role" IN ('ADMIN', 'MEMBER')
-      AND admins_of_member_collective."deletedAt" IS NULL
-    ) OR (
-      hosted_collectives."type" != 'USER'
-      AND admins_of_member_collective."CollectiveId" = hosted_collectives.id
-      AND admins_of_member_collective."role" IN ('ADMIN', 'MEMBER')
-      AND admins_of_member_collective."deletedAt" IS NULL
-    )
-  -- Get all user entries, either the direct members, the admins of member_collectives or the admins of parent collectives
-  INNER JOIN
-    "Users" u ON (
-      u."deletedAt" IS NULL
-      AND (
-        (member_collectives."type" = 'USER' AND u."CollectiveId" = member_collectives.id)
-        OR u."CollectiveId" = admins_of_member_collective."MemberCollectiveId"
-        OR u."CollectiveId" = admins_of_parent_collective."MemberCollectiveId"
-        OR u."CollectiveId" = collective_admins."MemberCollectiveId"
+  WITH collective AS (
+    SELECT c.* 
+    FROM "Collectives" c
+    WHERE id = :collectiveId
+  ), hosted_collectives AS (
+    SELECT hc.*
+    FROM "Collectives" hc
+    INNER JOIN "Members" m ON hc.id = m."CollectiveId"
+    INNER JOIN "Collectives" mc ON mc."id" = m."CollectiveId" 
+    INNER JOIN collective c ON m."MemberCollectiveId" = c.id
+    WHERE :includeHostedAccounts = TRUE
+    AND c."isHostAccount" = TRUE
+    AND m."role" = 'HOST'
+    AND m."deletedAt" IS NULL
+    AND mc."isActive" IS TRUE
+    AND mc."approvedAt" IS NOT NULL
+    GROUP BY hc.id
+  ), member_collectives AS (
+    SELECT mc.*
+    FROM "Members" m
+    INNER JOIN "Collectives" mc ON m."MemberCollectiveId" = mc.id
+    CROSS JOIN collective
+    WHERE m."deletedAt" IS NULL
+    AND mc."deletedAt" IS NULL
+    AND (
+      (
+        -- Direct members
+        :includeMembers = TRUE
+        AND m."CollectiveId" = collective.id
+        AND m."role" IN (:targetRoles)
+      ) OR (
+        -- Collective admins
+        m."CollectiveId" = collective.id AND m."role" IN ('ADMIN', 'MEMBER')
+      ) OR (
+        -- Parent collective admins
+        collective."ParentCollectiveId" IS NOT NULL
+        AND m."CollectiveId" = collective."ParentCollectiveId"
+        AND m."role" IN ('ADMIN', 'MEMBER')
       )
     )
-  WHERE
-    c.id = :collectiveId
+    GROUP BY mc.id
+  ), admins_of_members AS (
+    -- For all member_collectives and hosted_collectives, get admin profiles
+    SELECT mc.*
+    FROM "Members" m
+    INNER JOIN "Collectives" mc ON m."MemberCollectiveId" = mc.id
+    LEFT JOIN member_collectives org_admin_collectives
+      ON (
+        org_admin_collectives."type" != 'USER'
+        AND m."CollectiveId" = org_admin_collectives.id
+      )
+    LEFT JOIN hosted_collectives hosted_collective_admins
+      ON (
+        hosted_collective_admins."type" != 'USER'
+        AND m."CollectiveId" = hosted_collective_admins.id
+      )
+    WHERE 
+      (org_admin_collectives.id IS NOT NULL OR hosted_collective_admins.id IS NOT NULL)
+      AND m."role" IN ('ADMIN', 'MEMBER')
+      AND m."deletedAt" IS NULL
+      AND mc."type" = 'USER'
+    GROUP BY
+      mc.id
+  ) SELECT u.*
+  -- Get all user entries, either the direct members, the admins of member_collectives or the admins of parent collectives
+  FROM "Users" u
+  LEFT JOIN admins_of_members
+    ON u."CollectiveId" = admins_of_members.id
+  LEFT JOIN member_collectives
+    ON (member_collectives."type" = 'USER' AND u."CollectiveId" = member_collectives.id)
+  WHERE (admins_of_members.id IS NOT NULL OR member_collectives.id IS NOT NULL)
+  AND u."deletedAt" IS NULL
   GROUP BY
     u.id
 `;
