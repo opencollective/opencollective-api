@@ -22,7 +22,7 @@ describe('server/models/Transaction', () => {
       CreatedByUserId: user.id,
       HostCollectiveId: 8686,
     });
-    host = await fakeHost({ id: 2, CreatedByUserId: user.id });
+    host = await fakeHost({ id: 2, CreatedByUserId: user.id, data: { reimbursePaymentProcessorFeeOnTips: true } });
     collective = await fakeCollective({ id: 3, HostCollectiveId: host.id, CreatedByUserId: user.id });
     defaultTransactionData = {
       CreatedByUserId: user.id,
