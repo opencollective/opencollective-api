@@ -487,6 +487,9 @@ function defineModel() {
 
     if (transaction.platformTipInHostCurrency) {
       await paymentMethodProvider.createPlatformTipTransaction(transaction);
+      if (transaction.amount === 0) {
+        return;
+      }
     }
 
     let oppositeTransaction = {
@@ -630,7 +633,7 @@ function defineModel() {
     transaction,
     PaymentMethodId,
   }) => {
-    if (!transaction.amount) {
+    if (!transaction.amount && !transaction.platformTipInHostCurrency) {
       throw new Error('transaction.amount cannot be null or zero');
     }
 

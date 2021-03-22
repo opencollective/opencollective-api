@@ -312,6 +312,7 @@ export const executeOrder = async (user, order, options = {}) => {
     amount: order.totalAmount,
     interval: order.interval,
     currency: order.currency,
+    platformTip: order.data.platformTip,
   };
 
   try {
@@ -385,7 +386,7 @@ const validatePayment = payment => {
     throw new Error('Interval should be null, month or year.');
   }
 
-  if (!payment.amount) {
+  if (!payment.amount && !payment.platformTip) {
     throw new Error('payment.amount missing');
   }
 };
