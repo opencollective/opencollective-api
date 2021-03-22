@@ -312,7 +312,7 @@ export const executeOrder = async (user, order, options = {}) => {
     amount: order.totalAmount,
     interval: order.interval,
     currency: order.currency,
-    platformTip: order.data.platformTip,
+    platformTip: order.data?.platformTip,
   };
 
   try {
