@@ -102,7 +102,8 @@ const orderMutations = {
         platformFee,
       };
 
-      const result = await createOrderLegacy(legacyOrderObj, req.loaders, req.remoteUser, req.ip);
+      const userArgent = req.header('user-agent');
+      const result = await createOrderLegacy(legacyOrderObj, req.loaders, req.remoteUser, req.ip, userArgent);
       return { order: result.order, stripeError: result.stripeError, guestToken: result.order.data?.guestToken };
     },
   },

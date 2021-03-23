@@ -63,6 +63,7 @@ export const makeRequest = (remoteUser, query) => {
     remoteUser,
     body: { query },
     loaders: loaders({ remoteUser }),
+    header: () => null,
   };
 };
 
