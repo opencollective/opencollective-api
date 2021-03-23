@@ -591,7 +591,11 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
     purgeCacheForCollective(collective.slug);
     purgeCacheForCollective(fromCollective.slug);
 
-    cleanOrdersLimit(order, reqIp);
+    const skipCleanOrdersLimitSlugs = config.limits.skipCleanOrdersLimitSlugs;
+
+    if (!skipCleanOrdersLimitSlugs || !skipCleanOrdersLimitSlugs.includes(collective.slug)) {
+      cleanOrdersLimit(order, reqIp);
+    }
 
     order = await models.Order.findByPk(orderCreated.id);
 
