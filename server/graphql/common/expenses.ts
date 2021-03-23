@@ -853,8 +853,9 @@ async function payExpenseWithPayPal(remoteUser, expense, host, paymentMethod, to
       fees['hostFeeInHostCurrency'],
       fees['platformFeeInHostCurrency'],
     );
-    await markExpenseAsPaid(expense, remoteUser);
+    const updatedExpense = await markExpenseAsPaid(expense, remoteUser);
     await paymentMethod.updateBalance();
+    return updatedExpense;
   } catch (err) {
     debug('paypal> error', JSON.stringify(err, null, '  '));
     if (
@@ -1059,7 +1060,7 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
         } else if (args.forceManual) {
           await createTransactions(host, expense, feesInHostCurrency);
         } else if (paypalPaymentMethod) {
-          await payExpenseWithPayPal(remoteUser, expense, host, paypalPaymentMethod, paypalEmail, feesInHostCurrency);
+          return payExpenseWithPayPal(remoteUser, expense, host, paypalPaymentMethod, paypalEmail, feesInHostCurrency);
         } else {
           throw new Error('No Paypal account linked, please reconnect Paypal or pay manually');
         }
