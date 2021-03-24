@@ -245,7 +245,7 @@ const getTaxInfo = async (order, collective, host, tier, loaders) => {
   }
 };
 
-export async function createOrder(order, loaders, remoteUser, reqIp) {
+export async function createOrder(order, loaders, remoteUser, reqIp, userAgent) {
   debug('Beginning creation of order', order);
 
   if (remoteUser && !canUseFeature(remoteUser, FEATURE.ORDER)) {
@@ -408,7 +408,8 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
         fromCollective = await models.Collective.createOrganization(order.fromCollective, remoteUser, remoteUser);
       } else {
         // Create or retrieve guest profile from GUEST_TOKEN
-        const guestProfile = await getOrCreateGuestProfile(order.guestInfo);
+        const creationRequest = { ip: reqIp, userAgent };
+        const guestProfile = await getOrCreateGuestProfile(order.guestInfo, creationRequest);
         remoteUser = guestProfile.user;
         fromCollective = guestProfile.collective;
         isGuest = true;

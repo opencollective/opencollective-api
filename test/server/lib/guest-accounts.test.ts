@@ -19,6 +19,16 @@ describe('server/lib/guest-accounts.ts', () => {
       expect(user.email).to.eq(email);
     });
 
+    it('Stores the creation request in user data', async () => {
+      const email = randEmail();
+      const { collective } = await getOrCreateGuestProfile({ email }, { ip: '1.2.3.4', userAgent: 'TestUserAgent' });
+      const user = await models.User.findOne({ where: { CollectiveId: collective.id } });
+      expect(collective).to.exist;
+      expect(user.email).to.eq(email);
+      expect(user.data.creationRequest.ip).to.eq('1.2.3.4');
+      expect(user.data.creationRequest.userAgent).to.eq('TestUserAgent');
+    });
+
     it('Works even if a verified account already exists for this email, but does not update the profile', async () => {
       const user = await fakeUser({ confirmedAt: new Date() });
       const { collective } = await getOrCreateGuestProfile({ email: user.email, name: 'TOTO' });
