@@ -942,20 +942,6 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       describe('With transferwise', () => {
         const fee = 1.74;
         let getTemporaryQuote, expense;
-        const quote = {
-          payOut: 'BANK_TRANSFER',
-          paymentOptions: [
-            {
-              payInProduct: 'BALANCE',
-              fee: { total: fee },
-              payIn: 'BALANCE',
-              sourceCurrency: 'USD',
-              targetCurrency: 'EUR',
-              payOut: 'BANK_TRANSFER',
-              disabled: false,
-            },
-          ],
-        };
 
         before(async () => {
           // Updates the collective balance and pay the expense
@@ -963,8 +949,8 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         });
 
         beforeEach(() => {
-          getTemporaryQuote = sandbox.stub(paymentProviders.transferwise, 'getTemporaryQuote').resolves(quote);
-          sandbox.stub(paymentProviders.transferwise, 'payExpense').resolves({ quote });
+          getTemporaryQuote = sandbox.stub(paymentProviders.transferwise, 'getTemporaryQuote').resolves({ fee });
+          sandbox.stub(paymentProviders.transferwise, 'payExpense').resolves({ quote: { fee } });
         });
 
         beforeEach(async () => {
@@ -1234,25 +1220,11 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
   describe('processExpense > PAY > with 2FA payouts', () => {
     const fee = 1.74;
     let collective, host, collectiveAdmin, hostAdmin, sandbox, expense1, expense2, expense3, expense4, user;
-    const quote = {
-      payOut: 'BANK_TRANSFER',
-      paymentOptions: [
-        {
-          payInProduct: 'BALANCE',
-          fee: { total: fee },
-          payIn: 'BALANCE',
-          sourceCurrency: 'USD',
-          targetCurrency: 'EUR',
-          payOut: 'BANK_TRANSFER',
-          disabled: false,
-        },
-      ],
-    };
 
     before(() => {
       sandbox = sinon.createSandbox();
-      sandbox.stub(paymentProviders.transferwise, 'payExpense').resolves({ quote });
-      sandbox.stub(paymentProviders.transferwise, 'getTemporaryQuote').resolves(quote);
+      sandbox.stub(paymentProviders.transferwise, 'payExpense').resolves({ quote: { fee } });
+      sandbox.stub(paymentProviders.transferwise, 'getTemporaryQuote').resolves({ fee });
     });
 
     after(() => sandbox.restore());

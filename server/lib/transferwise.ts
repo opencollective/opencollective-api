@@ -16,7 +16,7 @@ import {
   BorderlessAccount,
   CurrencyPair,
   Profile,
-  QuoteV2,
+  Quote,
   RecipientAccount,
   Transfer,
   Webhook,
@@ -59,11 +59,6 @@ const compactRecipientDetails = <T>(object: T): Partial<T> => <Partial<T>>omitBy
 const getData = <T extends { data?: Record<string, unknown> }>(obj: T | undefined): T['data'] | undefined =>
   obj && obj.data;
 
-const tap = fn => data => {
-  fn(data);
-  return data;
-};
-
 const parseError = (
   error: AxiosError<{ errorCode?: TransferwiseErrorCodes; errors?: Record<string, unknown>[] }>,
   defaultMessage?: string,
@@ -100,11 +95,10 @@ export const requestDataAndThrowParsedError = (
   },
   defaultErrorMessage?: string,
 ): Promise<any> => {
-  debug(`calling ${url}: ${JSON.stringify({ data, params: options.params }, null, 2)}`);
+  debug(`calling ${url}`);
   const pRequest = data ? fn(url, data, options) : fn(url, options);
   return pRequest
     .then(getData)
-    .then(tap(data => debug(JSON.stringify(data, null, 2))))
     .catch(e => {
       // Implements Strong Customer Authentication
       // https://api-docs.transferwise.com/#payouts-guide-strong-customer-authentication
@@ -132,33 +126,23 @@ interface CreateQuote {
   profileId: number;
   sourceCurrency: string;
   targetCurrency: string;
-  targetAccount?: number;
   targetAmount?: number;
   sourceAmount?: number;
-  payOut?: 'BANK_TRANSFER' | 'BALANCE' | 'SWIFT' | 'INTERAC' | null;
 }
 export const createQuote = async (
   token: string,
-  {
-    profileId: profile,
-    sourceCurrency,
-    targetCurrency,
-    targetAmount,
-    sourceAmount,
-    payOut,
-    targetAccount,
-  }: CreateQuote,
-): Promise<QuoteV2> => {
+  { profileId: profile, sourceCurrency, targetCurrency, targetAmount, sourceAmount }: CreateQuote,
+): Promise<Quote> => {
   const data = {
-    payOut,
     profile,
-    sourceAmount,
-    sourceCurrency,
-    targetAccount,
+    source: sourceCurrency,
+    target: targetCurrency,
+    rateType: 'FIXED',
+    type: 'BALANCE_PAYOUT',
     targetAmount,
-    targetCurrency,
+    sourceAmount,
   };
-  return requestDataAndThrowParsedError(axios.post, `/v2/quotes`, {
+  return requestDataAndThrowParsedError(axios.post, `/v1/quotes`, {
     headers: { Authorization: `Bearer ${token}` },
     data,
   });
@@ -184,8 +168,8 @@ export const createRecipientAccount = async (
 
 export interface CreateTransfer {
   accountId: number;
-  quoteUuid: string;
-  customerTransactionId: string;
+  quoteId: number;
+  uuid: string;
   details?: {
     reference?: string;
     transferPurpose?: string;
@@ -194,9 +178,9 @@ export interface CreateTransfer {
 }
 export const createTransfer = async (
   token: string,
-  { accountId: targetAccount, quoteUuid, customerTransactionId, details }: CreateTransfer,
+  { accountId: targetAccount, quoteId: quote, uuid: customerTransactionId, details }: CreateTransfer,
 ): Promise<Transfer> => {
-  const data = { targetAccount, quoteUuid, customerTransactionId, details };
+  const data = { targetAccount, quote, customerTransactionId, details };
   return requestDataAndThrowParsedError(axios.post, `/v1/transfers`, {
     data,
     headers: { Authorization: `Bearer ${token}` },
@@ -249,13 +233,14 @@ interface GetTemporaryQuote {
 export const getTemporaryQuote = async (
   token: string,
   { sourceCurrency, targetCurrency, ...amount }: GetTemporaryQuote,
-): Promise<QuoteV2> => {
+): Promise<Quote> => {
   const params = {
-    sourceCurrency,
-    targetCurrency,
+    source: sourceCurrency,
+    target: targetCurrency,
+    rateType: 'FIXED',
     ...amount,
   };
-  return requestDataAndThrowParsedError(axios.post, `/v2/quotes`, {
+  return requestDataAndThrowParsedError(axios.get, `/v1/quotes`, {
     headers: { Authorization: `Bearer ${token}` },
     params,
   });
