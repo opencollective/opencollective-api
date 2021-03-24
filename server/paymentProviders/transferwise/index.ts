@@ -13,7 +13,7 @@ import * as transferwise from '../../lib/transferwise';
 import models from '../../models';
 import PayoutMethod from '../../models/PayoutMethod';
 import { ConnectedAccount } from '../../types/ConnectedAccount';
-import { Balance, Quote, RecipientAccount, Transfer } from '../../types/transferwise';
+import { Balance, QuoteV2, QuoteV2PaymentOption, RecipientAccount, Transfer } from '../../types/transferwise';
 
 const hashObject = obj => crypto.createHash('sha1').update(JSON.stringify(obj)).digest('hex').slice(0, 7);
 
@@ -40,7 +40,7 @@ async function getTemporaryQuote(
   connectedAccount: typeof models.ConnectedAccount,
   payoutMethod: PayoutMethod,
   expense: typeof models.Expense,
-): Promise<Quote> {
+): Promise<QuoteV2> {
   const token = await getToken(connectedAccount);
   return await transferwise.getTemporaryQuote(token, {
     sourceCurrency: expense.currency,
@@ -53,7 +53,8 @@ async function quoteExpense(
   connectedAccount: typeof models.ConnectedAccount,
   payoutMethod: PayoutMethod,
   expense: typeof models.Expense,
-): Promise<Quote> {
+  targetAccount?: number,
+): Promise<QuoteV2> {
   await populateProfileId(connectedAccount);
 
   const token = await getToken(connectedAccount);
@@ -66,6 +67,7 @@ async function quoteExpense(
     sourceCurrency: expense.currency,
     targetCurrency: <string>payoutMethod.unfilteredData.currency,
     targetAmount,
+    targetAccount,
   });
 
   return quote;
@@ -76,13 +78,22 @@ async function payExpense(
   payoutMethod: PayoutMethod,
   expense: typeof models.Expense,
 ): Promise<{
-  quote: Quote;
+  quote: QuoteV2;
   recipient: RecipientAccount;
   fund: { status: string; errorCode: string };
   transfer: Transfer;
+  paymentOption: QuoteV2PaymentOption;
 }> {
   const token = await getToken(connectedAccount);
-  const quote = await quoteExpense(connectedAccount, payoutMethod, expense);
+  const recipient = await transferwise.createRecipientAccount(token, {
+    profileId: connectedAccount.data.id,
+    ...(<RecipientAccount>payoutMethod.data),
+  });
+
+  const quote = await quoteExpense(connectedAccount, payoutMethod, expense, recipient.id);
+  const paymentOption = quote.paymentOptions.find(
+    p => p.disabled === false && p.payIn === 'BALANCE' && p.payOut === quote.payOut,
+  );
 
   const account = await transferwise.getBorderlessAccount(token, <number>connectedAccount.data.id);
   if (!account) {
@@ -91,24 +102,19 @@ async function payExpense(
       'transferwise.error.accountnotfound',
     );
   }
-  const balance = account.balances.find(b => b.currency === quote.source);
+  const balance = account.balances.find(b => b.currency === quote.sourceCurrency);
   if (!balance || balance.amount.value < quote.sourceAmount) {
     throw new TransferwiseError(
-      `You don't have enough funds in your ${quote.source} balance. Please top up your account considering the source amount of ${quote.sourceAmount} (includes the fee ${quote.fee}) and try again.`,
+      `You don't have enough funds in your ${quote.sourceCurrency} balance. Please top up your account considering the source amount of ${quote.sourceAmount} (includes the fee ${paymentOption.fee.total}) and try again.`,
       'transferwise.error.insufficientFunds',
-      { currency: quote.source },
+      { currency: quote.sourceCurrency },
     );
   }
 
-  const recipient = await transferwise.createRecipientAccount(token, {
-    profileId: connectedAccount.data.id,
-    ...(<RecipientAccount>payoutMethod.data),
-  });
-
   const transferOptions: transferwise.CreateTransfer = {
     accountId: recipient.id,
-    quoteId: quote.id,
-    uuid: uuid(),
+    quoteUuid: quote.id,
+    customerTransactionId: uuid(),
   };
   // Append reference to currencies that require it.
   if (currenciesThatRequireReference.includes(<string>payoutMethod.unfilteredData.currency)) {
@@ -127,7 +133,7 @@ async function payExpense(
     throw e;
   }
 
-  return { quote, recipient, transfer, fund };
+  return { quote, recipient, transfer, fund, paymentOption };
 }
 
 async function getAvailableCurrencies(
