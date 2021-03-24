@@ -250,14 +250,14 @@ export const getTemporaryQuote = async (
   token: string,
   { sourceCurrency, targetCurrency, ...amount }: GetTemporaryQuote,
 ): Promise<QuoteV2> => {
-  const params = {
+  const data = {
     sourceCurrency,
     targetCurrency,
     ...amount,
   };
   return requestDataAndThrowParsedError(axios.post, `/v2/quotes`, {
     headers: { Authorization: `Bearer ${token}` },
-    params,
+    data,
   });
 };
 
