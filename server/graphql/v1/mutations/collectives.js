@@ -56,6 +56,12 @@ export async function createCollective(_, args, req) {
       };
     }
   }
+  // Set private instructions
+  if (args.collective.privateInstructions) {
+    collectiveData.data = {
+      privateInstructions: args.collective.privateInstructions,
+    };
+  }
 
   collectiveData.isActive = false;
   if (args.collective.ParentCollectiveId) {
@@ -291,7 +297,7 @@ export function editCollective(_, args, req) {
   }
 
   const newCollectiveData = {
-    ...omit(args.collective, ['location', 'type', 'ParentCollectiveId', 'data']),
+    ...omit(args.collective, ['location', 'type', 'ParentCollectiveId', 'data', 'privateInstructions']),
     LastEditedByUserId: req.remoteUser.id,
   };
 
@@ -381,7 +387,17 @@ export function editCollective(_, args, req) {
         return collective.updateCurrency(newCollectiveData.currency, req.remoteUser);
       }
     })
-    .then(() => collective.update(omit(newCollectiveData, ['HostCollectiveId', 'hostFeePercent', 'currency']))) // we omit those attributes that have already been updated above
+    .then(() => {
+      // Set private instructions value
+      if (args.collective.privateInstructions) {
+        newCollectiveData.data = {
+          ...collective.data,
+          privateInstructions: args.collective.privateInstructions,
+        };
+      }
+      // we omit those attributes that have already been updated above
+      return collective.update(omit(newCollectiveData, ['HostCollectiveId', 'hostFeePercent', 'currency']));
+    })
     .then(() => collective.editTiers(args.collective.tiers))
     .then(() => {
       // @deprecated since 2019-10-21: now using dedicated `editCoreContributors` endpoint

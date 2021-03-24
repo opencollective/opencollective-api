@@ -152,8 +152,8 @@ async function notifyUserId(UserId, activity, options = {}) {
         }
       }
     }
-
     activity.data.event = event.info;
+    activity.data.isOffline = activity.data.event.locationName !== 'Online';
     activity.data.collective = parentCollective.info;
     options.from = `${parentCollective.name} <no-reply@${parentCollective.slug}.opencollective.com>`;
   }
