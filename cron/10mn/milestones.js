@@ -167,7 +167,7 @@ const compileTweet = async (collective, template, twitterAccount) => {
 
   let tweet = twitter.compileTweet(template, replacements, get(twitterAccount, `settings.${template}.tweet`));
   const path = await collective.getUrlPath();
-  tweet += `\nhttps://opencollective.com/${path}`;
+  tweet += `\nhttps://opencollective.com${path}`;
   return tweet;
 };
 
