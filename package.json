@@ -148,7 +148,7 @@
     "eslint-plugin-import": "^2.22.1",
     "eslint-plugin-mocha": "8.1.0",
     "eslint-plugin-node": "^11.1.0",
-    "eslint-plugin-react": "^7.23.0",
+    "eslint-plugin-react": "^7.23.1",
     "eslint-plugin-simple-import-sort": "^7.0.0",
     "fake-tag": "^2.0.0",
     "geoip-lite": "^1.4.2",
