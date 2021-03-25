@@ -127,6 +127,15 @@ export const Host = new GraphQLObjectType({
           });
         },
       },
+      paypalClientId: {
+        type: GraphQLString,
+        description: 'If the host supports PayPal, this will contain the client ID to use in the frontend',
+        resolve: async (host, _, req) => {
+          const connectedAccounts = await req.loaders.Collective.connectedAccounts.load(host.id);
+          const paypalAccount = connectedAccounts.find(c => c.service === 'paypal');
+          return paypalAccount?.clientId || null;
+        },
+      },
       supportedPayoutMethods: {
         type: new GraphQLList(PayoutMethodType),
         description: 'The list of payout methods this Host accepts for its expenses',

@@ -11,6 +11,7 @@ import HostQuery from './HostQuery';
 import IndividualQuery from './IndividualQuery';
 import OrderQuery from './OrderQuery';
 import OrdersQuery from './OrdersQuery';
+import PaypalPlanQuery from './PaypalPlanQuery';
 import ThirdPartyApiClientTokenQuery from './ThirdPartyApiClientTokenQuery';
 import TierQuery from './TierQuery';
 import TransactionsQuery from './TransactionsQuery';
@@ -31,6 +32,7 @@ const query = {
   // transaction: TransactionQuery,
   transactions: TransactionsQuery,
   update: UpdateQuery,
+  paypalPlan: PaypalPlanQuery,
   thirdPartyApiClientToken: ThirdPartyApiClientTokenQuery,
   loggedInAccount: {
     type: Account,

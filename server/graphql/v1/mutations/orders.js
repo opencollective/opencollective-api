@@ -25,7 +25,7 @@ import { handleHostPlanAddedFundsLimit, handleHostPlanBankTransfersLimit } from 
 import recaptcha from '../../../lib/recaptcha';
 import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../lib/recurring-contributions';
 import { canUseFeature } from '../../../lib/user-permissions';
-import { capitalize, formatCurrency, md5, parseToBoolean, sleep } from '../../../lib/utils';
+import { formatCurrency, md5, parseToBoolean, sleep } from '../../../lib/utils';
 import models from '../../../models';
 import {
   BadRequest,
@@ -245,6 +245,17 @@ const getTaxInfo = async (order, collective, host, tier, loaders) => {
   }
 };
 
+const hasPaymentMethod = order => {
+  const { paymentMethod } = order;
+  if (!paymentMethod) {
+    return false;
+  } else if (paymentMethod.service === 'paypal' && paymentMethod.data?.isNewApi) {
+    return Boolean(paymentMethod.data.subscriptionId || paymentMethod.data.orderId);
+  } else {
+    return Boolean(paymentMethod.uuid || paymentMethod.token || paymentMethod.type === 'manual');
+  }
+};
+
 export async function createOrder(order, loaders, remoteUser, reqIp, userAgent) {
   debug('Beginning creation of order', order);
 
@@ -352,12 +363,13 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent) 
 
     const paymentRequired = (order.totalAmount > 0 || (tier && tier.amount > 0)) && collective.isActive;
     debug('paymentRequired', paymentRequired, 'total amount:', order.totalAmount, 'isActive', collective.isActive);
-    if (
-      paymentRequired &&
-      (!order.paymentMethod ||
-        !(order.paymentMethod.uuid || order.paymentMethod.token || order.paymentMethod.type === 'manual'))
-    ) {
+    if (paymentRequired && !hasPaymentMethod(order)) {
       throw new Error('This order requires a payment method');
+    }
+    if (paymentRequired && order.paymentMethod.service === 'paypal' && order.paymentMethod.data?.isNewApi) {
+      if (!remoteUser?.isRoot()) {
+        throw new Error('New PayPal API can only be used by root users at the moment');
+      }
     }
     if (paymentRequired && order.paymentMethod && order.paymentMethod.type === 'manual') {
       await handleHostPlanBankTransfersLimit(host);
@@ -470,17 +482,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent) 
       }
     }
 
-    const tierNameInfo = tier && tier.name ? ` (${tier.name})` : '';
-    let defaultDescription;
-    if (order.interval) {
-      defaultDescription = `${capitalize(order.interval)}ly financial contribution to ${
-        collective.name
-      }${tierNameInfo}`;
-    } else {
-      defaultDescription = `${
-        order.totalAmount === 0 || collective.type === types.EVENT ? 'Registration' : 'Financial contribution'
-      } to ${collective.name}${tierNameInfo}`;
-    }
+    const defaultDescription = models.Order.generateDescription(collective, order.totalAmount, order.interval, tier);
     debug('defaultDescription', defaultDescription, 'collective.type', collective.type);
 
     // Default status, will get updated after the order is processed
