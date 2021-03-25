@@ -76,7 +76,7 @@ export async function fetchFxRates(
       );
     } else {
       logger.error(`Unable to fetch fxRate with Fixer API: ${error.message}`);
-      throw error;
+      throw new Error('We are not able to fetch the currency FX rate at the moment');
     }
   }
 }
