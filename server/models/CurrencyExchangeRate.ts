@@ -15,6 +15,33 @@ export class CurrencyExchangeRate extends Model {
     super(...args);
     restoreSequelizeAttributesOnClass(new.target, this);
   }
+
+  static getMany(
+    fromCurrency: string,
+    toCurrencies: string[],
+    date: string | Date = 'latest',
+  ): Promise<CurrencyExchangeRate[]> {
+    return sequelize.query(
+      `
+      SELECT DISTINCT ON ("to") *
+      FROM "CurrencyExchangeRates"
+      WHERE "createdAt" <= :date
+      AND "from" = :fromCurrency
+      AND "to" IN (:toCurrencies)
+      ORDER BY "to", "createdAt" DESC
+    `,
+      {
+        type: sequelize.QueryTypes.SELECT,
+        model: CurrencyExchangeRate,
+        mapToModel: true,
+        replacements: {
+          date: date === 'latest' ? new Date() : date,
+          fromCurrency,
+          toCurrencies,
+        },
+      },
+    );
+  }
 }
 
 function setupModel(CurrencyExchangeRate) {
