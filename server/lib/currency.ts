@@ -1,10 +1,11 @@
 import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
-import { get, keys, zipObject } from 'lodash';
+import { get, has, keys, zipObject } from 'lodash';
 import fetch from 'node-fetch';
 
 import { currencyFormats } from '../constants/currencies';
+import models from '../models';
 
 import cache from './cache';
 import logger from './logger';
@@ -35,6 +36,23 @@ export function formatCurrency(currency: string, value: number): string {
 if (!get(config, 'fixer.accessKey') && !['staging', 'production'].includes(config.env)) {
   logger.info('Fixer API is not configured, lib/currency will always return 1.1');
 }
+
+export const getRatesFromDb = async (
+  fromCurrency: string,
+  toCurrencies: string[],
+  date: string | Date = 'latest',
+): Promise<Record<string, number>> => {
+  const allRates = await models.CurrencyExchangeRate.getMany(fromCurrency, toCurrencies, date);
+  const result = {};
+  allRates.forEach(rate => (result[rate.to] = rate.rate));
+
+  // Make sure we got all currencies
+  if (!toCurrencies.every(currency => has(result, currency))) {
+    throw new Error('We are not able to fetch the currency FX rate at the moment');
+  }
+
+  return result;
+};
 
 export async function fetchFxRates(
   fromCurrency: string,
@@ -76,7 +94,7 @@ export async function fetchFxRates(
       );
     } else {
       logger.error(`Unable to fetch fxRate with Fixer API: ${error.message}`);
-      throw new Error('We are not able to fetch the currency FX rate at the moment');
+      return getRatesFromDb(fromCurrency, toCurrencies, date);
     }
   }
 }
