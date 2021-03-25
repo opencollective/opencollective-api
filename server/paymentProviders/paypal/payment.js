@@ -1,5 +1,5 @@
 import config from 'config';
-import { get } from 'lodash';
+import { get, isNumber } from 'lodash';
 import fetch from 'node-fetch';
 
 import TierType from '../../constants/tiers';
@@ -314,13 +314,22 @@ const recordTransaction = async (order, amount, currency, paypalFee, payload) =>
   if (!host) {
     throw new Error(`Cannot create transaction: collective id ${order.collective.id} doesn't have a host`);
   }
-
   const hostCurrency = host.currency;
+  const hostPlan = await host.getPlan();
+  const hostFeeSharePercent = isNumber(hostPlan?.paypalHostFeeSharePercent)
+    ? hostPlan?.paypalHostFeeSharePercent
+    : hostPlan?.hostFeeSharePercent;
+  const isSharedRevenue = !!hostFeeSharePercent;
+  const platformTip = order.data?.platformFee;
+
   const hostCurrencyFxRate = await getFxRate(currency, hostCurrency);
   const amountInHostCurrency = Math.round(hostCurrencyFxRate * amount);
   const paymentProcessorFeeInHostCurrency = Math.round(hostCurrencyFxRate * paypalFee);
   const hostFeeInHostCurrency = await getHostFee(amountInHostCurrency, order);
-  const platformFeeInHostCurrency = await getPlatformFee(amountInHostCurrency, order);
+  const platformFeeInHostCurrency = isSharedRevenue
+    ? platformTip || 0
+    : await getPlatformFee(amountInHostCurrency, order, host, { hostFeeSharePercent });
+
   return models.Transaction.createFromPayload({
     CreatedByUserId: order.CreatedByUserId,
     FromCollectiveId: order.FromCollectiveId,
@@ -342,6 +351,9 @@ const recordTransaction = async (order, amount, currency, paypalFee, payload) =>
       data: {
         ...payload,
         isFeesOnTop: order.data?.isFeesOnTop,
+        platformTip: order.data?.platformFee,
+        isSharedRevenue,
+        hostFeeSharePercent,
       },
     },
   });
