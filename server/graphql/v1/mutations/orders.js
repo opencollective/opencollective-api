@@ -368,7 +368,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent) 
     }
     if (paymentRequired && order.paymentMethod.service === 'paypal' && order.paymentMethod.data?.isNewApi) {
       if (!remoteUser?.isRoot()) {
-        throw new Error('New PayPal APi can only be used by root users at the moment');
+        throw new Error('New PayPal API can only be used by root users at the moment');
       }
     }
     if (paymentRequired && order.paymentMethod && order.paymentMethod.type === 'manual') {
