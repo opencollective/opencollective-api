@@ -42,13 +42,31 @@ export const getRatesFromDb = async (
   toCurrencies: string[],
   date: string | Date = 'latest',
 ): Promise<Record<string, number>> => {
-  const allRates = await models.CurrencyExchangeRate.getMany(fromCurrency, toCurrencies, date);
+  let isInverted = false;
+
+  // All rates are currently stored with from=USD, so we need to reverse from/to when converting EUR to USD
+  if (fromCurrency !== 'USD') {
+    if (toCurrencies.length > 1 || toCurrencies[0] !== 'USD') {
+      // Can only convert *currency* -> USD at the moment (so we don't support multiple targets)
+      throw new Error('We are not able to fetch the currency FX rate at the moment');
+    } else {
+      isInverted = true;
+    }
+  }
+
+  // Fetch rates
+  const [from, to] = isInverted ? [toCurrencies[0], [fromCurrency]] : [fromCurrency, toCurrencies];
+  const allRates = await models.CurrencyExchangeRate.getMany(from, to, date);
   const result = {};
-  allRates.forEach(rate => (result[rate.to] = rate.rate));
+  if (isInverted) {
+    allRates.forEach(rate => (result[from] = 1 / rate.rate));
+  } else {
+    allRates.forEach(rate => (result[rate.to] = rate.rate));
+  }
 
   // Make sure we got all currencies
   if (!toCurrencies.every(currency => has(result, currency))) {
-    throw new Error('We are not able to fetch the currency FX rate at the moment');
+    throw new Error('We are not able to fetch the currency FX rates for some currencies at the moment');
   }
 
   return result;

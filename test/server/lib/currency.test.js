@@ -15,7 +15,7 @@ describe('server/lib/currency', () => {
     it('throws if one of the currency is not found', async () => {
       await fakeCurrencyExchangeRate({ from: 'USD', to: 'NGN' });
       await expect(CurrencyLib.getRatesFromDb('USD', ['NGN', 'EUR'])).to.be.rejectedWith(
-        'We are not able to fetch the currency FX rate at the moment',
+        'We are not able to fetch the currency FX rates for some currencies at the moment',
       );
     });
 
@@ -61,6 +61,12 @@ describe('server/lib/currency', () => {
       const resultFromOneMonthAgo = await CurrencyLib.getRatesFromDb('USD', ['NGN', 'EUR'], oneMonthAgo);
       expect(resultFromOneMonthAgo.NGN).to.eq(ratesFromOneMonthAgo.NGN.rate);
       expect(resultFromOneMonthAgo.EUR).to.eq(ratesFromOneMonthAgo.EUR.rate);
+    });
+
+    it('with USD as the target currency', async () => {
+      const usdToEurRate = await fakeCurrencyExchangeRate({ from: 'USD', to: 'EUR' });
+      const result = await CurrencyLib.getRatesFromDb('EUR', ['USD']);
+      expect(result.USD).to.eq(1 / usdToEurRate.rate);
     });
   });
 
