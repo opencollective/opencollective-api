@@ -1,5 +1,5 @@
 import config from 'config';
-import { get, result } from 'lodash';
+import { get, isNumber, result } from 'lodash';
 
 import * as constants from '../../constants/transactions';
 import logger from '../../lib/logger';
@@ -112,10 +112,13 @@ const getOrCreateCustomerOnHostAccount = async (hostStripeAccount, { paymentMeth
 const createChargeAndTransactions = async (hostStripeAccount, { order, hostStripeCustomer }) => {
   const host = await order.collective.getHostCollective();
   const hostPlan = await host.getPlan();
-  const isSharedRevenue = !!hostPlan.hostFeeSharePercent;
+  const hostFeeSharePercent = isNumber(hostPlan?.creditCardHostFeeSharePercent)
+    ? hostPlan?.creditCardHostFeeSharePercent
+    : hostPlan?.hostFeeSharePercent;
+  const isSharedRevenue = !!hostFeeSharePercent;
 
   // Read or compute Platform Fee
-  const platformFee = await getPlatformFee(order.totalAmount, order, host, { hostPlan });
+  const platformFee = await getPlatformFee(order.totalAmount, order, host, { hostFeeSharePercent });
   const platformTip = order.data?.platformFee;
 
   // Make sure data is available (breaking in some old tests)
@@ -197,14 +200,10 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
     settled: true,
     platformFee: platformFee,
     platformTip,
+    hostFeeSharePercent,
   };
 
-  let platformFeeInHostCurrency = fees.applicationFee;
-  if (isSharedRevenue) {
-    // Platform Fee In Host Currency makes no sense in the shared revenue model.
-    platformFeeInHostCurrency = platformTip || 0;
-    data.hostFeeSharePercent = hostPlan.hostFeeSharePercent;
-  }
+  const platformFeeInHostCurrency = isSharedRevenue ? platformTip || 0 : fees.applicationFee;
 
   const payload = {
     CreatedByUserId: order.CreatedByUserId,
