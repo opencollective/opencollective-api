@@ -48,7 +48,12 @@ export const getRatesFromDb = async (
   if (fromCurrency !== 'USD') {
     if (toCurrencies.length > 1 || toCurrencies[0] !== 'USD') {
       // Can only convert *currency* -> USD at the moment (so we don't support multiple targets)
-      throw new Error('We are not able to fetch the currency FX rate at the moment');
+      logger.warn(
+        `getRatesFromDb: Tried to convert ${fromCurrency} to ${toCurrencies.join(', ')}, which is not supported `,
+      );
+      throw new Error(
+        'We are not able to fetch some currencies FX rate at the moment, some statistics may be unavailable',
+      );
     } else {
       isInverted = true;
     }
@@ -66,7 +71,9 @@ export const getRatesFromDb = async (
 
   // Make sure we got all currencies
   if (!toCurrencies.every(currency => has(result, currency))) {
-    throw new Error('We are not able to fetch the currency FX rates for some currencies at the moment');
+    throw new Error(
+      'We are not able to fetch the currency FX rates for some currencies at the moment, some statistics may be unavailable',
+    );
   }
 
   return result;
