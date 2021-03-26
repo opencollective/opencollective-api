@@ -87,6 +87,110 @@ const storeContributorsInCache = (collectiveId: number, allContributors: Contrib
   return cacheEntry;
 };
 
+const contributorsQueryForLargeCollectives = `
+  SELECT
+    c.id,
+    c."name",
+    c."slug" AS "collectiveSlug",
+    c."image",
+    c."type",
+    MIN(m."since") as "since",
+    ARRAY_AGG(DISTINCT m."role") AS "roles",
+    ARRAY_AGG(DISTINCT m."TierId") as "tiersIds",
+    MAX(m."publicMessage") AS "publicMessage",
+    c."isIncognito" as "isIncognito",
+    BOOL_OR(COALESCE((c."data" ->> 'isGuest') :: boolean, FALSE)) AS "isGuest",
+    COALESCE(MAX(m.description), MAX(tiers.name)) AS "description",
+    COALESCE((
+      SELECT SUM(t."amount")
+      FROM "Transactions" t
+      WHERE t."CollectiveId" = :collectiveId
+      AND (t."FromCollectiveId" = c.id OR t."UsingGiftCardFromCollectiveId" = c.id)
+      AND t."type" = 'CREDIT'
+      AND t."deletedAt" IS NULL
+      AND t."RefundTransactionId" IS NULL
+    ), 0) AS "totalAmountDonated"
+  FROM
+    "Collectives" c
+  INNER JOIN "Members" m
+    ON m."MemberCollectiveId" = c.id
+  LEFT JOIN "Tiers" tiers
+    ON m."TierId" IS NOT NULL AND m."TierId" = tiers.id 
+  WHERE
+    m."CollectiveId" = :collectiveId
+    AND m."MemberCollectiveId" != :collectiveId
+    AND m."deletedAt" IS NULL
+    AND c."deletedAt" IS NULL
+  GROUP BY
+    c.id
+  ORDER BY
+    "totalAmountDonated" DESC,
+    MIN(m."since") ASC
+`;
+
+const contributorsQuery = `
+  WITH member_collectives_matching_roles AS (
+    SELECT
+      c.*,
+      ARRAY_AGG(DISTINCT m."role") AS "roles",
+      MIN(m."since") as "since",
+      ARRAY_AGG(DISTINCT m."TierId") as "tiersIds",
+      COALESCE(MAX(m.description), MAX(t.name)) AS "memberDescription",
+      MAX(m."publicMessage") AS "publicMessage",
+      BOOL_OR(COALESCE((c."data" ->> 'isGuest') :: boolean, FALSE)) AS "isGuest"
+    FROM
+      "Collectives" c
+      LEFT JOIN "Members" m ON m."MemberCollectiveId" = c.id
+      LEFT JOIN "Tiers" t ON t.id = m."TierId"
+    WHERE
+      m."CollectiveId" = :collectiveId
+      AND m."MemberCollectiveId" != :collectiveId
+      AND m."deletedAt" IS NULL
+      AND c."deletedAt" IS NULL
+    GROUP BY
+      c.id
+  ),
+  total_contributed AS (
+    SELECT
+      "UsingGiftCardFromCollectiveId",
+      "FromCollectiveId",
+      COALESCE(SUM("amount"), 0) AS "totalAmountDonated"
+    FROM
+      "Transactions"
+    WHERE
+      "CollectiveId" = :collectiveId
+      AND TYPE = 'CREDIT'
+      AND "deletedAt" IS NULL
+      AND "RefundTransactionId" IS NULL
+    GROUP BY
+      "UsingGiftCardFromCollectiveId",
+      "FromCollectiveId"
+  )
+  SELECT
+    mc.id,
+    MAX(mc.name) AS name,
+    MAX(mc.slug) AS "collectiveSlug",
+    MAX(mc.image) AS image,
+    MAX(mc.type) AS type,
+    MIN(mc.since) as "since",
+    MAX(mc.roles) as "roles",
+    MAX(mc."tiersIds") as "tiersIds",
+    MAX(mc."publicMessage") as "publicMessage",
+    BOOL_AND(mc."isIncognito") as "isIncognito",
+    BOOL_AND(mc."isGuest") as "isGuest",
+    MAX(mc."memberDescription") as "description",
+    COALESCE(SUM(tc."totalAmountDonated"), 0) AS "totalAmountDonated"
+  FROM
+    "member_collectives_matching_roles" mc
+    LEFT JOIN "total_contributed" tc ON tc."UsingGiftCardFromCollectiveId" = mc.id
+    OR tc."FromCollectiveId" = mc.id
+  GROUP BY
+    mc.id
+  ORDER BY
+    "totalAmountDonated" DESC,
+    "since" ASC
+`;
+
 /**
  * Load contributors cache, filling it from DB if necessary.
  */
@@ -97,53 +201,13 @@ const loadContributors = async (collectiveId: number): Promise<ContributorsCache
     return fromCache;
   }
 
-  const allContributors = await sequelize.query(
-    `
-    SELECT
-      c.id,
-      c."name",
-      c."slug" AS "collectiveSlug",
-      c."image",
-      c."type",
-      MIN(m."since") as "since",
-      ARRAY_AGG(DISTINCT m."role") AS "roles",
-      ARRAY_AGG(DISTINCT m."TierId") as "tiersIds",
-      MAX(m."publicMessage") AS "publicMessage",
-      c."isIncognito" as "isIncognito",
-      BOOL_OR(COALESCE((c."data" ->> 'isGuest') :: boolean, FALSE)) AS "isGuest",
-      COALESCE(MAX(m.description), MAX(tiers.name)) AS "description",
-      COALESCE((
-        SELECT SUM(t."amount")
-        FROM "Transactions" t
-        WHERE t."CollectiveId" = :collectiveId
-        AND (t."FromCollectiveId" = c.id OR t."UsingGiftCardFromCollectiveId" = c.id)
-        AND t."type" = 'CREDIT'
-        AND t."deletedAt" IS NULL
-        AND t."RefundTransactionId" IS NULL
-      ), 0) AS "totalAmountDonated"
-    FROM
-      "Collectives" c
-    INNER JOIN "Members" m
-      ON m."MemberCollectiveId" = c.id
-    LEFT JOIN "Tiers" tiers
-      ON m."TierId" IS NOT NULL AND m."TierId" = tiers.id 
-    WHERE
-      m."CollectiveId" = :collectiveId
-      AND m."MemberCollectiveId" != :collectiveId
-      AND m."deletedAt" IS NULL
-      AND c."deletedAt" IS NULL
-    GROUP BY
-      c.id
-    ORDER BY
-      "totalAmountDonated" DESC,
-      MIN(m."since") ASC
-    `,
-    {
-      raw: true,
-      type: sequelize.QueryTypes.SELECT,
-      replacements: { collectiveId },
-    },
-  );
+  // See https://github.com/opencollective/opencollective/issues/4121
+  const query = collectiveId === 8686 ? contributorsQueryForLargeCollectives : contributorsQuery;
+  const allContributors = await sequelize.query(query, {
+    raw: true,
+    type: sequelize.QueryTypes.SELECT,
+    replacements: { collectiveId },
+  });
 
   // Pre-fill some properties for contributors so we don't have to re-compute them
   allContributors.forEach((c: Contributor) => {
