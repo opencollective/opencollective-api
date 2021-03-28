@@ -1,13 +1,13 @@
-Subject: Your expense to {{collective.name}} for {{currency expense.amount currency=expense.currency precision=2}} has been rejected
+Subject: Expense rejected: {{currency expense.amount currency=expense.currency precision=2}} for {{collective.name}}
 
 {{> header}}
 
-<p>Quick message to let you know that your expense for <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{expense.description}}</a> has been rejected.</p>
+<p>Your expense, <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{expense.description}}</a>, has been rejected.</p>
 
 <table>
   <tr><th>Submitted by:</th><td><a href="{{config.host.website}}/{{fromCollective.slug}}">{{fromCollective.name}}</a></td></tr>
   {{#if expense.privateMessage}}
-    <tr><th valign="top">Private instructions:</th><td>{{expense.privateMessage}}</td></tr>
+    <tr><th valign="top">Note:</th><td>{{expense.privateMessage}}</td></tr>
   {{/if}}
 </table>
 
@@ -20,8 +20,8 @@ Subject: Your expense to {{collective.name}} for {{currency expense.amount curre
 
   <p>
     <center>
-      <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}#new-comment-on-expense" class="btn blue">
-        <div>Reply</div>
+      <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}" class="btn blue">
+        <div>View Expense</div>
       </a>
     </center>
   </p>
