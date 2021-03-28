@@ -1,5 +1,4 @@
-Subject: 🚨 Transaction failed on {{collective.name}}
-{{currency transaction.netAmountInCollectiveCurrency currency=transaction.currency}} for {{expense.description}}
+Subject: 🚨 Transaction failed on {{collective.name}} - {{currency transaction.netAmountInCollectiveCurrency currency=transaction.currency}} for {{expense.description}}
 
 {{> header}}
 
@@ -7,33 +6,29 @@ Subject: 🚨 Transaction failed on {{collective.name}}
   <h3>
     {{#if payoutMethod}}
     {{#ifCond payoutMethod.type '===' 'PAYPAL'}}
-    Hi there! Just a note to let you know that a PayPal payout failed for an expense submitted to
-    {{payoutMethod.data.email}}.
+    A PayPal payout to {{payoutMethod.data.email}} has failed.
     {{/ifCond}}
     {{#ifCond payoutMethod.type '===' 'BANK_ACCOUNT'}}
-    Hi there! Just a note to let you know that a TransferWise payment failed for an expense submitted to
-    {{payoutMethod.data.accountHolderName}}.
+    A Wise payment to {{payoutMethod.data.accountHolderName}} has failed.
     {{/ifCond}}
     {{/if}}
   </h3>
   <h2>{{currency transaction.netAmountInCollectiveCurrency currency=transaction.currency precision=2}}</h2>
-  <div>{{expense.description}}</div>
-  <div>To: {{fromCollective.name}}</div>
+  <div><a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{expense.description}}</a></div>
+  <div>Payee: {{fromCollective.name}}</div>
   <div>
     {{#if payoutMethod}}
     {{#ifCond payoutMethod.type '===' 'PAYPAL'}}
     {{#if error}}
-    PayPal wasn't able to execute this transaction because: {{error.message}}.
+    PayPal error: {{error.message}}
     {{/if}}
     {{#unless error}}
-    Please, make sure you check in PayPal what happened exactly, you might need to create this transaction
-    manually and mark as paid.<br />
+    Check PayPal to find out what happened. You might need to send this payment manually, then mark it as paid on Open Collective.<br />
     {{/unless}}
     {{/ifCond}}
     {{#ifCond payoutMethod.type '===' 'BANK_ACCOUNT'}}
-    Please, make sure you check in TransferWise what happened exactly, you might need to create this transaction
-    manually and mark as paid.<br />
-    If you think this error shouldn't happen again, you can also retry our "Pay with TransferWise" button.
+    Check Wise to find out what happened. You might need to send this payment manually through Wise or your bank, then mark it as paid on Open Collective.<br />
+    If you think the problem will not reoccur, you can also retry clicking the "Pay with TransferWise" button.
     {{/ifCond}}
     {{/if}}
   </div>

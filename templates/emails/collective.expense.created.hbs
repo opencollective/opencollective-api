@@ -3,7 +3,7 @@ Subject: New expense on {{collective.name}}: {{currency expense.amount currency=
 {{> header}}
 
 <center>
-  <h1>{{currency expense.amount currency=expense.currency precision=2}}</h1>
+  <h1><a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{currency expense.amount currency=expense.currency precision=2}}</a></h1>
   <div>
     <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{expense.description}}</a>
   </div>
@@ -11,14 +11,14 @@ Subject: New expense on {{collective.name}}: {{currency expense.amount currency=
     Payee: <a href="{{config.host.website}}/{{fromCollective.slug}}"> {{fromCollective.name}} </a>
   </div>
   <div>
-    Submitted by: <a href="{{config.host.website}}/{{user.slug}}"> {{user.name}} </a> 
+    Submitted by: <a href="{{config.host.website}}/{{user.slug}}"> {{user.name}} </a>
   </div>
   {{#if payoutMethod}}
     {{#ifCond payoutMethod.type '===' 'PAYPAL'}}
       <div>Paypal Email: {{payoutMethod.data.email}}</div>
     {{/ifCond}}
   {{/if}}
-  
+
   <p><font color="#999">{{expense.notes}}</font></p>
 
   {{> expenseItems items=items}}
@@ -27,7 +27,7 @@ Subject: New expense on {{collective.name}}: {{currency expense.amount currency=
   <br />
   <br />
   <a class="btn blue" href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">
-    <div>View expense on Open Collective</div>
+    <div>View</div>
   </a>
 
   <br /><br />
