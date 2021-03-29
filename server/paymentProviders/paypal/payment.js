@@ -232,11 +232,6 @@ async function createPaypalPlan(host, collective, productId, interval, amount, c
 }
 
 export async function getOrCreatePlan(host, collective, interval, amount, currency, tier = null) {
-  if (interval === 'month') {
-    // TODO! During the internal testing phase, we're forcing PayPal recurring subscription to be considered as daily
-    interval = 'day';
-  }
-
   const product = await models.PaypalProduct.findOne({
     where: { CollectiveId: collective.id, TierId: tier?.id || null },
     include: [
