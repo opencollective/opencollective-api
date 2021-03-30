@@ -1,5 +1,5 @@
 import express from 'express';
-import { GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLFloat, GraphQLNonNull, GraphQLString } from 'graphql';
 
 import { ValidationFailed } from '../../errors';
 import { addFundsToCollective as addFundsToCollectiveLegacy } from '../../v1/mutations/orders';
@@ -15,8 +15,8 @@ export const addFundsMutation = {
     account: { type: new GraphQLNonNull(AccountReferenceInput) },
     amount: { type: new GraphQLNonNull(AmountInput) },
     description: { type: new GraphQLNonNull(GraphQLString) },
-    hostFeePercent: { type: new GraphQLNonNull(GraphQLInt) },
-    platformFeePercent: { type: GraphQLInt, description: 'Can only be set if root' },
+    hostFeePercent: { type: new GraphQLNonNull(GraphQLFloat) },
+    platformFeePercent: { type: GraphQLFloat, description: 'Can only be set if root' },
   },
   resolve: async (_, args, req: express.Request): Promise<Record<string, unknown>> => {
     const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
