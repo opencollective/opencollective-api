@@ -3,8 +3,9 @@ import { isNil, isNull, isUndefined } from 'lodash';
 
 import activities from '../../../constants/activities';
 import status from '../../../constants/order_status';
-import { PAYMENT_METHOD_SERVICE } from '../../../constants/paymentMethods';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import models from '../../../models';
+import { cancelPaypalSubscription } from '../../../paymentProviders/paypal/payment';
 import { BadRequest, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { confirmOrder as confirmOrderLegacy, createOrder as createOrderLegacy } from '../../v1/mutations/orders';
 import { getIntervalFromContributionFrequency } from '../enum/ContributionFrequency';
@@ -19,12 +20,6 @@ import { fetchPaymentMethodWithReference, PaymentMethodReferenceInput } from '..
 import { fetchTierWithReference, TierReferenceInput } from '../input/TierReferenceInput';
 import { Order } from '../object/Order';
 import { StripeError } from '../object/StripeError';
-
-const modelArray = [
-  { model: models.Subscription },
-  { model: models.Collective, as: 'collective' },
-  { model: models.Collective, as: 'fromCollective' },
-];
 
 const OrderWithPayment = new GraphQLObjectType({
   name: 'OrderWithPayment',
@@ -124,10 +119,13 @@ const orderMutations = {
       }
 
       const query = {
-        where: {
-          id: decodedId,
-        },
-        include: modelArray,
+        where: { id: decodedId },
+        include: [
+          { association: 'paymentMethod' },
+          { model: models.Subscription },
+          { model: models.Collective, as: 'collective' },
+          { model: models.Collective, as: 'fromCollective' },
+        ],
       };
 
       const order = await models.Order.findOne(query);
@@ -139,13 +137,29 @@ const orderMutations = {
       const fromCollective = await req.loaders.Collective.byId.load(order.FromCollectiveId);
       if (!req.remoteUser.isAdminOfCollective(fromCollective)) {
         throw new Unauthorized("You don't have permission to cancel this recurring contribution");
-      }
-      if (!order.Subscription.isActive && order.status === status.CANCELLED) {
+      } else if (!order.Subscription?.isActive && order.status === status.CANCELLED) {
         throw new Error('Recurring contribution already canceled');
+      } else if (order.status === status.PAID) {
+        throw new Error('Cannot cancel a paid order');
+      }
+
+      // If subscription exists on a third party, cancel it there
+      const { paymentMethod } = order;
+      if (paymentMethod) {
+        if (
+          paymentMethod.service === PAYMENT_METHOD_SERVICE.PAYPAL &&
+          paymentMethod.type === PAYMENT_METHOD_TYPE.PAYMENT &&
+          order.data?.paypalSubscriptionId
+        ) {
+          await cancelPaypalSubscription(order.data.paypalSubscriptionId);
+        }
       }
 
       await order.update({ status: status.CANCELLED });
-      await order.Subscription.deactivate();
+      if (order.Subscription) {
+        await order.Subscription.deactivate();
+      }
+
       await models.Activity.create({
         type: activities.SUBSCRIPTION_CANCELED,
         CollectiveId: order.CollectiveId,

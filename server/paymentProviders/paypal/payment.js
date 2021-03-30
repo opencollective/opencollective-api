@@ -384,6 +384,10 @@ const recordPaypalCapture = async (order, capture) => {
   return recordTransaction(order, amount, currency, fee, { capture });
 };
 
+export const cancelPaypalSubscription = async (subscriptionId, reason = undefined) => {
+  await paypalRequest(`billing/subscriptions/${subscriptionId}/cancel`, { reason });
+};
+
 /** Process order in paypal and create transactions in our db */
 export async function processOrder(order) {
   const hostCollective = await order.collective.getHostCollective();
