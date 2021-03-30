@@ -70,7 +70,7 @@ const doFormatMessage = (activity, format) => {
 
   // get transaction data
   if (activity.data.transaction) {
-    amount = activity.data.transaction.amount / 100;
+    amount = Math.abs(activity.data.transaction.amount / 100);
     recurringAmount = amount + (interval ? `/${interval}` : '');
     ({ currency } = activity.data.transaction);
     ({ description } = activity.data.transaction);
@@ -81,9 +81,13 @@ const doFormatMessage = (activity, format) => {
 
   // get expense data
   if (activity.data.expense) {
-    amount = activity.data.expense.amount / 100;
-    ({ currency } = activity.data.expense);
-    ({ description } = activity.data.expense);
+    amount = amount || activity.data.expense.amount / 100;
+    currency = currency || activity.data.expense.currency;
+    description = linkify(
+      format,
+      `${config.host.website}/${activity.data.collective.slug}/expenses/${activity.data.expense.id}`,
+      description || activity.data.expense.description,
+    );
   }
 
   let collective;
@@ -96,28 +100,24 @@ const doFormatMessage = (activity, format) => {
   switch (activity.type) {
     // Currently used for both new donation and expense
     case activities.COLLECTIVE_TRANSACTION_CREATED:
-      switch (activity.data.transaction.type) {
-        case TransactionTypes.CREDIT:
-          if (userTwitter) {
-            tweet = encodeURIComponent(
-              `@${userTwitter} thanks for your ${formatCurrency(currency, recurringAmount)} contribution to ${
-                collectiveTwitter ? `@${collectiveTwitter}` : collectiveName
-              } 👍 ${publicUrl}`,
-            );
-            tweetLink = linkify(
-              format,
-              `https://twitter.com/intent/tweet?text=${tweet}`,
-              'Thank that person on Twitter',
-            );
-            tweetThis = ` [${tweetLink}]`;
-          }
-          return `New Donation: ${userString} gave ${currency} ${amount} to ${collective}!${tweetThis}`;
-
-        case TransactionTypes.DEBIT:
-          return `New Expense: ${userString} submitted an expense to ${collective}: ${currency} ${amount} for ${description}!`;
+      if (activity.data.transaction.type === TransactionTypes.CREDIT) {
+        if (userTwitter) {
+          tweet = encodeURIComponent(
+            `@${userTwitter} thanks for your ${formatCurrency(currency, recurringAmount)} contribution to ${
+              collectiveTwitter ? `@${collectiveTwitter}` : collectiveName
+            } 👍 ${publicUrl}`,
+          );
+          tweetLink = linkify(format, `https://twitter.com/intent/tweet?text=${tweet}`, 'Thank that person on Twitter');
+          tweetThis = ` [${tweetLink}]`;
+        }
+        return `New financial contribution: ${userString} gave ${currency} ${amount} to ${collective}!${tweetThis}`;
+      } else if (activity.data.transaction.ExpenseId) {
+        return `New transaction for paid expense "${description}" (${currency} ${amount}) on ${collective}`;
+      } else if (activity.data.transaction.isRefund) {
+        return `A transaction (${currency} ${amount}) on ${collective} was refunded: ${description}`;
+      } else {
+        return `New debit transaction on ${collective} for ${currency} ${amount}`;
       }
-
-      break;
 
     case activities.COLLECTIVE_EXPENSE_CREATED:
       return `New Expense: ${userString} submitted an expense to ${collective}: ${currency} ${amount} for ${description}!`;

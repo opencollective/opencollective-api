@@ -252,6 +252,29 @@ export default {
             amount: -1298,
             currency: 'USD',
             description: 'pizza',
+            ExpenseId: 42,
+          },
+          collective: {
+            name: 'Pub quiz',
+            slug: 'pubquiz',
+            publicUrl: 'https://opencollective.com/pubquiz',
+          },
+        },
+      },
+      {
+        type: 'collective.transaction.created',
+        userId: 3,
+        CollectiveId: 1,
+        data: {
+          user: {
+            email: 'john@doe.com',
+          },
+          transaction: {
+            type: 'DEBIT',
+            amount: -1298,
+            currency: 'USD',
+            description: 'Refund of test contribution',
+            isRefund: true,
           },
           collective: {
             name: 'Pub quiz',
@@ -278,6 +301,11 @@ export default {
             name: 'Pub quiz',
             slug: 'pubquiz',
             publicUrl: 'https://opencollective.com/pubquiz',
+          },
+          expense: {
+            id: 42,
+            amount: 1298,
+            currency: 'USD',
           },
           preapprovalDetails: {
             maxTotalAmountOfAllPayments: 200,
@@ -383,8 +411,10 @@ export default {
           collective: {
             name: 'Blah',
             publicUrl: 'blah.com',
+            slug: 'blah',
           },
           expense: {
+            id: 42,
             amount: 1234,
             currency: 'EUR',
             description: 'for pizza',
@@ -408,12 +438,14 @@ export default {
           collective: {
             name: 'Blah',
             publicUrl: 'blah.com',
+            slug: 'blah',
           },
           expense: {
             amount: 1234,
             currency: 'EUR',
             description: 'for pizza',
             lastEditedById: 2,
+            id: 42,
           },
         },
       },
@@ -427,6 +459,7 @@ export default {
             image: 'http://image.githubusercontent.com/asood123',
           },
           collective: {
+            slug: 'blah',
             name: 'Blah',
             publicUrl: 'blah.com',
           },
@@ -435,6 +468,7 @@ export default {
             currency: 'EUR',
             description: 'for pizza',
             lastEditedById: 2,
+            id: 42,
           },
         },
       },
