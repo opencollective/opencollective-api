@@ -1,39 +1,34 @@
 {{#if lastAttempt}}
-Subject: Payment failed: Recurring contribution cancelled to {{collective.name}}
+Subject: Payment failed: Contribution cancelled to {{collective.name}}
 {{else}}
-Subject: Payment failed: Update your info to continue supporting {{collective.name}}
+Subject: Payment failed: Update info to keep supporting {{collective.name}}
 {{/if}}
 
 {{#if fromCollective.name}}
-Dear {{fromCollective.name}},
+Hi {{fromCollective.name}},
 {{else}}
-Hi!
+Hello,
 {{/if}}
 
 {{#if lastAttempt}}
 
-We wanted to let you know that due to your payment failure, we have
-cancelled your recurring contribution of {{currency order.totalAmount currency=order.currency}}
-to {{collective.name}}.
+<p>Due payment failure, we have cancelled your recurring contribution of
+{{currency order.totalAmount currency=order.currency}} to {{collective.name}}.
 
-We are sad to see you go. You can resubscribe anytime at
-https://opencollective.com/{{collective.slug}}.
+We are sad to see you go. You can restart your contribution anytime at https://opencollective.com/{{collective.slug}}.</p>
 
 {{else}}
 
-We are having trouble authorizing your payment of
-{{currency order.totalAmount currency=order.currency}} to
-{{collective.name}}.
+<p>We are having trouble processing your payment of {{currency order.totalAmount currency=order.currency}} to {{collective.name}}.</p>
 
-Please check your recurring contributions and payment info at {{subscriptionsLink}}.
+<p>Please check your settings and update your payment method if needed, at: {{subscriptionsLink}}. We'll automatically retry in a few days.</p>
 
-We'll automatically retry your payment in a few days. If you believe
-your payment info is correct, please contact your bank for more
-details.
+<p>If you believe your payment info is correct, please contact your card issuer or bank for more details.</p>
+
 
 {{/if}}
 
-If you have any questions, you can always reach us at support@opencollective.com.
+If you have any questions, reach us at support@opencollective.com.
 
 Warmly,
 
