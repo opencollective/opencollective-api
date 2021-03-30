@@ -1,23 +1,23 @@
-Subject: Subscription canceled to {{collective.name}}
+Subject: Contribution cancelled to {{collective.name}}
 
 {{> header}}
 
 {{> toplogo}}
 
 {{#if fromCollective.name}}
-<p>Dear {{fromCollective.name}},</p>
+<p>Hi {{fromCollective.name}},</p>
 {{else}}
-<p>Hi!</p>
+<p>Hello</p>
 {{/if}}
 
-<p>We wanted to confirm that your subscription to {{collective.name}} (cced) for {{currency subscription.amount currency=subscription.currency}}/{{subscription.interval}} has been canceled.</p>
+<p>Your recurring contribution to {{collective.name}} (cced) for {{currency subscription.amount currency=subscription.currency}}/{{subscription.interval}} has been cancelled.</p>
 
-<p>We are sad 😞 to see you go. If you have any feedback about your experience - good, bad, or ugly - we want to hear about it. Just hit 'reply all' and type away.</p>
- 
+<p>We are sad to see you go 😞. If you have any feedback, we want to hear about it. Just hit 'reply all'.</p>
+
 <p>Warmly,</p>
 
 <p>
-  – The {{collective.name}} open collective
+  – {{collective.name}}
 </p>
 
 {{> footer}}
