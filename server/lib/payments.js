@@ -252,8 +252,10 @@ export const sendEmailNotifications = (order, transaction) => {
   debug('sendEmailNotifications');
   // for gift cards and manual payment methods
   if (!transaction) {
-    sendOrderProcessingEmail(order); // This is the one for the Contributor
-    sendManualPendingOrderEmail(order); // This is the one for the Host Admins
+    if (!order.data?.skipPendingEmail) {
+      sendOrderProcessingEmail(order); // This is the one for the Contributor
+      sendManualPendingOrderEmail(order); // This is the one for the Host Admins
+    }
   } else {
     sendOrderConfirmedEmail(order, transaction); // async
   }
