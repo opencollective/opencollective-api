@@ -5,6 +5,7 @@ import { get, toNumber } from 'lodash';
 import OrderStatus from '../../constants/order_status';
 import logger from '../../lib/logger';
 import { validateWebhookEvent } from '../../lib/paypal';
+import { sendThankYouEmail } from '../../lib/recurring-contributions';
 import models from '../../models';
 import { PayoutWebhookRequest } from '../../types/paypal';
 
@@ -55,6 +56,8 @@ const loadSubscriptionForWebhookEvent = async (req: Request, subscriptionId: str
   const order = await models.Order.findOne({
     where: { data: { paypalSubscriptionId: subscriptionId } }, // TODO: Add index on paypalSubscriptionId
     include: [
+      { association: 'fromCollective' },
+      { association: 'createdByUser' },
       { association: 'collective', required: true },
       {
         association: 'paymentMethod',
@@ -89,12 +92,15 @@ async function handleSaleCompleted(req: Request): Promise<void> {
   const { order } = await loadSubscriptionForWebhookEvent(req, subscriptionId);
 
   // 2. Record the transaction
-  await recordPaypalSale(order, sale);
+  const transaction = await recordPaypalSale(order, sale);
 
   // 3. Mark order as active
   if (order.status !== OrderStatus.ACTIVE) {
     await order.update({ status: OrderStatus.ACTIVE });
   }
+
+  // 4. Send thankyou email
+  await sendThankYouEmail(order, transaction);
 }
 
 /**

@@ -383,11 +383,10 @@ export async function processOrder(order) {
       const captureDetails = await paypalRequestV2(hostCollective, `payments/captures/${captureId}`, 'GET');
       return recordPaypalCapture(order, captureDetails);
     } else if (order.paymentMethod.data.subscriptionId) {
-      // Activate the subscription.
       const subscriptionId = order.paymentMethod.data.subscriptionId;
-      await order.update({ data: { ...order.data, paypalSubscriptionId: subscriptionId } });
       await paypalRequest(`billing/subscriptions/${subscriptionId}/activate`, null, hostCollective, 'POST');
-      // Don't record anything here (will be done in the webhook event)
+      await order.update({ data: { ...order.data, paypalSubscriptionId: subscriptionId, skipPendingEmail: true } });
+      // Don't record the transaction here (will be done in the webhook event)
     } else {
       throw new Error('Must either provide a subscriptionId or an orderId');
     }
