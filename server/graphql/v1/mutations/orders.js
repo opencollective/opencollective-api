@@ -250,7 +250,7 @@ const hasPaymentMethod = order => {
   if (!paymentMethod) {
     return false;
   } else if (paymentMethod.service === 'paypal' && paymentMethod.data?.isNewApi) {
-    return Boolean(paymentMethod.data.subscriptionId || paymentMethod.data.orderId);
+    return Boolean(paymentMethod.data.orderId);
   } else {
     return Boolean(paymentMethod.uuid || paymentMethod.token || paymentMethod.type === 'manual');
   }

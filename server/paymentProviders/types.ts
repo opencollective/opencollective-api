@@ -18,6 +18,7 @@ export interface PaymentProviderService {
    */
   features: {
     recurring: boolean;
+    isRecurringManagedExternally: boolean;
   };
 
   /**

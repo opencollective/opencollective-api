@@ -13,6 +13,7 @@ interface PaypalProductAttributes {
 export interface PaypalProductCreateAttributes {
   id: string;
   TierId: number;
+  CollectiveId: number;
 }
 
 class PaypalProduct

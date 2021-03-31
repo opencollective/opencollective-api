@@ -20,7 +20,7 @@ import intervals from '../../constants/intervals';
 import INTERVALS from '../../constants/intervals';
 import { maxInteger } from '../../constants/math';
 import orderStatus from '../../constants/order_status';
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE, PAYMENT_METHOD_TYPES } from '../../constants/paymentMethods';
+import { PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import roles from '../../constants/roles';
 import { getCollectiveAvatarUrl } from '../../lib/collectivelib';
 import { getContributorsForTier } from '../../lib/contributors';
@@ -1875,40 +1875,27 @@ export const PaymentMethodType = new GraphQLObjectType({
       data: {
         type: GraphQLJSON,
         resolve(paymentMethod, _, req) {
-          if (!paymentMethod.data) {
+          if (!req.remoteUser?.isAdmin(paymentMethod.CollectiveId)) {
             return null;
           }
 
-          // Protect and whitelist fields for gift cards
+          // Protect and limit fields
+          let allowedFields = [];
           if (paymentMethod.type === PAYMENT_METHOD_TYPE.GIFT_CARD) {
-            if (!req.remoteUser || !req.remoteUser.isAdmin(paymentMethod.CollectiveId)) {
-              return null;
-            }
-            return pick(paymentMethod.data, ['email']);
+            allowedFields = ['email'];
+          } else if (paymentMethod.type === PAYMENT_METHOD_TYPE.CREDITCARD) {
+            allowedFields = ['fullName', 'expMonth', 'expYear', 'brand', 'country', 'last4'];
           }
 
-          const data = paymentMethod.data;
-          // white list fields to send back; removes fields like CustomerIdForHost
-          const dataSubset = {
-            fullName: data.fullName,
-            expMonth: data.expMonth,
-            expYear: data.expYear,
-            brand: data.brand,
-            country: data.country,
-            last4: data.last4,
-          };
-          return dataSubset;
+          return pick(paymentMethod.data, allowedFields);
         },
       },
       name: {
         // last 4 digit of card number for Stripe
         type: GraphQLString,
         resolve(paymentMethod, _, req) {
-          if (
-            paymentMethod.service === PAYMENT_METHOD_SERVICE.PAYPAL &&
-            paymentMethod.type === PAYMENT_METHOD_TYPES.ADAPTIVE
-          ) {
-            return req.remoteUser?.isAdmin(paymentMethod.CollectiveId) ? paymentMethod.name : null;
+          if (!req.remoteUser?.isAdmin(paymentMethod.CollectiveId)) {
+            return null;
           } else {
             return paymentMethod.name;
           }
