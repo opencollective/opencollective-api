@@ -73,6 +73,12 @@ export function setupModels() {
    * Relationships
    */
 
+  // Collective
+  m.Collective.belongsTo(m.Collective, {
+    foreignKey: 'HostCollectiveId',
+    as: 'host',
+  });
+
   // PaymentMethod.
   m.PaymentMethod.belongsTo(m.Collective);
   m.PaymentMethod.belongsTo(m.PaymentMethod, {

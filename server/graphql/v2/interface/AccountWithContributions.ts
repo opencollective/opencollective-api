@@ -70,11 +70,11 @@ export const AccountWithContributionsFields = {
     type: new GraphQLNonNull(GraphQLBoolean),
     description:
       'Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account',
-    async resolve(account: typeof models.Collective): Promise<boolean> {
+    async resolve(account: typeof models.Collective, _, req: express.Request): Promise<boolean> {
       if (!isNil(account.data?.platformTips)) {
         return account.data.platformTips;
       }
-      const host = await account.getHostCollective();
+      const host = await req.loaders.Collective.host.load(account.id);
       if (host) {
         const plan = await host.getPlan();
         return plan.platformTips;
