@@ -70,8 +70,16 @@ export const AccountWithContributionsFields = {
     type: new GraphQLNonNull(GraphQLBoolean),
     description:
       'Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account',
-    resolve(account: typeof models.Collective): boolean {
-      return account.platformFeePercent === 0 && Boolean(account.data?.disablePlatformTips) !== true;
+    async resolve(account: typeof models.Collective, _, req: express.Request): Promise<boolean> {
+      if (!isNil(account.data?.platformTips)) {
+        return account.data.platformTips;
+      }
+      const host = await req.loaders.Collective.host.load(account.id);
+      if (host) {
+        const plan = await host.getPlan();
+        return plan.platformTips;
+      }
+      return false;
     },
   },
   balance: {

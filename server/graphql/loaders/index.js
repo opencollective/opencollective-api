@@ -53,6 +53,20 @@ export const loaders = req => {
   // Collective - by UserId
   context.loaders.Collective.byUserId = collectiveLoaders.byUserId(req, cache);
 
+  // Collective - Host
+  context.loaders.Collective.host = new DataLoader(ids =>
+    models.Collective.findAll({
+      where: { id: { [Op.in]: ids } },
+      include: [{ model: models.Collective, as: 'host' }],
+    }).then(results => {
+      const resultsById = {};
+      for (const result of results) {
+        resultsById[result.id] = result.host;
+      }
+      return ids.map(id => resultsById[id] || null);
+    }),
+  );
+
   // Collective - Balance
   context.loaders.Collective.balance = new DataLoader(ids =>
     getBalances(ids).then(results => sortResults(ids, Object.values(results), 'CollectiveId')),

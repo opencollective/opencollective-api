@@ -412,7 +412,7 @@ describe('server/models/Collective', () => {
       expect(plan).to.deep.equal({
         id: 3,
         name: 'default',
-        hostedCollectives: 2,
+        hostedCollectives: 0,
         addedFunds: 0,
         bankTransfers: 0,
         transferwisePayouts: 0,
