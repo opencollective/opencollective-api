@@ -199,11 +199,13 @@ export async function run() {
         AND t."platformFeeInHostCurrency" = 0
         AND t."data"->>'settled' IS NULL
         -- Ignore opensource and foundation:
-        AND t."HostCollectiveId" NOT IN (11004, 11049, 8686)
+        AND t."HostCollectiveId" NOT IN (11004, 8686)
       AND (
         h."type" = 'ORGANIZATION'
         AND h."isHostAccount" = TRUE
-        AND h."plan" in ('${SHARED_REVENUE_PLANS.join("', '")}')
+        AND (h."plan" in ('${SHARED_REVENUE_PLANS.join(
+          "', '",
+        )}') OR h."data"#>>'{plan, hostFeeSharePercent}' IS NOT NULL)
       )
     ORDER BY
       t."createdAt"
