@@ -856,9 +856,9 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         await waitForCondition(() => emailSendMessageSpy.callCount === 2);
         expect(emailSendMessageSpy.callCount).to.equal(2);
         expect(emailSendMessageSpy.args[0][0]).to.equal(expense.User.email);
-        expect(emailSendMessageSpy.args[0][2]).to.contain(`has just been paid`);
+        expect(emailSendMessageSpy.args[0][2]).to.contain(`has been paid`);
         expect(emailSendMessageSpy.args[1][0]).to.equal(hostAdmin.email);
-        expect(emailSendMessageSpy.args[1][1]).to.contain(`Expense paid on ${collective.name}`);
+        expect(emailSendMessageSpy.args[1][1]).to.contain(`Expense paid for ${collective.name}`);
 
         // User should be added as a CONTRIBUTOR
         const membership = await models.Member.findOne({
@@ -1028,7 +1028,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           await waitForCondition(() => emailSendMessageSpy.callCount === 1);
           expect(emailSendMessageSpy.args[0][0]).to.equal(expense.User.email);
           expect(emailSendMessageSpy.args[0][1]).to.contain(
-            `Expense from ${collective.name} for January Invoice is being Processed`,
+            `Payment being processed: January Invoice for ${collective.name}`,
           );
         });
       });
@@ -1480,7 +1480,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
       expect(recipient).to.eq(invoice.payee.email);
       expect(subject).to.include(collective.name);
-      expect(subject).to.include('wants you to submit an expense');
+      expect(subject).to.include('wants you to pay you');
       expect(body).to.include(
         `href="http://localhost:3000/${collective.slug}/expenses/${expense.id}?key&#x3D;${expense.data.draftKey}"`,
       );

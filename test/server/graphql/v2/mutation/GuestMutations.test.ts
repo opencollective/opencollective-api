@@ -88,7 +88,7 @@ describe('server/graphql/v2/mutation/GuestMutations', () => {
 
       const [recipient, subject, body] = emailSendMessageSpy.args[0];
       expect(recipient).to.eq(user.email);
-      expect(subject).to.eq('Open Collective: Verify your email address');
+      expect(subject).to.eq('Open Collective: Verify your email');
       expect(body).to.include(`/confirm/guest/${user.emailConfirmationToken}?email=${encodeURIComponent(user.email)}`);
     });
   });
