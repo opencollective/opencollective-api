@@ -57,7 +57,7 @@ describe('server/lib/slack', () => {
     });
 
     it('with activity succeeds', done => {
-      formatMessageStub.withArgs(activity, 'slack').returns(formattedMessage);
+      formatMessageStub.withArgs(activity, 'slack').returns({ message: formattedMessage });
 
       const expected = postMessageStub.withArgs(formattedMessage, webhookUrl);
 

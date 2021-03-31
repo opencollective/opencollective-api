@@ -1,14 +1,15 @@
 import Debug from 'debug';
 import { Request } from 'express';
 import { get, toNumber } from 'lodash';
-import moment from 'moment';
 
+import OrderStatus from '../../constants/order_status';
 import logger from '../../lib/logger';
 import { validateWebhookEvent } from '../../lib/paypal';
+import { sendThankYouEmail } from '../../lib/recurring-contributions';
 import models from '../../models';
 import { PayoutWebhookRequest } from '../../types/paypal';
 
-import { paypalRequest, recordPaypalSale, recordPaypalTransaction } from './payment';
+import { recordPaypalSale } from './payment';
 import { checkBatchItemStatus } from './payouts';
 
 const debug = Debug('paypal:webhook');
@@ -47,11 +48,40 @@ async function handlePayoutTransactionUpdate(req: Request): Promise<void> {
   await checkBatchItemStatus(item, expense, host);
 }
 
+/**
+ * From a Webhook event + a subscription ID, returns the associated order along with the
+ * host and PayPal account. Calls `validateWebhookEvent`, throwing if the webhook event is invalid
+ */
+const loadSubscriptionForWebhookEvent = async (req: Request, subscriptionId: string) => {
+  const order = await models.Order.findOne({
+    where: { data: { paypalSubscriptionId: subscriptionId } }, // TODO: Add index on paypalSubscriptionId
+    include: [
+      { association: 'fromCollective' },
+      { association: 'createdByUser' },
+      { association: 'collective', required: true },
+      {
+        association: 'paymentMethod',
+        required: true,
+        where: { service: 'paypal', type: 'payment' },
+      },
+    ],
+  });
+
+  if (!order) {
+    throw new Error(`No order found for subscription ${subscriptionId}`);
+  }
+
+  const host = await order.collective.getHostCollective();
+  const paypalAccount = await getPaypalAccount(host);
+  await validateWebhookEvent(paypalAccount, req);
+  return { host, order, paypalAccount };
+};
+
 async function handleSaleCompleted(req: Request): Promise<void> {
   // TODO During the internal testing phase, we're logging all webhooks events to make debugging easier
   logger.info(`PayPal webhook (PAYMENT.SALE.COMPLETED): ${JSON.stringify(req.body)}`);
 
-  // 1. Retrieve the order for this subscription
+  // 1. Retrieve the order for this subscription & validate webhook event
   const sale = req.body.resource;
   const subscriptionId = sale.billing_agreement_id;
   if (!subscriptionId) {
@@ -59,66 +89,37 @@ async function handleSaleCompleted(req: Request): Promise<void> {
     return;
   }
 
-  const order = await models.Order.findOne({
-    where: { data: { paypalSubscriptionId: subscriptionId } }, // TODO: Add index on paypalSubscriptionId
-    include: [
-      { association: 'collective', required: true },
-      {
-        association: 'paymentMethod',
-        required: true,
-        where: { service: 'paypal', type: 'payment' },
-      },
-    ],
-  });
+  const { order } = await loadSubscriptionForWebhookEvent(req, subscriptionId);
 
-  if (!order) {
-    throw new Error(`No order found for subscription ${subscriptionId}`);
+  // 2. Record the transaction
+  const transaction = await recordPaypalSale(order, sale);
+
+  // 3. Mark order as active
+  if (order.status !== OrderStatus.ACTIVE) {
+    await order.update({ status: OrderStatus.ACTIVE });
   }
 
-  // 2. Validate webhook event
-  const host = await order.collective.getHostCollective();
-  const paypalAccount = await getPaypalAccount(host);
-  await validateWebhookEvent(paypalAccount, req);
-
-  // 3. Record the transaction
-  await recordPaypalSale(order, sale);
+  // 4. Send thankyou email
+  await sendThankYouEmail(order, transaction);
 }
 
-async function handleBillingSubscriptionActivated(req: Request): Promise<void> {
+/**
+ * Handles both `BILLING.SUBSCRIPTION.CANCELLED` (users cancelling their subscription through PayPal's UI)
+ * and `BILLING.SUBSCRIPTION.SUSPENDED` (subscription "paused", for example when payment fail more than the maximum allowed)
+ * in the the same way, by marking order as cancelled.
+ */
+async function handleSubscriptionCancelled(req: Request): Promise<void> {
   // TODO During the internal testing phase, we're logging all webhooks events to make debugging easier
-  logger.info(`PayPal webhook (BILLING.SUBSCRIPTION.ACTIVATED): ${JSON.stringify(req.body)}`);
+  logger.info(`PayPal webhook (${get(req, 'body.event_type')}): ${JSON.stringify(req.body)}`);
 
-  // 1. Retrieve the order for this subscription
   const subscription = req.body.resource;
-  const subscriptionId = subscription.id;
-  const order = await models.Order.findOne({
-    where: { data: { paypalSubscriptionId: subscriptionId } }, // TODO: Add index on paypalSubscriptionId
-    include: [
-      { association: 'collective', required: true },
-      {
-        association: 'paymentMethod',
-        required: true,
-        where: { service: 'paypal', type: 'payment' },
-      },
-    ],
-  });
-
-  if (!order) {
-    throw new Error(`No order found for subscription ${subscriptionId}`);
+  const { order } = await loadSubscriptionForWebhookEvent(req, subscription.id);
+  if (order.status !== OrderStatus.CANCELLED) {
+    await order.update({
+      status: OrderStatus.CANCELLED,
+      data: { ...order.data, paypalStatusChangeNote: subscription.status_change_note },
+    });
   }
-
-  // 2. Validate webhook event
-  const host = await order.collective.getHostCollective();
-  const paypalAccount = await getPaypalAccount(host);
-  await validateWebhookEvent(paypalAccount, req);
-
-  // 3. List transactions & record the first one
-  const lastPaymentTime = moment(subscription.billing_info.last_payment.time);
-  const startTime = lastPaymentTime.subtract(1, 'day').toISOString();
-  const endTime = lastPaymentTime.add(1, 'day').toISOString();
-  const requestUrl = `billing/subscriptions/${subscriptionId}/transactions?start_time=${startTime}&end_time=${endTime}`;
-  const result = await paypalRequest(requestUrl, null, host, 'GET');
-  return recordPaypalTransaction(order, result.transactions[0]);
 }
 
 async function webhook(req: Request): Promise<void> {
@@ -129,8 +130,9 @@ async function webhook(req: Request): Promise<void> {
       return handlePayoutTransactionUpdate(req);
     case 'PAYMENT.SALE.COMPLETED':
       return handleSaleCompleted(req);
-    case 'BILLING.SUBSCRIPTION.ACTIVATED':
-      return handleBillingSubscriptionActivated(req);
+    case 'BILLING.SUBSCRIPTION.CANCELLED':
+    case 'BILLING.SUBSCRIPTION.SUSPENDED':
+      return handleSubscriptionCancelled(req);
     default:
       logger.info(`Received unhandled PayPal event (${eventType}), ignoring it.`);
       break;

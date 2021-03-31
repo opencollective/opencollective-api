@@ -4,7 +4,7 @@ import config from 'config';
 import debugLib from 'debug';
 import { get, remove } from 'lodash';
 
-import { channels } from '../constants';
+import { activities, channels } from '../constants';
 import activityType from '../constants/activities';
 import activitiesLib from '../lib/activities';
 import emailLib from '../lib/email';
@@ -25,8 +25,15 @@ export default async activity => {
   if (!activity.CollectiveId || !activity.type) {
     return;
   }
+
+  // Some activities involve multiple collectives (eg. collective applying to a host)
+  const collectiveIdsToNotify = [activity.CollectiveId];
+  if (activity.type === activities.COLLECTIVE_APPLY) {
+    collectiveIdsToNotify.push(activity.data.host.id);
+  }
+
   const where = {
-    CollectiveId: activity.CollectiveId,
+    CollectiveId: collectiveIdsToNotify,
     type: [activityType.ACTIVITY_ALL, activity.type],
     active: true,
   };
@@ -56,7 +63,7 @@ export default async activity => {
 };
 
 function publishToGitter(activity, notifConfig) {
-  const message = activitiesLib.formatMessageForPublicChannel(activity, 'markdown');
+  const { message } = activitiesLib.formatMessageForPublicChannel(activity, 'markdown');
   if (message && config.env === 'production') {
     return axios.post(notifConfig.webhookUrl, { message });
   } else {

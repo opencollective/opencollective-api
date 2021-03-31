@@ -232,11 +232,6 @@ async function createPaypalPlan(host, collective, productId, interval, amount, c
 }
 
 export async function getOrCreatePlan(host, collective, interval, amount, currency, tier = null) {
-  if (interval === 'month') {
-    // TODO! During the internal testing phase, we're forcing PayPal recurring subscription to be considered as daily
-    interval = 'day';
-  }
-
   const product = await models.PaypalProduct.findOne({
     where: { CollectiveId: collective.id, TierId: tier?.id || null },
     include: [
@@ -388,11 +383,10 @@ export async function processOrder(order) {
       const captureDetails = await paypalRequestV2(hostCollective, `payments/captures/${captureId}`, 'GET');
       return recordPaypalCapture(order, captureDetails);
     } else if (order.paymentMethod.data.subscriptionId) {
-      // Activate the subscription.
       const subscriptionId = order.paymentMethod.data.subscriptionId;
-      await order.update({ data: { ...order.data, paypalSubscriptionId: subscriptionId } });
       await paypalRequest(`billing/subscriptions/${subscriptionId}/activate`, null, hostCollective, 'POST');
-      // Don't record anything here (will be done in the webhook event)
+      await order.update({ data: { ...order.data, paypalSubscriptionId: subscriptionId, skipPendingEmail: true } });
+      // Don't record the transaction here (will be done in the webhook event)
     } else {
       throw new Error('Must either provide a subscriptionId or an orderId');
     }
