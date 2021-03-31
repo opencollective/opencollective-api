@@ -2933,12 +2933,10 @@ function defineModel() {
       return fromCache;
     }
 
-    const [hostedCollectives, addedFunds, bankTransfers, transferwisePayouts] = await Promise.all([
-      this.getHostedCollectivesCount(),
-      this.getTotalAddedFunds(),
-      this.getTotalBankTransfers(),
-      this.getTotalTransferwisePayouts(),
-    ]);
+    const hostedCollectives = 0;
+    const addedFunds = 0;
+    const bankTransfers = 0;
+    const transferwisePayouts = 0;
 
     if (this.plan) {
       const tier = await models.Tier.findOne({
