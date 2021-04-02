@@ -3,8 +3,7 @@ import '../../server/env';
 
 import Promise from 'bluebird';
 import config from 'config';
-import debugLib from 'debug';
-import { filter, isEmpty, pick, without } from 'lodash';
+import { isEmpty, pick } from 'lodash';
 import moment from 'moment';
 
 import { notifyAdminsOfCollective } from '../../server/lib/notifications';
@@ -31,8 +30,6 @@ const startDate = new Date(d.getFullYear(), d.getMonth(), 1);
 const endDate = new Date(d.getFullYear(), d.getMonth() + 1, 1);
 
 console.log('startDate', startDate, 'endDate', endDate);
-
-const debug = debugLib('monthlyreport');
 
 const processCollectives = collectives => {
   return Promise.map(collectives, processCollective, { concurrency: 1 });
@@ -81,91 +78,8 @@ const init = async () => {
   });
 };
 
-const topBackersCache = {};
-const getTopBackers = (startDate, endDate, tags) => {
-  tags = tags || [];
-  const cacheKey = `${startDate.getTime()}${endDate.getTime()}${tags.join(',')}`;
-  if (topBackersCache[cacheKey]) {
-    return Promise.resolve(topBackersCache[cacheKey]);
-  } else {
-    return models.Collective.getTopBackers(startDate, endDate, tags, 5)
-      .then(backers => {
-        if (!backers) {
-          return [];
-        }
-        return Promise.map(backers, backer => processBacker(backer, startDate, endDate, tags));
-      })
-      .then(backers => {
-        backers = without(backers, null);
-        topBackersCache[cacheKey] = backers;
-        return backers;
-      });
-  }
-};
-
-const formatCurrency = (amount, currency) => {
-  return (amount / 100).toLocaleString(currency, {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  });
-};
-
-const generateDonationsString = (backer, transactions) => {
-  if (!backer.name) {
-    debug(`Skipping ${backer.username} because it doesn't have a name (${backer.name})`);
-    return;
-  }
-  const donationsTextArray = [],
-    donationsHTMLArray = [];
-  transactions = transactions.filter(order => order.amount > 0);
-  if (transactions.length === 0) {
-    debug(`Skipping ${backer.name} because there is no donation`);
-    return;
-  }
-  for (let i = 0; i < Math.min(3, transactions.length); i++) {
-    const transaction = transactions[i];
-    donationsHTMLArray.push(
-      `${formatCurrency(transaction.amount, transaction.currency)} to <a href="https://opencollective.com/${
-        transaction.collective.slug
-      }">${transaction.collective.name}</a>`,
-    );
-    donationsTextArray.push(
-      `${formatCurrency(transaction.amount, transaction.currency)} to https://opencollective.com/${
-        transaction.collective.slug
-      }`,
-    );
-  }
-  const joinStringArray = arr => {
-    return arr.join(', ').replace(/,([^, ]*)$/, ' and $1');
-  };
-  return {
-    html: joinStringArray(donationsHTMLArray),
-    text: joinStringArray(donationsTextArray),
-  };
-};
-
-const processBacker = (backer, startDate, endDate, tags) => {
-  return backer
-    .getLatestTransactions(startDate, endDate, tags)
-    .then(transactions => generateDonationsString(backer, transactions))
-    .then(donationsString => {
-      backer.website = backer.slug
-        ? `https://opencollective.com/${backer.slug}`
-        : backer.website || backer.twitterHandle;
-      if (!donationsString || !backer.website) {
-        return null;
-      }
-      backer = pick(backer, ['name', 'slug', 'image', 'website']);
-      backer.donationsString = donationsString;
-      return backer;
-    });
-};
-
 const processCollective = collective => {
   const promises = [
-    getTopBackers(startDate, endDate, collective.tags),
     collective.getTiersWithUsers({
       attributes: ['id', 'slug', 'name', 'image', 'firstDonation', 'lastDonation', 'totalDonations', 'tier'],
       until: endDate,
@@ -196,8 +110,7 @@ const processCollective = collective => {
         year,
         collective: {},
       };
-      data.topBackers = filter(results[0], backer => backer.donationsString.text.indexOf(collective.slug) === -1); // we omit own backers
-      return getTiersStats(results[1], startDate, endDate).then(res => {
+      return getTiersStats(results[0], startDate, endDate).then(res => {
         data.collective = pick(collective, ['id', 'name', 'slug', 'currency', 'publicUrl']);
         data.collective.tiers = res.tiers.map(tier => ({
           ...tier.info,
@@ -205,17 +118,17 @@ const processCollective = collective => {
           activeBackers: tier.activeBackers,
         }));
         data.collective.backers = res.backers;
-        data.collective.stats = results[7];
-        data.collective.newOrders = results[8];
-        data.collective.cancelledOrders = results[9];
-        data.collective.stats.balance = results[2];
-        data.collective.stats.totalDonations = results[3];
-        data.collective.stats.totalExpenses = results[4];
-        data.collective.expenses = results[5].map(expense => expense.info);
-        data.relatedCollectives = results[6] || [];
-        data.collective.updates = results[10];
-        data.collective.transactions = results[12];
-        const nextGoal = results[11];
+        data.collective.stats = results[6];
+        data.collective.newOrders = results[7];
+        data.collective.cancelledOrders = results[8];
+        data.collective.stats.balance = results[1];
+        data.collective.stats.totalDonations = results[2];
+        data.collective.stats.totalExpenses = results[3];
+        data.collective.expenses = results[4].map(expense => expense.info);
+        data.relatedCollectives = results[5] || [];
+        data.collective.updates = results[9].map(u => u.info);
+        data.collective.transactions = results[11];
+        const nextGoal = results[10];
         if (nextGoal) {
           nextGoal.tweet = `🚀 ${collective.twitterHandle ? `@${collective.twitterHandle}` : collective.name} is at ${
             nextGoal.percentage

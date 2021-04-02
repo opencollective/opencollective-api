@@ -1291,7 +1291,7 @@ function defineModel() {
       ],
     });
 
-    orders = Promise.map(orders, async order => {
+    orders = await Promise.map(orders, async order => {
       order.totalTransactions = await order.getTotalTransactions();
       return order;
     });
