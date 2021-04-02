@@ -29,6 +29,7 @@ import Tier from './Tier';
 import Transaction from './Transaction';
 import Update from './Update';
 import User from './User';
+import VirtualCard from './VirtualCard';
 
 /**
  * Separate function to be able to use in scripts
@@ -41,10 +42,10 @@ export function setupModels() {
    */
   m['Activity'] = Activity;
   m['Application'] = Application;
-  m['ConnectedAccount'] = ConnectedAccount;
   m['Collective'] = Collective;
   m['Comment'] = Comment;
   m['CommentReaction'] = CommentReaction;
+  m['ConnectedAccount'] = ConnectedAccount;
   m['Conversation'] = Conversation;
   m['ConversationFollower'] = ConversationFollower;
   m['CurrencyExchangeRate'] = CurrencyExchangeRate;
@@ -68,6 +69,7 @@ export function setupModels() {
   m['Transaction'] = Transaction;
   m['Update'] = Update;
   m['User'] = User;
+  m['VirtualCard'] = VirtualCard;
 
   /**
    * Relationships
@@ -261,6 +263,17 @@ export function setupModels() {
 
   // Tier
   m.Tier.belongsTo(m.Collective);
+
+  // VirtualCard
+  m.VirtualCard.belongsTo(m.Collective, {
+    foreignKey: 'CollectiveId',
+    as: 'collective',
+  });
+  m.VirtualCard.belongsTo(m.Collective, {
+    foreignKey: 'HostCollectiveId',
+    as: 'host',
+  });
+  m.Collective.hasMany(m.VirtualCard, { foreignKey: 'HostCollectiveId', as: 'virtualCards' });
 
   Object.keys(m).forEach(modelName => m[modelName].associate && m[modelName].associate(m));
 
