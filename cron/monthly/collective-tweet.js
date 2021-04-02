@@ -133,6 +133,10 @@ const processCollective = collective => {
 const compileTwitterHandles = (userCollectives, total, limit) => {
   const twitterHandles = userCollectives.map(backer => backer.twitterHandle).filter(handle => Boolean(handle));
   const limitToShow = Math.min(twitterHandles.length, limit);
+  if (!twitterHandles.length) {
+    return { count: 0, str: '' };
+  }
+
   let res = _.uniq(twitterHandles)
     .map(handle => `@${handle}`)
     .slice(0, limitToShow)
@@ -140,11 +144,13 @@ const compileTwitterHandles = (userCollectives, total, limit) => {
   if (limitToShow < total) {
     res += `, +${total - limitToShow}`;
   }
-  return res;
+  return { count: Math.min(total, limitToShow), str: res };
 };
 
 const sendTweet = async (twitterAccount, data) => {
   const stats = data.collective.stats;
+  const topBackersTwitterResult = compileTwitterHandles(data.topBackers, 0, 3);
+  const newBackersTwitterResult = compileTwitterHandles(data.topNewBackers, stats.backers.new, 5);
 
   const replacements = {
     ...pick(data, ['month', 'year']),
@@ -156,13 +162,14 @@ const sendTweet = async (twitterAccount, data) => {
     totalAmountSpent:
       Math.abs(stats.totalSpent) > 0 ? formatCurrency(Math.abs(stats.totalSpent), data.collective.currency) : 0,
     totalAmountReceived: formatCurrency(stats.totalReceived, data.collective.currency),
-    topBackersTwitterHandles: compileTwitterHandles(data.topBackers, 0, 3),
-    newBackersTwitterHandles: compileTwitterHandles(data.topNewBackers, stats.backers.new, 5),
+    topBackersTwitterHandles: topBackersTwitterResult.str,
+    topBackersTwitterHandlesCount: topBackersTwitterResult.count,
+    newBackersTwitterHandles: newBackersTwitterResult.str,
+    newBackersTwitterHandlesCount: newBackersTwitterResult.count,
   };
 
   const template = stats.totalReceived === 0 ? 'monthlyStatsNoNewDonation' : 'monthlyStats';
   const tweet = twitter.compileTweet(template, replacements);
-
   try {
     const res = await twitter.tweetStatus(twitterAccount, tweet, `https://opencollective.com/${data.collective.slug}`, {
       // We thread the tweet with the previous monthly stats
