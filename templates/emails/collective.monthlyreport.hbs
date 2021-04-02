@@ -206,7 +206,7 @@ Subject: {{collective.name}} {{month}} {{year}} Report
   {{/if}}
 
   {{#if collective.cancelledOrders}}
-    <h2>😒 {{collective.cancelledOrders.length}} {{pluralize "financial contributors" n=collective.cancelledOrders.length}} cancelled</h2>
+    <h2>😒 {{collective.cancelledOrders.length}} {{pluralize "financial contributor" n=collective.cancelledOrders.length}} cancelled</h2>
     <table border=0 width="100%" class="orders"><tr><td>
     {{#each collective.cancelledOrders}}
     <table border=0 class="backer">
