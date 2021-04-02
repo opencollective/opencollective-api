@@ -142,6 +142,14 @@ function defineModel() {
         allowNull: true,
       },
 
+      VirtualCardId: {
+        type: DataTypes.STRING,
+        references: { key: 'id', model: 'VirtualCards' },
+        onDelete: 'SET NULL',
+        onUpdate: 'CASCADE',
+        allowNull: true,
+      },
+
       privateMessage: {
         type: DataTypes.TEXT,
         set(value) {

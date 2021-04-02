@@ -4,30 +4,27 @@ import ExpenseType from '../../constants/expense_type';
 import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
 import models, { sequelize } from '../../models';
-import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import { Transaction } from '../../types/privacy';
 
 const createExpense = async (
   privacyTransaction: Transaction,
   opts?: { host?: any; collective?: any; hostCurrencyFxRate?: number },
 ): Promise<any> => {
-  const payoutMethod = await models.PayoutMethod.findOne({
+  const virtualCard = await models.VirtualCard.findOne({
     where: {
-      name: privacyTransaction.card.last_four,
-      type: PayoutMethodTypes.CREDIT_CARD,
-      data: { token: privacyTransaction.card.token },
+      id: privacyTransaction.card.token,
     },
   });
-  if (!payoutMethod) {
+  if (!virtualCard) {
     logger.error(`Couldn't find the related credit card ${privacyTransaction.card.last_four}`);
     return;
   }
 
-  const collective = opts?.collective || (await models.Collective.findByPk(payoutMethod.CollectiveId));
+  const collective = opts?.collective || (await models.Collective.findByPk(virtualCard.CollectiveId));
   const existingExpense = await models.Expense.findOne({
     where: {
       FromCollectiveId: collective.id,
-      PayoutMethodId: payoutMethod.id,
+      VirtualCardId: virtualCard.id,
       data: { token: privacyTransaction.token },
     },
   });
@@ -36,7 +33,7 @@ const createExpense = async (
     return;
   }
 
-  const host = opts?.host || (await collective.getHostCollective());
+  const host = opts?.host || (await models.Collective.findByPk(virtualCard.HostCollectiveId));
   const hostCurrencyFxRate = opts?.hostCurrencyFxRate || (await getFxRate('USD', host.currency));
   const amount = privacyTransaction.settled_amount;
 
@@ -57,7 +54,7 @@ const createExpense = async (
         currency: 'USD',
         amount,
         description: 'Credit Card transaction',
-        PayoutMethodId: payoutMethod.id,
+        VirtualCardId: virtualCard.id,
         lastEditedById: UserId,
         status: ExpenseStatus.PAID,
         type: ExpenseType.CHARGE,
@@ -81,8 +78,7 @@ const createExpense = async (
       {
         CollectiveId: vendor.id,
         FromCollectiveId: collective.id,
-        HostCollectiveId: collective.HostCollectiveId,
-        PayoutMethodId: payoutMethod.id,
+        HostCollectiveId: host.id,
         description: 'Credit Card transaction',
         type: 'CREDIT',
         currency: 'USD',

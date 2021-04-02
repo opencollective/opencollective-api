@@ -8,7 +8,6 @@ import { getFxRate } from '../../server/lib/currency';
 import logger from '../../server/lib/logger';
 import * as privacyLib from '../../server/lib/privacy';
 import models from '../../server/models';
-import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import privacy from '../../server/paymentProviders/privacy';
 
 const START_DATE = process.env.START_DATE || '2021-01-01T00:00:00Z';
@@ -27,16 +26,12 @@ export async function run() {
 
   for (const connectedAccount of connectedAccounts) {
     const host = await models.Collective.findByPk(connectedAccount.CollectiveId);
-    const cards = await models.PayoutMethod.findAll({
-      where: {
-        type: PayoutMethodTypes.CREDIT_CARD,
-      },
-    });
+    const cards = await models.VirtualCard.findAll({});
     logger.info(`Found ${cards.length} cards connected to host #${connectedAccount.CollectiveId} ${host.slug}...`);
 
     for (const card of cards) {
       const lastSyncedTransaction = await models.Expense.findOne({
-        where: { PayoutMethodId: card.id },
+        where: { VirtualCardId: card.id },
         order: [['createdAt', 'desc']],
       });
       const begin = lastSyncedTransaction
@@ -46,7 +41,7 @@ export async function run() {
 
       const { data: transactions } = await privacyLib.listTransactions(
         connectedAccount.token,
-        card.data.token,
+        card.id,
         {
           begin,
           // Assumption: We won't have more than 200 transactions out of sync.
