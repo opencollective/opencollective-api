@@ -17,6 +17,7 @@ import { omit, pick } from 'lodash';
 import moment from 'moment';
 
 import intervals from '../../constants/intervals';
+import INTERVALS from '../../constants/intervals';
 import { maxInteger } from '../../constants/math';
 import orderStatus from '../../constants/order_status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE, PAYMENT_METHOD_TYPES } from '../../constants/paymentMethods';
@@ -1452,10 +1453,23 @@ export const TierType = new GraphQLObjectType({
           if (args.isProcessed) {
             query.where = { processedAt: { [Op.ne]: null } };
           }
-          if (args.isActive) {
-            if (tier.interval) {
-              query.include = [{ model: models.Subscription, where: { isActive: true } }];
-            }
+          if (args.isActive && tier.interval) {
+            query.group = sequelize.col('Order.id');
+            query.include = [
+              {
+                model: models.Transaction,
+                attributes: [],
+                required: true,
+                where: {
+                  isRefund: false,
+                  createdAt: {
+                    [Op.gte]: moment()
+                      .subtract(1, tier.interval === INTERVALS.MONTH ? 'month' : 'year')
+                      .subtract(5, 'day'), // Give it a few more days to keep order active while payment is being renewed
+                  },
+                },
+              },
+            ];
           }
           return tier.getOrders(query);
         },
