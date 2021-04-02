@@ -580,7 +580,9 @@ describe('server/graphql/v1/mutation', () => {
           expect(emailSendMessageSpy.firstCall.args[0]).to.equal('user2@opencollective.com');
           expect(emailSendMessageSpy.firstCall.args[1]).to.equal('Your Organization on Open Collective');
           expect(emailSendMessageSpy.secondCall.args[0]).to.equal('user1@opencollective.com');
-          expect(emailSendMessageSpy.secondCall.args[1]).to.equal("Google joined Scouts d'Arlon as backer ($20/m)");
+          expect(emailSendMessageSpy.secondCall.args[1]).to.equal(
+            "New financial contributor to Scouts d'Arlon: Google ($20/m)",
+          );
           expect(emailSendMessageSpy.secondCall.args[2]).to.contain('Looking forward!'); // publicMessage
           expect(emailSendMessageSpy.secondCall.args[2]).to.contain(
             '@google thanks for your financial contribution to @scouts',
@@ -748,9 +750,13 @@ describe('server/graphql/v1/mutation', () => {
           expect(emailSendSpy.thirdCall.args[0]).to.equal('ticket.confirmed');
           expect(emailSendMessageSpy.callCount).to.equal(3);
           expect(emailSendMessageSpy.firstCall.args[0]).to.equal('user1@opencollective.com');
-          expect(emailSendMessageSpy.firstCall.args[1]).to.equal('Anish Bas joined January meetup as attendee');
+          expect(emailSendMessageSpy.firstCall.args[1]).to.equal(
+            'New financial contributor to January meetup: Anish Bas',
+          );
           expect(emailSendMessageSpy.secondCall.args[0]).to.equal('user2@opencollective.com');
-          expect(emailSendMessageSpy.secondCall.args[1]).to.equal('Anish Bas joined January meetup as attendee');
+          expect(emailSendMessageSpy.secondCall.args[1]).to.equal(
+            'New financial contributor to January meetup: Anish Bas',
+          );
           expect(emailSendMessageSpy.thirdCall.args[0]).to.equal('user2@opencollective.com');
           expect(emailSendMessageSpy.thirdCall.args[1]).to.equal('2 tickets confirmed for January meetup');
         });
@@ -897,7 +903,9 @@ describe('server/graphql/v1/mutation', () => {
           await utils.waitForCondition(() => emailSendMessageSpy.callCount === 2);
           expect(emailSendMessageSpy.callCount).to.equal(2);
           expect(emailSendMessageSpy.firstCall.args[0]).to.equal(user1.email);
-          expect(emailSendMessageSpy.firstCall.args[1]).to.contain(`Anish Bas joined ${event1.name} as backer`);
+          expect(emailSendMessageSpy.firstCall.args[1]).to.contain(
+            `New financial contributor to ${event1.name}: Anish Bas ($40)`,
+          );
           expect(emailSendMessageSpy.firstCall.args[2]).to.contain('/scouts/events/jan-meetup');
         });
 
@@ -1074,7 +1082,9 @@ describe('server/graphql/v1/mutation', () => {
           await utils.waitForCondition(() => emailSendMessageSpy.callCount === 2);
           expect(emailSendMessageSpy.callCount).to.equal(2);
           expect(emailSendMessageSpy.firstCall.args[0]).to.equal(user1.email);
-          expect(emailSendMessageSpy.firstCall.args[1]).to.contain('incognito joined January meetup as backer');
+          expect(emailSendMessageSpy.firstCall.args[1]).to.contain(
+            'New financial contributor to January meetup: incognito ($40)',
+          );
         });
       });
     });

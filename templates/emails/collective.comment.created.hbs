@@ -15,21 +15,21 @@ Subject: {{collective.name}}: New comment
     Hi {{collective.name}},
     <br /><br />
     <a href="{{config.host.website}}/{{fromCollective.slug}}">{{fromCollective.name}}</a> just posted
-    a new comment on <a href="{{config.host.website}}{{path}}">{{expense.description}}</a>:
+    a new comment on an Expense, <a href="{{config.host.website}}{{path}}">{{expense.description}}</a>:
   </p>
 {{else if conversation}}
   <p style="font-size: 17px; padding: 1em;">
     Hi {{collective.name}},
     <br /><br />
     <a href="{{config.host.website}}/{{fromCollective.slug}}">{{fromCollective.name}}</a> just posted
-    a new comment on <a href="{{config.host.website}}{{path}}">{{conversation.title}}</a>:
+    a new comment on a Conversation, <a href="{{config.host.website}}{{path}}">{{conversation.title}}</a>:
   </p>
 {{else if update}}
   <p style="font-size: 17px; padding: 1em;">
     Hi {{collective.name}},
     <br /><br />
     <a href="{{config.host.website}}/{{fromCollective.slug}}">{{fromCollective.name}}</a> just posted
-    a new comment on your update <a href="{{config.host.website}}{{path}}">{{update.title}}</a>:
+    a new comment on an Update, <a href="{{config.host.website}}{{path}}">{{update.title}}</a>:
   </p>
 {{/if}}
 
@@ -51,7 +51,7 @@ Subject: {{collective.name}}: New comment
       <div>Reply</div>
     </a>
   {{else}}
-    <a href="{{config.host.website}}{{path}}" class="btn blue"><div>View thread online</div></a>
+    <a href="{{config.host.website}}{{path}}" class="btn blue"><div>View or Reply</div></a>
   {{/if}}
   </center>
 </p>

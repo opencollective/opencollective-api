@@ -1,12 +1,12 @@
-Subject: New conversation on {{collective.name}}: "{{conversation.title}}"
+Subject: New Conversation on {{collective.name}}: "{{conversation.title}}"
 
 {{> header}}
 
 <p style="padding: 1em;">
   Hi {{collective.name}},
   <br /><br />
-  <a href="{{config.host.website}}/{{fromCollective.slug}}">{{fromCollective.name}}</a> just posted
-  a new conversation: <a href="{{config.host.website}}/{{collective.slug}}/conversations/{{conversation.slug}}-{{conversation.hashId}}">{{conversation.title}}</a>
+  <a href="{{config.host.website}}/{{fromCollective.slug}}">{{fromCollective.name}}</a> just started
+  a new Conversation: <a href="{{config.host.website}}/{{collective.slug}}/conversations/{{conversation.slug}}-{{conversation.hashId}}">{{conversation.title}}</a>
 </p>
 
 <table style="width: 100%; margin-bottom: 30px;">
@@ -21,7 +21,7 @@ Subject: New conversation on {{collective.name}}: "{{conversation.title}}"
 
 <p>
   <center>
-    <a href="{{config.host.website}}/{{collective.slug}}/conversations/{{conversation.slug}}-{{conversation.hashId}}" class="btn blue"><div>View thread online</div></a>
+    <a href="{{config.host.website}}/{{collective.slug}}/conversations/{{conversation.slug}}-{{conversation.hashId}}" class="btn blue"><div>View or Reply</div></a>
   </center>
 </p>
 

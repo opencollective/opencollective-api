@@ -6,18 +6,18 @@ Subject: {{ order.quantity }} {{pluralize "ticket" n=order.quantity}} confirmed 
 {{> toplogo}}
 
 {{#if recipient.name}}
-<p>Dear {{recipient.name}},</p>
+<p>Hi {{recipient.name}},</p>
 {{else}}
 <p>Hi!</p>
 {{/if}}
 
-<p>This confirms your {{ order.quantity }} {{pluralize "ticket" n=order.quantity}}{{#if order.totalAmount}} for a total of {{currency order.totalAmount currency=order.currency}}{{/if}}. </p>
+<p>You have booked {{ order.quantity }} {{pluralize "ticket" n=order.quantity}} to {{ event.name }}{{#if order.totalAmount}} for a total of {{currency order.totalAmount currency=order.currency}}{{/if}}.</p>
 
-<p>We are excited that you'll be joining us at <a href="{{config.host.website}}/{{collective.slug}}/events/{{event.slug}}">{{ event.name }}</a> on {{ moment event.startsAt timezone=event.timezone format="MMMM Do YYYY" }} at {{ moment event.startsAt timezone=event.timezone format="h:mma" }}
+<p>We are excited that you'll be joining us! <a href="{{config.host.website}}/{{collective.slug}}/events/{{event.slug}}">{{ event.name }}</a> will take place on {{ moment event.startsAt timezone=event.timezone format="MMMM Do YYYY" }} at {{ moment event.startsAt timezone=event.timezone format="h:mma" }}.
 {{#if isOffline }}
-  at {{ event.locationName }} ({{event.address}}).
+  The location is {{ event.locationName }} ({{event.address}}).
 {{else if event.address}}
-  on {{event.address}}.
+  Join us at {{event.address}}.
 {{/if}}
 </p>
 
