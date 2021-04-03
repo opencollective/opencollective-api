@@ -87,7 +87,7 @@ export const buildSanitizerOptions = (allowedContent: AllowedContentType = {}): 
   // IFrames
   if (allowedContent.videoIframes) {
     allowedTags.push('iframe', 'figure');
-    allowedIframeHostnames.push('www.youtube.com', 'www.youtube-nocookie.com', 'player.vimeo.com');
+    allowedIframeHostnames.push('www.youtube.com', 'www.youtube-nocookie.com', 'player.vimeo.com', 'anchor.fm');
     allowedAttributes['figure'] = ['data-trix-content-type'];
     allowedAttributes['iframe'] = [
       'src',
