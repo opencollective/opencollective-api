@@ -1255,7 +1255,8 @@ export const TierStatsType = new GraphQLObjectType({
         },
       },
       totalRecurringDonations: {
-        description: 'How much money is given for this tier for each tier.interval (monthly/yearly)',
+        description:
+          'How much money is given for this tier for each tier.interval (monthly/yearly). For flexible tiers, this amount is a monthly average of contributions amount, taking into account both yearly and monthly subscriptions.',
         type: GraphQLInt,
         resolve(tier, args, req) {
           if (tier.interval === intervals.MONTH) {
@@ -1263,7 +1264,7 @@ export const TierStatsType = new GraphQLObjectType({
           } else if (tier.interval === intervals.YEAR) {
             return req.loaders.Tier.totalYearlyDonations.load(tier.id);
           } else if (tier.interval === intervals.FLEXIBLE) {
-            return req.loaders.Tier.totalDonated.load(tier.id);
+            return req.loaders.Tier.totalRecurringDonations.load(tier.id);
           } else {
             return 0;
           }

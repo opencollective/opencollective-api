@@ -131,8 +131,6 @@ function defineModel() {
    * @param {*} member { tier: { interval }, lastDonation}
    */
   Member.isActive = member => {
-    const { models } = sequelize;
-
     if (!member.tier || !member.tier.interval) {
       return true;
     }
