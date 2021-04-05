@@ -6,7 +6,7 @@
 // This lib is a superset of `utils.data` that generates values that are random and safe
 // to use in loops and repeted tests.
 
-import { get, sample } from 'lodash';
+import { get, padStart, sample } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import { roles } from '../../server/constants';
@@ -501,4 +501,19 @@ export const fakeCurrencyExchangeRate = async (data = {}) => {
   } else {
     return rate;
   }
+};
+
+export const fakeVirtualCard = async (virtualCardData = {}) => {
+  const CollectiveId = virtualCardData.CollectiveId || (await fakeCollective()).id;
+  const HostCollectiveId =
+    virtualCardData.HostCollectiveId || (await models.Collective.getHostCollectiveId(CollectiveId));
+
+  return models.VirtualCard.create({
+    id: uuid(),
+    last4: padStart(randNumber(0, 9999).toString(), 4, '0'),
+    name: randStr('card'),
+    ...virtualCardData,
+    CollectiveId,
+    HostCollectiveId,
+  });
 };
