@@ -40,7 +40,7 @@ module.exports = {
 
     await queryInterface.sequelize.query(`
       UPDATE "Expenses"
-        SET "VirtualCardId" = "PayoutMethods"."data"->>'token'
+        SET "VirtualCardId" = "PayoutMethods"."data"->>'token', "PayoutMethodId" = null
       FROM
         "PayoutMethods"
       WHERE

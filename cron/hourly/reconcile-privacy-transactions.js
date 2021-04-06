@@ -26,7 +26,7 @@ export async function run() {
 
   for (const connectedAccount of connectedAccounts) {
     const host = await models.Collective.findByPk(connectedAccount.CollectiveId);
-    const cards = await models.VirtualCard.findAll({});
+    const cards = await models.VirtualCard.findAll({ where: { HostCollectiveId: host.id } });
     logger.info(`Found ${cards.length} cards connected to host #${connectedAccount.CollectiveId} ${host.slug}...`);
 
     for (const card of cards) {
