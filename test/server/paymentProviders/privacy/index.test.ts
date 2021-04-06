@@ -1,9 +1,8 @@
 /* eslint-disable camelcase */
 import { expect } from 'chai';
 
-import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
 import privacy from '../../../../server/paymentProviders/privacy';
-import { fakeCollective, fakePayoutMethod } from '../../../test-helpers/fake-data';
+import { fakeCollective, fakeVirtualCard } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
 const MOCK_TRANSACTION = {
@@ -59,13 +58,11 @@ describe('server/paymentProviders/privacy/index', () => {
     before(async () => {
       const host = await fakeCollective({ isHostAccount: true });
       collective = await fakeCollective({ isHostAccount: false, HostCollectiveId: host.id });
-      await fakePayoutMethod({
+      await fakeVirtualCard({
         CollectiveId: collective.id,
-        type: PayoutMethodTypes.CREDIT_CARD,
+        HostCollectiveId: host.id,
         name: '0093',
-        data: {
-          token: '2904adfe-abce-427a-b731-f6b2c5380fb6',
-        },
+        id: '2904adfe-abce-427a-b731-f6b2c5380fb6',
       });
 
       expense = await privacy.createExpense(MOCK_TRANSACTION);
