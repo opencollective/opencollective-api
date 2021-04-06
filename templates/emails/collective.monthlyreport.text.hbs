@@ -37,7 +37,7 @@ https://opencollective.com/{{collective.slug}}/updates
 - {{fromCollective.name}}
 {{#if fromCollective.website}}  {{fromCollective.website}}{{/if}}{{#if fromCollective.twitterHandle}} https://twitter.com/{{fromCollective.twitterHandle}}{{/if}}
 {{#if fromCollective.description}}  {{fromCollective.description}}{{/if}}
-{{#if Tier.name}}  {{Tier.name}} ({{currency totalAmount currency=currency}} {{#if Tier.interval}}per {{Tier.interval}}{{/if}})
+{{#if Tier.name}}  {{Tier.name}} ({{currency totalAmount currency=currency}} {{#if interval}}per {{interval}}{{/if}})
 {{else}}
   {{currency totalAmount currency=currency}} (one time)
 {{/if}}
@@ -51,7 +51,7 @@ https://opencollective.com/{{collective.slug}}/updates
 - {{fromCollective.name}}
 {{#if fromCollective.website}}  {{fromCollective.website}}{{/if}} {{#if fromCollective.twitterHandle}} https://twitter.com/{{fromCollective.twitterHandle}}{{/if}}
 {{#if fromCollective.description}}  {{fromCollective.description}}{{/if}}
-{{#if Tier.name}}  {{Tier.name}} ({{currency totalAmount currency=currency}} {{#if Tier.interval}}per {{Tier.interval}}{{/if}})
+{{#if Tier.name}}  {{Tier.name}} ({{currency totalAmount currency=currency}} {{#if interval}}per {{interval}}{{/if}})
 {{else}}
 {{currency totalAmount currency=currency}} (one time)
 {{/if}}

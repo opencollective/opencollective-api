@@ -190,7 +190,7 @@ Subject: {{collective.name}} {{month}} {{year}} Report
           <div class="backerInfo">
             {{#if fromCollective.website}}<a href="{{fromCollective.website}}">{{fromCollective.website}}</a><br />{{/if}}
             {{#if fromCollective.description}}<div class="description">{{fromCollective.description}}</div>{{/if}}
-            {{#if Tier.name}}{{Tier.name}} ({{currency totalAmount currency=currency}} {{#if Tier.interval}}per {{Tier.interval}}{{/if}})
+            {{#if Tier.name}}{{Tier.name}} ({{currency totalAmount currency=currency}} {{#if interval}}per {{interval}}{{/if}})
             {{else}}
             {{currency totalAmount currency=currency}} (one time)
             {{/if}}
@@ -226,7 +226,7 @@ Subject: {{collective.name}} {{month}} {{year}} Report
           <div class="backerInfo">
             {{#if fromCollective.website}}<a href="{{fromCollective.website}}">{{fromCollective.website}}</a><br />{{/if}}
             {{#if fromCollective.description}}<div class="description">{{fromCollective.description}}</div>{{/if}}
-            {{#if Tier.name}}{{Tier.name}} ({{currency totalAmount currency=currency}} {{#if Tier.interval}}per {{Tier.interval}}{{/if}}) since {{moment createdAt format="MMMM YYYY"}}<br />{{/if}}
+            {{#if Tier.name}}{{Tier.name}} ({{currency totalAmount currency=currency}} {{#if interval}}per {{interval}}{{/if}}) since {{moment createdAt format="MMMM YYYY"}}<br />{{/if}}
             Total amount donated: {{currency totalTransactions currency=currency}}
           </div>
         </td>

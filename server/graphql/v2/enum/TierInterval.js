@@ -5,5 +5,6 @@ export const TierInterval = new GraphQLEnumType({
   values: {
     month: {},
     year: {},
+    flexible: {},
   },
 });
