@@ -261,7 +261,18 @@ const orderMutations = {
         // check if the amount is different from the previous amount - update subscription as well
         if (amountInCents !== order.totalAmount) {
           order = await order.update({ totalAmount: amountInCents });
-          await order.Subscription.update({ amount: amountInCents });
+          order.Subscription = await order.Subscription.update({ amount: amountInCents });
+        }
+
+        // Update interval
+        let newInterval = order.interval;
+        if (tierInfo?.interval && tierInfo.interval !== 'flexible') {
+          newInterval = tierInfo.interval;
+        }
+
+        if (newInterval !== order.interval) {
+          order = await order.update({ interval: newInterval });
+          order.Subscription = await order.Subscription.update({ interval: newInterval });
         }
 
         // Custom contribution is null, named tier will be tierInfo.id
