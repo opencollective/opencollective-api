@@ -18,7 +18,9 @@ describe('server/lib/twitter', () => {
       balance: '$1,200',
       totalAmountReceived: '$1,277',
       topBackersTwitterHandles: '@webflowapp, @dalmaer, @stickermule',
+      topBackersTwitterHandlesCount: 3,
       newBackersTwitterHandles: '@bakkenbaeck, @mziehlke',
+      newBackersTwitterHandlesCount: 2,
     };
 
     it('with no amount spent', () => {
@@ -78,6 +80,20 @@ Thank you! 🙏`);
 We received $1,277 from 82 backers. Our current balance is $1,200.
 
 Top backers: @webflowapp, @dalmaer, @stickermule`);
+    });
+
+    it('when no twitter handles are available', () => {
+      data.totalNewBackers = 20;
+      data.topBackersTwitterHandles = '';
+      data.topBackersTwitterHandlesCount = 0;
+      data.newBackersTwitterHandles = '';
+      data.newBackersTwitterHandlesCount = 0;
+      const tweet = twitter.compileTweet('monthlyStats', data);
+      expect(tweet).to.equal(`In December, 20 backers joined.
+
+We received $1,277 from 82 backers. Our current balance is $1,200.
+
+Thank you! 🙏`);
     });
   });
 });

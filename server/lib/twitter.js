@@ -134,14 +134,14 @@ Support them too!`,
       monthlyStats: `In {month}, {totalNewBackers, select,
   0 {we}
   1 {one new backer joined. We}
-  other {{totalNewBackers} {totalNewBackers, plural, one {backer} other {backers}} joined ({newBackersTwitterHandles}) - you are the best! 🙌
+  other {{totalNewBackers} {totalNewBackers, plural, one {backer} other {backers}} joined{newBackersTwitterHandlesCount, select, 0 {.} other { ({newBackersTwitterHandles}) - you are the best! 🙌}}
 
 We}
 } received {totalAmountReceived} from {totalActiveBackers} {totalActiveBackers, plural, one {backer} other {backers}}{totalAmountSpent, plural,
   =0 {.}
-  other { and we spent {totalAmountSpent}.}} Our current balance is {balance}.
+  other { and we spent {totalAmountSpent}.}} Our current balance is {balance}.{newBackersTwitterHandlesCount, select, 0 {} other {
 
-Top backers: {topBackersTwitterHandles}`,
+Top backers: {topBackersTwitterHandles}}}`,
       monthlyStatsNoNewDonation: `In {month}, we haven't received any new donation.
 
 Our current balance is {balance}.
