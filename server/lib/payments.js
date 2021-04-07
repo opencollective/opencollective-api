@@ -158,7 +158,9 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
           },
         });
 
-  if (creditTransaction.RefundTransactionId) {
+  if (!creditTransaction) {
+    throw new Error('Cannot find any CREDIT transaction to refund');
+  } else if (creditTransaction.RefundTransactionId) {
     throw new Error('This transaction has already been refunded');
   }
 
