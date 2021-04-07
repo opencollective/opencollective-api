@@ -2,6 +2,7 @@ import { get } from 'lodash';
 
 import plans, { PLANS_COLLECTIVE_SLUG } from '../constants/plans';
 import cache from '../lib/cache';
+import models from '../models';
 
 import { notifyAdminsOfCollective } from './notifications';
 
@@ -9,7 +10,7 @@ const isSubscribeOrUpgrade = (newPlan: string, oldPlan?: string | null): boolean
   return !oldPlan ? true : get(plans, `${newPlan}.level`) > get(plans, `${oldPlan}.level`);
 };
 
-export async function subscribeOrUpgradePlan(order): Promise<void> {
+export async function subscribeOrUpgradePlan(order: typeof models.Order): Promise<void> {
   if (!order.collective || !order.fromCollective) {
     await order.populate();
   }
@@ -47,7 +48,7 @@ export async function subscribeOrUpgradePlan(order): Promise<void> {
   }
 }
 
-export async function validatePlanRequest(order): Promise<void> {
+export async function validatePlanRequest(order: typeof models.Order): Promise<void> {
   if (!order.collective || !order.fromCollective) {
     await order.populate();
   }
@@ -60,7 +61,7 @@ export async function validatePlanRequest(order): Promise<void> {
   }
 }
 
-export function isHostPlan(order): boolean {
+export function isHostPlan(order: typeof models.Order): boolean {
   const plan = get(order, 'Tier.slug');
   if (order.collective.slug === PLANS_COLLECTIVE_SLUG && plan && plans[plan]) {
     return true;
@@ -69,7 +70,7 @@ export function isHostPlan(order): boolean {
 }
 
 export async function handleHostPlanAddedFundsLimit(
-  host,
+  host: typeof models.Collective,
   { throwException = false, notifyAdmins = false },
 ): Promise<void> {
   const hostPlan = await host.getPlan();
@@ -88,7 +89,7 @@ export async function handleHostPlanAddedFundsLimit(
   }
 }
 
-export async function handleHostPlanBankTransfersLimit(host): Promise<void> {
+export async function handleHostPlanBankTransfersLimit(host: typeof models.Collective): Promise<void> {
   const hostPlan = await host.getPlan();
   if (hostPlan.bankTransfersLimit && hostPlan.bankTransfers >= hostPlan.bankTransfersLimit) {
     throw new Error(
@@ -97,7 +98,7 @@ export async function handleHostPlanBankTransfersLimit(host): Promise<void> {
   }
 }
 
-export async function handleTransferwisePayoutsLimit(host): Promise<void> {
+export async function handleTransferwisePayoutsLimit(host: typeof models.Collective): Promise<void> {
   const hostPlan = await host.getPlan();
   if (hostPlan.transferwisePayoutsLimit !== null && hostPlan.transferwisePayouts >= hostPlan.transferwisePayoutsLimit) {
     throw new Error(
@@ -107,7 +108,7 @@ export async function handleTransferwisePayoutsLimit(host): Promise<void> {
 }
 
 export async function handleHostCollectivesLimit(
-  host,
+  host: typeof models.Collective,
   { throwException = false, throwHostException = false, notifyAdmins = false },
 ): Promise<void> {
   const hostPlan = await host.getPlan();

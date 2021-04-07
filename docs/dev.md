@@ -2,11 +2,8 @@
 
 ## Node and npm
 
-You can test that the API is working by opening:
-http://localhost:3060/status
-
-And you can play with GraphQL by opening:
-http://localhost:3060/graphql?api_key=dvl-1510egmf4a23d80342403fb599qd
+You can play with GraphQL by opening:
+http://localhost:3060/graphql
 
 ![](http://d.pr/i/Vxm1rw+)
 
@@ -70,7 +67,7 @@ for more info about the tests.
 
 ## Running Scripts
 
-There are many admin scripts in [`/scripts` directory](https://github.com/opencollective/opencollective-api/tree/master/scripts). To run them:
+There are many admin scripts in [`/scripts` directory](https://github.com/opencollective/opencollective-api/tree/main/scripts). To run them:
 
 ```
 # Local development (without Docker)

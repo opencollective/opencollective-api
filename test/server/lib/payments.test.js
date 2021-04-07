@@ -53,6 +53,12 @@ describe('server/lib/payments', () => {
     sandbox.stub(stripe.tokens, 'create').callsFake(() => Promise.resolve({ id: 'tok_1AzPXGD8MNtzsDcgwaltZuvp' }));
     sandbox.stub(stripe.paymentIntents, 'create').callsFake(() =>
       Promise.resolve({
+        id: 'pi_1F82vtBYycQg1OMfS2Rctiau',
+        status: 'requires_confirmation',
+      }),
+    );
+    sandbox.stub(stripe.paymentIntents, 'confirm').callsFake(() =>
+      Promise.resolve({
         charges: { data: [{ id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' }] },
         status: 'succeeded',
       }),
@@ -104,14 +110,12 @@ describe('server/lib/payments', () => {
   beforeEach('add host to collective', () => collective.addHost(host.collective, host));
   beforeEach('add host to collective2', () => collective2.addHost(host.collective, host));
 
-  beforeEach('create stripe account', done => {
-    models.ConnectedAccount.create({
+  beforeEach('create stripe account', async () => {
+    await models.ConnectedAccount.create({
       service: 'stripe',
       token: 'abc',
       CollectiveId: host.collective.id,
-    })
-      .tap(() => done())
-      .catch(done);
+    });
   });
 
   /**
@@ -363,14 +367,46 @@ describe('server/lib/payments', () => {
       const [creditRefundTransaction] = refundTransactions.filter(t => t.type === 'CREDIT');
       expect(creditRefundTransaction.FromCollectiveId).to.equal(collective.id);
       expect(creditRefundTransaction.CollectiveId).to.equal(order.FromCollectiveId);
-      expect(creditRefundTransaction.data).to.deep.equal({ dataField: 'foo' });
 
       // And then the values for the transaction from the donor to the
       // collective also look correct
       const [debitRefundTransaction] = refundTransactions.filter(t => t.type === 'DEBIT');
       expect(debitRefundTransaction.FromCollectiveId).to.equal(order.FromCollectiveId);
       expect(debitRefundTransaction.CollectiveId).to.equal(collective.id);
-      expect(debitRefundTransaction.data).to.deep.equal({ dataField: 'foo' });
+    });
+
+    it('should refund platform fees on top when refunding original transaction', async () => {
+      // Create Open Collective Inc
+      await fakeHost({ id: 8686 });
+      const order = await fakeOrder({ status: 'ACTIVE' });
+      const transaction = await models.Transaction.createFromPayload({
+        CreatedByUserId: order.CreatedByUserId,
+        FromCollectiveId: order.FromCollectiveId,
+        CollectiveId: order.CollectiveId,
+        PaymentMethodId: order.PaymentMethodId,
+        transaction: {
+          type: 'CREDIT',
+          OrderId: order.id,
+          amount: 5000,
+          currency: 'USD',
+          hostCurrency: 'USD',
+          amountInHostCurrency: 5000,
+          hostCurrencyFxRate: 1,
+          hostFeeInHostCurrency: 250,
+          platformFeeInHostCurrency: 500,
+          paymentProcessorFeeInHostCurrency: 175,
+          description: 'Monthly subscription to Webpack',
+          data: { charge: { id: 'ch_refunded_charge' }, isFeesOnTop: true },
+        },
+      });
+
+      const originalTransactions = await order.getTransactions();
+      expect(originalTransactions).to.have.lengthOf(4);
+
+      await payments.createRefundTransaction(transaction, 0, null, user);
+
+      const refundedTransactions = await order.getTransactions({ where: { isRefund: true } });
+      expect(refundedTransactions).to.have.lengthOf(4);
     });
   }); /* createRefundTransaction */
 

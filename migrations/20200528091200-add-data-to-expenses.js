@@ -6,7 +6,7 @@ module.exports = {
     await queryInterface.addColumn('ExpenseHistories', 'data', { type: Sequelize.JSONB });
   },
 
-  down: async (queryInterface, Sequelize) => {
+  down: async queryInterface => {
     await queryInterface.removeColumn('Expenses', 'data');
     await queryInterface.removeColumn('ExpenseHistories', 'data');
   },

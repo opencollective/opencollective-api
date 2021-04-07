@@ -12,13 +12,32 @@ describe('server/paymentProviders/transferwise/index', () => {
   const sandbox = sinon.createSandbox();
   const quote = {
     id: 1234,
-    source: 'USD',
-    target: 'EUR',
+    sourceCurrency: 'USD',
+    targetCurrency: 'EUR',
     sourceAmount: 101.14,
     targetAmount: 90.44,
     rate: 0.9044,
-    fee: 1.14,
+    payOut: 'BANK_TRANSFER',
+    paymentOptions: [
+      {
+        formattedEstimatedDelivery: 'by March 18th',
+        estimatedDeliveryDelays: [],
+        allowedProfileTypes: ['PERSONAL', 'BUSINESS'],
+        payInProduct: 'BALANCE',
+        feePercentage: 0.0038,
+        estimatedDelivery: '2021-03-18T12:45:00Z',
+        fee: { transferwise: 3.79, payIn: 0, discount: 0, total: 3.79, priceSetId: 134, partner: 0 },
+        payIn: 'BALANCE',
+        sourceAmount: 101.14,
+        targetAmount: 90.44,
+        sourceCurrency: 'USD',
+        targetCurrency: 'EUR',
+        payOut: 'BANK_TRANSFER',
+        disabled: false,
+      },
+    ],
   };
+
   let createQuote,
     createRecipientAccount,
     createTransfer,
@@ -241,6 +260,15 @@ describe('server/paymentProviders/transferwise/index', () => {
 
     it('should return an array of available currencies for host', async () => {
       expect(data).to.deep.include({ code: 'EUR', minInvoiceAmount: 1 });
+    });
+
+    it('should block currencies for business accounts by default', async () => {
+      expect(data).to.not.deep.include({ code: 'BRL', minInvoiceAmount: 1 });
+    });
+
+    it('should return blocked currencies if explicitly requested', async () => {
+      const otherdata = await transferwise.getAvailableCurrencies(host, false);
+      expect(otherdata).to.deep.include({ code: 'BRL', minInvoiceAmount: 1 });
     });
   });
 });

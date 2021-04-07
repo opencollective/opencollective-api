@@ -1,13 +1,13 @@
-Subject: Backyourstack dispatch confirmation.
+Subject: Back Your Stack confirmation
 
 {{> header}}
 
 <div>
    <h1>Woot woot! 🎉</h1>
     {{#if recurringDispatch}}
-      <h3>Your first payment was successfully dispatched.</h3>
+      <h3>Your first payment was successful.</h3>
     {{else}}
-      <h3>Your payment was successfully dispatched.</h3>
+      <h3>Your payment was successful.</h3>
     {{/if}}
     <div>
         <p>
@@ -27,7 +27,7 @@ Subject: Backyourstack dispatch confirmation.
                   >
                     {{collective.name}}
                   </a>
-                <td style="border-bottom: 1px solid #dcdee0;padding: 0.5em;white-space: nowrap;font-size: 14px;">{{{currency totalAmount currency=currency}}}</td>
+                <td style="border-bottom: 1px solid #dcdee0;padding: 0.5em;white-space: nowrap;font-size: 14px;">{{currency totalAmount currency=currency}}</td>
              </tr>
           {{/each}}
         </table>

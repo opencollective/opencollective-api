@@ -20,7 +20,7 @@ about to deploy. It is not required, but you can activate it like this:
 3. Add this token to your `.env` file:
 
 ```bash
-OC_SLACK_USER_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+OC_SLACK_DEPLOY_WEBHOOK=https://hooks.slack.com/services/....
 ```
 
 ## Deploy on staging
@@ -29,7 +29,7 @@ OC_SLACK_USER_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 # Before first deployment, configure staging remote
 git remote add staging https://git.heroku.com/opencollective-staging-api.git
 
-# Then deploy master with
+# Then deploy main with
 npm run deploy:staging
 ```
 
@@ -41,7 +41,7 @@ URL: https://api-staging.opencollective.com/
 # Before first deployment, configure production remote
 git remote add production https://git.heroku.com/opencollective-prod-api.git
 
-# Then deploy master with
+# Then deploy main with
 npm run deploy:production
 ```
 

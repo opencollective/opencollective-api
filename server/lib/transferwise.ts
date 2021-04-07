@@ -1,3 +1,4 @@
+/* eslint-disable camelcase */
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -11,12 +12,15 @@ import { isNull, omitBy, startCase, toInteger, toUpper } from 'lodash';
 
 import { TransferwiseError } from '../graphql/errors';
 import {
+  AccessToken,
   BorderlessAccount,
   CurrencyPair,
   Profile,
-  Quote,
+  QuoteV2,
   RecipientAccount,
   Transfer,
+  Webhook,
+  WebhookCreateInput,
   WebhookEvent,
 } from '../types/transferwise';
 
@@ -42,55 +46,122 @@ const axios = Axios.create({
 
 type TransferwiseErrorCodes = 'balance.payment-option-unavailable' | string;
 
-const compactRecipientDetails = <T>(object: T): Partial<T> => omitBy(object, isNull);
-const getData = <T extends { data?: object }>(obj: T | undefined): T['data'] | undefined => obj && obj.data;
+const signString = (data: string) => {
+  const sign = crypto.createSign('SHA256');
+  sign.update(data);
+  sign.end();
+  const key = Buffer.from(config.transferwise.privateKey, 'base64').toString('ascii');
+  return sign.sign(key, 'base64');
+};
+
+const compactRecipientDetails = <T>(object: T): Partial<T> => <Partial<T>>omitBy(object, isNull);
+
+const getData = <T extends { data?: Record<string, unknown> }>(obj: T | undefined): T['data'] | undefined =>
+  obj && obj.data;
+
+const tap = fn => data => {
+  fn(data);
+  return data;
+};
+
 const parseError = (
-  error: AxiosError<{ errorCode?: TransferwiseErrorCodes }>,
+  error: AxiosError<{ errorCode?: TransferwiseErrorCodes; errors?: Record<string, unknown>[] }>,
   defaultMessage?: string,
   defaultCode?: string,
 ): string | Error => {
-  return new TransferwiseError(
-    defaultMessage,
-    error.response?.data?.errorCode ? `transferwise.error.${error.response.data.errorCode}` : defaultCode,
-  );
-};
-const requestDataAndThrowParsedError = async (request: Promise<any>, defaultErrorMessage?: string): Promise<any> => {
-  try {
-    const response = await request;
-    return getData(response);
-  } catch (e) {
-    debug(e);
-    const error = parseError(e, defaultErrorMessage);
-    logger.error(error.toString());
-    throw error;
+  let message = defaultMessage;
+  let code = defaultCode;
+
+  if (error.response?.data?.errorCode) {
+    code = `transferwise.error.${error.response.data.errorCode}`;
   }
+  if (error.response?.data?.errors) {
+    message = error.response.data.errors.map(e => e.message).join(' ');
+  }
+  if (error.response?.status === 422) {
+    message = `TransferWise validation error: ${message}`;
+    code = `transferwise.error.validation`;
+  }
+
+  return new TransferwiseError(message, code);
+};
+
+export const requestDataAndThrowParsedError = (
+  fn: Function,
+  url: string,
+  {
+    data,
+    ...options
+  }: {
+    data?: Record<string, unknown>;
+    headers?: Record<string, unknown>;
+    params?: Record<string, unknown>;
+    auth?: Record<string, unknown>;
+  },
+  defaultErrorMessage?: string,
+): Promise<any> => {
+  debug(`calling ${url}: ${JSON.stringify({ data, params: options.params }, null, 2)}`);
+  const pRequest = data ? fn(url, data, options) : fn(url, options);
+  return pRequest
+    .then(getData)
+    .then(tap(data => debug(JSON.stringify(data, null, 2))))
+    .catch(e => {
+      // Implements Strong Customer Authentication
+      // https://api-docs.transferwise.com/#payouts-guide-strong-customer-authentication
+      const signatureFailed = e?.response?.headers['x-2fa-approval-result'] === 'REJECTED';
+      const hadSignature = e?.response?.headers['X-Signature'];
+      if (signatureFailed && !hadSignature) {
+        const ott = e.response.headers['x-2fa-approval'];
+        const signature = signString(ott);
+        options.headers = { ...options.headers, 'X-Signature': signature, 'x-2fa-approval': ott };
+        const request = data ? fn(url, data, options) : fn(url, options);
+        return request.then(getData);
+      } else {
+        throw e;
+      }
+    })
+    .catch(e => {
+      debug(e.response?.data || e);
+      const error = parseError(e, defaultErrorMessage);
+      logger.error(error.toString());
+      throw error;
+    });
 };
 
 interface CreateQuote {
   profileId: number;
   sourceCurrency: string;
   targetCurrency: string;
+  targetAccount?: number;
   targetAmount?: number;
   sourceAmount?: number;
+  payOut?: 'BANK_TRANSFER' | 'BALANCE' | 'SWIFT' | 'INTERAC' | null;
 }
 export const createQuote = async (
   token: string,
-  { profileId: profile, sourceCurrency, targetCurrency, targetAmount, sourceAmount }: CreateQuote,
-): Promise<Quote> => {
-  const data = {
-    profile,
-    source: sourceCurrency,
-    target: targetCurrency,
-    rateType: 'FIXED',
-    type: 'BALANCE_PAYOUT',
+  {
+    profileId: profile,
+    sourceCurrency,
+    targetCurrency,
     targetAmount,
     sourceAmount,
+    payOut,
+    targetAccount,
+  }: CreateQuote,
+): Promise<QuoteV2> => {
+  const data = {
+    payOut,
+    profile,
+    sourceAmount,
+    sourceCurrency,
+    targetAccount,
+    targetAmount,
+    targetCurrency,
   };
-  return requestDataAndThrowParsedError(
-    axios.post(`/v1/quotes`, data, {
-      headers: { Authorization: `Bearer ${token}` },
-    }),
-  );
+  return requestDataAndThrowParsedError(axios.post, `/v2/quotes`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data,
+  });
 };
 
 interface CreateRecipientAccount extends RecipientAccount {
@@ -101,21 +172,20 @@ export const createRecipientAccount = async (
   { profileId: profile, currency, type, accountHolderName, legalType, details }: CreateRecipientAccount,
 ): Promise<RecipientAccount> => {
   const data = { profile, currency, type, accountHolderName, legalType, details };
-  const response = await requestDataAndThrowParsedError(
-    axios.post(`/v1/accounts`, data, {
-      headers: { Authorization: `Bearer ${token}` },
-    }),
-  );
+  const response = await requestDataAndThrowParsedError(axios.post, `/v1/accounts`, {
+    data,
+    headers: { Authorization: `Bearer ${token}` },
+  });
   return {
     ...response,
     details: compactRecipientDetails(response.details),
   };
 };
 
-interface CreateTransfer {
+export interface CreateTransfer {
   accountId: number;
-  quoteId: number;
-  uuid: string;
+  quoteUuid: string;
+  customerTransactionId: string;
   details?: {
     reference?: string;
     transferPurpose?: string;
@@ -124,26 +194,20 @@ interface CreateTransfer {
 }
 export const createTransfer = async (
   token: string,
-  { accountId: targetAccount, quoteId: quote, uuid: customerTransactionId, details }: CreateTransfer,
+  { accountId: targetAccount, quoteUuid, customerTransactionId, details }: CreateTransfer,
 ): Promise<Transfer> => {
-  const data = { targetAccount, quote, customerTransactionId, details };
-  return requestDataAndThrowParsedError(
-    axios.post(`/v1/transfers`, data, {
-      headers: { Authorization: `Bearer ${token}` },
-    }),
-  );
+  const data = { targetAccount, quoteUuid, customerTransactionId, details };
+  return requestDataAndThrowParsedError(axios.post, `/v1/transfers`, {
+    data,
+    headers: { Authorization: `Bearer ${token}` },
+  });
 };
 
 export const cancelTransfer = async (token: string, transferId: string | number): Promise<Transfer> => {
-  return requestDataAndThrowParsedError(
-    axios.put(
-      `/v1/transfers/${transferId}/cancel`,
-      {},
-      {
-        headers: { Authorization: `Bearer ${token}` },
-      },
-    ),
-  );
+  return requestDataAndThrowParsedError(axios.put, `/v1/transfers/${transferId}/cancel`, {
+    data: {},
+    headers: { Authorization: `Bearer ${token}` },
+  });
 };
 
 interface FundTransfer {
@@ -151,24 +215,27 @@ interface FundTransfer {
   transferId: number;
 }
 export const fundTransfer = async (
-  token,
+  token: string,
   { profileId, transferId }: FundTransfer,
 ): Promise<{ status: 'COMPLETED' | 'REJECTED'; errorCode: string }> => {
   return requestDataAndThrowParsedError(
-    axios.post(
-      `/v3/profiles/${profileId}/transfers/${transferId}/payments`,
-      { type: 'BALANCE' },
-      { headers: { Authorization: `Bearer ${token}` } },
-    ),
+    axios.post,
+    `/v3/profiles/${profileId}/transfers/${transferId}/payments`,
+    {
+      data: { type: 'BALANCE' },
+      headers: { Authorization: `Bearer ${token}` },
+    },
     'Unable to fund transfer, please check your balance and try again.',
   );
 };
 
 export const getProfiles = async (token: string): Promise<Profile[]> => {
   return requestDataAndThrowParsedError(
-    axios.get(`/v1/profiles`, {
+    axios.get,
+    `/v1/profiles`,
+    {
       headers: { Authorization: `Bearer ${token}` },
-    }),
+    },
     'Unable to fetch profiles.',
   );
 };
@@ -182,27 +249,22 @@ interface GetTemporaryQuote {
 export const getTemporaryQuote = async (
   token: string,
   { sourceCurrency, targetCurrency, ...amount }: GetTemporaryQuote,
-): Promise<Quote> => {
-  const params = {
-    source: sourceCurrency,
-    target: targetCurrency,
-    rateType: 'FIXED',
+): Promise<QuoteV2> => {
+  const data = {
+    sourceCurrency,
+    targetCurrency,
     ...amount,
   };
-  return requestDataAndThrowParsedError(
-    axios.get(`/v1/quotes`, {
-      headers: { Authorization: `Bearer ${token}` },
-      params,
-    }),
-  );
+  return requestDataAndThrowParsedError(axios.post, `/v2/quotes`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data,
+  });
 };
 
 export const getTransfer = async (token: string, transferId: number): Promise<Transfer> => {
-  return requestDataAndThrowParsedError(
-    axios.get(`/v1/transfers/${transferId}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    }),
-  );
+  return requestDataAndThrowParsedError(axios.get, `/v1/transfers/${transferId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
 };
 
 export const getAccountRequirements = async (
@@ -214,50 +276,47 @@ export const getAccountRequirements = async (
     target: targetCurrency,
     ...amount,
   };
-  return requestDataAndThrowParsedError(
-    axios.get(`/v1/account-requirements`, {
-      headers: { Authorization: `Bearer ${token}` },
-      params,
-    }),
-  );
+  return requestDataAndThrowParsedError(axios.get, `/v1/account-requirements`, {
+    headers: { Authorization: `Bearer ${token}` },
+    params,
+  });
 };
 
 export const validateAccountRequirements = async (
   token: string,
   { sourceCurrency, targetCurrency, ...amount }: GetTemporaryQuote,
-  accountDetails: any,
+  accountDetails: Record<string, unknown>,
 ): Promise<any> => {
   const params = {
     source: sourceCurrency,
     target: targetCurrency,
     ...amount,
   };
-  return requestDataAndThrowParsedError(
-    axios.post(`/v1/account-requirements`, accountDetails, {
-      headers: { Authorization: `Bearer ${token}` },
-      params,
-    }),
-  );
+  return requestDataAndThrowParsedError(axios.post, `/v1/account-requirements`, {
+    data: accountDetails,
+    headers: { Authorization: `Bearer ${token}` },
+    params,
+  });
 };
 
 export const getCurrencyPairs = async (token: string): Promise<{ sourceCurrencies: CurrencyPair[] }> => {
-  return requestDataAndThrowParsedError(
-    axios.get(`/v1/currency-pairs`, {
-      headers: { Authorization: `Bearer ${token}` },
-    }),
-  );
+  return requestDataAndThrowParsedError(axios.get, `/v1/currency-pairs`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
 };
 
 export const getBorderlessAccount = async (token: string, profileId: string | number): Promise<BorderlessAccount> => {
   const accounts: BorderlessAccount[] = await requestDataAndThrowParsedError(
-    axios.get(`/v1/borderless-accounts?profileId=${profileId}`, {
+    axios.get,
+    `/v1/borderless-accounts?profileId=${profileId}`,
+    {
       headers: { Authorization: `Bearer ${token}` },
-    }),
+    },
   );
   return accounts.find(a => a.profileId === profileId);
 };
 
-const isProduction = process.env.NODE_ENV === 'production';
+const isProduction = config.env === 'production';
 const publicKey = fs.readFileSync(
   path.join(
     __dirname,
@@ -280,7 +339,7 @@ export const verifyEvent = (req: Request & { rawBody: string }): WebhookEvent =>
   return req.body;
 };
 
-export const formatAccountDetails = (payoutMethodData: Record<string, any>): string => {
+export const formatAccountDetails = (payoutMethodData: Record<string, unknown>): string => {
   const ignoredKeys = ['type', 'isManualBankTransfer', 'currency'];
   const labels = {
     abartn: 'Routing Number',
@@ -296,13 +355,13 @@ export const formatAccountDetails = (payoutMethodData: Record<string, any>): str
     return startCase(s);
   };
 
-  const renderObject = (object: Record<string, any>, prefix = ''): string[] =>
+  const renderObject = (object: Record<string, unknown>, prefix = ''): string[] =>
     Object.entries(object).reduce((acc, [key, value]) => {
       if (ignoredKeys.includes(key)) {
         return acc;
       }
       if (typeof value === 'object') {
-        return [...acc, formatKey(key), ...renderObject(value, '  ')];
+        return [...acc, formatKey(key), ...renderObject(<Record<string, unknown>>value, '  ')];
       }
       return [...acc, `${prefix}${formatKey(key)}: ${value}`];
     }, []);
@@ -310,4 +369,79 @@ export const formatAccountDetails = (payoutMethodData: Record<string, any>): str
   const { accountHolderName, currency, ...data } = payoutMethodData;
   const lines = renderObject({ accountHolderName, currency, ...data });
   return lines.join('\n');
+};
+
+export const getOAuthUrl = (state: string): string => {
+  return `${config.transferwise.oauthUrl}/oauth/authorize/?client_id=${config.transferwise.clientId}&redirect_uri=${config.transferwise.redirectUri}&state=${state}`;
+};
+
+export const getOrRefreshToken = async ({
+  code,
+  refreshToken,
+  application,
+}: {
+  code?: string;
+  refreshToken?: string;
+  application?: boolean;
+}): Promise<AccessToken> => {
+  let data;
+  // Refresh Token
+  if (refreshToken) {
+    data = { grant_type: 'refresh_token', refresh_token: refreshToken };
+  }
+  // Request user token
+  else if (code) {
+    data = {
+      grant_type: 'authorization_code',
+      client_id: config.transferwise.clientId,
+      code,
+      redirect_uri: config.transferwise.redirectUri,
+    };
+  }
+  // Request application token
+  else if (application) {
+    data = { grant_type: 'client_credentials' };
+  } else {
+    return;
+  }
+
+  const params = new url.URLSearchParams(data);
+  const token: AccessToken = await axios
+    .post(`/oauth/token`, params.toString(), {
+      auth: { username: config.transferwise.clientId, password: config.transferwise.clientSecret },
+    })
+    .then(getData);
+  debug(`getOrRefreshUserToken: ${JSON.stringify(token, null, 2)}`);
+  return token;
+};
+
+export const listApplicationWebhooks = async (): Promise<Webhook[]> => {
+  const { access_token } = await getOrRefreshToken({ application: true });
+  const webhooks = await axios
+    .get(`/v3/applications/${config.transferwise.clientKey}/subscriptions`, {
+      headers: { Authorization: `Bearer ${access_token}` },
+    })
+    .then(getData);
+  return webhooks;
+};
+
+export const createApplicationWebhook = async (webhookInfo: WebhookCreateInput): Promise<Webhook> => {
+  const { access_token } = await getOrRefreshToken({ application: true });
+  debug(`createApplicationWebhook: ${JSON.stringify(webhookInfo, null, 2)}`);
+  const webhook: Webhook = await axios
+    .post(`/v3/applications/${config.transferwise.clientKey}/subscriptions`, webhookInfo, {
+      headers: { Authorization: `Bearer ${access_token}` },
+    })
+    .then(getData);
+  return webhook;
+};
+
+export const deleteApplicationWebhook = async (id: string | number): Promise<any> => {
+  const { access_token } = await getOrRefreshToken({ application: true });
+  debug(`deleteApplicationWebhook: id ${id}`);
+  return await axios
+    .delete(`/v3/applications/${config.transferwise.clientKey}/subscriptions/${id}`, {
+      headers: { Authorization: `Bearer ${access_token}` },
+    })
+    .then(getData);
 };

@@ -1,29 +1,35 @@
-import { GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 
+import roles from '../../../constants/roles';
 import models from '../../../models';
-import { OrderFrequency, OrderStatus } from '../enum';
+import { ContributionFrequency, OrderStatus } from '../enum';
 import { idEncode } from '../identifiers';
 import { Account } from '../interface/Account';
+import { Transaction } from '../interface/Transaction';
 import { Amount } from '../object/Amount';
 import { PaymentMethod } from '../object/PaymentMethod';
 import { Tier } from '../object/Tier';
+
+import { MemberOf } from './Member';
+import OrderPermissions from './OrderPermissions';
+import { OrderTax } from './OrderTax';
 
 export const Order = new GraphQLObjectType({
   name: 'Order',
   description: 'Order model',
   fields: () => {
     return {
-      // _internal_id: {
-      //   type: GraphQLInt,
-      //   resolve(order) {
-      //     return order.id;
-      //   },
-      // },
       id: {
-        type: GraphQLString,
+        type: new GraphQLNonNull(GraphQLString),
         resolve(order) {
           return idEncode(order.id, 'order');
+        },
+      },
+      legacyId: {
+        type: new GraphQLNonNull(GraphQLInt),
+        resolve(order) {
+          return order.id;
         },
       },
       description: {
@@ -33,10 +39,13 @@ export const Order = new GraphQLObjectType({
         },
       },
       amount: {
-        type: Amount,
+        type: new GraphQLNonNull(Amount),
         resolve(order) {
           return { value: order.totalAmount, currency: order.currency };
         },
+      },
+      quantity: {
+        type: GraphQLInt,
       },
       status: {
         type: OrderStatus,
@@ -45,7 +54,7 @@ export const Order = new GraphQLObjectType({
         },
       },
       frequency: {
-        type: OrderFrequency,
+        type: ContributionFrequency,
         async resolve(order) {
           const subscription = await order.getSubscription();
           if (!subscription) {
@@ -71,14 +80,21 @@ export const Order = new GraphQLObjectType({
       },
       fromAccount: {
         type: Account,
-        resolve(order) {
-          return order.getFromCollective();
+        resolve(order, _, req) {
+          return req.loaders.Collective.byId.load(order.FromCollectiveId);
         },
       },
       toAccount: {
         type: Account,
-        resolve(order) {
-          return order.getCollective();
+        resolve(order, _, req) {
+          return req.loaders.Collective.byId.load(order.CollectiveId);
+        },
+      },
+      transactions: {
+        description: 'Transactions for this order ordered by createdAt ASC',
+        type: new GraphQLNonNull(new GraphQLList(Transaction)),
+        resolve(order, _, req) {
+          return req.loaders.Transaction.byOrderId.load(order.id);
         },
       },
       createdAt: {
@@ -94,7 +110,7 @@ export const Order = new GraphQLObjectType({
         },
       },
       totalDonations: {
-        type: Amount,
+        type: new GraphQLNonNull(Amount),
         description:
           'WARNING: Total amount donated between collectives, though there will be edge cases especially when looking on the Order level, as the order id is not used in calculating this.',
         async resolve(order, args, req) {
@@ -105,11 +121,71 @@ export const Order = new GraphQLObjectType({
           return { value, currency: order.currency };
         },
       },
-      // needed for recurring contributions work, but we should update to encoded id and write v2 payment method object soon
       paymentMethod: {
         type: PaymentMethod,
+        resolve(order, _, req) {
+          if (order.PaymentMethodId) {
+            return req.loaders.PaymentMethod.byId.load(order.PaymentMethodId);
+          }
+        },
+      },
+      platformFee: {
+        type: Amount,
+        deprecationReason: '2020-07-31: Please use platformContributionAmount',
         resolve(order) {
-          return models.PaymentMethod.findByPk(order.PaymentMethodId);
+          if (order.data?.isFeesOnTop) {
+            return { value: order.data.platformFee };
+          } else {
+            return null;
+          }
+        },
+      },
+      platformContributionAmount: {
+        type: Amount,
+        description: 'Platform contribution attached to the Order.',
+        resolve(order) {
+          if (order.data?.isFeesOnTop) {
+            return { value: order.data.platformFee, currency: order.currency };
+          } else {
+            return null;
+          }
+        },
+      },
+      taxes: {
+        type: new GraphQLNonNull(new GraphQLList(OrderTax)),
+        resolve(order) {
+          if (order.data?.tax) {
+            return [
+              {
+                type: order.data.tax.id,
+                percentage: order.data.tax.percentage,
+              },
+            ];
+          } else {
+            return [];
+          }
+        },
+      },
+      membership: {
+        type: MemberOf,
+        description:
+          'This represents a MemberOf relationship (ie: Collective backed by an Individual) attached to the Order.',
+        async resolve(order) {
+          return models.Member.findOne({
+            where: {
+              MemberCollectiveId: order.FromCollectiveId,
+              CollectiveId: order.CollectiveId,
+              role: roles.BACKER,
+              TierId: order.TierId,
+            },
+          });
+        },
+      },
+      permissions: {
+        type: new GraphQLNonNull(OrderPermissions),
+        description: 'The permissions given to current logged in user for this order',
+        async resolve(order) {
+          return order; // Individual fields are set by OrderPermissions resolvers
         },
       },
     };

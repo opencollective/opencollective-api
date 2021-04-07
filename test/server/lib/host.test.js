@@ -74,7 +74,7 @@ describe('server/lib/host', () => {
   after(() => sandbox.restore());
 
   beforeEach('get hosted collectives', async () => {
-    const collectives = await libhost.getHostedCollectives(hostId);
+    const collectives = await libhost.getHostedCollectives(hostId, '2017-01-01');
     collectiveids = collectives.map(g => g.id).filter(id => id !== hostId); // We remove the host collective
     where.CollectiveId = { [Op.in]: collectiveids };
     expect(collectives.length).to.equal(4);

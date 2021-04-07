@@ -12,12 +12,17 @@ import models from '../../../server/models';
 import webhookBodyApprove from '../../mocks/mailgun.webhook.approve';
 import webhookBodyPayload from '../../mocks/mailgun.webhook.payload';
 import initNock from '../../nocks/email.routes.test.nock.js';
+import { randEmail } from '../../stores';
 import { fakeCollective, fakeUser } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
 const generateToken = (email, slug, template) => {
   const uid = `${email}.${slug}.${template}.${config.keys.opencollective.jwtSecret}`;
   return md5(uid);
+};
+
+const fakeIntervalUser = () => {
+  return fakeUser({ email: randEmail('test@opencollective.com') });
 };
 
 const { Collective } = models;
@@ -33,13 +38,13 @@ const usersData = [
   {
     firstName: 'Aseem',
     lastName: 'Sood',
-    email: 'asood123+test@gmail.com',
+    email: randEmail('test@opencollective.com'),
     role: 'ADMIN',
   },
   {
     firstName: 'Pia',
     lastName: 'Mancini',
-    email: 'pia+test@opencollective.com',
+    email: randEmail('test@opencollective.com'),
     role: 'BACKER',
   },
   {
@@ -83,37 +88,30 @@ describe('server/routes/email', () => {
     nock.cleanAll();
   });
 
-  before('create collective and members', done => {
-    Collective.create(collectiveData)
-      .tap(g => (collective = g))
-      .then(() => Promise.map(usersData, u => models.User.createUserWithCollective(u)))
-      .tap(users => {
-        return Promise.map(users, (user, index) => {
-          return collective.addUserWithRole(user, usersData[index].role);
-        });
-      })
-      .tap(usersRows => {
-        users = usersRows;
-        return Promise.map(usersRows, (user, index) => {
-          const lists = usersData[index].lists || [];
-          return Promise.map(lists, list =>
-            models.Notification.create({
-              channel: 'email',
-              UserId: user.id,
-              CollectiveId: collective.id,
-              type: list,
-            }),
-          );
-        });
-      })
-      .then(() => done())
-      .catch(console.error);
+  before('create collective and members', async () => {
+    collective = await Collective.create(collectiveData);
+
+    users = await Promise.map(usersData, u => models.User.createUserWithCollective(u));
+
+    await Promise.map(users, (user, index) => collective.addUserWithRole(user, usersData[index].role));
+
+    await Promise.map(users, (user, index) => {
+      const lists = usersData[index].lists || [];
+      return Promise.map(lists, list =>
+        models.Notification.create({
+          channel: 'email',
+          UserId: user.id,
+          CollectiveId: collective.id,
+          type: list,
+        }),
+      );
+    });
   });
 
-  it('forwards emails sent to info@:slug.opencollective.com', async () => {
+  it('forwards emails sent to info@:slug.opencollective.com if enabled', async () => {
     const spy = sandbox.spy(emailLib, 'sendMessage');
-    const collective = await fakeCollective();
-    const users = await Promise.all([fakeUser(), fakeUser(), fakeUser()]);
+    const collective = await fakeCollective({ settings: { features: { forwardEmails: true } } });
+    const users = await Promise.all([fakeIntervalUser(), fakeIntervalUser(), fakeIntervalUser()]);
     await Promise.all(users.map(user => collective.addUserWithRole(user, 'ADMIN')));
 
     return request(expressApp)
@@ -131,10 +129,10 @@ describe('server/routes/email', () => {
       });
   });
 
-  it('do not forwards emails sent to info@:slug.opencollective.com if disabled', async () => {
+  it('do not forwards emails sent to info@:slug.opencollective.com', async () => {
     const spy = sandbox.spy(emailLib, 'sendMessage');
-    const collective = await fakeCollective({ settings: { features: { forwardEmails: false } } });
-    const user = await fakeUser();
+    const collective = await fakeCollective();
+    const user = await fakeIntervalUser();
     await collective.addUserWithRole(user, 'ADMIN');
     const endpoint = request(expressApp).post('/webhooks/mailgun');
     const res = await endpoint.send(
@@ -225,7 +223,9 @@ describe('server/routes/email', () => {
         expect(emailsSent[0][1]).to.equal('admins@testcollective.opencollective.com');
         expect(emailsSent[0][2].subject).to.equal('test collective admins');
         expect([emailsSent[0][3].bcc, emailsSent[1][3].bcc]).to.contain(usersData[0].email);
-        expect(emailsSent[0][3].from).to.equal('testcollective collective <hello@testcollective.opencollective.com>');
+        expect(emailsSent[0][3].from).to.equal(
+          'testcollective collective <no-reply@testcollective.opencollective.com>',
+        );
       });
   });
 

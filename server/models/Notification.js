@@ -1,17 +1,17 @@
 import Promise from 'bluebird';
 import debugLib from 'debug';
 import { defaults, isNil } from 'lodash';
-import { Op } from 'sequelize';
 
 import channels from '../constants/channels';
 import { ValidationFailed } from '../graphql/errors';
+import sequelize, { DataTypes, Op } from '../lib/sequelize';
 
 const debug = debugLib('models:Notification');
 
-export default function (Sequelize, DataTypes) {
-  const { models } = Sequelize;
+function defineModel() {
+  const { models } = sequelize;
 
-  const Notification = Sequelize.define(
+  const Notification = sequelize.define(
     'Notification',
     {
       channel: {
@@ -44,7 +44,7 @@ export default function (Sequelize, DataTypes) {
 
       createdAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
 
       CollectiveId: {
@@ -146,34 +146,28 @@ export default function (Sequelize, DataTypes) {
 
   Notification.getSubscribersUsers = async (collectiveSlug, mailinglist) => {
     debug('getSubscribersUsers', collectiveSlug, mailinglist);
-    const getUsers = memberships => {
-      if (!memberships || memberships.length === 0) {
-        return [];
-      }
-      return models.User.findAll({
-        where: {
-          CollectiveId: { [Op.in]: memberships.map(m => m.MemberCollectiveId) },
-        },
-      });
-    };
-
-    return await Notification.getSubscribers(collectiveSlug, mailinglist).then(getUsers);
+    const memberships = await Notification.getSubscribers(collectiveSlug, mailinglist);
+    if (!memberships || memberships.length === 0) {
+      return [];
+    }
+    return models.User.findAll({
+      where: {
+        CollectiveId: { [Op.in]: memberships.map(m => m.MemberCollectiveId) },
+      },
+    });
   };
 
   Notification.getSubscribersCollectives = async (collectiveSlug, mailinglist) => {
     debug('getSubscribersCollectives', collectiveSlug, mailinglist);
-    const getCollectives = memberships => {
-      if (!memberships || memberships.length === 0) {
-        return [];
-      }
-      return models.Collective.findAll({
-        where: {
-          id: { [Op.in]: memberships.map(m => m.MemberCollectiveId) },
-        },
-      });
-    };
-
-    return await Notification.getSubscribers(collectiveSlug, mailinglist).then(getCollectives);
+    const memberships = await Notification.getSubscribers(collectiveSlug, mailinglist);
+    if (!memberships || memberships.length === 0) {
+      return [];
+    }
+    return models.Collective.findAll({
+      where: {
+        id: { [Op.in]: memberships.map(m => m.MemberCollectiveId) },
+      },
+    });
   };
 
   /**
@@ -230,6 +224,12 @@ export default function (Sequelize, DataTypes) {
   return Notification;
 }
 
+// We're using the defineModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const Notification = defineModel();
+
+export default Notification;
+
 /*
 Types:
   + activities.USER_CREATED
@@ -258,9 +258,6 @@ Types:
   - collective.deleted
       data: collective.name, user.info
 
-  + collective.user.added
-      data: collective, user (caller), target (the new user), collectiveuser
-      2* Userid: the new user + the caller
   - collective.user.updated
       data: collective, user (caller), target (the updated user), collectiveuser (updated values)
       2* Userid: the updated user + the caller

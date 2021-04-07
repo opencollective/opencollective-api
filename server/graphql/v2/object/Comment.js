@@ -2,7 +2,7 @@ import { GraphQLList, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 import { GraphQLJSON } from 'graphql-type-json';
 
-import { collectiveResolver, fromCollectiveResolver, getStripTagsResolver } from '../../common/comment';
+import { collectiveResolver, fromCollectiveResolver } from '../../common/comment';
 import { getIdEncodeResolver } from '../identifiers';
 import { Account } from '../interface/Account';
 
@@ -23,7 +23,8 @@ const Comment = new GraphQLObjectType({
       },
       markdown: {
         type: GraphQLString,
-        resolve: getStripTagsResolver('markdown'),
+        deprecationReason: '2020-01-25: Use html',
+        resolve: () => null,
       },
       fromAccount: {
         type: Account,

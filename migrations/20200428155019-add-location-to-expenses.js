@@ -9,7 +9,7 @@ module.exports = {
     await queryInterface.sequelize.query(
       `
         UPDATE  "Expenses" e
-        SET     "payeeLocation" = 
+        SET     "payeeLocation" =
           JSONB_SET('{}'::JSONB, '{country}', COALESCE(to_jsonb(c."countryISO"), jsonb 'null')) ||
           JSONB_SET('{}'::JSONB, '{address}', COALESCE(to_jsonb(c."address"), jsonb 'null'))
         FROM
@@ -24,7 +24,7 @@ module.exports = {
     );
   },
 
-  down: async (queryInterface, Sequelize) => {
+  down: async queryInterface => {
     await queryInterface.removeColumn('Expenses', 'payeeLocation');
     await queryInterface.removeColumn('ExpenseHistories', 'payeeLocation');
   },

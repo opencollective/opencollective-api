@@ -35,40 +35,12 @@ describe('server/models/User', () => {
       User.create({ firstName: 'blah' }).catch(err => expect(err).to.exist);
     });
 
-    it('successfully creates a user and lowercase email', () =>
-      User.create({ firstName: userData.firstName, email: userData.email }).tap(user => {
-        expect(user).to.have.property('firstName', userData.firstName);
-        expect(user).to.have.property('email', userData.email.toLowerCase());
-        expect(user).to.have.property('createdAt');
-        expect(user).to.have.property('updatedAt');
-      }));
-
-    it('successfully creates a user with a password that is a number', () => {
-      const email = 'john.doe@doe.com';
-
-      return User.create({
-        email,
-        password: 123456,
-      }).tap(user => {
-        expect(user).to.have.property('email', email);
-        expect(user).to.have.property('createdAt');
-        expect(user).to.have.property('password_hash');
-        expect(user).to.have.property('updatedAt');
-      });
-    });
-
-    it('successfully creates a user with a password that is a string', () => {
-      const email = 'john.doe@doe.com';
-
-      return User.create({
-        email,
-        password: '123456',
-      }).tap(user => {
-        expect(user).to.have.property('email', email);
-        expect(user).to.have.property('createdAt');
-        expect(user).to.have.property('password_hash');
-        expect(user).to.have.property('updatedAt');
-      });
+    it('successfully creates a user and lowercase email', async () => {
+      const user = await User.create({ firstName: userData.firstName, email: userData.email });
+      expect(user).to.have.property('firstName', userData.firstName);
+      expect(user).to.have.property('email', userData.email.toLowerCase());
+      expect(user).to.have.property('createdAt');
+      expect(user).to.have.property('updatedAt');
     });
   });
 

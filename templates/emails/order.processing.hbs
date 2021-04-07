@@ -16,44 +16,43 @@ currency=order.currency}}} {{order.type}} to {{collective.name}} is pending
 {{> toplogo}}
 
 {{#if fromCollective.name}}
-<p>Dear {{fromCollective.name}},</p>
+<p>Hi {{fromCollective.name}},</p>
 {{else}}
 <p>Hi!</p>
 {{/if}}
 
-<p>We would like to thank you for your donation of {{{currency order.totalAmount currency=order.currency}}} on
-  {{{moment order.createdAt}}}. Your order is currently pending - we'll let you know once the host of collective (<a
-    href="https://opencollective.com/{{host.slug}}">{{host.name}}</a>) will have received
-  the funds and attributed them to {{collective.name}}.</p>
+<p>Thank you for your contribution to {{collective.name}} in the amount of {{currency order.totalAmount currency=order.currency}}, made on
+  {{moment order.createdAt}}.</p>
+
+<p>Your contribution is currently pending. Once you transmit the funds per the instructions below,
+   and they have been confirmed as received by <a href="https://opencollective.com/{{host.slug}}">{{host.name}}</a>,
+   the amount will be credited to {{collective.name}}.</p>
 
 {{#if instructions}}
 <section>
   <h2>Instructions</h2>
-  <pre>{{instructions}}</pre>
+  <pre>{{{instructions}}}</pre>
 </section>
 {{/if}}
 
-<p>In the meantime, you can follow the collective and how it is spending the money on its Open Collective page:
-  <a href="https://opencollective.com/{{collective.slug}}">https://opencollective.com/{{collective.slug}}</a>.
+{{#if order.isGuest}}
+<p>
+  If you need help with this contribution, please <a href="mailto:support@opencollective.com">contact support</a>.
 </p>
-
+{{/if}}
 
 {{#if fromCollective.isIncognito}}
 {{else}}
-<h2>Help us raise more money!</h2>
-<p>Share this URL: <a
-    href="https://opencollective.com/{{collective.slug}}/donate">https://opencollective.com/{{collective.slug}}/donate</a>
+<h2>Help {{collective.name}}!</h2>
+<p>Share our link to help us get more contributions: <a
+    href="https://opencollective.com/{{collective.slug}}">https://opencollective.com/{{collective.slug}}</a>
 </p>
 {{/if}}
 
-<p>Warmly,</p>
+<p>Thank you again for your support!</p>
 
 <p>
-  – The {{collective.name}} open collective
+  – {{collective.name}}
 </p>
-
-{{#if relatedCollectives.length}}
-{{> relatedcollectives}}
-{{/if}}
 
 {{> footer}}

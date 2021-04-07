@@ -11,13 +11,13 @@ import nock from 'nock';
 import * as dbRestore from '../scripts/db_restore';
 import { loaders } from '../server/graphql/loaders';
 import schemaV1 from '../server/graphql/v1/schema';
-import schemaV2 from '../server/graphql/v2/schema
+
  * This function allows to test queries and mutations against schema v2.
  * @param {string} query - Queries and Mutations to serve against the type schema. Example: `query Expense($id: Int!) { Expense(id: $id) { description } }`
  * @param {object} variables - Variables to use in the queries and mutations. Example: { id: 1 }
  * @param {object} remoteUser - The user to add to the context. It is not required.
  */
-export async function graphqlQueryV2(query, variables, remoteUser) {
+export async function graphqlQueryV2(query, variables, remoteUser = null) {
   return graphqlQuery(query, variables, remoteUser, schemaV2);
 }
 
@@ -96,7 +96,8 @@ export function stubStripeCreate(sandbox, overloadDefaults) {
     customer: { id: 'cus_BM7mGwp1Ea8RtL' },
     token: { id: 'tok_1AzPXGD8MNtzsDcgwaltZuvp' },
     charge: { id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' },
-    paymentIntent: { charges: { data: [{ id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' }] }, status: 'succeeded' },
+    paymentIntent: { id: 'pi_1F82vtBYycQg1OMfS2Rctiau', status: 'requires_confirmation' },
+    paymentIntentConfirmed: { charges: { data: [{ id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' }] }, status: 'succeeded' },
     ...overloadDefaults,
   };
   /* Little helper function that returns the stub with a given
@@ -114,6 +115,7 @@ export function stubStripeCreate(sandbox, overloadDefaults) {
 
   sandbox.stub(stripe.customers, 'retrieve').callsFake(factory('customer'));
   sandbox.stub(stripe.paymentIntents, 'create').callsFake(factory('paymentIntent'));
+  sandbox.stub(stripe.paymentIntents, 'confirm').callsFake(factory('paymentIntentConfirmed'));
 }
 
 export function stubStripeBalance(sandbox, amount, currency, applicationFee = 0, stripeFee = 0) {

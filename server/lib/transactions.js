@@ -95,13 +95,18 @@ export async function createFromPaidExpense(
         );
 
       case 'ERROR':
+        // Backward compatible error message parsing
+        // eslint-disable-next-line no-case-declarations
+        const errorMessage =
+          executePaymentResponse.payErrorList?.payError?.[0].error?.message ||
+          executePaymentResponse.payErrorList?.[0].error?.message;
         throw new errors.ServerError(
-          `Error while paying the expense with PayPal: "${executePaymentResponse.payErrorList[0].error.message}". Please contact support@opencollective.com`,
+          `Error while paying the expense with PayPal: "${errorMessage}". Please contact support@opencollective.com or pay it manually through PayPal.`,
         );
 
       default:
         throw new errors.ServerError(
-          `Error while paying the expense with PayPal. Please contact support@opencollective.com`,
+          `Error while paying the expense with PayPal. Please contact support@opencollective.com or pay it manually through PayPal.`,
         );
     }
 
@@ -114,7 +119,9 @@ export async function createFromPaidExpense(
   } else if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT) {
     // Notice this is the FX rate between Host and Collective, the user is not involved here and that's why TransferWise quote rate is irrelevant here.
     hostCurrencyFxRate = await getFxRate(expense.currency, host.currency);
-    paymentProcessorFeeInHostCurrency = transactionData ? Math.round(transactionData.quote.fee * 100) : 0;
+    paymentProcessorFeeInHostCurrency = transactionData?.paymentOption?.fee?.total
+      ? Math.round(transactionData.paymentOption.fee.total * 100)
+      : paymentProcessorFeeInHostCurrency;
     paymentProcessorFeeInCollectiveCurrency = Math.round((1 / hostCurrencyFxRate) * paymentProcessorFeeInHostCurrency);
     hostFeeInCollectiveCurrency = Math.round((1 / hostCurrencyFxRate) * hostFeeInHostCurrency);
     platformFeeInCollectiveCurrency = Math.round((1 / hostCurrencyFxRate) * platformFeeInHostCurrency);
@@ -146,6 +153,7 @@ export async function createFromPaidExpense(
     description: expense.description,
     CreatedByUserId: UserId,
     CollectiveId: expense.CollectiveId,
+    FromCollectiveId: expense.FromCollectiveId,
     HostCollectiveId: host.id,
     PaymentMethodId: paymentMethod ? paymentMethod.id : null,
     data: transactionData,
@@ -153,8 +161,6 @@ export async function createFromPaidExpense(
 
   transaction.hostCurrencyFxRate = hostCurrencyFxRate;
   transaction.amountInHostCurrency = -Math.round(hostCurrencyFxRate * expense.amount); // amountInHostCurrency is an INTEGER (in cents)
-  const user = await models.User.findByPk(UserId);
-  transaction.FromCollectiveId = user.CollectiveId;
   return models.Transaction.createDoubleEntry(transaction);
 }
 

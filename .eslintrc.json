@@ -2,7 +2,7 @@
   "extends": ["plugin:@typescript-eslint/recommended", "plugin:import/typescript", "opencollective"],
   "parser": "@typescript-eslint/parser",
   "env": { "mocha": true },
-  "plugins": ["mocha", "simple-import-sort"],
+  "plugins": ["@typescript-eslint", "graphql", "mocha", "simple-import-sort"],
   "rules": {
     // console logs are OK in Node
     "no-console": "off",
@@ -21,7 +21,7 @@
     // enforce strictly camelcase
     "camelcase": "error",
     // simple-import-sort
-    "simple-import-sort/sort": [
+    "simple-import-sort/imports": [
       "error",
       {
         "groups": [
@@ -44,17 +44,34 @@
           ["^\\./(?=.*/)(?!/?$)", "^\\.(?!/?$)", "^\\./?$"]
         ]
       }
-    ]
+    ],
+    // tweak typescript defaults
+    "@typescript-eslint/ban-types": "warn",
+    // GraphQL
+    // To lint multiple schemas each one needs a different tagName.
+    // https://github.com/apollographql/eslint-plugin-graphql#additional-schemas-or-tags
+    "graphql/template-strings": [
+      "error",
+      { "env": "apollo", "projectName": "opencollective_v1" },
+      { "env": "apollo", "tagName": "gqlV2", "projectName": "opencollective_v2" }
+    ],
+    "graphql/named-operations": ["error"],
+    "graphql/capitalized-type-name": ["error"],
+    // This rule is useful in frontend(s), but it's totally fine to keep tests for deprecated fields in API
+    "graphql/no-deprecated-fields": "off",
+    // Already being validated by @typescript-eslint/no-unused-vars
+    "no-unused-vars": "off",
+    "@typescript-eslint/no-unused-vars": ["error"]
   },
   // Disable typescript checks in JS
   "overrides": [
     {
       "files": ["*.js"],
       "rules": {
-        "@typescript-eslint/camelcase": "off",
         "@typescript-eslint/no-use-before-define": "off",
         "@typescript-eslint/indent": "off",
-        "@typescript-eslint/explicit-function-return-type": "off"
+        "@typescript-eslint/explicit-function-return-type": "off",
+        "@typescript-eslint/explicit-module-boundary-types": "off"
       }
     }
   ],

@@ -1,3 +1,5 @@
+/* eslint-disable camelcase */
+
 export type Quote = {
   id?: number;
   source: string;
@@ -15,6 +17,54 @@ export type Quote = {
   allowedProfileTypes: Array<'PERSONAL' | 'BUSINESS'>;
   guaranteedTargetAmount: boolean;
   ofSourceAmount: boolean;
+};
+
+export type QuoteV2PaymentOption = {
+  disabled: boolean;
+  estimatedDelivery: string;
+  formattedEstimatedDelivery: string;
+  estimatedDeliveryDelays: [];
+  fee: {
+    transferwise: number;
+    payIn: number;
+    discount: number;
+    total: number;
+  };
+  sourceAmount: number;
+  targetAmount: number;
+  sourceCurrency: string;
+  targetCurrency: string;
+  payIn: 'BANK_TRANSFER' | 'BALANCE';
+  payOut: 'BANK_TRANSFER';
+  allowedProfileTypes: Array<'PERSONAL' | 'BUSINESS'>;
+  payInProduct: 'CHEAP' | 'BALANCE';
+  feePercentage: number;
+};
+
+export type QuoteV2 = {
+  id: string;
+  sourceCurrency: string;
+  targetCurrency: string;
+  sourceAmount: number;
+  payOut: 'BANK_TRANSFER';
+  rate: number;
+  createdTime: string;
+  user: number;
+  profile: number;
+  rateType: 'FIXED';
+  rateExpirationTime: string;
+  guaranteedTargetAmountAllowed: boolean;
+  targetAmountAllowed: boolean;
+  guaranteedTargetAmount: boolean;
+  providedAmountType: 'SOURCE' | 'TARGET';
+  paymentOptions: Array<QuoteV2PaymentOption>;
+  status: 'PENDING' | 'ACCEPTED' | 'FUNDED' | 'EXPIRED';
+  expirationTime: string;
+  notices: Array<{
+    text: string;
+    link: string | null;
+    type: 'WARNING' | 'INFO' | 'BLOCKED';
+  }>;
 };
 
 export type RecipientAccount = {
@@ -123,9 +173,8 @@ export type TransferStatus =
   | 'funds_refunded'
   | 'bounced_back';
 
-/* eslint-disable camelcase */
 export interface WebhookEvent {
-  data: Record<string, any>;
+  data: Record<string, unknown>;
   subscription_id: string;
   event_type: string;
   schema_version: '2.0.0';
@@ -146,7 +195,6 @@ export interface TransferStateChangeEvent extends WebhookEvent {
   };
   event_type: 'transfers#state-change';
 }
-/* eslint-enable camelcase */
 
 export type Transfer = {
   id: number;
@@ -221,3 +269,36 @@ export type BorderlessAccount = {
   eligible: boolean;
   balances: Balance[];
 };
+
+export type AccessToken = {
+  access_token: string;
+  token_type: 'bearer';
+  refresh_token: string;
+  expires_in: number;
+  scope: string;
+};
+
+export type Webhook = {
+  id: string;
+  name: string;
+  delivery: {
+    version: '2.0.0';
+    url: string;
+  };
+  trigger_on:
+    | 'transfers#state-change' // Profile and Application
+    | 'transfers#active-cases' // Profile
+    | 'balances#credit' // Profile
+    | 'profiles#verification-state-change'; // Application
+  scope: {
+    domain: 'application' | 'profile';
+    id: string;
+  };
+  created_by: {
+    type: 'application' | 'user';
+    id: string;
+  };
+  created_at: string;
+};
+
+export type WebhookCreateInput = Pick<Webhook, 'name' | 'delivery' | 'trigger_on'>;

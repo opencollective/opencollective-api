@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import gql from 'fake-tag';
 import sinon from 'sinon';
 
 import roles from '../../../../server/constants/roles';
@@ -18,30 +19,29 @@ describe('server/graphql/v1/paymentMethods', () => {
     await utils.resetTestDB();
   });
 
-  beforeEach(() =>
-    models.User.createUserWithCollective({
+  beforeEach(async () => {
+    admin = await models.User.createUserWithCollective({
       name: 'Host Admin',
       email: 'admin@email.com',
-    }).tap(u => (admin = u)),
-  );
+    });
+  });
 
-  beforeEach(() =>
-    models.User.createUserWithCollective({
+  beforeEach(async () => {
+    user = await models.User.createUserWithCollective({
       name: 'Xavier',
       currency: 'EUR',
       email: 'xxxx@email.com',
-    }).tap(u => (user = u)),
-  );
+    });
+  });
 
-  beforeEach(() =>
-    models.Collective.create({
+  beforeEach(async () => {
+    host = await models.Collective.create({
       name: 'open source collective',
       type: 'ORGANIZATION',
       currency: 'USD',
-    })
-      .tap(c => (host = c))
-      .then(c => c.becomeHost()),
-  );
+    });
+    await host.becomeHost();
+  });
 
   beforeEach(() =>
     models.ConnectedAccount.create({
@@ -50,16 +50,16 @@ describe('server/graphql/v1/paymentMethods', () => {
     }),
   );
 
-  beforeEach(() =>
-    models.Collective.create({
+  beforeEach(async () => {
+    collective = await models.Collective.create({
       name: 'tipbox',
       type: 'COLLECTIVE',
       isActive: true,
       currency: 'EUR',
       hostFeePercent: 5,
       HostCollectiveId: host.id,
-    }).tap(c => (collective = c)),
-  );
+    });
+  });
 
   beforeEach(() =>
     models.Member.create({
@@ -118,7 +118,7 @@ describe('server/graphql/v1/paymentMethods', () => {
         where: {
           service: 'opencollective',
           CollectiveId: host.id,
-          type: 'collective',
+          type: 'host',
         },
       }).then(pm => {
         paymentMethod = pm;
@@ -138,30 +138,30 @@ describe('server/graphql/v1/paymentMethods', () => {
       sandbox.restore();
     });
 
-    const createOrderQuery = `
-    mutation createOrder($order: OrderInputType!) {
-      createOrder(order: $order) {
-        id
-        fromCollective {
+    const createOrderMutation = gql`
+      mutation CreateOrder($order: OrderInputType!) {
+        createOrder(order: $order) {
           id
-          slug
+          fromCollective {
+            id
+            slug
+          }
+          collective {
+            id
+            slug
+          }
+          totalAmount
+          currency
+          description
         }
-        collective {
-          id
-          slug
-        }
-        totalAmount
-        currency
-        description
       }
-    }
     `;
 
     it('fails to add funds if not logged in as an admin of the host', async () => {
       order.fromCollective = {
         id: host.id,
       };
-      const result = await utils.graphqlQuery(createOrderQuery, { order }, user);
+      const result = await utils.graphqlQuery(createOrderMutation, { order }, user);
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal(
         "You don't have sufficient permissions to create an order on behalf of the open source collective organization",
@@ -171,7 +171,7 @@ describe('server/graphql/v1/paymentMethods', () => {
         name: 'new org',
         website: 'http://neworg.com',
       };
-      const result2 = await utils.graphqlQuery(createOrderQuery, { order }, user);
+      const result2 = await utils.graphqlQuery(createOrderMutation, { order }, user);
       expect(result2.errors).to.exist;
       expect(result2.errors[0].message).to.equal(
         "You don't have enough permissions to use this payment method (you need to be an admin of the collective that owns this payment method)",
@@ -183,7 +183,7 @@ describe('server/graphql/v1/paymentMethods', () => {
         id: host.id,
       };
       order.platformFeePercent = 5;
-      const result = await utils.graphqlQuery(createOrderQuery, { order }, user);
+      const result = await utils.graphqlQuery(createOrderMutation, { order }, user);
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal('Only a root can change the platformFeePercent');
     });
@@ -208,7 +208,7 @@ describe('server/graphql/v1/paymentMethods', () => {
       order.fromCollective = {
         id: host.id,
       };
-      const result = await utils.graphqlQuery(createOrderQuery, { order }, admin);
+      const result = await utils.graphqlQuery(createOrderMutation, { order }, admin);
       result.errors && console.error(result.errors[0]);
       expect(result.errors).to.not.exist;
       const orderCreated = result.data.createOrder;
@@ -235,7 +235,7 @@ describe('server/graphql/v1/paymentMethods', () => {
         name: 'new org',
         website: 'http://neworg.com',
       };
-      const result = await utils.graphqlQuery(createOrderQuery, { order }, admin);
+      const result = await utils.graphqlQuery(createOrderMutation, { order }, admin);
       result.errors && console.error(result.errors[0]);
       expect(result.errors).to.not.exist;
       const orderCreated = result.data.createOrder;
@@ -282,17 +282,17 @@ describe('server/graphql/v1/paymentMethods', () => {
         website: 'https://facebook.com',
       };
       let result;
-      result = await utils.graphqlQuery(createOrderQuery, { order }, admin);
+      result = await utils.graphqlQuery(createOrderMutation, { order }, admin);
       result.errors && console.error(result.errors[0]);
       order.fromCollective = {
         name: 'google',
         website: 'https://google.com',
       };
-      result = await utils.graphqlQuery(createOrderQuery, { order }, admin);
+      result = await utils.graphqlQuery(createOrderMutation, { order }, admin);
       result.errors && console.error(result.errors[0]);
 
       // We fetch all the fromCollectives using the host paymentMethod
-      const paymentMethodQuery = `
+      const paymentMethodQuery = gql`
         query PaymentMethod($id: Int!) {
           PaymentMethod(id: $id) {
             id
@@ -336,21 +336,21 @@ describe('server/graphql/v1/paymentMethods', () => {
     });
 
     it('returns the balance', async () => {
-      const query = `
-      query Collective($slug: String) {
-        Collective(slug: $slug) {
-          id,
-          paymentMethods {
+      const collectiveQuery = gql`
+        query Collective($slug: String) {
+          Collective(slug: $slug) {
             id
-            service
-            type
-            balance
-            currency
+            paymentMethods {
+              id
+              service
+              type
+              balance
+              currency
+            }
           }
         }
-      }
       `;
-      const result = await utils.graphqlQuery(query, { slug: host.slug }, admin);
+      const result = await utils.graphqlQuery(collectiveQuery, { slug: host.slug }, admin);
       result.errors && console.error(result.errors[0]);
 
       // Ensure PayPal API is called
@@ -368,8 +368,8 @@ describe('server/graphql/v1/paymentMethods', () => {
 
 describe('server/graphql/v1/paymentMethods/CRUD', () => {
   // Queries
-  const CreateCreditCardMutation = `
-    mutation createCreditCard(
+  const createCreditCardMutation = gql`
+    mutation CreateCreditCard(
       $CollectiveId: Int!
       $name: String!
       $token: String!
@@ -402,7 +402,7 @@ describe('server/graphql/v1/paymentMethods/CRUD', () => {
   describe('Add', () => {
     it('Must be authenticated', async () => {
       const result = await utils.graphqlQuery(
-        CreateCreditCardMutation,
+        createCreditCardMutation,
         { ...dataMocks.validCreditCard, CollectiveId: user.CollectiveId },
         null,
       );
@@ -412,7 +412,7 @@ describe('server/graphql/v1/paymentMethods/CRUD', () => {
 
     it('Needs to be an admin', async () => {
       const result = await utils.graphqlQuery(
-        CreateCreditCardMutation,
+        createCreditCardMutation,
         { ...dataMocks.validCreditCard, CollectiveId: user.CollectiveId },
         externalUser,
       );

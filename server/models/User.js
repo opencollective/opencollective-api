@@ -1,32 +1,24 @@
-import bcrypt from 'bcrypt';
 import Promise from 'bluebird';
 import { isEmailBurner } from 'burner-email-providers';
 import config from 'config';
 import debugLib from 'debug';
 import slugify from 'limax';
 import { defaults, get, intersection, pick } from 'lodash';
-import { Op } from 'sequelize';
+import Temporal from 'sequelize-temporal';
 
 import roles from '../constants/roles';
 import * as auth from '../lib/auth';
 import emailLib from '../lib/email';
 import logger from '../lib/logger';
+import sequelize, { DataTypes, Op } from '../lib/sequelize';
 import { isValidEmail } from '../lib/utils';
 
 const debug = debugLib('models:User');
 
-/**
- * Constants.
- */
-const SALT_WORK_FACTOR = 10;
+function defineModel() {
+  const { models } = sequelize;
 
-/**
- * Model.
- */
-export default (Sequelize, DataTypes) => {
-  const { models } = Sequelize;
-
-  const User = Sequelize.define(
+  const User = sequelize.define(
     'User',
     {
       firstName: DataTypes.STRING,
@@ -35,7 +27,7 @@ export default (Sequelize, DataTypes) => {
       email: {
         type: DataTypes.STRING,
         allowNull: false,
-        unique: true, // need that? http://stackoverflow.com/questions/16356856/sequelize-js-custom-validator-check-for-unique-username-password
+        unique: true,
         set(val) {
           if (val && val.toLowerCase) {
             this.setDataValue('email', val.toLowerCase());
@@ -73,55 +65,20 @@ export default (Sequelize, DataTypes) => {
         type: DataTypes.STRING,
       },
 
-      _salt: {
-        type: DataTypes.STRING,
-        defaultValue: bcrypt.genSaltSync(SALT_WORK_FACTOR),
-      },
-
-      // eslint-disable-next-line camelcase
-      refresh_token: {
-        type: DataTypes.STRING,
-        defaultValue: bcrypt.genSaltSync(SALT_WORK_FACTOR),
-      },
-
-      // eslint-disable-next-line camelcase
-      password_hash: DataTypes.STRING,
-
-      password: {
-        type: DataTypes.VIRTUAL,
-        set(val) {
-          const password = String(val);
-          this.setDataValue('password', password);
-          this.setDataValue('password_hash', bcrypt.hashSync(password, this._salt));
-        },
-        validate: {
-          len: {
-            args: [6, 128],
-            msg: 'Password must be between 6 and 128 characters in length',
-          },
-        },
-      },
-
-      resetPasswordTokenHash: DataTypes.STRING,
-      // hash the token to avoid someone with access to the db to generate passwords
-      resetPasswordToken: {
-        type: DataTypes.VIRTUAL,
-        set(val) {
-          this.setDataValue('resetPasswordToken', val);
-          this.setDataValue('resetPasswordTokenHash', bcrypt.hashSync(val, this._salt));
-        },
-      },
-
-      resetPasswordSentAt: DataTypes.DATE,
-
       createdAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
 
       updatedAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
+      },
+
+      confirmedAt: {
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW,
+        allowNull: true,
       },
 
       lastLoginAt: {
@@ -136,6 +93,16 @@ export default (Sequelize, DataTypes) => {
 
       data: {
         type: DataTypes.JSONB,
+        allowNull: true,
+      },
+
+      twoFactorAuthToken: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+
+      twoFactorAuthRecoveryCodes: {
+        type: DataTypes.ARRAY(DataTypes.STRING),
         allowNull: true,
       },
     },
@@ -364,8 +331,17 @@ export default (Sequelize, DataTypes) => {
     return result;
   };
 
+  // Slightly better API than the former
+  User.prototype.isAdminOfCollective = function (collective) {
+    if (collective.type === 'EVENT' || collective.type === 'PROJECT') {
+      return this.isAdmin(collective.id) || this.isAdmin(collective.ParentCollectiveId);
+    } else {
+      return this.isAdmin(collective.id);
+    }
+  };
+
   User.prototype.isRoot = function () {
-    const result = this.hasRole([roles.ADMIN], 1);
+    const result = this.hasRole([roles.ADMIN], 1) || this.hasRole([roles.ADMIN], 8686);
     debug('isRoot?', result);
     return result;
   };
@@ -377,13 +353,19 @@ export default (Sequelize, DataTypes) => {
     return result;
   };
 
+  // Slightly better API than the former
+  User.prototype.isMemberOfCollective = function (collective) {
+    if (collective.type === 'EVENT' || collective.type === 'PROJECT') {
+      return this.isMember(collective.id) || this.isMember(collective.ParentCollectiveId);
+    } else {
+      return this.isMember(collective.id);
+    }
+  };
+
   // Determines whether a user can see updates for a collective based on their roles.
-  User.prototype.canSeeUpdates = function (CollectiveId) {
-    const result =
-      this.CollectiveId === CollectiveId ||
-      this.hasRole([roles.HOST, roles.ADMIN, roles.MEMBER, roles.CONTRIBUTOR, roles.BACKER], CollectiveId);
-    debug('userid:', this.id, 'canSeeUpdates', CollectiveId, '?', result);
-    return result;
+  User.prototype.canSeePrivateUpdatesForCollective = function (collective) {
+    const allowedRoles = [roles.HOST, roles.ADMIN, roles.MEMBER, roles.CONTRIBUTOR, roles.BACKER];
+    return this.hasRole(allowedRoles, collective.id) || this.hasRole(allowedRoles, collective.ParentCollectiveId);
   };
 
   User.prototype.getPersonalDetails = function (remoteUser) {
@@ -425,7 +407,7 @@ export default (Sequelize, DataTypes) => {
    * Limit the user account, preventing most actions on the platoform
    * @param spamReport: an optional spam report to attach to the account limitation. See `server/lib/spam.ts`.
    */
-  User.prototype.limitAcount = async function (spamReport = null) {
+  User.prototype.limitAccount = async function (spamReport = null) {
     const newData = { ...this.data, features: { ...get(this.data, 'features'), ALL: false } };
     if (spamReport) {
       newData.spamReports = [...get(this.data, 'spamReports', []), spamReport];
@@ -433,6 +415,18 @@ export default (Sequelize, DataTypes) => {
 
     logger.info(`Limiting user account for ${this.id}`);
     return this.update({ data: newData });
+  };
+
+  /**
+   * Limit the user account, preventing a specific feature
+   * @param feature:the feature to limit. See `server/constants/feature.ts`.
+   */
+  User.prototype.limitFeature = async function (feature) {
+    const features = get(this.data, 'features', {});
+
+    features[feature] = false;
+
+    return this.update({ data: { ...this.data, features } });
   };
 
   /**
@@ -452,8 +446,8 @@ export default (Sequelize, DataTypes) => {
     );
   };
 
-  User.findByEmail = email => {
-    return User.findOne({ where: { email } });
+  User.findByEmail = (email, transaction) => {
+    return User.findOne({ where: { email } }, { transaction });
   };
 
   User.createUserWithCollective = async (userData, transaction) => {
@@ -484,7 +478,6 @@ export default (Sequelize, DataTypes) => {
       type: 'USER',
       name: collectiveName,
       image: userData.image,
-      mission: userData.mission,
       description: userData.description,
       longDescription: userData.longDescription,
       website: userData.website,
@@ -492,11 +485,13 @@ export default (Sequelize, DataTypes) => {
       githubHandle: userData.githubHandle,
       currency: userData.currency,
       hostFeePercent: userData.hostFeePercent,
-      isActive: true,
+      isActive: false,
       isHostAccount: Boolean(userData.isHostAccount),
       CreatedByUserId: userData.CreatedByUserId || user.id,
       data: { UserId: user.id },
       settings: userData.settings,
+      countryISO: userData.location?.country,
+      address: userData.location?.address,
     };
     user.collective = await models.Collective.create(userCollectiveData, sequelizeParams);
 
@@ -521,5 +516,13 @@ export default (Sequelize, DataTypes) => {
     return { firstName, lastName };
   };
 
+  Temporal(User, sequelize);
+
   return User;
-};
+}
+
+// We're using the defineModel method to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const User = defineModel();
+
+export default User;

@@ -1,12 +1,14 @@
 import DataLoader from 'dataloader';
+import express from 'express';
 import { set } from 'lodash';
 
 import models, { Op, sequelize } from '../../models';
 
 import { createDataLoaderWithOptions, sortResults } from './helpers';
-
 export default {
-  findAllByAttribute: (_, cache) => (attribute: string): DataLoader<string | number, object> => {
+  findAllByAttribute: (_: express.Request, cache) => (
+    attribute: string,
+  ): DataLoader<string | number, typeof models.Comment> => {
     return createDataLoaderWithOptions(
       (values, attribute) => {
         return models.Comment.findAll({
@@ -31,7 +33,7 @@ export default {
         .then(results => sortResults(ExpenseIds, results, 'ExpenseId', { count: 0 }))
         .map(result => result.count),
     ),
-  reactionsByCommentId: (): DataLoader<number, object> => {
+  reactionsByCommentId: (): DataLoader<number, typeof models.CommentReaction> => {
     return new DataLoader(async commentIds => {
       const reactionsList = await models.CommentReaction.count({
         where: { CommentId: { [Op.in]: commentIds } },
@@ -48,7 +50,7 @@ export default {
       return commentIds.map(id => reactionsMap[id] || {});
     });
   },
-  remoteUserReactionsByCommentId: (req): DataLoader<number, object> => {
+  remoteUserReactionsByCommentId: (req: express.Request): DataLoader<number, typeof models.CommentReaction> => {
     return new DataLoader(async commentIds => {
       if (!req.remoteUser) {
         return commentIds.map(() => []);

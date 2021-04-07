@@ -6,13 +6,18 @@
       "benchmark": true
     }
   },
+  "fees": {
+    "default": {
+      "hostPercent": 5,
+      "platformPercent": 5
+    }
+  },
   "maintenancedb": {
     "url": "postgres://postgres@localhost:5432/postgres"
   },
   "limits": {
-    "virtualCards": {
-      "maxPerDay": 1000,
-      "maxAmountPerDay": 5000000
+    "giftCards": {
+      "maxPerDay": 1000
     }
   },
   "redis": {
@@ -24,6 +29,17 @@
   "aws": {
     "s3": {
       "bucket": "opencollective-test"
+    }
+  },
+  "braintree": {
+    "testGateway": {
+      "merchantId": "ytmk49fmj7n5zdq9",
+      "publicKey": "8rg8rs7gxqvp35mp"
+    }
+  },
+  "slack": {
+    "webhooks": {
+      "abuse": "SLACK_ABUSE_TEST_URL"
     }
   },
   "mailgun": {

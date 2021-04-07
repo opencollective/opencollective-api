@@ -1,17 +1,10 @@
-/**
- * Dependencies.
- */
 import Promise from 'bluebird';
-import _ from 'lodash';
+import { defaults } from 'lodash';
 import Temporal from 'sequelize-temporal';
-import showdown from 'showdown';
 
 import activities from '../constants/activities';
-const markdownConverter = new showdown.Converter();
-
-import { buildSanitizerOptions, sanitizeHTML, stripHTML } from '../lib/sanitize-html';
-
-import { sequelize } from '.';
+import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
 // Options for sanitizing comment's body
 const sanitizeOptions = buildSanitizerOptions({
@@ -21,13 +14,10 @@ const sanitizeOptions = buildSanitizerOptions({
   images: true,
 });
 
-/**
- * Comment Model.
- */
-export default function (Sequelize, DataTypes) {
-  const { models } = Sequelize;
+function defineModel() {
+  const { models } = sequelize;
 
-  const Comment = Sequelize.define(
+  const Comment = sequelize.define(
     'Comment',
     {
       id: {
@@ -99,13 +89,9 @@ export default function (Sequelize, DataTypes) {
         allowNull: true,
       },
 
+      // @deprecated
       markdown: {
         type: DataTypes.TEXT,
-        set(value) {
-          if (value) {
-            this.setDataValue('markdown', stripHTML(value));
-          }
-        },
       },
 
       html: {
@@ -116,21 +102,16 @@ export default function (Sequelize, DataTypes) {
             this.setDataValue('html', cleanHtml);
           }
         },
-        get() {
-          return this.getDataValue('html')
-            ? this.getDataValue('html')
-            : markdownConverter.makeHtml(this.getDataValue('markdown'));
-        },
       },
 
       createdAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
 
       updatedAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
 
       deletedAt: {
@@ -236,7 +217,7 @@ export default function (Sequelize, DataTypes) {
   };
 
   Comment.createMany = (comments, defaultValues) => {
-    return Promise.map(comments, u => Comment.create(_.defaults({}, u, defaultValues)), { concurrency: 1 }).catch(
+    return Promise.map(comments, u => Comment.create(defaults({}, u, defaultValues)), { concurrency: 1 }).catch(
       console.error,
     );
   };
@@ -255,7 +236,13 @@ export default function (Sequelize, DataTypes) {
     Comment.belongsTo(m.User, { foreignKey: 'CreatedByUserId', as: 'user' });
   };
 
-  Temporal(Comment, Sequelize);
+  Temporal(Comment, sequelize);
 
   return Comment;
 }
+
+// We're using the defineModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const Comment = defineModel();
+
+export default Comment;

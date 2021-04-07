@@ -3,17 +3,21 @@ import debugLib from 'debug';
 import { get } from 'lodash';
 import Temporal from 'sequelize-temporal';
 
+import { types as CollectiveType } from '../constants/collectives';
 import status from '../constants/order_status';
 import { TransactionTypes } from '../constants/transactions';
+import * as libPayments from '../lib/payments';
+import sequelize, { DataTypes } from '../lib/sequelize';
+import { capitalize } from '../lib/utils';
 
 import CustomDataTypes from './DataTypes';
 
 const debug = debugLib('models:Order');
 
-export default function (Sequelize, DataTypes) {
-  const { models } = Sequelize;
+function defineModel() {
+  const { models } = sequelize;
 
-  const Order = Sequelize.define(
+  const Order = sequelize.define(
     'Order',
     {
       id: {
@@ -120,7 +124,7 @@ export default function (Sequelize, DataTypes) {
 
       status: {
         type: DataTypes.STRING,
-        defaultValue: status.PENDING,
+        defaultValue: status.NEW,
         allowNull: false,
         validate: {
           isIn: {
@@ -142,12 +146,12 @@ export default function (Sequelize, DataTypes) {
 
       createdAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
 
       updatedAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
 
       deletedAt: {
@@ -173,6 +177,7 @@ export default function (Sequelize, DataTypes) {
             CollectiveId: this.CollectiveId,
             currency: this.currency,
             quantity: this.quantity,
+            interval: this.interval,
             totalAmount: this.totalAmount,
             description: this.description,
             privateMessage: this.privateMessage,
@@ -180,22 +185,50 @@ export default function (Sequelize, DataTypes) {
             SubscriptionId: this.SubscriptionId,
             createdAt: this.createdAt,
             updatedAt: this.updatedAt,
+            isGuest: Boolean(this.data?.isGuest),
           };
         },
 
         activity() {
           return {
             id: this.id,
-            totalAmount: this.totalAmount,
+            // totalAmount should not be changed, it's confusing
+            totalAmount:
+              this.data?.isFeesOnTop && this.data?.platformFee
+                ? this.totalAmount - this.data.platformFee
+                : this.totalAmount,
+            // introducing 3 new values to clarify
+            netAmount:
+              this.data?.isFeesOnTop && this.data?.platformFee
+                ? this.totalAmount - this.data.platformFee
+                : this.totalAmount,
+            platformTipAmount: this.data?.isFeesOnTop && this.data?.platformFee ? this.data?.platformFee : null,
+            chargeAmount: this.totalAmount,
             currency: this.currency,
             description: this.description,
             publicMessage: this.publicMessage,
             interval: this.interval,
+            quantity: this.quantity,
+            createdAt: this.createdAt,
+            isGuest: Boolean(this.data?.isGuest),
           };
         },
       },
     },
   );
+
+  /**
+   * Static Methods
+   */
+  Order.generateDescription = (collective, amount, interval, tier) => {
+    const tierNameInfo = tier?.name ? ` (${tier.name})` : '';
+    if (interval) {
+      return `${capitalize(interval)}ly financial contribution to ${collective.name}${tierNameInfo}`;
+    } else {
+      const isRegistration = amount === 0 || collective.type === CollectiveType.EVENT;
+      return `${isRegistration ? 'Registration' : 'Financial contribution'} to ${collective.name}${tierNameInfo}`;
+    }
+  };
 
   /**
    * Instance Methods
@@ -245,6 +278,22 @@ export default function (Sequelize, DataTypes) {
         return null;
       }
     });
+  };
+
+  Order.prototype.markAsExpired = async function () {
+    // TODO: We should create an activity to record who rejected the order
+    return this.update({ status: status.EXPIRED });
+  };
+
+  Order.prototype.markAsPaid = async function (user) {
+    this.paymentMethod = {
+      service: 'opencollective',
+      type: 'manual',
+      paid: true,
+    };
+
+    await libPayments.executeOrder(user, this);
+    return this;
   };
 
   Order.prototype.getUser = function () {
@@ -309,7 +358,13 @@ export default function (Sequelize, DataTypes) {
     });
   };
 
-  Temporal(Order, Sequelize);
+  Temporal(Order, sequelize);
 
   return Order;
 }
+
+// We're using the defineModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const Order = defineModel();
+
+export default Order;

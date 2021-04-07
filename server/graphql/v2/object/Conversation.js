@@ -85,7 +85,7 @@ const Conversation = new GraphQLObjectType({
       stats: {
         type: new GraphQLObjectType({
           name: 'ConversationStats',
-          fields: {
+          fields: () => ({
             id: {
               type: new GraphQLNonNull(GraphQLString),
               resolve: getIdEncodeResolver(IDENTIFIER_TYPES.CONVERSATION),
@@ -97,7 +97,7 @@ const Conversation = new GraphQLObjectType({
                 return req.loaders.Conversation.commentsCount.load(conversation.id);
               },
             },
-          },
+          }),
         }),
         resolve(conversation) {
           return conversation;

@@ -4,7 +4,6 @@ import path from 'path';
 import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
-import he from 'he';
 import juice from 'juice';
 import { get, includes, isArray, merge, pick } from 'lodash';
 import nodemailer from 'nodemailer';
@@ -13,7 +12,7 @@ import models from '../models';
 
 import templates from './emailTemplates';
 import logger from './logger';
-import { md5, sha512 } from './utils';
+import { isEmailInternal, md5, sha512 } from './utils';
 import whiteListDomains from './whiteListDomains';
 
 const debug = debugLib('email');
@@ -46,7 +45,8 @@ const render = (template, data) => {
   if (templates[`${template}.text`]) {
     text = templates[`${template}.text`](data);
   }
-  const html = juice(he.decode(templates[template](data)));
+
+  const html = juice(templates[template](data));
 
   return { text, html };
 };
@@ -85,6 +85,17 @@ const getTemplateAttributes = str => {
 
   attributes.body = lines.slice(index).join('\n').trim();
   return attributes;
+};
+
+const filterBccForTestEnv = emails => {
+  if (!emails) {
+    return emails;
+  }
+
+  const isString = typeof emails === 'string';
+  const list = isString ? emails.split(',') : emails;
+  const filtered = list.filter(isEmailInternal);
+  return isString ? filtered.join(',') : filtered;
 };
 
 /*
@@ -147,6 +158,10 @@ const sendMessage = (recipients, subject, html, options = {}) => {
       debug('emailLib.sendMessage error: No recipient defined');
       return Promise.resolve();
     }
+
+    // Filter users added as BCC
+    options.bcc = filterBccForTestEnv(options.bcc);
+
     let sendToBcc = true;
     // Don't send to BCC if sendEvenIfNotProduction and NOT in testing env
     if (options.sendEvenIfNotProduction === true && !['ci', 'test'].includes(config.env)) {
@@ -264,8 +279,8 @@ const generateEmailFromTemplate = (template, recipient, data = {}, options = {})
   }
 
   if (template === 'collective.approved') {
-    if (hostSlug === 'the-social-change-agency') {
-      template += '.the-social-change-agency';
+    if (hostSlug === 'the-social-change-nest') {
+      template += '.the-social-change-nest';
     }
   }
 
@@ -273,8 +288,8 @@ const generateEmailFromTemplate = (template, recipient, data = {}, options = {})
     if (hostSlug === 'opensource') {
       template += '.opensource';
     }
-    if (hostSlug === 'the-social-change-agency') {
-      template += '.the-social-change-agency';
+    if (hostSlug === 'the-social-change-nest') {
+      template += '.the-social-change-nest';
     }
   }
 
@@ -361,13 +376,18 @@ const generateEmailFromTemplateAndSend = async (template, recipient, data, optio
     return;
   }
 
-  return generateEmailFromTemplate(template, recipient, data, options).then(renderedTemplate => {
-    const attributes = getTemplateAttributes(renderedTemplate.html);
-    options.text = renderedTemplate.text;
-    options.tag = template;
-    debug(`Sending email to: ${recipient} subject: ${attributes.subject}`);
-    return emailLib.sendMessage(recipient, attributes.subject, attributes.body, options);
-  });
+  return generateEmailFromTemplate(template, recipient, data, options)
+    .then(renderedTemplate => {
+      const attributes = getTemplateAttributes(renderedTemplate.html);
+      options.text = renderedTemplate.text;
+      options.tag = template;
+      debug(`Sending email to: ${recipient} subject: ${attributes.subject}`);
+      return emailLib.sendMessage(recipient, attributes.subject, attributes.body, options);
+    })
+    .catch(err => {
+      logger.error(err.message);
+      logger.debug(err);
+    });
 };
 
 const emailLib = {

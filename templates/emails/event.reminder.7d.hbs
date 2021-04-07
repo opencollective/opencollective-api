@@ -28,9 +28,9 @@ Subject: ⏰ Reminder: {{ collective.name }} next week {{ moment collective.star
   </center>
 </p>
 
-<p>We are excited that you'll be joining us next week.</p>
+<p>We look forward to you joining us next week.</p>
 
-<p>You have {{ order.quantity }} {{{pluralize "ticket" n=order.quantity}}}{{#if donation}} for a total of {{{currency order.totalAmount currency=order.currency}}}{{/if}}. </p>
+<p>You have {{ order.quantity }} {{pluralize "ticket" n=order.quantity}}{{#if donation}} for a total of {{currency order.totalAmount currency=order.currency}}{{/if}}. </p>
 
 <p>Warmly,</p>
 

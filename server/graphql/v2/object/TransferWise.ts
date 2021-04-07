@@ -1,19 +1,19 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import GraphQLJSON from 'graphql-type-json';
+import GraphQLJSON, { GraphQLJSONObject } from 'graphql-type-json';
 
 import transferwise from '../../../paymentProviders/transferwise';
 
 const TransferWiseFieldGroupValuesAllowed = new GraphQLObjectType({
   name: 'TransferWiseFieldVatvkluesAllowed',
-  fields: {
+  fields: () => ({
     key: { type: GraphQLString },
     name: { type: GraphQLString },
-  },
+  }),
 });
 
 const TransferWiseFieldGroup = new GraphQLObjectType({
   name: 'TransferWiseFieldGroup',
-  fields: {
+  fields: () => ({
     key: { type: GraphQLString },
     name: { type: GraphQLString },
     type: { type: GraphQLString },
@@ -26,30 +26,30 @@ const TransferWiseFieldGroup = new GraphQLObjectType({
     validationRegexp: { type: GraphQLString },
     validationAsync: { type: GraphQLString },
     valuesAllowed: { type: new GraphQLList(TransferWiseFieldGroupValuesAllowed) },
-  },
+  }),
 });
 
 const TransferWiseField = new GraphQLObjectType({
   name: 'TransferWiseField',
-  fields: {
+  fields: () => ({
     name: { type: GraphQLString },
     group: { type: new GraphQLList(TransferWiseFieldGroup) },
-  },
+  }),
 });
 
 const TransferWiseRequiredField = new GraphQLObjectType({
   name: 'TransferWiseRequiredField',
-  fields: {
+  fields: () => ({
     type: { type: GraphQLString },
     title: { type: GraphQLString },
     fields: { type: new GraphQLList(TransferWiseField) },
-  },
+  }),
 });
 
 export const TransferWise = new GraphQLObjectType({
   name: 'TransferWise',
   description: 'TransferWise related properties for bank transfer.',
-  fields: {
+  fields: () => ({
     requiredFields: {
       args: {
         currency: {
@@ -71,15 +71,20 @@ export const TransferWise = new GraphQLObjectType({
       },
     },
     availableCurrencies: {
-      type: new GraphQLList(GraphQLString),
-      async resolve(host) {
+      args: {
+        ignoreBlockedCurrencies: {
+          type: GraphQLBoolean,
+          description: 'Ignores blocklisted currencies, used to generate the bank information form for manual payments',
+        },
+      },
+      type: new GraphQLList(GraphQLJSONObject),
+      async resolve(host, args) {
         if (host) {
-          const availableCurrencies = await transferwise.getAvailableCurrencies(host);
-          return availableCurrencies.map(c => c.code);
+          return await transferwise.getAvailableCurrencies(host, args?.ignoreBlockedCurrencies);
         } else {
           return null;
         }
       },
     },
-  },
+  }),
 });

@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import config from 'config';
+import gql from 'fake-tag';
 import { describe, it } from 'mocha';
 
 import { activities, roles } from '../../../../server/constants';
@@ -16,29 +17,35 @@ describe('server/graphql/v1/notifications', () => {
   });
 
   // Create test users
-  beforeEach(() => models.User.createUserWithCollective(utils.data('user1')).tap(u => (user1 = u)));
-  beforeEach(() => models.User.createUserWithCollective(utils.data('user2')).tap(u => (user2 = u)));
+  beforeEach(async () => {
+    user1 = await models.User.createUserWithCollective(utils.data('user1'));
+  });
+  beforeEach(async () => {
+    user2 = await models.User.createUserWithCollective(utils.data('user2'));
+  });
 
   // Create test collective
-  beforeEach(() => models.Collective.create(utils.data('collective1')).tap(c => (collective1 = c)));
+  beforeEach(async () => {
+    collective1 = await models.Collective.create(utils.data('collective1'));
+  });
 
   // Set `user1` as collective admin
   beforeEach(() => collective1.addUserWithRole(user1, roles.ADMIN));
 
   // Create test notification
-  beforeEach(() =>
-    models.Notification.create({
+  beforeEach(async () => {
+    notification = await models.Notification.create({
       channel: channels.WEBHOOK,
       type: activities.COLLECTIVE_EXPENSE_CREATED,
       webhookUrl: randUrl(),
       UserId: user1.id,
       CollectiveId: collective1.id,
-    }).tap(n => (notification = n)),
-  );
+    });
+  });
 
   describe('create webhook notifications', () => {
-    const createWebhookQuery = `
-      mutation createWebhook($collectiveSlug: String!, $notification: NotificationInputType!) {
+    const createWebhookMutation = gql`
+      mutation CreateWebhook($collectiveSlug: String!, $notification: NotificationInputType!) {
         createWebhook(collectiveSlug: $collectiveSlug, notification: $notification) {
           id
         }
@@ -51,7 +58,7 @@ describe('server/graphql/v1/notifications', () => {
     });
 
     it('fails if not authenticated', async () => {
-      const result = await utils.graphqlQuery(createWebhookQuery, {
+      const result = await utils.graphqlQuery(createWebhookMutation, {
         collectiveSlug: collective1.slug,
         notification: notification(),
       });
@@ -62,7 +69,7 @@ describe('server/graphql/v1/notifications', () => {
 
     it('fails for non-existent collective', async () => {
       const result = await utils.graphqlQuery(
-        createWebhookQuery,
+        createWebhookMutation,
         {
           collectiveSlug: 'idontexist',
           notification: notification(),
@@ -79,7 +86,7 @@ describe('server/graphql/v1/notifications', () => {
       await Promise.all(
         Array.from(Array(maxWebhooksPerUserPerCollective)).map(() => {
           return utils.graphqlQuery(
-            createWebhookQuery,
+            createWebhookMutation,
             {
               collectiveSlug: collective1.slug,
               notification: notification(),
@@ -90,7 +97,7 @@ describe('server/graphql/v1/notifications', () => {
       );
 
       const result = await utils.graphqlQuery(
-        createWebhookQuery,
+        createWebhookMutation,
         {
           collectiveSlug: collective1.slug,
           notification: notification(),
@@ -109,7 +116,7 @@ describe('server/graphql/v1/notifications', () => {
       };
 
       const result = await utils.graphqlQuery(
-        createWebhookQuery,
+        createWebhookMutation,
         { collectiveSlug: collective1.slug, notification },
         user1,
       );
@@ -130,8 +137,8 @@ describe('server/graphql/v1/notifications', () => {
   });
 
   describe('delete webhook notifications', () => {
-    const deleteWebhookQuery = `
-      mutation deleteNotification($id: Int!) {
+    const deleteWebhookMutation = gql`
+      mutation DeleteWebhook($id: Int!) {
         deleteNotification(id: $id) {
           id
         }
@@ -139,7 +146,7 @@ describe('server/graphql/v1/notifications', () => {
     `;
 
     it('fails if not authenticated', async () => {
-      const result = await utils.graphqlQuery(deleteWebhookQuery, { id: notification.id });
+      const result = await utils.graphqlQuery(deleteWebhookMutation, { id: notification.id });
 
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal('You need to be logged in as admin to delete a notification.');
@@ -149,14 +156,14 @@ describe('server/graphql/v1/notifications', () => {
     });
 
     it('fails for non-existent notification', async () => {
-      const result = await utils.graphqlQuery(deleteWebhookQuery, { id: 2 }, user1);
+      const result = await utils.graphqlQuery(deleteWebhookMutation, { id: 2 }, user1);
 
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal('Notification with ID 2 not found.');
     });
 
     it("fails when deleting other user's notification", async () => {
-      const result = await utils.graphqlQuery(deleteWebhookQuery, { id: notification.id }, user2);
+      const result = await utils.graphqlQuery(deleteWebhookMutation, { id: notification.id }, user2);
 
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal('You need to be logged in as admin to delete this notification.');
@@ -166,7 +173,7 @@ describe('server/graphql/v1/notifications', () => {
     });
 
     it('deletes notification', async () => {
-      const result = await utils.graphqlQuery(deleteWebhookQuery, { id: notification.id }, user1);
+      const result = await utils.graphqlQuery(deleteWebhookMutation, { id: notification.id }, user1);
 
       expect(result.errors).to.not.exist;
       expect(result.data.deleteNotification.id).to.equal(notification.id);

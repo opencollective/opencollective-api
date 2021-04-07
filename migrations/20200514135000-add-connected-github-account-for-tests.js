@@ -1,7 +1,8 @@
 'use strict';
+
 import '../server/env';
 
-if (process.env.NODE_ENV === 'ci' || process.env.NODE_ENV === 'e2e') {
+if (process.env.OC_ENV === 'ci' || process.env.OC_ENV === 'e2e') {
   module.exports = {
     up: async queryInterface => {
       await queryInterface.sequelize.query(`
@@ -10,7 +11,9 @@ if (process.env.NODE_ENV === 'ci' || process.env.NODE_ENV === 'e2e') {
     `);
     },
 
-    down: () => {},
+    down: async () => {
+      // No rollback
+    },
   };
 } else {
   module.exports = {
@@ -18,6 +21,8 @@ if (process.env.NODE_ENV === 'ci' || process.env.NODE_ENV === 'e2e') {
       return Promise.resolve();
     },
 
-    down: () => {},
+    down: async () => {
+      // No rollback
+    },
   };
 }

@@ -2,6 +2,8 @@ import Promise from 'bluebird';
 import config from 'config';
 import { get, pick } from 'lodash';
 
+import { US_TAX_FORM_THRESHOLD, US_TAX_FORM_VALIDITY_IN_YEARS } from '../constants/tax-form';
+
 import { memoize } from './cache';
 import { convertToCurrency } from './currency';
 import sequelize, { Op } from './sequelize';
@@ -50,7 +52,7 @@ const getHosts = async args => {
       SELECT max(c.id) as "HostCollectiveId", count(m.id) as count
       FROM "Collectives" c
       LEFT JOIN "Members" m ON m."MemberCollectiveId" = c.id AND m.role = 'HOST' AND m."deletedAt" IS NULL
-      WHERE c."deletedAt" IS NULL ${hostConditions}
+      WHERE c."deletedAt" IS NULL AND c."isHostAccount" = TRUE ${hostConditions}
       GROUP BY c.id
       HAVING count(m.id) >= $minNbCollectivesHosted
     ) SELECT c.*, (SELECT COUNT(*) FROM all_hosts) AS __hosts_count__, SUM(all_hosts.count) as __members_count__
@@ -211,59 +213,6 @@ const getTopDonorsForCollective = (CollectiveId, options = {}) => {
 };
 
 /**
- * Returns an array with the top (default 3) expense submitters by amount for
- * a given CollectiveId.
- * @param {*} CollectiveId
- * @param {*} options
- */
-const getTopExpenseSubmitters = (CollectiveId, options = {}) => {
-  options.limit = options.limit || 3;
-  const since = options.since ? `AND t."createdAt" >= '${options.since.toISOString()}'` : '';
-  const until = options.until ? `AND t."createdAt" < '${options.until.toISOString()}'` : '';
-  return sequelize.query(
-    `
-    SELECT MAX(c.slug) as slug, MAX(c."twitterHandle") as "twitterHandle", MAX(c.image) as image, MAX(c.name) as name, SUM("netAmountInCollectiveCurrency") as "totalExpenses"
-    FROM "Transactions" t LEFT JOIN "Collectives" c ON t."FromCollectiveId" = c.id
-    WHERE t."CollectiveId"=:CollectiveId
-      AND t.type='DEBIT'
-      AND t."deletedAt" IS NULL
-      AND t."ExpenseId" IS NOT NULL
-      ${since} ${until}
-    GROUP BY c.id ORDER BY "totalExpenses" ASC LIMIT :limit
-  `,
-    {
-      replacements: { CollectiveId, limit: options.limit },
-      type: sequelize.QueryTypes.SELECT,
-    },
-  );
-};
-
-/**
- * Get the top expense categories for a given collective with total amount and total number of expenses
- * @param {*} CollectiveId
- * @param {*} options
- */
-const getTopExpenseCategories = (CollectiveId, options = {}) => {
-  options.limit = options.limit || 3;
-  const since = options.since ? `AND e."createdAt" >= '${options.since.toISOString()}'` : '';
-  const until = options.until ? `AND e."createdAt" < '${options.until.toISOString()}'` : '';
-
-  return sequelize.query(
-    `
-    SELECT tags[1] as category, COUNT(*) as "count", SUM("amount") as "totalExpenses"
-    FROM "Expenses" e
-    WHERE "CollectiveId"=:CollectiveId AND e.status!='REJECTED' ${since} ${until}
-    GROUP BY category
-    ORDER BY "totalExpenses" DESC LIMIT :limit
-  `,
-    {
-      replacements: { CollectiveId, limit: options.limit },
-      type: sequelize.QueryTypes.SELECT,
-    },
-  );
-};
-
-/**
  * Returns the top backers (Collectives) in a given time range in given tags
  * E.g. top backers in open source collectives last June
  */
@@ -360,6 +309,109 @@ const getCollectivesWithBalance = async (where = {}, options) => {
   const total = get(totalResult, 'dataValues.total', 0);
   return { total, collectives };
 };
+
+export const usersToNotifyForUpdateSQLQuery = `
+  WITH collective AS (
+    SELECT c.* 
+    FROM "Collectives" c
+    WHERE id = :collectiveId
+  ), hosted_collectives AS (
+    SELECT hc.*
+    FROM "Collectives" hc
+    INNER JOIN "Members" m ON hc.id = m."CollectiveId"
+    INNER JOIN "Collectives" mc ON mc."id" = m."CollectiveId" 
+    INNER JOIN collective c ON m."MemberCollectiveId" = c.id
+    WHERE :includeHostedAccounts = TRUE
+    AND c."isHostAccount" = TRUE
+    AND m."role" = 'HOST'
+    AND m."deletedAt" IS NULL
+    AND mc."isActive" IS TRUE
+    AND mc."approvedAt" IS NOT NULL
+    GROUP BY hc.id
+  ), member_collectives AS (
+    SELECT mc.*
+    FROM "Members" m
+    INNER JOIN "Collectives" mc ON m."MemberCollectiveId" = mc.id
+    CROSS JOIN collective
+    WHERE m."deletedAt" IS NULL
+    AND mc."deletedAt" IS NULL
+    AND (
+      (
+        -- Direct members
+        :includeMembers = TRUE
+        AND m."CollectiveId" = collective.id
+        AND m."role" IN (:targetRoles)
+      ) OR (
+        -- Collective admins
+        m."CollectiveId" = collective.id AND m."role" IN ('ADMIN', 'MEMBER')
+      ) OR (
+        -- Parent collective admins
+        collective."ParentCollectiveId" IS NOT NULL
+        AND m."CollectiveId" = collective."ParentCollectiveId"
+        AND m."role" IN ('ADMIN', 'MEMBER')
+      )
+    )
+    GROUP BY mc.id
+  ), admins_of_members AS (
+    -- For all member_collectives and hosted_collectives, get admin profiles
+    SELECT mc.*
+    FROM "Members" m
+    INNER JOIN "Collectives" mc ON m."MemberCollectiveId" = mc.id
+    LEFT JOIN member_collectives org_admin_collectives
+      ON (
+        org_admin_collectives."type" != 'USER'
+        AND m."CollectiveId" = org_admin_collectives.id
+      )
+    LEFT JOIN hosted_collectives hosted_collective_admins
+      ON (
+        hosted_collective_admins."type" != 'USER'
+        AND m."CollectiveId" = hosted_collective_admins.id
+      )
+    WHERE 
+      (org_admin_collectives.id IS NOT NULL OR hosted_collective_admins.id IS NOT NULL)
+      AND m."role" IN ('ADMIN', 'MEMBER')
+      AND m."deletedAt" IS NULL
+      AND mc."type" = 'USER'
+    GROUP BY
+      mc.id
+  ) SELECT u.*
+  -- Get all user entries, either the direct members, the admins of member_collectives or the admins of parent collectives
+  FROM "Users" u
+  LEFT JOIN admins_of_members
+    ON u."CollectiveId" = admins_of_members.id
+  LEFT JOIN member_collectives
+    ON (member_collectives."type" = 'USER' AND u."CollectiveId" = member_collectives.id)
+  WHERE (admins_of_members.id IS NOT NULL OR member_collectives.id IS NOT NULL)
+  AND u."deletedAt" IS NULL
+  GROUP BY
+    u.id
+`;
+
+export const countUsersToNotifyForUpdateSQLQuery = `
+  SELECT COUNT(*) FROM (${usersToNotifyForUpdateSQLQuery}) AS users_to_notify
+`;
+
+export const countMembersToNotifyForUpdateSQLQuery = `
+  WITH unique_members_collectives AS (
+    SELECT DISTINCT mc.id, mc."type"
+    FROM "Members" m
+    INNER JOIN "Collectives" collective ON collective.id = :collectiveId
+    LEFT JOIN "Members" parent_admin_members -- Include parent collective admins
+      ON collective."ParentCollectiveId" IS NOT NULL
+      AND parent_admin_members."CollectiveId" = collective."ParentCollectiveId"
+      AND parent_admin_members."role" IN ('ADMIN', 'MEMBER')
+      AND parent_admin_members."deletedAt" IS NULL
+    INNER JOIN "Collectives" mc
+      ON m."MemberCollectiveId" = mc.id
+      OR parent_admin_members."MemberCollectiveId"  = mc.id
+    WHERE m."CollectiveId" = :collectiveId
+    AND m."deletedAt" IS NULL
+    AND m."role" IN (:targetRoles)
+    AND mc."deletedAt" IS NULL
+  ) SELECT "type", COUNT(*) AS "count"
+  FROM unique_members_collectives
+  GROUP BY "type"
+`;
 
 /**
  * Get top collectives based on total donations
@@ -462,13 +514,13 @@ const getUniqueCollectiveTags = () => {
  * Get list of all unique batches for collective.
  * Returns an array of objects matching `PaymentMethodBatchInfo`
  */
-const getVirtualCardBatchesForCollective = async collectiveId => {
+const getGiftCardBatchesForCollective = async collectiveId => {
   return sequelize.query(
     `
     SELECT
-      :collectiveId::varchar || '-virtualcard-' || COALESCE(pm.batch, ' __UNGROUPED__ ') AS id,
+      :collectiveId::varchar || '-giftcard-' || COALESCE(pm.batch, ' __UNGROUPED__ ') AS id,
       :collectiveId AS "collectiveId",
-      'virtualcard' AS type,
+      'giftcard' AS type,
       pm.batch AS name,
       COUNT(pm.id) as count
     FROM "PaymentMethods" pm
@@ -507,7 +559,7 @@ const getTopSponsors = () => {
           AND t."createdAt" > :since
         GROUP BY t."CollectiveId"
         ORDER BY "totalDonationsLast3months" DESC, collectives DESC LIMIT 20
-      ), 
+      ),
       "topSponsorsTotalDonations" as (
         SELECT -sum(amount) as "totalDonations", max(t."CollectiveId") as "CollectiveId"
         FROM "Transactions" t WHERE t."CollectiveId" IN (
@@ -634,7 +686,7 @@ const getMembersWithTotalDonations = (where, options = {}) => {
     return condition;
   };
 
-  const roleCond = where.role ? `AND member.role = '${where.role}'` : '';
+  const roleCond = where.role ? `AND member.role = :role` : '';
 
   let types,
     filterByMemberCollectiveType = '';
@@ -680,7 +732,7 @@ const getMembersWithTotalDonations = (where, options = {}) => {
         ${buildTransactionsStatsQuery('FromCollectiveId')}
       ),
       IndirectStats AS (
-        ${buildTransactionsStatsQuery('UsingVirtualCardFromCollectiveId')}
+        ${buildTransactionsStatsQuery('UsingGiftCardFromCollectiveId')}
       )
     SELECT
       ${selector},
@@ -703,13 +755,12 @@ const getMembersWithTotalDonations = (where, options = {}) => {
       max(u.email) as email,
       max(c."twitterHandle") as "twitterHandle",
       COALESCE(max(dstats."totalDonations"), 0) as "directDonations",
-      COALESCE(max(istats."totalDonations"), 0) as "donationsThroughEmittedVirtualCards",
       COALESCE(max(dstats."totalDonations"), 0) +  COALESCE(max(istats."totalDonations"), 0) as "totalDonations",
       LEAST(Max(dstats."firstDonation"), Max(istats."firstDonation")) AS "firstDonation",
       GREATEST(Max(dstats."lastDonation"), Max(istats."lastDonation")) AS "lastDonation"
     FROM "Collectives" c
     LEFT JOIN DirectStats dstats ON c.id = dstats."FromCollectiveId"
-    LEFT JOIN IndirectStats istats ON c.id = istats."UsingVirtualCardFromCollectiveId"
+    LEFT JOIN IndirectStats istats ON c.id = istats."UsingGiftCardFromCollectiveId"
     LEFT JOIN "Members" member ON c.id = member."${groupBy}"
     LEFT JOIN "Users" u ON c.id = u."CollectiveId"
     WHERE member."${memberCondAttribute}" IN (:collectiveids)
@@ -729,6 +780,7 @@ const getMembersWithTotalDonations = (where, options = {}) => {
         limit: options.limit || 100000, // we should reduce this to 100 by default but right now Webpack depends on it
         offset: options.offset || 0,
         types,
+        role: where.role,
       },
       type: sequelize.QueryTypes.SELECT,
       model: models.Collective,
@@ -740,7 +792,7 @@ const getMembersWithBalance = (where, options = {}) => {
   const { until } = options;
   const untilCondition = table =>
     until ? `AND ${table}."createdAt" < '${until.toISOString().toString().substr(0, 10)}'` : '';
-  const roleCond = where.role ? `AND member.role = '${where.role}'` : '';
+  const roleCond = where.role ? `AND member.role = :role` : '';
 
   let types,
     filterByMemberCollectiveType = '';
@@ -914,42 +966,107 @@ const getCollectivesWithMinBackersQuery = async ({
   return { total, collectives };
 };
 
-const getBalances = async (collectiveIds, until = new Date()) =>
-  sequelize.query(
+const getTaxFormsRequiredForExpenses = expenseIds => {
+  return sequelize.query(
     `
-        WITH "blockedFunds" AS (
-          SELECT
-            e."CollectiveId", COALESCE(sum(e.amount), 0) as sum
-          FROM
-            "Expenses" e
-          WHERE
-            e."CollectiveId" IN (:ids)
-            AND e."deletedAt" IS NULL
-            AND e."createdAt" < :until
-            AND (
-              e.status = 'SCHEDULED_FOR_PAYMENT'
-              OR (
-                e.status = 'PROCESSING' AND e.data ->> 'payout_batch_id' IS NOT NULL
-              )
-          )
-          GROUP BY
-            e."CollectiveId"
-        )
-        SELECT
-          t."CollectiveId",
-          COALESCE(sum(t."netAmountInCollectiveCurrency") - COALESCE(max(bf.sum), 0), 0) AS "balance"
-        FROM
-          "Transactions" t
-        LEFT JOIN "blockedFunds" bf ON t."CollectiveId" = bf."CollectiveId"
-        WHERE
-          t."CollectiveId" IN (:ids)
-          AND t."deletedAt" IS NULL
-          AND t."createdAt" < :until
-        GROUP BY
-          t."CollectiveId";
-      `,
-    { type: sequelize.QueryTypes.SELECT, replacements: { ids: collectiveIds, until } },
+    SELECT
+      analyzed_expenses."FromCollectiveId",
+      analyzed_expenses.id as "expenseId",
+      MAX(ld."requestStatus") as "legalDocRequestStatus",
+      d."documentType" as "requiredDocument",
+      SUM(all_expenses."amount") AS total
+    FROM
+      "Expenses" analyzed_expenses
+    INNER JOIN "Expenses" all_expenses
+      ON all_expenses."FromCollectiveId" = analyzed_expenses."FromCollectiveId"
+    INNER JOIN "Collectives" from_collective
+      ON from_collective.id = analyzed_expenses."FromCollectiveId"
+    INNER JOIN "Collectives" c
+      ON c.id = analyzed_expenses."CollectiveId"
+    INNER JOIN "RequiredLegalDocuments" d
+      ON d."HostCollectiveId" = c."HostCollectiveId"
+      AND d."documentType" = 'US_TAX_FORM'
+    INNER JOIN "Collectives" all_expenses_collectives
+      ON all_expenses_collectives.id = all_expenses."CollectiveId"
+      AND all_expenses_collectives."HostCollectiveId" = d."HostCollectiveId"
+    LEFT JOIN "LegalDocuments" ld
+      ON ld."CollectiveId" = analyzed_expenses."FromCollectiveId"
+      AND ld.year + :validityInYears >= date_part('year', analyzed_expenses."incurredAt")
+      AND ld."documentType" = 'US_TAX_FORM'
+    WHERE analyzed_expenses.id IN (:expenseIds)
+    AND analyzed_expenses."FromCollectiveId" != d."HostCollectiveId"
+    AND analyzed_expenses.type != 'RECEIPT'
+    AND analyzed_expenses.type != 'CHARGE'
+    AND analyzed_expenses.status IN ('PENDING', 'APPROVED')
+    AND analyzed_expenses."deletedAt" IS NULL
+    AND (from_collective."HostCollectiveId" IS NULL OR from_collective."HostCollectiveId" != c."HostCollectiveId")
+    AND all_expenses.type != 'RECEIPT'
+    AND all_expenses.type != 'CHARGE'
+    AND all_expenses.status NOT IN ('ERROR', 'REJECTED', 'DRAFT', 'UNVERIFIED')
+    AND all_expenses."deletedAt" IS NULL
+    AND date_trunc('year', all_expenses."incurredAt") = date_trunc('year', analyzed_expenses."incurredAt")
+    GROUP BY analyzed_expenses.id, analyzed_expenses."FromCollectiveId", d."documentType"
+  `,
+    {
+      type: sequelize.QueryTypes.SELECT,
+      raw: true,
+      replacements: {
+        expenseIds,
+        validityInYears: US_TAX_FORM_VALIDITY_IN_YEARS,
+      },
+    },
   );
+};
+
+const getTaxFormsRequiredForAccounts = async (accountIds = [], year) => {
+  const results = await sequelize.query(
+    `
+    SELECT
+      account.id as "collectiveId",
+      MAX(ld."requestStatus") as "legalDocRequestStatus",
+      d."documentType" as "requiredDocument",
+      SUM(all_expenses."amount") AS total
+    FROM "Collectives" account
+    INNER JOIN "Expenses" all_expenses
+      ON all_expenses."FromCollectiveId" = account.id
+    INNER JOIN "Collectives" c
+      ON all_expenses."CollectiveId" = c.id
+    INNER JOIN "RequiredLegalDocuments" d
+      ON d."HostCollectiveId" = c."HostCollectiveId"
+      AND d."documentType" = 'US_TAX_FORM'
+    LEFT JOIN "LegalDocuments" ld
+      ON ld."CollectiveId" = account.id
+      AND ld.year + :validityInYears >= :year
+      AND ld."documentType" = 'US_TAX_FORM'
+    WHERE all_expenses.type != 'RECEIPT'
+    AND all_expenses.type != 'CHARGE'
+    ${accountIds?.length ? 'AND account.id IN (:accountIds)' : ''}
+    AND account.id != d."HostCollectiveId"
+    AND (account."HostCollectiveId" IS NULL OR account."HostCollectiveId" != d."HostCollectiveId")
+    AND all_expenses.status NOT IN ('ERROR', 'REJECTED', 'DRAFT', 'UNVERIFIED')
+    AND all_expenses."deletedAt" IS NULL
+    AND EXTRACT('year' FROM all_expenses."incurredAt") = :year
+    GROUP BY account.id, d."documentType"
+  `,
+    {
+      raw: true,
+      type: sequelize.QueryTypes.SELECT,
+      replacements: {
+        accountIds,
+        year: year,
+        validityInYears: US_TAX_FORM_VALIDITY_IN_YEARS,
+      },
+    },
+  );
+
+  return results.filter(result => {
+    return (
+      result.requiredDocument === 'US_TAX_FORM' &&
+      result.total >= US_TAX_FORM_THRESHOLD &&
+      result.legalDocRequestStatus !== 'RECEIVED'
+    );
+  });
+};
 
 const serializeCollectivesResult = JSON.stringify;
 
@@ -974,29 +1091,28 @@ const getCollectivesWithMinBackers = memoize(getCollectivesWithMinBackersQuery, 
 });
 
 const queries = {
-  getHosts,
-  getBalances,
+  getCollectivesByTag,
   getCollectivesOrderedByMonthlySpending,
   getCollectivesOrderedByMonthlySpendingQuery,
-  getTotalDonationsByCollectiveType,
-  getTotalAnnualBudgetForHost,
-  getTopDonorsForCollective,
-  getTopExpenseSubmitters,
-  getTopExpenseCategories,
-  getTotalAnnualBudget,
-  getMembersOfCollectiveWithRole,
-  getMembersWithTotalDonations,
-  getMembersWithBalance,
-  getTopSponsors,
-  getTopBackers,
-  getCollectivesByTag,
-  getTotalNumberOfActiveCollectives,
-  getTotalNumberOfDonors,
   getCollectivesWithBalance,
-  getUniqueCollectiveTags,
-  getVirtualCardBatchesForCollective,
   getCollectivesWithMinBackers,
   getCollectivesWithMinBackersQuery,
+  getHosts,
+  getMembersOfCollectiveWithRole,
+  getMembersWithBalance,
+  getMembersWithTotalDonations,
+  getTaxFormsRequiredForAccounts,
+  getTaxFormsRequiredForExpenses,
+  getTopBackers,
+  getTopDonorsForCollective,
+  getTopSponsors,
+  getTotalAnnualBudget,
+  getTotalAnnualBudgetForHost,
+  getTotalDonationsByCollectiveType,
+  getTotalNumberOfActiveCollectives,
+  getTotalNumberOfDonors,
+  getUniqueCollectiveTags,
+  getGiftCardBatchesForCollective,
 };
 
 export default queries;

@@ -1,4 +1,5 @@
-import { GraphQLInt, GraphQLNonNull, GraphQLObjectType,GraphQLString } from 'graphql';
+import express from 'express';
+import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
@@ -8,7 +9,7 @@ import URL from '../scalar/URL';
 const ExpenseItem = new GraphQLObjectType({
   name: 'ExpenseItem',
   description: 'Fields for an expense item',
-  fields: {
+  fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this expense item',
@@ -36,13 +37,13 @@ const ExpenseItem = new GraphQLObjectType({
     },
     url: {
       type: URL,
-      resolve(item, _, req): string | undefined {
+      resolve(item, _, req: express.Request): string | undefined {
         if (getContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_ATTACHMENTS_URL, item.ExpenseId)) {
           return item.url;
         }
       },
     },
-  },
+  }),
 });
 
 export default ExpenseItem;
