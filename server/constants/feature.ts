@@ -45,17 +45,7 @@ enum FEATURE {
    * TODO: This is a user feature, not a collective feature. We should separate the two
    */
   CREATE_COLLECTIVE = 'CREATE_COLLECTIVE',
-  CROSS_CURRENCY_MANUAL_TRANSACTIONS = 'CROSS_CURRENCY_MANUAL_TRANSACTIONS',
-  /** Whether this profile has transferwise enabled */
-  TRANSFERWISE = 'TRANSFERWISE',
-  /** Whether this profile has paypal payouts enabled */
-  PAYPAL_PAYOUTS = 'PAYPAL_PAYOUTS',
-  /** Whether this profile has paypal donations enabled */
-  PAYPAL_DONATIONS = 'PAYPAL_DONATIONS',
-  /** Whether this profile has its host dashboard enabled */
-  HOST_DASHBOARD = 'HOST_DASHBOARD',
-  /** Whether this profile has connected accounts */
-  CONNECTED_ACCOUNTS = 'CONNECTED_ACCOUNTS',
+
 }
 
 export const FeaturesList = Object.values(FEATURE);

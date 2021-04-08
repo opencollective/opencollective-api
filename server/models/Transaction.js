@@ -190,7 +190,7 @@ function defineModel() {
     },
     {
       paranoid: true,
-
+      schema: 'public',
       getterMethods: {
         netAmountInHostCurrency() {
           return (

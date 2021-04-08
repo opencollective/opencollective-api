@@ -107,26 +107,7 @@ const ExpensesQuery = {
       description: 'The order of results',
       defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
     },
-    minAmount: {
-      type: GraphQLInt,
-      description: 'Only return expenses where the amount is greater than or equal to this value (in cents)',
-    },
-    maxAmount: {
-      type: GraphQLInt,
-      description: 'Only return expenses where the amount is lower than or equal to this value (in cents)',
-    },
-    payoutMethodType: {
-      type: PayoutMethodType,
-      description: 'Only return expenses that use the given type as payout method',
-    },
-    dateFrom: {
-      type: ISODateTime,
-      description: 'Only return expenses that were created after this date',
-    },
-    searchTerm: {
-      type: GraphQLString,
-      description: 'The term to search',
-    },
+
   },
   async resolve(_: void, args, req: express.Request): Promise<CollectionReturnType> {
     const where = { [Op.and]: [] };
@@ -161,29 +142,7 @@ const ExpensesQuery = {
     }
 
     // Add search filter
-    if (args.searchTerm) {
-      const sanitizedTerm = args.searchTerm.replace(/(_|%|\\)/g, '\\$1');
-      const ilikeQuery = `%${sanitizedTerm}%`;
-      where[Op.or] = [
-        { description: { [Op.iLike]: ilikeQuery } },
-        { tags: { [Op.overlap]: [args.searchTerm.toLowerCase()] } },
-        { '$fromCollective.slug$': { [Op.iLike]: ilikeQuery } },
-        { '$fromCollective.name$': { [Op.iLike]: ilikeQuery } },
-        { '$User.collective.slug$': { [Op.iLike]: ilikeQuery } },
-        { '$User.collective.name$': { [Op.iLike]: ilikeQuery } },
-        // { '$items.description$': { [Op.iLike]: ilikeQuery } },
-      ];
 
-      include.push(
-        { association: 'fromCollective', attributes: [] },
-        { association: 'User', attributes: [], include: [{ association: 'collective', attributes: [] }] },
-        // One-to-many relationships with limits are broken in Sequelize. Could be fixed by https://github.com/sequelize/sequelize/issues/4376
-        // { association: 'items', duplicating: false, attributes: [], separate: true },
-      );
-
-      if (!isNaN(args.searchTerm)) {
-        where[Op.or].push({ id: args.searchTerm });
-      }
     }
 
     // Add filters

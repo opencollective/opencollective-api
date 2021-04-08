@@ -15,9 +15,7 @@ import sequelize from 'sequelize';
 import SqlString from 'sequelize/lib/sql-string';
 
 import { types } from '../../constants/collectives';
-import { FeaturesList } from '../../constants/feature';
-import FEATURE_STATUS from '../../constants/feature-status';
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
+
 import roles from '../../constants/roles';
 import { getContributorsForCollective } from '../../lib/contributors';
 import queries from '../../lib/queries';
@@ -1916,7 +1914,7 @@ const CollectiveFields = () => {
   };
 };
 
-export const CollectiveFeatureStatus = new GraphQLEnumType({
+
   name: 'CollectiveFeatureStatus',
   values: {
     [FEATURE_STATUS.ACTIVE]: {
@@ -1937,10 +1935,7 @@ export const CollectiveFeatureStatus = new GraphQLEnumType({
 export const CollectiveFeatures = new GraphQLObjectType({
   name: 'CollectiveFeatures',
   description: 'Describes the features enabled and available for this collective',
-  fields: () => {
-    return {
-      ...FeaturesFields(),
-    };
+
   },
 });
 
