@@ -16,6 +16,20 @@ paymentMethodProvider.getBalance = () => {
   return Promise.resolve(maxInteger);
 };
 
+paymentMethodProvider.createPlatformTipTransaction = async transaction => {
+  const platformTipTransaction = {
+    ...transaction,
+    amount: transaction.platformTipInHostCurrency,
+    description: 'Financial contribution (Platform Tip) to Open Collective',
+    netAmountInCollectiveCurrency: transaction.platformTipInHostCurrency,
+    FromCollectiveId: transaction.HostCollectiveId,
+    CollectiveId: 8686, // Open Collective (Organization)
+    platformTipInHostCurrency: undefined,
+  };
+
+  return models.Transaction.createDoubleEntry(platformTipTransaction);
+};
+
 paymentMethodProvider.processOrder = async order => {
   const collectiveHost = await order.collective.getHostCollective();
 
@@ -24,6 +38,7 @@ paymentMethodProvider.processOrder = async order => {
   }
 
   const hostFeePercent = await getHostFeePercent(order);
+
   const platformFeePercent = await getPlatformFeePercent(order);
 
   const payload = {
@@ -43,6 +58,10 @@ paymentMethodProvider.processOrder = async order => {
 
   const hostFeeInHostCurrency = calcFee(order.totalAmount * fxrate, hostFeePercent);
   const platformFeeInHostCurrency = calcFee(order.totalAmount * fxrate, platformFeePercent);
+  let platformTipInHostCurrency;
+  if (order.data?.platformTip) {
+    platformTipInHostCurrency = order.data?.platformTip * fxrate;
+  }
 
   payload.transaction = {
     type: TransactionTypes.CREDIT,
@@ -55,13 +74,12 @@ paymentMethodProvider.processOrder = async order => {
     amountInHostCurrency: totalAmountInPaymentMethodCurrency,
     hostFeeInHostCurrency,
     platformFeeInHostCurrency,
+    platformTipInHostCurrency,
     paymentProcessorFeeInHostCurrency: 0,
     description: order.description,
   };
 
-  const transactions = await models.Transaction.createFromPayload(payload);
-
-  return transactions;
+  return await models.Transaction.createFromPayload(payload);
 };
 
 export default paymentMethodProvider;

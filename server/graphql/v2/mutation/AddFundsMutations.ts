@@ -15,8 +15,6 @@ export const addFundsMutation = {
     account: { type: new GraphQLNonNull(AccountReferenceInput) },
     amount: { type: new GraphQLNonNull(AmountInput) },
     description: { type: new GraphQLNonNull(GraphQLString) },
-    hostFeePercent: { type: new GraphQLNonNull(GraphQLFloat) },
-    platformFeePercent: { type: GraphQLFloat, description: 'Can only be set if root' },
   },
   resolve: async (_, args, req: express.Request): Promise<Record<string, unknown>> => {
     const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
@@ -27,6 +25,12 @@ export const addFundsMutation = {
       throw new ValidationFailed(`Adding funds is only possible for the following types: ${allowedTypes.join(',')}`);
     }
 
+    if (args.hostFeePercent < 0 || args.hostFeePercent > 100) {
+      throw new ValidationFailed('hostFeePercent should be a value between 0 and 100.');
+    } else if (args.platformFeePercent < 0 || args.platformFeePercent > 100) {
+      throw new ValidationFailed('platformFeePercent should be a value between 0 and 100.');
+    }
+
     return addFundsToCollectiveLegacy(
       {
         totalAmount: getValueInCentsFromAmountInput(args.amount),
@@ -35,6 +39,7 @@ export const addFundsMutation = {
         description: args.description,
         hostFeePercent: args.hostFeePercent,
         platformFeePercent: args.platformFeePercent,
+        platformTip: getValueInCentsFromAmountInput(args.platformTip),
       },
       req.remoteUser,
     );

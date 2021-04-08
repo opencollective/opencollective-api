@@ -15,7 +15,6 @@ import FEATURE from '../../../constants/feature';
 import status from '../../../constants/order_status';
 import roles from '../../../constants/roles';
 import { VAT_OPTIONS } from '../../../constants/vat';
-import { canRefund } from '../../../graphql/common/transactions';
 import cache, { purgeCacheForCollective } from '../../../lib/cache';
 import * as github from '../../../lib/github';
 import { getOrCreateGuestProfile } from '../../../lib/guest-accounts';
@@ -27,6 +26,7 @@ import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../
 import { canUseFeature } from '../../../lib/user-permissions';
 import { formatCurrency, md5, parseToBoolean, sleep } from '../../../lib/utils';
 import models from '../../../models';
+import { canRefund } from '../../common/transactions';
 import {
   BadRequest,
   FeatureNotAllowedForUser,
@@ -952,6 +952,10 @@ export async function addFundsToCollective(order, remoteUser) {
 
   if (!isNil(order.platformFeePercent)) {
     orderData.data.platformFeePercent = order.platformFeePercent;
+  }
+
+  if (!isNil(order.platformTip)) {
+    orderData.data.platformTip = order.platformTip;
   }
 
   const orderCreated = await models.Order.create(orderData);
