@@ -15,6 +15,7 @@ import * as expenseLoaders from './expenses';
 import { createDataLoaderWithOptions, sortResults } from './helpers';
 import { generateCollectivePayoutMethodsLoader, generateCollectivePaypalPayoutMethodsLoader } from './payout-method';
 import { generateCanSeeUserPrivateInfoLoader } from './user';
+import { generateCollectiveVirtualCardLoader, generateHostCollectiveVirtualCardLoader } from './virtual-card';
 
 export const loaders = req => {
   const cache = {};
@@ -44,6 +45,10 @@ export const loaders = req => {
   // Payout method
   context.loaders.PayoutMethod.paypalByCollectiveId = generateCollectivePaypalPayoutMethodsLoader(req, cache);
   context.loaders.PayoutMethod.byCollectiveId = generateCollectivePayoutMethodsLoader(req, cache);
+
+  // Virtual Card
+  context.loaders.VirtualCard.byCollectiveId = generateCollectiveVirtualCardLoader(req, cache);
+  context.loaders.VirtualCard.byHostCollectiveId = generateHostCollectiveVirtualCardLoader(req, cache);
 
   // User
   context.loaders.User.canSeeUserPrivateInfo = generateCanSeeUserPrivateInfoLoader(req, cache);
