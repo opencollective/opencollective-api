@@ -5,7 +5,7 @@ In {{month}}, you have backed {{stats.collectives}} {{pluralize "collective" n=s
 {{#each collectives}}
 {{#if nextGoal}}
 
-{{name}} needs {{currency nextGoal.missing.amount currency=currency}} more {{#if nextGoal.missing.interval}}per {{nextGoal.missing.interval}}{{/if}} to reach their next goal of {{nextGoal.title}} ({{nextGoal.percentage}} there). 
+{{name}} needs {{currency nextGoal.missing.amount currency=currency}} more {{#if nextGoal.missing.interval}}per {{nextGoal.missing.interval}}{{/if}} to reach their next goal of {{nextGoal.title}} ({{nextGoal.percentage}} there).
 {{#if order.Subscription}}
 You are currently contributing {{currency order.Subscription.amount currency=order.Subscription.currency}} per {{order.Subscription.interval}}.
 [increase your contribution]({{../config.host.website}}/{{../fromCollective.slug}}/recurring-contributions)

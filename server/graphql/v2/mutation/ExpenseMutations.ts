@@ -18,6 +18,7 @@ import {
   canVerifyDraftExpense,
   createExpense,
   editExpense,
+  markExpenseAsSpam,
   markExpenseAsUnpaid,
   payExpense,
   rejectExpense,
@@ -267,6 +268,8 @@ const expenseMutations = {
           return unapproveExpense(req, expense);
         case 'REJECT':
           return rejectExpense(req, expense);
+        case 'MARK_AS_SPAM':
+          return markExpenseAsSpam(req, expense);
         case 'MARK_AS_UNPAID':
           return markExpenseAsUnpaid(req, expense.id, args.paymentParams?.paymentProcessorFee);
         case 'SCHEDULE_FOR_PAYMENT':
@@ -401,7 +404,8 @@ const expenseMutations = {
         throw new Unauthorized("You don't have the permission to edit this expense.");
       }
 
-      const inviteUrl = `${config.host.website}/${expense.collective.slug}/expenses/${expense.id}`;
+      const draftKey = expense.data.draftKey;
+      const inviteUrl = `${config.host.website}/${expense.collective.slug}/expenses/${expense.id}?key=${draftKey}`;
       expense
         .createActivity(activities.COLLECTIVE_EXPENSE_INVITE_DRAFTED, req.remoteUser, { ...expense.data, inviteUrl })
         .catch(e => logger.error('An error happened when creating the COLLECTIVE_EXPENSE_INVITE_DRAFTED activity', e));

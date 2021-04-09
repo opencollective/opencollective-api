@@ -856,9 +856,9 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         await waitForCondition(() => emailSendMessageSpy.callCount === 2);
         expect(emailSendMessageSpy.callCount).to.equal(2);
         expect(emailSendMessageSpy.args[0][0]).to.equal(expense.User.email);
-        expect(emailSendMessageSpy.args[0][2]).to.contain(`has just been paid`);
+        expect(emailSendMessageSpy.args[0][2]).to.contain(`has been paid`);
         expect(emailSendMessageSpy.args[1][0]).to.equal(hostAdmin.email);
-        expect(emailSendMessageSpy.args[1][1]).to.contain(`Expense paid on ${collective.name}`);
+        expect(emailSendMessageSpy.args[1][1]).to.contain(`Expense paid for ${collective.name}`);
 
         // User should be added as a CONTRIBUTOR
         const membership = await models.Member.findOne({
@@ -942,6 +942,20 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       describe('With transferwise', () => {
         const fee = 1.74;
         let getTemporaryQuote, expense;
+        const quote = {
+          payOut: 'BANK_TRANSFER',
+          paymentOptions: [
+            {
+              payInProduct: 'BALANCE',
+              fee: { total: fee },
+              payIn: 'BALANCE',
+              sourceCurrency: 'USD',
+              targetCurrency: 'EUR',
+              payOut: 'BANK_TRANSFER',
+              disabled: false,
+            },
+          ],
+        };
 
         before(async () => {
           // Updates the collective balance and pay the expense
@@ -949,8 +963,8 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         });
 
         beforeEach(() => {
-          getTemporaryQuote = sandbox.stub(paymentProviders.transferwise, 'getTemporaryQuote').resolves({ fee });
-          sandbox.stub(paymentProviders.transferwise, 'payExpense').resolves({ quote: { fee } });
+          getTemporaryQuote = sandbox.stub(paymentProviders.transferwise, 'getTemporaryQuote').resolves(quote);
+          sandbox.stub(paymentProviders.transferwise, 'payExpense').resolves({ quote });
         });
 
         beforeEach(async () => {
@@ -1014,7 +1028,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           await waitForCondition(() => emailSendMessageSpy.callCount === 1);
           expect(emailSendMessageSpy.args[0][0]).to.equal(expense.User.email);
           expect(emailSendMessageSpy.args[0][1]).to.contain(
-            `Expense from ${collective.name} for January Invoice is being Processed`,
+            `Payment being processed: January Invoice for ${collective.name}`,
           );
         });
       });
@@ -1220,11 +1234,25 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
   describe('processExpense > PAY > with 2FA payouts', () => {
     const fee = 1.74;
     let collective, host, collectiveAdmin, hostAdmin, sandbox, expense1, expense2, expense3, expense4, user;
+    const quote = {
+      payOut: 'BANK_TRANSFER',
+      paymentOptions: [
+        {
+          payInProduct: 'BALANCE',
+          fee: { total: fee },
+          payIn: 'BALANCE',
+          sourceCurrency: 'USD',
+          targetCurrency: 'EUR',
+          payOut: 'BANK_TRANSFER',
+          disabled: false,
+        },
+      ],
+    };
 
     before(() => {
       sandbox = sinon.createSandbox();
-      sandbox.stub(paymentProviders.transferwise, 'payExpense').resolves({ quote: { fee } });
-      sandbox.stub(paymentProviders.transferwise, 'getTemporaryQuote').resolves({ fee });
+      sandbox.stub(paymentProviders.transferwise, 'payExpense').resolves({ quote });
+      sandbox.stub(paymentProviders.transferwise, 'getTemporaryQuote').resolves(quote);
     });
 
     after(() => sandbox.restore());
@@ -1452,7 +1480,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
       expect(recipient).to.eq(invoice.payee.email);
       expect(subject).to.include(collective.name);
-      expect(subject).to.include('wants you to submit an expense');
+      expect(subject).to.include('wants you to pay you');
       expect(body).to.include(
         `href="http://localhost:3000/${collective.slug}/expenses/${expense.id}?key&#x3D;${expense.data.draftKey}"`,
       );

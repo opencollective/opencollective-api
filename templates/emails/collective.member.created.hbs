@@ -1,8 +1,8 @@
-Subject: {{member.memberCollective.name}} joined {{{collective.name}}} as {{toLowerCase member.role}} {{#if order}}{{formatOrderAmountWithInterval order}}{{/if}}
+Subject: New financial contributor to {{{collective.name}}}: {{member.memberCollective.name}} {{#if order}}{{formatOrderAmountWithInterval order}}{{/if}}
 
 {{> header}}
 
-<h1>🎉 New backer</h1>
+<h1>🎉 New financial contributor</h1>
 
 {{#if recipient.collective.name}}
 <p>{{recipient.collective.name}},</p>
@@ -10,9 +10,9 @@ Subject: {{member.memberCollective.name}} joined {{{collective.name}}} as {{toLo
 <p>Hi,</p>
 {{/if}}
 
-<p>Just a quick note to let you know that {{#if member.memberCollective.isIncognito}}someone (incognito){{else}}<a
-    href="{{config.host.website}}/{{member.memberCollective.slug}}">{{member.memberCollective.name}}</a>{{/if}} is now a
-  {{toLowerCase member.role}} of <a href="{{config.host.website}}{{collective.urlPath}}">{{collective.name}}</a>.</p>
+<p>{{#if member.memberCollective.isIncognito}}Someone (incognito){{else}}<a
+    href="{{config.host.website}}/{{member.memberCollective.slug}}">{{member.memberCollective.name}}</a>{{/if}} has become a new financial contributor to
+<a href="{{config.host.website}}{{collective.urlPath}}">{{collective.name}}</a>.</p>
 
 {{#if order.publicMessage}}
   <p class="pullQuote">“{{order.publicMessage}}”<br />- {{member.memberCollective.name}}</p>
@@ -22,7 +22,7 @@ Subject: {{member.memberCollective.name}} joined {{{collective.name}}} as {{toLo
 <center>
   {{tweet.text}}<br />
   <a href="https://twitter.com/intent/tweet?text={{tweet.encoded}}" class="btn blue">
-    <div>Thank that person on Twitter!</div>
+    <div>Thank them on Twitter!</div>
   </a>
 </center>
 {{/if}}

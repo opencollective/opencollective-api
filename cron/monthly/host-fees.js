@@ -66,42 +66,68 @@ async function run() {
       },
     });
 
-    const hostFees = sumBy(transactions, 'hostFeeInHostCurrency');
-    const sharedRevenue = sumByWhen(
-      transactions,
-      t => round((t.hostFeeInHostCurrency * t.data.hostFeeSharePercent) / 100),
-      t => t.data?.isSharedRevenue && t.data?.settled && t.data?.hostFeeSharePercent > 0,
-    );
+    const amount = Math.abs(sumBy(transactions, 'hostFeeInHostCurrency'));
+    if (amount) {
+      const monthAsString = date.toLocaleString('default', { month: 'long' });
+      const description = `Total Host Fees collected in ${monthAsString} ${year}`;
 
-    const amount = Math.abs(hostFees) - Math.abs(sharedRevenue);
-    if (!amount) {
-      continue;
+      const payload = {
+        type: 'CREDIT',
+        amount,
+        description: description,
+        currency: host.currency,
+        CollectiveId: host.id,
+        FromCollectiveId: host.id,
+        HostCollectiveId: host.id,
+        hostCurrency: host.currency,
+        hostCurrencyFxRate: 1,
+        amountInHostCurrency: amount,
+        netAmountInCollectiveCurrency: amount,
+        platformFeeInHostCurrency: 0,
+        hostFeeInHostCurrency: 0,
+        paymentProcessorFeeInHostCurrency: 0,
+        TransactionGroup: uuid(),
+        CreatedByUserId: 30, // Pia (mandatory in the model)
+      };
+
+      console.log(`Crediting Host Fees ${monthAsString} ${year} for ${host.slug}`);
+      await models.Transaction.create(payload);
     }
 
-    const monthAsString = date.toLocaleString('default', { month: 'long' });
-    const description = `Host Fees ${monthAsString} ${year}`;
+    const sharedRevenue = Math.abs(
+      sumByWhen(
+        transactions,
+        t => round((t.hostFeeInHostCurrency * t.data.hostFeeSharePercent) / 100),
+        t => t.data?.isSharedRevenue && t.data?.settled && t.data?.hostFeeSharePercent > 0,
+      ),
+    );
 
-    const payload = {
-      type: 'CREDIT',
-      amount,
-      description: description,
-      currency: host.currency,
-      CollectiveId: host.id,
-      FromCollectiveId: host.id,
-      HostCollectiveId: host.id,
-      hostCurrency: host.currency,
-      hostCurrencyFxRate: 1,
-      amountInHostCurrency: amount,
-      netAmountInCollectiveCurrency: amount,
-      platformFeeInHostCurrency: 0,
-      hostFeeInHostCurrency: 0,
-      paymentProcessorFeeInHostCurrency: 0,
-      TransactionGroup: uuid(),
-      CreatedByUserId: 30, // Pia (mandatory in the model)
-    };
+    if (sharedRevenue) {
+      const monthAsString = date.toLocaleString('default', { month: 'long' });
+      const description = `Host Fee already shared (Stripe) in ${monthAsString} ${year}`;
 
-    console.log(`Adding Host Fees ${monthAsString} ${year} for ${host.slug}`);
-    await models.Transaction.create(payload);
+      const payload = {
+        type: 'DEBIT',
+        amount: -sharedRevenue,
+        description: description,
+        currency: host.currency,
+        CollectiveId: host.id,
+        FromCollectiveId: host.id,
+        HostCollectiveId: host.id,
+        hostCurrency: host.currency,
+        hostCurrencyFxRate: 1,
+        amountInHostCurrency: -sharedRevenue,
+        netAmountInCollectiveCurrency: -sharedRevenue,
+        platformFeeInHostCurrency: 0,
+        hostFeeInHostCurrency: 0,
+        paymentProcessorFeeInHostCurrency: 0,
+        TransactionGroup: uuid(),
+        CreatedByUserId: 30, // Pia (mandatory in the model)
+      };
+
+      console.log(`Debiting Host Fees already shared ${monthAsString} ${year} for ${host.slug}`);
+      await models.Transaction.create(payload);
+    }
   }
 }
 

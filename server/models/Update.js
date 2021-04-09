@@ -1,17 +1,16 @@
 import Promise from 'bluebird';
 import config from 'config';
 import slugify from 'limax';
-import { defaults, pick, uniqBy } from 'lodash';
+import { defaults, pick } from 'lodash';
 import Temporal from 'sequelize-temporal';
 
 import activities from '../constants/activities';
-import { types as CollectiveType } from '../constants/collectives';
 import MemberRoles from '../constants/roles';
 import * as errors from '../graphql/errors';
 import logger from '../lib/logger';
+import * as SQLQueries from '../lib/queries';
 import { buildSanitizerOptions, generateSummaryForHTML, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize, { DataTypes, Op, QueryTypes } from '../lib/sequelize';
-import { flattenArray } from '../lib/utils';
 
 const sanitizerOptions = buildSanitizerOptions({
   titles: true,
@@ -28,7 +27,6 @@ const sanitizerOptions = buildSanitizerOptions({
  * always included, regardless of the values in this array.
  */
 const PRIVATE_UPDATE_TARGET_ROLES = [
-  MemberRoles.HOST,
   MemberRoles.ADMIN,
   MemberRoles.MEMBER,
   MemberRoles.CONTRIBUTOR,
@@ -316,39 +314,80 @@ function defineModel() {
     return models.User.findByPk(this.CreatedByUserId);
   };
 
+  Update.prototype.includeHostedAccountsInNotification = async function (notificationAudience) {
+    this.collective = this.collective || (await this.getCollective());
+    const audience = notificationAudience || this.notificationAudience || 'ALL';
+    const audiencesForHostedAccounts = ['ALL', 'COLLECTIVE_ADMINS'];
+    return Boolean(this.collective.isHostAccount && audiencesForHostedAccounts.includes(audience));
+  };
+
+  Update.prototype.getTargetMembersRoles = function (notificationAudience) {
+    const audience = notificationAudience || this.audience || 'ALL';
+    if (audience === 'COLLECTIVE_ADMINS') {
+      return ['__NONE__'];
+    } else if (this.isPrivate) {
+      return PRIVATE_UPDATE_TARGET_ROLES;
+    } else {
+      return PUBLIC_UPDATE_TARGET_ROLES;
+    }
+  };
+
   /**
-   * Get the member users to notify for an update.
+   * Get the member users to notify for this update.
    */
   Update.prototype.getUsersToNotify = async function () {
-    // Conditions for members of the collective
-    const targetRoles = this.isPrivate ? PRIVATE_UPDATE_TARGET_ROLES : PUBLIC_UPDATE_TARGET_ROLES;
-    const collective = this.collective || (await this.getCollective());
-    const collectiveConditions = { CollectiveId: collective.id, role: { [Op.in]: targetRoles } };
+    const audience = this.audience || 'ALL';
+    return sequelize.query(SQLQueries.usersToNotifyForUpdateSQLQuery, {
+      type: sequelize.QueryTypes.SELECT,
+      mapToModel: true,
+      model: models.User,
+      replacements: {
+        collectiveId: this.CollectiveId,
+        targetRoles: this.getTargetMembersRoles(),
+        includeHostedAccounts: await this.includeHostedAccountsInNotification(),
+        includeMembers: audience !== 'COLLECTIVE_ADMINS',
+      },
+    });
+  };
 
-    // Retrieve all direct members + ADMINs of the parent collective (if any)
-    let where = collectiveConditions;
-    if (collective.ParentCollectiveId) {
-      const parentCollectiveConditions = { CollectiveId: collective.ParentCollectiveId, role: 'ADMIN' };
-      where = { [Op.or]: [parentCollectiveConditions, collectiveConditions] };
-    }
-    const memberships = await models.Member.findAll({
-      where,
-      include: [{ model: models.Collective, as: 'memberCollective', required: true }],
+  /**
+   * Gets a summary of how many users will be notified about this update
+   *
+   * @argument notificationAudience - to override the update audience
+   */
+  Update.prototype.countUsersToNotify = async function (notificationAudience) {
+    this.collective = this.collective || (await this.getCollective());
+    const audience = notificationAudience || this.audience || 'ALL';
+
+    const [result] = await sequelize.query(SQLQueries.countUsersToNotifyForUpdateSQLQuery, {
+      type: sequelize.QueryTypes.SELECT,
+      replacements: {
+        collectiveId: this.CollectiveId,
+        targetRoles: this.getTargetMembersRoles(audience),
+        includeHostedAccounts: await this.includeHostedAccountsInNotification(audience),
+        includeMembers: audience !== 'COLLECTIVE_ADMINS',
+      },
     });
 
-    // Get users from the memberships
-    // TODO: The code below was copied from `collective.getUsers()` and has a huge N+1 factor, we should optimize it.
-    const memberCollectives = memberships.map(membership => membership.memberCollective);
-    const users = await Promise.map(memberCollectives, memberCollective => {
-      if (memberCollective.type === CollectiveType.USER) {
-        return memberCollective.getUser().then(user => [user]);
-      } else {
-        return memberCollective.getAdminUsers();
-      }
+    return result.count;
+  };
+
+  /**
+   * Gets a summary of who will be notified about this update
+   */
+  Update.prototype.getAudienceMembersStats = async function (audience) {
+    const result = await sequelize.query(SQLQueries.countMembersToNotifyForUpdateSQLQuery, {
+      type: sequelize.QueryTypes.SELECT,
+      replacements: {
+        collectiveId: this.CollectiveId,
+        targetRoles: this.getTargetMembersRoles(audience),
+      },
     });
 
-    const usersFlattened = flattenArray(users).filter(Boolean);
-    return uniqBy(usersFlattened, 'id');
+    return result.reduce((stats, { type, count }) => {
+      stats[type] = count;
+      return stats;
+    }, {});
   };
 
   /*

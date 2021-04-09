@@ -6,7 +6,7 @@
 // This lib is a superset of `utils.data` that generates values that are random and safe
 // to use in loops and repeted tests.
 
-import { get, sample } from 'lodash';
+import { get, padStart, sample } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import { roles } from '../../server/constants';
@@ -122,6 +122,16 @@ export const fakeCollective = async (collectiveData = {}) => {
   return collective;
 };
 
+export const fakeOrganization = (organizationData = {}) => {
+  return fakeCollective({
+    HostCollectiveId: null,
+    name: organizationData.isHostAccount ? randStr('Test Host ') : randStr('Test Organization '),
+    slug: organizationData.isHostAccount ? randStr('host-') : randStr('org-'),
+    ...organizationData,
+    type: 'ORGANIZATION',
+  });
+};
+
 /**
  * Creates a fake update. All params are optionals.
  */
@@ -142,7 +152,7 @@ export const fakeEvent = async (collectiveData = {}) => {
  * Creates a fake update. All params are optionals.
  */
 export const fakeUpdate = async (updateData = {}) => {
-  return models.Update.create({
+  const update = await models.Update.create({
     slug: randStr('update-'),
     title: randStr('Update '),
     html: '<div><strong>Hello</strong> Test!</div>',
@@ -151,6 +161,10 @@ export const fakeUpdate = async (updateData = {}) => {
     CollectiveId: updateData.CollectiveId || (await fakeCollective()).id,
     CreatedByUserId: updateData.CreatedByUserId || (await fakeUser()).id,
   });
+
+  update.collective = await models.Collective.findByPk(update.CollectiveId);
+  update.fromCollective = await models.Collective.findByPk(update.FromCollectiveId);
+  return update;
 };
 
 /**
@@ -468,5 +482,38 @@ export const fakeLegalDocument = async (data = {}) => {
     requestStatus: 'REQUESTED',
     ...data,
     CollectiveId: data.CollectiveId || (await fakeCollective().then(c => c.id)),
+  });
+};
+
+export const fakeCurrencyExchangeRate = async (data = {}) => {
+  const currencies = ['USD', 'NSG', 'EUR', 'CZK', 'JPY', 'MYR', 'AUD'];
+  const rate = await models.CurrencyExchangeRate.create({
+    from: sample(currencies),
+    to: sample(currencies),
+    rate: randNumber(0, 100) / 100.0,
+    ...data,
+  });
+
+  if (data.insertedAt) {
+    rate.createdAt = data.insertedAt;
+    rate.changed('createdAt', true);
+    return rate.save();
+  } else {
+    return rate;
+  }
+};
+
+export const fakeVirtualCard = async (virtualCardData = {}) => {
+  const CollectiveId = virtualCardData.CollectiveId || (await fakeCollective()).id;
+  const HostCollectiveId =
+    virtualCardData.HostCollectiveId || (await models.Collective.getHostCollectiveId(CollectiveId));
+
+  return models.VirtualCard.create({
+    id: uuid(),
+    last4: padStart(randNumber(0, 9999).toString(), 4, '0'),
+    name: randStr('card'),
+    ...virtualCardData,
+    CollectiveId,
+    HostCollectiveId,
   });
 };

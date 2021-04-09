@@ -374,7 +374,7 @@ describe('server/models/Collective', () => {
       });
       expect(sendEmailSpy.callCount).to.equal(2);
 
-      const hostedArgs = sendEmailSpy.args.find(callArgs => callArgs[1].includes('would love to be hosted'));
+      const hostedArgs = sendEmailSpy.args.find(callArgs => callArgs[1].includes('wants to be hosted by'));
       expect(hostedArgs).to.exist;
       expect(hostedArgs[0]).to.equal(hostUser.email);
       expect(hostedArgs[2]).to.contain(user2.collective.name);
@@ -412,7 +412,7 @@ describe('server/models/Collective', () => {
       expect(plan).to.deep.equal({
         id: 3,
         name: 'default',
-        hostedCollectives: 2,
+        hostedCollectives: 0,
         addedFunds: 0,
         bankTransfers: 0,
         transferwisePayouts: 0,

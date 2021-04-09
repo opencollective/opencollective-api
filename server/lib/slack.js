@@ -18,8 +18,8 @@ export default {
    * Post a given activity to a public channel (meaning scrubbed info only)
    */
   postActivityOnPublicChannel(activity, webhookUrl) {
-    const message = activitiesLib.formatMessageForPublicChannel(activity, 'slack');
-    return this.postMessage(message, webhookUrl);
+    const { message, options } = activitiesLib.formatMessageForPublicChannel(activity, 'slack');
+    return this.postMessage(message, webhookUrl, options);
   },
 
   /**

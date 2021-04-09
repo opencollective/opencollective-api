@@ -22,5 +22,8 @@ export const ExpenseProcessAction = new GraphQLEnumType({
     PAY: {
       description: 'To trigger the payment',
     },
+    MARK_AS_SPAM: {
+      description: 'To mark the expense as spam',
+    },
   },
 });

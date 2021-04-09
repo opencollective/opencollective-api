@@ -4,8 +4,6 @@ import { Account, AccountFields } from '../interface/Account';
 import { AccountWithContributions, AccountWithContributionsFields } from '../interface/AccountWithContributions';
 import { AccountWithHost, AccountWithHostFields } from '../interface/AccountWithHost';
 
-import { Fund } from './Fund';
-
 export const Project = new GraphQLObjectType({
   name: 'Project',
   description: 'This represents an Project account',
@@ -18,7 +16,7 @@ export const Project = new GraphQLObjectType({
       ...AccountWithContributionsFields,
       parent: {
         description: 'The Fund hosting this Project',
-        type: Fund,
+        type: Account,
         async resolve(project, _, req) {
           if (!project.ParentCollectiveId) {
             return null;

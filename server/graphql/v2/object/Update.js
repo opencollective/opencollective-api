@@ -1,11 +1,14 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 
+import { types as CollectiveType } from '../../../constants/collectives';
 import models from '../../../models';
 import { CommentCollection } from '../collection/CommentCollection';
 import { UpdateAudienceType } from '../enum';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { Account } from '../interface/Account';
+
+import { UpdateAudienceStats } from './UpdateAudienceStats';
 
 const canSeeUpdateDetails = async (req, update) => {
   if (!update.publishedAt || update.isPrivate) {
@@ -57,6 +60,48 @@ const Update = new GraphQLObjectType({
       updatedAt: { type: new GraphQLNonNull(GraphQLDateTime) },
       publishedAt: { type: GraphQLDateTime },
       notificationAudience: { type: UpdateAudienceType },
+      audienceStats: {
+        type: UpdateAudienceStats,
+        description: `Some stats about the target audience. Will be null if the update is already published or if you don't have enough permissions so see this information. Not backed by a loader, avoid using this field in lists.`,
+        args: {
+          audience: {
+            type: UpdateAudienceType,
+            description: 'To override the default notificationAudience',
+          },
+        },
+        async resolve(update, args, req) {
+          if (!req.remoteUser || update.publishedAt) {
+            return null;
+          }
+
+          update.collective = update.collective || (await req.loaders.Collective.byId.load(update.CollectiveId));
+
+          if (!req.remoteUser.isAdminOfCollective(update.collective)) {
+            return null;
+          }
+
+          const audience = args.audience || update.notificationAudience || 'ALL';
+          let membersStats = {};
+          let hostedCollectivesCount = 0;
+
+          if (audience !== 'COLLECTIVE_ADMINS') {
+            membersStats = await update.getAudienceMembersStats(audience);
+          }
+
+          if (update.collective.isHostAccount && (audience === 'ALL' || audience === 'COLLECTIVE_ADMINS')) {
+            hostedCollectivesCount = await update.collective.getHostedCollectivesCount();
+          }
+
+          return {
+            id: `${update.id}-${audience}`,
+            individuals: membersStats[CollectiveType.USER] || 0,
+            organizations: membersStats[CollectiveType.ORGANIZATION] || 0,
+            collectives: membersStats[CollectiveType.COLLECTIVE] || 0,
+            hosted: hostedCollectivesCount || 0,
+            total: await update.countUsersToNotify(audience),
+          };
+        },
+      },
       makePublicOn: { type: GraphQLDateTime },
       summary: {
         type: GraphQLString,

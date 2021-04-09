@@ -50,26 +50,32 @@ const notifyCollective = async (CollectiveId, milestone, collective) => {
     where: { service: 'twitter', CollectiveId },
   });
   const slackAccount = await models.Notification.findOne({
-    where: { channel: 'slack', CollectiveId },
+    where: { channel: 'slack', CollectiveId, type: 'all' },
   });
 
   const tweet = await compileTweet(collective, milestone, twitterAccount);
 
   if (!twitterAccount) {
     debug(`${collective.slug}: the collective id ${CollectiveId} doesn't have a twitter account connected, skipping`);
-    await postToSlack(tweet, slackAccount);
+    if (slackAccount) {
+      await postToSlack(tweet, slackAccount);
+    }
     return;
   }
   if (!get(twitterAccount, `settings.${milestone}.active`)) {
     debug(
       `${collective.slug}: the collective id ${CollectiveId} hasn't activated the ${milestone} milestone notification, skipping`,
     );
-    await postToSlack(tweet, slackAccount);
+    if (slackAccount) {
+      await postToSlack(tweet, slackAccount);
+    }
     return;
   }
   if (process.env.TWITTER_CONSUMER_SECRET) {
     const res = await sendTweet(tweet, twitterAccount, milestone);
-    return await postToSlack(res.url, slackAccount);
+    if (slackAccount) {
+      await postToSlack(res.url, slackAccount);
+    }
   }
 };
 
@@ -167,7 +173,7 @@ const compileTweet = async (collective, template, twitterAccount) => {
 
   let tweet = twitter.compileTweet(template, replacements, get(twitterAccount, `settings.${template}.tweet`));
   const path = await collective.getUrlPath();
-  tweet += `\nhttps://opencollective.com/${path}`;
+  tweet += `\nhttps://opencollective.com${path}`;
   return tweet;
 };
 

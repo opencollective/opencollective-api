@@ -114,7 +114,11 @@ export const getLegacyPaymentMethodFromPaymentMethodInput = async (
     return {
       service: PAYMENT_METHOD_SERVICE.PAYPAL,
       type: PAYMENT_METHOD_TYPE.PAYMENT,
-      ...pick(pm.paypalInfo, ['token', 'data']),
+      ...pick(pm.paypalInfo, ['token']),
+      data: {
+        ...(pm.paypalInfo.data || {}),
+        ...pick(pm.paypalInfo, ['isNewApi', 'subscriptionId', 'orderId']),
+      },
     };
   } else {
     return getServiceTypeFromLegacyPaymentMethodType(pm.type);

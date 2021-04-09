@@ -1,10 +1,11 @@
 import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
-import { get, keys, zipObject } from 'lodash';
+import { get, has, keys, zipObject } from 'lodash';
 import fetch from 'node-fetch';
 
 import { currencyFormats } from '../constants/currencies';
+import models from '../models';
 
 import cache from './cache';
 import logger from './logger';
@@ -35,6 +36,48 @@ export function formatCurrency(currency: string, value: number): string {
 if (!get(config, 'fixer.accessKey') && !['staging', 'production'].includes(config.env)) {
   logger.info('Fixer API is not configured, lib/currency will always return 1.1');
 }
+
+export const getRatesFromDb = async (
+  fromCurrency: string,
+  toCurrencies: string[],
+  date: string | Date = 'latest',
+): Promise<Record<string, number>> => {
+  let isInverted = false;
+
+  // All rates are currently stored with from=USD, so we need to reverse from/to when converting EUR to USD
+  if (fromCurrency !== 'USD') {
+    if (toCurrencies.length > 1 || toCurrencies[0] !== 'USD') {
+      // Can only convert *currency* -> USD at the moment (so we don't support multiple targets)
+      logger.warn(
+        `getRatesFromDb: Tried to convert ${fromCurrency} to ${toCurrencies.join(', ')}, which is not supported `,
+      );
+      throw new Error(
+        'We are not able to fetch some currencies FX rate at the moment, some statistics may be unavailable',
+      );
+    } else {
+      isInverted = true;
+    }
+  }
+
+  // Fetch rates
+  const [from, to] = isInverted ? [toCurrencies[0], [fromCurrency]] : [fromCurrency, toCurrencies];
+  const allRates = await models.CurrencyExchangeRate.getMany(from, to, date);
+  const result = {};
+  if (isInverted) {
+    allRates.forEach(rate => (result[from] = 1 / rate.rate));
+  } else {
+    allRates.forEach(rate => (result[rate.to] = rate.rate));
+  }
+
+  // Make sure we got all currencies
+  if (!toCurrencies.every(currency => has(result, currency))) {
+    throw new Error(
+      'We are not able to fetch the currency FX rates for some currencies at the moment, some statistics may be unavailable',
+    );
+  }
+
+  return result;
+};
 
 export async function fetchFxRates(
   fromCurrency: string,
@@ -76,7 +119,7 @@ export async function fetchFxRates(
       );
     } else {
       logger.error(`Unable to fetch fxRate with Fixer API: ${error.message}`);
-      throw error;
+      return getRatesFromDb(fromCurrency, toCurrencies, date);
     }
   }
 }

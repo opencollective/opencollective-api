@@ -87,6 +87,45 @@ const storeContributorsInCache = (collectiveId: number, allContributors: Contrib
   return cacheEntry;
 };
 
+const contributorsQuery = `
+  SELECT
+    c.id,
+    c."name",
+    c."slug" AS "collectiveSlug",
+    c."image",
+    c."type",
+    MIN(m."since") as "since",
+    ARRAY_AGG(DISTINCT m."role") AS "roles",
+    ARRAY_AGG(DISTINCT m."TierId") as "tiersIds",
+    MAX(m."publicMessage") AS "publicMessage",
+    c."isIncognito" as "isIncognito",
+    BOOL_OR(COALESCE((c."data" ->> 'isGuest') :: boolean, FALSE)) AS "isGuest",
+    COALESCE(MAX(m.description), MAX(tiers.name)) AS "description",
+    COALESCE(sum(transactions.amount) / count(DISTINCT m.id), 0) AS "totalAmountDonated"
+  FROM
+    "Collectives" c
+  INNER JOIN "Members" m
+    ON m."MemberCollectiveId" = c.id
+  LEFT JOIN "Transactions" transactions
+    ON transactions."CollectiveId" = :collectiveId
+    AND (transactions."FromCollectiveId" = c.id OR transactions."UsingGiftCardFromCollectiveId" = c.id)
+    AND transactions."type" = 'CREDIT'
+    AND transactions."deletedAt" IS NULL
+    AND transactions."RefundTransactionId" IS NULL
+  LEFT JOIN "Tiers" tiers
+    ON m."TierId" IS NOT NULL AND m."TierId" = tiers.id 
+  WHERE
+    m."CollectiveId" = :collectiveId
+    AND m."MemberCollectiveId" != :collectiveId
+    AND m."deletedAt" IS NULL
+    AND c."deletedAt" IS NULL
+  GROUP BY
+    c.id
+  ORDER BY
+    COALESCE(sum(transactions.amount) / count(DISTINCT m.id), 0) DESC,
+    MIN(m."since") ASC
+`;
+
 /**
  * Load contributors cache, filling it from DB if necessary.
  */
@@ -97,53 +136,12 @@ const loadContributors = async (collectiveId: number): Promise<ContributorsCache
     return fromCache;
   }
 
-  const allContributors = await sequelize.query(
-    `
-    SELECT
-      c.id,
-      c."name",
-      c."slug" AS "collectiveSlug",
-      c."image",
-      c."type",
-      MIN(m."since") as "since",
-      ARRAY_AGG(DISTINCT m."role") AS "roles",
-      ARRAY_AGG(DISTINCT m."TierId") as "tiersIds",
-      MAX(m."publicMessage") AS "publicMessage",
-      c."isIncognito" as "isIncognito",
-      BOOL_OR(COALESCE((c."data" ->> 'isGuest') :: boolean, FALSE)) AS "isGuest",
-      COALESCE(MAX(m.description), MAX(tiers.name)) AS "description",
-      COALESCE((
-        SELECT SUM(t."amount")
-        FROM "Transactions" t
-        WHERE t."CollectiveId" = :collectiveId
-        AND (t."FromCollectiveId" = c.id OR t."UsingGiftCardFromCollectiveId" = c.id)
-        AND t."type" = 'CREDIT'
-        AND t."deletedAt" IS NULL
-        AND t."RefundTransactionId" IS NULL
-      ), 0) AS "totalAmountDonated"
-    FROM
-      "Collectives" c
-    INNER JOIN "Members" m
-      ON m."MemberCollectiveId" = c.id
-    LEFT JOIN "Tiers" tiers
-      ON m."TierId" IS NOT NULL AND m."TierId" = tiers.id 
-    WHERE
-      m."CollectiveId" = :collectiveId
-      AND m."MemberCollectiveId" != :collectiveId
-      AND m."deletedAt" IS NULL
-      AND c."deletedAt" IS NULL
-    GROUP BY
-      c.id
-    ORDER BY
-      "totalAmountDonated" DESC,
-      MIN(m."since") ASC
-    `,
-    {
-      raw: true,
-      type: sequelize.QueryTypes.SELECT,
-      replacements: { collectiveId },
-    },
-  );
+  // See https://github.com/opencollective/opencollective/issues/4121
+  const allContributors = await sequelize.query(contributorsQuery, {
+    raw: true,
+    type: sequelize.QueryTypes.SELECT,
+    replacements: { collectiveId },
+  });
 
   // Pre-fill some properties for contributors so we don't have to re-compute them
   allContributors.forEach((c: Contributor) => {

@@ -4,38 +4,37 @@ Subject: Welcome to Open Collective!
 
 <h1>Hey {{collective.name}} 👋</h1>
 
-<p>I’m Pía, one of the founders of Open Collective. I’d love to help you set up and get your {{accountType}} up and running. Feel free to reach out to me directly by replying to this email. I'm here to help you!</p>
+<p>I’m Pía, the CEO and co-founder of Open Collective. I’d love to help you get your {{accountType}} up and running. Feel free to reply to this email. I'm here to help!</p>
 
 {{#if host}}
 
 <p>
   {{#if hostPending}}
-  Your {{accountType}} is pending approval from your Host (<a href="https://opencollective.com/{{host.slug}}">{{host.name}}</a>).
-  Your Host is the legal entity that will hold the money on behalf of your {{accountType}}.
-  Once they approve you, you will be able to collect money without having to worry about accounting, invoicing, or tax reporting.
+  Your {{accountType}} is pending approval for Fiscal Hosting by (<a href="https://opencollective.com/{{host.slug}}">{{host.name}}</a>).
+  Your Host will hold money on behalf of your {{accountType}}.
+  Once approved, your {{accountType}} will be able to receive money.
   {{else}}
   Your {{accountType}} is hosted by <a href="https://opencollective.com/{{host.slug}}">{{host.name}}</a>.
-  Your host is the legal entity that will hold the money on behalf of your {{accountType}}.
-  With a Host, you will be able to collect money without having to worry about accounting, invoicing, or tax reporting.
+  Your Host will hold money on behalf of your {{accountType}}.
+  Once approved, your {{accountType}} will be able to receive money.
   {{/if}}
 </p>
 
 {{else}}
 
 <p>
-  Your {{accountType}} doesn't have a Host yet.
-  You can browse the hosts already on the platform <a href="https://opencollective.com/hosts">here</a>.
-  You will be able to collect money for your {{accountType}} without having to worry about accounting, invoicing, or tax reporting.
-  If your collective is already under a Fiscal Host and you want them to join as well, please reach out!
+  Your {{accountType}} doesn't have a Fiscal Host yet. A Host is an entity that holds money on behalf of {{accountType}}s. They take care of things like accounting, invoicing, and tax reporting.
+  If you are looking for one to join, you can <a href="https://opencollective.com/hosts">browse existing Hosts</a>.
+  Or, if you already have an entity who can hold funds on behalf of your {{accountType}}, it can <a href"https://docs.opencollective.com/help/fiscal-hosts/become-a-fiscal-host">become a Fiscal Host</a>.
 </p>
 
 {{/if}}
 
-<p>In the meantime, you can already customize your profile page, submit expenses, organize events (with free tickets), post updates and add members.</p>
+<p>While you are waiting to get set up with a Fiscal Host, you can <a href="https://opencollective.com/{{collective.slug}}/edit">head to your settings</a> to customize your page and add team members. You can also submit expenses and post updates.</p>
 
-<p> Don't forget to check our <a href="https://docs.opencollective.com/help/collectives/customize-collective">docs</a> to make the most from our customization options.</p>
+<p>Check our <a href="https://docs.opencollective.com/help/collectives/quick-start-guide">quick-start guide</a> to learn more.</p>
 
-<p>Let us know if you need any help setting things up, we are here to help your {{accountType}} succeed.</p>
+<p>Let us know if you need any help! We are here to help your {{accountType}} succeed.</p>
 
 <p>
   <center>
@@ -43,7 +42,7 @@ Subject: Welcome to Open Collective!
   </center>
 </p>
 
-<p>Feel free to schedule a call (<a href="http://calendly.com/piamancini/call">calendly.com/piamancini/call</a>), email me or <a href="https://slack.opencollective.com">join us on our Slack</a>. We would love to know your story.</p>
+<p>Feel free to schedule a call with me (<a href="http://calendly.com/piamancini/call">schedule a call with me</a>), reply to this email, or <a href="https://slack.opencollective.com">join us on our Slack</a>.</p>
 
 <p>Best,</p>
 

@@ -56,6 +56,13 @@ const ExpensePermissions = new GraphQLObjectType({
         return ExpenseLib.canReject(req, expense);
       },
     },
+    canMarkAsSpam: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can mark this expense as spam',
+      async resolve(expense, _, req: express.Request): Promise<boolean> {
+        return ExpenseLib.canMarkAsSpam(req, expense);
+      },
+    },
     canMarkAsUnpaid: {
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Whether the current user can mark this expense as unpaid',

@@ -53,6 +53,20 @@ export const loaders = req => {
   // Collective - by UserId
   context.loaders.Collective.byUserId = collectiveLoaders.byUserId(req, cache);
 
+  // Collective - Host
+  context.loaders.Collective.host = new DataLoader(ids =>
+    models.Collective.findAll({
+      where: { id: { [Op.in]: ids } },
+      include: [{ model: models.Collective, as: 'host' }],
+    }).then(results => {
+      const resultsById = {};
+      for (const result of results) {
+        resultsById[result.id] = result.host;
+      }
+      return ids.map(id => resultsById[id] || null);
+    }),
+  );
+
   // Collective - Balance
   context.loaders.Collective.balance = new DataLoader(ids =>
     getBalances(ids).then(results => sortResults(ids, Object.values(results), 'CollectiveId')),
@@ -375,6 +389,36 @@ export const loaders = req => {
       )
       .then(results => sortResults(ids, results, 'TierId').map(result => (result ? result.total : 0))),
   );
+
+  // Tier - totalRecurringDonations
+  context.loaders.Tier.totalRecurringDonations = new DataLoader(ids => {
+    return sequelize
+      .query(
+        `
+          SELECT o."TierId" AS "TierId", 
+          COALESCE(
+            SUM( 
+              CASE 
+                WHEN s."interval" = 'year' 
+                  THEN s."amount"/12 
+                ELSE s."amount" 
+              END 
+            ), 0) 
+          AS "total"
+          FROM "Orders" o
+          INNER JOIN "Subscriptions" s ON o."SubscriptionId" = s.id
+          WHERE "TierId" IN (?)
+          AND s."isActive" = TRUE
+          AND s."interval" IN ('year', 'month')
+          GROUP BY "TierId";
+      `,
+        {
+          replacements: [ids],
+          type: sequelize.QueryTypes.SELECT,
+        },
+      )
+      .then(results => sortResults(ids, results, 'TierId').map(result => (result ? result.total : 0)));
+  });
 
   // Tier - contributorsStats
   context.loaders.Tier.contributorsStats = new DataLoader(tiersIds =>

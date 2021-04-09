@@ -105,7 +105,8 @@
       "perEmailForCollective": "ORDERS_LIMIT_EMAIL_COLLECTIVE",
       "perIp": "ORDERS_LIMIT_IP",
       "forCollective": "ORDERS_LIMIT_COLLECTIVE"
-    }
+    },
+    "skipCleanOrdersLimitSlugs": "ORDERS_LIMIT_SKIP_CLEAN_SLUGS"
   },
   "braintree": {
     "testGateway": {

@@ -41,18 +41,24 @@ const updateCollective = async (collective, newInfo, transaction) => {
   return isEmpty(fieldsToUpdate) ? collective : collective.update(fieldsToUpdate, { transaction });
 };
 
-/**
- * Retrieves or create an guest profile by email.
- */
-export const getOrCreateGuestProfile = async ({
-  email,
-  name,
-  location,
-}: {
+type UserInfoInput = {
   email?: string | null;
   name?: string | null;
   location?: Location;
-}): Promise<GuestProfileDetails> => {
+};
+
+type UserCreationRequest = {
+  ip: string;
+  userAgent: string;
+};
+
+/**
+ * Retrieves or create an guest profile by email.
+ */
+export const getOrCreateGuestProfile = async (
+  { email, name, location }: UserInfoInput,
+  creationRequest: UserCreationRequest = null,
+): Promise<GuestProfileDetails> => {
   const emailConfirmationToken = crypto.randomBytes(48).toString('hex');
 
   if (!email) {
@@ -69,6 +75,9 @@ export const getOrCreateGuestProfile = async ({
           email,
           confirmedAt: null,
           emailConfirmationToken,
+          data: {
+            creationRequest,
+          },
         },
         { transaction },
       );

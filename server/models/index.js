@@ -20,6 +20,8 @@ import Notification from './Notification';
 import Order from './Order';
 import PaymentMethod from './PaymentMethod';
 import PayoutMethod from './PayoutMethod';
+import PaypalPlan from './PaypalPlan';
+import PaypalProduct from './PaypalProduct';
 import RequiredLegalDocument from './RequiredLegalDocument';
 import Session from './Session';
 import Subscription from './Subscription';
@@ -27,6 +29,7 @@ import Tier from './Tier';
 import Transaction from './Transaction';
 import Update from './Update';
 import User from './User';
+import VirtualCard from './VirtualCard';
 
 /**
  * Separate function to be able to use in scripts
@@ -39,10 +42,10 @@ export function setupModels() {
    */
   m['Activity'] = Activity;
   m['Application'] = Application;
-  m['ConnectedAccount'] = ConnectedAccount;
   m['Collective'] = Collective;
   m['Comment'] = Comment;
   m['CommentReaction'] = CommentReaction;
+  m['ConnectedAccount'] = ConnectedAccount;
   m['Conversation'] = Conversation;
   m['ConversationFollower'] = ConversationFollower;
   m['CurrencyExchangeRate'] = CurrencyExchangeRate;
@@ -57,6 +60,8 @@ export function setupModels() {
   m['Order'] = Order;
   m['PaymentMethod'] = PaymentMethod;
   m['PayoutMethod'] = PayoutMethod;
+  m['PaypalPlan'] = PaypalPlan;
+  m['PaypalProduct'] = PaypalProduct;
   m['RequiredLegalDocument'] = RequiredLegalDocument;
   m['Session'] = Session;
   m['Subscription'] = Subscription;
@@ -64,10 +69,17 @@ export function setupModels() {
   m['Transaction'] = Transaction;
   m['Update'] = Update;
   m['User'] = User;
+  m['VirtualCard'] = VirtualCard;
 
   /**
    * Relationships
    */
+
+  // Collective
+  m.Collective.belongsTo(m.Collective, {
+    foreignKey: 'HostCollectiveId',
+    as: 'host',
+  });
 
   // PaymentMethod.
   m.PaymentMethod.belongsTo(m.Collective);
@@ -238,8 +250,30 @@ export function setupModels() {
   m.PayoutMethod.belongsTo(m.Collective);
   m.Collective.hasMany(m.PayoutMethod);
 
+  // Paypal
+  m.PaypalPlan.belongsTo(m.PaypalProduct, {
+    foreignKey: 'ProductId',
+    as: 'product',
+  });
+
+  m.PaypalProduct.hasMany(m.PaypalPlan, {
+    foreignKey: 'ProductId',
+    as: 'plans',
+  });
+
   // Tier
   m.Tier.belongsTo(m.Collective);
+
+  // VirtualCard
+  m.VirtualCard.belongsTo(m.Collective, {
+    foreignKey: 'CollectiveId',
+    as: 'collective',
+  });
+  m.VirtualCard.belongsTo(m.Collective, {
+    foreignKey: 'HostCollectiveId',
+    as: 'host',
+  });
+  m.Collective.hasMany(m.VirtualCard, { foreignKey: 'HostCollectiveId', as: 'virtualCards' });
 
   Object.keys(m).forEach(modelName => m[modelName].associate && m[modelName].associate(m));
 

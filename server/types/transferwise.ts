@@ -19,6 +19,54 @@ export type Quote = {
   ofSourceAmount: boolean;
 };
 
+export type QuoteV2PaymentOption = {
+  disabled: boolean;
+  estimatedDelivery: string;
+  formattedEstimatedDelivery: string;
+  estimatedDeliveryDelays: [];
+  fee: {
+    transferwise: number;
+    payIn: number;
+    discount: number;
+    total: number;
+  };
+  sourceAmount: number;
+  targetAmount: number;
+  sourceCurrency: string;
+  targetCurrency: string;
+  payIn: 'BANK_TRANSFER' | 'BALANCE';
+  payOut: 'BANK_TRANSFER';
+  allowedProfileTypes: Array<'PERSONAL' | 'BUSINESS'>;
+  payInProduct: 'CHEAP' | 'BALANCE';
+  feePercentage: number;
+};
+
+export type QuoteV2 = {
+  id: string;
+  sourceCurrency: string;
+  targetCurrency: string;
+  sourceAmount: number;
+  payOut: 'BANK_TRANSFER';
+  rate: number;
+  createdTime: string;
+  user: number;
+  profile: number;
+  rateType: 'FIXED';
+  rateExpirationTime: string;
+  guaranteedTargetAmountAllowed: boolean;
+  targetAmountAllowed: boolean;
+  guaranteedTargetAmount: boolean;
+  providedAmountType: 'SOURCE' | 'TARGET';
+  paymentOptions: Array<QuoteV2PaymentOption>;
+  status: 'PENDING' | 'ACCEPTED' | 'FUNDED' | 'EXPIRED';
+  expirationTime: string;
+  notices: Array<{
+    text: string;
+    link: string | null;
+    type: 'WARNING' | 'INFO' | 'BLOCKED';
+  }>;
+};
+
 export type RecipientAccount = {
   id?: number;
   currency: string;

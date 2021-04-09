@@ -33,7 +33,7 @@ import expenseStatus from '../constants/expense_status';
 import expenseTypes from '../constants/expense_type';
 import FEATURE from '../constants/feature';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
-import plans, { PLANS_COLLECTIVE_SLUG } from '../constants/plans';
+import plans from '../constants/plans';
 import roles, { MemberRoleLabels } from '../constants/roles';
 import { FEES_ON_TOP_TRANSACTION_PROPERTIES, TransactionTypes } from '../constants/transactions';
 import { hasOptedOutOfFeature, isFeatureAllowedForCollectiveType } from '../lib/allowed-features';
@@ -45,7 +45,7 @@ import {
   getTotalNetAmountReceivedAmount,
   getYearlyIncome,
 } from '../lib/budget';
-import cache, { purgeCacheForCollective } from '../lib/cache';
+import { purgeCacheForCollective } from '../lib/cache';
 import {
   collectiveSlugReservedlist,
   filterCollectiveSettings,
@@ -1291,7 +1291,7 @@ function defineModel() {
       ],
     });
 
-    orders = Promise.map(orders, async order => {
+    orders = await Promise.map(orders, async order => {
       order.totalTransactions = await order.getTotalTransactions();
       return order;
     });
@@ -2927,38 +2927,20 @@ function defineModel() {
   };
 
   Collective.prototype.getPlan = async function () {
-    const cacheKey = `plan_${this.id}`;
-    const fromCache = await cache.get(cacheKey);
-    if (fromCache) {
-      return fromCache;
-    }
-
-    const [hostedCollectives, addedFunds, bankTransfers, transferwisePayouts] = await Promise.all([
-      this.getHostedCollectivesCount(),
-      this.getTotalAddedFunds(),
-      this.getTotalBankTransfers(),
-      this.getTotalTransferwisePayouts(),
-    ]);
-
     if (this.plan) {
-      const tier = await models.Tier.findOne({
-        where: { slug: this.plan, deletedAt: null },
-        include: [{ model: models.Collective, where: { slug: PLANS_COLLECTIVE_SLUG } }],
-      });
-      const planData = (tier && tier.data) || plans[this.plan];
+      const planData = plans[this.plan];
       if (planData) {
         const extraPlanData = get(this.data, 'plan', {});
         const plan = {
           id: this.id,
           name: this.plan,
-          hostedCollectives,
-          addedFunds,
-          bankTransfers,
-          transferwisePayouts,
+          hostedCollectives: 0,
+          addedFunds: 0,
+          bankTransfers: 0,
+          transferwisePayouts: 0,
           ...planData,
           ...extraPlanData,
         };
-        await cache.set(cacheKey, plan, 5 * 60 /* 5 minutes */);
         return plan;
       }
     }
@@ -2966,13 +2948,13 @@ function defineModel() {
     const plan = {
       id: this.id,
       name: 'default',
-      hostedCollectives,
-      addedFunds,
-      bankTransfers,
-      transferwisePayouts,
+      hostedCollectives: 0,
+      addedFunds: 0,
+      bankTransfers: 0,
+      transferwisePayouts: 0,
       ...plans.default,
     };
-    await cache.set(cacheKey, plan, 5 * 60 /* 5 minutes */);
+
     return plan;
   };
 

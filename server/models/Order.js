@@ -3,10 +3,12 @@ import debugLib from 'debug';
 import { get } from 'lodash';
 import Temporal from 'sequelize-temporal';
 
+import { types as CollectiveType } from '../constants/collectives';
 import status from '../constants/order_status';
 import { TransactionTypes } from '../constants/transactions';
 import * as libPayments from '../lib/payments';
 import sequelize, { DataTypes } from '../lib/sequelize';
+import { capitalize } from '../lib/utils';
 
 import CustomDataTypes from './DataTypes';
 
@@ -175,6 +177,7 @@ function defineModel() {
             CollectiveId: this.CollectiveId,
             currency: this.currency,
             quantity: this.quantity,
+            interval: this.interval,
             totalAmount: this.totalAmount,
             description: this.description,
             privateMessage: this.privateMessage,
@@ -213,6 +216,19 @@ function defineModel() {
       },
     },
   );
+
+  /**
+   * Static Methods
+   */
+  Order.generateDescription = (collective, amount, interval, tier) => {
+    const tierNameInfo = tier?.name ? ` (${tier.name})` : '';
+    if (interval) {
+      return `${capitalize(interval)}ly financial contribution to ${collective.name}${tierNameInfo}`;
+    } else {
+      const isRegistration = amount === 0 || collective.type === CollectiveType.EVENT;
+      return `${isRegistration ? 'Registration' : 'Financial contribution'} to ${collective.name}${tierNameInfo}`;
+    }
+  };
 
   /**
    * Instance Methods

@@ -549,6 +549,8 @@ const stringifyUrl = url => {
     .join(' ');
 };
 
+const addLine = (message: string, line: string): string => (line ? `${message}\n${line}` : message);
+
 export const collectiveBayesContent = async (
   collective: typeof models.Collective,
   extraString = '',
@@ -625,10 +627,22 @@ export const collectiveSpamCheck = async (
 export const notifyTeamAboutSuspiciousCollective = async (report: SpamAnalysisReport): Promise<void> => {
   const { score, keywords, domains, data } = report;
   let message = `*Suspicious collective data was submitted for collective:* https://opencollective.com/${data['slug']}`;
-  const addLine = (line: string): string => (line ? `${message}\n${line}` : message);
-  message = addLine(`Score: ${score}`);
-  message = addLine(keywords.length > 0 && `Keywords: \`${keywords.toString()}\``);
-  message = addLine(domains.length > 0 && `Domains: \`${domains.toString()}\``);
+  message = addLine(message, `Score: ${score}`);
+  message = addLine(message, keywords.length > 0 && `Keywords: \`${keywords.toString()}\``);
+  message = addLine(message, domains.length > 0 && `Domains: \`${domains.toString()}\``);
+  return slackLib.postMessageToOpenCollectiveSlack(message, OPEN_COLLECTIVE_SLACK_CHANNEL.ABUSE);
+};
+
+/**
+ * Post a message on Slack when the expense is marked as spam
+ */
+export const notifyTeamAboutSpamExpense = async (activity: typeof models.Activity): Promise<void> => {
+  const { collective, expense, user } = activity.data;
+  const expenseUrl = `${config.host.website}/${collective.slug}/expenses/${expense.id}`;
+  const submittedByUserUrl = `${config.host.website}/${user.slug}`;
+
+  let message = `*Expense was marked as spam:* ${expenseUrl}`;
+  message = addLine(message, `Submitted by: ${submittedByUserUrl}`);
   return slackLib.postMessageToOpenCollectiveSlack(message, OPEN_COLLECTIVE_SLACK_CHANNEL.ABUSE);
 };
 
