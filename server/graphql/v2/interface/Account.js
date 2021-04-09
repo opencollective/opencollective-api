@@ -4,7 +4,7 @@ import GraphQLJSON from 'graphql-type-json';
 import { assign, get, invert } from 'lodash';
 
 import models, { Op } from '../../../models';
-import { NotFound } from '../../errors';
+import { NotFound, Unauthorized } from '../../errors';
 import { CollectiveFeatures } from '../../v1/CollectiveInterface.js';
 import { ConversationCollection } from '../collection/ConversationCollection';
 import { MemberCollection, MemberOfCollection } from '../collection/MemberCollection';
@@ -32,6 +32,7 @@ import { PaymentMethod } from '../object/PaymentMethod';
 import PayoutMethod from '../object/PayoutMethod';
 import { TagStats } from '../object/TagStats';
 import { TransferWise } from '../object/TransferWise';
+import { VirtualCard } from '../object/VirtualCard';
 import EmailAddress from '../scalar/EmailAddress';
 
 import { CollectionArgs } from './Collection';
@@ -315,6 +316,15 @@ const accountFieldsDefinition = () => ({
     description: 'Describes the features enabled and available for this collective',
     resolve(collective) {
       return collective;
+    },
+  },
+  virtualCards: {
+    type: new GraphQLList(VirtualCard),
+    async resolve(account, args, req) {
+      if (!req.remoteUser?.isAdmin(account.id)) {
+        throw new Unauthorized('You need to be logged in as an admin of the collective to see its virtual cards');
+      }
+      return req.loaders.VirtualCard.byCollectiveId.load(account.id);
     },
   },
 });
