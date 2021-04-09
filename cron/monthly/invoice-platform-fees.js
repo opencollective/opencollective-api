@@ -363,7 +363,7 @@ export async function run() {
         console.error(`Warning: We don't have a way to submit the expense to ${HostName}, ignoring.\n`);
         continue;
       }
-      if (totalAmountCharged > 0) {
+      if (totalAmountCredited > 0) {
         // Credit the Host with platform tips collected during the month
         await models.Transaction.create({
           amount: totalAmountCredited,
