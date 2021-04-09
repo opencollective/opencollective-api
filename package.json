@@ -233,8 +233,8 @@
     "type:check": "tsc"
   },
   "engines": {
-    "node": "14.15.3",
-    "npm": "7.5.2"
+    "node": "14.x",
+    "npm": "6.x"
   },
   "husky": {
     "hooks": {
