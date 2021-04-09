@@ -19,6 +19,10 @@ interface VirtualCardAttributes {
 
 export interface VirtualCardCreateAttributes {
   id: string;
+  name: string;
+  last4: string;
+  data: Record<string, any>;
+  privateData: Record<string, any>;
   CollectiveId: number;
   HostCollectiveId: number;
 }
