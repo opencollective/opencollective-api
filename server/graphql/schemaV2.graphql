@@ -3237,7 +3237,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions {
   """
   The Collective hosting this Event
   """
-  parent: Collective
+  parent: Account
 
   """
   The Collective hosting this Event
@@ -5111,12 +5111,12 @@ type Mutation {
     account: AccountReferenceInput!
     amount: AmountInput!
     description: String!
-    hostFeePercent: Int!
+    hostFeePercent: Float!
 
     """
     Can only be set if root
     """
-    platformFeePercent: Int
+    platformFeePercent: Float
     platformTip: AmountInput
   ): Order!
   createCollective(
@@ -6388,7 +6388,6 @@ enum PayoutMethodType {
 input PaypalPaymentInput {
   token: String
   data: JSON
-  captureId: String
   orderId: String
   subscriptionId: String
   isNewApi: Boolean
@@ -6753,7 +6752,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions {
   """
   The Fund hosting this Project
   """
-  parent: Fund
+  parent: Account
 }
 
 input ProjectCreateInput {
@@ -7818,4 +7817,20 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
   """
   balance: Int @deprecated(reason: "2020/04/09 - Should not have been introduced. Use stats.balance.value")
   contributionPolicy: String
+}
+
+"""
+VirtualCard related properties.
+"""
+type VirtualCard {
+  id: String
+  CollectiveId: Int
+  HostCollectiveId: Int
+  name: String
+  last4: String
+  data: JSONObject
+  privateData: JSONObject
+  createdAt: DateTime
+  updatedAt: DateTime
+  deletedAt: DateTime
 }
