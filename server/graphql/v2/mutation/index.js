@@ -17,6 +17,7 @@ import paymentMethodMutations from './PaymentMethodMutations';
 import payoutMethodMutations from './PayoutMethodMutations';
 import transactionMutations from './TransactionMutations';
 import updateMutations from './UpdateMutations';
+import virtualCardMutations from './VirtualCardMutations';
 
 const mutation = {
   addFunds: addFundsMutation,
@@ -38,6 +39,7 @@ const mutation = {
   ...transactionMutations,
   ...memberMutations,
   ...updateMutations,
+  ...virtualCardMutations,
 };
 
 export default mutation;
