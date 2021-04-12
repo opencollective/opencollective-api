@@ -130,6 +130,8 @@ export async function getFxRate(
   date: string | Date = 'latest',
 ): Promise<number> {
   debug(`getFxRate for ${date} ${fromCurrency} -> ${toCurrency}`);
+  fromCurrency = fromCurrency?.toUpperCase();
+  toCurrency = toCurrency?.toUpperCase();
 
   if (fromCurrency === toCurrency) {
     return 1;
