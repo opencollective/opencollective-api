@@ -147,3 +147,20 @@ export type PayoutWebhookRequest = {
   };
   links: PayPalLink[];
 };
+
+export type PaypalWebhookEventType = {
+  name: string;
+  description: string;
+};
+
+export type PaypalWebhook = {
+  id: string;
+  url: string;
+  event_types: PaypalWebhookEventType[];
+};
+
+export type PaypalWebhookPatch = {
+  op: string;
+  path: string;
+  value: string | PaypalWebhookEventType[];
+}[];
