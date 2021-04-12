@@ -13,6 +13,9 @@ export const OPEN_COLLECTIVE_SLACK_CHANNEL = {
   ABUSE: 'abuse',
 };
 
+// Mattermost is compatible with Slack webhooks
+const KNOWN_MATTERMOST_INSTANCES = ['https://chat.diglife.coop/hooks/'];
+
 export default {
   /*
    * Post a given activity to a public channel (meaning scrubbed info only)
@@ -72,5 +75,16 @@ export default {
         return resolve();
       });
     });
+  },
+
+  isSlackWebhookUrl(url) {
+    if (url.startsWith('https://hooks.slack.com/')) {
+      return true;
+    } else if (url.match(/^https:\/\/discord(app)?\.com\/api\/webhooks\/.+\/slack$/)) {
+      // Discord slack-compatible webhook - See https://discord.com/developers/docs/resources/webhook#execute-slackcompatible-webhook
+      return true;
+    }
+
+    return KNOWN_MATTERMOST_INSTANCES.some(mattermostUrl => url.startsWith(mattermostUrl));
   },
 };

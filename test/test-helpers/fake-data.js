@@ -9,7 +9,7 @@
 import { get, padStart, sample } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
-import { roles } from '../../server/constants';
+import { activities, channels, roles } from '../../server/constants';
 import { types as CollectiveType } from '../../server/constants/collectives';
 import { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPES } from '../../server/constants/paymentMethods';
 import { REACTION_EMOJI } from '../../server/constants/reaction-emoji';
@@ -407,6 +407,41 @@ export const fakeOrder = async (orderData = {}, { withSubscription = false, with
   order.collective = collective;
   order.createdByUser = user;
   return order;
+};
+
+export const fakeSubscription = (params = {}) => {
+  return models.Subscription.create({
+    amount: randAmount(),
+    currency: sample(['USD', 'EUR']),
+    interval: sample(['month', 'year']),
+    isActive: true,
+    quantity: 1,
+    ...params,
+  });
+};
+
+export const fakeNotification = async (data = {}) => {
+  return models.Notification.create({
+    channel: sample(Object.values(channels)),
+    type: sample(Object.values(activities)),
+    active: true,
+    CollectiveId: data.CollectiveId || (await fakeCollective()).id,
+    UserId: data.UserId || (await fakeUser()).id,
+    webhookUrl: randUrl('test.opencollective.com/webhooks'),
+    ...data,
+  });
+};
+
+export const fakeActivity = async (data = {}, sequelizeParams) => {
+  return models.Activity.create(
+    {
+      CollectiveId: data.CollectiveId || (await fakeCollective()).id,
+      UserId: data.UserId || (await fakeUser()).id,
+      type: sample(Object.values(activities)),
+      ...data,
+    },
+    sequelizeParams,
+  );
 };
 
 /**
