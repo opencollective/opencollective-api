@@ -158,7 +158,8 @@ async function HostReport(year, month, hostId) {
             role: { [Op.or]: [MemberRoles.ADMIN, MemberRoles.ACCOUNTANT] },
           },
         });
-        return members.map(
+        return Promise.map(
+          members,
           admin => {
             return models.User.findOne({
               attributes: ['email'],
