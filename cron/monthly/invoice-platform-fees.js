@@ -198,8 +198,8 @@ export async function run() {
         -- Ignore transactions that incurred in platformFee
         AND t."platformFeeInHostCurrency" = 0
         AND t."data"->>'settled' IS NULL
-        -- Ignore opensource and foundation:
-        AND t."HostCollectiveId" NOT IN (11004, 8686)
+        -- Ignore Open Collective:
+        AND t."HostCollectiveId" != 8686
       AND (
         h."type" = 'ORGANIZATION'
         AND h."isHostAccount" = TRUE
