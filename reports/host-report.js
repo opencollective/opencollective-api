@@ -152,7 +152,7 @@ async function HostReport(year, month, hostId) {
           return users.map(u => u.email);
         }
 
-        const members = models.Member.findAll({
+        const members = await models.Member.findAll({
           where: {
             CollectiveId: host.id,
             role: { [Op.or]: [MemberRoles.ADMIN, MemberRoles.ACCOUNTANT] },
