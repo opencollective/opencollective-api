@@ -150,11 +150,14 @@ export function validateSettings(settings: any): string | boolean {
   }
 }
 
-export const collectiveSlugReservedlist = [
+export const collectiveSlugReservedList = [
   'about',
   'accept-financial-contributions',
   'admin',
   'applications',
+  'apply',
+  'become-a-fiscal-host',
+  'become-a-host',
   'become-a-sponsor',
   'chapters',
   'collective',
@@ -162,6 +165,7 @@ export const collectiveSlugReservedlist = [
   'confirm',
   'contact',
   'contribute',
+  'conversations',
   'create',
   'create-account',
   'delete',
@@ -169,33 +173,42 @@ export const collectiveSlugReservedlist = [
   'discover',
   'donate',
   'edit',
+  'email',
+  'embed',
   'event',
   'events',
   'expense',
   'expenses',
   'faq',
+  'fund',
   'gift-card',
   'gift-cards',
   'gift-cards-next',
   'gift-of-giving',
   'help',
+  'hiring',
   'home',
   'host',
   'hosts',
   'how-it-works',
+  'index',
   'join',
   'join-free',
   'learn-more',
-  'member-invitations',
   'member',
+  'member-invitations',
   'members',
   'onboarding',
   'order',
   'orders',
+  'organizations',
   'pledge',
   'pledges',
   'pricing',
   'privacypolicy',
+  'project',
+  'projects',
+  'recurring-contributions',
   'redeem',
   'redeemed',
   'redirect',
@@ -204,8 +217,11 @@ export const collectiveSlugReservedlist = [
   'signin',
   'signup',
   'subscriptions',
+  'support',
+  'tiers',
   'tos',
   'transactions',
+  'updates',
   'widgets',
 ];
 
@@ -219,7 +235,7 @@ export const collectiveSlugReservedlist = [
  * @param {String} slug
  */
 export function isCollectiveSlugReserved(slug: string): boolean {
-  return collectiveSlugReservedlist.includes(slug);
+  return collectiveSlugReservedList.includes(slug);
 }
 
 const mergeCollectiveFields = async (from, into, transaction) => {
