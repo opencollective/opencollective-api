@@ -9,7 +9,7 @@ import { v4 as uuid } from 'uuid';
 
 import expenseStatus from '../../server/constants/expense_status';
 import expenseTypes from '../../server/constants/expense_type';
-import plans, { SHARED_REVENUE_PLANS } from '../../server/constants/plans';
+import { SHARED_REVENUE_PLANS } from '../../server/constants/plans';
 import { SETTLEMENT_EXPENSE_PROPERTIES, TransactionTypes } from '../../server/constants/transactions';
 import { uploadToS3 } from '../../server/lib/awsS3';
 import { generateKey } from '../../server/lib/encryption';
@@ -303,12 +303,16 @@ export async function run() {
       continue;
     }
 
-    const { HostName, currency, plan: planId, chargedHostId } = hostTransactions[0];
+    const host = await models.Collective.findByPk(hostId);
+    const plan = await host.getPlan();
 
-    const hostFeeSharePercent = plans[planId]?.hostFeeSharePercent;
+    const { HostName, currency, chargedHostId } = hostTransactions[0];
+
+    const hostFeeSharePercent = plan?.hostFeeSharePercent;
     const transactions = hostTransactions.map(t => {
       if (t.source === 'Shared Revenue') {
-        t.amount = round(t.amount * (hostFeeSharePercent / 100));
+        // In this context, the original t.amount is actually -t.hostFeeInHostCurrency
+        t.amount = round(t.amount * ((t.data?.hostFeeSharePercent || hostFeeSharePercent) / 100));
       }
       return t;
     });
@@ -320,8 +324,6 @@ export async function run() {
       return { incurredAt, amount, description };
     });
 
-    const host = await models.Collective.findByPk(hostId);
-    const plan = await host.getPlan();
     if (plan.pricePerCollective) {
       const activeHostedCollectives = await host.getHostedCollectivesCount();
       const amount = (activeHostedCollectives || 0) * plan.pricePerCollective;
