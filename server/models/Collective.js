@@ -47,7 +47,7 @@ import {
 } from '../lib/budget';
 import { purgeCacheForCollective } from '../lib/cache';
 import {
-  collectiveSlugReservedlist,
+  collectiveSlugReservedList,
   filterCollectiveSettings,
   getCollectiveAvatarUrl,
   isCollectiveSlugReserved,
@@ -149,7 +149,7 @@ function defineModel() {
           len: [1, 255],
           isLowercase: true,
           notIn: {
-            args: [collectiveSlugReservedlist],
+            args: [collectiveSlugReservedList],
             msg: 'The slug given for this collective is a reserved keyword',
           },
           isValid(value) {
