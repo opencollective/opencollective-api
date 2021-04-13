@@ -7230,11 +7230,6 @@ type Query {
     """
     The update slug identifying the update
     """
-    updateSlug: String
-
-    """
-    The update slug identifying the update
-    """
     slug: String
 
     """
@@ -7937,14 +7932,20 @@ VirtualCard related properties.
 """
 type VirtualCard {
   id: String
+<<<<<<< HEAD
   account: Account
   host: Account
+=======
+  CollectiveId: Int
+  HostCollectiveId: Int
+>>>>>>> debt(Updates): Further deprecation removal & refactors
   name: String
   last4: String
   data: JSONObject
   privateData: JSONObject
   createdAt: DateTime
   updatedAt: DateTime
+<<<<<<< HEAD
 }
 
 input VirtualCardInput {
@@ -7957,4 +7958,7 @@ input VirtualCardInput {
 
 input VirtualCardReferenceInput {
   id: String
+=======
+  deletedAt: DateTime
+>>>>>>> debt(Updates): Further deprecation removal & refactors
 }

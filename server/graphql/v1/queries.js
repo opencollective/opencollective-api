@@ -299,25 +299,6 @@ const queries = {
     },
   },
 
-  Update: {
-    type: UpdateType,
-    deprecationReason: '2021-01-29: Not used anymore',
-    args: {
-      collectiveSlug: { type: GraphQLString },
-      updateSlug: { type: GraphQLString },
-      id: { type: GraphQLInt },
-    },
-    async resolve(_, args) {
-      if (args.id) {
-        return models.Update.findByPk(args.id);
-      }
-      const CollectiveId = await fetchCollectiveId(args.collectiveSlug);
-      return models.Update.findOne({
-        where: { CollectiveId, slug: args.updateSlug },
-      });
-    },
-  },
-
   Application: {
     type: ApplicationType,
     args: {
