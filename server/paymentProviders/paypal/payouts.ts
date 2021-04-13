@@ -1,6 +1,6 @@
 /* eslint-disable camelcase */
 
-import { isNil, round, toNumber } from 'lodash';
+import { isNil, round } from 'lodash';
 import moment from 'moment';
 
 import activities from '../../constants/activities';
@@ -84,21 +84,10 @@ export const checkBatchItemStatus = async (
     throw new Error(`Item does not belongs to expense it claims it does.`);
   }
 
-  const paymentProcessorFeeInHostCurrency = round(toNumber(item.payout_item_fee?.value) * 100);
   switch (item.transaction_status) {
     case 'SUCCESS':
       if (expense.status !== status.PAID) {
-        await createTransactionFromPaidExpense(
-          host,
-          null,
-          expense,
-          null,
-          expense.UserId,
-          paymentProcessorFeeInHostCurrency,
-          0,
-          0,
-          item,
-        );
+        await createTransactionFromPaidExpense(host, null, expense, null, expense.UserId, 0, 0, 0, item);
         await expense.setPaid(expense.lastEditedById);
         const user = await models.User.findByPk(expense.lastEditedById);
         await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID, user);
