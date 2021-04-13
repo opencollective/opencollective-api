@@ -50,7 +50,7 @@
     "bayes": "1.0.0",
     "bcrypt": "5.0.1",
     "bluebird": "3.7.2",
-    "braintree": "3.2.2",
+    "braintree": "3.3.0",
     "burner-email-providers": "1.0.41",
     "cloudflare": "2.7.0",
     "cloudflare-ip": "0.0.7",
