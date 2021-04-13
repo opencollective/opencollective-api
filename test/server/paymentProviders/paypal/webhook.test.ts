@@ -12,13 +12,26 @@ import {
   fakeHost,
   fakeOrder,
   fakePaymentMethod,
-  randStr,
 } from '../../../test-helpers/fake-data';
+import { resetTestDB } from '../../../utils';
+
+const createOrderWithSubscription = async (params = {}): Promise<typeof models.PaymentMethod> => {
+  const paymentMethod = await fakePaymentMethod({ service: 'paypal', type: 'subscription' });
+  return fakeOrder(
+    {
+      PaymentMethodId: paymentMethod.id,
+      subscription: { paypalSubscriptionId: paymentMethod.token },
+      ...params,
+    },
+    { withSubscription: true },
+  );
+};
 
 describe('server/paymentProviders/paypal/webhook', () => {
   let sandbox;
 
-  before(() => {
+  before(async () => {
+    await resetTestDB();
     sandbox = sinon.createSandbox();
   });
 
@@ -44,28 +57,18 @@ describe('server/paymentProviders/paypal/webhook', () => {
 
     it('fails if collective has no host', async () => {
       const collective = await fakeCollective({ HostCollectiveId: null });
-      const paymentMethod = await fakePaymentMethod({ service: 'paypal', type: 'payment' });
-      const order = await fakeOrder({
-        PaymentMethodId: paymentMethod.id,
-        CollectiveId: collective.id,
-        data: { paypalSubscriptionId: randStr() },
-      });
+      const order = await createOrderWithSubscription({ CollectiveId: collective.id });
       await expect(
-        callPaymentSaleCompleted({ resource: { billing_agreement_id: order.data.paypalSubscriptionId } }),
+        callPaymentSaleCompleted({ resource: { billing_agreement_id: order.paymentMethod.token } }),
       ).to.be.rejectedWith('PayPal webhook: no host found');
     });
 
     it('fails if host does not have PayPal', async () => {
       const host = await fakeHost();
       const collective = await fakeCollective({ HostCollectiveId: host.id });
-      const paymentMethod = await fakePaymentMethod({ service: 'paypal', type: 'payment' });
-      const order = await fakeOrder({
-        PaymentMethodId: paymentMethod.id,
-        CollectiveId: collective.id,
-        data: { paypalSubscriptionId: randStr() },
-      });
+      const order = await createOrderWithSubscription({ CollectiveId: collective.id });
       await expect(
-        callPaymentSaleCompleted({ resource: { billing_agreement_id: order.data.paypalSubscriptionId } }),
+        callPaymentSaleCompleted({ resource: { billing_agreement_id: order.paymentMethod.token } }),
       ).to.be.rejectedWith(`Host ${host.slug} is not connected to PayPal`);
     });
 
@@ -73,35 +76,27 @@ describe('server/paymentProviders/paypal/webhook', () => {
       const host = await fakeHost();
       await fakeConnectedAccount({ CollectiveId: host.id, service: 'paypal', token: 'xxxxxx' });
       const collective = await fakeCollective({ HostCollectiveId: host.id });
-      const paymentMethod = await fakePaymentMethod({ service: 'paypal', type: 'payment' });
-      const order = await fakeOrder({
-        PaymentMethodId: paymentMethod.id,
-        CollectiveId: collective.id,
-        data: { paypalSubscriptionId: randStr() },
-      });
+      const order = await createOrderWithSubscription({ CollectiveId: collective.id });
 
       sandbox.stub(PaypalLib, 'validateWebhookEvent').rejects(new Error('Invalid webhook request'));
       await expect(
-        callPaymentSaleCompleted({ resource: { billing_agreement_id: order.data.paypalSubscriptionId } }),
+        callPaymentSaleCompleted({ resource: { billing_agreement_id: order.paymentMethod.token } }),
       ).to.be.rejectedWith('Invalid webhook request');
     });
 
-    it('records the sale', async () => {
+    it('records the sale and activates subscription', async () => {
       const host = await fakeHost();
       await fakeConnectedAccount({ CollectiveId: host.id, service: 'paypal', token: 'xxxxxx' });
       const collective = await fakeCollective({ HostCollectiveId: host.id });
-      const paymentMethod = await fakePaymentMethod({ service: 'paypal', type: 'payment' });
-      const order = await fakeOrder({
-        PaymentMethodId: paymentMethod.id,
+      const order = await createOrderWithSubscription({
         CollectiveId: collective.id,
-        data: { paypalSubscriptionId: randStr() },
         status: 'PENDING',
       });
 
       sandbox.stub(PaypalLib, 'validateWebhookEvent').resolves();
       await callPaymentSaleCompleted({
         resource: {
-          billing_agreement_id: order.data.paypalSubscriptionId,
+          billing_agreement_id: order.paymentMethod.token,
           amount: { total: '12.00', currency: 'USD' },
           transaction_fee: { value: '1.20', currency: 'USD' },
         },
@@ -130,13 +125,8 @@ describe('server/paymentProviders/paypal/webhook', () => {
 
     it('fails if collective has no host', async () => {
       const collective = await fakeCollective({ HostCollectiveId: null });
-      const paymentMethod = await fakePaymentMethod({ service: 'paypal', type: 'payment' });
-      const order = await fakeOrder({
-        PaymentMethodId: paymentMethod.id,
-        CollectiveId: collective.id,
-        data: { paypalSubscriptionId: randStr() },
-      });
-      await expect(callSubscriptionCancelled({ resource: { id: order.data.paypalSubscriptionId } })).to.be.rejectedWith(
+      const order = await createOrderWithSubscription({ CollectiveId: collective.id });
+      await expect(callSubscriptionCancelled({ resource: { id: order.paymentMethod.token } })).to.be.rejectedWith(
         'PayPal webhook: no host found',
       );
     });
@@ -144,13 +134,8 @@ describe('server/paymentProviders/paypal/webhook', () => {
     it('fails if host does not have PayPal', async () => {
       const host = await fakeHost();
       const collective = await fakeCollective({ HostCollectiveId: host.id });
-      const paymentMethod = await fakePaymentMethod({ service: 'paypal', type: 'payment' });
-      const order = await fakeOrder({
-        PaymentMethodId: paymentMethod.id,
-        CollectiveId: collective.id,
-        data: { paypalSubscriptionId: randStr() },
-      });
-      await expect(callSubscriptionCancelled({ resource: { id: order.data.paypalSubscriptionId } })).to.be.rejectedWith(
+      const order = await createOrderWithSubscription({ CollectiveId: collective.id });
+      await expect(callSubscriptionCancelled({ resource: { id: order.paymentMethod.token } })).to.be.rejectedWith(
         `Host ${host.slug} is not connected to PayPal`,
       );
     });
@@ -159,15 +144,10 @@ describe('server/paymentProviders/paypal/webhook', () => {
       const host = await fakeHost();
       await fakeConnectedAccount({ CollectiveId: host.id, service: 'paypal', token: 'xxxxxx' });
       const collective = await fakeCollective({ HostCollectiveId: host.id });
-      const paymentMethod = await fakePaymentMethod({ service: 'paypal', type: 'payment' });
-      const order = await fakeOrder({
-        PaymentMethodId: paymentMethod.id,
-        CollectiveId: collective.id,
-        data: { paypalSubscriptionId: randStr() },
-      });
+      const order = await createOrderWithSubscription({ CollectiveId: collective.id });
 
       sandbox.stub(PaypalLib, 'validateWebhookEvent').rejects(new Error('Invalid webhook request'));
-      await expect(callSubscriptionCancelled({ resource: { id: order.data.paypalSubscriptionId } })).to.be.rejectedWith(
+      await expect(callSubscriptionCancelled({ resource: { id: order.paymentMethod.token } })).to.be.rejectedWith(
         'Invalid webhook request',
       );
     });
@@ -176,18 +156,15 @@ describe('server/paymentProviders/paypal/webhook', () => {
       const host = await fakeHost();
       await fakeConnectedAccount({ CollectiveId: host.id, service: 'paypal', token: 'xxxxxx' });
       const collective = await fakeCollective({ HostCollectiveId: host.id });
-      const paymentMethod = await fakePaymentMethod({ service: 'paypal', type: 'payment' });
-      const order = await fakeOrder({
-        PaymentMethodId: paymentMethod.id,
+      const order = await createOrderWithSubscription({
         CollectiveId: collective.id,
-        data: { paypalSubscriptionId: randStr() },
         status: 'ACTIVE',
       });
 
       sandbox.stub(PaypalLib, 'validateWebhookEvent').resolves();
       await callSubscriptionCancelled({
         resource: {
-          id: order.data.paypalSubscriptionId,
+          id: order.paymentMethod.token,
           status_change_note: 'Cancelling because I received too many potatoes. This is outrageous!',
         },
       });

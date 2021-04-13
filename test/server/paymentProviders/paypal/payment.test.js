@@ -21,27 +21,6 @@ describe('server/paymentProviders/paypal/payment', () => {
     expressApp = await app();
   });
 
-  describe('#paypalUrl', () => {
-    let configStub;
-
-    afterEach(() => {
-      // The stub is created in each test and reset here.
-      configStub.restore();
-    }); /* End of `afterEach()' */
-
-    it('should use Sandbox API when config says so', () => {
-      configStub = sinon.stub(config.paypal.payment, 'environment').get(() => 'sandbox');
-      const url = paypalPayment.paypalUrl('foo');
-      expect(url).to.equal('https://api.sandbox.paypal.com/v1/foo');
-    }); /* End of `should use Sandbox API when config says so' */
-
-    it('should use Production API when config says so', () => {
-      configStub = sinon.stub(config.paypal.payment, 'environment').get(() => 'production');
-      const url = paypalPayment.paypalUrl('foo');
-      expect(url).to.equal('https://api.paypal.com/v1/foo');
-    }); /* End of `should use Production API when config says so' */
-  }); /* End of `#paypalUrl' */
-
   describe('With PayPal auth', () => {
     /* Another `describe' section is started here to share the stub of
        the PayPal url `/v1/oauth2/token'. Which is pretty much
@@ -86,27 +65,6 @@ describe('server/paymentProviders/paypal/payment', () => {
       configStub.restore();
       nock.cleanAll();
     }); /* End of "after()" */
-
-    describe('#retrieveOAuthToken', () => {
-      it('should retrieve the oauth token from PayPal API', async () => {
-        const token = await paypalPayment.retrieveOAuthToken(secrets);
-        expect(token).to.equal('dat-token');
-      }); /* End of "should retrieve the oauth token from PayPal API" */
-    }); /* End of "#retrieveOAuthToken" */
-
-    describe('#paypalRequest', () => {
-      before(() => {
-        nock('https://api.sandbox.paypal.com')
-          .matchHeader('Authorization', 'Bearer dat-token')
-          .post('/v1/path/we/are/testing')
-          .reply(200, { success: 1 });
-      }); /* End of "before()" */
-
-      it('should request PayPal API endpoints', async () => {
-        const output = await paypalPayment.paypalRequest('path/we/are/testing', {}, host);
-        expect(output).to.deep.equal({ success: 1 });
-      }); /* End of "#paypalRequest" */
-    }); /* End of "#paypalRequest" */
 
     describe('#createPayment', () => {
       before(() => {

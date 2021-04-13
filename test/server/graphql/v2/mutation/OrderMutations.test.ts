@@ -552,9 +552,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           updateOrderMutation,
           {
             order: { id: idEncode(order2.id, 'order') },
-            amount: {
-              value: 1000 / 100,
-            },
+            amount: { value: 1000 / 100 },
             tier: { legacyId: fixedTier.id }, // null or named tier
           },
           user,
@@ -592,7 +590,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           },
           user,
         );
-
+        result.errors && console.error(result.errors);
         expect(result.errors).to.not.exist;
         expect(result.data.updateOrder.paymentMethod.id).to.eq(idEncode(paymentMethod.id, 'paymentMethod'));
       });

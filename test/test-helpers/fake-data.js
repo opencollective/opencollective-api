@@ -9,7 +9,7 @@
 import { get, padStart, sample } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
-import { roles } from '../../server/constants';
+import { activities, channels, roles } from '../../server/constants';
 import { types as CollectiveType } from '../../server/constants/collectives';
 import { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPES } from '../../server/constants/paymentMethods';
 import { REACTION_EMOJI } from '../../server/constants/reaction-emoji';
@@ -375,13 +375,16 @@ export const fakeOrder = async (orderData = {}, { withSubscription = false, with
   }
 
   if (withSubscription) {
-    const subscription = await models.Subscription.create({
+    const subscription = await fakeSubscription({
       amount: order.totalAmount,
       interval: 'month',
       currency: order.currency,
       isActive: true,
+      quantity: order.quantity,
+      ...orderData.subscription,
     });
     await order.update({ SubscriptionId: subscription.id });
+    order.Subscription = subscription;
   }
 
   if (withTransactions) {
@@ -407,6 +410,41 @@ export const fakeOrder = async (orderData = {}, { withSubscription = false, with
   order.collective = collective;
   order.createdByUser = user;
   return order;
+};
+
+export const fakeSubscription = (params = {}) => {
+  return models.Subscription.create({
+    amount: randAmount(),
+    currency: sample(['USD', 'EUR']),
+    interval: sample(['month', 'year']),
+    isActive: true,
+    quantity: 1,
+    ...params,
+  });
+};
+
+export const fakeNotification = async (data = {}) => {
+  return models.Notification.create({
+    channel: sample(Object.values(channels)),
+    type: sample(Object.values(activities)),
+    active: true,
+    CollectiveId: data.CollectiveId || (await fakeCollective()).id,
+    UserId: data.UserId || (await fakeUser()).id,
+    webhookUrl: randUrl('test.opencollective.com/webhooks'),
+    ...data,
+  });
+};
+
+export const fakeActivity = async (data = {}, sequelizeParams) => {
+  return models.Activity.create(
+    {
+      CollectiveId: data.CollectiveId || (await fakeCollective()).id,
+      UserId: data.UserId || (await fakeUser()).id,
+      type: sample(Object.values(activities)),
+      ...data,
+    },
+    sequelizeParams,
+  );
 };
 
 /**
@@ -468,6 +506,7 @@ export const fakeMember = async data => {
  */
 export const fakePaymentMethod = async data => {
   return models.PaymentMethod.create({
+    token: randStr(),
     ...data,
     type: data.type || sample(PAYMENT_METHOD_TYPES),
     service: data.service || sample(PAYMENT_METHOD_SERVICES),
@@ -515,5 +554,30 @@ export const fakeVirtualCard = async (virtualCardData = {}) => {
     ...virtualCardData,
     CollectiveId,
     HostCollectiveId,
+  });
+};
+
+export const fakePaypalProduct = async (data = {}) => {
+  const CollectiveId = data.CollectiveId || (await fakeCollective()).id;
+  return models.PaypalProduct.create({
+    id: randStr('PaypalProduct-'),
+    ...data,
+    CollectiveId,
+  });
+};
+
+export const fakePaypalPlan = async (data = {}) => {
+  const product = data.ProductId
+    ? await models.PaypalProduct.findByPk(data.ProductId)
+    : await fakePaypalProduct(data.product || {});
+
+  const collective = await models.Collective.findByPk(product.CollectiveId);
+  return models.PaypalPlan.create({
+    currency: collective.currency || 'USD',
+    interval: sample(['month', 'year']),
+    amount: randAmount(),
+    id: randStr('PaypalPlan-'),
+    ...data,
+    ProductId: product.id,
   });
 };

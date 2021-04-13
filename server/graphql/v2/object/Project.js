@@ -15,7 +15,7 @@ export const Project = new GraphQLObjectType({
       ...AccountWithHostFields,
       ...AccountWithContributionsFields,
       parent: {
-        description: 'The Fund hosting this Project',
+        description: 'The Account hosting this Project',
         type: Account,
         async resolve(project, _, req) {
           if (!project.ParentCollectiveId) {

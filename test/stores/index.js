@@ -32,8 +32,8 @@ export function randEmail(email = 'test-user@emailprovider.com') {
 }
 
 /** Returns a random URL. */
-export function randUrl() {
-  return `https://example.com/${uuid()}`;
+export function randUrl(base = 'example.com') {
+  return `https://${base}/${uuid()}`;
 }
 
 /** Convert string to lower case and swap spaces with dashes */

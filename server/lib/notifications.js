@@ -39,7 +39,6 @@ export default async activity => {
   };
 
   const notificationChannels = await models.Notification.findAll({ where });
-
   return Promise.map(notificationChannels, notifConfig => {
     if (notifConfig.channel === channels.GITTER) {
       return publishToGitter(activity, notifConfig);
@@ -72,9 +71,13 @@ function publishToGitter(activity, notifConfig) {
 }
 
 function publishToWebhook(activity, webhookUrl) {
-  const sanitizedActivity = sanitizeActivity(activity);
-  const enrichedActivity = enrichActivity(sanitizedActivity);
-  return axios.post(webhookUrl, enrichedActivity);
+  if (slackLib.isSlackWebhookUrl(webhookUrl)) {
+    return slackLib.postActivityOnPublicChannel(activity, webhookUrl);
+  } else {
+    const sanitizedActivity = sanitizeActivity(activity);
+    const enrichedActivity = enrichActivity(sanitizedActivity);
+    return axios.post(webhookUrl, enrichedActivity);
+  }
 }
 
 /**

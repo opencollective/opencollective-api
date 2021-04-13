@@ -30,6 +30,9 @@ async function processOrder(order) {
   // gets the Credit transaction generated
   const payload = pick(order, ['CreatedByUserId', 'FromCollectiveId', 'CollectiveId', 'PaymentMethodId']);
   const host = await order.collective.getHostCollective();
+  const hostPlan = await host.getPlan();
+  const hostFeeSharePercent = hostPlan?.hostFeeSharePercent;
+  const isSharedRevenue = !!hostFeeSharePercent;
 
   if (host.currency !== order.currency && !hasOptedInForFeature(host, FEATURE.CROSS_CURRENCY_MANUAL_TRANSACTIONS)) {
     throw Error(
@@ -68,6 +71,8 @@ async function processOrder(order) {
     description: order.description,
     data: {
       isFeesOnTop,
+      isSharedRevenue,
+      hostFeeSharePercent,
     },
   };
 

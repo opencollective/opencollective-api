@@ -5117,7 +5117,6 @@ type Mutation {
     Can only be set if root
     """
     platformFeePercent: Float
-    platformTip: AmountInput
   ): Order!
   createCollective(
     """
@@ -5595,6 +5594,11 @@ type Mutation {
     paymentMethod: PaymentMethodReferenceInput
 
     """
+    To update the order with a PayPal subscription
+    """
+    paypalSubscriptionId: String
+
+    """
     Reference to a Tier to update the order with
     """
     tier: TierReferenceInput
@@ -5738,6 +5742,7 @@ type Order {
   quantity: Int
   status: OrderStatus
   frequency: ContributionFrequency
+  nextChargeDate: DateTime
   tier: Tier
   fromAccount: Account
   toAccount: Account
@@ -6331,6 +6336,7 @@ enum PaymentMethodType {
   creditcard
   prepaid
   payment
+  subscription
   collective
   host
   adaptive

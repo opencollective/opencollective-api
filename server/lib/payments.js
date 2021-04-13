@@ -253,13 +253,11 @@ export async function associateTransactionRefundId(transaction, refund, data) {
 export const sendEmailNotifications = (order, transaction) => {
   debug('sendEmailNotifications');
   // for gift cards and manual payment methods
-  if (!transaction) {
-    if (!order.data?.skipPendingEmail) {
-      sendOrderProcessingEmail(order); // This is the one for the Contributor
-      sendManualPendingOrderEmail(order); // This is the one for the Host Admins
-    }
-  } else {
+  if (transaction) {
     sendOrderConfirmedEmail(order, transaction); // async
+  } else if (order.status === status.PENDING) {
+    sendOrderProcessingEmail(order); // This is the one for the Contributor
+    sendManualPendingOrderEmail(order); // This is the one for the Host Admins
   }
 };
 

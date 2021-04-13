@@ -1,7 +1,8 @@
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import RateLimit from '../../../lib/rate-limit';
-import { getOrCreatePlan } from '../../../paymentProviders/paypal/payment';
+import PaypalPlanModel from '../../../models/PaypalPlan';
+import { getOrCreatePlan } from '../../../paymentProviders/paypal/subscription';
 import { RateLimitExceeded } from '../../errors';
 import { ContributionFrequency } from '../enum';
 import { getIntervalFromContributionFrequency } from '../enum/ContributionFrequency';
@@ -38,7 +39,7 @@ const PaypalPlanQuery = {
       description: 'The tier you are contributing to',
     },
   },
-  async resolve(_, args, req): Promise<string> {
+  async resolve(_, args, req): Promise<PaypalPlanModel> {
     const rateLimit = new RateLimit(`paypal_plan_${req.remoteUser?.id || req.ip}`, 30, 60);
     if (!(await rateLimit.registerCall())) {
       throw new RateLimitExceeded();

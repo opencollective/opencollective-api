@@ -75,8 +75,12 @@ function defineModel() {
     {
       indexes: [
         {
+          fields: ['CollectiveId', 'type', 'channel'],
+          unique: false,
+        },
+        {
           fields: ['channel', 'type', 'webhookUrl', 'CollectiveId'],
-          type: 'unique',
+          unique: true,
         },
       ],
       hooks: {

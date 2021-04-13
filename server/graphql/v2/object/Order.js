@@ -55,8 +55,8 @@ export const Order = new GraphQLObjectType({
       },
       frequency: {
         type: ContributionFrequency,
-        async resolve(order) {
-          const subscription = await order.getSubscription();
+        async resolve(order, _, req) {
+          const subscription = order.SubscriptionId && (await req.loaders.Subscription.byId.load(order.SubscriptionId));
           if (!subscription) {
             return 'ONETIME';
           }
@@ -65,6 +65,13 @@ export const Order = new GraphQLObjectType({
           } else if (subscription.interval === 'year') {
             return 'YEARLY';
           }
+        },
+      },
+      nextChargeDate: {
+        type: GraphQLDateTime,
+        async resolve(order, _, req) {
+          const subscription = order.SubscriptionId && (await req.loaders.Subscription.byId.load(order.SubscriptionId));
+          return subscription?.nextChargeDate;
         },
       },
       tier: {

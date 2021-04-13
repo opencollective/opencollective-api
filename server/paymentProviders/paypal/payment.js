@@ -1,8 +1,5 @@
-import config from 'config';
 import { get, isNumber } from 'lodash';
-import fetch from 'node-fetch';
 
-import TierType from '../../constants/tiers';
 import * as constants from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
@@ -11,108 +8,7 @@ import { getHostFee, getPlatformFee } from '../../lib/payments';
 import { paypalAmountToCents } from '../../lib/paypal';
 import models from '../../models';
 
-/** Build an URL for the PayPal API */
-export function paypalUrl(path, version = 'v1') {
-  if (path.startsWith('/')) {
-    throw new Error("Please don't use absolute paths");
-  }
-  const baseUrl =
-    config.paypal.payment.environment === 'sandbox'
-      ? `https://api.sandbox.paypal.com/${version}/`
-      : `https://api.paypal.com/${version}/`;
-  return new URL(baseUrl + path).toString();
-}
-
-/** Exchange clientid and secretid by an auth token with PayPal API */
-export async function retrieveOAuthToken({ clientId, clientSecret }) {
-  const url = paypalUrl('oauth2/token');
-  const body = 'grant_type=client_credentials';
-  /* The OAuth token entrypoint uses Basic HTTP Auth */
-  const authStr = `${clientId}:${clientSecret}`;
-  const basicAuth = Buffer.from(authStr).toString('base64');
-  const headers = { Authorization: `Basic ${basicAuth}` };
-  /* Execute the request and unpack the token */
-  const response = await fetch(url, { method: 'post', body, headers });
-  const jsonOutput = await response.json();
-  return jsonOutput.access_token;
-}
-
-/** Assemble POST requests for communicating with PayPal API */
-export async function paypalRequest(urlPath, body, hostCollective, method = 'POST') {
-  const connectedPaypalAccounts = await hostCollective.getConnectedAccounts({
-    where: { service: 'paypal', deletedAt: null },
-    order: [['createdAt', 'DESC']],
-  });
-  const paypal = connectedPaypalAccounts[0];
-  if (!paypal || !paypal.clientId || !paypal.token) {
-    throw new Error("Host doesn't support PayPal payments.");
-  }
-  const url = paypalUrl(urlPath);
-  const token = await retrieveOAuthToken({ clientId: paypal.clientId, clientSecret: paypal.token });
-
-  const params = {
-    method,
-    body: body ? JSON.stringify(body) : undefined,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-  };
-
-  const result = await fetch(url, params);
-  if (!result.ok) {
-    let errorData = null;
-    let errorMessage = 'PayPal payment rejected';
-    try {
-      errorData = await result.json();
-      errorMessage = `${errorMessage}: ${errorData.message}`;
-    } catch (e) {
-      errorData = e;
-    }
-    logger.error('PayPal payment failed', result, errorData);
-    throw new Error(errorMessage);
-  } else if (result.status === 204) {
-    return null;
-  } else {
-    return result.json();
-  }
-}
-
-export async function paypalRequestV2(hostCollective, urlPath, method = 'POST') {
-  const connectedPaypalAccounts = await hostCollective.getConnectedAccounts({
-    where: { service: 'paypal' },
-    order: [['createdAt', 'DESC']],
-  });
-  const paypal = connectedPaypalAccounts[0];
-  if (!paypal || !paypal.clientId || !paypal.token) {
-    throw new Error("Host doesn't support PayPal payments.");
-  }
-
-  const url = paypalUrl(urlPath, 'v2');
-  const token = await retrieveOAuthToken({ clientId: paypal.clientId, clientSecret: paypal.token });
-  const params = {
-    method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-  };
-
-  const result = await fetch(url, params);
-  if (!result.ok) {
-    let errorData = null;
-    let errorMessage = 'PayPal payment rejected';
-    try {
-      errorData = await result.json();
-      errorMessage = `${errorMessage}: ${errorData.message}`;
-    } catch (e) {
-      errorData = e;
-    }
-    logger.error('PayPal payment failed', result, errorData);
-    throw new Error(errorMessage);
-  }
-  return result.json();
-}
+import { paypalRequest, paypalRequestV2 } from './api';
 
 /** Create a new payment object in the PayPal API
  *
@@ -144,146 +40,6 @@ export async function createPayment(req, res) {
   /* eslint-enable camelcase */
   const payment = await paypalRequest('payments/payment', paymentParams, hostCollective);
   return res.json({ id: payment.id });
-}
-
-/**
- * See https://developer.paypal.com/docs/api/catalog-products/v1/#products-create-response
- */
-export const getProductTypeAndCategory = tier => {
-  switch (tier?.type) {
-    case TierType.TICKET:
-      return ['DIGITAL'];
-    case TierType.PRODUCT:
-      return ['DIGITAL', 'MERCHANDISE'];
-    case TierType.SERVICE:
-      return ['SERVICE'];
-    case TierType.MEMBERSHIP:
-      return ['DIGITAL', 'MEMBERSHIP_CLUBS_AND_ORGANIZATIONS'];
-    default:
-      return ['DIGITAL', 'NONPROFIT'];
-  }
-};
-
-/**
- * PayPal crashes if imageUrl is from http://localhost, which can happen when developing with
- * a local images service.
- */
-const getImageUrlForPaypal = collective => {
-  if (config.host.images.startsWith('http://localhost')) {
-    return 'https://images.opencollective.com/opencollective/logo/256.png';
-  } else {
-    return collective.getImageUrl();
-  }
-};
-
-async function createPaypalProduct(host, collective, tier) {
-  const [type, category] = getProductTypeAndCategory(tier);
-
-  return paypalRequest(
-    `catalogs/products`,
-    {
-      /* eslint-disable camelcase */
-      name: `Financial contribution to ${collective.name}`,
-      description: `Financial contribution to ${collective.name}`,
-      type,
-      category,
-      image_url: getImageUrlForPaypal(collective),
-      home_url: `https://opencollective.com/${collective.slug}`,
-      /* eslint-enable camelcase */
-    },
-    host,
-  );
-}
-
-async function createPaypalPlan(host, collective, productId, interval, amount, currency, tier) {
-  const description = models.Order.generateDescription(collective, amount, interval, tier);
-  return paypalRequest(
-    `billing/plans`,
-    {
-      /* eslint-disable camelcase */
-      product_id: productId,
-      name: description,
-      description: description,
-      billing_cycles: [
-        {
-          tenure_type: 'REGULAR',
-          sequence: 1,
-          total_cycles: 0, // This tells PayPal this recurring payment never ends (INFINITE)
-          frequency: {
-            interval_count: 1,
-            interval_unit: interval.toUpperCase(), // month -> MONTH
-          },
-          pricing_scheme: {
-            fixed_price: {
-              value: (amount / 100).toString(), // 1667 -> '16.67'
-              currency_code: currency,
-            },
-          },
-        },
-      ],
-      payment_preferences: {
-        auto_bill_outstanding: true,
-        payment_failure_threshold: 4, // Will fail up to 4 times, after that the subscription gets cancelled
-      },
-      /* eslint-enable camelcase */
-    },
-    host,
-  );
-}
-
-export async function getOrCreatePlan(host, collective, interval, amount, currency, tier = null) {
-  const product = await models.PaypalProduct.findOne({
-    where: { CollectiveId: collective.id, TierId: tier?.id || null },
-    include: [
-      {
-        association: 'plans',
-        required: false,
-        where: { currency, interval, amount },
-      },
-    ],
-  });
-
-  if (product) {
-    const plans = product['plans'];
-    if (plans[0]) {
-      // If we found a product and a plan matching these parameters, we can directly return them
-      logger.debug(`PayPal: Returning existing plan ${plans[0].id}`);
-      return plans[0];
-    } else {
-      // Otherwise we can create a new plan based on this product
-      logger.debug(`PayPal: Re-using existing product ${product.id} and creating new plan`);
-      const paypalPlan = await createPaypalPlan(host, collective, product.id, interval, amount, currency, tier);
-      return models.PaypalPlan.create({
-        id: paypalPlan.id,
-        ProductId: product.id,
-        amount,
-        currency,
-        interval,
-      });
-    }
-  } else {
-    // If neither the plan or the product exist, we create both in one go
-    logger.debug(`PayPal: Creating a new plan`);
-    const paypalProduct = await createPaypalProduct(host, collective, tier);
-    const paypalPlan = await createPaypalPlan(host, collective, paypalProduct.id, interval, amount, currency, tier);
-    return models.PaypalPlan.create(
-      {
-        amount,
-        currency,
-        interval,
-        id: paypalPlan.id,
-        product: {
-          id: paypalProduct.id,
-          CollectiveId: collective.id,
-          TierId: tier?.id,
-        },
-      },
-      {
-        // Passing include for Sequelize to understand what `product` is
-        include: [{ association: 'product' }],
-      },
-    );
-  }
 }
 
 /** Execute an already created payment
@@ -386,21 +142,16 @@ const recordPaypalCapture = async (order, capture) => {
 
 /** Process order in paypal and create transactions in our db */
 export async function processOrder(order) {
-  const hostCollective = await order.collective.getHostCollective();
   if (order.paymentMethod.data.isNewApi) {
     if (order.paymentMethod.data.orderId) {
+      const hostCollective = await order.collective.getHostCollective();
       const orderId = order.paymentMethod.data.orderId;
-      const capture = await paypalRequestV2(hostCollective, `checkout/orders/${orderId}/capture`, 'POST');
+      const capture = await paypalRequestV2(`checkout/orders/${orderId}/capture`, hostCollective, 'POST');
       const captureId = capture.purchase_units[0].payments.captures[0].id;
-      const captureDetails = await paypalRequestV2(hostCollective, `payments/captures/${captureId}`, 'GET');
+      const captureDetails = await paypalRequestV2(`payments/captures/${captureId}`, hostCollective, 'GET');
       return recordPaypalCapture(order, captureDetails);
-    } else if (order.paymentMethod.data.subscriptionId) {
-      const subscriptionId = order.paymentMethod.data.subscriptionId;
-      await paypalRequest(`billing/subscriptions/${subscriptionId}/activate`, null, hostCollective, 'POST');
-      await order.update({ data: { ...order.data, paypalSubscriptionId: subscriptionId, skipPendingEmail: true } });
-      // Don't record the transaction here (will be done in the webhook event)
     } else {
-      throw new Error('Must either provide a subscriptionId or an orderId');
+      throw new Error('Must provide an orderId');
     }
   } else {
     const paymentInfo = await executePayment(order);
@@ -415,8 +166,6 @@ export async function processOrder(order) {
 
 /* Interface expected for a payment method */
 export default {
-  features: {
-    recurring: true,
-  },
+  features: { recurring: false },
   processOrder,
 };

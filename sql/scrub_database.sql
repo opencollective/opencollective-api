@@ -51,7 +51,7 @@ DELETE FROM "Donations" WHERE "CollectiveId" IS NULL;
 
 /* We delete all subscriptions that don't have a parent donation anymore */
 DELETE FROM "Subscriptions" WHERE id NOT IN (SELECT "SubscriptionId" FROM "Donations");
-UPDATE "Subscriptions" SET data = NULL, "stripeSubscriptionId"='*****';
+UPDATE "Subscriptions" SET data = NULL, "stripeSubscriptionId"='*****', "paypalSubscriptionId"='********';
 
 /* We only keep the StripeAccounts from Users that remain (their stripePublishableKey have already been sanitized) */
 DELETE FROM "StripeAccounts" WHERE id NOT IN (SELECT "StripeAccountId" FROM "Users");

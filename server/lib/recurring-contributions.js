@@ -44,6 +44,7 @@ export async function ordersWithPendingCharges({ limit, startDate } = {}) {
           deactivatedAt: null,
           activatedAt: { [Op.lte]: startDate || new Date() },
           nextChargeDate: { [Op.lte]: startDate || new Date() },
+          isManagedExternally: false,
         },
       },
     ],

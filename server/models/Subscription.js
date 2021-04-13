@@ -1,6 +1,7 @@
 import Temporal from 'sequelize-temporal';
 
 import sequelize, { DataTypes } from '../lib/sequelize';
+import { cancelPaypalSubscription } from '../paymentProviders/paypal/subscription';
 
 import CustomDataTypes from './DataTypes';
 
@@ -44,6 +45,10 @@ function defineModel() {
 
       stripeSubscriptionId: DataTypes.STRING,
 
+      paypalSubscriptionId: { type: DataTypes.STRING, allowNull: true },
+
+      isManagedExternally: { type: DataTypes.BOOLEAN, defaultValue: false },
+
       activatedAt: DataTypes.DATE,
 
       deactivatedAt: DataTypes.DATE,
@@ -60,11 +65,15 @@ function defineModel() {
     return this.save();
   };
 
-  Subscription.prototype.deactivate = function () {
-    this.isActive = false;
-    this.deactivatedAt = new Date();
+  Subscription.prototype.deactivate = async function (reason) {
+    // If subscription exists on a third party, cancel it there
+    if (this.paypalSubscriptionId) {
+      const order = await this.getOrder();
+      order.Subscription = this;
+      await cancelPaypalSubscription(order, reason);
+    }
 
-    return this.save();
+    return this.update({ isActive: false, deactivatedAt: new Date() });
   };
 
   Temporal(Subscription, sequelize);

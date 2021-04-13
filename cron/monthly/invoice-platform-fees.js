@@ -9,7 +9,7 @@ import { v4 as uuid } from 'uuid';
 
 import expenseStatus from '../../server/constants/expense_status';
 import expenseTypes from '../../server/constants/expense_type';
-import plans, { SHARED_REVENUE_PLANS } from '../../server/constants/plans';
+import { SHARED_REVENUE_PLANS } from '../../server/constants/plans';
 import { SETTLEMENT_EXPENSE_PROPERTIES, TransactionTypes } from '../../server/constants/transactions';
 import { uploadToS3 } from '../../server/lib/awsS3';
 import { generateKey } from '../../server/lib/encryption';
@@ -198,8 +198,8 @@ export async function run() {
         -- Ignore transactions that incurred in platformFee
         AND t."platformFeeInHostCurrency" = 0
         AND t."data"->>'settled' IS NULL
-        -- Ignore opensource and foundation:
-        AND t."HostCollectiveId" NOT IN (11004, 8686)
+        -- Ignore Open Collective:
+        AND t."HostCollectiveId" != 8686
       AND (
         h."type" = 'ORGANIZATION'
         AND h."isHostAccount" = TRUE
@@ -303,12 +303,16 @@ export async function run() {
       continue;
     }
 
-    const { HostName, currency, plan: planId, chargedHostId } = hostTransactions[0];
+    const host = await models.Collective.findByPk(hostId);
+    const plan = await host.getPlan();
 
-    const hostFeeSharePercent = plans[planId]?.hostFeeSharePercent;
+    const { HostName, currency, chargedHostId } = hostTransactions[0];
+
+    const hostFeeSharePercent = plan?.hostFeeSharePercent;
     const transactions = hostTransactions.map(t => {
       if (t.source === 'Shared Revenue') {
-        t.amount = round(t.amount * (hostFeeSharePercent / 100));
+        // In this context, the original t.amount is actually -t.hostFeeInHostCurrency
+        t.amount = round(t.amount * ((t.data?.hostFeeSharePercent || hostFeeSharePercent) / 100));
       }
       return t;
     });
@@ -320,8 +324,6 @@ export async function run() {
       return { incurredAt, amount, description };
     });
 
-    const host = await models.Collective.findByPk(hostId);
-    const plan = await host.getPlan();
     if (plan.pricePerCollective) {
       const activeHostedCollectives = await host.getHostedCollectivesCount();
       const amount = (activeHostedCollectives || 0) * plan.pricePerCollective;
@@ -363,7 +365,7 @@ export async function run() {
         console.error(`Warning: We don't have a way to submit the expense to ${HostName}, ignoring.\n`);
         continue;
       }
-      if (totalAmountCharged > 0) {
+      if (totalAmountCredited > 0) {
         // Credit the Host with platform tips collected during the month
         await models.Transaction.create({
           amount: totalAmountCredited,
