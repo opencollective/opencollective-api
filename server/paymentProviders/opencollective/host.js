@@ -18,14 +18,15 @@ paymentMethodProvider.getBalance = () => {
   return Promise.resolve(maxInteger);
 };
 
-paymentMethodProvider.createPlatformTipTransaction = async transaction => {
+paymentMethodProvider.createPlatformTipTransaction = async payload => {
+  const transaction = payload.transaction;
   const TransactionGroup = transaction.TransactionGroup || uuid();
   const donationTransaction = {
     ...transaction,
     amount: transaction.data.platformTipInHostCurrency,
     description: 'Financial contribution (Platform Tip) to Open Collective',
     netAmountInCollectiveCurrency: transaction.data.platformTipInHostCurrency,
-    FromCollectiveId: transaction.HostCollectiveId,
+    FromCollectiveId: payload.FromCollectiveId,
     hostCurrencyFxRate: 1,
     TransactionGroup,
     PlatformTipForTransactionGroup: TransactionGroup,
@@ -85,7 +86,7 @@ paymentMethodProvider.processOrder = async order => {
   };
 
   if (platformTipInHostCurrency) {
-    return await paymentMethodProvider.createPlatformTipTransaction(payload.transaction);
+    return await paymentMethodProvider.createPlatformTipTransaction(payload);
   }
 
   if (payload.transaction.amount > 0) {
