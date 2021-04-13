@@ -1,0 +1,30 @@
+Subject: {{fromCollective.name}} card charge expense is missing information
+
+
+{{> header}}
+
+<center>
+  <h1>
+    {{fromCollective.name}} card charge expense is missing information
+  </h1>
+</center>
+<p>
+  A {{currency expense.amount currency=expense.currency precision=2}} card charge was created and it is currently
+  missing critical information. For accounting reasons, your host will need an accurate description and a
+  copy of the receipt regarding this charge.
+</p>
+<p>
+  <strong>Please, attach the receipt to avoid your card being suspended.</strong>
+</p>
+
+
+<br />
+<br />
+
+<center>
+  <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}" class="btn blue">
+    <div>Add Missing Information to Expense</div>
+  </a>
+</center>
+
+{{> footer}}

@@ -1,6 +1,7 @@
 /* eslint-disable camelcase */
 import { omit } from 'lodash';
 
+import activities from '../../constants/activities';
 import { types as CollectiveTypes } from '../../constants/collectives';
 import ExpenseStatus from '../../constants/expense_status';
 import ExpenseType from '../../constants/expense_type';
@@ -42,15 +43,14 @@ const createExpense = async (
   const host = opts?.host || (await models.Collective.findByPk(virtualCard.HostCollectiveId));
   const hostCurrencyFxRate = opts?.hostCurrencyFxRate || (await getFxRate('USD', host.currency));
   const amount = privacyTransaction.settled_amount;
+  const UserId = collective.CreatedByUserId;
 
-  return await sequelize.transaction(async transaction => {
+  const expense = await sequelize.transaction(async transaction => {
     const [vendor] = await models.Collective.findOrCreate({
       where: { slug: privacyTransaction.merchant.acceptor_id },
       defaults: { name: privacyTransaction.merchant.descriptor, type: CollectiveTypes.VENDOR },
       transaction,
     });
-
-    const UserId = collective.CreatedByUserId;
 
     const expense = await models.Expense.create(
       {
@@ -104,6 +104,12 @@ const createExpense = async (
     expense.collective = vendor;
     return expense;
   });
+
+  expense
+    .createActivity(activities.COLLECTIVE_EXPENSE_MISSING_RECEIPT, { id: UserId }, { ...expense.data })
+    .catch(e => logger.error('An error happened when creating the COLLECTIVE_EXPENSE_MISSING_RECEIPT activity', e));
+
+  return expense;
 };
 
 const assignCardToCollective = async (
