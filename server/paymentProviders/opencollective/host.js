@@ -1,5 +1,7 @@
+import { v4 as uuid } from 'uuid';
+
 import { maxInteger } from '../../constants/math';
-import { TransactionTypes } from '../../constants/transactions';
+import { FEES_ON_TOP_TRANSACTION_PROPERTIES, TransactionTypes } from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
 import { calcFee, getHostFeePercent, getPlatformFeePercent } from '../../lib/payments';
 import models from '../../models';
@@ -17,17 +19,20 @@ paymentMethodProvider.getBalance = () => {
 };
 
 paymentMethodProvider.createPlatformTipTransaction = async transaction => {
-  const platformTipTransaction = {
+  const TransactionGroup = transaction.TransactionGroup || uuid();
+  const donationTransaction = {
     ...transaction,
-    amount: transaction.platformTipInHostCurrency,
+    amount: transaction.data.platformTipInHostCurrency,
     description: 'Financial contribution (Platform Tip) to Open Collective',
-    netAmountInCollectiveCurrency: transaction.platformTipInHostCurrency,
+    netAmountInCollectiveCurrency: transaction.data.platformTipInHostCurrency,
     FromCollectiveId: transaction.HostCollectiveId,
-    CollectiveId: 8686, // Open Collective (Organization)
-    platformTipInHostCurrency: undefined,
+    hostCurrencyFxRate: 1,
+    TransactionGroup,
+    PlatformTipForTransactionGroup: TransactionGroup,
+    ...FEES_ON_TOP_TRANSACTION_PROPERTIES,
   };
 
-  return models.Transaction.createDoubleEntry(platformTipTransaction);
+  return models.Transaction.createDoubleEntry(donationTransaction);
 };
 
 paymentMethodProvider.processOrder = async order => {
@@ -74,12 +79,18 @@ paymentMethodProvider.processOrder = async order => {
     amountInHostCurrency: totalAmountInPaymentMethodCurrency,
     hostFeeInHostCurrency,
     platformFeeInHostCurrency,
-    platformTipInHostCurrency,
     paymentProcessorFeeInHostCurrency: 0,
     description: order.description,
+    data: { platformTipInHostCurrency },
   };
 
-  return await models.Transaction.createFromPayload(payload);
+  if (platformTipInHostCurrency) {
+    return await paymentMethodProvider.createPlatformTipTransaction(payload.transaction);
+  }
+
+  if (payload.transaction.amount > 0) {
+    return await models.Transaction.createFromPayload(payload);
+  }
 };
 
 export default paymentMethodProvider;
