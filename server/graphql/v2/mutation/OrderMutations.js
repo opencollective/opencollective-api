@@ -217,6 +217,9 @@ const orderMutations = {
       } else if (args.paypalSubscriptionId && args.paymentMethod) {
         throw new Error('paypalSubscriptionId and paymentMethod are mutually exclusive');
       } else if (haveDetailsChanged && hasPaymentMethodChanged) {
+        // There's no transaction/rollback strategy if updating the payment method fails
+        // after updating the order. We could end up with partially migrated subscriptions
+        // if we allow changing both at the same time.
         throw new Error(
           'Amount and payment method cannot be updated at the same time, please update one after the other',
         );
