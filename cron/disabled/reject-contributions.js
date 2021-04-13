@@ -148,7 +148,7 @@ async function run({ dryRun, limit, force } = {}) {
       if (subscription) {
         logger.info(`  - Deactivating subscription #${order.SubscriptionId}`);
         if (!dryRun) {
-          await subscription.deactivate();
+          await subscription.deactivate('Contribution rejected');
         }
         actionTaken = true;
       } else {

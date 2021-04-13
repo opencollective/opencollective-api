@@ -8,6 +8,7 @@ import { createTransactionsPairFromBraintreeTransaction } from './helpers';
 const PayPal: PaymentProviderService = {
   features: {
     recurring: true,
+    isRecurringManagedExternally: true,
   },
 
   async processOrder(order: typeof models.Order): Promise<typeof models.Transaction> {

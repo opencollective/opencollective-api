@@ -81,7 +81,7 @@ const transactionMutations = {
 
       if (orderToUpdate.SubscriptionId) {
         await orderToUpdate.update({ status: orderStatus.REJECTED });
-        await orderToUpdate.Subscription.deactivate();
+        await orderToUpdate.Subscription.deactivate('Contribution rejected');
       } else {
         // else just update the status to REJECTED
         await orderToUpdate.update({

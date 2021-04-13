@@ -11,6 +11,7 @@ import models, { Op } from '../../models';
 import adaptive from './adaptive';
 import paypalAdaptive from './adaptiveGateway';
 import payment from './payment';
+import subscription from './subscription';
 
 const debugPaypal = debug('paypal');
 
@@ -53,6 +54,7 @@ export default {
     default: adaptive,
     adaptive,
     payment,
+    subscription,
   },
 
   oauth: {

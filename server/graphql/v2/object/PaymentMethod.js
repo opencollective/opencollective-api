@@ -82,23 +82,19 @@ export const PaymentMethod = new GraphQLObjectType({
       data: {
         type: GraphQLJSON,
         resolve(paymentMethod, _, req) {
-          if (!paymentMethod.data) {
+          if (!req.remoteUser?.isAdmin(paymentMethod.CollectiveId)) {
             return null;
           }
 
-          // Protect and whitelist fields for gift cards
+          // Protect and limit fields
+          let allowedFields = [];
           if (paymentMethod.type === PAYMENT_METHOD_TYPE.GIFT_CARD) {
-            if (!req.remoteUser || !req.remoteUser.isAdminOfCollective(paymentMethod.CollectiveId)) {
-              return null;
-            }
-            return pick(paymentMethod.data, ['email']);
+            allowedFields = ['email'];
+          } else if (paymentMethod.type === PAYMENT_METHOD_TYPE.CREDITCARD) {
+            allowedFields = ['fullName', 'expMonth', 'expYear', 'brand', 'country', 'last4'];
           }
 
-          const data = paymentMethod.data;
-          // white list fields to send back; removes fields like CustomerIdForHost
-          const dataSubset = pick(data, ['fullName', 'expMonth', 'expYear', 'brand', 'country', 'last4']);
-
-          return dataSubset;
+          return pick(paymentMethod.data, allowedFields);
         },
       },
       limitedToHosts: {
