@@ -97,6 +97,7 @@ const Update = new GraphQLObjectType({
             individuals: membersStats[CollectiveType.USER] || 0,
             organizations: membersStats[CollectiveType.ORGANIZATION] || 0,
             collectives: membersStats[CollectiveType.COLLECTIVE] || 0,
+            coreContributors: membersStats['CORE_CONTRIBUTOR'] || 0,
             hosted: hostedCollectivesCount || 0,
             total: await update.countUsersToNotify(audience),
           };

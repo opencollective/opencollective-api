@@ -21,6 +21,7 @@ const updateQuery = gqlV2/* GraphQL */ `
         total
         individuals
         organizations
+        coreContributors
         hosted
       }
     }
@@ -96,7 +97,8 @@ describe('server/graphql/v2/query/UpdateQuery', () => {
       expect(audienceStats).to.not.be.null;
       // Should have only the collective admin
       expect(audienceStats.organizations).to.eq(backerOrgs.length);
-      expect(audienceStats.individuals).to.eq(1 + backerUsers.length);
+      expect(audienceStats.coreContributors).to.eq(1);
+      expect(audienceStats.individuals).to.eq(backerUsers.length);
       expect(audienceStats.total).to.eq(1 + backerUsers.length + backerOrgs.length * nbAdminsPerOrg);
     });
 
@@ -128,7 +130,8 @@ describe('server/graphql/v2/query/UpdateQuery', () => {
       expect(audienceStats).to.not.be.null;
       // Should have only the collective admin
       expect(audienceStats.total).to.eq(1 + hostedCollectiveAdmins.length + hostBackers.length);
-      expect(audienceStats.individuals).to.eq(1 + hostBackers.length);
+      expect(audienceStats.coreContributors).to.eq(1);
+      expect(audienceStats.individuals).to.eq(hostBackers.length);
       expect(audienceStats.organizations).to.eq(0);
       expect(audienceStats.hosted).to.eq(1);
 
@@ -151,7 +154,8 @@ describe('server/graphql/v2/query/UpdateQuery', () => {
       // Should have only the collective admin
       expect(audienceStats.total).to.eq(1 + hostBackers.length);
       expect(audienceStats.organizations).to.eq(0);
-      expect(audienceStats.individuals).to.eq(1 + hostBackers.length);
+      expect(audienceStats.coreContributors).to.eq(1);
+      expect(audienceStats.individuals).to.eq(hostBackers.length);
       expect(audienceStats.hosted).to.eq(0);
     });
   });

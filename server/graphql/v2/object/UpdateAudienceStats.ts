@@ -8,6 +8,9 @@ export const UpdateAudienceStats = new GraphQLObjectType({
       id: {
         type: new GraphQLNonNull(GraphQLString),
       },
+      coreContributors: {
+        type: new GraphQLNonNull(GraphQLInt),
+      },
       individuals: {
         type: new GraphQLNonNull(GraphQLInt),
       },

@@ -392,25 +392,30 @@ export const countUsersToNotifyForUpdateSQLQuery = `
 `;
 
 export const countMembersToNotifyForUpdateSQLQuery = `
-  WITH unique_members_collectives AS (
-    SELECT DISTINCT mc.id, mc."type"
+  WITH member_collectives_to_notify AS (
+    SELECT mc.id, mc."type", array_agg(m."role")::text[] && ARRAY['ADMIN', 'MEMBER'] AS is_core_contributor
     FROM "Members" m
-    INNER JOIN "Collectives" collective ON collective.id = :collectiveId
-    LEFT JOIN "Members" parent_admin_members -- Include parent collective admins
-      ON collective."ParentCollectiveId" IS NOT NULL
-      AND parent_admin_members."CollectiveId" = collective."ParentCollectiveId"
-      AND parent_admin_members."role" IN ('ADMIN', 'MEMBER')
-      AND parent_admin_members."deletedAt" IS NULL
-    INNER JOIN "Collectives" mc
-      ON m."MemberCollectiveId" = mc.id
-      OR parent_admin_members."MemberCollectiveId"  = mc.id
-    WHERE m."CollectiveId" = :collectiveId
-    AND m."deletedAt" IS NULL
-    AND m."role" IN (:targetRoles)
+    INNER JOIN "Collectives" mc ON m."MemberCollectiveId" = mc.id
+    FULL OUTER JOIN "Collectives" collective ON collective.id = :collectiveId
+    WHERE m."deletedAt" IS NULL
     AND mc."deletedAt" IS NULL
-  ) SELECT "type", COUNT(*) AS "count"
-  FROM unique_members_collectives
-  GROUP BY "type"
+    AND ((
+        m."CollectiveId" = collective.id AND m."role" IN (:targetRoles)
+      ) OR (
+        -- Inlcude parent collective's core contributors
+        collective."ParentCollectiveId" IS NOT NULL
+        AND m."CollectiveId" = collective."ParentCollectiveId"
+        AND m."role" IN ('ADMIN', 'MEMBER')
+      )
+    )
+    GROUP BY mc.id
+  ) SELECT
+    CASE WHEN is_core_contributor IS TRUE THEN 'CORE_CONTRIBUTOR' ELSE "type" END AS "type",
+    COUNT(*) AS "count"
+  FROM
+    member_collectives_to_notify
+  GROUP BY
+    CASE WHEN is_core_contributor IS TRUE THEN 'CORE_CONTRIBUTOR' ELSE "type" END
 `;
 
 /**
