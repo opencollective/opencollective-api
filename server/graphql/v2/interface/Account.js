@@ -204,6 +204,10 @@ const accountFieldsDefinition = () => ({
         type: GraphQLBoolean,
         description: 'Only returns orders that have an subscription (monthly/yearly)',
       },
+      includeIncognito: {
+        type: GraphQLBoolean,
+        description: 'Whether outgoing incognito contributions should be included. Only works when user is an admin.',
+      },
       orderBy: {
         type: ChronologicalOrderInput,
       },
@@ -390,19 +394,36 @@ const accountOrders = {
       type: GraphQLBoolean,
       description: 'Only returns orders that have an subscription (monthly/yearly)',
     },
+    includeIncognito: {
+      type: GraphQLBoolean,
+      description: 'Whether outgoing incognito contributions should be included. Only works when user is an admin.',
+    },
     orderBy: {
       type: ChronologicalOrderInput,
       defaultValue: ChronologicalOrderInput.defaultValue,
     },
   },
-  async resolve(collective, args) {
+  async resolve(collective, args, req) {
+    const outgoingFromCollectiveIds = [collective.id];
     let where, include;
+
+    // Filter for incognito contributions
+    const includesOutgoing = args.filter !== 'INCOMING';
+    const isUser = collective.type === 'USER';
+    if (args.includeIncognito && includesOutgoing && isUser && req.remoteUser?.CollectiveId === collective.id) {
+      const incognitoProfile = await req.remoteUser.getIncognitoProfile();
+      if (incognitoProfile) {
+        outgoingFromCollectiveIds.push(incognitoProfile.id);
+      }
+    }
+
+    // Filter direction (INCOMING/OUTGOING)
     if (args.filter === 'OUTGOING') {
-      where = { FromCollectiveId: collective.id };
+      where = { FromCollectiveId: outgoingFromCollectiveIds };
     } else if (args.filter === 'INCOMING') {
       where = { CollectiveId: collective.id };
     } else {
-      where = { [Op.or]: { CollectiveId: collective.id, FromCollectiveId: collective.id } };
+      where = { [Op.or]: { CollectiveId: collective.id, FromCollectiveId: outgoingFromCollectiveIds } };
     }
 
     if (args.status && args.status.length > 0) {
