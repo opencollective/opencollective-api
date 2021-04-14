@@ -20,6 +20,7 @@ import { HostMetrics } from './HostMetrics';
 import { HostPlan } from './HostPlan';
 import { PaymentMethod } from './PaymentMethod';
 import PayoutMethod from './PayoutMethod';
+import { VirtualCard } from './VirtualCard';
 
 export const Host = new GraphQLObjectType({
   name: 'Host',
@@ -148,6 +149,9 @@ export const Host = new GraphQLObjectType({
           if (connectedAccounts?.find?.(c => c.service === 'paypal') || !collective.settings?.disablePaypalPayouts) {
             supportedPayoutMethods.push(PayoutMethodTypes.PAYPAL);
           }
+          if (connectedAccounts?.find?.(c => c.service === 'privacy')) {
+            supportedPayoutMethods.push(PayoutMethodTypes.CREDIT_CARD);
+          }
 
           return supportedPayoutMethods;
         },
@@ -239,6 +243,16 @@ export const Host = new GraphQLObjectType({
           });
 
           return { totalCount: result.count, limit: args.limit, offset: args.offset, nodes };
+        },
+      },
+      hostedVirtualCards: {
+        type: new GraphQLList(VirtualCard),
+        async resolve(host, args, req) {
+          if (!req.remoteUser?.isAdmin(host.id)) {
+            throw new Unauthorized('You need to be logged in as an admin of the host to see its hosted virtual cards');
+          }
+          const hostedVirtualCards = await req.loaders.VirtualCard.byHostCollectiveId.load(host.id);
+          return hostedVirtualCards;
         },
       },
     };

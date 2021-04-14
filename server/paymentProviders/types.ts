@@ -1,4 +1,5 @@
 import models from '../models';
+import VirtualCardModel from '../models/VirtualCard';
 
 export interface PaymentProvider {
   /**
@@ -25,4 +26,15 @@ export interface PaymentProviderService {
    * Triggers the payment for this order and updates it accordingly
    */
   processOrder(order: typeof models.Order): Promise<typeof models.Transaction>;
+}
+
+export interface CardProviderService {
+  // Standardized
+  deleteCard(virtualCard: VirtualCardModel): Promise<void>;
+  pauseCard(virtualCard: VirtualCardModel): Promise<VirtualCardModel>;
+  resumeCard(virtualCard: VirtualCardModel): Promise<VirtualCardModel>;
+
+  // To be standardized
+  createExpense: any;
+  assignCardToCollective: any;
 }

@@ -1,10 +1,16 @@
+/* eslint-disable camelcase */
+import { omit } from 'lodash';
+
 import { types as CollectiveTypes } from '../../constants/collectives';
 import ExpenseStatus from '../../constants/expense_status';
 import ExpenseType from '../../constants/expense_type';
 import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
+import * as privacy from '../../lib/privacy';
 import models, { sequelize } from '../../models';
+import VirtualCardModel from '../../models/VirtualCard';
 import { Transaction } from '../../types/privacy';
+import { CardProviderService } from '../types';
 
 const createExpense = async (
   privacyTransaction: Transaction,
@@ -100,6 +106,88 @@ const createExpense = async (
   });
 };
 
-export default {
-  createExpense,
+const assignCardToCollective = async (
+  cardDetails: {
+    cardNumber: string;
+    expireDate: string;
+    cvv: string;
+  },
+  collective: any,
+  host: any,
+): Promise<VirtualCardModel> => {
+  const [connectedAccount] = await host.getConnectedAccounts({
+    where: { service: 'privacy', deletedAt: null },
+  });
+
+  if (!connectedAccount) {
+    throw new Error('Host is not connected to Privacy');
+  }
+
+  const { cardNumber, expireDate, cvv } = cardDetails;
+  const last_four = cardNumber.split('  ')[3];
+  const card = await privacy.findCard(connectedAccount.token, { last_four });
+  if (!card || !(card.pan && card.pan === cardNumber.replace(/\s\s/gm, ''))) {
+    throw new Error('Could not find a Privacy credit card matching the submitted card');
+  }
+
+  const virtualCard = await models.VirtualCard.create({
+    id: card.token,
+    name: card.memo || card.last_four,
+    last4: card.last_four,
+    privateData: { cardNumber, expireDate, cvv },
+    data: omit(card, ['pan', 'cvv', 'exp_year', 'exp_month']),
+    CollectiveId: collective.id,
+    HostCollectiveId: host.id,
+  });
+  return virtualCard;
 };
+
+const setCardState = async (virtualCard: VirtualCardModel, state: 'OPEN' | 'PAUSED'): Promise<VirtualCardModel> => {
+  const host = await models.Collective.findByPk(virtualCard.HostCollectiveId);
+  const [connectedAccount] = await host.getConnectedAccounts({
+    where: { service: 'privacy', deletedAt: null },
+  });
+
+  if (!connectedAccount) {
+    throw new Error('Host is not connected to Privacy');
+  }
+
+  // eslint-disable-next-line camelcase
+  const card = await privacy.updateCard(connectedAccount.token, { card_token: virtualCard.id, state });
+
+  return virtualCard.update({
+    data: omit(card, ['pan', 'cvv', 'exp_year', 'exp_month']),
+  });
+};
+
+const pauseCard = async (virtualCard: VirtualCardModel): Promise<VirtualCardModel> =>
+  setCardState(virtualCard, 'PAUSED');
+
+const resumeCard = async (virtualCard: VirtualCardModel): Promise<VirtualCardModel> =>
+  setCardState(virtualCard, 'OPEN');
+
+const deleteCard = async (virtualCard: VirtualCardModel): Promise<void> => {
+  const host = await models.Collective.findByPk(virtualCard.HostCollectiveId);
+  const [connectedAccount] = await host.getConnectedAccounts({
+    where: { service: 'privacy', deletedAt: null },
+  });
+
+  if (!connectedAccount) {
+    throw new Error('Host is not connected to Privacy');
+  }
+
+  // eslint-disable-next-line camelcase
+  await privacy.updateCard(connectedAccount.token, { card_token: virtualCard.id, state: 'CLOSED' });
+
+  return virtualCard.destroy();
+};
+
+const PrivacyCardProviderService = {
+  createExpense,
+  assignCardToCollective,
+  pauseCard,
+  resumeCard,
+  deleteCard,
+} as CardProviderService;
+
+export default PrivacyCardProviderService;

@@ -37,6 +37,10 @@ export type Card = {
   spend_limit_duration: 'TRANSACTION' | 'MONTHLY' | 'ANNUALLY' | 'FOREVER';
   state: 'OPEN' | 'PAUSED' | 'CLOSED' | 'PENDING_FULFILLMENT' | 'PENDING_ACTIVATION';
   type: 'SINGLE_USE' | 'MERCHANT_LOCKED' | 'UNLOCKED' | 'PHYSICAL';
+  cvv?: string;
+  pan?: string;
+  exp_year?: string;
+  exp_month?: string;
 };
 
 export type Merchant = {
