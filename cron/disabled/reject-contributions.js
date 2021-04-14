@@ -103,7 +103,7 @@ async function run({ dryRun, limit, force } = {}) {
         if (!dryRun) {
           try {
             if (paymentMethodProvider.refundTransaction) {
-              await libPayments.refundTransaction(transaction);
+              await libPayments.refundTransaction(transaction, null, 'Contribution rejected');
             } else if (force) {
               await libPayments.createRefundTransaction(transaction, 0, null);
             } else {

@@ -10,6 +10,7 @@ import PaypalPlan from '../../models/PaypalPlan';
 import { PaymentProviderService } from '../types';
 
 import { paypalRequest } from './api';
+import { refundPaypalCapture } from './payment';
 
 export const cancelPaypalSubscription = async (order: typeof models.Order, reason = undefined): Promise<void> => {
   const collective = order.collective || (await order.getCollective());
@@ -309,6 +310,16 @@ const PayPalSubscription: PaymentProviderService = {
 
   async processOrder(order: typeof models.Order): Promise<void> {
     await setupPaypalSubscriptionForOrder(order, order.paymentMethod);
+  },
+
+  async refundTransaction(transaction, user, reason) {
+    // Subscription's transactions are always recorded with paypalSale
+    const captureId = transaction.data.paypalSale?.id;
+    if (!captureId) {
+      throw new Error(`PayPal Payment capture not found for transaction #${transaction.id}`);
+    }
+
+    return refundPaypalCapture(transaction, captureId, user, reason);
   },
 };
 

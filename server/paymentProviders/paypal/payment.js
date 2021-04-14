@@ -1,10 +1,10 @@
-import { get, isNumber } from 'lodash';
+import { get, isNumber, truncate } from 'lodash';
 
 import * as constants from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { floatAmountToCents } from '../../lib/math';
-import { getHostFee, getPlatformFee } from '../../lib/payments';
+import { createRefundTransaction, getHostFee, getPlatformFee } from '../../lib/payments';
 import { paypalAmountToCents } from '../../lib/paypal';
 import { formatCurrency } from '../../lib/utils';
 import models from '../../models';
@@ -169,6 +169,20 @@ const processPaypalOrder = async (order, paypalOrderId) => {
   return recordPaypalCapture(order, captureDetails);
 };
 
+export const refundPaypalCapture = async (transaction, captureId, user, reason) => {
+  const host = await transaction.getHostCollective();
+  if (!host) {
+    throw new Error(`PayPal: Can't find host for transaction #${transaction.id}`);
+  }
+
+  // eslint-disable-next-line camelcase
+  const payload = { note_to_payer: truncate(reason, { length: 255 }) || undefined };
+  const result = await paypalRequestV2(`payments/captures/${captureId}/refund`, host, 'POST', payload);
+  const rawRefundedPaypalFee = get(result, 'seller_payable_breakdown.paypal_fee.amount.value', '0.00');
+  const refundedPaypalFee = floatAmountToCents(parseFloat(rawRefundedPaypalFee));
+  return createRefundTransaction(transaction, refundedPaypalFee, { paypalResponse: result }, user);
+};
+
 /** Process order in paypal and create transactions in our db */
 export async function processOrder(order) {
   if (order.paymentMethod.data?.isNewApi) {
@@ -188,8 +202,29 @@ export async function processOrder(order) {
   }
 }
 
+const getCaptureIdFromPaypalTransaction = transaction => {
+  const { data } = transaction;
+  if (!data) {
+    return null;
+  } else if (data.intent === 'sale') {
+    return get(data, 'transactions.0.related_resources.0.sale.id');
+  } else {
+    return data.capture?.id || data.paypalSale?.id || data.paypalTransaction?.id;
+  }
+};
+
+const refundPaypalPaymentTransaction = async (transaction, user, reason) => {
+  const captureId = getCaptureIdFromPaypalTransaction(transaction);
+  if (!captureId) {
+    throw new Error(`PayPal Payment capture not found for transaction #${transaction.id}`);
+  }
+
+  return refundPaypalCapture(transaction, captureId, user, reason);
+};
+
 /* Interface expected for a payment method */
 export default {
   features: { recurring: false },
   processOrder,
+  refundTransaction: refundPaypalPaymentTransaction,
 };

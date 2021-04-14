@@ -26,6 +26,15 @@ export interface PaymentProviderService {
    * Triggers the payment for this order and updates it accordingly
    */
   processOrder(order: typeof models.Order): Promise<typeof models.Transaction>;
+
+  /**
+   * Refunds a transaction processed with this payment provider service
+   */
+  refundTransaction(
+    transaction: typeof models.Transaction,
+    user: typeof models.User,
+    reason?: string,
+  ): Promise<typeof models.Transaction>;
 }
 
 export interface CardProviderService {
