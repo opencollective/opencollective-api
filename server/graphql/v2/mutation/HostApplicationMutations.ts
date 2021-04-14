@@ -5,7 +5,7 @@ import GraphQLJSON from 'graphql-type-json';
 import { activities } from '../../../constants';
 import { types as CollectiveType } from '../../../constants/collectives';
 import { purgeCacheForCollective } from '../../../lib/cache';
-import emailLib from '../../../lib/email';
+import emailLib, { NO_REPLY_EMAIL } from '../../../lib/email';
 import { handleHostCollectivesLimit } from '../../../lib/plans';
 import { stripHTML } from '../../../lib/sanitize-html';
 import models from '../../../models';
@@ -193,7 +193,7 @@ const sendPrivateMessage = async (host, collective, message: string): Promise<vo
   const adminUsers = await collective.getAdminUsers();
   await emailLib.send(
     'host.application.contact',
-    'no-reply@opencollective.com',
+    NO_REPLY_EMAIL,
     {
       host: host.info,
       collective: collective.info,
