@@ -265,7 +265,7 @@ const accountFieldsDefinition = () => ({
       includeExpired: {
         type: GraphQLBoolean,
         description:
-          'Wether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.',
+          'Whether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.',
       },
     },
   },
@@ -581,7 +581,7 @@ export const AccountFields = {
       includeExpired: {
         type: GraphQLBoolean,
         description:
-          'Wether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.',
+          'Whether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.',
       },
     },
     description: 'The list of payment methods that this collective can use to pay for Orders',

@@ -1040,7 +1040,7 @@ const queries = {
       },
       isHost: {
         type: GraphQLBoolean,
-        description: 'Filter on wether account is a host',
+        description: 'Filter on whether account is a host',
       },
       onlyActive: {
         type: GraphQLBoolean,
