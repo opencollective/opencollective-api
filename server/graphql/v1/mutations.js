@@ -680,7 +680,7 @@ const mutations = {
       },
       accept: {
         type: new GraphQLNonNull(GraphQLBoolean),
-        description: 'Wether this invitation should be accepted or declined',
+        description: 'Whether this invitation should be accepted or declined',
       },
     },
     async resolve(_, args, req) {

@@ -27,7 +27,7 @@ export const HostPlan = new GraphQLObjectType({
     },
     addedFunds: {
       type: GraphQLInt,
-      description: 'Wether this plan allows to use the added funds feature',
+      description: 'Whether this plan allows to use the added funds feature',
     },
     addedFundsLimit: {
       type: GraphQLInt,
@@ -35,15 +35,15 @@ export const HostPlan = new GraphQLObjectType({
     },
     hostDashboard: {
       type: GraphQLBoolean,
-      description: 'Wether this plan allows to use the host dashboard',
+      description: 'Whether this plan allows to use the host dashboard',
     },
     manualPayments: {
       type: GraphQLBoolean,
-      description: 'Wether this plan allows to use the manual payments feature',
+      description: 'Whether this plan allows to use the manual payments feature',
     },
     bankTransfers: {
       type: GraphQLInt,
-      description: 'Wether this plan allows to use the bank transfers feature',
+      description: 'Whether this plan allows to use the bank transfers feature',
     },
     bankTransfersLimit: {
       type: GraphQLInt,
@@ -51,7 +51,7 @@ export const HostPlan = new GraphQLObjectType({
     },
     transferwisePayouts: {
       type: GraphQLInt,
-      description: 'Wether this plan allows to use the transferwise payouts feature',
+      description: 'Whether this plan allows to use the transferwise payouts feature',
     },
     transferwisePayoutsLimit: {
       type: GraphQLInt,

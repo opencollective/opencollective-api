@@ -47,7 +47,7 @@ export const Contributor = new GraphQLObjectType({
     },
     type: {
       type: new GraphQLNonNull(GraphQLString),
-      description: 'Wether the contributor is an individual, an organization...',
+      description: 'Whether the contributor is an individual, an organization...',
     },
     isIncognito: {
       type: new GraphQLNonNull(GraphQLBoolean),
