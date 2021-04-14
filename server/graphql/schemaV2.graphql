@@ -145,6 +145,11 @@ interface Account {
     Only returns orders that have an subscription (monthly/yearly)
     """
     onlySubscriptions: Boolean
+
+    """
+    Whether outgoing incognito contributions should be included. Only works when user is an admin.
+    """
+    includeIncognito: Boolean
     orderBy: ChronologicalOrderInput
   ): OrderCollection!
   settings: JSON!
@@ -184,7 +189,7 @@ interface Account {
     types: [String]
 
     """
-    Wether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.
+    Whether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.
     """
     includeExpired: Boolean
   ): [PaymentMethod]
@@ -630,7 +635,7 @@ type Bot implements Account {
     isArchived: Boolean
 
     """
-    Wether incognito profiles should be included in the result. Only works if requesting user is an admin of the account.
+    Whether incognito profiles should be included in the result. Only works if requesting user is an admin of the account.
     """
     includeIncognito: Boolean = true
 
@@ -672,6 +677,11 @@ type Bot implements Account {
     Only returns orders that have an subscription (monthly/yearly)
     """
     onlySubscriptions: Boolean
+
+    """
+    Whether outgoing incognito contributions should be included. Only works when user is an admin.
+    """
+    includeIncognito: Boolean
     orderBy: ChronologicalOrderInput = { field: CREATED_AT, direction: DESC }
   ): OrderCollection!
   settings: JSON!
@@ -708,7 +718,7 @@ type Bot implements Account {
     types: [String]
 
     """
-    Wether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.
+    Whether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.
     """
     includeExpired: Boolean
   ): [PaymentMethod]!
@@ -882,7 +892,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     isArchived: Boolean
 
     """
-    Wether incognito profiles should be included in the result. Only works if requesting user is an admin of the account.
+    Whether incognito profiles should be included in the result. Only works if requesting user is an admin of the account.
     """
     includeIncognito: Boolean = true
 
@@ -924,6 +934,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     Only returns orders that have an subscription (monthly/yearly)
     """
     onlySubscriptions: Boolean
+
+    """
+    Whether outgoing incognito contributions should be included. Only works when user is an admin.
+    """
+    includeIncognito: Boolean
     orderBy: ChronologicalOrderInput = { field: CREATED_AT, direction: DESC }
   ): OrderCollection!
   settings: JSON!
@@ -960,7 +975,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     types: [String]
 
     """
-    Wether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.
+    Whether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.
     """
     includeExpired: Boolean
   ): [PaymentMethod]!
@@ -1340,7 +1355,7 @@ type Contributor {
   totalAmountDonated: Int!
 
   """
-  Wether the contributor is an individual, an organization...
+  Whether the contributor is an individual, an organization...
   """
   type: String!
 
@@ -3057,7 +3072,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions {
     isArchived: Boolean
 
     """
-    Wether incognito profiles should be included in the result. Only works if requesting user is an admin of the account.
+    Whether incognito profiles should be included in the result. Only works if requesting user is an admin of the account.
     """
     includeIncognito: Boolean = true
 
@@ -3099,6 +3114,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions {
     Only returns orders that have an subscription (monthly/yearly)
     """
     onlySubscriptions: Boolean
+
+    """
+    Whether outgoing incognito contributions should be included. Only works when user is an admin.
+    """
+    includeIncognito: Boolean
     orderBy: ChronologicalOrderInput = { field: CREATED_AT, direction: DESC }
   ): OrderCollection!
   settings: JSON!
@@ -3135,7 +3155,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions {
     types: [String]
 
     """
-    Wether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.
+    Whether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.
     """
     includeExpired: Boolean
   ): [PaymentMethod]!
@@ -3961,7 +3981,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     isArchived: Boolean
 
     """
-    Wether incognito profiles should be included in the result. Only works if requesting user is an admin of the account.
+    Whether incognito profiles should be included in the result. Only works if requesting user is an admin of the account.
     """
     includeIncognito: Boolean = true
 
@@ -4003,6 +4023,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     Only returns orders that have an subscription (monthly/yearly)
     """
     onlySubscriptions: Boolean
+
+    """
+    Whether outgoing incognito contributions should be included. Only works when user is an admin.
+    """
+    includeIncognito: Boolean
     orderBy: ChronologicalOrderInput = { field: CREATED_AT, direction: DESC }
   ): OrderCollection!
   settings: JSON!
@@ -4039,7 +4064,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     types: [String]
 
     """
-    Wether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.
+    Whether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.
     """
     includeExpired: Boolean
   ): [PaymentMethod]!
@@ -4273,7 +4298,7 @@ type Host implements Account & AccountWithContributions {
     isArchived: Boolean
 
     """
-    Wether incognito profiles should be included in the result. Only works if requesting user is an admin of the account.
+    Whether incognito profiles should be included in the result. Only works if requesting user is an admin of the account.
     """
     includeIncognito: Boolean = true
 
@@ -4315,6 +4340,11 @@ type Host implements Account & AccountWithContributions {
     Only returns orders that have an subscription (monthly/yearly)
     """
     onlySubscriptions: Boolean
+
+    """
+    Whether outgoing incognito contributions should be included. Only works when user is an admin.
+    """
+    includeIncognito: Boolean
     orderBy: ChronologicalOrderInput = { field: CREATED_AT, direction: DESC }
   ): OrderCollection!
   settings: JSON!
@@ -4351,7 +4381,7 @@ type Host implements Account & AccountWithContributions {
     types: [String]
 
     """
-    Wether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.
+    Whether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.
     """
     includeExpired: Boolean
   ): [PaymentMethod]!
@@ -4637,7 +4667,7 @@ type HostPlan {
   hostedCollectivesLimit: Int
 
   """
-  Wether this plan allows to use the added funds feature
+  Whether this plan allows to use the added funds feature
   """
   addedFunds: Int
 
@@ -4647,17 +4677,17 @@ type HostPlan {
   addedFundsLimit: Int
 
   """
-  Wether this plan allows to use the host dashboard
+  Whether this plan allows to use the host dashboard
   """
   hostDashboard: Boolean
 
   """
-  Wether this plan allows to use the manual payments feature
+  Whether this plan allows to use the manual payments feature
   """
   manualPayments: Boolean
 
   """
-  Wether this plan allows to use the bank transfers feature
+  Whether this plan allows to use the bank transfers feature
   """
   bankTransfers: Int
 
@@ -4667,7 +4697,7 @@ type HostPlan {
   bankTransfersLimit: Int
 
   """
-  Wether this plan allows to use the transferwise payouts feature
+  Whether this plan allows to use the transferwise payouts feature
   """
   transferwisePayouts: Int
 
@@ -4797,7 +4827,7 @@ type Individual implements Account {
     isArchived: Boolean
 
     """
-    Wether incognito profiles should be included in the result. Only works if requesting user is an admin of the account.
+    Whether incognito profiles should be included in the result. Only works if requesting user is an admin of the account.
     """
     includeIncognito: Boolean = true
 
@@ -4839,6 +4869,11 @@ type Individual implements Account {
     Only returns orders that have an subscription (monthly/yearly)
     """
     onlySubscriptions: Boolean
+
+    """
+    Whether outgoing incognito contributions should be included. Only works when user is an admin.
+    """
+    includeIncognito: Boolean
     orderBy: ChronologicalOrderInput = { field: CREATED_AT, direction: DESC }
   ): OrderCollection!
   settings: JSON!
@@ -4875,7 +4910,7 @@ type Individual implements Account {
     types: [String]
 
     """
-    Wether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.
+    Whether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.
     """
     includeExpired: Boolean
   ): [PaymentMethod]!
@@ -5143,7 +5178,7 @@ type Mutation {
     user: IndividualCreateInput
 
     """
-    Wether to trigger the automated approval for Open Source collectives with GitHub.
+    Whether to trigger the automated approval for Open Source collectives with GitHub.
     """
     automateApprovalWithGithub: Boolean = false
 
@@ -6109,7 +6144,7 @@ type Organization implements Account & AccountWithContributions {
     isArchived: Boolean
 
     """
-    Wether incognito profiles should be included in the result. Only works if requesting user is an admin of the account.
+    Whether incognito profiles should be included in the result. Only works if requesting user is an admin of the account.
     """
     includeIncognito: Boolean = true
 
@@ -6151,6 +6186,11 @@ type Organization implements Account & AccountWithContributions {
     Only returns orders that have an subscription (monthly/yearly)
     """
     onlySubscriptions: Boolean
+
+    """
+    Whether outgoing incognito contributions should be included. Only works when user is an admin.
+    """
+    includeIncognito: Boolean
     orderBy: ChronologicalOrderInput = { field: CREATED_AT, direction: DESC }
   ): OrderCollection!
   settings: JSON!
@@ -6187,7 +6227,7 @@ type Organization implements Account & AccountWithContributions {
     types: [String]
 
     """
-    Wether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.
+    Whether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.
     """
     includeExpired: Boolean
   ): [PaymentMethod]!
@@ -6340,7 +6380,7 @@ input PaymentMethodInput {
   name: String
 
   """
-  Wether this payment method should be saved for future payments
+  Whether this payment method should be saved for future payments
   """
   isSavedForLater: Boolean
 
@@ -6629,7 +6669,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions {
     isArchived: Boolean
 
     """
-    Wether incognito profiles should be included in the result. Only works if requesting user is an admin of the account.
+    Whether incognito profiles should be included in the result. Only works if requesting user is an admin of the account.
     """
     includeIncognito: Boolean = true
 
@@ -6671,6 +6711,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions {
     Only returns orders that have an subscription (monthly/yearly)
     """
     onlySubscriptions: Boolean
+
+    """
+    Whether outgoing incognito contributions should be included. Only works when user is an admin.
+    """
+    includeIncognito: Boolean
     orderBy: ChronologicalOrderInput = { field: CREATED_AT, direction: DESC }
   ): OrderCollection!
   settings: JSON!
@@ -6707,7 +6752,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions {
     types: [String]
 
     """
-    Wether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.
+    Whether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.
     """
     includeExpired: Boolean
   ): [PaymentMethod]!
@@ -7699,7 +7744,7 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
     isArchived: Boolean
 
     """
-    Wether incognito profiles should be included in the result. Only works if requesting user is an admin of the account.
+    Whether incognito profiles should be included in the result. Only works if requesting user is an admin of the account.
     """
     includeIncognito: Boolean = true
 
@@ -7741,6 +7786,11 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
     Only returns orders that have an subscription (monthly/yearly)
     """
     onlySubscriptions: Boolean
+
+    """
+    Whether outgoing incognito contributions should be included. Only works when user is an admin.
+    """
+    includeIncognito: Boolean
     orderBy: ChronologicalOrderInput = { field: CREATED_AT, direction: DESC }
   ): OrderCollection!
   settings: JSON!
@@ -7777,7 +7827,7 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
     types: [String]
 
     """
-    Wether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.
+    Whether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.
     """
     includeExpired: Boolean
   ): [PaymentMethod]!

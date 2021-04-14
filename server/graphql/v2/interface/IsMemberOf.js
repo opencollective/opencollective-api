@@ -36,7 +36,7 @@ export const IsMemberOfFields = {
         type: GraphQLBoolean,
         defaultValue: true,
         description:
-          'Wether incognito profiles should be included in the result. Only works if requesting user is an admin of the account.',
+          'Whether incognito profiles should be included in the result. Only works if requesting user is an admin of the account.',
       },
       searchTerm: {
         type: GraphQLString,

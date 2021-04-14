@@ -50,7 +50,7 @@ export const PaymentMethodInput = new GraphQLInputObjectType({
     },
     isSavedForLater: {
       type: GraphQLBoolean,
-      description: 'Wether this payment method should be saved for future payments',
+      description: 'Whether this payment method should be saved for future payments',
     },
     creditCardInfo: {
       type: CreditCardCreateInput,
