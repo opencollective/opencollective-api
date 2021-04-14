@@ -206,7 +206,7 @@ const accountFieldsDefinition = () => ({
       },
       includeIncognito: {
         type: GraphQLBoolean,
-        description: 'Wether outgoing incognito contributions should be included. Only works when user is an admin.',
+        description: 'Whether outgoing incognito contributions should be included. Only works when user is an admin.',
       },
       orderBy: {
         type: ChronologicalOrderInput,
@@ -396,7 +396,7 @@ const accountOrders = {
     },
     includeIncognito: {
       type: GraphQLBoolean,
-      description: 'Wether outgoing incognito contributions should be included. Only works when user is an admin.',
+      description: 'Whether outgoing incognito contributions should be included. Only works when user is an admin.',
     },
     orderBy: {
       type: ChronologicalOrderInput,
