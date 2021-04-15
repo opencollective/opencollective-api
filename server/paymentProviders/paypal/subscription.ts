@@ -307,8 +307,8 @@ const PayPalSubscription: PaymentProviderService = {
     isRecurringManagedExternally: true,
   },
 
-  async processOrder(order: typeof models.Order): Promise<typeof models.Transaction> {
-    return setupPaypalSubscriptionForOrder(order, order.paymentMethod);
+  async processOrder(order: typeof models.Order): Promise<void> {
+    await setupPaypalSubscriptionForOrder(order, order.paymentMethod);
   },
 };
 
