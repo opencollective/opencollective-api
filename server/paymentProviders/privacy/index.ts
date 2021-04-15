@@ -126,7 +126,8 @@ const assignCardToCollective = async (
   const { cardNumber, expireDate, cvv } = cardDetails;
   const last_four = cardNumber.split('  ')[3];
   const card = await privacy.findCard(connectedAccount.token, { last_four });
-  if (!card || !(card.pan && card.pan === cardNumber.replace(/\s\s/gm, ''))) {
+
+  if (!card || (card.pan && card.pan !== cardNumber.replace(/\s\s/gm, ''))) {
     throw new Error('Could not find a Privacy credit card matching the submitted card');
   }
 
