@@ -234,21 +234,16 @@ describe('server/models/Update', () => {
         const update = await fakeUpdate({ CollectiveId: collective.id, isPrivate: false });
         const stats = await update.getAudienceMembersStats();
         expect(stats.ORGANIZATION).to.eq(backerOrganizations.length);
-        expect(stats.USER).to.eq(
-          parentCollectiveAdmins.length +
-            collectiveAdmins.length +
-            individualBackersUsers.length +
-            collectiveFollowers.length,
-        );
+        expect(stats.CORE_CONTRIBUTOR).to.eq(parentCollectiveAdmins.length + collectiveAdmins.length);
+        expect(stats.USER).to.eq(individualBackersUsers.length + collectiveFollowers.length);
       });
 
       it('When the update is private', async () => {
         const update = await fakeUpdate({ CollectiveId: collective.id, isPrivate: true });
         const stats = await update.getAudienceMembersStats();
         expect(stats.ORGANIZATION).to.eq(backerOrganizations.length);
-        expect(stats.USER).to.eq(
-          parentCollectiveAdmins.length + collectiveAdmins.length + individualBackersUsers.length,
-        );
+        expect(stats.CORE_CONTRIBUTOR).to.eq(parentCollectiveAdmins.length + collectiveAdmins.length);
+        expect(stats.USER).to.eq(individualBackersUsers.length);
       });
     });
   });
