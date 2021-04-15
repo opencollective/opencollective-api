@@ -1,5 +1,5 @@
 /* eslint-disable camelcase */
-import { omit } from 'lodash';
+import { isEmpty, omit } from 'lodash';
 
 import activities from '../../constants/activities';
 import { types as CollectiveTypes } from '../../constants/collectives';
@@ -67,7 +67,7 @@ const createExpense = async (
         status: ExpenseStatus.PAID,
         type: ExpenseType.CHARGE,
         incurredAt: privacyTransaction.created,
-        data: privacyTransaction,
+        data: { ...privacyTransaction, missingDetails: true },
       },
       { transaction },
     );
@@ -200,9 +200,21 @@ const deleteCard = async (virtualCard: VirtualCardModel): Promise<void> => {
   return virtualCard.destroy();
 };
 
+const autoPauseResumeCard = async (virtualCard: VirtualCardModel) => {
+  const pendingExpenses = await virtualCard.getExpensesMissingDetails();
+  const hasPendingExpenses = !isEmpty(pendingExpenses);
+
+  if (hasPendingExpenses && virtualCard.data.state == 'OPEN') {
+    await pauseCard(virtualCard);
+  } else if (!hasPendingExpenses && virtualCard.data.state == 'PAUSED') {
+    await resumeCard(virtualCard);
+  }
+};
+
 const PrivacyCardProviderService = {
   createExpense,
   assignCardToCollective,
+  autoPauseResumeCard,
   pauseCard,
   resumeCard,
   deleteCard,

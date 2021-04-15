@@ -60,6 +60,9 @@ export async function run() {
         await Promise.all(
           transactions.map(transaction => privacy.createExpense(transaction, { host, hostCurrencyFxRate })),
         );
+        if (host.settings?.virtualcards?.autopause) {
+          await privacy.autoPauseResumeCard(card);
+        }
       }
     }
   }
