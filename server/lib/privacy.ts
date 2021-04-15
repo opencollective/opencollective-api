@@ -3,7 +3,7 @@
 import Axios from 'axios';
 import config from 'config';
 import Debug from 'debug';
-import { find } from 'lodash';
+import { find, pick } from 'lodash';
 
 import { Card, PagingParams, PrivacyResponse, Transaction } from '../types/privacy';
 
@@ -11,6 +11,15 @@ const debug = Debug('privacy');
 const axios = Axios.create({
   baseURL: config.privacy.apiUrl,
 });
+
+const sanitizeError = e => {
+  e.config = pick(e.config, ['url', 'method', 'params', 'data', 'baseUrl']);
+  return e;
+};
+
+const rethrowSanitizedError = e => {
+  throw sanitizeError(e);
+};
 
 export const listTransactions = async (
   token: string,
@@ -21,10 +30,12 @@ export const listTransactions = async (
   const url = `/v1/transaction/${status}`;
   debug(`GET ${url}: ${card_token}`);
 
-  const response = await axios.get(url, {
-    headers: { Authorization: `api-key ${token}` },
-    params: { card_token, ...paging },
-  });
+  const response = await axios
+    .get(url, {
+      headers: { Authorization: `api-key ${token}` },
+      params: { card_token, ...paging },
+    })
+    .catch(rethrowSanitizedError);
 
   return response.data;
 };
@@ -33,10 +44,12 @@ export const listCards = async (token: string, card_token?: string, paging?: Pag
   const url = `/v1/card`;
   debug(`GET ${url}`);
 
-  const response = await axios.get(url, {
-    headers: { Authorization: `api-key ${token}` },
-    params: { ...paging, card_token },
-  });
+  const response = await axios
+    .get(url, {
+      headers: { Authorization: `api-key ${token}` },
+      params: { ...paging, card_token },
+    })
+    .catch(rethrowSanitizedError);
 
   return response.data?.data;
 };
@@ -67,9 +80,11 @@ export const updateCard = async (
   const url = `/v1/card`;
   debug(`PUT ${url}`);
 
-  const response = await axios.put(url, cardProperties, {
-    headers: { Authorization: `api-key ${token}` },
-  });
+  const response = await axios
+    .put(url, cardProperties, {
+      headers: { Authorization: `api-key ${token}` },
+    })
+    .catch(rethrowSanitizedError);
 
   return response.data;
 };
