@@ -6,6 +6,7 @@ import logger from '../../lib/logger';
 import { floatAmountToCents } from '../../lib/math';
 import { getHostFee, getPlatformFee } from '../../lib/payments';
 import { paypalAmountToCents } from '../../lib/paypal';
+import { formatCurrency } from '../../lib/utils';
 import models from '../../models';
 
 import { paypalRequest, paypalRequestV2 } from './api';
@@ -140,16 +141,39 @@ const recordPaypalCapture = async (order, capture) => {
   return recordTransaction(order, amount, currency, fee, { capture });
 };
 
+const processPaypalOrder = async (order, paypalOrderId) => {
+  const hostCollective = await order.collective.getHostCollective();
+  const paypalOrderUrl = `checkout/orders/${paypalOrderId}`;
+
+  // Check payment details
+  const paypalOrderDetails = await paypalRequestV2(paypalOrderUrl, hostCollective, 'GET');
+  const purchaseUnit = paypalOrderDetails['purchase_units'][0];
+  const paypalAmountInCents = floatAmountToCents(parseFloat(purchaseUnit.amount['value']));
+  const paypalCurrency = purchaseUnit.amount['currency_code'];
+  if (paypalAmountInCents !== order.totalAmount || paypalCurrency !== order.currency) {
+    const expected = formatCurrency(order.totalAmount, order.currency);
+    const actual = formatCurrency(paypalAmountInCents, paypalCurrency);
+    throw new Error(
+      `The amount/currency for this payment doesn't match what's expected for this order (expected: ${expected}, actual: ${actual})`,
+    );
+  } else if (paypalOrderDetails.status === 'COMPLETED') {
+    throw new Error('This PayPal order has already been charged');
+  }
+
+  // Trigger the actual charge
+  const capture = await paypalRequestV2(`${paypalOrderUrl}/capture`, hostCollective, 'POST');
+  const captureId = capture.purchase_units[0].payments.captures[0].id;
+  const captureDetails = await paypalRequestV2(`payments/captures/${captureId}`, hostCollective, 'GET');
+
+  // Record the charge in our ledger
+  return recordPaypalCapture(order, captureDetails);
+};
+
 /** Process order in paypal and create transactions in our db */
 export async function processOrder(order) {
-  if (order.paymentMethod.data.isNewApi) {
+  if (order.paymentMethod.data?.isNewApi) {
     if (order.paymentMethod.data.orderId) {
-      const hostCollective = await order.collective.getHostCollective();
-      const orderId = order.paymentMethod.data.orderId;
-      const capture = await paypalRequestV2(`checkout/orders/${orderId}/capture`, hostCollective, 'POST');
-      const captureId = capture.purchase_units[0].payments.captures[0].id;
-      const captureDetails = await paypalRequestV2(`payments/captures/${captureId}`, hostCollective, 'GET');
-      return recordPaypalCapture(order, captureDetails);
+      return processPaypalOrder(order, order.paymentMethod.data.orderId);
     } else {
       throw new Error('Must provide an orderId');
     }
