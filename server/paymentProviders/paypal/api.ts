@@ -2,6 +2,7 @@ import config from 'config';
 import fetch from 'node-fetch';
 
 import logger from '../../lib/logger';
+import { getHostPaypalAccount } from '../../lib/paypal';
 
 /** Build an URL for the PayPal API */
 export function paypalUrl(path: string, version = 'v1'): string {
@@ -32,17 +33,13 @@ export async function retrieveOAuthToken({ clientId, clientSecret }): Promise<st
 
 /** Assemble POST requests for communicating with PayPal API */
 export async function paypalRequest(urlPath, body, hostCollective, method = 'POST'): Promise<Record<string, unknown>> {
-  const connectedPaypalAccounts = await hostCollective.getConnectedAccounts({
-    where: { service: 'paypal', deletedAt: null },
-    order: [['createdAt', 'DESC']],
-  });
-  const paypal = connectedPaypalAccounts[0];
-  if (!paypal || !paypal.clientId || !paypal.token) {
+  const paypal = await getHostPaypalAccount(hostCollective);
+  if (!paypal) {
     throw new Error("Host doesn't support PayPal payments.");
   }
+
   const url = paypalUrl(urlPath);
   const token = await retrieveOAuthToken({ clientId: paypal.clientId, clientSecret: paypal.token });
-
   const params = {
     method,
     body: body ? JSON.stringify(body) : undefined,
@@ -72,12 +69,8 @@ export async function paypalRequest(urlPath, body, hostCollective, method = 'POS
 }
 
 export async function paypalRequestV2(urlPath, hostCollective, method = 'POST'): Promise<Record<string, unknown>> {
-  const connectedPaypalAccounts = await hostCollective.getConnectedAccounts({
-    where: { service: 'paypal' },
-    order: [['createdAt', 'DESC']],
-  });
-  const paypal = connectedPaypalAccounts[0];
-  if (!paypal || !paypal.clientId || !paypal.token) {
+  const paypal = await getHostPaypalAccount(hostCollective);
+  if (!paypal) {
     throw new Error("Host doesn't support PayPal payments.");
   }
 

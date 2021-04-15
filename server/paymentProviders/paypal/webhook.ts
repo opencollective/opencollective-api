@@ -145,6 +145,11 @@ async function handleSubscriptionActivated(req: Request): Promise<void> {
   }
 }
 
+/**
+ * Webhook entrypoint. When adding a new event type here, you should also add it to
+ * `server/lib/paypal.ts` > `WATCHED_EVENT_TYPES` and run `scripts/update-hosts-paypal-webhooks.ts`
+ * to update all existing webhooks.
+ */
 async function webhook(req: Request): Promise<void> {
   debug('new event', req.body);
   const eventType = get(req, 'body.event_type');
