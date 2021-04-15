@@ -215,7 +215,7 @@ const isCompatibleWebhook = (webhook: PaypalWebhook): boolean => {
     return false;
   } else {
     const webhookEvents = webhook['event_types'].map(event => event.name);
-    const differences = difference(webhookEvents, WATCHED_EVENT_TYPES);
+    const differences = difference(WATCHED_EVENT_TYPES, webhookEvents);
     return differences.length === 0;
   }
 };
