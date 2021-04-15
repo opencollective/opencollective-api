@@ -204,7 +204,7 @@ const deletePaypalWebhook = async (host, webhookId): Promise<void> => {
 };
 
 const isOpenCollectiveWebhook = (webhook: PaypalWebhook): boolean => {
-  return webhook.url !== PAYPAL_WEBHOOK_URL;
+  return webhook.url === PAYPAL_WEBHOOK_URL;
 };
 
 /**
