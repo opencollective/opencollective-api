@@ -114,6 +114,7 @@ const assignCardToCollective = async (
   },
   collective: any,
   host: any,
+  options?: { upsert: boolean },
 ): Promise<VirtualCardModel> => {
   const [connectedAccount] = await host.getConnectedAccounts({
     where: { service: 'privacy', deletedAt: null },
@@ -126,11 +127,12 @@ const assignCardToCollective = async (
   const { cardNumber, expireDate, cvv } = cardDetails;
   const last_four = cardNumber.split('  ')[3];
   const card = await privacy.findCard(connectedAccount.token, { last_four });
-  if (!card || !(card.pan && card.pan === cardNumber.replace(/\s\s/gm, ''))) {
+
+  if (!card || (card.pan && card.pan !== cardNumber.replace(/\s\s/gm, ''))) {
     throw new Error('Could not find a Privacy credit card matching the submitted card');
   }
 
-  const virtualCard = await models.VirtualCard.create({
+  const cardData = {
     id: card.token,
     name: card.memo || card.last_four,
     last4: card.last_four,
@@ -138,8 +140,13 @@ const assignCardToCollective = async (
     data: omit(card, ['pan', 'cvv', 'exp_year', 'exp_month']),
     CollectiveId: collective.id,
     HostCollectiveId: host.id,
-  });
-  return virtualCard;
+  };
+  if (options?.upsert) {
+    const [virtualCard] = await models.VirtualCard.upsert(cardData);
+    return virtualCard;
+  } else {
+    return await models.VirtualCard.create(cardData);
+  }
 };
 
 const setCardState = async (virtualCard: VirtualCardModel, state: 'OPEN' | 'PAUSED'): Promise<VirtualCardModel> => {
