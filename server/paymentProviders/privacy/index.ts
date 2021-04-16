@@ -105,9 +105,11 @@ const createExpense = async (
     return expense;
   });
 
-  expense
-    .createActivity(activities.COLLECTIVE_EXPENSE_MISSING_RECEIPT, { id: UserId }, { ...expense.data })
-    .catch(e => logger.error('An error happened when creating the COLLECTIVE_EXPENSE_MISSING_RECEIPT activity', e));
+  if (collective.settings?.ignoreExpenseMissingReceiptAlerts !== true) {
+    expense
+      .createActivity(activities.COLLECTIVE_EXPENSE_MISSING_RECEIPT, { id: UserId }, { ...expense.data })
+      .catch(e => logger.error('An error happened when creating the COLLECTIVE_EXPENSE_MISSING_RECEIPT activity', e));
+  }
 
   return expense;
 };
