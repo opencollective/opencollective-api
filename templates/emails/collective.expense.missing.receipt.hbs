@@ -1,20 +1,21 @@
-Subject: {{fromCollective.name}} card charge expense is missing information
+Subject: Action Required: Please submit receipt for card expense
 
 
 {{> header}}
 
 <center>
   <h1>
-    {{fromCollective.name}} card charge expense is missing information
+    Please submit a receipt for card expense from {{fromCollective.name}}
   </h1>
 </center>
 <p>
-  A {{currency expense.amount currency=expense.currency precision=2}} card charge was created and it is currently
-  missing critical information. For accounting reasons, your host will need an accurate description and a
-  copy of the receipt regarding this charge.
+  A card attached to {{fromCollective.name}} was charged {{currency expense.amount currency=expense.currency
+  precision=2}} and we need you to input additional information. For accounting reasons, your Host will need an accurate
+  description and a copy of the receipt.
 </p>
 <p>
-  <strong>Please, attach the receipt to avoid your card being suspended.</strong>
+  <strong>Please attach the receipt to continue using your card. Your Host may suspend the card if receipts are not
+    provided.</strong>
 </p>
 
 
@@ -23,7 +24,7 @@ Subject: {{fromCollective.name}} card charge expense is missing information
 
 <center>
   <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}" class="btn blue">
-    <div>Add Missing Information to Expense</div>
+    <div>Submit Receipt and Input Additional Information</div>
   </a>
 </center>
 
