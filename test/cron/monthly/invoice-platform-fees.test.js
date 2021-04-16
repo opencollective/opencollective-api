@@ -120,6 +120,7 @@ describe('cron/monthly/invoice-platform-fees', () => {
     const [collectedTransaction] = await gbpHost.getTransactions({});
     expect(collectedTransaction).to.have.property('description').that.includes('Platform Fees and Tips collected in');
     expect(collectedTransaction).to.have.property('amount', Math.round(1000 / 1.23) + 300);
+    expect(collectedTransaction).to.have.property('kind', 'PLATFORM_TIP');
   });
 
   it('should invoice the host in its own currency', () => {

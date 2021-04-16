@@ -24,6 +24,7 @@ export async function createPrepaidPaymentMethod(originalCreditTransaction) {
     paymentProcessorFeeInHostCurrency: 0,
     platformFeeInHostCurrency: 0,
     hostFeeInHostCurrency: 0,
+    kind: null, // We intentionally set an empty `kind` for prepaid
   };
 
   await models.Transaction.createDoubleEntry(paymentMethodTransaction);

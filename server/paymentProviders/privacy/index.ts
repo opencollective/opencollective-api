@@ -5,6 +5,7 @@ import activities from '../../constants/activities';
 import { types as CollectiveTypes } from '../../constants/collectives';
 import ExpenseStatus from '../../constants/expense_status';
 import ExpenseType from '../../constants/expense_type';
+import { TransactionKind } from '../../constants/transaction-kind';
 import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
 import * as privacy from '../../lib/privacy';
@@ -97,6 +98,7 @@ const createExpense = async (
         hostFeeInHostCurrency: 0,
         platformFeeInHostCurrency: 0,
         hostCurrencyFxRate,
+        kind: TransactionKind.EXPENSE,
       },
       { transaction },
     );
