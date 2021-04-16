@@ -714,7 +714,11 @@ export async function editExpense(
   let payoutMethod = await expense.getPayoutMethod();
   const updatedExpense = await sequelize.transaction(async t => {
     // Update payout method if we get new data from one of the param for it
-    if (expenseData.payoutMethod !== undefined && expenseData.payoutMethod?.id !== expense.PayoutMethodId) {
+    if (
+      !isPaidCreditCardCharge &&
+      expenseData.payoutMethod !== undefined &&
+      expenseData.payoutMethod?.id !== expense.PayoutMethodId
+    ) {
       payoutMethod = await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, t);
     }
 
