@@ -482,5 +482,9 @@ async function notifyByEmail(activity) {
         await notifyAdminsOfCollective(activity.data.payee.id, activity, { sendEvenIfNotProduction: true });
       }
       break;
+
+    case activityType.COLLECTIVE_EXPENSE_MISSING_RECEIPT:
+      notifyAdminsOfCollective(activity.data.fromCollective.id, activity, { sendEvenIfNotProduction: true });
+      break;
   }
 }
