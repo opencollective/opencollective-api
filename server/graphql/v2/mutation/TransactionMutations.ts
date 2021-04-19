@@ -58,7 +58,7 @@ const transactionMutations = {
       const toAccount = await models.Collective.findByPk(transaction.CollectiveId);
       const rejectionReason =
         args.message ||
-        `An administrator of ${toAccount.name} manually rejected your contribution without providing a specific message.`;
+        `An administrator of ${toAccount.name} manually rejected your contribution without providing a specific reason.`;
 
       /** refund transaction and set status - - if the transaction has already been
        * refunded we don't want to try and do it again, but we will continue with
