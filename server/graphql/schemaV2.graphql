@@ -471,6 +471,7 @@ enum ActivityType {
   COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT
   COLLECTIVE_EXPENSE_ERROR
   COLLECTIVE_EXPENSE_INVITE_DRAFTED
+  COLLECTIVE_EXPENSE_MISSING_RECEIPT
   COLLECTIVE_MEMBER_CREATED
   COLLECTIVE_TRANSACTION_CREATED
   COLLECTIVE_UPDATE_CREATED
@@ -7932,20 +7933,14 @@ VirtualCard related properties.
 """
 type VirtualCard {
   id: String
-<<<<<<< HEAD
   account: Account
   host: Account
-=======
-  CollectiveId: Int
-  HostCollectiveId: Int
->>>>>>> debt(Updates): Further deprecation removal & refactors
   name: String
   last4: String
   data: JSONObject
   privateData: JSONObject
   createdAt: DateTime
   updatedAt: DateTime
-<<<<<<< HEAD
 }
 
 input VirtualCardInput {
@@ -7958,7 +7953,4 @@ input VirtualCardInput {
 
 input VirtualCardReferenceInput {
   id: String
-=======
-  deletedAt: DateTime
->>>>>>> debt(Updates): Further deprecation removal & refactors
 }
