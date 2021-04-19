@@ -95,8 +95,9 @@ export async function processOrder(order, options) {
  *  include the `PaymentMethods` table.
  * @param {Object} user is an instance of the User model that will be
  *  associated to the refund transaction as who performed the refund.
+ * @param {string} message a optional message to explain why the transaction is rejected
  */
-export async function refundTransaction(transaction, user) {
+export async function refundTransaction(transaction, user, message) {
   // If no payment method was used, it means that we're using a manual payment method
   const paymentMethodProvider = transaction.PaymentMethod
     ? findPaymentMethodProvider(transaction.PaymentMethod)
@@ -106,7 +107,7 @@ export async function refundTransaction(transaction, user) {
     throw new Error('This payment method provider does not support refunds');
   }
 
-  return await paymentMethodProvider.refundTransaction(transaction, user);
+  return await paymentMethodProvider.refundTransaction(transaction, user, message);
 }
 
 /** Calculates how much an amount's fee is worth.

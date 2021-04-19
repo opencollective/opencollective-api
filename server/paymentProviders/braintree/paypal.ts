@@ -29,6 +29,10 @@ const PayPal: PaymentProviderService = {
       throw new Error(`Failed to process order #${order.id}, please try again later or use a different payment method`);
     }
   },
+
+  async refundTransaction() {
+    throw new Error('Not supported');
+  },
 };
 
 export default PayPal;

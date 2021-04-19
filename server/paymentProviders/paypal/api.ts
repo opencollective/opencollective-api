@@ -3,6 +3,7 @@ import fetch from 'node-fetch';
 
 import logger from '../../lib/logger';
 import { getHostPaypalAccount } from '../../lib/paypal';
+import models from '../../models';
 
 /** Build an URL for the PayPal API */
 export function paypalUrl(path: string, version = 'v1'): string {
@@ -68,7 +69,12 @@ export async function paypalRequest(urlPath, body, hostCollective, method = 'POS
   }
 }
 
-export async function paypalRequestV2(urlPath, hostCollective, method = 'POST'): Promise<Record<string, unknown>> {
+export async function paypalRequestV2(
+  urlPath: string,
+  hostCollective: typeof models.Collective,
+  method = 'POST',
+  body = null,
+): Promise<Record<string, unknown>> {
   const paypal = await getHostPaypalAccount(hostCollective);
   if (!paypal) {
     throw new Error("Host doesn't support PayPal payments.");
@@ -78,6 +84,7 @@ export async function paypalRequestV2(urlPath, hostCollective, method = 'POST'):
   const token = await retrieveOAuthToken({ clientId: paypal.clientId, clientSecret: paypal.token });
   const params = {
     method,
+    body: body ? JSON.stringify(body) : undefined,
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
