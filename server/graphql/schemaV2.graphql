@@ -471,6 +471,7 @@ enum ActivityType {
   COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT
   COLLECTIVE_EXPENSE_ERROR
   COLLECTIVE_EXPENSE_INVITE_DRAFTED
+  COLLECTIVE_EXPENSE_MISSING_RECEIPT
   COLLECTIVE_MEMBER_CREATED
   COLLECTIVE_TRANSACTION_CREATED
   COLLECTIVE_UPDATE_CREATED
@@ -7226,11 +7227,6 @@ type Query {
     Public identifier
     """
     id: String
-
-    """
-    The update slug identifying the update
-    """
-    updateSlug: String
 
     """
     The update slug identifying the update
