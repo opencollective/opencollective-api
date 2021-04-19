@@ -366,11 +366,6 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent) 
     if (paymentRequired && !hasPaymentMethod(order)) {
       throw new Error('This order requires a payment method');
     }
-    if (paymentRequired && order.paymentMethod.service === 'paypal' && order.paymentMethod.data?.isNewApi) {
-      if (!remoteUser?.isRoot()) {
-        throw new Error('New PayPal API can only be used by root users at the moment');
-      }
-    }
     if (paymentRequired && order.paymentMethod && order.paymentMethod.type === 'manual') {
       await handleHostPlanBankTransfersLimit(host);
     }
