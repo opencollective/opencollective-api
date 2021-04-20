@@ -1,4 +1,6 @@
 /* eslint-disable camelcase */
+import crypto from 'crypto';
+
 import { expect } from 'chai';
 import sinon from 'sinon';
 
@@ -17,7 +19,6 @@ describe('paymentMethods/paypal/payouts.js', () => {
   beforeEach(utils.resetTestDB);
 
   describe('payExpensesBatch', () => {
-    const sandbox = sinon.createSandbox();
     let expense, host, collective, payoutMethod;
     beforeEach(async () => {
       host = await fakeCollective({ isHostAccount: true });
@@ -65,6 +66,15 @@ describe('paymentMethods/paypal/payouts.js', () => {
 
       sinon.assert.calledOnce(paypalLib.executePayouts);
       expect(expense.data).to.deep.equals({ payout_batch_id: 'fake' });
+    });
+
+    it('should generate unique sender_batch_id', async () => {
+      await paypalPayouts.payExpensesBatch([expense]);
+      const expectedHash = crypto.createHash('SHA1').update(expense.id.toString()).digest('hex');
+
+      expect(paypalLib.executePayouts.firstCall.lastArg)
+        .to.have.nested.property('sender_batch_header.sender_batch_id')
+        .equals(expectedHash);
     });
   });
 
