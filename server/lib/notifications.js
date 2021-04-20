@@ -486,5 +486,12 @@ async function notifyByEmail(activity) {
     case activityType.COLLECTIVE_EXPENSE_MISSING_RECEIPT:
       notifyAdminsOfCollective(activity.data.fromCollective.id, activity, { sendEvenIfNotProduction: true });
       break;
+
+    case activityType.VIRTUAL_CARD_REQUESTED:
+      notifyAdminsOfCollective(activity.data.host.id, activity, {
+        template: 'virtualcard.requested',
+        replyTo: activity.data.user.email,
+        sendEvenIfNotProduction: true,
+      });
   }
 }
