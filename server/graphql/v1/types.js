@@ -1852,8 +1852,14 @@ export const PaymentMethodType = new GraphQLObjectType({
       },
       expiryDate: {
         type: DateString,
-        resolve(paymentMethod) {
-          return paymentMethod.expiryDate;
+        resolve(paymentMethod, _, req) {
+          // Keep gift cards expiry dates public for legacy compatibility when claiming as a new user
+          const isGiftCard = paymentMethod.type === 'giftcard';
+          if (!isGiftCard && !req.remoteUser?.isAdmin(paymentMethod.CollectiveId)) {
+            return null;
+          } else {
+            return paymentMethod.expiryDate;
+          }
         },
       },
       service: {
