@@ -29,27 +29,26 @@ module.exports = {
       AND pm."type" = 'host'
     `);
 
+    // PREPAID_PAYMENT_METHOD
+    // It's a bit ugly to use the `description` for that, but prod data shows that it only returns
+    // correct entries.
+    await queryInterface.sequelize.query(`
+      UPDATE "Transactions"
+      SET "kind" = 'PREPAID_PAYMENT_METHOD'
+      WHERE description = 'Prepaid Budget'
+      OR description = 'Prepaid Payment Method for Gift Card Budget'
+    `);
+
     // CONTRIBUTION
     // This will set KIND=CONTRIBUTION on all Transactions with an order, except for the ones
-    // we already migrated above (added funds) and prepaid budgets (tier #15445).
+    // we already migrated above (added funds).
     await queryInterface.sequelize.query(`
       UPDATE "Transactions" t
       SET "kind" = 'CONTRIBUTION'
       FROM "Orders" o
       WHERE t."OrderId" IS NOT NULL
       AND t."OrderId" = o.id
-      AND o."TierId" != 15445
       AND "kind" IS NULL
-    `);
-
-    // PREPAID_PAYMENT_METHOD
-    // It's a bit ugly to use the `description` for that, but prod data shows that it only returns
-    // correct entries.
-    await queryInterface.sequelize.query(`
-      UPDATE "Transactions" 
-      SET "kind" = 'PREPAID_PAYMENT_METHOD'
-      WHERE description = 'Prepaid Budget'
-      OR description = 'Prepaid Payment Method for Gift Card Budget'
     `);
 
     // EXPENSE
