@@ -1,6 +1,14 @@
 name: E2E
 
-on: [push]
+on:
+  push:
+    branches-ignore:
+      - 'dependabot/**'
+  pull_request_target:
+    types:
+      - opened
+      - synchronize
+      - reopened
 
 env:
   CI: true
@@ -29,6 +37,8 @@ env:
 
 jobs:
   e2e:
+    if: >-
+      github.event_name == 'push' || github.actor == 'dependabot[bot]'
     runs-on: ubuntu-latest
 
     timeout-minutes: 30
