@@ -2,7 +2,7 @@ import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLStri
 import GraphQLJSON from 'graphql-type-json';
 import { get, pick } from 'lodash';
 
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE, PAYMENT_METHOD_TYPES } from '../../../constants/paymentMethods';
+import { PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import { getLegacyPaymentMethodType, PaymentMethodLegacyType } from '../enum/PaymentMethodLegacyType';
 import { PaymentMethodService } from '../enum/PaymentMethodService';
 import { PaymentMethodType } from '../enum/PaymentMethodType';
@@ -32,11 +32,8 @@ export const PaymentMethod = new GraphQLObjectType({
       name: {
         type: GraphQLString,
         resolve(paymentMethod, _, req) {
-          if (
-            paymentMethod.service === PAYMENT_METHOD_SERVICE.PAYPAL &&
-            paymentMethod.type === PAYMENT_METHOD_TYPES.ADAPTIVE
-          ) {
-            return req.remoteUser?.isAdmin(paymentMethod.CollectiveId) ? paymentMethod.name : null;
+          if (!req.remoteUser?.isAdmin(paymentMethod.CollectiveId)) {
+            return null;
           } else {
             return paymentMethod.name;
           }
@@ -118,6 +115,13 @@ export const PaymentMethod = new GraphQLObjectType({
       },
       expiryDate: {
         type: ISODateTime,
+        resolve(paymentMethod, _, req) {
+          if (!req.remoteUser?.isAdmin(paymentMethod.CollectiveId)) {
+            return null;
+          } else {
+            return paymentMethod.expiryDate;
+          }
+        },
       },
       createdAt: {
         type: ISODateTime,
