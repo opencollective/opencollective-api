@@ -10,7 +10,6 @@ import { v4 as uuid } from 'uuid';
 import expenseStatus from '../../server/constants/expense_status';
 import expenseTypes from '../../server/constants/expense_type';
 import { SHARED_REVENUE_PLANS } from '../../server/constants/plans';
-import { TransactionKind } from '../../server/constants/transaction-kind';
 import { SETTLEMENT_EXPENSE_PROPERTIES, TransactionTypes } from '../../server/constants/transactions';
 import { uploadToS3 } from '../../server/lib/awsS3';
 import { generateKey } from '../../server/lib/encryption';
@@ -385,7 +384,7 @@ export async function run() {
           netAmountInCollectiveCurrency: totalAmountCredited,
           type: TransactionTypes.CREDIT,
           TransactionGroup: uuid(),
-          kind: TransactionKind.PLATFORM_TIP,
+          kind: null, // Keeping this one null on purpose, see https://github.com/opencollective/opencollective-api/pull/5884#discussion_r616440055
         });
       }
 

@@ -14,6 +14,7 @@ module.exports = {
         'PAYMENT_PROCESSOR_FEE',
         'PLATFORM_FEE',
         'PLATFORM_TIP',
+        'PREPAID_PAYMENT_METHOD',
       ),
     });
 
@@ -39,6 +40,16 @@ module.exports = {
       AND t."OrderId" = o.id
       AND o."TierId" != 15445
       AND "kind" IS NULL
+    `);
+
+    // PREPAID_PAYMENT_METHOD
+    // It's a bit ugly to use the `description` for that, but prod data shows that it only returns
+    // correct entries.
+    await queryInterface.sequelize.query(`
+      UPDATE "Transactions" 
+      SET "kind" = 'PREPAID_PAYMENT_METHOD'
+      WHERE description = 'Prepaid Budget'
+      OR description = 'Prepaid Payment Method for Gift Card Budget'
     `);
 
     // EXPENSE
