@@ -1,7 +1,8 @@
 /* eslint-disable camelcase */
 
+import { createHash } from 'crypto';
+
 import { isNil, round } from 'lodash';
-import moment from 'moment';
 
 import activities from '../../constants/activities';
 import status from '../../constants/expense_status';
@@ -45,14 +46,22 @@ export const payExpensesBatch = async (expenses: typeof models.Expense[]): Promi
     sender_item_id: expense.id,
   });
 
+  // Map expense items...
+  const items = expenses.map(getExpenseItem);
+
+  // Calculate unique sender_batch_id hash
+  const hash = createHash('SHA1');
+  expenses.forEach(e => hash.update(e.id.toString()));
+  const sender_batch_id = hash.digest('hex');
+
   const requestBody = {
     sender_batch_header: {
       recipient_type: 'EMAIL',
       email_message: 'Good news, your expense was paid!',
-      sender_batch_id: `${firstExpense.collective.slug}-${moment().format('DDMMYYYY-HHmm')}`,
       email_subject: `Expense Payout for ${firstExpense.collective.name}`,
+      sender_batch_id,
     },
-    items: expenses.map(getExpenseItem),
+    items,
   };
 
   try {
