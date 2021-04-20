@@ -514,6 +514,7 @@ describe('server/paymentProviders/opencollective/collective', () => {
       expect(refund.platformFeeInHostCurrency).to.eq(0);
       expect(refund.hostFeeInHostCurrency).to.eq(0);
       expect(refund.paymentProcessorFeeInHostCurrency).to.eq(0);
+      expect(refund.kind).to.eq(transaction.kind);
     });
 
     it('Cannot reimburse money if it exceeds the Collective balance', async () => {
