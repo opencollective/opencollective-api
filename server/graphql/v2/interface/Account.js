@@ -11,6 +11,7 @@ import { MemberCollection, MemberOfCollection } from '../collection/MemberCollec
 import { OrderCollection } from '../collection/OrderCollection';
 import { TransactionCollection } from '../collection/TransactionCollection';
 import { UpdateCollection } from '../collection/UpdateCollection';
+import { VirtualCardCollection } from '../collection/VirtualCardCollection';
 import {
   AccountOrdersFilter,
   AccountType,
@@ -23,8 +24,6 @@ import {
 import { idEncode } from '../identifiers';
 import { AccountReferenceInput } from '../input/AccountReferenceInput';
 import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
-import { HasMembersFields } from '../interface/HasMembers';
-import { IsMemberOfFields } from '../interface/IsMemberOf';
 import { AccountStats } from '../object/AccountStats';
 import { ConnectedAccount } from '../object/ConnectedAccount';
 import { Location } from '../object/Location';
@@ -32,10 +31,11 @@ import { PaymentMethod } from '../object/PaymentMethod';
 import PayoutMethod from '../object/PayoutMethod';
 import { TagStats } from '../object/TagStats';
 import { TransferWise } from '../object/TransferWise';
-import { VirtualCard } from '../object/VirtualCard';
 import EmailAddress from '../scalar/EmailAddress';
 
 import { CollectionArgs } from './Collection';
+import { HasMembersFields } from './HasMembers';
+import { IsMemberOfFields } from './IsMemberOf';
 
 const accountFieldsDefinition = () => ({
   id: {
@@ -323,12 +323,32 @@ const accountFieldsDefinition = () => ({
     },
   },
   virtualCards: {
-    type: new GraphQLList(VirtualCard),
+    type: new GraphQLNonNull(VirtualCardCollection),
+    args: {
+      limit: { type: GraphQLInt, defaultValue: 100 },
+      offset: { type: GraphQLInt, defaultValue: 0 },
+    },
     async resolve(account, args, req) {
       if (!req.remoteUser?.isAdmin(account.id)) {
         throw new Unauthorized('You need to be logged in as an admin of the collective to see its virtual cards');
       }
-      return req.loaders.VirtualCard.byCollectiveId.load(account.id);
+
+      if (args.limit <= 0) {
+        args.limit = 100;
+      }
+
+      if (args.offset <= 0) {
+        args.offset = 0;
+      }
+
+      return req.loaders.VirtualCard.byCollectiveId.load(account.id).then(virtualCards => {
+        const { limit, offset } = args;
+        let virtualCardCollection = virtualCards.slice();
+        if (limit) {
+          virtualCardCollection = virtualCardCollection.splice(offset || 0, limit);
+        }
+        return { nodes: virtualCardCollection, totalCount: virtualCards.length, limit, offset };
+      });
     },
   },
 });
