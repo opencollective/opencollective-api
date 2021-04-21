@@ -45,6 +45,7 @@ export default {
   ADDED_FUND_TO_ORG: 'added.fund.to.org',
   ACTIVATED_COLLECTIVE_AS_HOST: 'activated.collective.as.host',
   DEACTIVATED_COLLECTIVE_AS_HOST: 'deactivated.collective.as.host',
+  VIRTUAL_CARD_REQUESTED: 'virtual_card.requested',
 
   // Not used anymore, leaving for historical reference
   COLLECTIVE_TRANSACTION_PAID: 'collective.transaction.paid', // replaced with COLLECTIVE_EXPENSE_PAID

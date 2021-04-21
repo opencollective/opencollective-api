@@ -24,6 +24,7 @@ import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile';
 import { ExpenseItem } from '../../models/ExpenseItem';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import paymentProviders from '../../paymentProviders';
+import PrivacyCardProviderService from '../../paymentProviders/privacy';
 import { BadRequest, FeatureNotAllowedForUser, Forbidden, NotFound, Unauthorized, ValidationFailed } from '../errors';
 
 const debug = debugLib('expenses');
@@ -515,6 +516,7 @@ type ExpenseData = {
   tags?: string[];
   incurredAt?: Date;
   amount?: number;
+  description?: string;
 };
 
 export async function createExpense(
@@ -676,6 +678,7 @@ export async function editExpense(
       { model: models.PayoutMethod },
     ],
   });
+  const [hasItemChanges, itemsData, itemsDiff] = await getItemsChanges(expense, expenseData);
 
   if (!expense) {
     throw new NotFound('Expense not found');
@@ -683,7 +686,14 @@ export async function editExpense(
     throw new Unauthorized("You don't have permission to edit this expense");
   }
 
-  const isPaidCreditCardCharge = expense.type === expenseType.CHARGE && expense.status === expenseStatus.PAID;
+  const isPaidCreditCardCharge =
+    expense.type === expenseType.CHARGE && expense.status === expenseStatus.PAID && Boolean(expense.VirtualCardId);
+
+  if (isPaidCreditCardCharge && !hasItemChanges) {
+    throw new ValidationFailed(
+      'You need to include Expense Items when adding missing information to card charge expenses',
+    );
+  }
 
   if (size(expenseData.attachedFiles) > 15) {
     throw new ValidationFailed('The number of files that you can attach to an expense is limited to 15');
@@ -711,6 +721,7 @@ export async function editExpense(
     expenseData,
     isPaidCreditCardCharge ? EXPENSE_PAID_CHARGE_EDITABLE_FIELDS : EXPENSE_EDITABLE_FIELDS,
   );
+
   let payoutMethod = await expense.getPayoutMethod();
   const updatedExpense = await sequelize.transaction(async t => {
     // Update payout method if we get new data from one of the param for it
@@ -723,7 +734,6 @@ export async function editExpense(
     }
 
     // Update items
-    const [hasItemChanges, itemsData, itemsDiff] = await getItemsChanges(expense, expenseData);
     if (hasItemChanges) {
       checkExpenseItems({ ...expense.dataValues, ...cleanExpenseData }, itemsData);
       const [newItemsData, oldItems, itemsToUpdate] = itemsDiff;
@@ -769,22 +779,37 @@ export async function editExpense(
       );
     }
 
-    return expense.update(
-      {
-        ...cleanExpenseData,
-        lastEditedById: remoteUser.id,
-        incurredAt: expenseData.incurredAt || new Date(),
-        status: shouldUpdateStatus ? 'PENDING' : expense.status,
-        FromCollectiveId: fromCollective.id,
-        PayoutMethodId: PayoutMethodId,
-        legacyPayoutMethod: models.Expense.getLegacyPayoutMethodTypeFromPayoutMethod(payoutMethod),
-        tags: cleanExpenseData.tags,
-      },
-      { transaction: t },
-    );
+    const updatedExpenseProps = {
+      ...cleanExpenseData,
+      lastEditedById: remoteUser.id,
+      incurredAt: expenseData.incurredAt || new Date(),
+      status: shouldUpdateStatus ? 'PENDING' : expense.status,
+      FromCollectiveId: fromCollective.id,
+      PayoutMethodId: PayoutMethodId,
+      legacyPayoutMethod: models.Expense.getLegacyPayoutMethodTypeFromPayoutMethod(payoutMethod),
+      tags: cleanExpenseData.tags,
+    };
+    if (isPaidCreditCardCharge) {
+      updatedExpenseProps['data'] = { ...expense.data, missingDetails: false };
+    }
+    return expense.update(updatedExpenseProps, { transaction: t });
   });
 
-  await updatedExpense.createActivity(activities.COLLECTIVE_EXPENSE_UPDATED, remoteUser);
+  if (isPaidCreditCardCharge) {
+    const virtualCard = await models.VirtualCard.findByPk(expense.VirtualCardId);
+    const host = await models.Collective.findByPk(virtualCard.HostCollectiveId);
+    if (host.settings?.virtualcards?.autopause) {
+      PrivacyCardProviderService.autoPauseResumeCard(virtualCard);
+    }
+    if (cleanExpenseData.description) {
+      await models.Transaction.update(
+        { description: cleanExpenseData.description },
+        { where: { ExpenseId: updatedExpense.id } },
+      );
+    }
+  } else {
+    await updatedExpense.createActivity(activities.COLLECTIVE_EXPENSE_UPDATED, remoteUser);
+  }
 
   return updatedExpense;
 }

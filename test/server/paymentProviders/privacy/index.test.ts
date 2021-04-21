@@ -80,5 +80,9 @@ describe('server/paymentProviders/privacy/index', () => {
       expect(debit).to.have.property('CollectiveId', collective.id);
       expect(debit).to.have.property('amount', -1 * MOCK_TRANSACTION.settled_amount);
     });
+
+    it('should set data.missingDetails to true', () => {
+      expect(expense.data).to.have.property('missingDetails', true);
+    });
   });
 });

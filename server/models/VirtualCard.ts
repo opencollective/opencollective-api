@@ -43,6 +43,12 @@ class VirtualCard extends Model<VirtualCardAttributes, VirtualCardCreateAttribut
     super(...args);
     restoreSequelizeAttributesOnClass(new.target, this);
   }
+
+  async getExpensesMissingDetails(): Promise<Array<any>> {
+    return sequelize.models.Expense.findAll({
+      where: { VirtualCardId: this.id, data: { missingDetails: true } },
+    });
+  }
 }
 
 VirtualCard.init(
