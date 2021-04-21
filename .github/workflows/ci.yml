@@ -22,6 +22,8 @@ env:
 
 jobs:
   lint:
+    if: >-
+      github.event_name == 'push' || github.actor == 'dependabot[bot]'
     runs-on: ubuntu-latest
 
     timeout-minutes: 15
@@ -59,6 +61,8 @@ jobs:
       - run: npm run lint:check
 
   prettier:
+    if: >-
+      github.event_name == 'push' || github.actor == 'dependabot[bot]'
     runs-on: ubuntu-latest
 
     timeout-minutes: 15
@@ -96,6 +100,8 @@ jobs:
       - run: npm run prettier:check
 
   typescript:
+    if: >-
+      github.event_name == 'push' || github.actor == 'dependabot[bot]'
     runs-on: ubuntu-latest
 
     timeout-minutes: 15
@@ -133,6 +139,8 @@ jobs:
       - run: npm run type:check
 
   depcheck:
+    if: >-
+      github.event_name == 'push' || github.actor == 'dependabot[bot]'
     runs-on: ubuntu-latest
 
     timeout-minutes: 15
@@ -170,6 +178,8 @@ jobs:
       - run: npm run depcheck
 
   build:
+    if: >-
+      github.event_name == 'push' || github.actor == 'dependabot[bot]'
     runs-on: ubuntu-latest
 
     timeout-minutes: 15
@@ -272,6 +282,8 @@ jobs:
       - run: npm run test:coverage
 
   test-graphql:
+    if: >-
+      github.event_name == 'push' || github.actor == 'dependabot[bot]'
     runs-on: ubuntu-latest
 
     timeout-minutes: 30
@@ -328,6 +340,8 @@ jobs:
       - run: npm run test:coverage
 
   schema-update:
+    if: >-
+      github.event_name == 'push' || github.actor == 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
