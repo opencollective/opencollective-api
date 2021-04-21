@@ -690,7 +690,7 @@ export async function editExpense(
 
   if (isPaidCreditCardCharge && !hasItemChanges) {
     throw new ValidationFailed(
-      'You need to include Expense Items when adding missing information to card charge expenes',
+      'You need to include Expense Items when adding missing information to card charge expenses',
     );
   }
 
