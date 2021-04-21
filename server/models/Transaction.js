@@ -7,6 +7,7 @@ import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../constants/activities';
+import { TransactionKind } from '../constants/transaction-kind';
 import { FEES_ON_TOP_TRANSACTION_PROPERTIES, TransactionTypes } from '../constants/transactions';
 import { getFxRate } from '../lib/currency';
 import { toNegative } from '../lib/math';
@@ -26,6 +27,11 @@ function defineModel() {
     'Transaction',
     {
       type: DataTypes.STRING, // DEBIT or CREDIT
+
+      kind: {
+        allowNull: true,
+        type: DataTypes.ENUM(Object.values(TransactionKind)),
+      },
 
       uuid: {
         type: DataTypes.UUID,
@@ -584,6 +590,7 @@ function defineModel() {
         amountInHostCurrency: Math.round(Math.abs(transaction.platformFeeInHostCurrency) * platformCurrencyFxRate),
         platformFeeInHostCurrency: 0,
         hostFeeInHostCurrency: 0,
+        kind: TransactionKind.PLATFORM_TIP,
         // Represent the paymentProcessorFee in USD
         paymentProcessorFeeInHostCurrency: Math.round(feeOnTopPaymentProcessorFee * platformCurrencyFxRate),
         // Calculate the netAmount by deducting the proportional paymentProcessorFee
@@ -618,6 +625,10 @@ function defineModel() {
     return transaction;
   };
 
+  /**
+   * Creates a transaction pair from given payload. Defaults to `CONTRIBUTION` kind unless
+   * specified otherwise.
+   */
   Transaction.createFromPayload = async ({
     CreatedByUserId,
     FromCollectiveId,
@@ -650,6 +661,10 @@ function defineModel() {
     transaction.platformFeeInHostCurrency = toNegative(transaction.platformFeeInHostCurrency);
     transaction.taxAmount = toNegative(transaction.taxAmount);
     transaction.paymentProcessorFeeInHostCurrency = toNegative(transaction.paymentProcessorFeeInHostCurrency);
+
+    // TODO: createFromPayload is only used by payment methods, for contributions. So it sounds right to do
+    // that here, but we should probably rename the function to something clearer (createFromContributionPayload?)
+    transaction.kind = isUndefined(transaction.kind) ? TransactionKind.CONTRIBUTION : transaction.kind;
 
     // Separate donation transaction and remove platformFee from the main transaction
     if (transaction.data?.isFeesOnTop && transaction.platformFeeInHostCurrency) {
@@ -716,6 +731,7 @@ function defineModel() {
     const platformFee = calcFee(order.totalAmount, platformFeePercent);
     const payload = {
       type: 'CREDIT',
+      kind: TransactionKind.ADDED_FUNDS,
       amount,
       description: order.description,
       currency: order.currency,

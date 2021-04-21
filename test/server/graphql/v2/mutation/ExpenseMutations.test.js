@@ -7,6 +7,7 @@ import sinon from 'sinon';
 import speakeasy from 'speakeasy';
 
 import { expenseStatus } from '../../../../../server/constants';
+import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import { payExpense } from '../../../../../server/graphql/common/expenses';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import { getFxRate } from '../../../../../server/lib/currency';
@@ -837,6 +838,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           },
         });
 
+        expect(debitTransaction.kind).to.equal(TransactionKind.EXPENSE);
         expect(debitTransaction.currency).to.equal(expense.currency);
         expect(debitTransaction.hostCurrency).to.equal(host.currency);
         expect(debitTransaction.netAmountInCollectiveCurrency).to.equal(-expensePlusFees);
@@ -849,6 +851,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
             ExpenseId: expense.id,
           },
         });
+        expect(creditTransaction.kind).to.equal(TransactionKind.EXPENSE);
         expect(creditTransaction.netAmountInCollectiveCurrency).to.equal(expense.amount);
         expect(creditTransaction.amount).to.equal(expensePlusFees);
 
@@ -908,6 +911,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           expect(updatedExpense.status).to.equal('APPROVED');
           const transactions = await models.Transaction.findAll({ where: { ExpenseId: expense.id } });
           expect(transactions.length).to.equal(0);
+          transactions.forEach(transaction => expect(transaction.kind).to.eq(TransactionKind.Expense));
         });
 
         it('when hosts paypal and payout method paypal are the same', async () => {

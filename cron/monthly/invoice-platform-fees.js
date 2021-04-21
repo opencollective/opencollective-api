@@ -384,6 +384,7 @@ export async function run() {
           netAmountInCollectiveCurrency: totalAmountCredited,
           type: TransactionTypes.CREDIT,
           TransactionGroup: uuid(),
+          kind: null, // Keeping this one null on purpose, see https://github.com/opencollective/opencollective-api/pull/5884#discussion_r616440055
         });
       }
 
