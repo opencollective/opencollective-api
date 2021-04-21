@@ -6,7 +6,7 @@ import { omit, pick } from 'lodash';
 import sinon from 'sinon';
 import speakeasy from 'speakeasy';
 
-import { expenseStatus } from '../../../../../server/constants';
+import { expenseStatus, expenseTypes } from '../../../../../server/constants';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import { payExpense } from '../../../../../server/graphql/common/expenses';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
@@ -26,6 +26,7 @@ import {
   fakePayoutMethod,
   fakeTransaction,
   fakeUser,
+  fakeVirtualCard,
   randStr,
 } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, makeRequest, resetTestDB, waitForCondition } from '../../../../utils';
@@ -456,6 +457,43 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
       const user = await models.User.findOne({ where: { email: updatedExpenseData.payee.email } });
       expect(user).to.exist;
+    });
+
+    it('resets paid card charge expense missing details status', async () => {
+      const virtualCard = await fakeVirtualCard();
+      const expense = await fakeExpense({
+        data: { missingDetails: true },
+        status: expenseStatus.PAID,
+        type: expenseTypes.CHARGE,
+        VirtualCardId: virtualCard.id,
+        amount: 2000,
+      });
+      const item = await fakeExpenseItem({ ExpenseId: expense.id, amount: 2000 }).then(convertExpenseItemId);
+
+      const updatedExpenseData = {
+        id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+        description: 'Credit Card charge',
+        items: [
+          {
+            ...pick(item, ['id', 'url', 'amount']),
+            description: 'totally valid beer',
+            url: 'http://opencollective.com/cool/story/bro',
+          },
+        ],
+      };
+
+      const result = await graphqlQueryV2(
+        editExpenseMutation,
+        {
+          expense: updatedExpenseData,
+        },
+        expense.User,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      await expense.reload();
+      expect(expense).to.have.nested.property('data.missingDetails').eq(false);
     });
   });
 

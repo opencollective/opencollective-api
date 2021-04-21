@@ -800,9 +800,9 @@ export async function editExpense(
     if (host.settings?.virtualcards?.autopause) {
       PrivacyCardProviderService.autoPauseResumeCard(virtualCard);
     }
+  } else {
+    await updatedExpense.createActivity(activities.COLLECTIVE_EXPENSE_UPDATED, remoteUser);
   }
-
-  await updatedExpense.createActivity(activities.COLLECTIVE_EXPENSE_UPDATED, remoteUser);
 
   return updatedExpense;
 }
