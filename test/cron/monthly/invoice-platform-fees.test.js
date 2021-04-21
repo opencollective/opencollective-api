@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import moment from 'moment';
 
 import { run as invoicePlatformFees } from '../../../cron/monthly/invoice-platform-fees';
+import { TransactionKind } from '../../../server/constants/transaction-kind';
 import { sequelize } from '../../../server/models';
 import {
   fakeCollective,
@@ -51,6 +52,7 @@ describe('cron/monthly/invoice-platform-fees', () => {
     const socialCollective = await fakeCollective({ HostCollectiveId: gbpHost.id });
     const transactionProps = {
       type: 'CREDIT',
+      kind: TransactionKind.CONTRIBUTION,
       CollectiveId: socialCollective.id,
       currency: 'GBP',
       hostCurrency: 'GBP',
@@ -60,18 +62,21 @@ describe('cron/monthly/invoice-platform-fees', () => {
     // Create Platform Fees
     await fakeTransaction({
       ...transactionProps,
+      kind: TransactionKind.PLATFORM_FEE,
       amount: 3000,
       platformFeeInHostCurrency: -300,
       hostFeeInHostCurrency: -300,
     });
     await fakeTransaction({
       ...transactionProps,
+      kind: TransactionKind.PLATFORM_FEE,
       amount: 3000,
       platformFeeInHostCurrency: 0,
       hostFeeInHostCurrency: -200,
     });
     await fakeTransaction({
       ...transactionProps,
+      kind: TransactionKind.PLATFORM_FEE,
       amount: 3000,
       platformFeeInHostCurrency: 0,
       hostFeeInHostCurrency: -300,
@@ -87,7 +92,8 @@ describe('cron/monthly/invoice-platform-fees', () => {
       amount: 1000,
       currency: 'USD',
       data: { hostToPlatformFxRate: 1.23 },
-      PlatformTipForTransactionGroup: t.TransactionGroup,
+      TransactionGroup: t.TransactionGroup,
+      kind: TransactionKind.PLATFORM_TIP,
       createdAt: lastMonth,
     });
     // Collected Platform Tip with pending Payment Processor Fee
@@ -99,7 +105,8 @@ describe('cron/monthly/invoice-platform-fees', () => {
       amount: 1000,
       currency: 'USD',
       data: { hostToPlatformFxRate: 1.23 },
-      PlatformTipForTransactionGroup: t2.TransactionGroup,
+      TransactionGroup: t2.TransactionGroup,
+      kind: TransactionKind.PLATFORM_TIP,
       paymentProcessorFeeInHostCurrency: -100,
       PaymentMethodId: paymentMethod.id,
       createdAt: lastMonth,
