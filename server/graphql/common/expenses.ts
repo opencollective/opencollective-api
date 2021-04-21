@@ -510,7 +510,7 @@ type ExpenseData = {
   payeeLocation?: Record<string, unknown>;
   items?: Record<string, unknown>[];
   attachedFiles?: Record<string, unknown>[];
-  collective?: Record<string, any>;
+  collective?: Record<string, unknown>;
   fromCollective?: Record<string, unknown>;
   tags?: string[];
   incurredAt?: Date;
@@ -531,9 +531,11 @@ export async function createExpense(
     throw new Unauthorized('Missing expense.collective.id');
   }
 
-  const isMember = Boolean(remoteUser.rolesByCollectiveId[String(expenseData.collective.id)]);
-  if (expenseData.collective.settings?.disablePublicExpenseSubmission && !isMember) {
-    throw new Error('You must be a member of the collective to create new expense');
+  if (remoteUser.rolesByCollectiveId) {
+    const isMember = Boolean(remoteUser.rolesByCollectiveId[String(expenseData.collective.id)]);
+    if (expenseData.collective.settings?.['disablePublicExpenseSubmission'] && !isMember) {
+      throw new Error('You must be a member of the collective to create new expense');
+    }
   }
 
   const itemsData = expenseData.items;
