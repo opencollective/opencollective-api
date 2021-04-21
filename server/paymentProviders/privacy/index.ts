@@ -46,8 +46,9 @@ const createExpense = async (
   const UserId = collective.CreatedByUserId;
 
   const expense = await sequelize.transaction(async transaction => {
+    const slug = privacyTransaction.merchant.acceptor_id.toUpperCase();
     const [vendor] = await models.Collective.findOrCreate({
-      where: { slug: privacyTransaction.merchant.acceptor_id },
+      where: { slug },
       defaults: { name: privacyTransaction.merchant.descriptor, type: CollectiveTypes.VENDOR },
       transaction,
     });
