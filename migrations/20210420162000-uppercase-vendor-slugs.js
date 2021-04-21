@@ -15,4 +15,7 @@ module.exports = {
         "type" = 'VENDOR';
     `);
   },
+  down: async () => {
+    // Nothing to do
+  },
 };
