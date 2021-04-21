@@ -516,6 +516,7 @@ type ExpenseData = {
   tags?: string[];
   incurredAt?: Date;
   amount?: number;
+  description?: string;
 };
 
 export async function createExpense(
@@ -799,6 +800,12 @@ export async function editExpense(
     const host = await models.Collective.findByPk(virtualCard.HostCollectiveId);
     if (host.settings?.virtualcards?.autopause) {
       PrivacyCardProviderService.autoPauseResumeCard(virtualCard);
+    }
+    if (cleanExpenseData.description) {
+      await models.Transaction.update(
+        { description: cleanExpenseData.description },
+        { where: { ExpenseId: updatedExpense.id } },
+      );
     }
   } else {
     await updatedExpense.createActivity(activities.COLLECTIVE_EXPENSE_UPDATED, remoteUser);
