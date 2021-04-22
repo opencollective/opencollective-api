@@ -327,6 +327,7 @@ const accountFieldsDefinition = () => ({
     args: {
       limit: { type: GraphQLInt, defaultValue: 100 },
       offset: { type: GraphQLInt, defaultValue: 0 },
+      state: { type: GraphQLString, defaultValue: null },
     },
     async resolve(account, args, req) {
       if (!req.remoteUser?.isAdmin(account.id)) {
@@ -342,8 +343,13 @@ const accountFieldsDefinition = () => ({
       }
 
       return req.loaders.VirtualCard.byCollectiveId.load(account.id).then(virtualCards => {
-        const { limit, offset } = args;
-        let virtualCardCollection = virtualCards.slice();
+        const { limit, offset, state } = args;
+        let virtualCardCollection;
+        if (state) {
+          virtualCards = virtualCards.filter(virtualCard => virtualCard.data.state === state);
+        }
+        virtualCardCollection = virtualCards.slice();
+
         if (limit) {
           virtualCardCollection = virtualCardCollection.splice(offset || 0, limit);
         }
