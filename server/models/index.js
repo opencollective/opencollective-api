@@ -27,6 +27,7 @@ import Session from './Session';
 import Subscription from './Subscription';
 import Tier from './Tier';
 import Transaction from './Transaction';
+import TransactionSettlement from './TransactionSettlement';
 import Update from './Update';
 import User from './User';
 import VirtualCard from './VirtualCard';
@@ -67,6 +68,7 @@ export function setupModels() {
   m['Subscription'] = Subscription;
   m['Tier'] = Tier;
   m['Transaction'] = Transaction;
+  m['TransactionSettlement'] = TransactionSettlement;
   m['Update'] = Update;
   m['User'] = User;
   m['VirtualCard'] = VirtualCard;

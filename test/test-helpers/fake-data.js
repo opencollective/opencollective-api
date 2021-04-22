@@ -30,6 +30,14 @@ export const randArray = (generateFunc, min = 1, max = 1) => {
 };
 
 /**
+ * Allows to generate an UUID with the first 8 characters hardcoded. This is useful to generate
+ * random but identifiable valid UUIDs.
+ */
+export const fakeUUID = firstHeightChars => {
+  return `${firstHeightChars}-${uuid().substr(9)}`;
+};
+
+/**
  * Creates a fake user. All params are optionals.
  */
 export const fakeUser = async (userData, collectiveData) => {
@@ -465,12 +473,16 @@ export const fakeConnectedAccount = async (connectedAccountData = {}) => {
 /**
  * Creates a fake transaction. All params are optionals.
  */
-export const fakeTransaction = async (transactionData = {}) => {
+export const fakeTransaction = async (
+  transactionData = {},
+  { settlementStatus = undefined, createDoubleEntry = false } = {},
+) => {
   const amount = transactionData.amount || randAmount(10, 100) * 100;
   const CreatedByUserId = transactionData.CreatedByUserId || (await fakeUser()).id;
   const FromCollectiveId = transactionData.FromCollectiveId || (await fakeCollective()).id;
   const CollectiveId = transactionData.CollectiveId || (await fakeCollective()).id;
-  return models.Transaction.create({
+  const createMethod = createDoubleEntry ? 'createDoubleEntry' : 'create';
+  const transaction = await models.Transaction[createMethod]({
     type: amount < 0 ? 'DEBIT' : 'CREDIT',
     currency: 'USD',
     hostCurrency: 'USD',
@@ -479,12 +491,26 @@ export const fakeTransaction = async (transactionData = {}) => {
     amountInHostCurrency: amount,
     TransactionGroup: uuid(),
     kind: transactionData.ExpenseId ? TransactionKind.EXPENSE : null,
+    isDebt: Boolean(settlementStatus),
+    hostFeeInHostCurrency: 0,
+    platformFeeInHostCurrency: 0,
+    paymentProcessorFeeInHostCurrency: 0,
     ...transactionData,
     amount,
     CreatedByUserId,
     FromCollectiveId,
     CollectiveId,
   });
+
+  if (settlementStatus) {
+    await models.TransactionSettlement.create({
+      TransactionGroup: transaction.TransactionGroup,
+      kind: transaction.kind,
+      status: settlementStatus,
+    });
+  }
+
+  return transaction;
 };
 
 /**
