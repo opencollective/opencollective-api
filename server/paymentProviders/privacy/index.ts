@@ -31,7 +31,7 @@ const createExpense = async (
   const collective = opts?.collective || (await models.Collective.findByPk(virtualCard.CollectiveId));
   const existingExpense = await models.Expense.findOne({
     where: {
-      FromCollectiveId: collective.id,
+      CollectiveId: collective.id,
       VirtualCardId: virtualCard.id,
       data: { token: privacyTransaction.token },
     },
@@ -57,8 +57,8 @@ const createExpense = async (
     const expense = await models.Expense.create(
       {
         UserId,
-        FromCollectiveId: collective.id,
-        CollectiveId: vendor.id,
+        CollectiveId: collective.id,
+        FromCollectiveId: vendor.id,
         currency: 'USD',
         amount,
         description: 'Credit Card transaction',
@@ -84,6 +84,7 @@ const createExpense = async (
 
     await models.Transaction.createDoubleEntry(
       {
+        // Note that Colective and FromCollective here are inverted because this is the CREDIT transaction
         CollectiveId: vendor.id,
         FromCollectiveId: collective.id,
         HostCollectiveId: host.id,
@@ -104,7 +105,8 @@ const createExpense = async (
       { transaction },
     );
 
-    expense.collective = vendor;
+    expense.fromCollective = vendor;
+    expense.collective = collective;
     return expense;
   });
 

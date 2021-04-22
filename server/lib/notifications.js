@@ -484,7 +484,7 @@ async function notifyByEmail(activity) {
       break;
 
     case activityType.COLLECTIVE_EXPENSE_MISSING_RECEIPT:
-      notifyAdminsOfCollective(activity.data.fromCollective.id, activity, { sendEvenIfNotProduction: true });
+      notifyAdminsOfCollective(activity.data.collective.id, activity, { sendEvenIfNotProduction: true });
       break;
 
     case activityType.VIRTUAL_CARD_REQUESTED:
