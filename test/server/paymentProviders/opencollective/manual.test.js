@@ -136,6 +136,7 @@ describe('server/paymentProviders/opencollective/manual', () => {
       expect(refundTransaction.FromCollectiveId).to.equal(user.collective.id);
       expect(refundTransaction.CollectiveId).to.equal(collective.id);
       expect(refundTransaction.PaymentMethodId).to.be.null;
+      expect(refundTransaction.kind).to.eq(transaction.kind);
     });
   });
 });

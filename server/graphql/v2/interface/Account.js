@@ -607,6 +607,10 @@ export const AccountFields = {
     },
     description: 'The list of payment methods that this collective can use to pay for Orders',
     async resolve(collective, args, req) {
+      if (!req.remoteUser?.isAdminOfCollective(collective)) {
+        return [];
+      }
+
       const now = new Date();
       const paymentMethods = await req.loaders.PaymentMethod.findByCollectiveId.load(collective.id);
 

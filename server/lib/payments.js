@@ -180,6 +180,7 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
       'platformFeeInHostCurrency',
       'paymentProcessorFeeInHostCurrency',
       'data.isFeesOnTop',
+      'kind',
     ]);
     refund.CreatedByUserId = user?.id || null;
     refund.description = `Refund of "${t.description}"`;
@@ -351,7 +352,7 @@ export const executeOrder = async (user, order, options = {}) => {
     // Update collective plan if subscribing to opencollective's tier plans
     await subscribeOrUpgradePlan(order);
 
-    // Create a Pre-Paid Payment Method for the Gift Card budget
+    // Create a Pre-Paid Payment Method for the prepaid budget
     if (isPrepaidBudgetOrder(order)) {
       await createPrepaidPaymentMethod(transaction);
     }

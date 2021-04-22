@@ -46,4 +46,5 @@ export interface CardProviderService {
   // To be standardized
   createExpense: any;
   assignCardToCollective: any;
+  autoPauseResumeCard(virtualCard: VirtualCardModel): Promise<void>;
 }

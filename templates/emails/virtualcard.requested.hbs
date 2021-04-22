@@ -1,0 +1,62 @@
+Subject: {{collective.name}} wants a Virtual Card
+
+{{> header}}
+
+<div class="hidden">Virtual Card Request submitted by {{user.firstName}}</div>
+
+<h1>{{collective.name}}</h1>
+
+<style>
+  th {
+    text-align: left;
+  }
+</style>
+
+Dear admin of {{host.name}},
+
+<p>
+  {{user.firstName}} wants their Collective, {{collective.name}}, to receive a Virtual Card.
+  Since this is still a manual process, you'll need to manually create a virtual credit card and assign it to the
+  collective through <a href="https://opencollective.com/{{host.slug}}/edit/host-virtual-cards">your settings panel</a>.
+</p>
+
+<h2>Collective details</h2>
+<table>
+  <tr>
+    <th>Name</th>
+    <td>{{collective.name}}</td>
+  </tr>
+  <tr>
+    <th>Url</th>
+    <td><a href="https://opencollective.com/{{collective.slug}}">https://opencollective.com/{{collective.slug}}</a></td>
+  </tr>
+  {{#if collective.website}}
+  <tr>
+    <th>Website</th>
+    <td>{{collective.website}}</td>
+  </tr>
+  {{/if}}
+  {{#if collective.twitterHandle}}
+  <tr>
+    <th>Twitter</th>
+    <td>{{collective.twitterHandle}}</td>
+  </tr>
+  {{/if}}
+  <tr>
+    <th>Description</th>
+    <td>{{collective.description}}</td>
+  </tr>
+</table>
+
+{{#if notes}}
+<h2>Message</h2>
+<p>
+<blockquote
+  style="color: #6a737d;font-size: 14px;text-align: left;padding: 0.5em 0.75em;margin: 1em 0;border-left: 3px solid #e4e4e4;white-space: pre-line;">
+  {{notes}}</blockquote>
+</p>
+{{/if}}
+
+<br /><br />
+
+{{> footer}}

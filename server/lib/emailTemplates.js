@@ -118,6 +118,7 @@ export const templateNames = [
   'hostplan.first.subscription.confirmation',
   'hostplan.upgrade.subscription.confirmation',
   'contribution.rejected',
+  'virtualcard.requested',
 ];
 
 const templatesPath = `${__dirname}/../../templates`;

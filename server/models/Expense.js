@@ -319,7 +319,7 @@ function defineModel() {
         user: submittedByUserCollective.minimal,
         fromCollective: fromCollective.minimal,
         expense: this.info,
-        transaction: transaction.info,
+        transaction: transaction?.info,
         payoutMethod: payoutMethod && pick(payoutMethod.dataValues, ['id', 'type', 'data']),
         items:
           !isEmpty(items) &&

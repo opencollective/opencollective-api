@@ -13,6 +13,7 @@ import { activities, channels, roles } from '../../server/constants';
 import { types as CollectiveType } from '../../server/constants/collectives';
 import { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPES } from '../../server/constants/paymentMethods';
 import { REACTION_EMOJI } from '../../server/constants/reaction-emoji';
+import { TransactionKind } from '../../server/constants/transaction-kind';
 import models from '../../server/models';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import { randEmail, randUrl } from '../stores';
@@ -477,6 +478,7 @@ export const fakeTransaction = async (transactionData = {}) => {
     netAmountInCollectiveCurrency: amount,
     amountInHostCurrency: amount,
     TransactionGroup: uuid(),
+    kind: transactionData.ExpenseId ? TransactionKind.EXPENSE : null,
     ...transactionData,
     amount,
     CreatedByUserId,

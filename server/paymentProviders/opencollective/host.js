@@ -1,4 +1,5 @@
 import { maxInteger } from '../../constants/math';
+import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
 import { calcFee, getHostFeePercent, getPlatformFeePercent } from '../../lib/payments';
@@ -50,6 +51,7 @@ paymentMethodProvider.processOrder = async order => {
 
   payload.transaction = {
     type: TransactionTypes.CREDIT,
+    kind: TransactionKind.ADDED_FUNDS,
     OrderId: order.id,
     amount: order.totalAmount,
     currency: order.currency,

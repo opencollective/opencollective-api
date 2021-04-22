@@ -3,6 +3,7 @@ import { pick } from 'lodash';
 
 import { types } from '../constants/collectives';
 import roles, { MemberRoleLabels } from '../constants/roles';
+import { purgeCacheForCollective } from '../lib/cache';
 import emailLib from '../lib/email';
 import sequelize, { DataTypes } from '../lib/sequelize';
 
@@ -136,6 +137,7 @@ function defineModel() {
         description: this.description,
         since: this.since,
       });
+      purgeCacheForCollective(collective.slug);
     }
 
     return this.destroy();

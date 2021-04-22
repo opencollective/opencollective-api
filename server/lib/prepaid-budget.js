@@ -1,6 +1,7 @@
 import { pick } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
+import { TransactionKind } from '../constants/transaction-kind';
 import models from '../models';
 
 export function isPrepaidBudgetOrder(order) {
@@ -24,6 +25,7 @@ export async function createPrepaidPaymentMethod(originalCreditTransaction) {
     paymentProcessorFeeInHostCurrency: 0,
     platformFeeInHostCurrency: 0,
     hostFeeInHostCurrency: 0,
+    kind: TransactionKind.PREPAID_PAYMENT_METHOD,
   };
 
   await models.Transaction.createDoubleEntry(paymentMethodTransaction);

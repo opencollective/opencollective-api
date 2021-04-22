@@ -1,5 +1,6 @@
 import { round, toNumber } from 'lodash';
 
+import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
 import { getFxRate } from '../lib/currency';
 import errors from '../lib/errors';
@@ -161,6 +162,7 @@ export async function createFromPaidExpense(
     platformFeeInHostCurrency: toNegative(platformFeeInHostCurrency),
     ExpenseId: expense.id,
     type: TransactionTypes.DEBIT,
+    kind: TransactionKind.EXPENSE,
     amount: -expense.amount,
     currency: expense.currency,
     description: expense.description,

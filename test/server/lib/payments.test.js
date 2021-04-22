@@ -367,12 +367,14 @@ describe('server/lib/payments', () => {
       const [creditRefundTransaction] = refundTransactions.filter(t => t.type === 'CREDIT');
       expect(creditRefundTransaction.FromCollectiveId).to.equal(collective.id);
       expect(creditRefundTransaction.CollectiveId).to.equal(order.FromCollectiveId);
+      expect(creditRefundTransaction.kind).to.equal('CONTRIBUTION');
 
       // And then the values for the transaction from the donor to the
       // collective also look correct
       const [debitRefundTransaction] = refundTransactions.filter(t => t.type === 'DEBIT');
       expect(debitRefundTransaction.FromCollectiveId).to.equal(order.FromCollectiveId);
       expect(debitRefundTransaction.CollectiveId).to.equal(collective.id);
+      expect(debitRefundTransaction.kind).to.equal('CONTRIBUTION');
     });
 
     it('should refund platform fees on top when refunding original transaction', async () => {
@@ -407,6 +409,8 @@ describe('server/lib/payments', () => {
 
       const refundedTransactions = await order.getTransactions({ where: { isRefund: true } });
       expect(refundedTransactions).to.have.lengthOf(4);
+      expect(refundedTransactions.filter(t => t.kind === 'CONTRIBUTION')).to.have.lengthOf(2);
+      expect(refundedTransactions.filter(t => t.kind === 'PLATFORM_TIP')).to.have.lengthOf(2);
     });
   }); /* createRefundTransaction */
 

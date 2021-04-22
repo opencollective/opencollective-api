@@ -1,10 +1,11 @@
 /* eslint-disable camelcase */
-import { omit } from 'lodash';
+import { isEmpty, omit } from 'lodash';
 
 import activities from '../../constants/activities';
 import { types as CollectiveTypes } from '../../constants/collectives';
 import ExpenseStatus from '../../constants/expense_status';
 import ExpenseType from '../../constants/expense_type';
+import { TransactionKind } from '../../constants/transaction-kind';
 import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
 import * as privacy from '../../lib/privacy';
@@ -46,8 +47,9 @@ const createExpense = async (
   const UserId = collective.CreatedByUserId;
 
   const expense = await sequelize.transaction(async transaction => {
+    const slug = privacyTransaction.merchant.acceptor_id.toUpperCase();
     const [vendor] = await models.Collective.findOrCreate({
-      where: { slug: privacyTransaction.merchant.acceptor_id },
+      where: { slug },
       defaults: { name: privacyTransaction.merchant.descriptor, type: CollectiveTypes.VENDOR },
       transaction,
     });
@@ -65,7 +67,7 @@ const createExpense = async (
         status: ExpenseStatus.PAID,
         type: ExpenseType.CHARGE,
         incurredAt: privacyTransaction.created,
-        data: privacyTransaction,
+        data: { ...privacyTransaction, missingDetails: true },
       },
       { transaction },
     );
@@ -97,6 +99,7 @@ const createExpense = async (
         hostFeeInHostCurrency: 0,
         platformFeeInHostCurrency: 0,
         hostCurrencyFxRate,
+        kind: TransactionKind.EXPENSE,
       },
       { transaction },
     );
@@ -197,9 +200,21 @@ const deleteCard = async (virtualCard: VirtualCardModel): Promise<void> => {
   return virtualCard.destroy();
 };
 
+const autoPauseResumeCard = async (virtualCard: VirtualCardModel) => {
+  const pendingExpenses = await virtualCard.getExpensesMissingDetails();
+  const hasPendingExpenses = !isEmpty(pendingExpenses);
+
+  if (hasPendingExpenses && virtualCard.data.state == 'OPEN') {
+    await pauseCard(virtualCard);
+  } else if (!hasPendingExpenses && virtualCard.data.state == 'PAUSED') {
+    await resumeCard(virtualCard);
+  }
+};
+
 const PrivacyCardProviderService = {
   createExpense,
   assignCardToCollective,
+  autoPauseResumeCard,
   pauseCard,
   resumeCard,
   deleteCard,
