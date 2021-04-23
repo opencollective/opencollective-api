@@ -195,7 +195,7 @@ export const canEditExpense = async (req: express.Request, expense: typeof model
   if (
     expense.type === expenseType.CHARGE &&
     expense.status === expenseStatus.PAID &&
-    req.remoteUser?.hasRole([roles.ADMIN], expense.FromCollectiveId)
+    req.remoteUser?.hasRole([roles.ADMIN], expense.CollectiveId)
   ) {
     return true;
   } else if (nonEditableStatuses.includes(expense.status)) {
@@ -531,6 +531,11 @@ export async function createExpense(
 
   if (!get(expenseData, 'collective.id')) {
     throw new Unauthorized('Missing expense.collective.id');
+  }
+
+  const isMember = Boolean(remoteUser.rolesByCollectiveId[String(expenseData.collective.id)]);
+  if (expenseData.collective.settings?.['disablePublicExpenseSubmission'] && !isMember) {
+    throw new Error('You must be a member of the collective to create new expense');
   }
 
   const itemsData = expenseData.items;

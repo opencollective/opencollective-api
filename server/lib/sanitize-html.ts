@@ -1,5 +1,5 @@
 import config from 'config';
-import { truncate } from 'lodash';
+import { truncate, uniq } from 'lodash';
 import prependHttp from 'prepend-http';
 import LibSanitize from 'sanitize-html';
 
@@ -86,8 +86,9 @@ export const buildSanitizerOptions = (allowedContent: AllowedContentType = {}): 
 
   // IFrames
   if (allowedContent.videoIframes) {
-    allowedTags.push('iframe');
+    allowedTags.push('iframe', 'figure');
     allowedIframeHostnames.push('www.youtube.com', 'www.youtube-nocookie.com', 'player.vimeo.com');
+    allowedAttributes['figure'] = ['data-trix-content-type'];
     allowedAttributes['iframe'] = [
       'src',
       'allowfullscreen',
@@ -104,7 +105,7 @@ export const buildSanitizerOptions = (allowedContent: AllowedContentType = {}): 
   }
 
   return {
-    allowedTags,
+    allowedTags: uniq(allowedTags),
     allowedAttributes,
     allowedIframeHostnames,
     transformTags,

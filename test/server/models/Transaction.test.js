@@ -246,20 +246,16 @@ describe('server/models/Transaction', () => {
       expect(donationCredit).to.have.property('type').equal('CREDIT');
       expect(donationCredit).to.have.property('amount').equal(1000);
       expect(donationCredit).to.have.property('kind').equal(TransactionKind.PLATFORM_TIP);
-      expect(donationCredit)
-        .to.have.property('PlatformTipForTransactionGroup')
-        .equal(createdTransaction.TransactionGroup);
+      expect(donationCredit).to.have.property('TransactionGroup').equal(createdTransaction.TransactionGroup);
 
       const donationDebit = allTransactions.find(t => t.FromCollectiveId === inc.id);
       const partialPaymentProcessorFee = Math.round(200 * (1000 / 11000));
       expect(donationDebit).to.have.property('type').equal('DEBIT');
       expect(donationDebit).to.have.property('kind').equal(TransactionKind.PLATFORM_TIP);
+      expect(donationDebit).to.have.property('TransactionGroup').equal(createdTransaction.TransactionGroup);
       expect(donationDebit)
         .to.have.property('amount')
         .equal(-1000 + partialPaymentProcessorFee);
-      expect(donationDebit)
-        .to.have.property('PlatformTipForTransactionGroup')
-        .equal(createdTransaction.TransactionGroup);
     });
 
     it('should convert the donation transaction to USD and store the FX rate', async () => {

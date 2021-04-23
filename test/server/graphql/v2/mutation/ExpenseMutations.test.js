@@ -460,6 +460,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
     });
 
     it('resets paid card charge expense missing details status', async () => {
+      const user = await fakeUser();
       const virtualCard = await fakeVirtualCard();
       const expense = await fakeExpense({
         data: { missingDetails: true },
@@ -467,6 +468,8 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         type: expenseTypes.CHARGE,
         VirtualCardId: virtualCard.id,
         amount: 2000,
+        CollectiveId: user.CollectiveId,
+        UserId: user.id,
       });
       const item = await fakeExpenseItem({ ExpenseId: expense.id, amount: 2000 }).then(convertExpenseItemId);
 
