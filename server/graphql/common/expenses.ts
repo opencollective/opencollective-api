@@ -195,7 +195,7 @@ export const canEditExpense = async (req: express.Request, expense: typeof model
   if (
     expense.type === expenseType.CHARGE &&
     expense.status === expenseStatus.PAID &&
-    req.remoteUser?.hasRole([roles.ADMIN], expense.FromCollectiveId)
+    req.remoteUser?.hasRole([roles.ADMIN], expense.CollectiveId)
   ) {
     return true;
   } else if (nonEditableStatuses.includes(expense.status)) {
