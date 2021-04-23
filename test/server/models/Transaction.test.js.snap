@@ -1,0 +1,9 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`server/models/Transaction createFromPayload creates a double entry transaction for a Stripe payment in EUR with VAT 1`] = `
+"
+| kind         | type   | netAmountInCollectiveCurrency | currency | Host | platformFeeInHostCurrency | paymentProcessorFeeInHostCurrency | taxAmount | amount | description                              |
+| ------------ | ------ | ----------------------------- | -------- | ---- | ------------------------- | --------------------------------- | --------- | ------ | ---------------------------------------- |
+| CONTRIBUTION | DEBIT  | -12100                        | EUR      | NULL | -500                      | -300                              | -2100     | -8700  | €121 for Vegan Burgers including €21 VAT |
+| CONTRIBUTION | CREDIT | 8700                          | EUR      | #2   | -500                      | -300                              | -2100     | 12100  | €121 for Vegan Burgers including €21 VAT |"
+`;
