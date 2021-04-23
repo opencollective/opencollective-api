@@ -3,6 +3,7 @@ import { GraphQLDateTime } from 'graphql-iso-date';
 import GraphQLJSON from 'graphql-type-json';
 import { assign, get, invert } from 'lodash';
 
+import { fetchCollectiveId } from '../../../lib/cache';
 import models, { Op } from '../../../models';
 import { NotFound, Unauthorized } from '../../errors';
 import { CollectiveFeatures } from '../../v1/CollectiveInterface.js';
@@ -328,6 +329,7 @@ const accountFieldsDefinition = () => ({
       limit: { type: GraphQLInt, defaultValue: 100 },
       offset: { type: GraphQLInt, defaultValue: 0 },
       state: { type: GraphQLString, defaultValue: null },
+      merchant: { type: GraphQLString, defaultValue: null },
     },
     async resolve(account, args, req) {
       if (!req.remoteUser?.isAdmin(account.id)) {
@@ -342,19 +344,39 @@ const accountFieldsDefinition = () => ({
         args.offset = 0;
       }
 
-      return req.loaders.VirtualCard.byCollectiveId.load(account.id).then(virtualCards => {
-        const { limit, offset, state } = args;
-        let virtualCardCollection;
-        if (state) {
-          virtualCards = virtualCards.filter(virtualCard => virtualCard.data.state === state);
-        }
-        virtualCardCollection = virtualCards.slice();
+      const { limit, offset, state, merchant } = args;
+      let merchantId;
+      if (merchant) {
+        merchantId = await fetchCollectiveId(merchant);
+      }
 
-        if (limit) {
-          virtualCardCollection = virtualCardCollection.splice(offset || 0, limit);
-        }
-        return { nodes: virtualCardCollection, totalCount: virtualCards.length, limit, offset };
-      });
+      let virtualCards = await req.loaders.VirtualCard.byCollectiveId.load(account.id);
+
+      let virtualCardCollection;
+      if (state) {
+        virtualCards = virtualCards.filter(virtualCard => virtualCard.data.state === state);
+      }
+      if (merchantId) {
+        const expenses = await models.Expense.findAll({
+          where: {
+            VirtualCardId: {
+              [Op.in]: virtualCards.map(virtualCard => virtualCard.id),
+            },
+            FromCollectiveId: merchantId,
+          },
+        });
+
+        const virtualCardIds = expenses.map(expense => expense.VirtualCardId);
+        virtualCards = virtualCards.filter(
+          virtualCard => virtualCard.data.type === 'MERCHANT_LOCKED' && virtualCardIds.includes(virtualCard.id),
+        );
+      }
+      virtualCardCollection = virtualCards.slice();
+
+      if (limit) {
+        virtualCardCollection = virtualCardCollection.splice(offset || 0, limit);
+      }
+      return { nodes: virtualCardCollection, totalCount: virtualCards.length, limit, offset };
     },
   },
 });
