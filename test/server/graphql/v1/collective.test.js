@@ -78,6 +78,7 @@ describe('server/graphql/v1/collective', () => {
     // And given a few donations from new users
     for (let i = 0; i < 10; i++) {
       const { user } = await store.newUser(`testuser${i}`);
+      await user.populateRoles();
       await store.stripeOneTimeDonation({
         remoteUser: user,
         collective: apex,
@@ -264,6 +265,7 @@ describe('server/graphql/v1/collective', () => {
   it('gets the expense stats across all hosted collectives', async () => {
     // Given a user
     const { user } = await store.newUser('user');
+    await user.populateRoles();
     // And given a host
     const { hostCollective } = await store.newHost('brusselstogether', 'EUR', 5);
     // And given two collectives under the above host

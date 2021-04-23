@@ -533,6 +533,11 @@ export async function createExpense(
     throw new Unauthorized('Missing expense.collective.id');
   }
 
+  const isMember = Boolean(remoteUser.rolesByCollectiveId[String(expenseData.collective.id)]);
+  if (expenseData.collective.settings?.['disablePublicExpenseSubmission'] && !isMember) {
+    throw new Error('You must be a member of the collective to create new expense');
+  }
+
   const itemsData = expenseData.items;
 
   checkExpenseItems(expenseData, itemsData);
