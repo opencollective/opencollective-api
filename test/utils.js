@@ -58,8 +58,7 @@ export const stringify = json => {
     .replace(/\n|>>>>+/g, '');
 };
 
-export const makeRequest = async (remoteUser, query) => {
-  remoteUser = await remoteUser?.populateRoles();
+export const makeRequest = (remoteUser, query) => {
   return {
     remoteUser,
     body: { query },
