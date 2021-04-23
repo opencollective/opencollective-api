@@ -170,11 +170,6 @@ function defineModel() {
         references: { model: 'Transactions', key: 'id' },
       },
 
-      PlatformTipForTransactionGroup: {
-        type: DataTypes.STRING,
-        allowNull: true,
-      },
-
       isRefund: {
         type: DataTypes.BOOLEAN,
         defaultValue: false,
@@ -320,7 +315,7 @@ function defineModel() {
   };
 
   Transaction.prototype.hasPlatformTip = function () {
-    return this.data?.isFeesOnTop ? true : false;
+    return Boolean(this.data?.isFeesOnTop && this.kind !== TransactionKind.PLATFORM_TIP);
   };
 
   Transaction.prototype.getPlatformTipTransaction = function () {
@@ -329,7 +324,8 @@ function defineModel() {
         where: {
           ...pick(FEES_ON_TOP_TRANSACTION_PROPERTIES, ['CollectiveId']),
           type: this.type,
-          PlatformTipForTransactionGroup: this.TransactionGroup,
+          TransactionGroup: this.TransactionGroup,
+          kind: TransactionKind.PLATFORM_TIP,
         },
       });
     }
@@ -342,7 +338,7 @@ function defineModel() {
         CollectiveId: this.FromCollectiveId,
         FromCollectiveId: this.CollectiveId,
         TransactionGroup: this.TransactionGroup,
-        PlatformTipForTransactionGroup: this.PlatformTipForTransactionGroup,
+        kind: this.kind,
       },
     });
   };
@@ -599,7 +595,7 @@ function defineModel() {
         ),
         // This is always 1 because OpenCollective and OpenCollective Inc (Host) are in USD.
         hostCurrencyFxRate: 1,
-        PlatformTipForTransactionGroup: transaction.TransactionGroup,
+        TransactionGroup: transaction.TransactionGroup,
         data: {
           hostToPlatformFxRate: await getFxRate(transaction.hostCurrency, FEES_ON_TOP_TRANSACTION_PROPERTIES.currency),
           feeOnTopPaymentProcessorFee,
@@ -840,13 +836,13 @@ function defineModel() {
   Transaction.validate = async (transaction, { validateOppositeTransaction = true } = {}) => {
     // Skip as there is a known bug there
     // https://github.com/opencollective/opencollective/issues/3935
-    if (transaction.PlatformTipForTransactionGroup) {
+    if (transaction.kind === TransactionKind.PLATFORM_TIP) {
       return;
     }
 
     // Skip as there is a known bug there
     // https://github.com/opencollective/opencollective/issues/3934
-    if (transaction.PlatformTipForTransactionGroup && transaction.taxAmount) {
+    if (transaction.kind === TransactionKind.PLATFORM_TIP && transaction.taxAmount) {
       return;
     }
 
