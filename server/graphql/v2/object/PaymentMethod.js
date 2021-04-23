@@ -2,7 +2,7 @@ import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLStri
 import GraphQLJSON from 'graphql-type-json';
 import { get, pick } from 'lodash';
 
-import { PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import { getLegacyPaymentMethodType, PaymentMethodLegacyType } from '../enum/PaymentMethodLegacyType';
 import { PaymentMethodService } from '../enum/PaymentMethodService';
 import { PaymentMethodType } from '../enum/PaymentMethodType';
@@ -32,10 +32,19 @@ export const PaymentMethod = new GraphQLObjectType({
       name: {
         type: GraphQLString,
         resolve(paymentMethod, _, req) {
-          if (!req.remoteUser?.isAdmin(paymentMethod.CollectiveId)) {
-            return null;
-          } else {
+          const publicProviders = [
+            [PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE, PAYMENT_METHOD_TYPE.GIFT_CARD],
+            [PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE, PAYMENT_METHOD_TYPE.PREPAID],
+          ];
+
+          if (
+            (paymentMethod.CollectiveId && req.remoteUser?.isAdmin(paymentMethod.CollectiveId)) ||
+            (paymentMethod.CreatedByUserId && paymentMethod.CreatedByUserId === req.remoteUser?.id) ||
+            publicProviders.some(([service, type]) => paymentMethod.service === service && paymentMethod.type === type)
+          ) {
             return paymentMethod.name;
+          } else {
+            return null;
           }
         },
       },
