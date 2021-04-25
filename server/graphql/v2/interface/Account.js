@@ -26,6 +26,7 @@ import { idEncode } from '../identifiers';
 import { AccountReferenceInput } from '../input/AccountReferenceInput';
 import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
 import { AccountStats } from '../object/AccountStats';
+import { Collective } from '../object/Collective';
 import { ConnectedAccount } from '../object/ConnectedAccount';
 import { Location } from '../object/Location';
 import { PaymentMethod } from '../object/PaymentMethod';
@@ -362,7 +363,7 @@ const accountFieldsDefinition = () => ({
             VirtualCardId: {
               [Op.in]: virtualCards.map(virtualCard => virtualCard.id),
             },
-            FromCollectiveId: merchantId,
+            CollectiveId: merchantId,
           },
         });
 
@@ -377,6 +378,37 @@ const accountFieldsDefinition = () => ({
         virtualCardCollection = virtualCardCollection.splice(offset || 0, limit);
       }
       return { nodes: virtualCardCollection, totalCount: virtualCards.length, limit, offset };
+    },
+  },
+  virtualCardMerchants: {
+    type: new GraphQLList(Collective),
+    args: {
+      slug: { type: GraphQLString },
+    },
+    async resolve(account, args, req) {
+      if (!req.remoteUser?.isAdmin(account.id)) {
+        throw new Unauthorized(
+          'You need to be logged in as an admin of the collective to see its virtual card merchants',
+        );
+      }
+
+      let virtualCards = await req.loaders.VirtualCard.byCollectiveId.load(account.id);
+      virtualCards = virtualCards.filter(virtualCard => virtualCard.data.type === 'MERCHANT_LOCKED');
+      const expenses = await models.Expense.findAll({
+        where: {
+          VirtualCardId: {
+            [Op.in]: virtualCards.map(virtualCard => virtualCard.id),
+          },
+        },
+      });
+
+      return await models.Collective.findAll({
+        where: {
+          id: {
+            [Op.in]: expenses.map(expense => expense.CollectiveId),
+          },
+        },
+      });
     },
   },
 });
