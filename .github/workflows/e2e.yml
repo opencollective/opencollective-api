@@ -2,8 +2,6 @@ name: E2E
 
 on:
   push:
-    branches-ignore:
-      - 'dependabot/**'
   pull_request_target:
     types:
       - opened
@@ -94,12 +92,27 @@ jobs:
             - ${{ runner.os }}-npm-cache-
 
       # Checkouts
-
-      - name: Checkout (api)
+      - name: Checkout (Push)
+        if: github.event_name == 'push'
         uses: actions/checkout@v2
 
-      - name: Set REF in env, removing the `refs/` part
+      - name: Checkout (Pull Request Target)
+        if: github.event_name == 'pull_request_target'
+        uses: actions/checkout@v2
+        with:
+          # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
+          # Otherwise we would be running against main branch
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - name: Set REF in env, removing the `refs/` part (Push)
+        if: github.event_name == 'push'
         run: echo "MATCHING_BRANCH_REF=$(echo $GITHUB_REF | sed 's|refs/||')" >> $GITHUB_ENV
+
+      - name: Set REF in env, removing the `refs/` part (Pull Request Target)
+        if: github.event_name == 'pull_request_target'
+        run: |
+          BRANCH_REF=${{ github.event.pull_request.head.ref }}
+          echo "MATCHING_BRANCH_REF=$(echo $BRANCH_REF | sed 's|refs/||')" >> $GITHUB_ENV
 
       - name: Check matching branch
         id: check-matching-branch

@@ -2,8 +2,6 @@ name: CI
 
 on:
   push:
-    branches-ignore:
-      - 'dependabot/**'
   pull_request_target:
     types:
       - opened
@@ -30,7 +28,16 @@ jobs:
 
     steps:
       - name: Checkout
+        if: github.event_name == 'push'
         uses: actions/checkout@v2-beta
+
+      - name: Checkout (Pull Request Target)
+        if: github.event_name == 'pull_request_target'
+        uses: actions/checkout@v2
+        with:
+          # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
+          # Otherwise we would be running against main branch
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Setup node
         uses: actions/setup-node@v1
@@ -69,7 +76,16 @@ jobs:
 
     steps:
       - name: Checkout
+        if: github.event_name == 'push'
         uses: actions/checkout@v2-beta
+
+      - name: Checkout (Pull Request Target)
+        if: github.event_name == 'pull_request_target'
+        uses: actions/checkout@v2
+        with:
+          # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
+          # Otherwise we would be running against main branch
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Setup node
         uses: actions/setup-node@v1
@@ -108,7 +124,16 @@ jobs:
 
     steps:
       - name: Checkout
+        if: github.event_name == 'push'
         uses: actions/checkout@v2-beta
+
+      - name: Checkout (Pull Request Target)
+        if: github.event_name == 'pull_request_target'
+        uses: actions/checkout@v2
+        with:
+          # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
+          # Otherwise we would be running against main branch
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Setup node
         uses: actions/setup-node@v1
@@ -147,7 +172,16 @@ jobs:
 
     steps:
       - name: Checkout
+        if: github.event_name == 'push'
         uses: actions/checkout@v2-beta
+
+      - name: Checkout (Pull Request Target)
+        if: github.event_name == 'pull_request_target'
+        uses: actions/checkout@v2
+        with:
+          # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
+          # Otherwise we would be running against main branch
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Setup node
         uses: actions/setup-node@v1
@@ -186,7 +220,16 @@ jobs:
 
     steps:
       - name: Checkout
+        if: github.event_name == 'push'
         uses: actions/checkout@v2-beta
+
+      - name: Checkout (Pull Request Target)
+        if: github.event_name == 'pull_request_target'
+        uses: actions/checkout@v2
+        with:
+          # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
+          # Otherwise we would be running against main branch
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Setup node
         uses: actions/setup-node@v1
@@ -248,7 +291,16 @@ jobs:
 
     steps:
       - name: Checkout
+        if: github.event_name == 'push'
         uses: actions/checkout@v2-beta
+
+      - name: Checkout (Pull Request Target)
+        if: github.event_name == 'pull_request_target'
+        uses: actions/checkout@v2
+        with:
+          # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
+          # Otherwise we would be running against main branch
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Setup node
         uses: actions/setup-node@v1
@@ -307,7 +359,16 @@ jobs:
 
     steps:
       - name: Checkout
+        if: github.event_name == 'push'
         uses: actions/checkout@v2-beta
+
+      - name: Checkout (Pull Request Target)
+        if: github.event_name == 'pull_request_target'
+        uses: actions/checkout@v2
+        with:
+          # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
+          # Otherwise we would be running against main branch
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Setup node
         uses: actions/setup-node@v1
@@ -347,7 +408,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
+        if: github.event_name == 'push'
         uses: actions/checkout@main
+
+      - name: Checkout (Pull Request Target)
+        if: github.event_name == 'pull_request_target'
+        uses: actions/checkout@v2
+        with:
+          # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
+          # Otherwise we would be running against main branch
+          ref: ${{ github.event.pull_request.head.sha }}
+
       - name: Restore node_modules
         uses: actions/cache@v1
         id: api-node-modules
@@ -392,7 +463,17 @@ jobs:
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
       - name: Checkout
+        if: github.event_name == 'push'
         uses: actions/checkout@main
+
+      - name: Checkout (Pull Request Target)
+        if: github.event_name == 'pull_request_target'
+        uses: actions/checkout@v2
+        with:
+          # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
+          # Otherwise we would be running against main branch
+          ref: ${{ github.event.pull_request.head.sha }}
+
       - name: GraphQL Inspector (V1)
         uses: kamilkisiela/graphql-inspector@master
         with:
