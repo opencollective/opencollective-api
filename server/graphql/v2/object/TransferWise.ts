@@ -80,7 +80,11 @@ export const TransferWise = new GraphQLObjectType({
       type: new GraphQLList(GraphQLJSONObject),
       async resolve(host, args) {
         if (host) {
-          return await transferwise.getAvailableCurrencies(host, args?.ignoreBlockedCurrencies);
+          try {
+            return await transferwise.getAvailableCurrencies(host, args?.ignoreBlockedCurrencies);
+          } catch (_) {
+            return [];
+          }
         } else {
           return null;
         }
