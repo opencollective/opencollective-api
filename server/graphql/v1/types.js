@@ -207,7 +207,7 @@ export const UserType = new GraphQLObjectType({
             type: GraphQLBoolean,
             defaultValue: true,
             description:
-              'Wether incognito profiles should be included in the result. Only works if requesting user is an admin of the account.',
+              'Whether incognito profiles should be included in the result. Only works if requesting user is an admin of the account.',
           },
         },
         resolve(user, args, req) {
@@ -531,7 +531,7 @@ export const ContributorType = new GraphQLObjectType({
     },
     type: {
       type: new GraphQLNonNull(GraphQLString),
-      description: 'Wether the contributor is an individual, an organization...',
+      description: 'Whether the contributor is an individual, an organization...',
     },
     isIncognito: {
       type: new GraphQLNonNull(GraphQLBoolean),
@@ -1852,8 +1852,14 @@ export const PaymentMethodType = new GraphQLObjectType({
       },
       expiryDate: {
         type: DateString,
-        resolve(paymentMethod) {
-          return paymentMethod.expiryDate;
+        resolve(paymentMethod, _, req) {
+          // Keep gift cards expiry dates public for legacy compatibility when claiming as a new user
+          const isGiftCard = paymentMethod.type === 'giftcard';
+          if (!isGiftCard && !req.remoteUser?.isAdmin(paymentMethod.CollectiveId)) {
+            return null;
+          } else {
+            return paymentMethod.expiryDate;
+          }
         },
       },
       service: {

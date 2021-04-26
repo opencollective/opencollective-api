@@ -55,13 +55,19 @@ const transactionMutations = {
         throw new Forbidden('Cannot reject this transaction');
       }
 
+      const toAccount = await models.Collective.findByPk(transaction.CollectiveId);
+      const rejectionReason =
+        args.message ||
+        `An administrator of ${toAccount.name} manually rejected your contribution without providing a specific reason.`;
+
       /** refund transaction and set status - - if the transaction has already been
        * refunded we don't want to try and do it again, but we will continue with
        * marking the order as 'REJECTED'
        */
       let refundedTransaction;
       if (!transaction.RefundTransactionId) {
-        refundedTransaction = await legacyRefundTransaction(undefined, { id: transaction.id }, req);
+        const refundParams = { id: transaction.id, message: rejectionReason };
+        refundedTransaction = await legacyRefundTransaction(undefined, refundParams, req);
       } else {
         refundedTransaction = await fetchTransactionWithReference({ legacyId: transaction.RefundTransactionId });
       }
@@ -90,9 +96,7 @@ const transactionMutations = {
       }
 
       // get membership info & remove member from Collective
-      const toAccount = await models.Collective.findByPk(transaction.CollectiveId);
       const fromAccount = await models.Collective.findByPk(transaction.FromCollectiveId);
-
       await models.Member.destroy({
         where: {
           MemberCollectiveId: fromAccount.id,
@@ -107,9 +111,6 @@ const transactionMutations = {
       const collective = {
         name: toAccount.name,
       };
-      const rejectionReason =
-        args.message ||
-        `An administrator of ${collective.name} manually rejected your contribution without providing a specific message.`;
 
       const data = { collective, rejectionReason };
 

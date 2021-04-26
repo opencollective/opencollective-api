@@ -162,7 +162,7 @@ const createCollectiveMutation = {
       type: IndividualCreateInput,
     },
     automateApprovalWithGithub: {
-      description: 'Wether to trigger the automated approval for Open Source collectives with GitHub.',
+      description: 'Whether to trigger the automated approval for Open Source collectives with GitHub.',
       type: GraphQLBoolean,
       defaultValue: false,
     },

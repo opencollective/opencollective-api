@@ -126,7 +126,7 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
         notificationAudience: update1.notificationAudience,
       });
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.equal('You must be logged in to publish this update');
+      expect(result.errors[0].message).to.equal('You must be logged in to edit this update');
     });
 
     it('fails if not authenticated as admin of collective', async () => {
@@ -136,7 +136,7 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
         user2,
       );
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.equal("You don't have sufficient permissions to publish this update");
+      expect(result.errors[0].message).to.equal("You don't have sufficient permissions to edit this update");
     });
 
     it('unpublishes an update successfully', async () => {
@@ -296,7 +296,7 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
         id: idEncode(update1.id, IDENTIFIER_TYPES.UPDATE),
       });
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.equal('You must be logged in to delete this update');
+      expect(result.errors[0].message).to.equal('You must be logged in to edit this update');
       return models.Update.findByPk(update1.id).then(updateFound => {
         expect(updateFound).to.not.be.null;
       });
@@ -309,7 +309,7 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
         user2,
       );
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.equal("You don't have sufficient permissions to delete this update");
+      expect(result.errors[0].message).to.equal("You don't have sufficient permissions to edit this update");
       return models.Update.findByPk(update1.id).then(updateFound => {
         expect(updateFound).to.not.be.null;
       });

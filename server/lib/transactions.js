@@ -1,3 +1,6 @@
+import { round, toNumber } from 'lodash';
+
+import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
 import { getFxRate } from '../lib/currency';
 import errors from '../lib/errors';
@@ -116,6 +119,17 @@ export async function createFromPaidExpense(
     const currencyConversion = createPaymentResponse.defaultFundingPlan.currencyConversion || { exchangeRate: 1 };
     hostCurrencyFxRate = 1 / parseFloat(currencyConversion.exchangeRate); // paypal returns a float from host.currency to expense.currency
     paymentProcessorFeeInHostCurrency = Math.round(hostCurrencyFxRate * paymentProcessorFeeInCollectiveCurrency);
+  }
+  // PayPal Payouts
+  else if (payoutMethodType === PayoutMethodTypes.PAYPAL && transactionData?.payout_batch_id) {
+    hostCurrencyFxRate = transactionData.currency_conversion?.exchange_rate
+      ? 1 / toNumber(transactionData.currency_conversion?.exchange_rate)
+      : await getFxRate(expense.currency, host.currency, expense.incurredAt || expense.createdAt);
+
+    paymentProcessorFeeInCollectiveCurrency = round(toNumber(transactionData.payout_item_fee?.value) * 100);
+    paymentProcessorFeeInHostCurrency = Math.round(hostCurrencyFxRate * paymentProcessorFeeInCollectiveCurrency);
+    hostFeeInCollectiveCurrency = Math.round((1 / hostCurrencyFxRate) * hostFeeInHostCurrency);
+    platformFeeInCollectiveCurrency = Math.round((1 / hostCurrencyFxRate) * platformFeeInHostCurrency);
   } else if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT) {
     // Notice this is the FX rate between Host and Collective, the user is not involved here and that's why TransferWise quote rate is irrelevant here.
     hostCurrencyFxRate = await getFxRate(expense.currency, host.currency);
@@ -148,6 +162,7 @@ export async function createFromPaidExpense(
     platformFeeInHostCurrency: toNegative(platformFeeInHostCurrency),
     ExpenseId: expense.id,
     type: TransactionTypes.DEBIT,
+    kind: TransactionKind.EXPENSE,
     amount: -expense.amount,
     currency: expense.currency,
     description: expense.description,

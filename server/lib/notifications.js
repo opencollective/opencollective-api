@@ -7,7 +7,7 @@ import { get, remove } from 'lodash';
 import { activities, channels } from '../constants';
 import activityType from '../constants/activities';
 import activitiesLib from '../lib/activities';
-import emailLib from '../lib/email';
+import emailLib, { NO_REPLY_EMAIL } from '../lib/email';
 import models from '../models';
 
 import { getTransactionPdf } from './pdf';
@@ -275,7 +275,7 @@ async function notifyByEmail(activity) {
         activity.data.path = `/${activity.data.collective.slug}/conversations/${activity.data.conversation.slug}-${activity.data.conversation.hashId}`;
 
         notifyConversationFollowers(conversation, activity, {
-          from: `no-reply@opencollective.com`,
+          from: NO_REPLY_EMAIL,
           exclude: [activity.UserId], // Don't notify the person who commented
         });
       } else if (activity.data.ExpenseId) {
@@ -286,7 +286,7 @@ async function notifyByEmail(activity) {
 
         // Notify the admins of the collective
         notifyAdminsOfCollective(activity.CollectiveId, activity, {
-          from: `no-reply@opencollective.com`,
+          from: NO_REPLY_EMAIL,
           exclude: [activity.UserId, activity.data.UserId], // Don't notify the person who commented nor the expense author
         });
 
@@ -294,7 +294,7 @@ async function notifyByEmail(activity) {
         const HostCollectiveId = await collective.getHostCollectiveId();
         if (HostCollectiveId) {
           notifyAdminsOfCollective(HostCollectiveId, activity, {
-            from: `no-reply@opencollective.com`,
+            from: NO_REPLY_EMAIL,
             exclude: [activity.UserId, activity.data.UserId], // Don't notify the person who commented nor the expense author
           });
         }
@@ -302,7 +302,7 @@ async function notifyByEmail(activity) {
         // Notify the author of the expense
         if (activity.UserId !== activity.data.UserId) {
           notifyUserId(activity.data.UserId, activity, {
-            from: `no-reply@opencollective.com`,
+            from: NO_REPLY_EMAIL,
           });
         }
       } else if (activity.data.UpdateId) {
@@ -313,7 +313,7 @@ async function notifyByEmail(activity) {
 
         // Notify the admins of the collective
         notifyAdminsOfCollective(activity.CollectiveId, activity, {
-          from: `no-reply@opencollective.com`,
+          from: NO_REPLY_EMAIL,
           exclude: [activity.UserId], // Don't notify the person who commented
         });
       }
@@ -325,7 +325,7 @@ async function notifyByEmail(activity) {
         viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
       };
       activity.data.expense.payoutMethodLabel = models.PayoutMethod.getLabel(activity.data.payoutMethod);
-      notifyUserId(activity.data.expense.UserId, activity, { from: `no-reply@opencollective.com` });
+      notifyUserId(activity.data.expense.UserId, activity, { from: NO_REPLY_EMAIL });
       // We only notify the admins of the host if the collective is active (ie. has been approved by the host)
       if (get(activity, 'data.host.id') && get(activity, 'data.collective.isActive')) {
         notifyAdminsOfCollective(activity.data.host.id, activity, {
@@ -339,7 +339,7 @@ async function notifyByEmail(activity) {
       activity.data.actions = {
         viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
       };
-      notifyUserId(activity.data.expense.UserId, activity, { from: `no-reply@opencollective.com` });
+      notifyUserId(activity.data.expense.UserId, activity, { from: NO_REPLY_EMAIL });
       break;
 
     case activityType.COLLECTIVE_EXPENSE_PAID:
@@ -347,7 +347,7 @@ async function notifyByEmail(activity) {
         viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
       };
       activity.data.expense.payoutMethodLabel = models.PayoutMethod.getLabel(activity.data.payoutMethod);
-      notifyUserId(activity.data.expense.UserId, activity, { from: `no-reply@opencollective.com` });
+      notifyUserId(activity.data.expense.UserId, activity, { from: NO_REPLY_EMAIL });
       if (get(activity, 'data.host.id')) {
         notifyAdminsOfCollective(activity.data.host.id, activity, {
           template: 'collective.expense.paid.for.host',
@@ -360,7 +360,7 @@ async function notifyByEmail(activity) {
       activity.data.actions = {
         viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
       };
-      notifyUserId(activity.data.expense.UserId, activity, { from: `no-reply@opencollective.com` });
+      notifyUserId(activity.data.expense.UserId, activity, { from: NO_REPLY_EMAIL });
       if (get(activity, 'data.host.id')) {
         notifyAdminsOfCollective(activity.data.host.id, activity, {
           template: 'collective.expense.error.for.host',
@@ -373,7 +373,7 @@ async function notifyByEmail(activity) {
       activity.data.actions = {
         viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
       };
-      notifyUserId(activity.data.expense.UserId, activity, { from: `no-reply@opencollective.com` });
+      notifyUserId(activity.data.expense.UserId, activity, { from: NO_REPLY_EMAIL });
       break;
 
     case activityType.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT:
@@ -482,5 +482,16 @@ async function notifyByEmail(activity) {
         await notifyAdminsOfCollective(activity.data.payee.id, activity, { sendEvenIfNotProduction: true });
       }
       break;
+
+    case activityType.COLLECTIVE_EXPENSE_MISSING_RECEIPT:
+      notifyAdminsOfCollective(activity.data.collective.id, activity, { sendEvenIfNotProduction: true });
+      break;
+
+    case activityType.VIRTUAL_CARD_REQUESTED:
+      notifyAdminsOfCollective(activity.data.host.id, activity, {
+        template: 'virtualcard.requested',
+        replyTo: activity.data.user.email,
+        sendEvenIfNotProduction: true,
+      });
   }
 }

@@ -667,6 +667,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       isArchived: { type: GraphQLBoolean },
       isApproved: { type: GraphQLBoolean },
       isDeletable: { type: GraphQLBoolean },
+      hasVirtualCards: { type: GraphQLBoolean },
       host: { type: CollectiveInterfaceType },
       hostCollective: { type: CollectiveInterfaceType },
       members: {
@@ -708,7 +709,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
             type: GraphQLBoolean,
             defaultValue: true,
             description:
-              'Wether incognito profiles should be included in the result. Only works if requesting user is an admin of the account.',
+              'Whether incognito profiles should be included in the result. Only works if requesting user is an admin of the account.',
           },
         },
       },
@@ -872,7 +873,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
           batch: { type: GraphQLString },
           isConfirmed: {
             type: GraphQLBoolean,
-            description: 'Wether the gift card has been claimed or not',
+            description: 'Whether the gift card has been claimed or not',
           },
         },
       },
@@ -1320,7 +1321,7 @@ const CollectiveFields = () => {
           type: GraphQLBoolean,
           defaultValue: true,
           description:
-            'Wether incognito profiles should be included in the result. Only works if requesting user is an admin of the account.',
+            'Whether incognito profiles should be included in the result. Only works if requesting user is an admin of the account.',
         },
       },
       resolve(collective, args, req) {
@@ -1830,7 +1831,7 @@ const CollectiveFields = () => {
         batch: { type: GraphQLString },
         isConfirmed: {
           type: GraphQLBoolean,
-          description: 'Wether the gift card has been claimed or not',
+          description: 'Whether the gift card has been claimed or not',
         },
       },
       resolve: async (collective, args, req) => {
@@ -1911,6 +1912,12 @@ const CollectiveFields = () => {
       type: new GraphQLNonNull(new GraphQLList(GraphQLString)),
       resolve(collective) {
         return get(collective.data, 'categories', []);
+      },
+    },
+    hasVirtualCards: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      resolve(collective) {
+        return models.VirtualCard.count({ where: { CollectiveId: collective.id } });
       },
     },
   };

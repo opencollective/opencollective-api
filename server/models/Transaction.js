@@ -7,6 +7,7 @@ import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../constants/activities';
+import { TransactionKind } from '../constants/transaction-kind';
 import { FEES_ON_TOP_TRANSACTION_PROPERTIES, TransactionTypes } from '../constants/transactions';
 import { getFxRate } from '../lib/currency';
 import { toNegative } from '../lib/math';
@@ -26,6 +27,11 @@ function defineModel() {
     'Transaction',
     {
       type: DataTypes.STRING, // DEBIT or CREDIT
+
+      kind: {
+        allowNull: true,
+        type: DataTypes.ENUM(Object.values(TransactionKind)),
+      },
 
       uuid: {
         type: DataTypes.UUID,
@@ -162,11 +168,6 @@ function defineModel() {
       RefundTransactionId: {
         type: DataTypes.INTEGER,
         references: { model: 'Transactions', key: 'id' },
-      },
-
-      PlatformTipForTransactionGroup: {
-        type: DataTypes.STRING,
-        allowNull: true,
       },
 
       isRefund: {
@@ -314,7 +315,7 @@ function defineModel() {
   };
 
   Transaction.prototype.hasPlatformTip = function () {
-    return this.data?.isFeesOnTop ? true : false;
+    return Boolean(this.data?.isFeesOnTop && this.kind !== TransactionKind.PLATFORM_TIP);
   };
 
   Transaction.prototype.getPlatformTipTransaction = function () {
@@ -323,7 +324,8 @@ function defineModel() {
         where: {
           ...pick(FEES_ON_TOP_TRANSACTION_PROPERTIES, ['CollectiveId']),
           type: this.type,
-          PlatformTipForTransactionGroup: this.TransactionGroup,
+          TransactionGroup: this.TransactionGroup,
+          kind: TransactionKind.PLATFORM_TIP,
         },
       });
     }
@@ -336,7 +338,7 @@ function defineModel() {
         CollectiveId: this.FromCollectiveId,
         FromCollectiveId: this.CollectiveId,
         TransactionGroup: this.TransactionGroup,
-        PlatformTipForTransactionGroup: this.PlatformTipForTransactionGroup,
+        kind: this.kind,
       },
     });
   };
@@ -584,6 +586,7 @@ function defineModel() {
         amountInHostCurrency: Math.round(Math.abs(transaction.platformFeeInHostCurrency) * platformCurrencyFxRate),
         platformFeeInHostCurrency: 0,
         hostFeeInHostCurrency: 0,
+        kind: TransactionKind.PLATFORM_TIP,
         // Represent the paymentProcessorFee in USD
         paymentProcessorFeeInHostCurrency: Math.round(feeOnTopPaymentProcessorFee * platformCurrencyFxRate),
         // Calculate the netAmount by deducting the proportional paymentProcessorFee
@@ -592,7 +595,7 @@ function defineModel() {
         ),
         // This is always 1 because OpenCollective and OpenCollective Inc (Host) are in USD.
         hostCurrencyFxRate: 1,
-        PlatformTipForTransactionGroup: transaction.TransactionGroup,
+        TransactionGroup: transaction.TransactionGroup,
         data: {
           hostToPlatformFxRate: await getFxRate(transaction.hostCurrency, FEES_ON_TOP_TRANSACTION_PROPERTIES.currency),
           feeOnTopPaymentProcessorFee,
@@ -618,6 +621,10 @@ function defineModel() {
     return transaction;
   };
 
+  /**
+   * Creates a transaction pair from given payload. Defaults to `CONTRIBUTION` kind unless
+   * specified otherwise.
+   */
   Transaction.createFromPayload = async ({
     CreatedByUserId,
     FromCollectiveId,
@@ -650,6 +657,10 @@ function defineModel() {
     transaction.platformFeeInHostCurrency = toNegative(transaction.platformFeeInHostCurrency);
     transaction.taxAmount = toNegative(transaction.taxAmount);
     transaction.paymentProcessorFeeInHostCurrency = toNegative(transaction.paymentProcessorFeeInHostCurrency);
+
+    // TODO: createFromPayload is only used by payment methods, for contributions. So it sounds right to do
+    // that here, but we should probably rename the function to something clearer (createFromContributionPayload?)
+    transaction.kind = isUndefined(transaction.kind) ? TransactionKind.CONTRIBUTION : transaction.kind;
 
     // Separate donation transaction and remove platformFee from the main transaction
     if (transaction.data?.isFeesOnTop && transaction.platformFeeInHostCurrency) {
@@ -716,6 +727,7 @@ function defineModel() {
     const platformFee = calcFee(order.totalAmount, platformFeePercent);
     const payload = {
       type: 'CREDIT',
+      kind: TransactionKind.ADDED_FUNDS,
       amount,
       description: order.description,
       currency: order.currency,
@@ -824,13 +836,13 @@ function defineModel() {
   Transaction.validate = async (transaction, { validateOppositeTransaction = true } = {}) => {
     // Skip as there is a known bug there
     // https://github.com/opencollective/opencollective/issues/3935
-    if (transaction.PlatformTipForTransactionGroup) {
+    if (transaction.kind === TransactionKind.PLATFORM_TIP) {
       return;
     }
 
     // Skip as there is a known bug there
     // https://github.com/opencollective/opencollective/issues/3934
-    if (transaction.PlatformTipForTransactionGroup && transaction.taxAmount) {
+    if (transaction.kind === TransactionKind.PLATFORM_TIP && transaction.taxAmount) {
       return;
     }
 

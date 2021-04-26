@@ -88,6 +88,10 @@ const connectedAccountMutations = {
         hash: crypto.hash(args.connectedAccount.service + args.connectedAccount.token),
       });
 
+      if (args.connectedAccount.service === Service.PAYPAL) {
+        await paypal.setupPaypalWebhookForHost(collective);
+      }
+
       return connectedAccount;
     },
   },

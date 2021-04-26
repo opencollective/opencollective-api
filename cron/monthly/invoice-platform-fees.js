@@ -71,9 +71,9 @@ export async function run() {
       FROM
         "Transactions" t
       LEFT JOIN "Transactions" ot ON
-        t."PlatformTipForTransactionGroup"::uuid = ot."TransactionGroup"
+        t."TransactionGroup" = ot."TransactionGroup"
         AND ot.type = 'CREDIT'
-        AND ot."PlatformTipForTransactionGroup" IS NULL
+        AND ot.kind IN ('CONTRIBUTION', 'ADDED_FUNDS') -- we only support adding tips on contributions and addedd funds for now
       LEFT JOIN "Collectives" h ON
         ot."HostCollectiveId" = h.id
       LEFT JOIN "Collectives" c ON
@@ -87,7 +87,7 @@ export async function run() {
         AND t."createdAt" < date_trunc('month', date :date)
         AND t."deletedAt" IS NULL
         AND t."CollectiveId" = 8686
-        AND t."PlatformTipForTransactionGroup" IS NOT NULL
+        AND t."kind" = 'PLATFORM_TIP'
         AND t."type" = 'CREDIT'
         AND ot."HostCollectiveId" NOT IN (8686)
         AND (
@@ -236,9 +236,9 @@ export async function run() {
       FROM
         "Transactions" t
       LEFT JOIN "Transactions" ot ON
-        t."PlatformTipForTransactionGroup"::uuid = ot."TransactionGroup"
+        t."TransactionGroup" = ot."TransactionGroup"
         AND ot.type = 'CREDIT'
-        AND ot."PlatformTipForTransactionGroup" IS NULL
+        AND ot.kind IN ('CONTRIBUTION', 'ADDED_FUNDS') -- we only support adding tips on contributions and addedd funds for now
       LEFT JOIN "Collectives" h ON
         ot."HostCollectiveId" = h.id
       LEFT JOIN "Collectives" c ON
@@ -252,7 +252,7 @@ export async function run() {
         AND t."createdAt" < date_trunc('month',  date :date)
         AND t."deletedAt" IS NULL
         AND t."CollectiveId" = 8686
-        AND t."PlatformTipForTransactionGroup" IS NOT NULL
+        AND t."kind" = 'PLATFORM_TIP'
         AND t."type" = 'CREDIT'
         AND ot."HostCollectiveId" NOT IN (8686)
         AND (
@@ -384,6 +384,7 @@ export async function run() {
           netAmountInCollectiveCurrency: totalAmountCredited,
           type: TransactionTypes.CREDIT,
           TransactionGroup: uuid(),
+          kind: null, // Keeping this one null on purpose, see https://github.com/opencollective/opencollective-api/pull/5884#discussion_r616440055
         });
       }
 

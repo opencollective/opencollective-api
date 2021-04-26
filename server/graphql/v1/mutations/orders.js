@@ -366,11 +366,6 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent) 
     if (paymentRequired && !hasPaymentMethod(order)) {
       throw new Error('This order requires a payment method');
     }
-    if (paymentRequired && order.paymentMethod.service === 'paypal' && order.paymentMethod.data?.isNewApi) {
-      if (!remoteUser?.isRoot()) {
-        throw new Error('New PayPal API can only be used by root users at the moment');
-      }
-    }
     if (paymentRequired && order.paymentMethod && order.paymentMethod.type === 'manual') {
       await handleHostPlanBankTransfersLimit(host);
     }
@@ -736,7 +731,7 @@ export async function refundTransaction(_, args, req) {
 
   // 2. Refund via payment method
   // 3. Create new transactions with the refund value in our database
-  const result = await libPayments.refundTransaction(transaction, req.remoteUser);
+  const result = await libPayments.refundTransaction(transaction, req.remoteUser, args.message);
 
   // Return the transaction passed to the `refundTransaction` method
   // after it was updated.

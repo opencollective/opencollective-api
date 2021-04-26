@@ -3,7 +3,6 @@ import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectT
 import models from '../../models';
 import { bulkCreateGiftCards, createGiftCardsForEmails } from '../../paymentProviders/opencollective/giftcard';
 import { editPublicMessage } from '../common/members';
-import * as updateMutations from '../common/update';
 import { createUser } from '../common/user';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../errors';
 
@@ -50,8 +49,6 @@ import {
   OrderInputType,
   StripeCreditCardDataInputType,
   TierInputType,
-  UpdateAttributesInputType,
-  UpdateInputType,
   UserInputType,
 } from './inputTypes';
 import { TransactionInterfaceType } from './TransactionInterface';
@@ -63,8 +60,6 @@ import {
   OrderType,
   PaymentMethodType,
   TierType,
-  UpdateAudienceTypeEnum,
-  UpdateType,
   UserType,
 } from './types';
 
@@ -332,69 +327,6 @@ const mutations = {
     },
     resolve(_, args, req) {
       return confirmOrder(args.order, req.remoteUser);
-    },
-  },
-  createUpdate: {
-    type: UpdateType,
-    deprecationReason: '2021-01-29: This endpoint has been moved to GQLV2',
-    args: {
-      update: {
-        type: new GraphQLNonNull(UpdateInputType),
-      },
-    },
-    resolve(_, args, req) {
-      return updateMutations.createUpdate(_, args, req);
-    },
-  },
-  editUpdate: {
-    type: UpdateType,
-    deprecationReason: '2021-01-29: Not used anymore',
-    args: {
-      update: {
-        type: new GraphQLNonNull(UpdateAttributesInputType),
-      },
-    },
-    resolve(_, args, req) {
-      return updateMutations.editUpdate(_, args, req);
-    },
-  },
-  publishUpdate: {
-    type: UpdateType,
-    deprecationReason: '2021-01-29: Not used anymore',
-    args: {
-      id: {
-        type: new GraphQLNonNull(GraphQLInt),
-      },
-      notificationAudience: {
-        type: new GraphQLNonNull(UpdateAudienceTypeEnum),
-      },
-    },
-    resolve(_, args, req) {
-      return updateMutations.publishUpdate(_, args, req);
-    },
-  },
-  unpublishUpdate: {
-    type: UpdateType,
-    deprecationReason: '2021-01-29: Not used anymore',
-    args: {
-      id: {
-        type: new GraphQLNonNull(GraphQLInt),
-      },
-    },
-    resolve(_, args, req) {
-      return updateMutations.unpublishUpdate(_, args, req);
-    },
-  },
-  deleteUpdate: {
-    type: UpdateType,
-    deprecationReason: '2021-01-29: Not used anymore',
-    args: {
-      id: {
-        type: new GraphQLNonNull(GraphQLInt),
-      },
-    },
-    resolve(_, args, req) {
-      return updateMutations.deleteUpdate(_, args, req);
     },
   },
   createComment: {
@@ -680,7 +612,7 @@ const mutations = {
       },
       accept: {
         type: new GraphQLNonNull(GraphQLBoolean),
-        description: 'Wether this invitation should be accepted or declined',
+        description: 'Whether this invitation should be accepted or declined',
       },
     },
     async resolve(_, args, req) {

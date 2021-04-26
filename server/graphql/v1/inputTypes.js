@@ -424,43 +424,6 @@ export const CommentAttributesInputType = new GraphQLInputObjectType({
   }),
 });
 
-export const UpdateInputType = new GraphQLInputObjectType({
-  name: 'UpdateInputType',
-  description: 'Input type for UpdateType',
-  fields: () => ({
-    id: { type: GraphQLInt },
-    views: { type: GraphQLInt },
-    slug: { type: GraphQLString },
-    title: { type: GraphQLString },
-    image: { type: GraphQLString },
-    isPrivate: { type: GraphQLBoolean },
-    makePublicOn: { type: IsoDateString },
-    markdown: { type: GraphQLString, deprecationReason: '2021-01-25: Please use html' },
-    html: { type: GraphQLString },
-    fromCollective: { type: CollectiveAttributesInputType },
-    collective: { type: new GraphQLNonNull(CollectiveAttributesInputType) },
-    tier: { type: TierInputType },
-  }),
-});
-
-export const UpdateAttributesInputType = new GraphQLInputObjectType({
-  name: 'UpdateAttributesInputType',
-  description: 'Input type for UpdateType',
-  fields: () => ({
-    id: { type: GraphQLInt },
-    views: { type: GraphQLInt },
-    slug: { type: GraphQLString },
-    title: { type: GraphQLString },
-    image: { type: GraphQLString },
-    isPrivate: { type: GraphQLBoolean },
-    makePublicOn: { type: IsoDateString },
-    markdown: { type: GraphQLString, deprecationReason: '2021-01-25: Please use html' },
-    html: { type: GraphQLString },
-    fromCollective: { type: CollectiveAttributesInputType },
-    tier: { type: TierInputType },
-  }),
-});
-
 export const InvoiceInputType = new GraphQLInputObjectType({
   name: 'InvoiceInputType',
   description: 'Input dates and collectives for Invoice',

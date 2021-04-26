@@ -48,6 +48,7 @@ export const getCollectiveAvatarUrl = (
 
 export const COLLECTIVE_SETTINGS_KEYS_LIST = [
   'apply',
+  'disablePublicExpenseSubmission',
   'bitcoin',
   'categories',
   'collectivePage',
@@ -85,6 +86,7 @@ export const COLLECTIVE_SETTINGS_KEYS_LIST = [
   'GST',
   'giftCardsMaxDailyCount',
   'W9',
+  'virtualcards',
 ];
 
 /**

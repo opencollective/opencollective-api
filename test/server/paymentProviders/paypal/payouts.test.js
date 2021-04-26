@@ -1,4 +1,6 @@
 /* eslint-disable camelcase */
+import crypto from 'crypto';
+
 import { expect } from 'chai';
 import sinon from 'sinon';
 
@@ -17,7 +19,6 @@ describe('paymentMethods/paypal/payouts.js', () => {
   beforeEach(utils.resetTestDB);
 
   describe('payExpensesBatch', () => {
-    const sandbox = sinon.createSandbox();
     let expense, host, collective, payoutMethod;
     beforeEach(async () => {
       host = await fakeCollective({ isHostAccount: true });
@@ -65,6 +66,15 @@ describe('paymentMethods/paypal/payouts.js', () => {
 
       sinon.assert.calledOnce(paypalLib.executePayouts);
       expect(expense.data).to.deep.equals({ payout_batch_id: 'fake' });
+    });
+
+    it('should generate unique sender_batch_id', async () => {
+      await paypalPayouts.payExpensesBatch([expense]);
+      const expectedHash = crypto.createHash('SHA1').update(expense.id.toString()).digest('hex');
+
+      expect(paypalLib.executePayouts.firstCall.lastArg)
+        .to.have.nested.property('sender_batch_header.sender_batch_id')
+        .equals(expectedHash);
     });
   });
 
@@ -131,6 +141,51 @@ describe('paymentMethods/paypal/payouts.js', () => {
       expect(expense).to.have.property('status', 'PAID');
       expect(transaction).to.have.property('paymentProcessorFeeInHostCurrency', -123);
       expect(transaction).to.have.property('netAmountInCollectiveCurrency', -10123);
+    });
+
+    it('work with cross-currency collectives', async () => {
+      const expense = await fakeExpense({
+        status: status.PROCESSING,
+        amount: 10000,
+        CollectiveId: collective.id,
+        currency: 'EUR',
+        PayoutMethodId: payoutMethod.id,
+        category: 'Engineering',
+        type: 'INVOICE',
+        description: 'May Invoice',
+        data: { payout_batch_id: 'fake-batch-id-eur' },
+      });
+      expense.collective = collective;
+
+      paypalLib.getBatchInfo.resolves({
+        items: [
+          {
+            transaction_status: 'SUCCESS',
+            payout_item: { sender_item_id: expense.id.toString() },
+            payout_batch_id: 'fake-batch-id-eur',
+            payout_item_fee: {
+              currency: 'EUR',
+              value: '1.20',
+            },
+            currency_conversion: {
+              to_amount: { value: '99.312', currency: 'EUR' },
+              from_amount: { value: '124.14', currency: 'USD' },
+              exchange_rate: '0.80',
+            },
+          },
+        ],
+      });
+
+      await paypalPayouts.checkBatchStatus([expense]);
+      const [transaction] = await expense.getTransactions({ where: { type: 'DEBIT' } });
+
+      expect(paypalLib.getBatchInfo.getCall(0)).to.have.property('lastArg', 'fake-batch-id-eur');
+      expect(expense).to.have.property('status', 'PAID');
+      expect(transaction).to.have.property('paymentProcessorFeeInHostCurrency', -150);
+      expect(transaction).to.have.property('amountInHostCurrency', -12500);
+      expect(transaction).to.have.property('hostCurrency', 'USD');
+      expect(transaction).to.have.property('netAmountInCollectiveCurrency', -10120);
+      expect(transaction).to.have.property('currency', 'EUR');
     });
 
     const failedStatuses = ['FAILED', 'BLOCKED', 'REFUNDED', 'RETURNED', 'REVERSED'];

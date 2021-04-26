@@ -19,6 +19,10 @@ interface VirtualCardAttributes {
 
 export interface VirtualCardCreateAttributes {
   id: string;
+  name: string;
+  last4: string;
+  data: Record<string, any>;
+  privateData: Record<string, any>;
   CollectiveId: number;
   HostCollectiveId: number;
 }
@@ -38,6 +42,12 @@ class VirtualCard extends Model<VirtualCardAttributes, VirtualCardCreateAttribut
   constructor(...args) {
     super(...args);
     restoreSequelizeAttributesOnClass(new.target, this);
+  }
+
+  async getExpensesMissingDetails(): Promise<Array<any>> {
+    return sequelize.models.Expense.findAll({
+      where: { VirtualCardId: this.id, data: { missingDetails: true } },
+    });
   }
 }
 

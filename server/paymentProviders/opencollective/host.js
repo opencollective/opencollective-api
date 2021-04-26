@@ -1,7 +1,8 @@
 import { v4 as uuid } from 'uuid';
 
 import { maxInteger } from '../../constants/math';
-import { FEES_ON_TOP_TRANSACTION_PROPERTIES, TransactionTypes } from '../../constants/transactions';
+import { TransactionKind } from '../../constants/transaction-kind';
+import { TransactionTypes } from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
 import { calcFee, getHostFeePercent, getPlatformFeePercent } from '../../lib/payments';
 import models from '../../models';
@@ -30,7 +31,7 @@ paymentMethodProvider.createPlatformTipTransaction = async payload => {
     hostCurrencyFxRate: 1,
     TransactionGroup,
     PlatformTipForTransactionGroup: TransactionGroup,
-    ...FEES_ON_TOP_TRANSACTION_PROPERTIES,
+    ...TransactionKind.FEES_ON_TOP_TRANSACTION_PROPERTIES,
   };
 
   return models.Transaction.createDoubleEntry(donationTransaction);
@@ -75,6 +76,7 @@ paymentMethodProvider.processOrder = async order => {
 
   payload.transaction = {
     type: TransactionTypes.CREDIT,
+    kind: TransactionKind.ADDED_FUNDS,
     OrderId: order.id,
     amount: order.totalAmount,
     currency: order.currency,

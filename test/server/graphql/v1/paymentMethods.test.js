@@ -3,6 +3,7 @@ import gql from 'fake-tag';
 import sinon from 'sinon';
 
 import roles from '../../../../server/constants/roles';
+import { TransactionKind } from '../../../../server/constants/transaction-kind';
 import * as libcurrency from '../../../../server/lib/currency';
 import models from '../../../../server/models';
 import paypalAdaptive from '../../../../server/paymentProviders/paypal/adaptiveGateway';
@@ -215,6 +216,7 @@ describe('server/graphql/v1/paymentMethods', () => {
       const transaction = await models.Transaction.findOne({
         where: { OrderId: orderCreated.id, type: 'CREDIT' },
       });
+      expect(transaction.kind).to.equal(TransactionKind.ADDED_FUNDS);
       expect(transaction.FromCollectiveId).to.equal(transaction.HostCollectiveId);
       expect(transaction.hostFeeInHostCurrency).to.equal(0);
       expect(transaction.platformFeeInHostCurrency).to.equal(0);
@@ -254,6 +256,7 @@ describe('server/graphql/v1/paymentMethods', () => {
       const orgAdmin = await models.Collective.findOne({
         where: { id: adminMembership.MemberCollectiveId },
       });
+      expect(transaction.kind).to.equal(TransactionKind.ADDED_FUNDS);
       expect(transaction.CreatedByUserId).to.equal(admin.id);
       expect(org.CreatedByUserId).to.equal(admin.id);
       expect(adminMembership.CreatedByUserId).to.equal(admin.id);

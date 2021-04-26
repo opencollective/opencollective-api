@@ -5,6 +5,7 @@ import sinon from 'sinon';
 
 import { expenseStatus, roles } from '../../../server/constants';
 import plans from '../../../server/constants/plans';
+import { TransactionKind } from '../../../server/constants/transaction-kind';
 import { getFxRate } from '../../../server/lib/currency';
 import emailLib from '../../../server/lib/email';
 import models, { Op, sequelize } from '../../../server/models';
@@ -1094,7 +1095,8 @@ describe('server/models/Collective', () => {
         amount: 100,
         currency: 'USD',
         data: { hostToPlatformFxRate: 1.23 },
-        PlatformTipForTransactionGroup: t.TransactionGroup,
+        TransactionGroup: t.TransactionGroup,
+        kind: TransactionKind.PLATFORM_TIP,
         createdAt: lastMonth,
       });
       await fakeTransaction({
@@ -1104,7 +1106,8 @@ describe('server/models/Collective', () => {
         amount: 300,
         currency: 'USD',
         data: { hostToPlatformFxRate: 1.2 },
-        PlatformTipForTransactionGroup: t.TransactionGroup,
+        TransactionGroup: t.TransactionGroup,
+        kind: TransactionKind.PLATFORM_TIP,
         createdAt: lastMonth,
         PaymentMethodId: stripePaymentMethod.id,
       });

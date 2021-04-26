@@ -35,6 +35,7 @@ import FEATURE from '../constants/feature';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import plans from '../constants/plans';
 import roles, { MemberRoleLabels } from '../constants/roles';
+import { TransactionKind } from '../constants/transaction-kind';
 import { FEES_ON_TOP_TRANSACTION_PROPERTIES, TransactionTypes } from '../constants/transactions';
 import { hasOptedOutOfFeature, isFeatureAllowedForCollectiveType } from '../lib/allowed-features';
 import {
@@ -3021,7 +3022,8 @@ function defineModel() {
         ...pick(FEES_ON_TOP_TRANSACTION_PROPERTIES, ['CollectiveId', 'HostCollectiveId']),
         createdAt: { [Op.gte]: from, [Op.lt]: to },
         type: TransactionTypes.CREDIT,
-        PlatformTipForTransactionGroup: { [Op.in]: transactions.map(t => t.TransactionGroup) },
+        TransactionGroup: { [Op.in]: transactions.map(t => t.TransactionGroup) },
+        kind: TransactionKind.PLATFORM_TIP,
       },
       include: [
         {

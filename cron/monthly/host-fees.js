@@ -5,6 +5,7 @@ import config from 'config';
 import { round, sumBy } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
+import { TransactionKind } from '../../server/constants/transaction-kind';
 import { sumByWhen } from '../../server/lib/utils';
 import models, { Op } from '../../server/models';
 
@@ -88,6 +89,7 @@ async function run() {
         paymentProcessorFeeInHostCurrency: 0,
         TransactionGroup: uuid(),
         CreatedByUserId: 30, // Pia (mandatory in the model)
+        kind: TransactionKind.HOST_FEE_SHARE,
       };
 
       console.log(`Crediting Host Fees ${monthAsString} ${year} for ${host.slug}`);
@@ -123,6 +125,7 @@ async function run() {
         paymentProcessorFeeInHostCurrency: 0,
         TransactionGroup: uuid(),
         CreatedByUserId: 30, // Pia (mandatory in the model)
+        kind: TransactionKind.HOST_FEE_SHARE,
       };
 
       console.log(`Debiting Host Fees already shared ${monthAsString} ${year} for ${host.slug}`);

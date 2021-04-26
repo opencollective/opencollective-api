@@ -2,9 +2,7 @@ name: CI
 
 on:
   push:
-    branches:
-      - main
-  pull_request:
+  pull_request_target:
     types:
       - opened
       - synchronize
@@ -22,13 +20,24 @@ env:
 
 jobs:
   lint:
+    if: >-
+      github.event_name == 'push' || github.actor == 'dependabot[bot]'
     runs-on: ubuntu-latest
 
     timeout-minutes: 15
 
     steps:
       - name: Checkout
+        if: github.event_name == 'push'
         uses: actions/checkout@v2-beta
+
+      - name: Checkout (Pull Request Target)
+        if: github.event_name == 'pull_request_target'
+        uses: actions/checkout@v2
+        with:
+          # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
+          # Otherwise we would be running against main branch
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Setup node
         uses: actions/setup-node@v1
@@ -59,13 +68,24 @@ jobs:
       - run: npm run lint:check
 
   prettier:
+    if: >-
+      github.event_name == 'push' || github.actor == 'dependabot[bot]'
     runs-on: ubuntu-latest
 
     timeout-minutes: 15
 
     steps:
       - name: Checkout
+        if: github.event_name == 'push'
         uses: actions/checkout@v2-beta
+
+      - name: Checkout (Pull Request Target)
+        if: github.event_name == 'pull_request_target'
+        uses: actions/checkout@v2
+        with:
+          # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
+          # Otherwise we would be running against main branch
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Setup node
         uses: actions/setup-node@v1
@@ -96,13 +116,24 @@ jobs:
       - run: npm run prettier:check
 
   typescript:
+    if: >-
+      github.event_name == 'push' || github.actor == 'dependabot[bot]'
     runs-on: ubuntu-latest
 
     timeout-minutes: 15
 
     steps:
       - name: Checkout
+        if: github.event_name == 'push'
         uses: actions/checkout@v2-beta
+
+      - name: Checkout (Pull Request Target)
+        if: github.event_name == 'pull_request_target'
+        uses: actions/checkout@v2
+        with:
+          # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
+          # Otherwise we would be running against main branch
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Setup node
         uses: actions/setup-node@v1
@@ -133,13 +164,24 @@ jobs:
       - run: npm run type:check
 
   depcheck:
+    if: >-
+      github.event_name == 'push' || github.actor == 'dependabot[bot]'
     runs-on: ubuntu-latest
 
     timeout-minutes: 15
 
     steps:
       - name: Checkout
+        if: github.event_name == 'push'
         uses: actions/checkout@v2-beta
+
+      - name: Checkout (Pull Request Target)
+        if: github.event_name == 'pull_request_target'
+        uses: actions/checkout@v2
+        with:
+          # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
+          # Otherwise we would be running against main branch
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Setup node
         uses: actions/setup-node@v1
@@ -170,13 +212,24 @@ jobs:
       - run: npm run depcheck
 
   build:
+    if: >-
+      github.event_name == 'push' || github.actor == 'dependabot[bot]'
     runs-on: ubuntu-latest
 
     timeout-minutes: 15
 
     steps:
       - name: Checkout
+        if: github.event_name == 'push'
         uses: actions/checkout@v2-beta
+
+      - name: Checkout (Pull Request Target)
+        if: github.event_name == 'pull_request_target'
+        uses: actions/checkout@v2
+        with:
+          # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
+          # Otherwise we would be running against main branch
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Setup node
         uses: actions/setup-node@v1
@@ -214,6 +267,8 @@ jobs:
         run: npm run build
 
   test:
+    if: >-
+      github.event_name == 'push' || github.actor == 'dependabot[bot]'
     runs-on: ubuntu-latest
 
     timeout-minutes: 30
@@ -225,17 +280,27 @@ jobs:
           - 6379:6379
         options: --entrypoint redis-server
       postgres:
-        image: mdillon/postgis:9.6
+        image: postgis/postgis:9.6-2.5
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
         ports:
           - 5432:5432
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
 
     steps:
       - name: Checkout
+        if: github.event_name == 'push'
         uses: actions/checkout@v2-beta
+
+      - name: Checkout (Pull Request Target)
+        if: github.event_name == 'pull_request_target'
+        uses: actions/checkout@v2
+        with:
+          # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
+          # Otherwise we would be running against main branch
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Setup node
         uses: actions/setup-node@v1
@@ -270,6 +335,8 @@ jobs:
       - run: npm run test:coverage
 
   test-graphql:
+    if: >-
+      github.event_name == 'push' || github.actor == 'dependabot[bot]'
     runs-on: ubuntu-latest
 
     timeout-minutes: 30
@@ -281,17 +348,27 @@ jobs:
           - 6379:6379
         options: --entrypoint redis-server
       postgres:
-        image: mdillon/postgis:9.6
+        image: postgis/postgis:9.6-2.5
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
         ports:
           - 5432:5432
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
 
     steps:
       - name: Checkout
+        if: github.event_name == 'push'
         uses: actions/checkout@v2-beta
+
+      - name: Checkout (Pull Request Target)
+        if: github.event_name == 'pull_request_target'
+        uses: actions/checkout@v2
+        with:
+          # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
+          # Otherwise we would be running against main branch
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Setup node
         uses: actions/setup-node@v1
@@ -326,10 +403,22 @@ jobs:
       - run: npm run test:coverage
 
   schema-update:
+    if: >-
+      github.event_name == 'push' || github.actor == 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
+        if: github.event_name == 'push'
         uses: actions/checkout@main
+
+      - name: Checkout (Pull Request Target)
+        if: github.event_name == 'pull_request_target'
+        uses: actions/checkout@v2
+        with:
+          # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
+          # Otherwise we would be running against main branch
+          ref: ${{ github.event.pull_request.head.sha }}
+
       - name: Restore node_modules
         uses: actions/cache@v1
         id: api-node-modules
@@ -352,6 +441,8 @@ jobs:
         run: ./scripts/check-schemas.sh
 
   graphql-inspector:
+    if: >-
+      github.event_name == 'push' || github.actor == 'dependabot[bot]'
     needs: schema-update
     name: GraphQL Inspector
     runs-on: ubuntu-latest
@@ -362,16 +453,27 @@ jobs:
           - 6379:6379
         options: --entrypoint redis-server
       postgres:
-        image: mdillon/postgis:9.6
+        image: postgis/postgis:9.6-2.5
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
         ports:
           - 5432:5432
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
       - name: Checkout
+        if: github.event_name == 'push'
         uses: actions/checkout@main
+
+      - name: Checkout (Pull Request Target)
+        if: github.event_name == 'pull_request_target'
+        uses: actions/checkout@v2
+        with:
+          # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
+          # Otherwise we would be running against main branch
+          ref: ${{ github.event.pull_request.head.sha }}
+
       - name: GraphQL Inspector (V1)
         uses: kamilkisiela/graphql-inspector@master
         with:

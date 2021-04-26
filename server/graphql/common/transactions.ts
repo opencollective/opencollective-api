@@ -96,7 +96,7 @@ const remoteUserMeetsOneCondition = async (req, transaction, conditions): Promis
   return false;
 };
 
-/** Checks if the user can see transaction's attachments (items URLs, attached files) */
+/** Checks if the user can refund this transaction */
 export const canRefund = async (
   transaction: typeof models.Transaction,
   _: void,
@@ -134,6 +134,7 @@ export const canDownloadInvoice = async (
   ]);
 };
 
+/** Checks if the user can reject this transaction */
 export const canReject = async (
   transaction: typeof models.Transaction,
   _: void,

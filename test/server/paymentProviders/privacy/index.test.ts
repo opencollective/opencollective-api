@@ -69,8 +69,12 @@ describe('server/paymentProviders/privacy/index', () => {
     });
 
     it('should create vendor collective if non-existent', () => {
-      expect(expense.collective).to.have.property('name', 'DIGITALOCEAN.COM');
-      expect(expense.collective).to.have.property('slug', '445283188990');
+      expect(expense.fromCollective).to.have.property('name', 'DIGITALOCEAN.COM');
+      expect(expense.fromCollective).to.have.property('slug', '445283188990');
+    });
+
+    it('should associate the expense with the right collective', () => {
+      expect(expense.collective).to.have.property('id', collective.id);
     });
 
     it('should create expense and transactions', async () => {
@@ -79,6 +83,10 @@ describe('server/paymentProviders/privacy/index', () => {
       const debit = transactions.find(t => t.type === 'DEBIT');
       expect(debit).to.have.property('CollectiveId', collective.id);
       expect(debit).to.have.property('amount', -1 * MOCK_TRANSACTION.settled_amount);
+    });
+
+    it('should set data.missingDetails to true', () => {
+      expect(expense.data).to.have.property('missingDetails', true);
     });
   });
 });
