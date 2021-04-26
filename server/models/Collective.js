@@ -301,14 +301,6 @@ function defineModel() {
         },
       },
 
-      // Max quantity of tickets across all tiers
-      maxQuantity: {
-        type: DataTypes.INTEGER,
-        validate: {
-          min: 0,
-        },
-      },
-
       locationName: DataTypes.STRING,
 
       address: DataTypes.STRING,
@@ -466,11 +458,6 @@ function defineModel() {
         },
       },
 
-      isSupercollective: {
-        type: DataTypes.BOOLEAN,
-        defaultValue: false,
-      },
-
       monthlySpending: {
         type: new DataTypes.VIRTUAL(DataTypes.INTEGER),
       },
@@ -534,7 +521,6 @@ function defineModel() {
             previewImage: this.previewImage,
             data: this.data,
             backgroundImage: this.backgroundImage,
-            maxQuantity: this.maxQuantity,
             locationName: this.locationName,
             address: this.address,
             geoLocationLatLong: this.geoLocationLatLong,
@@ -557,7 +543,6 @@ function defineModel() {
             platformFeePercent: this.platformFeePercent,
             tags: this.tags,
             HostCollectiveId: this.HostCollectiveId,
-            isSupercollective: this.isSupercollective,
           };
         },
         card() {
@@ -601,7 +586,6 @@ function defineModel() {
             twitterHandle: this.twitterHandle,
             githubHandle: this.githubHandle,
             publicUrl: this.publicUrl,
-            isSupercollective: this.isSupercollective,
           };
         },
         activity() {
