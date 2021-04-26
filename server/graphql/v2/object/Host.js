@@ -1,20 +1,15 @@
-import {
-  GraphQLBoolean,
-  GraphQLInt,
-  GraphQLList,
-  GraphQLNonNull,
-  GraphQLObjectType,
-  GraphQLString
-} from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { find, get, keyBy, mapValues } from 'lodash';
 
 import { types as CollectiveType } from '../../../constants/collectives';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
+import { fetchCollectiveId } from '../../../lib/cache';
 import models, { Op, sequelize } from '../../../models';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import TransferwiseLib from '../../../paymentProviders/transferwise';
 import { Unauthorized } from '../../errors';
 import { HostApplicationCollection } from '../collection/HostApplicationCollection';
+import { VirtualCardCollection } from '../collection/VirtualCardCollection';
 import { PaymentMethodLegacyType, PayoutMethodType } from '../enum';
 import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
 import { Account, AccountFields } from '../interface/Account';
@@ -27,8 +22,6 @@ import { HostMetrics } from './HostMetrics';
 import { HostPlan } from './HostPlan';
 import { PaymentMethod } from './PaymentMethod';
 import PayoutMethod from './PayoutMethod';
-import { VirtualCard } from './VirtualCard';
-import {Collective} from "./Collective";
 
 export const Host = new GraphQLObjectType({
   name: 'Host',
@@ -254,25 +247,69 @@ export const Host = new GraphQLObjectType({
         },
       },
       hostedVirtualCards: {
-        type: new GraphQLList(VirtualCard),
+        type: new GraphQLNonNull(VirtualCardCollection),
+        args: {
+          limit: { type: GraphQLInt, defaultValue: 100 },
+          offset: { type: GraphQLInt, defaultValue: 0 },
+          state: { type: GraphQLString, defaultValue: null },
+          merchant: { type: GraphQLString, defaultValue: null },
+        },
         async resolve(host, args, req) {
           if (!req.remoteUser?.isAdmin(host.id)) {
             throw new Unauthorized('You need to be logged in as an admin of the host to see its hosted virtual cards');
           }
-          const hostedVirtualCards = await req.loaders.VirtualCard.byHostCollectiveId.load(host.id);
-          return hostedVirtualCards;
+
+          if (args.limit <= 0) {
+            args.limit = 100;
+          }
+
+          if (args.offset <= 0) {
+            args.offset = 0;
+          }
+
+          const { limit, offset, state, merchant } = args;
+          let merchantId;
+          if (merchant) {
+            merchantId = await fetchCollectiveId(merchant);
+          }
+
+          let hostedVirtualCards = await req.loaders.VirtualCard.byHostCollectiveId.load(host.id);
+
+          let virtualCardCollection;
+          if (state) {
+            hostedVirtualCards = hostedVirtualCards.filter(virtualCard => virtualCard.data.state === state);
+          }
+          if (merchantId) {
+            const expenses = await models.Expense.findAll({
+              where: {
+                VirtualCardId: {
+                  [Op.in]: hostedVirtualCards.map(virtualCard => virtualCard.id),
+                },
+                CollectiveId: merchantId,
+              },
+            });
+
+            const virtualCardIds = expenses.map(expense => expense.VirtualCardId);
+            hostedVirtualCards = hostedVirtualCards.filter(
+              virtualCard => virtualCard.data.type === 'MERCHANT_LOCKED' && virtualCardIds.includes(virtualCard.id),
+            );
+          }
+          virtualCardCollection = hostedVirtualCards.slice();
+
+          if (limit) {
+            virtualCardCollection = virtualCardCollection.splice(offset || 0, limit);
+          }
+          return { nodes: virtualCardCollection, totalCount: hostedVirtualCards.length, limit, offset };
         },
       },
       hostedVirtualCardMerchants: {
-        type: new GraphQLList(Collective),
+        type: new GraphQLList(Account),
         args: {
           slug: { type: GraphQLString },
         },
         async resolve(host, args, req) {
-          if (!req.remoteUser?.isAdmin(account.id)) {
-            throw new Unauthorized(
-              'You need to be logged in as an admin of the collective to see its virtual card merchants',
-            );
+          if (!req.remoteUser?.isAdmin(host.id)) {
+            throw new Unauthorized('You need to be logged in as an admin to see the virtual card merchants');
           }
 
           let virtualCards = await req.loaders.VirtualCard.byHostCollectiveId.load(host.id);
