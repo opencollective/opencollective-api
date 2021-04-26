@@ -235,7 +235,7 @@ async function getToken(connectedAccount: ConnectedAccount): Promise<string> {
   if (isOutdated) {
     const newToken = await transferwise.getOrRefreshToken({ refreshToken: connectedAccount.refreshToken });
     const { access_token: token, refresh_token: refreshToken, ...data } = newToken;
-    await connectedAccount.update({ token, refreshToken, data: { ...connectedAccount.data, data } });
+    await connectedAccount.update({ token, refreshToken, data: { ...connectedAccount.data, ...data } });
     return token;
   } else {
     return connectedAccount.token;
@@ -284,7 +284,7 @@ const oauth = {
         await existingConnectedAccount.update({
           token,
           refreshToken,
-          data: { ...existingConnectedAccount.data, data },
+          data: { ...existingConnectedAccount.data, ...data },
         });
       } else {
         const connectedAccount = await models.ConnectedAccount.create({
