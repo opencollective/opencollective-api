@@ -94,11 +94,11 @@ jobs:
       # Checkouts
       - name: Checkout (Push)
         if: github.event_name == 'push'
-        uses: actions/checkout@v2
+        uses: actions/checkout@v2.3.4
 
       - name: Checkout (Pull Request Target)
         if: github.event_name == 'pull_request_target'
-        uses: actions/checkout@v2
+        uses: actions/checkout@v2.3.4
         with:
           # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
           # Otherwise we would be running against main branch
@@ -128,7 +128,7 @@ jobs:
 
       - name: Checkout (frontend - matching branch)
         if: steps.check-matching-branch.outputs.status == 200
-        uses: actions/checkout@v2
+        uses: actions/checkout@v2.3.4
         with:
           repository: opencollective/opencollective-frontend
           path: opencollective-frontend
@@ -136,13 +136,13 @@ jobs:
 
       - name: Checkout (frontend - main)
         if: steps.check-matching-branch.outputs.status != 200
-        uses: actions/checkout@v2
+        uses: actions/checkout@v2.3.4
         with:
           repository: opencollective/opencollective-frontend
           path: opencollective-frontend
 
       - name: Checkout (images)
-        uses: actions/checkout@v2
+        uses: actions/checkout@v2.3.4
         with:
           repository: opencollective/opencollective-images
           path: opencollective-images

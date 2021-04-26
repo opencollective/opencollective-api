@@ -29,11 +29,11 @@ jobs:
     steps:
       - name: Checkout
         if: github.event_name == 'push'
-        uses: actions/checkout@v2-beta
+        uses: actions/checkout@v2.3.4
 
       - name: Checkout (Pull Request Target)
         if: github.event_name == 'pull_request_target'
-        uses: actions/checkout@v2
+        uses: actions/checkout@v2.3.4
         with:
           # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
           # Otherwise we would be running against main branch
@@ -77,11 +77,11 @@ jobs:
     steps:
       - name: Checkout
         if: github.event_name == 'push'
-        uses: actions/checkout@v2-beta
+        uses: actions/checkout@v2.3.4
 
       - name: Checkout (Pull Request Target)
         if: github.event_name == 'pull_request_target'
-        uses: actions/checkout@v2
+        uses: actions/checkout@v2.3.4
         with:
           # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
           # Otherwise we would be running against main branch
@@ -125,11 +125,11 @@ jobs:
     steps:
       - name: Checkout
         if: github.event_name == 'push'
-        uses: actions/checkout@v2-beta
+        uses: actions/checkout@v2.3.4
 
       - name: Checkout (Pull Request Target)
         if: github.event_name == 'pull_request_target'
-        uses: actions/checkout@v2
+        uses: actions/checkout@v2.3.4
         with:
           # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
           # Otherwise we would be running against main branch
@@ -173,11 +173,11 @@ jobs:
     steps:
       - name: Checkout
         if: github.event_name == 'push'
-        uses: actions/checkout@v2-beta
+        uses: actions/checkout@v2.3.4
 
       - name: Checkout (Pull Request Target)
         if: github.event_name == 'pull_request_target'
-        uses: actions/checkout@v2
+        uses: actions/checkout@v2.3.4
         with:
           # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
           # Otherwise we would be running against main branch
@@ -221,11 +221,11 @@ jobs:
     steps:
       - name: Checkout
         if: github.event_name == 'push'
-        uses: actions/checkout@v2-beta
+        uses: actions/checkout@v2.3.4
 
       - name: Checkout (Pull Request Target)
         if: github.event_name == 'pull_request_target'
-        uses: actions/checkout@v2
+        uses: actions/checkout@v2.3.4
         with:
           # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
           # Otherwise we would be running against main branch
@@ -292,11 +292,11 @@ jobs:
     steps:
       - name: Checkout
         if: github.event_name == 'push'
-        uses: actions/checkout@v2-beta
+        uses: actions/checkout@v2.3.4
 
       - name: Checkout (Pull Request Target)
         if: github.event_name == 'pull_request_target'
-        uses: actions/checkout@v2
+        uses: actions/checkout@v2.3.4
         with:
           # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
           # Otherwise we would be running against main branch
@@ -360,11 +360,11 @@ jobs:
     steps:
       - name: Checkout
         if: github.event_name == 'push'
-        uses: actions/checkout@v2-beta
+        uses: actions/checkout@v2.3.4
 
       - name: Checkout (Pull Request Target)
         if: github.event_name == 'pull_request_target'
-        uses: actions/checkout@v2
+        uses: actions/checkout@v2.3.4
         with:
           # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
           # Otherwise we would be running against main branch
@@ -409,11 +409,11 @@ jobs:
     steps:
       - name: Checkout
         if: github.event_name == 'push'
-        uses: actions/checkout@main
+        uses: actions/checkout@v2.3.4
 
       - name: Checkout (Pull Request Target)
         if: github.event_name == 'pull_request_target'
-        uses: actions/checkout@v2
+        uses: actions/checkout@v2.3.4
         with:
           # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
           # Otherwise we would be running against main branch
@@ -464,11 +464,11 @@ jobs:
     steps:
       - name: Checkout
         if: github.event_name == 'push'
-        uses: actions/checkout@main
+        uses: actions/checkout@v2.3.4
 
       - name: Checkout (Pull Request Target)
         if: github.event_name == 'pull_request_target'
-        uses: actions/checkout@v2
+        uses: actions/checkout@v2.3.4
         with:
           # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
           # Otherwise we would be running against main branch
