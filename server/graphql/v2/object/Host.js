@@ -1,4 +1,11 @@
-import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import {
+  GraphQLBoolean,
+  GraphQLInt,
+  GraphQLList,
+  GraphQLNonNull,
+  GraphQLObjectType,
+  GraphQLString
+} from 'graphql';
 import { find, get, keyBy, mapValues } from 'lodash';
 
 import { types as CollectiveType } from '../../../constants/collectives';
@@ -21,6 +28,7 @@ import { HostPlan } from './HostPlan';
 import { PaymentMethod } from './PaymentMethod';
 import PayoutMethod from './PayoutMethod';
 import { VirtualCard } from './VirtualCard';
+import {Collective} from "./Collective";
 
 export const Host = new GraphQLObjectType({
   name: 'Host',
@@ -253,6 +261,37 @@ export const Host = new GraphQLObjectType({
           }
           const hostedVirtualCards = await req.loaders.VirtualCard.byHostCollectiveId.load(host.id);
           return hostedVirtualCards;
+        },
+      },
+      hostedVirtualCardMerchants: {
+        type: new GraphQLList(Collective),
+        args: {
+          slug: { type: GraphQLString },
+        },
+        async resolve(host, args, req) {
+          if (!req.remoteUser?.isAdmin(account.id)) {
+            throw new Unauthorized(
+              'You need to be logged in as an admin of the collective to see its virtual card merchants',
+            );
+          }
+
+          let virtualCards = await req.loaders.VirtualCard.byHostCollectiveId.load(host.id);
+          virtualCards = virtualCards.filter(virtualCard => virtualCard.data.type === 'MERCHANT_LOCKED');
+          const expenses = await models.Expense.findAll({
+            where: {
+              VirtualCardId: {
+                [Op.in]: virtualCards.map(virtualCard => virtualCard.id),
+              },
+            },
+          });
+
+          return await models.Collective.findAll({
+            where: {
+              id: {
+                [Op.in]: expenses.map(expense => expense.CollectiveId),
+              },
+            },
+          });
         },
       },
     };
