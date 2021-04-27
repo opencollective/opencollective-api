@@ -36,7 +36,7 @@ jobs:
 
   lint:
     if: >-
-      github.event_name == 'push' || github.actor == 'dependabot[bot]'
+      (github.event_name == 'push' || github.actor == 'dependabot[bot]') && ${{ needs.check_duplicate_runs.outputs.should_skip != 'true' }}
     runs-on: ubuntu-latest
 
     timeout-minutes: 15
@@ -84,7 +84,7 @@ jobs:
 
   prettier:
     if: >-
-      github.event_name == 'push' || github.actor == 'dependabot[bot]'
+      (github.event_name == 'push' || github.actor == 'dependabot[bot]') && ${{ needs.check_duplicate_runs.outputs.should_skip != 'true' }}
     runs-on: ubuntu-latest
 
     timeout-minutes: 15
@@ -132,7 +132,7 @@ jobs:
 
   typescript:
     if: >-
-      github.event_name == 'push' || github.actor == 'dependabot[bot]'
+      (github.event_name == 'push' || github.actor == 'dependabot[bot]') && ${{ needs.check_duplicate_runs.outputs.should_skip != 'true' }}
     runs-on: ubuntu-latest
 
     timeout-minutes: 15
@@ -180,7 +180,7 @@ jobs:
 
   depcheck:
     if: >-
-      github.event_name == 'push' || github.actor == 'dependabot[bot]'
+      (github.event_name == 'push' || github.actor == 'dependabot[bot]') && ${{ needs.check_duplicate_runs.outputs.should_skip != 'true' }}
     runs-on: ubuntu-latest
 
     timeout-minutes: 15
@@ -228,7 +228,7 @@ jobs:
 
   build:
     if: >-
-      github.event_name == 'push' || github.actor == 'dependabot[bot]'
+      (github.event_name == 'push' || github.actor == 'dependabot[bot]') && ${{ needs.check_duplicate_runs.outputs.should_skip != 'true' }}
     runs-on: ubuntu-latest
 
     timeout-minutes: 15
@@ -283,7 +283,7 @@ jobs:
 
   test:
     if: >-
-      github.event_name == 'push' || github.actor == 'dependabot[bot]'
+      (github.event_name == 'push' || github.actor == 'dependabot[bot]') && ${{ needs.check_duplicate_runs.outputs.should_skip != 'true' }}
     runs-on: ubuntu-latest
 
     timeout-minutes: 30
@@ -351,7 +351,7 @@ jobs:
 
   test-graphql:
     if: >-
-      github.event_name == 'push' || github.actor == 'dependabot[bot]'
+      (github.event_name == 'push' || github.actor == 'dependabot[bot]') && ${{ needs.check_duplicate_runs.outputs.should_skip != 'true' }}
     runs-on: ubuntu-latest
 
     timeout-minutes: 30
@@ -419,7 +419,7 @@ jobs:
 
   schema-update:
     if: >-
-      github.event_name == 'push' || github.actor == 'dependabot[bot]'
+      (github.event_name == 'push' || github.actor == 'dependabot[bot]') && ${{ needs.check_duplicate_runs.outputs.should_skip != 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -457,7 +457,7 @@ jobs:
 
   graphql-inspector:
     if: >-
-      github.event_name == 'push' || github.actor == 'dependabot[bot]'
+      (github.event_name == 'push' || github.actor == 'dependabot[bot]') && ${{ needs.check_duplicate_runs.outputs.should_skip != 'true' }}
     needs: schema-update
     name: GraphQL Inspector
     runs-on: ubuntu-latest
