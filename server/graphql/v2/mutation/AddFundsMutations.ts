@@ -17,7 +17,6 @@ export const addFundsMutation = {
     description: { type: new GraphQLNonNull(GraphQLString) },
     hostFeePercent: { type: new GraphQLNonNull(GraphQLFloat) },
     platformFeePercent: { type: GraphQLFloat, description: 'Can only be set if root' },
-    platformTip: { type: AmountInput },
   },
   resolve: async (_, args, req: express.Request): Promise<Record<string, unknown>> => {
     const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
@@ -42,7 +41,6 @@ export const addFundsMutation = {
         description: args.description,
         hostFeePercent: args.hostFeePercent,
         platformFeePercent: args.platformFeePercent,
-        platformTip: getValueInCentsFromAmountInput(args.platformTip),
       },
       req.remoteUser,
     );

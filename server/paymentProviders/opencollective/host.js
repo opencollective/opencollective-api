@@ -1,8 +1,6 @@
-import { v4 as uuid } from 'uuid';
-
 import { maxInteger } from '../../constants/math';
 import { TransactionKind } from '../../constants/transaction-kind';
-import { FEES_ON_TOP_TRANSACTION_PROPERTIES, TransactionTypes } from '../../constants/transactions';
+import { TransactionTypes } from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
 import { calcFee, getHostFeePercent, getPlatformFeePercent } from '../../lib/payments';
 import models from '../../models';
@@ -17,24 +15,6 @@ paymentMethodProvider.features = {
 // We don't check balance for "Added Funds"
 paymentMethodProvider.getBalance = () => {
   return Promise.resolve(maxInteger);
-};
-
-paymentMethodProvider.createPlatformTipTransaction = async payload => {
-  const transaction = payload.transaction;
-  const TransactionGroup = transaction.TransactionGroup || uuid();
-  const donationTransaction = {
-    ...transaction,
-    amount: transaction.data.platformTipInHostCurrency,
-    description: 'Financial contribution (Platform Tip) to Open Collective',
-    netAmountInCollectiveCurrency: transaction.data.platformTipInHostCurrency,
-    FromCollectiveId: payload.FromCollectiveId,
-    hostCurrencyFxRate: 1,
-    TransactionGroup,
-    PlatformTipForTransactionGroup: TransactionGroup,
-    ...FEES_ON_TOP_TRANSACTION_PROPERTIES,
-  };
-
-  return models.Transaction.createDoubleEntry(donationTransaction);
 };
 
 paymentMethodProvider.processOrder = async order => {
@@ -69,10 +49,6 @@ paymentMethodProvider.processOrder = async order => {
 
   const hostFeeInHostCurrency = calcFee(order.totalAmount * fxrate, hostFeePercent);
   const platformFeeInHostCurrency = calcFee(order.totalAmount * fxrate, platformFeePercent);
-  let platformTipInHostCurrency;
-  if (order.data?.platformTip) {
-    platformTipInHostCurrency = order.data?.platformTip * fxrate;
-  }
 
   payload.transaction = {
     type: TransactionTypes.CREDIT,
@@ -91,13 +67,8 @@ paymentMethodProvider.processOrder = async order => {
     data: {
       isSharedRevenue,
       hostFeeSharePercent,
-      platformTipInHostCurrency,
     },
   };
-
-  if (platformTipInHostCurrency) {
-    return await paymentMethodProvider.createPlatformTipTransaction(payload);
-  }
 
   if (payload.transaction.amount > 0) {
     return await models.Transaction.createFromPayload(payload);

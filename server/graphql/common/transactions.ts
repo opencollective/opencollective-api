@@ -3,7 +3,8 @@ import moment from 'moment';
 
 import { roles } from '../../constants';
 import orderStatus from '../../constants/order_status';
-import { TransactionTypes } from '../../constants/transactions';
+import { TransactionKind } from '../../constants/transaction-kind';
+import { FEES_ON_TOP_TRANSACTION_PROPERTIES, TransactionTypes } from '../../constants/transactions';
 import models from '../../models';
 
 const isRoot = async (req: express.Request): Promise<boolean> => {
@@ -151,4 +152,25 @@ export const canReject = async (
   } else {
     return remoteUserMeetsOneCondition(req, transaction, [isRoot, isPayeeHostAdmin, isPayeeCollectiveAdmin]);
   }
+};
+
+/** Creates a platform tip transaction */
+export const createPlatformTipTransaction = async payload => {
+  const transaction = payload.transaction;
+  const TransactionGroup = transaction.TransactionGroup;
+  const platformTipTransaction = {
+    ...transaction,
+    amount: payload.amount,
+    kind: TransactionKind.PLATFORM_TIP,
+    description: 'Financial contribution (Platform Tip) to Open Collective',
+    FromCollectiveId: transaction.CollectiveId,
+    hostCurrencyFxRate: 1,
+    TransactionGroup,
+    hostFeeInHostCurrency: transaction.hostFeeInHostCurrency,
+    platformFeeInHostCurrency: transaction.platformFeeInHostCurrency,
+    paymentProcessorFeeInHostCurrency: transaction.paymentProcessorFeeInHostCurrency,
+    ...FEES_ON_TOP_TRANSACTION_PROPERTIES,
+  };
+
+  return models.Transaction.createDoubleEntry(platformTipTransaction);
 };

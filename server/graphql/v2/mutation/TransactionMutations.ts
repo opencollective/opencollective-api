@@ -2,16 +2,47 @@ import express from 'express';
 import { GraphQLNonNull, GraphQLString } from 'graphql';
 
 import orderStatus from '../../../constants/order_status';
-import { canReject } from '../../../graphql/common/transactions';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import { notifyAdminsOfCollective } from '../../../lib/notifications';
 import models from '../../../models';
+import { canReject, createPlatformTipTransaction } from '../../common/transactions';
 import { Forbidden, NotFound, Unauthorized } from '../../errors';
 import { refundTransaction as legacyRefundTransaction } from '../../v1/mutations/orders';
+import { AmountInput } from '../input/AmountInput';
 import { fetchTransactionWithReference, TransactionReferenceInput } from '../input/TransactionReferenceInput';
 import { Transaction } from '../interface/Transaction';
 
 const transactionMutations = {
+  addPlatformTipToTransaction: {
+    type: new GraphQLNonNull(Transaction),
+    description: 'Add platform tips to a transaction',
+    args: {
+      transaction: {
+        type: new GraphQLNonNull(TransactionReferenceInput),
+        description: 'Reference to the transaction in the platform tip',
+      },
+      amount: {
+        type: GraphQLNonNull(AmountInput),
+        description: 'Reference to the amount of input for the platform tip',
+      },
+    },
+    async resolve(_: void, args, req: express.Request): Promise<typeof Transaction> {
+      if (!req.remoteUser) {
+        throw new Unauthorized('You need to be logged in to add a platform tip');
+      }
+
+      const transaction = await fetchTransactionWithReference(args.transaction);
+
+      if (!req.remoteUser.isAdmin(transaction.HostCollectiveId)) {
+        throw new Unauthorized('Only host admins can add platform tips');
+      }
+      const payload = {
+        transaction,
+        amount: args.amount.valueInCents,
+      };
+      return await createPlatformTipTransaction(payload);
+    },
+  },
   refundTransaction: {
     type: new GraphQLNonNull(Transaction),
     description: 'Refunds transaction',

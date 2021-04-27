@@ -949,10 +949,6 @@ export async function addFundsToCollective(order, remoteUser) {
     orderData.data.platformFeePercent = order.platformFeePercent;
   }
 
-  if (!isNil(order.platformTip)) {
-    orderData.data.platformTip = order.platformTip;
-  }
-
   const orderCreated = await models.Order.create(orderData);
 
   const hostPaymentMethod = await host.getOrCreateHostPaymentMethod();
