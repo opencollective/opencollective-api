@@ -753,7 +753,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
           active: { type: GraphQLBoolean },
         },
       },
-      maxQuantity: { type: GraphQLInt },
+      maxQuantity: { type: GraphQLInt, deprecationReason: 'Not supported anymore' },
       tiers: {
         type: new GraphQLList(TierType),
         args: {
@@ -1472,8 +1472,9 @@ const CollectiveFields = () => {
     },
     maxQuantity: {
       type: GraphQLInt,
-      resolve(collective) {
-        return collective.maxQuantity;
+      deprecationReason: 'Not supported anymore',
+      resolve() {
+        return null;
       },
     },
     tiers: {

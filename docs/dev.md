@@ -12,17 +12,16 @@ For example, try this query:
 ```
 query {
   Collective(slug:"apex") {
-      id,
-      slug,
-      name,
-      description,
+      id
+      slug
+      name
+      description
       tiers {
-        id,
-        name,
-        description,
-        amount,
-        currency,
-        maxQuantity
+        id
+        name
+        description
+        amount
+        currency
       }
       members{
         id

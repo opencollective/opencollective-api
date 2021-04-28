@@ -1,14 +1,6 @@
 name: CI
 
-on:
-  push:
-    branches:
-      - main
-  pull_request:
-    types:
-      - opened
-      - synchronize
-      - reopened
+on: [pull_request_target]
 
 env:
   TZ: UTC
@@ -22,13 +14,17 @@ env:
 
 jobs:
   lint:
-    if: ${{ github.actor != 'dependabot[bot]' }}
+    if: ${{ github.actor == 'dependabot[bot]' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2-beta
+        uses: actions/checkout@v2
+        with:
+          # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
+          # Otherwise we would be running against main branch
+          ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Setup node
         uses: actions/setup-node@v1
@@ -59,13 +55,17 @@ jobs:
       - run: npm run lint:check
 
   prettier:
-    if: ${{ github.actor != 'dependabot[bot]' }}
+    if: ${{ github.actor == 'dependabot[bot]' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2-beta
+        uses: actions/checkout@v2
+        with:
+          # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
+          # Otherwise we would be running against main branch
+          ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Setup node
         uses: actions/setup-node@v1
@@ -96,13 +96,17 @@ jobs:
       - run: npm run prettier:check
 
   typescript:
-    if: ${{ github.actor != 'dependabot[bot]' }}
+    if: ${{ github.actor == 'dependabot[bot]' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2-beta
+        uses: actions/checkout@v2
+        with:
+          # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
+          # Otherwise we would be running against main branch
+          ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Setup node
         uses: actions/setup-node@v1
@@ -133,14 +137,18 @@ jobs:
       - run: npm run type:check
 
   depcheck:
-    if: ${{ github.actor != 'dependabot[bot]' }}
+    if: ${{ github.actor == 'dependabot[bot]' }}
     runs-on: ubuntu-latest
 
     timeout-minutes: 15
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2-beta
+        uses: actions/checkout@v2
+        with:
+          # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
+          # Otherwise we would be running against main branch
+          ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Setup node
         uses: actions/setup-node@v1
@@ -171,13 +179,17 @@ jobs:
       - run: npm run depcheck
 
   build:
-    if: ${{ github.actor != 'dependabot[bot]' }}
+    if: ${{ github.actor == 'dependabot[bot]' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2-beta
+        uses: actions/checkout@v2
+        with:
+          # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
+          # Otherwise we would be running against main branch
+          ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Setup node
         uses: actions/setup-node@v1
@@ -215,7 +227,7 @@ jobs:
         run: npm run build
 
   test:
-    if: ${{ github.actor != 'dependabot[bot]' }}
+    if: ${{ github.actor == 'dependabot[bot]' }}
     runs-on: ubuntu-latest
 
     timeout-minutes: 30
@@ -238,7 +250,11 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2-beta
+        uses: actions/checkout@v2
+        with:
+          # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
+          # Otherwise we would be running against main branch
+          ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Setup node
         uses: actions/setup-node@v1
@@ -273,7 +289,7 @@ jobs:
       - run: npm run test:coverage
 
   test-graphql:
-    if: ${{ github.actor != 'dependabot[bot]' }}
+    if: ${{ github.actor == 'dependabot[bot]' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -295,7 +311,11 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2-beta
+        uses: actions/checkout@v2
+        with:
+          # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
+          # Otherwise we would be running against main branch
+          ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Setup node
         uses: actions/setup-node@v1
@@ -330,11 +350,15 @@ jobs:
       - run: npm run test:coverage
 
   schema-update:
-    if: ${{ github.actor != 'dependabot[bot]' }}
+    if: ${{ github.actor == 'dependabot[bot]' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@main
+        uses: actions/checkout@v2
+        with:
+          # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
+          # Otherwise we would be running against main branch
+          ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Restore node_modules
         uses: actions/cache@v1
@@ -358,7 +382,7 @@ jobs:
         run: ./scripts/check-schemas.sh
 
   graphql-inspector:
-    if: ${{ github.actor != 'dependabot[bot]' }}
+    if: ${{ github.actor == 'dependabot[bot]' }}
     name: GraphQL Inspector
     runs-on: ubuntu-latest
     services:
@@ -378,7 +402,11 @@ jobs:
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
       - name: Checkout
-        uses: actions/checkout@main
+        uses: actions/checkout@v2
+        with:
+          # We are in a pull_request_target event - we need to explicitly checkout the PR's head.
+          # Otherwise we would be running against main branch
+          ref: ${{ github.event.pull_request.head.ref }}
 
       - name: GraphQL Inspector (V1)
         uses: kamilkisiela/graphql-inspector@master
