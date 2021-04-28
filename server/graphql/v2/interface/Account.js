@@ -333,7 +333,7 @@ const accountFieldsDefinition = () => ({
       merchant: { type: GraphQLString, defaultValue: null },
     },
     async resolve(account, args, req) {
-      if (!req.remoteUser?.isAdmin(account.id)) {
+      if (!req.remoteUser?.isAdminOfCollective(account)) {
         throw new Unauthorized('You need to be logged in as an admin of the collective to see its virtual cards');
       }
 
@@ -381,12 +381,9 @@ const accountFieldsDefinition = () => ({
     },
   },
   virtualCardMerchants: {
-    type: new GraphQLList(Collective),
-    args: {
-      slug: { type: GraphQLString },
-    },
+    type: new GraphQLNonNull(new GraphQLList(Collective)),
     async resolve(account, args, req) {
-      if (!req.remoteUser?.isAdmin(account.id)) {
+      if (!req.remoteUser?.isAdminOfCollective(account)) {
         throw new Unauthorized(
           'You need to be logged in as an admin of the collective to see its virtual card merchants',
         );

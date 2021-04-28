@@ -304,9 +304,6 @@ export const Host = new GraphQLObjectType({
       },
       hostedVirtualCardMerchants: {
         type: new GraphQLList(Account),
-        args: {
-          slug: { type: GraphQLString },
-        },
         async resolve(host, args, req) {
           if (!req.remoteUser?.isAdmin(host.id)) {
             throw new Unauthorized('You need to be logged in as an admin to see the virtual card merchants');
