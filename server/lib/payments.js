@@ -389,7 +389,7 @@ const validatePayment = payment => {
     throw new Error('Interval should be null, month or year.');
   }
 
-  if (!payment.amount && !payment.platformTip) {
+  if (!payment.amount) {
     throw new Error('payment.amount missing');
   }
 };

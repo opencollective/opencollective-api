@@ -632,7 +632,7 @@ function defineModel() {
     transaction,
     PaymentMethodId,
   }) => {
-    if (!transaction.amount && !transaction.platformTipInHostCurrency) {
+    if (!transaction.amount) {
       throw new Error('transaction.amount cannot be null or zero');
     }
 

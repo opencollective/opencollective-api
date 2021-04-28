@@ -2,11 +2,13 @@ import express from 'express';
 import { GraphQLNonNull, GraphQLString } from 'graphql';
 
 import orderStatus from '../../../constants/order_status';
+import { TransactionKind } from '../../../constants/transaction-kind';
+import { FEES_ON_TOP_TRANSACTION_PROPERTIES } from '../../../constants/transactions';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import { notifyAdminsOfCollective } from '../../../lib/notifications';
 import models from '../../../models';
-import { canReject, createPlatformTipTransaction } from '../../common/transactions';
-import { Forbidden, NotFound, Unauthorized } from '../../errors';
+import { canReject } from '../../common/transactions';
+import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { refundTransaction as legacyRefundTransaction } from '../../v1/mutations/orders';
 import { AmountInput } from '../input/AmountInput';
 import { fetchTransactionWithReference, TransactionReferenceInput } from '../input/TransactionReferenceInput';
@@ -23,7 +25,7 @@ const transactionMutations = {
       },
       amount: {
         type: GraphQLNonNull(AmountInput),
-        description: 'Reference to the amount of input for the platform tip',
+        description: 'Amount of the platform tip',
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<typeof Transaction> {
@@ -31,10 +33,12 @@ const transactionMutations = {
         throw new Unauthorized('You need to be logged in to add a platform tip');
       }
 
-      const transaction = await fetchTransactionWithReference(args.transaction);
+      let transaction = await fetchTransactionWithReference(args.transaction, { throwIfMissing: true });
 
       if (!req.remoteUser.isAdmin(transaction.HostCollectiveId)) {
         throw new Unauthorized('Only host admins can add platform tips');
+      } else if (transaction.kind !== TransactionKind.ADDED_FUNDS) {
+        throw new ValidationFailed('Platform tips can only be added on added funds at the moment');
       }
 
       const isPlatformTipAvailable = await models.Transaction.findOne({
@@ -45,14 +49,20 @@ const transactionMutations = {
       });
 
       if (isPlatformTipAvailable) {
-        throw new Error('Platform tip is already available for this transaction group');
+        throw new Error('Platform tip is already set for this transaction group');
       }
 
-      const payload = {
-        transaction,
-        amount: args.amount.valueInCents,
+      transaction = {
+        ...transaction,
+        data: { isFeesOnTop: true },
+        platformFeeInHostCurrency: args.amount.valueInCents,
+        FromCollectiveId: transaction.HostCollectiveId,
+        kind: TransactionKind.PLATFORM_TIP,
+        ...FEES_ON_TOP_TRANSACTION_PROPERTIES,
       };
-      return await createPlatformTipTransaction(payload);
+
+      await models.Transaction.createFeesOnTopTransaction({ transaction, host: transaction.HostCollectiveId });
+      return transaction.dataValues;
     },
   },
   refundTransaction: {

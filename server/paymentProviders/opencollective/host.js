@@ -70,9 +70,7 @@ paymentMethodProvider.processOrder = async order => {
     },
   };
 
-  if (payload.transaction.amount > 0) {
-    return await models.Transaction.createFromPayload(payload);
-  }
+  return await models.Transaction.createFromPayload(payload);
 };
 
 export default paymentMethodProvider;
