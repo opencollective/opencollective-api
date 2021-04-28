@@ -1,9 +1,8 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 import GraphQLJSON from 'graphql-type-json';
-import { assign, get, invert } from 'lodash';
+import { assign, get, invert, isEmpty } from 'lodash';
 
-import { fetchCollectiveId } from '../../../lib/cache';
 import models, { Op } from '../../../models';
 import { NotFound, Unauthorized } from '../../errors';
 import { CollectiveFeatures } from '../../v1/CollectiveInterface.js';
@@ -23,7 +22,7 @@ import {
   TransactionType,
 } from '../enum';
 import { idEncode } from '../identifiers';
-import { AccountReferenceInput } from '../input/AccountReferenceInput';
+import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
 import { AccountStats } from '../object/AccountStats';
 import { Collective } from '../object/Collective';
@@ -330,7 +329,7 @@ const accountFieldsDefinition = () => ({
       limit: { type: GraphQLInt, defaultValue: 100 },
       offset: { type: GraphQLInt, defaultValue: 0 },
       state: { type: GraphQLString, defaultValue: null },
-      merchant: { type: GraphQLString, defaultValue: null },
+      merchantAccount: { type: AccountReferenceInput, defaultValue: null },
     },
     async resolve(account, args, req) {
       if (!req.remoteUser?.isAdminOfCollective(account)) {
@@ -345,10 +344,10 @@ const accountFieldsDefinition = () => ({
         args.offset = 0;
       }
 
-      const { limit, offset, state, merchant } = args;
+      const { limit, offset, state, merchantAccount } = args;
       let merchantId;
-      if (merchant) {
-        merchantId = await fetchCollectiveId(merchant);
+      if (!isEmpty(merchantAccount)) {
+        merchantId = (await fetchAccountWithReference(merchantAccount, { throwIfMissing: true })).id;
       }
 
       let virtualCards = await req.loaders.VirtualCard.byCollectiveId.load(account.id);

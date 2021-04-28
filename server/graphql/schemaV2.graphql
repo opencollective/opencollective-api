@@ -226,7 +226,12 @@ interface Account {
   Describes the features enabled and available for this collective
   """
   features: CollectiveFeatures!
-  virtualCards(limit: Int = 100, offset: Int = 0, state: String = null, merchant: String = null): VirtualCardCollection!
+  virtualCards(
+    limit: Int = 100
+    offset: Int = 0
+    state: String = null
+    merchantAccount: AccountReferenceInput = null
+  ): VirtualCardCollection!
   virtualCardMerchants: [Collective]!
 }
 
@@ -754,7 +759,12 @@ type Bot implements Account {
   Describes the features enabled and available for this collective
   """
   features: CollectiveFeatures!
-  virtualCards(limit: Int = 100, offset: Int = 0, state: String = null, merchant: String = null): VirtualCardCollection!
+  virtualCards(
+    limit: Int = 100
+    offset: Int = 0
+    state: String = null
+    merchantAccount: AccountReferenceInput = null
+  ): VirtualCardCollection!
   virtualCardMerchants: [Collective]!
 }
 
@@ -1012,7 +1022,12 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   Describes the features enabled and available for this collective
   """
   features: CollectiveFeatures!
-  virtualCards(limit: Int = 100, offset: Int = 0, state: String = null, merchant: String = null): VirtualCardCollection!
+  virtualCards(
+    limit: Int = 100
+    offset: Int = 0
+    state: String = null
+    merchantAccount: AccountReferenceInput = null
+  ): VirtualCardCollection!
   virtualCardMerchants: [Collective]!
 
   """
@@ -3193,7 +3208,12 @@ type Event implements Account & AccountWithHost & AccountWithContributions {
   Describes the features enabled and available for this collective
   """
   features: CollectiveFeatures!
-  virtualCards(limit: Int = 100, offset: Int = 0, state: String = null, merchant: String = null): VirtualCardCollection!
+  virtualCards(
+    limit: Int = 100
+    offset: Int = 0
+    state: String = null
+    merchantAccount: AccountReferenceInput = null
+  ): VirtualCardCollection!
   virtualCardMerchants: [Collective]!
 
   """
@@ -4103,7 +4123,12 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   Describes the features enabled and available for this collective
   """
   features: CollectiveFeatures!
-  virtualCards(limit: Int = 100, offset: Int = 0, state: String = null, merchant: String = null): VirtualCardCollection!
+  virtualCards(
+    limit: Int = 100
+    offset: Int = 0
+    state: String = null
+    merchantAccount: AccountReferenceInput = null
+  ): VirtualCardCollection!
   virtualCardMerchants: [Collective]!
 
   """
@@ -4421,7 +4446,12 @@ type Host implements Account & AccountWithContributions {
   Describes the features enabled and available for this collective
   """
   features: CollectiveFeatures!
-  virtualCards(limit: Int = 100, offset: Int = 0, state: String = null, merchant: String = null): VirtualCardCollection!
+  virtualCards(
+    limit: Int = 100
+    offset: Int = 0
+    state: String = null
+    merchantAccount: AccountReferenceInput = null
+  ): VirtualCardCollection!
   virtualCardMerchants: [Collective]!
 
   """
@@ -4537,7 +4567,7 @@ type Host implements Account & AccountWithContributions {
     limit: Int = 100
     offset: Int = 0
     state: String = null
-    merchant: String = null
+    merchantAccount: AccountReferenceInput = null
   ): VirtualCardCollection!
   hostedVirtualCardMerchants: [Account]
 }
@@ -4959,7 +4989,12 @@ type Individual implements Account {
   Describes the features enabled and available for this collective
   """
   features: CollectiveFeatures!
-  virtualCards(limit: Int = 100, offset: Int = 0, state: String = null, merchant: String = null): VirtualCardCollection!
+  virtualCards(
+    limit: Int = 100
+    offset: Int = 0
+    state: String = null
+    merchantAccount: AccountReferenceInput = null
+  ): VirtualCardCollection!
   virtualCardMerchants: [Collective]!
   firstName: String @deprecated(reason: "2020-10-12: Use the name field")
   lastName: String @deprecated(reason: "2020-10-12: Use the name field")
@@ -6292,7 +6327,12 @@ type Organization implements Account & AccountWithContributions {
   Describes the features enabled and available for this collective
   """
   features: CollectiveFeatures!
-  virtualCards(limit: Int = 100, offset: Int = 0, state: String = null, merchant: String = null): VirtualCardCollection!
+  virtualCards(
+    limit: Int = 100
+    offset: Int = 0
+    state: String = null
+    merchantAccount: AccountReferenceInput = null
+  ): VirtualCardCollection!
   virtualCardMerchants: [Collective]!
 
   """
@@ -6816,7 +6856,12 @@ type Project implements Account & AccountWithHost & AccountWithContributions {
   Describes the features enabled and available for this collective
   """
   features: CollectiveFeatures!
-  virtualCards(limit: Int = 100, offset: Int = 0, state: String = null, merchant: String = null): VirtualCardCollection!
+  virtualCards(
+    limit: Int = 100
+    offset: Int = 0
+    state: String = null
+    merchantAccount: AccountReferenceInput = null
+  ): VirtualCardCollection!
   virtualCardMerchants: [Collective]!
 
   """
@@ -7888,7 +7933,12 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
   Describes the features enabled and available for this collective
   """
   features: CollectiveFeatures!
-  virtualCards(limit: Int = 100, offset: Int = 0, state: String = null, merchant: String = null): VirtualCardCollection!
+  virtualCards(
+    limit: Int = 100
+    offset: Int = 0
+    state: String = null
+    merchantAccount: AccountReferenceInput = null
+  ): VirtualCardCollection!
   virtualCardMerchants: [Collective]!
 
   """

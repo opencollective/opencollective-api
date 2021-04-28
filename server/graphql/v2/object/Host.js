@@ -1,9 +1,8 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { find, get, keyBy, mapValues } from 'lodash';
+import { find, get, isEmpty, keyBy, mapValues } from 'lodash';
 
 import { types as CollectiveType } from '../../../constants/collectives';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
-import { fetchCollectiveId } from '../../../lib/cache';
 import models, { Op, sequelize } from '../../../models';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import TransferwiseLib from '../../../paymentProviders/transferwise';
@@ -11,6 +10,7 @@ import { Unauthorized } from '../../errors';
 import { HostApplicationCollection } from '../collection/HostApplicationCollection';
 import { VirtualCardCollection } from '../collection/VirtualCardCollection';
 import { PaymentMethodLegacyType, PayoutMethodType } from '../enum';
+import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
 import { Account, AccountFields } from '../interface/Account';
 import { AccountWithContributions, AccountWithContributionsFields } from '../interface/AccountWithContributions';
@@ -252,7 +252,7 @@ export const Host = new GraphQLObjectType({
           limit: { type: GraphQLInt, defaultValue: 100 },
           offset: { type: GraphQLInt, defaultValue: 0 },
           state: { type: GraphQLString, defaultValue: null },
-          merchant: { type: GraphQLString, defaultValue: null },
+          merchantAccount: { type: AccountReferenceInput, defaultValue: null },
         },
         async resolve(host, args, req) {
           if (!req.remoteUser?.isAdmin(host.id)) {
@@ -267,10 +267,10 @@ export const Host = new GraphQLObjectType({
             args.offset = 0;
           }
 
-          const { limit, offset, state, merchant } = args;
+          const { limit, offset, state, merchantAccount } = args;
           let merchantId;
-          if (merchant) {
-            merchantId = await fetchCollectiveId(merchant);
+          if (!isEmpty(merchantAccount)) {
+            merchantId = (await fetchAccountWithReference(merchantAccount, { throwIfMissing: true })).id;
           }
 
           let hostedVirtualCards = await req.loaders.VirtualCard.byHostCollectiveId.load(host.id);
