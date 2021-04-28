@@ -79,7 +79,6 @@ export default {
     slug: 'scouts',
     hostFeePercent: 10,
     tags: ['open source', 'test'],
-    isSupercollective: false,
     isActive: true,
   },
 
@@ -93,7 +92,6 @@ export default {
     burnrate: 1000,
     hostFeePercent: 0,
     tags: ['meetup', 'test'],
-    isSupercollective: false,
     isActive: true,
   },
 
@@ -107,7 +105,6 @@ export default {
     settings: {
       superCollectiveTag: 'meetup',
     },
-    isSupercollective: true,
   },
 
   collective5: {
@@ -116,7 +113,6 @@ export default {
     settings: {
       superCollectiveTag: '#brusselstogether',
     },
-    isSupercollective: true,
   },
 
   relatedCollectives: [
@@ -671,7 +667,6 @@ export default {
     locationName: 'Balanced NYC',
     address: '547 Broadway, NY 10012',
     backgroundImage: 'http://opencollective.com/backgroundimage.png',
-    maxQuantity: 200,
     geoLocationLatLong: { type: 'Point', coordinates: [39.807222, -76.984722] },
   },
 

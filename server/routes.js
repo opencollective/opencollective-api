@@ -160,7 +160,7 @@ export default app => {
     formatResponse: (response, ctx) => {
       const req = ctx.context;
 
-      if (req.cacheKey) {
+      if (req.cacheKey && !response?.errors) {
         cache.set(req.cacheKey, response, Number(config.graphql.cache.ttl));
       }
 
