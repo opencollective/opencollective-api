@@ -36,6 +36,18 @@ const transactionMutations = {
       if (!req.remoteUser.isAdmin(transaction.HostCollectiveId)) {
         throw new Unauthorized('Only host admins can add platform tips');
       }
+
+      const isPlatformTipAvailable = await models.Transaction.findOne({
+        where: {
+          TransactionGroup: transaction.TransactionGroup,
+          kind: 'PLATFORM_TIP',
+        },
+      });
+
+      if (isPlatformTipAvailable) {
+        throw new Error('Platform tip is already available for this transaction group');
+      }
+
       const payload = {
         transaction,
         amount: args.amount.valueInCents,
