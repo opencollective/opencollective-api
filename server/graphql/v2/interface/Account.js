@@ -2,11 +2,12 @@ import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLN
 import { GraphQLDateTime } from 'graphql-iso-date';
 import GraphQLJSON from 'graphql-type-json';
 import { assign, get, invert, isEmpty } from 'lodash';
-import { types as CollectiveTypes } from '../../../constants/collectives';
 
-import models, { Op } from '../../../models';
+import { types as CollectiveTypes } from '../../../constants/collectives';
+import models, { Op, sequelize } from '../../../models';
 import { NotFound, Unauthorized } from '../../errors';
 import { CollectiveFeatures } from '../../v1/CollectiveInterface.js';
+import { AccountCollection } from '../collection/AccountCollection';
 import { ConversationCollection } from '../collection/ConversationCollection';
 import { MemberCollection, MemberOfCollection } from '../collection/MemberCollection';
 import { OrderCollection } from '../collection/OrderCollection';
@@ -381,7 +382,11 @@ const accountFieldsDefinition = () => ({
     },
   },
   virtualCardMerchants: {
-    type: new GraphQLNonNull(new GraphQLList(Collective)),
+    type: new GraphQLNonNull(AccountCollection),
+    args: {
+      limit: { type: GraphQLInt, defaultValue: 100 },
+      offset: { type: GraphQLInt, defaultValue: 0 },
+    },
     async resolve(account, args, req) {
       if (!req.remoteUser?.isAdminOfCollective(account)) {
         throw new Unauthorized(
@@ -389,23 +394,36 @@ const accountFieldsDefinition = () => ({
         );
       }
 
-      return await models.Collective.findAndCountAll({
-        where: {
-          type: CollectiveTypes.VENDOR,
+      const collectives = await sequelize.query(
+        `
+        SELECT
+          c.*, COUNT(*) OVER() AS __total_count__
+        FROM
+          "Collectives" c
+        INNER JOIN "Expenses" AS "submittedExpenses"
+          ON c."id" = "submittedExpenses"."FromCollectiveId"
+          AND "submittedExpenses"."deletedAt" IS NULL
+        INNER JOIN "VirtualCards" AS vc
+          ON "submittedExpenses"."VirtualCardId" = vc."id"
+          AND vc."deletedAt" IS NULL
+          AND (vc."data"#>>'{type}') = 'MERCHANT_LOCKED'
+        WHERE c."deletedAt" IS NULL
+          AND c."type" = 'VENDOR'
+          AND "submittedExpenses"."CollectiveId" = :collectiveId
+        GROUP BY c.id
+        LIMIT :limit
+        OFFSET :offset
+      `,
+        {
+          type: sequelize.QueryTypes.SELECT,
+          model: models.Collective,
+          mapToModel: true,
+          replacements: { collectiveId: account.id, limit: args.limit, offset: args.offset },
         },
-        include: [{
-          association: 'receivedExpenses',
-          require: true,
-          include: [{
-            association: 'virtualCard',
-            require: true,
-            where: {
-              CollectiveId: account.id,
-              data: { type: 'MERCHANT_LOCKED' }
-            }
-          }]
-        }],
-      });
+      );
+
+      const totalCount = get(collectives, '0.dataValues.__total_count__', 0);
+      return { nodes: collectives, totalCount, limit: args.limit, offset: args.offset };
     },
   },
 });
