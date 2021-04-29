@@ -1,12 +1,13 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { find, get, isEmpty, keyBy, mapValues } from 'lodash';
 
-import { types as CollectiveType } from '../../../constants/collectives';
+import { types as CollectiveType,types as CollectiveTypes } from '../../../constants/collectives';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import models, { Op, sequelize } from '../../../models';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import TransferwiseLib from '../../../paymentProviders/transferwise';
 import { Unauthorized } from '../../errors';
+import { AccountCollection } from '../collection/AccountCollection';
 import { HostApplicationCollection } from '../collection/HostApplicationCollection';
 import { VirtualCardCollection } from '../collection/VirtualCardCollection';
 import { PaymentMethodLegacyType, PayoutMethodType } from '../enum';
@@ -258,6 +259,7 @@ export const Host = new GraphQLObjectType({
           if (!req.remoteUser?.isAdmin(host.id)) {
             throw new Unauthorized('You need to be logged in as an admin of the host to see its hosted virtual cards');
           }
+          console.log(args);
 
           if (args.limit <= 0) {
             args.limit = 100;
@@ -303,29 +305,47 @@ export const Host = new GraphQLObjectType({
         },
       },
       hostedVirtualCardMerchants: {
-        type: new GraphQLList(Account),
+        type: new GraphQLNonNull(AccountCollection),
+        args: {
+          limit: { type: GraphQLInt, defaultValue: 100 },
+          offset: { type: GraphQLInt, defaultValue: 0 },
+        },
         async resolve(host, args, req) {
           if (!req.remoteUser?.isAdmin(host.id)) {
             throw new Unauthorized('You need to be logged in as an admin to see the virtual card merchants');
           }
 
-          let virtualCards = await req.loaders.VirtualCard.byHostCollectiveId.load(host.id);
-          virtualCards = virtualCards.filter(virtualCard => virtualCard.data.type === 'MERCHANT_LOCKED');
-          const expenses = await models.Expense.findAll({
+          const result = await models.Collective.findAndCountAll({
+            group: 'Collective.id',
             where: {
-              VirtualCardId: {
-                [Op.in]: virtualCards.map(virtualCard => virtualCard.id),
-              },
+              type: CollectiveTypes.VENDOR,
             },
+            include: [
+              {
+                attributes: [],
+                association: 'submittedExpenses',
+                required: true,
+                include: [
+                  {
+                    attributes: [],
+                    association: 'virtualCard',
+                    required: true,
+                    where: {
+                      HostCollectiveId: host.id,
+                      data: { type: 'MERCHANT_LOCKED' },
+                    },
+                  },
+                ],
+              },
+            ],
           });
 
-          return await models.Collective.findAll({
-            where: {
-              id: {
-                [Op.in]: expenses.map(expense => expense.CollectiveId),
-              },
-            },
-          });
+          return {
+            nodes: result.rows,
+            totalCount: result.count.length, // See https://github.com/sequelize/sequelize/issues/9109
+            limit: args.limit,
+            offset: args.offset,
+          };
         },
       },
     };
