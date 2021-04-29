@@ -2,6 +2,7 @@ import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLN
 import { GraphQLDateTime } from 'graphql-iso-date';
 import GraphQLJSON from 'graphql-type-json';
 import { assign, get, invert, isEmpty } from 'lodash';
+import { types as CollectiveTypes } from '../../../constants/collectives';
 
 import models, { Op } from '../../../models';
 import { NotFound, Unauthorized } from '../../errors';
@@ -388,22 +389,22 @@ const accountFieldsDefinition = () => ({
         );
       }
 
-      let virtualCards = await req.loaders.VirtualCard.byCollectiveId.load(account.id);
-      virtualCards = virtualCards.filter(virtualCard => virtualCard.data.type === 'MERCHANT_LOCKED');
-      const expenses = await models.Expense.findAll({
+      return await models.Collective.findAndCountAll({
         where: {
-          VirtualCardId: {
-            [Op.in]: virtualCards.map(virtualCard => virtualCard.id),
-          },
+          type: CollectiveTypes.VENDOR,
         },
-      });
-
-      return await models.Collective.findAll({
-        where: {
-          id: {
-            [Op.in]: expenses.map(expense => expense.CollectiveId),
-          },
-        },
+        include: [{
+          association: 'receivedExpenses',
+          require: true,
+          include: [{
+            association: 'virtualCard',
+            require: true,
+            where: {
+              CollectiveId: account.id,
+              data: { type: 'MERCHANT_LOCKED' }
+            }
+          }]
+        }],
       });
     },
   },
