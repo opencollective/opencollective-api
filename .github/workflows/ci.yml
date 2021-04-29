@@ -35,7 +35,7 @@ jobs:
           node-version: '14.x'
 
       - name: Restore node_modules
-        uses: actions/cache@v1
+        uses: actions/cache@v2.1.5
         id: api-node-modules
         with:
           path: node_modules
@@ -43,7 +43,7 @@ jobs:
 
       - name: Restore .npm cache
         if: steps.api-node-modules.outputs.cache-hit != 'true'
-        uses: actions/cache@v1
+        uses: actions/cache@v2.1.5
         with:
           path: ~/.npm
           key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}
@@ -71,7 +71,7 @@ jobs:
           node-version: '14.x'
 
       - name: Restore node_modules
-        uses: actions/cache@v1
+        uses: actions/cache@v2.1.5
         id: api-node-modules
         with:
           path: node_modules
@@ -79,7 +79,7 @@ jobs:
 
       - name: Restore .npm cache
         if: steps.api-node-modules.outputs.cache-hit != 'true'
-        uses: actions/cache@v1
+        uses: actions/cache@v2.1.5
         with:
           path: ~/.npm
           key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}
@@ -107,7 +107,7 @@ jobs:
           node-version: '14.x'
 
       - name: Restore node_modules
-        uses: actions/cache@v1
+        uses: actions/cache@v2.1.5
         id: api-node-modules
         with:
           path: node_modules
@@ -115,7 +115,7 @@ jobs:
 
       - name: Restore .npm cache
         if: steps.api-node-modules.outputs.cache-hit != 'true'
-        uses: actions/cache@v1
+        uses: actions/cache@v2.1.5
         with:
           path: ~/.npm
           key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}
@@ -144,7 +144,7 @@ jobs:
           node-version: '14.x'
 
       - name: Restore node_modules
-        uses: actions/cache@v1
+        uses: actions/cache@v2.1.5
         id: api-node-modules
         with:
           path: node_modules
@@ -152,7 +152,7 @@ jobs:
 
       - name: Restore .npm cache
         if: steps.api-node-modules.outputs.cache-hit != 'true'
-        uses: actions/cache@v1
+        uses: actions/cache@v2.1.5
         with:
           path: ~/.npm
           key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}
@@ -180,7 +180,7 @@ jobs:
           node-version: '14.x'
 
       - name: Restore node_modules
-        uses: actions/cache@v1
+        uses: actions/cache@v2.1.5
         id: api-node-modules
         with:
           path: node_modules
@@ -188,7 +188,7 @@ jobs:
 
       - name: Restore .npm cache
         if: steps.api-node-modules.outputs.cache-hit != 'true'
-        uses: actions/cache@v1
+        uses: actions/cache@v2.1.5
         with:
           path: ~/.npm
           key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}
@@ -201,7 +201,7 @@ jobs:
         run: npm ci --prefer-offline --no-audit
 
       - name: Cache build
-        uses: actions/cache@v1
+        uses: actions/cache@v2.1.5
         with:
           path: dist
           key: ${{ runner.os }}-api-build-${{ github.sha }}
@@ -240,7 +240,7 @@ jobs:
           node-version: '14.x'
 
       - name: Restore node_modules
-        uses: actions/cache@v1
+        uses: actions/cache@v2.1.5
         id: api-node-modules
         with:
           path: node_modules
@@ -248,7 +248,7 @@ jobs:
 
       - name: Restore .npm cache
         if: steps.api-node-modules.outputs.cache-hit != 'true'
-        uses: actions/cache@v1
+        uses: actions/cache@v2.1.5
         with:
           path: ~/.npm
           key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}
@@ -296,7 +296,7 @@ jobs:
           node-version: '14.x'
 
       - name: Restore node_modules
-        uses: actions/cache@v1
+        uses: actions/cache@v2.1.5
         id: api-node-modules
         with:
           path: node_modules
@@ -304,7 +304,7 @@ jobs:
 
       - name: Restore .npm cache
         if: steps.api-node-modules.outputs.cache-hit != 'true'
-        uses: actions/cache@v1
+        uses: actions/cache@v2.1.5
         with:
           path: ~/.npm
           key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}
@@ -329,14 +329,14 @@ jobs:
         uses: actions/checkout@main
 
       - name: Restore node_modules
-        uses: actions/cache@v1
+        uses: actions/cache@v2.1.5
         id: api-node-modules
         with:
           path: node_modules
           key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}
       - name: Restore .npm cache
         if: steps.api-node-modules.outputs.cache-hit != 'true'
-        uses: actions/cache@v1
+        uses: actions/cache@v2.1.5
         with:
           path: ~/.npm
           key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}
