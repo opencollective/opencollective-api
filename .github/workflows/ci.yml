@@ -58,7 +58,6 @@ jobs:
       - run: npm run lint:check
 
   prettier:
-    if: ${{ github.actor != 'dependabot[bot]' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -95,7 +94,6 @@ jobs:
       - run: npm run prettier:check
 
   typescript:
-    if: ${{ github.actor != 'dependabot[bot]' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -132,7 +130,6 @@ jobs:
       - run: npm run type:check
 
   depcheck:
-    if: ${{ github.actor != 'dependabot[bot]' }}
     runs-on: ubuntu-latest
 
     timeout-minutes: 15
@@ -170,7 +167,6 @@ jobs:
       - run: npm run depcheck
 
   build:
-    if: ${{ github.actor != 'dependabot[bot]' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -214,7 +210,6 @@ jobs:
         run: npm run build
 
   test:
-    if: ${{ github.actor != 'dependabot[bot]' }}
     runs-on: ubuntu-latest
 
     timeout-minutes: 30
@@ -272,7 +267,6 @@ jobs:
       - run: npm run test:coverage
 
   test-graphql:
-    if: ${{ github.actor != 'dependabot[bot]' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -329,7 +323,6 @@ jobs:
       - run: npm run test:coverage
 
   schema-update:
-    if: ${{ github.actor != 'dependabot[bot]' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -357,7 +350,6 @@ jobs:
         run: ./scripts/check-schemas.sh
 
   graphql-inspector:
-    if: ${{ github.actor != 'dependabot[bot]' }}
     name: GraphQL Inspector
     runs-on: ubuntu-latest
     services:
