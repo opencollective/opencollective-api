@@ -297,3 +297,58 @@ export function traverse(obj, cb) {
     }
   }
 }
+
+const prettifyTransactionsData = (transactions, columns) => {
+  // Alias some columns for a simpler output
+  const TRANSACTION_KEY_ALIASES = {
+    HostCollectiveId: 'Host',
+    FromCollectiveId: 'From',
+    CollectiveId: 'To',
+  };
+
+  // Prettify values
+  const aliasDBId = value => (value ? `#${value}` : 'NULL');
+  const prettifyValue = (key, value, transaction) => {
+    switch (key) {
+      case 'HostCollectiveId':
+        return transaction.host?.name || aliasDBId(value);
+      case 'CollectiveId':
+        return transaction.collective?.name || aliasDBId(value);
+      case 'FromCollectiveId':
+        return transaction.fromCollective?.name || aliasDBId(value);
+      default:
+        return value;
+    }
+  };
+
+  if (columns) {
+    return transactions.map(transaction => {
+      const cleanDataValues = {};
+      columns.forEach(key => {
+        const label = TRANSACTION_KEY_ALIASES[key] || key;
+        const value = transaction.dataValues[key];
+        cleanDataValues[label] = prettifyValue(key, value, transaction);
+      });
+
+      return cleanDataValues;
+    });
+  } else {
+    return transactions.map(transaction => {
+      const cleanDataValues = {};
+      Object.entries(transaction.dataValues).forEach(([key, value]) => {
+        const label = TRANSACTION_KEY_ALIASES[key] || key;
+        cleanDataValues[label] = prettifyValue(key, value, transaction);
+      });
+
+      return cleanDataValues;
+    });
+  }
+};
+
+/**
+ * Generate a snapshot using a markdown table, aliasing columns for a prettier output.
+ * If associations (collective, host, ...etc) are loaded, their names will be used for the output.
+ */
+export const snapshotTransactions = (transactions, params = {}) => {
+  expect(prettifyTransactionsData(transactions, params.columns)).to.matchTableSnapshot();
+};

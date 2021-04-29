@@ -212,6 +212,7 @@ function defineModel() {
             id: this.id,
             uuid: this.uuid,
             type: this.type,
+            kind: this.kind,
             description: this.description,
             amount: this.amount,
             currency: this.currency,

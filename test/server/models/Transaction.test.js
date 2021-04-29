@@ -81,6 +81,21 @@ describe('server/models/Transaction', () => {
       CollectiveId: collective.id,
     }).then(() => {
       return Transaction.findAll().then(transactions => {
+        utils.snapshotTransactions(transactions, {
+          columns: [
+            'kind',
+            'type',
+            'netAmountInCollectiveCurrency',
+            'currency',
+            'HostCollectiveId',
+            'platformFeeInHostCurrency',
+            'paymentProcessorFeeInHostCurrency',
+            'taxAmount',
+            'amount',
+            'description',
+          ],
+        });
+
         expect(transactions.length).to.equal(2);
         expect(transactions[0].kind).to.equal(TransactionKind.CONTRIBUTION);
         expect(transactions[0].type).to.equal('DEBIT');
