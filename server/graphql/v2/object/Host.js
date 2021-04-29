@@ -1,7 +1,7 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { find, get, isEmpty, keyBy, mapValues } from 'lodash';
 
-import { types as CollectiveType,types as CollectiveTypes } from '../../../constants/collectives';
+import { types as CollectiveType, types as CollectiveTypes } from '../../../constants/collectives';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import models, { Op, sequelize } from '../../../models';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
@@ -259,7 +259,6 @@ export const Host = new GraphQLObjectType({
           if (!req.remoteUser?.isAdmin(host.id)) {
             throw new Unauthorized('You need to be logged in as an admin of the host to see its hosted virtual cards');
           }
-          console.log(args);
 
           if (args.limit <= 0) {
             args.limit = 100;

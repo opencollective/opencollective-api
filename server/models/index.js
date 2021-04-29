@@ -83,11 +83,6 @@ export function setupModels() {
 
   m.Collective.hasMany(m.Expense, {
     foreignKey: 'CollectiveId',
-    as: 'receivedExpenses',
-  });
-
-  m.Collective.hasMany(m.Expense, {
-    foreignKey: 'FromCollectiveId',
     as: 'submittedExpenses',
   });
 
