@@ -4,7 +4,7 @@ import GraphQLJSON from 'graphql-type-json';
 import { assign, get, invert, isEmpty } from 'lodash';
 
 import { types as CollectiveTypes } from '../../../constants/collectives';
-import models, { Op, sequelize } from '../../../models';
+import models, { Op } from '../../../models';
 import { NotFound, Unauthorized } from '../../errors';
 import { CollectiveFeatures } from '../../v1/CollectiveInterface.js';
 import { AccountCollection } from '../collection/AccountCollection';
@@ -27,7 +27,6 @@ import { idEncode } from '../identifiers';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
 import { AccountStats } from '../object/AccountStats';
-import { Collective } from '../object/Collective';
 import { ConnectedAccount } from '../object/ConnectedAccount';
 import { Location } from '../object/Location';
 import { PaymentMethod } from '../object/PaymentMethod';
@@ -394,36 +393,37 @@ const accountFieldsDefinition = () => ({
         );
       }
 
-      const collectives = await sequelize.query(
-        `
-        SELECT
-          c.*, COUNT(*) OVER() AS __total_count__
-        FROM
-          "Collectives" c
-        INNER JOIN "Expenses" AS "submittedExpenses"
-          ON c."id" = "submittedExpenses"."FromCollectiveId"
-          AND "submittedExpenses"."deletedAt" IS NULL
-        INNER JOIN "VirtualCards" AS vc
-          ON "submittedExpenses"."VirtualCardId" = vc."id"
-          AND vc."deletedAt" IS NULL
-          AND (vc."data"#>>'{type}') = 'MERCHANT_LOCKED'
-        WHERE c."deletedAt" IS NULL
-          AND c."type" = 'VENDOR'
-          AND "submittedExpenses"."CollectiveId" = :collectiveId
-        GROUP BY c.id
-        LIMIT :limit
-        OFFSET :offset
-      `,
-        {
-          type: sequelize.QueryTypes.SELECT,
-          model: models.Collective,
-          mapToModel: true,
-          replacements: { collectiveId: account.id, limit: args.limit, offset: args.offset },
+      const result = await models.Collective.findAndCountAll({
+        group: 'Collective.id',
+        where: {
+          type: CollectiveTypes.VENDOR,
         },
-      );
+        include: [
+          {
+            attributes: [],
+            association: 'submittedExpenses',
+            required: true,
+            include: [
+              {
+                attributes: [],
+                association: 'virtualCard',
+                required: true,
+                where: {
+                  CollectiveId: account.id,
+                  data: { type: 'MERCHANT_LOCKED' },
+                },
+              },
+            ],
+          },
+        ],
+      });
 
-      const totalCount = get(collectives, '0.dataValues.__total_count__', 0);
-      return { nodes: collectives, totalCount, limit: args.limit, offset: args.offset };
+      return {
+        nodes: result.rows,
+        totalCount: result.count.length, // See https://github.com/sequelize/sequelize/issues/9109
+        limit: args.limit,
+        offset: args.offset,
+      };
     },
   },
 });
