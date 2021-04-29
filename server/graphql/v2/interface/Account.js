@@ -337,47 +337,49 @@ const accountFieldsDefinition = () => ({
         throw new Unauthorized('You need to be logged in as an admin of the collective to see its virtual cards');
       }
 
-      if (args.limit <= 0) {
-        args.limit = 100;
-      }
-
-      if (args.offset <= 0) {
-        args.offset = 0;
-      }
-
-      const { limit, offset, state, merchantAccount } = args;
       let merchantId;
-      if (!isEmpty(merchantAccount)) {
-        merchantId = (await fetchAccountWithReference(merchantAccount, { throwIfMissing: true })).id;
+      if (!isEmpty(args.merchantAccount)) {
+        merchantId = (await fetchAccountWithReference(args.merchantAccount, { throwIfMissing: true })).id;
       }
 
-      let virtualCards = await req.loaders.VirtualCard.byCollectiveId.load(account.id);
+      const query = {
+        group: 'VirtualCard.id',
+        where: {
+          CollectiveId: account.id,
+        },
+        limit: args.limit,
+        offset: args.offset,
+      };
 
-      let virtualCardCollection;
-      if (state) {
-        virtualCards = virtualCards.filter(virtualCard => virtualCard.data.state === state);
+      if (args.state) {
+        query.where.data = { state: args.state };
       }
+
       if (merchantId) {
-        const expenses = await models.Expense.findAll({
-          where: {
-            VirtualCardId: {
-              [Op.in]: virtualCards.map(virtualCard => virtualCard.id),
+        if (!query.where.data) {
+          query.where.data = {};
+        }
+        query.where.data.type = 'MERCHANT_LOCKED';
+        query.include = [
+          {
+            attributes: [],
+            association: 'expenses',
+            required: true,
+            where: {
+              CollectiveId: merchantId,
             },
-            CollectiveId: merchantId,
           },
-        });
-
-        const virtualCardIds = expenses.map(expense => expense.VirtualCardId);
-        virtualCards = virtualCards.filter(
-          virtualCard => virtualCard.data.type === 'MERCHANT_LOCKED' && virtualCardIds.includes(virtualCard.id),
-        );
+        ];
       }
-      virtualCardCollection = virtualCards.slice();
 
-      if (limit) {
-        virtualCardCollection = virtualCardCollection.splice(offset || 0, limit);
-      }
-      return { nodes: virtualCardCollection, totalCount: virtualCards.length, limit, offset };
+      const result = await models.VirtualCard.findAndCountAll(query);
+
+      return {
+        nodes: result.rows,
+        totalCount: result.count.length, // See https://github.com/sequelize/sequelize/issues/9109
+        limit: args.limit,
+        offset: args.offset,
+      };
     },
   },
   virtualCardMerchants: {
