@@ -10,7 +10,7 @@ import models from '../../../models';
 import { canReject } from '../../common/transactions';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { refundTransaction as legacyRefundTransaction } from '../../v1/mutations/orders';
-import { AmountInput } from '../input/AmountInput';
+import { AmountInput, getValueInCentsFromAmountInput } from '../input/AmountInput';
 import { fetchTransactionWithReference, TransactionReferenceInput } from '../input/TransactionReferenceInput';
 import { Transaction } from '../interface/Transaction';
 
@@ -55,13 +55,14 @@ const transactionMutations = {
       transaction = {
         ...transaction,
         data: { isFeesOnTop: true },
-        platformFeeInHostCurrency: args.amount.valueInCents,
+        platformFeeInHostCurrency: getValueInCentsFromAmountInput(args.amount),
         FromCollectiveId: transaction.HostCollectiveId,
         kind: TransactionKind.PLATFORM_TIP,
         ...FEES_ON_TOP_TRANSACTION_PROPERTIES,
       };
 
-      await models.Transaction.createFeesOnTopTransaction({ transaction, host: transaction.HostCollectiveId });
+      const host = await models.Collective.findByPk(transaction.CollectiveId);
+      await models.Transaction.createFeesOnTopTransaction({ transaction, host });
       return transaction.dataValues;
     },
   },
