@@ -1,4 +1,4 @@
-import sequelize, { Op } from '../lib/sequelize';
+import sequelize, { Op, Sequelize } from '../lib/sequelize';
 
 import Activity from './Activity';
 import Application from './Application';
@@ -27,6 +27,7 @@ import Session from './Session';
 import Subscription from './Subscription';
 import Tier from './Tier';
 import Transaction from './Transaction';
+import TransactionSettlement from './TransactionSettlement';
 import Update from './Update';
 import User from './User';
 import VirtualCard from './VirtualCard';
@@ -67,6 +68,7 @@ export function setupModels() {
   m['Subscription'] = Subscription;
   m['Tier'] = Tier;
   m['Transaction'] = Transaction;
+  m['TransactionSettlement'] = TransactionSettlement;
   m['Update'] = Update;
   m['User'] = User;
   m['VirtualCard'] = VirtualCard;
@@ -79,6 +81,11 @@ export function setupModels() {
   m.Collective.belongsTo(m.Collective, {
     foreignKey: 'HostCollectiveId',
     as: 'host',
+  });
+
+  m.Collective.hasMany(m.Expense, {
+    foreignKey: 'CollectiveId',
+    as: 'submittedExpenses',
   });
 
   // PaymentMethod.
@@ -185,6 +192,10 @@ export function setupModels() {
     foreignKey: 'FromCollectiveId',
     as: 'fromCollective',
   });
+  m.Expense.belongsTo(m.VirtualCard, {
+    foreignKey: 'VirtualCardId',
+    as: 'virtualCard',
+  });
   m.Expense.hasMany(m.ExpenseAttachedFile, { as: 'attachedFiles' });
   m.Expense.hasMany(m.ExpenseItem, { as: 'items' });
   m.Expense.hasMany(m.Transaction);
@@ -273,6 +284,7 @@ export function setupModels() {
     foreignKey: 'HostCollectiveId',
     as: 'host',
   });
+  m.VirtualCard.hasMany(m.Expense, { foreignKey: 'VirtualCardId', as: 'expenses' });
   m.Collective.hasMany(m.VirtualCard, { foreignKey: 'HostCollectiveId', as: 'virtualCards' });
 
   Object.keys(m).forEach(modelName => m[modelName].associate && m[modelName].associate(m));
@@ -282,6 +294,10 @@ export function setupModels() {
 
 const models = setupModels();
 
-export { sequelize, Op };
+// Used by Forest configuration
+const objectMapping = Sequelize;
+const connections = { default: sequelize };
+
+export { sequelize, Op, objectMapping, connections };
 
 export default models;

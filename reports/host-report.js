@@ -238,7 +238,7 @@ async function HostReport(year, month, hostId) {
         ],
       });
 
-      if (!transactions || transactions.length == 0) {
+      if (!transactions || transactions.length === 0) {
         throw new Error('No transaction found');
       }
       console.log(`>>> processing ${transactions.length} transactions`);

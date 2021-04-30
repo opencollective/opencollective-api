@@ -58,7 +58,6 @@ import { invalidateContributorsCache } from '../lib/contributors';
 import { getFxRate } from '../lib/currency';
 import emailLib from '../lib/email';
 import logger from '../lib/logger';
-import { handleHostCollectivesLimit } from '../lib/plans';
 import queries from '../lib/queries';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize, { DataTypes, Op, Sequelize } from '../lib/sequelize';
@@ -1874,11 +1873,6 @@ function defineModel() {
   Collective.prototype.addHost = async function (hostCollective, creatorUser, options) {
     if (this.HostCollectiveId) {
       throw new Error(`This collective already has a host (HostCollectiveId: ${this.HostCollectiveId})`);
-    }
-
-    if (this.type === types.COLLECTIVE) {
-      // Check limits
-      await handleHostCollectivesLimit(hostCollective, { throwException: true, notifyAdmins: true });
     }
 
     const member = {

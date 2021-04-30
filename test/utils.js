@@ -5,7 +5,7 @@ import { expect } from 'chai';
 import config from 'config';
 import debug from 'debug';
 import { graphql } from 'graphql';
-import { cloneDeep, get, isArray, values } from 'lodash';
+import { cloneDeep, get, groupBy, isArray, values } from 'lodash';
 import nock from 'nock';
 
 import * as dbRestore from '../scripts/db_restore';
@@ -16,7 +16,7 @@ import cache from '../server/lib/cache';
 import * as libpayments from '../server/lib/payments';
 /* Server code being used */
 import stripe from '../server/lib/stripe';
-import { sequelize } from '../server/models';
+import models, { sequelize } from '../server/models';
 
 /* Test data */
 import jsonData from './mocks/data';
@@ -297,3 +297,108 @@ export function traverse(obj, cb) {
     }
   }
 }
+
+const prettifyTransactionsData = (transactions, columns) => {
+  // Alias some columns for a simpler output
+  const TRANSACTION_KEY_ALIASES = {
+    HostCollectiveId: 'Host',
+    FromCollectiveId: 'From',
+    CollectiveId: 'To',
+    settlementStatus: 'Settlement',
+    TransactionGroup: 'Group',
+  };
+
+  // Prettify values
+  const aliasDBId = value => (value ? `#${value}` : 'NULL');
+  const prettifyValue = (key, value, transaction) => {
+    switch (key) {
+      case 'HostCollectiveId':
+        return transaction.host?.name || aliasDBId(value);
+      case 'CollectiveId':
+        return transaction.collective?.name || aliasDBId(value);
+      case 'FromCollectiveId':
+        return transaction.fromCollective?.name || aliasDBId(value);
+      case 'TransactionGroup':
+        return `#${value.split('-')[0]}`; // No need to display the full UUID
+      default:
+        return value;
+    }
+  };
+
+  if (columns) {
+    return transactions.map(transaction => {
+      const cleanDataValues = {};
+      columns.forEach(key => {
+        const label = TRANSACTION_KEY_ALIASES[key] || key;
+        const value = transaction.dataValues[key];
+        cleanDataValues[label] = prettifyValue(key, value, transaction);
+      });
+
+      return cleanDataValues;
+    });
+  } else {
+    return transactions.map(transaction => {
+      const cleanDataValues = {};
+      Object.entries(transaction.dataValues).forEach(([key, value]) => {
+        const label = TRANSACTION_KEY_ALIASES[key] || key;
+        cleanDataValues[label] = prettifyValue(key, value, transaction);
+      });
+
+      return cleanDataValues;
+    });
+  }
+};
+
+/**
+ * Preload associations for Transactions to produce prettier snapshots.
+ * Only support loading collectives at the moment.
+ */
+export const preloadAssociationsForTransactions = async (transactions, columns) => {
+  // Define the fields to preload
+  const mapOfFieldsToPreload = {
+    CollectiveId: 'collective',
+    FromCollectiveId: 'fromCollective',
+    HostCollectiveId: 'host',
+  };
+
+  Object.keys(mapOfFieldsToPreload).forEach(key => {
+    if (!columns.includes(key)) {
+      delete mapOfFieldsToPreload[key];
+    }
+  });
+
+  // Aggregate association IDs
+  const fieldsToPreload = Object.keys(mapOfFieldsToPreload);
+  const collectiveIds = new Set([]);
+  transactions.forEach(transaction => {
+    fieldsToPreload.forEach(field => {
+      const primaryKey = transaction.getDataValue(field);
+      if (primaryKey) {
+        collectiveIds.add(primaryKey);
+      }
+    });
+  });
+
+  // Load associations
+  const collectives = await models.Collective.findAll({ where: { id: Array.from(collectiveIds) } });
+  const groupedCollectives = groupBy(collectives, 'id');
+
+  // Bind associations
+  transactions.forEach(transaction => {
+    fieldsToPreload.forEach(field => {
+      const primaryKey = transaction.getDataValue(field);
+      if (primaryKey && groupedCollectives[primaryKey]) {
+        const targetFieldName = mapOfFieldsToPreload[field];
+        transaction[targetFieldName] = groupedCollectives[primaryKey][0];
+      }
+    });
+  });
+};
+
+/**
+ * Generate a snapshot using a markdown table, aliasing columns for a prettier output.
+ * If associations (collective, host, ...etc) are loaded, their names will be used for the output.
+ */
+export const snapshotTransactions = (transactions, params = {}) => {
+  expect(prettifyTransactionsData(transactions, params.columns)).to.matchTableSnapshot();
+};

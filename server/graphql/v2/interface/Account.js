@@ -1,16 +1,19 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 import GraphQLJSON from 'graphql-type-json';
-import { assign, get, invert } from 'lodash';
+import { assign, get, invert, isEmpty } from 'lodash';
 
+import { types as CollectiveTypes } from '../../../constants/collectives';
 import models, { Op } from '../../../models';
 import { NotFound, Unauthorized } from '../../errors';
 import { CollectiveFeatures } from '../../v1/CollectiveInterface.js';
+import { AccountCollection } from '../collection/AccountCollection';
 import { ConversationCollection } from '../collection/ConversationCollection';
 import { MemberCollection, MemberOfCollection } from '../collection/MemberCollection';
 import { OrderCollection } from '../collection/OrderCollection';
 import { TransactionCollection } from '../collection/TransactionCollection';
 import { UpdateCollection } from '../collection/UpdateCollection';
+import { VirtualCardCollection } from '../collection/VirtualCardCollection';
 import {
   AccountOrdersFilter,
   AccountType,
@@ -21,10 +24,8 @@ import {
   TransactionType,
 } from '../enum';
 import { idEncode } from '../identifiers';
-import { AccountReferenceInput } from '../input/AccountReferenceInput';
+import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
-import { HasMembersFields } from '../interface/HasMembers';
-import { IsMemberOfFields } from '../interface/IsMemberOf';
 import { AccountStats } from '../object/AccountStats';
 import { ConnectedAccount } from '../object/ConnectedAccount';
 import { Location } from '../object/Location';
@@ -32,10 +33,11 @@ import { PaymentMethod } from '../object/PaymentMethod';
 import PayoutMethod from '../object/PayoutMethod';
 import { TagStats } from '../object/TagStats';
 import { TransferWise } from '../object/TransferWise';
-import { VirtualCard } from '../object/VirtualCard';
 import EmailAddress from '../scalar/EmailAddress';
 
 import { CollectionArgs } from './Collection';
+import { HasMembersFields } from './HasMembers';
+import { IsMemberOfFields } from './IsMemberOf';
 
 const accountFieldsDefinition = () => ({
   id: {
@@ -323,12 +325,107 @@ const accountFieldsDefinition = () => ({
     },
   },
   virtualCards: {
-    type: new GraphQLList(VirtualCard),
+    type: new GraphQLNonNull(VirtualCardCollection),
+    args: {
+      limit: { type: GraphQLInt, defaultValue: 100 },
+      offset: { type: GraphQLInt, defaultValue: 0 },
+      state: { type: GraphQLString, defaultValue: null },
+      merchantAccount: { type: AccountReferenceInput, defaultValue: null },
+    },
     async resolve(account, args, req) {
-      if (!req.remoteUser?.isAdmin(account.id)) {
+      if (!req.remoteUser?.isAdminOfCollective(account)) {
         throw new Unauthorized('You need to be logged in as an admin of the collective to see its virtual cards');
       }
-      return req.loaders.VirtualCard.byCollectiveId.load(account.id);
+
+      let merchantId;
+      if (!isEmpty(args.merchantAccount)) {
+        merchantId = (await fetchAccountWithReference(args.merchantAccount, { throwIfMissing: true })).id;
+      }
+
+      const query = {
+        group: 'VirtualCard.id',
+        where: {
+          CollectiveId: account.id,
+        },
+        limit: args.limit,
+        offset: args.offset,
+      };
+
+      if (args.state) {
+        query.where.data = { state: args.state };
+      }
+
+      if (merchantId) {
+        if (!query.where.data) {
+          query.where.data = {};
+        }
+        query.where.data.type = 'MERCHANT_LOCKED';
+        query.include = [
+          {
+            attributes: [],
+            association: 'expenses',
+            required: true,
+            where: {
+              CollectiveId: merchantId,
+            },
+          },
+        ];
+      }
+
+      const result = await models.VirtualCard.findAndCountAll(query);
+
+      return {
+        nodes: result.rows,
+        totalCount: result.count.length, // See https://github.com/sequelize/sequelize/issues/9109
+        limit: args.limit,
+        offset: args.offset,
+      };
+    },
+  },
+  virtualCardMerchants: {
+    type: new GraphQLNonNull(AccountCollection),
+    args: {
+      limit: { type: GraphQLInt, defaultValue: 100 },
+      offset: { type: GraphQLInt, defaultValue: 0 },
+    },
+    async resolve(account, args, req) {
+      if (!req.remoteUser?.isAdminOfCollective(account)) {
+        throw new Unauthorized(
+          'You need to be logged in as an admin of the collective to see its virtual card merchants',
+        );
+      }
+
+      const result = await models.Collective.findAndCountAll({
+        group: 'Collective.id',
+        where: {
+          type: CollectiveTypes.VENDOR,
+        },
+        include: [
+          {
+            attributes: [],
+            association: 'submittedExpenses',
+            required: true,
+            include: [
+              {
+                attributes: [],
+                association: 'virtualCard',
+                required: true,
+                where: {
+                  CollectiveId: account.id,
+                  data: { type: 'MERCHANT_LOCKED' },
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      return {
+        nodes: result.rows,
+        totalCount: result.count.length, // See https://github.com/sequelize/sequelize/issues/9109
+        limit: args.limit,
+        offset: args.offset,
+      };
     },
   },
 });

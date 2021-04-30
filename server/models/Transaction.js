@@ -175,6 +175,11 @@ function defineModel() {
         defaultValue: false,
       },
 
+      isDebt: {
+        type: DataTypes.BOOLEAN,
+        allowNull: true,
+      },
+
       createdAt: {
         type: DataTypes.DATE,
         defaultValue: DataTypes.NOW,
@@ -187,6 +192,11 @@ function defineModel() {
 
       deletedAt: {
         type: DataTypes.DATE,
+      },
+
+      /** A virtual field to make working with settlements easier. Must be preloaded manually. */
+      settlementStatus: {
+        type: DataTypes.VIRTUAL,
       },
     },
     {
@@ -212,6 +222,7 @@ function defineModel() {
             id: this.id,
             uuid: this.uuid,
             type: this.type,
+            kind: this.kind,
             description: this.description,
             amount: this.amount,
             currency: this.currency,

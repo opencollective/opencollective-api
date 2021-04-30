@@ -2,6 +2,7 @@ import chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import chaiJestSnapshot from 'chai-jest-snapshot';
 import { mapValues } from 'lodash';
+import markdownTable from 'markdown-table';
 import Sequelize from 'sequelize';
 
 // setting up NODE_ENV to test when running the tests.
@@ -62,4 +63,10 @@ chai.util.addProperty(chai.Assertion.prototype, 'softDeleted', async function ()
   } else {
     await new chai.Assertion(promiseGetEntityDeletedAt, 'Entity should be deleted in DB').to.eventually.exist;
   }
+});
+
+chai.util.addMethod(chai.Assertion.prototype, 'matchTableSnapshot', function () {
+  const headers = Object.keys(this._obj[0]);
+  const prettyTable = markdownTable([headers, ...this._obj.map(Object.values)]);
+  new chai.Assertion(`\n${prettyTable}`).to.matchSnapshot();
 });

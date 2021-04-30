@@ -16,7 +16,6 @@ import paymentProviders from '../paymentProviders';
 import emailLib from './email';
 import { notifyAdminsOfCollective } from './notifications';
 import { getTransactionPdf } from './pdf';
-import { subscribeOrUpgradePlan, validatePlanRequest } from './plans';
 import { createPrepaidPaymentMethod, isPrepaidBudgetOrder } from './prepaid-budget';
 import { getNextChargeAndPeriodStartDates } from './recurring-contributions';
 import { stripHTML } from './sanitize-html';
@@ -325,7 +324,6 @@ export const executeOrder = async (user, order, options = {}) => {
   }
 
   await order.populate();
-  await validatePlanRequest(order);
 
   const transaction = await processOrder(order, options);
   if (transaction) {
@@ -348,9 +346,6 @@ export const executeOrder = async (user, order, options = {}) => {
         { skipActivity: true },
       );
     }
-
-    // Update collective plan if subscribing to opencollective's tier plans
-    await subscribeOrUpgradePlan(order);
 
     // Create a Pre-Paid Payment Method for the prepaid budget
     if (isPrepaidBudgetOrder(order)) {
