@@ -81,6 +81,11 @@ export function setupModels() {
     as: 'host',
   });
 
+  m.Collective.hasMany(m.Expense, {
+    foreignKey: 'CollectiveId',
+    as: 'submittedExpenses',
+  });
+
   // PaymentMethod.
   m.PaymentMethod.belongsTo(m.Collective);
   m.PaymentMethod.belongsTo(m.PaymentMethod, {
@@ -185,6 +190,10 @@ export function setupModels() {
     foreignKey: 'FromCollectiveId',
     as: 'fromCollective',
   });
+  m.Expense.belongsTo(m.VirtualCard, {
+    foreignKey: 'VirtualCardId',
+    as: 'virtualCard',
+  });
   m.Expense.hasMany(m.ExpenseAttachedFile, { as: 'attachedFiles' });
   m.Expense.hasMany(m.ExpenseItem, { as: 'items' });
   m.Expense.hasMany(m.Transaction);
@@ -273,6 +282,7 @@ export function setupModels() {
     foreignKey: 'HostCollectiveId',
     as: 'host',
   });
+  m.VirtualCard.hasMany(m.Expense, { foreignKey: 'VirtualCardId', as: 'expenses' });
   m.Collective.hasMany(m.VirtualCard, { foreignKey: 'HostCollectiveId', as: 'virtualCards' });
 
   Object.keys(m).forEach(modelName => m[modelName].associate && m[modelName].associate(m));
