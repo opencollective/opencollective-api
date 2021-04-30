@@ -6,7 +6,6 @@ import { activities } from '../../../constants';
 import { types as CollectiveType } from '../../../constants/collectives';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import emailLib, { NO_REPLY_EMAIL } from '../../../lib/email';
-import { handleHostCollectivesLimit } from '../../../lib/plans';
 import { stripHTML } from '../../../lib/sanitize-html';
 import models from '../../../models';
 import { HostApplicationStatus } from '../../../models/HostApplication';
@@ -136,8 +135,6 @@ const HostApplicationMutations = {
 };
 
 const approveApplication = async (host, collective, remoteUser) => {
-  await handleHostCollectivesLimit(host, { throwHostException: true, notifyAdmins: true });
-
   await models.Activity.create({
     type: activities.COLLECTIVE_APPROVED,
     UserId: remoteUser.id,

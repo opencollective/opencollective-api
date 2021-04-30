@@ -21,7 +21,6 @@ import * as github from '../../../lib/github';
 import { getOrCreateGuestProfile } from '../../../lib/guest-accounts';
 import logger from '../../../lib/logger';
 import * as libPayments from '../../../lib/payments';
-import { handleHostPlanAddedFundsLimit, handleHostPlanBankTransfersLimit } from '../../../lib/plans';
 import recaptcha from '../../../lib/recaptcha';
 import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../lib/recurring-contributions';
 import { canUseFeature } from '../../../lib/user-permissions';
@@ -365,9 +364,6 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent) 
     debug('paymentRequired', paymentRequired, 'total amount:', order.totalAmount, 'isActive', collective.isActive);
     if (paymentRequired && !hasPaymentMethod(order)) {
       throw new Error('This order requires a payment method');
-    }
-    if (paymentRequired && order.paymentMethod && order.paymentMethod.type === 'manual') {
-      await handleHostPlanBankTransfersLimit(host);
     }
 
     if (tier) {
@@ -886,9 +882,6 @@ export async function addFundsToCollective(order, remoteUser) {
     throw new Error('Only an site admin or collective host admin can add fund');
   }
 
-  // Check limits
-  await handleHostPlanAddedFundsLimit(host, { throwException: true });
-
   order.collective = collective;
   let fromCollective, user;
 
@@ -964,9 +957,6 @@ export async function addFundsToCollective(order, remoteUser) {
   // Invalidate Cloudflare cache for the collective pages
   purgeCacheForCollective(collective.slug);
   purgeCacheForCollective(fromCollective.slug);
-
-  // Check if the maximum fund limit has been reached after execution
-  await handleHostPlanAddedFundsLimit(host, { notifyAdmins: true });
 
   return models.Order.findByPk(orderCreated.id);
 }

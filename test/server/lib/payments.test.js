@@ -9,7 +9,6 @@ import { PLANS_COLLECTIVE_SLUG } from '../../../server/constants/plans';
 import roles from '../../../server/constants/roles';
 import emailLib from '../../../server/lib/email';
 import * as payments from '../../../server/lib/payments';
-import * as plansLib from '../../../server/lib/plans';
 import stripe from '../../../server/lib/stripe';
 import models from '../../../server/models';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
@@ -65,7 +64,6 @@ describe('server/lib/payments', () => {
     );
     sandbox.stub(stripe.balanceTransactions, 'retrieve').callsFake(() => Promise.resolve(stripeMocks.balance));
     emailSendSpy = sandbox.spy(emailLib, 'send');
-    sandbox.stub(plansLib, 'subscribeOrUpgradePlan').resolves();
   });
 
   afterEach(() => sandbox.restore());
@@ -219,12 +217,6 @@ describe('server/lib/payments', () => {
               }).then(member => {
                 expect(member).to.exist;
               }));
-
-            it('calls subscribeOrUpgradePlan', async () => {
-              expect(plansLib.subscribeOrUpgradePlan.callCount).to.equal(1);
-              // This test is too fast and that can lead to deadlock issues
-              await new Promise(res => setTimeout(res, 100));
-            });
 
             it('successfully sends out an email to donor1', async () => {
               await utils.waitForCondition(() => emailSendSpy.callCount > 0);
