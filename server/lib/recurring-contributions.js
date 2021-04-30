@@ -12,7 +12,6 @@ import emailLib from './email';
 import logger from './logger';
 import * as paymentsLib from './payments';
 import { getTransactionPdf } from './pdf';
-import { isHostPlan } from './plans';
 import { sleep, toIsoDateStr } from './utils';
 
 /** Maximum number of attempts before an order gets cancelled. */
@@ -379,17 +378,6 @@ export async function sendThankYouEmail(order, transaction) {
   const relatedCollectives = await order.collective.getRelatedCollectives(3, 0);
   const user = order.createdByUser;
   const host = await order.collective.getHostCollective();
-
-  if (isHostPlan(order)) {
-    return emailLib.send(
-      'hostplan.renewal.thankyou',
-      user.email,
-      { plan: get(order, 'Tier.name') },
-      {
-        from: `${order.collective.name} <no-reply@${order.collective.slug}.opencollective.com>`,
-      },
-    );
-  }
 
   const data = {
     order: order.info,
