@@ -109,7 +109,7 @@
     "pg-connection-string": "2.5.0",
     "pg-format": "1.0.4",
     "prepend-http": "3.0.1",
-    "redis": "3.0.2",
+    "redis": "3.1.1",
     "request-promise": "4.2.6",
     "sanitize-html": "2.3.2",
     "sequelize": "6.6.2",
