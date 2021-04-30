@@ -33,17 +33,17 @@ const transactionMutations = {
         throw new Unauthorized('You need to be logged in to add a platform tip');
       }
 
-      let transaction = await fetchTransactionWithReference(args.transaction, { throwIfMissing: true });
+      const fundsTransaction = await fetchTransactionWithReference(args.transaction, { throwIfMissing: true });
 
-      if (!req.remoteUser.isAdmin(transaction.HostCollectiveId)) {
+      if (!req.remoteUser.isAdmin(fundsTransaction.HostCollectiveId)) {
         throw new Unauthorized('Only host admins can add platform tips');
-      } else if (transaction.kind !== TransactionKind.ADDED_FUNDS) {
+      } else if (fundsTransaction.kind !== TransactionKind.ADDED_FUNDS) {
         throw new ValidationFailed('Platform tips can only be added on added funds at the moment');
       }
 
       const isPlatformTipAvailable = await models.Transaction.findOne({
         where: {
-          TransactionGroup: transaction.TransactionGroup,
+          TransactionGroup: fundsTransaction.TransactionGroup,
           kind: 'PLATFORM_TIP',
         },
       });
@@ -52,18 +52,23 @@ const transactionMutations = {
         throw new Error('Platform tip is already set for this transaction group');
       }
 
-      transaction = {
-        ...transaction,
+      const transaction = {
         data: { isFeesOnTop: true },
+        TransactionGroup: fundsTransaction.TransactionGroup,
         platformFeeInHostCurrency: getValueInCentsFromAmountInput(args.amount),
-        FromCollectiveId: transaction.HostCollectiveId,
+        FromCollectiveId: fundsTransaction.HostCollectiveId,
         kind: TransactionKind.PLATFORM_TIP,
         ...FEES_ON_TOP_TRANSACTION_PROPERTIES,
       };
 
       const host = await models.Collective.findByPk(transaction.CollectiveId);
       await models.Transaction.createFeesOnTopTransaction({ transaction, host });
-      return transaction.dataValues;
+      return await models.Transaction.findOne({
+        where: {
+          TransactionGroup: fundsTransaction.TransactionGroup,
+          kind: 'PLATFORM_TIP',
+        },
+      });
     },
   },
   refundTransaction: {
