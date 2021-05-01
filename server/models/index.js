@@ -1,4 +1,4 @@
-import sequelize, { Op, Sequelize } from '../lib/sequelize';
+import sequelize, { Op } from '../lib/sequelize';
 
 import Activity from './Activity';
 import Application from './Application';
@@ -294,10 +294,6 @@ export function setupModels() {
 
 const models = setupModels();
 
-// Used by Forest configuration
-const objectMapping = Sequelize;
-const connections = { default: sequelize };
-
-export { sequelize, Op, objectMapping, connections };
+export { sequelize, Op };
 
 export default models;
