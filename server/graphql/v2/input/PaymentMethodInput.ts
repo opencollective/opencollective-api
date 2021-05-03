@@ -3,14 +3,10 @@ import { pick } from 'lodash';
 
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import { PaymentMethodLegacyType } from '../enum';
-import {
-  getServiceTypeFromLegacyPaymentMethodType,
-  PaymentMethodLegacyTypeEnum,
-} from '../enum/PaymentMethodLegacyType';
+import { getServiceTypeFromLegacyPaymentMethodType } from '../enum/PaymentMethodLegacyType';
 import { PaymentMethodService } from '../enum/PaymentMethodService';
 import { PaymentMethodType } from '../enum/PaymentMethodType';
 
-import { BraintreePaymentInput } from './BraintreePaymentInput';
 import { CreditCardCreateInput } from './CreditCardCreateInput';
 import { fetchPaymentMethodWithReference } from './PaymentMethodReferenceInput';
 import { PaypalPaymentInput } from './PaypalPaymentInput';
@@ -60,10 +56,6 @@ export const PaymentMethodInput = new GraphQLInputObjectType({
       type: PaypalPaymentInput,
       description: 'To pass when type is PAYPAL',
     },
-    braintreeInfo: {
-      type: BraintreePaymentInput,
-      description: 'To pass when type is BRAINTREE',
-    },
   }),
 });
 
@@ -80,28 +72,7 @@ export const getLegacyPaymentMethodFromPaymentMethodInput = async (
     return fetchPaymentMethodWithReference(pm);
   }
 
-  let type = pm.type;
-  if (pm.service) {
-    // Use new way of defining PM
-    type = pm.newType || pm.type;
-  }
-
-  if (
-    pm.type === PaymentMethodLegacyTypeEnum.BRAINTREE_PAYPAL ||
-    (pm.service === PAYMENT_METHOD_SERVICE.BRAINTREE && type === PAYMENT_METHOD_TYPE.PAYPAL)
-  ) {
-    return {
-      service: PAYMENT_METHOD_SERVICE.BRAINTREE,
-      type: PAYMENT_METHOD_TYPE.PAYPAL,
-      name: pm.braintreeInfo?.description, // TODO Retrieve PayPal account name
-      token: pm.braintreeInfo?.nonce,
-      data: {
-        isNonce: true,
-        accountType: pm.braintreeInfo?.type,
-        ...pick(pm.braintreeInfo, ['details', 'binData', 'deviceData']),
-      },
-    };
-  } else if (pm.creditCardInfo) {
+  if (pm.creditCardInfo) {
     return {
       service: PAYMENT_METHOD_SERVICE.STRIPE,
       type: PAYMENT_METHOD_TYPE.CREDITCARD,

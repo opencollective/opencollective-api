@@ -18,7 +18,6 @@ env:
   AWS_KEY: ${{ secrets.AWS_KEY }}
   AWS_SECRET: ${{ secrets.AWS_SECRET }}
   CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-  BRAINTREE_TEST_GATEWAY_PRIVATE_KEY: ${{ secrets.BRAINTREE_TEST_GATEWAY_PRIVATE_KEY }}
 
 jobs:
   lint:

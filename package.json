@@ -50,7 +50,6 @@
     "bayes": "1.0.0",
     "bcrypt": "5.0.1",
     "bluebird": "3.7.2",
-    "braintree": "3.3.0",
     "burner-email-providers": "1.0.42",
     "cloudflare": "2.7.0",
     "cloudflare-ip": "0.0.7",
@@ -129,7 +128,6 @@
   "devDependencies": {
     "@babel/cli": "7.13.16",
     "@babel/register": "7.13.16",
-    "@types/braintree": "^2.22.13",
     "@types/lodash": "^4.14.168",
     "@types/mocha": "^8.2.2",
     "@typescript-eslint/eslint-plugin": "^4.22.1",

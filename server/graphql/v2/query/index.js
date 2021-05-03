@@ -12,7 +12,6 @@ import IndividualQuery from './IndividualQuery';
 import OrderQuery from './OrderQuery';
 import OrdersQuery from './OrdersQuery';
 import PaypalPlanQuery from './PaypalPlanQuery';
-import ThirdPartyApiClientTokenQuery from './ThirdPartyApiClientTokenQuery';
 import TierQuery from './TierQuery';
 import TransactionsQuery from './TransactionsQuery';
 import UpdateQuery from './UpdateQuery';
@@ -33,7 +32,6 @@ const query = {
   transactions: TransactionsQuery,
   update: UpdateQuery,
   paypalPlan: PaypalPlanQuery,
-  thirdPartyApiClientToken: ThirdPartyApiClientTokenQuery,
   loggedInAccount: {
     type: Account,
     resolve(_, args, req) {

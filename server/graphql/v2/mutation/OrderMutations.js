@@ -3,7 +3,6 @@ import { isNil, isNull, isUndefined } from 'lodash';
 
 import activities from '../../../constants/activities';
 import status from '../../../constants/order_status';
-import { PAYMENT_METHOD_SERVICE } from '../../../constants/paymentMethods';
 import {
   updateOrderSubscription,
   updatePaymentMethodForSubscription,
@@ -76,11 +75,6 @@ const orderMutations = {
       const fromCollective = order.fromAccount && (await loadAccount(order.fromAccount));
       const collective = await loadAccount(order.toAccount);
       const paymentMethod = await getLegacyPaymentMethodFromPaymentMethodInput(order.paymentMethod);
-
-      // Limit Braintree to root users for now
-      if (paymentMethod?.service === PAYMENT_METHOD_SERVICE.BRAINTREE && !req.remoteUser?.isRoot()) {
-        throw new Error('Braintree payments are only available to root users at the moment');
-      }
 
       const legacyOrderObj = {
         quantity: order.quantity,

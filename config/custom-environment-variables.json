@@ -108,11 +108,6 @@
     },
     "skipCleanOrdersLimitSlugs": "ORDERS_LIMIT_SKIP_CLEAN_SLUGS"
   },
-  "braintree": {
-    "testGateway": {
-      "privateKey": "BRAINTREE_TEST_GATEWAY_PRIVATE_KEY"
-    }
-  },
   "slack": {
     "webhooks": {
       "abuse": "SLACK_WEBHOOK_ABUSE"

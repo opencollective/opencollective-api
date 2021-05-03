@@ -10,7 +10,6 @@ export enum PaymentMethodLegacyTypeEnum {
   PREPAID_BUDGET = 'PREPAID_BUDGET',
   ACCOUNT_BALANCE = 'ACCOUNT_BALANCE',
   PAYPAL = 'PAYPAL',
-  BRAINTREE_PAYPAL = 'BRAINTREE_PAYPAL',
   BANK_TRANSFER = 'BANK_TRANSFER',
   ADDED_FUNDS = 'ADDED_FUNDS',
 }
@@ -40,8 +39,6 @@ export const getLegacyPaymentMethodType = ({ service, type }: PaymentMethod): Pa
     } else if (type === PAYMENT_METHOD_TYPE.PREPAID) {
       return PaymentMethodLegacyTypeEnum.PREPAID_BUDGET;
     }
-  } else if (service === PAYMENT_METHOD_SERVICE.BRAINTREE && type === PAYMENT_METHOD_TYPE.PAYPAL) {
-    return PaymentMethodLegacyTypeEnum.BRAINTREE_PAYPAL;
   } else if (service === PAYMENT_METHOD_SERVICE.PAYPAL && type === PAYMENT_METHOD_TYPE.PAYMENT) {
     return PaymentMethodLegacyTypeEnum.PAYPAL;
   }
@@ -67,7 +64,5 @@ export const getServiceTypeFromLegacyPaymentMethodType = (type: PaymentMethodLeg
       return { service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE, type: PAYMENT_METHOD_TYPE.MANUAL };
     case PaymentMethodLegacyTypeEnum.PAYPAL:
       return { service: PAYMENT_METHOD_SERVICE.PAYPAL, type: PAYMENT_METHOD_TYPE.PAYMENT };
-    case PaymentMethodLegacyTypeEnum.BRAINTREE_PAYPAL:
-      return { service: PAYMENT_METHOD_SERVICE.BRAINTREE, type: PAYMENT_METHOD_TYPE.PAYPAL };
   }
 };
