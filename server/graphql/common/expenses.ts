@@ -986,7 +986,7 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
     throw new FeatureNotAllowedForUser();
   }
 
-  return lockExpense(args.id, async () => {
+  const expense = await lockExpense(args.id, async () => {
     const expense = await models.Expense.findByPk(expenseId, {
       include: [
         { model: models.Collective, as: 'collective' },
@@ -1152,11 +1152,18 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
         await resetRollingPayoutLimitOnFailure(req.remoteUser, expense);
       }
 
-      return error;
+      throw error;
     }
 
     return markExpenseAsPaid(expense, remoteUser, true);
   });
+
+  // Update transactions settlement
+  if (expense.data?.['isPlatformTipSettlement']) {
+    await models.TransactionSettlement.markExpenseAsSettled(expense);
+  }
+
+  return expense;
 }
 
 export async function markExpenseAsUnpaid(

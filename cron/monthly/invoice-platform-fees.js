@@ -50,6 +50,8 @@ export async function run() {
     WITH "platformTips" AS (
       SELECT
         t."createdAt",
+        t."TransactionGroup",
+        t."kind",
         t.description,
         round(t."netAmountInCollectiveCurrency"::float / COALESCE((t."data"->>'hostToPlatformFxRate')::float, 1)) AS "amount",
         ot."hostCurrency" AS "currency",
@@ -70,6 +72,10 @@ export async function run() {
         END as "chargedHostId"
       FROM
         "Transactions" t
+      INNER JOIN "TransactionSettlements" s ON
+        t."TransactionGroup" = s."TransactionGroup"
+        AND t.kind = s.kind
+        AND s.status = 'OWED'
       LEFT JOIN "Transactions" ot ON
         t."TransactionGroup" = ot."TransactionGroup"
         AND ot.type = 'CREDIT'
@@ -89,15 +95,7 @@ export async function run() {
         AND t."CollectiveId" = 8686
         AND t."kind" = 'PLATFORM_TIP'
         AND t."type" = 'CREDIT'
-        AND ot."HostCollectiveId" NOT IN (8686)
-        AND (
-          pm."service" != 'stripe'
-          OR pm.service IS NULL
-        )
-        AND (
-          spm.service IS NULL
-          OR spm.service != 'stripe'
-        )
+        AND t."isDebt" IS TRUE
         AND (
           h."type" = 'ORGANIZATION'
           AND h."isHostAccount" = TRUE
@@ -108,6 +106,8 @@ export async function run() {
     "platformFees" AS (
       SELECT
         t."createdAt",
+        t."TransactionGroup",
+        t."kind",
         t.description,
         -t."platformFeeInHostCurrency" AS "amount",
         t."hostCurrency" AS "currency",
@@ -161,6 +161,8 @@ export async function run() {
     "sharedRevenue" as (
       SELECT
         t."createdAt",
+        t."TransactionGroup",
+        t."kind",
         t.description,
         -t."hostFeeInHostCurrency" AS "amount",
         t."hostCurrency" AS "currency",
@@ -213,6 +215,8 @@ export async function run() {
     "tipPaymentProcessorFee" AS (
       SELECT
         t."createdAt",
+        t."TransactionGroup",
+        t."kind",
         t.description,
         round(t."paymentProcessorFeeInHostCurrency"::float / COALESCE((t."data"->>'hostToPlatformFxRate')::float, 1)) AS "amount",
         ot."hostCurrency" AS "currency",
@@ -338,13 +342,8 @@ export async function run() {
     }
 
     const transactionIds = transactions.map(t => t.TransactionId);
-    const totalAmountCredited = sumBy(
-      items
-        .filter(i => i.description != 'Shared Revenue')
-        .filter(i => i.description != 'Reimburse: Payment Processor Fee for collected Platform Tips')
-        .filter(i => i.description != 'Fixed Fee per Hosted Collective'),
-      'amount',
-    );
+    const itemsWithoutDebt = items.filter(i => i.description === 'Platform Fees');
+    const totalAmountCredited = sumBy(itemsWithoutDebt, 'amount');
     const totalAmountCharged = sumBy(items, 'amount');
     if (totalAmountCharged < 1000) {
       console.warn(
@@ -378,7 +377,7 @@ export async function run() {
           CollectiveId: chargedHostId,
           CreatedByUserId: SETTLEMENT_EXPENSE_PROPERTIES.UserId,
           currency: currency,
-          description: `Platform Fees and Tips collected in ${moment.utc().subtract(1, 'month').format('MMMM')}`,
+          description: `Platform Fees collected in ${moment.utc().subtract(1, 'month').format('MMMM')}`,
           FromCollectiveId: chargedHostId,
           HostCollectiveId: hostId,
           hostCurrency: currency,
@@ -432,6 +431,7 @@ export async function run() {
         ExpenseId: expense.id,
         CreatedByUserId: SETTLEMENT_EXPENSE_PROPERTIES.UserId,
       }));
+
       await models.ExpenseItem.bulkCreate(items);
 
       // Attach CSV
@@ -450,6 +450,9 @@ export async function run() {
         ExpenseId: expense.id,
         CreatedByUserId: SETTLEMENT_EXPENSE_PROPERTIES.UserId,
       });
+
+      // Mark transactions as invoiced
+      await models.TransactionSettlement.markTransactionsAsInvoiced(transactions, expense.id);
     }
   }
 }
