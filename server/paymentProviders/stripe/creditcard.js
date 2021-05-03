@@ -358,7 +358,10 @@ export default {
       throw new Error(UNKNOWN_ERROR_MSG);
     }
 
-    await order.paymentMethod.update({ confirmedAt: new Date() });
+    await order.paymentMethod.update({
+      confirmedAt: new Date(),
+      saved: order.paymentMethod.saved || Boolean(order.data?.savePaymentMethod),
+    });
 
     return transactions;
   },
