@@ -39,7 +39,6 @@ export const PaymentMethod = new GraphQLObjectType({
 
           if (
             (paymentMethod.CollectiveId && req.remoteUser?.isAdmin(paymentMethod.CollectiveId)) ||
-            (paymentMethod.CreatedByUserId && paymentMethod.CreatedByUserId === req.remoteUser?.id) ||
             publicProviders.some(([service, type]) => paymentMethod.service === service && paymentMethod.type === type)
           ) {
             return paymentMethod.name;

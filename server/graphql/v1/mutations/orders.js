@@ -541,11 +541,12 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent) 
       if (get(order, 'paymentMethod.type') === 'manual') {
         orderCreated.paymentMethod = order.paymentMethod;
       } else {
-        // Ideally, we should always save CollectiveId
-        // but this is breaking some conventions elsewhere
-        // Always link the payment method to the collective for guests but make sure `save` is false
-        if (orderCreated.data.savePaymentMethod || isGuest) {
-          order.paymentMethod.CollectiveId = orderCreated.FromCollectiveId;
+        order.paymentMethod.CollectiveId = orderCreated.FromCollectiveId;
+        if (get(order, 'paymentMethod.service') === 'stripe') {
+          // For Stripe `save` will be manually set to `true`, in `processOrder` if the order succeed
+          order.paymentMethod.saved = null;
+        } else {
+          order.paymentMethod.saved = Boolean(orderCreated.data.savePaymentMethod);
         }
 
         if (isGuest) {

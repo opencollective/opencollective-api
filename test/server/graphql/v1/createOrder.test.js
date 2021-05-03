@@ -471,6 +471,8 @@ describe('server/graphql/v1/createOrder', () => {
       paymentMethod: {
         name: uniqueName,
         token: 'tok_chargeDeclinedProcessingError', // See https://stripe.com/docs/testing#cards
+        service: 'stripe',
+        type: 'creditcard',
         data: {
           expMonth: 10,
           expYear: 1999,
@@ -489,7 +491,8 @@ describe('server/graphql/v1/createOrder', () => {
     const res = await utils.graphqlQuery(createOrderMutation, { order: newOrder }, remoteUser);
     expect(res.errors[0].message).to.equal('Your card was declined.');
     const pm = await models.PaymentMethod.findOne({ where: { name: uniqueName } });
-    expect(pm.saved).to.equal(false);
+    // If payment fails, we keep `saved` to null
+    expect(pm.saved).to.be.null;
   });
 
   it('creates an order as logged in user', async () => {
@@ -666,14 +669,17 @@ describe('server/graphql/v1/createOrder', () => {
       name: 'newco',
       CreatedByUserId: xdamman.id,
     });
+
     // And the order parameters
     order.fromCollective = { id: newco.id };
     order.collective = { id: fearlesscitiesbrussels.id };
     order.paymentMethod = {
       ...constants.paymentMethod,
       token: 'tok_4B5j8xDjPFcHOcTm3ogdnq0K',
+      service: 'stripe',
+      type: 'creditcard',
     };
-    // Should fail if not an admin or member of the organization
+    // Should fail if not an admin of the organization
     let res = await utils.graphqlQuery(createOrderMutation, { order }, duc);
     expect(res.errors).to.exist;
     expect(res.errors[0].message).to.equal(
@@ -683,7 +689,7 @@ describe('server/graphql/v1/createOrder', () => {
     await models.Member.create({
       CollectiveId: newco.id,
       MemberCollectiveId: duc.CollectiveId,
-      role: 'MEMBER',
+      role: 'ADMIN',
       CreatedByUserId: duc.id,
     });
 

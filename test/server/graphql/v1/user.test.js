@@ -177,7 +177,8 @@ describe('server/graphql/v1/user', () => {
           where: { CreatedByUserId: user1.id },
         });
         expect(paymentMethods).to.have.length(1);
-        expect(paymentMethods[0].CollectiveId).to.be.null;
+        expect(paymentMethods[0].CollectiveId).to.be.eq(user1.CollectiveId);
+        expect(paymentMethods[0].saved).to.be.null;
       });
 
       it("doesn't get the payment method of the user if not logged in", async () => {
