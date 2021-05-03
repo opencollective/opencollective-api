@@ -210,7 +210,9 @@ const orderMutations = {
         ],
       });
 
-      if (!req.remoteUser.isAdminOfCollective(order.fromCollective)) {
+      if (!order) {
+        throw new ValidationFailed('This order does not seem to exist');
+      } else if (!req.remoteUser.isAdminOfCollective(order.fromCollective)) {
         throw new Unauthorized("You don't have permission to update this order");
       } else if (!order.Subscription.isActive) {
         throw new Error('Order must be active to be updated');
