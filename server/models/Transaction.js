@@ -249,10 +249,8 @@ function defineModel() {
       },
 
       hooks: {
-        afterCreate: (transaction, options) => {
-          Transaction.createActivity(transaction, { transaction: options.transaction });
-          // intentionally returns null, needs to be async (https://github.com/petkaantonov/bluebird/blob/master/docs/docs/warning-explanations.md#warning-a-promise-was-created-in-a-handler-but-was-not-returned-from-it)
-          return null;
+        afterCreate: async (transaction, options) => {
+          await Transaction.createActivity(transaction, { transaction: options.transaction });
         },
       },
     },
@@ -329,16 +327,19 @@ function defineModel() {
     return Boolean(this.data?.isFeesOnTop && this.kind !== TransactionKind.PLATFORM_TIP);
   };
 
-  Transaction.prototype.getPlatformTipTransaction = function () {
+  Transaction.prototype.getPlatformTipTransaction = function (sequelizeParams) {
     if (this.hasPlatformTip()) {
-      return models.Transaction.findOne({
-        where: {
-          ...pick(FEES_ON_TOP_TRANSACTION_PROPERTIES, ['CollectiveId']),
-          type: this.type,
-          TransactionGroup: this.TransactionGroup,
-          kind: TransactionKind.PLATFORM_TIP,
+      return models.Transaction.findOne(
+        {
+          where: {
+            ...pick(FEES_ON_TOP_TRANSACTION_PROPERTIES, ['CollectiveId']),
+            type: this.type,
+            TransactionGroup: this.TransactionGroup,
+            kind: TransactionKind.PLATFORM_TIP,
+          },
         },
-      });
+        sequelizeParams,
+      );
     }
   };
 
@@ -572,10 +573,16 @@ function defineModel() {
       transactions.push(transaction);
     }
 
+    // TODO bulkCreate?
     return Promise.mapSeries(transactions, t => Transaction.create(t, opts)).then(results => results[index]);
   };
 
-  Transaction.createFeesOnTopTransaction = async ({ transaction, host }) => {
+  /**
+   * Creates platform tip transactions from a given transaction.
+   * @param {Transaction} The actual transaction
+   * @param {sequelize.Transaction} A Postgres transaction. Must be provided to make sure we never end up in an inconsistent DB state.
+   */
+  Transaction.createFeesOnTopTransaction = async (transaction, host, sqlTransaction) => {
     if (!transaction.data?.isFeesOnTop) {
       throw new Error('This transaction does not have fees on top');
     } else if (!transaction.platformFeeInHostCurrency) {
@@ -588,7 +595,7 @@ function defineModel() {
       ? toNegative(Math.round(transaction.paymentProcessorFeeInHostCurrency * feeOnTopPercent))
       : 0;
     const platformCurrencyFxRate = await getFxRate(transaction.currency, FEES_ON_TOP_TRANSACTION_PROPERTIES.currency);
-    const donationTransaction = defaultsDeep(
+    const tipTransaction = defaultsDeep(
       {},
       FEES_ON_TOP_TRANSACTION_PROPERTIES,
       {
@@ -616,7 +623,7 @@ function defineModel() {
       transaction,
     );
 
-    await Transaction.createDoubleEntry(donationTransaction);
+    await Transaction.createDoubleEntry(tipTransaction, { transaction: sqlTransaction });
 
     // Deduct the paymentProcessorFee we considered part of the feeOnTop donation
     transaction.paymentProcessorFeeInHostCurrency =
@@ -629,7 +636,7 @@ function defineModel() {
     // Reset the platformFee because we're accounting for this value in a separate set of transactions
     transaction.platformFeeInHostCurrency = 0;
 
-    return { transaction, donationTransaction };
+    return { transaction, tipTransaction };
   };
 
   /**
@@ -673,63 +680,67 @@ function defineModel() {
     // that here, but we should probably rename the function to something clearer (createFromContributionPayload?)
     transaction.kind = isUndefined(transaction.kind) ? TransactionKind.CONTRIBUTION : transaction.kind;
 
-    // Separate donation transaction and remove platformFee from the main transaction
-    if (transaction.data?.isFeesOnTop && transaction.platformFeeInHostCurrency) {
-      transaction = (await Transaction.createFeesOnTopTransaction({ transaction, host })).transaction;
-    }
+    return sequelize.transaction({ deferrable: sequelize.INITIALLY_DEFERRED }, async sqlTransaction => {
+      // Separate donation transaction and remove platformFee from the main transaction
+      if (transaction.data?.isFeesOnTop && transaction.platformFeeInHostCurrency) {
+        const result = await Transaction.createFeesOnTopTransaction(transaction, host, sqlTransaction);
+        transaction = result.transaction;
+      }
 
-    // populate netAmountInCollectiveCurrency for financial contributions
-    // TODO: why not for other transactions?
-    if (transaction.amount > 0) {
-      transaction.netAmountInCollectiveCurrency = Transaction.calculateNetAmountInCollectiveCurrency(transaction);
-    }
+      // populate netAmountInCollectiveCurrency for financial contributions
+      // TODO: why not for other transactions?
+      if (transaction.amount > 0) {
+        transaction.netAmountInCollectiveCurrency = Transaction.calculateNetAmountInCollectiveCurrency(transaction);
+      }
 
-    return Transaction.createDoubleEntry(transaction);
+      return Transaction.createDoubleEntry(transaction, { transaction: sqlTransaction });
+    });
   };
 
-  Transaction.createActivity = (transaction, options) => {
+  Transaction.createActivity = async (transaction, options) => {
     if (transaction.deletedAt) {
-      return Promise.resolve();
+      return;
     }
-    return (
-      Transaction.findByPk(transaction.id, {
-        include: [
-          { model: models.Collective, as: 'fromCollective' },
-          { model: models.Collective, as: 'collective' },
-          { model: models.User, as: 'createdByUser' },
-          { model: models.PaymentMethod },
-        ],
-        transaction: options.transaction,
-      })
-        // Create activity.
-        .then(transaction => {
-          const activityPayload = {
-            type: activities.COLLECTIVE_TRANSACTION_CREATED,
-            TransactionId: transaction.id,
-            CollectiveId: transaction.CollectiveId,
-            CreatedByUserId: transaction.CreatedByUserId,
-            data: {
-              transaction: transaction.info,
-              user: transaction.User && transaction.User.minimal,
-              fromCollective: transaction.fromCollective && transaction.fromCollective.minimal,
-              collective: transaction.collective && transaction.collective.minimal,
-            },
-          };
-          if (transaction.createdByUser) {
-            activityPayload.data.user = transaction.createdByUser.info;
-          }
-          if (transaction.PaymentMethod) {
-            activityPayload.data.paymentMethod = transaction.PaymentMethod.info;
-          }
-          return models.Activity.create(activityPayload, { transaction: options.transaction });
-        })
-        .catch(err =>
-          console.error(
-            `Error creating activity of type ${activities.COLLECTIVE_TRANSACTION_CREATED} for transaction ID ${transaction.id}`,
-            err,
-          ),
-        )
-    );
+
+    const sqlParams = { transaction: options.transaction };
+    let collective, fromCollective, createdByUser, paymentMethod;
+
+    // if (options.transaction) {
+    //   // TODO: It's not optimized to have 4 SQL queries like that, but we can't load associations like usual
+    //   // because this can happen in a SQL transaction.
+    //   collective = transaction.collective || (await transaction.getCollective(sqlParams));
+    //   fromCollective = transaction.fromCollective || (await transaction.getFromCollective(sqlParams));
+    //   createdByUser = transaction.createdByUser || (await transaction.getCreatedByUser(sqlParams));
+    //   paymentMethod = transaction.paymentMethod || (await transaction.getPaymentMethod(sqlParams));
+    // } else {
+    const transactionWithAssociations = await Transaction.findByPk(transaction.id, {
+      transaction: options.transaction,
+      include: [
+        { model: models.Collective, as: 'fromCollective' },
+        { model: models.Collective, as: 'collective' },
+        { model: models.User, as: 'createdByUser' },
+        { model: models.PaymentMethod },
+      ],
+    });
+
+    ({ collective, fromCollective, createdByUser, paymentMethod } = transactionWithAssociations);
+    // }
+
+    const activityPayload = {
+      type: activities.COLLECTIVE_TRANSACTION_CREATED,
+      TransactionId: transaction.id,
+      CollectiveId: transaction.CollectiveId,
+      CreatedByUserId: transaction.CreatedByUserId,
+      data: {
+        transaction: transaction.info,
+        user: createdByUser?.minimal,
+        fromCollective: fromCollective?.minimal,
+        collective: collective?.minimal,
+        paymentMethod: paymentMethod?.info,
+      },
+    };
+
+    return models.Activity.create(activityPayload, sqlParams);
   };
 
   Transaction.creditHost = (order, collective) => {

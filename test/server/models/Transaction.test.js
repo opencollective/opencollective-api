@@ -162,7 +162,7 @@ describe('server/models/Transaction', () => {
   });
 
   it('createFromPayload() generates a new activity', done => {
-    const createActivityStub = sinon.stub(Transaction, 'createActivity').callsFake(t => {
+    const createActivityStub = sinon.stub(Transaction, 'createActivity').callsFake(async t => {
       expect(Math.abs(t.amount)).to.equal(Math.abs(transactionsData[7].netAmountInCollectiveCurrency));
       createActivityStub.restore();
       done();

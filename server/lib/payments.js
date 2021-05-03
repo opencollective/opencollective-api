@@ -10,7 +10,7 @@ import { PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import roles from '../constants/roles';
 import tiers from '../constants/tiers';
 import { FEES_ON_TOP_TRANSACTION_PROPERTIES } from '../constants/transactions';
-import models, { Op } from '../models';
+import models, { Op, sequelize } from '../models';
 import paymentProviders from '../paymentProviders';
 
 import emailLib from './email';
@@ -209,41 +209,58 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
     return refund;
   };
 
-  const creditTransactionRefund = buildRefund(creditTransaction);
+  return sequelize.transaction(async sqlTransaction => {
+    const sequelizeOpts = { transaction: sqlTransaction };
 
-  if (transaction.data?.isFeesOnTop) {
-    const feeOnTopTransaction = await transaction.getPlatformTipTransaction();
-    const feeOnTopRefund = buildRefund(feeOnTopTransaction);
-    const feeOnTopRefundTransaction = await models.Transaction.createDoubleEntry(feeOnTopRefund);
-    await associateTransactionRefundId(feeOnTopTransaction, feeOnTopRefundTransaction, data);
-  }
+    // Refund platform tip
+    if (transaction.hasPlatformTip()) {
+      const platformTipTransaction = await transaction.getPlatformTipTransaction(sequelizeOpts);
+      const platformTipRefund = buildRefund(platformTipTransaction);
+      const platformTipRefundTransaction = await models.Transaction.createDoubleEntry(platformTipRefund, sequelizeOpts);
+      await associateTransactionRefundId(platformTipTransaction, platformTipRefundTransaction, data, sqlTransaction);
+    }
 
-  const refundTransaction = await models.Transaction.createDoubleEntry(creditTransactionRefund);
-  return await associateTransactionRefundId(transaction, refundTransaction, data);
+    // Refund contribution
+    const creditTransactionRefund = buildRefund(creditTransaction);
+    const refundTransaction = await models.Transaction.createDoubleEntry(creditTransactionRefund, sequelizeOpts);
+    return associateTransactionRefundId(transaction, refundTransaction, data, sqlTransaction);
+  });
 }
 
-export async function associateTransactionRefundId(transaction, refund, data) {
-  const [tr1, tr2, tr3, tr4] = await models.Transaction.findAll({
-    order: ['id'],
-    where: {
-      [Op.or]: [{ TransactionGroup: transaction.TransactionGroup }, { TransactionGroup: refund.TransactionGroup }],
+async function associateTransactionRefundId(transaction, refund, data, sqlTransaction) {
+  // TODO: Using the `id` as order here is not reliable, we should rather filter results to make sure we get the right transaction
+  const allTransactions = await models.Transaction.findAll(
+    {
+      order: ['id'],
+      where: {
+        [Op.or]: [{ TransactionGroup: transaction.TransactionGroup }, { TransactionGroup: refund.TransactionGroup }],
+      },
     },
-  });
-  // After refunding a transaction, in some cases the data may
-  // be update as well(stripe data changes after refunds)
+    { transaction: sqlTransaction },
+  );
+
+  console.log(
+    allTransactions.map(t => `${t.id} - ${t.TransactionGroup}`),
+    refund?.id,
+    refund?.TransactionGroup,
+  );
+
+  const [tr1, tr2, tr3, tr4] = allTransactions;
+
+  // After refunding a transaction, in some cases the data may be updated as well (stripe data changes after refunds)
   if (data) {
     tr1.data = data;
     tr2.data = data;
   }
 
   tr1.RefundTransactionId = tr4.id;
-  await tr1.save(); // User Ledger
+  await tr1.save({ transaction: sqlTransaction }); // User Ledger
   tr2.RefundTransactionId = tr3.id;
-  await tr2.save(); // Collective Ledger
+  await tr2.save({ transaction: sqlTransaction }); // Collective Ledger
   tr3.RefundTransactionId = tr2.id;
-  await tr3.save(); // Collective Ledger
+  await tr3.save({ transaction: sqlTransaction }); // Collective Ledger
   tr4.RefundTransactionId = tr1.id;
-  await tr4.save(); // User Ledger
+  await tr4.save({ transaction: sqlTransaction }); // User Ledger
 
   // We need to return the same transactions we received because the
   // graphql mutation needs it to return to the user. However we have
