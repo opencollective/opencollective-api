@@ -286,6 +286,7 @@ export function setupModels() {
   });
   m.VirtualCard.hasMany(m.Expense, { foreignKey: 'VirtualCardId', as: 'expenses' });
   m.Collective.hasMany(m.VirtualCard, { foreignKey: 'HostCollectiveId', as: 'virtualCards' });
+  m.Collective.hasMany(m.VirtualCard, { foreignKey: 'CollectiveId', as: 'virtualCardCollectives' });
 
   Object.keys(m).forEach(modelName => m[modelName].associate && m[modelName].associate(m));
 
