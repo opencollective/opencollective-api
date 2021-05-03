@@ -62,13 +62,8 @@ const transactionMutations = {
       };
 
       const host = await models.Collective.findByPk(transaction.CollectiveId);
-      await models.Transaction.createFeesOnTopTransaction({ transaction, host });
-      return await models.Transaction.findOne({
-        where: {
-          TransactionGroup: fundsTransaction.TransactionGroup,
-          kind: 'PLATFORM_TIP',
-        },
-      });
+      const { donationTransaction } = await models.Transaction.createFeesOnTopTransaction({ transaction, host });
+      return donationTransaction;
     },
   },
   refundTransaction: {

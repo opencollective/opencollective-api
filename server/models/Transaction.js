@@ -629,7 +629,7 @@ function defineModel() {
     // Reset the platformFee because we're accounting for this value in a separate set of transactions
     transaction.platformFeeInHostCurrency = 0;
 
-    return transaction;
+    return { transaction, donationTransaction };
   };
 
   /**
@@ -675,7 +675,7 @@ function defineModel() {
 
     // Separate donation transaction and remove platformFee from the main transaction
     if (transaction.data?.isFeesOnTop && transaction.platformFeeInHostCurrency) {
-      transaction = await Transaction.createFeesOnTopTransaction({ transaction, host });
+      transaction = (await Transaction.createFeesOnTopTransaction({ transaction, host })).transaction;
     }
 
     // populate netAmountInCollectiveCurrency for financial contributions
