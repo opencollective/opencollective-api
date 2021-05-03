@@ -56,6 +56,7 @@ const transactionMutations = {
         data: { isFeesOnTop: true },
         TransactionGroup: fundsTransaction.TransactionGroup,
         platformFeeInHostCurrency: getValueInCentsFromAmountInput(args.amount),
+        amountInHostCurrency: args.amount,
         FromCollectiveId: fundsTransaction.HostCollectiveId,
         kind: TransactionKind.PLATFORM_TIP,
         ...FEES_ON_TOP_TRANSACTION_PROPERTIES,
