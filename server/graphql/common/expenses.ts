@@ -31,13 +31,16 @@ const debug = debugLib('expenses');
 const isOwner = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
-  }
-
-  if (!expense.fromCollective) {
+  } else if (req.remoteUser.id === expense.UserId) {
+    return true;
+  } else if (!expense.fromCollective) {
     expense.fromCollective = await req.loaders.Collective.byId.load(expense.FromCollectiveId);
+    if (!expense.fromCollective) {
+      return false;
+    }
   }
 
-  return req.remoteUser.isAdminOfCollective(expense.fromCollective) || req.remoteUser.id === expense.UserId;
+  return req.remoteUser.isAdminOfCollective(expense.fromCollective);
 };
 
 const isCollectiveAccountant = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
