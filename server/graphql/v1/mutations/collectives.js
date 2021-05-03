@@ -625,33 +625,39 @@ export async function deleteCollective(_, args, req) {
 
 export async function deleteUserCollective(_, args, req) {
   if (!req.remoteUser) {
-    throw new Unauthorized('You need to be logged in to delete your account');
+    throw new Unauthorized('You need to be logged in to delete this account.');
   }
-  const user = await models.User.findOne({ where: { id: req.remoteUser.id } });
-  const userCollective = await models.Collective.findOne({
-    where: { id: args.id },
-  });
+
+  const collective = await models.Collective.findByPk(args.id);
+  if (!collective) {
+    throw new NotFound(`Account with id ${args.id} not found`);
+  }
+  if (!req.remoteUser.isAdminOfCollective(collective) && !req.remoteUser.isRoot()) {
+    throw new Unauthorized(`You don't have permission to delete this account.`);
+  }
+
+  const user = await models.User.findOne({ where: { CollectiveId: collective.id } });
+
   const transactionCount = await models.Transaction.count({
-    where: { FromCollectiveId: userCollective.id },
+    where: { FromCollectiveId: collective.id },
   });
   const orderCount = await models.Order.count({
-    where: { FromCollectiveId: userCollective.id },
+    where: { FromCollectiveId: collective.id },
   });
 
   if (transactionCount > 0 || orderCount > 0) {
-    throw new Error('Can not delete user with existing orders.');
+    throw new Error('Can not delete user with existing orders or transactions.');
   }
 
   const expenseCount = await models.Expense.count({
-    where: { UserId: user.id, status: 'PAID' },
+    where: { [Op.or]: [{ CollectiveId: collective.id }, { FromCollectiveId: collective.id }], status: 'PAID' },
   });
-
   if (expenseCount > 0) {
     throw new Error('Can not delete user with paid expenses.');
   }
 
   const members = await models.Member.findAll({
-    where: { MemberCollectiveId: userCollective.id },
+    where: { MemberCollectiveId: collective.id },
     include: [{ model: models.Collective, as: 'collective' }],
   });
 
@@ -687,7 +693,7 @@ export async function deleteUserCollective(_, args, req) {
 
     .then(async () => {
       const paymentMethods = await models.PaymentMethod.findAll({
-        where: { CollectiveId: userCollective.id },
+        where: { CollectiveId: collective.id },
       });
       return map(
         paymentMethods,
@@ -700,7 +706,7 @@ export async function deleteUserCollective(_, args, req) {
 
     .then(async () => {
       const connectedAccounts = await models.ConnectedAccount.findAll({
-        where: { CollectiveId: userCollective.id },
+        where: { CollectiveId: collective.id },
       });
       return map(
         connectedAccounts,
@@ -713,11 +719,11 @@ export async function deleteUserCollective(_, args, req) {
 
     .then(() => {
       // Update collective slug to free the current slug for future
-      const newSlug = `${userCollective.slug}-${Date.now()}`;
-      return userCollective.update({ slug: newSlug });
+      const newSlug = `${collective.slug}-${Date.now()}`;
+      return collective.update({ slug: newSlug });
     })
     .then(() => {
-      return userCollective.destroy();
+      return collective.destroy();
     })
 
     .then(() => {
@@ -731,7 +737,7 @@ export async function deleteUserCollective(_, args, req) {
     .then(() => {
       return user.destroy();
     })
-    .then(() => userCollective);
+    .then(() => collective);
 }
 
 export async function sendMessageToCollective(_, args, req) {
