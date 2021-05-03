@@ -524,7 +524,10 @@ export async function deleteCollective(_, args, req) {
   }
 
   const expenseCount = await models.Expense.count({
-    where: { CollectiveId: collective.id, status: 'PAID' },
+    where: {
+      [Op.or]: [{ FromCollectiveId: collective.id }, { CollectiveId: collective.id }],
+      status: ['PAID', 'PROCESSING', 'SCHEDULED_FOR_PAYMENT'],
+    },
   });
 
   if (expenseCount > 0) {
@@ -556,7 +559,10 @@ export async function deleteCollective(_, args, req) {
 
     .then(async () => {
       const expenses = await models.Expense.findAll({
-        where: { CollectiveId: collective.id },
+        where: {
+          [Op.or]: [{ FromCollectiveId: collective.id }, { CollectiveId: collective.id }],
+          status: { [Op.not]: ['PAID', 'PROCESSING', 'SCHEDULED_FOR_PAYMENT'] },
+        },
       });
       return map(
         expenses,
@@ -650,7 +656,10 @@ export async function deleteUserCollective(_, args, req) {
   }
 
   const expenseCount = await models.Expense.count({
-    where: { [Op.or]: [{ CollectiveId: collective.id }, { FromCollectiveId: collective.id }], status: 'PAID' },
+    where: {
+      [Op.or]: [{ CollectiveId: collective.id }, { FromCollectiveId: collective.id }],
+      status: ['PAID', 'PROCESSING', 'SCHEDULED_FOR_PAYMENT'],
+    },
   });
   if (expenseCount > 0) {
     throw new Error('Can not delete user with paid expenses.');
@@ -681,7 +690,12 @@ export async function deleteUserCollective(_, args, req) {
     { concurrency: 3 },
   )
     .then(async () => {
-      const expenses = await models.Expense.findAll({ where: { UserId: user.id } });
+      const expenses = await models.Expense.findAll({
+        where: {
+          [Op.or]: [{ CollectiveId: collective.id }, { FromCollectiveId: collective.id }],
+          status: { [Op.not]: ['PAID', 'PROCESSING', 'SCHEDULED_FOR_PAYMENT'] },
+        },
+      });
       return map(
         expenses,
         expense => {
