@@ -10,7 +10,6 @@ import * as privacyLib from '../../server/lib/privacy';
 import models from '../../server/models';
 import privacy from '../../server/paymentProviders/privacy';
 
-const START_DATE = process.env.START_DATE || '2021-01-01T00:00:00Z';
 const DRY = process.env.DRY;
 
 export async function run() {
@@ -36,7 +35,7 @@ export async function run() {
       });
       const begin = lastSyncedTransaction
         ? moment(lastSyncedTransaction.createdAt).add(1, 'second').toISOString()
-        : START_DATE;
+        : card.createdAt;
       logger.info(`Fetching transactions since ${begin}`);
 
       const { data: transactions } = await privacyLib.listTransactions(
