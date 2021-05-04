@@ -263,18 +263,18 @@ export const Host = new GraphQLObjectType({
 
           let merchantId;
           if (!isEmpty(args.merchantAccount)) {
-            merchantId = (await fetchAccountWithReference(args.merchantAccount, { throwIfMissing: true })).id;
+            merchantId = (
+              await fetchAccountWithReference(args.merchantAccount, { throwIfMissing: true, loaders: req.loaders })
+            ).id;
           }
 
-          let collectiveIds;
-          if (!isEmpty(args.collectiveAccounts)) {
-            const collectives = await Promise.all(
-              args.collectiveAccounts.map(collectiveAccount =>
-                fetchAccountWithReference(collectiveAccount, { throwIfMissing: true }),
-              ),
-            );
-            collectiveIds = collectives.map(collective => collective.id);
-          }
+          const collectiveIds = isEmpty(args.collectiveAccounts)
+            ? undefined
+            : await Promise.all(
+                args.collectiveAccounts.map(collectiveAccount =>
+                  fetchAccountWithReference(collectiveAccount, { throwIfMissing: true, loaders: req.loaders }),
+                ),
+              ).then(collectives => collectives.map(collective => collective.id));
 
           const query = {
             group: 'VirtualCard.id',
