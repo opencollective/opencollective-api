@@ -254,6 +254,7 @@ export async function run() {
         AND t."CollectiveId" = 8686
         AND t."kind" = 'PLATFORM_TIP'
         AND t."type" = 'CREDIT'
+        AND t."paymentProcessorFeeInHostCurrency" != 0
         AND ot."HostCollectiveId" NOT IN (8686)
         AND (
           pm."service" = 'stripe'
