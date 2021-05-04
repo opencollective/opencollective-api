@@ -25,6 +25,7 @@ paymentMethodProvider.processOrder = async order => {
   }
 
   const hostFeePercent = await getHostFeePercent(order);
+
   const platformFeePercent = await getPlatformFeePercent(order);
 
   const hostPlan = await host.getPlan();
@@ -69,9 +70,7 @@ paymentMethodProvider.processOrder = async order => {
     },
   };
 
-  const transactions = await models.Transaction.createFromPayload(payload);
-
-  return transactions;
+  return await models.Transaction.createFromPayload(payload);
 };
 
 export default paymentMethodProvider;

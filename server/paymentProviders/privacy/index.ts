@@ -44,7 +44,7 @@ const createExpense = async (
   const host = opts?.host || (await models.Collective.findByPk(virtualCard.HostCollectiveId));
   const hostCurrencyFxRate = opts?.hostCurrencyFxRate || (await getFxRate('USD', host.currency));
   const amount = privacyTransaction.settled_amount;
-  const UserId = collective.CreatedByUserId;
+  const UserId = collective.CreatedByUserId || collective.LastEditedByUserId;
 
   const expense = await sequelize.transaction(async transaction => {
     const slug = privacyTransaction.merchant.acceptor_id.toUpperCase();

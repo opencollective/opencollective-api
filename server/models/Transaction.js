@@ -249,8 +249,8 @@ function defineModel() {
       },
 
       hooks: {
-        afterCreate: transaction => {
-          Transaction.createActivity(transaction);
+        afterCreate: (transaction, options) => {
+          Transaction.createActivity(transaction, { transaction: options.transaction });
           // intentionally returns null, needs to be async (https://github.com/petkaantonov/bluebird/blob/master/docs/docs/warning-explanations.md#warning-a-promise-was-created-in-a-handler-but-was-not-returned-from-it)
           return null;
         },
@@ -629,7 +629,7 @@ function defineModel() {
     // Reset the platformFee because we're accounting for this value in a separate set of transactions
     transaction.platformFeeInHostCurrency = 0;
 
-    return transaction;
+    return { transaction, donationTransaction };
   };
 
   /**
@@ -675,7 +675,7 @@ function defineModel() {
 
     // Separate donation transaction and remove platformFee from the main transaction
     if (transaction.data?.isFeesOnTop && transaction.platformFeeInHostCurrency) {
-      transaction = await Transaction.createFeesOnTopTransaction({ transaction, host });
+      transaction = (await Transaction.createFeesOnTopTransaction({ transaction, host })).transaction;
     }
 
     // populate netAmountInCollectiveCurrency for financial contributions
@@ -687,7 +687,7 @@ function defineModel() {
     return Transaction.createDoubleEntry(transaction);
   };
 
-  Transaction.createActivity = transaction => {
+  Transaction.createActivity = (transaction, options) => {
     if (transaction.deletedAt) {
       return Promise.resolve();
     }
@@ -699,6 +699,7 @@ function defineModel() {
           { model: models.User, as: 'createdByUser' },
           { model: models.PaymentMethod },
         ],
+        transaction: options.transaction,
       })
         // Create activity.
         .then(transaction => {
@@ -720,7 +721,7 @@ function defineModel() {
           if (transaction.PaymentMethod) {
             activityPayload.data.paymentMethod = transaction.PaymentMethod.info;
           }
-          return models.Activity.create(activityPayload);
+          return models.Activity.create(activityPayload, { transaction: options.transaction });
         })
         .catch(err =>
           console.error(

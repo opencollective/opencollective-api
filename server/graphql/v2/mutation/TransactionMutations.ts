@@ -2,16 +2,73 @@ import express from 'express';
 import { GraphQLNonNull, GraphQLString } from 'graphql';
 
 import orderStatus from '../../../constants/order_status';
-import { canReject } from '../../../graphql/common/transactions';
+import { TransactionKind } from '../../../constants/transaction-kind';
+import { FEES_ON_TOP_TRANSACTION_PROPERTIES } from '../../../constants/transactions';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import { notifyAdminsOfCollective } from '../../../lib/notifications';
 import models from '../../../models';
-import { Forbidden, NotFound, Unauthorized } from '../../errors';
+import { canReject } from '../../common/transactions';
+import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { refundTransaction as legacyRefundTransaction } from '../../v1/mutations/orders';
+import { AmountInput, getValueInCentsFromAmountInput } from '../input/AmountInput';
 import { fetchTransactionWithReference, TransactionReferenceInput } from '../input/TransactionReferenceInput';
 import { Transaction } from '../interface/Transaction';
 
 const transactionMutations = {
+  addPlatformTipToTransaction: {
+    type: new GraphQLNonNull(Transaction),
+    description: 'Add platform tips to a transaction',
+    args: {
+      transaction: {
+        type: new GraphQLNonNull(TransactionReferenceInput),
+        description: 'Reference to the transaction in the platform tip',
+      },
+      amount: {
+        type: GraphQLNonNull(AmountInput),
+        description: 'Amount of the platform tip',
+      },
+    },
+    async resolve(_: void, args, req: express.Request): Promise<typeof Transaction> {
+      if (!req.remoteUser) {
+        throw new Unauthorized('You need to be logged in to add a platform tip');
+      }
+
+      const fundsTransaction = await fetchTransactionWithReference(args.transaction, { throwIfMissing: true });
+
+      if (!req.remoteUser.isAdmin(fundsTransaction.HostCollectiveId)) {
+        throw new Unauthorized('Only host admins can add platform tips');
+      } else if (fundsTransaction.kind !== TransactionKind.ADDED_FUNDS) {
+        throw new ValidationFailed('Platform tips can only be added on added funds at the moment');
+      }
+
+      const isPlatformTipAvailable = await models.Transaction.findOne({
+        where: {
+          TransactionGroup: fundsTransaction.TransactionGroup,
+          kind: 'PLATFORM_TIP',
+        },
+      });
+
+      if (isPlatformTipAvailable) {
+        throw new Error('Platform tip is already set for this transaction group');
+      }
+
+      const transaction = {
+        data: { isFeesOnTop: true },
+        TransactionGroup: fundsTransaction.TransactionGroup,
+        CreatedByUserId: req.remoteUser.id,
+        PaymentMethodId: fundsTransaction.PaymentMethodId,
+        platformFeeInHostCurrency: getValueInCentsFromAmountInput(args.amount),
+        amountInHostCurrency: args.amount,
+        FromCollectiveId: fundsTransaction.HostCollectiveId,
+        kind: TransactionKind.PLATFORM_TIP,
+        ...FEES_ON_TOP_TRANSACTION_PROPERTIES,
+      };
+
+      const host = await models.Collective.findByPk(transaction.CollectiveId);
+      const { donationTransaction } = await models.Transaction.createFeesOnTopTransaction({ transaction, host });
+      return donationTransaction;
+    },
+  },
   refundTransaction: {
     type: new GraphQLNonNull(Transaction),
     description: 'Refunds transaction',

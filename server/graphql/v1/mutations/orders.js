@@ -15,7 +15,6 @@ import FEATURE from '../../../constants/feature';
 import status from '../../../constants/order_status';
 import roles from '../../../constants/roles';
 import { VAT_OPTIONS } from '../../../constants/vat';
-import { canRefund } from '../../../graphql/common/transactions';
 import cache, { purgeCacheForCollective } from '../../../lib/cache';
 import * as github from '../../../lib/github';
 import { getOrCreateGuestProfile } from '../../../lib/guest-accounts';
@@ -26,6 +25,7 @@ import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../
 import { canUseFeature } from '../../../lib/user-permissions';
 import { formatCurrency, md5, parseToBoolean, sleep } from '../../../lib/utils';
 import models from '../../../models';
+import { canRefund } from '../../common/transactions';
 import {
   BadRequest,
   FeatureNotAllowedForUser,
