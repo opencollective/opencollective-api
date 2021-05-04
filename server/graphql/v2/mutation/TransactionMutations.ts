@@ -55,6 +55,8 @@ const transactionMutations = {
       const transaction = {
         data: { isFeesOnTop: true },
         TransactionGroup: fundsTransaction.TransactionGroup,
+        CreatedByUserId: req.remoteUser.id,
+        PaymentMethodId: fundsTransaction.PaymentMethodId,
         platformFeeInHostCurrency: getValueInCentsFromAmountInput(args.amount),
         amountInHostCurrency: args.amount,
         FromCollectiveId: fundsTransaction.HostCollectiveId,
