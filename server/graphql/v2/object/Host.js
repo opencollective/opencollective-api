@@ -254,7 +254,7 @@ export const Host = new GraphQLObjectType({
           offset: { type: GraphQLInt, defaultValue: 0 },
           state: { type: GraphQLString, defaultValue: null },
           merchantAccount: { type: AccountReferenceInput, defaultValue: null },
-          collectiveAccounts: { type: GraphQLList(AccountReferenceInput), defaultValue: null },
+          collectiveAccountIds: { type: GraphQLList(AccountReferenceInput), defaultValue: null },
         },
         async resolve(host, args, req) {
           if (!req.remoteUser?.isAdmin(host.id)) {
@@ -268,11 +268,11 @@ export const Host = new GraphQLObjectType({
             ).id;
           }
 
-          const collectiveIds = isEmpty(args.collectiveAccounts)
+          const collectiveIds = isEmpty(args.collectiveAccountIds)
             ? undefined
             : await Promise.all(
-                args.collectiveAccounts.map(collectiveAccount =>
-                  fetchAccountWithReference(collectiveAccount, { throwIfMissing: true, loaders: req.loaders }),
+                args.collectiveAccountIds.map(collectiveAccountId =>
+                  fetchAccountWithReference(collectiveAccountId, { throwIfMissing: true, loaders: req.loaders }),
                 ),
               ).then(collectives => collectives.map(collective => collective.id));
 
