@@ -4568,8 +4568,10 @@ type Host implements Account & AccountWithContributions {
     offset: Int = 0
     state: String = null
     merchantAccount: AccountReferenceInput = null
+    collectiveAccountIds: [AccountReferenceInput] = null
   ): VirtualCardCollection!
   hostedVirtualCardMerchants(limit: Int = 100, offset: Int = 0): AccountCollection!
+  hostedVirtualCardCollectives(limit: Int = 100, offset: Int = 0): AccountCollection!
 }
 
 type HostApplication {
@@ -5755,7 +5757,7 @@ type Mutation {
     transaction: TransactionReferenceInput!
 
     """
-    Reference to the amount of input for the platform tip
+    Amount of the platform tip
     """
     amount: AmountInput!
   ): Transaction!

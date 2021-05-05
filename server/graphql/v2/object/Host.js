@@ -254,6 +254,7 @@ export const Host = new GraphQLObjectType({
           offset: { type: GraphQLInt, defaultValue: 0 },
           state: { type: GraphQLString, defaultValue: null },
           merchantAccount: { type: AccountReferenceInput, defaultValue: null },
+          collectiveAccountIds: { type: GraphQLList(AccountReferenceInput), defaultValue: null },
         },
         async resolve(host, args, req) {
           if (!req.remoteUser?.isAdmin(host.id)) {
@@ -262,8 +263,18 @@ export const Host = new GraphQLObjectType({
 
           let merchantId;
           if (!isEmpty(args.merchantAccount)) {
-            merchantId = (await fetchAccountWithReference(args.merchantAccount, { throwIfMissing: true })).id;
+            merchantId = (
+              await fetchAccountWithReference(args.merchantAccount, { throwIfMissing: true, loaders: req.loaders })
+            ).id;
           }
+
+          const collectiveIds = isEmpty(args.collectiveAccountIds)
+            ? undefined
+            : await Promise.all(
+                args.collectiveAccountIds.map(collectiveAccountId =>
+                  fetchAccountWithReference(collectiveAccountId, { throwIfMissing: true, loaders: req.loaders }),
+                ),
+              ).then(collectives => collectives.map(collective => collective.id));
 
           const query = {
             group: 'VirtualCard.id',
@@ -276,6 +287,10 @@ export const Host = new GraphQLObjectType({
 
           if (args.state) {
             query.where.data = { state: args.state };
+          }
+
+          if (collectiveIds) {
+            query.where.CollectiveId = { [Op.in]: collectiveIds };
           }
 
           if (merchantId) {
@@ -337,6 +352,39 @@ export const Host = new GraphQLObjectType({
                     },
                   },
                 ],
+              },
+            ],
+          });
+
+          return {
+            nodes: result.rows,
+            totalCount: result.count.length, // See https://github.com/sequelize/sequelize/issues/9109
+            limit: args.limit,
+            offset: args.offset,
+          };
+        },
+      },
+      hostedVirtualCardCollectives: {
+        type: new GraphQLNonNull(AccountCollection),
+        args: {
+          limit: { type: GraphQLInt, defaultValue: 100 },
+          offset: { type: GraphQLInt, defaultValue: 0 },
+        },
+        async resolve(host, args, req) {
+          if (!req.remoteUser?.isAdmin(host.id)) {
+            throw new Unauthorized('You need to be logged in as an admin to see the virtual card merchants');
+          }
+
+          const result = await models.Collective.findAndCountAll({
+            group: 'Collective.id',
+            include: [
+              {
+                attributes: [],
+                association: 'virtualCardCollectives',
+                required: true,
+                where: {
+                  HostCollectiveId: host.id,
+                },
               },
             ],
           });
