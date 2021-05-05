@@ -23,6 +23,7 @@ import ExpenseItem from './ExpenseItem';
 import ExpensePermissions from './ExpensePermissions';
 import { Location } from './Location';
 import PayoutMethod from './PayoutMethod';
+import { VirtualCard } from './VirtualCard';
 
 const EXPENSE_DRAFT_PUBLIC_FIELDS = [
   'items',
@@ -150,6 +151,15 @@ const Expense = new GraphQLObjectType({
             }
 
             return req.loaders.PayoutMethod.byId.load(expense.PayoutMethodId);
+          }
+        },
+      },
+      virtualCard: {
+        type: VirtualCard,
+        description: 'The virtual card used to pay for this charge',
+        async resolve(expense, _, req) {
+          if (expense.VirtualCardId) {
+            return req.loaders.VirtualCard.byId.load(expense.VirtualCardId);
           }
         },
       },
