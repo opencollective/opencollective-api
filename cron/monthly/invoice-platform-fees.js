@@ -254,6 +254,7 @@ export async function run() {
         AND t."CollectiveId" = 8686
         AND t."kind" = 'PLATFORM_TIP'
         AND t."type" = 'CREDIT'
+        AND t."paymentProcessorFeeInHostCurrency" != 0
         AND ot."HostCollectiveId" NOT IN (8686)
         AND (
           pm."service" = 'stripe'
@@ -356,11 +357,12 @@ export async function run() {
         totalAmountCharged / 100
       } (${currency})`,
     );
+    const csv = json2csv(transactions.map(t => pick(t, ATTACHED_CSV_COLUMNS)));
+
     if (DRY) {
       console.debug(`Items:\n${json2csv(items)}\n`);
-    }
-
-    if (!DRY) {
+      console.debug(csv);
+    } else {
       if (!chargedHostId) {
         console.error(`Warning: We don't have a way to submit the expense to ${HostName}, ignoring.\n`);
         continue;
@@ -433,7 +435,7 @@ export async function run() {
       await models.ExpenseItem.bulkCreate(items);
 
       // Attach CSV
-      const Body = json2csv(transactions.map(t => pick(t, ATTACHED_CSV_COLUMNS)));
+      const Body = csv;
       const filenameBase = `${HostName}-${moment(date).subtract(1, 'month').format('MMMM-YYYY')}`;
       const Key = `${filenameBase}.${generateKey().slice(0, 6)}.csv`;
       const { Location: url } = await uploadToS3({
