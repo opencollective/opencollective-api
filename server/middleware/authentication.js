@@ -329,7 +329,6 @@ export function authorizeClientApp(req, res, next) {
       method: 'GET',
       regex: /^\/connected-accounts\/(stripe|paypal)\/callback/,
     },
-    { method: 'GET', regex: /^\/services\/email\/approve\?messageId=.+/ },
     {
       method: 'GET',
       regex: /^\/services\/email\/unsubscribe\/(.+)\/([a-zA-Z0-9-_]+)\/([a-zA-Z0-9-_\.]+)\/.+/,

@@ -218,8 +218,6 @@ const getNotificationLabel = (template, recipients) => {
   }
 
   const notificationTypeLabels = {
-    'email.approve': 'notifications of new emails pending approval',
-    'email.message': `the ${recipients[0].substr(0, recipients[0].indexOf('@'))} mailing list`,
     'collective.order.created': 'notifications of new donations for this collective',
     'collective.comment.created': 'notifications of new comments submitted to this collective',
     'collective.expense.created': 'notifications of new expenses submitted to this collective',

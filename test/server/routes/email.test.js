@@ -9,7 +9,6 @@ import app from '../../../server/index';
 import emailLib from '../../../server/lib/email';
 import { md5 } from '../../../server/lib/utils';
 import models from '../../../server/models';
-import webhookBodyApprove from '../../mocks/mailgun.webhook.approve';
 import webhookBodyPayload from '../../mocks/mailgun.webhook.payload';
 import initNock from '../../nocks/email.routes.test.nock.js';
 import { randEmail } from '../../stores';
@@ -145,48 +144,6 @@ describe('server/routes/email', () => {
     expect(spy.lastCall).to.not.exist;
   });
 
-  it('forwards the email for approval to the core members', () => {
-    const spy = sandbox.spy(emailLib, 'send');
-    return request(expressApp)
-      .post('/webhooks/mailgun')
-      .send(webhookBodyPayload)
-      .then(res => {
-        expect(res.statusCode).to.equal(200);
-        const emailSentTo = [];
-        for (let i = 0; i < spy.args.length; i++) {
-          if (spy.args[i][0] === 'email.approve') {
-            // We expect that the email.to is admins@testcollective.opencollective.com
-            expect(spy.args[i][1]).to.equal('admins@testcollective.opencollective.com');
-            // We check that latest subscribers are present with their avatar (or default avatar)
-            const latestSubscribers = spy.args[i][2].latestSubscribers.sort((a, b) =>
-              a.name === b.name ? 0 : a.name < b.name ? 1 : -1,
-            );
-            expect(latestSubscribers[0].roundedAvatar).to.equal(
-              'https://res.cloudinary.com/opencollective/image/fetch/c_thumb,g_face,h_48,r_max,w_48,bo_3px_solid_white/c_thumb,h_48,r_max,w_48,bo_2px_solid_rgb:66C71A/e_trim/f_auto/https%3A%2F%2Fassets-cdn.github.com%2Fimages%2Fmodules%2Flogos_page%2FGitHub-Logo.png',
-            );
-            expect(latestSubscribers[1].roundedAvatar).to.equal(
-              'https://ui-avatars.com/api/?name=Pia%20Mancini&rounded=true&size=48',
-            );
-            emailSentTo.push(spy.args[i][3].bcc);
-          }
-        }
-        expect(emailSentTo.indexOf(usersData[0].email) !== -1).to.be.true;
-        expect(emailSentTo.indexOf(usersData[1].email) !== -1).to.be.true;
-      });
-  });
-
-  it('skip the email if already processed', () => {
-    const spy = sandbox.spy(emailLib, 'send');
-
-    return request(expressApp)
-      .post('/webhooks/mailgun')
-      .send(webhookBodyApprove)
-      .then(res => {
-        expect(res.statusCode).to.equal(200);
-        expect(spy.called).to.be.false;
-      });
-  });
-
   it('rejects emails sent to unknown mailing list', () => {
     const unknownMailingListWebhook = Object.assign({}, webhookBodyPayload, {
       recipient: 'unknown@testcollective.opencollective.com',
@@ -201,104 +158,6 @@ describe('server/routes/email', () => {
           'Invalid mailing list address unknown@testcollective.opencollective.com',
         );
       });
-  });
-
-  it('approves the email', () => {
-    const spy = sandbox.spy(emailLib, 'send');
-
-    return request(expressApp)
-      .get(
-        `/services/email/approve?messageId=eyJwIjpmYWxzZSwiayI6Ijc3NjFlZTBjLTc1NGQtNGIwZi05ZDlkLWU1NTgxODJkMTlkOSIsInMiOiI2NDhjZDg1ZTE1IiwiYyI6InNhb3JkIn0=&approver=${encodeURIComponent(
-          usersData[1].email,
-        )}`,
-      )
-      .then(() => {
-        const emailsSent = spy.args.filter(c => c[0] === 'email.message');
-        const emailData = emailsSent[0][2];
-        expect(emailData.sender.email).to.equal(usersData[0].email);
-        expect(emailData.sender.image).to.equal(usersData[0].image);
-        expect(emailData.approver.email).to.equal(usersData[1].email);
-        expect(emailData.approver.image).to.equal(usersData[1].image);
-        expect(emailsSent.length).to.equal(2);
-        expect(emailsSent[0][1]).to.equal('admins@testcollective.opencollective.com');
-        expect(emailsSent[0][2].subject).to.equal('test collective admins');
-        expect([emailsSent[0][3].bcc, emailsSent[1][3].bcc]).to.contain(usersData[0].email);
-        expect(emailsSent[0][3].from).to.equal(
-          'testcollective collective <no-reply@testcollective.opencollective.com>',
-        );
-      });
-  });
-
-  it('return 404 if message not found', () => {
-    const messageId =
-      'eyJwIjpmYWxzZSwiayI6IjY5MTdlYTZlLWVhNzctNGQzOC04OGUxLWMzMTQwMzdmNGRhNiIsInMiOiIwMjNjMzgwYWFlIiwiYyI6InNhaWFkIn0=';
-    return request(expressApp)
-      .get(`/services/email/approve?messageId=${messageId}&approver=xdamman%40gmail.com&mailserver=so`)
-      .then(res => {
-        expect(res.statusCode).to.equal(404);
-        expect(res.body.error.message).to.contain(messageId);
-      });
-  });
-
-  describe('send email to event', () => {
-    let spy;
-    const slug = 'event1-ev111';
-    const subject = 'email reminder for event 1';
-
-    before(async () => {
-      const event = await models.Collective.create({
-        type: 'EVENT',
-        name: 'event 1',
-        ParentCollectiveId: collective.id,
-        slug,
-      });
-
-      await models.Member.create({
-        CreatedByUserId: users[0].id,
-        MemberCollectiveId: users[0].CollectiveId,
-        CollectiveId: event.id,
-        role: 'FOLLOWER',
-      });
-
-      await models.Member.create({
-        CreatedByUserId: users[1].id,
-        MemberCollectiveId: users[1].CollectiveId,
-        CollectiveId: event.id,
-        role: 'ATTENDEE',
-      });
-    });
-
-    it('send please approve email when sending email to eventSlug@parentCollectiveSlug.opencollective.com', async () => {
-      spy = sandbox.spy(emailLib, 'sendMessage');
-      return request(expressApp)
-        .post('/webhooks/mailgun')
-        .send(
-          Object.assign({}, webhookBodyPayload, {
-            recipient: `${slug}@${collective.slug}.opencollective.com`,
-            subject,
-          }),
-        )
-        .then(res => {
-          expect(res.statusCode).to.equal(200);
-          expect(spy.args[0][0]).to.equal(`admins@${collective.slug}.opencollective.com`);
-          expect(spy.args[0][1]).to.equal(`Please approve: ${subject}`);
-          expect(usersData.map(u => u.email).indexOf(spy.args[0][3].bcc) !== -1).to.be.true;
-        });
-    });
-
-    it('approves an email sent to eventSlug@parentCollectiveSlug.opencollective.com', () => {
-      spy = sandbox.spy(emailLib, 'send');
-      return request(expressApp)
-        .get(
-          `/services/email/approve?messageId=abJwIjpmYWxzZSwiayI6Ijc3NjFlZTBjLTc1NGQtNGIwZi05ZDlkLWU1NTgxODJkMTlkOSIsInMiOiI2NDhjZDg1ZTE1IiwiYyI6InNhb3JkIn0=&approver=${encodeURIComponent(
-            usersData[1].email,
-          )}`,
-        )
-        .then(() => {
-          expect([users[0].email, users[1].email].indexOf(spy.args[0][3].bcc) !== -1).to.be.true;
-          expect([users[0].email, users[1].email].indexOf(spy.args[1][3].bcc) !== -1).to.be.true;
-        });
-    });
   });
 
   describe('unsubscribe', () => {
@@ -319,24 +178,6 @@ describe('server/routes/email', () => {
         .then(res => {
           expect(res.statusCode).to.equal(400);
           expect(res.body.error.message).to.equal('Invalid token');
-        });
-    });
-
-    it('sends the unsubscribe link in the footer of the email', () => {
-      const spy = sandbox.stub(emailLib, 'sendMessage');
-
-      return request(expressApp)
-        .get(
-          `/services/email/approve?messageId=eyJwIjpmYWxzZSwiayI6Ijc3NjFlZTBjLTc1NGQtNGIwZi05ZDlkLWU1NTgxODJkMTlkOSIsInMiOiI2NDhjZDg1ZTE1IiwiYyI6InNhb3JkIn0=&approver=${encodeURIComponent(
-            usersData[1].email,
-          )}`,
-        )
-        .then(() => {
-          for (const i in spy.args) {
-            const emailBody = spy.args[i][2];
-            expect(emailBody).to.contain(generateUnsubscribeUrl(spy.args[i][3].bcc));
-            expect(emailBody).to.contain('To unsubscribe from the admins mailing list');
-          }
         });
     });
 
