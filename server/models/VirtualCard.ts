@@ -1,5 +1,3 @@
-import { isNil } from 'lodash';
-
 import { crypto } from '../lib/encryption';
 import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
@@ -89,7 +87,11 @@ VirtualCard.init(
       allowNull: true,
       get() {
         const encrypted = this.getDataValue('privateData');
-        return isNil(encrypted) ? null : JSON.parse(crypto.decrypt(encrypted as string));
+        try {
+          return JSON.parse(crypto.decrypt(encrypted as string));
+        } catch (e) {
+          return null;
+        }
       },
       set(value) {
         this.setDataValue('privateData', crypto.encrypt(JSON.stringify(value)));
