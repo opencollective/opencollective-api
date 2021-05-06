@@ -2,7 +2,7 @@
 import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
-import { find, get, includes, isNumber, omit, pick } from 'lodash';
+import { find, get, includes, isNil, isNumber, omit, pick } from 'lodash';
 
 import activities from '../constants/activities';
 import status from '../constants/order_status';
@@ -471,7 +471,7 @@ export const sendOrderProcessingEmail = async order => {
   const manualPayoutMethod = await models.PayoutMethod.findOne({
     where: { CollectiveId: host.id, data: { isManualBankTransfer: true } },
   });
-  const account = manualPayoutMethod && formatAccountDetails(manualPayoutMethod.data);
+  const account = manualPayoutMethod ? formatAccountDetails(manualPayoutMethod.data) : '';
 
   const data = {
     account,
@@ -494,7 +494,7 @@ export const sendOrderProcessingEmail = async order => {
       OrderId: order.id,
     };
     data.instructions = stripHTML(instructions).replace(/{([\s\S]+?)}/g, (match, key) => {
-      if (key && formatValues[key]) {
+      if (key && !isNil(formatValues[key])) {
         return `<strong>${stripHTML(formatValues[key])}</strong>`;
       } else {
         return stripHTML(match);

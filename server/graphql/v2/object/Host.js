@@ -6,6 +6,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/
 import models, { Op, sequelize } from '../../../models';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import TransferwiseLib from '../../../paymentProviders/transferwise';
+import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { Unauthorized } from '../../errors';
 import { AccountCollection } from '../collection/AccountCollection';
 import { HostApplicationCollection } from '../collection/HostApplicationCollection';
@@ -114,7 +115,13 @@ export const Host = new GraphQLObjectType({
         type: PayoutMethod,
         async resolve(collective, _, req) {
           const payoutMethods = await req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
-          return payoutMethods.find(c => c.type === 'BANK_ACCOUNT' && c.data?.isManualBankTransfer);
+          const payoutMethod = payoutMethods.find(c => c.type === 'BANK_ACCOUNT' && c.data?.isManualBankTransfer);
+          if (payoutMethod && get(collective, 'settings.paymentMethods.manual')) {
+            // Make bank account's data public if manual payment method is enabled
+            allowContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DATA, payoutMethod.id);
+          }
+
+          return payoutMethod;
         },
       },
       paypalPreApproval: {
