@@ -10,7 +10,7 @@ import helloworks from './controllers/helloworks';
 import uploadImage from './controllers/images';
 import * as email from './controllers/services/email';
 import * as users from './controllers/users';
-import { braintreeWebhook, paypalWebhook, stripeWebhook, transferwiseWebhook } from './controllers/webhooks';
+import { paypalWebhook, stripeWebhook, transferwiseWebhook } from './controllers/webhooks';
 import { getGraphqlCacheKey } from './graphql/cache';
 import graphqlSchemaV1 from './graphql/v1/schema';
 import graphqlSchemaV2 from './graphql/v2/schema';
@@ -211,7 +211,6 @@ export default app => {
    */
   app.post('/webhooks/stripe', stripeWebhook); // when it gets a new subscription invoice
   app.post('/webhooks/transferwise', transferwiseWebhook); // when it gets a new subscription invoice
-  app.post('/webhooks/braintree/:hostId', braintreeWebhook);
   app.post('/webhooks/paypal', paypalWebhook);
   app.post('/webhooks/mailgun', email.webhook); // when receiving an email
   app.get('/connected-accounts/:service/callback', noCache, authentication.authenticateServiceCallback); // oauth callback

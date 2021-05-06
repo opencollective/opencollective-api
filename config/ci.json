@@ -31,12 +31,6 @@
       "bucket": "opencollective-test"
     }
   },
-  "braintree": {
-    "testGateway": {
-      "merchantId": "ytmk49fmj7n5zdq9",
-      "publicKey": "8rg8rs7gxqvp35mp"
-    }
-  },
   "slack": {
     "webhooks": {
       "abuse": "SLACK_ABUSE_TEST_URL"
