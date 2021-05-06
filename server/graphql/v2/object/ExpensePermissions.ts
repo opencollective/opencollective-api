@@ -1,12 +1,17 @@
 import express from 'express';
-import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType } from 'graphql';
+import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import * as ExpenseLib from '../../common/expenses';
+import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
 const ExpensePermissions = new GraphQLObjectType({
   name: 'ExpensePermissions',
   description: 'Fields for the user permissions on an expense',
   fields: () => ({
+    id: {
+      type: new GraphQLNonNull(GraphQLString),
+      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.EXPENSE),
+    },
     canEdit: {
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Whether the current user can edit the expense',

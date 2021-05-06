@@ -26,6 +26,7 @@ export const IDENTIFIER_TYPES = {
   CONNECTED_ACCOUNT: 'connected-account',
   EXPENSE_ATTACHED_FILE: 'expense-attached-file',
   EXPENSE_ITEM: 'expense-item',
+  ORDER: 'order',
   TRANSACTION: 'transaction',
   UPDATE: 'update',
 };

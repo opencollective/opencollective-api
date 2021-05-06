@@ -1,7 +1,8 @@
 import express from 'express';
-import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType } from 'graphql';
+import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import ORDER_STATUS from '../../../constants/order_status';
+import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
 const isHostAdmin = async (req, order) => {
   if (!req.remoteUser) {
@@ -16,6 +17,10 @@ const OrderPermissions = new GraphQLObjectType({
   name: 'OrderPermissions',
   description: 'Fields for the user permissions on an order',
   fields: () => ({
+    id: {
+      type: new GraphQLNonNull(GraphQLString),
+      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.ORDER),
+    },
     canMarkAsExpired: {
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Whether the current user can mark this order as expired',

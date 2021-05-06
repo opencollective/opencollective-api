@@ -12,7 +12,7 @@ import orderStatus from '../../../constants/order_status';
 import models from '../../../models';
 import * as TransactionLib from '../../common/transactions';
 import { TransactionType } from '../enum/TransactionType';
-import { idEncode } from '../identifiers';
+import { getIdEncodeResolver, idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import { Amount } from '../object/Amount';
 import { Expense } from '../object/Expense';
 import { Order } from '../object/Order';
@@ -24,6 +24,10 @@ const TransactionPermissions = new GraphQLObjectType({
   name: 'TransactionPermissions',
   description: 'Fields for the user permissions on an transaction',
   fields: () => ({
+    id: {
+      type: new GraphQLNonNull(GraphQLString),
+      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.TRANSACTION),
+    },
     canRefund: {
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Whether the current user can edit the transaction',
