@@ -25,13 +25,49 @@ export const VirtualCard = new GraphQLObjectType({
         }
       },
     },
-    name: { type: GraphQLString },
-    last4: { type: GraphQLString },
-    data: { type: GraphQLJSONObject },
+    name: {
+      type: GraphQLString,
+      resolve(virtualCard, _, req) {
+        if (
+          req.remoteUser?.isAdmin(virtualCard.CollectiveId) ||
+          req.remoteUser?.isAdmin(virtualCard.HostCollectiveId)
+        ) {
+          return virtualCard.name;
+        }
+      },
+    },
+    last4: {
+      type: GraphQLString,
+
+      resolve(virtualCard, _, req) {
+        if (
+          req.remoteUser?.isAdmin(virtualCard.CollectiveId) ||
+          req.remoteUser?.isAdmin(virtualCard.HostCollectiveId)
+        ) {
+          return virtualCard.last4;
+        }
+      },
+    },
+    data: {
+      type: GraphQLJSONObject,
+      resolve(virtualCard, _, req) {
+        if (
+          req.remoteUser?.isAdmin(virtualCard.CollectiveId) ||
+          req.remoteUser?.isAdmin(virtualCard.HostCollectiveId)
+        ) {
+          return virtualCard.data;
+        }
+      },
+    },
     privateData: {
       type: GraphQLJSONObject,
-      resolve(virtualCard) {
-        return virtualCard.get('privateData');
+      resolve(virtualCard, _, req) {
+        if (
+          req.remoteUser?.isAdmin(virtualCard.CollectiveId) ||
+          req.remoteUser?.isAdmin(virtualCard.HostCollectiveId)
+        ) {
+          return virtualCard.get('privateData');
+        }
       },
     },
     createdAt: { type: GraphQLDateTime },
