@@ -6,6 +6,7 @@ interface VirtualCardAttributes {
   id: string;
   CollectiveId: number;
   HostCollectiveId: number;
+  UserId?: number;
   name: string;
   last4: string;
   data: Record<string, any>;
@@ -23,12 +24,14 @@ export interface VirtualCardCreateAttributes {
   privateData: Record<string, any>;
   CollectiveId: number;
   HostCollectiveId: number;
+  UserId?: number;
 }
 
 class VirtualCard extends Model<VirtualCardAttributes, VirtualCardCreateAttributes> implements VirtualCardAttributes {
   public id!: string;
   public CollectiveId!: number;
   public HostCollectiveId!: number;
+  public UserId: number;
   public name: string;
   public last4: string;
   public data: Record<string, any>;
@@ -69,6 +72,13 @@ VirtualCard.init(
       onDelete: 'CASCADE',
       onUpdate: 'CASCADE',
       allowNull: false,
+    },
+    UserId: {
+      type: DataTypes.INTEGER,
+      references: { model: 'Users', key: 'id' },
+      onDelete: 'CASCADE',
+      onUpdate: 'CASCADE',
+      allowNull: true,
     },
     name: {
       type: DataTypes.STRING,
