@@ -271,7 +271,7 @@ export const canMarkAsSpam = async (req: express.Request, expense: typeof models
   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     return false;
   } else {
-    return remoteUserMeetsOneCondition(req, expense, [isHostAdmin]);
+    return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin]);
   }
 };
 
