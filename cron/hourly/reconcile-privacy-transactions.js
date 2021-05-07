@@ -35,7 +35,7 @@ export async function run() {
       });
       const begin = lastSyncedTransaction
         ? moment(lastSyncedTransaction.createdAt).add(1, 'second').toISOString()
-        : card.createdAt;
+        : moment(card.createdAt).toISOString();
       logger.info(`Fetching transactions since ${begin}`);
 
       const { data: transactions } = await privacyLib.listTransactions(
