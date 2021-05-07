@@ -3219,30 +3219,6 @@ function defineModel() {
       });
   };
 
-  Collective.associate = m => {
-    Collective.hasMany(m.ConnectedAccount);
-    Collective.belongsToMany(m.Collective, {
-      through: {
-        model: m.Member,
-        unique: false,
-        foreignKey: 'MemberCollectiveId',
-      },
-      as: 'memberCollectives',
-    });
-    Collective.belongsToMany(m.Collective, {
-      through: { model: m.Member, unique: false, foreignKey: 'CollectiveId' },
-      as: 'memberOfCollectives',
-    });
-    Collective.hasMany(m.Member);
-    Collective.hasMany(m.Activity);
-    Collective.hasMany(m.Notification);
-    Collective.hasMany(m.Tier, { as: 'tiers' });
-    Collective.hasMany(m.LegalDocument);
-    Collective.hasMany(m.RequiredLegalDocument, { foreignKey: 'HostCollectiveId' });
-    Collective.hasMany(m.Collective, { as: 'hostedCollectives', foreignKey: 'HostCollectiveId' });
-    Collective.belongsTo(m.Collective, { as: 'HostCollective' });
-  };
-
   Temporal(Collective, sequelize);
 
   return Collective;

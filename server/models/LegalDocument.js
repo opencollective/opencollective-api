@@ -92,13 +92,6 @@ function defineModel() {
     ERROR,
   };
 
-  LegalDocument.associate = m => {
-    LegalDocument.belongsTo(m.Collective, {
-      foreignKey: 'CollectiveId',
-      as: 'collective',
-    });
-  };
-
   return LegalDocument;
 }
 

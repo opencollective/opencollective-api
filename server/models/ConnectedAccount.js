@@ -88,13 +88,6 @@ function defineModel() {
     },
   );
 
-  ConnectedAccount.associate = m => {
-    ConnectedAccount.belongsTo(m.Collective, {
-      foreignKey: 'CollectiveId',
-      as: 'collective',
-    });
-  };
-
   return ConnectedAccount;
 }
 
