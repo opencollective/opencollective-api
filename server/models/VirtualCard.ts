@@ -39,6 +39,10 @@ class VirtualCard extends Model<VirtualCardAttributes, VirtualCardCreateAttribut
   public createdAt!: Date;
   public updatedAt!: Date;
   public deletedAt: Date;
+  // Associations
+  collective?: any;
+  host?: any;
+  user?: any;
 
   constructor(...args) {
     super(...args);
