@@ -9,6 +9,7 @@ import ExpenseQuery from './ExpenseQuery';
 import ExpensesQuery from './ExpensesQuery';
 import HostQuery from './HostQuery';
 import IndividualQuery from './IndividualQuery';
+import MemberInvitationsQuery from './MemberInvitationsQuery';
 import OrderQuery from './OrderQuery';
 import OrdersQuery from './OrdersQuery';
 import PaypalPlanQuery from './PaypalPlanQuery';
@@ -25,6 +26,7 @@ const query = {
   expenses: ExpensesQuery,
   expense: ExpenseQuery,
   hosts: HostsCollectionQuery,
+  memberInvitations: MemberInvitationsQuery,
   order: OrderQuery,
   orders: OrdersQuery,
   tier: TierQuery,
