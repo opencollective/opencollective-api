@@ -21,11 +21,6 @@ const Comment = new GraphQLObjectType({
       html: {
         type: GraphQLString,
       },
-      markdown: {
-        type: GraphQLString,
-        deprecationReason: '2020-01-25: Use html',
-        resolve: () => null,
-      },
       fromAccount: {
         type: Account,
         resolve: fromCollectiveResolver,

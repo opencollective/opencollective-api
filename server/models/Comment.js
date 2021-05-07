@@ -89,11 +89,6 @@ function defineModel() {
         allowNull: true,
       },
 
-      // @deprecated
-      markdown: {
-        type: DataTypes.TEXT,
-      },
-
       html: {
         type: DataTypes.TEXT,
         set(value) {
@@ -127,7 +122,6 @@ function defineModel() {
           return {
             id: this.id,
             title: this.title,
-            markdown: this.markdown,
             html: this.html,
             createdAt: this.createdAt,
             updatedAt: this.updatedAt,

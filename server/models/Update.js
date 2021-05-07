@@ -121,9 +121,6 @@ function defineModel() {
         },
       },
 
-      // @deprecated
-      markdown: DataTypes.TEXT,
-
       html: {
         type: DataTypes.TEXT,
         set(html) {
