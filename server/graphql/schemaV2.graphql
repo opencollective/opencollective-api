@@ -3365,6 +3365,11 @@ type Expense {
   payoutMethod: PayoutMethod
 
   """
+  The virtual card used to pay for this charge
+  """
+  virtualCard: VirtualCard
+
+  """
   (Optional) files attached to the expense
   """
   attachedFiles: [ExpenseAttachedFile!]
@@ -5809,6 +5814,11 @@ type Mutation {
     Account where the virtual card will be associated
     """
     account: AccountReferenceInput!
+
+    """
+    User account responsible for the card
+    """
+    userAccount: AccountReferenceInput!
   ): VirtualCard!
 
   """

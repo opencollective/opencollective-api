@@ -127,7 +127,7 @@ const assignCardToCollective = async (
   },
   collective: any,
   host: any,
-  options?: { upsert: boolean },
+  options?: { upsert?: boolean; UserId?: number },
 ): Promise<VirtualCardModel> => {
   const [connectedAccount] = await host.getConnectedAccounts({
     where: { service: 'privacy', deletedAt: null },
@@ -153,6 +153,7 @@ const assignCardToCollective = async (
     data: omit(card, ['pan', 'cvv', 'exp_year', 'exp_month']),
     CollectiveId: collective.id,
     HostCollectiveId: host.id,
+    UserId: options?.UserId,
   };
   if (options?.upsert) {
     const [virtualCard] = await models.VirtualCard.upsert(cardData);
