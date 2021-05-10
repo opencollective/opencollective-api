@@ -54,7 +54,7 @@ const virtualCardMutations = {
       }
 
       return privacy.assignCardToCollective({ cardNumber, expireDate, cvv }, collective, host, {
-        UserId: userCollective?.CreatedByUserId,
+        UserId: userCollective.CreatedByUserId,
       });
     },
   },
