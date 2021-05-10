@@ -216,20 +216,6 @@ function defineModel() {
     );
   };
 
-  Comment.associate = m => {
-    Comment.belongsTo(m.Collective, {
-      foreignKey: 'CollectiveId',
-      as: 'collective',
-    });
-    Comment.belongsTo(m.Collective, {
-      foreignKey: 'FromCollectiveId',
-      as: 'fromCollective',
-    });
-    Comment.belongsTo(m.Expense, { foreignKey: 'ExpenseId', as: 'expense' });
-    Comment.belongsTo(m.Update, { foreignKey: 'UpdateId', as: 'update' });
-    Comment.belongsTo(m.User, { foreignKey: 'CreatedByUserId', as: 'user' });
-  };
-
   Temporal(Comment, sequelize);
 
   return Comment;

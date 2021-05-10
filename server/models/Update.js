@@ -452,19 +452,6 @@ function defineModel() {
     );
   };
 
-  Update.associate = m => {
-    Update.belongsTo(m.Collective, {
-      foreignKey: 'CollectiveId',
-      as: 'collective',
-    });
-    Update.belongsTo(m.Collective, {
-      foreignKey: 'FromCollectiveId',
-      as: 'fromCollective',
-    });
-    Update.belongsTo(m.Tier, { foreignKey: 'TierId', as: 'tier' });
-    Update.belongsTo(m.User, { foreignKey: 'LastEditedByUserId', as: 'user' });
-  };
-
   Temporal(Update, sequelize);
 
   return Update;
