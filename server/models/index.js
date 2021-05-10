@@ -325,6 +325,10 @@ export function setupModels() {
     foreignKey: 'HostCollectiveId',
     as: 'host',
   });
+  m.VirtualCard.belongsTo(m.User, {
+    foreignKey: 'UserId',
+    as: 'user',
+  });
   m.VirtualCard.hasMany(m.Expense, { foreignKey: 'VirtualCardId', as: 'expenses' });
   m.Collective.hasMany(m.VirtualCard, { foreignKey: 'HostCollectiveId', as: 'virtualCards' });
   m.Collective.hasMany(m.VirtualCard, { foreignKey: 'CollectiveId', as: 'virtualCardCollectives' });

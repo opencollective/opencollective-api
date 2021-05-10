@@ -25,6 +25,10 @@ const virtualCardMutations = {
         type: new GraphQLNonNull(AccountReferenceInput),
         description: 'Account where the virtual card will be associated',
       },
+      userAccount: {
+        type: new GraphQLNonNull(AccountReferenceInput),
+        description: 'User account responsible for the card',
+      },
     },
     async resolve(_: void, args, req: express.Request): Promise<VirtualCardModel> {
       if (!req.remoteUser) {
@@ -36,6 +40,9 @@ const virtualCardMutations = {
       if (!req.remoteUser.isAdminOfCollective(host)) {
         throw new Unauthorized("You don't have permission to edit this collective");
       }
+      const userCollective = await fetchAccountWithReference(args.userAccount, {
+        loaders: req.loaders,
+      });
 
       const { cardNumber, expireDate, cvv } = args.virtualCard.privateData;
       if (!cardNumber || !expireDate || !cvv) {
@@ -46,7 +53,9 @@ const virtualCardMutations = {
         });
       }
 
-      return privacy.assignCardToCollective({ cardNumber, expireDate, cvv }, collective, host);
+      return privacy.assignCardToCollective({ cardNumber, expireDate, cvv }, collective, host, {
+        UserId: userCollective.CreatedByUserId,
+      });
     },
   },
   requestVirtualCard: {
