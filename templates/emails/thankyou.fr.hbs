@@ -1,7 +1,7 @@
 {{#if interval }}
-Subject: Merci pour votre contribution de {{currency order.totalAmount currency=order.currency}}/{{interval}} à {{collective.name}}
+Subject: Merci pour votre contribution de {{currency order.totalAmount currency=order.currency}}/{{interval}} à {{{collective.name}}}
 {{else}}
-Subject: Merci pour votre contribution de {{currency order.totalAmount currency=order.currency}} à {{collective.name}}
+Subject: Merci pour votre contribution de {{currency order.totalAmount currency=order.currency}} à {{{collective.name}}}
 {{/if}}
 
 {{> header}}

@@ -1,11 +1,11 @@
 {{#if expense }}
-Subject: {{collective.name}}: New comment on expense {{expense.description}} by {{fromCollective.name}}
+Subject: {{{collective.name}}}: New comment on expense {{{escapeForSubject expense.description}}} by {{{fromCollective.name}}}
 {{else if conversation}}
-Subject: New comment from {{fromCollective.name}} on "{{conversation.title}}"
+Subject: New comment from {{{fromCollective.name}}} on "{{{escapeForSubject conversation.title}}}"
 {{else if update}}
-Subject: New comment from {{fromCollective.name}} on "{{update.title}}"
+Subject: New comment from {{{fromCollective.name}}} on "{{{escapeForSubject update.title}}}"
 {{else}}
-Subject: {{collective.name}}: New comment
+Subject: {{{collective.name}}}: New comment
 {{/if}}
 
 {{> header}}

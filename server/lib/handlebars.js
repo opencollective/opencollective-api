@@ -182,4 +182,33 @@ handlebars.registerHelper('formatOrderAmountWithInterval', order => {
 
 handlebars.registerHelper('debug', console.log);
 
+/**
+ * Email subjects are text only, so it's safe to unescape the content in there. However, new line
+ * characters could cause troubles by allowing attackers to override headers. For example, if you have an email like:
+ *
+ * ```template.hbs
+ * Subject: Hello {collective.name}!
+ *
+ * Hello world!
+ * ```
+ *
+ * And a collective name like:
+ * ```es6
+ * collective.name = `Test
+ * Subject: Override subject
+ * `
+ * ```
+ *
+ * The "Subject" header will be overwritten:
+ * ```
+ * Subject: Hello Test
+ * Subject: Override subject!
+ *
+ * Hello world!
+ * ```
+ */
+handlebars.registerHelper('escapeForSubject', str => {
+  return str ? str.replace(/[\r\n]/g, ' ') : '';
+});
+
 export default handlebars;

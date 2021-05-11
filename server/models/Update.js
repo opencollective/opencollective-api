@@ -116,6 +116,9 @@ function defineModel() {
 
       title: {
         type: DataTypes.STRING,
+        set(title) {
+          this.setDataValue('title', title.replace(/\s+/g, ' ').trim());
+        },
         validate: {
           len: [1, 255],
         },
