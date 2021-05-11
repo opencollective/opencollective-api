@@ -69,7 +69,7 @@ const createExpense = async (
         FromCollectiveId: vendor.id,
         currency: 'USD',
         amount,
-        description: 'Credit Card transaction',
+        description: `Virtual Card charge: ${vendor.name}`,
         VirtualCardId: virtualCard.id,
         lastEditedById: UserId,
         status: ExpenseStatus.PAID,
