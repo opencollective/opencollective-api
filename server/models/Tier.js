@@ -5,6 +5,7 @@ import { defaults } from 'lodash';
 import Temporal from 'sequelize-temporal';
 
 import { maxInteger } from '../constants/math';
+import orderStatus from '../constants/order_status';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize, { DataTypes, Op } from '../lib/sequelize';
 import { capitalize, days, formatCurrency } from '../lib/utils';
@@ -366,6 +367,7 @@ function defineModel() {
     return models.Order.sum('quantity', {
       where: {
         TierId: this.id,
+        status: { [Op.notIn]: [orderStatus.ERROR, orderStatus.CANCELLED, orderStatus.EXPIRED, orderStatus.REJECTED] },
         processedAt: { [Op.ne]: null },
       },
     }).then(usedQuantity => {
