@@ -25,6 +25,22 @@ export const VirtualCard = new GraphQLObjectType({
         }
       },
     },
+    userAccount: {
+      type: Account,
+      async resolve(virtualCard, _, req) {
+        if (!virtualCard.UserId) {
+          return null;
+        }
+
+        const user = await req.loaders.User.byId.load(virtualCard.UserId);
+        if (user && user.CollectiveId) {
+          const collective = await req.loaders.Collective.byId.load(user.CollectiveId);
+          if (collective && !collective.isIncognito) {
+            return collective;
+          }
+        }
+      },
+    },
     name: {
       type: GraphQLString,
       resolve(virtualCard, _, req) {
