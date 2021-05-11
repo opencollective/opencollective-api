@@ -374,10 +374,20 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(result.data.editExpense.description).to.equal(expense.description);
     });
 
-    it('updates the tags', async () => {
-      const expense = await fakeExpense({ tags: [randStr()] });
-      const updatedExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), tags: ['fake', 'tags'] };
+    it('cannot update info if the expense is PAID', async () => {
+      const expense = await fakeExpense({ status: 'PAID' });
+      const updatedExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), privateMessage: randStr() };
       const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, expense.User);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq("You don't have permission to edit this expense");
+    });
+
+    it('can update the tags as admin (even if the expense is PAID)', async () => {
+      const adminUser = await fakeUser();
+      const collective = await fakeCollective({ admin: adminUser.collective });
+      const expense = await fakeExpense({ tags: [randStr()], status: 'PAID', CollectiveId: collective.id });
+      const updatedExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), tags: ['fake', 'tags'] };
+      const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, adminUser);
       expect(result.data.editExpense.tags).to.deep.equal(updatedExpenseData.tags);
     });
 

@@ -1,10 +1,12 @@
 import { expect } from 'chai';
 
+import { expenseStatus } from '../../../../server/constants';
 import {
   canApprove,
   canComment,
   canDeleteExpense,
   canEditExpense,
+  canEditExpenseTags,
   canMarkAsUnpaid,
   canPayExpense,
   canReject,
@@ -158,6 +160,32 @@ describe('server/graphql/common/expenses', () => {
       expect(await canEditExpense(hostAccountantReq, expense)).to.be.false;
       expect(await canEditExpense(expenseOwnerReq, expense)).to.be.true;
       expect(await canEditExpense(limitedHostAdminReq, expense)).to.be.false;
+    });
+  });
+
+  describe('canEditExpenseTags', () => {
+    it('only if not processing, paid, draft or scheduled for payment', async () => {
+      // Can always edit tags if collective admin
+      for (const status of Object.values(expenseStatus)) {
+        await expense.update({ status });
+        expect(await canEditExpenseTags(hostAdminReq, expense)).to.be.true;
+      }
+
+      // But owner can't update them if it's paid
+      await expense.update({ status: 'PAID' });
+      expect(await canEditExpenseTags(expenseOwnerReq, expense)).to.be.false;
+    });
+
+    it('only with the allowed roles', async () => {
+      await expense.update({ status: 'PENDING' });
+      expect(await canEditExpenseTags(publicReq, expense)).to.be.false;
+      expect(await canEditExpenseTags(randomUserReq, expense)).to.be.false;
+      expect(await canEditExpenseTags(collectiveAdminReq, expense)).to.be.true;
+      expect(await canEditExpenseTags(hostAdminReq, expense)).to.be.true;
+      expect(await canEditExpenseTags(collectiveAccountantReq, expense)).to.be.false;
+      expect(await canEditExpenseTags(hostAccountantReq, expense)).to.be.false;
+      expect(await canEditExpenseTags(expenseOwnerReq, expense)).to.be.true;
+      expect(await canEditExpenseTags(limitedHostAdminReq, expense)).to.be.false;
     });
   });
 
