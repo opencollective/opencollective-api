@@ -8,7 +8,7 @@ import VirtualCardModel from '../../../models/VirtualCard';
 import privacy from '../../../paymentProviders/privacy';
 import { BadRequest, NotFound, Unauthorized } from '../../errors';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
-import { VirtualCardEditInput, VirtualCardInput } from '../input/VirtualCardInput';
+import { VirtualCardInput, VirtualCardUpdateInput } from '../input/VirtualCardInput';
 import { VirtualCardReferenceInput } from '../input/VirtualCardReferenceInput';
 import { VirtualCard } from '../object/VirtualCard';
 
@@ -25,9 +25,9 @@ const virtualCardMutations = {
         type: new GraphQLNonNull(AccountReferenceInput),
         description: 'Account where the virtual card will be associated',
       },
-      userAccount: {
+      assignee: {
         type: new GraphQLNonNull(AccountReferenceInput),
-        description: 'User account responsible for the card',
+        description: 'Individual account responsible for the card',
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<VirtualCardModel> {
@@ -40,9 +40,14 @@ const virtualCardMutations = {
       if (!req.remoteUser.isAdminOfCollective(host)) {
         throw new Unauthorized("You don't have permission to edit this collective");
       }
-      const userCollective = await fetchAccountWithReference(args.userAccount, {
+
+      const userCollective = await fetchAccountWithReference(args.assignee, {
         loaders: req.loaders,
       });
+      const user = await userCollective.getUser();
+      if (!user) {
+        throw new BadRequest('Could not find the assigned user');
+      }
 
       const { cardNumber, expireDate, cvv } = args.virtualCard.privateData;
       if (!cardNumber || !expireDate || !cvv) {
@@ -54,7 +59,7 @@ const virtualCardMutations = {
       }
 
       return privacy.assignCardToCollective({ cardNumber, expireDate, cvv }, collective, host, {
-        UserId: userCollective.CreatedByUserId,
+        UserId: user.id,
       });
     },
   },
@@ -63,12 +68,12 @@ const virtualCardMutations = {
     type: new GraphQLNonNull(VirtualCard),
     args: {
       virtualCard: {
-        type: new GraphQLNonNull(VirtualCardEditInput),
+        type: new GraphQLNonNull(VirtualCardUpdateInput),
         description: 'Virtual Card being edited its new values',
       },
-      userAccount: {
+      assignee: {
         type: AccountReferenceInput,
-        description: 'The user account reference to attach the Virtual Card to if desired',
+        description: 'The individual account reference to attach the Virtual Card to if desired',
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<VirtualCardModel> {
@@ -89,15 +94,20 @@ const virtualCardMutations = {
         throw new NotFound('Could not find Virtual Card');
       }
       if (!req.remoteUser.isAdmin(virtualCard.HostCollectiveId)) {
-        throw new Unauthorized("You don't have permission to edit this collective");
+        throw new Unauthorized("You don't have permission to update this Virtual Card");
       }
-      const UserId =
-        args.userAccount &&
-        (
-          await fetchAccountWithReference(args.userAccount, {
-            loaders: req.loaders,
-          })
-        ).CreatedByUserId;
+
+      let UserId;
+      if (args.assignee) {
+        const userCollective = await fetchAccountWithReference(args.assignee, {
+          loaders: req.loaders,
+        });
+        const user = await userCollective.getUser();
+        if (!user) {
+          throw new BadRequest('Could not find the assigned user');
+        }
+        UserId = user.id;
+      }
 
       return await virtualCard.update({
         privateData: { ...(virtualCard.get('privateData') as Object), cvv, expireDate },

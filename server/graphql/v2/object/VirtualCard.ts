@@ -3,6 +3,7 @@ import { GraphQLDateTime } from 'graphql-iso-date';
 import { GraphQLJSONObject } from 'graphql-type-json';
 
 import { Account } from '../interface/Account';
+import { Individual } from '../object/Individual';
 
 export const VirtualCard = new GraphQLObjectType({
   name: 'VirtualCard',
@@ -25,8 +26,8 @@ export const VirtualCard = new GraphQLObjectType({
         }
       },
     },
-    userAccount: {
-      type: Account,
+    assignee: {
+      type: Individual,
       async resolve(virtualCard, _, req) {
         if (!virtualCard.UserId) {
           return null;
