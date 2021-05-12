@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import config from 'config';
 import crypto from 'crypto-js';
 import gqlV2 from 'fake-tag';
-import { omit, pick } from 'lodash';
+import { defaultsDeep, omit, pick } from 'lodash';
 import sinon from 'sinon';
 import speakeasy from 'speakeasy';
 
@@ -1085,6 +1085,19 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           expect(emailSendMessageSpy.args[0][1]).to.contain(
             `Payment being processed: January Invoice for ${collective.name}`,
           );
+        });
+
+        it('should ignore payment processor fee if host.settings.transferwise.ignorePaymentProcessorFees is true', async () => {
+          await host.update({
+            settings: defaultsDeep(host.settings, { transferwise: { ignorePaymentProcessorFees: true } }),
+          });
+          const mutationParams = { expenseId: expense.id, action: 'PAY' };
+          const res = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+          res.errors && console.error(res.errors);
+          expect(res.errors).to.not.exist;
+          const [transaction] = await models.Transaction.findAll({ where: { ExpenseId: expense.id } });
+
+          expect(transaction).to.have.nested.property('paymentProcessorFeeInHostCurrency').to.equal(0);
         });
       });
 
