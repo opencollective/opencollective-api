@@ -52,7 +52,7 @@ const TransactionsQuery = {
     },
     dateTo: {
       type: ISODateTime,
-      description: 'Only return expenses that were created after this date',
+      description: 'Only return expenses that were created before this date',
     },
     searchTerm: {
       type: GraphQLString,

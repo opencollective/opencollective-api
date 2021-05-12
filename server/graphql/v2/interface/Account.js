@@ -34,6 +34,7 @@ import PayoutMethod from '../object/PayoutMethod';
 import { TagStats } from '../object/TagStats';
 import { TransferWise } from '../object/TransferWise';
 import EmailAddress from '../scalar/EmailAddress';
+import ISODateTime from '../scalar/ISODateTime';
 
 import { CollectionArgs } from './Collection';
 import { HasMembersFields } from './HasMembers';
@@ -331,6 +332,16 @@ const accountFieldsDefinition = () => ({
       offset: { type: GraphQLInt, defaultValue: 0 },
       state: { type: GraphQLString, defaultValue: null },
       merchantAccount: { type: AccountReferenceInput, defaultValue: null },
+      dateFrom: {
+        type: ISODateTime,
+        defaultValue: null,
+        description: 'Only return expenses that were created after this date',
+      },
+      dateTo: {
+        type: ISODateTime,
+        defaultValue: null,
+        description: 'Only return expenses that were created before this date',
+      },
     },
     async resolve(account, args, req) {
       if (!req.remoteUser?.isAdminOfCollective(account)) {
@@ -350,6 +361,14 @@ const accountFieldsDefinition = () => ({
         limit: args.limit,
         offset: args.offset,
       };
+
+      if (args.dateFrom) {
+        query.where['createdAt'] = { [Op.gte]: args.dateFrom };
+      }
+      if (args.dateTo) {
+        query.where['createdAt'] = query.where['createdAt'] || {};
+        query.where['createdAt'][Op.lte] = args.dateTo;
+      }
 
       if (args.state) {
         query.where.data = { state: args.state };
