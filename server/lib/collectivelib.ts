@@ -88,6 +88,7 @@ export const COLLECTIVE_SETTINGS_KEYS_LIST = [
   'giftCardsMaxDailyCount',
   'W9',
   'virtualcards',
+  'transferwise',
 ];
 
 /**
