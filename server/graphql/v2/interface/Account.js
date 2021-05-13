@@ -366,8 +366,7 @@ const accountFieldsDefinition = () => ({
         query.where['createdAt'] = { [Op.gte]: args.dateFrom };
       }
       if (args.dateTo) {
-        query.where['createdAt'] = query.where['createdAt'] || {};
-        query.where['createdAt'][Op.lte] = args.dateTo;
+        query.where['createdAt'] = Object.assign({}, query.where['createdAt'], { [Op.lte]: args.dateTo });
       }
 
       if (args.state) {
