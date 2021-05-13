@@ -3,6 +3,7 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLString } from 'graphql';
 
 import { activities } from '../../../constants';
+import logger from '../../../lib/logger';
 import models from '../../../models';
 import VirtualCardModel from '../../../models/VirtualCard';
 import privacy from '../../../paymentProviders/privacy';
@@ -41,10 +42,10 @@ const virtualCardMutations = {
         throw new Unauthorized("You don't have permission to edit this collective");
       }
 
-      const userCollective = await fetchAccountWithReference(args.assignee, {
+      const assignee = await fetchAccountWithReference(args.assignee, {
         loaders: req.loaders,
       });
-      const user = await userCollective.getUser();
+      const user = await assignee.getUser();
       if (!user) {
         throw new BadRequest('Could not find the assigned user');
       }
@@ -58,9 +59,22 @@ const virtualCardMutations = {
         });
       }
 
-      return privacy.assignCardToCollective({ cardNumber, expireDate, cvv }, collective, host, {
+      const virtualCard = await privacy.assignCardToCollective({ cardNumber, expireDate, cvv }, collective, host, {
         UserId: user.id,
       });
+
+      await models.Activity.create({
+        type: activities.COLLECTIVE_VIRTUAL_CARD_ASSIGNED,
+        UserId: req.remoteUser.id,
+        CollectiveId: collective.id,
+        data: {
+          assignee: assignee.activity,
+          collective: collective.activity,
+          host: host.activity,
+        },
+      }).catch(e => logger.error('An error occured when creating the COLLECTIVE_VIRTUAL_CARD_ASSIGNED activity', e));
+
+      return virtualCard;
     },
   },
   editVirtualCard: {

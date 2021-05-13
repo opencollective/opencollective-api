@@ -1,0 +1,31 @@
+Subject: Virtual Card assigned to {{collective.name}}
+
+
+{{> header}}
+
+<center>
+  <h1>
+    {{host.name}} assigned a new Virtual Card to {{collective.name}}
+  </h1>
+</center>
+
+<p>
+  {{host.name}} assigned a new Virtual Card to your collective {{collective.name}}. This means that you also agreed with
+  the policy defined by {{host.name}} for using Virtual Cards.
+</p>
+<p>
+  <strong>Please, make sure to keep all expenses up-to-date, uploading the payment receipt to every charge you have on
+    this card.</strong>
+</p>
+
+
+<br />
+<br />
+
+<center>
+  <a href="{{config.host.website}}/{{collective.slug}}/edit/virtual-cards" class="btn blue">
+    See Virtual Cards
+  </a>
+</center>
+
+{{> footer}}
