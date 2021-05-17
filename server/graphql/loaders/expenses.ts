@@ -96,12 +96,10 @@ const loadTaxFormsRequiredForExpenses = async (expenseIds: number[]): Promise<Re
  * Expense loader to check if userTaxForm is required before expense payment
  */
 export const userTaxFormRequiredBeforePayment = (): DataLoader<number, boolean> => {
-  return new DataLoader<number, boolean>(
-    async (expenseIds: number[]): Promise<boolean[]> => {
-      const expenseNeedsTaxForm = await loadTaxFormsRequiredForExpenses(expenseIds);
-      return expenseIds.map(id => Boolean(expenseNeedsTaxForm[id]));
-    },
-  );
+  return new DataLoader<number, boolean>(async (expenseIds: number[]): Promise<boolean[]> => {
+    const expenseNeedsTaxForm = await loadTaxFormsRequiredForExpenses(expenseIds);
+    return expenseIds.map(id => Boolean(expenseNeedsTaxForm[id]));
+  });
 };
 
 /**
