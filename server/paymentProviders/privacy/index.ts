@@ -62,6 +62,8 @@ const createExpense = async (
       transaction,
     });
 
+    const description = `Virtual Card charge: ${vendor.name}`;
+
     const expense = await models.Expense.create(
       {
         UserId,
@@ -69,7 +71,7 @@ const createExpense = async (
         FromCollectiveId: vendor.id,
         currency: 'USD',
         amount,
-        description: `Virtual Card charge: ${vendor.name}`,
+        description,
         VirtualCardId: virtualCard.id,
         lastEditedById: UserId,
         status: ExpenseStatus.PAID,
@@ -96,7 +98,7 @@ const createExpense = async (
         CollectiveId: vendor.id,
         FromCollectiveId: collective.id,
         HostCollectiveId: host.id,
-        description: 'Credit Card transaction',
+        description,
         type: 'CREDIT',
         currency: 'USD',
         ExpenseId: expense.id,
