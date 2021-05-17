@@ -9,7 +9,6 @@ import status from '../constants/order_status';
 import { PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import roles from '../constants/roles';
 import tiers from '../constants/tiers';
-import { FEES_ON_TOP_TRANSACTION_PROPERTIES } from '../constants/transactions';
 import models, { Op } from '../models';
 import paymentProviders from '../paymentProviders';
 
@@ -330,22 +329,7 @@ export const executeOrder = async (user, order, options = {}) => {
     await order.update({ status: status.PAID, processedAt: new Date(), data: omit(order.data, ['paymentIntent']) });
 
     // Register user as collective backer
-    await order.collective.findOrAddUserWithRole(
-      { id: user.id, CollectiveId: order.FromCollectiveId },
-      roles.BACKER,
-      { TierId: get(order, 'tier.id') },
-      { order },
-    );
-
-    if (order.data?.isFeesOnTop && order.data?.platformFee) {
-      const platform = await models.Collective.findByPk(FEES_ON_TOP_TRANSACTION_PROPERTIES.CollectiveId);
-      await platform.findOrAddUserWithRole(
-        { id: user.id, CollectiveId: order.FromCollectiveId },
-        roles.BACKER,
-        {},
-        { skipActivity: true },
-      );
-    }
+    await order.getOrCreateMembers();
 
     // Create a Pre-Paid Payment Method for the prepaid budget
     if (isPrepaidBudgetOrder(order)) {
