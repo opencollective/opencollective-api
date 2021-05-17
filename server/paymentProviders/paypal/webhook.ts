@@ -111,6 +111,10 @@ async function handleSaleCompleted(req: Request): Promise<void> {
 
   // 4. Send thankyou email
   await sendThankYouEmail(order, transaction);
+
+  // 5. Register user as a member, since the transaction is not created in `processOrder`
+  // for PayPal subscriptions.
+  await order.getOrCreateMembers();
 }
 
 /**
