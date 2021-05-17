@@ -171,8 +171,7 @@ export default () => {
             method: 'REDIRECT',
           },
           {
-            href:
-              'https://api.sandbox.paypal.com/v1/payments/billing-agreements/EC-9AN89060FV238992F/agreement-execute',
+            href: 'https://api.sandbox.paypal.com/v1/payments/billing-agreements/EC-9AN89060FV238992F/agreement-execute',
             rel: 'execute',
             method: 'POST',
           },
