@@ -1,6 +1,7 @@
 import config from 'config';
 import { get, isNumber, result } from 'lodash';
 
+import { ZERO_DECIMAL_CURRENCIES } from '../../constants/currencies';
 import * as constants from '../../constants/transactions';
 import logger from '../../lib/logger';
 import { createRefundTransaction, getHostFee, getPlatformFee } from '../../lib/payments';
@@ -118,8 +119,11 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
   const isSharedRevenue = !!hostFeeSharePercent;
 
   // Read or compute Platform Fee
-  const platformFee = await getPlatformFee(order.totalAmount, order, host, { hostFeeSharePercent });
-  const platformTip = order.data?.platformFee;
+  const platformFee = zeroDecimalCurrencyValue(
+    order.currency,
+    await getPlatformFee(order.totalAmount, order, host, { hostFeeSharePercent }),
+  );
+  const platformTip = zeroDecimalCurrencyValue(order.currency, order.data?.platformFee);
 
   // Make sure data is available (breaking in some old tests)
   order.data = order.data || {};
@@ -129,7 +133,7 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
   let paymentIntent = order.data.paymentIntent;
   if (!paymentIntent) {
     const createPayload = {
-      amount: order.totalAmount,
+      amount: zeroDecimalCurrencyValue(order.currency, order.totalAmount),
       currency: order.currency,
       customer: hostStripeCustomer.id,
       description: order.description,
@@ -161,7 +165,6 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
       stripeAccount: hostStripeAccount.username,
     });
   }
-
   paymentIntent = await stripe.paymentIntents.confirm(paymentIntent.id, {
     stripeAccount: hostStripeAccount.username,
   });
@@ -231,7 +234,18 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
 };
 
 /**
- * Given a charge id, retrieves its correspind charge and refund data.
+ * Handles the zero-decimal currencies for Stripe; https://stripe.com/docs/currencies#zero-decimal
+ */
+const zeroDecimalCurrencyValue = (currency, amount) => {
+  if (ZERO_DECIMAL_CURRENCIES.includes(currency.toUpperCase())) {
+    return Math.floor(amount / 100);
+  } else {
+    return amount;
+  }
+};
+
+/**
+ * Given a charge id, retrieves its corresponding charge and refund data.
  */
 export const retrieveChargeWithRefund = async (chargeId, stripeAccount) => {
   const charge = await stripe.charges.retrieve(chargeId, {

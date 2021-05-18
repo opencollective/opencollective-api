@@ -264,6 +264,28 @@ export const TransferWiseCurrencies = pick(IBANCurrencies, [
   'ZMW',
 ]);
 
+/**
+ * Zero-decimal currencies for Stripe; https://stripe.com/docs/currencies#zero-decimal
+ */
+export const ZERO_DECIMAL_CURRENCIES = [
+  'BIF',
+  'CLP',
+  'DJF',
+  'GNF',
+  'JPY',
+  'KMF',
+  'KRW',
+  'MGA',
+  'PYG',
+  'RWF',
+  'UGX',
+  'VND',
+  'VUV',
+  'XAF',
+  'XOF',
+  'XPF',
+];
+
 export const currencyFormats = {
   EUR: '€',
   GBP: '£',
