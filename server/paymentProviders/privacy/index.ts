@@ -29,7 +29,7 @@ const createExpense = async (
     ],
   });
   if (!virtualCard) {
-    logger.error(`Couldn't find the related credit card ${privacyTransaction.card.last_four}`);
+    logger.error(`Couldn't find the related Virtual Card ${privacyTransaction.card.last_four}`);
     return;
   }
 
@@ -45,7 +45,7 @@ const createExpense = async (
     },
   });
   if (existingExpense) {
-    logger.warn('Privacy Credit Card charge already reconciled, ignoring it.');
+    logger.warn('Virtual Card charge already reconciled, ignoring it.');
     return;
   }
 
@@ -96,7 +96,7 @@ const createExpense = async (
         CollectiveId: vendor.id,
         FromCollectiveId: collective.id,
         HostCollectiveId: host.id,
-        description: 'Credit Card transaction',
+        description: 'Virtual Card transaction',
         type: 'CREDIT',
         currency: 'USD',
         ExpenseId: expense.id,
@@ -154,7 +154,7 @@ const assignCardToCollective = async (
   const card = await privacy.findCard(connectedAccount.token, { last_four });
 
   if (!card || (card.pan && card.pan !== cardNumber.replace(/\s\s/gm, ''))) {
-    throw new Error('Could not find a Privacy credit card matching the submitted card');
+    throw new Error('Could not find a Privacy Card matching the submitted card');
   }
 
   const cardData = {
