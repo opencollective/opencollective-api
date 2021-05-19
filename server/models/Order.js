@@ -6,7 +6,7 @@ import Temporal from 'sequelize-temporal';
 import { roles } from '../constants';
 import { types as CollectiveType } from '../constants/collectives';
 import status from '../constants/order_status';
-import { FEES_ON_TOP_TRANSACTION_PROPERTIES, TransactionTypes } from '../constants/transactions';
+import { PLATFORM_TIP_TRANSACTION_PROPERTIES, TransactionTypes } from '../constants/transactions';
 import * as libPayments from '../lib/payments';
 import sequelize, { DataTypes } from '../lib/sequelize';
 import { capitalize } from '../lib/utils';
@@ -300,7 +300,7 @@ function defineModel() {
     // Register user as backer of Open Collective
     let platformTipMember;
     if (this.data?.isFeesOnTop && this.data?.platformFee) {
-      const platform = await models.Collective.findByPk(FEES_ON_TOP_TRANSACTION_PROPERTIES.CollectiveId);
+      const platform = await models.Collective.findByPk(PLATFORM_TIP_TRANSACTION_PROPERTIES.CollectiveId);
       platformTipMember = await platform.findOrAddUserWithRole(
         { id: this.CreatedByUserId, CollectiveId: this.FromCollectiveId },
         roles.BACKER,
