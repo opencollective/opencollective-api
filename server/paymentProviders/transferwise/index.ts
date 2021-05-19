@@ -20,6 +20,7 @@ const splitCSV = string => compact(split(string, /,\s*/));
 
 export const blockedCurrencies = splitCSV(config.transferwise.blockedCurrencies);
 export const blockedCurrenciesForBusinessProfiles = splitCSV(config.transferwise.blockedCurrenciesForBusinessProfiles);
+export const blockedCurrenciesForNonProfits = splitCSV(config.transferwise.blockedCurrenciesForNonProfits);
 export const currenciesThatRequireReference = ['RUB'];
 
 async function populateProfileId(connectedAccount: typeof models.ConnectedAccount, profileId?: number): Promise<void> {
@@ -152,7 +153,13 @@ async function getAvailableCurrencies(
   if (ignoreBlockedCurrencies) {
     currencyBlockList = blockedCurrencies;
     if (connectedAccount.data?.type === 'business') {
-      currencyBlockList = [...currencyBlockList, ...blockedCurrenciesForBusinesProfiles];
+      currencyBlockList = [...currencyBlockList, ...blockedCurrenciesForBusinessProfiles];
+    }
+    if (connectedAccount.data?.details?.companyType === 'NON_PROFIT_CORPORATION') {
+      currencyBlockList = [...currencyBlockList, ...blockedCurrenciesForNonProfits];
+    }
+    if (connectedAccount.data?.blockedCurrencies) {
+      currencyBlockList = [...currencyBlockList, ...connectedAccount.data.blockedCurrencies];
     }
   }
 
