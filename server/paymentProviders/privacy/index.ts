@@ -154,7 +154,7 @@ const assignCardToCollective = async (
   const card = await privacy.findCard(connectedAccount.token, { last_four });
 
   if (!card || (card.pan && card.pan !== cardNumber.replace(/\s\s/gm, ''))) {
-    throw new Error('Could not find a Virtual Card matching the submitted card');
+    throw new Error('Could not find a Privacy Card matching the submitted card');
   }
 
   const cardData = {
