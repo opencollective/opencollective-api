@@ -119,11 +119,8 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
   const isSharedRevenue = !!hostFeeSharePercent;
 
   // Read or compute Platform Fee
-  const platformFee = zeroDecimalCurrencyValue(
-    order.currency,
-    await getPlatformFee(order.totalAmount, order, host, { hostFeeSharePercent }),
-  );
-  const platformTip = zeroDecimalCurrencyValue(order.currency, order.data?.platformFee);
+  const platformFee = await getPlatformFee(order.totalAmount, order, host, { hostFeeSharePercent });
+  const platformTip = order.data?.platformFee;
 
   // Make sure data is available (breaking in some old tests)
   order.data = order.data || {};
@@ -133,7 +130,7 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
   let paymentIntent = order.data.paymentIntent;
   if (!paymentIntent) {
     const createPayload = {
-      amount: zeroDecimalCurrencyValue(order.currency, order.totalAmount),
+      amount: convertToStripeAmount(order.currency, order.totalAmount),
       currency: order.currency,
       customer: hostStripeCustomer.id,
       description: order.description,
@@ -146,7 +143,7 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
     };
     // We don't add a platform fee if the host is the root account
     if (platformFee && hostStripeAccount.username !== config.stripe.accountId) {
-      createPayload.application_fee_amount = platformFee;
+      createPayload.application_fee_amount = convertToStripeAmount(order.currency, platformFee);
     }
     if (order.interval) {
       createPayload.setup_future_usage = 'off_session';
@@ -188,9 +185,24 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
 
   const charge = paymentIntent.charges.data[0];
 
-  const balanceTransaction = await stripe.balanceTransactions.retrieve(charge.balance_transaction, {
+  let balanceTransaction = await stripe.balanceTransactions.retrieve(charge.balance_transaction, {
     stripeAccount: hostStripeAccount.username,
   });
+
+  /* eslint-disable camelcase */
+  if (ZERO_DECIMAL_CURRENCIES.includes(order.currency.toUpperCase())) {
+    balanceTransaction = {
+      ...balanceTransaction,
+      amount: convertFromStripeAmount(order.currency, balanceTransaction.amount),
+      fee: convertFromStripeAmount(order.currency, balanceTransaction.fee),
+      net: convertFromStripeAmount(order.currency, balanceTransaction.net),
+      fee_details: balanceTransaction.fee_details.map(feeDetail => ({
+        ...feeDetail,
+        amount: convertFromStripeAmount(order.currency, feeDetail.amount),
+      })),
+    };
+  }
+  /* eslint-enable camelcase */
 
   // Create a Transaction
   const fees = extractFees(balanceTransaction);
@@ -236,9 +248,17 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
 /**
  * Handles the zero-decimal currencies for Stripe; https://stripe.com/docs/currencies#zero-decimal
  */
-const zeroDecimalCurrencyValue = (currency, amount) => {
+const convertToStripeAmount = (currency, amount) => {
   if (ZERO_DECIMAL_CURRENCIES.includes(currency.toUpperCase())) {
     return Math.floor(amount / 100);
+  } else {
+    return amount;
+  }
+};
+
+const convertFromStripeAmount = (currency, amount) => {
+  if (ZERO_DECIMAL_CURRENCIES.includes(currency.toUpperCase())) {
+    return amount * 100;
   } else {
     return amount;
   }
