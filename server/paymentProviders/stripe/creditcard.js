@@ -185,28 +185,16 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
 
   const charge = paymentIntent.charges.data[0];
 
-  let balanceTransaction = await stripe.balanceTransactions.retrieve(charge.balance_transaction, {
+  const balanceTransaction = await stripe.balanceTransactions.retrieve(charge.balance_transaction, {
     stripeAccount: hostStripeAccount.username,
   });
 
-  /* eslint-disable camelcase */
-  if (ZERO_DECIMAL_CURRENCIES.includes(order.currency.toUpperCase())) {
-    balanceTransaction = {
-      ...balanceTransaction,
-      amount: convertFromStripeAmount(order.currency, balanceTransaction.amount),
-      fee: convertFromStripeAmount(order.currency, balanceTransaction.fee),
-      net: convertFromStripeAmount(order.currency, balanceTransaction.net),
-      fee_details: balanceTransaction.fee_details.map(feeDetail => ({
-        ...feeDetail,
-        amount: convertFromStripeAmount(order.currency, feeDetail.amount),
-      })),
-    };
-  }
-  /* eslint-enable camelcase */
-
   // Create a Transaction
   const fees = extractFees(balanceTransaction);
-  const hostFeeInHostCurrency = await getHostFee(balanceTransaction.amount, order);
+  const hostFeeInHostCurrency = await getHostFee(
+    convertFromStripeAmount(order.currency, balanceTransaction.amount),
+    order,
+  );
   const data = {
     charge,
     balanceTransaction,
@@ -218,7 +206,9 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
     hostFeeSharePercent,
   };
 
-  const platformFeeInHostCurrency = isSharedRevenue ? platformTip || 0 : fees.applicationFee;
+  const platformFeeInHostCurrency = isSharedRevenue
+    ? platformTip || 0
+    : convertFromStripeAmount(order.currency, fees.applicationFee);
 
   const payload = {
     CreatedByUserId: order.CreatedByUserId,
@@ -231,9 +221,9 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
       amount: order.totalAmount,
       currency: order.currency,
       hostCurrency: balanceTransaction.currency?.toUpperCase(),
-      amountInHostCurrency: balanceTransaction.amount,
-      hostCurrencyFxRate: balanceTransaction.amount / order.totalAmount,
-      paymentProcessorFeeInHostCurrency: fees.stripeFee,
+      amountInHostCurrency: convertFromStripeAmount(order.currency, balanceTransaction.amount),
+      hostCurrencyFxRate: convertFromStripeAmount(order.currency, balanceTransaction.amount) / order.totalAmount,
+      paymentProcessorFeeInHostCurrency: convertFromStripeAmount(order.currency, fees.stripeFee),
       taxAmount: order.taxAmount,
       description: order.description,
       hostFeeInHostCurrency,
