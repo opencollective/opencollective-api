@@ -5,6 +5,7 @@ import '../server/env';
  * Use ./scripts/watch_email_template.sh [template] to compile an email template
  */
 import config from 'config';
+import { htmlToText } from 'html-to-text';
 import juice from 'juice';
 
 import { getMailer } from '../server/lib/email';
@@ -549,10 +550,7 @@ if (!templateName) {
   if (template) {
     const emailData = { ...data[templateName], ...defaultData };
     const html = juice(template(emailData));
-    let text;
-    if (libEmailTemplates[`${templateName}.text`]) {
-      text = libEmailTemplates[`${templateName}.text`](emailData);
-    }
+
     const mailer = getMailer();
     if (mailer) {
       const attributes = getTemplateAttributes(html);
@@ -563,7 +561,7 @@ if (!templateName) {
           from: config.email.from,
           to,
           subject: attributes.subject,
-          text,
+          text: htmlToText(attributes.body),
           html: attributes.body,
         },
         () => {
