@@ -192,7 +192,7 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
   // Create a Transaction
   const fees = extractFees(balanceTransaction);
   const hostFeeInHostCurrency = await getHostFee(
-    convertFromStripeAmount(order.currency, balanceTransaction.amount),
+    convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount),
     order,
   );
   const data = {
@@ -206,9 +206,11 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
     hostFeeSharePercent,
   };
 
+  const fxRate = convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount) / order.totalAmount;
+
   const platformFeeInHostCurrency = isSharedRevenue
-    ? platformTip || 0
-    : convertFromStripeAmount(order.currency, fees.applicationFee);
+    ? platformTip * fxRate || 0
+    : convertFromStripeAmount(balanceTransaction.currency, fees.applicationFee);
 
   const payload = {
     CreatedByUserId: order.CreatedByUserId,
@@ -221,9 +223,9 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
       amount: order.totalAmount,
       currency: order.currency,
       hostCurrency: balanceTransaction.currency?.toUpperCase(),
-      amountInHostCurrency: convertFromStripeAmount(order.currency, balanceTransaction.amount),
-      hostCurrencyFxRate: convertFromStripeAmount(order.currency, balanceTransaction.amount) / order.totalAmount,
-      paymentProcessorFeeInHostCurrency: convertFromStripeAmount(order.currency, fees.stripeFee),
+      amountInHostCurrency: convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount),
+      hostCurrencyFxRate: fxRate,
+      paymentProcessorFeeInHostCurrency: convertFromStripeAmount(balanceTransaction.currency, fees.stripeFee),
       taxAmount: order.taxAmount,
       description: order.description,
       hostFeeInHostCurrency,
@@ -239,7 +241,7 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
  * Handles the zero-decimal currencies for Stripe; https://stripe.com/docs/currencies#zero-decimal
  */
 const convertToStripeAmount = (currency, amount) => {
-  if (ZERO_DECIMAL_CURRENCIES.includes(currency.toUpperCase())) {
+  if (ZERO_DECIMAL_CURRENCIES.includes(currency?.toUpperCase())) {
     return Math.floor(amount / 100);
   } else {
     return amount;
@@ -247,7 +249,7 @@ const convertToStripeAmount = (currency, amount) => {
 };
 
 const convertFromStripeAmount = (currency, amount) => {
-  if (ZERO_DECIMAL_CURRENCIES.includes(currency.toUpperCase())) {
+  if (ZERO_DECIMAL_CURRENCIES.includes(currency?.toUpperCase())) {
     return amount * 100;
   } else {
     return amount;
