@@ -330,6 +330,13 @@ export const canViewRequiredLegalDocuments = async (
   return remoteUserMeetsOneCondition(req, expense, [isHostAdmin, isCollectiveAccountant, isOwner]);
 };
 
+export const canUnschedulePayment = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
+  if (expense.status === expenseStatus.SCHEDULED_FOR_PAYMENT && (await isHostAdmin(req, expense))) {
+    return true;
+  }
+  return false;
+};
+
 // ---- Expense actions ----
 
 export const approveExpense = async (
@@ -427,6 +434,21 @@ export const scheduleExpenseForPayment = async (
     lastEditedById: req.remoteUser.id,
   });
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT, req.remoteUser);
+  return updatedExpense;
+};
+
+export const unscheduleExpensePayment = async (
+  req: express.Request,
+  expense: typeof models.Expense,
+): Promise<typeof models.Expense> => {
+  if (!(await canUnschedulePayment(req, expense))) {
+    throw new BadRequest("Expense is not scheduled for payment or you don't have authorization to unschedule it");
+  }
+
+  const updatedExpense = await expense.update({
+    status: expenseStatus.APPROVED,
+    lastEditedById: req.remoteUser.id,
+  });
   return updatedExpense;
 };
 
