@@ -191,10 +191,8 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
 
   // Create a Transaction
   const fees = extractFees(balanceTransaction);
-  const hostFeeInHostCurrency = await getHostFee(
-    convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount),
-    order,
-  );
+  const amountInHostCurrency = convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount);
+  const hostFeeInHostCurrency = await getHostFee(amountInHostCurrency, order);
   const data = {
     charge,
     balanceTransaction,
@@ -206,10 +204,10 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
     hostFeeSharePercent,
   };
 
-  const fxRate = convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount) / order.totalAmount;
+  const hostCurrencyFxRate = amountInHostCurrency / order.totalAmount;
 
   const platformFeeInHostCurrency = isSharedRevenue
-    ? platformTip * fxRate || 0
+    ? platformTip * hostCurrencyFxRate || 0
     : convertFromStripeAmount(balanceTransaction.currency, fees.applicationFee);
 
   const payload = {
@@ -223,8 +221,8 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
       amount: order.totalAmount,
       currency: order.currency,
       hostCurrency: balanceTransaction.currency?.toUpperCase(),
-      amountInHostCurrency: convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount),
-      hostCurrencyFxRate: fxRate,
+      amountInHostCurrency: amountInHostCurrency,
+      hostCurrencyFxRate,
       paymentProcessorFeeInHostCurrency: convertFromStripeAmount(balanceTransaction.currency, fees.stripeFee),
       taxAmount: order.taxAmount,
       description: order.description,
