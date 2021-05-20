@@ -22,13 +22,21 @@ const createExpense = async (
     where: {
       id: privacyTransaction.card.token,
     },
+    include: [
+      { association: 'collective', required: true },
+      { association: 'host', required: true },
+      { association: 'user' },
+    ],
   });
   if (!virtualCard) {
-    logger.error(`Couldn't find the related credit card ${privacyTransaction.card.last_four}`);
+    logger.error(`Couldn't find the related Virtual Card ${privacyTransaction.card.last_four}`);
     return;
   }
 
-  const collective = opts?.collective || (await models.Collective.findByPk(virtualCard.CollectiveId));
+  const collective = opts?.collective || virtualCard.collective;
+  if (!collective) {
+    logger.error(`Couldn't find the related collective`);
+  }
   const existingExpense = await models.Expense.findOne({
     where: {
       CollectiveId: collective.id,
@@ -37,14 +45,14 @@ const createExpense = async (
     },
   });
   if (existingExpense) {
-    logger.warn('Privacy Credit Card charge already reconciled, ignoring it.');
+    logger.warn('Virtual Card charge already reconciled, ignoring it.');
     return;
   }
 
-  const host = opts?.host || (await models.Collective.findByPk(virtualCard.HostCollectiveId));
+  const host = opts?.host || virtualCard.host;
   const hostCurrencyFxRate = opts?.hostCurrencyFxRate || (await getFxRate('USD', host.currency));
   const amount = privacyTransaction.settled_amount;
-  const UserId = collective.CreatedByUserId || collective.LastEditedByUserId;
+  const UserId = virtualCard.UserId || collective.CreatedByUserId || collective.LastEditedByUserId;
 
   const expense = await sequelize.transaction(async transaction => {
     const slug = privacyTransaction.merchant.acceptor_id.toUpperCase();
@@ -54,6 +62,8 @@ const createExpense = async (
       transaction,
     });
 
+    const description = `Virtual Card charge: ${vendor.name}`;
+
     const expense = await models.Expense.create(
       {
         UserId,
@@ -61,7 +71,7 @@ const createExpense = async (
         FromCollectiveId: vendor.id,
         currency: 'USD',
         amount,
-        description: 'Credit Card transaction',
+        description,
         VirtualCardId: virtualCard.id,
         lastEditedById: UserId,
         status: ExpenseStatus.PAID,
@@ -88,7 +98,7 @@ const createExpense = async (
         CollectiveId: vendor.id,
         FromCollectiveId: collective.id,
         HostCollectiveId: host.id,
-        description: 'Credit Card transaction',
+        description,
         type: 'CREDIT',
         currency: 'USD',
         ExpenseId: expense.id,
@@ -112,7 +122,11 @@ const createExpense = async (
 
   if (collective.settings?.ignoreExpenseMissingReceiptAlerts !== true) {
     expense
-      .createActivity(activities.COLLECTIVE_EXPENSE_MISSING_RECEIPT, { id: UserId }, { ...expense.data })
+      .createActivity(
+        activities.COLLECTIVE_EXPENSE_MISSING_RECEIPT,
+        { id: UserId },
+        { ...expense.data, user: virtualCard.user },
+      )
       .catch(e => logger.error('An error happened when creating the COLLECTIVE_EXPENSE_MISSING_RECEIPT activity', e));
   }
 
@@ -127,7 +141,7 @@ const assignCardToCollective = async (
   },
   collective: any,
   host: any,
-  options?: { upsert: boolean },
+  options?: { upsert?: boolean; UserId?: number },
 ): Promise<VirtualCardModel> => {
   const [connectedAccount] = await host.getConnectedAccounts({
     where: { service: 'privacy', deletedAt: null },
@@ -142,7 +156,7 @@ const assignCardToCollective = async (
   const card = await privacy.findCard(connectedAccount.token, { last_four });
 
   if (!card || (card.pan && card.pan !== cardNumber.replace(/\s\s/gm, ''))) {
-    throw new Error('Could not find a Privacy credit card matching the submitted card');
+    throw new Error('Could not find a Privacy Card matching the submitted card');
   }
 
   const cardData = {
@@ -153,6 +167,7 @@ const assignCardToCollective = async (
     data: omit(card, ['pan', 'cvv', 'exp_year', 'exp_month']),
     CollectiveId: collective.id,
     HostCollectiveId: host.id,
+    UserId: options?.UserId,
   };
   if (options?.upsert) {
     const [virtualCard] = await models.VirtualCard.upsert(cardData);

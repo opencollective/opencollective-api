@@ -32,7 +32,8 @@ interface TransactionSettlementCreateAttributes {
 
 class TransactionSettlement
   extends Model<TransactionSettlementAttributes, TransactionSettlementCreateAttributes>
-  implements TransactionSettlementAttributes {
+  implements TransactionSettlementAttributes
+{
   TransactionGroup: string;
   kind: TransactionKind;
   status: TransactionSettlementStatus;

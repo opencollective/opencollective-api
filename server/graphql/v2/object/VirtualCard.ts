@@ -3,6 +3,7 @@ import { GraphQLDateTime } from 'graphql-iso-date';
 import { GraphQLJSONObject } from 'graphql-type-json';
 
 import { Account } from '../interface/Account';
+import { Individual } from '../object/Individual';
 
 export const VirtualCard = new GraphQLObjectType({
   name: 'VirtualCard',
@@ -22,6 +23,22 @@ export const VirtualCard = new GraphQLObjectType({
       resolve(virtualCard, _, req) {
         if (virtualCard.HostCollectiveId) {
           return req.loaders.Collective.byId.load(virtualCard.HostCollectiveId);
+        }
+      },
+    },
+    assignee: {
+      type: Individual,
+      async resolve(virtualCard, _, req) {
+        if (!virtualCard.UserId) {
+          return null;
+        }
+
+        const user = await req.loaders.User.byId.load(virtualCard.UserId);
+        if (user && user.CollectiveId) {
+          const collective = await req.loaders.Collective.byId.load(user.CollectiveId);
+          if (collective && !collective.isIncognito) {
+            return collective;
+          }
         }
       },
     },

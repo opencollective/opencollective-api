@@ -101,20 +101,6 @@ function defineModel() {
     });
   };
 
-  // ---- Prepare model ----
-
-  ConversationFollower.associate = m => {
-    ConversationFollower.belongsTo(m.User, {
-      foreignKey: 'UserId',
-      as: 'user',
-    });
-
-    ConversationFollower.belongsTo(m.Conversation, {
-      foreignKey: 'ConversationId',
-      as: 'conversation',
-    });
-  };
-
   return ConversationFollower;
 }
 

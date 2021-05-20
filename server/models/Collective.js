@@ -1102,13 +1102,11 @@ function defineModel() {
   };
 
   // Returns the User model of the User that created this collective
-  Collective.prototype.getUser = function (queryParams) {
-    switch (this.type) {
-      case types.USER:
-      case types.ORGANIZATION:
-        return models.User.findByPk(this.CreatedByUserId, queryParams);
-      default:
-        return Promise.resolve(null);
+  Collective.prototype.getUser = async function (queryParams) {
+    if (this.type === types.USER) {
+      return models.User.findOne({ where: { CollectiveId: this.id }, ...queryParams });
+    } else {
+      return null;
     }
   };
 
@@ -3217,30 +3215,6 @@ function defineModel() {
           collectives: allCollectives,
         }));
       });
-  };
-
-  Collective.associate = m => {
-    Collective.hasMany(m.ConnectedAccount);
-    Collective.belongsToMany(m.Collective, {
-      through: {
-        model: m.Member,
-        unique: false,
-        foreignKey: 'MemberCollectiveId',
-      },
-      as: 'memberCollectives',
-    });
-    Collective.belongsToMany(m.Collective, {
-      through: { model: m.Member, unique: false, foreignKey: 'CollectiveId' },
-      as: 'memberOfCollectives',
-    });
-    Collective.hasMany(m.Member);
-    Collective.hasMany(m.Activity);
-    Collective.hasMany(m.Notification);
-    Collective.hasMany(m.Tier, { as: 'tiers' });
-    Collective.hasMany(m.LegalDocument);
-    Collective.hasMany(m.RequiredLegalDocument, { foreignKey: 'HostCollectiveId' });
-    Collective.hasMany(m.Collective, { as: 'hostedCollectives', foreignKey: 'HostCollectiveId' });
-    Collective.belongsTo(m.Collective, { as: 'HostCollective' });
   };
 
   Temporal(Collective, sequelize);

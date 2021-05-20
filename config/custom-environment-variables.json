@@ -149,7 +149,10 @@
     "clientId": "TRANSFERWISE_CLIENT_ID",
     "clientSecret": "TRANSFERWISE_CLIENT_SECRET",
     "redirectUri": "TRANSFERWISE_REDIRECT_URI",
-    "privateKey": "TRANSFERWISE_PRIVATE_KEY"
+    "privateKey": "TRANSFERWISE_PRIVATE_KEY",
+    "blockedCurrencies": "TRANSFERWISE_BLOCKED_CURRENCIES",
+    "blockedCurrenciesForBusinessProfiles": "TRANSFERWISE_BLOCKED_CURRENCIES_BUSINESS",
+    "blockedCurrenciesForNonProfits": "TRANSFERWISE_BLOCKED_CURRENCIES_NONPROFIT"
   },
   "fixie": {
     "url": "FIXIE_URL"

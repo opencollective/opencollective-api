@@ -1,4 +1,8 @@
-Subject: Thank you for your contribution to {{collective.name}}
+{{#if interval }}
+Subject: Thank you for your {{currency order.totalAmount currency=order.currency}}/{{interval}} contribution to {{{collective.name}}}
+{{else}}
+Subject: Thank you for your {{currency order.totalAmount currency=order.currency}} contribution to {{{collective.name}}}
+{{/if}}
 
 {{> header}}
 

@@ -1,6 +1,6 @@
 import debugLib from 'debug';
 import express from 'express';
-import { flatten, get, omit, pick, size } from 'lodash';
+import { flatten, get, isEqual, isNil, omit, omitBy, pick, size } from 'lodash';
 
 import { activities, expenseStatus, roles } from '../../constants';
 import { types as collectiveTypes } from '../../constants/collectives';
@@ -204,6 +204,17 @@ export const canEditExpense = async (req: express.Request, expense: typeof model
     return false;
   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     return false;
+  } else {
+    return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isCollectiveAdmin]);
+  }
+};
+
+export const canEditExpenseTags = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
+  if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+    return false;
+  } else if (expense.status === expenseStatus.PAID) {
+    // Only collective/host admins can edit tags after the expense is paid
+    return remoteUserMeetsOneCondition(req, expense, [isHostAdmin, isCollectiveAdmin]);
   } else {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isCollectiveAdmin]);
   }
@@ -689,7 +700,19 @@ export async function editExpense(
 
   if (!expense) {
     throw new NotFound('Expense not found');
-  } else if (!options?.['skipPermissionCheck'] && !(await canEditExpense(req, expense))) {
+  }
+
+  const modifiedFields = Object.keys(omitBy(expenseData, (value, key) => key === 'id' || isNil(value)));
+  if (isEqual(modifiedFields, ['tags'])) {
+    // Special mode when editing **only** tags: we don't care about the expense status there
+    if (!(await canEditExpenseTags(req, expense))) {
+      throw new Unauthorized("You don't have permission to edit tags for this expense");
+    }
+
+    return expense.update({ tags: expenseData.tags });
+  }
+
+  if (!options?.['skipPermissionCheck'] && !(await canEditExpense(req, expense))) {
     throw new Unauthorized("You don't have permission to edit this expense");
   }
 

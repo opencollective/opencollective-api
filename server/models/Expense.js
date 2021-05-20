@@ -102,6 +102,9 @@ function defineModel() {
       description: {
         type: DataTypes.STRING,
         allowNull: false,
+        set(description) {
+          this.setDataValue('description', description.replace(/\s+/g, ' ').trim());
+        },
       },
 
       longDescription: {

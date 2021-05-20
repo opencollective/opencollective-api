@@ -214,19 +214,6 @@ function defineModel() {
     return followers.map(f => f.user);
   };
 
-  // ---- Prepare model ----
-
-  Conversation.associate = m => {
-    Conversation.belongsTo(m.Collective, {
-      foreignKey: 'CollectiveId',
-      as: 'collective',
-    });
-    Conversation.belongsTo(m.Collective, {
-      foreignKey: 'FromCollectiveId',
-      as: 'fromCollective',
-    });
-  };
-
   return Conversation;
 }
 

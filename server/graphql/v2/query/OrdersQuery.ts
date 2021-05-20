@@ -72,6 +72,10 @@ const OrdersQuery = {
       type: ISODateTime,
       description: 'Only return orders that were created after this date',
     },
+    dateTo: {
+      type: ISODateTime,
+      description: 'Only return orders that were created after this date',
+    },
     searchTerm: {
       type: GraphQLString,
       description: 'The term to search',
@@ -142,6 +146,10 @@ const OrdersQuery = {
     }
     if (args.dateFrom) {
       where['createdAt'] = { [Op.gte]: args.dateFrom };
+    }
+    if (args.dateTo) {
+      where['createdAt'] = where['createdAt'] || {};
+      where['createdAt'][Op.lte] = args.dateTo;
     }
     if (args.status) {
       where['status'] = args.status;

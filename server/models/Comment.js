@@ -89,11 +89,6 @@ function defineModel() {
         allowNull: true,
       },
 
-      // @deprecated
-      markdown: {
-        type: DataTypes.TEXT,
-      },
-
       html: {
         type: DataTypes.TEXT,
         set(value) {
@@ -127,7 +122,6 @@ function defineModel() {
           return {
             id: this.id,
             title: this.title,
-            markdown: this.markdown,
             html: this.html,
             createdAt: this.createdAt,
             updatedAt: this.updatedAt,
@@ -220,20 +214,6 @@ function defineModel() {
     return Promise.map(comments, u => Comment.create(defaults({}, u, defaultValues)), { concurrency: 1 }).catch(
       console.error,
     );
-  };
-
-  Comment.associate = m => {
-    Comment.belongsTo(m.Collective, {
-      foreignKey: 'CollectiveId',
-      as: 'collective',
-    });
-    Comment.belongsTo(m.Collective, {
-      foreignKey: 'FromCollectiveId',
-      as: 'fromCollective',
-    });
-    Comment.belongsTo(m.Expense, { foreignKey: 'ExpenseId', as: 'expense' });
-    Comment.belongsTo(m.Update, { foreignKey: 'UpdateId', as: 'update' });
-    Comment.belongsTo(m.User, { foreignKey: 'CreatedByUserId', as: 'user' });
   };
 
   Temporal(Comment, sequelize);

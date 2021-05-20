@@ -41,13 +41,6 @@ function defineModel() {
   RequiredLegalDocument.documentType = {};
   RequiredLegalDocument.documentType.US_TAX_FORM = US_TAX_FORM;
 
-  RequiredLegalDocument.associate = m => {
-    RequiredLegalDocument.belongsTo(m.Collective, {
-      foreignKey: 'HostCollectiveId',
-      as: 'hostCollective',
-    });
-  };
-
   return RequiredLegalDocument;
 }
 

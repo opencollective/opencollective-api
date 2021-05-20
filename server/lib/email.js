@@ -394,7 +394,6 @@ const generateEmailFromTemplateAndSend = async (template, recipient, data, optio
 
 const emailLib = {
   render,
-  getTemplateAttributes,
   sendMessage,
   generateUnsubscribeToken,
   isValidUnsubscribeToken,

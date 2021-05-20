@@ -19,6 +19,14 @@ const ExpensePermissions = new GraphQLObjectType({
         return ExpenseLib.canEditExpense(req, expense);
       },
     },
+    canEditTags: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description:
+        'Tags permissions are a bit different, and can be edited by admins even if the expense has already been paid',
+      async resolve(expense, _, req: express.Request): Promise<boolean> {
+        return ExpenseLib.canEditExpenseTags(req, expense);
+      },
+    },
     canDelete: {
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Whether the current user can edit the expense',

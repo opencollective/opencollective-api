@@ -13,14 +13,13 @@ import { NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { ProcessHostApplicationAction } from '../enum/ProcessHostApplicationAction';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { Account } from '../interface/Account';
-import { Collective } from '../object/Collective';
 import Conversation from '../object/Conversation';
 
 const ProcessHostApplicationResponse = new GraphQLObjectType({
   name: 'ProcessHostApplicationResponse',
   fields: () => ({
     account: {
-      type: new GraphQLNonNull(Collective),
+      type: new GraphQLNonNull(Account),
       description: 'The account that applied to the host',
     },
     conversation: {

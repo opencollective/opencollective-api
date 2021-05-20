@@ -1149,7 +1149,6 @@ type Comment {
   id: String
   createdAt: DateTime
   html: String
-  markdown: String @deprecated(reason: "2020-01-25: Use html")
   fromAccount: Account
   account: Account
 
@@ -1196,7 +1195,6 @@ input CommentReferenceInput {
 
 input CommentUpdateInput {
   id: String!
-  markdown: String
   html: String
 }
 
@@ -3365,6 +3363,11 @@ type Expense {
   payoutMethod: PayoutMethod
 
   """
+  The virtual card used to pay for this charge
+  """
+  virtualCard: VirtualCard
+
+  """
   (Optional) files attached to the expense
   """
   attachedFiles: [ExpenseAttachedFile!]
@@ -3663,6 +3666,11 @@ type ExpensePermissions {
   Whether the current user can edit the expense
   """
   canEdit: Boolean!
+
+  """
+  Tags permissions are a bit different, and can be edited by admins even if the expense has already been paid
+  """
+  canEditTags: Boolean!
 
   """
   Whether the current user can edit the expense
@@ -5809,6 +5817,26 @@ type Mutation {
     Account where the virtual card will be associated
     """
     account: AccountReferenceInput!
+
+    """
+    Individual account responsible for the card
+    """
+    assignee: AccountReferenceInput!
+  ): VirtualCard!
+
+  """
+  Edit existing Virtual Card information
+  """
+  editVirtualCard(
+    """
+    Virtual Card being edited its new values
+    """
+    virtualCard: VirtualCardUpdateInput!
+
+    """
+    The individual account reference to attach the Virtual Card to if desired
+    """
+    assignee: AccountReferenceInput
   ): VirtualCard!
 
   """
@@ -7102,6 +7130,11 @@ type Query {
     dateFrom: ISODateTime
 
     """
+    Only return expenses that were created after this date
+    """
+    dateTo: ISODateTime
+
+    """
     The term to search
     """
     searchTerm: String
@@ -7194,6 +7227,11 @@ type Query {
     Only return orders that were created after this date
     """
     dateFrom: ISODateTime
+
+    """
+    Only return orders that were created after this date
+    """
+    dateTo: ISODateTime
 
     """
     The term to search
@@ -7995,6 +8033,7 @@ type VirtualCard {
   id: String
   account: Account
   host: Account
+  assignee: Individual
   name: String
   last4: String
   data: JSONObject
@@ -8023,4 +8062,9 @@ input VirtualCardInput {
 
 input VirtualCardReferenceInput {
   id: String
+}
+
+input VirtualCardUpdateInput {
+  id: String
+  privateData: JSONObject
 }

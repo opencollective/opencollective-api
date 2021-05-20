@@ -116,13 +116,13 @@ function defineModel() {
 
       title: {
         type: DataTypes.STRING,
+        set(title) {
+          this.setDataValue('title', title.replace(/\s+/g, ' ').trim());
+        },
         validate: {
           len: [1, 255],
         },
       },
-
-      // @deprecated
-      markdown: DataTypes.TEXT,
 
       html: {
         type: DataTypes.TEXT,
@@ -453,19 +453,6 @@ function defineModel() {
     return Promise.map(updates, u => Update.create(defaults({}, u, defaultValues)), { concurrency: 1 }).catch(
       console.error,
     );
-  };
-
-  Update.associate = m => {
-    Update.belongsTo(m.Collective, {
-      foreignKey: 'CollectiveId',
-      as: 'collective',
-    });
-    Update.belongsTo(m.Collective, {
-      foreignKey: 'FromCollectiveId',
-      as: 'fromCollective',
-    });
-    Update.belongsTo(m.Tier, { foreignKey: 'TierId', as: 'tier' });
-    Update.belongsTo(m.User, { foreignKey: 'LastEditedByUserId', as: 'user' });
   };
 
   Temporal(Update, sequelize);
