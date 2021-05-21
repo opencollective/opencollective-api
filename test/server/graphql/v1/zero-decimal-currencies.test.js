@@ -5,7 +5,7 @@ import { describe, it } from 'mocha';
 import * as store from '../../../stores';
 import * as utils from '../../../utils';
 
-describe('server/graphql/v1/transaction', () => {
+describe('server/graphql/v1/zero-decimal-currencies', () => {
   before(async () => {
     await utils.resetTestDB();
     // Given a host
@@ -30,8 +30,8 @@ describe('server/graphql/v1/transaction', () => {
     await store.stripeOneTimeDonation(donation);
   });
 
-  describe('return collective.transactions', () => {
-    it('when given a collective slug (case insensitive)', async () => {
+  describe('zero decimal currencies for stripe', () => {
+    it('expense submission with zero decimal currencies', async () => {
       const collectiveQuery = gql`
         query Collective($slug: String) {
           Collective(slug: $slug) {
