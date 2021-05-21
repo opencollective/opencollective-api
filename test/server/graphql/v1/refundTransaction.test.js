@@ -345,11 +345,7 @@ describe('server/graphql/v1/refundTransaction', () => {
 
     afterEach(nock.cleanAll);
 
-    it('should create negative transactions without the stripe fee being refunded', async () => {
-      // Given that we create a user, host, collective, tier,
-      // paymentMethod, an order and a transaction
-      const { user, collective, host, transaction } = await setupTestObjects();
-
+    async function handleRefundTransaction(transaction, host, collective, user) {
       // When the above transaction is refunded
       const result = await utils.graphqlQuery(refundTransactionMutation, { id: transaction.id }, host);
 
@@ -431,6 +427,15 @@ describe('server/graphql/v1/refundTransaction', () => {
       expect(tr4.amountInHostCurrency).to.equal(4075);
       expect(tr4.netAmountInCollectiveCurrency).to.equal(5000);
       expect(tr4.RefundTransactionId).to.equal(tr1.id);
+    }
+
+    it('should create negative transactions without the stripe fee being refunded', async () => {
+      // Given that we create a user, host, collective, tier,
+
+      // paymentMethod, an order and a transaction
+      const { user, collective, host, transaction } = await setupTestObjects();
+
+      await handleRefundTransaction(transaction, host, collective, user);
     });
 
     it('should be able to refund a stripe transaction with zero decimal currencies', async () => {
@@ -438,87 +443,7 @@ describe('server/graphql/v1/refundTransaction', () => {
       // paymentMethod, an order and a transaction
       const { user, collective, host, transaction } = await setupTestObjects('JPY');
 
-      // When the above transaction is refunded
-      const result = await utils.graphqlQuery(refundTransactionMutation, { id: transaction.id }, host);
-
-      // Then there should be no errors
-      if (result.errors) {
-        throw result.errors;
-      }
-
-      // And then the returned value should match the transaction
-      // passed to the mutation
-      expect(result.data.refundTransaction.id).to.equal(transaction.id);
-
-      // And then all the transactions with that same order id are
-      // retrieved.
-      const allTransactions = await models.Transaction.findAll({
-        where: { OrderId: transaction.OrderId },
-      });
-
-      // And two new transactions should be created in the
-      // database.  This only makes sense in an empty database. For
-      // order with subscriptions we'd probably find more than 4
-      expect(allTransactions.length).to.equal(4);
-
-      // And then the transaction created for the refund operation
-      // should decrement all the fees in the CREDIT from collective
-      // to user.
-      const [tr1, tr2, tr3, tr4] = allTransactions;
-
-      // 1. User Ledger
-      expect(tr1.type).to.equal('DEBIT');
-      expect(tr1.FromCollectiveId).to.equal(collective.id);
-      expect(tr1.CollectiveId).to.equal(user.CollectiveId);
-      expect(tr1.amount).to.equal(-4075);
-      expect(tr1.amountInHostCurrency).to.equal(-4075);
-      expect(tr1.platformFeeInHostCurrency).to.equal(-250);
-      expect(tr1.hostFeeInHostCurrency).to.equal(-500);
-      expect(tr1.paymentProcessorFeeInHostCurrency).to.equal(-175);
-      expect(tr1.netAmountInCollectiveCurrency).to.equal(-5000);
-      expect(tr1.RefundTransactionId).to.equal(tr4.id);
-
-      // 2. Collective Ledger
-      expect(tr2.type).to.equal('CREDIT');
-      expect(tr2.FromCollectiveId).to.equal(user.CollectiveId);
-      expect(tr2.CollectiveId).to.equal(collective.id);
-      expect(tr2.amount).to.equal(5000);
-      expect(tr2.amountInHostCurrency).to.equal(5000);
-      expect(tr2.platformFeeInHostCurrency).to.equal(-250);
-      expect(tr2.hostFeeInHostCurrency).to.equal(-500);
-      expect(tr2.paymentProcessorFeeInHostCurrency).to.equal(-175);
-      expect(tr2.netAmountInCollectiveCurrency).to.equal(4075);
-      expect(tr2.RefundTransactionId).to.equal(tr3.id);
-
-      // 3. Refund Collective Ledger
-      expect(tr3.type).to.equal('DEBIT');
-      expect(tr3.FromCollectiveId).to.equal(user.CollectiveId);
-      expect(tr3.CollectiveId).to.equal(collective.id);
-      expect(tr3.platformFeeInHostCurrency).to.equal(250);
-      // This is the part that we're saying that the host is paying
-      // the refund. The `paymentProcessorFeeInHostCurrency` set to
-      // zero and its value was added to the `hostFeeInHostCurrency`
-      expect(tr3.hostFeeInHostCurrency).to.equal(500 + 175); // 675
-      expect(tr3.paymentProcessorFeeInHostCurrency).to.equal(0);
-      expect(tr3.amount).to.equal(-5000);
-      expect(tr3.amountInHostCurrency).to.equal(-5000);
-      expect(tr3.netAmountInCollectiveCurrency).to.equal(-4075);
-      expect(tr3.RefundTransactionId).to.equal(tr2.id);
-
-      // 4. Refund User Ledger
-      expect(tr4.type).to.equal('CREDIT');
-      expect(tr4.FromCollectiveId).to.equal(collective.id);
-      expect(tr4.CollectiveId).to.equal(user.CollectiveId);
-      expect(tr4.platformFeeInHostCurrency).to.equal(250);
-      // This is the part that we're saying that the host is paying
-      // the refund. The `paymentProcessorFeeInHostCurrency` set to
-      // zero and its value was added to the `hostFeeInHostCurrency`
-      expect(tr4.hostFeeInHostCurrency).to.equal(500 + 175); // 675
-      expect(tr4.paymentProcessorFeeInHostCurrency).to.equal(0);
-      expect(tr4.amount).to.equal(4075);
-      expect(tr4.amountInHostCurrency).to.equal(4075);
-      expect(tr4.netAmountInCollectiveCurrency).to.equal(5000);
-      expect(tr4.RefundTransactionId).to.equal(tr1.id);
+      await handleRefundTransaction(transaction, host, collective, user);
     });
   }); /* describe("Stripe Transaction - for hosts created after September 17th 2017") */
 }); /* describe("Refund Transaction") */
