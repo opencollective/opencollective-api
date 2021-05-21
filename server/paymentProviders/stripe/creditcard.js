@@ -1,11 +1,10 @@
 import config from 'config';
 import { get, isNumber, result } from 'lodash';
 
-import { ZERO_DECIMAL_CURRENCIES } from '../../constants/currencies';
 import * as constants from '../../constants/transactions';
 import logger from '../../lib/logger';
 import { createRefundTransaction, getHostFee, getPlatformFee } from '../../lib/payments';
-import stripe, { extractFees } from '../../lib/stripe';
+import stripe, { convertFromStripeAmount, convertToStripeAmount, extractFees } from '../../lib/stripe';
 import models from '../../models';
 
 const UNKNOWN_ERROR_MSG = 'Something went wrong with the payment, please contact support@opencollective.com.';
@@ -190,7 +189,7 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
   });
 
   // Create a Transaction
-  const fees = extractFees(balanceTransaction);
+  const fees = extractFees(balanceTransaction, balanceTransaction.currency);
   const amountInHostCurrency = convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount);
   const hostFeeInHostCurrency = await getHostFee(amountInHostCurrency, order);
   const data = {
@@ -206,9 +205,7 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
 
   const hostCurrencyFxRate = amountInHostCurrency / order.totalAmount;
 
-  const platformFeeInHostCurrency = isSharedRevenue
-    ? platformTip * hostCurrencyFxRate || 0
-    : convertFromStripeAmount(balanceTransaction.currency, fees.applicationFee);
+  const platformFeeInHostCurrency = isSharedRevenue ? platformTip * hostCurrencyFxRate || 0 : fees.applicationFee;
 
   const payload = {
     CreatedByUserId: order.CreatedByUserId,
@@ -223,7 +220,7 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
       hostCurrency: balanceTransaction.currency?.toUpperCase(),
       amountInHostCurrency,
       hostCurrencyFxRate,
-      paymentProcessorFeeInHostCurrency: convertFromStripeAmount(balanceTransaction.currency, fees.stripeFee),
+      paymentProcessorFeeInHostCurrency: fees.stripeFee,
       taxAmount: order.taxAmount,
       description: order.description,
       hostFeeInHostCurrency,
@@ -233,25 +230,6 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
   };
 
   return models.Transaction.createFromPayload(payload);
-};
-
-/**
- * Handles the zero-decimal currencies for Stripe; https://stripe.com/docs/currencies#zero-decimal
- */
-const convertToStripeAmount = (currency, amount) => {
-  if (ZERO_DECIMAL_CURRENCIES.includes(currency?.toUpperCase())) {
-    return Math.floor(amount / 100);
-  } else {
-    return amount;
-  }
-};
-
-const convertFromStripeAmount = (currency, amount) => {
-  if (ZERO_DECIMAL_CURRENCIES.includes(currency?.toUpperCase())) {
-    return amount * 100;
-  } else {
-    return amount;
-  }
 };
 
 /**
@@ -411,7 +389,7 @@ export default {
     const refundBalance = await stripe.balanceTransactions.retrieve(refund.balance_transaction, {
       stripeAccount: hostStripeAccount.username,
     });
-    const fees = extractFees(refundBalance);
+    const fees = extractFees(refundBalance, refundBalance.currency);
 
     /* Create negative transactions for the received transaction */
     return await createRefundTransaction(
@@ -448,7 +426,7 @@ export default {
     const refundBalance = await stripe.balanceTransactions.retrieve(refund.balance_transaction, {
       stripeAccount: hostStripeAccount.username,
     });
-    const fees = extractFees(refundBalance);
+    const fees = extractFees(refundBalance, refundBalance.currency);
 
     /* Create negative transactions for the received transaction */
     return await createRefundTransaction(

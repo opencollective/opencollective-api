@@ -71,7 +71,7 @@ async function setupTestObjects() {
     type: 'charge',
   };
   /* eslint-enable camelcase */
-  const fees = extractFees(balanceTransaction);
+  const fees = extractFees(balanceTransaction, balanceTransaction.currency);
   const payload = {
     CreatedByUserId: user.id,
     FromCollectiveId: user.CollectiveId,
