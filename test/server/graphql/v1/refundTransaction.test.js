@@ -3,9 +3,10 @@ import gql from 'fake-tag';
 import nock from 'nock';
 import sinon from 'sinon';
 
+import { ZERO_DECIMAL_CURRENCIES } from '../../../../server/constants/currencies';
 import * as constants from '../../../../server/constants/transactions';
 import * as paymentsLib from '../../../../server/lib/payments';
-import { extractFees } from '../../../../server/lib/stripe';
+import { convertFromStripeAmount, extractFees } from '../../../../server/lib/stripe';
 import models from '../../../../server/models';
 import * as utils from '../../../utils';
 
@@ -19,7 +20,18 @@ const refundTransactionMutation = gql`
   }
 `;
 
-async function setupTestObjects() {
+/**
+ * Handles the zero-decimal currencies for Stripe testing; https://stripe.com/docs/currencies#zero-decimal
+ */
+export const convertToStripeAmount = (currency, amount) => {
+  if (ZERO_DECIMAL_CURRENCIES.includes(currency?.toUpperCase())) {
+    return amount / 100;
+  } else {
+    return amount;
+  }
+};
+
+async function setupTestObjects(currency = 'USD') {
   const user = await models.User.createUserWithCollective(utils.data('user1'));
   const host = await models.User.createUserWithCollective(utils.data('host1'));
   const collective = await models.Collective.create(utils.data('collective1'));
@@ -35,7 +47,7 @@ async function setupTestObjects() {
   const order = await models.Order.create({
     description: 'Donation',
     totalAmount: 5000,
-    currency: 'USD',
+    currency: currency,
     TierId: tier.id,
     CreatedByUserId: user.id,
     FromCollectiveId: user.CollectiveId,
@@ -53,20 +65,20 @@ async function setupTestObjects() {
     balance_transaction: 'txn_1Bs9EEBYycQg1OMfTR33Y5Xr',
     captured: true,
     created: 1517834264,
-    currency: 'usd',
+    currency: currency,
     customer: 'cus_9sKDFZkPwuFAF8',
   };
   const balanceTransaction = {
     id: 'txn_1Bs9EEBYycQg1OMfTR33Y5Xr',
     object: 'balance_transaction',
-    amount: 5000,
-    currency: 'usd',
-    fee: 425,
+    amount: convertToStripeAmount(currency, 5000),
+    currency: currency,
+    fee: convertToStripeAmount(currency, 425),
     fee_details: [
-      { amount: 175, currency: 'usd', type: 'stripe_fee' },
-      { amount: 250, currency: 'usd', type: 'application_fee' },
+      { amount: convertToStripeAmount(currency, 175), currency: currency, type: 'stripe_fee' },
+      { amount: convertToStripeAmount(currency, 250), currency: currency, type: 'application_fee' },
     ],
-    net: 4575,
+    net: convertToStripeAmount(currency, 4575),
     status: 'pending',
     type: 'charge',
   };
@@ -83,9 +95,13 @@ async function setupTestObjects() {
       amount: order.totalAmount,
       currency: order.currency,
       hostCurrency: balanceTransaction.currency,
-      amountInHostCurrency: balanceTransaction.amount,
-      hostCurrencyFxRate: order.totalAmount / balanceTransaction.amount,
-      hostFeeInHostCurrency: paymentsLib.calcFee(balanceTransaction.amount, collective.hostFeePercent),
+      amountInHostCurrency: convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount),
+      hostCurrencyFxRate:
+        order.totalAmount / convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount),
+      hostFeeInHostCurrency: paymentsLib.calcFee(
+        convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount),
+        collective.hostFeePercent,
+      ),
       platformFeeInHostCurrency: fees.applicationFee,
       paymentProcessorFeeInHostCurrency: fees.stripeFee,
       description: order.description,
@@ -333,6 +349,94 @@ describe('server/graphql/v1/refundTransaction', () => {
       // Given that we create a user, host, collective, tier,
       // paymentMethod, an order and a transaction
       const { user, collective, host, transaction } = await setupTestObjects();
+
+      // When the above transaction is refunded
+      const result = await utils.graphqlQuery(refundTransactionMutation, { id: transaction.id }, host);
+
+      // Then there should be no errors
+      if (result.errors) {
+        throw result.errors;
+      }
+
+      // And then the returned value should match the transaction
+      // passed to the mutation
+      expect(result.data.refundTransaction.id).to.equal(transaction.id);
+
+      // And then all the transactions with that same order id are
+      // retrieved.
+      const allTransactions = await models.Transaction.findAll({
+        where: { OrderId: transaction.OrderId },
+      });
+
+      // And two new transactions should be created in the
+      // database.  This only makes sense in an empty database. For
+      // order with subscriptions we'd probably find more than 4
+      expect(allTransactions.length).to.equal(4);
+
+      // And then the transaction created for the refund operation
+      // should decrement all the fees in the CREDIT from collective
+      // to user.
+      const [tr1, tr2, tr3, tr4] = allTransactions;
+
+      // 1. User Ledger
+      expect(tr1.type).to.equal('DEBIT');
+      expect(tr1.FromCollectiveId).to.equal(collective.id);
+      expect(tr1.CollectiveId).to.equal(user.CollectiveId);
+      expect(tr1.amount).to.equal(-4075);
+      expect(tr1.amountInHostCurrency).to.equal(-4075);
+      expect(tr1.platformFeeInHostCurrency).to.equal(-250);
+      expect(tr1.hostFeeInHostCurrency).to.equal(-500);
+      expect(tr1.paymentProcessorFeeInHostCurrency).to.equal(-175);
+      expect(tr1.netAmountInCollectiveCurrency).to.equal(-5000);
+      expect(tr1.RefundTransactionId).to.equal(tr4.id);
+
+      // 2. Collective Ledger
+      expect(tr2.type).to.equal('CREDIT');
+      expect(tr2.FromCollectiveId).to.equal(user.CollectiveId);
+      expect(tr2.CollectiveId).to.equal(collective.id);
+      expect(tr2.amount).to.equal(5000);
+      expect(tr2.amountInHostCurrency).to.equal(5000);
+      expect(tr2.platformFeeInHostCurrency).to.equal(-250);
+      expect(tr2.hostFeeInHostCurrency).to.equal(-500);
+      expect(tr2.paymentProcessorFeeInHostCurrency).to.equal(-175);
+      expect(tr2.netAmountInCollectiveCurrency).to.equal(4075);
+      expect(tr2.RefundTransactionId).to.equal(tr3.id);
+
+      // 3. Refund Collective Ledger
+      expect(tr3.type).to.equal('DEBIT');
+      expect(tr3.FromCollectiveId).to.equal(user.CollectiveId);
+      expect(tr3.CollectiveId).to.equal(collective.id);
+      expect(tr3.platformFeeInHostCurrency).to.equal(250);
+      // This is the part that we're saying that the host is paying
+      // the refund. The `paymentProcessorFeeInHostCurrency` set to
+      // zero and its value was added to the `hostFeeInHostCurrency`
+      expect(tr3.hostFeeInHostCurrency).to.equal(500 + 175); // 675
+      expect(tr3.paymentProcessorFeeInHostCurrency).to.equal(0);
+      expect(tr3.amount).to.equal(-5000);
+      expect(tr3.amountInHostCurrency).to.equal(-5000);
+      expect(tr3.netAmountInCollectiveCurrency).to.equal(-4075);
+      expect(tr3.RefundTransactionId).to.equal(tr2.id);
+
+      // 4. Refund User Ledger
+      expect(tr4.type).to.equal('CREDIT');
+      expect(tr4.FromCollectiveId).to.equal(collective.id);
+      expect(tr4.CollectiveId).to.equal(user.CollectiveId);
+      expect(tr4.platformFeeInHostCurrency).to.equal(250);
+      // This is the part that we're saying that the host is paying
+      // the refund. The `paymentProcessorFeeInHostCurrency` set to
+      // zero and its value was added to the `hostFeeInHostCurrency`
+      expect(tr4.hostFeeInHostCurrency).to.equal(500 + 175); // 675
+      expect(tr4.paymentProcessorFeeInHostCurrency).to.equal(0);
+      expect(tr4.amount).to.equal(4075);
+      expect(tr4.amountInHostCurrency).to.equal(4075);
+      expect(tr4.netAmountInCollectiveCurrency).to.equal(5000);
+      expect(tr4.RefundTransactionId).to.equal(tr1.id);
+    });
+
+    it('should be able to refund a stripe transaction with zero decimal currencies', async () => {
+      // Given that we create a user, host, collective, tier,
+      // paymentMethod, an order and a transaction
+      const { user, collective, host, transaction } = await setupTestObjects('JPY');
 
       // When the above transaction is refunded
       const result = await utils.graphqlQuery(refundTransactionMutation, { id: transaction.id }, host);
