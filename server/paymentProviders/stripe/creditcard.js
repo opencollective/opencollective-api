@@ -221,7 +221,7 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
       amount: order.totalAmount,
       currency: order.currency,
       hostCurrency: balanceTransaction.currency?.toUpperCase(),
-      amountInHostCurrency: amountInHostCurrency,
+      amountInHostCurrency,
       hostCurrencyFxRate,
       paymentProcessorFeeInHostCurrency: convertFromStripeAmount(balanceTransaction.currency, fees.stripeFee),
       taxAmount: order.taxAmount,
