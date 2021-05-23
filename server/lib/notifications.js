@@ -236,8 +236,86 @@ const notifyUpdateSubscribers = async activity => {
   const emailOpts = { from: activity.data.fromEmail };
   const update = await models.Update.findByPk(activity.data.update.id);
   const allUsers = await update.getUsersToNotify();
-  return notifySubscribers(allUsers, activity, emailOpts);
+  const modifiedActivity = replaceVideosByImagePreviews(activity);
+  return notifySubscribers(allUsers, modifiedActivity, emailOpts);
 };
+
+function replaceVideosByImagePreviews(activity) {
+  const regexImg = new RegExp(`<iframe([\\w\\W]+?)[\\/]?>`, 'g');
+  const regexUrl = new RegExp(
+    `(https):\\/\\/([\\w_-]+(?:(?:\\.[\\w_-]+)+))([\\w.,@?^=%&:/~+#-]*[\\w@?^=%&/~+#-])?`,
+    'ig',
+  );
+  activity.data.update.html = activity.data.update.html
+    .replace(regexImg, match => {
+      let imageReplacement;
+      if (match.includes('youtube')) {
+        imageReplacement = match
+          .replace(new RegExp('<iframe', 'g'), '<img')
+          .replace(new RegExp('allowfullscreen', 'g'), '')
+          .replace(new RegExp('frameborder="0"', 'g'), '');
+
+        const { videoService, videoId } = getEmbedDetails(imageReplacement);
+        const previewImageURL = constructPreviewImageURL(videoService, videoId);
+        return imageReplacement.replace(regexUrl, previewImageURL);
+      }
+    })
+    .replace(new RegExp('<figure data-trix-content-type="([\\w\\W]+?)[\\/]?">', 'g'), '')
+    .replace(new RegExp('</iframe><figcaption></figcaption></figure>', 'g'), '')
+    .replace(new RegExp('width="100%" height="394"', 'g'), '');
+  console.log(activity.data.update.html);
+  return activity;
+}
+
+function constructPreviewImageURL(service, id) {
+  if (service === 'youtube') {
+    return `https://img.youtube.com/vi/${id}/0.jpg`;
+    // } else if (service === 'vimeo') {
+    //   const videoDetailsObj = await fetch(`https://vimeo.com/api/v2/video/${id}.json`);
+    //   const videoDetails = await videoDetailsObj.json();
+    //   return videoDetails[0].thumbnail_large;
+  } else {
+    return null;
+  }
+}
+
+function getEmbedDetails(iframe) {
+  const regex = new RegExp(`(https):\\/\\/([\\w_-]+(?:(?:\\.[\\w_-]+)+))([\\w.,@?^=%&:/~+#-]*[\\w@?^=%&/~+#-])?`, 'ig');
+  const match = regex.exec(iframe);
+  if (match[0].includes('youtube')) {
+    const { id } = parseServiceLink(match[0]);
+    return { videoService: 'youtube', videoId: id };
+    // } else if (match[0].includes('vimeo')) {
+    //   const matchIdRegex = new RegExp(`video\\/(.+?)(\\/|$)`, 'ig');
+    //   const videoId = matchIdRegex.exec(match[0])[1];
+    //   return { videoService: 'vimeo', videoId };
+  }
+}
+
+function parseServiceLink(videoLink) {
+  const regexps = {
+    youtube: new RegExp(
+      '(?:https?://)?(?:www\\.)?youtu(?:\\.be/|be(-nocookie)?\\.com/\\S*(?:watch|embed)(?:(?:(?=/[^&\\s?]+(?!\\S))/)|(?:\\S*v=|v/)))([^&\\s?]+)',
+      'i',
+    ),
+    anchorFm: /^(http|https)?:\/\/(www\.)?anchor\.fm\/([^/]+)(\/embed)?(\/episodes\/)?([^/]+)?\/?$/,
+  };
+  for (const service in regexps) {
+    videoLink = videoLink.replace('/?showinfo=0', '');
+    const matches = regexps[service].exec(videoLink);
+    if (matches) {
+      if (service === 'anchorFm') {
+        const podcastName = matches[3];
+        const episodeId = matches[6];
+        const podcastUrl = `${podcastName}/embed`;
+        return { service, id: episodeId ? `${podcastUrl}/episodes/${episodeId}` : podcastUrl };
+      } else {
+        return { service, id: matches[matches.length - 1] };
+      }
+    }
+  }
+  return {};
+}
 
 async function notifyByEmail(activity) {
   debug('notifyByEmail', activity.type);
