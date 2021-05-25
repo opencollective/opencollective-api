@@ -1542,7 +1542,7 @@ function defineModel() {
       case roles.MEMBER:
       case roles.ACCOUNTANT:
       case roles.ADMIN:
-        if (![types.FUND, types.PROJECT].includes(this.type)) {
+        if (![types.FUND, types.PROJECT, types.EVENT].includes(this.type)) {
           await this.sendNewMemberEmail(user, role, member, sequelizeParams);
         }
         break;
@@ -1613,7 +1613,10 @@ function defineModel() {
     }
 
     // We only send the notification for new member for role MEMBER and ADMIN
-    const template = `${this.type.toLowerCase()}.newmember`;
+    const supportedTemplates = ['collective', 'organization'];
+    const lowercaseType = this.type.toLowerCase();
+    const typeForTemplate = supportedTemplates.includes(lowercaseType) ? lowercaseType : 'collective';
+    const template = `${typeForTemplate}.newmember`;
     return emailLib.send(
       template,
       memberUser.email,
@@ -1627,7 +1630,7 @@ function defineModel() {
         collective: {
           slug: this.slug,
           name: this.name,
-          type: this.type.toLowerCase(),
+          type: lowercaseType,
         },
         recipient: {
           collective: memberUser.collective.activity,
