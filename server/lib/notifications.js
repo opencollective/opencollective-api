@@ -263,17 +263,12 @@ function replaceVideosByImagePreviews(activity) {
     .replace(new RegExp('<figure data-trix-content-type="([\\w\\W]+?)[\\/]?">', 'g'), '')
     .replace(new RegExp('</iframe><figcaption></figcaption></figure>', 'g'), '')
     .replace(new RegExp('width="100%" height="394"', 'g'), '');
-  console.log(activity.data.update.html);
   return activity;
 }
 
 function constructPreviewImageURL(service, id) {
   if (service === 'youtube') {
     return `https://img.youtube.com/vi/${id}/0.jpg`;
-    // } else if (service === 'vimeo') {
-    //   const videoDetailsObj = await fetch(`https://vimeo.com/api/v2/video/${id}.json`);
-    //   const videoDetails = await videoDetailsObj.json();
-    //   return videoDetails[0].thumbnail_large;
   } else {
     return null;
   }
@@ -285,10 +280,6 @@ function getEmbedDetails(iframe) {
   if (match[0].includes('youtube')) {
     const { id } = parseServiceLink(match[0]);
     return { videoService: 'youtube', videoId: id };
-    // } else if (match[0].includes('vimeo')) {
-    //   const matchIdRegex = new RegExp(`video\\/(.+?)(\\/|$)`, 'ig');
-    //   const videoId = matchIdRegex.exec(match[0])[1];
-    //   return { videoService: 'vimeo', videoId };
   }
 }
 
