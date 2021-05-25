@@ -260,6 +260,8 @@ function replaceVideosByImagePreviews(activity) {
 function constructPreviewImageURL(service, id) {
   if (service === 'youtube') {
     return `https://img.youtube.com/vi/${id}/0.jpg`;
+  } else if (service === 'anchorFm') {
+    return `https://theme.zdassets.com/theme_assets/2009830/ed34a3258bf8d79c3db30e4269dd95052481fc50.png`;
   } else {
     return null;
   }
