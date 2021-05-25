@@ -241,26 +241,17 @@ const notifyUpdateSubscribers = async activity => {
 };
 
 function replaceVideosByImagePreviews(activity) {
-  const regexImg = new RegExp(`<iframe([\\w\\W]+?)[\\/]?>`, 'g');
-  const regexUrl = new RegExp(
-    `(https):\\/\\/([\\w_-]+(?:(?:\\.[\\w_-]+)+))([\\w.,@?^=%&:/~+#-]*[\\w@?^=%&/~+#-])?`,
-    'ig',
-  );
+  const iframePreviewRegex = /<iframe\s[^>]*src="([^"]+)"[^>]*><\/iframe>/gi;
   activity.data.update.html = activity.data.update.html
-    .replace(regexImg, match => {
-      let imageReplacement;
-      if (match.includes('youtube')) {
-        imageReplacement = match
-          .replace(new RegExp('<iframe', 'g'), '<img')
-          .replace(new RegExp('allowfullscreen', 'g'), '')
-          .replace(new RegExp('frameborder="0"', 'g'), '');
-
-        const { videoService, videoId } = getEmbedDetails(imageReplacement);
-        const previewImageURL = constructPreviewImageURL(videoService, videoId);
-        return imageReplacement.replace(regexUrl, previewImageURL);
+    .replace(iframePreviewRegex, (_, href) => {
+      const { service, id } = parseServiceLink(href);
+      const imgSrc = constructPreviewImageURL(service, id);
+      if (imgSrc) {
+        return `<img src="${imgSrc}" alt="${service} content">`;
+      } else {
+        return '';
       }
     })
-    .replace(new RegExp('<figure data-trix-content-type="([\\w\\W]+?)[\\/]?">', 'g'), '')
     .replace(new RegExp('</iframe><figcaption></figcaption></figure>', 'g'), '')
     .replace(new RegExp('width="100%" height="394"', 'g'), '');
   return activity;
@@ -271,15 +262,6 @@ function constructPreviewImageURL(service, id) {
     return `https://img.youtube.com/vi/${id}/0.jpg`;
   } else {
     return null;
-  }
-}
-
-function getEmbedDetails(iframe) {
-  const regex = new RegExp(`(https):\\/\\/([\\w_-]+(?:(?:\\.[\\w_-]+)+))([\\w.,@?^=%&:/~+#-]*[\\w@?^=%&/~+#-])?`, 'ig');
-  const match = regex.exec(iframe);
-  if (match[0].includes('youtube')) {
-    const { id } = parseServiceLink(match[0]);
-    return { videoService: 'youtube', videoId: id };
   }
 }
 
