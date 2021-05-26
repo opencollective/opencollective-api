@@ -69,31 +69,29 @@ const affectedOrderIds = [
         data.hostFeeSharePercent = hostPlan.hostFeeSharePercent;
       }
 
-      const payload = {
+      const transactionPayload = {
         CreatedByUserId: order.CreatedByUserId,
         FromCollectiveId: order.FromCollectiveId,
         CollectiveId: order.CollectiveId,
         PaymentMethodId: order.PaymentMethodId,
-        transaction: {
-          type: constants.TransactionTypes.CREDIT,
-          OrderId: order.id,
-          amount: order.totalAmount,
-          currency: order.currency,
-          hostCurrency: balanceTransaction.currency,
-          amountInHostCurrency: balanceTransaction.amount,
-          hostCurrencyFxRate: balanceTransaction.amount / order.totalAmount,
-          paymentProcessorFeeInHostCurrency: fees.stripeFee,
-          taxAmount: order.taxAmount,
-          description: order.description,
-          hostFeeInHostCurrency,
-          platformFeeInHostCurrency,
-          data,
-        },
+        type: constants.TransactionTypes.CREDIT,
+        OrderId: order.id,
+        amount: order.totalAmount,
+        currency: order.currency,
+        hostCurrency: balanceTransaction.currency,
+        amountInHostCurrency: balanceTransaction.amount,
+        hostCurrencyFxRate: balanceTransaction.amount / order.totalAmount,
+        paymentProcessorFeeInHostCurrency: fees.stripeFee,
+        taxAmount: order.taxAmount,
+        description: order.description,
+        hostFeeInHostCurrency,
+        platformFeeInHostCurrency,
+        data,
       };
 
       // Recreate all transactions
       if (!isDry) {
-        await models.Transaction.createFromPayload(payload);
+        await models.Transaction.createFromPayload(transactionPayload);
 
         // Deleted past platform tip transactions
         const deletedTransactions = await models.Transaction.destroy({
