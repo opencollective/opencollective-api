@@ -8,7 +8,7 @@ import { v4 as uuid } from 'uuid';
 
 import activities from '../constants/activities';
 import { TransactionKind } from '../constants/transaction-kind';
-import { FEES_ON_TOP_TRANSACTION_PROPERTIES, TransactionTypes } from '../constants/transactions';
+import { PLATFORM_TIP_TRANSACTION_PROPERTIES, TransactionTypes } from '../constants/transactions';
 import { getFxRate } from '../lib/currency';
 import { toNegative } from '../lib/math';
 import { calcFee } from '../lib/payments';
@@ -333,7 +333,7 @@ function defineModel() {
     if (this.hasPlatformTip()) {
       return models.Transaction.findOne({
         where: {
-          ...pick(FEES_ON_TOP_TRANSACTION_PROPERTIES, ['CollectiveId']),
+          ...pick(PLATFORM_TIP_TRANSACTION_PROPERTIES, ['CollectiveId']),
           type: this.type,
           TransactionGroup: this.TransactionGroup,
           kind: TransactionKind.PLATFORM_TIP,
@@ -575,7 +575,7 @@ function defineModel() {
     return Promise.mapSeries(transactions, t => Transaction.create(t, opts)).then(results => results[index]);
   };
 
-  Transaction.createFeesOnTopTransaction = async ({ transaction, host }) => {
+  Transaction.createPlatformTipTransactions = async ({ transaction, host }) => {
     if (!transaction.data?.isFeesOnTop) {
       throw new Error('This transaction does not have fees on top');
     } else if (!transaction.platformFeeInHostCurrency) {
@@ -587,10 +587,10 @@ function defineModel() {
     const feeOnTopPaymentProcessorFee = host?.data?.reimbursePaymentProcessorFeeOnTips
       ? toNegative(Math.round(transaction.paymentProcessorFeeInHostCurrency * feeOnTopPercent))
       : 0;
-    const platformCurrencyFxRate = await getFxRate(transaction.currency, FEES_ON_TOP_TRANSACTION_PROPERTIES.currency);
+    const platformCurrencyFxRate = await getFxRate(transaction.currency, PLATFORM_TIP_TRANSACTION_PROPERTIES.currency);
     const donationTransaction = defaultsDeep(
       {},
-      FEES_ON_TOP_TRANSACTION_PROPERTIES,
+      PLATFORM_TIP_TRANSACTION_PROPERTIES,
       {
         description: 'Financial contribution to Open Collective',
         amount: Math.round(Math.abs(transaction.platformFeeInHostCurrency) * platformCurrencyFxRate),
@@ -608,7 +608,7 @@ function defineModel() {
         hostCurrencyFxRate: 1,
         TransactionGroup: transaction.TransactionGroup,
         data: {
-          hostToPlatformFxRate: await getFxRate(transaction.hostCurrency, FEES_ON_TOP_TRANSACTION_PROPERTIES.currency),
+          hostToPlatformFxRate: await getFxRate(transaction.hostCurrency, PLATFORM_TIP_TRANSACTION_PROPERTIES.currency),
           feeOnTopPaymentProcessorFee,
           settled: transaction.data?.settled,
         },
@@ -675,7 +675,9 @@ function defineModel() {
 
     // Separate donation transaction and remove platformFee from the main transaction
     if (transaction.data?.isFeesOnTop && transaction.platformFeeInHostCurrency) {
-      transaction = (await Transaction.createFeesOnTopTransaction({ transaction, host })).transaction;
+      const result = await Transaction.createPlatformTipTransactions({ transaction, host });
+      // Transaction was modified by createPlatformTipTransactions, we get it from the result
+      transaction = result.transaction;
     }
 
     // populate netAmountInCollectiveCurrency for financial contributions
