@@ -4,7 +4,7 @@ import { get, isNumber, result } from 'lodash';
 import * as constants from '../../constants/transactions';
 import logger from '../../lib/logger';
 import { createRefundTransaction, getHostFee, getPlatformFee } from '../../lib/payments';
-import stripe, { extractFees } from '../../lib/stripe';
+import stripe, { convertFromStripeAmount, convertToStripeAmount, extractFees } from '../../lib/stripe';
 import models from '../../models';
 
 const UNKNOWN_ERROR_MSG = 'Something went wrong with the payment, please contact support@opencollective.com.';
@@ -129,7 +129,7 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
   let paymentIntent = order.data.paymentIntent;
   if (!paymentIntent) {
     const createPayload = {
-      amount: order.totalAmount,
+      amount: convertToStripeAmount(order.currency, order.totalAmount),
       currency: order.currency,
       customer: hostStripeCustomer.id,
       description: order.description,
@@ -142,7 +142,7 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
     };
     // We don't add a platform fee if the host is the root account
     if (platformFee && hostStripeAccount.username !== config.stripe.accountId) {
-      createPayload.application_fee_amount = platformFee;
+      createPayload.application_fee_amount = convertToStripeAmount(order.currency, platformFee);
     }
     if (order.interval) {
       createPayload.setup_future_usage = 'off_session';
@@ -161,7 +161,6 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
       stripeAccount: hostStripeAccount.username,
     });
   }
-
   paymentIntent = await stripe.paymentIntents.confirm(paymentIntent.id, {
     stripeAccount: hostStripeAccount.username,
   });
@@ -190,8 +189,9 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
   });
 
   // Create a Transaction
-  const fees = extractFees(balanceTransaction);
-  const hostFeeInHostCurrency = await getHostFee(balanceTransaction.amount, order);
+  const fees = extractFees(balanceTransaction, balanceTransaction.currency);
+  const amountInHostCurrency = convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount);
+  const hostFeeInHostCurrency = await getHostFee(amountInHostCurrency, order);
   const data = {
     charge,
     balanceTransaction,
@@ -203,7 +203,9 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
     hostFeeSharePercent,
   };
 
-  const platformFeeInHostCurrency = isSharedRevenue ? platformTip || 0 : fees.applicationFee;
+  const hostCurrencyFxRate = amountInHostCurrency / order.totalAmount;
+
+  const platformFeeInHostCurrency = isSharedRevenue ? platformTip * hostCurrencyFxRate || 0 : fees.applicationFee;
 
   const payload = {
     CreatedByUserId: order.CreatedByUserId,
@@ -216,8 +218,8 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
       amount: order.totalAmount,
       currency: order.currency,
       hostCurrency: balanceTransaction.currency?.toUpperCase(),
-      amountInHostCurrency: balanceTransaction.amount,
-      hostCurrencyFxRate: balanceTransaction.amount / order.totalAmount,
+      amountInHostCurrency,
+      hostCurrencyFxRate,
       paymentProcessorFeeInHostCurrency: fees.stripeFee,
       taxAmount: order.taxAmount,
       description: order.description,
@@ -231,7 +233,7 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
 };
 
 /**
- * Given a charge id, retrieves its correspind charge and refund data.
+ * Given a charge id, retrieves its corresponding charge and refund data.
  */
 export const retrieveChargeWithRefund = async (chargeId, stripeAccount) => {
   const charge = await stripe.charges.retrieve(chargeId, {
@@ -387,7 +389,7 @@ export default {
     const refundBalance = await stripe.balanceTransactions.retrieve(refund.balance_transaction, {
       stripeAccount: hostStripeAccount.username,
     });
-    const fees = extractFees(refundBalance);
+    const fees = extractFees(refundBalance, refundBalance.currency);
 
     /* Create negative transactions for the received transaction */
     return await createRefundTransaction(
@@ -424,7 +426,7 @@ export default {
     const refundBalance = await stripe.balanceTransactions.retrieve(refund.balance_transaction, {
       stripeAccount: hostStripeAccount.username,
     });
-    const fees = extractFees(refundBalance);
+    const fees = extractFees(refundBalance, refundBalance.currency);
 
     /* Create negative transactions for the received transaction */
     return await createRefundTransaction(

@@ -3,9 +3,10 @@ import gql from 'fake-tag';
 import nock from 'nock';
 import sinon from 'sinon';
 
+import { ZERO_DECIMAL_CURRENCIES } from '../../../../server/constants/currencies';
 import * as constants from '../../../../server/constants/transactions';
 import * as paymentsLib from '../../../../server/lib/payments';
-import { extractFees } from '../../../../server/lib/stripe';
+import { convertFromStripeAmount, extractFees } from '../../../../server/lib/stripe';
 import models from '../../../../server/models';
 import * as utils from '../../../utils';
 
@@ -19,7 +20,18 @@ const refundTransactionMutation = gql`
   }
 `;
 
-async function setupTestObjects() {
+/**
+ * Handles the zero-decimal currencies for Stripe testing; https://stripe.com/docs/currencies#zero-decimal
+ */
+export const convertToStripeAmount = (currency, amount) => {
+  if (ZERO_DECIMAL_CURRENCIES.includes(currency?.toUpperCase())) {
+    return amount / 100;
+  } else {
+    return amount;
+  }
+};
+
+async function setupTestObjects(currency = 'USD') {
   const user = await models.User.createUserWithCollective(utils.data('user1'));
   const host = await models.User.createUserWithCollective(utils.data('host1'));
   const collective = await models.Collective.create(utils.data('collective1'));
@@ -35,7 +47,7 @@ async function setupTestObjects() {
   const order = await models.Order.create({
     description: 'Donation',
     totalAmount: 5000,
-    currency: 'USD',
+    currency: currency,
     TierId: tier.id,
     CreatedByUserId: user.id,
     FromCollectiveId: user.CollectiveId,
@@ -53,25 +65,25 @@ async function setupTestObjects() {
     balance_transaction: 'txn_1Bs9EEBYycQg1OMfTR33Y5Xr',
     captured: true,
     created: 1517834264,
-    currency: 'usd',
+    currency: currency,
     customer: 'cus_9sKDFZkPwuFAF8',
   };
   const balanceTransaction = {
     id: 'txn_1Bs9EEBYycQg1OMfTR33Y5Xr',
     object: 'balance_transaction',
-    amount: 5000,
-    currency: 'usd',
-    fee: 425,
+    amount: convertToStripeAmount(currency, 5000),
+    currency: currency,
+    fee: convertToStripeAmount(currency, 425),
     fee_details: [
-      { amount: 175, currency: 'usd', type: 'stripe_fee' },
-      { amount: 250, currency: 'usd', type: 'application_fee' },
+      { amount: convertToStripeAmount(currency, 175), currency: currency, type: 'stripe_fee' },
+      { amount: convertToStripeAmount(currency, 250), currency: currency, type: 'application_fee' },
     ],
-    net: 4575,
+    net: convertToStripeAmount(currency, 4575),
     status: 'pending',
     type: 'charge',
   };
   /* eslint-enable camelcase */
-  const fees = extractFees(balanceTransaction);
+  const fees = extractFees(balanceTransaction, balanceTransaction.currency);
   const payload = {
     CreatedByUserId: user.id,
     FromCollectiveId: user.CollectiveId,
@@ -83,9 +95,13 @@ async function setupTestObjects() {
       amount: order.totalAmount,
       currency: order.currency,
       hostCurrency: balanceTransaction.currency,
-      amountInHostCurrency: balanceTransaction.amount,
-      hostCurrencyFxRate: order.totalAmount / balanceTransaction.amount,
-      hostFeeInHostCurrency: paymentsLib.calcFee(balanceTransaction.amount, collective.hostFeePercent),
+      amountInHostCurrency: convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount),
+      hostCurrencyFxRate:
+        order.totalAmount / convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount),
+      hostFeeInHostCurrency: paymentsLib.calcFee(
+        convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount),
+        collective.hostFeePercent,
+      ),
       platformFeeInHostCurrency: fees.applicationFee,
       paymentProcessorFeeInHostCurrency: fees.stripeFee,
       description: order.description,
@@ -329,11 +345,7 @@ describe('server/graphql/v1/refundTransaction', () => {
 
     afterEach(nock.cleanAll);
 
-    it('should create negative transactions without the stripe fee being refunded', async () => {
-      // Given that we create a user, host, collective, tier,
-      // paymentMethod, an order and a transaction
-      const { user, collective, host, transaction } = await setupTestObjects();
-
+    async function handleRefundTransaction(transaction, host, collective, user) {
       // When the above transaction is refunded
       const result = await utils.graphqlQuery(refundTransactionMutation, { id: transaction.id }, host);
 
@@ -415,6 +427,23 @@ describe('server/graphql/v1/refundTransaction', () => {
       expect(tr4.amountInHostCurrency).to.equal(4075);
       expect(tr4.netAmountInCollectiveCurrency).to.equal(5000);
       expect(tr4.RefundTransactionId).to.equal(tr1.id);
+    }
+
+    it('should create negative transactions without the stripe fee being refunded', async () => {
+      // Given that we create a user, host, collective, tier,
+
+      // paymentMethod, an order and a transaction
+      const { user, collective, host, transaction } = await setupTestObjects();
+
+      await handleRefundTransaction(transaction, host, collective, user);
+    });
+
+    it('should be able to refund a stripe transaction with zero decimal currencies', async () => {
+      // Given that we create a user, host, collective, tier,
+      // paymentMethod, an order and a transaction
+      const { user, collective, host, transaction } = await setupTestObjects('JPY');
+
+      await handleRefundTransaction(transaction, host, collective, user);
     });
   }); /* describe("Stripe Transaction - for hosts created after September 17th 2017") */
 }); /* describe("Refund Transaction") */
