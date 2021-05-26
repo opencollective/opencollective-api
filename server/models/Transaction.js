@@ -694,26 +694,20 @@ function defineModel() {
    * Creates a transaction pair from given payload. Defaults to `CONTRIBUTION` kind unless
    * specified otherwise.
    */
-  Transaction.createFromPayload = async (
-    { CreatedByUserId, FromCollectiveId, CollectiveId, transaction, PaymentMethodId },
-    opts = { isPlatformTipDirectlyCollected: false },
-  ) => {
+  Transaction.createFromPayload = async (transaction, opts = { isPlatformTipDirectlyCollected: false }) => {
     if (!transaction.amount) {
       throw new Error('transaction.amount cannot be null or zero');
     }
 
-    const collective = await models.Collective.findByPk(CollectiveId);
+    // Retrieve Host
+    const collective = await models.Collective.findByPk(transaction.CollectiveId);
     const host = await collective.getHostCollective();
-    const HostCollectiveId = collective.isHostAccount ? collective.id : host.id;
-    if (!HostCollectiveId && !transaction.HostCollectiveId) {
-      throw new Error(`Cannot create a transaction: collective id ${CollectiveId} doesn't have a host`);
+    transaction.HostCollectiveId = collective.isHostAccount ? collective.id : host.id;
+    if (!transaction.HostCollectiveId) {
+      throw new Error(
+        `Cannot create transaction: Collective with id '${transaction.CollectiveId}' doesn't have a Host`,
+      );
     }
-    transaction.HostCollectiveId = HostCollectiveId || transaction.HostCollectiveId;
-    // attach other objects manually. Needed for afterCreate hook to work properly
-    transaction.CreatedByUserId = CreatedByUserId;
-    transaction.FromCollectiveId = FromCollectiveId;
-    transaction.CollectiveId = CollectiveId;
-    transaction.PaymentMethodId = transaction.PaymentMethodId || PaymentMethodId;
 
     // Compute these values, they will eventually be checked again by createDoubleEntry
     transaction.TransactionGroup = uuid();

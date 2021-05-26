@@ -97,7 +97,10 @@ describe('server/models/Transaction', () => {
   });
 
   it('createFromPayload creates a double entry transaction for a Stripe payment in EUR with VAT', () => {
-    const transaction = {
+    const transactionPayload = {
+      CreatedByUserId: user.id,
+      FromCollectiveId: user.CollectiveId,
+      CollectiveId: collective.id,
       description: '€121 for Vegan Burgers including €21 VAT',
       amount: 12100,
       amountInHostCurrency: 12100,
@@ -113,12 +116,7 @@ describe('server/models/Transaction', () => {
       PaymentMethodId: 1,
     };
 
-    return Transaction.createFromPayload({
-      transaction,
-      CreatedByUserId: user.id,
-      FromCollectiveId: user.CollectiveId,
-      CollectiveId: collective.id,
-    }).then(() => {
+    return Transaction.createFromPayload(transactionPayload).then(() => {
       return Transaction.findAll().then(transactions => {
         utils.snapshotTransactions(transactions, { columns: SNAPSHOT_COLUMNS });
 
@@ -138,13 +136,16 @@ describe('server/models/Transaction', () => {
         expect(transactions[1].amount).to.equal(12100);
         expect(transactions[1].netAmountInCollectiveCurrency).to.equal(8700);
         expect(transactions[0] instanceof models.Transaction).to.be.true;
-        expect(transactions[0].description).to.equal(transaction.description);
+        expect(transactions[0].description).to.equal(transactionPayload.description);
       });
     });
   });
 
   it('createFromPayload creates a double entry transaction for a Stripe donation in EUR on a USD host', () => {
-    const transaction = {
+    const transactionPayload = {
+      CreatedByUserId: user.id,
+      FromCollectiveId: user.CollectiveId,
+      CollectiveId: collective.id,
       description: '€100 donation to WWCode Berlin',
       amount: 10000,
       amountInHostCurrency: 11000,
@@ -159,12 +160,7 @@ describe('server/models/Transaction', () => {
       PaymentMethodId: 1,
     };
 
-    return Transaction.createFromPayload({
-      transaction,
-      CreatedByUserId: user.id,
-      FromCollectiveId: user.CollectiveId,
-      CollectiveId: collective.id,
-    }).then(() => {
+    return Transaction.createFromPayload(transactionPayload).then(() => {
       return Transaction.findAll().then(transactions => {
         expect(transactions.length).to.equal(2);
         expect(transactions[0] instanceof models.Transaction).to.be.true;
@@ -173,7 +169,7 @@ describe('server/models/Transaction', () => {
         expect(transactions[0].currency).to.equal('EUR');
         expect(transactions[0].HostCollectiveId).to.be.null;
         expect(transactions[0].kind).to.equal(TransactionKind.CONTRIBUTION);
-        expect(transactions[0].description).to.equal(transaction.description);
+        expect(transactions[0].description).to.equal(transactionPayload.description);
 
         expect(transactions[1].type).to.equal('CREDIT');
         expect(transactions[1].kind).to.equal(TransactionKind.CONTRIBUTION);
@@ -189,16 +185,16 @@ describe('server/models/Transaction', () => {
 
   it('createFromPayload() generates a new activity', done => {
     const createActivityStub = sinon.stub(Transaction, 'createActivity').callsFake(t => {
-      expect(Math.abs(t.amount)).to.equal(Math.abs(transactionsData[7].netAmountInCollectiveCurrency));
+      expect(Math.abs(t.amount)).to.equal(Math.abs(transactionsData[7].amount));
       createActivityStub.restore();
       done();
     });
 
     Transaction.createFromPayload({
-      transaction: transactionsData[7],
       CreatedByUserId: user.id,
       FromCollectiveId: user.CollectiveId,
       CollectiveId: collective.id,
+      ...transactionsData[7],
     })
       .then(transaction => {
         expect(transaction.CollectiveId).to.equal(collective.id);
@@ -208,7 +204,10 @@ describe('server/models/Transaction', () => {
 
   describe('fees on top', () => {
     it('should deduct the platform fee from the main transactions', async () => {
-      const transaction = {
+      const transactionPayload = {
+        CreatedByUserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: collective.id,
         description: '$100 donation to Merveilles',
         amount: 11000,
         amountInHostCurrency: 11000,
@@ -226,12 +225,7 @@ describe('server/models/Transaction', () => {
         },
       };
 
-      const t = await Transaction.createFromPayload({
-        transaction,
-        CreatedByUserId: user.id,
-        FromCollectiveId: user.CollectiveId,
-        CollectiveId: collective.id,
-      });
+      const t = await Transaction.createFromPayload(transactionPayload);
 
       expect(t).to.have.property('platformFeeInHostCurrency').equal(0);
       expect(t).to.have.property('kind').equal(TransactionKind.CONTRIBUTION);
@@ -253,7 +247,11 @@ describe('server/models/Transaction', () => {
         FromCollectiveId: user.CollectiveId,
         CollectiveId: collective.id,
       });
-      const transaction = {
+
+      const transactionPayload = {
+        CreatedByUserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: collective.id,
         description: '$100 donation to Merveilles',
         amount: 11000,
         totalAmount: 11000,
@@ -273,12 +271,7 @@ describe('server/models/Transaction', () => {
         },
       };
 
-      const createdTransaction = await Transaction.createFromPayload({
-        transaction,
-        CreatedByUserId: user.id,
-        FromCollectiveId: user.CollectiveId,
-        CollectiveId: collective.id,
-      });
+      const createdTransaction = await Transaction.createFromPayload(transactionPayload);
 
       // Should have 6 transactions:
       // - 2 for contributions
@@ -327,7 +320,11 @@ describe('server/models/Transaction', () => {
         CollectiveId: collective.id,
         currency: 'EUR',
       });
-      const transaction = {
+
+      const transactionPayload = {
+        CreatedByUserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: collective.id,
         description: '$100 donation to Merveilles',
         amount: 11000,
         totalAmount: 11000,
@@ -347,12 +344,7 @@ describe('server/models/Transaction', () => {
         },
       };
 
-      await Transaction.createFromPayload({
-        transaction,
-        CreatedByUserId: user.id,
-        FromCollectiveId: user.CollectiveId,
-        CollectiveId: collective.id,
-      });
+      await Transaction.createFromPayload(transactionPayload);
 
       const allTransactions = await Transaction.findAll({ where: { OrderId: order.id } });
       expect(allTransactions).to.have.length(6);
@@ -382,7 +374,11 @@ describe('server/models/Transaction', () => {
         CollectiveId: collective.id,
         currency: 'EUR',
       });
-      const transaction = {
+
+      const transactionPayload = {
+        CreatedByUserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: collective.id,
         description: '$100 donation to Merveilles',
         amount: 10000,
         totalAmount: 10000,
@@ -402,12 +398,7 @@ describe('server/models/Transaction', () => {
         },
       };
 
-      await Transaction.createFromPayload({
-        transaction,
-        CreatedByUserId: user.id,
-        FromCollectiveId: user.CollectiveId,
-        CollectiveId: collective.id,
-      });
+      await Transaction.createFromPayload(transactionPayload);
 
       const allTransactions = await Transaction.findAll({ where: { OrderId: order.id } });
       expect(allTransactions).to.have.length(2);
@@ -422,7 +413,10 @@ describe('server/models/Transaction', () => {
       currency: 'USD',
     });
 
-    const transaction = {
+    const transactionPayload = {
+      CreatedByUserId: user.id,
+      FromCollectiveId: user.CollectiveId,
+      CollectiveId: collective.id,
       description: 'Financial contribution to Booky Foundation',
       amount: 500,
       currency: 'USD',
@@ -444,12 +438,7 @@ describe('server/models/Transaction', () => {
       },
     };
 
-    const credit = await Transaction.createFromPayload({
-      transaction,
-      CreatedByUserId: user.id,
-      FromCollectiveId: user.CollectiveId,
-      CollectiveId: collective.id,
-    });
+    const credit = await Transaction.createFromPayload(transactionPayload);
 
     await Transaction.validate(credit);
 
