@@ -199,6 +199,7 @@ export const SUPPORTED_CURRENCIES = [
   'RON',
   'SEK',
   'SGD',
+  'UAH',
   'USD',
   'UYU',
   'ZAR',
