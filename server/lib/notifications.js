@@ -252,8 +252,7 @@ function replaceVideosByImagePreviews(activity) {
         return '';
       }
     })
-    .replace(new RegExp('</iframe><figcaption></figcaption></figure>', 'g'), '')
-    .replace(new RegExp('width="100%" height="394"', 'g'), '');
+    .replace(/<iframe\s[^>]><\/iframe>/gi, '');
   return activity;
 }
 
