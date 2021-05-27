@@ -567,38 +567,9 @@ export const getPlatformFee = async (totalAmount, order, host = null, { hostPlan
   return calcFee(totalAmount, platformFeePercent);
 };
 
-export const getPlatformFeePercent = async (order, host = null) => {
-  const possibleValues = [
-    // Fixed in the Order (special tiers: BackYourStack, Pre-Paid)
-    order.data?.platformFeePercent,
-  ];
-
-  if (order.paymentMethod.service === 'opencollective' && order.paymentMethod.type === 'manual') {
-    host = host || (await order.collective.getHostCollective());
-    // Fixed for Bank Transfers at collective level
-    possibleValues.push(order.collective.data?.bankTransfersPlatformFeePercent);
-    // Fixed for Bank Transfers at host level
-    // As of August 2020, this will be only set on a selection of Hosts (opensource 5%)
-    possibleValues.push(host.data?.bankTransfersPlatformFeePercent);
-    // Default to 0 for this kind of payments
-    possibleValues.push(0);
-  }
-
-  if (order.paymentMethod.service === 'opencollective') {
-    // Default to 0 for this kind of payments
-    if (order.paymentMethod.type === 'collective' || order.paymentMethod.type === 'host') {
-      possibleValues.push(0);
-    }
-  }
-
-  // Default for Collective
-  possibleValues.push(order.collective.platformFeePercent);
-
-  // Just in case, default on the platform (not used in normal operation)
-  possibleValues.push(config.fees.default.platformPercent);
-
-  // Pick the first that is set as a Number
-  return possibleValues.find(isNumber);
+export const getPlatformFeePercent = async () => {
+  // Platform Fees are deprecated
+  return 0;
 };
 
 export const getHostFee = async (totalAmount, order, host = null) => {

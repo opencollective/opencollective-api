@@ -163,7 +163,7 @@ describe('server/paymentProviders/paypal/payment', () => {
 
         // Fees
         expect(tr.hostFeeInHostCurrency).to.equal(-500); // 10%
-        expect(tr.platformFeeInHostCurrency).to.equal(-250); // 5%
+        expect(tr.platformFeeInHostCurrency).to.equal(0); // 0%
         expect(tr.paymentProcessorFeeInHostCurrency).to.equal(-175);
       });
 
