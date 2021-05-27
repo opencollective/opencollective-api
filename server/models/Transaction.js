@@ -576,9 +576,7 @@ function defineModel() {
   };
 
   Transaction.createPlatformTipTransactions = async ({ transaction, host }) => {
-    if (!transaction.data?.isFeesOnTop) {
-      throw new Error('This transaction does not have fees on top');
-    } else if (!transaction.platformFeeInHostCurrency) {
+    if (!transaction.data?.isFeesOnTop || !transaction.platformFeeInHostCurrency) {
       return;
     }
 
@@ -632,6 +630,42 @@ function defineModel() {
     return { transaction, donationTransaction };
   };
 
+  Transaction.createHostFeeTransactions = async ({ transaction, host }) => {
+    if (!transaction.hostFeeInHostCurrency) {
+      return;
+    }
+
+    const amountInHostCurrency = Math.abs(transaction.hostFeeInHostCurrency);
+
+    const hostFeeTransaction = {
+      type: TransactionTypes.CREDIT,
+      kind: TransactionKind.HOST_FEE,
+      description: 'Host Fee',
+      TransactionGroup: transaction.TransactionGroup,
+      FromCollectiveId: transaction.CollectiveId,
+      CollectiveId: host.id,
+      HostCollectiveId: host.id,
+      // Compute amounts
+      amount: amountInHostCurrency / transaction.hostCurrencyFxRate,
+      netAmountInCollectiveCurrency: amountInHostCurrency / transaction.hostCurrencyFxRate,
+      currency: transaction.currency,
+      amountInHostCurrency: amountInHostCurrency,
+      hostCurrency: transaction.hostCurrency,
+      hostCurrencyFxRate: transaction.hostCurrencyFxRate,
+      // No fees
+      platformFeeInHostCurrency: 0,
+      hostFeeInHostCurrency: 0,
+      paymentProcessorFeeInHostCurrency: 0,
+    };
+
+    await Transaction.createDoubleEntry(hostFeeTransaction);
+
+    // Reset the original host fee because we're now accounting for this value in a separate set of transactions
+    transaction.hostFeeInHostCurrency = 0;
+
+    return { transaction, hostFeeTransaction };
+  };
+
   /**
    * Creates a transaction pair from given payload. Defaults to `CONTRIBUTION` kind unless
    * specified otherwise.
@@ -668,7 +702,19 @@ function defineModel() {
     if (transaction.data?.isFeesOnTop && transaction.platformFeeInHostCurrency) {
       const result = await Transaction.createPlatformTipTransactions({ transaction, host });
       // Transaction was modified by createPlatformTipTransactions, we get it from the result
-      transaction = result.transaction;
+      if (result && result.transaction) {
+        transaction = result.transaction;
+      }
+    }
+
+    // Create Host Fee transaction
+    if (transaction.hostFeeInHostCurrency) {
+      // transaction.hostFeeInHostCurrency = 0;
+      const result = await Transaction.createHostFeeTransactions({ transaction, host });
+      // Transaction was modified by createHostFeeTransaction, we get it from the result
+      if (result && result.transaction) {
+        transaction = result.transaction;
+      }
     }
 
     // populate netAmountInCollectiveCurrency for financial contributions
