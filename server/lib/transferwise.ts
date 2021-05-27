@@ -8,11 +8,12 @@ import Axios, { AxiosError } from 'axios';
 import config from 'config';
 import Debug from 'debug';
 import { Request } from 'express';
-import { isNull, omitBy, startCase, toInteger, toUpper } from 'lodash';
+import { isNull, omitBy, pick, startCase, toInteger, toUpper } from 'lodash';
 
 import { TransferwiseError } from '../graphql/errors';
 import {
   AccessToken,
+  BatchGroup,
   BorderlessAccount,
   CurrencyPair,
   Profile,
@@ -100,7 +101,7 @@ export const requestDataAndThrowParsedError = (
   },
   defaultErrorMessage?: string,
 ): Promise<any> => {
-  debug(`calling ${url}: ${JSON.stringify({ data, params: options.params }, null, 2)}`);
+  debug(`calling ${config.transferwise.apiUrl}${url}: ${JSON.stringify({ data, params: options.params }, null, 2)}`);
   const pRequest = data ? fn(url, data, options) : fn(url, options);
   return pRequest
     .then(getData)
@@ -366,7 +367,129 @@ export const getBorderlessAccount = async (token: string, profileId: string | nu
   }
 };
 
+export const createBatchGroup = async (
+  token: string,
+  profileId: string | number,
+  data: { name: string; sourceCurrency: string },
+): Promise<BatchGroup> => {
+  try {
+    return requestDataAndThrowParsedError(axios.post, `/v3/profiles/${profileId}/batch-groups`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data,
+    });
+  } catch (e) {
+    logger.error(e);
+    throw new Error('There was an error while creating the batch group.');
+  }
+};
+
+export const getBatchGroup = async (
+  token: string,
+  profileId: string | number,
+  batchGroupId: string,
+): Promise<BatchGroup> => {
+  try {
+    return requestDataAndThrowParsedError(axios.get, `/v3/profiles/${profileId}/batch-groups/${batchGroupId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch (e) {
+    logger.error(e);
+    throw new Error('There was an error while fetching the batch group.');
+  }
+};
+
+export const createBatchGroupTransfer = async (
+  token: string,
+  profileId: string | number,
+  batchGroupId: string,
+  { accountId: targetAccount, quoteUuid, customerTransactionId, details }: CreateTransfer,
+): Promise<Transfer> => {
+  const data = { targetAccount, quoteUuid, customerTransactionId, details };
+  try {
+    return requestDataAndThrowParsedError(
+      axios.post,
+      `/v3/profiles/${profileId}/batch-groups/${batchGroupId}/transfers`,
+      {
+        data,
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    );
+  } catch (e) {
+    logger.error(e);
+    throw new Error('There was an error while creating the Wise transfer in the batch group');
+  }
+};
+
+export const completeBatchGroup = async (
+  token: string,
+  profileId: string | number,
+  batchGroupId: string,
+  version: number,
+): Promise<BatchGroup> => {
+  try {
+    return requestDataAndThrowParsedError(axios.patch, `/v3/profiles/${profileId}/batch-groups/${batchGroupId}`, {
+      data: { version, status: 'COMPLETED' },
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch (e) {
+    logger.error(e);
+    throw new Error('There was an error while creating the Wise transfer in the batch group');
+  }
+};
+
+export const cancelBatchGroup = async (
+  token: string,
+  profileId: string | number,
+  batchGroupId: string,
+  version: number,
+): Promise<BatchGroup> => {
+  try {
+    return requestDataAndThrowParsedError(axios.patch, `/v3/profiles/${profileId}/batch-groups/${batchGroupId}`, {
+      data: { version, status: 'CANCELLED' },
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch (e) {
+    logger.error(e);
+    throw new Error('There was an error while creating the Wise transfer in the batch group');
+  }
+};
+
+export type OTTResponse = {
+  status: number;
+  headers: {
+    'x-2fa-approval': string;
+  };
+};
+
+export const fundBatchGroup = async (
+  token: string,
+  profileId: string | number,
+  batchGroupId: string,
+  x2faApproval?: string,
+): Promise<BatchGroup | OTTResponse> => {
+  const headers = { Authorization: `Bearer ${token}` };
+  if (x2faApproval) {
+    headers['x-2fa-approval'] = x2faApproval;
+  }
+
+  return axios
+    .post(`/v3/profiles/${profileId}/batch-payments/${batchGroupId}/payments`, { type: 'BALANCE' }, { headers })
+    .then(getData)
+    .catch(e => {
+      const headers = pick(e.response?.headers, ['x-2fa-approval']);
+      const status = e.response?.status;
+
+      if (status === 403 && headers['x-2fa-approval']) {
+        return { headers, status };
+      } else {
+        logger.error(e);
+        throw new Error('There was an error while funding the batch group');
+      }
+    });
+};
+
 const isProduction = config.env === 'production';
+
 const publicKey = fs.readFileSync(
   path.join(
     __dirname,
