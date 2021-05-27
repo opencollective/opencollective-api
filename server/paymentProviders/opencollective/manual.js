@@ -49,7 +49,7 @@ async function processOrder(order) {
   const hostCurrencyFxRate = await getFxRate(order.currency, hostCurrency);
   const amountInHostCurrency = Math.round(order.totalAmount * hostCurrencyFxRate);
 
-  const platformFeeInHostCurrency = await getPlatformFee(amountInHostCurrency, order, host);
+  const platformFeeInHostCurrency = isSharedRevenue ? 0 : await getPlatformFee(amountInHostCurrency, order, host);
   const hostFeeInHostCurrency = await getHostFee(amountInHostCurrency, order, host);
 
   const isFeesOnTop = order.data?.isFeesOnTop || false;

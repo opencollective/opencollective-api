@@ -106,6 +106,16 @@ describe('server/paymentProviders/opencollective/manual', () => {
       const transaction = await ManualPaymentMethod.processOrder(order);
       expect(transaction.currency).to.equal('FKA');
     });
+
+    it('should set platformFee to 0 if host has hostFeeSharePercent set', async () => {
+      await host.update({
+        data: { ...host.data, plan: { hostFeeSharePercent: 50 }, bankTransfersPlatformFeePercent: 5 },
+        plan: 'owned',
+      });
+      const order = await createOrder(4000000, collective);
+      const transaction = await ManualPaymentMethod.processOrder(order);
+      expect(transaction.platformFeeInHostCurrency).to.equal(0);
+    });
   });
 
   // ---- refundTransaction ----
