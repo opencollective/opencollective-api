@@ -74,7 +74,7 @@ export const TransferWise = new GraphQLObjectType({
       args: {
         ignoreBlockedCurrencies: {
           type: GraphQLBoolean,
-          description: 'Ignores blacklisted currencies, used to generate the bank information form for manual payments',
+          description: 'Ignores blocked currencies, used to generate the bank information form for manual payments',
         },
       },
       type: new GraphQLList(GraphQLJSONObject),
