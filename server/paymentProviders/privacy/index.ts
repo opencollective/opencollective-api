@@ -177,6 +177,24 @@ const assignCardToCollective = async (
   }
 };
 
+const refreshCardDetails = async (virtualCard: VirtualCardModel) => {
+  const connectedAccount = await models.ConnectedAccount.findOne({
+    where: { service: 'privacy', deletedAt: null, CollectiveId: virtualCard.HostCollectiveId },
+  });
+
+  if (!connectedAccount) {
+    throw new Error('Host is not connected to Privacy');
+  }
+
+  const [card] = await privacy.listCards(connectedAccount.token, virtualCard.id);
+  if (!card) {
+    throw new Error(`Could not find card ${virtualCard.id}`);
+  }
+  const newData = omit(card, ['pan', 'cvv', 'exp_year', 'exp_month']);
+  await virtualCard.update('data', newData);
+  return virtualCard;
+};
+
 const setCardState = async (virtualCard: VirtualCardModel, state: 'OPEN' | 'PAUSED'): Promise<VirtualCardModel> => {
   const host = await models.Collective.findByPk(virtualCard.HostCollectiveId);
   const [connectedAccount] = await host.getConnectedAccounts({
@@ -235,6 +253,7 @@ const PrivacyCardProviderService = {
   pauseCard,
   resumeCard,
   deleteCard,
+  refreshCardDetails,
 } as CardProviderService;
 
 export default PrivacyCardProviderService;
