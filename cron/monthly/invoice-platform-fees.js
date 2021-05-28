@@ -13,6 +13,7 @@ import { SHARED_REVENUE_PLANS } from '../../server/constants/plans';
 import { SETTLEMENT_EXPENSE_PROPERTIES, TransactionTypes } from '../../server/constants/transactions';
 import { uploadToS3 } from '../../server/lib/awsS3';
 import { generateKey } from '../../server/lib/encryption';
+import { parseToBoolean } from '../../server/lib/utils';
 import models, { sequelize } from '../../server/models';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 
@@ -24,6 +25,9 @@ const isProduction = config.env === 'production';
 // Only run on the 1th of the month
 if (isProduction && date.date() !== 1 && !process.env.OFFCYCLE) {
   console.log('OC_ENV is production and today is not the 1st of month, script aborted!');
+  process.exit();
+} else if (parseToBoolean(process.env.DISABLE_INVOICE_PLATFORM_FEES)) {
+  console.log('Invoice platform fee script is disabled');
   process.exit();
 }
 
