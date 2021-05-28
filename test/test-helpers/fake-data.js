@@ -482,25 +482,30 @@ export const fakeTransaction = async (
   const FromCollectiveId = transactionData.FromCollectiveId || (await fakeCollective()).id;
   const CollectiveId = transactionData.CollectiveId || (await fakeCollective()).id;
   const createMethod = createDoubleEntry ? 'createDoubleEntry' : 'create';
-  const transaction = await models.Transaction[createMethod]({
-    type: amount < 0 ? 'DEBIT' : 'CREDIT',
-    currency: 'USD',
-    hostCurrency: 'USD',
-    hostCurrencyFxRate: 1,
-    netAmountInCollectiveCurrency: amount,
-    amountInHostCurrency: amount,
-    TransactionGroup: uuid(),
-    kind: transactionData.ExpenseId ? TransactionKind.EXPENSE : null,
-    isDebt: Boolean(settlementStatus),
-    hostFeeInHostCurrency: 0,
-    platformFeeInHostCurrency: 0,
-    paymentProcessorFeeInHostCurrency: 0,
-    ...transactionData,
-    amount,
-    CreatedByUserId,
-    FromCollectiveId,
-    CollectiveId,
-  });
+  const transaction = await models.Transaction[createMethod](
+    {
+      type: amount < 0 ? 'DEBIT' : 'CREDIT',
+      currency: transactionData.currency || 'USD',
+      hostCurrency: transactionData.hostCurrency || 'USD',
+      hostCurrencyFxRate: 1,
+      netAmountInCollectiveCurrency: amount,
+      amountInHostCurrency: amount,
+      TransactionGroup: uuid(),
+      kind: transactionData.ExpenseId ? TransactionKind.EXPENSE : null,
+      isDebt: Boolean(settlementStatus),
+      hostFeeInHostCurrency: 0,
+      platformFeeInHostCurrency: 0,
+      paymentProcessorFeeInHostCurrency: 0,
+      ...transactionData,
+      amount,
+      CreatedByUserId,
+      FromCollectiveId,
+      CollectiveId,
+    },
+    // In the context of tests, we disable hooks because they can conflict with SQL transactions
+    // E.g.: afterCreate: transaction => Transaction.createActivity(transaction)
+    { hooks: false },
+  );
 
   if (settlementStatus) {
     await models.TransactionSettlement.create({
