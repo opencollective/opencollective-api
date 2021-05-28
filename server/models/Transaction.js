@@ -2,7 +2,7 @@ import assert from 'assert';
 
 import Promise from 'bluebird';
 import debugLib from 'debug';
-import { defaultsDeep, get, isNil, isNull, isUndefined, pick } from 'lodash';
+import { defaultsDeep, get, isNil, isNull, isUndefined, omit, pick } from 'lodash';
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
@@ -583,13 +583,14 @@ function defineModel() {
   /**
    * Record a debt transaction and its associated settlement
    */
-  Transaction.createPlatformTipDebtTransactions = async (baseTransactionData, host) => {
+  Transaction.createPlatformTipDebtTransactions = async (tipTransactionData, host) => {
     // Create debt transaction
     const debtTransactionData = {
-      ...baseTransactionData,
-      CollectiveId: host?.id || baseTransactionData.HostCollectiveId,
+      ...omit(tipTransactionData, ['id', 'uuid']),
+      description: 'Platform tip reimbursement',
+      CollectiveId: host.id,
       FromCollectiveId: PLATFORM_TIP_TRANSACTION_PROPERTIES.CollectiveId,
-      HostCollectiveId: host?.id || baseTransactionData.HostCollectiveId,
+      HostCollectiveId: host.id,
       kind: TransactionKind.PLATFORM_TIP,
       isDebt: true,
     };

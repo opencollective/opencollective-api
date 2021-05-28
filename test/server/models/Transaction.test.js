@@ -313,7 +313,6 @@ describe('server/models/Transaction', () => {
       const tipDebtDebit = allTransactions.find(t => t.CollectiveId === inc.id && t.isDebt);
       expect(tipDebtCredit).to.exist;
       expect(tipDebtDebit).to.exist;
-      // TODO(LedgerRefactor): Check paymentProcessorFeeInHostCurrency
 
       // Check settlement
       const settlement = await models.TransactionSettlement.getByTransaction(tipCredit);
