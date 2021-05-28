@@ -1,4 +1,5 @@
 import config from 'config';
+import { truncate } from 'lodash';
 
 import models, { Op } from '../models';
 
@@ -79,6 +80,19 @@ const getMainAdminToContact = async (account, adminUsers) => {
   return adminUsers[0];
 };
 
+/**
+ * Generate a name for the participant, combining the account name with the user name
+ * if it's a group (organization, collective, etc). Strings are truncated if too long
+ * to match the `64` characters limit from HelloWorks.
+ */
+const generateParticipantName = (account, mainUser) => {
+  if (account.id === mainUser.collective.id) {
+    return truncate(account.name, { length: 64 });
+  } else {
+    return `${truncate(account.slug, { length: 30 })} (${truncate(mainUser.collective.name, { length: 30 })})`;
+  }
+};
+
 export async function sendHelloWorksUsTaxForm(client, account, year, callbackUrl, workflowId) {
   const adminUsers = await getAdminsForAccount(account);
   const mainUser = await getMainAdminToContact(account, adminUsers);
@@ -88,13 +102,12 @@ export async function sendHelloWorksUsTaxForm(client, account, year, callbackUrl
     return;
   }
 
-  const isTaxFormForUser = account.id === mainUser.collective.id;
   const participants = {
     // eslint-disable-next-line camelcase
     participant_swVuvW: {
       type: 'email',
       value: mainUser.email,
-      fullName: isTaxFormForUser ? account.name : `${account.slug} (${mainUser.collective.name})`,
+      fullName: generateParticipantName(account, mainUser),
     },
   };
 

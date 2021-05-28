@@ -199,6 +199,7 @@ export const SUPPORTED_CURRENCIES = [
   'RON',
   'SEK',
   'SGD',
+  'UAH',
   'USD',
   'UYU',
   'ZAR',
@@ -263,6 +264,28 @@ export const TransferWiseCurrencies = pick(IBANCurrencies, [
   'ZAR',
   'ZMW',
 ]);
+
+/**
+ * Zero-decimal currencies for Stripe; https://stripe.com/docs/currencies#zero-decimal
+ */
+export const ZERO_DECIMAL_CURRENCIES = [
+  'BIF',
+  'CLP',
+  'DJF',
+  'GNF',
+  'JPY',
+  'KMF',
+  'KRW',
+  'MGA',
+  'PYG',
+  'RWF',
+  'UGX',
+  'VND',
+  'VUV',
+  'XAF',
+  'XOF',
+  'XPF',
+];
 
 export const currencyFormats = {
   EUR: '€',

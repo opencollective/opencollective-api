@@ -36,7 +36,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymen
 import plans from '../constants/plans';
 import roles, { MemberRoleLabels } from '../constants/roles';
 import { TransactionKind } from '../constants/transaction-kind';
-import { FEES_ON_TOP_TRANSACTION_PROPERTIES, TransactionTypes } from '../constants/transactions';
+import { PLATFORM_TIP_TRANSACTION_PROPERTIES, TransactionTypes } from '../constants/transactions';
 import { hasOptedOutOfFeature, isFeatureAllowedForCollectiveType } from '../lib/allowed-features';
 import {
   getBalanceAmount,
@@ -1542,7 +1542,7 @@ function defineModel() {
       case roles.MEMBER:
       case roles.ACCOUNTANT:
       case roles.ADMIN:
-        if (![types.FUND, types.PROJECT].includes(this.type)) {
+        if (![types.FUND, types.PROJECT, types.EVENT].includes(this.type)) {
           await this.sendNewMemberEmail(user, role, member, sequelizeParams);
         }
         break;
@@ -1613,7 +1613,10 @@ function defineModel() {
     }
 
     // We only send the notification for new member for role MEMBER and ADMIN
-    const template = `${this.type.toLowerCase()}.newmember`;
+    const supportedTemplates = ['collective', 'organization'];
+    const lowercaseType = this.type.toLowerCase();
+    const typeForTemplate = supportedTemplates.includes(lowercaseType) ? lowercaseType : 'collective';
+    const template = `${typeForTemplate}.newmember`;
     return emailLib.send(
       template,
       memberUser.email,
@@ -1627,7 +1630,7 @@ function defineModel() {
         collective: {
           slug: this.slug,
           name: this.name,
-          type: this.type.toLowerCase(),
+          type: lowercaseType,
         },
         recipient: {
           collective: memberUser.collective.activity,
@@ -2995,7 +2998,7 @@ function defineModel() {
 
     const tipsTransactions = await models.Transaction.findAll({
       where: {
-        ...pick(FEES_ON_TOP_TRANSACTION_PROPERTIES, ['CollectiveId', 'HostCollectiveId']),
+        ...pick(PLATFORM_TIP_TRANSACTION_PROPERTIES, ['CollectiveId', 'HostCollectiveId']),
         createdAt: { [Op.gte]: from, [Op.lt]: to },
         type: TransactionTypes.CREDIT,
         TransactionGroup: { [Op.in]: transactions.map(t => t.TransactionGroup) },

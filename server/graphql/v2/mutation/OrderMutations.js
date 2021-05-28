@@ -23,6 +23,7 @@ import { getLegacyPaymentMethodFromPaymentMethodInput } from '../input/PaymentMe
 import { fetchPaymentMethodWithReference, PaymentMethodReferenceInput } from '../input/PaymentMethodReferenceInput';
 import { fetchTierWithReference, TierReferenceInput } from '../input/TierReferenceInput';
 import { Order } from '../object/Order';
+import { canMarkAsExpired, canMarkAsPaid } from '../object/OrderPermissions';
 import { StripeError } from '../object/StripeError';
 
 const OrderWithPayment = new GraphQLObjectType({
@@ -289,17 +290,22 @@ const orderMutations = {
 
       if (!req.remoteUser?.isAdmin(toAccount.HostCollectiveId)) {
         throw new Unauthorized('Only host admins can process orders');
-      } else if (order.status !== status.PENDING) {
-        throw new ValidationFailed(`Only pending orders can be processed, this one is ${order.status}`);
       }
 
-      switch (args.action) {
-        case 'MARK_AS_PAID':
-          return order.markAsPaid(req.remoteUser);
-        case 'MARK_AS_EXPIRED':
-          return order.markAsExpired();
-        default:
-          throw new BadRequest(`Unknown action ${args.action}`);
+      if (args.action === 'MARK_AS_PAID') {
+        if (!(await canMarkAsPaid(req, order))) {
+          throw new ValidationFailed(`Only pending/expired orders can be marked as paid, this one is ${order.status}`);
+        }
+
+        return order.markAsPaid(req.remoteUser);
+      } else if (args.action === 'MARK_AS_EXPIRED') {
+        if (!(await canMarkAsExpired(req, order))) {
+          throw new ValidationFailed(`Only pending orders can be marked as expired, this one is ${order.status}`);
+        }
+
+        return order.markAsExpired();
+      } else {
+        throw new BadRequest(`Unknown action ${args.action}`);
       }
     },
   },

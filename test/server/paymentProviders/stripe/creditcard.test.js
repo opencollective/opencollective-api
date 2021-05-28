@@ -158,6 +158,19 @@ describe('server/paymentProviders/stripe/creditcard', () => {
         expect(createIntentRequest).to.have.property('application_fee_amount', `${1000 * 0.1 * 0.15}`);
       });
 
+      it('should process orders correctly with zero decimal currencies', async () => {
+        const { order } = await createOrderWithPaymentMethod('name', {
+          totalAmount: 25000,
+          currency: 'jpy',
+          data: { isFeesOnTop: true, platformFee: 5000 },
+        });
+
+        await creditcard.processOrder(order);
+
+        expect(createIntentRequest).to.have.property('amount', '250');
+        expect(createIntentRequest).to.have.property('application_fee_amount', `50`);
+      });
+
       it('should work with custom creditCardHostFeeSharePercent', async () => {
         const { order, host, collective } = await createOrderWithPaymentMethod('name', {
           totalAmount: 1000,

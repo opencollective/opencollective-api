@@ -83,6 +83,9 @@ describe('server/lib/email', () => {
       expect(nm.sendMail.lastCall.args[0].html).to.contain('Merci pour continuer à nous soutenir');
       expect(nm.sendMail.lastCall.args[0].html).to.contain('donate');
       expect(nm.sendMail.lastCall.args[0].headers['X-Mailgun-Tag']).to.equal('internal');
+
+      expect(nm.sendMail.lastCall.args[0].html).to.matchSnapshot();
+      expect(nm.sendMail.lastCall.args[0].text).to.matchSnapshot();
     });
 
     it('sends the thankyou.wwcode email template', async () => {
@@ -197,6 +200,14 @@ describe('server/lib/email', () => {
         const token = generateUnsubscribeToken(EMAIL_ADDRESS, COLLECTIVE_SLUG, EMAIL_TYPE, md5);
         expect(isValidUnsubscribeToken(token, EMAIL_ADDRESS, COLLECTIVE_SLUG, EMAIL_TYPE)).to.be.true;
       });
+    });
+  });
+
+  describe('render', () => {
+    it('Automatically generates text version', () => {
+      const result = emailLib.render('user.new.token', { loginLink: 'https://opencollective/USER_LOGIN_LINK' });
+      expect(result.html).to.matchSnapshot();
+      expect(result.text).to.matchSnapshot();
     });
   });
 });
