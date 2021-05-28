@@ -51,8 +51,6 @@ async function reconcileConnectedAccount(connectedAccount) {
       if (host.settings?.virtualcards?.autopause) {
         await privacy.autoPauseResumeCard(card);
       }
-      logger.info(`Refreshing card ${card.id} details...`);
-      await privacy.refreshCardDetails(card);
     }
   }
 }
