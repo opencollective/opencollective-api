@@ -80,6 +80,7 @@ export async function run() {
         AND t."createdAt" < date_trunc('month', date :date)
         AND t."deletedAt" IS NULL
         AND t."CollectiveId" = 8686
+        AND t."isDebt" IS NOT TRUE
         AND t."kind" = 'PLATFORM_TIP'
         AND t."type" = 'CREDIT'
         AND ot."HostCollectiveId" NOT IN (8686)

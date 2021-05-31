@@ -96,7 +96,6 @@ export async function run() {
         t."createdAt" >= date_trunc('month', date :date - INTERVAL '1 month')
         AND t."createdAt" < date_trunc('month', date :date)
         AND t."deletedAt" IS NULL
-        AND t."CollectiveId" = 8686
         AND t."kind" = 'PLATFORM_TIP'
         AND t."type" = 'CREDIT'
         AND t."isDebt" IS TRUE
