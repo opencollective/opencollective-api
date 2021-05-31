@@ -33,6 +33,7 @@ const migrate = async () => {
       AND debt."isDebt" IS TRUE
     WHERE t.kind = 'PLATFORM_TIP'
     AND t.type = 'CREDIT'
+    AND t."RefundTransactionId" IS NULL
     AND t."isDebt" IS NOT TRUE
     AND t."createdAt" >= :startDate
     AND (pm.service IS NULL OR pm.service != 'stripe')
@@ -114,6 +115,7 @@ const check = async () => {
       AND debt."kind" = t."kind"
       AND debt."isDebt" IS TRUE
     WHERE t.kind = 'PLATFORM_TIP'
+    AND t."RefundTransactionId" IS NULL
     AND t."createdAt" >= :startDate
     AND t."isDebt" IS NOT TRUE
     AND t.type = 'CREDIT'
