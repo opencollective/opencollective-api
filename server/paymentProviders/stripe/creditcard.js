@@ -229,7 +229,7 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
     },
   };
 
-  return models.Transaction.createFromPayload(payload);
+  return models.Transaction.createFromPayload(payload, { isPlatformTipDirectlyCollected: true });
 };
 
 /**

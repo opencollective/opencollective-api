@@ -1,11 +1,13 @@
 import { groupBy } from 'lodash';
+import { BelongsToGetAssociationMixin, QueryTypes } from 'sequelize';
 
 import { TransactionKind } from '../constants/transaction-kind';
 import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
-import sequelize, { DataTypes, Model, Op } from '../lib/sequelize';
+import sequelize, { DataTypes, Model, Op, Transaction as SQLTransaction } from '../lib/sequelize';
 
 import Collective from './Collective';
 import Transaction from './Transaction';
+import models from '.';
 
 export enum TransactionSettlementStatus {
   OWED = 'OWED',
@@ -42,10 +44,14 @@ class TransactionSettlement
   updatedAt: Date;
   deletedAt: Date;
 
+  public getExpense!: BelongsToGetAssociationMixin<typeof models.Expense>;
+
   constructor(...args) {
     super(...args);
     restoreSequelizeAttributesOnClass(new.target, this);
   }
+
+  // ---- Static methods ----
 
   static async getAccountsWithOwedSettlements(): Promise<typeof Collective[]> {
     return sequelize.query(
@@ -95,6 +101,17 @@ class TransactionSettlement
     );
   }
 
+  static async markExpenseAsSettled(expense: typeof models.Expense): Promise<void> {
+    if (!expense.data?.['isPlatformTipSettlement']) {
+      throw new Error('This function can only be used with platform tips settlements');
+    }
+
+    await TransactionSettlement.update(
+      { status: TransactionSettlementStatus.SETTLED },
+      { where: { ExpenseId: expense.id } },
+    );
+  }
+
   /**
    * Update
    */
@@ -118,14 +135,43 @@ class TransactionSettlement
     });
   }
 
+  static async markTransactionsAsInvoiced(transactions: typeof Transaction[], expenseId: number): Promise<void> {
+    return TransactionSettlement.updateTransactionsSettlementStatus(
+      transactions,
+      TransactionSettlementStatus.INVOICED,
+      expenseId,
+    );
+  }
+
   static async createForTransaction(
     transaction: typeof Transaction,
     status = TransactionSettlementStatus.OWED,
-  ): Promise<TransactionSettlement> {
-    return TransactionSettlement.create({
-      TransactionGroup: transaction.TransactionGroup,
-      kind: transaction.kind,
-      status,
+    sqlTransaction: SQLTransaction = null,
+  ): Promise<void> {
+    // For some reason, using `TransactionSettlement.create` returns an error like `column "id" of relation "TransactionSettlements" does not exist`
+    // in some cases. That is probably related to the fact Sequelize does not handle multi-keys indexes properly.
+    await sequelize.query(
+      `
+        INSERT INTO "TransactionSettlements" ("TransactionGroup", "kind", "status", "createdAt", "updatedAt")
+        VALUES (:TransactionGroup, :kind, :status, NOW(), NOW())
+      `,
+      {
+        type: QueryTypes.INSERT,
+        model: TransactionSettlement,
+        mapToModel: true,
+        transaction: sqlTransaction,
+        replacements: {
+          TransactionGroup: transaction.TransactionGroup,
+          kind: transaction.kind,
+          status,
+        },
+      },
+    );
+  }
+
+  static async getByTransaction(transaction: typeof Transaction): Promise<TransactionSettlement> {
+    return TransactionSettlement.findOne({
+      where: { TransactionGroup: transaction.TransactionGroup, kind: transaction.kind },
     });
   }
 

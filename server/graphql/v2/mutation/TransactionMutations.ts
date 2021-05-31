@@ -65,8 +65,8 @@ const transactionMutations = {
       };
 
       const host = await models.Collective.findByPk(transaction.CollectiveId);
-      const { donationTransaction } = await models.Transaction.createPlatformTipTransactions({ transaction, host });
-      return donationTransaction;
+      const { platformTipTransaction } = await models.Transaction.createPlatformTipTransactions(transaction, host);
+      return platformTipTransaction;
     },
   },
   refundTransaction: {

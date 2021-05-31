@@ -72,6 +72,11 @@ const TransactionsQuery = {
       description:
         'If the account is a user and this field is true, contributions from the incognito profile will be included too (admins only)',
     },
+    includeDebts: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      defaultValue: false,
+      description: 'Whether to include debt transactions',
+    },
   },
   async resolve(_: void, args, req: express.Request): Promise<CollectionReturnType> {
     const where = [];
@@ -178,6 +183,9 @@ const TransactionsQuery = {
     }
     if (args.hasOrder) {
       where.push({ OrderId: { [Op.ne]: null } });
+    }
+    if (!args.includeDebts) {
+      where.push({ isDebt: { [Op.not]: true } });
     }
 
     const order = [[args.orderBy.field, args.orderBy.direction]];

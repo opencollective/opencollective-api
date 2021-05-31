@@ -9,7 +9,9 @@ import status from '../constants/order_status';
 import { PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import roles from '../constants/roles';
 import tiers from '../constants/tiers';
+import { TransactionKind } from '../constants/transaction-kind';
 import models, { Op } from '../models';
+import TransactionSettlement, { TransactionSettlementStatus } from '../models/TransactionSettlement';
 import paymentProviders from '../paymentProviders';
 
 import emailLib from './email';
@@ -179,6 +181,7 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
       'paymentProcessorFeeInHostCurrency',
       'data.isFeesOnTop',
       'kind',
+      'isDebt',
     ]);
     refund.CreatedByUserId = user?.id || null;
     refund.description = `Refund of "${t.description}"`;
@@ -208,28 +211,64 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
     return refund;
   };
 
-  const creditTransactionRefund = buildRefund(creditTransaction);
-
-  if (transaction.data?.isFeesOnTop) {
-    const feeOnTopTransaction = await transaction.getPlatformTipTransaction();
-    const feeOnTopRefund = buildRefund(feeOnTopTransaction);
-    const feeOnTopRefundTransaction = await models.Transaction.createDoubleEntry(feeOnTopRefund);
-    await associateTransactionRefundId(feeOnTopTransaction, feeOnTopRefundTransaction, data);
+  let platformTipTransaction, platformTipRefund, platformTipDebtTransaction;
+  if (transaction.hasPlatformTip()) {
+    platformTipTransaction = await transaction.getPlatformTipTransaction();
+    platformTipRefund = buildRefund(platformTipTransaction);
   }
 
+  // Refund platform tip
+  if (platformTipRefund) {
+    const feeOnTopRefundTransaction = await models.Transaction.createDoubleEntry(platformTipRefund);
+    await associateTransactionRefundId(platformTipTransaction, feeOnTopRefundTransaction, data);
+
+    // Refund tip
+    platformTipDebtTransaction = await models.Transaction.findOne({
+      where: {
+        TransactionGroup: platformTipTransaction.TransactionGroup,
+        kind: TransactionKind.PLATFORM_TIP,
+        isDebt: true,
+        type: 'CREDIT',
+      },
+    });
+
+    // Old tips did not have a "debt" transaction associated
+    if (platformTipDebtTransaction) {
+      // Update tip settlement status
+      const settlementWhere = { TransactionGroup: transaction.TransactionGroup, kind: TransactionKind.PLATFORM_TIP };
+      const tipSettlement = await models.TransactionSettlement.findOne({ where: settlementWhere });
+      let tipRefundSettlementStatus = TransactionSettlementStatus.OWED;
+      if (tipSettlement.status === TransactionSettlementStatus.OWED) {
+        // If the tip is not INVOICED or SETTLED, we don't need to care about recording it.
+        // Otherwise, the tip refund will be marked as OWED and deduced from the next invoice
+        await tipSettlement.destroy();
+        tipRefundSettlementStatus = TransactionSettlementStatus.SETTLED;
+      }
+
+      // Refund the tip
+      const platformTipDebtRefund = buildRefund(platformTipDebtTransaction);
+      const tipDebtRefundTransaction = await models.Transaction.createDoubleEntry(platformTipDebtRefund);
+      await associateTransactionRefundId(platformTipDebtTransaction, tipDebtRefundTransaction, data);
+      await TransactionSettlement.createForTransaction(tipDebtRefundTransaction, tipRefundSettlementStatus);
+    }
+  }
+
+  // Refund contribution
+  const creditTransactionRefund = buildRefund(creditTransaction);
   const refundTransaction = await models.Transaction.createDoubleEntry(creditTransactionRefund);
-  return await associateTransactionRefundId(transaction, refundTransaction, data);
+  return associateTransactionRefundId(transaction, refundTransaction, data);
 }
 
 export async function associateTransactionRefundId(transaction, refund, data) {
+  // TODO(LedgerRefactor): Using the `id` as order here is not reliable, we should rather filter results to make sure we get the right transaction
   const [tr1, tr2, tr3, tr4] = await models.Transaction.findAll({
     order: ['id'],
     where: {
       [Op.or]: [{ TransactionGroup: transaction.TransactionGroup }, { TransactionGroup: refund.TransactionGroup }],
     },
   });
-  // After refunding a transaction, in some cases the data may
-  // be update as well(stripe data changes after refunds)
+
+  // After refunding a transaction, in some cases the data may be updated as well (stripe data changes after refunds)
   if (data) {
     tr1.data = data;
     tr2.data = data;

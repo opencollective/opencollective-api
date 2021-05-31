@@ -180,7 +180,7 @@ export function setupModels() {
 
   m.Notification.belongsTo(m.Collective);
 
-  // Transaction.
+  // Transactions
   m.Collective.hasMany(m.Transaction, { foreignKey: 'CollectiveId' });
   m.Transaction.belongsTo(m.Collective, {
     foreignKey: 'CollectiveId',
@@ -205,6 +205,9 @@ export function setupModels() {
   });
   m.Transaction.belongsTo(m.PaymentMethod);
   m.PaymentMethod.hasMany(m.Transaction);
+
+  // Transaction settlements
+  m.TransactionSettlement.belongsTo(m.Expense);
 
   // Expense
   m.Expense.belongsTo(m.User);

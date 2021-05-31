@@ -1,20 +1,13 @@
 #!/usr/bin/env node
-import '../../server/env';
+import '../server/env';
 
 import config from 'config';
 import { parse as json2csv } from 'json2csv';
 import { entries, groupBy, pick, round, sumBy } from 'lodash';
 import moment from 'moment';
-import { v4 as uuid } from 'uuid';
 
-import expenseStatus from '../../server/constants/expense_status';
-import expenseTypes from '../../server/constants/expense_type';
-import { SHARED_REVENUE_PLANS } from '../../server/constants/plans';
-import { SETTLEMENT_EXPENSE_PROPERTIES, TransactionTypes } from '../../server/constants/transactions';
-import { uploadToS3 } from '../../server/lib/awsS3';
-import { generateKey } from '../../server/lib/encryption';
-import models, { sequelize } from '../../server/models';
-import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
+import { SHARED_REVENUE_PLANS } from '../server/constants/plans';
+import models, { sequelize } from '../server/models';
 
 const date = process.env.START_DATE ? moment.utc(process.env.START_DATE) : moment.utc();
 const DRY = process.env.DRY;
@@ -291,13 +284,6 @@ export async function run() {
     { replacements: { date: date.format('L') } },
   );
   const byHost = groupBy(pastMonthTransactions, 'HostCollectiveId');
-  const today = moment.utc();
-  const payoutMethods = groupBy(
-    await models.PayoutMethod.findAll({
-      where: { CollectiveId: SETTLEMENT_EXPENSE_PROPERTIES.FromCollectiveId },
-    }),
-    'type',
-  );
 
   for (const [hostId, hostTransactions] of entries(byHost)) {
     if (HOST_ID && hostId != HOST_ID) {
@@ -307,7 +293,7 @@ export async function run() {
     const host = await models.Collective.findByPk(hostId);
     const plan = await host.getPlan();
 
-    const { HostName, currency, chargedHostId } = hostTransactions[0];
+    const { HostName, currency } = hostTransactions[0];
 
     const hostFeeSharePercent = plan?.hostFeeSharePercent;
     const transactions = hostTransactions.map(t => {
@@ -318,7 +304,7 @@ export async function run() {
       return t;
     });
 
-    let items = entries(groupBy(transactions, 'source')).map(([source, ts]) => {
+    const items = entries(groupBy(transactions, 'source')).map(([source, ts]) => {
       const incurredAt = date;
       const description = source;
       const amount = round(sumBy(ts, 'amount'));
@@ -337,14 +323,6 @@ export async function run() {
       }
     }
 
-    const transactionIds = transactions.map(t => t.TransactionId);
-    const totalAmountCredited = sumBy(
-      items
-        .filter(i => i.description != 'Shared Revenue')
-        .filter(i => i.description != 'Reimburse: Payment Processor Fee for collected Platform Tips')
-        .filter(i => i.description != 'Fixed Fee per Hosted Collective'),
-      'amount',
-    );
     const totalAmountCharged = sumBy(items, 'amount');
     if (totalAmountCharged < 1000) {
       console.warn(
@@ -363,93 +341,7 @@ export async function run() {
       console.debug(`Items:\n${json2csv(items)}\n`);
       console.debug(csv);
     } else {
-      if (!chargedHostId) {
-        console.error(`Warning: We don't have a way to submit the expense to ${HostName}, ignoring.\n`);
-        continue;
-      }
-      if (totalAmountCredited > 0) {
-        // Credit the Host with platform tips collected during the month
-        await models.Transaction.create({
-          amount: totalAmountCredited,
-          amountInHostCurrency: totalAmountCredited,
-          hostFeeInHostCurrency: 0,
-          platformFeeInHostCurrency: 0,
-          paymentProcessorFeeInHostCurrency: 0,
-          CollectiveId: chargedHostId,
-          CreatedByUserId: SETTLEMENT_EXPENSE_PROPERTIES.UserId,
-          currency: currency,
-          description: `Platform Fees and Tips collected in ${moment.utc().subtract(1, 'month').format('MMMM')}`,
-          FromCollectiveId: chargedHostId,
-          HostCollectiveId: hostId,
-          hostCurrency: currency,
-          hostCurrencyFxRate: 1,
-          netAmountInCollectiveCurrency: totalAmountCredited,
-          type: TransactionTypes.CREDIT,
-          TransactionGroup: uuid(),
-          kind: null, // Keeping this one null on purpose, see https://github.com/opencollective/opencollective-api/pull/5884#discussion_r616440055
-        });
-      }
-
-      const connectedAccounts = await host.getConnectedAccounts({
-        where: { deletedAt: null },
-      });
-
-      let PayoutMethod =
-        payoutMethods[PayoutMethodTypes.OTHER]?.[0] || payoutMethods[PayoutMethodTypes.BANK_ACCOUNT]?.[0];
-      if (
-        connectedAccounts?.find(c => c.service === 'transferwise') &&
-        payoutMethods[PayoutMethodTypes.BANK_ACCOUNT]?.[0]
-      ) {
-        const currencyCompatibleAccount = payoutMethods[PayoutMethodTypes.BANK_ACCOUNT].find(
-          pm => pm.data?.currency === currency,
-        );
-        PayoutMethod = currencyCompatibleAccount || payoutMethods[PayoutMethodTypes.BANK_ACCOUNT]?.[0];
-      } else if (
-        connectedAccounts?.find(c => c.service === 'paypal') &&
-        !host.settings?.disablePaypalPayouts &&
-        payoutMethods[PayoutMethodTypes.PAYPAL]?.[0]
-      ) {
-        PayoutMethod = payoutMethods[PayoutMethodTypes.PAYPAL]?.[0];
-      }
-
-      // Create the Expense
-      const expense = await models.Expense.create({
-        ...SETTLEMENT_EXPENSE_PROPERTIES,
-        PayoutMethodId: PayoutMethod.id,
-        amount: totalAmountCharged,
-        CollectiveId: chargedHostId,
-        currency: currency,
-        description: `Platform settlement for ${moment.utc().subtract(1, 'month').format('MMMM')}`,
-        incurredAt: today,
-        data: { isPlatformTipSettlement: true, transactionIds },
-        type: expenseTypes.INVOICE,
-        status: expenseStatus.PENDING,
-      });
-
-      // Create Expense Items
-      items = items.map(i => ({
-        ...i,
-        ExpenseId: expense.id,
-        CreatedByUserId: SETTLEMENT_EXPENSE_PROPERTIES.UserId,
-      }));
-      await models.ExpenseItem.bulkCreate(items);
-
-      // Attach CSV
-      const Body = csv;
-      const filenameBase = `${HostName}-${moment(date).subtract(1, 'month').format('MMMM-YYYY')}`;
-      const Key = `${filenameBase}.${generateKey().slice(0, 6)}.csv`;
-      const { Location: url } = await uploadToS3({
-        Bucket: config.aws.s3.bucket,
-        Key,
-        Body,
-        ACL: 'public-read',
-        ContentType: 'text/csv',
-      });
-      await models.ExpenseAttachedFile.create({
-        url,
-        ExpenseId: expense.id,
-        CreatedByUserId: SETTLEMENT_EXPENSE_PROPERTIES.UserId,
-      });
+      console.log('This script is not active anymore and can only be used in DRY mode!');
     }
   }
 }
