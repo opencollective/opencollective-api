@@ -587,7 +587,7 @@ function defineModel() {
   Transaction.createPlatformTipDebtTransactions = async (tipTransactionData, host) => {
     // Create debt transaction
     const debtTransactionData = {
-      ...omit(tipTransactionData, ['id', 'uuid']),
+      ...omit(tipTransactionData, ['id', 'uuid', 'PaymentMethodId', 'data']), // TODO: We may want to remove the OrderId here
       description: 'Platform Tip collected for Open Collective',
       CollectiveId: host.id,
       FromCollectiveId: PLATFORM_TIP_TRANSACTION_PROPERTIES.CollectiveId,
