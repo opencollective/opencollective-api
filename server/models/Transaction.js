@@ -587,7 +587,7 @@ function defineModel() {
     // Create debt transaction
     const debtTransactionData = {
       ...omit(tipTransactionData, ['id', 'uuid']),
-      description: 'Platform tip reimbursement',
+      description: 'Platform tip collected for Open Collective',
       CollectiveId: host.id,
       FromCollectiveId: PLATFORM_TIP_TRANSACTION_PROPERTIES.CollectiveId,
       HostCollectiveId: host.id,

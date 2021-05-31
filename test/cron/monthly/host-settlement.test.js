@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import moment from 'moment';
 
-import { run as invoicePlatformFees } from '../../../cron/monthly/invoice-platform-fees';
+import { run as invoicePlatformFees } from '../../../cron/monthly/host-settlement';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
 import models, { sequelize } from '../../../server/models';
 import { TransactionSettlementStatus } from '../../../server/models/TransactionSettlement';
