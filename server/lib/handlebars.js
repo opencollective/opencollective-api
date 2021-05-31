@@ -1,8 +1,15 @@
 import handlebars from 'handlebars';
-import { lowercase } from 'lodash';
+import { isNil, lowercase } from 'lodash';
 import moment from 'moment-timezone';
 
-import { capitalize, formatCurrency, formatCurrencyObject, pluralize, resizeImage } from './utils';
+import {
+  capitalize,
+  formatCurrency,
+  formatCurrencyObject,
+  getDefaultCurrencyPrecision,
+  pluralize,
+  resizeImage,
+} from './utils';
 
 // from https://stackoverflow.com/questions/8853396/logical-operator-in-a-handlebars-js-if-conditional
 handlebars.registerHelper('ifCond', function (v1, operator, v2, options) {
@@ -92,7 +99,7 @@ handlebars.registerHelper('moment', (value, props) => {
 });
 
 handlebars.registerHelper('currency', (value, props) => {
-  const { currency, precision, size, sign } = props.hash;
+  const { currency, size, sign, precision } = props.hash;
 
   if (isNaN(value)) {
     return '';
@@ -113,7 +120,7 @@ handlebars.registerHelper('currency', (value, props) => {
       style: 'currency',
       currency,
       minimumFractionDigits: precision || 0,
-      maximumFractionDigits: precision || 0,
+      maximumFractionDigits: !isNil(precision) ? precision : getDefaultCurrencyPrecision(currency),
     });
   })();
 
