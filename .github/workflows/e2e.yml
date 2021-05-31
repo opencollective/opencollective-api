@@ -165,16 +165,16 @@ jobs:
         id: next-build
         with:
           path: opencollective-frontend/dist
-          key: ${{ runner.os }}-next-build-${{ hashFiles('opencollective-frontend/**') }}
+          key: ${{ runner.os }}-next-build-${{ hashFiles('opencollective-frontend/package-lock.json') }}
 
       - name: Restore .next cache (frontend)
         if: steps.next-build.outputs.cache-hit != 'true'
         uses: actions/cache@v1
         with:
           path: opencollective-frontend/.next/cache
-          key: ${{ runner.os }}-next-cache-${{ hashFiles('opencollective-frontend/**') }}
+          key: ${{ runner.os }}-next-cache-${{ hashFiles('opencollective-frontend/package-lock.json') }}
           restore-keys: |
-            ${{ runner.os }}-next-cache-${{ hashFiles('opencollective-frontend/**') }}
+            ${{ runner.os }}-next-cache-${{ hashFiles('opencollective-frontend/package-lock.json') }}
             ${{ runner.os }}-next-cache-
 
       - name: Build (frontend)
