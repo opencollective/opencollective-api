@@ -26,8 +26,8 @@ const isProduction = config.env === 'production';
 if (isProduction && date.date() !== 1 && !process.env.OFFCYCLE) {
   console.log('OC_ENV is production and today is not the 1st of month, script aborted!');
   process.exit();
-} else if (parseToBoolean(process.env.DISABLE_INVOICE_PLATFORM_FEES)) {
-  console.log('Invoice platform fee script is disabled');
+} else if (parseToBoolean(process.env.SKIP_HOST_SETTLEMENT)) {
+  console.log('Skipping because SKIP_HOST_SETTLEMENT is set.');
   process.exit();
 }
 
