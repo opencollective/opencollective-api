@@ -46,13 +46,13 @@ const migrate = async () => {
   );
 
   const results = await Promise.all(
-    tipCreditTransactions.map(transaction => {
+    tipCreditTransactions.map(async transaction => {
       if (transaction['__debt_id__']) {
         // To work with inconsistent data (mainly dev): handle cases where debt already exists but not the settlement
         const settlementStatus = TransactionSettlementStatus.OWED;
         return models.TransactionSettlement.createForTransaction(transaction, settlementStatus);
       } else {
-        const host = { id: transaction['__tip_collected_by_host_id__'] };
+        const host = await models.Collective.findByPk(transaction['__tip_collected_by_host_id__'], { paranoid: false });
         return models.Transaction.createPlatformTipDebtTransactions(transaction, host);
       }
     }),
@@ -64,32 +64,27 @@ const migrate = async () => {
 const rollback = async () => {
   await sequelize.query(
     `
-    DELETE FROM "Transactions"
-    WHERE "isDebt" = TRUE
-    AND "TransactionGroup" IN (
-      SELECT "TransactionGroup"
-      FROM "Transactions" t
-      WHERE t.kind = 'PLATFORM_TIP'
-      AND t.type = 'CREDIT'
-      AND t."createdAt" >= :startDate
-    )
-  `,
-    {
-      replacements: { startDate },
-    },
-  );
+    BEGIN;
+      DELETE FROM "TransactionSettlements"
+      WHERE "kind" = 'PLATFORM_TIP'
+      AND "TransactionGroup" IN (
+        SELECT "TransactionGroup"
+        FROM "Transactions" t
+        WHERE t.kind = 'PLATFORM_TIP'
+        AND t.type = 'CREDIT'
+        AND t."createdAt" >= :startDate
+      );
 
-  await sequelize.query(
-    `
-    DELETE FROM "TransactionSettlements"
-    WHERE "kind" = 'PLATFORM_TIP'
-    AND "TransactionGroup" IN (
-      SELECT "TransactionGroup"
-      FROM "Transactions" t
-      WHERE t.kind = 'PLATFORM_TIP'
-      AND t.type = 'CREDIT'
-      AND t."createdAt" >= :startDate
-    )
+      DELETE FROM "Transactions"
+      WHERE "isDebt" = TRUE
+      AND "TransactionGroup" IN (
+        SELECT "TransactionGroup"
+        FROM "Transactions" t
+        WHERE t.kind = 'PLATFORM_TIP'
+        AND t.type = 'CREDIT'
+        AND t."createdAt" >= :startDate
+      );
+    COMMIT;
   `,
     {
       replacements: { startDate },
