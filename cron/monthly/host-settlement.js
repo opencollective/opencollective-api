@@ -89,7 +89,7 @@ export async function run() {
       LEFT JOIN "Collectives" c ON
         ot."CollectiveId" = c.id
       LEFT JOIN "PaymentMethods" pm ON
-        t."PaymentMethodId" = pm.id
+        ot."PaymentMethodId" = pm.id
       LEFT JOIN "PaymentMethods" spm ON
         spm.id = pm."SourcePaymentMethodId"
       WHERE
