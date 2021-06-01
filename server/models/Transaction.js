@@ -519,7 +519,6 @@ function defineModel() {
         hostFeeInHostCurrency: transaction.hostFeeInHostCurrency,
         platformFeeInHostCurrency: transaction.platformFeeInHostCurrency,
         paymentProcessorFeeInHostCurrency: transaction.paymentProcessorFeeInHostCurrency,
-        ...(opts?.oppositeTransactionData || {}),
       };
     } else {
       // Is the target "collective" (account) "Active" (has an host, manage its own budget)
@@ -548,8 +547,7 @@ function defineModel() {
         paymentProcessorFeeInHostCurrency: Math.round(
           transaction.paymentProcessorFeeInHostCurrency * oppositeTransactionHostCurrencyFxRate,
         ),
-        data: { ...transaction.data, oppositeTransactionHostCurrencyFxRate },
-        ...(opts?.oppositeTransactionData || {}),
+        data: { ...omit(transaction.data, ['hostToPlatformFxRate']), oppositeTransactionHostCurrencyFxRate },
       };
 
       // Also keep rate on original transaction
@@ -584,11 +582,27 @@ function defineModel() {
   /**
    * Record a debt transaction and its associated settlement
    */
-  Transaction.createPlatformTipDebtTransactions = async (tipTransactionData, host) => {
+  Transaction.createPlatformTipDebtTransactions = async (tipCreditTransactionData, host) => {
+    if (tipCreditTransactionData.type === 'DEBIT') {
+      throw new Error('createPlatformTipDebtTransactions must be given a CREDIT');
+    }
+
+    const hostToPlatformFxRate = tipCreditTransactionData.data?.hostToPlatformFxRate || 1;
+    const amountInHostCurrency = Math.round(
+      tipCreditTransactionData.netAmountInCollectiveCurrency / hostToPlatformFxRate,
+    );
+
     // Create debt transaction
     const debtTransactionData = {
-      ...omit(tipTransactionData, ['id', 'uuid', 'PaymentMethodId', 'data']), // TODO: We may want to remove the OrderId here
+      ...omit(tipCreditTransactionData, ['id', 'uuid', 'PaymentMethodId', 'data']), // TODO: We may want to remove the OrderId here
+      type: 'CREDIT',
       description: 'Platform Tip collected for Open Collective',
+      amountInHostCurrency,
+      amount: amountInHostCurrency,
+      netAmountInCollectiveCurrency: amountInHostCurrency,
+      currency: host.currency,
+      hostCurrency: host.currency,
+      data: { hostToPlatformFxRate },
       CollectiveId: host.id,
       FromCollectiveId: PLATFORM_TIP_TRANSACTION_PROPERTIES.CollectiveId,
       HostCollectiveId: host.id,
@@ -596,9 +610,7 @@ function defineModel() {
       isDebt: true,
     };
 
-    const debtTransaction = await Transaction.createDoubleEntry(debtTransactionData, {
-      oppositeTransactionData: { HostCollectiveId: PLATFORM_TIP_TRANSACTION_PROPERTIES.HostCollectiveId },
-    });
+    const debtTransaction = await Transaction.createDoubleEntry(debtTransactionData);
 
     // Create settlement
     const settlementStatus = TransactionSettlementStatus.OWED;
@@ -824,6 +836,21 @@ function defineModel() {
   Transaction.getFxRate = async function (fromCurrency, toCurrency, transaction) {
     if (fromCurrency === toCurrency) {
       return 1;
+    }
+
+    // For platform tips, we store the FX rate of the host<>currency
+    // TODO: The thingy below is useful for the migration of platform tips with debts, but
+    // we should ideally not rely on `data?.hostToPlatformFxRate` for that
+    if (transaction.data?.hostToPlatformFxRate) {
+      if (
+        toCurrency === PLATFORM_TIP_TRANSACTION_PROPERTIES.currency &&
+        fromCurrency === transaction.hostCurrency &&
+        transaction.type === 'CREDIT' &&
+        transaction.kind === 'PLATFORM_TIP' &&
+        transaction.FromCollectiveId === PLATFORM_TIP_TRANSACTION_PROPERTIES.CollectiveId
+      ) {
+        return transaction.data.hostToPlatformFxRate;
+      }
     }
 
     // If Stripe transaction, we check if we have the rate stored locally

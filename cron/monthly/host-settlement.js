@@ -57,8 +57,8 @@ export async function run() {
         t."TransactionGroup",
         t."kind",
         t.description,
-        round(t."netAmountInCollectiveCurrency"::float / COALESCE((t."data"->>'hostToPlatformFxRate')::float, 1)) AS "amount",
-        ot."hostCurrency" AS "currency",
+        t."amountInHostCurrency" as "amount",
+        t."hostCurrency" AS "currency",
         ot."CollectiveId",
         c."slug" AS "CollectiveSlug",
         ot."HostCollectiveId",
@@ -96,7 +96,6 @@ export async function run() {
         t."createdAt" >= date_trunc('month', date :date - INTERVAL '1 month')
         AND t."createdAt" < date_trunc('month', date :date)
         AND t."deletedAt" IS NULL
-        AND t."CollectiveId" = 8686
         AND t."kind" = 'PLATFORM_TIP'
         AND t."type" = 'CREDIT'
         AND t."isDebt" IS TRUE
