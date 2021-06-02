@@ -2,6 +2,7 @@ import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectT
 import GraphQLJSON, { GraphQLJSONObject } from 'graphql-type-json';
 
 import transferwise from '../../../paymentProviders/transferwise';
+import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
 const TransferWiseFieldGroupValuesAllowed = new GraphQLObjectType({
   name: 'TransferWiseFieldVatvkluesAllowed',
@@ -50,6 +51,11 @@ export const TransferWise = new GraphQLObjectType({
   name: 'TransferWise',
   description: 'TransferWise related properties for bank transfer.',
   fields: () => ({
+    id: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: 'Unique identifier for this Wise object',
+      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.PAYOUT_METHOD),
+    },
     requiredFields: {
       args: {
         currency: {
