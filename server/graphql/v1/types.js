@@ -950,6 +950,12 @@ export const UpdateType = new GraphQLObjectType({
           return update.isPrivate;
         },
       },
+      isChangelog: {
+        type: GraphQLBoolean,
+        resolve(update) {
+          return update.isChangelog;
+        },
+      },
       notificationAudience: {
         type: UpdateAudienceTypeEnum,
         resolve(update) {

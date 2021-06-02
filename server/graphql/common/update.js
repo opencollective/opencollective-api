@@ -37,6 +37,7 @@ export async function createUpdate(_, args, req) {
     html: args.update.html,
     CollectiveId,
     isPrivate: args.update.isPrivate,
+    isChangelog: args.update.isChangelog,
     TierId: get(args, 'update.tier.id'),
     CreatedByUserId: req.remoteUser.id,
     FromCollectiveId: req.remoteUser.CollectiveId,
