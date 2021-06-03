@@ -87,7 +87,7 @@ async function processOrder(order) {
   const hostFeeInHostCurrency = await getHostFee(order.totalAmount, order, hostCollective);
 
   // Use the above payment method to donate to Collective
-  const transactions = await models.Transaction.createFromPayload({
+  const transactions = await models.Transaction.createFromContributionPayload({
     CreatedByUserId: user.id,
     FromCollectiveId: order.FromCollectiveId,
     CollectiveId: order.CollectiveId,

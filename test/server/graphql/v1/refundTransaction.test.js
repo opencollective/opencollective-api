@@ -106,7 +106,7 @@ async function setupTestObjects(currency = 'USD') {
     description: order.description,
     data: { charge, balanceTransaction },
   };
-  const transaction = await models.Transaction.createFromPayload(transactionPayload);
+  const transaction = await models.Transaction.createFromContributionPayload(transactionPayload);
   return { user, host, collective, tier, paymentMethod, order, transaction };
 }
 

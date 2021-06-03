@@ -96,7 +96,7 @@ describe('server/models/Transaction', () => {
     });
   });
 
-  it('createFromPayload creates a double entry transaction for a Stripe payment in EUR with VAT', () => {
+  it('createFromContributionPayload creates a double entry transaction for a Stripe payment in EUR with VAT', () => {
     const transactionPayload = {
       CreatedByUserId: user.id,
       FromCollectiveId: user.CollectiveId,
@@ -116,7 +116,7 @@ describe('server/models/Transaction', () => {
       PaymentMethodId: 1,
     };
 
-    return Transaction.createFromPayload(transactionPayload).then(() => {
+    return Transaction.createFromContributionPayload(transactionPayload).then(() => {
       return Transaction.findAll().then(transactions => {
         utils.snapshotTransactions(transactions, { columns: SNAPSHOT_COLUMNS });
 
@@ -141,7 +141,7 @@ describe('server/models/Transaction', () => {
     });
   });
 
-  it('createFromPayload creates a double entry transaction for a Stripe donation in EUR on a USD host', () => {
+  it('createFromContributionPayload creates a double entry transaction for a Stripe donation in EUR on a USD host', () => {
     const transactionPayload = {
       CreatedByUserId: user.id,
       FromCollectiveId: user.CollectiveId,
@@ -160,7 +160,7 @@ describe('server/models/Transaction', () => {
       PaymentMethodId: 1,
     };
 
-    return Transaction.createFromPayload(transactionPayload).then(() => {
+    return Transaction.createFromContributionPayload(transactionPayload).then(() => {
       return Transaction.findAll().then(transactions => {
         expect(transactions.length).to.equal(2);
         expect(transactions[0] instanceof models.Transaction).to.be.true;
@@ -183,14 +183,14 @@ describe('server/models/Transaction', () => {
     });
   });
 
-  it('createFromPayload() generates a new activity', done => {
+  it('createFromContributionPayload() generates a new activity', done => {
     const createActivityStub = sinon.stub(Transaction, 'createActivity').callsFake(t => {
       expect(Math.abs(t.amount)).to.equal(Math.abs(transactionsData[7].amount));
       createActivityStub.restore();
       done();
     });
 
-    Transaction.createFromPayload({
+    Transaction.createFromContributionPayload({
       CreatedByUserId: user.id,
       FromCollectiveId: user.CollectiveId,
       CollectiveId: collective.id,
@@ -225,7 +225,7 @@ describe('server/models/Transaction', () => {
         },
       };
 
-      const t = await Transaction.createFromPayload(transactionPayload);
+      const t = await Transaction.createFromContributionPayload(transactionPayload);
 
       expect(t).to.have.property('platformFeeInHostCurrency').equal(0);
       expect(t).to.have.property('kind').equal(TransactionKind.CONTRIBUTION);
@@ -271,7 +271,7 @@ describe('server/models/Transaction', () => {
         },
       };
 
-      const createdTransaction = await Transaction.createFromPayload(transactionPayload);
+      const createdTransaction = await Transaction.createFromContributionPayload(transactionPayload);
 
       // Should have 6 transactions:
       // - 2 for contributions
@@ -344,7 +344,7 @@ describe('server/models/Transaction', () => {
         },
       };
 
-      await Transaction.createFromPayload(transactionPayload);
+      await Transaction.createFromContributionPayload(transactionPayload);
 
       const allTransactions = await Transaction.findAll({ where: { OrderId: order.id } });
       expect(allTransactions).to.have.length(6);
@@ -398,7 +398,7 @@ describe('server/models/Transaction', () => {
         },
       };
 
-      await Transaction.createFromPayload(transactionPayload);
+      await Transaction.createFromContributionPayload(transactionPayload);
 
       const allTransactions = await Transaction.findAll({ where: { OrderId: order.id } });
       expect(allTransactions).to.have.length(2);
@@ -438,7 +438,7 @@ describe('server/models/Transaction', () => {
       },
     };
 
-    const credit = await Transaction.createFromPayload(transactionPayload);
+    const credit = await Transaction.createFromContributionPayload(transactionPayload);
 
     await Transaction.validate(credit);
 

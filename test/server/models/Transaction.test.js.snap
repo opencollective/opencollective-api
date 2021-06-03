@@ -1,6 +1,6 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`server/models/Transaction createFromPayload creates a double entry transaction for a Stripe payment in EUR with VAT 1`] = `
+exports[`server/models/Transaction createFromContributionPayload creates a double entry transaction for a Stripe payment in EUR with VAT 1`] = `
 "
 | kind         | type   | netAmountInCollectiveCurrency | currency | Host | platformFeeInHostCurrency | paymentProcessorFeeInHostCurrency | taxAmount | amount | description                              |
 | ------------ | ------ | ----------------------------- | -------- | ---- | ------------------------- | --------------------------------- | --------- | ------ | ---------------------------------------- |

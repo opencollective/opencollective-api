@@ -331,7 +331,7 @@ describe('server/lib/payments', () => {
   describe('createRefundTransaction', () => {
     it('should allow collective to start a refund', async () => {
       // Given the following pair of transactions created
-      const transaction = await models.Transaction.createFromPayload({
+      const transaction = await models.Transaction.createFromContributionPayload({
         CreatedByUserId: user.id,
         FromCollectiveId: order.FromCollectiveId,
         CollectiveId: collective.id,
@@ -395,7 +395,7 @@ describe('server/lib/payments', () => {
         CollectiveId: collective.id,
         FromCollectiveId: contributorUser.CollectiveId,
       });
-      const transaction = await models.Transaction.createFromPayload({
+      const transaction = await models.Transaction.createFromContributionPayload({
         CreatedByUserId: contributorUser.id,
         FromCollectiveId: order.FromCollectiveId,
         CollectiveId: order.CollectiveId,

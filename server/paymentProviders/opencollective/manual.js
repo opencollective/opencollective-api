@@ -76,7 +76,7 @@ async function processOrder(order) {
     },
   };
 
-  const creditTransaction = await models.Transaction.createFromPayload(transactionPayload);
+  const creditTransaction = await models.Transaction.createFromContributionPayload(transactionPayload);
 
   return creditTransaction;
 }

@@ -690,13 +690,36 @@ function defineModel() {
     return { transaction, platformTipTransaction, platformTipDebtTransaction };
   };
 
+  Transaction.validateContributionPayload = payload => {
+    if (!payload.amount || payload.amount < 0) {
+      throw new Error('amount should be set and positive');
+    }
+    if (!payload.currency) {
+      throw new Error('currency should be set');
+    }
+    if (payload.hostCurrency && (!payload.amountInHostCurrency || payload.amountInHostCurrency < 0)) {
+      throw new Error('amountInHostCurrency should be set and positive');
+    }
+    if (payload.amountInHostCurrency && !payload.hostCurrency) {
+      throw new Error('hostCurrency should be set');
+    }
+    if (payload.type && payload.type !== 'CREDIT') {
+      throw new Error('type should be null or CREDIT');
+    }
+    if (!isNil(payload.netAmountInCollectiveCurrency)) {
+      throw new Error('netAmountInCollectiveCurrency should not be set');
+    }
+  };
+
   /**
    * Creates a transaction pair from given payload. Defaults to `CONTRIBUTION` kind unless
    * specified otherwise.
    */
-  Transaction.createFromPayload = async (transaction, opts = { isPlatformTipDirectlyCollected: false }) => {
-    if (!transaction.amount) {
-      throw new Error('transaction.amount cannot be null or zero');
+  Transaction.createFromContributionPayload = async (transaction, opts = { isPlatformTipDirectlyCollected: false }) => {
+    try {
+      Transaction.validateContributionPayload(transaction);
+    } catch (error) {
+      throw new Error(`createFromContributionPayload: ${error.message}`);
     }
 
     // Retrieve Host
@@ -711,16 +734,19 @@ function defineModel() {
 
     // Compute these values, they will eventually be checked again by createDoubleEntry
     transaction.TransactionGroup = uuid();
-    transaction.type = transaction.amount > 0 ? TransactionTypes.CREDIT : TransactionTypes.DEBIT;
+    transaction.type = TransactionTypes.CREDIT;
+    transaction.kind = transaction.kind || TransactionKind.CONTRIBUTION;
 
-    transaction.hostFeeInHostCurrency = toNegative(transaction.hostFeeInHostCurrency);
-    transaction.platformFeeInHostCurrency = toNegative(transaction.platformFeeInHostCurrency);
+    // Some test may skip amountInHostCurrency and hostCurrency
+    if (!transaction.hostCurrency && !transaction.amountInHostCurrency) {
+      transaction.amountInHostCurrency = transaction.amount;
+      transaction.hostCurrency = transaction.currency;
+    }
+
+    transaction.hostFeeInHostCurrency = toNegative(transaction.hostFeeInHostCurrency) || 0;
+    transaction.platformFeeInHostCurrency = toNegative(transaction.platformFeeInHostCurrency) || 0;
+    transaction.paymentProcessorFeeInHostCurrency = toNegative(transaction.paymentProcessorFeeInHostCurrency) || 0;
     transaction.taxAmount = toNegative(transaction.taxAmount);
-    transaction.paymentProcessorFeeInHostCurrency = toNegative(transaction.paymentProcessorFeeInHostCurrency);
-
-    // TODO: createFromPayload is only used by payment methods, for contributions. So it sounds right to do
-    // that here, but we should probably rename the function to something clearer (createFromContributionPayload?)
-    transaction.kind = isUndefined(transaction.kind) ? TransactionKind.CONTRIBUTION : transaction.kind;
 
     // Separate donation transaction and remove platformFee from the main transaction
     if (transaction.data?.isFeesOnTop && transaction.platformFeeInHostCurrency) {
@@ -730,11 +756,7 @@ function defineModel() {
       transaction = result.transaction;
     }
 
-    // populate netAmountInCollectiveCurrency for financial contributions
-    // TODO: why not for other transactions?
-    if (transaction.amount > 0) {
-      transaction.netAmountInCollectiveCurrency = Transaction.calculateNetAmountInCollectiveCurrency(transaction);
-    }
+    transaction.netAmountInCollectiveCurrency = Transaction.calculateNetAmountInCollectiveCurrency(transaction);
 
     return Transaction.createDoubleEntry(transaction);
   };
