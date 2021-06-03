@@ -1,10 +1,10 @@
 // We often use `utils.data` (ie. utils.data('collective1')) in the code to generate test
 // data. This approach is enough in certain cases but it has flows:
-// - Collectives with unique colomns (slugs) cannot be created without reseting the DB
+// - Collectives with unique columns (slugs) cannot be created without resetting the DB
 // - No randomness in produced values
 //
 // This lib is a superset of `utils.data` that generates values that are random and safe
-// to use in loops and repeted tests.
+// to use in loops and repeated tests.
 
 import { get, padStart, sample } from 'lodash';
 import { v4 as uuid } from 'uuid';
