@@ -951,7 +951,7 @@ export const UpdateType = new GraphQLObjectType({
         },
       },
       isChangelog: {
-        type: GraphQLBoolean,
+        type: new GraphQLNonNull(GraphQLBoolean),
         resolve(update) {
           return update.isChangelog;
         },
