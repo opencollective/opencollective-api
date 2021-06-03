@@ -219,8 +219,8 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
 
   // Refund platform tip
   if (platformTipRefund) {
-    const feeOnTopRefundTransaction = await models.Transaction.createDoubleEntry(platformTipRefund);
-    await associateTransactionRefundId(platformTipTransaction, feeOnTopRefundTransaction, data);
+    const platformTipRefundTransaction = await models.Transaction.createDoubleEntry(platformTipRefund);
+    await associateTransactionRefundId(platformTipTransaction, platformTipRefundTransaction, data);
 
     // Refund tip
     platformTipDebtTransaction = await models.Transaction.findOne({
@@ -251,6 +251,14 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
       await associateTransactionRefundId(platformTipDebtTransaction, tipDebtRefundTransaction, data);
       await TransactionSettlement.createForTransaction(tipDebtRefundTransaction, tipRefundSettlementStatus);
     }
+  }
+
+  // Refund Host Fee
+  const hostFeeTransaction = await transaction.getHostFeeTransaction();
+  if (hostFeeTransaction) {
+    const hostFeeRefund = buildRefund(hostFeeTransaction);
+    const hostFeeRefundTransaction = await models.Transaction.createDoubleEntry(hostFeeRefund);
+    await associateTransactionRefundId(hostFeeTransaction, hostFeeRefundTransaction, data);
   }
 
   // Refund contribution

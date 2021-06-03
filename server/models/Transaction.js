@@ -345,6 +345,17 @@ function defineModel() {
     }
   };
 
+  Transaction.prototype.getHostFeeTransaction = function () {
+    return models.Transaction.findOne({
+      where: {
+        type: this.type,
+        TransactionGroup: this.TransactionGroup,
+        kind: TransactionKind.HOST_FEE,
+        isDebt: { [Op.not]: true },
+      },
+    });
+  };
+
   Transaction.prototype.getOppositeTransaction = async function () {
     return models.Transaction.findOne({
       where: {
