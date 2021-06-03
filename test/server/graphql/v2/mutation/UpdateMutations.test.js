@@ -71,6 +71,7 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
     update = {
       title: 'Monthly update 2',
       html: 'This is the update',
+      isChangelog: false,
       account: {
         legacyId: collective1.id,
       },
