@@ -27,17 +27,14 @@ paymentMethodProvider.processOrder = async order => {
   const hostFeePercent = await getHostFeePercent(order);
   const platformFeePercent = await getPlatformFeePercent(order);
 
-  const payload = {
+  const hostFeeInHostCurrency = calcFee(order.totalAmount, hostFeePercent);
+  const platformFeeInHostCurrency = calcFee(order.totalAmount, platformFeePercent);
+
+  const transactionPayload = {
     CreatedByUserId: order.CreatedByUserId,
     FromCollectiveId: order.FromCollectiveId,
     CollectiveId: order.CollectiveId,
     PaymentMethodId: order.PaymentMethodId,
-  };
-
-  const hostFeeInHostCurrency = calcFee(order.totalAmount, hostFeePercent);
-  const platformFeeInHostCurrency = calcFee(order.totalAmount, platformFeePercent);
-
-  payload.transaction = {
     type: TransactionTypes.CREDIT,
     OrderId: order.id,
     amount: order.totalAmount,
@@ -52,7 +49,7 @@ paymentMethodProvider.processOrder = async order => {
     description: order.description,
   };
 
-  const transactions = await models.Transaction.createFromPayload(payload);
+  const transactions = await models.Transaction.createFromPayload(transactionPayload);
 
   return transactions;
 };
