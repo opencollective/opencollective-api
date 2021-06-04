@@ -139,6 +139,11 @@ function defineModel() {
         defaultValue: false,
       },
 
+      isChangelog: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+      },
+
       notificationAudience: {
         type: DataTypes.STRING,
         defaultValue: null,
@@ -190,6 +195,7 @@ function defineModel() {
             updatedAt: this.updatedAt,
             publishedAt: this.publishedAt,
             isPrivate: this.isPrivate,
+            isChangelog: this.isChangelog,
             slug: this.slug,
             tags: this.tags,
             CollectiveId: this.CollectiveId,
@@ -215,6 +221,7 @@ function defineModel() {
             FromCollectiveId: this.FromCollectiveId,
             TierId: this.TierId,
             isPrivate: this.isPrivate,
+            isChangelog: this.isChangelog,
           };
         },
       },
@@ -265,7 +272,7 @@ function defineModel() {
       }
     }
 
-    const editableAttributes = ['TierId', 'title', 'html', 'tags', 'isPrivate', 'makePublicOn'];
+    const editableAttributes = ['TierId', 'title', 'html', 'tags', 'isPrivate', 'isChangelog', 'makePublicOn'];
 
     return await this.update({
       ...pick(newUpdateData, editableAttributes),

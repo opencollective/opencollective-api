@@ -55,6 +55,7 @@ const Update = new GraphQLObjectType({
         },
       },
       isPrivate: { type: new GraphQLNonNull(GraphQLBoolean) },
+      isChangelog: { type: new GraphQLNonNull(GraphQLBoolean) },
       title: { type: new GraphQLNonNull(GraphQLString) },
       createdAt: { type: new GraphQLNonNull(GraphQLDateTime) },
       updatedAt: { type: new GraphQLNonNull(GraphQLDateTime) },
