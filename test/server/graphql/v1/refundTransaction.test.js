@@ -84,31 +84,29 @@ async function setupTestObjects(currency = 'USD') {
   };
   /* eslint-enable camelcase */
   const fees = extractFees(balanceTransaction, balanceTransaction.currency);
-  const payload = {
+  const transactionPayload = {
     CreatedByUserId: user.id,
     FromCollectiveId: user.CollectiveId,
     CollectiveId: collective.id,
     PaymentMethodId: paymentMethod.id,
-    transaction: {
-      type: constants.TransactionTypes.CREDIT,
-      OrderId: order.id,
-      amount: order.totalAmount,
-      currency: order.currency,
-      hostCurrency: balanceTransaction.currency,
-      amountInHostCurrency: convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount),
-      hostCurrencyFxRate:
-        order.totalAmount / convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount),
-      hostFeeInHostCurrency: paymentsLib.calcFee(
-        convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount),
-        collective.hostFeePercent,
-      ),
-      platformFeeInHostCurrency: fees.applicationFee,
-      paymentProcessorFeeInHostCurrency: fees.stripeFee,
-      description: order.description,
-      data: { charge, balanceTransaction },
-    },
+    type: constants.TransactionTypes.CREDIT,
+    OrderId: order.id,
+    amount: order.totalAmount,
+    currency: order.currency,
+    hostCurrency: balanceTransaction.currency,
+    amountInHostCurrency: convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount),
+    hostCurrencyFxRate:
+      order.totalAmount / convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount),
+    hostFeeInHostCurrency: paymentsLib.calcFee(
+      convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount),
+      collective.hostFeePercent,
+    ),
+    platformFeeInHostCurrency: fees.applicationFee,
+    paymentProcessorFeeInHostCurrency: fees.stripeFee,
+    description: order.description,
+    data: { charge, balanceTransaction },
   };
-  const transaction = await models.Transaction.createFromPayload(payload);
+  const transaction = await models.Transaction.createFromPayload(transactionPayload);
   return { user, host, collective, tier, paymentMethod, order, transaction };
 }
 

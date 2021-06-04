@@ -12,7 +12,6 @@ import expenseTypes from '../../server/constants/expense_type';
 import { SHARED_REVENUE_PLANS } from '../../server/constants/plans';
 import { SETTLEMENT_EXPENSE_PROPERTIES, TransactionTypes } from '../../server/constants/transactions';
 import { uploadToS3 } from '../../server/lib/awsS3';
-import { generateKey } from '../../server/lib/encryption';
 import { parseToBoolean } from '../../server/lib/utils';
 import models, { sequelize } from '../../server/models';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
@@ -440,7 +439,7 @@ export async function run() {
       // Attach CSV
       const Body = csv;
       const filenameBase = `${HostName}-${moment(date).subtract(1, 'month').format('MMMM-YYYY')}`;
-      const Key = `${filenameBase}.${generateKey().slice(0, 6)}.csv`;
+      const Key = `${filenameBase}.${uuid().split('-')[0]}.csv`;
       const { Location: url } = await uploadToS3({
         Bucket: config.aws.s3.bucket,
         Key,

@@ -220,7 +220,6 @@ interface Account {
     """
     offset: Int = 0
     onlyPublishedUpdates: Boolean
-    onlyChangelogUpdates: Boolean
   ): UpdateCollection!
 
   """
@@ -765,7 +764,6 @@ type Bot implements Account {
     """
     offset: Int = 0
     onlyPublishedUpdates: Boolean
-    onlyChangelogUpdates: Boolean
   ): UpdateCollection!
 
   """
@@ -1022,7 +1020,6 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     """
     offset: Int = 0
     onlyPublishedUpdates: Boolean
-    onlyChangelogUpdates: Boolean
   ): UpdateCollection!
 
   """
@@ -3221,7 +3218,6 @@ type Event implements Account & AccountWithHost & AccountWithContributions {
     """
     offset: Int = 0
     onlyPublishedUpdates: Boolean
-    onlyChangelogUpdates: Boolean
   ): UpdateCollection!
 
   """
@@ -4159,7 +4155,6 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     """
     offset: Int = 0
     onlyPublishedUpdates: Boolean
-    onlyChangelogUpdates: Boolean
   ): UpdateCollection!
 
   """
@@ -4493,7 +4488,6 @@ type Host implements Account & AccountWithContributions {
     """
     offset: Int = 0
     onlyPublishedUpdates: Boolean
-    onlyChangelogUpdates: Boolean
   ): UpdateCollection!
 
   """
@@ -5049,7 +5043,6 @@ type Individual implements Account {
     """
     offset: Int = 0
     onlyPublishedUpdates: Boolean
-    onlyChangelogUpdates: Boolean
   ): UpdateCollection!
 
   """
@@ -6435,7 +6428,6 @@ type Organization implements Account & AccountWithContributions {
     """
     offset: Int = 0
     onlyPublishedUpdates: Boolean
-    onlyChangelogUpdates: Boolean
   ): UpdateCollection!
 
   """
@@ -6967,7 +6959,6 @@ type Project implements Account & AccountWithHost & AccountWithContributions {
     """
     offset: Int = 0
     onlyPublishedUpdates: Boolean
-    onlyChangelogUpdates: Boolean
   ): UpdateCollection!
 
   """
@@ -7664,6 +7655,10 @@ enum TransactionType {
 TransferWise related properties for bank transfer.
 """
 type TransferWise {
+  """
+  Unique identifier for this Wise object
+  """
+  id: String!
   requiredFields(
     """
     The 3 letter code identifying the currency you want to receive (ie: USD, EUR, BRL, GBP)
@@ -7816,7 +7811,7 @@ Input type for UpdateType
 input UpdateCreateInput {
   title: String!
   isPrivate: Boolean
-  isChangelog: Boolean
+  isChangelog: Boolean!
   makePublicOn: IsoDateString
   html: String
   fromAccount: AccountReferenceInput
@@ -8055,7 +8050,6 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
     """
     offset: Int = 0
     onlyPublishedUpdates: Boolean
-    onlyChangelogUpdates: Boolean
   ): UpdateCollection!
 
   """
