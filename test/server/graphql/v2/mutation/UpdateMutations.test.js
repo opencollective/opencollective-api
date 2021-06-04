@@ -130,6 +130,7 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
           id
           slug
           publishedAt
+          isChangelog
         }
       }
     `;
@@ -148,10 +149,10 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
 
     it('creates a changelog update', async () => {
       const result = await utils.graphqlQueryV2(createUpdateMutation, { update: changelogUpdate }, user3);
-      console.log(result);
       result.errors && console.error(result.errors[0]);
       const createdUpdate = result.data.createUpdate;
       expect(createdUpdate.slug).to.equal('monthly-changelog-update');
+      expect(createdUpdate.isChangelog).to.be.true;
       expect(createdUpdate.publishedAt).to.be.null;
     });
 
