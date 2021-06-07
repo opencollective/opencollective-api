@@ -641,6 +641,12 @@ export const getHostFeePercent = async (order, host = null) => {
     possibleValues.push(host.data?.bankTransfersHostFeePercent);
   }
 
+  if (order.paymentMethod.service === 'opencollective' && order.paymentMethod.type === 'prepaid') {
+    if (order.paymentMethod.data?.hostFeePercent) {
+      possibleValues.push(order.paymentMethod.data?.hostFeePercent);
+    }
+  }
+
   if (order.paymentMethod.service === 'opencollective') {
     // Default to 0 for this kind of payments
     if (order.paymentMethod.type === 'collective' || order.paymentMethod.type === 'host') {

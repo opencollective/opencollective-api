@@ -758,6 +758,7 @@ export async function addFundsToOrg(args, remoteUser) {
     models.Collective.findByPk(args.CollectiveId),
     models.Collective.findByPk(args.HostCollectiveId),
   ]);
+
   // creates a new Payment method
   const paymentMethod = await models.PaymentMethod.create({
     name: args.description || 'Host funds',
@@ -768,7 +769,7 @@ export async function addFundsToOrg(args, remoteUser) {
     customerId: fromCollective.slug,
     expiryDate: moment().add(3, 'year').format(),
     uuid: uuid(),
-    data: { HostCollectiveId: args.HostCollectiveId },
+    data: { HostCollectiveId: args.HostCollectiveId, hostFeePercent: 0 },
     service: 'opencollective',
     type: 'prepaid',
     createdAt: new Date(),
