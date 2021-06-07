@@ -3,6 +3,7 @@ import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString 
 
 import models, { Op, sequelize } from '../../../models';
 import { TransactionCollection } from '../collection/TransactionCollection';
+import { TransactionKind } from '../enum/TransactionKind';
 import { TransactionType } from '../enum/TransactionType';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
@@ -76,6 +77,10 @@ const TransactionsQuery = {
       type: new GraphQLNonNull(GraphQLBoolean),
       defaultValue: false,
       description: 'Whether to include debt transactions',
+    },
+    kinds: {
+      type: new GraphQLList(TransactionKind),
+      description: 'To filter by transaction kind',
     },
   },
   async resolve(_: void, args, req: express.Request): Promise<CollectionReturnType> {
@@ -186,6 +191,9 @@ const TransactionsQuery = {
     }
     if (!args.includeDebts) {
       where.push({ isDebt: { [Op.not]: true } });
+    }
+    if (args.kinds) {
+      where.push({ kind: args.kinds });
     }
 
     const order = [[args.orderBy.field, args.orderBy.direction]];
