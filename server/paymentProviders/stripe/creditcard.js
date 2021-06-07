@@ -216,7 +216,7 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
     OrderId: order.id,
     amount: order.totalAmount,
     currency: order.currency,
-    hostCurrency: balanceTransaction.currency?.toUpperCase(),
+    hostCurrency: balanceTransaction.currency.toUpperCase(),
     amountInHostCurrency,
     hostCurrencyFxRate,
     paymentProcessorFeeInHostCurrency: fees.stripeFee,
@@ -227,7 +227,7 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
     data,
   };
 
-  return models.Transaction.createFromPayload(transactionPayload, { isPlatformTipDirectlyCollected: true });
+  return models.Transaction.createFromContributionPayload(transactionPayload, { isPlatformTipDirectlyCollected: true });
 };
 
 /**

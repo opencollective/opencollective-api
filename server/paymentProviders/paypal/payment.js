@@ -82,7 +82,7 @@ const recordTransaction = async (order, amount, currency, paypalFee, payload) =>
     ? platformTip || 0
     : await getPlatformFee(amountInHostCurrency, order, host, { hostFeeSharePercent });
 
-  return models.Transaction.createFromPayload({
+  return models.Transaction.createFromContributionPayload({
     CreatedByUserId: order.CreatedByUserId,
     FromCollectiveId: order.FromCollectiveId,
     CollectiveId: order.CollectiveId,

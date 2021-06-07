@@ -91,7 +91,7 @@ const affectedOrderIds = [
 
       // Recreate all transactions
       if (!isDry) {
-        await models.Transaction.createFromPayload(transactionPayload);
+        await models.Transaction.createFromContributionPayload(transactionPayload);
 
         // Deleted past platform tip transactions
         const deletedTransactions = await models.Transaction.destroy({

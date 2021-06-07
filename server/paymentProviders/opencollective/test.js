@@ -41,7 +41,6 @@ paymentMethodProvider.processOrder = async order => {
     currency: order.currency,
     hostCurrency: collectiveHost.currency,
     hostCurrencyFxRate: 1,
-    netAmountInCollectiveCurrency: order.totalAmount * (1 - hostFeePercent / 100),
     amountInHostCurrency: order.totalAmount,
     hostFeeInHostCurrency,
     platformFeeInHostCurrency,
@@ -49,7 +48,7 @@ paymentMethodProvider.processOrder = async order => {
     description: order.description,
   };
 
-  const transactions = await models.Transaction.createFromPayload(transactionPayload);
+  const transactions = await models.Transaction.createFromContributionPayload(transactionPayload);
 
   return transactions;
 };
