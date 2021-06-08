@@ -3,6 +3,7 @@ import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
 import { find, get, includes, isNil, isNumber, omit, pick } from 'lodash';
+import { v4 as uuid } from 'uuid';
 
 import activities from '../constants/activities';
 import status from '../constants/order_status';
@@ -14,6 +15,7 @@ import models, { Op } from '../models';
 import TransactionSettlement, { TransactionSettlementStatus } from '../models/TransactionSettlement';
 import paymentProviders from '../paymentProviders';
 
+import { getFxRate } from './currency';
 import emailLib from './email';
 import { notifyAdminsOfCollective } from './notifications';
 import { getTransactionPdf } from './pdf';
@@ -122,6 +124,53 @@ export function calcFee(amount, fee) {
   return Math.round((amount * fee) / 100);
 }
 
+export const buildRefundForTransaction = (t, user, data, refundedPaymentProcessorFee) => {
+  const refund = pick(t, [
+    'currency',
+    'FromCollectiveId',
+    'CollectiveId',
+    'HostCollectiveId',
+    'PaymentMethodId',
+    'OrderId',
+    'ExpenseId',
+    'hostCurrencyFxRate',
+    'hostCurrency',
+    'hostFeeInHostCurrency',
+    'platformFeeInHostCurrency',
+    'paymentProcessorFeeInHostCurrency',
+    'data.isFeesOnTop',
+    'kind',
+    'isDebt',
+  ]);
+
+  refund.CreatedByUserId = user?.id || null;
+  refund.description = `Refund of "${t.description}"`;
+  refund.data = { ...refund.data, ...data };
+
+  /* The refund operation moves back fees to the user's ledger so the
+   * fees there should be positive. Since they're usually in negative,
+   * we're just setting them to positive by adding a - sign in front
+   * of it. */
+  refund.hostFeeInHostCurrency = -refund.hostFeeInHostCurrency;
+  refund.platformFeeInHostCurrency = -refund.platformFeeInHostCurrency;
+  refund.paymentProcessorFeeInHostCurrency = -refund.paymentProcessorFeeInHostCurrency;
+
+  /* If the payment processor doesn't refund the fee, the equivalent
+   * of the fee will be transferred from the host to the user so the
+   * user can get the full refund. */
+  if (refundedPaymentProcessorFee === 0) {
+    refund.hostFeeInHostCurrency += refund.paymentProcessorFeeInHostCurrency;
+    refund.paymentProcessorFeeInHostCurrency = 0;
+  }
+
+  /* Amount fields. Must be calculated after tweaking all the fees */
+  refund.amount = -t.amount;
+  refund.amountInHostCurrency = -t.amountInHostCurrency;
+  refund.netAmountInCollectiveCurrency = -netAmount(t);
+  refund.isRefund = true;
+  return refund;
+};
+
 /** Create refund transactions
  *
  * This function creates the negative transactions after refunding an
@@ -165,50 +214,12 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
     throw new Error('This transaction has already been refunded');
   }
 
-  const buildRefund = t => {
-    const refund = pick(t, [
-      'currency',
-      'FromCollectiveId',
-      'CollectiveId',
-      'HostCollectiveId',
-      'PaymentMethodId',
-      'OrderId',
-      'ExpenseId',
-      'hostCurrencyFxRate',
-      'hostCurrency',
-      'hostFeeInHostCurrency',
-      'platformFeeInHostCurrency',
-      'paymentProcessorFeeInHostCurrency',
-      'data.isFeesOnTop',
-      'kind',
-      'isDebt',
-    ]);
-    refund.CreatedByUserId = user?.id || null;
-    refund.description = `Refund of "${t.description}"`;
-    refund.data = { ...refund.data, ...data };
-
-    /* The refund operation moves back fees to the user's ledger so the
-     * fees there should be positive. Since they're usually in negative,
-     * we're just setting them to positive by adding a - sign in front
-     * of it. */
-    refund.hostFeeInHostCurrency = -refund.hostFeeInHostCurrency;
-    refund.platformFeeInHostCurrency = -refund.platformFeeInHostCurrency;
-    refund.paymentProcessorFeeInHostCurrency = -refund.paymentProcessorFeeInHostCurrency;
-
-    /* If the payment processor doesn't refund the fee, the equivalent
-     * of the fee will be transferred from the host to the user so the
-     * user can get the full refund. */
-    if (refundedPaymentProcessorFee === 0) {
-      refund.hostFeeInHostCurrency += refund.paymentProcessorFeeInHostCurrency;
-      refund.paymentProcessorFeeInHostCurrency = 0;
-    }
-
-    /* Amount fields. Must be calculated after tweaking all the fees */
-    refund.amount = -t.amount;
-    refund.amountInHostCurrency = -t.amountInHostCurrency;
-    refund.netAmountInCollectiveCurrency = -netAmount(t);
-    refund.isRefund = true;
-    return refund;
+  const transactionGroup = uuid();
+  const buildRefund = transaction => {
+    return {
+      ...buildRefundForTransaction(transaction, user, data, refundedPaymentProcessorFee),
+      TransactionGroup: transactionGroup,
+    };
   };
 
   let platformTipTransaction, platformTipRefund, platformTipDebtTransaction;
@@ -259,6 +270,32 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
     const hostFeeRefund = buildRefund(hostFeeTransaction);
     const hostFeeRefundTransaction = await models.Transaction.createDoubleEntry(hostFeeRefund);
     await associateTransactionRefundId(hostFeeTransaction, hostFeeRefundTransaction, data);
+
+    // Host take at their charge the payment processor fee that is lost when refunding a transaction
+    if (transaction.paymentProcessorFeeInHostCurrency) {
+      const hostCurrencyFxRate = await getFxRate(transaction.currency, transaction.hostCurrency);
+      const amountInHostCurrency = Math.abs(transaction.paymentProcessorFeeInHostCurrency);
+      const amount = Math.round(amountInHostCurrency / hostCurrencyFxRate);
+      await models.Transaction.createDoubleEntry({
+        type: 'CREDIT',
+        CollectiveId: transaction.CollectiveId,
+        FromCollectiveId: transaction.HostCollectiveId,
+        HostCollectiveId: transaction.HostCollectiveId,
+        OrderId: transaction.OrderId,
+        description: `Refund of payment processor fees for transaction`,
+        kind: TransactionKind.PAYMENT_PROCESSOR_FEE,
+        TransactionGroup: transactionGroup,
+        hostCurrency: transaction.hostCurrency,
+        amountInHostCurrency,
+        currency: transaction.currency,
+        amount,
+        netAmountInCollectiveCurrency: amount,
+        hostCurrencyFxRate,
+        platformFeeInHostCurrency: 0,
+        paymentProcessorFeeInHostCurrency: 0,
+        hostFeeInHostCurrency: 0,
+      });
+    }
   }
 
   // Refund contribution
