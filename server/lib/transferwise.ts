@@ -122,7 +122,7 @@ export const requestDataAndThrowParsedError = (
       }
     })
     .catch(e => {
-      debug(e.response?.data || e);
+      debug(JSON.stringify(e.response?.data, null, 2) || e);
       const error = parseError(e, defaultErrorMessage);
       logger.error(error.toString());
       throw error;
