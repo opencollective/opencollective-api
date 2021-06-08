@@ -97,11 +97,6 @@ export const templateNames = [
   'added.fund.to.org',
   'activated.collective.as.host',
   'deactivated.collective.as.host',
-  'hostedCollectives.freePlan.limit.reached',
-  'hostedCollectives.otherPlans.limit.reached',
-  'hostplan.renewal.thankyou',
-  'hostplan.first.subscription.confirmation',
-  'hostplan.upgrade.subscription.confirmation',
   'contribution.rejected',
   'virtualcard.requested',
 ];
