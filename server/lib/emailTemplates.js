@@ -23,7 +23,6 @@ export const templateNames = [
   'collective.conversation.created',
   'collective.confirm',
   'collective.created',
-  'collective.created.the-social-change-nest',
   'collective.contact',
   'collective.created.opensource',
   'collective.expense.approved',
