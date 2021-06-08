@@ -17,6 +17,7 @@ import paymentProviders from '../paymentProviders';
 
 import { getFxRate } from './currency';
 import emailLib from './email';
+import logger from './logger';
 import { notifyAdminsOfCollective } from './notifications';
 import { getTransactionPdf } from './pdf';
 import { createPrepaidPaymentMethod, isPrepaidBudgetOrder } from './prepaid-budget';
@@ -24,7 +25,7 @@ import { getNextChargeAndPeriodStartDates } from './recurring-contributions';
 import { stripHTML } from './sanitize-html';
 import { netAmount } from './transactions';
 import { formatAccountDetails } from './transferwise';
-import { formatCurrency, toIsoDateStr } from './utils';
+import { formatCurrency, parseToBoolean, toIsoDateStr } from './utils';
 
 const debug = debugLib('payments');
 
@@ -158,7 +159,7 @@ export const buildRefundForTransaction = (t, user, data, refundedPaymentProcesso
   /* If the payment processor doesn't refund the fee, the equivalent
    * of the fee will be transferred from the host to the user so the
    * user can get the full refund. */
-  if (refundedPaymentProcessorFee === 0) {
+  if (refundedPaymentProcessorFee === 0 && !parseToBoolean(config.ledger.separateHostFees)) {
     refund.hostFeeInHostCurrency += refund.paymentProcessorFeeInHostCurrency;
     refund.paymentProcessorFeeInHostCurrency = 0;
   }
@@ -271,8 +272,12 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
     const hostFeeRefundTransaction = await models.Transaction.createDoubleEntry(hostFeeRefund);
     await associateTransactionRefundId(hostFeeTransaction, hostFeeRefundTransaction, data);
 
-    // Host take at their charge the payment processor fee that is lost when refunding a transaction
-    if (transaction.paymentProcessorFeeInHostCurrency) {
+    if (refundedPaymentProcessorFee) {
+      logger.error(
+        `Partial processor fees refunds are not supported, got ${refundedPaymentProcessorFee} for #${transaction.id}`,
+      );
+    } else if (transaction.paymentProcessorFeeInHostCurrency) {
+      // Host take at their charge the payment processor fee that is lost when refunding a transaction
       const hostCurrencyFxRate = await getFxRate(transaction.currency, transaction.hostCurrency);
       const amountInHostCurrency = Math.abs(transaction.paymentProcessorFeeInHostCurrency);
       const amount = Math.round(amountInHostCurrency / hostCurrencyFxRate);
