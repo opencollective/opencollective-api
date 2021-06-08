@@ -439,6 +439,11 @@ async function notifyByEmail(activity) {
         break;
       }
 
+      // Disable for the-social-change-nest
+      if (get(activity, 'data.host.slug') === 'the-social-change-nest') {
+        break;
+      }
+
       // Normal case
       notifyAdminsOfCollective(activity.data.collective.id, activity);
       break;
