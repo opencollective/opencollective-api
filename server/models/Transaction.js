@@ -726,7 +726,7 @@ function defineModel() {
     }
 
     const amountInHostCurrency = Math.abs(transaction.hostFeeInHostCurrency);
-
+    const amountInCollectiveCurrency = Math.round(amountInHostCurrency / transaction.hostCurrencyFxRate);
     const hostFeeTransaction = {
       type: TransactionTypes.CREDIT,
       kind: TransactionKind.HOST_FEE,
@@ -736,8 +736,8 @@ function defineModel() {
       CollectiveId: host.id,
       HostCollectiveId: host.id,
       // Compute amounts
-      amount: amountInHostCurrency / transaction.hostCurrencyFxRate,
-      netAmountInCollectiveCurrency: amountInHostCurrency / transaction.hostCurrencyFxRate,
+      amount: amountInCollectiveCurrency,
+      netAmountInCollectiveCurrency: amountInCollectiveCurrency,
       currency: transaction.currency,
       amountInHostCurrency: amountInHostCurrency,
       hostCurrency: transaction.hostCurrency,
