@@ -1,6 +1,7 @@
 import assert from 'assert';
 
 import Promise from 'bluebird';
+import config from 'config';
 import debugLib from 'debug';
 import { defaultsDeep, get, isNil, isNull, isUndefined, omit, pick } from 'lodash';
 import moment from 'moment';
@@ -14,7 +15,7 @@ import { toNegative } from '../lib/math';
 import { calcFee } from '../lib/payments';
 import { stripHTML } from '../lib/sanitize-html';
 import sequelize, { DataTypes, Op } from '../lib/sequelize';
-import { exportToCSV } from '../lib/utils';
+import { exportToCSV, parseToBoolean } from '../lib/utils';
 
 import CustomDataTypes from './DataTypes';
 import { TransactionSettlementStatus } from './TransactionSettlement';
@@ -804,7 +805,7 @@ function defineModel() {
     }
 
     // Create Host Fee transaction
-    if (transaction.hostFeeInHostCurrency) {
+    if (transaction.hostFeeInHostCurrency && parseToBoolean(config.ledger.separateHostFees) === true) {
       // transaction.hostFeeInHostCurrency = 0;
       const result = await Transaction.createHostFeeTransactions(transaction, host);
       // Transaction was modified by createHostFeeTransaction, we get it from the result
