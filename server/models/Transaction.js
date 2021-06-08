@@ -720,7 +720,7 @@ function defineModel() {
     }
   };
 
-  Transaction.createHostFeeTransactions = async ({ transaction, host }) => {
+  Transaction.createHostFeeTransactions = async (transaction, host) => {
     if (!transaction.hostFeeInHostCurrency) {
       return;
     }
@@ -806,7 +806,7 @@ function defineModel() {
     // Create Host Fee transaction
     if (transaction.hostFeeInHostCurrency) {
       // transaction.hostFeeInHostCurrency = 0;
-      const result = await Transaction.createHostFeeTransactions({ transaction, host });
+      const result = await Transaction.createHostFeeTransactions(transaction, host);
       // Transaction was modified by createHostFeeTransaction, we get it from the result
       if (result && result.transaction) {
         transaction = result.transaction;
