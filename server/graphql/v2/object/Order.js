@@ -41,7 +41,9 @@ export const Order = new GraphQLObjectType({
       amount: {
         type: new GraphQLNonNull(Amount),
         resolve(order) {
-          return { value: order.totalAmount, currency: order.currency };
+          // We remove Platform Tip from totalAmount
+          const value = order.data?.isFeesOnTop ? order.totalAmount - order.data.platformFee : order.totalAmount;
+          return { value, currency: order.currency };
         },
       },
       quantity: {
@@ -136,20 +138,21 @@ export const Order = new GraphQLObjectType({
           }
         },
       },
-      platformFee: {
+      platformContributionAmount: {
         type: Amount,
-        deprecationReason: '2020-07-31: Please use platformContributionAmount',
+        deprecationReason: '2021-06-07: Please use platformTipAmount',
+        description: 'Platform contribution attached to the Order.',
         resolve(order) {
           if (order.data?.isFeesOnTop) {
-            return { value: order.data.platformFee };
+            return { value: order.data.platformFee, currency: order.currency };
           } else {
             return null;
           }
         },
       },
-      platformContributionAmount: {
+      platformTipAmount: {
         type: Amount,
-        description: 'Platform contribution attached to the Order.',
+        description: 'Platform Tip attached to the Order.',
         resolve(order) {
           if (order.data?.isFeesOnTop) {
             return { value: order.data.platformFee, currency: order.currency };

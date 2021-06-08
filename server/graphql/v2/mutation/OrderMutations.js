@@ -226,9 +226,17 @@ const orderMutations = {
       if (haveDetailsChanged) {
         // Update details (eg. amount, tier)
         const tier = !isNull(args.tier.id) && (await fetchTierWithReference(args.tier, { throwIfMissing: true }));
-        const newAmount = getValueInCentsFromAmountInput(args.amount);
+        let newTotalAmount = getValueInCentsFromAmountInput(args.amount);
+        // We add the current Platform Tip to the totalAmount
+        if (order.data?.isFeesOnTop && order.data.platformFee) {
+          newTotalAmount = newTotalAmount + order.data.platformFee;
+        }
         // interval, amount, tierId, paymentMethodId
-        ({ previousOrderValues, previousSubscriptionValues } = await updateSubscriptionDetails(order, tier, newAmount));
+        ({ previousOrderValues, previousSubscriptionValues } = await updateSubscriptionDetails(
+          order,
+          tier,
+          newTotalAmount,
+        ));
       }
 
       if (args.paypalSubscriptionId) {
