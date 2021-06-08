@@ -15,6 +15,7 @@ import {
   canSeeExpensePayeeLocation,
   canSeeExpensePayoutMethod,
   canUnapprove,
+  canUnschedulePayment,
 } from '../../../../server/graphql/common/expenses';
 import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
 import { fakeCollective, fakeExpense, fakePayoutMethod, fakeUser } from '../../../test-helpers/fake-data';
@@ -374,6 +375,37 @@ describe('server/graphql/common/expenses', () => {
       expect(await canComment(limitedHostAdminReq, expense)).to.be.false;
       expect(await canComment(collectiveAccountantReq, expense)).to.be.false;
       expect(await canComment(hostAccountantReq, expense)).to.be.false;
+    });
+  });
+
+  describe('canUnschedulePayment', () => {
+    it('only if scheduled for payment', async () => {
+      await expense.update({ status: 'PENDING' });
+      expect(await canUnschedulePayment(hostAdminReq, expense)).to.be.false;
+      await expense.update({ status: 'APPROVED' });
+      expect(await canUnschedulePayment(hostAdminReq, expense)).to.be.false;
+      await expense.update({ status: 'PROCESSING' });
+      expect(await canUnschedulePayment(hostAdminReq, expense)).to.be.false;
+      await expense.update({ status: 'ERROR' });
+      expect(await canUnschedulePayment(hostAdminReq, expense)).to.be.false;
+      await expense.update({ status: 'PAID' });
+      expect(await canUnschedulePayment(hostAdminReq, expense)).to.be.false;
+      await expense.update({ status: 'REJECTED' });
+      expect(await canUnschedulePayment(hostAdminReq, expense)).to.be.false;
+      await expense.update({ status: 'SCHEDULED_FOR_PAYMENT' });
+      expect(await canUnschedulePayment(hostAdminReq, expense)).to.be.true;
+    });
+
+    it('only with the allowed roles', async () => {
+      await expense.update({ status: 'SCHEDULED_FOR_PAYMENT' });
+      expect(await canUnschedulePayment(publicReq, expense)).to.be.false;
+      expect(await canUnschedulePayment(randomUserReq, expense)).to.be.false;
+      expect(await canUnschedulePayment(collectiveAdminReq, expense)).to.be.false;
+      expect(await canUnschedulePayment(hostAdminReq, expense)).to.be.true;
+      expect(await canUnschedulePayment(expenseOwnerReq, expense)).to.be.false;
+      expect(await canUnschedulePayment(limitedHostAdminReq, expense)).to.be.false;
+      expect(await canUnschedulePayment(collectiveAccountantReq, expense)).to.be.false;
+      expect(await canUnschedulePayment(hostAccountantReq, expense)).to.be.false;
     });
   });
 });
