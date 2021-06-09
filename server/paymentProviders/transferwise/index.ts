@@ -6,14 +6,21 @@ import { compact, find, has, pick, split, toNumber } from 'lodash';
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
-import { TransferwiseError } from '../../graphql/errors';
+import { BadRequest, TransferwiseError } from '../../graphql/errors';
 import cache from '../../lib/cache';
 import logger from '../../lib/logger';
 import * as transferwise from '../../lib/transferwise';
 import models from '../../models';
 import PayoutMethod from '../../models/PayoutMethod';
 import { ConnectedAccount } from '../../types/ConnectedAccount';
-import { Balance, QuoteV2, QuoteV2PaymentOption, RecipientAccount, Transfer } from '../../types/transferwise';
+import {
+  Balance,
+  BatchGroup,
+  QuoteV2,
+  QuoteV2PaymentOption,
+  RecipientAccount,
+  Transfer,
+} from '../../types/transferwise';
 
 const hashObject = obj => crypto.createHash('sha1').update(JSON.stringify(obj)).digest('hex').slice(0, 7);
 const splitCSV = string => compact(split(string, /,\s*/));
@@ -22,6 +29,26 @@ export const blockedCurrencies = splitCSV(config.transferwise.blockedCurrencies)
 export const blockedCurrenciesForBusinessProfiles = splitCSV(config.transferwise.blockedCurrenciesForBusinessProfiles);
 export const blockedCurrenciesForNonProfits = splitCSV(config.transferwise.blockedCurrenciesForNonProfits);
 export const currenciesThatRequireReference = ['RUB'];
+
+async function getToken(connectedAccount: ConnectedAccount): Promise<string> {
+  // Old token, does not expires
+  // eslint-disable-next-line camelcase
+  if (!connectedAccount.data?.expires_in) {
+    return connectedAccount.token;
+  }
+  // OAuth token, require us to refresh every 12 hours
+  const updatedAt = moment(connectedAccount.updatedAt);
+  const diff = moment.duration(moment().diff(updatedAt)).asSeconds();
+  const isOutdated = diff > <number>connectedAccount.data.expires_in - 60;
+  if (isOutdated) {
+    const newToken = await transferwise.getOrRefreshToken({ refreshToken: connectedAccount.refreshToken });
+    const { access_token: token, refresh_token: refreshToken, ...data } = newToken;
+    await connectedAccount.update({ token, refreshToken, data: { ...connectedAccount.data, ...data } });
+    return token;
+  } else {
+    return connectedAccount.token;
+  }
+}
 
 async function populateProfileId(connectedAccount: typeof models.ConnectedAccount, profileId?: number): Promise<void> {
   if (!connectedAccount.data?.id) {
@@ -51,6 +78,22 @@ async function getTemporaryQuote(
   });
 }
 
+async function createRecipient(
+  connectedAccount: typeof models.ConnectedAccount,
+  payoutMethod: PayoutMethod,
+  expense: typeof models.Expense,
+): Promise<RecipientAccount> {
+  const token = await getToken(connectedAccount);
+  const recipient = await transferwise.createRecipientAccount(token, {
+    profileId: connectedAccount.data.id,
+    ...(<RecipientAccount>payoutMethod.data),
+  });
+
+  await expense.update({ data: { ...expense.data, recipient } });
+
+  return recipient;
+}
+
 async function quoteExpense(
   connectedAccount: typeof models.ConnectedAccount,
   payoutMethod: PayoutMethod,
@@ -75,29 +118,28 @@ async function quoteExpense(
   return quote;
 }
 
-async function payExpense(
+async function createTransfer(
   connectedAccount: typeof models.ConnectedAccount,
   payoutMethod: PayoutMethod,
   expense: typeof models.Expense,
+  batchGroupId?: string,
 ): Promise<{
   quote: QuoteV2;
   recipient: RecipientAccount;
-  fund: { status: string; errorCode: string };
   transfer: Transfer;
   paymentOption: QuoteV2PaymentOption;
 }> {
   const token = await getToken(connectedAccount);
-  const recipient = await transferwise.createRecipientAccount(token, {
-    profileId: connectedAccount.data.id,
-    ...(<RecipientAccount>payoutMethod.data),
-  });
+  const profileId = connectedAccount.data.id;
+
+  const recipient = await createRecipient(connectedAccount, payoutMethod, expense);
 
   const quote = await quoteExpense(connectedAccount, payoutMethod, expense, recipient.id);
   const paymentOption = quote.paymentOptions.find(
     p => p.disabled === false && p.payIn === 'BALANCE' && p.payOut === quote.payOut,
   );
 
-  const account = await transferwise.getBorderlessAccount(token, <number>connectedAccount.data.id);
+  const account = await transferwise.getBorderlessAccount(token, <number>profileId);
   if (!account) {
     throw new TransferwiseError(
       `We can't retrieve your Transferwise borderless account. Please re-connect or contact support at support@opencollective.com.`,
@@ -119,15 +161,43 @@ async function payExpense(
     customerTransactionId: uuid(),
   };
   // Append reference to currencies that require it.
-  if (currenciesThatRequireReference.includes(<string>payoutMethod.unfilteredData.currency)) {
+  if (currenciesThatRequireReference.includes(<string>payoutMethod.unfilteredData.currency) || batchGroupId) {
     transferOptions.details = { reference: `${expense.id}` };
   }
-  const transfer = await transferwise.createTransfer(token, transferOptions);
+
+  const transfer = batchGroupId
+    ? await transferwise.createBatchGroupTransfer(token, profileId, batchGroupId, transferOptions)
+    : await transferwise.createTransfer(token, transferOptions);
+
+  return { quote, recipient, transfer, paymentOption };
+}
+
+async function payExpense(
+  connectedAccount: typeof models.ConnectedAccount,
+  payoutMethod: PayoutMethod,
+  expense: typeof models.Expense,
+  batchGroupId?: string,
+): Promise<{
+  quote: QuoteV2;
+  recipient: RecipientAccount;
+  fund: { status: string; errorCode: string };
+  transfer: Transfer;
+  paymentOption: QuoteV2PaymentOption;
+}> {
+  const token = await getToken(connectedAccount);
+  const profileId = connectedAccount.data.id;
+
+  const { quote, recipient, transfer, paymentOption } = await createTransfer(
+    connectedAccount,
+    payoutMethod,
+    expense,
+    batchGroupId,
+  );
 
   let fund;
   try {
     fund = await transferwise.fundTransfer(token, {
-      profileId: connectedAccount.data.id,
+      profileId,
       transferId: transfer.id,
     });
   } catch (e) {
@@ -136,6 +206,99 @@ async function payExpense(
   }
 
   return { quote, recipient, transfer, fund, paymentOption };
+}
+
+const makeBatchName = (expenses: Array<typeof models.Expense>) => {
+  const hash = crypto.createHash('sha1');
+  expenses.map(e => e.id).forEach(id => hash.update(id.toString()));
+  return hash.digest('hex');
+};
+
+async function createExpensesBatchGroup(
+  host: typeof models.Collective,
+  expenses: Array<typeof models.Expense>,
+): Promise<BatchGroup> {
+  expenses.forEach(e => {
+    if (!e.PayoutMethod) {
+      throw new BadRequest('payExpenseBatch: Expense is missing PayoutMethod', undefined, { expenseId: e.id });
+    }
+  });
+
+  const [connectedAccount] = await host.getConnectedAccounts({
+    where: { service: 'transferwise', deletedAt: null },
+  });
+  if (!connectedAccount) {
+    throw new Error('Host is not connected to TransferWise');
+  }
+
+  const profileId = connectedAccount.data.id;
+  const token = await getToken(connectedAccount);
+  let batchGroup = await transferwise.createBatchGroup(token, profileId, {
+    name: makeBatchName(expenses),
+    sourceCurrency: connectedAccount.data.currency || host.currency,
+  });
+
+  const transferIds = [];
+  for (const expense of expenses) {
+    const { quote, recipient, transfer, paymentOption } = await createTransfer(
+      connectedAccount,
+      expense.PayoutMethod,
+      expense,
+      batchGroup.id,
+    );
+    await expense.update({
+      data: { ...expense.data, quote, recipient, transfer, paymentOption },
+    });
+    transferIds.push(transfer.id);
+  }
+
+  batchGroup = await transferwise.getBatchGroup(token, profileId, batchGroup.id);
+  const includesEveryTransferCreated =
+    batchGroup.transferIds.every(id => transferIds.includes(id)) && batchGroup.transferIds.length == transferIds.length;
+  if (!includesEveryTransferCreated) {
+    await transferwise.cancelBatchGroup(token, profileId, batchGroup.id, batchGroup.version).catch(console.error);
+    throw new Error('Batch group does not include every transfer created');
+  }
+
+  batchGroup = await transferwise.completeBatchGroup(token, profileId, batchGroup.id, batchGroup.version);
+
+  for (const expense of expenses) {
+    await expense.update({
+      data: { ...expense.data, batchGroup },
+    });
+  }
+
+  return batchGroup;
+}
+
+async function fundExpensesBatchGroup(
+  host,
+  batchGroup,
+  x2faApproval?: string,
+): Promise<BatchGroup | transferwise.OTTResponse> {
+  const [connectedAccount] = await host.getConnectedAccounts({
+    where: { service: 'transferwise', deletedAt: null },
+  });
+  if (!connectedAccount) {
+    throw new Error('Host is not connected to TransferWise');
+  }
+  const profileId = connectedAccount.data.id;
+  const token = await getToken(connectedAccount);
+
+  if (batchGroup) {
+    const fundResponse = await transferwise.fundBatchGroup(token, profileId, batchGroup.id);
+    if ('status' in fundResponse && 'headers' in fundResponse) {
+      const cacheKey = `transferwise_ott_${fundResponse.headers['x-2fa-approval']}`;
+      await cache.set(cacheKey, batchGroup.id, 30 * 60);
+    }
+    return fundResponse;
+  } else if (x2faApproval) {
+    const cacheKey = `transferwise_ott_${x2faApproval}`;
+    const batchGroupId = await cache.get(cacheKey);
+    return await transferwise.fundBatchGroup(token, profileId, batchGroupId, x2faApproval);
+  } else {
+    throw new Error('fundBatchGroup: you need to pass either batchGroup or x2faApproval');
+  }
 }
 
 async function getAvailableCurrencies(
@@ -228,26 +391,6 @@ async function getAccountBalances(connectedAccount: ConnectedAccount): Promise<B
   const token = await getToken(connectedAccount);
   const account = await transferwise.getBorderlessAccount(token, <number>connectedAccount.data.id);
   return account?.balances || [];
-}
-
-async function getToken(connectedAccount: ConnectedAccount): Promise<string> {
-  // Old token, does not expires
-  // eslint-disable-next-line camelcase
-  if (!connectedAccount.data?.expires_in) {
-    return connectedAccount.token;
-  }
-  // OAuth token, require us to refresh every 12 hours
-  const updatedAt = moment(connectedAccount.updatedAt);
-  const diff = moment.duration(moment().diff(updatedAt)).asSeconds();
-  const isOutdated = diff > <number>connectedAccount.data.expires_in - 60;
-  if (isOutdated) {
-    const newToken = await transferwise.getOrRefreshToken({ refreshToken: connectedAccount.refreshToken });
-    const { access_token: token, refresh_token: refreshToken, ...data } = newToken;
-    await connectedAccount.update({ token, refreshToken, data: { ...connectedAccount.data, ...data } });
-    return token;
-  } else {
-    return connectedAccount.token;
-  }
 }
 
 const oauth = {
@@ -346,6 +489,8 @@ export default {
   getToken,
   quoteExpense,
   payExpense,
+  createExpensesBatchGroup,
+  fundExpensesBatchGroup,
   setUpWebhook,
   oauth,
 };

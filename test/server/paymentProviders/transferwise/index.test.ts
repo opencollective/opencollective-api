@@ -5,7 +5,13 @@ import cache from '../../../../server/lib/cache';
 import * as transferwiseLib from '../../../../server/lib/transferwise';
 import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
 import transferwise from '../../../../server/paymentProviders/transferwise';
-import { fakeCollective, fakeConnectedAccount, fakeExpense, fakePayoutMethod } from '../../../test-helpers/fake-data';
+import {
+  fakeCollective,
+  fakeConnectedAccount,
+  fakeExpense,
+  fakePayoutMethod,
+  multiple,
+} from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
 describe('server/paymentProviders/transferwise/index', () => {
@@ -45,7 +51,12 @@ describe('server/paymentProviders/transferwise/index', () => {
     getAccountRequirements,
     cacheSpy,
     getBorderlessAccount,
-    validateAccountRequirements;
+    validateAccountRequirements,
+    createBatchGroup,
+    completeBatchGroup,
+    getBatchGroup,
+    fundBatchGroup,
+    createBatchGroupTransfer;
   let connectedAccount, collective, host, payoutMethod, expense;
 
   after(sandbox.restore);
@@ -102,8 +113,15 @@ describe('server/paymentProviders/transferwise/index', () => {
     validateAccountRequirements = sandbox
       .stub(transferwiseLib, 'validateAccountRequirements')
       .resolves({ success: true });
+    createBatchGroup = sandbox.stub(transferwiseLib, 'createBatchGroup');
+    fundBatchGroup = sandbox.stub(transferwiseLib, 'fundBatchGroup').resolves();
+    createBatchGroupTransfer = sandbox.stub(transferwiseLib, 'createBatchGroupTransfer');
+    completeBatchGroup = sandbox.stub(transferwiseLib, 'completeBatchGroup').resolves();
+    getBatchGroup = sandbox.stub(transferwiseLib, 'getBatchGroup');
+
     cacheSpy = sandbox.spy(cache);
   });
+
   before(async () => {
     host = await fakeCollective({ isHostAccount: true });
     connectedAccount = await fakeConnectedAccount({
@@ -215,6 +233,93 @@ describe('server/paymentProviders/transferwise/index', () => {
 
       const payExpensePromise = transferwise.payExpense(connectedAccount, payoutMethod, expense);
       await expect(payExpensePromise).to.be.eventually.rejectedWith(Error, "You don't have enough funds");
+    });
+  });
+
+  describe('createExpensesBatchGroup', () => {
+    let expenses, transferIds, batchGroupId;
+    beforeEach(async () => {
+      sandbox.resetHistory();
+      expenses = await multiple(fakeExpense, 3, {
+        payoutMethod: 'transferwise',
+        PayoutMethodId: payoutMethod.id,
+        status: 'PENDING',
+        amount: 1000,
+        CollectiveId: host.id,
+        currency: 'USD',
+        FromCollectiveId: payoutMethod.id,
+        category: 'Engineering',
+        type: 'INVOICE',
+        description: 'January Invoice',
+      });
+      expenses = expenses.map(e => {
+        e.PayoutMethod = payoutMethod;
+        return e;
+      });
+      transferIds = [878, 879, 880];
+      batchGroupId = 'zs987sad89y1hubnc89h12h892s';
+      createBatchGroup.resolves({ id: batchGroupId });
+      getBatchGroup.resolves({ id: batchGroupId, version: 1, transferIds });
+      transferIds.forEach((id, i) => {
+        createBatchGroupTransfer.onCall(i).resolves({ id });
+      });
+      getBorderlessAccount.resolves({
+        balances: [
+          {
+            currency: 'USD',
+            amount: { value: 100000 },
+          },
+        ],
+      });
+      await transferwise.createExpensesBatchGroup(host, expenses);
+    });
+
+    it('should create batch group', () => {
+      expect(createBatchGroup.called).to.be.true;
+      const [token, , batchGroupOptions] = createBatchGroup.firstCall.args;
+
+      expect(token).to.equal(connectedAccount.token);
+      expect(batchGroupOptions.currency).to.equal(host.currnecy);
+    });
+
+    it('create one transfer for each expense', () => {
+      expect(createBatchGroupTransfer.callCount).to.equal(3);
+      expenses.forEach((e, i) => {
+        const call = createBatchGroupTransfer.getCall(i);
+        expect(call).to.have.nested.property('args[2]', batchGroupId);
+        expect(call).to.have.nested.property('lastArg.details.reference', e.id.toString());
+      });
+    });
+
+    it('should complete batch group and update expenses', async () => {
+      expect(completeBatchGroup.called).to.be.true;
+      const call = completeBatchGroup.firstCall;
+      const [, , batchGroupId] = call.args;
+      expect(batchGroupId).to.equal(batchGroupId);
+    });
+  });
+
+  describe('createExpensesBatchGroup', () => {
+    const batchGroupId = '123abc';
+    const ottToken = 'random-hash';
+    before(async () => {
+      sandbox.resetHistory();
+      fundBatchGroup.onFirstCall().resolves({ status: 403, headers: { 'x-2fa-approval': ottToken } });
+      fundBatchGroup.onSecondCall().resolves();
+    });
+
+    it('should return OTT info if request fails', async () => {
+      const response = await transferwise.fundExpensesBatchGroup(host, { id: batchGroupId });
+      expect(fundBatchGroup.firstCall).to.have.nested.property('args[2]', batchGroupId);
+      expect(fundBatchGroup.firstCall).to.not.have.nested.property('args[3]');
+      expect(response).to.have.property('status', 403);
+      expect(response).to.have.nested.property('headers.x-2fa-approval', ottToken);
+    });
+
+    it('should retry batchGroup if OTT token is provided', async () => {
+      await transferwise.fundExpensesBatchGroup(host, undefined, ottToken);
+      expect(fundBatchGroup.secondCall).to.have.nested.property('args[2]', batchGroupId);
+      expect(fundBatchGroup.secondCall).to.have.nested.property('args[3]', ottToken);
     });
   });
 
