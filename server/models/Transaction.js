@@ -1,6 +1,7 @@
 import assert from 'assert';
 
 import Promise from 'bluebird';
+import config from 'config';
 import debugLib from 'debug';
 import { defaultsDeep, get, isNil, isNull, isUndefined, omit, pick } from 'lodash';
 import moment from 'moment';
@@ -14,7 +15,7 @@ import { toNegative } from '../lib/math';
 import { calcFee } from '../lib/payments';
 import { stripHTML } from '../lib/sanitize-html';
 import sequelize, { DataTypes, Op } from '../lib/sequelize';
-import { exportToCSV } from '../lib/utils';
+import { exportToCSV, parseToBoolean } from '../lib/utils';
 
 import CustomDataTypes from './DataTypes';
 import { TransactionSettlementStatus } from './TransactionSettlement';
@@ -345,6 +346,17 @@ function defineModel() {
     }
   };
 
+  Transaction.prototype.getHostFeeTransaction = function () {
+    return models.Transaction.findOne({
+      where: {
+        type: this.type,
+        TransactionGroup: this.TransactionGroup,
+        kind: TransactionKind.HOST_FEE,
+        isDebt: { [Op.not]: true },
+      },
+    });
+  };
+
   Transaction.prototype.getOppositeTransaction = async function () {
     return models.Transaction.findOne({
       where: {
@@ -626,9 +638,7 @@ function defineModel() {
    * @param {boolean} Whether tip has been collected already (no debt needed)
    */
   Transaction.createPlatformTipTransactions = async (transaction, host, isDirectlyCollected = false) => {
-    if (!transaction.data?.isFeesOnTop) {
-      throw new Error('This transaction does not have fees on top');
-    } else if (!transaction.platformFeeInHostCurrency) {
+    if (!transaction.data?.isFeesOnTop || !transaction.platformFeeInHostCurrency) {
       return;
     }
 
@@ -711,6 +721,42 @@ function defineModel() {
     }
   };
 
+  Transaction.createHostFeeTransactions = async (transaction, host) => {
+    if (!transaction.hostFeeInHostCurrency) {
+      return;
+    }
+
+    const amountInHostCurrency = Math.abs(transaction.hostFeeInHostCurrency);
+    const amountInCollectiveCurrency = Math.round(amountInHostCurrency / transaction.hostCurrencyFxRate);
+    const hostFeeTransaction = {
+      type: TransactionTypes.CREDIT,
+      kind: TransactionKind.HOST_FEE,
+      description: 'Host Fee',
+      TransactionGroup: transaction.TransactionGroup,
+      FromCollectiveId: transaction.CollectiveId,
+      CollectiveId: host.id,
+      HostCollectiveId: host.id,
+      // Compute amounts
+      amount: amountInCollectiveCurrency,
+      netAmountInCollectiveCurrency: amountInCollectiveCurrency,
+      currency: transaction.currency,
+      amountInHostCurrency: amountInHostCurrency,
+      hostCurrency: transaction.hostCurrency,
+      hostCurrencyFxRate: transaction.hostCurrencyFxRate,
+      // No fees
+      platformFeeInHostCurrency: 0,
+      hostFeeInHostCurrency: 0,
+      paymentProcessorFeeInHostCurrency: 0,
+    };
+
+    await Transaction.createDoubleEntry(hostFeeTransaction);
+
+    // Reset the original host fee because we're now accounting for this value in a separate set of transactions
+    transaction.hostFeeInHostCurrency = 0;
+
+    return { transaction, hostFeeTransaction };
+  };
+
   /**
    * Creates a transaction pair from given payload. Defaults to `CONTRIBUTION` kind unless
    * specified otherwise.
@@ -753,7 +799,19 @@ function defineModel() {
       const isTipAlreadyCollected = Boolean(opts?.isPlatformTipDirectlyCollected);
       const result = await Transaction.createPlatformTipTransactions(transaction, host, isTipAlreadyCollected);
       // Transaction was modified by createPlatformTipTransactions, we get it from the result
-      transaction = result.transaction;
+      if (result && result.transaction) {
+        transaction = result.transaction;
+      }
+    }
+
+    // Create Host Fee transaction
+    if (transaction.hostFeeInHostCurrency && parseToBoolean(config.ledger.separateHostFees) === true) {
+      // transaction.hostFeeInHostCurrency = 0;
+      const result = await Transaction.createHostFeeTransactions(transaction, host);
+      // Transaction was modified by createHostFeeTransaction, we get it from the result
+      if (result && result.transaction) {
+        transaction = result.transaction;
+      }
     }
 
     transaction.netAmountInCollectiveCurrency = Transaction.calculateNetAmountInCollectiveCurrency(transaction);
