@@ -900,7 +900,16 @@ async function markExpenseAsPaid(expense, remoteUser, isManualPayout = false): P
   return expense;
 }
 
-async function createTransactions(host, expense, fees = {}, data = {}) {
+async function createTransactions(
+  host,
+  expense,
+  fees: {
+    paymentProcessorFeeInHostCurrency?: number;
+    hostFeeInHostCurrency?: number;
+    platformFeeInHostCurrency?: number;
+  } = {},
+  data = {},
+) {
   debug('marking expense as paid and creating transactions in the ledger', expense.id);
   return await createTransactionFromPaidExpense(
     host,
@@ -1007,6 +1016,11 @@ export const getExpenseFeesInHostCurrency = async ({
     hostFeeInHostCurrency: undefined,
     platformFeeInHostCurrency: undefined,
   };
+
+  if (!expense.collective) {
+    expense.collective = await models.Collective.findByPk(expense.CollectiveId);
+  }
+
   const fxrate = await getFxRate(expense.collective.currency, host.currency);
   const payoutMethodType = payoutMethod ? payoutMethod.type : expense.getPayoutMethodTypeFromLegacy();
 
