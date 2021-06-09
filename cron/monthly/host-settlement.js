@@ -7,6 +7,7 @@ import { entries, groupBy, pick, round, sumBy } from 'lodash';
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
+import activityType from '../../server/constants/activities';
 import expenseStatus from '../../server/constants/expense_status';
 import expenseTypes from '../../server/constants/expense_type';
 import { SHARED_REVENUE_PLANS } from '../../server/constants/plans';
@@ -455,6 +456,7 @@ export async function run() {
 
       // Mark transactions as invoiced
       await models.TransactionSettlement.markTransactionsAsInvoiced(transactions, expense.id);
+      await expense.createActivity(activityType.COLLECTIVE_EXPENSE_CREATED);
     }
   }
 }
