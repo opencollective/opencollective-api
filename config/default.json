@@ -173,6 +173,6 @@
     "apiUrl": "https://sandbox.privacy.com"
   },
   "ledger": {
-    "separateHostFees": false
+    "separateHostFees": true
   }
 }
