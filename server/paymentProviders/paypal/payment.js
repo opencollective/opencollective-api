@@ -132,7 +132,7 @@ export function recordPaypalTransaction(order, paypalTransaction) {
   return recordTransaction(order, amount, currency, fee, { paypalTransaction });
 }
 
-const recordPaypalCapture = async (order, capture) => {
+export const recordPaypalCapture = async (order, capture) => {
   const currency = capture.amount.currency_code;
   const amount = paypalAmountToCents(capture.amount.value);
   const fee = paypalAmountToCents(get(capture, 'seller_receivable_breakdown.paypal_fee.value', '0.0'));
