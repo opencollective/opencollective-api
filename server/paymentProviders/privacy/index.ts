@@ -18,6 +18,12 @@ const createExpense = async (
   privacyTransaction: Transaction,
   opts?: { host?: any; collective?: any; hostCurrencyFxRate?: number },
 ): Promise<any> => {
+  const amount = privacyTransaction.settled_amount;
+  // Privacy can set transactions amount to zero in certain cases. We'll ignore those.
+  if (!amount) {
+    return;
+  }
+
   const virtualCard = await models.VirtualCard.findOne({
     where: {
       id: privacyTransaction.card.token,
@@ -51,7 +57,6 @@ const createExpense = async (
 
   const host = opts?.host || virtualCard.host;
   const hostCurrencyFxRate = opts?.hostCurrencyFxRate || (await getFxRate('USD', host.currency));
-  const amount = privacyTransaction.settled_amount;
   const UserId = virtualCard.UserId || collective.CreatedByUserId || collective.LastEditedByUserId;
 
   const expense = await sequelize.transaction(async transaction => {
