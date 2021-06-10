@@ -1951,6 +1951,11 @@ type Mutation {
   ): UserDetails
 
   """
+  Update the time which the user viewed the changelog updates
+  """
+  setChangelogViewDate(changelogViewDate: String!): UserDetails
+
+  """
   Confirm the new user email from confirmation token
   """
   confirmUserEmail(
@@ -1991,6 +1996,7 @@ type Mutation {
   deleteComment(id: Int!): CommentType @deprecated(reason: "2021-01-29: Not used anymore")
   refundTransaction(id: Int!): Transaction
   addFundsToOrg(totalAmount: Int!, CollectiveId: Int!, HostCollectiveId: Int!, description: String): PaymentMethodType
+    @deprecated(reason: "2021-06-01: Create a Prepaid Payment Method through a Tier or use a FUND instead.")
   createApplication(application: ApplicationInput!): Application
   deleteApplication(id: Int!): Application
 
@@ -3640,7 +3646,7 @@ type UpdateType {
   slug: String
   image: String
   isPrivate: Boolean
-  isChangelog: Boolean
+  isChangelog: Boolean!
   notificationAudience: UpdateAudienceTypeEnum
   makePublicOn: IsoDateString
 
@@ -3927,6 +3933,7 @@ type UserDetails {
   Returns true if user account is limited (user can't use any feature)
   """
   isLimited: Boolean
+  changelogViewDate: DateString
 }
 
 """

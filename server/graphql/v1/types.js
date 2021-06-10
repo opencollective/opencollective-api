@@ -241,6 +241,12 @@ export const UserType = new GraphQLObjectType({
           return user.data && user.data.features && user.data.features.ALL === false;
         },
       },
+      changelogViewDate: {
+        type: DateString,
+        resolve(user) {
+          return user.changelogViewDate;
+        },
+      },
     };
   },
 });
