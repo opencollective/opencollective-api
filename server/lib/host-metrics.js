@@ -171,7 +171,7 @@ GROUP BY t1."hostCurrency"`,
   let total = await computeTotal(results, host.currency);
 
   // amount/hostFeeInHostCurrency is expressed as a negative number
-  if (parseToBoolean(config.ledger.separateHostFees) === false && total != 0) {
+  if (total != 0) {
     total = -total;
   }
 
@@ -207,7 +207,7 @@ GROUP BY t1."hostCurrency"`,
   let total = await computeTotal(results, host.currency);
 
   // amount/hostFeeInHostCurrency is expressed as a negative number
-  if (parseToBoolean(config.ledger.separateHostFees) === false && total != 0) {
+  if (total != 0) {
     total = -total;
   }
 
