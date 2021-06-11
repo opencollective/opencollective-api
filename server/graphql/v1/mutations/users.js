@@ -100,5 +100,6 @@ export const setChangelogViewDate = async (user, changelogViewDate) => {
   } else if (!changelogViewDate) {
     throw new ValidationFailed('The change log view date must be set');
   }
-  return user.update({ changelogViewDate });
+  const date = new Date(changelogViewDate);
+  return user.update({ changelogViewDate: date });
 };
