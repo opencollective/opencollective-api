@@ -25,7 +25,7 @@ async function reconcileConnectedAccount(connectedAccount) {
     const begin = lastSyncedTransaction
       ? moment(lastSyncedTransaction.createdAt).add(1, 'second').toISOString()
       : moment(card.createdAt).toISOString();
-    logger.info(`Fetching transactions since ${begin}`);
+    logger.info(`\nReconciling card ${card.id}: fetching transactions since ${begin}`);
 
     const { data: transactions } = await privacyLib.listTransactions(
       connectedAccount.token,
@@ -51,7 +51,7 @@ async function reconcileConnectedAccount(connectedAccount) {
       if (host.settings?.virtualcards?.autopause) {
         await privacy.autoPauseResumeCard(card);
       }
-      logger.info(`Refreshing card ${card.id} details...`);
+      logger.info(`Refreshing card details'...`);
       await privacy.refreshCardDetails(card);
     }
   }
