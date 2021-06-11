@@ -1,6 +1,7 @@
 /* eslint-disable camelcase */
 import { expect } from 'chai';
 
+import models from '../../../../server/models';
 import privacy from '../../../../server/paymentProviders/privacy';
 import { fakeCollective, fakeVirtualCard } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
@@ -50,8 +51,53 @@ const MOCK_TRANSACTION = {
   token: '9c63b54a-897c-49b7-9210-fc4dfa15b8d0',
 };
 
+const MOCK_REFUND = {
+  amount: -243,
+  card: {
+    created: '2020-07-13T10:22:20Z',
+    funding: {
+      account_name: 'Silicon Valley Bank',
+      created: '2016-05-08 21:25:38',
+      last_four: '2598',
+      nickname: '',
+      state: 'ENABLED',
+      token: 'dd2c0187-56cf-44ce-b7d9-ee1c07179e10',
+      type: 'DEPOSITORY_CHECKING',
+    },
+    hostname: '',
+    last_four: '0093',
+    memo: 'Digital Ocean',
+    spend_limit: 5000,
+    spend_limit_duration: 'MONTHLY' as const,
+    state: 'OPEN' as const,
+    token: '2904adfe-abce-427a-b731-f6b2c5380fb6',
+    type: 'MERCHANT_LOCKED' as const,
+  },
+  created: '2021-02-01T15:28:11Z',
+  events: [],
+  funding: [
+    {
+      amount: 243,
+      token: 'dd2c0187-56cf-44ce-b7d9-ee1c07179e10',
+      type: 'DEPOSITORY_CHECKING',
+    },
+  ],
+  merchant: {
+    acceptor_id: '445283188990',
+    city: 'DIGITALOCEAN.',
+    country: 'USA',
+    descriptor: 'DIGITALOCEAN.COM',
+    mcc: '5734',
+    state: 'NY',
+  },
+  result: 'APPROVED' as const,
+  settled_amount: -243,
+  status: 'SETTLED' as const,
+  token: 'd6df42c4-bafe-4302-989d-55ba20d42b82',
+};
+
 describe('server/paymentProviders/privacy/index', () => {
-  describe('createExpense()', () => {
+  describe('processTransaction()', () => {
     let expense, collective;
 
     before(utils.resetTestDB);
@@ -65,7 +111,7 @@ describe('server/paymentProviders/privacy/index', () => {
         id: '2904adfe-abce-427a-b731-f6b2c5380fb6',
       });
 
-      expense = await privacy.createExpense(MOCK_TRANSACTION);
+      expense = await privacy.processTransaction(MOCK_TRANSACTION);
     });
 
     it('should create vendor collective if non-existent', () => {
@@ -87,6 +133,20 @@ describe('server/paymentProviders/privacy/index', () => {
 
     it('should set data.missingDetails to true', () => {
       expect(expense.data).to.have.property('missingDetails', true);
+    });
+
+    it('should add refunds to the ledger', async () => {
+      await privacy.processTransaction(MOCK_REFUND);
+
+      const transactions = await models.Transaction.findAll({
+        where: { isRefund: true, data: { card: { token: MOCK_REFUND.card.token } } },
+      });
+
+      const credit = transactions.find(t => t.type === 'CREDIT');
+      expect(credit).to.have.property('CollectiveId', collective.id);
+      expect(credit).to.have.property('amount', 243);
+      expect(credit).to.have.property('netAmountInCollectiveCurrency', 243);
+      expect(credit).to.have.property('amountInHostCurrency', 243);
     });
   });
 });
