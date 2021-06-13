@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import config from 'config';
 import crypto from 'crypto-js';
 import gqlV2 from 'fake-tag';
-import { omit, pick } from 'lodash';
+import { defaultsDeep, omit, pick } from 'lodash';
 import sinon from 'sinon';
 import speakeasy from 'speakeasy';
 
@@ -374,10 +374,20 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(result.data.editExpense.description).to.equal(expense.description);
     });
 
-    it('updates the tags', async () => {
-      const expense = await fakeExpense({ tags: [randStr()] });
-      const updatedExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), tags: ['fake', 'tags'] };
+    it('cannot update info if the expense is PAID', async () => {
+      const expense = await fakeExpense({ status: 'PAID' });
+      const updatedExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), privateMessage: randStr() };
       const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, expense.User);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq("You don't have permission to edit this expense");
+    });
+
+    it('can update the tags as admin (even if the expense is PAID)', async () => {
+      const adminUser = await fakeUser();
+      const collective = await fakeCollective({ admin: adminUser.collective });
+      const expense = await fakeExpense({ tags: [randStr()], status: 'PAID', CollectiveId: collective.id });
+      const updatedExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), tags: ['fake', 'tags'] };
+      const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, adminUser);
       expect(result.data.editExpense.tags).to.deep.equal(updatedExpenseData.tags);
     });
 
@@ -1075,6 +1085,19 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           expect(emailSendMessageSpy.args[0][1]).to.contain(
             `Payment being processed: January Invoice for ${collective.name}`,
           );
+        });
+
+        it('should ignore payment processor fee if host.settings.transferwise.ignorePaymentProcessorFees is true', async () => {
+          await host.update({
+            settings: defaultsDeep(host.settings, { transferwise: { ignorePaymentProcessorFees: true } }),
+          });
+          const mutationParams = { expenseId: expense.id, action: 'PAY' };
+          const res = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+          res.errors && console.error(res.errors);
+          expect(res.errors).to.not.exist;
+          const [transaction] = await models.Transaction.findAll({ where: { ExpenseId: expense.id } });
+
+          expect(transaction).to.have.nested.property('paymentProcessorFeeInHostCurrency').to.equal(0);
         });
       });
 

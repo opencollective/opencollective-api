@@ -8,6 +8,8 @@ import config from 'config';
 import pdf from 'html-pdf';
 import { filter, get, isEqual, padStart, sumBy } from 'lodash';
 
+import { ZERO_DECIMAL_CURRENCIES } from '../constants/currencies';
+
 import errors from './errors';
 import handlebars from './handlebars';
 
@@ -372,6 +374,14 @@ export function formatArrayToString(arr, conjonction = 'and') {
   }
   return `${arr.slice(0, arr.length - 1).join(', ')} ${conjonction} ${arr.slice(-1)}`;
 }
+
+export const getDefaultCurrencyPrecision = currency => {
+  if (ZERO_DECIMAL_CURRENCIES.includes(currency?.toUpperCase())) {
+    return 0;
+  } else {
+    return 2;
+  }
+};
 
 export function formatCurrency(amount, currency, precision = 0) {
   amount = amount / 100; // converting cents

@@ -18,7 +18,8 @@ export interface PaypalProductCreateAttributes {
 
 class PaypalProduct
   extends Model<PaypalProductAttributes, PaypalProductCreateAttributes>
-  implements PaypalProductAttributes {
+  implements PaypalProductAttributes
+{
   public id!: string;
   public CollectiveId!: number;
   public TierId: number;

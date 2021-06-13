@@ -116,13 +116,13 @@ function defineModel() {
 
       title: {
         type: DataTypes.STRING,
+        set(title) {
+          this.setDataValue('title', title.replace(/\s+/g, ' ').trim());
+        },
         validate: {
           len: [1, 255],
         },
       },
-
-      // @deprecated
-      markdown: DataTypes.TEXT,
 
       html: {
         type: DataTypes.TEXT,
@@ -135,6 +135,11 @@ function defineModel() {
       image: DataTypes.STRING,
 
       isPrivate: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+      },
+
+      isChangelog: {
         type: DataTypes.BOOLEAN,
         defaultValue: false,
       },
@@ -190,6 +195,7 @@ function defineModel() {
             updatedAt: this.updatedAt,
             publishedAt: this.publishedAt,
             isPrivate: this.isPrivate,
+            isChangelog: this.isChangelog,
             slug: this.slug,
             tags: this.tags,
             CollectiveId: this.CollectiveId,
@@ -215,6 +221,7 @@ function defineModel() {
             FromCollectiveId: this.FromCollectiveId,
             TierId: this.TierId,
             isPrivate: this.isPrivate,
+            isChangelog: this.isChangelog,
           };
         },
       },
@@ -265,7 +272,7 @@ function defineModel() {
       }
     }
 
-    const editableAttributes = ['TierId', 'title', 'html', 'tags', 'isPrivate', 'makePublicOn'];
+    const editableAttributes = ['TierId', 'title', 'html', 'tags', 'isPrivate', 'isChangelog', 'makePublicOn'];
 
     return await this.update({
       ...pick(newUpdateData, editableAttributes),
@@ -453,19 +460,6 @@ function defineModel() {
     return Promise.map(updates, u => Update.create(defaults({}, u, defaultValues)), { concurrency: 1 }).catch(
       console.error,
     );
-  };
-
-  Update.associate = m => {
-    Update.belongsTo(m.Collective, {
-      foreignKey: 'CollectiveId',
-      as: 'collective',
-    });
-    Update.belongsTo(m.Collective, {
-      foreignKey: 'FromCollectiveId',
-      as: 'fromCollective',
-    });
-    Update.belongsTo(m.Tier, { foreignKey: 'TierId', as: 'tier' });
-    Update.belongsTo(m.User, { foreignKey: 'LastEditedByUserId', as: 'user' });
   };
 
   Temporal(Update, sequelize);

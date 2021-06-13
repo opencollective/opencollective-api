@@ -14,25 +14,8 @@ import models, { sequelize } from '../../server/models';
 
 const isDry = process.env.DRY;
 const affectedOrderIds = [
-  115250,
-  115238,
-  115105,
-  115104,
-  115065,
-  115064,
-  115047,
-  115045,
-  115044,
-  115021,
-  115000,
-  114969,
-  114952,
-  114751,
-  114750,
-  111824,
-  111822,
-  110638,
-  110640,
+  115250, 115238, 115105, 115104, 115065, 115064, 115047, 115045, 115044, 115021, 115000, 114969, 114952, 114751,
+  114750, 111824, 111822, 110638, 110640,
 ];
 
 (async function () {
@@ -86,31 +69,29 @@ const affectedOrderIds = [
         data.hostFeeSharePercent = hostPlan.hostFeeSharePercent;
       }
 
-      const payload = {
+      const transactionPayload = {
         CreatedByUserId: order.CreatedByUserId,
         FromCollectiveId: order.FromCollectiveId,
         CollectiveId: order.CollectiveId,
         PaymentMethodId: order.PaymentMethodId,
-        transaction: {
-          type: constants.TransactionTypes.CREDIT,
-          OrderId: order.id,
-          amount: order.totalAmount,
-          currency: order.currency,
-          hostCurrency: balanceTransaction.currency,
-          amountInHostCurrency: balanceTransaction.amount,
-          hostCurrencyFxRate: balanceTransaction.amount / order.totalAmount,
-          paymentProcessorFeeInHostCurrency: fees.stripeFee,
-          taxAmount: order.taxAmount,
-          description: order.description,
-          hostFeeInHostCurrency,
-          platformFeeInHostCurrency,
-          data,
-        },
+        type: constants.TransactionTypes.CREDIT,
+        OrderId: order.id,
+        amount: order.totalAmount,
+        currency: order.currency,
+        hostCurrency: balanceTransaction.currency,
+        amountInHostCurrency: balanceTransaction.amount,
+        hostCurrencyFxRate: balanceTransaction.amount / order.totalAmount,
+        paymentProcessorFeeInHostCurrency: fees.stripeFee,
+        taxAmount: order.taxAmount,
+        description: order.description,
+        hostFeeInHostCurrency,
+        platformFeeInHostCurrency,
+        data,
       };
 
       // Recreate all transactions
       if (!isDry) {
-        await models.Transaction.createFromPayload(payload);
+        await models.Transaction.createFromContributionPayload(transactionPayload);
 
         // Deleted past platform tip transactions
         const deletedTransactions = await models.Transaction.destroy({

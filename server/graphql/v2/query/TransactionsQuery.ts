@@ -3,6 +3,7 @@ import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString 
 
 import models, { Op, sequelize } from '../../../models';
 import { TransactionCollection } from '../collection/TransactionCollection';
+import { TransactionKind } from '../enum/TransactionKind';
 import { TransactionType } from '../enum/TransactionType';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
@@ -52,7 +53,7 @@ const TransactionsQuery = {
     },
     dateTo: {
       type: ISODateTime,
-      description: 'Only return expenses that were created after this date',
+      description: 'Only return expenses that were created before this date',
     },
     searchTerm: {
       type: GraphQLString,
@@ -71,6 +72,15 @@ const TransactionsQuery = {
       defaultValue: false,
       description:
         'If the account is a user and this field is true, contributions from the incognito profile will be included too (admins only)',
+    },
+    includeDebts: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      defaultValue: false,
+      description: 'Whether to include debt transactions',
+    },
+    kinds: {
+      type: new GraphQLList(TransactionKind),
+      description: 'To filter by transaction kind',
     },
   },
   async resolve(_: void, args, req: express.Request): Promise<CollectionReturnType> {
@@ -178,6 +188,12 @@ const TransactionsQuery = {
     }
     if (args.hasOrder) {
       where.push({ OrderId: { [Op.ne]: null } });
+    }
+    if (!args.includeDebts) {
+      where.push({ isDebt: { [Op.not]: true } });
+    }
+    if (args.kinds) {
+      where.push({ kind: args.kinds });
     }
 
     const order = [[args.orderBy.field, args.orderBy.direction]];

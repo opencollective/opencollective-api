@@ -1,6 +1,8 @@
 import config from 'config';
 import Stripe from 'stripe';
 
+import { ZERO_DECIMAL_CURRENCIES } from '../constants/currencies';
+
 const stripe = Stripe(config.stripe.secret);
 
 // Retry a request twice before giving up
@@ -8,9 +10,9 @@ stripe.setMaxNetworkRetries(2);
 
 export default stripe;
 
-export const extractFees = balance => {
+export const extractFees = (balance, currency) => {
   const fees = {
-    total: balance.fee,
+    total: convertFromStripeAmount(currency, balance.fee),
     stripeFee: 0,
     applicationFee: 0,
     other: 0,
@@ -18,11 +20,11 @@ export const extractFees = balance => {
 
   balance.fee_details.forEach(fee => {
     if (fee.type === 'stripe_fee') {
-      fees.stripeFee += fee.amount;
+      fees.stripeFee += convertFromStripeAmount(currency, fee.amount);
     } else if (fee.type === 'application_fee') {
-      fees.applicationFee += fee.amount;
+      fees.applicationFee += convertFromStripeAmount(currency, fee.amount);
     } else {
-      fees.other += fee.amount;
+      fees.other += convertFromStripeAmount(currency, fee.amount);
     }
   });
   return fees;
@@ -39,4 +41,23 @@ export const isTestToken = token => {
     'tok_chargeDeclinedExpiredCard',
     'tok_chargeDeclinedProcessingError',
   ].includes(token);
+};
+
+/**
+ * Handles the zero-decimal currencies for Stripe; https://stripe.com/docs/currencies#zero-decimal
+ */
+export const convertToStripeAmount = (currency, amount) => {
+  if (ZERO_DECIMAL_CURRENCIES.includes(currency?.toUpperCase())) {
+    return Math.floor(amount / 100);
+  } else {
+    return amount;
+  }
+};
+
+export const convertFromStripeAmount = (currency, amount) => {
+  if (ZERO_DECIMAL_CURRENCIES.includes(currency?.toUpperCase())) {
+    return amount * 100;
+  } else {
+    return amount;
+  }
 };

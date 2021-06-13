@@ -56,13 +56,6 @@ paymentMethodProvider.processOrder = async order => {
   const hostFeePercent = await getHostFeePercent(order);
   const platformFeePercent = await getPlatformFeePercent(order); // it's gonna be 0 usually, unless specified in the order
 
-  const payload = {
-    CreatedByUserId: order.CreatedByUserId,
-    FromCollectiveId: order.FromCollectiveId,
-    CollectiveId: order.CollectiveId,
-    PaymentMethodId: order.PaymentMethodId,
-  };
-
   // Different collectives on the same host may have different currencies
   // That's bad design. We should always keep the same host currency everywhere and only use the currency
   // of the collective for display purposes (using the fxrate at the time of display)
@@ -77,14 +70,17 @@ paymentMethodProvider.processOrder = async order => {
     ? calcFee(order.totalAmount * fxRate, platformFeePercent)
     : feeOnTop * fxRate;
 
-  payload.transaction = {
+  const transactionPayload = {
+    CreatedByUserId: order.CreatedByUserId,
+    FromCollectiveId: order.FromCollectiveId,
+    CollectiveId: order.CollectiveId,
+    PaymentMethodId: order.PaymentMethodId,
     type: TransactionTypes.CREDIT,
     OrderId: order.id,
     amount: order.totalAmount,
     currency: order.currency,
     hostCurrency: collectiveHost.currency,
     hostCurrencyFxRate: fxRate,
-    netAmountInCollectiveCurrency: order.totalAmount * (1 - hostFeePercent / 100),
     amountInHostCurrency,
     hostFeeInHostCurrency,
     platformFeeInHostCurrency,
@@ -96,7 +92,7 @@ paymentMethodProvider.processOrder = async order => {
     },
   };
 
-  const transactions = await models.Transaction.createFromPayload(payload);
+  const transactions = await models.Transaction.createFromContributionPayload(transactionPayload);
 
   return transactions;
 };

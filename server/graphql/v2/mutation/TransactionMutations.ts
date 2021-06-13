@@ -3,7 +3,7 @@ import { GraphQLNonNull, GraphQLString } from 'graphql';
 
 import orderStatus from '../../../constants/order_status';
 import { TransactionKind } from '../../../constants/transaction-kind';
-import { FEES_ON_TOP_TRANSACTION_PROPERTIES } from '../../../constants/transactions';
+import { PLATFORM_TIP_TRANSACTION_PROPERTIES } from '../../../constants/transactions';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import { notifyAdminsOfCollective } from '../../../lib/notifications';
 import models from '../../../models';
@@ -61,12 +61,12 @@ const transactionMutations = {
         amountInHostCurrency: args.amount,
         FromCollectiveId: fundsTransaction.HostCollectiveId,
         kind: TransactionKind.PLATFORM_TIP,
-        ...FEES_ON_TOP_TRANSACTION_PROPERTIES,
+        ...PLATFORM_TIP_TRANSACTION_PROPERTIES,
       };
 
       const host = await models.Collective.findByPk(transaction.CollectiveId);
-      const { donationTransaction } = await models.Transaction.createFeesOnTopTransaction({ transaction, host });
-      return donationTransaction;
+      const { platformTipTransaction } = await models.Transaction.createPlatformTipTransactions(transaction, host);
+      return platformTipTransaction;
     },
   },
   refundTransaction: {

@@ -83,9 +83,6 @@ const loadSubscriptionForWebhookEvent = async (req: Request, subscriptionId: str
 };
 
 async function handleSaleCompleted(req: Request): Promise<void> {
-  // TODO During the internal testing phase, we're logging all webhooks events to make debugging easier
-  logger.info(`PayPal webhook (PAYMENT.SALE.COMPLETED): ${JSON.stringify(req.body)}`);
-
   // 1. Retrieve the order for this subscription & validate webhook event
   const sale = req.body.resource;
   const subscriptionId = sale.billing_agreement_id;
@@ -111,6 +108,10 @@ async function handleSaleCompleted(req: Request): Promise<void> {
 
   // 4. Send thankyou email
   await sendThankYouEmail(order, transaction);
+
+  // 5. Register user as a member, since the transaction is not created in `processOrder`
+  // for PayPal subscriptions.
+  await order.getOrCreateMembers();
 }
 
 /**
@@ -119,9 +120,6 @@ async function handleSaleCompleted(req: Request): Promise<void> {
  * in the the same way, by marking order as cancelled.
  */
 async function handleSubscriptionCancelled(req: Request): Promise<void> {
-  // TODO During the internal testing phase, we're logging all webhooks events to make debugging easier
-  logger.info(`PayPal webhook (${get(req, 'body.event_type')}): ${JSON.stringify(req.body)}`);
-
   const subscription = req.body.resource;
   const { order } = await loadSubscriptionForWebhookEvent(req, subscription.id);
   if (order.status !== OrderStatus.CANCELLED) {

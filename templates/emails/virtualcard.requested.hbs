@@ -1,8 +1,8 @@
-Subject: {{collective.name}} wants a Virtual Card
+Subject: {{{collective.name}}} wants a Virtual Card
 
 {{> header}}
 
-<div class="hidden">Virtual Card Request submitted by {{user.firstName}}</div>
+<div class="hidden">Virtual Card requested by {{user.firstName}}</div>
 
 <h1>{{collective.name}}</h1>
 
@@ -15,9 +15,9 @@ Subject: {{collective.name}} wants a Virtual Card
 Dear admin of {{host.name}},
 
 <p>
-  {{user.firstName}} wants their Collective, {{collective.name}}, to receive a Virtual Card.
-  Since this is still a manual process, you'll need to manually create a virtual credit card and assign it to the
-  collective through <a href="https://opencollective.com/{{host.slug}}/edit/host-virtual-cards">your settings panel</a>.
+  {{user.firstName}} wants a virtual card for their Collective, {{collective.name}}.
+  To create one, set up a new virtual card and assign it to {{collective.name}}
+  in <a href="https://opencollective.com/{{host.slug}}/edit/host-virtual-cards">your settings</a>.
 </p>
 
 <h2>Collective details</h2>

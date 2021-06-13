@@ -147,10 +147,11 @@ export const Host = new GraphQLObjectType({
         description: 'The list of payout methods this Host accepts for its expenses',
         async resolve(collective, _, req) {
           const connectedAccounts = await req.loaders.Collective.connectedAccounts.load(collective.id);
-          const supportedPayoutMethods = [PayoutMethodTypes.OTHER, PayoutMethodTypes.ACCOUNT_BALANCE];
-          if (connectedAccounts?.find?.(c => c.service === 'transferwise')) {
-            supportedPayoutMethods.push(PayoutMethodTypes.BANK_ACCOUNT);
-          }
+          const supportedPayoutMethods = [
+            PayoutMethodTypes.OTHER,
+            PayoutMethodTypes.ACCOUNT_BALANCE,
+            PayoutMethodTypes.BANK_ACCOUNT,
+          ];
           if (connectedAccounts?.find?.(c => c.service === 'paypal') || !collective.settings?.disablePaypalPayouts) {
             supportedPayoutMethods.push(PayoutMethodTypes.PAYPAL);
           }

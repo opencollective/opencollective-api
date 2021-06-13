@@ -378,6 +378,7 @@ const mutations = {
   },
   addFundsToOrg: {
     type: PaymentMethodType,
+    deprecationReason: '2021-06-01: Create a Prepaid Payment Method through a Tier or use a FUND instead.',
     args: {
       totalAmount: { type: new GraphQLNonNull(GraphQLInt) },
       CollectiveId: { type: new GraphQLNonNull(GraphQLInt) },

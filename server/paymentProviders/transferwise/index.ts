@@ -2,7 +2,7 @@ import crypto from 'crypto';
 
 import config from 'config';
 import express from 'express';
-import { find, has, pick, toNumber } from 'lodash';
+import { compact, find, has, pick, split, toNumber } from 'lodash';
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
@@ -16,9 +16,11 @@ import { ConnectedAccount } from '../../types/ConnectedAccount';
 import { Balance, QuoteV2, QuoteV2PaymentOption, RecipientAccount, Transfer } from '../../types/transferwise';
 
 const hashObject = obj => crypto.createHash('sha1').update(JSON.stringify(obj)).digest('hex').slice(0, 7);
+const splitCSV = string => compact(split(string, /,\s*/));
 
-export const blockedCurrencies = ['NGN'];
-export const blockedCurrenciesForBusinesProfiles = ['BRL', 'PKR'];
+export const blockedCurrencies = splitCSV(config.transferwise.blockedCurrencies);
+export const blockedCurrenciesForBusinessProfiles = splitCSV(config.transferwise.blockedCurrenciesForBusinessProfiles);
+export const blockedCurrenciesForNonProfits = splitCSV(config.transferwise.blockedCurrenciesForNonProfits);
 export const currenciesThatRequireReference = ['RUB'];
 
 async function populateProfileId(connectedAccount: typeof models.ConnectedAccount, profileId?: number): Promise<void> {
@@ -151,7 +153,13 @@ async function getAvailableCurrencies(
   if (ignoreBlockedCurrencies) {
     currencyBlockList = blockedCurrencies;
     if (connectedAccount.data?.type === 'business') {
-      currencyBlockList = [...currencyBlockList, ...blockedCurrenciesForBusinesProfiles];
+      currencyBlockList = [...currencyBlockList, ...blockedCurrenciesForBusinessProfiles];
+    }
+    if (connectedAccount.data?.details?.companyType === 'NON_PROFIT_CORPORATION') {
+      currencyBlockList = [...currencyBlockList, ...blockedCurrenciesForNonProfits];
+    }
+    if (connectedAccount.data?.blockedCurrencies) {
+      currencyBlockList = [...currencyBlockList, ...connectedAccount.data.blockedCurrencies];
     }
   }
 

@@ -58,7 +58,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
   describe('#processOrder()', async () => {
     let secondCallToCreateCustomer, createIntentRequest;
 
-    const setupNock = ({ balanceTransactions = { amount: 1000, fee: 0, fee_details: [] } } = {}) => {
+    const setupNock = ({ balanceTransactions = { amount: 1000, currency: 'usd', fee: 0, fee_details: [] } } = {}) => {
       // Call performed by getOrCreateCustomerOnPlatformAccount
       nock('https://api.stripe.com:443').post('/v1/customers').reply(200, {});
 
@@ -121,6 +121,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
         setupNock({
           balanceTransactions: {
             amount: 1100,
+            currency: 'usd',
             fee: 0,
             fee_details: [
               {
@@ -158,6 +159,19 @@ describe('server/paymentProviders/stripe/creditcard', () => {
         expect(createIntentRequest).to.have.property('application_fee_amount', `${1000 * 0.1 * 0.15}`);
       });
 
+      it('should process orders correctly with zero decimal currencies', async () => {
+        const { order } = await createOrderWithPaymentMethod('name', {
+          totalAmount: 25000,
+          currency: 'jpy',
+          data: { isFeesOnTop: true, platformFee: 5000 },
+        });
+
+        await creditcard.processOrder(order);
+
+        expect(createIntentRequest).to.have.property('amount', '250');
+        expect(createIntentRequest).to.have.property('application_fee_amount', `50`);
+      });
+
       it('should work with custom creditCardHostFeeSharePercent', async () => {
         const { order, host, collective } = await createOrderWithPaymentMethod('name', {
           totalAmount: 1000,
@@ -191,6 +205,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
         setupNock({
           balanceTransactions: {
             amount: 1100,
+            currency: 'usd',
             fee: 0,
             fee_details: [
               {

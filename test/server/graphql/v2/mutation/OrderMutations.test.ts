@@ -215,7 +215,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         result.errors && console.error(result.errors);
         expect(result.errors).to.not.exist;
         const order = result.data.createOrder.order;
-        expect(order.amount.valueInCents).to.eq(7500);
+        expect(order.amount.valueInCents).to.eq(5000);
         expect(order.platformContributionAmount.valueInCents).to.eq(2500);
       });
 

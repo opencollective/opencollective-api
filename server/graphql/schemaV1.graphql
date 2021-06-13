@@ -819,7 +819,6 @@ Input type for CommentType
 """
 input CommentAttributesInputType {
   id: Int
-  markdown: String
   html: String
   UpdateId: Int
 }
@@ -829,7 +828,6 @@ Input type for CommentType
 """
 input CommentInputType {
   id: Int
-  markdown: String
   html: String
 
   """
@@ -3642,6 +3640,7 @@ type UpdateType {
   slug: String
   image: String
   isPrivate: Boolean
+  isChangelog: Boolean
   notificationAudience: UpdateAudienceTypeEnum
   makePublicOn: IsoDateString
 

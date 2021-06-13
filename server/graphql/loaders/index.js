@@ -3,6 +3,7 @@ import { createContext } from 'dataloader-sequelize';
 import { get, groupBy } from 'lodash';
 import moment from 'moment';
 
+import orderStatus from '../../constants/order_status';
 import { TransactionTypes } from '../../constants/transactions';
 import { getListOfAccessibleMembers } from '../../lib/auth';
 import { getBalances, getBalancesWithBlockedFunds } from '../../lib/budget';
@@ -263,13 +264,16 @@ export const loaders = req => {
         `
           SELECT t.id, (t."maxQuantity" - COALESCE(SUM(o.quantity), 0)) AS "availableQuantity"
           FROM "Tiers" t
-          LEFT JOIN "Orders" o ON o."TierId" = t.id AND o."processedAt" IS NOT NULL
+          LEFT JOIN "Orders" o ON o."TierId" = t.id AND o."processedAt" IS NOT NULL AND o."status" NOT IN (?)
           WHERE t.id IN (?)
           AND t."maxQuantity" IS NOT NULL
           GROUP BY t.id
         `,
         {
-          replacements: [tierIds],
+          replacements: [
+            [orderStatus.ERROR, orderStatus.CANCELLED, orderStatus.EXPIRED, orderStatus.REJECTED],
+            tierIds,
+          ],
           type: sequelize.QueryTypes.SELECT,
         },
       )
@@ -400,15 +404,15 @@ export const loaders = req => {
     return sequelize
       .query(
         `
-          SELECT o."TierId" AS "TierId", 
+          SELECT o."TierId" AS "TierId",
           COALESCE(
-            SUM( 
-              CASE 
-                WHEN s."interval" = 'year' 
-                  THEN s."amount"/12 
-                ELSE s."amount" 
-              END 
-            ), 0) 
+            SUM(
+              CASE
+                WHEN s."interval" = 'year'
+                  THEN s."amount"/12
+                ELSE s."amount"
+              END
+            ), 0)
           AS "total"
           FROM "Orders" o
           INNER JOIN "Subscriptions" s ON o."SubscriptionId" = s.id

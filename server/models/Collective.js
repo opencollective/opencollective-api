@@ -36,7 +36,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymen
 import plans from '../constants/plans';
 import roles, { MemberRoleLabels } from '../constants/roles';
 import { TransactionKind } from '../constants/transaction-kind';
-import { FEES_ON_TOP_TRANSACTION_PROPERTIES, TransactionTypes } from '../constants/transactions';
+import { PLATFORM_TIP_TRANSACTION_PROPERTIES, TransactionTypes } from '../constants/transactions';
 import { hasOptedOutOfFeature, isFeatureAllowedForCollectiveType } from '../lib/allowed-features';
 import {
   getBalanceAmount,
@@ -1102,13 +1102,11 @@ function defineModel() {
   };
 
   // Returns the User model of the User that created this collective
-  Collective.prototype.getUser = function (queryParams) {
-    switch (this.type) {
-      case types.USER:
-      case types.ORGANIZATION:
-        return models.User.findByPk(this.CreatedByUserId, queryParams);
-      default:
-        return Promise.resolve(null);
+  Collective.prototype.getUser = async function (queryParams) {
+    if (this.type === types.USER) {
+      return models.User.findOne({ where: { CollectiveId: this.id }, ...queryParams });
+    } else {
+      return null;
     }
   };
 
@@ -1544,7 +1542,7 @@ function defineModel() {
       case roles.MEMBER:
       case roles.ACCOUNTANT:
       case roles.ADMIN:
-        if (![types.FUND, types.PROJECT].includes(this.type)) {
+        if (![types.FUND, types.PROJECT, types.EVENT].includes(this.type)) {
           await this.sendNewMemberEmail(user, role, member, sequelizeParams);
         }
         break;
@@ -1615,7 +1613,10 @@ function defineModel() {
     }
 
     // We only send the notification for new member for role MEMBER and ADMIN
-    const template = `${this.type.toLowerCase()}.newmember`;
+    const supportedTemplates = ['collective', 'organization'];
+    const lowercaseType = this.type.toLowerCase();
+    const typeForTemplate = supportedTemplates.includes(lowercaseType) ? lowercaseType : 'collective';
+    const template = `${typeForTemplate}.newmember`;
     return emailLib.send(
       template,
       memberUser.email,
@@ -1629,7 +1630,7 @@ function defineModel() {
         collective: {
           slug: this.slug,
           name: this.name,
-          type: this.type.toLowerCase(),
+          type: lowercaseType,
         },
         recipient: {
           collective: memberUser.collective.activity,
@@ -2997,7 +2998,7 @@ function defineModel() {
 
     const tipsTransactions = await models.Transaction.findAll({
       where: {
-        ...pick(FEES_ON_TOP_TRANSACTION_PROPERTIES, ['CollectiveId', 'HostCollectiveId']),
+        ...pick(PLATFORM_TIP_TRANSACTION_PROPERTIES, ['CollectiveId', 'HostCollectiveId']),
         createdAt: { [Op.gte]: from, [Op.lt]: to },
         type: TransactionTypes.CREDIT,
         TransactionGroup: { [Op.in]: transactions.map(t => t.TransactionGroup) },
@@ -3217,30 +3218,6 @@ function defineModel() {
           collectives: allCollectives,
         }));
       });
-  };
-
-  Collective.associate = m => {
-    Collective.hasMany(m.ConnectedAccount);
-    Collective.belongsToMany(m.Collective, {
-      through: {
-        model: m.Member,
-        unique: false,
-        foreignKey: 'MemberCollectiveId',
-      },
-      as: 'memberCollectives',
-    });
-    Collective.belongsToMany(m.Collective, {
-      through: { model: m.Member, unique: false, foreignKey: 'CollectiveId' },
-      as: 'memberOfCollectives',
-    });
-    Collective.hasMany(m.Member);
-    Collective.hasMany(m.Activity);
-    Collective.hasMany(m.Notification);
-    Collective.hasMany(m.Tier, { as: 'tiers' });
-    Collective.hasMany(m.LegalDocument);
-    Collective.hasMany(m.RequiredLegalDocument, { foreignKey: 'HostCollectiveId' });
-    Collective.hasMany(m.Collective, { as: 'hostedCollectives', foreignKey: 'HostCollectiveId' });
-    Collective.belongsTo(m.Collective, { as: 'HostCollective' });
   };
 
   Temporal(Collective, sequelize);

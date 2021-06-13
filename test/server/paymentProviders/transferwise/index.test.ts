@@ -91,6 +91,9 @@ describe('server/paymentProviders/transferwise/index', () => {
             { currencyCode: 'EUR', minInvoiceAmount: 1 },
             { currencyCode: 'GBP', minInvoiceAmount: 1 },
             { currencyCode: 'BRL', minInvoiceAmount: 1 },
+            { currencyCode: 'INR', minInvoiceAmount: 1 },
+            { currencyCode: 'PKR', minInvoiceAmount: 1 },
+            { currencyCode: 'BTC', minInvoiceAmount: 1 },
           ],
         },
       ],
@@ -107,7 +110,14 @@ describe('server/paymentProviders/transferwise/index', () => {
       CollectiveId: host.id,
       service: 'transferwise',
       token: 'fake-token',
-      data: { type: 'business', id: 0 },
+      data: {
+        type: 'business',
+        id: 0,
+        details: {
+          companyType: 'NON_PROFIT_CORPORATION',
+        },
+        blockedCurrencies: ['BTC'],
+      },
     });
     collective = await fakeCollective({ isHostAccount: false, HostCollectiveId: host.id });
     payoutMethod = await fakePayoutMethod({
@@ -264,6 +274,15 @@ describe('server/paymentProviders/transferwise/index', () => {
 
     it('should block currencies for business accounts by default', async () => {
       expect(data).to.not.deep.include({ code: 'BRL', minInvoiceAmount: 1 });
+      expect(data).to.not.deep.include({ code: 'PKR', minInvoiceAmount: 1 });
+    });
+
+    it('should block currencies for non-profit accounts', async () => {
+      expect(data).to.not.deep.include({ code: 'INR', minInvoiceAmount: 1 });
+    });
+
+    it('should block currencies specified in connectedAccount.data.blockedCurrencies', async () => {
+      expect(data).to.not.deep.include({ code: 'BTC', minInvoiceAmount: 1 });
     });
 
     it('should return blocked currencies if explicitly requested', async () => {

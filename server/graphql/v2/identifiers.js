@@ -78,7 +78,10 @@ export const idDecode = (string, type) => {
  * @param {string} type - Type the fields belongs to. For example: 'comment' and 'transaction'
  * @param {string} idField - Field that represents the id. By default 'id'
  */
-export const getIdEncodeResolver = (type, idField = 'id') => entity => idEncode(entity[idField], type);
+export const getIdEncodeResolver =
+  (type, idField = 'id') =>
+  entity =>
+    idEncode(entity[idField], type);
 
 /**
  * Resolve original id by decoding if string, otherwise return as is.

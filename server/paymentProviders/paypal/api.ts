@@ -36,7 +36,7 @@ export async function retrieveOAuthToken({ clientId, clientSecret }): Promise<st
 export async function paypalRequest(urlPath, body, hostCollective, method = 'POST'): Promise<Record<string, unknown>> {
   const paypal = await getHostPaypalAccount(hostCollective);
   if (!paypal) {
-    throw new Error("Host doesn't support PayPal payments.");
+    throw new Error(`Host ${hostCollective.name} doesn't support PayPal payments.`);
   }
 
   const url = paypalUrl(urlPath);
@@ -77,7 +77,7 @@ export async function paypalRequestV2(
 ): Promise<Record<string, unknown>> {
   const paypal = await getHostPaypalAccount(hostCollective);
   if (!paypal) {
-    throw new Error("Host doesn't support PayPal payments.");
+    throw new Error(`Host ${hostCollective.name} doesn't support PayPal payments.`);
   }
 
   const url = paypalUrl(urlPath, 'v2');

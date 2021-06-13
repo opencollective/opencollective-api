@@ -381,7 +381,6 @@ export const CommentInputType = new GraphQLInputObjectType({
   deprecationReason: 'Comments are now fully supported by API V2',
   fields: () => ({
     id: { type: GraphQLInt },
-    markdown: { type: GraphQLString, deprecationReason: 'Markdown editor is deprecated, please use html instead.' },
     html: { type: GraphQLString },
     FromCollectiveId: {
       type: GraphQLInt,
@@ -412,10 +411,6 @@ export const CommentAttributesInputType = new GraphQLInputObjectType({
   description: 'Input type for CommentType',
   fields: () => ({
     id: { type: GraphQLInt },
-    markdown: {
-      deprecationReason: 'Deprecated since 2020-03-18: Please use html.',
-      type: GraphQLString,
-    },
     html: { type: GraphQLString },
     UpdateId: {
       deprecationReason: 'Deprecated since 2020-03-18: This field has never been active and will be removed soon.',

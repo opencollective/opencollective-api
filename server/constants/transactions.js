@@ -1,10 +1,13 @@
+import { TransactionKind } from './transaction-kind';
+
 /** Types of Transactions */
 export const TransactionTypes = {
   CREDIT: 'CREDIT',
   DEBIT: 'DEBIT',
 };
 
-export const FEES_ON_TOP_TRANSACTION_PROPERTIES = {
+export const PLATFORM_TIP_TRANSACTION_PROPERTIES = {
+  kind: TransactionKind.PLATFORM_TIP,
   CollectiveId: 8686, // Open Collective (Organization)
   HostCollectiveId: 8686, // Open Collective (Organization)
   hostCurrency: 'USD',
