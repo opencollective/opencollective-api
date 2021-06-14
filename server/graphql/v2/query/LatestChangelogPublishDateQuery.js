@@ -1,7 +1,7 @@
 import { GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 
-import { fetchCollectiveId } from '../../../lib/cache';
+import cache, { fetchCollectiveId } from '../../../lib/cache';
 import sequelize from '../../../lib/sequelize';
 import models from '../../../models';
 
@@ -15,14 +15,22 @@ const LatestChangelogPublishDateQuery = {
   },
   async resolve(_, args) {
     const collectiveId = await fetchCollectiveId(args.collectiveSlug);
-    const latestChangelogPublishDate = await models.Update.findAll({
-      where: {
-        CollectiveId: collectiveId,
-        isChangelog: true,
-      },
-      attributes: [[sequelize.fn('max', sequelize.col('publishedAt')), 'date']],
-      raw: true,
-    });
+
+    const cacheKey = `latest_changelog_update_date_${collectiveId}`;
+    let latestChangelogPublishDate = await cache.get(cacheKey);
+    if (!latestChangelogPublishDate) {
+      latestChangelogPublishDate = await models.Update.findAll({
+        where: {
+          CollectiveId: collectiveId,
+          isChangelog: true,
+        },
+        attributes: [[sequelize.fn('max', sequelize.col('publishedAt')), 'date']],
+        raw: true,
+      });
+
+      // keep the latest change log publish date for half a day in cache
+      cache.set(cacheKey, latestChangelogPublishDate, 12 * 60 * 60);
+    }
 
     if (latestChangelogPublishDate && latestChangelogPublishDate.length > 0) {
       return latestChangelogPublishDate[0]?.date;
