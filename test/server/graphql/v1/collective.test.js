@@ -173,7 +173,6 @@ describe('server/graphql/v1/collective', () => {
               organizations
             }
             yearlyBudget
-            topFundingSources
           }
           __typename
         }
@@ -200,30 +199,6 @@ describe('server/graphql/v1/collective', () => {
       all: 11,
       users: 10,
       organizations: 1,
-    });
-
-    expect(collective.stats.topFundingSources).to.deep.equal({
-      byCollective: [
-        {
-          image: null,
-          slug: 'org0',
-          name: 'org0',
-          totalDonations: 18000,
-        },
-        {
-          image: null,
-          slug: 'testuser9',
-          name: 'testuser9',
-          totalDonations: 9000,
-        },
-        {
-          image: null,
-          slug: 'testuser8',
-          name: 'testuser8',
-          totalDonations: 8100,
-        },
-      ],
-      byCollectiveType: [{ type: 'USER', totalDonations: 49500 }],
     });
   });
 

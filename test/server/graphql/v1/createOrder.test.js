@@ -349,7 +349,7 @@ describe('server/graphql/v1/createOrder', () => {
     expect(transaction.FromCollectiveId).to.equal(fromCollective.id);
     expect(transaction.CollectiveId).to.equal(collective.id);
     expect(transaction.currency).to.equal(collective.currency);
-    expect(transaction.hostFeeInHostCurrency).to.equal(-(0.05 * order.totalAmount));
+    expect(transaction.hostFeeInHostCurrency).to.equal(0);
     expect(transaction.platformFeeInHostCurrency).to.equal(-(0.05 * order.totalAmount));
     expect(transaction.data.charge.currency).to.equal(collective.currency.toLowerCase());
     expect(transaction.data.charge.status).to.equal('succeeded');
@@ -518,7 +518,7 @@ describe('server/graphql/v1/createOrder', () => {
     expect(transaction.FromCollectiveId).to.equal(xdamman.CollectiveId);
     expect(transaction.CollectiveId).to.equal(collective.id);
     expect(transaction.currency).to.equal(collective.currency);
-    expect(transaction.hostFeeInHostCurrency).to.equal(-(0.05 * order.totalAmount));
+    expect(transaction.hostFeeInHostCurrency).to.equal(0);
     expect(transaction.platformFeeInHostCurrency).to.equal(-(0.05 * order.totalAmount));
     expect(transaction.data.charge.currency).to.equal(collective.currency.toLowerCase());
     expect(transaction.data.charge.status).to.equal('succeeded');
@@ -567,7 +567,7 @@ describe('server/graphql/v1/createOrder', () => {
     expect(transaction.FromCollectiveId).to.equal(xdamman.CollectiveId);
     expect(transaction.CollectiveId).to.equal(collective.id);
     expect(transaction.currency).to.equal(collective.currency);
-    expect(transaction.hostFeeInHostCurrency).to.equal(-(0.05 * order.totalAmount));
+    expect(transaction.hostFeeInHostCurrency).to.equal(0);
     expect(transaction.platformFeeInHostCurrency).to.equal(-(0.05 * order.totalAmount));
     expect(transaction.data.charge.currency).to.equal(collective.currency.toLowerCase());
     expect(transaction.data.charge.status).to.equal('succeeded');
@@ -649,13 +649,16 @@ describe('server/graphql/v1/createOrder', () => {
       where: { OrderId: orderCreated.id },
     });
     expect(fromCollective.website).to.equal('https://newco.com'); // api should prepend https://
-    expect(transactions.length).to.equal(2);
-    expect(transactions[0].type).to.equal('DEBIT');
-    expect(transactions[0].FromCollectiveId).to.equal(collective.id);
-    expect(transactions[0].CollectiveId).to.equal(fromCollective.id);
-    expect(transactions[1].type).to.equal('CREDIT');
-    expect(transactions[1].FromCollectiveId).to.equal(fromCollective.id);
-    expect(transactions[1].CollectiveId).to.equal(collective.id);
+    expect(transactions.length).to.equal(4);
+
+    const contributions = transactions.filter(t => t.kind === 'CONTRIBUTION');
+    expect(contributions.length).to.equal(2);
+    expect(contributions[0].type).to.equal('DEBIT');
+    expect(contributions[0].FromCollectiveId).to.equal(collective.id);
+    expect(contributions[0].CollectiveId).to.equal(fromCollective.id);
+    expect(contributions[1].type).to.equal('CREDIT');
+    expect(contributions[1].FromCollectiveId).to.equal(fromCollective.id);
+    expect(contributions[1].CollectiveId).to.equal(collective.id);
   });
 
   it('creates an order as a logged in user for an existing organization', async () => {
@@ -706,13 +709,16 @@ describe('server/graphql/v1/createOrder', () => {
       where: { OrderId: orderCreated.id },
     });
     expect(orderCreated.createdByUser.id).to.equal(duc.id);
-    expect(transactions.length).to.equal(2);
-    expect(transactions[0].type).to.equal('DEBIT');
-    expect(transactions[0].FromCollectiveId).to.equal(collective.id);
-    expect(transactions[0].CollectiveId).to.equal(fromCollective.id);
-    expect(transactions[1].type).to.equal('CREDIT');
-    expect(transactions[1].FromCollectiveId).to.equal(fromCollective.id);
-    expect(transactions[1].CollectiveId).to.equal(collective.id);
+    expect(transactions.length).to.equal(4);
+
+    const contributions = transactions.filter(t => t.kind === 'CONTRIBUTION');
+    expect(contributions.length).to.equal(2);
+    expect(contributions[0].type).to.equal('DEBIT');
+    expect(contributions[0].FromCollectiveId).to.equal(collective.id);
+    expect(contributions[0].CollectiveId).to.equal(fromCollective.id);
+    expect(contributions[1].type).to.equal('CREDIT');
+    expect(contributions[1].FromCollectiveId).to.equal(fromCollective.id);
+    expect(contributions[1].CollectiveId).to.equal(collective.id);
   });
 
   it("creates an order as a logged in user for an existing collective using the collective's payment method", async () => {
@@ -774,13 +780,16 @@ describe('server/graphql/v1/createOrder', () => {
       order: [['id', 'ASC']],
     });
     expect(orderCreated.createdByUser.id).to.equal(duc.id);
-    expect(transactions.length).to.equal(2);
-    expect(transactions[0].type).to.equal('DEBIT');
-    expect(transactions[0].FromCollectiveId).to.equal(collective.id);
-    expect(transactions[0].CollectiveId).to.equal(fromCollective.id);
-    expect(transactions[1].type).to.equal('CREDIT');
-    expect(transactions[1].FromCollectiveId).to.equal(fromCollective.id);
-    expect(transactions[1].CollectiveId).to.equal(collective.id);
+    expect(transactions.length).to.equal(4);
+
+    const contributions = transactions.filter(t => t.kind === 'CONTRIBUTION');
+    expect(contributions.length).to.equal(2);
+    expect(contributions[0].type).to.equal('DEBIT');
+    expect(contributions[0].FromCollectiveId).to.equal(collective.id);
+    expect(contributions[0].CollectiveId).to.equal(fromCollective.id);
+    expect(contributions[1].type).to.equal('CREDIT');
+    expect(contributions[1].FromCollectiveId).to.equal(fromCollective.id);
+    expect(contributions[1].CollectiveId).to.equal(collective.id);
 
     // Should fail if order.totalAmount > PaymentMethod.getBalanceForUser
     res = await utils.graphqlQuery(createOrderMutation, { order }, duc);

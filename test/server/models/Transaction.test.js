@@ -120,23 +120,28 @@ describe('server/models/Transaction', () => {
       return Transaction.findAll().then(transactions => {
         utils.snapshotTransactions(transactions, { columns: SNAPSHOT_COLUMNS });
 
-        expect(transactions.length).to.equal(2);
-        expect(transactions[0].kind).to.equal(TransactionKind.CONTRIBUTION);
-        expect(transactions[0].type).to.equal('DEBIT');
-        expect(transactions[0].netAmountInCollectiveCurrency).to.equal(-12100);
-        expect(transactions[0].currency).to.equal('EUR');
-        expect(transactions[0].HostCollectiveId).to.be.null;
+        expect(transactions.length).to.equal(4);
 
-        expect(transactions[1].kind).to.equal(TransactionKind.CONTRIBUTION);
-        expect(transactions[1].type).to.equal('CREDIT');
-        expect(transactions[1].amount).to.equal(12100);
-        expect(transactions[1].platformFeeInHostCurrency).to.equal(-500);
-        expect(transactions[1].paymentProcessorFeeInHostCurrency).to.equal(-300);
-        expect(transactions[1].taxAmount).to.equal(-2100);
-        expect(transactions[1].amount).to.equal(12100);
-        expect(transactions[1].netAmountInCollectiveCurrency).to.equal(8700);
-        expect(transactions[0] instanceof models.Transaction).to.be.true;
-        expect(transactions[0].description).to.equal(transactionPayload.description);
+        const contributions = transactions.filter(t => t.kind === TransactionKind.CONTRIBUTION);
+
+        expect(contributions.length).to.equal(2);
+        expect(contributions[0].kind).to.equal(TransactionKind.CONTRIBUTION);
+        expect(contributions[0].type).to.equal('DEBIT');
+        expect(contributions[0].netAmountInCollectiveCurrency).to.equal(-12100);
+        expect(contributions[0].currency).to.equal('EUR');
+        expect(contributions[0].HostCollectiveId).to.be.null;
+
+        expect(contributions[1].kind).to.equal(TransactionKind.CONTRIBUTION);
+        expect(contributions[1].type).to.equal('CREDIT');
+        expect(contributions[1].amount).to.equal(12100);
+        expect(contributions[1].platformFeeInHostCurrency).to.equal(-500);
+        expect(contributions[1].hostFeeInHostCurrency).to.equal(0);
+        expect(contributions[1].paymentProcessorFeeInHostCurrency).to.equal(-300);
+        expect(contributions[1].taxAmount).to.equal(-2100);
+        expect(contributions[1].amount).to.equal(12100);
+        expect(contributions[1].netAmountInCollectiveCurrency).to.equal(9200);
+        expect(contributions[0] instanceof models.Transaction).to.be.true;
+        expect(contributions[0].description).to.equal(transactionPayload.description);
       });
     });
   });
@@ -162,23 +167,28 @@ describe('server/models/Transaction', () => {
 
     return Transaction.createFromContributionPayload(transactionPayload).then(() => {
       return Transaction.findAll().then(transactions => {
-        expect(transactions.length).to.equal(2);
-        expect(transactions[0] instanceof models.Transaction).to.be.true;
-        expect(transactions[0].type).to.equal('DEBIT');
-        expect(transactions[0].netAmountInCollectiveCurrency).to.equal(-10000);
-        expect(transactions[0].currency).to.equal('EUR');
-        expect(transactions[0].HostCollectiveId).to.be.null;
-        expect(transactions[0].kind).to.equal(TransactionKind.CONTRIBUTION);
-        expect(transactions[0].description).to.equal(transactionPayload.description);
+        expect(transactions.length).to.equal(4);
 
-        expect(transactions[1].type).to.equal('CREDIT');
-        expect(transactions[1].kind).to.equal(TransactionKind.CONTRIBUTION);
-        expect(transactions[1].amount).to.equal(10000);
-        expect(transactions[1].platformFeeInHostCurrency).to.equal(-550);
-        expect(transactions[1].paymentProcessorFeeInHostCurrency).to.equal(-330);
-        expect(transactions[1].taxAmount).to.be.null;
-        expect(transactions[1].amount).to.equal(10000);
-        expect(transactions[1].netAmountInCollectiveCurrency).to.equal(8700);
+        const contributions = transactions.filter(t => t.kind === TransactionKind.CONTRIBUTION);
+
+        expect(contributions.length).to.equal(2);
+        expect(contributions[0] instanceof models.Transaction).to.be.true;
+        expect(contributions[0].type).to.equal('DEBIT');
+        expect(contributions[0].netAmountInCollectiveCurrency).to.equal(-10000);
+        expect(contributions[0].currency).to.equal('EUR');
+        expect(contributions[0].HostCollectiveId).to.be.null;
+        expect(contributions[0].kind).to.equal(TransactionKind.CONTRIBUTION);
+        expect(contributions[0].description).to.equal(transactionPayload.description);
+
+        expect(contributions[1].type).to.equal('CREDIT');
+        expect(contributions[1].kind).to.equal(TransactionKind.CONTRIBUTION);
+        expect(contributions[1].amount).to.equal(10000);
+        expect(contributions[1].platformFeeInHostCurrency).to.equal(-550);
+        expect(contributions[1].hostFeeInHostCurrency).to.equal(0);
+        expect(contributions[1].paymentProcessorFeeInHostCurrency).to.equal(-330);
+        expect(contributions[1].taxAmount).to.be.null;
+        expect(contributions[1].amount).to.equal(10000);
+        expect(contributions[1].netAmountInCollectiveCurrency).to.equal(9200);
       });
     });
   });
@@ -234,8 +244,6 @@ describe('server/models/Transaction', () => {
         .equal(
           // The total amount of donation minus the fees on top
           10000 -
-            // Minus the host fee
-            500 -
             // Minus the partial platform fee: (10000 out of 11000)
             Math.round((300 * 10000) / 11000),
         );
@@ -281,7 +289,7 @@ describe('server/models/Transaction', () => {
       const include = [{ association: 'host' }];
       const allTransactions = await Transaction.findAll({ where: { OrderId: order.id }, order: sqlOrder, include });
       await models.TransactionSettlement.attachStatusesToTransactions(allTransactions);
-      expect(allTransactions).to.have.length(6);
+      expect(allTransactions).to.have.length(8);
       await utils.preloadAssociationsForTransactions(allTransactions, SNAPSHOT_COLUMNS_WITH_DEBT);
       utils.snapshotTransactions(allTransactions, { columns: SNAPSHOT_COLUMNS_WITH_DEBT });
 
@@ -347,7 +355,7 @@ describe('server/models/Transaction', () => {
       await Transaction.createFromContributionPayload(transactionPayload);
 
       const allTransactions = await Transaction.findAll({ where: { OrderId: order.id } });
-      expect(allTransactions).to.have.length(6);
+      expect(allTransactions).to.have.length(8);
 
       const donationCredit = allTransactions.find(t => t.CollectiveId === inc.id);
       expect(donationCredit).to.have.property('type').equal('CREDIT');
@@ -401,7 +409,7 @@ describe('server/models/Transaction', () => {
       await Transaction.createFromContributionPayload(transactionPayload);
 
       const allTransactions = await Transaction.findAll({ where: { OrderId: order.id } });
-      expect(allTransactions).to.have.length(2);
+      expect(allTransactions).to.have.length(4);
     });
   });
 

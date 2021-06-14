@@ -242,8 +242,9 @@ describe('server/graphql/v1/paymentMethods', () => {
       expect(result.errors).to.not.exist;
       const orderCreated = result.data.createOrder;
       const transaction = await models.Transaction.findOne({
-        where: { OrderId: orderCreated.id, type: 'CREDIT' },
+        where: { OrderId: orderCreated.id, type: 'CREDIT', kind: 'ADDED_FUNDS' },
       });
+      expect(transaction).to.exist;
       const org = await models.Collective.findOne({
         where: { slug: 'new-org' },
       });
@@ -256,7 +257,6 @@ describe('server/graphql/v1/paymentMethods', () => {
       const orgAdmin = await models.Collective.findOne({
         where: { id: adminMembership.MemberCollectiveId },
       });
-      expect(transaction.kind).to.equal(TransactionKind.ADDED_FUNDS);
       expect(transaction.CreatedByUserId).to.equal(admin.id);
       expect(org.CreatedByUserId).to.equal(admin.id);
       expect(adminMembership.CreatedByUserId).to.equal(admin.id);
@@ -264,15 +264,13 @@ describe('server/graphql/v1/paymentMethods', () => {
       expect(backerMembership.CollectiveId).to.equal(transaction.CollectiveId);
       expect(orgAdmin.CreatedByUserId).to.equal(admin.id);
       expect(transaction.FromCollectiveId).to.equal(org.id);
-      expect(transaction.hostFeeInHostCurrency).to.equal(
-        -Math.round((hostFeePercent / 100) * order.totalAmount * fxrate),
-      );
+      expect(transaction.hostFeeInHostCurrency).to.equal(0);
       expect(transaction.platformFeeInHostCurrency).to.equal(0);
       expect(transaction.paymentProcessorFeeInHostCurrency).to.equal(0);
       expect(transaction.hostCurrency).to.equal(host.currency);
       expect(transaction.currency).to.equal(collective.currency);
       expect(transaction.amount).to.equal(order.totalAmount);
-      expect(transaction.netAmountInCollectiveCurrency).to.equal(order.totalAmount * (1 - hostFeePercent / 100));
+      expect(transaction.netAmountInCollectiveCurrency).to.equal(order.totalAmount);
       expect(transaction.amountInHostCurrency).to.equal(Math.round(order.totalAmount * fxrate));
       expect(transaction.hostCurrencyFxRate).to.equal(fxrate);
       expect(transaction.amountInHostCurrency).to.equal(1165);

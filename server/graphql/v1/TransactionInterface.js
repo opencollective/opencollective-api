@@ -41,6 +41,7 @@ export const TransactionInterfaceType = new GraphQLInterfaceType({
       usingGiftCardFromCollective: { type: CollectiveInterfaceType },
       collective: { type: CollectiveInterfaceType },
       type: { type: GraphQLString },
+      kind: { type: GraphQLString },
       description: { type: GraphQLString },
       createdAt: { type: DateString },
       updatedAt: { type: DateString },
@@ -87,6 +88,12 @@ const TransactionFields = () => {
       type: GraphQLString,
       resolve(transaction) {
         return transaction.type;
+      },
+    },
+    kind: {
+      type: GraphQLString,
+      resolve(transaction) {
+        return transaction.kind;
       },
     },
     amount: {

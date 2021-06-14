@@ -395,9 +395,11 @@ describe('server/graphql/v1/tiers', () => {
           taxedCountry: 'BE',
           percentage: 21,
         });
-        createdOrder.transactions.map(transaction => {
-          expect(transaction.taxAmount).to.equal(-taxAmount);
-        });
+        createdOrder.transactions
+          .filter(t => t.kind === 'CONTRIBUTION')
+          .map(transaction => {
+            expect(transaction.taxAmount).to.equal(-taxAmount);
+          });
       });
 
       it("doesn't have tax when tax id number is set for other EU countries", async () => {
@@ -419,9 +421,11 @@ describe('server/graphql/v1/tiers', () => {
 
         const createdOrder = res.data.createOrder;
         expect(createdOrder.taxAmount).to.equal(0);
-        createdOrder.transactions.map(transaction => {
-          expect(transaction.taxAmount).to.equal(0);
-        });
+        createdOrder.transactions
+          .filter(t => t.kind === 'CONTRIBUTION')
+          .map(transaction => {
+            expect(transaction.taxAmount).to.equal(0);
+          });
       });
 
       it('have tax when tax id number is set with same EU country', async () => {
@@ -445,9 +449,11 @@ describe('server/graphql/v1/tiers', () => {
 
         const createdOrder = res.data.createOrder;
         expect(createdOrder.taxAmount).to.equal(taxAmount);
-        createdOrder.transactions.map(transaction => {
-          expect(transaction.taxAmount).to.equal(-taxAmount);
-        });
+        createdOrder.transactions
+          .filter(t => t.kind === 'CONTRIBUTION')
+          .map(transaction => {
+            expect(transaction.taxAmount).to.equal(-taxAmount);
+          });
       });
 
       it('reject orders without country when subject to VAT', async () => {
