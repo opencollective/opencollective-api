@@ -158,6 +158,10 @@ function defineModel() {
       hostFeeInHostCurrency: DataTypes.INTEGER,
       paymentProcessorFeeInHostCurrency: DataTypes.INTEGER,
       taxAmount: { type: DataTypes.INTEGER },
+
+      /**
+       * TODO: Rename this field, as it's always expressed with `currency`. It should just be `netAmount`
+       */
       netAmountInCollectiveCurrency: DataTypes.INTEGER, // stores the net amount received by the collective (after fees) or removed from the collective (including fees)
 
       data: DataTypes.JSONB,
@@ -721,7 +725,7 @@ function defineModel() {
     }
   };
 
-  Transaction.createHostFeeTransactions = async (transaction, host) => {
+  Transaction.createHostFeeTransactions = async (transaction, host, data) => {
     if (!transaction.hostFeeInHostCurrency) {
       return;
     }
@@ -747,6 +751,9 @@ function defineModel() {
       platformFeeInHostCurrency: 0,
       hostFeeInHostCurrency: 0,
       paymentProcessorFeeInHostCurrency: 0,
+      OrderId: transaction.OrderId,
+      createdAt: transaction.createdAt,
+      data,
     };
 
     await Transaction.createDoubleEntry(hostFeeTransaction);
