@@ -1,8 +1,4 @@
-{{#if interval }}
-Subject: Thank you for your {{currency order.totalAmount currency=order.currency}}/{{interval}} contribution to {{{collective.name}}}
-{{else}}
-Subject: Thank you for your {{currency order.totalAmount currency=order.currency}} contribution to {{{collective.name}}}
-{{/if}}
+Subject: Thank you for your contribution to {{collective.name}}
 
 {{> header}}
 
@@ -16,21 +12,21 @@ Subject: Thank you for your {{currency order.totalAmount currency=order.currency
 
 {{#if interval}}
   {{#if firstPayment }}
-    <p>We would like to thank you for your pledge to give {{currency order.totalAmount currency=order.currency}} per {{interval}}.
-      Your first payment was received on {{moment order.createdAt}}. As the collective's fiscal sponsor, Open Collective Foundation, a public charity recognized tax-exempt organization under IRS Section 501(c)(3), acknowledges your donation.</p>
+    <p>Thank you for contributing {{currency order.totalAmount currency=order.currency}} per {{interval}} to {{collective.name}}.
+       Your first payment was made on {{moment order.createdAt}}. As the collective's fiscal sponsor, Open Collective Foundation, a public charity recognized tax-exempt organization under IRS Section 501(c)(3), acknowledges your donation.</p>
       {{> charge_date_notice}}
   {{else}}
-    <p>We would like to thank you for your continued support. Your latest {{interval}}ly contribution of {{currency order.totalAmount currency=order.currency}} was received on {{moment transaction.createdAt}}.
+    <p>Thank you for your continued support! Your latest {{interval}}ly contribution of {{currency order.totalAmount currency=order.currency}} was received on {{moment transaction.createdAt}}.
        As the collective's fiscal sponsor, Open Collective Foundation, a public charity recognized tax-exempt organization under IRS Section 501(c)(3), acknowledges your donation.</p>
   {{/if}}
 {{else}}
 
-<p>We would like to thank you for your contribution of {{currency order.totalAmount currency=order.currency}} on {{moment order.createdAt}}.
+<p>Thank you for your contribution of {{currency order.totalAmount currency=order.currency}} on {{moment order.createdAt}}.
 As the collective's fiscal sponsor, Open Collective Foundation, a public charity recognized tax-exempt organization under IRS Section 501(c)(3), acknowledges your donation.</p>
 {{/if}}
 
-<p>You can follow our future activities and how we will be spending the money on our open collective page:
-  <a href="https://opencollective.com/{{collective.slug}}">https://opencollective.com/{{collective.slug}}</a>.
+<p>See our activities and transparent budget on
+  <a href="https://opencollective.com/{{collective.slug}}">https://opencollective.com/{{collective.slug}}</a>, and share the link to help us spread the word!
 </p>
 
 <h2>Help us raise more money!</h2>
@@ -52,7 +48,7 @@ As the collective's fiscal sponsor, Open Collective Foundation, a public charity
 
 <ul>
   <li>Contribution to {{collective.name}}: {{currency order.netAmount currency=order.currency precision=2}}</li>
-  <li>Tip to Open Collective: {{currency order.platformTipAmount currency=order.currency precision=2}}</li>
+  <li>Tip for Open Collective: {{currency order.platformTipAmount currency=order.currency precision=2}}</li>
   <li>Total amount: {{currency order.chargeAmount currency=order.currency precision=2}}</li>
   <li>Tax deductible amount: {{collective.name}}: {{currency order.netAmount currency=order.currency precision=2}}</li>
 </ul>
@@ -67,7 +63,7 @@ As the collective's fiscal sponsor, Open Collective Foundation, a public charity
     go to your profile page.
     <br/>
   {{/if}}
-  If you need help with this contribution, please do not hesitate to contact <a href="mailto:support@opencollective.com">support</a>.
+  If you need help, contact <a href="mailto:support@opencollective.com">support</a>.
 </p>
 {{/if}}
 
