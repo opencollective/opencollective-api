@@ -82,31 +82,29 @@ const recordTransaction = async (order, amount, currency, paypalFee, payload) =>
     ? platformTip || 0
     : await getPlatformFee(amountInHostCurrency, order, host, { hostFeeSharePercent });
 
-  return models.Transaction.createFromPayload({
+  return models.Transaction.createFromContributionPayload({
     CreatedByUserId: order.CreatedByUserId,
     FromCollectiveId: order.FromCollectiveId,
     CollectiveId: order.CollectiveId,
     PaymentMethodId: order.PaymentMethodId,
-    transaction: {
-      type: constants.TransactionTypes.CREDIT,
-      OrderId: order.id,
-      amount,
-      currency,
-      amountInHostCurrency,
-      hostCurrency,
-      hostCurrencyFxRate,
-      hostFeeInHostCurrency,
-      platformFeeInHostCurrency,
-      paymentProcessorFeeInHostCurrency,
-      taxAmount: order.taxAmount,
-      description: order.description,
-      data: {
-        ...payload,
-        isFeesOnTop: order.data?.isFeesOnTop,
-        platformTip: order.data?.platformFee,
-        isSharedRevenue,
-        hostFeeSharePercent,
-      },
+    type: constants.TransactionTypes.CREDIT,
+    OrderId: order.id,
+    amount,
+    currency,
+    amountInHostCurrency,
+    hostCurrency,
+    hostCurrencyFxRate,
+    hostFeeInHostCurrency,
+    platformFeeInHostCurrency,
+    paymentProcessorFeeInHostCurrency,
+    taxAmount: order.taxAmount,
+    description: order.description,
+    data: {
+      ...payload,
+      isFeesOnTop: order.data?.isFeesOnTop,
+      platformTip: order.data?.platformFee,
+      isSharedRevenue,
+      hostFeeSharePercent,
     },
   });
 };
@@ -134,8 +132,8 @@ export function recordPaypalTransaction(order, paypalTransaction) {
   return recordTransaction(order, amount, currency, fee, { paypalTransaction });
 }
 
-const recordPaypalCapture = async (order, capture) => {
-  const currency = capture.amount.currency;
+export const recordPaypalCapture = async (order, capture) => {
+  const currency = capture.amount.currency_code;
   const amount = paypalAmountToCents(capture.amount.value);
   const fee = paypalAmountToCents(get(capture, 'seller_receivable_breakdown.paypal_fee.value', '0.0'));
   return recordTransaction(order, amount, currency, fee, { capture });

@@ -1,9 +1,10 @@
 import { expect } from 'chai';
 import moment from 'moment';
 
-import { run as invoicePlatformFees } from '../../../cron/monthly/invoice-platform-fees';
+import { run as invoicePlatformFees } from '../../../cron/monthly/host-settlement';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
-import { sequelize } from '../../../server/models';
+import models, { sequelize } from '../../../server/models';
+import { TransactionSettlementStatus } from '../../../server/models/TransactionSettlement';
 import {
   fakeCollective,
   fakeConnectedAccount,
@@ -89,6 +90,7 @@ describe('cron/monthly/invoice-platform-fees', () => {
     await fakeTransaction({
       type: 'CREDIT',
       CollectiveId: oc.id,
+      HostCollectiveId: oc.id,
       amount: 1000,
       currency: 'USD',
       data: { hostToPlatformFxRate: 1.23 },
@@ -96,14 +98,33 @@ describe('cron/monthly/invoice-platform-fees', () => {
       kind: TransactionKind.PLATFORM_TIP,
       createdAt: lastMonth,
     });
-    // Collected Platform Tip with pending Payment Processor Fee
+    const firstTipDebt = await fakeTransaction({
+      type: 'CREDIT',
+      FromCollectiveId: gbpHost.id,
+      CollectiveId: oc.id,
+      HostCollectiveId: oc.id,
+      amount: 813,
+      amountInHostCurrency: 813,
+      currency: 'GBP',
+      hostCurrency: 'GBP',
+      data: { hostToPlatformFxRate: 1.23 },
+      TransactionGroup: t.TransactionGroup,
+      kind: TransactionKind.PLATFORM_TIP,
+      createdAt: lastMonth,
+      isDebt: true,
+    });
+    await models.TransactionSettlement.createForTransaction(firstTipDebt);
+
+    // Collected Platform Tip with pending Payment Processor Fee. No debt here, it's collected directly via Stripe
     const t2 = await fakeTransaction(transactionProps);
     const paymentMethod = await fakePaymentMethod({ service: 'stripe', token: 'tok_bypassPending' });
     await fakeTransaction({
       type: 'CREDIT',
       CollectiveId: oc.id,
-      amount: 1000,
-      currency: 'USD',
+      HostCollectiveId: oc.id,
+      amount: 813,
+      amountInHostCurrency: 813,
+      hostCurrency: 'GBP',
       data: { hostToPlatformFxRate: 1.23 },
       TransactionGroup: t2.TransactionGroup,
       kind: TransactionKind.PLATFORM_TIP,
@@ -125,8 +146,8 @@ describe('cron/monthly/invoice-platform-fees', () => {
 
   it('should credit the host with the total amount collected in platform fees', async () => {
     const [collectedTransaction] = await gbpHost.getTransactions({});
-    expect(collectedTransaction).to.have.property('description').that.includes('Platform Fees and Tips collected in');
-    expect(collectedTransaction).to.have.property('amount', Math.round(1000 / 1.23) + 300);
+    expect(collectedTransaction).to.have.property('description').that.includes('Platform Fees collected in');
+    expect(collectedTransaction).to.have.property('amount', 300);
     expect(collectedTransaction).to.have.property('kind', null);
   });
 
@@ -170,5 +191,13 @@ describe('cron/monthly/invoice-platform-fees', () => {
   it('should consider fixed fee per host collective', async () => {
     const reimburseItem = expense.items.find(p => p.description == 'Fixed Fee per Hosted Collective');
     expect(reimburseItem).to.have.property('amount', 100);
+  });
+
+  it('should update settlementStatus to INVOICED', async () => {
+    const settlements = await models.TransactionSettlement.findAll();
+    expect(settlements.length).to.eq(1); // Only for the platform tip atm
+    settlements.forEach(settlement => {
+      expect(settlement.status).to.eq(TransactionSettlementStatus.INVOICED);
+    });
   });
 });

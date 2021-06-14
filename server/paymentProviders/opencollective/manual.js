@@ -28,7 +28,6 @@ async function getBalance() {
  */
 async function processOrder(order) {
   // gets the Credit transaction generated
-  const payload = pick(order, ['CreatedByUserId', 'FromCollectiveId', 'CollectiveId', 'PaymentMethodId']);
   const host = await order.collective.getHostCollective();
   const hostPlan = await host.getPlan();
   const hostFeeSharePercent = hostPlan?.hostFeeSharePercent;
@@ -56,7 +55,8 @@ async function processOrder(order) {
 
   const paymentProcessorFeeInHostCurrency = 0;
 
-  payload.transaction = {
+  const transactionPayload = {
+    ...pick(order, ['CreatedByUserId', 'FromCollectiveId', 'CollectiveId', 'PaymentMethodId']),
     type: TransactionTypes.CREDIT,
     OrderId: order.id,
     amount: order.totalAmount,
@@ -76,7 +76,7 @@ async function processOrder(order) {
     },
   };
 
-  const creditTransaction = await models.Transaction.createFromPayload(payload);
+  const creditTransaction = await models.Transaction.createFromContributionPayload(transactionPayload);
 
   return creditTransaction;
 }

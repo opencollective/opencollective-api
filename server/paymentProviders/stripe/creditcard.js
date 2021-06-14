@@ -207,29 +207,27 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
 
   const platformFeeInHostCurrency = isSharedRevenue ? platformTip * hostCurrencyFxRate || 0 : fees.applicationFee;
 
-  const payload = {
+  const transactionPayload = {
     CreatedByUserId: order.CreatedByUserId,
     FromCollectiveId: order.FromCollectiveId,
     CollectiveId: order.CollectiveId,
     PaymentMethodId: order.PaymentMethodId,
-    transaction: {
-      type: constants.TransactionTypes.CREDIT,
-      OrderId: order.id,
-      amount: order.totalAmount,
-      currency: order.currency,
-      hostCurrency: balanceTransaction.currency?.toUpperCase(),
-      amountInHostCurrency,
-      hostCurrencyFxRate,
-      paymentProcessorFeeInHostCurrency: fees.stripeFee,
-      taxAmount: order.taxAmount,
-      description: order.description,
-      hostFeeInHostCurrency,
-      platformFeeInHostCurrency,
-      data,
-    },
+    type: constants.TransactionTypes.CREDIT,
+    OrderId: order.id,
+    amount: order.totalAmount,
+    currency: order.currency,
+    hostCurrency: balanceTransaction.currency.toUpperCase(),
+    amountInHostCurrency,
+    hostCurrencyFxRate,
+    paymentProcessorFeeInHostCurrency: fees.stripeFee,
+    taxAmount: order.taxAmount,
+    description: order.description,
+    hostFeeInHostCurrency,
+    platformFeeInHostCurrency,
+    data,
   };
 
-  return models.Transaction.createFromPayload(payload);
+  return models.Transaction.createFromContributionPayload(transactionPayload, { isPlatformTipDirectlyCollected: true });
 };
 
 /**

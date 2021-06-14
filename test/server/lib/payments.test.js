@@ -7,13 +7,14 @@ import sinon from 'sinon';
 import status from '../../../server/constants/order_status';
 import { PLANS_COLLECTIVE_SLUG } from '../../../server/constants/plans';
 import roles from '../../../server/constants/roles';
+import { TransactionKind } from '../../../server/constants/transaction-kind';
 import emailLib from '../../../server/lib/email';
 import * as payments from '../../../server/lib/payments';
 import stripe from '../../../server/lib/stripe';
 import models from '../../../server/models';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 import stripeMocks from '../../mocks/stripe';
-import { fakeCollective, fakeHost, fakeOrder, fakePayoutMethod } from '../../test-helpers/fake-data';
+import { fakeCollective, fakeHost, fakeOrder, fakePayoutMethod, fakeUser } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
 const AMOUNT = 1099;
@@ -23,6 +24,22 @@ const STRIPE_TOKEN = 'tok_123456781234567812345678';
 const EMAIL = 'anotheruser@email.com';
 const userData = utils.data('user3');
 const PLAN_NAME = 'small';
+
+const SNAPSHOT_COLUMNS = [
+  'kind',
+  'type',
+  'isRefund',
+  'isDebt',
+  'FromCollectiveId',
+  'CollectiveId',
+  'HostCollectiveId',
+  'amount',
+  'currency',
+  'platformFeeInHostCurrency',
+  'paymentProcessorFeeInHostCurrency',
+  'settlementStatus',
+  'description',
+];
 
 describe('server/lib/payments', () => {
   let host, user, user2, collective, order, collective2, sandbox, emailSendSpy;
@@ -314,25 +331,23 @@ describe('server/lib/payments', () => {
   describe('createRefundTransaction', () => {
     it('should allow collective to start a refund', async () => {
       // Given the following pair of transactions created
-      const transaction = await models.Transaction.createFromPayload({
+      const transaction = await models.Transaction.createFromContributionPayload({
         CreatedByUserId: user.id,
         FromCollectiveId: order.FromCollectiveId,
         CollectiveId: collective.id,
         PaymentMethodId: order.PaymentMethodId,
-        transaction: {
-          type: 'CREDIT',
-          OrderId: order.id,
-          amount: 5000,
-          currency: 'USD',
-          hostCurrency: 'USD',
-          amountInHostCurrency: 5000,
-          hostCurrencyFxRate: 1,
-          hostFeeInHostCurrency: 250,
-          platformFeeInHostCurrency: 250,
-          paymentProcessorFeeInHostCurrency: 175,
-          description: 'Monthly subscription to Webpack',
-          data: { charge: { id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' } },
-        },
+        type: 'CREDIT',
+        OrderId: order.id,
+        amount: 5000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        amountInHostCurrency: 5000,
+        hostCurrencyFxRate: 1,
+        hostFeeInHostCurrency: 250,
+        platformFeeInHostCurrency: 250,
+        paymentProcessorFeeInHostCurrency: 175,
+        description: 'Monthly subscription to Webpack',
+        data: { charge: { id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' } },
       });
 
       // When the refund transaction is created
@@ -371,38 +386,73 @@ describe('server/lib/payments', () => {
 
     it('should refund platform fees on top when refunding original transaction', async () => {
       // Create Open Collective Inc
-      await fakeHost({ id: 8686 });
-      const order = await fakeOrder({ status: 'ACTIVE' });
-      const transaction = await models.Transaction.createFromPayload({
-        CreatedByUserId: order.CreatedByUserId,
+      await fakeHost({ id: 8686, name: 'Open Collective' });
+      const host = await fakeHost({ name: 'Host' });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, name: 'Collective' });
+      const contributorUser = await fakeUser(undefined, { name: 'User' });
+      const order = await fakeOrder({
+        status: 'ACTIVE',
+        CollectiveId: collective.id,
+        FromCollectiveId: contributorUser.CollectiveId,
+      });
+      const transaction = await models.Transaction.createFromContributionPayload({
+        CreatedByUserId: contributorUser.id,
         FromCollectiveId: order.FromCollectiveId,
         CollectiveId: order.CollectiveId,
         PaymentMethodId: order.PaymentMethodId,
-        transaction: {
-          type: 'CREDIT',
-          OrderId: order.id,
-          amount: 5000,
-          currency: 'USD',
-          hostCurrency: 'USD',
-          amountInHostCurrency: 5000,
-          hostCurrencyFxRate: 1,
-          hostFeeInHostCurrency: 250,
-          platformFeeInHostCurrency: 500,
-          paymentProcessorFeeInHostCurrency: 175,
-          description: 'Monthly subscription to Webpack',
-          data: { charge: { id: 'ch_refunded_charge' }, isFeesOnTop: true },
-        },
+        type: 'CREDIT',
+        OrderId: order.id,
+        amount: 5000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        amountInHostCurrency: 5000,
+        hostCurrencyFxRate: 1,
+        hostFeeInHostCurrency: 250,
+        platformFeeInHostCurrency: 500,
+        paymentProcessorFeeInHostCurrency: 175,
+        description: 'Monthly subscription to Webpack',
+        data: { charge: { id: 'ch_refunded_charge' }, isFeesOnTop: true },
       });
 
+      // Should have 6 transactions:
+      // - 2 for contributions
+      // - 2 for platform tip (contributor -> Open Collective)
+      // - 2 for platform tip debt (host -> Open Collective)
       const originalTransactions = await order.getTransactions();
-      expect(originalTransactions).to.have.lengthOf(4);
+      expect(originalTransactions).to.have.lengthOf(6);
 
+      // Should have created a settlement entry for tip
+      const tipTransaction = originalTransactions.find(t => t.kind === TransactionKind.PLATFORM_TIP);
+      const tipSettlement = await models.TransactionSettlement.getByTransaction(tipTransaction);
+      expect(tipSettlement.status).to.eq('OWED');
+
+      // Do refund
       await payments.createRefundTransaction(transaction, 0, null, user);
 
+      // Snapshot ledger
+      const allTransactions = await order.getTransactions({ order: [['id', 'ASC']] });
+      await utils.preloadAssociationsForTransactions(allTransactions, SNAPSHOT_COLUMNS);
+      utils.snapshotTransactions(allTransactions, { columns: SNAPSHOT_COLUMNS });
+
       const refundedTransactions = await order.getTransactions({ where: { isRefund: true } });
-      expect(refundedTransactions).to.have.lengthOf(4);
+      expect(refundedTransactions).to.have.lengthOf(6);
       expect(refundedTransactions.filter(t => t.kind === 'CONTRIBUTION')).to.have.lengthOf(2);
-      expect(refundedTransactions.filter(t => t.kind === 'PLATFORM_TIP')).to.have.lengthOf(2);
+      expect(refundedTransactions.filter(t => t.kind === 'PLATFORM_TIP' && t.isDebt)).to.have.lengthOf(2);
+      expect(refundedTransactions.filter(t => t.kind === 'PLATFORM_TIP' && !t.isDebt)).to.have.lengthOf(2);
+
+      // TODO(LedgerRefactor): Check debt transactions and settlement status
+
+      // Settlement should have been deleted since it's was not invoiced yet
+      await tipSettlement.reload({ paranoid: false });
+      expect(tipSettlement.deletedAt).to.not.be.null;
+    });
+
+    it('should remove the settlement if the tip was already invoiced', async () => {
+      // TODO(LedgerRefactor)
+    });
+
+    it('should revert the settlement if the tip was already paid', async () => {
+      // TODO(LedgerRefactor)
     });
   }); /* createRefundTransaction */
 

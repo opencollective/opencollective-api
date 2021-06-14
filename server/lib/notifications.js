@@ -206,6 +206,9 @@ export async function notifyConversationFollowers(conversation, activity, option
 }
 
 const notifyUpdateSubscribers = async activity => {
+  if (activity.data.update?.isChangelog) {
+    return;
+  }
   const collective = await models.Collective.findByPk(activity.data.collective.id);
   activity.data.fromCollective = (await models.Collective.findByPk(activity.data.fromCollective.id))?.info;
   activity.data.collective = collective.info;
@@ -433,6 +436,11 @@ async function notifyByEmail(activity) {
             template: 'fund.created.foundation',
           });
         }
+        break;
+      }
+
+      // Disable for the-social-change-nest
+      if (get(activity, 'data.host.slug') === 'the-social-change-nest') {
         break;
       }
 

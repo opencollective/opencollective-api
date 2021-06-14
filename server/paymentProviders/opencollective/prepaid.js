@@ -87,25 +87,23 @@ async function processOrder(order) {
   const hostFeeInHostCurrency = await getHostFee(order.totalAmount, order, hostCollective);
 
   // Use the above payment method to donate to Collective
-  const transactions = await models.Transaction.createFromPayload({
+  const transactions = await models.Transaction.createFromContributionPayload({
     CreatedByUserId: user.id,
     FromCollectiveId: order.FromCollectiveId,
     CollectiveId: order.CollectiveId,
     PaymentMethodId: order.paymentMethod.id,
-    transaction: {
-      type: TransactionTypes.CREDIT,
-      OrderId: order.id,
-      amount: order.totalAmount,
-      amountInHostCurrency: order.totalAmount,
-      currency: order.currency,
-      hostCurrency: order.currency,
-      hostCurrencyFxRate: 1,
-      hostFeeInHostCurrency,
-      platformFeeInHostCurrency,
-      paymentProcessorFeeInHostCurrency: 0,
-      taxAmount: order.taxAmount,
-      description: order.description,
-    },
+    type: TransactionTypes.CREDIT,
+    OrderId: order.id,
+    amount: order.totalAmount,
+    amountInHostCurrency: order.totalAmount,
+    currency: order.currency,
+    hostCurrency: order.currency,
+    hostCurrencyFxRate: 1,
+    hostFeeInHostCurrency,
+    platformFeeInHostCurrency,
+    paymentProcessorFeeInHostCurrency: 0,
+    taxAmount: order.taxAmount,
+    description: order.description,
   });
 
   // Mark paymentMethod as confirmed

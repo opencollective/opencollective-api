@@ -18,6 +18,12 @@ const createExpense = async (
   privacyTransaction: Transaction,
   opts?: { host?: any; collective?: any; hostCurrencyFxRate?: number },
 ): Promise<any> => {
+  const amount = privacyTransaction.settled_amount;
+  // Privacy can set transactions amount to zero in certain cases. We'll ignore those.
+  if (!amount) {
+    return;
+  }
+
   const virtualCard = await models.VirtualCard.findOne({
     where: {
       id: privacyTransaction.card.token,
@@ -51,7 +57,6 @@ const createExpense = async (
 
   const host = opts?.host || virtualCard.host;
   const hostCurrencyFxRate = opts?.hostCurrencyFxRate || (await getFxRate('USD', host.currency));
-  const amount = privacyTransaction.settled_amount;
   const UserId = virtualCard.UserId || collective.CreatedByUserId || collective.LastEditedByUserId;
 
   const expense = await sequelize.transaction(async transaction => {
@@ -177,6 +182,24 @@ const assignCardToCollective = async (
   }
 };
 
+const refreshCardDetails = async (virtualCard: VirtualCardModel) => {
+  const connectedAccount = await models.ConnectedAccount.findOne({
+    where: { service: 'privacy', deletedAt: null, CollectiveId: virtualCard.HostCollectiveId },
+  });
+
+  if (!connectedAccount) {
+    throw new Error('Host is not connected to Privacy');
+  }
+
+  const [card] = await privacy.listCards(connectedAccount.token, virtualCard.id);
+  if (!card) {
+    throw new Error(`Could not find card ${virtualCard.id}`);
+  }
+  const newData = omit(card, ['pan', 'cvv', 'exp_year', 'exp_month']);
+  await virtualCard.update('data', newData);
+  return virtualCard;
+};
+
 const setCardState = async (virtualCard: VirtualCardModel, state: 'OPEN' | 'PAUSED'): Promise<VirtualCardModel> => {
   const host = await models.Collective.findByPk(virtualCard.HostCollectiveId);
   const [connectedAccount] = await host.getConnectedAccounts({
@@ -235,6 +258,7 @@ const PrivacyCardProviderService = {
   pauseCard,
   resumeCard,
   deleteCard,
+  refreshCardDetails,
 } as CardProviderService;
 
 export default PrivacyCardProviderService;

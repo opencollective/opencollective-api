@@ -71,6 +71,7 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
     update = {
       title: 'Monthly update 2',
       html: 'This is the update',
+      isChangelog: false,
       account: {
         legacyId: collective1.id,
       },
@@ -109,9 +110,60 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
     });
   });
 
+  describe('create a changelog update', () => {
+    let user3, opencollective, changelogUpdate;
+    before(async () => {
+      sendEmailSpy.resetHistory();
+      user3 = await models.User.createUserWithCollective(utils.data('user3'));
+      opencollective = await models.Collective.create({ slug: 'opencollective', id: 8686 });
+      opencollective.addUserWithRole(user3, roles.ADMIN);
+      changelogUpdate = {
+        title: 'Monthly changelog update',
+        html: 'New feature added',
+        isChangelog: true,
+        account: { legacyId: opencollective.id },
+      };
+    });
+    const createUpdateMutation = gqlV2/* GraphQL */ `
+      mutation CreateUpdate($update: UpdateCreateInput!) {
+        createUpdate(update: $update) {
+          id
+          slug
+          publishedAt
+          isChangelog
+        }
+      }
+    `;
+
+    it('fails if not authenticated', async () => {
+      const result = await utils.graphqlQueryV2(createUpdateMutation, { update: changelogUpdate });
+      expect(result.errors).to.have.length(1);
+      expect(result.errors[0].message).to.equal('You must be logged in to create an update');
+    });
+
+    it('fails if authenticated but cannot edit collective', async () => {
+      const result = await utils.graphqlQueryV2(createUpdateMutation, { update: changelogUpdate }, user1);
+      expect(result.errors).to.have.length(1);
+      expect(result.errors[0].message).to.equal("You don't have sufficient permissions to create an update");
+    });
+
+    it('creates a changelog update', async () => {
+      const result = await utils.graphqlQueryV2(createUpdateMutation, { update: changelogUpdate }, user3);
+      result.errors && console.error(result.errors[0]);
+      const createdUpdate = result.data.createUpdate;
+      expect(createdUpdate.slug).to.equal('monthly-changelog-update');
+      expect(createdUpdate.isChangelog).to.be.true;
+      expect(createdUpdate.publishedAt).to.be.null;
+    });
+
+    it('do not send emails on changelog update', async () => {
+      expect(sendEmailSpy.callCount).to.equal(0);
+    });
+  });
+
   describe('publish an update', () => {
     const publishUpdateMutation = gqlV2/* GraphQL */ `
-      mutation PublishUpdate($id: String!, $notificationAudience: UpdateAudience!) {
+      mutation PublishUpdate($id: String!, $notificationAudience: UpdateAudience) {
         publishUpdate(id: $id, notificationAudience: $notificationAudience) {
           id
           slug
@@ -157,7 +209,7 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
     });
 
     describe('publishes an update', async () => {
-      let result, user3;
+      let result, user4;
 
       before(async () => {
         sendEmailSpy.resetHistory();
@@ -166,12 +218,12 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
           tag: "Anish Bas joined Scouts d'Arlon as backer",
         });
         sendEmailSpy.resetHistory();
-        user3 = await models.User.createUserWithCollective(utils.data('user3'));
+        user4 = await models.User.createUserWithCollective(utils.data('user4'));
         const org = await models.Collective.create({
           name: 'facebook',
           type: 'ORGANIZATION',
         });
-        org.addUserWithRole(user3, roles.ADMIN);
+        org.addUserWithRole(user4, roles.ADMIN);
         await models.Member.create({
           CollectiveId: collective1.id,
           MemberCollectiveId: org.id,
@@ -205,7 +257,7 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
         expect(sendEmailSpy.args[0][1]).to.equal('first update & "love"');
         expect(sendEmailSpy.args[1][0]).to.equal(user2.email);
         expect(sendEmailSpy.args[1][1]).to.equal('first update & "love"');
-        expect(sendEmailSpy.args[2][0]).to.equal(user3.email);
+        expect(sendEmailSpy.args[2][0]).to.equal(user4.email);
         expect(sendEmailSpy.args[2][1]).to.equal('first update & "love"');
       });
 

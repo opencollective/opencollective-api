@@ -504,6 +504,7 @@ export default {
         hostCurrency: 'USD',
         createdAt: '2015-01-23T08:00:00.000Z',
       },
+      // 1
       {
         description: 'Flight SFO-BRU',
         amount: -91859,
@@ -511,6 +512,7 @@ export default {
         currency: 'USD',
         createdAt: '2015-02-22T08:00:00.000Z',
       },
+      // 2
       {
         description: 'Byword',
         amount: -1199,
@@ -518,6 +520,7 @@ export default {
         currency: 'USD',
         createdAt: '2015-03-04T08:00:00.000Z',
       },
+      // 3
       {
         description: 'Tipbox.is domain + dedicated server',
         amount: -58861,
@@ -525,6 +528,7 @@ export default {
         currency: 'USD',
         createdAt: '2015-04-06T07:00:00.000Z',
       },
+      // 4
       {
         description: 'Working lunch with @mdp',
         tags: ['food'],
@@ -533,6 +537,7 @@ export default {
         currency: 'USD',
         createdAt: '2015-04-07T07:00:00.000Z',
       },
+      // 5
       {
         description: 'Homepage design end',
         amount: -30000,
@@ -540,6 +545,7 @@ export default {
         currency: 'USD',
         createdAt: '2015-04-28T07:00:00.000Z',
       },
+      // 6
       {
         description: 'Homepage frontend code',
         amount: -30000,
@@ -547,15 +553,16 @@ export default {
         currency: 'USD',
         createdAt: '2015-04-29T07:00:00.000Z',
       },
+      // 7
       {
         description: 'Donation to that great project',
         amount: 10000,
-        netAmountInCollectiveCurrency: 9000,
         type: 'CREDIT',
         currency: 'USD',
         createdAt: '2015-05-29T07:00:00.000Z',
         PaymentMethodId: 1,
       },
+      // 8
       {
         description: 'Donation to that great project',
         amount: 5000,

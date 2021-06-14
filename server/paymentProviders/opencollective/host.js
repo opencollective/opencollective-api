@@ -32,34 +32,30 @@ paymentMethodProvider.processOrder = async order => {
   const hostFeeSharePercent = hostPlan?.hostFeeSharePercent;
   const isSharedRevenue = !!hostFeeSharePercent;
 
-  const payload = {
-    CreatedByUserId: order.CreatedByUserId,
-    FromCollectiveId: order.FromCollectiveId,
-    CollectiveId: order.CollectiveId,
-    PaymentMethodId: order.PaymentMethodId,
-  };
-
   // Different collectives on the same host may have different currencies
   // That's bad design. We should always keep the same host currency everywhere and only use the currency
   // of the collective for display purposes (using the fxrate at the time of display)
   // Anyway, until we change that, when we give money to a collective that has a different currency
   // we need to compute the equivalent using the fxrate of the day
-  const fxrate = await getFxRate(order.currency, host.currency);
-  const totalAmountInPaymentMethodCurrency = order.totalAmount * fxrate;
+  const hostCurrencyFxRate = await getFxRate(order.currency, host.currency);
+  const amountInHostCurrency = order.totalAmount * hostCurrencyFxRate;
 
-  const hostFeeInHostCurrency = calcFee(order.totalAmount * fxrate, hostFeePercent);
-  const platformFeeInHostCurrency = calcFee(order.totalAmount * fxrate, platformFeePercent);
+  const hostFeeInHostCurrency = calcFee(amountInHostCurrency, hostFeePercent);
+  const platformFeeInHostCurrency = calcFee(amountInHostCurrency, platformFeePercent);
 
-  payload.transaction = {
+  const transactionPayload = {
+    CreatedByUserId: order.CreatedByUserId,
+    FromCollectiveId: order.FromCollectiveId,
+    CollectiveId: order.CollectiveId,
+    PaymentMethodId: order.PaymentMethodId,
     type: TransactionTypes.CREDIT,
     kind: TransactionKind.ADDED_FUNDS,
     OrderId: order.id,
     amount: order.totalAmount,
     currency: order.currency,
     hostCurrency: host.currency,
-    hostCurrencyFxRate: fxrate,
-    netAmountInCollectiveCurrency: order.totalAmount * (1 - hostFeePercent / 100),
-    amountInHostCurrency: totalAmountInPaymentMethodCurrency,
+    hostCurrencyFxRate,
+    amountInHostCurrency,
     hostFeeInHostCurrency,
     platformFeeInHostCurrency,
     paymentProcessorFeeInHostCurrency: 0,
@@ -70,7 +66,7 @@ paymentMethodProvider.processOrder = async order => {
     },
   };
 
-  return await models.Transaction.createFromPayload(payload);
+  return await models.Transaction.createFromContributionPayload(transactionPayload);
 };
 
 export default paymentMethodProvider;

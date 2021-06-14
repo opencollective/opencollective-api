@@ -36,7 +36,7 @@ const updateMutations = {
         type: new GraphQLNonNull(GraphQLString),
       },
       notificationAudience: {
-        type: new GraphQLNonNull(UpdateAudienceType),
+        type: UpdateAudienceType,
       },
     },
     resolve(_, args, req) {

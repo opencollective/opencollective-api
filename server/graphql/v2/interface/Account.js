@@ -299,13 +299,17 @@ const accountFieldsDefinition = () => ({
     args: {
       ...CollectionArgs,
       onlyPublishedUpdates: { type: GraphQLBoolean },
+      onlyChangelogUpdates: { type: GraphQLBoolean },
     },
-    async resolve(collective, { limit, offset, onlyPublishedUpdates }) {
+    async resolve(collective, { limit, offset, onlyPublishedUpdates, onlyChangelogUpdates }) {
       let where = {
         CollectiveId: collective.id,
       };
       if (onlyPublishedUpdates) {
         where = assign(where, { publishedAt: { [Op.ne]: null } });
+      }
+      if (onlyChangelogUpdates) {
+        where = assign(where, { isChangelog: true });
       }
       const query = {
         where,

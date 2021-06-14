@@ -58,7 +58,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
   describe('#processOrder()', async () => {
     let secondCallToCreateCustomer, createIntentRequest;
 
-    const setupNock = ({ balanceTransactions = { amount: 1000, fee: 0, fee_details: [] } } = {}) => {
+    const setupNock = ({ balanceTransactions = { amount: 1000, currency: 'usd', fee: 0, fee_details: [] } } = {}) => {
       // Call performed by getOrCreateCustomerOnPlatformAccount
       nock('https://api.stripe.com:443').post('/v1/customers').reply(200, {});
 
@@ -121,6 +121,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
         setupNock({
           balanceTransactions: {
             amount: 1100,
+            currency: 'usd',
             fee: 0,
             fee_details: [
               {
@@ -204,6 +205,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
         setupNock({
           balanceTransactions: {
             amount: 1100,
+            currency: 'usd',
             fee: 0,
             fee_details: [
               {
