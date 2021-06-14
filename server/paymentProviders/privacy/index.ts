@@ -154,7 +154,7 @@ const processTransaction = async (
   });
 
   if (
-    expense && // Expense is undefined if the the transaction is a refund
+    !isRefund && // There will be no expense for refunds
     collective.settings?.ignoreExpenseMissingReceiptAlerts !== true
   ) {
     expense
