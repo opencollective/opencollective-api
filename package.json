@@ -75,7 +75,7 @@
     "fs-extra": "10.0.0",
     "get-urls": "10.0.0",
     "googleapis": "74.2.0",
-    "graphql": "15.3.0",
+    "graphql": "15.5.0",
     "graphql-iso-date": "3.6.1",
     "graphql-type-json": "0.3.2",
     "handlebars": "4.7.7",
