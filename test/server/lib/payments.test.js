@@ -361,7 +361,9 @@ describe('server/lib/payments', () => {
       });
 
       // Then there should be 4 transactions in total under that order id
-      expect(allTransactions.length).to.equal(4);
+      expect(allTransactions.length).to.equal(10);
+
+      // TODO: check that HOST_FEES, PAYMENT_PROCESSOR_FEE are there
 
       // And Then two transactions should be refund
       const refundTransactions = allTransactions.filter(
@@ -371,6 +373,7 @@ describe('server/lib/payments', () => {
 
       // And then the values for the transaction from the collective
       // to the donor are correct
+      // TODO: more precise filters
       const [creditRefundTransaction] = refundTransactions.filter(t => t.type === 'CREDIT');
       expect(creditRefundTransaction.FromCollectiveId).to.equal(collective.id);
       expect(creditRefundTransaction.CollectiveId).to.equal(order.FromCollectiveId);
@@ -416,10 +419,11 @@ describe('server/lib/payments', () => {
 
       // Should have 6 transactions:
       // - 2 for contributions
+      // - 2 for host fees
       // - 2 for platform tip (contributor -> Open Collective)
       // - 2 for platform tip debt (host -> Open Collective)
       const originalTransactions = await order.getTransactions();
-      expect(originalTransactions).to.have.lengthOf(6);
+      expect(originalTransactions).to.have.lengthOf(8);
 
       // Should have created a settlement entry for tip
       const tipTransaction = originalTransactions.find(t => t.kind === TransactionKind.PLATFORM_TIP_DEBT);
@@ -435,10 +439,12 @@ describe('server/lib/payments', () => {
       utils.snapshotTransactions(allTransactions, { columns: SNAPSHOT_COLUMNS });
 
       const refundedTransactions = await order.getTransactions({ where: { isRefund: true } });
-      expect(refundedTransactions).to.have.lengthOf(6);
+      expect(refundedTransactions).to.have.lengthOf(10);
       expect(refundedTransactions.filter(t => t.kind === 'CONTRIBUTION')).to.have.lengthOf(2);
       expect(refundedTransactions.filter(t => t.kind === 'PLATFORM_TIP')).to.have.lengthOf(2);
       expect(refundedTransactions.filter(t => t.kind === 'PLATFORM_TIP_DEBT')).to.have.lengthOf(2);
+      expect(refundedTransactions.filter(t => t.kind === 'HOST_FEE')).to.have.lengthOf(2);
+      expect(refundedTransactions.filter(t => t.kind === 'PAYMENT_PROCESSOR_FEE')).to.have.lengthOf(2);
 
       // TODO(LedgerRefactor): Check debt transactions and settlement status
 

@@ -192,14 +192,17 @@ describe('server/graphql/v1/orders', () => {
       const transactions = await models.Transaction.findAll({
         where: { OrderId: orders[0].id },
       });
-      expect(transactions.length).to.equal(2);
-      expect(transactions[0].type).to.equal('DEBIT');
-      expect(transactions[1].type).to.equal('CREDIT');
-      expect(transactions[1].currency).to.equal(orders[0].currency);
-      expect(transactions[1].HostCollectiveId).to.equal(host.id);
-      expect(transactions[1].PaymentMethodId).to.be.null;
-      expect(transactions[1].platformFeeInHostCurrency).to.equal(0);
-      expect(transactions[1].hostFeeInHostCurrency).to.equal(-0.05 * orders[0].totalAmount);
+      expect(transactions.length).to.equal(4);
+
+      const contributions = transactions.filter(t => t.kind === 'CONTRIBUTION');
+      expect(contributions.length).to.equal(2);
+      expect(contributions[0].type).to.equal('DEBIT');
+      expect(contributions[1].type).to.equal('CREDIT');
+      expect(contributions[1].currency).to.equal(orders[0].currency);
+      expect(contributions[1].HostCollectiveId).to.equal(host.id);
+      expect(contributions[1].PaymentMethodId).to.be.null;
+      expect(contributions[1].platformFeeInHostCurrency).to.equal(0);
+      expect(contributions[1].hostFeeInHostCurrency).to.equal(0);
       await utils.waitForCondition(() => emailSendMessageSpy.callCount === 1);
       expect(emailSendMessageSpy.callCount).to.equal(1);
       expect(emailSendMessageSpy.firstCall.args[0]).to.equal(backers[1].email);

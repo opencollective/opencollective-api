@@ -7676,6 +7676,9 @@ type TransactionCollection implements Collection {
   nodes: [Transaction]
 }
 
+"""
+All transaction kinds
+"""
 enum TransactionKind {
   ADDED_FUNDS
   CONTRIBUTION
