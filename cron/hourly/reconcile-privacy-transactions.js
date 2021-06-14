@@ -25,7 +25,7 @@ async function reconcileConnectedAccount(connectedAccount) {
     const begin = lastSyncedTransaction
       ? moment(lastSyncedTransaction.createdAt).add(1, 'second').toISOString()
       : moment(card.createdAt).toISOString();
-    logger.info(`Fetching transactions since ${begin}`);
+    logger.info(`\nReconciling card ${card.id}: fetching transactions since ${begin}`);
 
     const { data: transactions } = await privacyLib.listTransactions(
       connectedAccount.token,
@@ -46,12 +46,12 @@ async function reconcileConnectedAccount(connectedAccount) {
     } else {
       logger.info(`Syncing ${transactions.length} pending transactions...`);
       await Promise.all(
-        transactions.map(transaction => privacy.createExpense(transaction, { host, hostCurrencyFxRate })),
+        transactions.map(transaction => privacy.processTransaction(transaction, { host, hostCurrencyFxRate })),
       );
       if (host.settings?.virtualcards?.autopause) {
         await privacy.autoPauseResumeCard(card);
       }
-      logger.info(`Refreshing card ${card.id} details...`);
+      logger.info(`Refreshing card details'...`);
       await privacy.refreshCardDetails(card);
     }
   }
