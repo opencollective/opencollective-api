@@ -4,7 +4,6 @@ import GraphQLJSON from 'graphql-type-json';
 import { assign, get, invert, isEmpty } from 'lodash';
 
 import { types as CollectiveTypes } from '../../../constants/collectives';
-import sequelize from '../../../lib/sequelize';
 import models, { Op } from '../../../models';
 import { NotFound, Unauthorized } from '../../errors';
 import { CollectiveFeatures } from '../../v1/CollectiveInterface.js';
@@ -321,24 +320,6 @@ const accountFieldsDefinition = () => ({
 
       const result = await models.Update.findAndCountAll(query);
       return { nodes: result.rows, totalCount: result.count, limit, offset };
-    },
-  },
-  latestChangelogPublishDate: {
-    type: GraphQLDateTime,
-    async resolve(collective) {
-      const latestChangelogPublishDate = await models.Update.findAll({
-        where: {
-          CollectiveId: collective.id,
-          isChangelog: true,
-        },
-        attributes: [[sequelize.fn('max', sequelize.col('publishedAt')), 'date']],
-        raw: true,
-      });
-
-      if (latestChangelogPublishDate && !latestChangelogPublishDate.isEmpty) {
-        return latestChangelogPublishDate[0]?.date;
-      }
-      return null;
     },
   },
   features: {

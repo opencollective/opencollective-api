@@ -55,6 +55,7 @@ import { TransactionInterfaceType } from './TransactionInterface';
 import {
   CommentType,
   ConnectedAccountType,
+  IsoDateString,
   MemberType,
   NotificationType,
   OrderType,
@@ -209,11 +210,11 @@ const mutations = {
     },
   },
   setChangelogViewDate: {
-    type: UserType,
+    type: new GraphQLNonNull(UserType),
     description: 'Update the time which the user viewed the changelog updates',
     args: {
       changelogViewDate: {
-        type: new GraphQLNonNull(GraphQLString),
+        type: new GraphQLNonNull(IsoDateString),
       },
     },
     resolve: (_, { changelogViewDate }, { remoteUser }) => {

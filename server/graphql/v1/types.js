@@ -242,7 +242,7 @@ export const UserType = new GraphQLObjectType({
         },
       },
       changelogViewDate: {
-        type: DateString,
+        type: IsoDateString,
         resolve(user) {
           return user.changelogViewDate;
         },
