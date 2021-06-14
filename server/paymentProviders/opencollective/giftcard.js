@@ -131,12 +131,12 @@ async function processOrder(order) {
       UsingGiftCardFromCollectiveId: sourcePaymentMethod.CollectiveId,
     },
     {
-      where: { TransactionGroup: creditTransaction.TransactionGroup },
+      where: { TransactionGroup: creditTransaction.TransactionGroup, kind: ['CONTRIBUTION', 'PLATFORM_TIP'] },
       returning: true,
     },
   );
   // updating creditTransaction with latest data
-  creditTransaction = updatedTransactions[1].filter(t => t.type === 'CREDIT')[0];
+  creditTransaction = updatedTransactions[1].filter(t => t.type === 'CREDIT' && t.kind === 'CONTRIBUTION')[0];
   return creditTransaction;
 }
 

@@ -4,8 +4,10 @@ exports[`server/models/Transaction createFromContributionPayload creates a doubl
 "
 | kind         | type   | netAmountInCollectiveCurrency | currency | Host | platformFeeInHostCurrency | paymentProcessorFeeInHostCurrency | taxAmount | amount | description                              |
 | ------------ | ------ | ----------------------------- | -------- | ---- | ------------------------- | --------------------------------- | --------- | ------ | ---------------------------------------- |
-| CONTRIBUTION | DEBIT  | -12100                        | EUR      | NULL | -500                      | -300                              | -2100     | -8700  | €121 for Vegan Burgers including €21 VAT |
-| CONTRIBUTION | CREDIT | 8700                          | EUR      | #2   | -500                      | -300                              | -2100     | 12100  | €121 for Vegan Burgers including €21 VAT |"
+| HOST_FEE     | DEBIT  | -500                          | EUR      | #2   | 0                         | 0                                 |           | -500   | Host Fee                                 |
+| HOST_FEE     | CREDIT | 500                           | EUR      | #2   | 0                         | 0                                 |           | 500    | Host Fee                                 |
+| CONTRIBUTION | DEBIT  | -12100                        | EUR      | NULL | -500                      | -300                              | -2100     | -9200  | €121 for Vegan Burgers including €21 VAT |
+| CONTRIBUTION | CREDIT | 9200                          | EUR      | #2   | -500                      | -300                              | -2100     | 12100  | €121 for Vegan Burgers including €21 VAT |"
 `;
 
 exports[`server/models/Transaction fees on top should create an additional pair of transactions between contributor and Open Collective Inc 1`] = `
@@ -16,6 +18,8 @@ exports[`server/models/Transaction fees on top should create an additional pair 
 | PLATFORM_TIP | CREDIT | false  | User            | Open Collective | Open Collective | 1000   | USD      | 0                         | -18                               |            | Financial contribution to Open Collective  |
 | PLATFORM_TIP | DEBIT  | true   | Random Host     | Open Collective | Open Collective | -982   | USD      | 0                         | -18                               | OWED       | Platform Tip collected for Open Collective |
 | PLATFORM_TIP | CREDIT | true   | Open Collective | Random Host     | Random Host     | 982    | USD      | 0                         | -18                               | OWED       | Platform Tip collected for Open Collective |
-| CONTRIBUTION | DEBIT  |        | Collective      | User            | NULL            | -9318  | USD      | 0                         | -182                              |            | $100 donation to Merveilles                |
+| HOST_FEE     | DEBIT  |        | Random Host     | Collective      | Random Host     | -500   | USD      | 0                         | 0                                 |            | Host Fee                                   |
+| HOST_FEE     | CREDIT |        | Collective      | Random Host     | Random Host     | 500    | USD      | 0                         | 0                                 |            | Host Fee                                   |
+| CONTRIBUTION | DEBIT  |        | Collective      | User            | NULL            | -9818  | USD      | 0                         | -182                              |            | $100 donation to Merveilles                |
 | CONTRIBUTION | CREDIT |        | User            | Collective      | Random Host     | 10000  | USD      | 0                         | -182                              |            | $100 donation to Merveilles                |"
 `;

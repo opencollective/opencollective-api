@@ -320,6 +320,7 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
 }
 
 export async function associateTransactionRefundId(transaction, refund, data) {
+  // SUPER TODO NO ESCAPE: FIX ME
   // TODO(LedgerRefactor): Using the `id` as order here is not reliable, we should rather filter results to make sure we get the right transaction
   const [tr1, tr2, tr3, tr4] = await models.Transaction.findAll({
     order: ['id'],
