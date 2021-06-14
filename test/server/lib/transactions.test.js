@@ -48,11 +48,14 @@ describe('server/lib/transactions', () => {
     const transactions = await models.Transaction.findAll({
       where: { CollectiveId: collective.id },
     });
-    expect(transactions.length).to.equal(5);
+    // Expected total
+    // - 5 for CONTRIBUTIONs
+    // - 5 for HOST_FEEs
+    expect(transactions.length).to.equal(10);
     // When the newly created transactions are exported
     const csv = libtransactions.exportTransactions(transactions);
     const lines = csv.split('\n');
-    expect(lines.length).to.equal(6);
+    expect(lines.length).to.equal(11);
     expect(lines[0].split('","').length).to.equal(12);
   }); /* End of "exports transactions" */
 }); /* End of "lib.transactions.test.js" */
