@@ -264,6 +264,7 @@ const queries = {
       offset: { type: GraphQLInt },
       dateFrom: { type: GraphQLString },
       dateTo: { type: GraphQLString },
+      kinds: { type: GraphQLList(GraphQLString) },
       includeExpenseTransactions: {
         type: GraphQLBoolean,
         default: true,
@@ -295,6 +296,7 @@ const queries = {
         startDate: args.dateFrom,
         endDate: args.dateTo,
         includeExpenseTransactions: args.includeExpenseTransactions,
+        kinds: args.kinds,
       });
     },
   },
