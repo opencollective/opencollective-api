@@ -158,6 +158,10 @@ function defineModel() {
       hostFeeInHostCurrency: DataTypes.INTEGER,
       paymentProcessorFeeInHostCurrency: DataTypes.INTEGER,
       taxAmount: { type: DataTypes.INTEGER },
+
+      /**
+       * TODO: Rename this field, as it's always expressed with `currency`. It should just be `netAmount`
+       */
       netAmountInCollectiveCurrency: DataTypes.INTEGER, // stores the net amount received by the collective (after fees) or removed from the collective (including fees)
 
       data: DataTypes.JSONB,
@@ -252,8 +256,8 @@ function defineModel() {
       },
 
       hooks: {
-        afterCreate: (transaction, options) => {
-          Transaction.createActivity(transaction, { transaction: options.transaction });
+        afterCreate: transaction => {
+          Transaction.createActivity(transaction);
           // intentionally returns null, needs to be async (https://github.com/petkaantonov/bluebird/blob/master/docs/docs/warning-explanations.md#warning-a-promise-was-created-in-a-handler-but-was-not-returned-from-it)
           return null;
         },
@@ -721,7 +725,7 @@ function defineModel() {
     }
   };
 
-  Transaction.createHostFeeTransactions = async (transaction, host) => {
+  Transaction.createHostFeeTransactions = async (transaction, host, data) => {
     if (!transaction.hostFeeInHostCurrency) {
       return;
     }
@@ -747,6 +751,9 @@ function defineModel() {
       platformFeeInHostCurrency: 0,
       hostFeeInHostCurrency: 0,
       paymentProcessorFeeInHostCurrency: 0,
+      OrderId: transaction.OrderId,
+      createdAt: transaction.createdAt,
+      data,
     };
 
     await Transaction.createDoubleEntry(hostFeeTransaction);
@@ -831,7 +838,7 @@ function defineModel() {
           { model: models.User, as: 'createdByUser' },
           { model: models.PaymentMethod },
         ],
-        transaction: options.transaction,
+        transaction: options?.transaction,
       })
         // Create activity.
         .then(transaction => {
@@ -853,7 +860,7 @@ function defineModel() {
           if (transaction.PaymentMethod) {
             activityPayload.data.paymentMethod = transaction.PaymentMethod.info;
           }
-          return models.Activity.create(activityPayload, { transaction: options.transaction });
+          return models.Activity.create(activityPayload, { transaction: options?.transaction });
         })
         .catch(err =>
           console.error(

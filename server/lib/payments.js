@@ -172,6 +172,37 @@ export const buildRefundForTransaction = (t, user, data, refundedPaymentProcesso
   return refund;
 };
 
+export const refundPaymentProcessorFeeToCollective = async (transaction, refundTransactionGroup, data, createdAt) => {
+  if (!transaction.paymentProcessorFeeInHostCurrency) {
+    return;
+  }
+
+  const hostCurrencyFxRate = await getFxRate(transaction.currency, transaction.hostCurrency);
+  const amountInHostCurrency = Math.abs(transaction.paymentProcessorFeeInHostCurrency);
+  const amount = Math.round(amountInHostCurrency / hostCurrencyFxRate);
+  await models.Transaction.createDoubleEntry({
+    type: 'CREDIT',
+    CollectiveId: transaction.CollectiveId,
+    FromCollectiveId: transaction.HostCollectiveId,
+    HostCollectiveId: transaction.HostCollectiveId,
+    OrderId: transaction.OrderId,
+    description: `Refund of payment processor fees for transaction`,
+    kind: TransactionKind.PAYMENT_PROCESSOR_FEE,
+    TransactionGroup: refundTransactionGroup,
+    hostCurrency: transaction.hostCurrency,
+    amountInHostCurrency,
+    currency: transaction.currency,
+    amount,
+    netAmountInCollectiveCurrency: amount,
+    hostCurrencyFxRate,
+    platformFeeInHostCurrency: 0,
+    paymentProcessorFeeInHostCurrency: 0,
+    hostFeeInHostCurrency: 0,
+    data,
+    createdAt,
+  });
+};
+
 /** Create refund transactions
  *
  * This function creates the negative transactions after refunding an
@@ -278,28 +309,7 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
       );
     } else if (transaction.paymentProcessorFeeInHostCurrency) {
       // Host take at their charge the payment processor fee that is lost when refunding a transaction
-      const hostCurrencyFxRate = await getFxRate(transaction.currency, transaction.hostCurrency);
-      const amountInHostCurrency = Math.abs(transaction.paymentProcessorFeeInHostCurrency);
-      const amount = Math.round(amountInHostCurrency / hostCurrencyFxRate);
-      await models.Transaction.createDoubleEntry({
-        type: 'CREDIT',
-        CollectiveId: transaction.CollectiveId,
-        FromCollectiveId: transaction.HostCollectiveId,
-        HostCollectiveId: transaction.HostCollectiveId,
-        OrderId: transaction.OrderId,
-        description: `Refund of payment processor fees for transaction`,
-        kind: TransactionKind.PAYMENT_PROCESSOR_FEE,
-        TransactionGroup: transactionGroup,
-        hostCurrency: transaction.hostCurrency,
-        amountInHostCurrency,
-        currency: transaction.currency,
-        amount,
-        netAmountInCollectiveCurrency: amount,
-        hostCurrencyFxRate,
-        platformFeeInHostCurrency: 0,
-        paymentProcessorFeeInHostCurrency: 0,
-        hostFeeInHostCurrency: 0,
-      });
+      await refundPaymentProcessorFeeToCollective(transaction, transactionGroup);
     }
   }
 
