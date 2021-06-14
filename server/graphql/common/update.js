@@ -1,6 +1,6 @@
 import { get } from 'lodash';
 
-import { purgeCacheForCollective } from '../../lib/cache';
+import cache, { purgeCacheForCollective } from '../../lib/cache';
 import models from '../../models';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../v2/identifiers';
@@ -82,6 +82,9 @@ export async function editUpdate(_, args, req) {
 export async function publishUpdate(_, args, req) {
   let update = await fetchUpdateForEdit(args.id, req.remoteUser);
   update = await update.publish(req.remoteUser, args.notificationAudience);
+  if (update.isChangelog) {
+    cache.del('latest_changelog_publish_date');
+  }
   purgeCacheForCollective(update.collective.slug);
   return update;
 }

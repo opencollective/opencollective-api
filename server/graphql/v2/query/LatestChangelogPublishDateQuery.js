@@ -14,11 +14,10 @@ const LatestChangelogPublishDateQuery = {
     },
   },
   async resolve(_, args) {
-    const collectiveId = await fetchCollectiveId(args.collectiveSlug);
-
-    const cacheKey = `latest_changelog_update_date_${collectiveId}`;
+    const cacheKey = 'latest_changelog_publish_date';
     let latestChangelogPublishDate = await cache.get(cacheKey);
     if (!latestChangelogPublishDate) {
+      const collectiveId = await fetchCollectiveId(args.collectiveSlug);
       latestChangelogPublishDate = await models.Update.findAll({
         where: {
           CollectiveId: collectiveId,
@@ -28,8 +27,8 @@ const LatestChangelogPublishDateQuery = {
         raw: true,
       });
 
-      // keep the latest change log publish date for half a day in cache
-      cache.set(cacheKey, latestChangelogPublishDate, 12 * 60 * 60);
+      // keep the latest change log publish date for a day in cache
+      cache.set(cacheKey, latestChangelogPublishDate, 24 * 60 * 60);
     }
 
     if (latestChangelogPublishDate && latestChangelogPublishDate.length > 0) {
