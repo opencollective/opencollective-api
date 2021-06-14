@@ -97,7 +97,7 @@ const migrate = async () => {
     await debit.update({
       hostFeeInHostCurrency: 0,
       amount: -Math.round(netAmountInCollectiveCurrency),
-      amountInHostCurrency: -Math.round(netAmountInCollectiveCurrency / debit.hostCurrencyFxRate),
+      amountInHostCurrency: -Math.round(netAmountInCollectiveCurrency * debit.hostCurrencyFxRate),
       data: {
         ...debit.data,
         ...transactionsData,
