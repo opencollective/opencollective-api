@@ -107,7 +107,6 @@ function defineModel() {
       },
       changelogViewDate: {
         type: DataTypes.DATE,
-        defaultValue: DataTypes.NOW,
         allowNull: true,
       },
     },

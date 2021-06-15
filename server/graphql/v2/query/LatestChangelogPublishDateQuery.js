@@ -8,10 +8,10 @@ const LatestChangelogPublishDateQuery = {
   type: GraphQLDateTime,
   async resolve() {
     const cacheKey = 'latest_changelog_publish_date';
-    let latestChangelogPublishDate = await cache.get(cacheKey);
-    if (!latestChangelogPublishDate) {
+    let latestChangelogUpdate = await cache.get(cacheKey);
+    if (!latestChangelogUpdate) {
       const collectiveId = await fetchCollectiveId('opencollective');
-      latestChangelogPublishDate = await models.Update.findOne({
+      latestChangelogUpdate = await models.Update.findOne({
         where: {
           CollectiveId: collectiveId,
           isChangelog: true,
@@ -21,10 +21,10 @@ const LatestChangelogPublishDateQuery = {
       });
 
       // keep the latest change log publish date for a day in cache
-      cache.set(cacheKey, latestChangelogPublishDate, 24 * 60 * 60);
+      cache.set(cacheKey, latestChangelogUpdate, 24 * 60 * 60);
     }
 
-    return latestChangelogPublishDate?.date;
+    return latestChangelogUpdate?.date;
   },
 };
 
