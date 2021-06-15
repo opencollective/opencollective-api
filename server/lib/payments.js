@@ -188,6 +188,7 @@ export const refundPaymentProcessorFeeToCollective = async (transaction, refundT
     OrderId: transaction.OrderId,
     description: `Refund of payment processor fees for transaction`,
     kind: TransactionKind.PAYMENT_PROCESSOR_FEE,
+    isRefund: true,
     TransactionGroup: refundTransactionGroup,
     hostCurrency: transaction.hostCurrency,
     amountInHostCurrency,
