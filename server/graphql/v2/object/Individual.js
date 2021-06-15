@@ -1,4 +1,5 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLDateTime } from 'graphql-iso-date';
 
 import { types as collectiveTypes } from '../../../constants/collectives';
 import models from '../../../models';
@@ -105,6 +106,15 @@ export const Individual = new GraphQLObjectType({
           if (collective.isHostAccount) {
             return collective;
           }
+        },
+      },
+      changelogViewDate: {
+        type: GraphQLDateTime,
+        async resolve(collective) {
+          const user = await models.User.findOne({
+            where: { CollectiveId: collective.id },
+          });
+          return user?.changelogViewDate;
         },
       },
     };
