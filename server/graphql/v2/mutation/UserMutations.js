@@ -1,5 +1,5 @@
 import { GraphQLNonNull } from 'graphql';
-import { GraphQLDateTime } from 'graphql-iso-date/dist';
+import { GraphQLDateTime } from 'graphql-iso-date';
 
 import { Unauthorized, ValidationFailed } from '../../errors';
 import { User } from '../object/User';
