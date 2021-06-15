@@ -1,36 +1,30 @@
-Subject: Action Required: Please submit receipt for card expense
+Subject: Action Required: Submit receipt for card expense
 
 
 {{> header}}
 
 <center>
   <h1>
-    Please submit a receipt for card expense from {{fromCollective.name}}
+    Please submit the receipt for {{fromCollective.name}} card expense.
   </h1>
 </center>
-
+<p>
 {{#if user}}
 A card attached to {{fromCollective.name}} was charged {{currency expense.amount currency=expense.currency
   precision=2}} and we need the responsible admin {{user.firstName}} {{user.lastName}} to input additional
 information.
 {{else}}
-A card attached to {{fromCollective.name}} was charged {{currency expense.amount currency=expense.currency
-  precision=2}} and we need you to input additional information.
+You need to provide additional info about the card charge of {{currency expense.amount currency=expense.currency precision=2}} for {{fromCollective.name}}.
 {{/if}}
-For accounting reasons, your Host will need an accurate description and a copy of the receipt.
+For accounting reasons, the Fiscal Host will need a description and receipt. The card may be suspended if receipts are not provided.
 </p>
-<p>
-  <strong>Please attach the receipt to continue using your card. Your Host may suspend the card if receipts are not
-    provided.</strong>
-</p>
-
 
 <br />
 <br />
 
 <center>
   <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}" class="btn blue">
-    <div>Submit Receipt and Input Additional Information</div>
+    <div>Submit Receipt</div>
   </a>
 </center>
 
