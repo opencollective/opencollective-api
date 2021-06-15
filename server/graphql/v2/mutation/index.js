@@ -17,6 +17,7 @@ import paymentMethodMutations from './PaymentMethodMutations';
 import payoutMethodMutations from './PayoutMethodMutations';
 import transactionMutations from './TransactionMutations';
 import updateMutations from './UpdateMutations';
+import userMutations from './UserMutations';
 import virtualCardMutations from './VirtualCardMutations';
 
 const mutation = {
@@ -39,6 +40,7 @@ const mutation = {
   ...transactionMutations,
   ...memberMutations,
   ...updateMutations,
+  ...userMutations,
   ...virtualCardMutations,
 };
 

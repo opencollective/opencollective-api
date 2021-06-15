@@ -90,16 +90,3 @@ export const confirmUserEmail = async emailConfirmationToken => {
     emailConfirmationToken: null,
   });
 };
-
-/**
- * Sets/Updates the time which the user viewed the changelog updates
- */
-export const setChangelogViewDate = async (user, changelogViewDate) => {
-  if (!user) {
-    throw new Unauthorized();
-  } else if (!changelogViewDate) {
-    throw new ValidationFailed('The change log view date must be set');
-  }
-  const date = new Date(changelogViewDate);
-  return user.update({ changelogViewDate: date });
-};

@@ -35,7 +35,7 @@ import {
 } from './mutations/orders';
 import * as paymentMethodsMutation from './mutations/paymentMethods';
 import { editTier, editTiers } from './mutations/tiers';
-import { confirmUserEmail, setChangelogViewDate, updateUserEmail } from './mutations/users';
+import { confirmUserEmail, updateUserEmail } from './mutations/users';
 import { ApplicationInputType, ApplicationType } from './Application';
 import { CollectiveInterfaceType } from './CollectiveInterface';
 import {
@@ -55,7 +55,6 @@ import { TransactionInterfaceType } from './TransactionInterface';
 import {
   CommentType,
   ConnectedAccountType,
-  IsoDateString,
   MemberType,
   NotificationType,
   OrderType,
@@ -207,18 +206,6 @@ const mutations = {
     },
     resolve: (_, { email }, { remoteUser }) => {
       return updateUserEmail(remoteUser, email);
-    },
-  },
-  setChangelogViewDate: {
-    type: new GraphQLNonNull(UserType),
-    description: 'Update the time which the user viewed the changelog updates',
-    args: {
-      changelogViewDate: {
-        type: new GraphQLNonNull(IsoDateString),
-      },
-    },
-    resolve: (_, { changelogViewDate }, { remoteUser }) => {
-      return setChangelogViewDate(remoteUser, changelogViewDate);
     },
   },
   confirmUserEmail: {
