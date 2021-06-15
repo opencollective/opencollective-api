@@ -271,7 +271,7 @@ async function HostReport(year, month, hostId) {
       const stats = await getHostStats(host, Object.keys(collectivesById));
 
       const groupedTransactions = groupBy(data.transactions, t => {
-        if (t.isDebt && t.kind === 'PLATFORM_TIP') {
+        if (t.kind === 'PLATFORM_TIP_DEBT') {
           return 'otherCredits';
         } else if (t.OrderId && t.type === 'CREDIT') {
           return 'donations';
@@ -305,7 +305,7 @@ async function HostReport(year, month, hostId) {
       const totalOwedPlatformTips = sumByWhen(
         otherCredits,
         'amountInHostCurrency',
-        t => t.isDebt && t.kind === 'PLATFORM_TIP',
+        t => t.kind === 'PLATFORM_TIP_DEBT',
       );
 
       const payoutProcessorFeesPaypal = sumByWhen(

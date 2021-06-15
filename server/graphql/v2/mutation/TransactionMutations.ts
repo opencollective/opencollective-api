@@ -41,14 +41,14 @@ const transactionMutations = {
         throw new ValidationFailed('Platform tips can only be added on added funds at the moment');
       }
 
-      const isPlatformTipAvailable = await models.Transaction.findOne({
+      const existingPlatformTip = await models.Transaction.findOne({
         where: {
           TransactionGroup: fundsTransaction.TransactionGroup,
           kind: 'PLATFORM_TIP',
         },
       });
 
-      if (isPlatformTipAvailable) {
+      if (existingPlatformTip) {
         throw new Error('Platform tip is already set for this transaction group');
       }
 

@@ -275,8 +275,7 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
     const platformTipDebtTransaction = await models.Transaction.findOne({
       where: {
         TransactionGroup: platformTipTransaction.TransactionGroup,
-        kind: TransactionKind.PLATFORM_TIP,
-        isDebt: true,
+        kind: TransactionKind.PLATFORM_TIP_DEBT,
         type: 'CREDIT',
       },
     });
@@ -284,7 +283,10 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
     // Old tips did not have a "debt" transaction associated
     if (platformTipDebtTransaction) {
       // Update tip settlement status
-      const settlementWhere = { TransactionGroup: transaction.TransactionGroup, kind: TransactionKind.PLATFORM_TIP };
+      const settlementWhere = {
+        TransactionGroup: transaction.TransactionGroup,
+        kind: TransactionKind.PLATFORM_TIP_DEBT,
+      };
       const tipSettlement = await models.TransactionSettlement.findOne({ where: settlementWhere });
       let tipRefundSettlementStatus = TransactionSettlementStatus.OWED;
       if (tipSettlement.status === TransactionSettlementStatus.OWED) {
