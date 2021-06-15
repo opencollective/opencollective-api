@@ -15,7 +15,7 @@ const checkOrder = async orderId => {
   order.collective = await order.getCollective();
   order.paymentMethod = await order.getPaymentMethod();
   const hostCollective = await order.collective.getHostCollective();
-  const paypalOrderId = order.paymentMethod.data?.orderID;
+  const paypalOrderId = order.paymentMethod.data?.orderId;
 
   if (!paypalOrderId) {
     throw new Error('No PayPal order ID found for this order');
