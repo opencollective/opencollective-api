@@ -51,7 +51,7 @@ const processTransaction = async (
     },
   });
   if (existingExpense) {
-    logger.warn('Virtual Card charge already reconciled, ignoring it.');
+    logger.warn(`Virtual Card charge already reconciled, ignoring it: ${privacyTransaction.token}`);
     return;
   }
 
@@ -59,6 +59,20 @@ const processTransaction = async (
   const hostCurrencyFxRate = opts?.hostCurrencyFxRate || (await getFxRate('USD', host.currency));
   const UserId = virtualCard.UserId || collective.CreatedByUserId || collective.LastEditedByUserId;
   const isRefund = amount < 0;
+
+  // If it is refund, we'll check if the transaction was already created because there are no expenses created for refunds.
+  if (isRefund) {
+    const existingTransaction = await models.Transaction.findOne({
+      where: {
+        CollectiveId: collective.id,
+        data: { token: privacyTransaction.token },
+      },
+    });
+    if (existingTransaction) {
+      logger.warn(`Virtual Card refund already reconciled, ignoring it: ${privacyTransaction.token}`);
+      return;
+    }
+  }
 
   const expense = await sequelize.transaction(async transaction => {
     const slug = privacyTransaction.merchant.acceptor_id.toUpperCase();
