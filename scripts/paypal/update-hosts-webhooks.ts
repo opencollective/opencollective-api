@@ -26,8 +26,10 @@ const getAllHostsWithPaypalAccounts = () => {
 
 const main = async (): Promise<void> => {
   const allHosts = await getAllHostsWithPaypalAccounts();
+  const ignoredSlugs = process.env.SKIP_SLUGS ? process.env.SKIP_SLUGS.split(',') : [];
+  const filteredHosts = allHosts.filter(host => !ignoredSlugs.includes(host.slug));
 
-  for (const host of allHosts) {
+  for (const host of filteredHosts) {
     logger.info(`Checking PayPal webhook for ${host.slug}...`);
     await PaypalLib.setupPaypalWebhookForHost(host);
   }

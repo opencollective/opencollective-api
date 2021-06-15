@@ -10,7 +10,7 @@ import { sendThankYouEmail } from '../../lib/recurring-contributions';
 import models from '../../models';
 import { PayoutWebhookRequest } from '../../types/paypal';
 
-import { recordPaypalSale } from './payment';
+import { recordPaypalCapture, recordPaypalSale } from './payment';
 import { checkBatchItemStatus } from './payouts';
 
 const debug = Debug('paypal:webhook');
@@ -114,6 +114,47 @@ async function handleSaleCompleted(req: Request): Promise<void> {
   await order.getOrCreateMembers();
 }
 
+async function handleCaptureCompleted(req: Request): Promise<void> {
+  // 1. Retrieve the order for this event
+  const capture = req.body.resource;
+  const order = await models.Order.findOne({
+    where: {
+      status: OrderStatus.NEW,
+      data: { paypalCaptureId: capture.id },
+    },
+    include: [
+      { association: 'fromCollective' },
+      { association: 'createdByUser' },
+      { association: 'collective', required: true },
+      {
+        association: 'paymentMethod',
+        required: true,
+        where: { service: 'paypal', type: 'payment' },
+      },
+    ],
+  });
+
+  if (!order) {
+    logger.debug(`No pending order found for capture ${capture.id}`);
+    return;
+  }
+
+  // 2. Validate webhook event
+  const host = await order.collective.getHostCollective();
+  const paypalAccount = await getPaypalAccount(host);
+  await validateWebhookEvent(paypalAccount, req);
+
+  // 3. Record the transaction
+  const transaction = await recordPaypalCapture(order, capture);
+  await order.update({ processedAt: new Date(), status: OrderStatus.PAID });
+
+  // 4. Send thankyou email
+  await sendThankYouEmail(order, transaction);
+
+  // 5. Register user as a member, since the transaction is not created in `processOrder`
+  await order.getOrCreateMembers();
+}
+
 /**
  * Handles both `BILLING.SUBSCRIPTION.CANCELLED` (users cancelling their subscription through PayPal's UI)
  * and `BILLING.SUBSCRIPTION.SUSPENDED` (subscription "paused", for example when payment fail more than the maximum allowed)
@@ -156,6 +197,8 @@ async function webhook(req: Request): Promise<void> {
       return handlePayoutTransactionUpdate(req);
     case 'PAYMENT.SALE.COMPLETED':
       return handleSaleCompleted(req);
+    case 'PAYMENT.CAPTURE.COMPLETED':
+      return handleCaptureCompleted(req);
     case 'BILLING.SUBSCRIPTION.CANCELLED':
     case 'BILLING.SUBSCRIPTION.SUSPENDED':
       return handleSubscriptionCancelled(req);

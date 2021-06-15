@@ -49,7 +49,12 @@ async function* getPaypalPaymentOrdersIterator(host, orderWhere) {
         {
           model: models.Transaction,
           required: true,
-          where: { kind: TransactionKind.CONTRIBUTION, type: 'CREDIT', HostCollectiveId: host.id },
+          where: {
+            kind: TransactionKind.CONTRIBUTION,
+            type: 'CREDIT',
+            HostCollectiveId: host.id,
+            isRefund: false,
+          },
         },
       ],
     });
@@ -71,7 +76,7 @@ async function* getPaypalPaymentOrdersIterator(host, orderWhere) {
 const checkOrder = async (host, order) => {
   const transactions = order.Transactions;
   const creditTransaction = transactions.find(t => t.kind === TransactionKind.CONTRIBUTION && t.type === 'CREDIT');
-  const captureId = creditTransaction.data?.capture?.id;
+  const captureId = creditTransaction.data?.capture?.id || creditTransaction.data?.id;
   if (!captureId) {
     logger.warn(`Order ${order.id} has no capture id: ${JSON.stringify(creditTransaction.data)}`);
     return false;
