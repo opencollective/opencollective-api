@@ -186,6 +186,11 @@ function defineModel() {
         allowNull: true,
       },
 
+      isSettled: {
+        type: DataTypes.BOOLEAN,
+        allowNull: true,
+      },
+
       createdAt: {
         type: DataTypes.DATE,
         defaultValue: DataTypes.NOW,

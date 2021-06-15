@@ -63,7 +63,7 @@ const ATTACHED_CSV_COLUMNS = [
 ];
 */
 
-export async function run() {
+export async function run(date) {
   console.info(`Invoicing hosts pending fees and tips for ${moment(date).subtract(1, 'month').format('MMMM')}.`);
 
   const payoutMethods = groupBy(
@@ -229,7 +229,7 @@ AND t."deletedAt" IS NULL`,
 }
 
 if (require.main === module) {
-  run()
+  run(date)
     .catch(e => {
       console.error(e);
       process.exit(1);

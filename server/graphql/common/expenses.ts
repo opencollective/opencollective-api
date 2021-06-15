@@ -412,7 +412,8 @@ export const scheduleExpenseForPayment = async (
     throw new Forbidden("You're authenticated but you can't schedule this expense for payment");
   }
 
-  const balance = await expense.collective.getBalanceWithBlockedFunds();
+  const balanceOptions = { includeDebtsTo: expense.CollectiveId };
+  const balance = await expense.collective.getBalanceWithBlockedFunds(balanceOptions);
   if (expense.amount > balance) {
     throw new Unauthorized(
       `You don't have enough funds to pay this expense. Current balance: ${formatCurrency(
@@ -1020,7 +1021,8 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
       throw new Error('"In kind" donations are not supported anymore');
     }
 
-    const balance = await expense.collective.getBalanceWithBlockedFunds();
+    const balanceOptions = { includeDebtsTo: expense.CollectiveId };
+    const balance = await expense.collective.getBalanceWithBlockedFunds(balanceOptions);
     if (expense.amount > balance) {
       throw new Unauthorized(
         `You don't have enough funds to pay this expense. Current balance: ${formatCurrency(

@@ -106,9 +106,22 @@ class TransactionSettlement
       throw new Error('This function can only be used with platform tips settlements');
     }
 
-    await TransactionSettlement.update(
-      { status: TransactionSettlementStatus.SETTLED },
-      { where: { ExpenseId: expense.id } },
+    await sequelize.query(
+      `
+        WITH settlements AS (
+          UPDATE "TransactionSettlements"
+          SET "status" = 'SETTLED'
+          WHERE "ExpenseId" = :expenseId
+          RETURNING *
+        ) UPDATE "Transactions" t
+        SET "isSettled" = TRUE
+        FROM settlements
+        WHERE t."TransactionGroup" = settlements."TransactionGroup"
+        AND t."kind" = settlements."kind"
+      `,
+      {
+        replacements: { expenseId: expense.id },
+      },
     );
   }
 

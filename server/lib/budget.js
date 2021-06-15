@@ -41,7 +41,7 @@ export async function getBalanceAmount(collective, { startDate, endDate, currenc
 
 export async function getBalanceWithBlockedFundsAmount(
   collective,
-  { startDate, endDate, currency, version, loaders } = {},
+  { startDate, endDate, currency, version, loaders, includeDebtsTo } = {},
 ) {
   version = version || collective.settings?.budget?.version || 'v1';
   currency = currency || collective.currency;
@@ -63,6 +63,8 @@ export async function getBalanceWithBlockedFundsAmount(
     column: ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency',
     excludeRefunds: false,
     withBlockedFunds: true,
+    withDebts: false,
+    includeDebtsTo,
     hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
   });
 }
@@ -173,12 +175,15 @@ async function sumCollectivesTransactions(
     transactionType = null,
     excludeRefunds = true,
     withBlockedFunds = false,
+    withDebts = true,
+    includeDebtsTo = null,
     hostCollectiveId = null,
     excludeInternals = false,
   } = {},
 ) {
   const groupBy = ['amountInHostCurrency', 'netAmountInHostCurrency'].includes(column) ? 'hostCurrency' : 'currency';
 
+  let include = [];
   const where = {
     CollectiveId: ids,
   };
@@ -204,6 +209,13 @@ async function sumCollectivesTransactions(
   if (excludeInternals) {
     // Exclude internal transactions (we can tag some Transactions like "Switching Host" as internal)
     where.data = { internal: { [Op.not]: true } };
+  }
+
+  if (!withDebts) {
+    where[Op.or] = [{ isDebt: { [Op.not]: true } }, { isSettled: true }];
+    if (includeDebtsTo) {
+      where[Op.or].push({ CollectiveId: includeDebtsTo });
+    }
   }
 
   const totals = {};
@@ -234,6 +246,7 @@ async function sumCollectivesTransactions(
         'netAmountInHostCurrency',
       ],
     ],
+    include,
     where,
     group: ['CollectiveId', groupBy],
     raw: true,
