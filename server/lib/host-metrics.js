@@ -12,8 +12,10 @@ async function computeTotal(results, currency) {
   // For sanity reasons, we handle conversion in case there is any currency mismatch
   for (const result of results) {
     const value = result['_amount'];
-    const fxRate = await getFxRate(result['_currency'], currency);
-    total += Math.round(value * fxRate);
+    if (value) {
+      const fxRate = await getFxRate(result['_currency'], currency);
+      total += Math.round(value * fxRate);
+    }
   }
 
   return total;
@@ -52,12 +54,13 @@ INNER JOIN "Collectives" as h
 ON t1."HostCollectiveId" = h."id"
 WHERE t1."HostCollectiveId" = :HostCollectiveId
 AND t1."createdAt" >= :startDate AND t1."createdAt" <= :endDate
-AND (t1."kind" IS NULL OR t1."kind" NOT IN ('PLATFORM_TIP'))
+AND (t1."kind" IS NULL OR t1."kind" IN ('CONTRIBUTION', 'ADDED_FUNDS'))
 AND t2."kind" = 'PLATFORM_TIP'
 AND t2."type" = 'CREDIT'
 AND t2."isDebt" IS NOT TRUE
 AND t1."deletedAt" IS NULL
 AND t2."deletedAt" IS NULL
+AND t2."RefundTransactionId" IS NULL
 GROUP BY "_currency"`,
     {
       replacements: { HostCollectiveId: host.id, ...computeDates(startDate, endDate) },
@@ -71,15 +74,20 @@ GROUP BY "_currency"`,
 // NOTE: we're not looking at the settlementStatus and just SUM all debts of the month
 export async function getPendingPlatformTips(host, { startDate, endDate } = {}) {
   const results = await sequelize.query(
-    `SELECT SUM(t1."amountInHostCurrency") as "_amount", t1."hostCurrency" as "_currency"
-FROM "Transactions" as t1
-WHERE t1."HostCollectiveId" = :HostCollectiveId
-AND t1."createdAt" >= :startDate AND t1."createdAt" <= :endDate
-AND t1."kind" = 'PLATFORM_TIP'
-AND t1."type" = 'CREDIT'
-AND t1."isDebt" IS TRUE
-AND t1."deletedAt" IS NULL
-GROUP BY t1."hostCurrency"`,
+    `SELECT SUM(t."amountInHostCurrency") AS "_amount", t."hostCurrency" as "_currency"
+FROM "Transactions" t
+INNER JOIN "TransactionSettlements" ts
+  ON t."TransactionGroup" = ts."TransactionGroup"
+  AND t."kind" = ts."kind"
+WHERE t."HostCollectiveId" = :HostCollectiveId
+AND t."isDebt" IS TRUE
+AND t."kind" = 'PLATFORM_TIP'
+AND t."deletedAt" IS NULL
+AND ts."deletedAt" IS NULL
+AND ts."status" IN ('OWED', 'INVOICED')
+AND t."createdAt" >= :startDate
+AND t."createdAt" <= :endDate
+GROUP BY "hostCurrency"`,
     {
       replacements: { HostCollectiveId: host.id, ...computeDates(startDate, endDate) },
       type: sequelize.QueryTypes.SELECT,
@@ -90,12 +98,12 @@ GROUP BY t1."hostCurrency"`,
 }
 
 export async function getHostFees(host, { startDate, endDate } = {}) {
-  let results;
+  let newResults;
   if (parseToBoolean(config.ledger.separateHostFees) === true) {
-    results = await sequelize.query(
+    newResults = await sequelize.query(
       `SELECT SUM(t1."amountInHostCurrency") as "_amount", t1."hostCurrency" as "_currency"
 FROM "Transactions" as t1
-WHERE t1."HostCollectiveId" = :HostCollectiveId
+WHERE t1."CollectiveId" = :HostCollectiveId
 AND t1."kind" = 'HOST_FEE'
 AND t1."createdAt" >= :startDate AND t1."createdAt" <= :endDate
 AND t1."deletedAt" IS NULL
@@ -105,27 +113,32 @@ GROUP BY t1."hostCurrency"`,
         type: sequelize.QueryTypes.SELECT,
       },
     );
-  } else {
-    results = await sequelize.query(
-      `SELECT SUM(t1."hostFeeInHostCurrency") as "_amount", t1."hostCurrency" as "_currency"
+  }
+
+  // TODO: We should only run the query below if startDate < newHostFeeDeployDate
+  const legacyResults = await sequelize.query(
+    `SELECT SUM(t1."hostFeeInHostCurrency") as "_amount", t1."hostCurrency" as "_currency"
 FROM "Transactions" as t1
 WHERE t1."HostCollectiveId" = :HostCollectiveId
 AND t1."createdAt" >= :startDate AND t1."createdAt" <= :endDate
 AND NOT (t1."type" = 'DEBIT' AND t1."kind" = 'ADDED_FUNDS')
 AND t1."deletedAt" IS NULL
 GROUP BY t1."hostCurrency"`,
-      {
-        replacements: { HostCollectiveId: host.id, ...computeDates(startDate, endDate) },
-        type: sequelize.QueryTypes.SELECT,
-      },
-    );
-  }
+    {
+      replacements: { HostCollectiveId: host.id, ...computeDates(startDate, endDate) },
+      type: sequelize.QueryTypes.SELECT,
+    },
+  );
 
-  let total = await computeTotal(results, host.currency);
+  let total = await computeTotal(legacyResults, host.currency);
 
   // amount/hostFeeInHostCurrency is expressed as a negative number
-  if (parseToBoolean(config.ledger.separateHostFees) === false && total != 0) {
+  if (total != 0) {
     total = -total;
+  }
+
+  if (newResults?.length) {
+    total += await computeTotal(newResults, host.currency);
   }
 
   return total;

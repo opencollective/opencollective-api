@@ -169,6 +169,14 @@ export const buildRefundForTransaction = (t, user, data, refundedPaymentProcesso
   refund.amountInHostCurrency = -t.amountInHostCurrency;
   refund.netAmountInCollectiveCurrency = -netAmount(t);
   refund.isRefund = true;
+
+  if (parseToBoolean(config.ledger.separateHostFees)) {
+    // We're handling payment processor fees and host fees in separate transactions
+    refund.hostFeeInHostCurrency = 0;
+    refund.paymentProcessorFeeInHostCurrency = 0;
+    refund.netAmountInCollectiveCurrency = -netAmount({ ...t, paymentProcessorFeeInHostCurrency: 0 });
+  }
+
   return refund;
 };
 
@@ -300,8 +308,7 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
     const hostFeeRefund = buildRefund(hostFeeTransaction);
     const hostFeeRefundTransaction = await models.Transaction.createDoubleEntry(hostFeeRefund);
     await associateTransactionRefundId(hostFeeTransaction, hostFeeRefundTransaction, data);
-
-    if (refundedPaymentProcessorFee) {
+    if (refundedPaymentProcessorFee && refundedPaymentProcessorFee !== transaction.paymentProcessorFeeInHostCurrency) {
       logger.error(
         `Partial processor fees refunds are not supported, got ${refundedPaymentProcessorFee} for #${transaction.id}`,
       );

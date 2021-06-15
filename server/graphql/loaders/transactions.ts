@@ -30,7 +30,8 @@ export const hostFeeAmountForTransaction: DataLoader<number, number[]> = new Dat
         const key = keyBuilder(transaction);
         const hostFeeTransactions = groupedTransactions[key];
         if (hostFeeTransactions) {
-          return hostFeeTransactions[0].amount;
+          const amount = hostFeeTransactions[0].amount;
+          return transaction.isRefund ? amount : -amount;
         } else {
           return 0;
         }

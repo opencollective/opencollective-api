@@ -53,7 +53,7 @@ async function processOrder(order) {
 
   const isFeesOnTop = order.data?.isFeesOnTop || false;
 
-  const paymentProcessorFeeInHostCurrency = 0;
+  const paymentProcessorFeeInHostCurrency = order.data?.paymentProcessorFeeInHostCurrency || 0;
 
   const transactionPayload = {
     ...pick(order, ['CreatedByUserId', 'FromCollectiveId', 'CollectiveId', 'PaymentMethodId']),

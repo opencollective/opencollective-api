@@ -63,9 +63,9 @@ describe('server/graphql/v1/zero-decimal-currencies', () => {
       expect(amount).to.equal(10000);
       expect(platformFeeInHostCurrency).to.equal(-25 * 100);
       expect(paymentProcessorFeeInHostCurrency).to.equal(-35 * 100);
-      expect(hostFeeInHostCurrency).to.equal(0);
+      expect(hostFeeInHostCurrency).to.equal(-(10000 * 5) / 100); // Resolver is clever enough to retrieve the HOST_FEE transaction
       expect(netAmountInCollectiveCurrency).to.equal(
-        amount + (platformFeeInHostCurrency + paymentProcessorFeeInHostCurrency + hostFeeInHostCurrency) / 100,
+        amount + (platformFeeInHostCurrency + paymentProcessorFeeInHostCurrency),
       );
     });
   });

@@ -19,25 +19,14 @@ import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 
 const today = moment.utc();
 
-const d = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date();
-const rd = new Date(d.getFullYear(), d.getMonth() - 1);
-
-const year = rd.getFullYear();
-const month = rd.getMonth();
-
-const date = new Date();
-date.setFullYear(year);
-date.setMonth(month);
-
-const startDate = new Date(date.getFullYear(), date.getMonth(), 1);
-const endDate = new Date(date.getFullYear(), date.getMonth() + 1, 1);
+const defaultDate = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date();
 
 const DRY = process.env.DRY;
 const HOST_ID = process.env.HOST_ID;
 const isProduction = config.env === 'production';
 
 // Only run on the 1th of the month
-if (isProduction && date.date() !== 1 && !process.env.OFFCYCLE) {
+if (isProduction && new Date().date() !== 1 && !process.env.OFFCYCLE) {
   console.log('OC_ENV is production and today is not the 1st of month, script aborted!');
   process.exit();
 } else if (parseToBoolean(process.env.SKIP_HOST_SETTLEMENT)) {
@@ -63,7 +52,19 @@ const ATTACHED_CSV_COLUMNS = [
 ];
 */
 
-export async function run() {
+export async function run(baseDate = defaultDate) {
+  const rd = new Date(baseDate.getFullYear(), baseDate.getMonth() - 1);
+
+  const year = rd.getFullYear();
+  const month = rd.getMonth();
+
+  const date = new Date();
+  date.setFullYear(year);
+  date.setMonth(month);
+
+  const startDate = new Date(date.getFullYear(), date.getMonth(), 1);
+  const endDate = new Date(date.getFullYear(), date.getMonth() + 1, 1);
+
   console.info(`Invoicing hosts pending fees and tips for ${moment(date).subtract(1, 'month').format('MMMM')}.`);
 
   const payoutMethods = groupBy(
@@ -96,11 +97,13 @@ export async function run() {
     const transactions = await sequelize.query(
       `SELECT t.*
 FROM "Transactions" as t
+INNER JOIN "TransactionSettlements" ts ON ts."TransactionGroup" = t."TransactionGroup" AND t.kind = ts.kind
 WHERE t."HostCollectiveId" = :HostCollectiveId
 AND t."createdAt" >= :startDate AND t."createdAt" <= :endDate
 AND t."kind" IN ('PLATFORM_TIP', 'HOST_FEE_SHARE')
 AND t."isDebt" IS TRUE
-AND t."deletedAt" IS NULL`,
+AND t."deletedAt" IS NULL
+AND ts."status" != 'SETTLED'`,
       {
         replacements: { HostCollectiveId: host.id, startDate: startDate, endDate: endDate },
         model: models.Transaction,
@@ -136,7 +139,7 @@ AND t."deletedAt" IS NULL`,
 
     if (totalAmountCharged < 1000) {
       console.warn(
-        `${host.name} (#${host.id}) skipped, total amound pending ${totalAmountCharged / 100} < 10.00 ${
+        `${host.name} (#${host.id}) skipped, total amount pending ${totalAmountCharged / 100} < 10.00 ${
           host.currency
         }.\n`,
       );
@@ -229,7 +232,7 @@ AND t."deletedAt" IS NULL`,
 }
 
 if (require.main === module) {
-  run()
+  run(defaultDate)
     .catch(e => {
       console.error(e);
       process.exit(1);

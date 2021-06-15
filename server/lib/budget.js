@@ -134,6 +134,7 @@ export async function getTotalMoneyManagedAmount(host, { startDate, endDate, cur
 
   const results = await sumCollectivesTransactions(ids, {
     startDate,
+    excludeRefunds: false,
     endDate,
     column: ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency',
     hostCollectiveId: host.id,
