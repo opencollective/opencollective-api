@@ -38,7 +38,22 @@ Subject: Thank you for your contribution to {{collective.name}}
 <h2>📎 Attachments</h2>
 <ul>
   <li>A PDF receipt of your transaction</li>
+  {{#if platformTipPdf}}
+    <li>A PDF receipt of your contribution to Open Collective</li>
+  {{/if}}
 </ul>
+{{/if}}
+
+{{#if order.platformTipAmount}}
+<h2>Payment Details</h2>
+
+<ul>
+  <li>Contribution to {{collective.name}}: {{currency order.netAmount currency=order.currency precision=2}}</li>
+  <li>Tip for Open Collective: {{currency order.platformTipAmount currency=order.currency precision=2}}</li>
+  <li>Total amount: {{currency order.chargeAmount currency=order.currency precision=2}}</li>
+</ul>
+
+<p>Your payment will appear on your statement as {{currency order.chargeAmount currency=order.currency precision=2}}</p>
 {{/if}}
 
 {{#if order.isGuest}}
