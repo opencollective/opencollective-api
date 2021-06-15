@@ -62,6 +62,7 @@ async function processOrder(order) {
   const platformTipEligible = await isPlatormTipEligible(order, host);
   const platformTip = getPlatformTip(order);
   const platformTipInHostCurrency = Math.round(platformTip * hostCurrencyFxRate);
+  const paymentProcessorFeeInHostCurrency = order.data?.paymentProcessorFeeInHostCurrency || 0;
 
   const transactionPayload = {
     ...pick(order, ['CreatedByUserId', 'FromCollectiveId', 'CollectiveId', 'PaymentMethodId']),
@@ -75,6 +76,7 @@ async function processOrder(order) {
     hostFeeInHostCurrency,
     taxAmount: order.taxAmount,
     description: order.description,
+    paymentProcessorFeeInHostCurrency,
     data: {
       isFeesOnTop: order.data?.isFeesOnTop,
       hasPlatformTip: platformTip ? true : false,

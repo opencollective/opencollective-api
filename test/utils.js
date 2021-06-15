@@ -306,6 +306,7 @@ const prettifyTransactionsData = (transactions, columns) => {
     CollectiveId: 'To',
     settlementStatus: 'Settlement',
     TransactionGroup: 'Group',
+    paymentProcessorFeeInHostCurrency: 'paymentFee',
   };
 
   // Prettify values
@@ -400,5 +401,22 @@ export const preloadAssociationsForTransactions = async (transactions, columns) 
  * If associations (collective, host, ...etc) are loaded, their names will be used for the output.
  */
 export const snapshotTransactions = (transactions, params = {}) => {
+  if (!transactions?.length) {
+    throw new Error('snapshotTransactions does not support empty arrays');
+  }
+
   expect(prettifyTransactionsData(transactions, params.columns)).to.matchTableSnapshot();
+};
+
+/**
+ * Makes a full snapshot of the ledger
+ */
+export const snapshotLedger = async columns => {
+  const transactions = await models.Transaction.findAll({ order: [['id', 'DESC']] });
+  await preloadAssociationsForTransactions(transactions, columns);
+  if (columns.includes('settlementStatus')) {
+    await models.TransactionSettlement.attachStatusesToTransactions(transactions);
+  }
+
+  snapshotTransactions(transactions, { columns: columns });
 };
