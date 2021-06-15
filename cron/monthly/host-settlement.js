@@ -19,25 +19,14 @@ import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 
 const today = moment.utc();
 
-const d = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date();
-const rd = new Date(d.getFullYear(), d.getMonth() - 1);
-
-const year = rd.getFullYear();
-const month = rd.getMonth();
-
-const date = new Date();
-date.setFullYear(year);
-date.setMonth(month);
-
-const startDate = new Date(date.getFullYear(), date.getMonth(), 1);
-const endDate = new Date(date.getFullYear(), date.getMonth() + 1, 1);
+const defaultDate = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date();
 
 const DRY = process.env.DRY;
 const HOST_ID = process.env.HOST_ID;
 const isProduction = config.env === 'production';
 
 // Only run on the 1th of the month
-if (isProduction && date.date() !== 1 && !process.env.OFFCYCLE) {
+if (isProduction && new Date().date() !== 1 && !process.env.OFFCYCLE) {
   console.log('OC_ENV is production and today is not the 1st of month, script aborted!');
   process.exit();
 } else if (parseToBoolean(process.env.SKIP_HOST_SETTLEMENT)) {
@@ -51,7 +40,19 @@ if (DRY) {
 
 const ATTACHED_CSV_COLUMNS = ['createdAt', 'description', 'amount', 'currency', 'OrderId', 'TransactionGroup'];
 
-export async function run() {
+export async function run(baseDate = defaultDate) {
+  const rd = new Date(baseDate.getFullYear(), baseDate.getMonth() - 1);
+
+  const year = rd.getFullYear();
+  const month = rd.getMonth();
+
+  const date = new Date();
+  date.setFullYear(year);
+  date.setMonth(month);
+
+  const startDate = new Date(date.getFullYear(), date.getMonth(), 1);
+  const endDate = new Date(date.getFullYear(), date.getMonth() + 1, 1);
+
   console.info(`Invoicing hosts pending fees and tips for ${moment(date).subtract(1, 'month').format('MMMM')}.`);
 
   const payoutMethods = groupBy(
@@ -223,7 +224,7 @@ AND ts."status" != 'SETTLED'`,
 }
 
 if (require.main === module) {
-  run()
+  run(defaultDate)
     .catch(e => {
       console.error(e);
       process.exit(1);
