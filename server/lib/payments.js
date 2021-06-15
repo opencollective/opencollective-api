@@ -321,33 +321,40 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
 }
 
 export async function associateTransactionRefundId(transaction, refund, data) {
-  // TODO(LedgerRefactor): Using the `id` as order here is not reliable, we should rather filter results to make sure we get the right transaction
-  const [tr1, tr2, tr3, tr4] = await models.Transaction.findAll({
+  const transactions = await models.Transaction.findAll({
     order: ['id'],
     where: {
-      [Op.or]: [{ TransactionGroup: transaction.TransactionGroup }, { TransactionGroup: refund.TransactionGroup }],
+      [Op.or]: [
+        { TransactionGroup: transaction.TransactionGroup, kind: transaction.kind },
+        { TransactionGroup: refund.TransactionGroup, kind: refund.kind },
+      ],
     },
   });
 
+  const credit = transactions.find(t => !t.isRefund && t.type === 'CREDIT');
+  const debit = transactions.find(t => !t.isRefund && t.type === 'DEBIT');
+  const refundCredit = transactions.find(t => t.isRefund && t.type === 'CREDIT');
+  const refundDebit = transactions.find(t => t.isRefund && t.type === 'DEBIT');
+
   // After refunding a transaction, in some cases the data may be updated as well (stripe data changes after refunds)
   if (data) {
-    tr1.data = data;
-    tr2.data = data;
+    debit.data = data;
+    credit.data = data;
   }
 
-  tr1.RefundTransactionId = tr4.id;
-  await tr1.save(); // User Ledger
-  tr2.RefundTransactionId = tr3.id;
-  await tr2.save(); // Collective Ledger
-  tr3.RefundTransactionId = tr2.id;
-  await tr3.save(); // Collective Ledger
-  tr4.RefundTransactionId = tr1.id;
-  await tr4.save(); // User Ledger
+  debit.RefundTransactionId = refundCredit.id;
+  await debit.save(); // User Ledger
+  credit.RefundTransactionId = refundDebit.id;
+  await credit.save(); // Collective Ledger
+  refundDebit.RefundTransactionId = credit.id;
+  await refundDebit.save(); // Collective Ledger
+  refundCredit.RefundTransactionId = debit.id;
+  await refundCredit.save(); // User Ledger
 
   // We need to return the same transactions we received because the
   // graphql mutation needs it to return to the user. However we have
   // to return the updated instances, not the ones we received.
-  return find([tr1, tr2, tr3, tr4], { id: transaction.id });
+  return find([refundCredit, refundDebit, debit, credit], { id: transaction.id });
 }
 
 export const sendEmailNotifications = (order, transaction) => {
