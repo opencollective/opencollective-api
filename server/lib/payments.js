@@ -255,19 +255,16 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
     };
   };
 
-  let platformTipTransaction, platformTipRefund, platformTipDebtTransaction;
-  if (transaction.hasPlatformTip()) {
-    platformTipTransaction = await transaction.getPlatformTipTransaction();
-    platformTipRefund = buildRefund(platformTipTransaction);
-  }
+  const platformTipTransaction = await transaction.getPlatformTipTransaction();
 
   // Refund platform tip
-  if (platformTipRefund) {
+  if (platformTipTransaction) {
+    const platformTipRefund = buildRefund(platformTipTransaction);
     const platformTipRefundTransaction = await models.Transaction.createDoubleEntry(platformTipRefund);
     await associateTransactionRefundId(platformTipTransaction, platformTipRefundTransaction, data);
 
     // Refund tip
-    platformTipDebtTransaction = await models.Transaction.findOne({
+    const platformTipDebtTransaction = await models.Transaction.findOne({
       where: {
         TransactionGroup: platformTipTransaction.TransactionGroup,
         kind: TransactionKind.PLATFORM_TIP,
