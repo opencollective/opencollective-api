@@ -111,9 +111,7 @@ export const Individual = new GraphQLObjectType({
       changelogViewDate: {
         type: GraphQLDateTime,
         async resolve(collective) {
-          const user = await models.User.findOne({
-            where: { CollectiveId: collective.id },
-          });
+          const user = await collective.getUser();
           return user?.changelogViewDate;
         },
       },
