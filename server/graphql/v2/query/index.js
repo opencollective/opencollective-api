@@ -9,7 +9,6 @@ import ExpenseQuery from './ExpenseQuery';
 import ExpensesQuery from './ExpensesQuery';
 import HostQuery from './HostQuery';
 import IndividualQuery from './IndividualQuery';
-import LatestChangelogPublishDateQuery from './LatestChangelogPublishDateQuery';
 import OrderQuery from './OrderQuery';
 import OrdersQuery from './OrdersQuery';
 import PaypalPlanQuery from './PaypalPlanQuery';
@@ -33,7 +32,6 @@ const query = {
   transactions: TransactionsQuery,
   update: UpdateQuery,
   paypalPlan: PaypalPlanQuery,
-  latestChangelogPublishDate: LatestChangelogPublishDateQuery,
   loggedInAccount: {
     type: Account,
     resolve(_, args, req) {
