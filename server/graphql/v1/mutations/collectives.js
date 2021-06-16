@@ -435,9 +435,11 @@ export async function archiveCollective(_, args, req) {
     );
   }
 
-  const balance = await collective.getBalance();
-  if (balance > 0) {
-    throw new Error('Cannot archive collective with balance > 0');
+  if (collective.isActive) {
+    const balance = await collective.getBalance();
+    if (balance > 0) {
+      throw new Error('Cannot archive collective with balance > 0');
+    }
   }
 
   const membership = await models.Member.findOne({
