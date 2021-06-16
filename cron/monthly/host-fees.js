@@ -2,11 +2,10 @@
 import '../../server/env';
 
 import config from 'config';
-import { round, sumBy } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import { TransactionKind } from '../../server/constants/transaction-kind';
-import { sumByWhen } from '../../server/lib/utils';
+import { getHostFees, getSettledHostFeeShare } from '../../server/lib/host-metrics';
 import models, { Op } from '../../server/models';
 
 // Only run on the first of the month
@@ -29,10 +28,6 @@ date.setMonth(month);
 const startDate = new Date(date.getFullYear(), date.getMonth(), 1);
 const endDate = new Date(date.getFullYear(), date.getMonth() + 1, 1);
 
-const dateRange = {
-  createdAt: { [Op.gte]: startDate, [Op.lt]: endDate },
-};
-
 async function run() {
   const hostsWhere = {
     isHostAccount: true,
@@ -54,27 +49,15 @@ async function run() {
   });
 
   for (const host of hosts) {
-    const where = { HostCollectiveId: host.id };
-    const whereWithDateRange = { ...where, ...dateRange };
+    const hostFeesAmount = await getHostFees(host, { startDate, endDate });
 
-    const transactions = await models.Transaction.findAll({
-      where: {
-        ...whereWithDateRange,
-        [Op.or]: [
-          { type: 'CREDIT', OrderId: { [Op.ne]: null } },
-          { type: 'DEBIT', ExpenseId: { [Op.ne]: null } },
-        ],
-      },
-    });
-
-    const amount = Math.abs(sumBy(transactions, 'hostFeeInHostCurrency'));
-    if (amount) {
+    if (hostFeesAmount) {
       const monthAsString = date.toLocaleString('default', { month: 'long' });
       const description = `Total Host Fees collected in ${monthAsString} ${year}`;
 
       const payload = {
         type: 'CREDIT',
-        amount,
+        amount: hostFeesAmount,
         description: description,
         currency: host.currency,
         CollectiveId: host.id,
@@ -82,8 +65,8 @@ async function run() {
         HostCollectiveId: host.id,
         hostCurrency: host.currency,
         hostCurrencyFxRate: 1,
-        amountInHostCurrency: amount,
-        netAmountInCollectiveCurrency: amount,
+        amountInHostCurrency: hostFeesAmount,
+        netAmountInCollectiveCurrency: hostFeesAmount,
         platformFeeInHostCurrency: 0,
         hostFeeInHostCurrency: 0,
         paymentProcessorFeeInHostCurrency: 0,
@@ -92,25 +75,20 @@ async function run() {
         kind: TransactionKind.HOST_FEE_SHARE,
       };
 
-      console.log(`Crediting Host Fees ${monthAsString} ${year} for ${host.slug}`);
-      await models.Transaction.create(payload);
+      console.log(`Crediting Host Fees ${monthAsString} ${year} for ${host.slug}: ${hostFeesAmount} ${host.currency}`);
+      if (!process.env.DRY_RUN) {
+        await models.Transaction.create(payload);
+      }
     }
 
-    const sharedRevenue = Math.abs(
-      sumByWhen(
-        transactions,
-        t => round((t.hostFeeInHostCurrency * t.data.hostFeeSharePercent) / 100),
-        t => t.data?.isSharedRevenue && t.data?.settled && t.data?.hostFeeSharePercent > 0,
-      ),
-    );
-
-    if (sharedRevenue) {
+    const settledHostFeeShareAmount = await getSettledHostFeeShare(host, { startDate, endDate });
+    if (settledHostFeeShareAmount) {
       const monthAsString = date.toLocaleString('default', { month: 'long' });
       const description = `Host Fee already shared (Stripe) in ${monthAsString} ${year}`;
 
       const payload = {
         type: 'DEBIT',
-        amount: -sharedRevenue,
+        amount: -settledHostFeeShareAmount,
         description: description,
         currency: host.currency,
         CollectiveId: host.id,
@@ -118,8 +96,8 @@ async function run() {
         HostCollectiveId: host.id,
         hostCurrency: host.currency,
         hostCurrencyFxRate: 1,
-        amountInHostCurrency: -sharedRevenue,
-        netAmountInCollectiveCurrency: -sharedRevenue,
+        amountInHostCurrency: -settledHostFeeShareAmount,
+        netAmountInCollectiveCurrency: -settledHostFeeShareAmount,
         platformFeeInHostCurrency: 0,
         hostFeeInHostCurrency: 0,
         paymentProcessorFeeInHostCurrency: 0,
@@ -128,8 +106,12 @@ async function run() {
         kind: TransactionKind.HOST_FEE_SHARE,
       };
 
-      console.log(`Debiting Host Fees already shared ${monthAsString} ${year} for ${host.slug}`);
-      await models.Transaction.create(payload);
+      console.log(
+        `Debiting Host Fees already shared ${monthAsString} ${year} for ${host.slug}: ${settledHostFeeShareAmount} ${host.currency}`,
+      );
+      if (!process.env.DRY_RUN) {
+        await models.Transaction.create(payload);
+      }
     }
   }
 }

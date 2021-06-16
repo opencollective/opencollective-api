@@ -1069,36 +1069,58 @@ describe('server/models/Collective', () => {
         hostCurrency: 'GBP',
         HostCollectiveId: gbpHost.id,
         createdAt: lastMonth,
+        CreatedByUserId: user.id,
       };
       // Create Platform Fees
       await fakeTransaction({
         ...transactionProps,
         amount: 3000,
-        platformFeeInHostCurrency: -300,
-        hostFeeInHostCurrency: -300,
-        netAmountInCollectiveCurrency: 3000 - 300 - 300,
+        platformFeeInHostCurrency: 0,
+        hostFeeInHostCurrency: -600,
+        netAmountInCollectiveCurrency: 3000 - 600,
       });
       await fakeTransaction({
         ...transactionProps,
         amount: 5000,
-        platformFeeInHostCurrency: -500,
-        hostFeeInHostCurrency: -500,
+        platformFeeInHostCurrency: 0,
+        hostFeeInHostCurrency: -1000,
         PaymentMethodId: stripePaymentMethod.id,
-        netAmountInCollectiveCurrency: 5000 - 500 - 500,
+        netAmountInCollectiveCurrency: 5000 - 1000,
       });
-      // Add Platform Tips
-      const t = await fakeTransaction(transactionProps);
+      // Add OWED Platform Tips with Debt
+      const t1 = await fakeTransaction(transactionProps);
       await fakeTransaction({
         type: 'CREDIT',
+        FromCollectiveId: gbpHost.id,
         CollectiveId: opencollective.id,
         HostCollectiveId: opencollective.id,
         amount: 100,
         currency: 'USD',
         data: { hostToPlatformFxRate: 1.23 },
-        TransactionGroup: t.TransactionGroup,
+        TransactionGroup: t1.TransactionGroup,
         kind: TransactionKind.PLATFORM_TIP,
         createdAt: lastMonth,
+        CreatedByUserId: user.id,
       });
+      await fakeTransaction(
+        {
+          type: 'CREDIT',
+          FromCollectiveId: opencollective.id,
+          CollectiveId: gbpHost.id,
+          HostCollectiveId: gbpHost.id,
+          amount: 81, // 100 / 1.23
+          currency: 'GBP',
+          amountInHostCurrency: 81, // 100 / 1.23
+          hostCurrency: 'GBP',
+          TransactionGroup: t1.TransactionGroup,
+          kind: TransactionKind.PLATFORM_TIP, // PLATFORM_TIP_DEBT
+          createdAt: lastMonth,
+          CreatedByUserId: user.id,
+        },
+        { settlementStatus: 'OWED' },
+      );
+      // Add Collected Platform Tip without Debt
+      const t2 = await fakeTransaction(transactionProps);
       await fakeTransaction({
         type: 'CREDIT',
         CollectiveId: opencollective.id,
@@ -1106,9 +1128,10 @@ describe('server/models/Collective', () => {
         amount: 300,
         currency: 'USD',
         data: { hostToPlatformFxRate: 1.2 },
-        TransactionGroup: t.TransactionGroup,
+        TransactionGroup: t2.TransactionGroup,
         kind: TransactionKind.PLATFORM_TIP,
         createdAt: lastMonth,
+        CreatedByUserId: user.id,
         PaymentMethodId: stripePaymentMethod.id,
       });
       // Different Currency Transaction
@@ -1118,10 +1141,12 @@ describe('server/models/Collective', () => {
         CollectiveId: otherCollective.id,
         amount: 1000,
         currency: 'USD',
+        amountInHostCurrency: 800,
         hostCurrency: 'GBP',
         HostCollectiveId: gbpHost.id,
         hostCurrencyFxRate: 0.8,
         createdAt: lastMonth,
+        CreatedByUserId: user.id,
       });
 
       metrics = await gbpHost.getHostMetrics(lastMonth);
@@ -1131,17 +1156,18 @@ describe('server/models/Collective', () => {
       // We expect the value returned by getFxRate (fixer API), which is 1.1 in test environment
       const usdToGbpFxRate = 1.1;
 
-      const expectedTotalMoneyManaged = 2400 + 4000 + 100 + 1000 * usdToGbpFxRate;
+      const expectedTotalMoneyManaged = 3000 - 600 + 5000 - 1000 + 100 + 100 + 81 + 1000 * usdToGbpFxRate;
 
       expect(metrics).to.deep.equal({
-        hostFees: 800,
-        platformFees: 800,
-        pendingPlatformFees: 300,
+        hostFees: 1600,
+        platformFees: 0,
+        pendingPlatformFees: 0,
         platformTips: 331,
         pendingPlatformTips: 81,
         hostFeeShare: 0,
         pendingHostFeeShare: 0,
         hostFeeSharePercent: 0,
+        settledHostFeeShare: 0,
         totalMoneyManaged: expectedTotalMoneyManaged,
       });
     });

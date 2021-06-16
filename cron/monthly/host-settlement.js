@@ -320,7 +320,7 @@ export async function run() {
     const transactions = hostTransactions.map(t => {
       if (t.source === 'Shared Revenue') {
         // In this context, the original t.amount is actually -t.hostFeeInHostCurrency
-        t.amount = round(t.amount * ((t.data?.hostFeeSharePercent || hostFeeSharePercent) / 100));
+        t.amount = t.amount * ((t.data?.hostFeeSharePercent || hostFeeSharePercent) / 100);
       }
       return t;
     });
