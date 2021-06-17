@@ -2516,6 +2516,7 @@ function defineModel() {
     offset,
     limit,
     attributes,
+    kinds,
     order = [['createdAt', 'DESC']],
     includeUsedGiftCardsEmittedByOthers = true,
     includeExpenseTransactions = true,
@@ -2536,6 +2537,11 @@ function defineModel() {
     // Filter on host
     if (HostCollectiveId) {
       query.where.HostCollectiveId = HostCollectiveId;
+    }
+
+    // Filter on kind
+    if (kinds) {
+      query.where.kind = kinds;
     }
 
     // Filter on date
