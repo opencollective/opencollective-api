@@ -639,6 +639,9 @@ const sendManualPendingOrderEmail = async order => {
       ? `${config.host.website}/${host.slug}/edit/pending-orders?searchTerm=%23${order.id}`
       : `${config.host.website}/${host.slug}/dashboard/donations?searchTerm=%23${order.id}`;
 
+  const fromCollectiveAdmins = await fromCollective.getAdminUsers();
+  const replyTo = fromCollectiveAdmins.map(({ email }) => email).join(', ');
+
   const data = {
     order: order.info,
     collective: collective.info,
@@ -647,7 +650,7 @@ const sendManualPendingOrderEmail = async order => {
     pendingOrderLink,
   };
 
-  return notifyAdminsOfCollective(host.id, { type: 'order.new.pendingFinancialContribution', data });
+  return notifyAdminsOfCollective(host.id, { type: 'order.new.pendingFinancialContribution', data }, { replyTo });
 };
 
 export const sendReminderPendingOrderEmail = async order => {
