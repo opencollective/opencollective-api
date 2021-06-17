@@ -3,6 +3,7 @@ import { find, get, isEmpty, keyBy, mapValues } from 'lodash';
 
 import { types as CollectiveType, types as CollectiveTypes } from '../../../constants/collectives';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
+import { FEATURE, hasFeature } from '../../../lib/allowed-features';
 import models, { Op, sequelize } from '../../../models';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import TransferwiseLib from '../../../paymentProviders/transferwise';
@@ -93,6 +94,9 @@ export const Host = new GraphQLObjectType({
 
           if (find(connectedAccounts, ['service', 'stripe'])) {
             supportedPaymentMethods.push('CREDIT_CARD');
+            if (hasFeature(collective, FEATURE.ALIPAY)) {
+              supportedPaymentMethods.push('ALIPAY');
+            }
           }
 
           if (find(connectedAccounts, ['service', 'paypal']) && !collective.settings?.disablePaypalDonations) {
