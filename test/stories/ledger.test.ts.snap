@@ -1,75 +1,75 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`test/stories/ledger Same currency 1. Simple contribution without host fees 1`] = `
+exports[`test/stories/ledger Level 1: Same currency 1. Simple contribution without host fees 1`] = `
 "
-| Group     | kind         | type   | amount | paymentFee | To     | From   | Host | Settlement |
-| --------- | ------------ | ------ | ------ | ---------- | ------ | ------ | ---- | ---------- |
-| #f15570b1 | CONTRIBUTION | CREDIT | 10000  | 0          | ESLint | Ben    | OSC  |            |
-| #f15570b1 | CONTRIBUTION | DEBIT  | -10000 | 0          | Ben    | ESLint | NULL |            |"
+| Group     | kind         | type   | amount | paymentFee | To     | From   | Host | Settlement | isRefund |
+| --------- | ------------ | ------ | ------ | ---------- | ------ | ------ | ---- | ---------- | -------- |
+| #c3b9ff36 | CONTRIBUTION | CREDIT | 10000  | 0          | ESLint | Ben    | OSC  |            | false    |
+| #c3b9ff36 | CONTRIBUTION | DEBIT  | -10000 | 0          | Ben    | ESLint | NULL |            | false    |"
 `;
 
-exports[`test/stories/ledger Same currency 2. Simple contribution with 5% host fees 1`] = `
+exports[`test/stories/ledger Level 1: Same currency 2. Simple contribution with 5% host fees 1`] = `
 "
-| Group     | kind         | type   | amount | paymentFee | To     | From   | Host | Settlement |
-| --------- | ------------ | ------ | ------ | ---------- | ------ | ------ | ---- | ---------- |
-| #5fc39a28 | CONTRIBUTION | CREDIT | 10000  | 0          | ESLint | Ben    | OSC  |            |
-| #5fc39a28 | CONTRIBUTION | DEBIT  | -10000 | 0          | Ben    | ESLint | NULL |            |
-| #5fc39a28 | HOST_FEE     | CREDIT | 500    | 0          | OSC    | ESLint | OSC  |            |
-| #5fc39a28 | HOST_FEE     | DEBIT  | -500   | 0          | ESLint | OSC    | OSC  |            |"
+| Group     | kind         | type   | amount | paymentFee | To     | From   | Host | Settlement | isRefund |
+| --------- | ------------ | ------ | ------ | ---------- | ------ | ------ | ---- | ---------- | -------- |
+| #369b494a | CONTRIBUTION | CREDIT | 10000  | 0          | ESLint | Ben    | OSC  |            | false    |
+| #369b494a | CONTRIBUTION | DEBIT  | -10000 | 0          | Ben    | ESLint | NULL |            | false    |
+| #369b494a | HOST_FEE     | CREDIT | 500    | 0          | OSC    | ESLint | OSC  |            | false    |
+| #369b494a | HOST_FEE     | DEBIT  | -500   | 0          | ESLint | OSC    | OSC  |            | false    |"
 `;
 
-exports[`test/stories/ledger Same currency 3. Simple contribution with 5% host fees and platform tip (unsettled) 1`] = `
+exports[`test/stories/ledger Level 1: Same currency 3. Simple contribution with 5% host fees and indirect platform tip (unsettled) 1`] = `
 "
-| Group     | kind         | type   | amount | paymentFee | To     | From   | Host   | Settlement |
-| --------- | ------------ | ------ | ------ | ---------- | ------ | ------ | ------ | ---------- |
-| #d9f2fdc1 | CONTRIBUTION | CREDIT | 9000   | 0          | ESLint | Ben    | OSC    |            |
-| #d9f2fdc1 | CONTRIBUTION | DEBIT  | -9000  | 0          | Ben    | ESLint | NULL   |            |
-| #d9f2fdc1 | HOST_FEE     | CREDIT | 450    | 0          | OSC    | ESLint | OSC    |            |
-| #d9f2fdc1 | HOST_FEE     | DEBIT  | -450   | 0          | ESLint | OSC    | OSC    |            |
-| #d9f2fdc1 | PLATFORM_TIP | CREDIT | 1000   | 0          | OSC    | OC Inc | OSC    | OWED       |
-| #d9f2fdc1 | PLATFORM_TIP | DEBIT  | -1000  | 0          | OC Inc | OSC    | OC Inc | OWED       |
-| #d9f2fdc1 | PLATFORM_TIP | CREDIT | 1000   | 0          | OC Inc | Ben    | OC Inc |            |
-| #d9f2fdc1 | PLATFORM_TIP | DEBIT  | -1000  | 0          | Ben    | OC Inc | NULL   |            |"
+| Group     | kind         | type   | amount | paymentFee | To     | From   | Host   | Settlement | isRefund |
+| --------- | ------------ | ------ | ------ | ---------- | ------ | ------ | ------ | ---------- | -------- |
+| #4d4223d0 | CONTRIBUTION | CREDIT | 9000   | 0          | ESLint | Ben    | OSC    |            | false    |
+| #4d4223d0 | CONTRIBUTION | DEBIT  | -9000  | 0          | Ben    | ESLint | NULL   |            | false    |
+| #4d4223d0 | HOST_FEE     | CREDIT | 450    | 0          | OSC    | ESLint | OSC    |            | false    |
+| #4d4223d0 | HOST_FEE     | DEBIT  | -450   | 0          | ESLint | OSC    | OSC    |            | false    |
+| #4d4223d0 | PLATFORM_TIP | CREDIT | 1000   | 0          | OSC    | OC Inc | OSC    | OWED       | false    |
+| #4d4223d0 | PLATFORM_TIP | DEBIT  | -1000  | 0          | OC Inc | OSC    | OC Inc | OWED       | false    |
+| #4d4223d0 | PLATFORM_TIP | CREDIT | 1000   | 0          | OC Inc | Ben    | OC Inc |            | false    |
+| #4d4223d0 | PLATFORM_TIP | DEBIT  | -1000  | 0          | Ben    | OC Inc | NULL   |            | false    |"
 `;
 
-exports[`test/stories/ledger Same currency 4. Simple contribution with 5% host fees and platform tip (settled) 1`] = `
+exports[`test/stories/ledger Level 1: Same currency 4. Simple contribution with 5% host fees and indirect platform tip (settled) 1`] = `
 "
-| Group     | kind         | type   | amount | paymentFee | To     | From   | Host   | Settlement |
-| --------- | ------------ | ------ | ------ | ---------- | ------ | ------ | ------ | ---------- |
-| #26a48fde | EXPENSE      | CREDIT | 1000   | 0          | OC Inc | OSC    | OC Inc |            |
-| #26a48fde | EXPENSE      | DEBIT  | -1000  | 0          | OSC    | OC Inc | OSC    |            |
-| #cef3dd11 | CONTRIBUTION | CREDIT | 9000   | 0          | ESLint | Ben    | OSC    |            |
-| #cef3dd11 | CONTRIBUTION | DEBIT  | -9000  | 0          | Ben    | ESLint | NULL   |            |
-| #cef3dd11 | HOST_FEE     | CREDIT | 450    | 0          | OSC    | ESLint | OSC    |            |
-| #cef3dd11 | HOST_FEE     | DEBIT  | -450   | 0          | ESLint | OSC    | OSC    |            |
-| #cef3dd11 | PLATFORM_TIP | CREDIT | 1000   | 0          | OSC    | OC Inc | OSC    | SETTLED    |
-| #cef3dd11 | PLATFORM_TIP | DEBIT  | -1000  | 0          | OC Inc | OSC    | OC Inc | SETTLED    |
-| #cef3dd11 | PLATFORM_TIP | CREDIT | 1000   | 0          | OC Inc | Ben    | OC Inc |            |
-| #cef3dd11 | PLATFORM_TIP | DEBIT  | -1000  | 0          | Ben    | OC Inc | NULL   |            |"
+| Group     | kind         | type   | amount | paymentFee | To     | From   | Host   | Settlement | isRefund |
+| --------- | ------------ | ------ | ------ | ---------- | ------ | ------ | ------ | ---------- | -------- |
+| #08fcc6bb | EXPENSE      | CREDIT | 1000   | 0          | OC Inc | OSC    | OC Inc |            | false    |
+| #08fcc6bb | EXPENSE      | DEBIT  | -1000  | 0          | OSC    | OC Inc | OSC    |            | false    |
+| #809297ca | CONTRIBUTION | CREDIT | 9000   | 0          | ESLint | Ben    | OSC    |            | false    |
+| #809297ca | CONTRIBUTION | DEBIT  | -9000  | 0          | Ben    | ESLint | NULL   |            | false    |
+| #809297ca | HOST_FEE     | CREDIT | 450    | 0          | OSC    | ESLint | OSC    |            | false    |
+| #809297ca | HOST_FEE     | DEBIT  | -450   | 0          | ESLint | OSC    | OSC    |            | false    |
+| #809297ca | PLATFORM_TIP | CREDIT | 1000   | 0          | OSC    | OC Inc | OSC    | SETTLED    | false    |
+| #809297ca | PLATFORM_TIP | DEBIT  | -1000  | 0          | OC Inc | OSC    | OC Inc | SETTLED    | false    |
+| #809297ca | PLATFORM_TIP | CREDIT | 1000   | 0          | OC Inc | Ben    | OC Inc |            | false    |
+| #809297ca | PLATFORM_TIP | DEBIT  | -1000  | 0          | Ben    | OC Inc | NULL   |            | false    |"
 `;
 
-exports[`test/stories/ledger Same currency 5. Refunded contribution with host fees, payment processor fees and platform tip 1`] = `
+exports[`test/stories/ledger Level 1: Same currency 5. Refunded contribution with host fees, payment processor fees and indirect platform tip 1`] = `
 "
-| Group     | kind                  | type   | amount | paymentFee | To     | From   | Host   | Settlement |
-| --------- | --------------------- | ------ | ------ | ---------- | ------ | ------ | ------ | ---------- |
-| #9dab8117 | CONTRIBUTION          | CREDIT | 8800   | 200        | Ben    | ESLint | NULL   |            |
-| #9dab8117 | CONTRIBUTION          | DEBIT  | -9000  | 200        | ESLint | Ben    | OSC    |            |
-| #9dab8117 | PAYMENT_PROCESSOR_FEE | CREDIT | 200    | 0          | ESLint | OSC    | OSC    |            |
-| #9dab8117 | PAYMENT_PROCESSOR_FEE | DEBIT  | -200   | 0          | OSC    | ESLint | OSC    |            |
-| #9dab8117 | HOST_FEE              | CREDIT | 450    | 0          | ESLint | OSC    | OSC    |            |
-| #9dab8117 | HOST_FEE              | DEBIT  | -450   | 0          | OSC    | ESLint | OSC    |            |
-| #9dab8117 | PLATFORM_TIP          | CREDIT | 1000   | 0          | OC Inc | OSC    | OC Inc | OWED       |
-| #9dab8117 | PLATFORM_TIP          | DEBIT  | -1000  | 0          | OSC    | OC Inc | OSC    | OWED       |
-| #9dab8117 | PLATFORM_TIP          | CREDIT | 1000   | 0          | Ben    | OC Inc | NULL   |            |
-| #9dab8117 | PLATFORM_TIP          | DEBIT  | -1000  | 0          | OC Inc | Ben    | OC Inc |            |
-| #bb53ac20 | EXPENSE               | CREDIT | 1000   | 0          | OC Inc | OSC    | OC Inc |            |
-| #bb53ac20 | EXPENSE               | DEBIT  | -1000  | 0          | OSC    | OC Inc | OSC    |            |
-| #0a3ac2b6 | CONTRIBUTION          | CREDIT | 9000   | -200       | ESLint | Ben    | OSC    |            |
-| #0a3ac2b6 | CONTRIBUTION          | DEBIT  | -8800  | -200       | Ben    | ESLint | NULL   |            |
-| #0a3ac2b6 | HOST_FEE              | CREDIT | 450    | 0          | OSC    | ESLint | OSC    |            |
-| #0a3ac2b6 | HOST_FEE              | DEBIT  | -450   | 0          | ESLint | OSC    | OSC    |            |
-| #0a3ac2b6 | PLATFORM_TIP          | CREDIT | 1000   | 0          | OSC    | OC Inc | OSC    | SETTLED    |
-| #0a3ac2b6 | PLATFORM_TIP          | DEBIT  | -1000  | 0          | OC Inc | OSC    | OC Inc | SETTLED    |
-| #0a3ac2b6 | PLATFORM_TIP          | CREDIT | 1000   | 0          | OC Inc | Ben    | OC Inc |            |
-| #0a3ac2b6 | PLATFORM_TIP          | DEBIT  | -1000  | 0          | Ben    | OC Inc | NULL   |            |"
+| Group     | kind                  | type   | amount | paymentFee | To     | From   | Host   | Settlement | isRefund |
+| --------- | --------------------- | ------ | ------ | ---------- | ------ | ------ | ------ | ---------- | -------- |
+| #e7e77433 | CONTRIBUTION          | CREDIT | 9000   | 0          | Ben    | ESLint | NULL   |            | true     |
+| #e7e77433 | CONTRIBUTION          | DEBIT  | -9000  | 0          | ESLint | Ben    | OSC    |            | true     |
+| #e7e77433 | PAYMENT_PROCESSOR_FEE | CREDIT | 200    | 0          | ESLint | OSC    | OSC    |            | true     |
+| #e7e77433 | PAYMENT_PROCESSOR_FEE | DEBIT  | -200   | 0          | OSC    | ESLint | OSC    |            | true     |
+| #e7e77433 | HOST_FEE              | CREDIT | 450    | 0          | ESLint | OSC    | OSC    |            | true     |
+| #e7e77433 | HOST_FEE              | DEBIT  | -450   | 0          | OSC    | ESLint | OSC    |            | true     |
+| #e7e77433 | PLATFORM_TIP          | CREDIT | 1000   | 0          | OC Inc | OSC    | OC Inc | OWED       | true     |
+| #e7e77433 | PLATFORM_TIP          | DEBIT  | -1000  | 0          | OSC    | OC Inc | OSC    | OWED       | true     |
+| #e7e77433 | PLATFORM_TIP          | CREDIT | 1000   | 0          | Ben    | OC Inc | NULL   |            | true     |
+| #e7e77433 | PLATFORM_TIP          | DEBIT  | -1000  | 0          | OC Inc | Ben    | OC Inc |            | true     |
+| #40fba449 | EXPENSE               | CREDIT | 1000   | 0          | OC Inc | OSC    | OC Inc |            | false    |
+| #40fba449 | EXPENSE               | DEBIT  | -1000  | 0          | OSC    | OC Inc | OSC    |            | false    |
+| #1df4c160 | CONTRIBUTION          | CREDIT | 9000   | -200       | ESLint | Ben    | OSC    |            | false    |
+| #1df4c160 | CONTRIBUTION          | DEBIT  | -8800  | -200       | Ben    | ESLint | NULL   |            | false    |
+| #1df4c160 | HOST_FEE              | CREDIT | 450    | 0          | OSC    | ESLint | OSC    |            | false    |
+| #1df4c160 | HOST_FEE              | DEBIT  | -450   | 0          | ESLint | OSC    | OSC    |            | false    |
+| #1df4c160 | PLATFORM_TIP          | CREDIT | 1000   | 0          | OSC    | OC Inc | OSC    | SETTLED    | false    |
+| #1df4c160 | PLATFORM_TIP          | DEBIT  | -1000  | 0          | OC Inc | OSC    | OC Inc | SETTLED    | false    |
+| #1df4c160 | PLATFORM_TIP          | CREDIT | 1000   | 0          | OC Inc | Ben    | OC Inc |            | false    |
+| #1df4c160 | PLATFORM_TIP          | DEBIT  | -1000  | 0          | Ben    | OC Inc | NULL   |            | false    |"
 `;

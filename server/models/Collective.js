@@ -60,6 +60,7 @@ import { capitalize, cleanTags, formatCurrency, getDomain, md5 } from '../lib/ut
 
 import CustomDataTypes from './DataTypes';
 import { PayoutMethodTypes } from './PayoutMethod';
+import { TransactionSettlementStatus } from './TransactionSettlement';
 
 const debug = debugLib('models:Collective');
 

@@ -169,6 +169,14 @@ export const buildRefundForTransaction = (t, user, data, refundedPaymentProcesso
   refund.amountInHostCurrency = -t.amountInHostCurrency;
   refund.netAmountInCollectiveCurrency = -netAmount(t);
   refund.isRefund = true;
+
+  if (parseToBoolean(config.ledger.separateHostFees)) {
+    // We're handling payment processor fees and host fees in separate transactions
+    refund.hostFeeInHostCurrency = 0;
+    refund.paymentProcessorFeeInHostCurrency = 0;
+    refund.netAmountInCollectiveCurrency = -netAmount({ ...t, paymentProcessorFeeInHostCurrency: 0 });
+  }
+
   return refund;
 };
 
