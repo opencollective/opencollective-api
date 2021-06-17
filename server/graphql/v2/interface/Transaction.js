@@ -11,6 +11,7 @@ import { GraphQLDateTime } from 'graphql-iso-date';
 import orderStatus from '../../../constants/order_status';
 import models from '../../../models';
 import * as TransactionLib from '../../common/transactions';
+import { TransactionKind } from '../enum/TransactionKind';
 import { TransactionType } from '../enum/TransactionType';
 import { getIdEncodeResolver, idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import { Amount } from '../object/Amount';
@@ -62,6 +63,9 @@ export const Transaction = new GraphQLInterfaceType({
       },
       type: {
         type: TransactionType,
+      },
+      kind: {
+        type: TransactionKind,
       },
       description: {
         type: GraphQLString,
@@ -154,6 +158,12 @@ export const TransactionFields = () => {
       type: TransactionType,
       resolve(transaction) {
         return transaction.type;
+      },
+    },
+    kind: {
+      type: TransactionKind,
+      resolve(transaction) {
+        return transaction.kind;
       },
     },
     description: {
