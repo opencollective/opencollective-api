@@ -337,17 +337,15 @@ function defineModel() {
   };
 
   Transaction.prototype.getPlatformTipTransaction = function () {
-    if (this.hasPlatformTip()) {
-      return models.Transaction.findOne({
-        where: {
-          ...pick(PLATFORM_TIP_TRANSACTION_PROPERTIES, ['CollectiveId']),
-          type: this.type,
-          TransactionGroup: this.TransactionGroup,
-          kind: TransactionKind.PLATFORM_TIP,
-          isDebt: { [Op.not]: true },
-        },
-      });
-    }
+    return models.Transaction.findOne({
+      where: {
+        ...pick(PLATFORM_TIP_TRANSACTION_PROPERTIES, ['CollectiveId']),
+        type: this.type,
+        TransactionGroup: this.TransactionGroup,
+        kind: TransactionKind.PLATFORM_TIP,
+        isDebt: { [Op.not]: true },
+      },
+    });
   };
 
   Transaction.prototype.getHostFeeTransaction = function () {
