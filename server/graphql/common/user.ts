@@ -85,5 +85,9 @@ export const hasSeenLatestChangelogEntry = async (user: typeof models.User): Pro
     // keep the latest change log publish date for a day in cache
     cache.set(cacheKey, latestChangelogUpdatePublishDate, 24 * 60 * 60);
   }
-  return user?.changelogViewDate >= latestChangelogUpdatePublishDate;
+  if (!latestChangelogUpdatePublishDate) {
+    return true;
+  } else {
+    return user?.changelogViewDate >= latestChangelogUpdatePublishDate;
+  }
 };
