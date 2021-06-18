@@ -31,7 +31,7 @@ export const refundTransaction = async (
 
   if (options?.checkRefundStatus && refund.status !== 'succeeded') {
     await transaction.update({ data: { ...transaction.data, refund } });
-    return refund;
+    return null;
   }
 
   const charge = await stripe.charges.retrieve(chargeId, { stripeAccount: hostStripeAccount.username });
