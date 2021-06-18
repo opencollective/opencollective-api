@@ -1,6 +1,5 @@
 import { GraphQLBoolean, GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
-
-import ISODateTime from '../scalar/ISODateTime';
+import { GraphQLDateTime } from 'graphql-iso-date';
 
 import { AccountReferenceInput } from './AccountReferenceInput';
 
@@ -12,7 +11,7 @@ export const UpdateUpdateInput = new GraphQLInputObjectType({
     slug: { type: GraphQLString },
     title: { type: GraphQLString },
     isPrivate: { type: GraphQLBoolean },
-    makePublicOn: { type: ISODateTime },
+    makePublicOn: { type: GraphQLDateTime },
     html: { type: GraphQLString },
     fromAccount: { type: AccountReferenceInput },
   }),

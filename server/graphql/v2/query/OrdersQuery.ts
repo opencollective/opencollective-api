@@ -1,5 +1,6 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLDateTime } from 'graphql-iso-date';
 
 import models, { Op } from '../../../models';
 import { OrderCollection } from '../collection/OrderCollection';
@@ -8,7 +9,6 @@ import { AccountOrdersFilter } from '../enum/AccountOrdersFilter';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
 import { CollectionArgs, CollectionReturnType } from '../interface/Collection';
-import ISODateTime from '../scalar/ISODateTime';
 
 type OrderAssociation = 'fromCollective' | 'collective';
 
@@ -69,11 +69,11 @@ const OrdersQuery = {
       description: 'Only return orders where the amount is lower than or equal to this value (in cents)',
     },
     dateFrom: {
-      type: ISODateTime,
+      type: GraphQLDateTime,
       description: 'Only return orders that were created after this date',
     },
     dateTo: {
-      type: ISODateTime,
+      type: GraphQLDateTime,
       description: 'Only return orders that were created after this date',
     },
     searchTerm: {

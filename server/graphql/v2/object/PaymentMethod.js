@@ -1,4 +1,5 @@
 import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLDateTime } from 'graphql-iso-date';
 import GraphQLJSON from 'graphql-type-json';
 import { get, pick } from 'lodash';
 
@@ -10,7 +11,6 @@ import { idEncode } from '../identifiers';
 import { Account } from '../interface/Account';
 import { Amount } from '../object/Amount';
 import { Host } from '../object/Host';
-import ISODateTime from '../scalar/ISODateTime';
 
 export const PaymentMethod = new GraphQLObjectType({
   name: 'PaymentMethod',
@@ -122,7 +122,7 @@ export const PaymentMethod = new GraphQLObjectType({
         },
       },
       expiryDate: {
-        type: ISODateTime,
+        type: GraphQLDateTime,
         resolve(paymentMethod, _, req) {
           if (!req.remoteUser?.isAdmin(paymentMethod.CollectiveId)) {
             return null;
@@ -132,7 +132,7 @@ export const PaymentMethod = new GraphQLObjectType({
         },
       },
       createdAt: {
-        type: ISODateTime,
+        type: GraphQLDateTime,
       },
     };
   },
