@@ -109,7 +109,7 @@ export const Individual = new GraphQLObjectType({
         },
       },
       hasSeenLatestChangelogEntry: {
-        type: GraphQLBoolean,
+        type: new GraphQLNonNull(GraphQLBoolean),
         async resolve(individual) {
           return await hasSeenLatestChangelogEntry(individual);
         },
