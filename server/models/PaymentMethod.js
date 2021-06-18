@@ -180,7 +180,11 @@ function defineModel() {
             if (!instance.token && !instance.isNewPaypalPaymentAPI()) {
               throw new Error(`${instance.service} payment method requires a token`);
             }
-            if (instance.service === 'stripe' && !instance.token.match(/^(tok|src|pm)_[a-zA-Z0-9]{24}/)) {
+            if (
+              instance.service === 'stripe' &&
+              instance.type === 'creditcard' &&
+              !instance.token.match(/^(tok|src|pm)_[a-zA-Z0-9]{24}/)
+            ) {
               if (config.env !== 'production' && isTestToken(instance.token)) {
                 // test token for end to end tests
               } else {
