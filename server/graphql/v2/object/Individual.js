@@ -1,8 +1,8 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import { types as collectiveTypes } from '../../../constants/collectives';
-import cache, { fetchCollectiveId } from '../../../lib/cache';
-import models, { Op } from '../../../models';
+import models from '../../../models';
+import { hasSeenLatestChangelogEntry } from '../../common/user';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { Account, AccountFields } from '../interface/Account';
 
@@ -111,25 +111,7 @@ export const Individual = new GraphQLObjectType({
       hasSeenLatestChangelogEntry: {
         type: GraphQLBoolean,
         async resolve(individual) {
-          const cacheKey = 'latest_changelog_publish_date';
-          let latestChangelogUpdate = await cache.get(cacheKey);
-          if (!latestChangelogUpdate) {
-            const collectiveId = await fetchCollectiveId('opencollective');
-            latestChangelogUpdate = await models.Update.findOne({
-              where: {
-                CollectiveId: collectiveId,
-                publishedAt: { [Op.ne]: null },
-                isChangelog: true,
-              },
-              order: [['publishedAt', 'DESC']],
-              limit: 1,
-            });
-
-            // keep the latest change log publish date for a day in cache
-            cache.set(cacheKey, latestChangelogUpdate, 24 * 60 * 60);
-          }
-          const user = await individual.getUser();
-          return user?.changelogViewDate >= latestChangelogUpdate?.publishedAt;
+          return await hasSeenLatestChangelogEntry(individual);
         },
       },
     };

@@ -29,6 +29,7 @@ import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import * as commonComment from '../common/comment';
 import { allowContextPermission, PERMISSION_TYPE } from '../common/context-permissions';
 import { canSeeExpenseAttachments, canSeeExpensePayoutMethod, getExpenseItems } from '../common/expenses';
+import { hasSeenLatestChangelogEntry } from '../common/user';
 import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
 
 import { CollectiveInterfaceType, CollectiveSearchResultsType } from './CollectiveInterface';
@@ -241,10 +242,10 @@ export const UserType = new GraphQLObjectType({
           return user.data && user.data.features && user.data.features.ALL === false;
         },
       },
-      changelogViewDate: {
-        type: IsoDateString,
-        resolve(user) {
-          return user.changelogViewDate;
+      hasSeenLatestChangelogEntry: {
+        type: GraphQLBoolean,
+        async resolve(user) {
+          return await hasSeenLatestChangelogEntry(user);
         },
       },
     };
