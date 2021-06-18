@@ -141,7 +141,9 @@ const confirmOrder = async (req: Request, res: Response, next: NextFunction): Pr
     } else if (redirect_status === 'failed') {
       const id = idDecode(OrderId, IDENTIFIER_TYPES.ORDER);
       debug(`payment for order ${id} failed, deleting order`);
-      const order = await models.Order.findByPk(id);
+      const order = await models.Order.findByPk(id, {
+        include: [{ model: models.Collective, as: 'collective' }],
+      });
       if (order) {
         await order.destroy();
         res.redirect(
