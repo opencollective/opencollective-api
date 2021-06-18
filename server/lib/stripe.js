@@ -1,4 +1,5 @@
 import config from 'config';
+import { get } from 'lodash';
 import Stripe from 'stripe';
 
 import { ZERO_DECIMAL_CURRENCIES } from '../constants/currencies';
@@ -60,4 +61,18 @@ export const convertFromStripeAmount = (currency, amount) => {
   } else {
     return amount;
   }
+};
+
+export const retrieveChargeWithRefund = async (chargeId, stripeAccount) => {
+  const charge = await stripe.charges.retrieve(chargeId, {
+    stripeAccount: stripeAccount.username,
+  });
+  if (!charge) {
+    throw Error(`charge id ${chargeId} not found`);
+  }
+  const refundId = get(charge, 'refunds.data[0].id');
+  const refund = await stripe.refunds.retrieve(refundId, {
+    stripeAccount: stripeAccount.username,
+  });
+  return { charge, refund };
 };
