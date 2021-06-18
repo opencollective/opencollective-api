@@ -243,9 +243,9 @@ export const UserType = new GraphQLObjectType({
         },
       },
       hasSeenLatestChangelogEntry: {
-        type: GraphQLBoolean,
+        type: new GraphQLNonNull(GraphQLBoolean),
         async resolve(user) {
-          return await hasSeenLatestChangelogEntry(user);
+          return hasSeenLatestChangelogEntry(user);
         },
       },
     };
