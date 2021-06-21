@@ -807,10 +807,35 @@ function defineModel() {
 
     let hostFeeShareDebtTransaction;
     if (!isDirectlyCollected) {
-      // hostFeeShareDebtTransaction = await Transaction.createPlatformTipDebtTransactions(hostFeeShareTransaction, host);
+      hostFeeShareDebtTransaction = await Transaction.creatHostFeeShareDebtTransactions(
+        hostFeeShareTransactionData,
+        host,
+      );
     }
 
     return { hostFeeShareTransaction, hostFeeShareDebtTransaction };
+  };
+
+  Transaction.creatHostFeeShareDebtTransactions = async (hostFeeShareTransactionData, host) => {
+    // Create debt transaction
+    const hostFeeShareDebtTransactionData = {
+      ...omit(hostFeeShareTransactionData, ['data']), // TODO: remove the OrderId?
+      type: 'CREDIT',
+      kind: TransactionKind.HOST_FEE_SHARE, // TODO:HOST_FEE_SHARE_DEBT
+      description: 'Host Fee Share owed to Open Collective',
+      CollectiveId: host.id,
+      FromCollectiveId: HOST_FEE_SHARE_TRANSACTION_PROPERTIES.CollectiveId,
+      HostCollectiveId: host.id,
+      isDebt: true,
+    };
+
+    const hostFeeShareDebtTransaction = await Transaction.createDoubleEntry(hostFeeShareDebtTransactionData);
+
+    // Create settlement
+    const settlementStatus = TransactionSettlementStatus.OWED;
+    await models.TransactionSettlement.createForTransaction(hostFeeShareDebtTransaction, settlementStatus);
+
+    return hostFeeShareDebtTransaction;
   };
 
   /**
