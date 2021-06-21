@@ -96,11 +96,13 @@ export async function run() {
     const transactions = await sequelize.query(
       `SELECT t.*
 FROM "Transactions" as t
+INNER JOIN "TransactionSettlements" ts ON ts."TransactionGroup" = t."TransactionGroup" AND t.kind = ts.kind
 WHERE t."HostCollectiveId" = :HostCollectiveId
 AND t."createdAt" >= :startDate AND t."createdAt" <= :endDate
 AND t."kind" IN ('PLATFORM_TIP', 'HOST_FEE_SHARE')
 AND t."isDebt" IS TRUE
-AND t."deletedAt" IS NULL`,
+AND t."deletedAt" IS NULL
+AND ts."status" != 'SETTLED'`,
       {
         replacements: { HostCollectiveId: host.id, startDate: startDate, endDate: endDate },
         model: models.Transaction,
@@ -136,7 +138,7 @@ AND t."deletedAt" IS NULL`,
 
     if (totalAmountCharged < 1000) {
       console.warn(
-        `${host.name} (#${host.id}) skipped, total amound pending ${totalAmountCharged / 100} < 10.00 ${
+        `${host.name} (#${host.id}) skipped, total amount pending ${totalAmountCharged / 100} < 10.00 ${
           host.currency
         }.\n`,
       );

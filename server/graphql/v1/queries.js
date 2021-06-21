@@ -289,7 +289,7 @@ const queries = {
       }
 
       return collective.getTransactions({
-        order: [['createdAt', 'DESC']],
+        order: [['createdAt', 'DESC'], ['kind'], ['type']],
         type: args.type,
         limit: args.limit,
         offset: args.offset,
