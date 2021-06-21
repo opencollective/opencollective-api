@@ -9,7 +9,11 @@ import { v4 as uuid } from 'uuid';
 
 import activities from '../constants/activities';
 import { TransactionKind } from '../constants/transaction-kind';
-import { PLATFORM_TIP_TRANSACTION_PROPERTIES, TransactionTypes } from '../constants/transactions';
+import {
+  HOST_FEE_SHARE_TRANSACTION_PROPERTIES,
+  PLATFORM_TIP_TRANSACTION_PROPERTIES,
+  TransactionTypes,
+} from '../constants/transactions';
 import { getFxRate } from '../lib/currency';
 import { toNegative } from '../lib/math';
 import { calcFee } from '../lib/payments';
@@ -733,7 +737,8 @@ function defineModel() {
 
     const amountInHostCurrency = Math.abs(transaction.hostFeeInHostCurrency);
     const amountInCollectiveCurrency = Math.round(amountInHostCurrency / transaction.hostCurrencyFxRate);
-    const hostFeeTransaction = {
+
+    const hostFeeTransactionData = {
       type: TransactionTypes.CREDIT,
       kind: TransactionKind.HOST_FEE,
       description: 'Host Fee',
@@ -757,12 +762,58 @@ function defineModel() {
       data,
     };
 
-    await Transaction.createDoubleEntry(hostFeeTransaction);
+    const hostFeeTransaction = await Transaction.createDoubleEntry(hostFeeTransactionData);
 
     // Reset the original host fee because we're now accounting for this value in a separate set of transactions
     transaction.hostFeeInHostCurrency = 0;
 
     return { transaction, hostFeeTransaction };
+  };
+
+  Transaction.createHostFeeShareTransactions = async (hostFeeTransaction, host, isDirectlyCollected = false) => {
+    const plan = await host.getPlan();
+    if (!plan.hostFeeSharePercent) {
+      return;
+    }
+
+    const amount = Math.round((hostFeeTransaction.amount * plan.hostFeeSharePercent) / 100);
+    const currency = hostFeeTransaction.currency;
+
+    const hostCurrency = HOST_FEE_SHARE_TRANSACTION_PROPERTIES.hostCurrency;
+    const hostCurrencyFxRate = await Transaction.getFxRate(currency, hostCurrency, hostFeeTransaction);
+    const amountInHostCurrency = Math.round(amount * hostCurrencyFxRate);
+
+    const hostFeeShareTransactionData = {
+      type: TransactionTypes.CREDIT,
+      kind: TransactionKind.HOST_FEE_SHARE,
+      description: 'Host Fee Share',
+      TransactionGroup: hostFeeTransaction.TransactionGroup,
+      FromCollectiveId: host.id,
+      CollectiveId: HOST_FEE_SHARE_TRANSACTION_PROPERTIES.CollectiveId,
+      HostCollectiveId: HOST_FEE_SHARE_TRANSACTION_PROPERTIES.HostCollectiveId,
+      // Compute amounts
+      amount,
+      netAmountInCollectiveCurrency: amount,
+      currency,
+      amountInHostCurrency,
+      hostCurrency,
+      hostCurrencyFxRate,
+      // No fees
+      platformFeeInHostCurrency: 0,
+      hostFeeInHostCurrency: 0,
+      paymentProcessorFeeInHostCurrency: 0,
+      OrderId: hostFeeTransaction.OrderId,
+      createdAt: hostFeeTransaction.createdAt,
+    };
+
+    const hostFeeShareTransaction = await Transaction.createDoubleEntry(hostFeeShareTransactionData);
+
+    let hostFeeShareDebtTransaction;
+    if (!isDirectlyCollected) {
+      // hostFeeShareDebtTransaction = await Transaction.createPlatformTipDebtTransactions(hostFeeShareTransaction, host);
+    }
+
+    return { hostFeeShareTransaction, hostFeeShareDebtTransaction };
   };
 
   /**
@@ -804,8 +855,8 @@ function defineModel() {
 
     // Separate donation transaction and remove platformFee from the main transaction
     if (transaction.data?.isFeesOnTop && transaction.platformFeeInHostCurrency) {
-      const isTipAlreadyCollected = Boolean(opts?.isPlatformTipDirectlyCollected);
-      const result = await Transaction.createPlatformTipTransactions(transaction, host, isTipAlreadyCollected);
+      const isAlreadyCollected = Boolean(opts?.isPlatformTipDirectlyCollected);
+      const result = await Transaction.createPlatformTipTransactions(transaction, host, isAlreadyCollected);
       // Transaction was modified by createPlatformTipTransactions, we get it from the result
       if (result && result.transaction) {
         transaction = result.transaction;
@@ -814,11 +865,17 @@ function defineModel() {
 
     // Create Host Fee transaction
     if (transaction.hostFeeInHostCurrency && parseToBoolean(config.ledger.separateHostFees) === true) {
-      // transaction.hostFeeInHostCurrency = 0;
       const result = await Transaction.createHostFeeTransactions(transaction, host);
-      // Transaction was modified by createHostFeeTransaction, we get it from the result
-      if (result && result.transaction) {
-        transaction = result.transaction;
+      if (result) {
+        if (result.hostFeeTransaction) {
+          // TODO: rename isPlatformTipDirectlyCollected
+          const isAlreadyCollected = Boolean(opts?.isPlatformTipDirectlyCollected);
+          await Transaction.createHostFeeShareTransactions(result.hostFeeTransaction, host, isAlreadyCollected);
+        }
+        // Transaction was modified by createHostFeeTransaction, we get it from the result
+        if (result.transaction) {
+          transaction = result.transaction;
+        }
       }
     }
 
