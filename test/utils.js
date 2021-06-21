@@ -15,7 +15,7 @@ import schemaV2 from '../server/graphql/v2/schema';
 import cache from '../server/lib/cache';
 import * as libpayments from '../server/lib/payments';
 /* Server code being used */
-import stripe from '../server/lib/stripe';
+import stripe, { convertToStripeAmount } from '../server/lib/stripe';
 import models, { sequelize } from '../server/models';
 
 /* Test data */
@@ -257,11 +257,11 @@ export function stubStripeBalance(sandbox, amount, currency, applicationFee = 0,
   const balanceTransaction = {
     id: 'txn_1Bs9EEBYycQg1OMfTR33Y5Xr',
     object: 'balance_transaction',
-    amount,
+    amount: convertToStripeAmount(currency, amount),
     currency: currency.toLowerCase(),
     fee,
     fee_details: feeDetails, // eslint-disable-line camelcase
-    net: amount - fee,
+    net: convertToStripeAmount(currency, amount - fee),
     status: 'pending',
     type: 'charge',
   };
