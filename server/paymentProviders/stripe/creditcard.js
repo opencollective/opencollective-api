@@ -323,7 +323,7 @@ export default {
 
       if (knownErrors.includes(error.message)) {
         logger.error(
-          `Type: ${error.type}, Message: ${error.message}, Decline Code: ${error.decline_code}, Code: ${error.code}`,
+          `Stripe Error (handled): ${error.type}, Message: ${error.message}, Decline Code: ${error.decline_code}, Code: ${error.code}`,
         );
         throw error;
       }
