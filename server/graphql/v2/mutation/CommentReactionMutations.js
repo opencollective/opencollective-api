@@ -38,7 +38,7 @@ const commentReactionMutations = {
         }
       }
 
-      const reaction = await models.CommentReaction.addReaction(req.remoteUser, commentId, args.emoji);
+      const reaction = await models.EmojiReaction.addReaction(req.remoteUser, commentId, args.emoji);
       return models.Comment.findByPk(reaction.CommentId);
     },
   },
@@ -56,7 +56,7 @@ const commentReactionMutations = {
     resolve: async (_, { comment, emoji }, { remoteUser }) => {
       mustBeLoggedInTo(remoteUser, 'remove this comment reaction');
       const commentId = idDecode(comment.id, IDENTIFIER_TYPES.COMMENT);
-      const reaction = await models.CommentReaction.findOne({
+      const reaction = await models.EmojiReaction.findOne({
         where: {
           CommentId: commentId,
           emoji,

@@ -4,8 +4,8 @@ import sequelize, { DataTypes } from '../lib/sequelize';
 function defineModel() {
   const { models } = sequelize;
 
-  const CommentReaction = sequelize.define(
-    'CommentReaction',
+  const EmojiReaction = sequelize.define(
+    'EmojiReaction',
     {
       id: {
         type: DataTypes.INTEGER,
@@ -79,9 +79,9 @@ function defineModel() {
     },
   );
 
-  CommentReaction.addReaction = async function (user, commentId, emoji) {
+  EmojiReaction.addReaction = async function (user, commentId, emoji) {
     try {
-      return await models.CommentReaction.create({
+      return await models.EmojiReaction.create({
         UserId: user.id,
         FromCollectiveId: user.CollectiveId,
         CommentId: commentId,
@@ -90,7 +90,7 @@ function defineModel() {
     } catch (e) {
       // Don't scream if the reaction already exists
       if (e.name === 'SequelizeUniqueConstraintError') {
-        return await models.CommentReaction.findOne({
+        return await models.EmojiReaction.findOne({
           where: {
             UserId: user.id,
             FromCollectiveId: user.CollectiveId,
@@ -104,11 +104,11 @@ function defineModel() {
     }
   };
 
-  return CommentReaction;
+  return EmojiReaction;
 }
 
 // We're using the defineModel function to keep the indentation and have a clearer git history.
 // Please consider this if you plan to refactor.
-const CommentReaction = defineModel();
+const EmojiReaction = defineModel();
 
-export default CommentReaction;
+export default EmojiReaction;

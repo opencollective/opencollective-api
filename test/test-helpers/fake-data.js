@@ -314,7 +314,7 @@ export const fakeCommentReaction = async (reactionData = {}) => {
   const FromCollectiveId = reactionData.FromCollectiveId || (await models.Collective.findByPk(user.CollectiveId)).id;
   const ConversationId = (await fakeConversation()).id;
   const CommentId = reactionData.CommentId || (await fakeComment({ ConversationId })).id;
-  return models.CommentReaction.create({
+  return models.EmojiReaction.create({
     UserId,
     FromCollectiveId,
     CommentId,
