@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import { toNumber } from 'lodash';
 import sinon from 'sinon';
 
 import cache from '../../../../server/lib/cache';
@@ -283,11 +284,14 @@ describe('server/paymentProviders/transferwise/index', () => {
     });
 
     it('create one transfer for each expense', () => {
+      const calls = createBatchGroupTransfer.getCalls();
+
       expect(createBatchGroupTransfer.callCount).to.equal(3);
-      expenses.forEach((e, i) => {
-        const call = createBatchGroupTransfer.getCall(i);
-        expect(call).to.have.nested.property('args[2]', batchGroupId);
-        expect(call).to.have.nested.property('lastArg.details.reference', e.id.toString());
+      expect(expenses.map(e => e.id).sort()).to.deep.equal(
+        calls.map(call => toNumber(call.lastArg.details.reference)).sort(),
+      );
+      calls.forEach(c => {
+        expect(c).to.have.nested.property('args[2]', batchGroupId);
       });
     });
 

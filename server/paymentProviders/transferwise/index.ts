@@ -236,19 +236,20 @@ async function createExpensesBatchGroup(
     sourceCurrency: connectedAccount.data.currency || host.currency,
   });
 
-  const transferIds = [];
-  for (const expense of expenses) {
-    const { quote, recipient, transfer, paymentOption } = await createTransfer(
-      connectedAccount,
-      expense.PayoutMethod,
-      expense,
-      batchGroup.id,
-    );
-    await expense.update({
-      data: { ...expense.data, quote, recipient, transfer, paymentOption },
-    });
-    transferIds.push(transfer.id);
-  }
+  const transferIds = await Promise.all(
+    expenses.map(async expense => {
+      const { quote, recipient, transfer, paymentOption } = await createTransfer(
+        connectedAccount,
+        expense.PayoutMethod,
+        expense,
+        batchGroup.id,
+      );
+      await expense.update({
+        data: { ...expense.data, quote, recipient, transfer, paymentOption },
+      });
+      return transfer.id;
+    }),
+  );
 
   batchGroup = await transferwise.getBatchGroup(token, profileId, batchGroup.id);
   const includesEveryTransferCreated =
