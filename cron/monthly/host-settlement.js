@@ -68,7 +68,7 @@ export async function run() {
 
   const payoutMethods = groupBy(
     await models.PayoutMethod.findAll({
-      where: { CollectiveId: SETTLEMENT_EXPENSE_PROPERTIES.FromCollectiveId },
+      where: { CollectiveId: SETTLEMENT_EXPENSE_PROPERTIES.FromCollectiveId, isSaved: true },
     }),
     'type',
   );
