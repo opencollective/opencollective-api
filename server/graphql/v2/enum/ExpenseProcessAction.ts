@@ -20,7 +20,7 @@ export const ExpenseProcessAction = new GraphQLEnumType({
       description: 'To schedule the expense for payment',
     },
     UNSCHEDULE_PAYMENT: {
-      description: 'To uschedule the expense payment',
+      description: 'To unschedule the expense payment',
     },
     PAY: {
       description: 'To trigger the payment',

@@ -224,9 +224,7 @@ async function createExpensesBatchGroup(
     }
   });
 
-  const [connectedAccount] = await host.getConnectedAccounts({
-    where: { service: 'transferwise', deletedAt: null },
-  });
+  const [connectedAccount] = await host.getConnectedAccounts({ where: { service: 'transferwise' } });
   if (!connectedAccount) {
     throw new Error('Host is not connected to TransferWise');
   }
