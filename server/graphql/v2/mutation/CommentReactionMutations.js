@@ -11,6 +11,7 @@ import { Comment } from '../object/Comment';
 const commentReactionMutations = {
   addCommentReaction: {
     type: new GraphQLNonNull(Comment),
+    description: '@deprecated: Please use the new emojiReactionMutations',
     args: {
       emoji: {
         type: new GraphQLNonNull(GraphQLString),
@@ -45,6 +46,7 @@ const commentReactionMutations = {
 
   removeCommentReaction: {
     type: new GraphQLNonNull(Comment),
+    description: '@deprecated: Please use the new emojiReactionMutations',
     args: {
       comment: {
         type: new GraphQLNonNull(CommentReferenceInput),
