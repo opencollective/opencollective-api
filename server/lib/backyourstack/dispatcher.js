@@ -65,11 +65,11 @@ async function createPaymentMethod(originalCreditTransaction) {
 export async function dispatchFunds(order) {
   // Amount shareable amongst dependencies
   const transaction = await models.Transaction.findOne({
-    where: { OrderId: order.id, type: 'CREDIT' },
+    where: { OrderId: order.id, type: 'CREDIT', kind: 'CONTRIBUTION' },
   });
 
   const originalCreditTransaction = await models.Transaction.findOne({
-    where: { OrderId: order.id, type: 'CREDIT' },
+    where: { OrderId: order.id, type: 'CREDIT', kind: 'CONTRIBUTION' },
   });
 
   const shareableAmount = transaction.netAmountInCollectiveCurrency;
