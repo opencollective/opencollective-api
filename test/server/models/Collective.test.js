@@ -1113,7 +1113,7 @@ describe('server/models/Collective', () => {
           amountInHostCurrency: 81, // 100 / 1.23
           hostCurrency: 'GBP',
           TransactionGroup: t1.TransactionGroup,
-          kind: TransactionKind.PLATFORM_TIP, // PLATFORM_TIP_DEBT
+          kind: TransactionKind.PLATFORM_TIP_DEBT,
           createdAt: lastMonth,
           CreatedByUserId: user.id,
         },

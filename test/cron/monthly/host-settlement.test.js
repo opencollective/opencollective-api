@@ -103,7 +103,7 @@ describe('cron/monthly/host-settlement', () => {
       hostCurrency: 'GBP',
       data: { hostToPlatformFxRate: 1.23 },
       TransactionGroup: t.TransactionGroup,
-      kind: TransactionKind.PLATFORM_TIP,
+      kind: TransactionKind.PLATFORM_TIP_DEBT,
       createdAt: lastMonth,
       isDebt: true,
     });

@@ -57,7 +57,6 @@ AND t1."createdAt" >= :startDate AND t1."createdAt" <= :endDate
 AND (t1."kind" IS NULL OR t1."kind" IN ('CONTRIBUTION', 'ADDED_FUNDS'))
 AND t2."kind" = 'PLATFORM_TIP'
 AND t2."type" = 'CREDIT'
-AND t2."isDebt" IS NOT TRUE
 AND t1."deletedAt" IS NULL
 AND t2."deletedAt" IS NULL
 AND t2."RefundTransactionId" IS NULL
@@ -81,7 +80,7 @@ INNER JOIN "TransactionSettlements" ts
   AND t."kind" = ts."kind"
 WHERE t."HostCollectiveId" = :HostCollectiveId
 AND t."isDebt" IS TRUE
-AND t."kind" = 'PLATFORM_TIP'
+AND t."kind" = 'PLATFORM_TIP_DEBT'
 AND t."deletedAt" IS NULL
 AND ts."deletedAt" IS NULL
 AND ts."status" IN ('OWED', 'INVOICED')

@@ -99,7 +99,7 @@ FROM "Transactions" as t
 INNER JOIN "TransactionSettlements" ts ON ts."TransactionGroup" = t."TransactionGroup" AND t.kind = ts.kind
 WHERE t."HostCollectiveId" = :HostCollectiveId
 AND t."createdAt" >= :startDate AND t."createdAt" <= :endDate
-AND t."kind" IN ('PLATFORM_TIP', 'HOST_FEE_SHARE')
+AND t."kind" IN ('PLATFORM_TIP_DEBT') -- TODO HOST_FEE_SHARE_DEBT to be added here
 AND t."isDebt" IS TRUE
 AND t."deletedAt" IS NULL
 AND ts."status" != 'SETTLED'`,

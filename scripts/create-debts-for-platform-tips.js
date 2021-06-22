@@ -29,7 +29,7 @@ const migrate = async () => {
       AND s."kind" = t."kind"
     LEFT JOIN "Transactions" debt
       ON debt."TransactionGroup" = t."TransactionGroup"
-      AND debt."kind" = t."kind"
+      AND debt."kind" = 'PLATFORM_TIP_DEBT'
       AND debt."isDebt" IS TRUE
     WHERE t.kind = 'PLATFORM_TIP'
     AND t.type = 'CREDIT'
@@ -77,6 +77,7 @@ const rollback = async () => {
 
       DELETE FROM "Transactions"
       WHERE "isDebt" = TRUE
+      AND kind = 'PLATFORM_TIP_DEBT'
       AND "TransactionGroup" IN (
         SELECT "TransactionGroup"
         FROM "Transactions" t
@@ -107,7 +108,7 @@ const check = async () => {
       AND s."kind" = t."kind"
     LEFT JOIN "Transactions" debt
       ON debt."TransactionGroup" = t."TransactionGroup"
-      AND debt."kind" = t."kind"
+      AND debt."kind" = 'PLATFORM_TIP_DEBT'
       AND debt."isDebt" IS TRUE
     WHERE t.kind = 'PLATFORM_TIP'
     AND t."RefundTransactionId" IS NULL

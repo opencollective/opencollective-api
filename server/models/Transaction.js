@@ -333,7 +333,11 @@ function defineModel() {
   };
 
   Transaction.prototype.hasPlatformTip = function () {
-    return Boolean(this.data?.isFeesOnTop && this.kind !== TransactionKind.PLATFORM_TIP);
+    return Boolean(
+      this.data?.isFeesOnTop &&
+        this.kind !== TransactionKind.PLATFORM_TIP &&
+        this.kind !== TransactionKind.PLATFORM_TIP_DEBT,
+    );
   };
 
   Transaction.prototype.getPlatformTipTransaction = function () {
@@ -343,7 +347,6 @@ function defineModel() {
         type: this.type,
         TransactionGroup: this.TransactionGroup,
         kind: TransactionKind.PLATFORM_TIP,
-        isDebt: { [Op.not]: true },
       },
     });
   };
@@ -620,7 +623,7 @@ function defineModel() {
       CollectiveId: host.id,
       FromCollectiveId: PLATFORM_TIP_TRANSACTION_PROPERTIES.CollectiveId,
       HostCollectiveId: host.id,
-      kind: TransactionKind.PLATFORM_TIP,
+      kind: TransactionKind.PLATFORM_TIP_DEBT,
       isDebt: true,
     };
 
