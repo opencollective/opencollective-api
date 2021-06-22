@@ -31,9 +31,13 @@ function defineModel() {
         references: { key: 'id', model: 'Comments' },
         onDelete: 'NO ACTION',
         onUpdate: 'CASCADE',
-        allowNull: false,
       },
-
+      UpdateId: {
+        type: DataTypes.INTEGER,
+        references: { key: 'id', model: 'Updates' },
+        onDelete: 'NO ACTION',
+        onUpdate: 'CASCADE',
+      },
       emoji: {
         type: DataTypes.STRING,
         allowNull: false,
