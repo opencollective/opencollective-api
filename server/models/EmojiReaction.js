@@ -79,7 +79,7 @@ function defineModel() {
     },
   );
 
-  EmojiReaction.addReaction = async function (user, commentId, emoji) {
+  EmojiReaction.addReactionOnComment = async function (user, commentId, emoji) {
     try {
       return await models.EmojiReaction.create({
         UserId: user.id,
@@ -90,11 +90,36 @@ function defineModel() {
     } catch (e) {
       // Don't scream if the reaction already exists
       if (e.name === 'SequelizeUniqueConstraintError') {
-        return await models.EmojiReaction.findOne({
+        return models.EmojiReaction.findOne({
           where: {
             UserId: user.id,
             FromCollectiveId: user.CollectiveId,
             CommentId: commentId,
+            emoji,
+          },
+        });
+      } else {
+        throw e;
+      }
+    }
+  };
+
+  EmojiReaction.addReactionOnUpdate = async function (user, updateId, emoji) {
+    try {
+      return await models.EmojiReaction.create({
+        UserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        UpdateId: updateId,
+        emoji,
+      });
+    } catch (e) {
+      // Don't scream if the reaction already exists
+      if (e.name === 'SequelizeUniqueConstraintError') {
+        return models.EmojiReaction.findOne({
+          where: {
+            UserId: user.id,
+            FromCollectiveId: user.CollectiveId,
+            UpdateId: updateId,
             emoji,
           },
         });

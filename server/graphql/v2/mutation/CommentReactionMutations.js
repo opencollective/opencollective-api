@@ -38,7 +38,7 @@ const commentReactionMutations = {
         }
       }
 
-      const reaction = await models.EmojiReaction.addReaction(req.remoteUser, commentId, args.emoji);
+      const reaction = await models.EmojiReaction.addReactionOnComment(req.remoteUser, commentId, args.emoji);
       return models.Comment.findByPk(reaction.CommentId);
     },
   },
