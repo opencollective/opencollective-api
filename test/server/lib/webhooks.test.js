@@ -28,6 +28,52 @@ describe('server/lib/webhooks', () => {
       expect(sanitized.data.member.memberCollective.id).to.eq(42);
       expect(sanitized.data.collective).to.not.exist;
     });
+
+    it('Sanitizes COLLECTIVE_EXPENSE_CREATED', () => {
+      const sanitized = sanitizeActivity({
+        type: activities.COLLECTIVE_EXPENSE_CREATED,
+        data: {
+          user: {
+            id: 2,
+          },
+          fromCollective: { slug: 'cslug' },
+          expense: {
+            id: 42,
+            amount: 100,
+            lastEditedById: 2,
+          },
+        },
+      });
+
+      expect(sanitized.data.expense.id).to.eq(42);
+      expect(sanitized.data.expense.amount).to.eq(100);
+      expect(sanitized.data.expense.lastEditedById).to.not.exist;
+      expect(sanitized.data.fromCollective.slug).to.eq('cslug');
+      expect(sanitized.data.user).to.not.exist;
+    });
+
+    it('Sanitizes COLLECTIVE_EXPENSE_REJECTED', () => {
+      const sanitized = sanitizeActivity({
+        type: activities.COLLECTIVE_EXPENSE_REJECTED,
+        data: {
+          user: {
+            id: 2,
+          },
+          fromCollective: { slug: 'cslug' },
+          expense: {
+            id: 42,
+            amount: 100,
+            lastEditedById: 2,
+          },
+        },
+      });
+
+      expect(sanitized.data.expense.id).to.eq(42);
+      expect(sanitized.data.expense.amount).to.eq(100);
+      expect(sanitized.data.expense.lastEditedById).to.not.exist;
+      expect(sanitized.data.fromCollective.slug).to.eq('cslug');
+      expect(sanitized.data.user).to.not.exist;
+    });
   });
 
   describe('enrichActivity', () => {

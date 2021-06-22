@@ -78,9 +78,9 @@ const fakeContributionWithPlatformTipNewFormat = async (fromCollective, collecti
     description: 'Tip transaction from the contributor to Open Collective',
   });
 
-  // [Debt] DEBIT Tip transaction (host -> OC)
+  // [Debt] DEBIT Tip debt transaction (host -> OC)
   await fakeTransaction({
-    kind: TransactionKind.PLATFORM_TIP,
+    kind: TransactionKind.PLATFORM_TIP_DEBT,
     TransactionGroup: transaction.TransactionGroup,
     type: 'DEBIT',
     amount: -200,
@@ -91,9 +91,9 @@ const fakeContributionWithPlatformTipNewFormat = async (fromCollective, collecti
     description: 'Tip transaction from the HOST to Open Collective',
   });
 
-  // [Debt] CREDIT Tip transaction (host -> OC)
+  // [Debt] CREDIT Tip debt transaction (host -> OC)
   const tipDebtCreditTransaction = await fakeTransaction({
-    kind: TransactionKind.PLATFORM_TIP,
+    kind: TransactionKind.PLATFORM_TIP_DEBT,
     type: 'CREDIT',
     TransactionGroup: transaction.TransactionGroup,
     amount: 200,

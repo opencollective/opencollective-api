@@ -169,6 +169,14 @@ export const buildRefundForTransaction = (t, user, data, refundedPaymentProcesso
   refund.amountInHostCurrency = -t.amountInHostCurrency;
   refund.netAmountInCollectiveCurrency = -netAmount(t);
   refund.isRefund = true;
+
+  if (parseToBoolean(config.ledger.separateHostFees)) {
+    // We're handling payment processor fees and host fees in separate transactions
+    refund.hostFeeInHostCurrency = 0;
+    refund.paymentProcessorFeeInHostCurrency = 0;
+    refund.netAmountInCollectiveCurrency = -netAmount({ ...t, paymentProcessorFeeInHostCurrency: 0 });
+  }
+
   return refund;
 };
 
@@ -267,8 +275,7 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
     const platformTipDebtTransaction = await models.Transaction.findOne({
       where: {
         TransactionGroup: platformTipTransaction.TransactionGroup,
-        kind: TransactionKind.PLATFORM_TIP,
-        isDebt: true,
+        kind: TransactionKind.PLATFORM_TIP_DEBT,
         type: 'CREDIT',
       },
     });
@@ -276,7 +283,10 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
     // Old tips did not have a "debt" transaction associated
     if (platformTipDebtTransaction) {
       // Update tip settlement status
-      const settlementWhere = { TransactionGroup: transaction.TransactionGroup, kind: TransactionKind.PLATFORM_TIP };
+      const settlementWhere = {
+        TransactionGroup: transaction.TransactionGroup,
+        kind: TransactionKind.PLATFORM_TIP_DEBT,
+      };
       const tipSettlement = await models.TransactionSettlement.findOne({ where: settlementWhere });
       let tipRefundSettlementStatus = TransactionSettlementStatus.OWED;
       if (tipSettlement.status === TransactionSettlementStatus.OWED) {
@@ -301,7 +311,7 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
     const hostFeeRefundTransaction = await models.Transaction.createDoubleEntry(hostFeeRefund);
     await associateTransactionRefundId(hostFeeTransaction, hostFeeRefundTransaction, data);
 
-    if (refundedPaymentProcessorFee) {
+    if (refundedPaymentProcessorFee && refundedPaymentProcessorFee !== transaction.paymentProcessorFeeInHostCurrency) {
       logger.error(
         `Partial processor fees refunds are not supported, got ${refundedPaymentProcessorFee} for #${transaction.id}`,
       );

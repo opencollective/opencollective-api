@@ -308,7 +308,7 @@ describe('server/models/Transaction', () => {
       expect(tipDebtDebit).to.exist;
 
       // Check settlement
-      const settlement = await models.TransactionSettlement.getByTransaction(tipCredit);
+      const settlement = await models.TransactionSettlement.getByTransaction(tipDebtCredit);
       expect(settlement).to.exist;
       expect(settlement.status).to.eq('OWED');
     });

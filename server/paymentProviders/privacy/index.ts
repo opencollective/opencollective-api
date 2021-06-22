@@ -171,13 +171,11 @@ const processTransaction = async (
     !isRefund && // There will be no expense for refunds
     collective.settings?.ignoreExpenseMissingReceiptAlerts !== true
   ) {
-    expense
-      .createActivity(
-        activities.COLLECTIVE_EXPENSE_MISSING_RECEIPT,
-        { id: UserId },
-        { ...expense.data, user: virtualCard.user },
-      )
-      .catch(e => logger.error('An error happened when creating the COLLECTIVE_EXPENSE_MISSING_RECEIPT activity', e));
+    expense.createActivity(
+      activities.COLLECTIVE_EXPENSE_MISSING_RECEIPT,
+      { id: UserId },
+      { ...expense.data, user: virtualCard.user },
+    );
   }
 
   return expense;

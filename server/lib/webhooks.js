@@ -55,6 +55,21 @@ const getOrderInfo = order => {
   }
 };
 
+const expenseActivities = [
+  activities.COLLECTIVE_EXPENSE_CREATED,
+  activities.COLLECTIVE_EXPENSE_DELETED,
+  activities.COLLECTIVE_EXPENSE_UPDATED,
+  activities.COLLECTIVE_EXPENSE_REJECTED,
+  activities.COLLECTIVE_EXPENSE_APPROVED,
+  activities.COLLECTIVE_EXPENSE_UNAPPROVED,
+  activities.COLLECTIVE_EXPENSE_PAID,
+  activities.COLLECTIVE_EXPENSE_MARKED_AS_UNPAID,
+  activities.COLLECTIVE_EXPENSE_PROCESSING,
+  activities.COLLECTIVE_EXPENSE_ERROR,
+  activities.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT,
+  activities.COLLECTIVE_EXPENSE_MARKED_AS_SPAM,
+];
+
 /**
  * Sanitize an activity to make it suitable for posting on external webhooks
  */
@@ -78,7 +93,7 @@ export const sanitizeActivity = activity => {
       'update.tags',
       'update.isPrivate',
     ]);
-  } else if (type === activities.COLLECTIVE_EXPENSE_CREATED) {
+  } else if (expenseActivities.includes(type)) {
     cleanActivity.data = pick(activity.data, [
       'expense.id',
       'expense.description',

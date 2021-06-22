@@ -15,6 +15,8 @@ export enum TransactionKind {
   PLATFORM_FEE = 'PLATFORM_FEE',
   /** Financial contribution to Open Collective added on top of another contribution */
   PLATFORM_TIP = 'PLATFORM_TIP',
+  /** Financial contribution to Open Collective added on top of another contribution */
+  PLATFORM_TIP_DEBT = 'PLATFORM_TIP_DEBT',
   /** For prepaid budgets */
   PREPAID_PAYMENT_METHOD = 'PREPAID_PAYMENT_METHOD',
 }
