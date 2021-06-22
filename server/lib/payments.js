@@ -271,7 +271,7 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
     const platformTipRefundTransaction = await models.Transaction.createDoubleEntry(platformTipRefund);
     await associateTransactionRefundId(platformTipTransaction, platformTipRefundTransaction, data);
 
-    // Refund tip
+    // Refund tip debt
     const platformTipDebtTransaction = await models.Transaction.findOne({
       where: {
         TransactionGroup: platformTipTransaction.TransactionGroup,
@@ -280,7 +280,7 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
       },
     });
 
-    // Old tips did not have a "debt" transaction associated
+    // Tips directly collected (and legacy ones) do not have a "debt" transaction associated
     if (platformTipDebtTransaction) {
       // Update tip settlement status
       const settlementWhere = {
@@ -292,7 +292,7 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
       if (tipSettlement.status === TransactionSettlementStatus.OWED) {
         // If the tip is not INVOICED or SETTLED, we don't need to care about recording it.
         // Otherwise, the tip refund will be marked as OWED and deduced from the next invoice
-        await tipSettlement.destroy();
+        await tipSettlement.update({ status: TransactionSettlementStatus.SETTLED });
         tipRefundSettlementStatus = TransactionSettlementStatus.SETTLED;
       }
 
