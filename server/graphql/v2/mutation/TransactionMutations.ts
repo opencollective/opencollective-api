@@ -70,7 +70,7 @@ const transactionMutations = {
     },
   },
   refundTransaction: {
-    type: new GraphQLNonNull(Transaction),
+    type: Transaction,
     description: 'Refunds transaction',
     args: {
       transaction: {

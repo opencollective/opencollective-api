@@ -33,6 +33,7 @@ const FeatureAllowedForTypes = {
   [FEATURE.TRANSFERWISE]: [types.ORGANIZATION],
   [FEATURE.PAYPAL_PAYOUTS]: [types.ORGANIZATION],
   [FEATURE.PAYPAL_DONATIONS]: [types.ORGANIZATION],
+  [FEATURE.ALIPAY]: [types.ORGANIZATION],
 };
 
 /**
@@ -47,6 +48,7 @@ export const OPT_IN_FEATURE_FLAGS = {
   [FEATURE.COLLECTIVE_GOALS]: 'settings.collectivePage.showGoals',
   [FEATURE.PAYPAL_PAYOUTS]: 'settings.features.paypalPayouts',
   [FEATURE.PAYPAL_DONATIONS]: 'settings.features.paypalDonations',
+  [FEATURE.ALIPAY]: 'settings.features.alipay',
   [FEATURE.RECEIVE_HOST_APPLICATIONS]: 'settings.apply',
 };
 
@@ -60,6 +62,7 @@ const FEATURES_ONLY_FOR_HOST_ORGS = new Set([
   FEATURE.TRANSFERWISE,
   FEATURE.PAYPAL_PAYOUTS,
   FEATURE.PAYPAL_DONATIONS,
+  FEATURE.ALIPAY,
   FEATURE.CONTACT_FORM,
   FEATURE.HOST_DASHBOARD,
   FEATURE.EVENTS,

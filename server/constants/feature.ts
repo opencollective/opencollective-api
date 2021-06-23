@@ -56,6 +56,8 @@ enum FEATURE {
   HOST_DASHBOARD = 'HOST_DASHBOARD',
   /** Whether this profile has connected accounts */
   CONNECTED_ACCOUNTS = 'CONNECTED_ACCOUNTS',
+  /** Whether this profile can receive donations using AliPay */
+  ALIPAY = 'ALIPAY',
 }
 
 export const FeaturesList = Object.values(FEATURE);

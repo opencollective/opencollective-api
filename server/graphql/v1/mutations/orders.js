@@ -251,7 +251,9 @@ const hasPaymentMethod = order => {
   } else if (paymentMethod.service === 'paypal' && paymentMethod.data?.isNewApi) {
     return Boolean(paymentMethod.data.orderId);
   } else {
-    return Boolean(paymentMethod.uuid || paymentMethod.token || paymentMethod.type === 'manual');
+    return Boolean(
+      paymentMethod.uuid || paymentMethod.token || paymentMethod.type === 'manual' || paymentMethod.type === 'alipay',
+    );
   }
 };
 

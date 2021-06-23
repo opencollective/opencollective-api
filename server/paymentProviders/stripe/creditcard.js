@@ -1,11 +1,13 @@
 import config from 'config';
-import { get, isNumber, result } from 'lodash';
+import { get, isNumber } from 'lodash';
 
 import * as constants from '../../constants/transactions';
 import logger from '../../lib/logger';
-import { createRefundTransaction, getHostFee, getPlatformFee } from '../../lib/payments';
+import { getHostFee, getPlatformFee } from '../../lib/payments';
 import stripe, { convertFromStripeAmount, convertToStripeAmount, extractFees } from '../../lib/stripe';
 import models from '../../models';
+
+import { refundTransaction, refundTransactionOnlyInDatabase } from './common';
 
 const UNKNOWN_ERROR_MSG = 'Something went wrong with the payment, please contact support@opencollective.com.';
 
@@ -230,23 +232,6 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
   return models.Transaction.createFromContributionPayload(transactionPayload, { isPlatformTipDirectlyCollected: true });
 };
 
-/**
- * Given a charge id, retrieves its corresponding charge and refund data.
- */
-export const retrieveChargeWithRefund = async (chargeId, stripeAccount) => {
-  const charge = await stripe.charges.retrieve(chargeId, {
-    stripeAccount: stripeAccount.username,
-  });
-  if (!charge) {
-    throw Error(`charge id ${chargeId} not found`);
-  }
-  const refundId = get(charge, 'refunds.data[0].id');
-  const refund = await stripe.refunds.retrieve(refundId, {
-    stripeAccount: stripeAccount.username,
-  });
-  return { charge, refund };
-};
-
 export const setupCreditCard = async (paymentMethod, { user, collective } = {}) => {
   const platformStripeCustomer = await getOrCreateCustomerOnPlatformAccount({
     paymentMethod,
@@ -366,75 +351,8 @@ export default {
     return transactions;
   },
 
-  /** Refund a given transaction */
-  refundTransaction: async (transaction, user) => {
-    /* What's going to be refunded */
-    const chargeId = result(transaction.data, 'charge.id');
-
-    /* From which stripe account it's going to be refunded */
-    const collective = await models.Collective.findByPk(
-      transaction.type === 'CREDIT' ? transaction.CollectiveId : transaction.FromCollectiveId,
-    );
-    const hostStripeAccount = await collective.getHostStripeAccount();
-
-    /* Refund both charge & application fee */
-    const shouldRefundApplicationFee = transaction.platformFeeInHostCurrency > 0;
-    const refund = await stripe.refunds.create(
-      { charge: chargeId, refund_application_fee: shouldRefundApplicationFee }, // eslint-disable-line camelcase
-      { stripeAccount: hostStripeAccount.username },
-    );
-    const charge = await stripe.charges.retrieve(chargeId, { stripeAccount: hostStripeAccount.username });
-    const refundBalance = await stripe.balanceTransactions.retrieve(refund.balance_transaction, {
-      stripeAccount: hostStripeAccount.username,
-    });
-    const fees = extractFees(refundBalance, refundBalance.currency);
-
-    /* Create negative transactions for the received transaction */
-    return await createRefundTransaction(
-      transaction,
-      fees.stripeFee,
-      {
-        ...transaction.data,
-        refund,
-        balanceTransaction: refundBalance,
-        charge,
-      },
-      user,
-    );
-  },
-
-  /** Refund a given transaction that was already refunded
-   * in stripe but not in our database
-   */
-  refundTransactionOnlyInDatabase: async (transaction, user) => {
-    /* What's going to be refunded */
-    const chargeId = result(transaction.data, 'charge.id');
-
-    /* From which stripe account it's going to be refunded */
-    const collective = await models.Collective.findByPk(
-      transaction.type === 'CREDIT' ? transaction.CollectiveId : transaction.FromCollectiveId,
-    );
-    const hostStripeAccount = await collective.getHostStripeAccount();
-
-    /* Refund both charge & application fee */
-    const { charge, refund } = await retrieveChargeWithRefund(chargeId, hostStripeAccount);
-    if (!refund) {
-      throw new Error('No refunds found in stripe.');
-    }
-    const refundBalance = await stripe.balanceTransactions.retrieve(refund.balance_transaction, {
-      stripeAccount: hostStripeAccount.username,
-    });
-    const fees = extractFees(refundBalance, refundBalance.currency);
-
-    /* Create negative transactions for the received transaction */
-    return await createRefundTransaction(
-      transaction,
-      fees.stripeFee,
-      { ...transaction.data, charge, refund, balanceTransaction: refundBalance },
-      user,
-    );
-  },
-
+  refundTransaction,
+  refundTransactionOnlyInDatabase,
   webhook: (/* requestBody, event */) => {
     // We don't do anything at the moment
     return Promise.resolve();
