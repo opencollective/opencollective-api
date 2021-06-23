@@ -69,6 +69,11 @@ const confirmOrder = async (req: Request, res: Response, next: NextFunction): Pr
           { association: 'createdByUser' },
         ],
       });
+      if (order.data.paymentIntent.id !== payment_intent) {
+        logger.warn('User tried to confirm different AliPay order than the one requested', req.query);
+        res.sendStatus(401);
+        return;
+      }
       if (order.status !== OrderStatus.REQUIRE_CLIENT_CONFIRMATION) {
         logger.warn(
           `Trying to confirm Alipay order but order status is not waiting for client confirmation: #${order.id}`,
