@@ -737,8 +737,14 @@ function defineModel() {
       return;
     }
 
+    // The reference value is currently passed as "hostFeeInHostCurrency"
     const amountInHostCurrency = Math.abs(transaction.hostFeeInHostCurrency);
-    const amountInCollectiveCurrency = Math.round(amountInHostCurrency / transaction.hostCurrencyFxRate);
+    const hostCurrency = transaction.hostCurrency;
+    const hostCurrencyFxRate = transaction.hostCurrencyFxRate;
+
+    // For the Collective/Fund, we calculate the matching amount using the hostCurrencyFxRate
+    const amount = Math.round(amountInHostCurrency / transaction.hostCurrencyFxRate);
+    const currency = transaction.currency;
 
     const hostFeeTransactionData = {
       type: CREDIT,
@@ -749,12 +755,12 @@ function defineModel() {
       CollectiveId: host.id,
       HostCollectiveId: host.id,
       // Compute amounts
-      amount: amountInCollectiveCurrency,
-      netAmountInCollectiveCurrency: amountInCollectiveCurrency,
-      currency: transaction.currency,
+      amount,
+      netAmountInCollectiveCurrency: amount,
+      currency: currency,
       amountInHostCurrency: amountInHostCurrency,
-      hostCurrency: transaction.hostCurrency,
-      hostCurrencyFxRate: transaction.hostCurrencyFxRate,
+      hostCurrency: hostCurrency,
+      hostCurrencyFxRate: hostCurrencyFxRate,
       // No fees
       platformFeeInHostCurrency: 0,
       hostFeeInHostCurrency: 0,
@@ -772,17 +778,23 @@ function defineModel() {
     return { transaction, hostFeeTransaction };
   };
 
-  Transaction.createHostFeeShareTransactions = async (hostFeeTransaction, host, isDirectlyCollected = false) => {
+  Transaction.createHostFeeShareTransactions = async (
+    { transaction, hostFeeTransaction },
+    host,
+    isDirectlyCollected = false,
+  ) => {
     const plan = await host.getPlan();
     if (!plan.hostFeeSharePercent) {
       return;
     }
 
-    const amount = Math.round((hostFeeTransaction.amount * plan.hostFeeSharePercent) / 100);
-    const currency = hostFeeTransaction.currency;
+    // We use the Host Fee amountInHostCurrency/hostCurrency as a basis
+    const amount = Math.round((hostFeeTransaction.amountInHostCurrency * plan.hostFeeSharePercent) / 100);
+    const currency = hostFeeTransaction.hostCurrency;
 
+    // This is a credit to Open Collective and needs to be inserted in USD
     const hostCurrency = HOST_FEE_SHARE_TRANSACTION_PROPERTIES.hostCurrency;
-    const hostCurrencyFxRate = await Transaction.getFxRate(currency, hostCurrency, hostFeeTransaction);
+    const hostCurrencyFxRate = await Transaction.getFxRate(currency, hostCurrency, transaction);
     const amountInHostCurrency = Math.round(amount * hostCurrencyFxRate);
 
     const hostFeeShareTransactionData = {
@@ -824,7 +836,7 @@ function defineModel() {
   Transaction.creatHostFeeShareDebtTransactions = async (hostFeeShareTransactionData, host) => {
     // Create debt transaction
     const hostFeeShareDebtTransactionData = {
-      ...omit(hostFeeShareTransactionData, ['data']), // TODO: remove the OrderId?
+      ...omit(hostFeeShareTransactionData, ['data']),
       type: CREDIT,
       kind: TransactionKind.HOST_FEE_SHARE_DEBT,
       description: 'Host Fee Share owed to Open Collective',
@@ -899,7 +911,14 @@ function defineModel() {
       if (result) {
         if (result.hostFeeTransaction) {
           const isAlreadyCollected = Boolean(opts?.isPlatformRevenueDirectlyCollected);
-          await Transaction.createHostFeeShareTransactions(result.hostFeeTransaction, host, isAlreadyCollected);
+          await Transaction.createHostFeeShareTransactions(
+            {
+              transaction: result.transaction,
+              hostFeeTransaction: result.hostFeeTransaction,
+            },
+            host,
+            isAlreadyCollected,
+          );
         }
         // Transaction was modified by createHostFeeTransaction, we get it from the result
         if (result.transaction) {
@@ -1004,6 +1023,14 @@ function defineModel() {
   Transaction.getFxRate = async function (fromCurrency, toCurrency, transaction) {
     if (fromCurrency === toCurrency) {
       return 1;
+    }
+
+    // Simple Case
+    if (fromCurrency === transaction.currency && toCurrency === transaction.hostCurrency) {
+      return transaction.hostCurrencyFxRate;
+    }
+    if (fromCurrency === transaction.hostCurrency && toCurrency === transaction.currency) {
+      return 1 / transaction.hostCurrencyFxRate;
     }
 
     // For platform tips, we store the FX rate of the host<>currency
