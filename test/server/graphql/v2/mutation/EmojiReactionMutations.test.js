@@ -13,7 +13,7 @@ import {
 import { graphqlQueryV2 } from '../../../../utils';
 import * as utils from '../../../../utils';
 
-describe('server/graphql/v2/mutation/CommentReactionMutations', () => {
+describe('server/graphql/v2/mutation/EmojiReactionMutations', () => {
   before(utils.resetTestDB);
 
   describe('Add Emoji Reaction', () => {
