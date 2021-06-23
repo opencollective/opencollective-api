@@ -106,7 +106,7 @@ const confirmOrder = async (req: Request, res: Response, next: NextFunction): Pr
       const hostCurrencyFxRate = amountInHostCurrency / amount;
 
       const hostFee = await getHostFee(order, host);
-      const hostFeeInHostCurrency = Math.round(hostFee, hostCurrencyFxRate);
+      const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
 
       const platformTip = getPlatformTip(order);
       const platformFeeInHostCurrency = Math.round(platformTip * hostCurrencyFxRate);

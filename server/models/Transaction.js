@@ -362,7 +362,7 @@ function defineModel() {
   };
 
   Transaction.prototype.getPlatformTipDebtTransaction = function () {
-    return this.getRelatedTransaction({ kind: TransactionKind.PLATFORM_TIP, isDebt: true });
+    return this.getRelatedTransaction({ kind: TransactionKind.PLATFORM_TIP_DEBT, isDebt: true });
   };
 
   Transaction.prototype.getHostFeeTransaction = function () {
@@ -374,7 +374,7 @@ function defineModel() {
   };
 
   Transaction.prototype.getHostFeeShareDebtTransaction = function () {
-    return this.getRelatedTransaction({ kind: TransactionKind.HOST_FEE_SHARE, isDebt: true });
+    return this.getRelatedTransaction({ kind: TransactionKind.HOST_FEE_SHARE_DEBT, isDebt: true });
   };
 
   Transaction.prototype.getOppositeTransaction = async function () {

@@ -137,9 +137,10 @@ AND ts."status" != 'SETTLED'`,
       } (${host.currency})`,
     );
 
-    // TODO: reactivate CSV when ready
-    const csv = json2csv(transactions.map(t => pick(t, ATTACHED_CSV_COLUMNS)));
-    console.debug(csv);
+    let csv;
+    if (transactions.length) {
+      csv = json2csv(transactions.map(t => pick(t, ATTACHED_CSV_COLUMNS)));
+    }
 
     if (DRY) {
       console.debug(`Items:\n${json2csv(items)}\n`);
@@ -196,21 +197,23 @@ AND ts."status" != 'SETTLED'`,
       await models.ExpenseItem.bulkCreate(items);
 
       // Attach CSV
-      const Body = csv;
-      const filenameBase = `${host.name}-${moment(date).format('MMMM-YYYY')}`;
-      const Key = `${filenameBase}.${uuid().split('-')[0]}.csv`;
-      const { Location: url } = await uploadToS3({
-        Bucket: config.aws.s3.bucket,
-        Key,
-        Body,
-        ACL: 'public-read',
-        ContentType: 'text/csv',
-      });
-      await models.ExpenseAttachedFile.create({
-        url,
-        ExpenseId: expense.id,
-        CreatedByUserId: SETTLEMENT_EXPENSE_PROPERTIES.UserId,
-      });
+      if (csv) {
+        const Body = csv;
+        const filenameBase = `${host.name}-${moment(date).format('MMMM-YYYY')}`;
+        const Key = `${filenameBase}.${uuid().split('-')[0]}.csv`;
+        const { Location: url } = await uploadToS3({
+          Bucket: config.aws.s3.bucket,
+          Key,
+          Body,
+          ACL: 'public-read',
+          ContentType: 'text/csv',
+        });
+        await models.ExpenseAttachedFile.create({
+          url,
+          ExpenseId: expense.id,
+          CreatedByUserId: SETTLEMENT_EXPENSE_PROPERTIES.UserId,
+        });
+      }
 
       // Mark transactions as invoiced
       await models.TransactionSettlement.markTransactionsAsInvoiced(transactions, expense.id);

@@ -120,7 +120,6 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
   const isSharedRevenue = !!hostFeeSharePercent;
 
   // Read or compute Platform Fee
-  console.log('createChargeAndTransactions');
   const applicationFee = await getApplicationFee(order, host, { hostFeeSharePercent });
   const platformTip = getPlatformTip(order);
 
@@ -192,7 +191,6 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
   });
 
   // Create a Transaction
-
   const amount = order.totalAmount;
   const currency = order.currency;
   const hostCurrency = balanceTransaction.currency.toUpperCase();

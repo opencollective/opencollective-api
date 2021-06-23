@@ -1,7 +1,7 @@
 import { get } from 'lodash';
 
 import { TransactionTypes } from '../../constants/transactions';
-import * as currency from '../../lib/currency';
+import { getFxRate } from '../../lib/currency';
 import { createRefundTransaction, getHostFee, getPlatformTip, isProvider } from '../../lib/payments';
 import models, { Op } from '../../models';
 
@@ -41,7 +41,7 @@ async function getBalance(paymentMethod) {
   let spent = 0;
   for (const transaction of allTransactions) {
     if (transaction.currency != paymentMethod.currency) {
-      const fxRate = await currency.getFxRate(transaction.currency, paymentMethod.currency);
+      const fxRate = await getFxRate(transaction.currency, paymentMethod.currency);
       spent += transaction.netAmountInCollectiveCurrency * fxRate;
     } else {
       spent += transaction.netAmountInCollectiveCurrency;
@@ -86,7 +86,7 @@ async function processOrder(order) {
   const amount = order.totalAmount;
   const currency = order.currency;
   const hostCurrency = host.currency;
-  const hostCurrencyFxRate = await currency.getFxRate(currency, hostCurrency);
+  const hostCurrencyFxRate = await getFxRate(currency, hostCurrency);
   const amountInHostCurrency = Math.round(amount * hostCurrencyFxRate);
 
   const platformTip = getPlatformTip(order);

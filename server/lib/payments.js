@@ -243,7 +243,7 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
   /* If the transaction passed isn't the one from the collective
    * perspective, the opposite transaction is retrieved. */
   if (transaction.type === DEBIT) {
-    transaction = transaction.getRelatedTransaction({ type: CREDIT });
+    transaction = await transaction.getRelatedTransaction({ type: CREDIT });
   }
 
   if (!transaction) {
@@ -275,7 +275,7 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
       const tipSettlement = await models.TransactionSettlement.findOne({
         where: {
           TransactionGroup: transaction.TransactionGroup,
-          kind: TransactionKind.PLATFORM_TIP,
+          kind: TransactionKind.PLATFORM_TIP_DEBT,
         },
       });
       let tipRefundSettlementStatus = TransactionSettlementStatus.OWED;
@@ -287,9 +287,9 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
       }
 
       const platformTipDebtRefund = buildRefund(platformTipDebtTransaction);
-      const tipDebtRefundTransaction = await models.Transaction.createDoubleEntry(platformTipDebtRefund);
-      await associateTransactionRefundId(platformTipDebtTransaction, tipDebtRefundTransaction, data);
-      await TransactionSettlement.createForTransaction(tipDebtRefundTransaction, tipRefundSettlementStatus);
+      const platformTipDebtRefundTransaction = await models.Transaction.createDoubleEntry(platformTipDebtRefund);
+      await associateTransactionRefundId(platformTipDebtTransaction, platformTipDebtRefundTransaction, data);
+      await TransactionSettlement.createForTransaction(platformTipDebtRefundTransaction, tipRefundSettlementStatus);
     }
   }
 
@@ -325,7 +325,7 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
         const hostFeeShareSettlement = await models.TransactionSettlement.findOne({
           where: {
             TransactionGroup: transaction.TransactionGroup,
-            kind: TransactionKind.HOST_FEE_SHARE,
+            kind: TransactionKind.HOST_FEE_SHARE_DEBT,
           },
         });
         let hostFeeShareRefundSettlementStatus = TransactionSettlementStatus.OWED;
@@ -707,7 +707,7 @@ export const getPlatformFeePercent = async () => {
   return 0;
 };
 
-export const getHostFee = async (totalAmount, order, host = null) => {
+export const getHostFee = async (order, host = null) => {
   const platformTip = getPlatformTip(order);
 
   const hostFeePercent = await getHostFeePercent(order, host);
