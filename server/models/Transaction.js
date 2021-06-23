@@ -789,7 +789,7 @@ function defineModel() {
     }
 
     // We use the Host Fee amountInHostCurrency/hostCurrency as a basis
-    const amount = Math.round((hostFeeTransaction.amountInHostCurrency * plan.hostFeeSharePercent) / 100);
+    const amount = calcFee(hostFeeTransaction.amountInHostCurrency, plan.hostFeeSharePercent);
     const currency = hostFeeTransaction.hostCurrency;
 
     // This is a credit to Open Collective and needs to be inserted in USD

@@ -686,25 +686,20 @@ export const sendExpiringCreditCardUpdateEmail = async data => {
   return emailLib.send('payment.creditcard.expiring', data.email, data);
 };
 
-export const getPlatformFee = async (totalAmount, order, host = null, { hostPlan, hostFeeSharePercent } = {}) => {
-  const isFeesOnTop = order.data?.isFeesOnTop || false;
-  const sharedRevenuePercent = hostFeeSharePercent || hostPlan?.hostFeeSharePercent;
+export const getApplicationFee = async (order, host = null, { hostFeeSharePercent } = {}) => {
+  let applicationFee = getPlatformTip(order);
 
-  // Fees On Top can now be combined with Shared Revenue
-  if (isFeesOnTop || sharedRevenuePercent) {
-    const platformFee = order.data?.platformFee || 0;
-
-    const sharedRevenue = sharedRevenuePercent
-      ? calcFee(await getHostFee(totalAmount, order, host), sharedRevenuePercent)
-      : 0;
-
-    return platformFee + sharedRevenue;
+  if (hostFeeSharePercent) {
+    const hostFee = await getHostFee(order, host);
+    const sharedRevenue = hostFeeSharePercent ? calcFee(hostFee, hostFeeSharePercent) : 0;
+    applicationFee += sharedRevenue;
   }
 
-  //  Otherwise, use platformFeePercent
-  const platformFeePercent = await getPlatformFeePercent(order, host);
+  return applicationFee;
+};
 
-  return calcFee(totalAmount, platformFeePercent);
+export const getPlatformTip = order => {
+  return order.data?.isFeesOnTop ? order.data?.platformTip || order.data?.platformFee || 0 : 0;
 };
 
 export const getPlatformFeePercent = async () => {
@@ -713,11 +708,11 @@ export const getPlatformFeePercent = async () => {
 };
 
 export const getHostFee = async (totalAmount, order, host = null) => {
-  const feeOnTop = order.data?.platformFee || 0;
+  const platformTip = getPlatformTip(order);
 
   const hostFeePercent = await getHostFeePercent(order, host);
 
-  return calcFee(totalAmount - feeOnTop, hostFeePercent);
+  return calcFee(order.totalAmount - platformTip, hostFeePercent);
 };
 
 export const getHostFeePercent = async (order, host = null) => {
