@@ -179,7 +179,7 @@ AND ts."status" != 'SETTLED'`,
         amount: totalAmountCharged,
         CollectiveId: host.id,
         currency: host.currency,
-        description: `Platform settlement for ${moment(date).utc().subtract(1, 'month').format('MMMM')}`,
+        description: `Platform settlement for ${moment(date).utc().format('MMMM')}`,
         incurredAt: today,
         data: { isPlatformTipSettlement: true, transactionIds },
         type: expenseTypes.INVOICE,
@@ -197,7 +197,7 @@ AND ts."status" != 'SETTLED'`,
 
       // Attach CSV
       const Body = csv;
-      const filenameBase = `${host.name}-${moment(date).subtract(1, 'month').format('MMMM-YYYY')}`;
+      const filenameBase = `${host.name}-${moment(date).format('MMMM-YYYY')}`;
       const Key = `${filenameBase}.${uuid().split('-')[0]}.csv`;
       const { Location: url } = await uploadToS3({
         Bucket: config.aws.s3.bucket,
