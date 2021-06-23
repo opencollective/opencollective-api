@@ -1,4 +1,5 @@
 import { execSync } from 'child_process';
+import querystring from 'querystring';
 
 import Promise from 'bluebird';
 import { expect } from 'chai';
@@ -13,6 +14,7 @@ import { loaders } from '../server/graphql/loaders';
 import schemaV1 from '../server/graphql/v1/schema';
 import schemaV2 from '../server/graphql/v2/schema';
 import cache from '../server/lib/cache';
+import logger from '../server/lib/logger';
 import * as libpayments from '../server/lib/payments';
 /* Server code being used */
 import stripe, { convertToStripeAmount } from '../server/lib/stripe';
@@ -348,6 +350,34 @@ const prettifyTransactionsData = (transactions, columns) => {
       return cleanDataValues;
     });
   }
+};
+
+/**
+ * Create a nock for Fixer.io at given rate
+ */
+export const nockFixerRates = ratesConfig => {
+  nock('https://data.fixer.io')
+    .persist()
+    .get(/.*/)
+    .query(({ base, symbols }) => {
+      if (ratesConfig[base][symbols]) {
+        logger.debug(`Fixer: Returning mock value for ${base} -> ${symbols}: ${ratesConfig[base][symbols]}`);
+        return true;
+      } else {
+        return false;
+      }
+    })
+    .reply(url => {
+      const { base, symbols } = querystring.parse(url);
+      return [
+        200,
+        {
+          base,
+          date: '2021-06-01',
+          rates: { [symbols]: ratesConfig[base][symbols] },
+        },
+      ];
+    });
 };
 
 /**

@@ -14,7 +14,7 @@ import { SETTLEMENT_EXPENSE_PROPERTIES } from '../../server/constants/transactio
 import { uploadToS3 } from '../../server/lib/awsS3';
 import { getPendingHostFeeShare, getPendingPlatformTips } from '../../server/lib/host-metrics';
 import { parseToBoolean } from '../../server/lib/utils';
-import models, { sequelize } from '../../server/models';
+import models, { Op, sequelize } from '../../server/models';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 
 const today = moment.utc();
@@ -64,6 +64,7 @@ export async function run(baseDate = defaultDate) {
 
   const hosts = await models.Collective.findAll({
     where: {
+      id: { [Op.not]: 8686 }, // Make sure we don't invoice OC Inc as reverse settlements are not supported yet
       isHostAccount: true,
     },
     // TODO: join Transactions to make and startDate/endDate to make sure the Host was active this month
