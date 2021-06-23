@@ -54,29 +54,9 @@ const emojiReactionMutations = {
       }
 
       if (args.comment) {
-        const commentId = idDecode(args.comment.id, IDENTIFIER_TYPES.COMMENT);
-        const comment = await models.Comment.findByPk(commentId);
-
-        if (!comment) {
-          throw new ValidationFailed('This comment does not exist');
-        } else if (comment.ExpenseId) {
-          const expense = await models.Expense.findByPk(comment.ExpenseId);
-          if (!expense || !(await canComment(req, expense))) {
-            throw new Forbidden('You are not allowed to comment or add reactions on this expense');
-          }
-        }
-        const reaction = await models.EmojiReaction.addReactionOnComment(req.remoteUser, commentId, args.emoji);
-        return { comment: models.Comment.findByPk(reaction.CommentId), update: null };
+        return addReactionToCommentOrUpdate(args.comment.id, req, args.emoji, IDENTIFIER_TYPES.COMMENT);
       } else if (args.update) {
-        const updateId = idDecode(args.update.id, IDENTIFIER_TYPES.UPDATE);
-        const update = await models.Update.findByPk(updateId);
-
-        if (!update) {
-          throw new ValidationFailed('This update does not exist');
-        }
-
-        const reaction = await models.EmojiReaction.addReactionOnUpdate(req.remoteUser, updateId, args.emoji);
-        return { update: models.Update.findByPk(reaction.UpdateId), comment: null };
+        return addReactionToCommentOrUpdate(args.update.id, req, args.emoji, IDENTIFIER_TYPES.UPDATE);
       }
     },
   },
@@ -101,48 +81,84 @@ const emojiReactionMutations = {
       }
 
       if (comment) {
-        const commentId = idDecode(comment.id, IDENTIFIER_TYPES.COMMENT);
-        const reaction = await models.EmojiReaction.findOne({
-          where: {
-            CommentId: commentId,
-            emoji,
-          },
-        });
-
-        if (!reaction) {
-          throw new NotFound(`This comment reaction does not exist or has been deleted.`);
-        }
-
-        // Check permissions
-        if (!remoteUser.isAdmin(reaction.FromCollectiveId)) {
-          throw new Forbidden();
-        }
-
-        await reaction.destroy();
-        return { comment: models.Comment.findByPk(reaction.CommentId), update: null };
+        return removeReactionFromCommentOrUpdate(comment.id, remoteUser, emoji, IDENTIFIER_TYPES.COMMENT);
       } else if (update) {
-        const updateId = idDecode(update.id, IDENTIFIER_TYPES.UPDATE);
-        const reaction = await models.EmojiReaction.findOne({
-          where: {
-            UpdateId: updateId,
-            emoji,
-          },
-        });
-
-        if (!reaction) {
-          throw new NotFound(`This update reaction does not exist or has been deleted.`);
-        }
-
-        // Check permissions
-        if (!remoteUser.isAdmin(reaction.FromCollectiveId)) {
-          throw new Forbidden();
-        }
-
-        await reaction.destroy();
-        return { update: models.Update.findByPk(reaction.UpdateId), comment: null };
+        return removeReactionFromCommentOrUpdate(update.id, remoteUser, emoji, IDENTIFIER_TYPES.UPDATE);
       }
     },
   },
+};
+
+const addReactionToCommentOrUpdate = async (id, req, emoji, identifierType) => {
+  const commentOrUpdateId = idDecode(id, identifierType);
+
+  let commentOrUpdate;
+  if (identifierType === IDENTIFIER_TYPES.COMMENT) {
+    commentOrUpdate = await models.Comment.findByPk(commentOrUpdateId);
+  } else {
+    commentOrUpdate = await models.Update.findByPk(commentOrUpdateId);
+  }
+
+  if (!commentOrUpdate) {
+    if (identifierType === IDENTIFIER_TYPES.COMMENT) {
+      throw new ValidationFailed('This comment does not exist');
+    } else {
+      throw new ValidationFailed('This update does not exist');
+    }
+  } else if (identifierType === IDENTIFIER_TYPES.COMMENT && commentOrUpdate.ExpenseId) {
+    const expense = await models.Expense.findByPk(commentOrUpdate.ExpenseId);
+    if (!expense || !(await canComment(req, expense))) {
+      throw new Forbidden('You are not allowed to comment or add reactions on this expense');
+    }
+  }
+
+  if (identifierType === IDENTIFIER_TYPES.COMMENT) {
+    const reaction = await models.EmojiReaction.addReactionOnComment(req.remoteUser, commentOrUpdateId, emoji);
+    return { comment: models.Comment.findByPk(reaction.CommentId), update: null };
+  } else {
+    const reaction = await models.EmojiReaction.addReactionOnUpdate(req.remoteUser, commentOrUpdateId, emoji);
+    return { update: models.Update.findByPk(reaction.UpdateId), comment: null };
+  }
+};
+
+const removeReactionFromCommentOrUpdate = async (id, remoteUser, emoji, identifierType) => {
+  const commentOrUpdateId = idDecode(id, identifierType);
+  let reaction;
+  if (identifierType === IDENTIFIER_TYPES.COMMENT) {
+    reaction = await models.EmojiReaction.findOne({
+      where: {
+        CommentId: commentOrUpdateId,
+        emoji,
+      },
+    });
+  } else {
+    reaction = await models.EmojiReaction.findOne({
+      where: {
+        UpdateId: commentOrUpdateId,
+        emoji,
+      },
+    });
+  }
+
+  if (!reaction) {
+    if (identifierType === IDENTIFIER_TYPES.COMMENT) {
+      throw new NotFound(`This comment reaction does not exist or has been deleted.`);
+    } else {
+      throw new NotFound(`This update reaction does not exist or has been deleted.`);
+    }
+  }
+
+  // Check permissions
+  if (!remoteUser.isAdmin(reaction.FromCollectiveId)) {
+    throw new Forbidden();
+  }
+
+  await reaction.destroy();
+  if (identifierType === IDENTIFIER_TYPES.COMMENT) {
+    return { comment: models.Comment.findByPk(reaction.CommentId), update: null };
+  } else {
+    return { update: models.Update.findByPk(reaction.UpdateId), comment: null };
+  }
 };
 
 export default emojiReactionMutations;
