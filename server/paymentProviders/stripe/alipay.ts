@@ -172,15 +172,16 @@ const webhook = async (_, event) => {
     if (refund.status === 'succeeded') {
       const transaction = await models.Transaction.findOne({
         where: { type: 'CREDIT', isRefund: false, data: { charge: { id: refund.charge } } },
-        include: [{ model: models.Collective, as: 'collective' }, { model: models.PaymentMethod }],
+        include: [
+          { model: models.Collective, as: 'collective' },
+          { model: models.PaymentMethod, require: true, where: { type: 'alipay' } },
+        ],
       });
       if (!transaction) {
         logger.warn(`Could not find transaction for charge.refund.updated event`, event);
         return;
       } else if (transaction.RefundTransactionId) {
         logger.warn(`Transaction was already refunded, charge.refund.updated ignoring event`, event);
-        return;
-      } else if (transaction.PaymentMethod.type !== 'alipay') {
         return;
       }
 
