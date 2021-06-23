@@ -3,15 +3,15 @@ import '../../server/env';
 
 import config from 'config';
 import { parse as json2csv } from 'json2csv';
-import { groupBy, sumBy } from 'lodash';
+import { groupBy, pick, sumBy } from 'lodash';
 import moment from 'moment';
+import { v4 as uuid } from 'uuid';
 
 import activityType from '../../server/constants/activities';
 import expenseStatus from '../../server/constants/expense_status';
 import expenseTypes from '../../server/constants/expense_type';
-// import { SHARED_REVENUE_PLANS } from '../../server/constants/plans';
 import { SETTLEMENT_EXPENSE_PROPERTIES } from '../../server/constants/transactions';
-// import { uploadToS3 } from '../../server/lib/awsS3';
+import { uploadToS3 } from '../../server/lib/awsS3';
 import { getPendingHostFeeShare, getPendingPlatformTips } from '../../server/lib/host-metrics';
 import { parseToBoolean } from '../../server/lib/utils';
 import models, { sequelize } from '../../server/models';
@@ -49,19 +49,7 @@ if (DRY) {
   console.info('Running dry, changes are not going to be persisted to the DB.');
 }
 
-/*
-const ATTACHED_CSV_COLUMNS = [
-  'createdAt',
-  'description',
-  'CollectiveSlug',
-  'amount',
-  'currency',
-  'OrderId',
-  'TransactionId',
-  'PaymentService',
-  'source',
-];
-*/
+const ATTACHED_CSV_COLUMNS = ['createdAt', 'description', 'amount', 'currency', 'OrderId', 'TransactionGroup'];
 
 export async function run() {
   console.info(`Invoicing hosts pending fees and tips for ${moment(date).subtract(1, 'month').format('MMMM')}.`);
@@ -83,7 +71,6 @@ export async function run() {
   for (const host of hosts) {
     const pendingPlatformTips = await getPendingPlatformTips(host, { startDate, endDate });
     const pendingHostFeeShare = await getPendingHostFeeShare(host, { startDate, endDate });
-    // const settledHostFeeShare = await getSettledHostFeeShare(host, { startDate, endDate });
 
     if (HOST_ID && host.id != HOST_ID) {
       continue;
@@ -97,14 +84,14 @@ export async function run() {
       `SELECT t.*
 FROM "Transactions" as t
 INNER JOIN "TransactionSettlements" ts ON ts."TransactionGroup" = t."TransactionGroup" AND t.kind = ts.kind
-WHERE t."HostCollectiveId" = :HostCollectiveId
+WHERE t."CollectiveId" = :CollectiveId
 AND t."createdAt" >= :startDate AND t."createdAt" <= :endDate
-AND t."kind" IN ('PLATFORM_TIP_DEBT') -- TODO HOST_FEE_SHARE_DEBT to be added here
+AND t."kind" IN ('PLATFORM_TIP_DEBT', 'HOST_FEE_SHARE_DEBT')
 AND t."isDebt" IS TRUE
 AND t."deletedAt" IS NULL
 AND ts."status" != 'SETTLED'`,
       {
-        replacements: { HostCollectiveId: host.id, startDate: startDate, endDate: endDate },
+        replacements: { CollectiveId: host.id, startDate: startDate, endDate: endDate },
         model: models.Transaction,
         mapToModel: true, // pass true here if you have any mapped fields
       },
@@ -151,17 +138,17 @@ AND ts."status" != 'SETTLED'`,
     );
 
     // TODO: reactivate CSV when ready
-    // const csv = json2csv(transactions.map(t => pick(t, ATTACHED_CSV_COLUMNS)));
+    const csv = json2csv(transactions.map(t => pick(t, ATTACHED_CSV_COLUMNS)));
+    console.debug(csv);
 
     if (DRY) {
       console.debug(`Items:\n${json2csv(items)}\n`);
-      // console.debug(csv);
     } else {
       const connectedAccounts = await host.getConnectedAccounts({
         where: { deletedAt: null },
       });
 
-      let PayoutMethod =
+      let payoutMethod =
         payoutMethods[PayoutMethodTypes.OTHER]?.[0] || payoutMethods[PayoutMethodTypes.BANK_ACCOUNT]?.[0];
       if (
         connectedAccounts?.find(c => c.service === 'transferwise') &&
@@ -170,24 +157,29 @@ AND ts."status" != 'SETTLED'`,
         const currencyCompatibleAccount = payoutMethods[PayoutMethodTypes.BANK_ACCOUNT].find(
           pm => pm.data?.currency === host.currency,
         );
-        PayoutMethod = currencyCompatibleAccount || payoutMethods[PayoutMethodTypes.BANK_ACCOUNT]?.[0];
+        payoutMethod = currencyCompatibleAccount || payoutMethods[PayoutMethodTypes.BANK_ACCOUNT]?.[0];
       } else if (
         connectedAccounts?.find(c => c.service === 'paypal') &&
         !host.settings?.disablePaypalPayouts &&
         payoutMethods[PayoutMethodTypes.PAYPAL]?.[0]
       ) {
-        PayoutMethod = payoutMethods[PayoutMethodTypes.PAYPAL]?.[0];
+        payoutMethod = payoutMethods[PayoutMethodTypes.PAYPAL]?.[0];
+      }
+
+      if (!payoutMethod) {
+        console.error('No Payout Method found, Open Collective Inc. needs to have at least one payout method.');
+        process.exit();
       }
 
       // Create the Expense
       const transactionIds = transactions.map(t => t.TransactionId);
       const expense = await models.Expense.create({
         ...SETTLEMENT_EXPENSE_PROPERTIES,
-        PayoutMethodId: PayoutMethod.id,
+        PayoutMethodId: payoutMethod.id,
         amount: totalAmountCharged,
         CollectiveId: host.id,
         currency: host.currency,
-        description: `Platform settlement for ${moment.utc().subtract(1, 'month').format('MMMM')}`,
+        description: `Platform settlement for ${moment(date).utc().subtract(1, 'month').format('MMMM')}`,
         incurredAt: today,
         data: { isPlatformTipSettlement: true, transactionIds },
         type: expenseTypes.INVOICE,
@@ -204,10 +196,8 @@ AND ts."status" != 'SETTLED'`,
       await models.ExpenseItem.bulkCreate(items);
 
       // Attach CSV
-      // TODO: reactivate CSV when ready
-      /*
       const Body = csv;
-      const filenameBase = `${HostName}-${moment(date).subtract(1, 'month').format('MMMM-YYYY')}`;
+      const filenameBase = `${host.name}-${moment(date).subtract(1, 'month').format('MMMM-YYYY')}`;
       const Key = `${filenameBase}.${uuid().split('-')[0]}.csv`;
       const { Location: url } = await uploadToS3({
         Bucket: config.aws.s3.bucket,
@@ -221,7 +211,6 @@ AND ts."status" != 'SETTLED'`,
         ExpenseId: expense.id,
         CreatedByUserId: SETTLEMENT_EXPENSE_PROPERTIES.UserId,
       });
-      */
 
       // Mark transactions as invoiced
       await models.TransactionSettlement.markTransactionsAsInvoiced(transactions, expense.id);

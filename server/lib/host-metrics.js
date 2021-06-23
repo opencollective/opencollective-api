@@ -6,6 +6,10 @@ import { sequelize } from '../models';
 import { getFxRate } from './currency';
 import { parseToBoolean } from './utils';
 
+function oppositeTotal(total) {
+  return total != 0 ? -total : total;
+}
+
 async function computeTotal(results, currency) {
   let total = 0;
 
@@ -102,13 +106,13 @@ export async function getHostFees(host, { startDate, endDate } = {}) {
     newResults = await sequelize.query(
       `SELECT SUM(t1."amountInHostCurrency") as "_amount", t1."hostCurrency" as "_currency"
 FROM "Transactions" as t1
-WHERE t1."HostCollectiveId" = :HostCollectiveId
+WHERE t1."CollectiveId" = :CollectiveId
 AND t1."kind" = 'HOST_FEE'
 AND t1."createdAt" >= :startDate AND t1."createdAt" <= :endDate
 AND t1."deletedAt" IS NULL
 GROUP BY t1."hostCurrency"`,
       {
-        replacements: { HostCollectiveId: host.id, ...computeDates(startDate, endDate) },
+        replacements: { CollectiveId: host.id, ...computeDates(startDate, endDate) },
         type: sequelize.QueryTypes.SELECT,
       },
     );
@@ -132,9 +136,7 @@ GROUP BY t1."hostCurrency"`,
   let total = await computeTotal(legacyResults, host.currency);
 
   // amount/hostFeeInHostCurrency is expressed as a negative number
-  if (total != 0) {
-    total = -total;
-  }
+  total = oppositeTotal(total);
 
   if (newResults?.length) {
     total += await computeTotal(newResults, host.currency);
@@ -143,8 +145,31 @@ GROUP BY t1."hostCurrency"`,
   return total;
 }
 
-// TODO: refactor me using HOST_FEE_SHARE when available
 export async function getHostFeeShare(host, { startDate, endDate } = {}) {
+  if (parseToBoolean(config.ledger.separateHostFees) === true) {
+    const results = await sequelize.query(
+      `SELECT SUM(t1."amountInHostCurrency") as "_amount", t1."hostCurrency" as "_currency"
+FROM "Transactions" as t1
+WHERE t1."CollectiveId" = :CollectiveId
+AND t1."type" = 'DEBIT'
+AND t1."kind" = 'HOST_FEE_SHARE'
+AND t1."createdAt" >= :startDate AND t1."createdAt" <= :endDate
+AND t1."deletedAt" IS NULL
+GROUP BY t1."hostCurrency"`,
+      {
+        replacements: { CollectiveId: host.id, ...computeDates(startDate, endDate) },
+        type: sequelize.QueryTypes.SELECT,
+      },
+    );
+
+    let total = await computeTotal(results, host.currency);
+
+    // we're looking at the DEBIT, so it's a negative number
+    total = oppositeTotal(total);
+
+    return total;
+  }
+
   const hostFees = await getHostFees(host, { startDate, endDate });
 
   const plan = await host.getPlan();
@@ -153,8 +178,32 @@ export async function getHostFeeShare(host, { startDate, endDate } = {}) {
   return Math.round((hostFees * hostFeeSharePercent) / 100);
 }
 
-// TODO: refactor me using HOST_FEE_SHARE when available
 export async function getPendingHostFeeShare(host, { startDate, endDate } = {}) {
+  if (parseToBoolean(config.ledger.separateHostFees) === true) {
+    const results = await sequelize.query(
+      `SELECT SUM(t."amountInHostCurrency") AS "_amount", t."hostCurrency" as "_currency"
+        FROM "Transactions" t
+          INNER JOIN "TransactionSettlements" ts
+          ON t."TransactionGroup" = ts."TransactionGroup"
+          AND t."kind" = ts."kind"
+        WHERE t."CollectiveId" = :CollectiveId
+          AND t."type" = 'CREDIT'
+          AND t."kind" = 'HOST_FEE_SHARE_DEBT'
+          AND t."deletedAt" IS NULL
+          AND ts."deletedAt" IS NULL
+          AND ts."status" IN ('OWED', 'INVOICED')
+          AND t."createdAt" >= :startDate
+          AND t."createdAt" <= :endDate
+        GROUP BY "hostCurrency"`,
+      {
+        replacements: { CollectiveId: host.id, ...computeDates(startDate, endDate) },
+        type: sequelize.QueryTypes.SELECT,
+      },
+    );
+
+    return computeTotal(results, host.currency);
+  }
+
   const results = await sequelize.query(
     `SELECT SUM(t1."hostFeeInHostCurrency") as "_amount", t1."hostCurrency" as "_currency"
 FROM "Transactions" as t1
@@ -183,45 +232,7 @@ GROUP BY t1."hostCurrency"`,
   let total = await computeTotal(results, host.currency);
 
   // amount/hostFeeInHostCurrency is expressed as a negative number
-  if (total != 0) {
-    total = -total;
-  }
-
-  const plan = await host.getPlan();
-  const hostFeeSharePercent = plan.hostFeeSharePercent || 0;
-
-  return Math.round((total * hostFeeSharePercent) / 100);
-}
-
-// TODO: refactor me using HOST_FEE_SHARE when available
-export async function getSettledHostFeeShare(host, { startDate, endDate } = {}) {
-  const results = await sequelize.query(
-    `SELECT SUM(t1."hostFeeInHostCurrency") as "_amount", t1."hostCurrency" as "_currency"
-FROM "Transactions" as t1
-LEFT JOIN "PaymentMethods" pm ON
-  t1."PaymentMethodId" = pm.id
-LEFT JOIN "PaymentMethods" spm ON
-  spm.id = pm."SourcePaymentMethodId"
-WHERE t1."HostCollectiveId" = :HostCollectiveId
-AND t1."createdAt" >= :startDate AND t1."createdAt" <= :endDate
-AND t1."deletedAt" IS NULL
-AND (
-  pm."service" = 'stripe'
-  OR spm.service = 'stripe'
-)
-GROUP BY t1."hostCurrency"`,
-    {
-      replacements: { HostCollectiveId: host.id, ...computeDates(startDate, endDate) },
-      type: sequelize.QueryTypes.SELECT,
-    },
-  );
-
-  let total = await computeTotal(results, host.currency);
-
-  // amount/hostFeeInHostCurrency is expressed as a negative number
-  if (total != 0) {
-    total = -total;
-  }
+  total = oppositeTotal(total);
 
   const plan = await host.getPlan();
   const hostFeeSharePercent = plan.hostFeeSharePercent || 0;

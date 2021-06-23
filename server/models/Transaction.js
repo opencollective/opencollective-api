@@ -826,7 +826,7 @@ function defineModel() {
     const hostFeeShareDebtTransactionData = {
       ...omit(hostFeeShareTransactionData, ['data']), // TODO: remove the OrderId?
       type: CREDIT,
-      kind: TransactionKind.HOST_FEE_SHARE, // TODO:HOST_FEE_SHARE_DEBT
+      kind: TransactionKind.HOST_FEE_SHARE_DEBT,
       description: 'Host Fee Share owed to Open Collective',
       CollectiveId: host.id,
       FromCollectiveId: HOST_FEE_SHARE_TRANSACTION_PROPERTIES.CollectiveId,
