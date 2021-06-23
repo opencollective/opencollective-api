@@ -308,18 +308,29 @@ export const fakeComment = async commentData => {
 /**
  * Creates a fake comment reaction. All params are optionals.
  */
-export const fakeCommentReaction = async (reactionData = {}) => {
+export const fakeEmojiReaction = async (isComment, reactionData = {}) => {
   const UserId = reactionData.UserId || (await fakeUser()).id;
   const user = await models.User.findByPk(UserId);
   const FromCollectiveId = reactionData.FromCollectiveId || (await models.Collective.findByPk(user.CollectiveId)).id;
-  const ConversationId = (await fakeConversation()).id;
-  const CommentId = reactionData.CommentId || (await fakeComment({ ConversationId })).id;
-  return models.EmojiReaction.create({
-    UserId,
-    FromCollectiveId,
-    CommentId,
-    emoji: sample(REACTION_EMOJI),
-  });
+  if (isComment) {
+    const ConversationId = (await fakeConversation()).id;
+    const CommentId = reactionData.CommentId || (await fakeComment({ ConversationId })).id;
+    return models.EmojiReaction.create({
+      UserId,
+      FromCollectiveId,
+      CommentId,
+      emoji: sample(REACTION_EMOJI),
+    });
+  } else {
+    const CollectiveId = (await fakeCollective()).id;
+    const UpdateId = reactionData.UpdateId || (await fakeUpdate({ CollectiveId })).id;
+    return models.EmojiReaction.create({
+      UserId,
+      FromCollectiveId,
+      UpdateId,
+      emoji: sample(REACTION_EMOJI),
+    });
+  }
 };
 
 export const fakeConversation = async (conversationData = {}) => {
