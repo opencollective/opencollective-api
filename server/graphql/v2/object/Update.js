@@ -143,7 +143,7 @@ const Update = new GraphQLObjectType({
         type: GraphQLJSON,
         description: 'Returns a map of reactions counts for this update',
         async resolve(update, args, req) {
-          return await req.loaders.Update.reactionsByUpdateId.load(update.id);
+          return req.loaders.Update.reactionsByUpdateId.load(update.id);
         },
       },
       userReactions: {

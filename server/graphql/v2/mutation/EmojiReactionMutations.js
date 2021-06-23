@@ -1,4 +1,4 @@
-import { GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import { mustBeLoggedInTo } from '../../../lib/auth';
 import models from '../../../models';
@@ -7,11 +7,29 @@ import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../error
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { CommentReferenceInput } from '../input/CommentReferenceInput';
 import { UpdateReferenceInput } from '../input/UpdateReferenceInput';
-import { EmojiReactionsOutput } from '../object/EmojiReactionsOutput';
+import { Comment } from '../object/Comment';
+import Update from '../object/Update';
+
+/**
+ * Object type for EmojiReaction mutation.
+ */
+const EmojiReactionsResponse = new GraphQLObjectType({
+  name: 'EmojiReactionOutput',
+  fields: () => ({
+    update: {
+      type: Update,
+      description: 'Reference to the update corresponding to the emojis',
+    },
+    comment: {
+      type: Comment,
+      description: 'Reference to the comment corresponding to the emojis',
+    },
+  }),
+});
 
 const emojiReactionMutations = {
   addEmojiReaction: {
-    type: new GraphQLNonNull(EmojiReactionsOutput),
+    type: new GraphQLNonNull(EmojiReactionsResponse),
     args: {
       emoji: {
         type: new GraphQLNonNull(GraphQLString),
@@ -63,7 +81,7 @@ const emojiReactionMutations = {
     },
   },
   removeEmojiReaction: {
-    type: new GraphQLNonNull(EmojiReactionsOutput),
+    type: new GraphQLNonNull(EmojiReactionsResponse),
     args: {
       comment: {
         type: CommentReferenceInput,
