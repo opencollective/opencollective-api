@@ -30,7 +30,7 @@ export default {
 
       const reactionsList = await models.EmojiReaction.findAll({
         attributes: ['UpdateId', [sequelize.fn('ARRAY_AGG', sequelize.col('emoji')), 'emojis']],
-        where: { FromCollectiveId: req.remoteUser.CollectiveId, CommentId: { [Op.in]: updateIds } },
+        where: { FromCollectiveId: req.remoteUser.CollectiveId, UpdateId: { [Op.in]: updateIds } },
         group: ['UpdateId'],
         raw: true,
       });

@@ -151,7 +151,7 @@ const Update = new GraphQLObjectType({
         description: 'Returns the list of reactions added to this update by logged in user',
         async resolve(update, args, req) {
           if (req.remoteUser) {
-            return req.loaders.Update.remoteUserReactionsByCommentId.load(update.id);
+            return req.loaders.Update.remoteUserReactionsByUpdateId.load(update.id);
           }
         },
       },
