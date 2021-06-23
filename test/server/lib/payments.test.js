@@ -442,9 +442,9 @@ describe('server/lib/payments', () => {
 
       // TODO(LedgerRefactor): Check debt transactions and settlement status
 
-      // Settlement should have been deleted since it's was not invoiced yet
-      await tipSettlement.reload({ paranoid: false });
-      expect(tipSettlement.deletedAt).to.not.be.null;
+      // Settlement should be marked as SETTLED since it's was not invoiced yet
+      await tipSettlement.reload();
+      expect(tipSettlement.status).to.eq('SETTLED');
     });
 
     it('should remove the settlement if the tip was already invoiced', async () => {
