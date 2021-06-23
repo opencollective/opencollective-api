@@ -332,7 +332,7 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
         if (hostFeeShareSettlement.status === TransactionSettlementStatus.OWED) {
           // If the Host Fee Share is not INVOICED or SETTLED, we don't need to care about recording it.
           // Otherwise, the Host Fee Share refund will be marked as OWED and deduced from the next invoice
-          await hostFeeShareSettlement.destroy();
+          await hostFeeShareSettlement.update({ status: TransactionSettlementStatus.SETTLED });
           hostFeeShareRefundSettlementStatus = TransactionSettlementStatus.SETTLED;
         }
 
