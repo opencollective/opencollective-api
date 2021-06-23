@@ -140,7 +140,7 @@ const confirmOrder = async (req: Request, res: Response, next: NextFunction): Pr
       await models.Transaction.createFromContributionPayload(transactionPayload, {
         isPlatformTipDirectlyCollected: true,
       });
-      await order.update({ status: 'PAID' });
+      await order.update({ status: 'PAID', data: { ...order.data, paymentIntent: intent } });
 
       res.redirect(`${config.host.website}/${order.collective.slug}/donate/success?OrderId=${OrderId}`);
     } else if (redirect_status === 'failed') {
@@ -150,7 +150,11 @@ const confirmOrder = async (req: Request, res: Response, next: NextFunction): Pr
         include: [{ model: models.Collective, as: 'collective' }],
       });
       if (order) {
-        await order.destroy();
+        const hostStripeAccount = await order.collective.getHostStripeAccount();
+        const intent = await stripe.paymentIntents.retrieve(payment_intent, {
+          stripeAccount: hostStripeAccount.username,
+        });
+        await order.update({ status: OrderStatus.ERROR, data: { ...order.data, paymentIntent: intent } });
         res.redirect(
           `${config.host.website}/${order.collective.slug}/donate?${querystring.stringify({
             error: "Couldn't approve Alipay payment, please try again.",
