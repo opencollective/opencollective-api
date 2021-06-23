@@ -229,7 +229,9 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
     data,
   };
 
-  return models.Transaction.createFromContributionPayload(transactionPayload, { isPlatformTipDirectlyCollected: true });
+  return models.Transaction.createFromContributionPayload(transactionPayload, {
+    isPlatformRevenueDirectlyCollected: true,
+  });
 };
 
 export const setupCreditCard = async (paymentMethod, { user, collective } = {}) => {

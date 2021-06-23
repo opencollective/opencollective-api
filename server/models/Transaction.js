@@ -847,7 +847,10 @@ function defineModel() {
    * Creates a transaction pair from given payload. Defaults to `CONTRIBUTION` kind unless
    * specified otherwise.
    */
-  Transaction.createFromContributionPayload = async (transaction, opts = { isPlatformTipDirectlyCollected: false }) => {
+  Transaction.createFromContributionPayload = async (
+    transaction,
+    opts = { isPlatformRevenueDirectlyCollected: false },
+  ) => {
     try {
       Transaction.validateContributionPayload(transaction);
     } catch (error) {
@@ -882,7 +885,7 @@ function defineModel() {
 
     // Separate donation transaction and remove platformFee from the main transaction
     if (transaction.data?.isFeesOnTop && transaction.platformFeeInHostCurrency) {
-      const isAlreadyCollected = Boolean(opts?.isPlatformTipDirectlyCollected);
+      const isAlreadyCollected = Boolean(opts?.isPlatformRevenueDirectlyCollected);
       const result = await Transaction.createPlatformTipTransactions(transaction, host, isAlreadyCollected);
       // Transaction was modified by createPlatformTipTransactions, we get it from the result
       if (result && result.transaction) {
@@ -895,8 +898,7 @@ function defineModel() {
       const result = await Transaction.createHostFeeTransactions(transaction, host);
       if (result) {
         if (result.hostFeeTransaction) {
-          // TODO: rename isPlatformTipDirectlyCollected
-          const isAlreadyCollected = Boolean(opts?.isPlatformTipDirectlyCollected);
+          const isAlreadyCollected = Boolean(opts?.isPlatformRevenueDirectlyCollected);
           await Transaction.createHostFeeShareTransactions(result.hostFeeTransaction, host, isAlreadyCollected);
         }
         // Transaction was modified by createHostFeeTransaction, we get it from the result
