@@ -16,7 +16,7 @@ import {
 } from '../constants/transactions';
 import { getFxRate } from '../lib/currency';
 import { toNegative } from '../lib/math';
-import { calcFee } from '../lib/payments';
+import { calcFee, getHostFeeSharePercent } from '../lib/payments';
 import { stripHTML } from '../lib/sanitize-html';
 import sequelize, { DataTypes, Op } from '../lib/sequelize';
 import { exportToCSV, parseToBoolean } from '../lib/utils';
@@ -783,13 +783,14 @@ function defineModel() {
     host,
     isDirectlyCollected = false,
   ) => {
-    const plan = await host.getPlan();
-    if (!plan.hostFeeSharePercent) {
+    const order = await transaction.getOrder();
+    const hostFeeSharePercent = await getHostFeeSharePercent(order, host);
+    if (!hostFeeSharePercent) {
       return;
     }
 
     // We use the Host Fee amountInHostCurrency/hostCurrency as a basis
-    const amount = calcFee(hostFeeTransaction.amountInHostCurrency, plan.hostFeeSharePercent);
+    const amount = calcFee(hostFeeTransaction.amountInHostCurrency, hostFeeSharePercent);
     const currency = hostFeeTransaction.hostCurrency;
 
     // This is a credit to Open Collective and needs to be inserted in USD

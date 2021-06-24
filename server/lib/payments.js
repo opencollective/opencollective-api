@@ -686,9 +686,10 @@ export const sendExpiringCreditCardUpdateEmail = async data => {
   return emailLib.send('payment.creditcard.expiring', data.email, data);
 };
 
-export const getApplicationFee = async (order, host = null, { hostFeeSharePercent } = {}) => {
+export const getApplicationFee = async (order, host = null) => {
   let applicationFee = getPlatformTip(order);
 
+  const hostFeeSharePercent = await getHostFeeSharePercent(order, host);
   if (hostFeeSharePercent) {
     const hostFee = await getHostFee(order, host);
     const sharedRevenue = hostFeeSharePercent ? calcFee(hostFee, hostFeeSharePercent) : 0;
@@ -767,6 +768,28 @@ export const getHostFeePercent = async (order, host = null) => {
 
   // Just in case, default on the platform (not used in normal operation)
   possibleValues.push(config.fees.default.hostPercent);
+
+  // Pick the first that is set as a Number
+  return possibleValues.find(isNumber);
+};
+
+export const getHostFeeSharePercent = async (order, host = null) => {
+  host = host || (await order.collective.getHostCollective());
+
+  const plan = await host.getPlan();
+
+  const possibleValues = [];
+
+  if (order && order.paymentMethod.service === 'stripe' && order.paymentMethod.type === 'creditcard') {
+    possibleValues.push(plan?.creditCardHostFeeSharePercent);
+  }
+
+  if (order && order.paymentMethod.service === 'paypal' && order.paymentMethod.type === 'payment') {
+    possibleValues.push(plan?.paypalHostFeeSharePercent);
+  }
+
+  // Default
+  possibleValues.push(plan?.hostFeeSharePercent);
 
   // Pick the first that is set as a Number
   return possibleValues.find(isNumber);

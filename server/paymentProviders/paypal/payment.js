@@ -1,10 +1,10 @@
-import { get, isNumber, truncate } from 'lodash';
+import { get, truncate } from 'lodash';
 
 import * as constants from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { floatAmountToCents } from '../../lib/math';
-import { createRefundTransaction, getHostFee, getPlatformTip } from '../../lib/payments';
+import { createRefundTransaction, getHostFee, getHostFeeSharePercent, getPlatformTip } from '../../lib/payments';
 import { paypalAmountToCents } from '../../lib/paypal';
 import { formatCurrency } from '../../lib/utils';
 import models from '../../models';
@@ -67,10 +67,7 @@ const recordTransaction = async (order, amount, currency, paypalFee, payload) =>
     throw new Error(`Cannot create transaction: collective id ${order.collective.id} doesn't have a host`);
   }
   const hostCurrency = host.currency;
-  const hostPlan = await host.getPlan();
-  const hostFeeSharePercent = isNumber(hostPlan?.paypalHostFeeSharePercent)
-    ? hostPlan?.paypalHostFeeSharePercent
-    : hostPlan?.hostFeeSharePercent;
+  const hostFeeSharePercent = await getHostFeeSharePercent(order, host);
   const isSharedRevenue = !!hostFeeSharePercent;
 
   const hostCurrencyFxRate = await getFxRate(currency, hostCurrency);
