@@ -61,24 +61,41 @@ describe('cron/monthly/host-settlement', () => {
       createdAt: lastMonth,
     };
     // Create Contributions
-    await fakeTransaction({
+    const contribution1 = await fakeTransaction({
       ...transactionProps,
       kind: TransactionKind.CONTRIBUTION,
       amount: 3000,
       hostFeeInHostCurrency: -600,
     });
-    await fakeTransaction({
+    const contribution2 = await fakeTransaction({
       ...transactionProps,
       kind: TransactionKind.CONTRIBUTION,
       amount: 3000,
       hostFeeInHostCurrency: -400,
     });
-    await fakeTransaction({
+    const contribution3 = await fakeTransaction({
       ...transactionProps,
       kind: TransactionKind.CONTRIBUTION,
       amount: 3000,
       hostFeeInHostCurrency: -600,
     });
+    // Create host fee share
+    const hostFeeResults = await Promise.all(
+      [contribution1, contribution2, contribution3].map(transaction =>
+        models.Transaction.createHostFeeTransactions(transaction, gbpHost),
+      ),
+    );
+
+    await Promise.all(
+      hostFeeResults.map(({ transaction, hostFeeTransaction }) =>
+        models.Transaction.createHostFeeShareTransactions(
+          { transaction: transaction, hostFeeTransaction: hostFeeTransaction },
+          gbpHost,
+          false,
+        ),
+      ),
+    );
+
     // Add Platform Tips
     const t = await fakeTransaction(transactionProps);
     await fakeTransaction({
@@ -171,7 +188,7 @@ describe('cron/monthly/host-settlement', () => {
 
   it('should update settlementStatus to INVOICED', async () => {
     const settlements = await models.TransactionSettlement.findAll();
-    expect(settlements.length).to.eq(1); // Only for the platform tip atm
+    expect(settlements.length).to.eq(4); // 1 Platform tip + 3 host fee share
     settlements.forEach(settlement => {
       expect(settlement.status).to.eq(TransactionSettlementStatus.INVOICED);
     });

@@ -99,9 +99,9 @@ describe('server/paymentProviders/stripe/alipay', () => {
     it('should create transactions when it succeeds', async () => {
       const transactions = await order.getTransactions();
 
-      expect(transactions).to.be.an('array').of.length(2);
+      expect(transactions).to.be.an('array').of.length(4);
 
-      const credit = transactions.find(t => t.type == 'CREDIT');
+      const credit = transactions.find(t => t.type == 'CREDIT' && t.kind === 'CONTRIBUTION');
       expect(credit).to.have.property('amount', 10000);
       expect(credit).to.have.property('currency', 'USD');
       expect(credit).to.have.property('OrderId', order.id);
