@@ -712,7 +712,7 @@ export const getApplicationFee = async (order, host = null) => {
 };
 
 export const getPlatformTip = order => {
-  return order.data?.isFeesOnTop ? order.data?.platformTip || order.data?.platformFee || 0 : 0;
+  return order.data?.platformTip || order.data?.platformFee || 0;
 };
 
 export const getPlatformFeePercent = async () => {

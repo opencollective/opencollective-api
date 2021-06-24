@@ -2,7 +2,8 @@ import config from 'config';
 
 import { maxInteger } from '../../constants/math';
 import { TransactionTypes } from '../../constants/transactions';
-import { calcFee, getHostFeePercent, getPlatformFeePercent } from '../../lib/payments';
+import { getFxRate } from '../../lib/currency';
+import { getHostFee, getHostFeeSharePercent, getPlatformTip } from '../../lib/payments';
 import models from '../../models';
 
 const paymentMethodProvider = {};
@@ -22,13 +23,22 @@ paymentMethodProvider.processOrder = async order => {
     throw new Error('This Payment Method can only be used in test or ci environment.');
   }
 
-  const collectiveHost = await order.collective.getHostCollective();
+  const host = await order.collective.getHostCollective();
 
-  const hostFeePercent = await getHostFeePercent(order);
-  const platformFeePercent = await getPlatformFeePercent(order);
+  const hostFeeSharePercent = await getHostFeeSharePercent(order, host);
+  const isSharedRevenue = !!hostFeeSharePercent;
 
-  const hostFeeInHostCurrency = calcFee(order.totalAmount, hostFeePercent);
-  const platformFeeInHostCurrency = calcFee(order.totalAmount, platformFeePercent);
+  const amount = order.totalAmount;
+  const currency = order.currency;
+  const hostCurrency = host.currency;
+  const hostCurrencyFxRate = await getFxRate(currency, hostCurrency);
+  const amountInHostCurrency = Math.round(amount * hostCurrencyFxRate);
+
+  const platformTip = getPlatformTip(order);
+  const platformTipInHostCurrency = Math.round(platformTip * hostCurrencyFxRate);
+
+  const hostFee = await getHostFee(order, host);
+  const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
 
   const transactionPayload = {
     CreatedByUserId: order.CreatedByUserId,
@@ -37,15 +47,21 @@ paymentMethodProvider.processOrder = async order => {
     PaymentMethodId: order.PaymentMethodId,
     type: TransactionTypes.CREDIT,
     OrderId: order.id,
-    amount: order.totalAmount,
-    currency: order.currency,
-    hostCurrency: collectiveHost.currency,
-    hostCurrencyFxRate: 1,
-    amountInHostCurrency: order.totalAmount,
+    amount,
+    currency,
+    hostCurrency,
+    hostCurrencyFxRate,
+    amountInHostCurrency,
     hostFeeInHostCurrency,
-    platformFeeInHostCurrency,
-    paymentProcessorFeeInHostCurrency: 0,
     description: order.description,
+    data: {
+      isFeesOnTop: order.data?.isFeesOnTop,
+      hasPlatformTip: platformTip ? true : false,
+      isSharedRevenue,
+      platformTip,
+      platformTipInHostCurrency,
+      hostFeeSharePercent,
+    },
   };
 
   const transactions = await models.Transaction.createFromContributionPayload(transactionPayload);

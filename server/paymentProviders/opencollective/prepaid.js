@@ -2,7 +2,13 @@ import { get } from 'lodash';
 
 import { TransactionTypes } from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
-import { createRefundTransaction, getHostFee, getPlatformTip, isProvider } from '../../lib/payments';
+import {
+  createRefundTransaction,
+  getHostFee,
+  getHostFeeSharePercent,
+  getPlatformTip,
+  isProvider,
+} from '../../lib/payments';
 import models, { Op } from '../../models';
 
 /** Get the balance of a prepaid credit card
@@ -83,6 +89,9 @@ async function processOrder(order) {
     throw new Error("This payment method doesn't have enough funds to complete this order");
   }
 
+  const hostFeeSharePercent = await getHostFeeSharePercent(order, host);
+  const isSharedRevenue = !!hostFeeSharePercent;
+
   const amount = order.totalAmount;
   const currency = order.currency;
   const hostCurrency = host.currency;
@@ -90,7 +99,7 @@ async function processOrder(order) {
   const amountInHostCurrency = Math.round(amount * hostCurrencyFxRate);
 
   const platformTip = getPlatformTip(order);
-  const platformFeeInHostCurrency = Math.round(platformTip * hostCurrencyFxRate);
+  const platformTipInHostCurrency = Math.round(platformTip * hostCurrencyFxRate);
 
   const hostFee = await getHostFee(order, host);
   const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
@@ -109,10 +118,17 @@ async function processOrder(order) {
     hostCurrency,
     hostCurrencyFxRate,
     hostFeeInHostCurrency,
-    platformFeeInHostCurrency,
     paymentProcessorFeeInHostCurrency: 0,
     taxAmount: order.taxAmount,
     description: order.description,
+    data: {
+      isFeesOnTop: order.data?.isFeesOnTop,
+      hasPlatformTip: platformTip ? true : false,
+      isSharedRevenue,
+      platformTip,
+      platformTipInHostCurrency,
+      hostFeeSharePercent,
+    },
   });
 
   // Mark paymentMethod as confirmed

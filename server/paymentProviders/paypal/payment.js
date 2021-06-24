@@ -78,7 +78,7 @@ const recordTransaction = async (order, amount, currency, paypalFee, payload) =>
   const hostFeeInHostCurrency = Math.round(hostFee, hostCurrencyFxRate);
 
   const platformTip = getPlatformTip(order);
-  const platformFeeInHostCurrency = Math.round(platformTip * hostCurrencyFxRate);
+  const platformTipInHostCurrency = Math.round(platformTip * hostCurrencyFxRate);
 
   return models.Transaction.createFromContributionPayload({
     CreatedByUserId: order.CreatedByUserId,
@@ -93,15 +93,16 @@ const recordTransaction = async (order, amount, currency, paypalFee, payload) =>
     hostCurrency,
     hostCurrencyFxRate,
     hostFeeInHostCurrency,
-    platformFeeInHostCurrency,
     paymentProcessorFeeInHostCurrency,
     taxAmount: order.taxAmount,
     description: order.description,
     data: {
       ...payload,
       isFeesOnTop: order.data?.isFeesOnTop,
-      platformTip,
+      hasPlatformTip: platformTip ? true : false,
       isSharedRevenue,
+      platformTip,
+      platformTipInHostCurrency,
       hostFeeSharePercent,
     },
   });
