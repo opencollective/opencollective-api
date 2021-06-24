@@ -143,9 +143,7 @@ const confirmOrder = async (req: Request, res: Response, next: NextFunction): Pr
         data,
       };
 
-      await models.Transaction.createFromContributionPayload(transactionPayload, {
-        isPlatformTipDirectlyCollected: true,
-      });
+      await models.Transaction.createFromContributionPayload(transactionPayload);
       await order.update({ status: 'PAID', data: { ...order.data, paymentIntent: intent } });
 
       res.redirect(`${config.host.website}/${order.collective.slug}/donate/success?OrderId=${OrderId}`);
