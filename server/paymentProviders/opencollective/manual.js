@@ -4,7 +4,7 @@ import { maxInteger } from '../../constants/math';
 import { TransactionTypes } from '../../constants/transactions';
 import { FEATURE, hasOptedInForFeature } from '../../lib/allowed-features';
 import { getFxRate } from '../../lib/currency';
-import { createRefundTransaction, getHostFee, getPlatformFee } from '../../lib/payments';
+import { createRefundTransaction, getHostFee, getPlatformTip } from '../../lib/payments';
 import models from '../../models';
 
 /**
@@ -30,7 +30,7 @@ async function processOrder(order) {
   // gets the Credit transaction generated
   const host = await order.collective.getHostCollective();
   const hostPlan = await host.getPlan();
-  const hostFeeSharePercent = hostPlan?.hostFeeSharePercent;
+  const hostFeeSharePercent = hostPlan?.hostFeeSharePercent; // TODO: to remove
   const isSharedRevenue = !!hostFeeSharePercent;
 
   if (host.currency !== order.currency && !hasOptedInForFeature(host, FEATURE.CROSS_CURRENCY_MANUAL_TRANSACTIONS)) {
@@ -44,12 +44,17 @@ async function processOrder(order) {
     order.paymentMethod = { service: 'opencollective', type: 'manual' };
   }
 
+  const amount = order.totalAmount;
+  const currency = order.currency;
   const hostCurrency = host.currency;
   const hostCurrencyFxRate = await getFxRate(order.currency, hostCurrency);
   const amountInHostCurrency = Math.round(order.totalAmount * hostCurrencyFxRate);
 
-  const platformFeeInHostCurrency = await getPlatformFee(amountInHostCurrency, order, host);
-  const hostFeeInHostCurrency = await getHostFee(amountInHostCurrency, order, host);
+  const platformTip = getPlatformTip(order);
+  const platformFeeInHostCurrency = Math.round(platformTip * hostCurrencyFxRate);
+
+  const hostFee = await getHostFee(order, host);
+  const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
 
   const isFeesOnTop = order.data?.isFeesOnTop || false;
 
@@ -59,8 +64,8 @@ async function processOrder(order) {
     ...pick(order, ['CreatedByUserId', 'FromCollectiveId', 'CollectiveId', 'PaymentMethodId']),
     type: TransactionTypes.CREDIT,
     OrderId: order.id,
-    amount: order.totalAmount,
-    currency: order.currency,
+    amount,
+    currency,
     hostCurrency,
     hostCurrencyFxRate,
     amountInHostCurrency,

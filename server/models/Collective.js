@@ -47,7 +47,6 @@ import {
   getPendingHostFeeShare,
   getPendingPlatformTips,
   getPlatformTips,
-  getSettledHostFeeShare,
 } from '../lib/host-metrics';
 import logger from '../lib/logger';
 import queries from '../lib/queries';
@@ -2956,7 +2955,7 @@ function defineModel() {
 
     const hostFeeShare = await getHostFeeShare(this, { startDate: from, endDate: to });
     const pendingHostFeeShare = await getPendingHostFeeShare(this, { startDate: from, endDate: to });
-    const settledHostFeeShare = await getSettledHostFeeShare(this, { startDate: from, endDate: to });
+    const settledHostFeeShare = hostFeeShare - pendingHostFeeShare;
 
     const totalMoneyManaged = await this.getTotalMoneyManaged({ endDate: to });
 

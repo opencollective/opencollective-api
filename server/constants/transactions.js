@@ -14,6 +14,13 @@ export const PLATFORM_TIP_TRANSACTION_PROPERTIES = {
   currency: 'USD',
 };
 
+export const HOST_FEE_SHARE_TRANSACTION_PROPERTIES = {
+  kind: TransactionKind.HOST_FEE_SHARE,
+  CollectiveId: 8686, // Open Collective (Organization)
+  HostCollectiveId: 8686, // Open Collective (Organization)
+  hostCurrency: 'USD',
+};
+
 // Pia's account
 export const SETTLEMENT_USER_ID = 30;
 

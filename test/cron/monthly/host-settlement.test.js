@@ -94,8 +94,8 @@ describe('cron/monthly/host-settlement', () => {
     });
     const firstTipDebtCredit = await fakeTransaction({
       type: 'CREDIT',
-      FromCollectiveId: gbpHost.id,
-      CollectiveId: oc.id,
+      FromCollectiveId: oc.id,
+      CollectiveId: gbpHost.id,
       HostCollectiveId: gbpHost.id,
       amount: 813,
       amountInHostCurrency: 813,
@@ -159,7 +159,7 @@ describe('cron/monthly/host-settlement', () => {
     expect(sharedRevenueItem).to.have.property('amount', Math.round(1600 * 0.15));
   });
 
-  it.skip('should attach detailed list of transactions in the expense', async () => {
+  it('should attach detailed list of transactions in the expense', async () => {
     const [attachment] = await expense.getAttachedFiles();
     expect(attachment).to.have.property('url').that.includes('.csv');
   });

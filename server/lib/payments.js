@@ -11,6 +11,7 @@ import { PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import roles from '../constants/roles';
 import tiers from '../constants/tiers';
 import { TransactionKind } from '../constants/transaction-kind';
+import { TransactionTypes } from '../constants/transactions';
 import models, { Op } from '../models';
 import TransactionSettlement, { TransactionSettlementStatus } from '../models/TransactionSettlement';
 import paymentProviders from '../paymentProviders';
@@ -26,6 +27,8 @@ import { stripHTML } from './sanitize-html';
 import { netAmount } from './transactions';
 import { formatAccountDetails } from './transferwise';
 import { formatCurrency, parseToBoolean, toIsoDateStr } from './utils';
+
+const { CREDIT, DEBIT } = TransactionTypes;
 
 const debug = debugLib('payments');
 
@@ -189,13 +192,13 @@ export const refundPaymentProcessorFeeToCollective = async (transaction, refundT
   const amountInHostCurrency = Math.abs(transaction.paymentProcessorFeeInHostCurrency);
   const amount = Math.round(amountInHostCurrency / hostCurrencyFxRate);
   await models.Transaction.createDoubleEntry({
-    type: 'CREDIT',
+    type: CREDIT,
+    kind: TransactionKind.PAYMENT_PROCESSOR_FEE,
     CollectiveId: transaction.CollectiveId,
     FromCollectiveId: transaction.HostCollectiveId,
     HostCollectiveId: transaction.HostCollectiveId,
     OrderId: transaction.OrderId,
     description: `Refund of payment processor fees for transaction`,
-    kind: TransactionKind.PAYMENT_PROCESSOR_FEE,
     isRefund: true,
     TransactionGroup: refundTransactionGroup,
     hostCurrency: transaction.hostCurrency,
@@ -239,19 +242,13 @@ export const refundPaymentProcessorFeeToCollective = async (transaction, refundT
 export async function createRefundTransaction(transaction, refundedPaymentProcessorFee, data, user) {
   /* If the transaction passed isn't the one from the collective
    * perspective, the opposite transaction is retrieved. */
-  const creditTransaction =
-    transaction.type === 'CREDIT'
-      ? transaction
-      : await models.Transaction.findOne({
-          where: {
-            TransactionGroup: transaction.TransactionGroup,
-            id: { [Op.ne]: transaction.id },
-          },
-        });
+  if (transaction.type === DEBIT) {
+    transaction = await transaction.getRelatedTransaction({ type: CREDIT });
+  }
 
-  if (!creditTransaction) {
+  if (!transaction) {
     throw new Error('Cannot find any CREDIT transaction to refund');
-  } else if (creditTransaction.RefundTransactionId) {
+  } else if (transaction.RefundTransactionId) {
     throw new Error('This transaction has already been refunded');
   }
 
@@ -263,31 +260,24 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
     };
   };
 
+  // Refund Platform Tip
   const platformTipTransaction = await transaction.getPlatformTipTransaction();
-
-  // Refund platform tip
   if (platformTipTransaction) {
     const platformTipRefund = buildRefund(platformTipTransaction);
     const platformTipRefundTransaction = await models.Transaction.createDoubleEntry(platformTipRefund);
     await associateTransactionRefundId(platformTipTransaction, platformTipRefundTransaction, data);
 
-    // Refund tip debt
-    const platformTipDebtTransaction = await models.Transaction.findOne({
-      where: {
-        TransactionGroup: platformTipTransaction.TransactionGroup,
-        kind: TransactionKind.PLATFORM_TIP_DEBT,
-        type: 'CREDIT',
-      },
-    });
-
+    // Refund Platform Tip Debt
     // Tips directly collected (and legacy ones) do not have a "debt" transaction associated
+    const platformTipDebtTransaction = await transaction.getPlatformTipDebtTransaction();
     if (platformTipDebtTransaction) {
       // Update tip settlement status
-      const settlementWhere = {
-        TransactionGroup: transaction.TransactionGroup,
-        kind: TransactionKind.PLATFORM_TIP_DEBT,
-      };
-      const tipSettlement = await models.TransactionSettlement.findOne({ where: settlementWhere });
+      const tipSettlement = await models.TransactionSettlement.findOne({
+        where: {
+          TransactionGroup: transaction.TransactionGroup,
+          kind: TransactionKind.PLATFORM_TIP_DEBT,
+        },
+      });
       let tipRefundSettlementStatus = TransactionSettlementStatus.OWED;
       if (tipSettlement.status === TransactionSettlementStatus.OWED) {
         // If the tip is not INVOICED or SETTLED, we don't need to care about recording it.
@@ -296,21 +286,15 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
         tipRefundSettlementStatus = TransactionSettlementStatus.SETTLED;
       }
 
-      // Refund the tip
       const platformTipDebtRefund = buildRefund(platformTipDebtTransaction);
-      const tipDebtRefundTransaction = await models.Transaction.createDoubleEntry(platformTipDebtRefund);
-      await associateTransactionRefundId(platformTipDebtTransaction, tipDebtRefundTransaction, data);
-      await TransactionSettlement.createForTransaction(tipDebtRefundTransaction, tipRefundSettlementStatus);
+      const platformTipDebtRefundTransaction = await models.Transaction.createDoubleEntry(platformTipDebtRefund);
+      await associateTransactionRefundId(platformTipDebtTransaction, platformTipDebtRefundTransaction, data);
+      await TransactionSettlement.createForTransaction(platformTipDebtRefundTransaction, tipRefundSettlementStatus);
     }
   }
 
-  // Refund Host Fee
-  const hostFeeTransaction = await transaction.getHostFeeTransaction();
-  if (hostFeeTransaction) {
-    const hostFeeRefund = buildRefund(hostFeeTransaction);
-    const hostFeeRefundTransaction = await models.Transaction.createDoubleEntry(hostFeeRefund);
-    await associateTransactionRefundId(hostFeeTransaction, hostFeeRefundTransaction, data);
-
+  // Refund Payment Processor Fee
+  if (parseToBoolean(config.ledger.separateHostFees)) {
     if (refundedPaymentProcessorFee && refundedPaymentProcessorFee !== transaction.paymentProcessorFeeInHostCurrency) {
       logger.error(
         `Partial processor fees refunds are not supported, got ${refundedPaymentProcessorFee} for #${transaction.id}`,
@@ -321,8 +305,50 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
     }
   }
 
+  // Refund Host Fee
+  const hostFeeTransaction = await transaction.getHostFeeTransaction();
+  if (hostFeeTransaction) {
+    const hostFeeRefund = buildRefund(hostFeeTransaction);
+    const hostFeeRefundTransaction = await models.Transaction.createDoubleEntry(hostFeeRefund);
+    await associateTransactionRefundId(hostFeeTransaction, hostFeeRefundTransaction, data);
+
+    // Refund Host Fee Share
+    const hostFeeShareTransaction = await transaction.getHostFeeShareTransaction();
+    if (hostFeeShareTransaction) {
+      const hostFeeShareRefund = buildRefund(hostFeeShareTransaction);
+      const hostFeeShareRefundTransaction = await models.Transaction.createDoubleEntry(hostFeeShareRefund);
+      await associateTransactionRefundId(hostFeeShareTransaction, hostFeeShareRefundTransaction, data);
+
+      // Refund Host Fee Share Debt
+      const hostFeeShareDebtTransaction = await transaction.getHostFeeShareDebtTransaction();
+      if (hostFeeShareDebtTransaction) {
+        const hostFeeShareSettlement = await models.TransactionSettlement.findOne({
+          where: {
+            TransactionGroup: transaction.TransactionGroup,
+            kind: TransactionKind.HOST_FEE_SHARE_DEBT,
+          },
+        });
+        let hostFeeShareRefundSettlementStatus = TransactionSettlementStatus.OWED;
+        if (hostFeeShareSettlement.status === TransactionSettlementStatus.OWED) {
+          // If the Host Fee Share is not INVOICED or SETTLED, we don't need to care about recording it.
+          // Otherwise, the Host Fee Share refund will be marked as OWED and deduced from the next invoice
+          await hostFeeShareSettlement.update({ status: TransactionSettlementStatus.SETTLED });
+          hostFeeShareRefundSettlementStatus = TransactionSettlementStatus.SETTLED;
+        }
+
+        const hostFeeShareDebtRefund = buildRefund(hostFeeShareDebtTransaction);
+        const hostFeeShareDebtRefundTransaction = await models.Transaction.createDoubleEntry(hostFeeShareDebtRefund);
+        await associateTransactionRefundId(hostFeeShareDebtTransaction, hostFeeShareDebtRefundTransaction, data);
+        await TransactionSettlement.createForTransaction(
+          hostFeeShareDebtRefundTransaction,
+          hostFeeShareRefundSettlementStatus,
+        );
+      }
+    }
+  }
+
   // Refund contribution
-  const creditTransactionRefund = buildRefund(creditTransaction);
+  const creditTransactionRefund = buildRefund(transaction);
   const refundTransaction = await models.Transaction.createDoubleEntry(creditTransactionRefund);
   return associateTransactionRefundId(transaction, refundTransaction, data);
 }
@@ -338,10 +364,10 @@ export async function associateTransactionRefundId(transaction, refund, data) {
     },
   });
 
-  const credit = transactions.find(t => !t.isRefund && t.type === 'CREDIT');
-  const debit = transactions.find(t => !t.isRefund && t.type === 'DEBIT');
-  const refundCredit = transactions.find(t => t.isRefund && t.type === 'CREDIT');
-  const refundDebit = transactions.find(t => t.isRefund && t.type === 'DEBIT');
+  const credit = transactions.find(t => !t.isRefund && t.type === CREDIT);
+  const debit = transactions.find(t => !t.isRefund && t.type === DEBIT);
+  const refundCredit = transactions.find(t => t.isRefund && t.type === CREDIT);
+  const refundDebit = transactions.find(t => t.isRefund && t.type === DEBIT);
 
   // After refunding a transaction, in some cases the data may be updated as well (stripe data changes after refunds)
   if (data) {
@@ -660,25 +686,20 @@ export const sendExpiringCreditCardUpdateEmail = async data => {
   return emailLib.send('payment.creditcard.expiring', data.email, data);
 };
 
-export const getPlatformFee = async (totalAmount, order, host = null, { hostPlan, hostFeeSharePercent } = {}) => {
-  const isFeesOnTop = order.data?.isFeesOnTop || false;
-  const sharedRevenuePercent = hostFeeSharePercent || hostPlan?.hostFeeSharePercent;
+export const getApplicationFee = async (order, host = null, { hostFeeSharePercent } = {}) => {
+  let applicationFee = getPlatformTip(order);
 
-  // Fees On Top can now be combined with Shared Revenue
-  if (isFeesOnTop || sharedRevenuePercent) {
-    const platformFee = order.data?.platformFee || 0;
-
-    const sharedRevenue = sharedRevenuePercent
-      ? calcFee(await getHostFee(totalAmount, order, host), sharedRevenuePercent)
-      : 0;
-
-    return platformFee + sharedRevenue;
+  if (hostFeeSharePercent) {
+    const hostFee = await getHostFee(order, host);
+    const sharedRevenue = hostFeeSharePercent ? calcFee(hostFee, hostFeeSharePercent) : 0;
+    applicationFee += sharedRevenue;
   }
 
-  //  Otherwise, use platformFeePercent
-  const platformFeePercent = await getPlatformFeePercent(order, host);
+  return applicationFee;
+};
 
-  return calcFee(totalAmount, platformFeePercent);
+export const getPlatformTip = order => {
+  return order.data?.isFeesOnTop ? order.data?.platformTip || order.data?.platformFee || 0 : 0;
 };
 
 export const getPlatformFeePercent = async () => {
@@ -686,12 +707,12 @@ export const getPlatformFeePercent = async () => {
   return 0;
 };
 
-export const getHostFee = async (totalAmount, order, host = null) => {
-  const feeOnTop = order.data?.platformFee || 0;
+export const getHostFee = async (order, host = null) => {
+  const platformTip = getPlatformTip(order);
 
   const hostFeePercent = await getHostFeePercent(order, host);
 
-  return calcFee(totalAmount - feeOnTop, hostFeePercent);
+  return calcFee(order.totalAmount - platformTip, hostFeePercent);
 };
 
 export const getHostFeePercent = async (order, host = null) => {

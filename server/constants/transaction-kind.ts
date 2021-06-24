@@ -9,6 +9,8 @@ export enum TransactionKind {
   HOST_FEE = 'HOST_FEE',
   /** Part of the Host fee going from the Host to the Platform */
   HOST_FEE_SHARE = 'HOST_FEE_SHARE',
+  /** Part of the Host fee going from the Host to the Platform */
+  HOST_FEE_SHARE_DEBT = 'HOST_FEE_SHARE_DEBT',
   /** Reserved keyword in case we want to use in the future */
   PAYMENT_PROCESSOR_FEE = 'PAYMENT_PROCESSOR_FEE',
   /** Reserved keyword in case we want to use in the future */

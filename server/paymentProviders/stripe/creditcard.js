@@ -3,7 +3,7 @@ import { get, isNumber } from 'lodash';
 
 import * as constants from '../../constants/transactions';
 import logger from '../../lib/logger';
-import { getHostFee, getPlatformFee } from '../../lib/payments';
+import { getApplicationFee, getHostFee, getPlatformTip } from '../../lib/payments';
 import stripe, { convertFromStripeAmount, convertToStripeAmount, extractFees } from '../../lib/stripe';
 import models from '../../models';
 
@@ -120,8 +120,8 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
   const isSharedRevenue = !!hostFeeSharePercent;
 
   // Read or compute Platform Fee
-  const platformFee = await getPlatformFee(order.totalAmount, order, host, { hostFeeSharePercent });
-  const platformTip = order.data?.platformFee;
+  const applicationFee = await getApplicationFee(order, host, { hostFeeSharePercent });
+  const platformTip = getPlatformTip(order);
 
   // Make sure data is available (breaking in some old tests)
   order.data = order.data || {};
@@ -143,8 +143,8 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
       },
     };
     // We don't add a platform fee if the host is the root account
-    if (platformFee && hostStripeAccount.username !== config.stripe.accountId) {
-      createPayload.application_fee_amount = convertToStripeAmount(order.currency, platformFee);
+    if (applicationFee && hostStripeAccount.username !== config.stripe.accountId) {
+      createPayload.application_fee_amount = convertToStripeAmount(order.currency, applicationFee);
     }
     if (order.interval) {
       createPayload.setup_future_usage = 'off_session';
@@ -191,23 +191,30 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
   });
 
   // Create a Transaction
-  const fees = extractFees(balanceTransaction, balanceTransaction.currency);
+  const amount = order.totalAmount;
+  const currency = order.currency;
+  const hostCurrency = balanceTransaction.currency.toUpperCase();
   const amountInHostCurrency = convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount);
-  const hostFeeInHostCurrency = await getHostFee(amountInHostCurrency, order);
+  const hostCurrencyFxRate = amountInHostCurrency / order.totalAmount;
+
+  const hostFee = await getHostFee(order, host);
+  const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
+
   const data = {
     charge,
     balanceTransaction,
     isFeesOnTop: order.data?.isFeesOnTop,
     isSharedRevenue,
     settled: true,
-    platformFee: platformFee,
+    platformFee: applicationFee, // TODO: to be removed
+    applicationFee,
     platformTip,
     hostFeeSharePercent,
   };
 
-  const hostCurrencyFxRate = amountInHostCurrency / order.totalAmount;
-
+  const fees = extractFees(balanceTransaction, balanceTransaction.currency);
   const platformFeeInHostCurrency = isSharedRevenue ? platformTip * hostCurrencyFxRate || 0 : fees.applicationFee;
+  const paymentProcessorFeeInHostCurrency = fees.stripeFee;
 
   const transactionPayload = {
     CreatedByUserId: order.CreatedByUserId,
@@ -216,12 +223,12 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
     PaymentMethodId: order.PaymentMethodId,
     type: constants.TransactionTypes.CREDIT,
     OrderId: order.id,
-    amount: order.totalAmount,
-    currency: order.currency,
-    hostCurrency: balanceTransaction.currency.toUpperCase(),
+    amount,
+    currency,
+    hostCurrency,
     amountInHostCurrency,
     hostCurrencyFxRate,
-    paymentProcessorFeeInHostCurrency: fees.stripeFee,
+    paymentProcessorFeeInHostCurrency,
     taxAmount: order.taxAmount,
     description: order.description,
     hostFeeInHostCurrency,
@@ -229,7 +236,9 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
     data,
   };
 
-  return models.Transaction.createFromContributionPayload(transactionPayload, { isPlatformTipDirectlyCollected: true });
+  return models.Transaction.createFromContributionPayload(transactionPayload, {
+    isPlatformRevenueDirectlyCollected: true,
+  });
 };
 
 export const setupCreditCard = async (paymentMethod, { user, collective } = {}) => {
