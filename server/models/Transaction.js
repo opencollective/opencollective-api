@@ -3,7 +3,7 @@ import assert from 'assert';
 import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
-import { defaultsDeep, get, isNil, isNull, isUndefined, omit } from 'lodash';
+import { defaultsDeep, get, isNil, isNull, isUndefined, omit, pick } from 'lodash';
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
@@ -826,7 +826,7 @@ function defineModel() {
     let hostFeeShareDebtTransaction;
     if (!isDirectlyCollected) {
       hostFeeShareDebtTransaction = await Transaction.creatHostFeeShareDebtTransactions(
-        hostFeeShareTransactionData,
+        { transaction, hostFeeTransaction, hostFeeShareTransaction },
         host,
       );
     }
@@ -834,17 +834,33 @@ function defineModel() {
     return { hostFeeShareTransaction, hostFeeShareDebtTransaction };
   };
 
-  Transaction.creatHostFeeShareDebtTransactions = async (hostFeeShareTransactionData, host) => {
+  Transaction.creatHostFeeShareDebtTransactions = async ({ hostFeeShareTransaction }) => {
     // Create debt transaction
     const hostFeeShareDebtTransactionData = {
-      ...omit(hostFeeShareTransactionData, ['data']),
-      type: CREDIT,
+      // Copy base values from the original CREDIT HOST_FEE_SHARE
+      ...pick(hostFeeShareTransaction.dataValues, [
+        'TransactionGroup',
+        'FromCollectiveId',
+        'CollectiveId',
+        'HostCollectiveId',
+        'OrderId',
+        'createdAt',
+        'currency',
+        'hostCurrency',
+        'hostCurrencyFxRate',
+      ]),
+      type: DEBIT,
       kind: TransactionKind.HOST_FEE_SHARE_DEBT,
-      description: 'Host Fee Share owed to Open Collective',
-      CollectiveId: host.id,
-      FromCollectiveId: HOST_FEE_SHARE_TRANSACTION_PROPERTIES.CollectiveId,
-      HostCollectiveId: host.id,
       isDebt: true,
+      description: 'Host Fee Share owed to Open Collective',
+      // Opposite amounts
+      amount: -hostFeeShareTransaction.amount,
+      netAmountInCollectiveCurrency: -hostFeeShareTransaction.netAmountInCollectiveCurrency,
+      amountInHostCurrency: -hostFeeShareTransaction.amountInHostCurrency,
+      // No fees
+      platformFeeInHostCurrency: 0,
+      hostFeeInHostCurrency: 0,
+      paymentProcessorFeeInHostCurrency: 0,
     };
 
     const hostFeeShareDebtTransaction = await Transaction.createDoubleEntry(hostFeeShareDebtTransactionData);
