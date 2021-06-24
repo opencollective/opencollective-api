@@ -1,9 +1,9 @@
 import config from 'config';
-import { get, isNumber } from 'lodash';
+import { get } from 'lodash';
 
 import * as constants from '../../constants/transactions';
 import logger from '../../lib/logger';
-import { getApplicationFee, getHostFee, getPlatformTip } from '../../lib/payments';
+import { getApplicationFee, getHostFee, getHostFeeSharePercent, getPlatformTip } from '../../lib/payments';
 import stripe, { convertFromStripeAmount, convertToStripeAmount, extractFees } from '../../lib/stripe';
 import models from '../../models';
 
@@ -113,14 +113,11 @@ const getOrCreateCustomerOnHostAccount = async (hostStripeAccount, { paymentMeth
  */
 const createChargeAndTransactions = async (hostStripeAccount, { order, hostStripeCustomer }) => {
   const host = await order.collective.getHostCollective();
-  const hostPlan = await host.getPlan();
-  const hostFeeSharePercent = isNumber(hostPlan?.creditCardHostFeeSharePercent)
-    ? hostPlan?.creditCardHostFeeSharePercent
-    : hostPlan?.hostFeeSharePercent;
+  const hostFeeSharePercent = await getHostFeeSharePercent(order, host);
   const isSharedRevenue = !!hostFeeSharePercent;
 
   // Read or compute Platform Fee
-  const applicationFee = await getApplicationFee(order, host, { hostFeeSharePercent });
+  const applicationFee = await getApplicationFee(order, host);
   const platformTip = getPlatformTip(order);
 
   // Make sure data is available (breaking in some old tests)
