@@ -4,28 +4,14 @@ import { purgeCacheForCollective } from '../../lib/cache';
 import models from '../../models';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../v2/identifiers';
-
-function requireArgs(args, paths) {
-  paths.forEach(path => {
-    if (!get(args, path)) {
-      throw new ValidationFailed(`${path} required`);
-    }
-  });
-}
+import { fetchAccountWithReference } from '../v2/input/AccountReferenceInput';
 
 export async function createUpdate(_, args, req) {
   if (!req.remoteUser) {
     throw new Unauthorized('You must be logged in to create an update');
   }
 
-  let CollectiveId = get(args, 'update.collective.id');
-  if (!CollectiveId) {
-    CollectiveId = get(args, 'update.account.legacyId');
-  }
-
-  requireArgs(args, ['update.title', 'update.html']);
-  const collective = await models.Collective.findByPk(CollectiveId);
-
+  const collective = await fetchAccountWithReference(args.update.account);
   if (!collective) {
     throw new Error('This collective does not exist');
   } else if (!req.remoteUser.isAdminOfCollective(collective)) {
@@ -37,7 +23,7 @@ export async function createUpdate(_, args, req) {
   const update = await models.Update.create({
     title: args.update.title,
     html: args.update.html,
-    CollectiveId,
+    CollectiveId: collective.id,
     isPrivate: args.update.isPrivate,
     isChangelog: args.update.isChangelog,
     TierId: get(args, 'update.tier.id'),
