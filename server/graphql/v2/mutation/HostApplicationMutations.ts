@@ -164,6 +164,10 @@ const approveApplication = async (host, collective, remoteUser) => {
 };
 
 const rejectApplication = async (host, collective, remoteUser, reason: string) => {
+  if (collective.isActive) {
+    throw new Error('This application has already been approved');
+  }
+
   const cleanReason = reason && stripHTML(reason).trim();
   await models.Activity.create({
     type: activities.COLLECTIVE_REJECTED,
