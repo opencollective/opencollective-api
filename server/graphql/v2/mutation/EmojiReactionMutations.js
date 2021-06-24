@@ -113,11 +113,11 @@ const addReactionToCommentOrUpdate = async (id, req, emoji, identifierType) => {
   }
 
   if (identifierType === IDENTIFIER_TYPES.COMMENT) {
-    const reaction = await models.EmojiReaction.addReactionOnComment(req.remoteUser, commentOrUpdateId, emoji);
-    return { comment: models.Comment.findByPk(reaction.CommentId), update: null };
+    await models.EmojiReaction.addReactionOnComment(req.remoteUser, commentOrUpdateId, emoji);
+    return { comment: commentOrUpdate, update: null };
   } else {
-    const reaction = await models.EmojiReaction.addReactionOnUpdate(req.remoteUser, commentOrUpdateId, emoji);
-    return { update: models.Update.findByPk(reaction.UpdateId), comment: null };
+    await models.EmojiReaction.addReactionOnUpdate(req.remoteUser, commentOrUpdateId, emoji);
+    return { update: commentOrUpdate, comment: null };
   }
 };
 
@@ -141,11 +141,7 @@ const removeReactionFromCommentOrUpdate = async (id, remoteUser, emoji, identifi
   }
 
   if (!reaction) {
-    if (identifierType === IDENTIFIER_TYPES.COMMENT) {
-      throw new NotFound(`This comment reaction does not exist or has been deleted.`);
-    } else {
-      throw new NotFound(`This update reaction does not exist or has been deleted.`);
-    }
+    throw new NotFound(`This reaction does not exist or has been deleted.`);
   }
 
   // Check permissions

@@ -122,14 +122,14 @@ describe('server/graphql/v2/mutation/EmojiReactionMutations', () => {
     `;
 
     it('Must be authenticated', async () => {
-      const reaction = await fakeEmojiReaction(true);
+      const reaction = await fakeEmojiReaction(undefined, { isComment: true });
       const commentId = idEncode(reaction.CommentId, IDENTIFIER_TYPES.COMMENT);
       const result = await graphqlQueryV2(removeReactionMutation, { comment: { id: commentId }, emoji: '🎉' });
       expect(result.errors[0].message).to.eq('You must be logged in to remove this comment reaction');
     });
 
     it('Can only remove own reactions', async () => {
-      const reaction = await fakeEmojiReaction(true);
+      const reaction = await fakeEmojiReaction(undefined, { isComment: true });
       const commentId = idEncode(reaction.CommentId, IDENTIFIER_TYPES.COMMENT);
       const user = await fakeUser();
       const mutationParams = { comment: { id: commentId }, emoji: reaction.emoji };
@@ -138,7 +138,7 @@ describe('server/graphql/v2/mutation/EmojiReactionMutations', () => {
     });
 
     it('Removes a reaction', async () => {
-      const reaction = await fakeEmojiReaction(true);
+      const reaction = await fakeEmojiReaction(undefined, { isComment: true });
       const commentId = idEncode(reaction.CommentId, IDENTIFIER_TYPES.COMMENT);
       const user = await reaction.getUser();
       const mutationParams = { comment: { id: commentId }, emoji: reaction.emoji };
@@ -149,7 +149,7 @@ describe('server/graphql/v2/mutation/EmojiReactionMutations', () => {
     });
 
     it('Removes a reaction from an update', async () => {
-      const reaction = await fakeEmojiReaction(false);
+      const reaction = await fakeEmojiReaction(undefined, { isComment: false });
       const updateId = idEncode(reaction.UpdateId, IDENTIFIER_TYPES.UPDATE);
       const user = await reaction.getUser();
       const mutationParams = { update: { id: updateId }, emoji: reaction.emoji };
