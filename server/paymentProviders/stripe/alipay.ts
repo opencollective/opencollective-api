@@ -9,7 +9,7 @@ import OrderStatus from '../../constants/order_status';
 import { TransactionTypes } from '../../constants/transactions';
 import { idDecode, IDENTIFIER_TYPES } from '../../graphql/v2/identifiers';
 import logger from '../../lib/logger';
-import { createRefundTransaction, getHostFee, getPlatformFee } from '../../lib/payments';
+import { createRefundTransaction, getHostFee, getPlatformTip } from '../../lib/payments';
 import stripe, { convertFromStripeAmount, convertToStripeAmount, extractFees } from '../../lib/stripe';
 import models from '../../models';
 
@@ -88,9 +88,6 @@ const confirmOrder = async (req: Request, res: Response, next: NextFunction): Pr
       const hostFeeSharePercent = hostPlan?.hostFeeSharePercent;
       const isSharedRevenue = !!hostFeeSharePercent;
 
-      // Read or compute Platform Fee
-      const platformFee = await getPlatformFee(order.totalAmount, order, host, { hostPlan, hostFeeSharePercent });
-      const platformTip = order.data?.platformFee;
       const intent = await stripe.paymentIntents.retrieve(payment_intent, {
         stripeAccount: hostStripeAccount.username,
       });
@@ -102,20 +99,29 @@ const confirmOrder = async (req: Request, res: Response, next: NextFunction): Pr
       });
 
       // Create a Transaction
-      const fees = extractFees(balanceTransaction, balanceTransaction.currency);
+      const amount = order.totalAmount;
+      const currency = order.currency;
+      const hostCurrency = balanceTransaction.currency.toUpperCase();
       const amountInHostCurrency = convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount);
-      const hostFeeInHostCurrency = await getHostFee(amountInHostCurrency, order);
+      const hostCurrencyFxRate = amountInHostCurrency / amount;
+
+      const hostFee = await getHostFee(order, host);
+      const hostFeeInHostCurrency = Math.round(hostFee, hostCurrencyFxRate);
+
+      const platformTip = getPlatformTip(order);
+      const platformFeeInHostCurrency = Math.round(platformTip * hostCurrencyFxRate);
+
+      const fees = extractFees(balanceTransaction, balanceTransaction.currency);
+      const paymentProcessorFeeInHostCurrency = fees.stripeFee;
+
       const data = {
         charge,
         balanceTransaction,
         isFeesOnTop: order.data?.isFeesOnTop,
         isSharedRevenue,
-        platformFee: platformFee,
         platformTip,
         hostFeeSharePercent,
       };
-      const hostCurrencyFxRate = amountInHostCurrency / order.totalAmount;
-      const platformFeeInHostCurrency = isSharedRevenue ? platformTip * hostCurrencyFxRate || 0 : fees.applicationFee;
 
       const transactionPayload = {
         CreatedByUserId: order.CreatedByUserId,
@@ -124,12 +130,12 @@ const confirmOrder = async (req: Request, res: Response, next: NextFunction): Pr
         PaymentMethodId: order.PaymentMethodId,
         type: TransactionTypes.CREDIT,
         OrderId: order.id,
-        amount: order.totalAmount,
-        currency: order.currency,
-        hostCurrency: balanceTransaction.currency.toUpperCase(),
+        amount,
+        currency,
+        hostCurrency,
         amountInHostCurrency,
         hostCurrencyFxRate,
-        paymentProcessorFeeInHostCurrency: fees.stripeFee,
+        paymentProcessorFeeInHostCurrency,
         taxAmount: order.taxAmount,
         description: order.description,
         hostFeeInHostCurrency,
