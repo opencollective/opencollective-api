@@ -4,7 +4,7 @@ import { GraphQLDateTime } from 'graphql-iso-date';
 import { Unauthorized } from '../../errors';
 import { Individual } from '../object/Individual';
 
-const userMutations = {
+const individualMutations = {
   setChangelogViewDate: {
     type: new GraphQLNonNull(Individual),
     description: 'Update the time which the user viewed the changelog updates',
@@ -23,4 +23,4 @@ const userMutations = {
   },
 };
 
-export default userMutations;
+export default individualMutations;

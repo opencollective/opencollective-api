@@ -11,13 +11,13 @@ import createProjectMutation from './CreateProjectMutation';
 import expenseMutations from './ExpenseMutations';
 import guestMutations from './GuestMutations';
 import hostApplicationMutations from './HostApplicationMutations';
+import individualMutations from './IndividualMutations';
 import memberMutations from './MemberMutations';
 import orderMutations from './OrderMutations';
 import paymentMethodMutations from './PaymentMethodMutations';
 import payoutMethodMutations from './PayoutMethodMutations';
 import transactionMutations from './TransactionMutations';
 import updateMutations from './UpdateMutations';
-import userMutations from './UserMutations';
 import virtualCardMutations from './VirtualCardMutations';
 
 const mutation = {
@@ -40,7 +40,7 @@ const mutation = {
   ...transactionMutations,
   ...memberMutations,
   ...updateMutations,
-  ...userMutations,
+  ...individualMutations,
   ...virtualCardMutations,
 };
 
