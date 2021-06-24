@@ -5,21 +5,7 @@ import debugLib from 'debug';
 import deepmerge from 'deepmerge';
 import * as ics from 'ics';
 import slugify from 'limax';
-import {
-  defaults,
-  difference,
-  differenceBy,
-  get,
-  includes,
-  isNull,
-  omit,
-  pick,
-  round,
-  sum,
-  sumBy,
-  trim,
-  unset,
-} from 'lodash';
+import { defaults, difference, differenceBy, get, includes, isNull, omit, pick, sum, sumBy, trim, unset } from 'lodash';
 import moment from 'moment';
 import fetch from 'node-fetch';
 import prependHttp from 'prepend-http';
@@ -35,8 +21,6 @@ import FEATURE from '../constants/feature';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import plans from '../constants/plans';
 import roles, { MemberRoleLabels } from '../constants/roles';
-import { TransactionKind } from '../constants/transaction-kind';
-import { PLATFORM_TIP_TRANSACTION_PROPERTIES, TransactionTypes } from '../constants/transactions';
 import { hasOptedOutOfFeature, isFeatureAllowedForCollectiveType } from '../lib/allowed-features';
 import {
   getBalanceAmount,
@@ -57,6 +41,13 @@ import {
 import { invalidateContributorsCache } from '../lib/contributors';
 import { getFxRate } from '../lib/currency';
 import emailLib from '../lib/email';
+import {
+  getHostFees,
+  getHostFeeShare,
+  getPendingHostFeeShare,
+  getPendingPlatformTips,
+  getPlatformTips,
+} from '../lib/host-metrics';
 import logger from '../lib/logger';
 import queries from '../lib/queries';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
@@ -64,7 +55,7 @@ import sequelize, { DataTypes, Op, Sequelize } from '../lib/sequelize';
 import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective } from '../lib/spam';
 import { canUseFeature } from '../lib/user-permissions';
 import userlib from '../lib/userlib';
-import { capitalize, cleanTags, formatCurrency, getDomain, md5, sumByWhen } from '../lib/utils';
+import { capitalize, cleanTags, formatCurrency, getDomain, md5 } from '../lib/utils';
 
 import CustomDataTypes from './DataTypes';
 import { PayoutMethodTypes } from './PayoutMethod';
@@ -2524,6 +2515,7 @@ function defineModel() {
     offset,
     limit,
     attributes,
+    kinds,
     order = [['createdAt', 'DESC']],
     includeUsedGiftCardsEmittedByOthers = true,
     includeExpenseTransactions = true,
@@ -2544,6 +2536,11 @@ function defineModel() {
     // Filter on host
     if (HostCollectiveId) {
       query.where.HostCollectiveId = HostCollectiveId;
+    }
+
+    // Filter on kind
+    if (kinds) {
+      query.where.kind = kinds;
     }
 
     // Filter on date
@@ -2943,83 +2940,31 @@ function defineModel() {
    * @param {Date} from Defaults to beginning of the current month.
    * @param {Date} [to] Optional, defaults to the end of the 'from' month and 'from' is reseted to the beginning of its month.
    */
-  Collective.prototype.getHostMetrics = async function (
-    from = moment().utc().startOf('month'),
-    to,
-    { returnTransactions = false } = {},
-  ) {
+  Collective.prototype.getHostMetrics = async function (from, to) {
     if (!this.isHostAccount || !this.isActive || this.type !== types.ORGANIZATION) {
       return null;
     }
 
-    // If only one argument is passed, get metric for the whole month of the first argument date.
-    if (!to) {
-      to = moment(from).utc().endOf('month');
-      from = moment(from).utc().startOf('month');
-    }
+    from = from ? moment(from) : moment().utc().startOf('month');
+    to = to ? moment(to) : moment(from).utc().endOf('month');
 
-    const isPendingTransaction = t =>
-      !(t.PaymentMethod?.service == 'stripe' || t.PaymentMethod?.sourcePaymentMethod?.service == 'stripe');
     const plan = await this.getPlan();
     const hostFeeSharePercent = plan.hostFeeSharePercent || 0;
 
-    const transactions = await models.Transaction.findAll({
-      where: {
-        HostCollectiveId: this.id,
-        type: TransactionTypes.CREDIT,
-        createdAt: { [Op.gte]: from, [Op.lt]: to },
-      },
-      include: [
-        {
-          model: models.PaymentMethod,
-          as: 'PaymentMethod',
-          include: [{ model: models.PaymentMethod, as: 'sourcePaymentMethod' }],
-        },
-      ],
-    });
+    const hostFees = await getHostFees(this, { startDate: from, endDate: to });
 
-    const hostFees = Math.abs(sumBy(transactions, 'hostFeeInHostCurrency'));
-    const platformFees = Math.abs(sumBy(transactions, 'platformFeeInHostCurrency'));
-    const pendingPlatformFees = Math.abs(sumByWhen(transactions, 'platformFeeInHostCurrency', isPendingTransaction));
-    const hostFeeShare = Math.abs(
-      sumByWhen(
-        transactions,
-        t => round((t.hostFeeInHostCurrency * (t.data?.hostFeeSharePercent || plan.hostFeeSharePercent)) / 100),
-        t => !t.platformFeeInHostCurrency && t.hostFeeInHostCurrency,
-      ),
-    );
-    const pendingHostFeeShare = Math.abs(
-      sumByWhen(
-        transactions,
-        t => round((t.hostFeeInHostCurrency * (t.data?.hostFeeSharePercent || plan.hostFeeSharePercent)) / 100),
-        t => !t.platformFeeInHostCurrency && t.hostFeeInHostCurrency && isPendingTransaction(t),
-      ),
-    );
-
-    const tipsTransactions = await models.Transaction.findAll({
-      where: {
-        ...pick(PLATFORM_TIP_TRANSACTION_PROPERTIES, ['CollectiveId', 'HostCollectiveId']),
-        createdAt: { [Op.gte]: from, [Op.lt]: to },
-        type: TransactionTypes.CREDIT,
-        TransactionGroup: { [Op.in]: transactions.map(t => t.TransactionGroup) },
-        kind: TransactionKind.PLATFORM_TIP,
-      },
-      include: [
-        {
-          model: models.PaymentMethod,
-          as: 'PaymentMethod',
-          include: [{ model: models.PaymentMethod, as: 'sourcePaymentMethod' }],
-        },
-      ],
-    });
-
-    const getTipAmountInHostCurrency = t => t.netAmountInCollectiveCurrency / (t.data?.hostToPlatformFxRate || 1);
-    const platformTips = Math.round(sumBy(tipsTransactions, getTipAmountInHostCurrency));
-    const pendingPlatformTips = Math.round(
-      sumByWhen(tipsTransactions, getTipAmountInHostCurrency, isPendingTransaction),
-    );
+    const hostFeeShare = await getHostFeeShare(this, { startDate: from, endDate: to });
+    const pendingHostFeeShare = await getPendingHostFeeShare(this, { startDate: from, endDate: to });
+    const settledHostFeeShare = hostFeeShare - pendingHostFeeShare;
 
     const totalMoneyManaged = await this.getTotalMoneyManaged({ endDate: to });
+
+    const platformTips = await getPlatformTips(this, { startDate: from, endDate: to });
+    const pendingPlatformTips = await getPendingPlatformTips(this, { startDate: from, endDate: to });
+
+    // We don't support platform fees anymore
+    const platformFees = 0;
+    const pendingPlatformFees = 0;
 
     const metrics = {
       hostFees,
@@ -3029,14 +2974,10 @@ function defineModel() {
       pendingPlatformTips,
       hostFeeShare,
       pendingHostFeeShare,
+      settledHostFeeShare,
       hostFeeSharePercent,
       totalMoneyManaged,
     };
-
-    if (returnTransactions) {
-      metrics.transactions = transactions;
-      metrics.tipsTransactions = tipsTransactions;
-    }
 
     return metrics;
   };

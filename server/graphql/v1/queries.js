@@ -264,6 +264,7 @@ const queries = {
       offset: { type: GraphQLInt },
       dateFrom: { type: GraphQLString },
       dateTo: { type: GraphQLString },
+      kinds: { type: GraphQLList(GraphQLString) },
       includeExpenseTransactions: {
         type: GraphQLBoolean,
         default: true,
@@ -288,13 +289,14 @@ const queries = {
       }
 
       return collective.getTransactions({
-        order: [['createdAt', 'DESC']],
+        order: [['createdAt', 'DESC'], ['kind'], ['type']],
         type: args.type,
         limit: args.limit,
         offset: args.offset,
         startDate: args.dateFrom,
         endDate: args.dateTo,
         includeExpenseTransactions: args.includeExpenseTransactions,
+        kinds: args.kinds,
       });
     },
   },

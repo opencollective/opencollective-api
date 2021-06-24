@@ -12,6 +12,7 @@ import stripe from '../../lib/stripe';
 import { addParamsToUrl } from '../../lib/utils';
 import models from '../../models';
 
+import alipay from './alipay';
 import creditcard from './creditcard';
 
 const debug = debugLib('stripe');
@@ -49,6 +50,7 @@ export default {
   types: {
     default: creditcard,
     creditcard,
+    alipay,
   },
 
   oauth: {
@@ -196,6 +198,8 @@ export default {
     switch (order.paymentMethod.type) {
       case 'bitcoin':
         throw new errors.BadRequest('Stripe-Bitcoin not supported anymore :(');
+      case 'alipay':
+        return alipay.processOrder(order);
       case 'creditcard': /* Fallthrough */
       default:
         return creditcard.processOrder(order);
@@ -219,6 +223,8 @@ export default {
       }
       if (event.type === 'invoice.payment_succeeded') {
         return creditcard.webhook(requestBody, event);
+      } else if (event.type === 'charge.refund.updated') {
+        return alipay.webhook(requestBody, event);
       } else if (event.type === 'source.chargeable') {
         /* This will cause stripe to send us email alerts, saying
          * that our stuff is broken. But that should never happen

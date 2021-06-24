@@ -18,41 +18,45 @@ async function reconcileConnectedAccount(connectedAccount) {
   logger.info(`Found ${cards.length} cards connected to host #${connectedAccount.CollectiveId} ${host.slug}...`);
 
   for (const card of cards) {
-    const lastSyncedTransaction = await models.Expense.findOne({
-      where: { VirtualCardId: card.id },
-      order: [['createdAt', 'desc']],
-    });
-    const begin = lastSyncedTransaction
-      ? moment(lastSyncedTransaction.createdAt).add(1, 'second').toISOString()
-      : moment(card.createdAt).toISOString();
-    logger.info(`\nReconciling card ${card.id}: fetching transactions since ${begin}`);
+    try {
+      const lastSyncedTransaction = await models.Expense.findOne({
+        where: { VirtualCardId: card.id },
+        order: [['createdAt', 'desc']],
+      });
+      const begin = lastSyncedTransaction
+        ? moment(lastSyncedTransaction.createdAt).add(1, 'second').toISOString()
+        : moment(card.createdAt).toISOString();
+      logger.info(`\nReconciling card ${card.id}: fetching transactions since ${begin}`);
 
-    const { data: transactions } = await privacyLib.listTransactions(
-      connectedAccount.token,
-      card.id,
-      {
-        begin,
-        // Assumption: We won't have more than 200 transactions out of sync.
-        // eslint-disable-next-line camelcase
-        page_size: 200,
-      },
-      'approvals',
-    );
-    const hostCurrencyFxRate = await getFxRate('USD', host.currency);
-
-    if (DRY) {
-      logger.info(`Found ${transactions.length} pending transactions...`);
-      logger.debug(JSON.stringify(transactions, null, 2));
-    } else {
-      logger.info(`Syncing ${transactions.length} pending transactions...`);
-      await Promise.all(
-        transactions.map(transaction => privacy.processTransaction(transaction, { host, hostCurrencyFxRate })),
+      const { data: transactions } = await privacyLib.listTransactions(
+        connectedAccount.token,
+        card.id,
+        {
+          begin,
+          // Assumption: We won't have more than 200 transactions out of sync.
+          // eslint-disable-next-line camelcase
+          page_size: 200,
+        },
+        'approvals',
       );
-      if (host.settings?.virtualcards?.autopause) {
-        await privacy.autoPauseResumeCard(card);
+      const hostCurrencyFxRate = await getFxRate('USD', host.currency);
+
+      if (DRY) {
+        logger.info(`Found ${transactions.length} pending transactions...`);
+        logger.debug(JSON.stringify(transactions, null, 2));
+      } else {
+        logger.info(`Syncing ${transactions.length} pending transactions...`);
+        await Promise.all(
+          transactions.map(transaction => privacy.processTransaction(transaction, { host, hostCurrencyFxRate })),
+        );
+        if (host.settings?.virtualcards?.autopause) {
+          await privacy.autoPauseResumeCard(card);
+        }
+        logger.info(`Refreshing card details'...`);
+        await privacy.refreshCardDetails(card);
       }
-      logger.info(`Refreshing card details'...`);
-      await privacy.refreshCardDetails(card);
+    } catch (error) {
+      logger.error(`Error while syncing card ${card.id}`, error);
     }
   }
 }

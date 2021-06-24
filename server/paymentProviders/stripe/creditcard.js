@@ -1,11 +1,13 @@
 import config from 'config';
-import { get, isNumber, result } from 'lodash';
+import { get } from 'lodash';
 
 import * as constants from '../../constants/transactions';
 import logger from '../../lib/logger';
-import { createRefundTransaction, getHostFee, getPlatformFee } from '../../lib/payments';
+import { getApplicationFee, getHostFee, getHostFeeSharePercent, getPlatformTip } from '../../lib/payments';
 import stripe, { convertFromStripeAmount, convertToStripeAmount, extractFees } from '../../lib/stripe';
 import models from '../../models';
+
+import { refundTransaction, refundTransactionOnlyInDatabase } from './common';
 
 const UNKNOWN_ERROR_MSG = 'Something went wrong with the payment, please contact support@opencollective.com.';
 
@@ -111,15 +113,12 @@ const getOrCreateCustomerOnHostAccount = async (hostStripeAccount, { paymentMeth
  */
 const createChargeAndTransactions = async (hostStripeAccount, { order, hostStripeCustomer }) => {
   const host = await order.collective.getHostCollective();
-  const hostPlan = await host.getPlan();
-  const hostFeeSharePercent = isNumber(hostPlan?.creditCardHostFeeSharePercent)
-    ? hostPlan?.creditCardHostFeeSharePercent
-    : hostPlan?.hostFeeSharePercent;
+  const hostFeeSharePercent = await getHostFeeSharePercent(order, host);
   const isSharedRevenue = !!hostFeeSharePercent;
 
   // Read or compute Platform Fee
-  const platformFee = await getPlatformFee(order.totalAmount, order, host, { hostFeeSharePercent });
-  const platformTip = order.data?.platformFee;
+  const applicationFee = await getApplicationFee(order, host);
+  const platformTip = getPlatformTip(order);
 
   // Make sure data is available (breaking in some old tests)
   order.data = order.data || {};
@@ -141,8 +140,8 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
       },
     };
     // We don't add a platform fee if the host is the root account
-    if (platformFee && hostStripeAccount.username !== config.stripe.accountId) {
-      createPayload.application_fee_amount = convertToStripeAmount(order.currency, platformFee);
+    if (applicationFee && hostStripeAccount.username !== config.stripe.accountId) {
+      createPayload.application_fee_amount = convertToStripeAmount(order.currency, applicationFee);
     }
     if (order.interval) {
       createPayload.setup_future_usage = 'off_session';
@@ -189,23 +188,30 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
   });
 
   // Create a Transaction
-  const fees = extractFees(balanceTransaction, balanceTransaction.currency);
+  const amount = order.totalAmount;
+  const currency = order.currency;
+  const hostCurrency = balanceTransaction.currency.toUpperCase();
   const amountInHostCurrency = convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount);
-  const hostFeeInHostCurrency = await getHostFee(amountInHostCurrency, order);
+  const hostCurrencyFxRate = amountInHostCurrency / order.totalAmount;
+
+  const hostFee = await getHostFee(order, host);
+  const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
+
   const data = {
     charge,
     balanceTransaction,
     isFeesOnTop: order.data?.isFeesOnTop,
     isSharedRevenue,
     settled: true,
-    platformFee: platformFee,
+    platformFee: applicationFee, // TODO: to be removed
+    applicationFee,
     platformTip,
     hostFeeSharePercent,
   };
 
-  const hostCurrencyFxRate = amountInHostCurrency / order.totalAmount;
-
+  const fees = extractFees(balanceTransaction, balanceTransaction.currency);
   const platformFeeInHostCurrency = isSharedRevenue ? platformTip * hostCurrencyFxRate || 0 : fees.applicationFee;
+  const paymentProcessorFeeInHostCurrency = fees.stripeFee;
 
   const transactionPayload = {
     CreatedByUserId: order.CreatedByUserId,
@@ -214,12 +220,12 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
     PaymentMethodId: order.PaymentMethodId,
     type: constants.TransactionTypes.CREDIT,
     OrderId: order.id,
-    amount: order.totalAmount,
-    currency: order.currency,
-    hostCurrency: balanceTransaction.currency.toUpperCase(),
+    amount,
+    currency,
+    hostCurrency,
     amountInHostCurrency,
     hostCurrencyFxRate,
-    paymentProcessorFeeInHostCurrency: fees.stripeFee,
+    paymentProcessorFeeInHostCurrency,
     taxAmount: order.taxAmount,
     description: order.description,
     hostFeeInHostCurrency,
@@ -227,24 +233,9 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
     data,
   };
 
-  return models.Transaction.createFromContributionPayload(transactionPayload, { isPlatformTipDirectlyCollected: true });
-};
-
-/**
- * Given a charge id, retrieves its corresponding charge and refund data.
- */
-export const retrieveChargeWithRefund = async (chargeId, stripeAccount) => {
-  const charge = await stripe.charges.retrieve(chargeId, {
-    stripeAccount: stripeAccount.username,
+  return models.Transaction.createFromContributionPayload(transactionPayload, {
+    isPlatformRevenueDirectlyCollected: true,
   });
-  if (!charge) {
-    throw Error(`charge id ${chargeId} not found`);
-  }
-  const refundId = get(charge, 'refunds.data[0].id');
-  const refund = await stripe.refunds.retrieve(refundId, {
-    stripeAccount: stripeAccount.username,
-  });
-  return { charge, refund };
 };
 
 export const setupCreditCard = async (paymentMethod, { user, collective } = {}) => {
@@ -366,75 +357,8 @@ export default {
     return transactions;
   },
 
-  /** Refund a given transaction */
-  refundTransaction: async (transaction, user) => {
-    /* What's going to be refunded */
-    const chargeId = result(transaction.data, 'charge.id');
-
-    /* From which stripe account it's going to be refunded */
-    const collective = await models.Collective.findByPk(
-      transaction.type === 'CREDIT' ? transaction.CollectiveId : transaction.FromCollectiveId,
-    );
-    const hostStripeAccount = await collective.getHostStripeAccount();
-
-    /* Refund both charge & application fee */
-    const shouldRefundApplicationFee = transaction.platformFeeInHostCurrency > 0;
-    const refund = await stripe.refunds.create(
-      { charge: chargeId, refund_application_fee: shouldRefundApplicationFee }, // eslint-disable-line camelcase
-      { stripeAccount: hostStripeAccount.username },
-    );
-    const charge = await stripe.charges.retrieve(chargeId, { stripeAccount: hostStripeAccount.username });
-    const refundBalance = await stripe.balanceTransactions.retrieve(refund.balance_transaction, {
-      stripeAccount: hostStripeAccount.username,
-    });
-    const fees = extractFees(refundBalance, refundBalance.currency);
-
-    /* Create negative transactions for the received transaction */
-    return await createRefundTransaction(
-      transaction,
-      fees.stripeFee,
-      {
-        ...transaction.data,
-        refund,
-        balanceTransaction: refundBalance,
-        charge,
-      },
-      user,
-    );
-  },
-
-  /** Refund a given transaction that was already refunded
-   * in stripe but not in our database
-   */
-  refundTransactionOnlyInDatabase: async (transaction, user) => {
-    /* What's going to be refunded */
-    const chargeId = result(transaction.data, 'charge.id');
-
-    /* From which stripe account it's going to be refunded */
-    const collective = await models.Collective.findByPk(
-      transaction.type === 'CREDIT' ? transaction.CollectiveId : transaction.FromCollectiveId,
-    );
-    const hostStripeAccount = await collective.getHostStripeAccount();
-
-    /* Refund both charge & application fee */
-    const { charge, refund } = await retrieveChargeWithRefund(chargeId, hostStripeAccount);
-    if (!refund) {
-      throw new Error('No refunds found in stripe.');
-    }
-    const refundBalance = await stripe.balanceTransactions.retrieve(refund.balance_transaction, {
-      stripeAccount: hostStripeAccount.username,
-    });
-    const fees = extractFees(refundBalance, refundBalance.currency);
-
-    /* Create negative transactions for the received transaction */
-    return await createRefundTransaction(
-      transaction,
-      fees.stripeFee,
-      { ...transaction.data, charge, refund, balanceTransaction: refundBalance },
-      user,
-    );
-  },
-
+  refundTransaction,
+  refundTransactionOnlyInDatabase,
   webhook: (/* requestBody, event */) => {
     // We don't do anything at the moment
     return Promise.resolve();

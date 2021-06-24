@@ -232,4 +232,6 @@ TransactionSettlement.init(
   },
 );
 
+TransactionSettlement.removeAttribute('id');
+
 export default TransactionSettlement;

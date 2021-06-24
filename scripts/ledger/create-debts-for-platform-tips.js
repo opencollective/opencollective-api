@@ -1,10 +1,10 @@
 #!/usr/bin/env ./node_modules/.bin/babel-node
-import '../server/env';
+import '../../server/env';
 
 import { partition } from 'lodash';
 
-import models, { sequelize } from '../server/models';
-import { TransactionSettlementStatus } from '../server/models/TransactionSettlement';
+import models, { sequelize } from '../../server/models';
+import { TransactionSettlementStatus } from '../../server/models/TransactionSettlement';
 
 const startDate = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date('2021-05-01');
 
@@ -24,13 +24,13 @@ const migrate = async () => {
       AND ot.kind IN ('CONTRIBUTION', 'ADDED_FUNDS')
     LEFT JOIN "PaymentMethods" pm ON t."PaymentMethodId" = pm.id
     LEFT JOIN "PaymentMethods" spm ON spm.id = pm."SourcePaymentMethodId"
-    LEFT JOIN "TransactionSettlements" s
-      ON s."TransactionGroup" = t."TransactionGroup"
-      AND s."kind" = t."kind"
     LEFT JOIN "Transactions" debt
       ON debt."TransactionGroup" = t."TransactionGroup"
-      AND debt."kind" = t."kind"
+      AND debt."kind" = 'PLATFORM_TIP_DEBT'
       AND debt."isDebt" IS TRUE
+    LEFT JOIN "TransactionSettlements" s
+      ON s."TransactionGroup" = debt."TransactionGroup"
+      AND s."kind" = debt."kind"
     WHERE t.kind = 'PLATFORM_TIP'
     AND t.type = 'CREDIT'
     AND t."RefundTransactionId" IS NULL
@@ -66,7 +66,7 @@ const rollback = async () => {
     `
     BEGIN;
       DELETE FROM "TransactionSettlements"
-      WHERE "kind" = 'PLATFORM_TIP'
+      WHERE "kind" = 'PLATFORM_TIP_DEBT'
       AND "TransactionGroup" IN (
         SELECT "TransactionGroup"
         FROM "Transactions" t
@@ -77,6 +77,7 @@ const rollback = async () => {
 
       DELETE FROM "Transactions"
       WHERE "isDebt" = TRUE
+      AND kind = 'PLATFORM_TIP_DEBT'
       AND "TransactionGroup" IN (
         SELECT "TransactionGroup"
         FROM "Transactions" t
@@ -102,13 +103,13 @@ const check = async () => {
     FROM "Transactions" t
     LEFT JOIN "PaymentMethods" pm ON t."PaymentMethodId" = pm.id
     LEFT JOIN "PaymentMethods" spm ON spm.id = pm."SourcePaymentMethodId"
-    LEFT JOIN "TransactionSettlements" s
-      ON s."TransactionGroup" = t."TransactionGroup"
-      AND s."kind" = t."kind"
     LEFT JOIN "Transactions" debt
       ON debt."TransactionGroup" = t."TransactionGroup"
-      AND debt."kind" = t."kind"
+      AND debt."kind" = 'PLATFORM_TIP_DEBT'
       AND debt."isDebt" IS TRUE
+    LEFT JOIN "TransactionSettlements" s
+      ON s."TransactionGroup" = debt."TransactionGroup"
+      AND s."kind" = debt."kind"
     WHERE t.kind = 'PLATFORM_TIP'
     AND t."RefundTransactionId" IS NULL
     AND t."createdAt" >= :startDate

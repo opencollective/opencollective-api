@@ -1,10 +1,10 @@
-import { get, isNumber, truncate } from 'lodash';
+import { get, truncate } from 'lodash';
 
 import * as constants from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { floatAmountToCents } from '../../lib/math';
-import { createRefundTransaction, getHostFee, getPlatformFee } from '../../lib/payments';
+import { createRefundTransaction, getHostFee, getHostFeeSharePercent, getPlatformTip } from '../../lib/payments';
 import { paypalAmountToCents } from '../../lib/paypal';
 import { formatCurrency } from '../../lib/utils';
 import models from '../../models';
@@ -67,20 +67,18 @@ const recordTransaction = async (order, amount, currency, paypalFee, payload) =>
     throw new Error(`Cannot create transaction: collective id ${order.collective.id} doesn't have a host`);
   }
   const hostCurrency = host.currency;
-  const hostPlan = await host.getPlan();
-  const hostFeeSharePercent = isNumber(hostPlan?.paypalHostFeeSharePercent)
-    ? hostPlan?.paypalHostFeeSharePercent
-    : hostPlan?.hostFeeSharePercent;
+  const hostFeeSharePercent = await getHostFeeSharePercent(order, host);
   const isSharedRevenue = !!hostFeeSharePercent;
-  const platformTip = order.data?.platformFee;
 
   const hostCurrencyFxRate = await getFxRate(currency, hostCurrency);
-  const amountInHostCurrency = Math.round(hostCurrencyFxRate * amount);
+  const amountInHostCurrency = Math.round(amount * hostCurrencyFxRate);
   const paymentProcessorFeeInHostCurrency = Math.round(hostCurrencyFxRate * paypalFee);
-  const hostFeeInHostCurrency = await getHostFee(amountInHostCurrency, order);
-  const platformFeeInHostCurrency = isSharedRevenue
-    ? platformTip || 0
-    : await getPlatformFee(amountInHostCurrency, order, host, { hostFeeSharePercent });
+
+  const hostFee = await getHostFee(order, host);
+  const hostFeeInHostCurrency = Math.round(hostFee, hostCurrencyFxRate);
+
+  const platformTip = getPlatformTip(order);
+  const platformFeeInHostCurrency = Math.round(platformTip * hostCurrencyFxRate);
 
   return models.Transaction.createFromContributionPayload({
     CreatedByUserId: order.CreatedByUserId,
@@ -102,7 +100,7 @@ const recordTransaction = async (order, amount, currency, paypalFee, payload) =>
     data: {
       ...payload,
       isFeesOnTop: order.data?.isFeesOnTop,
-      platformTip: order.data?.platformFee,
+      platformTip,
       isSharedRevenue,
       hostFeeSharePercent,
     },

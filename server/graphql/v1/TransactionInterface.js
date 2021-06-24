@@ -118,8 +118,12 @@ const TransactionFields = () => {
     hostFeeInHostCurrency: {
       type: GraphQLInt,
       description: 'Fee kept by the host in the lowest unit of the currency of the host (ie. in cents)',
-      resolve(transaction) {
-        return transaction.hostFeeInHostCurrency;
+      resolve(transaction, _, req) {
+        if (transaction.hostFeeInHostCurrency) {
+          return transaction.hostFeeInHostCurrency;
+        } else {
+          return req.loaders.Transaction.hostFeeAmountForTransaction.load(transaction);
+        }
       },
     },
     platformFeeInHostCurrency: {

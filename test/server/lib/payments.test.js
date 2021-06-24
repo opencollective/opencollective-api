@@ -422,7 +422,7 @@ describe('server/lib/payments', () => {
       expect(originalTransactions).to.have.lengthOf(6);
 
       // Should have created a settlement entry for tip
-      const tipTransaction = originalTransactions.find(t => t.kind === TransactionKind.PLATFORM_TIP);
+      const tipTransaction = originalTransactions.find(t => t.kind === TransactionKind.PLATFORM_TIP_DEBT);
       const tipSettlement = await models.TransactionSettlement.getByTransaction(tipTransaction);
       expect(tipSettlement.status).to.eq('OWED');
 
@@ -437,14 +437,14 @@ describe('server/lib/payments', () => {
       const refundedTransactions = await order.getTransactions({ where: { isRefund: true } });
       expect(refundedTransactions).to.have.lengthOf(6);
       expect(refundedTransactions.filter(t => t.kind === 'CONTRIBUTION')).to.have.lengthOf(2);
-      expect(refundedTransactions.filter(t => t.kind === 'PLATFORM_TIP' && t.isDebt)).to.have.lengthOf(2);
-      expect(refundedTransactions.filter(t => t.kind === 'PLATFORM_TIP' && !t.isDebt)).to.have.lengthOf(2);
+      expect(refundedTransactions.filter(t => t.kind === 'PLATFORM_TIP')).to.have.lengthOf(2);
+      expect(refundedTransactions.filter(t => t.kind === 'PLATFORM_TIP_DEBT')).to.have.lengthOf(2);
 
       // TODO(LedgerRefactor): Check debt transactions and settlement status
 
-      // Settlement should have been deleted since it's was not invoiced yet
-      await tipSettlement.reload({ paranoid: false });
-      expect(tipSettlement.deletedAt).to.not.be.null;
+      // Settlement should be marked as SETTLED since it's was not invoiced yet
+      await tipSettlement.reload();
+      expect(tipSettlement.status).to.eq('SETTLED');
     });
 
     it('should remove the settlement if the tip was already invoiced', async () => {
