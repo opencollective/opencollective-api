@@ -14,7 +14,7 @@ import Update from '../object/Update';
  * Object type for EmojiReaction mutation.
  */
 const EmojiReactionsResponse = new GraphQLObjectType({
-  name: 'EmojiReactionOutput',
+  name: 'EmojiReactionResponse',
   fields: () => ({
     update: {
       type: Update,
