@@ -661,7 +661,7 @@ function defineModel() {
     // amountInHostCurrency of the CREDIT should be in platform currency
     const hostCurrency = PLATFORM_TIP_TRANSACTION_PROPERTIES.currency;
     const hostCurrencyFxRate = await Transaction.getFxRate(currency, hostCurrency, transaction);
-    const amountInHostCurrency = Math.round(amount / hostCurrencyFxRate);
+    const amountInHostCurrency = Math.round(amount * hostCurrencyFxRate);
 
     // we compute the Fx Rate between the original hostCurrency and the platform currency
     // it might be used later
@@ -676,9 +676,12 @@ function defineModel() {
       kind: TransactionKind.PLATFORM_TIP,
       description: 'Financial contribution to Open Collective',
       TransactionGroup: transaction.TransactionGroup,
-      FromCollectiveId: transaction.CollectiveId,
+      FromCollectiveId: transaction.FromCollectiveId,
       CollectiveId: PLATFORM_TIP_TRANSACTION_PROPERTIES.CollectiveId,
       HostCollectiveId: PLATFORM_TIP_TRANSACTION_PROPERTIES.HostCollectiveId,
+      OrderId: transaction.OrderId,
+      CreatedByUserId: transaction.CreatedByUserId,
+      PaymentMethodId: transaction.PaymentMethodId,
       // Compute Amounts
       amount,
       netAmountInCollectiveCurrency: amount,
@@ -691,6 +694,7 @@ function defineModel() {
       hostFeeInHostCurrency: 0,
       paymentProcessorFeeInHostCurrency: 0,
       // Extra data
+      isDebt: false,
       data: {
         hostToPlatformFxRate,
         settled: transaction.data?.settled,
@@ -923,14 +927,14 @@ function defineModel() {
     transaction.taxAmount = toNegative(transaction.taxAmount);
 
     // Separate donation transaction and remove platformTip from the main transaction
-    const platformTip = getPlatformTip(transaction);
-    if (platformTip) {
-      const isAlreadyCollected = Boolean(opts?.isPlatformRevenueDirectlyCollected);
-      const result = await Transaction.createPlatformTipTransactions(transaction, host, isAlreadyCollected);
-      // Transaction was modified by createPlatformTipTransactions, we get it from the result
-      if (result && result.transaction) {
-        transaction = result.transaction;
-      }
+    const result = await Transaction.createPlatformTipTransactions(
+      transaction,
+      host,
+      Boolean(opts?.isPlatformRevenueDirectlyCollected),
+    );
+    // Transaction was modified by createPlatformTipTransactions, we get it from the result
+    if (result && result.transaction) {
+      transaction = result.transaction;
     }
 
     // Create Host Fee transaction

@@ -711,8 +711,18 @@ export const getApplicationFee = async (order, host = null) => {
   return applicationFee;
 };
 
-export const getPlatformTip = order => {
-  return order.data?.platformTip || order.data?.platformFee || 0;
+export const getPlatformTip = object => {
+  if (object.data?.platformTip) {
+    return object.data?.platformTip;
+  }
+  if (object.data?.platformFee) {
+    return object.data?.platformFee;
+  }
+  // Compatibility with some older tests
+  if (object.data?.isFeesOnTop && !isNil(object.platformFeeInHostCurrency)) {
+    return Math.abs(object.platformFeeInHostCurrency);
+  }
+  return 0;
 };
 
 export const getPlatformFeePercent = async () => {
