@@ -687,6 +687,7 @@ function defineModel() {
       OrderId: transaction.OrderId,
       CreatedByUserId: transaction.CreatedByUserId,
       PaymentMethodId: transaction.PaymentMethodId,
+      UsingGiftCardFromCollectiveId: transaction.UsingGiftCardFromCollectiveId,
       // Compute Amounts
       amount,
       netAmountInCollectiveCurrency: amount,
