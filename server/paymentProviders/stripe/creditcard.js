@@ -287,13 +287,13 @@ export default {
   processOrder: async order => {
     const hostStripeAccount = await order.collective.getHostStripeAccount();
 
-    const hostStripeCustomer = await getOrCreateCustomerOnHostAccount(hostStripeAccount, {
-      paymentMethod: order.paymentMethod,
-      user: order.createdByUser,
-    });
-
     let transactions;
     try {
+      const hostStripeCustomer = await getOrCreateCustomerOnHostAccount(hostStripeAccount, {
+        paymentMethod: order.paymentMethod,
+        user: order.createdByUser,
+      });
+
       transactions = await createChargeAndTransactions(hostStripeAccount, {
         order,
         hostStripeCustomer,
@@ -313,6 +313,9 @@ export default {
       ];
 
       if (knownErrors.includes(error.message)) {
+        logger.error(
+          `Stripe Error (handled): ${error.type}, Message: ${error.message}, Decline Code: ${error.decline_code}, Code: ${error.code}`,
+        );
         throw error;
       }
 
