@@ -783,7 +783,10 @@ function defineModel() {
     host,
     isDirectlyCollected = false,
   ) => {
-    const order = await transaction.getOrder();
+    let order;
+    if (transaction.OrderId) {
+      order = await Transaction.findByPk(transaction.OrderId);
+    }
     const hostFeeSharePercent = await getHostFeeSharePercent(order, host);
     if (!hostFeeSharePercent) {
       return;
