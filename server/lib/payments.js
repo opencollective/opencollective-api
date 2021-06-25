@@ -792,12 +792,14 @@ export const getHostFeeSharePercent = async (order, host = null) => {
 
   const possibleValues = [];
 
-  if (order && order.paymentMethod.service === 'stripe' && order.paymentMethod.type === 'creditcard') {
-    possibleValues.push(plan?.creditCardHostFeeSharePercent);
-  }
+  if (order) {
+    if (order.paymentMethod?.service === 'stripe' && order.paymentMethod?.type === 'creditcard') {
+      possibleValues.push(plan?.creditCardHostFeeSharePercent);
+    }
 
-  if (order && order.paymentMethod.service === 'paypal' && order.paymentMethod.type === 'payment') {
-    possibleValues.push(plan?.paypalHostFeeSharePercent);
+    if (order.paymentMethod?.service === 'paypal' && order.paymentMethod?.type === 'payment') {
+      possibleValues.push(plan?.paypalHostFeeSharePercent);
+    }
   }
 
   // Default
