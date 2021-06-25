@@ -653,41 +653,43 @@ function defineModel() {
    * @param {models.Collective} The host
    * @param {boolean} Whether tip has been collected already (no debt needed)
    */
-  Transaction.createPlatformTipTransactions = async (transaction, host, isDirectlyCollected = false) => {
-    const platformTip = getPlatformTip(transaction);
+  Transaction.createPlatformTipTransactions = async (transactionData, host, isDirectlyCollected = false) => {
+    const platformTip = getPlatformTip(transactionData);
     if (!platformTip) {
       return;
     }
 
     // amount of the CREDIT should be in the same currency as the original transaction
     const amount = platformTip;
-    const currency = transaction.currency;
+    const currency = transactionData.currency;
 
     // amountInHostCurrency of the CREDIT should be in platform currency
     const hostCurrency = PLATFORM_TIP_TRANSACTION_PROPERTIES.currency;
-    const hostCurrencyFxRate = await Transaction.getFxRate(currency, hostCurrency, transaction);
+    const hostCurrencyFxRate = await Transaction.getFxRate(currency, hostCurrency, transactionData);
     const amountInHostCurrency = Math.round(amount * hostCurrencyFxRate);
 
     // we compute the Fx Rate between the original hostCurrency and the platform currency
     // it might be used later
     const hostToPlatformFxRate = await Transaction.getFxRate(
-      transaction.hostCurrency,
+      transactionData.hostCurrency,
       PLATFORM_TIP_TRANSACTION_PROPERTIES.currency,
-      transaction,
+      transactionData,
     );
 
     const platformTipTransactionData = {
+      ...pick(transactionData, [
+        'TransactionGroup',
+        'FromCollectiveId',
+        'OrderId',
+        'CreatedByUserId',
+        'PaymentMethodId',
+        'UsingGiftCardFromCollectiveId',
+      ]),
       type: CREDIT,
       kind: TransactionKind.PLATFORM_TIP,
       description: 'Financial contribution to Open Collective',
-      TransactionGroup: transaction.TransactionGroup,
-      FromCollectiveId: transaction.FromCollectiveId,
       CollectiveId: PLATFORM_TIP_TRANSACTION_PROPERTIES.CollectiveId,
       HostCollectiveId: PLATFORM_TIP_TRANSACTION_PROPERTIES.HostCollectiveId,
-      OrderId: transaction.OrderId,
-      CreatedByUserId: transaction.CreatedByUserId,
-      PaymentMethodId: transaction.PaymentMethodId,
-      UsingGiftCardFromCollectiveId: transaction.UsingGiftCardFromCollectiveId,
       // Compute Amounts
       amount,
       netAmountInCollectiveCurrency: amount,
@@ -703,7 +705,7 @@ function defineModel() {
       isDebt: false,
       data: {
         hostToPlatformFxRate,
-        settled: transaction.data?.settled,
+        settled: transactionData.data?.settled,
       },
     };
 
@@ -711,21 +713,20 @@ function defineModel() {
     let platformTipDebtTransaction;
     if (!isDirectlyCollected) {
       platformTipDebtTransaction = await Transaction.createPlatformTipDebtTransactions(
-        { transaction, platformTipTransaction },
+        { transaction: transactionData, platformTipTransaction },
         host,
       );
     }
 
+    // If we have platformTipInHostCurrency available, we trust it, otherwise we compute it
+    const platformTipInHostCurrency =
+      transactionData.data?.platformTipInHostCurrency || Math.round(platformTip * transactionData.hostCurrencyFxRate);
+
     // Recalculate amount
-    transaction.amountInHostCurrency = transaction.amountInHostCurrency + transaction.platformFeeInHostCurrency;
-    transaction.amount = Math.round(
-      transaction.amount + transaction.platformFeeInHostCurrency / (transaction.hostCurrencyFxRate || 1),
-    );
+    transactionData.amountInHostCurrency = Math.round(transactionData.amountInHostCurrency - platformTipInHostCurrency);
+    transactionData.amount = Math.round(transactionData.amount - platformTip);
 
-    // Reset the platformFee because we're accounting for this value in a separate set of transactions
-    transaction.platformFeeInHostCurrency = 0;
-
-    return { transaction, platformTipTransaction, platformTipDebtTransaction };
+    return { transaction: transactionData, platformTipTransaction, platformTipDebtTransaction };
   };
 
   Transaction.validateContributionPayload = payload => {

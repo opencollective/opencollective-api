@@ -719,6 +719,7 @@ export const getPlatformTip = object => {
     return object.data?.platformFee;
   }
   // Compatibility with some older tests
+  // TODO: doesn't seem accurate in multi currency
   if (object.data?.isFeesOnTop && !isNil(object.platformFeeInHostCurrency)) {
     return Math.abs(object.platformFeeInHostCurrency);
   }
