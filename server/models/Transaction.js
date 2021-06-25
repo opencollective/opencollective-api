@@ -726,6 +726,10 @@ function defineModel() {
     transactionData.amountInHostCurrency = Math.round(transactionData.amountInHostCurrency - platformTipInHostCurrency);
     transactionData.amount = Math.round(transactionData.amount - platformTip);
 
+    // Reset the platformFee because we're accounting for this value in a separate set of transactions
+    // This way of passing tips is deprecated but still used in some older tests
+    transactionData.platformFeeInHostCurrency = 0;
+
     return { transaction: transactionData, platformTipTransaction, platformTipDebtTransaction };
   };
 
