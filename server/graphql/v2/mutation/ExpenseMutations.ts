@@ -24,6 +24,7 @@ import {
   rejectExpense,
   scheduleExpenseForPayment,
   unapproveExpense,
+  unscheduleExpensePayment,
 } from '../../common/expenses';
 import { createUser } from '../../common/user';
 import { FeatureNotAllowedForUser, NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
@@ -274,6 +275,8 @@ const expenseMutations = {
           return markExpenseAsUnpaid(req, expense.id, args.paymentParams?.paymentProcessorFee);
         case 'SCHEDULE_FOR_PAYMENT':
           return scheduleExpenseForPayment(req, expense);
+        case 'UNSCHEDULE_PAYMENT':
+          return unscheduleExpensePayment(req, expense);
         case 'PAY':
           return payExpense(req, {
             id: expense.id,
