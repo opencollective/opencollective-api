@@ -9,7 +9,13 @@ import OrderStatus from '../../constants/order_status';
 import { TransactionTypes } from '../../constants/transactions';
 import { idDecode, IDENTIFIER_TYPES } from '../../graphql/v2/identifiers';
 import logger from '../../lib/logger';
-import { createRefundTransaction, getHostFee, getHostFeeSharePercent, getPlatformTip } from '../../lib/payments';
+import {
+  createRefundTransaction,
+  getHostFee,
+  getHostFeeSharePercent,
+  getPlatformTip,
+  isPlatormTipEligible,
+} from '../../lib/payments';
 import stripe, { convertFromStripeAmount, convertToStripeAmount, extractFees } from '../../lib/stripe';
 import models from '../../models';
 
@@ -107,6 +113,7 @@ const confirmOrder = async (req: Request, res: Response, next: NextFunction): Pr
       const hostFee = await getHostFee(order, host);
       const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
 
+      const platformTipEligible = await isPlatormTipEligible(order, host);
       const platformTip = getPlatformTip(order);
       const platformTipInHostCurrency = Math.round(platformTip * hostCurrencyFxRate);
 
@@ -119,6 +126,7 @@ const confirmOrder = async (req: Request, res: Response, next: NextFunction): Pr
         isFeesOnTop: order.data?.isFeesOnTop,
         hasPlatformTip: platformTip ? true : false,
         isSharedRevenue,
+        platformTipEligible,
         platformTip,
         platformTipInHostCurrency,
         hostFeeSharePercent,

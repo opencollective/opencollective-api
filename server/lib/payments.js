@@ -728,6 +728,20 @@ export const getHostFee = async (order, host = null) => {
   return calcFee(order.totalAmount - platformTip, hostFeePercent);
 };
 
+export const isPlatormTipEligible = async (order, host = null) => {
+  if (!isNil(order.collective.data?.platformTips)) {
+    return order.collective.data.platformTips;
+  }
+
+  host = host || (await order.collective.getHostCollective());
+  if (host) {
+    const plan = await host.getPlan();
+    return plan.platformTips;
+  }
+
+  return false;
+};
+
 export const getHostFeePercent = async (order, host = null) => {
   host = host || (await order.collective.getHostCollective());
 

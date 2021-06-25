@@ -7,6 +7,7 @@ import {
   getHostFee,
   getHostFeeSharePercent,
   getPlatformTip,
+  isPlatormTipEligible,
   isProvider,
 } from '../../lib/payments';
 import models, { Op } from '../../models';
@@ -98,6 +99,7 @@ async function processOrder(order) {
   const hostCurrencyFxRate = await getFxRate(currency, hostCurrency);
   const amountInHostCurrency = Math.round(amount * hostCurrencyFxRate);
 
+  const platformTipEligible = await isPlatormTipEligible(order, host);
   const platformTip = getPlatformTip(order);
   const platformTipInHostCurrency = Math.round(platformTip * hostCurrencyFxRate);
 
@@ -125,6 +127,7 @@ async function processOrder(order) {
       isFeesOnTop: order.data?.isFeesOnTop,
       hasPlatformTip: platformTip ? true : false,
       isSharedRevenue,
+      platformTipEligible,
       platformTip,
       platformTipInHostCurrency,
       hostFeeSharePercent,

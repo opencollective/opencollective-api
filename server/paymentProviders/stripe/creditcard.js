@@ -3,7 +3,13 @@ import { get } from 'lodash';
 
 import * as constants from '../../constants/transactions';
 import logger from '../../lib/logger';
-import { calcFee, getApplicationFee, getHostFee, getHostFeeSharePercent, getPlatformTip } from '../../lib/payments';
+import {
+  getApplicationFee,
+  getHostFee,
+  getHostFeeSharePercent,
+  getPlatformTip,
+  isPlatormTipEligible,
+} from '../../lib/payments';
 import stripe, { convertFromStripeAmount, convertToStripeAmount, extractFees } from '../../lib/stripe';
 import models from '../../models';
 
@@ -198,10 +204,14 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
 
   const fees = extractFees(balanceTransaction, balanceTransaction.currency);
 
-  let platformTipInHostCurrency, platformFeeInHostCurrency;
+  const platformTipEligible = await isPlatormTipEligible(order, host);
   const platformTip = getPlatformTip(order);
+
+  let platformTipInHostCurrency, platformFeeInHostCurrency;
   if (platformTip) {
-    platformTipInHostCurrency = isSharedRevenue ? platformTip * hostCurrencyFxRate || 0 : fees.applicationFee;
+    platformTipInHostCurrency = isSharedRevenue
+      ? Math.round(platformTip * hostCurrencyFxRate) || 0
+      : fees.applicationFee;
   } else {
     // Retro Compatibility with some tests expecting Platform Fees, not for production anymore
     platformFeeInHostCurrency = fees.applicationFee;
@@ -215,6 +225,7 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
     isFeesOnTop: order.data?.isFeesOnTop,
     hasPlatformTip: platformTip ? true : false,
     isSharedRevenue,
+    platformTipEligible,
     platformTip,
     platformTipInHostCurrency,
     hostFeeSharePercent,

@@ -4,7 +4,13 @@ import { maxInteger } from '../../constants/math';
 import { TransactionTypes } from '../../constants/transactions';
 import { FEATURE, hasOptedInForFeature } from '../../lib/allowed-features';
 import { getFxRate } from '../../lib/currency';
-import { createRefundTransaction, getHostFee, getHostFeeSharePercent, getPlatformTip } from '../../lib/payments';
+import {
+  createRefundTransaction,
+  getHostFee,
+  getHostFeeSharePercent,
+  getPlatformTip,
+  isPlatormTipEligible,
+} from '../../lib/payments';
 import models from '../../models';
 
 /**
@@ -53,6 +59,7 @@ async function processOrder(order) {
   const hostFee = await getHostFee(order, host);
   const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
 
+  const platformTipEligible = await isPlatormTipEligible(order, host);
   const platformTip = getPlatformTip(order);
   const platformTipInHostCurrency = Math.round(platformTip * hostCurrencyFxRate);
 
@@ -72,6 +79,7 @@ async function processOrder(order) {
       isFeesOnTop: order.data?.isFeesOnTop,
       hasPlatformTip: platformTip ? true : false,
       isSharedRevenue,
+      platformTipEligible,
       platformTip,
       platformTipInHostCurrency,
       hostFeeSharePercent,
