@@ -605,41 +605,46 @@ function defineModel() {
   /**
    * Record a debt transaction and its associated settlement
    */
-  Transaction.createPlatformTipDebtTransactions = async (tipCreditTransactionData, host) => {
-    if (tipCreditTransactionData.type === DEBIT) {
-      throw new Error('createPlatformTipDebtTransactions must be given a CREDIT');
+  Transaction.createPlatformTipDebtTransactions = async ({ platformTipTransaction }, host) => {
+    if (platformTipTransaction.type === DEBIT) {
+      throw new Error('createPlatformTipDebtTransactions must be given a CREDIT transaction');
     }
 
-    const hostToPlatformFxRate = tipCreditTransactionData.data?.hostToPlatformFxRate || 1;
-    const amountInHostCurrency = Math.round(
-      tipCreditTransactionData.netAmountInCollectiveCurrency / hostToPlatformFxRate,
-    );
-
     // Create debt transaction
-    const debtTransactionData = {
-      ...omit(tipCreditTransactionData, ['id', 'uuid', 'PaymentMethodId', 'data']), // TODO: We may want to remove the OrderId here
-      type: CREDIT,
+    const platformTipDebtTransactionData = {
+      // Copy base values from the original CREDIT PLATFORM_TIP
+      ...pick(platformTipTransaction.dataValues, [
+        'TransactionGroup',
+        'CollectiveId',
+        'HostCollectiveId',
+        'OrderId',
+        'createdAt',
+        'currency',
+        'hostCurrency',
+        'hostCurrencyFxRate',
+      ]),
+      type: DEBIT,
       kind: TransactionKind.PLATFORM_TIP_DEBT,
-      description: 'Platform Tip collected for Open Collective',
-      amountInHostCurrency,
-      amount: amountInHostCurrency,
-      netAmountInCollectiveCurrency: amountInHostCurrency,
-      currency: host.currency,
-      hostCurrency: host.currency,
-      data: { hostToPlatformFxRate },
-      CollectiveId: host.id,
-      FromCollectiveId: PLATFORM_TIP_TRANSACTION_PROPERTIES.CollectiveId,
-      HostCollectiveId: host.id,
       isDebt: true,
+      description: 'Platform Tip collected for Open Collective',
+      FromCollectiveId: host.id,
+      // Opposite amounts
+      amount: -platformTipTransaction.amount,
+      netAmountInCollectiveCurrency: -platformTipTransaction.netAmountInCollectiveCurrency,
+      amountInHostCurrency: -platformTipTransaction.amountInHostCurrency,
+      // No fees
+      platformFeeInHostCurrency: 0,
+      hostFeeInHostCurrency: 0,
+      paymentProcessorFeeInHostCurrency: 0,
     };
 
-    const debtTransaction = await Transaction.createDoubleEntry(debtTransactionData);
+    const platformTipDebtTransaction = await Transaction.createDoubleEntry(platformTipDebtTransactionData);
 
     // Create settlement
     const settlementStatus = TransactionSettlementStatus.OWED;
-    await models.TransactionSettlement.createForTransaction(debtTransaction, settlementStatus);
+    await models.TransactionSettlement.createForTransaction(platformTipDebtTransaction, settlementStatus);
 
-    return debtTransaction;
+    return platformTipDebtTransaction;
   };
 
   /**
@@ -705,7 +710,7 @@ function defineModel() {
     let platformTipDebtTransaction;
     if (!isDirectlyCollected) {
       platformTipDebtTransaction = await Transaction.createPlatformTipDebtTransactions(
-        platformTipTransactionData,
+        { transaction, platformTipTransaction },
         host,
       );
     }
@@ -849,6 +854,10 @@ function defineModel() {
   };
 
   Transaction.creatHostFeeShareDebtTransactions = async ({ hostFeeShareTransaction }) => {
+    if (hostFeeShareTransaction.type === DEBIT) {
+      throw new Error('creatHostFeeShareDebtTransactions must be given a CREDIT transaction');
+    }
+
     // Create debt transaction
     const hostFeeShareDebtTransactionData = {
       // Copy base values from the original CREDIT HOST_FEE_SHARE
