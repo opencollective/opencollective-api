@@ -78,7 +78,6 @@ export const hasSeenLatestChangelogEntry = async (user: typeof models.User): Pro
         isChangelog: true,
       },
       order: [['publishedAt', 'DESC']],
-      limit: 1,
     });
 
     latestChangelogUpdatePublishDate = latestChangelogUpdate?.publishedAt;
