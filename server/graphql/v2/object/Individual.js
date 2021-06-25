@@ -110,8 +110,9 @@ export const Individual = new GraphQLObjectType({
       },
       hasSeenLatestChangelogEntry: {
         type: new GraphQLNonNull(GraphQLBoolean),
-        async resolve(individual) {
-          return await hasSeenLatestChangelogEntry(individual);
+        async resolve(collective) {
+          const user = collective.getUser();
+          return await hasSeenLatestChangelogEntry(user);
         },
       },
     };
