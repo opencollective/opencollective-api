@@ -1112,7 +1112,7 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
     const balance = await expense.collective.getBalanceWithBlockedFunds();
     if (expense.amount > balance) {
       throw new Unauthorized(
-        `You don't have enough funds to pay this expense. Current balance: ${formatCurrency(
+        `Collective does not have enough funds to pay this expense. Current balance: ${formatCurrency(
           balance,
           expense.collective.currency,
         )}, Expense amount: ${formatCurrency(expense.amount, expense.collective.currency)}`,
@@ -1132,7 +1132,7 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
 
     if (expense.amount + fees.paymentProcessorFeeInCollectiveCurrency > balance) {
       throw new Error(
-        `You don't have enough funds to cover for the fees of this payment method. Current balance: ${formatCurrency(
+        `Collective does not have enough funds to cover for the fees of this payment method. Current balance: ${formatCurrency(
           balance,
           expense.collective.currency,
         )}, Expense amount: ${formatCurrency(
