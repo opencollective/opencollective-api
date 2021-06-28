@@ -45,7 +45,7 @@ const getNotMovedItemsCounts = async fromCollective => {
     comments: await models.Comment.aggregate('id', 'COUNT', {
       where: { [Op.or]: [{ FromCollectiveId: fromCollective.id }, { CollectiveId: fromCollective.id }] },
     }),
-    commentReactions: await models.CommentReaction.aggregate('id', 'COUNT', {
+    emojiReactions: await models.EmojiReaction.aggregate('id', 'COUNT', {
       where: { FromCollectiveId: fromCollective.id },
     }),
     connectedAccounts: await models.ConnectedAccount.aggregate('id', 'COUNT', {

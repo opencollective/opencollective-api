@@ -16,6 +16,7 @@ import * as expenseLoaders from './expenses';
 import { createDataLoaderWithOptions, sortResults } from './helpers';
 import { generateCollectivePayoutMethodsLoader, generateCollectivePaypalPayoutMethodsLoader } from './payout-method';
 import { hostFeeAmountForTransaction } from './transactions';
+import updatesLoader from './updates';
 import { generateCanSeeUserPrivateInfoLoader } from './user';
 import { generateCollectiveVirtualCardLoader, generateHostCollectiveVirtualCardLoader } from './virtual-card';
 
@@ -29,6 +30,10 @@ export const loaders = req => {
   // Comment Reactions
   context.loaders.Comment.reactionsByCommentId = commentsLoader.reactionsByCommentId(req, cache);
   context.loaders.Comment.remoteUserReactionsByCommentId = commentsLoader.remoteUserReactionsByCommentId(req, cache);
+
+  // Update Reactions
+  context.loaders.Update.reactionsByUpdateId = updatesLoader.reactionsByUpdateId(req, cache);
+  context.loaders.Update.remoteUserReactionsByUpdateId = updatesLoader.remoteUserReactionsByUpdateId(req, cache);
 
   // Conversation
   context.loaders.Conversation.followers = conversationLoaders.followers(req, cache);

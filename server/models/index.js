@@ -4,11 +4,11 @@ import Activity from './Activity';
 import Application from './Application';
 import Collective from './Collective';
 import Comment from './Comment';
-import CommentReaction from './CommentReaction';
 import ConnectedAccount from './ConnectedAccount';
 import Conversation from './Conversation';
 import ConversationFollower from './ConversationFollower';
 import CurrencyExchangeRate from './CurrencyExchangeRate';
+import EmojiReaction from './EmojiReaction';
 import Expense from './Expense';
 import ExpenseAttachedFile from './ExpenseAttachedFile';
 import ExpenseItem from './ExpenseItem';
@@ -45,7 +45,7 @@ export function setupModels() {
   m['Application'] = Application;
   m['Collective'] = Collective;
   m['Comment'] = Comment;
-  m['CommentReaction'] = CommentReaction;
+  m['EmojiReaction'] = EmojiReaction;
   m['ConnectedAccount'] = ConnectedAccount;
   m['Conversation'] = Conversation;
   m['ConversationFollower'] = ConversationFollower;
@@ -244,8 +244,8 @@ export function setupModels() {
   m.Comment.belongsTo(m.User, { foreignKey: 'CreatedByUserId', as: 'user' });
 
   // Comment reactions
-  m.CommentReaction.belongsTo(m.Comment);
-  m.CommentReaction.belongsTo(m.User);
+  m.EmojiReaction.belongsTo(m.Comment);
+  m.EmojiReaction.belongsTo(m.User);
 
   // Order.
   m.Order.belongsTo(m.User, {

@@ -8,6 +8,7 @@ import createCollectiveMutation from './CreateCollectiveMutation';
 import createFundMutation from './CreateFundMutation';
 import createOrganizationMutation from './CreateOrganizationMutation';
 import createProjectMutation from './CreateProjectMutation';
+import emojiReactionMutations from './EmojiReactionMutations';
 import expenseMutations from './ExpenseMutations';
 import guestMutations from './GuestMutations';
 import hostApplicationMutations from './HostApplicationMutations';
@@ -30,6 +31,7 @@ const mutation = {
   ...connectedAccountMutations,
   ...conversationMutations,
   ...expenseMutations,
+  ...emojiReactionMutations,
   ...hostApplicationMutations,
   ...accountMutations,
   ...guestMutations,
