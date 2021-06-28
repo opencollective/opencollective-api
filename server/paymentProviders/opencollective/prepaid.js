@@ -131,6 +131,7 @@ async function processOrder(order) {
       platformTip,
       platformTipInHostCurrency,
       hostFeeSharePercent,
+      tax: order.data?.tax,
     },
   });
 

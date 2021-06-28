@@ -130,6 +130,7 @@ const confirmOrder = async (req: Request, res: Response, next: NextFunction): Pr
         platformTip,
         platformTipInHostCurrency,
         hostFeeSharePercent,
+        tax: order.data?.tax,
       };
 
       const transactionPayload = {

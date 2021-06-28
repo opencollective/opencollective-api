@@ -143,6 +143,7 @@ export const buildRefundForTransaction = (t, user, data, refundedPaymentProcesso
     'platformFeeInHostCurrency',
     'paymentProcessorFeeInHostCurrency',
     'data.isFeesOnTop',
+    'data.tax',
     'kind',
     'isDebt',
   ]);

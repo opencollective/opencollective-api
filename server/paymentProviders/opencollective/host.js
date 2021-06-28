@@ -55,6 +55,7 @@ paymentMethodProvider.processOrder = async order => {
       // No platform tip for now here
       isSharedRevenue,
       hostFeeSharePercent,
+      tax: order.data?.tax,
     },
   };
 
