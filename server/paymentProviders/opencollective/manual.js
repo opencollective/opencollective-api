@@ -9,7 +9,7 @@ import {
   getHostFee,
   getHostFeeSharePercent,
   getPlatformTip,
-  isPlatormTipEligible,
+  isPlatformTipEligible,
 } from '../../lib/payments';
 import models from '../../models';
 
@@ -59,7 +59,7 @@ async function processOrder(order) {
   const hostFee = await getHostFee(order, host);
   const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
 
-  const platformTipEligible = await isPlatormTipEligible(order, host);
+  const platformTipEligible = await isPlatformTipEligible(order, host);
   const platformTip = getPlatformTip(order);
   const platformTipInHostCurrency = Math.round(platformTip * hostCurrencyFxRate);
 

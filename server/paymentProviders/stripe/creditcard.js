@@ -8,7 +8,7 @@ import {
   getHostFee,
   getHostFeeSharePercent,
   getPlatformTip,
-  isPlatormTipEligible,
+  isPlatformTipEligible,
 } from '../../lib/payments';
 import stripe, { convertFromStripeAmount, convertToStripeAmount, extractFees } from '../../lib/stripe';
 import models from '../../models';
@@ -204,7 +204,7 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
 
   const fees = extractFees(balanceTransaction, balanceTransaction.currency);
 
-  const platformTipEligible = await isPlatormTipEligible(order, host);
+  const platformTipEligible = await isPlatformTipEligible(order, host);
   const platformTip = getPlatformTip(order);
 
   let platformTipInHostCurrency, platformFeeInHostCurrency;

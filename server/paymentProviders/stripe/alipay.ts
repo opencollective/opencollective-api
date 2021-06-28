@@ -14,7 +14,7 @@ import {
   getHostFee,
   getHostFeeSharePercent,
   getPlatformTip,
-  isPlatormTipEligible,
+  isPlatformTipEligible,
 } from '../../lib/payments';
 import stripe, { convertFromStripeAmount, convertToStripeAmount, extractFees } from '../../lib/stripe';
 import models from '../../models';
@@ -113,7 +113,7 @@ const confirmOrder = async (req: Request, res: Response, next: NextFunction): Pr
       const hostFee = await getHostFee(order, host);
       const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
 
-      const platformTipEligible = await isPlatormTipEligible(order, host);
+      const platformTipEligible = await isPlatformTipEligible(order, host);
       const platformTip = getPlatformTip(order);
       const platformTipInHostCurrency = Math.round(platformTip * hostCurrencyFxRate);
 
