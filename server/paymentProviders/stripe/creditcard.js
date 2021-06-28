@@ -3,7 +3,13 @@ import { get } from 'lodash';
 
 import * as constants from '../../constants/transactions';
 import logger from '../../lib/logger';
-import { getApplicationFee, getHostFee, getHostFeeSharePercent, getPlatformTip } from '../../lib/payments';
+import {
+  getApplicationFee,
+  getHostFee,
+  getHostFeeSharePercent,
+  getPlatformTip,
+  isPlatormTipEligible,
+} from '../../lib/payments';
 import stripe, { convertFromStripeAmount, convertToStripeAmount, extractFees } from '../../lib/stripe';
 import models from '../../models';
 
@@ -116,9 +122,8 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
   const hostFeeSharePercent = await getHostFeeSharePercent(order, host);
   const isSharedRevenue = !!hostFeeSharePercent;
 
-  // Read or compute Platform Fee
+  // Compute Application Fee (Shared Revenue + Platform Tip)
   const applicationFee = await getApplicationFee(order, host);
-  const platformTip = getPlatformTip(order);
 
   // Make sure data is available (breaking in some old tests)
   order.data = order.data || {};
@@ -197,21 +202,35 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
   const hostFee = await getHostFee(order, host);
   const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
 
+  const fees = extractFees(balanceTransaction, balanceTransaction.currency);
+
+  const platformTipEligible = await isPlatormTipEligible(order, host);
+  const platformTip = getPlatformTip(order);
+
+  let platformTipInHostCurrency, platformFeeInHostCurrency;
+  if (platformTip) {
+    platformTipInHostCurrency = isSharedRevenue
+      ? Math.round(platformTip * hostCurrencyFxRate) || 0
+      : fees.applicationFee;
+  } else {
+    // Retro Compatibility with some tests expecting Platform Fees, not for production anymore
+    platformFeeInHostCurrency = fees.applicationFee;
+  }
+
+  const paymentProcessorFeeInHostCurrency = fees.stripeFee;
+
   const data = {
     charge,
     balanceTransaction,
     isFeesOnTop: order.data?.isFeesOnTop,
+    hasPlatformTip: platformTip ? true : false,
     isSharedRevenue,
-    settled: true,
-    platformFee: applicationFee, // TODO: to be removed
-    applicationFee,
+    platformTipEligible,
     platformTip,
+    platformTipInHostCurrency,
     hostFeeSharePercent,
+    settled: true,
   };
-
-  const fees = extractFees(balanceTransaction, balanceTransaction.currency);
-  const platformFeeInHostCurrency = isSharedRevenue ? platformTip * hostCurrencyFxRate || 0 : fees.applicationFee;
-  const paymentProcessorFeeInHostCurrency = fees.stripeFee;
 
   const transactionPayload = {
     CreatedByUserId: order.CreatedByUserId,
@@ -226,10 +245,10 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
     amountInHostCurrency,
     hostCurrencyFxRate,
     paymentProcessorFeeInHostCurrency,
+    platformFeeInHostCurrency,
     taxAmount: order.taxAmount,
     description: order.description,
     hostFeeInHostCurrency,
-    platformFeeInHostCurrency,
     data,
   };
 

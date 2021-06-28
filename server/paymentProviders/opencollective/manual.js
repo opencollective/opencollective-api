@@ -4,7 +4,13 @@ import { maxInteger } from '../../constants/math';
 import { TransactionTypes } from '../../constants/transactions';
 import { FEATURE, hasOptedInForFeature } from '../../lib/allowed-features';
 import { getFxRate } from '../../lib/currency';
-import { createRefundTransaction, getHostFee, getPlatformTip } from '../../lib/payments';
+import {
+  createRefundTransaction,
+  getHostFee,
+  getHostFeeSharePercent,
+  getPlatformTip,
+  isPlatormTipEligible,
+} from '../../lib/payments';
 import models from '../../models';
 
 /**
@@ -29,9 +35,6 @@ async function getBalance() {
 async function processOrder(order) {
   // gets the Credit transaction generated
   const host = await order.collective.getHostCollective();
-  const hostPlan = await host.getPlan();
-  const hostFeeSharePercent = hostPlan?.hostFeeSharePercent; // TODO: to remove
-  const isSharedRevenue = !!hostFeeSharePercent;
 
   if (host.currency !== order.currency && !hasOptedInForFeature(host, FEATURE.CROSS_CURRENCY_MANUAL_TRANSACTIONS)) {
     throw Error(
@@ -44,21 +47,21 @@ async function processOrder(order) {
     order.paymentMethod = { service: 'opencollective', type: 'manual' };
   }
 
+  const hostFeeSharePercent = await getHostFeeSharePercent(order, host);
+  const isSharedRevenue = !!hostFeeSharePercent;
+
   const amount = order.totalAmount;
   const currency = order.currency;
   const hostCurrency = host.currency;
   const hostCurrencyFxRate = await getFxRate(order.currency, hostCurrency);
   const amountInHostCurrency = Math.round(order.totalAmount * hostCurrencyFxRate);
 
-  const platformTip = getPlatformTip(order);
-  const platformFeeInHostCurrency = Math.round(platformTip * hostCurrencyFxRate);
-
   const hostFee = await getHostFee(order, host);
   const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
 
-  const isFeesOnTop = order.data?.isFeesOnTop || false;
-
-  const paymentProcessorFeeInHostCurrency = 0;
+  const platformTipEligible = await isPlatormTipEligible(order, host);
+  const platformTip = getPlatformTip(order);
+  const platformTipInHostCurrency = Math.round(platformTip * hostCurrencyFxRate);
 
   const transactionPayload = {
     ...pick(order, ['CreatedByUserId', 'FromCollectiveId', 'CollectiveId', 'PaymentMethodId']),
@@ -70,13 +73,15 @@ async function processOrder(order) {
     hostCurrencyFxRate,
     amountInHostCurrency,
     hostFeeInHostCurrency,
-    platformFeeInHostCurrency,
-    paymentProcessorFeeInHostCurrency,
     taxAmount: order.taxAmount,
     description: order.description,
     data: {
-      isFeesOnTop,
+      isFeesOnTop: order.data?.isFeesOnTop,
+      hasPlatformTip: platformTip ? true : false,
       isSharedRevenue,
+      platformTipEligible,
+      platformTip,
+      platformTipInHostCurrency,
       hostFeeSharePercent,
     },
   };

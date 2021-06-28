@@ -9,7 +9,13 @@ import OrderStatus from '../../constants/order_status';
 import { TransactionTypes } from '../../constants/transactions';
 import { idDecode, IDENTIFIER_TYPES } from '../../graphql/v2/identifiers';
 import logger from '../../lib/logger';
-import { createRefundTransaction, getHostFee, getPlatformTip } from '../../lib/payments';
+import {
+  createRefundTransaction,
+  getHostFee,
+  getHostFeeSharePercent,
+  getPlatformTip,
+  isPlatormTipEligible,
+} from '../../lib/payments';
 import stripe, { convertFromStripeAmount, convertToStripeAmount, extractFees } from '../../lib/stripe';
 import models from '../../models';
 
@@ -84,8 +90,7 @@ const confirmOrder = async (req: Request, res: Response, next: NextFunction): Pr
       debug(`confirming order ${order.id}`);
       const host = await order.collective.getHostCollective();
       const hostStripeAccount = await order.collective.getHostStripeAccount();
-      const hostPlan = await host.getPlan();
-      const hostFeeSharePercent = hostPlan?.hostFeeSharePercent;
+      const hostFeeSharePercent = await getHostFeeSharePercent(order, host);
       const isSharedRevenue = !!hostFeeSharePercent;
 
       const intent = await stripe.paymentIntents.retrieve(payment_intent, {
@@ -108,8 +113,9 @@ const confirmOrder = async (req: Request, res: Response, next: NextFunction): Pr
       const hostFee = await getHostFee(order, host);
       const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
 
+      const platformTipEligible = await isPlatormTipEligible(order, host);
       const platformTip = getPlatformTip(order);
-      const platformFeeInHostCurrency = Math.round(platformTip * hostCurrencyFxRate);
+      const platformTipInHostCurrency = Math.round(platformTip * hostCurrencyFxRate);
 
       const fees = extractFees(balanceTransaction, balanceTransaction.currency);
       const paymentProcessorFeeInHostCurrency = fees.stripeFee;
@@ -118,8 +124,11 @@ const confirmOrder = async (req: Request, res: Response, next: NextFunction): Pr
         charge,
         balanceTransaction,
         isFeesOnTop: order.data?.isFeesOnTop,
+        hasPlatformTip: platformTip ? true : false,
         isSharedRevenue,
+        platformTipEligible,
         platformTip,
+        platformTipInHostCurrency,
         hostFeeSharePercent,
       };
 
@@ -139,7 +148,6 @@ const confirmOrder = async (req: Request, res: Response, next: NextFunction): Pr
         taxAmount: order.taxAmount,
         description: order.description,
         hostFeeInHostCurrency,
-        platformFeeInHostCurrency,
         data,
       };
 

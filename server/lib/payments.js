@@ -711,8 +711,19 @@ export const getApplicationFee = async (order, host = null) => {
   return applicationFee;
 };
 
-export const getPlatformTip = order => {
-  return order.data?.isFeesOnTop ? order.data?.platformTip || order.data?.platformFee || 0 : 0;
+export const getPlatformTip = object => {
+  if (object.data?.platformTip) {
+    return object.data?.platformTip;
+  }
+  if (object.data?.platformFee) {
+    return object.data?.platformFee;
+  }
+  // Compatibility with some older tests
+  // TODO: doesn't seem accurate in multi currency
+  if (object.data?.isFeesOnTop && !isNil(object.platformFeeInHostCurrency)) {
+    return Math.abs(object.platformFeeInHostCurrency);
+  }
+  return 0;
 };
 
 export const getPlatformFeePercent = async () => {
@@ -726,6 +737,20 @@ export const getHostFee = async (order, host = null) => {
   const hostFeePercent = await getHostFeePercent(order, host);
 
   return calcFee(order.totalAmount - platformTip, hostFeePercent);
+};
+
+export const isPlatormTipEligible = async (order, host = null) => {
+  if (!isNil(order.collective.data?.platformTips)) {
+    return order.collective.data.platformTips;
+  }
+
+  host = host || (await order.collective.getHostCollective());
+  if (host) {
+    const plan = await host.getPlan();
+    return plan.platformTips;
+  }
+
+  return false;
 };
 
 export const getHostFeePercent = async (order, host = null) => {

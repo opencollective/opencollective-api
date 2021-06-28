@@ -2,7 +2,7 @@ import { maxInteger } from '../../constants/math';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
-import { calcFee, getHostFeePercent, getPlatformFeePercent } from '../../lib/payments';
+import { getHostFee, getHostFeeSharePercent } from '../../lib/payments';
 import models from '../../models';
 
 const paymentMethodProvider = {};
@@ -24,24 +24,17 @@ paymentMethodProvider.processOrder = async order => {
     throw new Error('Can only use the Host payment method to Add Funds to an hosted Collective.');
   }
 
-  const hostFeePercent = await getHostFeePercent(order);
-
-  const platformFeePercent = await getPlatformFeePercent(order);
-
-  const hostPlan = await host.getPlan();
-  const hostFeeSharePercent = hostPlan?.hostFeeSharePercent;
+  const hostFeeSharePercent = await getHostFeeSharePercent(order, host);
   const isSharedRevenue = !!hostFeeSharePercent;
 
-  // Different collectives on the same host may have different currencies
-  // That's bad design. We should always keep the same host currency everywhere and only use the currency
-  // of the collective for display purposes (using the fxrate at the time of display)
-  // Anyway, until we change that, when we give money to a collective that has a different currency
-  // we need to compute the equivalent using the fxrate of the day
-  const hostCurrencyFxRate = await getFxRate(order.currency, host.currency);
-  const amountInHostCurrency = order.totalAmount * hostCurrencyFxRate;
+  const amount = order.totalAmount;
+  const currency = order.currency;
+  const hostCurrency = host.currency;
+  const hostCurrencyFxRate = await getFxRate(currency, hostCurrency);
+  const amountInHostCurrency = amount * hostCurrencyFxRate;
 
-  const hostFeeInHostCurrency = calcFee(amountInHostCurrency, hostFeePercent);
-  const platformFeeInHostCurrency = calcFee(amountInHostCurrency, platformFeePercent);
+  const hostFee = await getHostFee(order, host);
+  const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
 
   const transactionPayload = {
     CreatedByUserId: order.CreatedByUserId,
@@ -51,16 +44,15 @@ paymentMethodProvider.processOrder = async order => {
     type: TransactionTypes.CREDIT,
     kind: TransactionKind.ADDED_FUNDS,
     OrderId: order.id,
-    amount: order.totalAmount,
-    currency: order.currency,
-    hostCurrency: host.currency,
+    amount,
+    currency,
+    hostCurrency,
     hostCurrencyFxRate,
     amountInHostCurrency,
     hostFeeInHostCurrency,
-    platformFeeInHostCurrency,
-    paymentProcessorFeeInHostCurrency: 0,
     description: order.description,
     data: {
+      // No platform tip for now here
       isSharedRevenue,
       hostFeeSharePercent,
     },

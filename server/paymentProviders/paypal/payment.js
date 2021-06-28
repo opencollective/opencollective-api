@@ -4,7 +4,13 @@ import * as constants from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { floatAmountToCents } from '../../lib/math';
-import { createRefundTransaction, getHostFee, getHostFeeSharePercent, getPlatformTip } from '../../lib/payments';
+import {
+  createRefundTransaction,
+  getHostFee,
+  getHostFeeSharePercent,
+  getPlatformTip,
+  isPlatormTipEligible,
+} from '../../lib/payments';
 import { paypalAmountToCents } from '../../lib/paypal';
 import { formatCurrency } from '../../lib/utils';
 import models from '../../models';
@@ -77,8 +83,9 @@ const recordTransaction = async (order, amount, currency, paypalFee, payload) =>
   const hostFee = await getHostFee(order, host);
   const hostFeeInHostCurrency = Math.round(hostFee, hostCurrencyFxRate);
 
+  const platformTipEligible = await isPlatormTipEligible(order, host);
   const platformTip = getPlatformTip(order);
-  const platformFeeInHostCurrency = Math.round(platformTip * hostCurrencyFxRate);
+  const platformTipInHostCurrency = Math.round(platformTip * hostCurrencyFxRate);
 
   return models.Transaction.createFromContributionPayload({
     CreatedByUserId: order.CreatedByUserId,
@@ -93,15 +100,17 @@ const recordTransaction = async (order, amount, currency, paypalFee, payload) =>
     hostCurrency,
     hostCurrencyFxRate,
     hostFeeInHostCurrency,
-    platformFeeInHostCurrency,
     paymentProcessorFeeInHostCurrency,
     taxAmount: order.taxAmount,
     description: order.description,
     data: {
       ...payload,
       isFeesOnTop: order.data?.isFeesOnTop,
-      platformTip,
+      hasPlatformTip: platformTip ? true : false,
       isSharedRevenue,
+      platformTipEligible,
+      platformTip,
+      platformTipInHostCurrency,
       hostFeeSharePercent,
     },
   });

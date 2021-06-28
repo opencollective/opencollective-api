@@ -56,7 +56,6 @@ describe('server/models/Transaction', () => {
       id: 2,
       name: 'Random Host',
       CreatedByUserId: user.id,
-      data: { reimbursePaymentProcessorFeeOnTips: true },
     });
     collective = await fakeCollective({
       id: 3,
@@ -236,8 +235,8 @@ describe('server/models/Transaction', () => {
           10000 -
             // Minus the host fee
             500 -
-            // Minus the partial platform fee: (10000 out of 11000)
-            Math.round((300 * 10000) / 11000),
+            // Minus the payment processor fee
+            300,
         );
     });
 
@@ -293,13 +292,10 @@ describe('server/models/Transaction', () => {
       expect(tipCredit).to.have.property('TransactionGroup').equal(createdTransaction.TransactionGroup);
 
       const tipDebit = allTransactions.find(t => t.FromCollectiveId === inc.id && !t.isDebt);
-      const partialPaymentProcessorFee = Math.round(200 * (1000 / 11000));
       expect(tipDebit).to.have.property('type').equal('DEBIT');
       expect(tipDebit).to.have.property('kind').equal(TransactionKind.PLATFORM_TIP);
       expect(tipDebit).to.have.property('TransactionGroup').equal(createdTransaction.TransactionGroup);
-      expect(tipDebit)
-        .to.have.property('amount')
-        .equal(-1000 + partialPaymentProcessorFee);
+      expect(tipDebit).to.have.property('amount').equal(-1000);
 
       // Check tip DEBT transactions
       const tipDebtCredit = allTransactions.find(t => t.CollectiveId === inc.id && t.isDebt);
@@ -351,20 +347,23 @@ describe('server/models/Transaction', () => {
 
       const donationCredit = allTransactions.find(t => t.CollectiveId === inc.id);
       expect(donationCredit).to.have.property('type').equal('CREDIT');
-      expect(donationCredit).to.have.property('currency').equal('USD');
+      expect(donationCredit).to.have.property('currency').equal('EUR');
+      expect(donationCredit).to.have.property('hostCurrency').equal('USD');
       expect(donationCredit).to.have.nested.property('data.hostToPlatformFxRate');
+      expect(donationCredit).to.have.property('amount').equal(Math.round(1000));
       expect(donationCredit)
-        .to.have.property('amount')
+        .to.have.property('amountInHostCurrency')
         .equal(Math.round(1000 * donationCredit.data.hostToPlatformFxRate));
 
       const donationDebit = allTransactions.find(t => t.FromCollectiveId === inc.id);
-      const partialPaymentProcessorFee = Math.round(200 * (1000 / 11000));
       expect(donationDebit).to.have.nested.property('data.hostToPlatformFxRate');
       expect(donationDebit).to.have.property('type').equal('DEBIT');
-      expect(donationDebit).to.have.property('currency').equal('USD');
+      expect(donationDebit).to.have.property('currency').equal('EUR');
+      expect(donationDebit).to.have.property('hostCurrency').equal('USD');
+      expect(donationDebit).to.have.property('amount').equal(-1000);
       expect(donationDebit)
-        .to.have.property('amount')
-        .equal(Math.round((-1000 + partialPaymentProcessorFee) * donationDebit.data.hostToPlatformFxRate));
+        .to.have.property('amountInHostCurrency')
+        .equal(Math.round(-1000 * donationDebit.data.hostToPlatformFxRate));
     });
 
     it('should not create transactions if platformFee is 0', async () => {
