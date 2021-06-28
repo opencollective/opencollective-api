@@ -1,8 +1,9 @@
 import Promise from 'bluebird';
 
+import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
-import { calcFee, createRefundTransaction, getHostFeePercent, getPlatformFeePercent } from '../../lib/payments';
+import { createRefundTransaction, getHostFee, getHostFeeSharePercent, getPlatformTip } from '../../lib/payments';
 import { formatCurrency } from '../../lib/utils';
 import models from '../../models';
 
@@ -30,16 +31,16 @@ paymentMethodProvider.processOrder = async order => {
 
   // Get the host of the fromCollective and collective
   const fromCollectiveHost = await order.fromCollective.getHostCollective();
-  const collectiveHost = await order.collective.getHostCollective();
+  const host = await order.collective.getHostCollective();
   if (!fromCollectiveHost) {
     throw new Error('Cannot use the Open Collective payment method without an Host.');
   }
-  if (!collectiveHost) {
+  if (!host) {
     throw new Error('Cannot use the Open Collective payment method to a recipient without an Host.');
   }
-  if (fromCollectiveHost.id !== collectiveHost.id) {
+  if (fromCollectiveHost.id !== host.id) {
     throw new Error(
-      `Cannot use the Open Collective payment method to make a payment between different hosts: ${fromCollectiveHost.name} -> ${collectiveHost.name}`,
+      `Cannot use the Open Collective payment method to make a payment between different hosts: ${fromCollectiveHost.name} -> ${host.name}`,
     );
   }
 
@@ -53,22 +54,21 @@ paymentMethodProvider.processOrder = async order => {
     );
   }
 
-  const hostFeePercent = await getHostFeePercent(order);
-  const platformFeePercent = await getPlatformFeePercent(order); // it's gonna be 0 usually, unless specified in the order
+  const hostFeeSharePercent = await getHostFeeSharePercent(order, host);
+  const isSharedRevenue = !!hostFeeSharePercent;
 
-  // Different collectives on the same host may have different currencies
-  // That's bad design. We should always keep the same host currency everywhere and only use the currency
-  // of the collective for display purposes (using the fxrate at the time of display)
-  // Anyway, until we change that, when we give money to a collective that has a different currency
-  // we need to compute the equivalent using the fxrate of the day
-  const fxRate = await getFxRate(order.currency, collectiveHost.currency);
-  const amountInHostCurrency = order.totalAmount * fxRate;
+  const amount = order.totalAmount;
+  const currency = order.currency;
+  const hostCurrency = host.currency;
+  const hostCurrencyFxRate = await getFxRate(order.currency, hostCurrency);
+  const amountInHostCurrency = Math.round(order.totalAmount * hostCurrencyFxRate);
 
-  const feeOnTop = order.data?.platformFee || 0;
-  const hostFeeInHostCurrency = calcFee((order.totalAmount - feeOnTop) * fxRate, hostFeePercent);
-  const platformFeeInHostCurrency = !feeOnTop
-    ? calcFee(order.totalAmount * fxRate, platformFeePercent)
-    : feeOnTop * fxRate;
+  // It will be usually zero but it's best to support it
+  const hostFee = await getHostFee(order, host);
+  const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
+
+  const platformTip = getPlatformTip(order, host);
+  const platformTipInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
 
   const transactionPayload = {
     CreatedByUserId: order.CreatedByUserId,
@@ -76,19 +76,23 @@ paymentMethodProvider.processOrder = async order => {
     CollectiveId: order.CollectiveId,
     PaymentMethodId: order.PaymentMethodId,
     type: TransactionTypes.CREDIT,
+    kind: TransactionKind.CONTRIBUTION,
     OrderId: order.id,
-    amount: order.totalAmount,
-    currency: order.currency,
-    hostCurrency: collectiveHost.currency,
-    hostCurrencyFxRate: fxRate,
+    amount,
+    currency,
+    hostCurrency,
+    hostCurrencyFxRate,
     amountInHostCurrency,
     hostFeeInHostCurrency,
-    platformFeeInHostCurrency,
     taxAmount: order.taxAmount,
-    paymentProcessorFeeInHostCurrency: 0,
     description: order.description,
     data: {
       isFeesOnTop: order.data?.isFeesOnTop,
+      hasPlatformTip: platformTip ? true : false,
+      isSharedRevenue,
+      platformTip,
+      platformTipInHostCurrency,
+      hostFeeSharePercent,
     },
   };
 

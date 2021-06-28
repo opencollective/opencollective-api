@@ -11,6 +11,7 @@ import { Comment } from '../object/Comment';
 const commentReactionMutations = {
   addCommentReaction: {
     type: new GraphQLNonNull(Comment),
+    description: '@deprecated: Please use the new emojiReactionMutations',
     args: {
       emoji: {
         type: new GraphQLNonNull(GraphQLString),
@@ -38,13 +39,14 @@ const commentReactionMutations = {
         }
       }
 
-      const reaction = await models.CommentReaction.addReaction(req.remoteUser, commentId, args.emoji);
+      const reaction = await models.EmojiReaction.addReactionOnComment(req.remoteUser, commentId, args.emoji);
       return models.Comment.findByPk(reaction.CommentId);
     },
   },
 
   removeCommentReaction: {
     type: new GraphQLNonNull(Comment),
+    description: '@deprecated: Please use the new emojiReactionMutations',
     args: {
       comment: {
         type: new GraphQLNonNull(CommentReferenceInput),
@@ -56,7 +58,7 @@ const commentReactionMutations = {
     resolve: async (_, { comment, emoji }, { remoteUser }) => {
       mustBeLoggedInTo(remoteUser, 'remove this comment reaction');
       const commentId = idDecode(comment.id, IDENTIFIER_TYPES.COMMENT);
-      const reaction = await models.CommentReaction.findOne({
+      const reaction = await models.EmojiReaction.findOne({
         where: {
           CommentId: commentId,
           emoji,

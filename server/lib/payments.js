@@ -639,6 +639,18 @@ const sendManualPendingOrderEmail = async order => {
       ? `${config.host.website}/${host.slug}/edit/pending-orders?searchTerm=%23${order.id}`
       : `${config.host.website}/${host.slug}/dashboard/donations?searchTerm=%23${order.id}`;
 
+  let replyTo = [];
+  if (fromCollective.isIncognito) {
+    // We still want to surface incognito emails to the host as they often need to contact them to reconciliate the bank transfer
+    const user = await models.User.findByPk(fromCollective.CreatedByUserId);
+    if (user) {
+      replyTo.push(user.email);
+    }
+  } else {
+    const fromCollectiveAdmins = await fromCollective.getAdminUsers();
+    replyTo = fromCollectiveAdmins.map(({ email }) => email).join(', ');
+  }
+
   const data = {
     order: order.info,
     collective: collective.info,
@@ -647,7 +659,7 @@ const sendManualPendingOrderEmail = async order => {
     pendingOrderLink,
   };
 
-  return notifyAdminsOfCollective(host.id, { type: 'order.new.pendingFinancialContribution', data });
+  return notifyAdminsOfCollective(host.id, { type: 'order.new.pendingFinancialContribution', data }, { replyTo });
 };
 
 export const sendReminderPendingOrderEmail = async order => {
@@ -699,8 +711,19 @@ export const getApplicationFee = async (order, host = null) => {
   return applicationFee;
 };
 
-export const getPlatformTip = order => {
-  return order.data?.isFeesOnTop ? order.data?.platformTip || order.data?.platformFee || 0 : 0;
+export const getPlatformTip = object => {
+  if (object.data?.platformTip) {
+    return object.data?.platformTip;
+  }
+  if (object.data?.platformFee) {
+    return object.data?.platformFee;
+  }
+  // Compatibility with some older tests
+  // TODO: doesn't seem accurate in multi currency
+  if (object.data?.isFeesOnTop && !isNil(object.platformFeeInHostCurrency)) {
+    return Math.abs(object.platformFeeInHostCurrency);
+  }
+  return 0;
 };
 
 export const getPlatformFeePercent = async () => {
@@ -714,6 +737,20 @@ export const getHostFee = async (order, host = null) => {
   const hostFeePercent = await getHostFeePercent(order, host);
 
   return calcFee(order.totalAmount - platformTip, hostFeePercent);
+};
+
+export const isPlatformTipEligible = async (order, host = null) => {
+  if (!isNil(order.collective.data?.platformTips)) {
+    return order.collective.data.platformTips;
+  }
+
+  host = host || (await order.collective.getHostCollective());
+  if (host) {
+    const plan = await host.getPlan();
+    return plan.platformTips;
+  }
+
+  return false;
 };
 
 export const getHostFeePercent = async (order, host = null) => {
@@ -780,12 +817,14 @@ export const getHostFeeSharePercent = async (order, host = null) => {
 
   const possibleValues = [];
 
-  if (order && order.paymentMethod.service === 'stripe' && order.paymentMethod.type === 'creditcard') {
-    possibleValues.push(plan?.creditCardHostFeeSharePercent);
-  }
+  if (order) {
+    if (order.paymentMethod?.service === 'stripe' && order.paymentMethod?.type === 'creditcard') {
+      possibleValues.push(plan?.creditCardHostFeeSharePercent);
+    }
 
-  if (order && order.paymentMethod.service === 'paypal' && order.paymentMethod.type === 'payment') {
-    possibleValues.push(plan?.paypalHostFeeSharePercent);
+    if (order.paymentMethod?.service === 'paypal' && order.paymentMethod?.type === 'payment') {
+      possibleValues.push(plan?.paypalHostFeeSharePercent);
+    }
   }
 
   // Default

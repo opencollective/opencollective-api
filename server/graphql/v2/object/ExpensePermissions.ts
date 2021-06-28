@@ -90,6 +90,13 @@ const ExpensePermissions = new GraphQLObjectType({
         return ExpenseLib.canComment(req, expense);
       },
     },
+    canUnschedulePayment: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can unschedule this expense payment',
+      async resolve(expense, _, req: express.Request): Promise<boolean> {
+        return ExpenseLib.canUnschedulePayment(req, expense);
+      },
+    },
   }),
 });
 

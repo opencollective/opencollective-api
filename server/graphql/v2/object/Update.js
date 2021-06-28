@@ -1,5 +1,6 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
+import { GraphQLJSON } from 'graphql-type-json';
 
 import { types as CollectiveType } from '../../../constants/collectives';
 import models from '../../../models';
@@ -136,6 +137,22 @@ const Update = new GraphQLObjectType({
         type: Account,
         resolve(update, args, req) {
           return req.loaders.Collective.byId.load(update.CollectiveId);
+        },
+      },
+      reactions: {
+        type: GraphQLJSON,
+        description: 'Returns a map of reactions counts for this update',
+        async resolve(update, args, req) {
+          return req.loaders.Update.reactionsByUpdateId.load(update.id);
+        },
+      },
+      userReactions: {
+        type: new GraphQLList(GraphQLString),
+        description: 'Returns the list of reactions added to this update by logged in user',
+        async resolve(update, args, req) {
+          if (req.remoteUser) {
+            return req.loaders.Update.remoteUserReactionsByUpdateId.load(update.id);
+          }
         },
       },
       comments: {
