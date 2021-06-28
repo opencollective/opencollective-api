@@ -3,7 +3,7 @@ import config from 'config';
 import { maxInteger } from '../../constants/math';
 import { TransactionTypes } from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
-import { getHostFee, getHostFeeSharePercent, getPlatformTip, isPlatormTipEligible } from '../../lib/payments';
+import { getHostFee, getHostFeeSharePercent, getPlatformTip, isPlatformTipEligible } from '../../lib/payments';
 import models from '../../models';
 
 const paymentMethodProvider = {};
@@ -34,7 +34,7 @@ paymentMethodProvider.processOrder = async order => {
   const hostCurrencyFxRate = await getFxRate(currency, hostCurrency);
   const amountInHostCurrency = Math.round(amount * hostCurrencyFxRate);
 
-  const platformTipEligible = await isPlatormTipEligible(order, host);
+  const platformTipEligible = await isPlatformTipEligible(order, host);
   const platformTip = getPlatformTip(order);
   const platformTipInHostCurrency = Math.round(platformTip * hostCurrencyFxRate);
 
