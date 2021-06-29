@@ -2,6 +2,7 @@ import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from
 
 import { types as collectiveTypes } from '../../../constants/collectives';
 import models from '../../../models';
+import { hasSeenLatestChangelogEntry } from '../../common/user';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { Account, AccountFields } from '../interface/Account';
 
@@ -105,6 +106,13 @@ export const Individual = new GraphQLObjectType({
           if (collective.isHostAccount) {
             return collective;
           }
+        },
+      },
+      hasSeenLatestChangelogEntry: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        async resolve(collective) {
+          const user = collective.getUser();
+          return hasSeenLatestChangelogEntry(user);
         },
       },
     };

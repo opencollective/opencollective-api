@@ -29,6 +29,7 @@ import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import * as commonComment from '../common/comment';
 import { allowContextPermission, PERMISSION_TYPE } from '../common/context-permissions';
 import { canSeeExpenseAttachments, canSeeExpensePayoutMethod, getExpenseItems } from '../common/expenses';
+import { hasSeenLatestChangelogEntry } from '../common/user';
 import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
 
 import { CollectiveInterfaceType, CollectiveSearchResultsType } from './CollectiveInterface';
@@ -239,6 +240,12 @@ export const UserType = new GraphQLObjectType({
         description: "Returns true if user account is limited (user can't use any feature)",
         resolve(user) {
           return user.data && user.data.features && user.data.features.ALL === false;
+        },
+      },
+      hasSeenLatestChangelogEntry: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        async resolve(user) {
+          return hasSeenLatestChangelogEntry(user);
         },
       },
     };

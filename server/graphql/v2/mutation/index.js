@@ -12,6 +12,7 @@ import emojiReactionMutations from './EmojiReactionMutations';
 import expenseMutations from './ExpenseMutations';
 import guestMutations from './GuestMutations';
 import hostApplicationMutations from './HostApplicationMutations';
+import individualMutations from './IndividualMutations';
 import memberMutations from './MemberMutations';
 import orderMutations from './OrderMutations';
 import paymentMethodMutations from './PaymentMethodMutations';
@@ -41,6 +42,7 @@ const mutation = {
   ...transactionMutations,
   ...memberMutations,
   ...updateMutations,
+  ...individualMutations,
   ...virtualCardMutations,
 };
 

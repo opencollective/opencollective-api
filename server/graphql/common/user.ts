@@ -2,9 +2,10 @@ import config from 'config';
 import { pick } from 'lodash';
 
 import roles from '../../constants/roles';
+import cache, { fetchCollectiveId } from '../../lib/cache';
 import emailLib from '../../lib/email';
 import logger from '../../lib/logger';
-import models, { sequelize } from '../../models';
+import models, { Op, sequelize } from '../../models';
 import { ValidationFailed } from '../errors';
 
 type CreateUserOptions = {
@@ -63,4 +64,29 @@ export const createUser = (
 
     return { user, organization };
   });
+};
+
+export const hasSeenLatestChangelogEntry = async (user: typeof models.User): Promise<boolean> => {
+  const cacheKey = 'latest_changelog_publish_date';
+  let latestChangelogUpdatePublishDate = await cache.get(cacheKey);
+  if (!latestChangelogUpdatePublishDate) {
+    const collectiveId = await fetchCollectiveId('opencollective');
+    const latestChangelogUpdate = await models.Update.findOne({
+      where: {
+        CollectiveId: collectiveId,
+        publishedAt: { [Op.ne]: null },
+        isChangelog: true,
+      },
+      order: [['publishedAt', 'DESC']],
+    });
+
+    latestChangelogUpdatePublishDate = latestChangelogUpdate?.publishedAt;
+    // keep the latest change log publish date for a day in cache
+    cache.set(cacheKey, latestChangelogUpdatePublishDate, 24 * 60 * 60);
+  }
+  if (!latestChangelogUpdatePublishDate) {
+    return true;
+  } else {
+    return user?.changelogViewDate >= latestChangelogUpdatePublishDate;
+  }
 };

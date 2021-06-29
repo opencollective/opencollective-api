@@ -105,6 +105,10 @@ function defineModel() {
         type: DataTypes.ARRAY(DataTypes.STRING),
         allowNull: true,
       },
+      changelogViewDate: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
     },
     {
       paranoid: true,
