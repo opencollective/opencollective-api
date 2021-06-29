@@ -1,7 +1,6 @@
 import accountMutations from './AccountMutations';
 import { addFundsMutation } from './AddFundsMutations';
 import commentMutations from './CommentMutations';
-import commentReactionMutations from './CommentReactionMutations';
 import connectedAccountMutations from './ConnectedAccountMutations';
 import conversationMutations from './ConversationMutations';
 import createCollectiveMutation from './CreateCollectiveMutation';
@@ -28,7 +27,6 @@ const mutation = {
   createOrganization: createOrganizationMutation,
   createProject: createProjectMutation,
   ...commentMutations,
-  ...commentReactionMutations,
   ...connectedAccountMutations,
   ...conversationMutations,
   ...expenseMutations,
