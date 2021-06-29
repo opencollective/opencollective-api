@@ -6,8 +6,12 @@ import models, { Op } from '../../models';
 
 export const hostFeeAmountForTransaction: DataLoader<number, number[]> = new DataLoader(
   async (transactions: typeof models.Transaction[]) => {
-    // Legacy transactions have their host fee set on `hostFeeInHostCurrency`. No need to fetch for them
-    const transactionsWithoutHostFee = transactions.filter(transaction => !transaction.hostFeeInHostCurrency);
+    const transactionsWithoutHostFee = transactions.filter(transaction => {
+      // Legacy transactions have their host fee set on `hostFeeInHostCurrency`. No need to fetch for them
+      // Also only contributions and added funds can have host fees
+      return !transaction.hostFeeInHostCurrency && ['CONTRIBUTION', 'ADDED_FUNDS'].includes(transaction.kind);
+    });
+
     const hostFeeTransactions = await models.Transaction.findAll({
       attributes: ['TransactionGroup', 'type', 'amount'],
       mapToModel: false,

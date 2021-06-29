@@ -1,10 +1,12 @@
 import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
-import { groupBy, keyBy, pick, sumBy } from 'lodash';
+import { groupBy, keyBy, omit, pick, sumBy } from 'lodash';
 import moment from 'moment';
 
 import MemberRoles from '../server/constants/roles.ts';
+import { TransactionKind } from '../server/constants/transaction-kind';
+import { hostFeeAmountForTransaction } from '../server/graphql/loaders/transactions';
 import emailLib from '../server/lib/email';
 import { getBackersStats, getHostedCollectives, sumTransactions } from '../server/lib/hostlib';
 import { stripHTML } from '../server/lib/sanitize-html';
@@ -23,6 +25,19 @@ const summary = {
   numberDonations: 0,
   numberPaidExpenses: 0,
   hosts: [],
+};
+
+const enrichTransactionsWithHostFee = async transactions => {
+  const hostFees = await hostFeeAmountForTransaction.loadMany(transactions);
+  transactions.forEach((transaction, idx) => {
+    const hostFeeInHostCurrency = hostFees[idx];
+    if (hostFeeInHostCurrency && hostFeeInHostCurrency !== transaction.hostFeeInHostCurrency) {
+      transaction.hostFeeInHostCurrency = hostFees[idx];
+      transaction.netAmountInCollectiveCurrency =
+        models.Transaction.calculateNetAmountInCollectiveCurrency(transaction);
+    }
+  });
+  return transactions;
 };
 
 async function HostReport(year, month, hostId) {
@@ -214,7 +229,15 @@ async function HostReport(year, month, hostId) {
       summary.totalCollectives += data.stats.totalCollectives;
       console.log(`>>> processing ${data.stats.totalCollectives} collectives`);
       let transactions = await getTransactions(Object.keys(collectivesById), startDate, endDate, {
-        where: { HostCollectiveId: host.id },
+        where: {
+          HostCollectiveId: host.id,
+          kind: Object.values(
+            omit(TransactionKind, [
+              'HOST_FEE', // Host fee is loaded separately and added as a column
+              'HOST_FEE_SHARE', // Not surfaced yet, to keep the report as close to the previous version as possible
+            ]),
+          ),
+        },
         include: [
           {
             model: models.Expense,
@@ -242,6 +265,7 @@ async function HostReport(year, month, hostId) {
         throw new Error('No transaction found');
       }
       console.log(`>>> processing ${transactions.length} transactions`);
+      await enrichTransactionsWithHostFee(transactions);
       transactions = await Promise.all(transactions.map(processTransaction));
       const csv = models.Transaction.exportCSV(transactions, collectivesById);
       attachments.push({
