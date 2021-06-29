@@ -244,11 +244,11 @@ async function HostReport(year, month, hostId) {
       console.log(`>>> processing ${transactions.length} transactions`);
       transactions = await Promise.all(transactions.map(processTransaction));
       const csv = models.Transaction.exportCSV(transactions, collectivesById);
+      // console.log(csv);
       attachments.push({
         filename: `${host.slug}-${csvFilename}`,
         content: csv,
       });
-      data.transactions = transactions;
       // Don't generate PDF in email if it's the yearly report
       let pdf;
       if (!yearlyReport && !process.env.SKIP_PDF) {
@@ -270,9 +270,13 @@ async function HostReport(year, month, hostId) {
       }
       const stats = await getHostStats(host, Object.keys(collectivesById));
 
-      const groupedTransactions = groupBy(data.transactions, t => {
-        if (t.kind === 'PLATFORM_TIP_DEBT') {
-          return 'otherCredits';
+      const groupedTransactions = groupBy(transactions, t => {
+        if (t.kind === 'HOST_FEE') {
+          return 'hostFees';
+        } else if (t.kind === 'HOST_FEE_SHARE') {
+          return 'hostFeeShare';
+        } else if (t.kind === 'PLATFORM_TIP_DEBT' || t.kind === 'HOST_FEE_SHARE_DEBT') {
+          return 'debts';
         } else if (t.OrderId && t.type === 'CREDIT') {
           return 'donations';
         } else if (t.ExpenseId && t.type === 'DEBIT') {
@@ -287,8 +291,11 @@ async function HostReport(year, month, hostId) {
 
       const donations = groupedTransactions.donations || [];
       const expenses = groupedTransactions.expenses || [];
+      const debts = groupedTransactions.debts || [];
       const otherCredits = groupedTransactions.otherCredits || [];
       const otherDebits = groupedTransactions.otherDebits || [];
+      const hostFees = groupedTransactions.hostFees || [];
+      const hostFeeShare = groupedTransactions.hostFeeShare || [];
 
       const plan = await host.getPlan();
 
@@ -302,12 +309,12 @@ async function HostReport(year, month, hostId) {
       const paymentProcessorFeesOtherDebits = sumBy(otherDebits, 'paymentProcessorFeeInHostCurrency');
       const platformFeesOtherDebits = sumBy(otherDebits, 'platformFeeInHostCurrency');
 
-      const totalOwedPlatformTips = sumByWhen(
-        otherCredits,
-        'amountInHostCurrency',
-        t => t.kind === 'PLATFORM_TIP_DEBT',
-      );
+      const totalHostFees = sumByWhen(hostFees, 'amountInHostCurrency', t => t.CollectiveId === host.id);
+      const totalSharedRevenue = sumBy(hostFeeShare, 'amountInHostCurrency');
 
+      const totalAmountDebts = sumBy(debts, 'amountInHostCurrency');
+      const totalOwedPlatformTips = sumByWhen(debts, 'amountInHostCurrency', t => t.kind === 'PLATFORM_TIP_DEBT');
+      const totalOwedHostFeeShare = sumByWhen(debts, 'amountInHostCurrency', t => t.kind === 'HOST_FEE_SHARE_DEBT');
       const payoutProcessorFeesPaypal = sumByWhen(
         expenses,
         'paymentProcessorFeeInHostCurrency',
@@ -332,9 +339,8 @@ async function HostReport(year, month, hostId) {
         platformFeesOtherCredits;
       const totalTaxAmountCollected = sumByWhen(transactions, 'taxAmount', t => t.type === 'CREDIT');
       const totalAmountPaidExpenses = sumByWhen(expenses, 'netAmountInHostCurrency');
-      const totalHostFees = sumBy([...donations, ...otherCredits], 'hostFeeInHostCurrency');
       const totalNetAmountReceivedForCollectives =
-        sumBy([...donations, ...otherCredits], 'netAmountInHostCurrency') - totalOwedPlatformTips;
+        sumBy([...donations, ...otherCredits], 'netAmountInHostCurrency') - totalHostFees;
       const totalAmountSpent =
         totalAmountPaidExpenses +
         payoutProcessorFeesOther +
@@ -343,12 +349,14 @@ async function HostReport(year, month, hostId) {
         paymentProcessorFeesOtherDebits +
         platformFeesOtherDebits;
 
-      const totalSharedRevenue = sumByWhen(
-        donations,
-        t => (t.hostFeeInHostCurrency * (t.data?.hostFeeSharePercent || plan.hostFeeSharePercent)) / 100,
-        t => !t.platformFeeInHostCurrency && t.hostFeeInHostCurrency,
-      );
       const hostNetRevenue = Math.abs(totalHostFees) + totalSharedRevenue;
+
+      // We exclude host fees and related transactions from the displayed results
+      data.transactions = transactions = transactions.filter(
+        t => !t.kind || !['HOST_FEE', 'HOST_FEE_SHARE', 'HOST_FEE_SHARE_DEBT'].includes(t.kind),
+      );
+
+      const displayedDebts = debts.filter(t => t.kind !== 'HOST_FEE_SHARE_DEBT');
 
       data.stats = {
         ...data.stats,
@@ -358,6 +366,7 @@ async function HostReport(year, month, hostId) {
         numberOtherCredits: otherCredits?.length || 0,
         numberOtherDebits: otherDebits?.length || 0,
         numberPaidExpenses: expenses.length,
+        numberDebts: displayedDebts.length,
         numberTransactions: transactions.length,
         paymentProcessorFees,
         paymentProcessorFeesOtherCredits,
@@ -373,6 +382,7 @@ async function HostReport(year, month, hostId) {
         totalAmountOtherCredits,
         totalAmountOtherDebits,
         totalAmountPaidExpenses,
+        totalAmountDebts,
         totalAmountSpent,
         totalHostFees,
         totalNetAmountReceived,
@@ -381,6 +391,7 @@ async function HostReport(year, month, hostId) {
         totalSharedRevenue,
         hostNetRevenue,
         totalOwedPlatformTips,
+        totalOwedHostFeeShare,
       };
 
       summary.hosts.push({
@@ -391,6 +402,7 @@ async function HostReport(year, month, hostId) {
       summary.totalActiveCollectives += data.stats.totalActiveCollectives;
       summary.numberTransactions += data.stats.numberTransactions;
       summary.numberDonations += data.stats.numberDonations;
+      summary.numberDebts += data.stats.numberDebts;
       summary.numberPaidExpenses += data.stats.numberPaidExpenses;
       summary.totalAmountPaidExpenses += data.stats.totalAmountPaidExpenses;
       // Don't send transactions in email if there is more than 1000
