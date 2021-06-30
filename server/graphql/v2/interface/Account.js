@@ -300,31 +300,27 @@ const accountFieldsDefinition = () => ({
       ...CollectionArgs,
       onlyPublishedUpdates: { type: GraphQLBoolean },
       onlyChangelogUpdates: { type: GraphQLBoolean },
-      sortBy: { type: GraphQLString },
+      orderBy: { type: ChronologicalOrderInput },
       searchTerm: { type: GraphQLString },
     },
-    async resolve(collective, { limit, offset, onlyPublishedUpdates, onlyChangelogUpdates, sortBy, searchTerm }) {
+    async resolve(collective, { limit, offset, onlyPublishedUpdates, onlyChangelogUpdates, orderBy, searchTerm }) {
       let where = {
         CollectiveId: collective.id,
         [Op.and]: [],
       };
-      const include = [{ association: 'fromCollective', required: true, attributes: [] }];
       if (onlyPublishedUpdates) {
         where = assign(where, { publishedAt: { [Op.ne]: null } });
       }
       if (onlyChangelogUpdates) {
         where = assign(where, { isChangelog: true });
       }
-      let sortFilter;
-      if (sortBy === 'oldest') {
-        sortFilter = ['createdAt', 'ASC'];
-      } else {
-        sortFilter = ['createdAt', 'DESC'];
-      }
+      const orderByFilter = [orderBy.field, orderBy.direction];
 
       // Add search filter
+      let include;
       if (searchTerm) {
         const searchConditions = [];
+        include = [{ association: 'fromCollective', required: true, attributes: [] }];
         const searchedId = searchTerm.match(/^#?(\d+)$/)?.[1];
 
         // If search term starts with a `#`, only search by ID
@@ -349,7 +345,7 @@ const accountFieldsDefinition = () => ({
       const query = {
         where,
         include,
-        order: [sortFilter],
+        order: [orderByFilter],
         limit,
         offset,
       };
