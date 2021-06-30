@@ -300,20 +300,56 @@ const accountFieldsDefinition = () => ({
       ...CollectionArgs,
       onlyPublishedUpdates: { type: GraphQLBoolean },
       onlyChangelogUpdates: { type: GraphQLBoolean },
+      sortBy: { type: GraphQLString },
+      searchTerm: { type: GraphQLString },
     },
-    async resolve(collective, { limit, offset, onlyPublishedUpdates, onlyChangelogUpdates }) {
+    async resolve(collective, { limit, offset, onlyPublishedUpdates, onlyChangelogUpdates, sortBy, searchTerm }) {
       let where = {
         CollectiveId: collective.id,
+        [Op.and]: [],
       };
+      const include = [{ association: 'fromCollective', required: true, attributes: [] }];
       if (onlyPublishedUpdates) {
         where = assign(where, { publishedAt: { [Op.ne]: null } });
       }
       if (onlyChangelogUpdates) {
         where = assign(where, { isChangelog: true });
       }
+      let sortFilter;
+      if (sortBy === 'oldest') {
+        sortFilter = ['createdAt', 'ASC'];
+      } else {
+        sortFilter = ['createdAt', 'DESC'];
+      }
+
+      // Add search filter
+      if (searchTerm) {
+        const searchConditions = [];
+        const searchedId = searchTerm.match(/^#?(\d+)$/)?.[1];
+
+        // If search term starts with a `#`, only search by ID
+        if (searchTerm[0] !== '#' || !searchedId) {
+          const sanitizedTerm = searchTerm.replace(/(_|%|\\)/g, '\\$1');
+          const ilikeQuery = `%${sanitizedTerm}%`;
+          searchConditions.push(
+            { '$fromCollective.slug$': { [Op.iLike]: ilikeQuery } },
+            { '$fromCollective.name$': { [Op.iLike]: ilikeQuery } },
+            { $title$: { [Op.iLike]: ilikeQuery } },
+            { $html$: { [Op.iLike]: ilikeQuery } },
+          );
+        }
+
+        if (searchedId) {
+          searchConditions.push({ id: parseInt(searchedId) });
+        }
+
+        where[Op.and].push({ [Op.or]: searchConditions });
+      }
+
       const query = {
         where,
-        order: [['createdAt', 'DESC']],
+        include,
+        order: [sortFilter],
         limit,
         offset,
       };
