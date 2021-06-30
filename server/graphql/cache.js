@@ -1,5 +1,6 @@
-import { difference } from 'lodash';
+import { difference, isEqual } from 'lodash';
 
+import { TransactionKind } from '../constants/transaction-kind';
 import { md5 } from '../lib/utils';
 
 export const purgeCacheForCollectiveOperationNames = [
@@ -59,6 +60,17 @@ export function getGraphqlCacheKey(req) {
         return;
       }
       if (req.body.variables.limit !== 3) {
+        return;
+      }
+      if (
+        req.body.variables.kinds &&
+        !isEqual(req.body.variables.kinds.sort(), [
+          TransactionKind.ADDED_FUNDS,
+          TransactionKind.CONTRIBUTION,
+          TransactionKind.EXPENSE,
+          TransactionKind.PLATFORM_TIP,
+        ])
+      ) {
         return;
       }
       return `${req.body.operationName}_${queryHash}_${req.body.variables.slug}`;
