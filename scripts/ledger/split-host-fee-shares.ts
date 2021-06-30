@@ -25,7 +25,6 @@ const getHostFeeTransactionsToMigrateQuery = `
     ON settlement."TransactionGroup" = host_fee_share."TransactionGroup"
     AND settlement."kind" = host_fee_share."kind"
   WHERE t."kind" = 'HOST_FEE'
-  AND host_fee_share.id IS NULL
   AND t.type = 'CREDIT'
   AND t."RefundTransactionId" IS NULL -- TODO Check what to do with refunds
   AND t."createdAt" >= :startDate
@@ -40,19 +39,23 @@ const getHostFeeTransactionsToMigrateQuery = `
  * transactions first. If ran first, this script will have no effect.
  */
 const migrate = async () => {
-  const [hostFeeTransactions] = await sequelize.query(getHostFeeTransactionsToMigrateQuery, {
+  const hostFeeTransactions = await sequelize.query(getHostFeeTransactionsToMigrateQuery, {
     replacements: { startDate },
+    model: models.Transaction,
+    mapToModel: true,
   });
 
   const results = await Promise.all(
-    hostFeeTransactions.map(async transaction => {
-      if (transaction['__host_fee_share_id__']) {
+    hostFeeTransactions.map(async hostFeeTransaction => {
+      if (hostFeeTransaction['__host_fee_share_id__']) {
         // To work with inconsistent data (mainly dev): handle cases where debt already exists but not the settlement
         const settlementStatus = TransactionSettlementStatus.OWED;
-        return models.TransactionSettlement.createForTransaction(transaction, settlementStatus);
+        const hostFeeShareDebt = await models.Transaction.findByPk(hostFeeTransaction['__host_fee_share_id__']);
+        return models.TransactionSettlement.createForTransaction(hostFeeShareDebt, settlementStatus);
       } else {
-        const host = await models.Collective.findByPk(transaction.CollectiveId, { paranoid: false });
-        return models.Transaction.createHostFeeShareTransactions(transaction, host, false);
+        const host = await models.Collective.findByPk(hostFeeTransaction.CollectiveId, { paranoid: false });
+        const transaction = await hostFeeTransaction.getRelatedTransaction({ kind: ['CONTRIBUTION', 'ADDED_FUNDS'] });
+        return models.Transaction.createHostFeeShareTransactions({ transaction, hostFeeTransaction }, host, false);
       }
     }),
   );
