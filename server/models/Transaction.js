@@ -441,6 +441,7 @@ function defineModel() {
           'platformFeeInHostCurrency',
           'netAmountInHostCurrency',
           'amountInHostCurrency',
+          'taxAmount',
         ].indexOf(attr) !== -1
       ) {
         return value / 100; // converts cents
@@ -470,6 +471,7 @@ function defineModel() {
     ];
 
     // We only add tax amount for european hosts
+    // TODO: Hosts with GST should also have this column
     if (transactions[0].hostCurrency === 'EUR') {
       attributes.splice(5, 0, 'taxAmount');
     }

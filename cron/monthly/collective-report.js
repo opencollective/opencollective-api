@@ -3,9 +3,11 @@ import '../../server/env';
 
 import Promise from 'bluebird';
 import config from 'config';
-import { isEmpty, pick } from 'lodash';
+import { isEmpty, omit, pick } from 'lodash';
 import moment from 'moment';
 
+import { TransactionKind } from '../../server/constants/transaction-kind';
+import { hostFeeAmountForTransaction } from '../../server/graphql/loaders/transactions';
 import { notifyAdminsOfCollective } from '../../server/lib/notifications';
 import { getConsolidatedInvoicePdfs } from '../../server/lib/pdf';
 import { getTiersStats } from '../../server/lib/utils';
@@ -33,6 +35,19 @@ console.log('startDate', startDate, 'endDate', endDate);
 
 const processCollectives = collectives => {
   return Promise.map(collectives, processCollective, { concurrency: 1 });
+};
+
+const enrichTransactionsWithHostFee = async transactions => {
+  const hostFees = await hostFeeAmountForTransaction.loadMany(transactions);
+  transactions.forEach((transaction, idx) => {
+    const hostFeeInHostCurrency = hostFees[idx];
+    if (hostFeeInHostCurrency && hostFeeInHostCurrency !== transaction.hostFeeInHostCurrency) {
+      transaction.hostFeeInHostCurrency = hostFees[idx];
+      transaction.netAmountInCollectiveCurrency =
+        models.Transaction.calculateNetAmountInCollectiveCurrency(transaction);
+    }
+  });
+  return transactions;
 };
 
 const init = async () => {
@@ -94,7 +109,16 @@ const processCollective = collective => {
     collective.getCancelledOrders(startDate, endDate),
     collective.getUpdates('published', startDate, endDate),
     collective.getNextGoal(endDate),
-    collective.getTransactions({ startDate, endDate }),
+    collective.getTransactions({
+      startDate,
+      endDate,
+      kinds: Object.values(
+        omit(TransactionKind, [
+          'HOST_FEE', // Host fee is loaded separately and added as a column
+          'HOST_FEE_SHARE', // Not surfaced yet, to keep the report as close to the previous version as possible
+        ]),
+      ),
+    }),
   ];
 
   let emailData = {};
@@ -110,7 +134,7 @@ const processCollective = collective => {
         year,
         collective: {},
       };
-      return getTiersStats(results[0], startDate, endDate).then(res => {
+      return getTiersStats(results[0], startDate, endDate).then(async res => {
         data.collective = pick(collective, ['id', 'name', 'slug', 'currency', 'publicUrl']);
         data.collective.tiers = res.tiers.map(tier => ({
           ...tier.info,
@@ -127,7 +151,7 @@ const processCollective = collective => {
         data.collective.expenses = results[4].map(expense => expense.info);
         data.relatedCollectives = results[5] || [];
         data.collective.updates = results[9].map(u => u.info);
-        data.collective.transactions = results[11];
+        data.collective.transactions = await enrichTransactionsWithHostFee(results[11]);
         const nextGoal = results[10];
         if (nextGoal) {
           nextGoal.tweet = `🚀 ${collective.twitterHandle ? `@${collective.twitterHandle}` : collective.name} is at ${
