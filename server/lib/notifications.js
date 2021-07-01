@@ -66,11 +66,12 @@ export default async activity => {
 };
 
 function shouldSkipActivity(activity) {
-  if (
-    parseToBoolean(config.activities?.skipTransactions) &&
-    activity.type === activityType.COLLECTIVE_TRANSACTION_CREATED
-  ) {
-    return true;
+  if (activity.type === activityType.COLLECTIVE_TRANSACTION_CREATED) {
+    if (parseToBoolean(config.activities?.skipTransactions)) {
+      return true;
+    } else if (!['CONTRIBUTION', 'ADDED_FUNDS'].includes(activity.data?.transaction?.kind)) {
+      return true;
+    }
   }
 
   return false;
