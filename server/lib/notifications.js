@@ -13,7 +13,7 @@ import models from '../models';
 import { getTransactionPdf } from './pdf';
 import slackLib from './slack';
 import twitter from './twitter';
-import { toIsoDateStr } from './utils';
+import { parseToBoolean, toIsoDateStr } from './utils';
 import { enrichActivity, sanitizeActivity } from './webhooks';
 
 const debug = debugLib('notifications');
@@ -23,6 +23,10 @@ export default async activity => {
 
   // process notification entries for slack, twitter, gitter
   if (!activity.CollectiveId || !activity.type) {
+    return;
+  }
+
+  if (shouldSkipActivity(activity)) {
     return;
   }
 
@@ -60,6 +64,17 @@ export default async activity => {
     );
   });
 };
+
+function shouldSkipActivity(activity) {
+  if (
+    parseToBoolean(config.activities?.skipTransactions) &&
+    activity.type === activityType.COLLECTIVE_TRANSACTION_CREATED
+  ) {
+    return true;
+  }
+
+  return false;
+}
 
 function publishToGitter(activity, notifConfig) {
   const { message } = activitiesLib.formatMessageForPublicChannel(activity, 'markdown');
