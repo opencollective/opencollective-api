@@ -7,7 +7,7 @@ module.exports = {
         "Transactions" tip
       SET
         "TransactionGroup" = t."TransactionGroup",
-        "data" = JSONB_SET(tip."data", '{transactionGroupBeforeTipRefundMigration}', tip."TransactionGroup"::varchar::jsonb, TRUE)
+        "data" = JSONB_SET(tip."data", '{transactionGroupBeforeTipRefundMigration}', CONCAT('"', tip."TransactionGroup"::text, '"')::jsonb, TRUE)
       FROM
         "Transactions" t
       WHERE tip."OrderId" = t."OrderId"
