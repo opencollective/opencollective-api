@@ -13,12 +13,12 @@ const isHostAdmin = async (req: express.Request, order): Promise<boolean> => {
   return req.remoteUser.isAdmin(toAccount.HostCollectiveId);
 };
 
-export const canMarkAsPaid = (req: express.Request, order): Promise<boolean> => {
+export const canMarkAsPaid = async (req: express.Request, order): Promise<boolean> => {
   const allowedStatuses = [ORDER_STATUS.PENDING, ORDER_STATUS.EXPIRED];
   return allowedStatuses.includes(order.status) && isHostAdmin(req, order);
 };
 
-export const canMarkAsExpired = (req: express.Request, order): Promise<boolean> => {
+export const canMarkAsExpired = async (req: express.Request, order): Promise<boolean> => {
   return order.status === ORDER_STATUS.PENDING && isHostAdmin(req, order);
 };
 
