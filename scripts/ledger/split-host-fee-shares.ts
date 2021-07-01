@@ -31,6 +31,7 @@ const getHostFeeTransactionsToMigrateQuery = `
   AND (pm.service IS NULL OR pm.service != 'stripe')
   AND (spm.service IS NULL OR spm.service != 'stripe')
   AND host_fee_share.id IS NULL
+  GROUP BY t.id
   ORDER BY t.id DESC
 `;
 
