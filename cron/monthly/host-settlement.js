@@ -26,7 +26,7 @@ const HOST_ID = process.env.HOST_ID;
 const isProduction = config.env === 'production';
 
 // Only run on the 1th of the month
-if (isProduction && new Date().date() !== 1 && !process.env.OFFCYCLE) {
+if (isProduction && new Date().getDate() !== 1 && !process.env.OFFCYCLE) {
   console.log('OC_ENV is production and today is not the 1st of month, script aborted!');
   process.exit();
 } else if (parseToBoolean(process.env.SKIP_HOST_SETTLEMENT)) {
