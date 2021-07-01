@@ -257,7 +257,7 @@ export default app => {
   app.get('/services/stripe/alipay/callback', noCache, alipay.confirmOrder);
 
   /* TransferWise OTT Request Endpoint */
-  app.post('/services/transferwise/pay-batch', transferwise.payBatch);
+  app.post('/services/transferwise/pay-batch', noCache, transferwise.payBatch);
 
   /**
    * External services

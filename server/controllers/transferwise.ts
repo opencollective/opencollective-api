@@ -61,6 +61,7 @@ export async function payBatch(
 
     if (ottHeader) {
       const fundResponse = await transferwise.fundExpensesBatchGroup(host, undefined, ottHeader);
+      res.sendStatus(200);
       await Promise.all(expenses.map(processPaidExpense(host, remoteUser, fundResponse)));
     } else {
       expenses.forEach(expense => {
@@ -85,14 +86,13 @@ export async function payBatch(
       if ('status' in fundResponse && 'headers' in fundResponse) {
         res.setHeader('x-2fa-approval', fundResponse.headers['x-2fa-approval']);
         res.sendStatus(fundResponse.status);
-        return;
+      } else {
+        // Send 200 to the frontend
+        res.sendStatus(200);
+        // Mark expenses as paid and create transactions
+        await Promise.all(expenses.map(processPaidExpense(host, remoteUser, fundResponse)));
       }
-      // Else, mark expenses as paid and create transactions
-      await Promise.all(expenses.map(processPaidExpense(host, remoteUser, fundResponse)));
     }
-
-    // Send 200 if everything is fine and dandy
-    res.sendStatus(200);
   } catch (e) {
     next(e);
   }
