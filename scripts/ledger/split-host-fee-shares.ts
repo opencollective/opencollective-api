@@ -4,7 +4,6 @@ import '../../server/env';
 import { partition } from 'lodash';
 
 import models, { sequelize } from '../../server/models';
-import { TransactionSettlementStatus } from '../../server/models/TransactionSettlement';
 
 const startDate = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date('2021-06-01');
 
@@ -14,16 +13,16 @@ if (process.argv.length < 3) {
 }
 
 const getHostFeeTransactionsToMigrateQuery = `
-  SELECT t.*, host_fee_share.id AS __host_fee_share_id__
+  SELECT t.*
   FROM "Transactions" t
-  LEFT JOIN "PaymentMethods" pm ON t."PaymentMethodId" = pm.id
+  INNER JOIN "Transactions" contribution
+    ON contribution."TransactionGroup" = t."TransactionGroup"
+    AND contribution."kind" IN ('CONTRIBUTION', 'ADDED_FUNDS')
+  LEFT JOIN "PaymentMethods" pm ON contribution."PaymentMethodId" = pm.id
   LEFT JOIN "PaymentMethods" spm ON spm.id = pm."SourcePaymentMethodId"
   LEFT JOIN "Transactions" host_fee_share
     ON host_fee_share."TransactionGroup" = t."TransactionGroup"
     AND host_fee_share."kind" = 'HOST_FEE_SHARE'
-  LEFT JOIN "TransactionSettlements" settlement
-    ON settlement."TransactionGroup" = host_fee_share."TransactionGroup"
-    AND settlement."kind" = host_fee_share."kind"
   WHERE t."kind" = 'HOST_FEE'
   AND t.type = 'CREDIT'
   AND t."RefundTransactionId" IS NULL -- TODO Check what to do with refunds
@@ -31,7 +30,8 @@ const getHostFeeTransactionsToMigrateQuery = `
   -- Filter out stripe as host fee share is directly collected with this service
   AND (pm.service IS NULL OR pm.service != 'stripe')
   AND (spm.service IS NULL OR spm.service != 'stripe')
-  AND (settlement."TransactionGroup" IS NULL OR host_fee_share.id IS NULL)
+  AND host_fee_share.id IS NULL
+  ORDER BY t.id DESC
 `;
 
 /**
@@ -47,16 +47,9 @@ const migrate = async () => {
 
   const results = await Promise.all(
     hostFeeTransactions.map(async hostFeeTransaction => {
-      if (hostFeeTransaction['__host_fee_share_id__']) {
-        // To work with inconsistent data (mainly dev): handle cases where debt already exists but not the settlement
-        const settlementStatus = TransactionSettlementStatus.OWED;
-        const hostFeeShareDebt = await models.Transaction.findByPk(hostFeeTransaction['__host_fee_share_id__']);
-        return models.TransactionSettlement.createForTransaction(hostFeeShareDebt, settlementStatus);
-      } else {
-        const host = await models.Collective.findByPk(hostFeeTransaction.CollectiveId, { paranoid: false });
-        const transaction = await hostFeeTransaction.getRelatedTransaction({ kind: ['CONTRIBUTION', 'ADDED_FUNDS'] });
-        return models.Transaction.createHostFeeShareTransactions({ transaction, hostFeeTransaction }, host, false);
-      }
+      const host = await models.Collective.findByPk(hostFeeTransaction.CollectiveId, { paranoid: false });
+      const transaction = await hostFeeTransaction.getRelatedTransaction({ kind: ['CONTRIBUTION', 'ADDED_FUNDS'] });
+      return models.Transaction.createHostFeeShareTransactions({ transaction, hostFeeTransaction }, host, false);
     }),
   );
 
@@ -77,19 +70,10 @@ const check = async () => {
     replacements: { startDate },
   });
 
-  if (!hostFees.length) {
-    console.log('All good with debts/settlements');
+  if (hostFees.length) {
+    console.info(`Found ${hostFees.length} contributions without host fee share: ${hostFees.map(t => t.id)}`);
   } else {
-    const [withoutDebt, withoutSettlement] = partition(hostFees, transaction => !transaction['__host_fee_share_id__']);
-
-    if (withoutDebt.length) {
-      console.warn(`Found ${withoutDebt.length} contributions without host fee share: ${withoutDebt.map(t => t.id)}`);
-    }
-    if (withoutSettlement.length) {
-      console.warn(
-        `Found ${withoutSettlement.length} contributions without settlements: ${withoutSettlement.map(t => t.id)}`,
-      );
-    }
+    console.info('All up to date!');
   }
 };
 
