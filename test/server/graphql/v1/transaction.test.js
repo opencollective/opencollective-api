@@ -85,7 +85,7 @@ describe('server/graphql/v1/transaction', () => {
         limit,
       });
       expect(result.data.Collective).to.exist;
-      expect(result.data.Collective.transactions).to.have.length(10);
+      expect(result.data.Collective.transactions).to.have.length(20);
       expect(result).to.matchSnapshot();
     });
   });
@@ -207,7 +207,7 @@ describe('server/graphql/v1/transaction', () => {
         CollectiveId: 3,
         dateFrom: '2017-10-01',
       });
-      expect(result.data.allTransactions).to.have.length(5);
+      expect(result.data.allTransactions).to.have.length(10);
       expect(result).to.matchSnapshot();
     });
 
@@ -241,7 +241,7 @@ describe('server/graphql/v1/transaction', () => {
         CollectiveId: 3,
         dateTo: '2017-10-01',
       });
-      expect(result.data.allTransactions).to.have.length(5);
+      expect(result.data.allTransactions).to.have.length(10);
       expect(result).to.matchSnapshot();
     });
 
@@ -253,6 +253,7 @@ describe('server/graphql/v1/transaction', () => {
           allTransactions(CollectiveId: $CollectiveId, limit: $limit, offset: $offset) {
             id
             type
+            kind
             createdByUser {
               id
               firstName

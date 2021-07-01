@@ -183,7 +183,7 @@ export async function getPendingHostFeeShare(host, { startDate, endDate } = {}) 
     const results = await sequelize.query(
       `SELECT SUM(t."amountInHostCurrency") AS "_amount", t."hostCurrency" as "_currency"
         FROM "Transactions" t
-          INNER JOIN "TransactionSettlements" ts
+        INNER JOIN "TransactionSettlements" ts
           ON t."TransactionGroup" = ts."TransactionGroup"
           AND t."kind" = ts."kind"
         WHERE t."CollectiveId" = :CollectiveId

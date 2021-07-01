@@ -59,13 +59,13 @@ describe('server/graphql/v1/zero-decimal-currencies', () => {
       const netAmountInCollectiveCurrency = result.data.Collective.transactions[0].netAmountInCollectiveCurrency;
 
       expect(result.data.Collective).to.exist;
-      expect(result.data.Collective.transactions).to.have.length(1);
+      expect(result.data.Collective.transactions).to.have.length(2);
       expect(amount).to.equal(10000);
       expect(platformFeeInHostCurrency).to.equal(-25 * 100);
       expect(paymentProcessorFeeInHostCurrency).to.equal(-35 * 100);
-      expect(hostFeeInHostCurrency).to.equal(-(10000 * 5) / 100);
+      expect(hostFeeInHostCurrency).to.equal(-(10000 * 5) / 100); // Resolver is clever enough to retrieve the HOST_FEE transaction
       expect(netAmountInCollectiveCurrency).to.equal(
-        amount + (platformFeeInHostCurrency + paymentProcessorFeeInHostCurrency + hostFeeInHostCurrency),
+        amount + (platformFeeInHostCurrency + paymentProcessorFeeInHostCurrency),
       );
     });
   });

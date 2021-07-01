@@ -102,7 +102,9 @@ describe('server/paymentProviders/paypal/webhook', () => {
         },
       });
 
-      const transaction = await models.Transaction.findOne({ where: { OrderId: order.id, type: 'CREDIT' } });
+      const transaction = await models.Transaction.findOne({
+        where: { OrderId: order.id, type: 'CREDIT', kind: 'CONTRIBUTION' },
+      });
       await transaction.validate();
       expect(transaction.amount).to.eq(1200);
       expect(transaction.paymentProcessorFeeInHostCurrency).to.eq(-120);

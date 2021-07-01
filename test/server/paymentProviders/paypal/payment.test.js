@@ -162,7 +162,7 @@ describe('server/paymentProviders/paypal/payment', () => {
         expect(tr.hostCurrency).to.equal('USD');
 
         // Fees
-        expect(tr.hostFeeInHostCurrency).to.equal(-500); // 10%
+        expect(tr.hostFeeInHostCurrency).to.equal(0); // Not tracked there anymore
         expect(tr.platformFeeInHostCurrency).to.equal(0); // 0%
         expect(tr.paymentProcessorFeeInHostCurrency).to.equal(-175);
       });

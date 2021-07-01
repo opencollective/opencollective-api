@@ -109,8 +109,8 @@ export const hasOptedOutOfFeature = (collective: typeof models.Collective, featu
 };
 
 export const hasOptedInForFeature = (collective: typeof models.Collective, feature: FEATURE): boolean => {
-  const optOutFlag = OPT_IN_FEATURE_FLAGS[feature];
-  return get(collective, optOutFlag) === true;
+  const optInFlag = OPT_IN_FEATURE_FLAGS[feature];
+  return get(collective, optInFlag) === true;
 };
 
 /**
