@@ -14,12 +14,12 @@ import { SETTLEMENT_EXPENSE_PROPERTIES } from '../../server/constants/transactio
 import { uploadToS3 } from '../../server/lib/awsS3';
 import { getPendingHostFeeShare, getPendingPlatformTips } from '../../server/lib/host-metrics';
 import { parseToBoolean } from '../../server/lib/utils';
-import models, { Op, sequelize } from '../../server/models';
+import models, { sequelize } from '../../server/models';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 
 const today = moment.utc();
 
-const defaultDate = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date();
+const defaultDate = process.env.START_DATE ? moment.utc(process.env.START_DATE) : moment.utc();
 
 const DRY = process.env.DRY;
 const HOST_ID = process.env.HOST_ID;
@@ -40,20 +40,14 @@ if (DRY) {
 
 const ATTACHED_CSV_COLUMNS = ['createdAt', 'description', 'amount', 'currency', 'OrderId', 'TransactionGroup'];
 
-export async function run(baseDate = defaultDate) {
-  const rd = new Date(baseDate.getFullYear(), baseDate.getMonth() - 1);
+export async function run(baseDate: Date | moment.Moment = defaultDate): Promise<void> {
+  const momentDate = moment(baseDate).subtract(1, 'month');
+  const year = momentDate.year();
+  const month = momentDate.month();
+  const startDate = new Date(year, month, 1);
+  const endDate = new Date(year, month + 1, 1);
 
-  const year = rd.getFullYear();
-  const month = rd.getMonth();
-
-  const date = new Date();
-  date.setFullYear(year);
-  date.setMonth(month);
-
-  const startDate = new Date(date.getFullYear(), date.getMonth(), 1);
-  const endDate = new Date(date.getFullYear(), date.getMonth() + 1, 1);
-
-  console.info(`Invoicing hosts pending fees and tips for ${moment(date).subtract(1, 'month').format('MMMM')}.`);
+  console.info(`Invoicing hosts pending fees and tips for ${momentDate.format('MMMM')}.`);
 
   const payoutMethods = groupBy(
     await models.PayoutMethod.findAll({
@@ -62,13 +56,23 @@ export async function run(baseDate = defaultDate) {
     'type',
   );
 
-  const hosts = await models.Collective.findAll({
-    where: {
-      id: { [Op.not]: 8686 }, // Make sure we don't invoice OC Inc as reverse settlements are not supported yet
-      isHostAccount: true,
+  const hosts = await sequelize.query(
+    `
+      SELECT c.*
+      FROM "Collectives" c
+      INNER JOIN "Transactions" t ON t."HostCollectiveId" = c.id AND t."deletedAt" IS NULL
+      WHERE c."isHostAccount" IS TRUE
+      AND t."createdAt" >= :startDate AND t."createdAt" < :endDate
+      AND c.id != 8686 -- Make sure we don't invoice OC Inc as reverse settlements are not supported yet
+      GROUP BY c.id
+    `,
+    {
+      mapToModel: true,
+      type: sequelize.QueryTypes.SELECT,
+      model: models.Collective,
+      replacements: { startDate: startDate, endDate: endDate },
     },
-    // TODO: join Transactions to make and startDate/endDate to make sure the Host was active this month
-  });
+  );
 
   for (const host of hosts) {
     const pendingPlatformTips = await getPendingPlatformTips(host, { startDate, endDate });
@@ -87,7 +91,7 @@ export async function run(baseDate = defaultDate) {
 FROM "Transactions" as t
 INNER JOIN "TransactionSettlements" ts ON ts."TransactionGroup" = t."TransactionGroup" AND t.kind = ts.kind
 WHERE t."CollectiveId" = :CollectiveId
-AND t."createdAt" >= :startDate AND t."createdAt" <= :endDate
+AND t."createdAt" >= :startDate AND t."createdAt" < :endDate
 AND t."kind" IN ('PLATFORM_TIP_DEBT', 'HOST_FEE_SHARE_DEBT')
 AND t."isDebt" IS TRUE
 AND t."deletedAt" IS NULL
@@ -158,7 +162,7 @@ AND ts."status" != 'SETTLED'`,
         payoutMethods[PayoutMethodTypes.BANK_ACCOUNT]?.[0]
       ) {
         const currencyCompatibleAccount = payoutMethods[PayoutMethodTypes.BANK_ACCOUNT].find(
-          pm => pm.data?.currency === host.currency,
+          pm => pm.data?.['currency'] === host.currency,
         );
         payoutMethod = currencyCompatibleAccount || payoutMethods[PayoutMethodTypes.BANK_ACCOUNT]?.[0];
       } else if (
@@ -182,7 +186,7 @@ AND ts."status" != 'SETTLED'`,
         amount: totalAmountCharged,
         CollectiveId: host.id,
         currency: host.currency,
-        description: `Platform settlement for ${moment(date).utc().format('MMMM')}`,
+        description: `Platform settlement for ${momentDate.utc().format('MMMM')}`,
         incurredAt: today,
         data: { isPlatformTipSettlement: true, transactionIds },
         type: expenseTypes.INVOICE,
@@ -201,7 +205,7 @@ AND ts."status" != 'SETTLED'`,
       // Attach CSV
       if (csv) {
         const Body = csv;
-        const filenameBase = `${host.name}-${moment(date).format('MMMM-YYYY')}`;
+        const filenameBase = `${host.name}-${momentDate.format('MMMM-YYYY')}`;
         const Key = `${filenameBase}.${uuid().split('-')[0]}.csv`;
         const { Location: url } = await uploadToS3({
           Bucket: config.aws.s3.bucket,
