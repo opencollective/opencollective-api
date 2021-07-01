@@ -7,6 +7,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
+import { pick } from 'lodash';
 
 import orderStatus from '../../../constants/order_status';
 import models from '../../../models';
@@ -18,6 +19,7 @@ import { Amount } from '../object/Amount';
 import { Expense } from '../object/Expense';
 import { Order } from '../object/Order';
 import { PaymentMethod } from '../object/PaymentMethod';
+import { TaxInfo } from '../object/TaxInfo';
 
 import { Account } from './Account';
 
@@ -81,6 +83,10 @@ export const Transaction = new GraphQLInterfaceType({
       },
       taxAmount: {
         type: new GraphQLNonNull(Amount),
+      },
+      taxInfo: {
+        type: TaxInfo,
+        description: 'If taxAmount is set, this field will contain more info about the tax',
       },
       platformFee: {
         type: new GraphQLNonNull(Amount),
@@ -197,9 +203,20 @@ export const TransactionFields = () => {
       type: new GraphQLNonNull(Amount),
       resolve(transaction) {
         return {
-          value: Math.abs(transaction.taxAmount),
+          value: transaction.taxAmount,
           currency: transaction.currency,
         };
+      },
+    },
+    taxInfo: {
+      type: TaxInfo,
+      description: 'If taxAmount is set, this field will contain more info about the tax',
+      resolve(transaction) {
+        if (!transaction.data?.tax) {
+          return null;
+        } else {
+          return pick(transaction.data.tax, ['id', 'percentage']);
+        }
       },
     },
     platformFee: {

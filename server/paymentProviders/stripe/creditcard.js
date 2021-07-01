@@ -230,6 +230,7 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
     platformTipInHostCurrency,
     hostFeeSharePercent,
     settled: true,
+    tax: order.data?.tax,
   };
 
   const transactionPayload = {

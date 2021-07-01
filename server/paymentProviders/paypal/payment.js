@@ -112,6 +112,7 @@ const recordTransaction = async (order, amount, currency, paypalFee, payload) =>
       platformTip,
       platformTipInHostCurrency,
       hostFeeSharePercent,
+      tax: order.data?.tax,
     },
   });
 };

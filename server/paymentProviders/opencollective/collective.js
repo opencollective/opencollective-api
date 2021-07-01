@@ -93,6 +93,7 @@ paymentMethodProvider.processOrder = async order => {
       platformTip,
       platformTipInHostCurrency,
       hostFeeSharePercent,
+      tax: order.data?.tax,
     },
   };
 
