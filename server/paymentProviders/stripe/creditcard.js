@@ -212,8 +212,9 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
     platformTipInHostCurrency = isSharedRevenue
       ? Math.round(platformTip * hostCurrencyFxRate) || 0
       : fees.applicationFee;
-  } else {
+  } else if (config.env === 'test' || config.env === 'ci') {
     // Retro Compatibility with some tests expecting Platform Fees, not for production anymore
+    // TODO: we need to stop supporting this
     platformFeeInHostCurrency = fees.applicationFee;
   }
 
