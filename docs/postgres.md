@@ -1,8 +1,8 @@
 # PostgreSQL Database
 
-You need to have PostgreSQL 9.x, 10.x or 11.x with the Postgis extension.
+You need to have PostgreSQL 13.x with the Postgis extension.
 
-In production, we're currently running 9.6.17.
+In production, we're currently running 13.3.
 
 ## Installation
 
@@ -25,7 +25,7 @@ If you don't want to run a local instance of PostgreSQL in your computer, you ca
 Create and run the container:
 
 ```
-docker run -p 5432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust -d --name opencollective-postgres postgis/postgis:9.6-2.5
+docker run -p 5432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust -d --name opencollective-postgres postgis/postgis:13-3.1
 ```
 
 Set the necessary environment variables:
