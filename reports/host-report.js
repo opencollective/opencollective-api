@@ -235,6 +235,7 @@ async function HostReport(year, month, hostId) {
             omit(TransactionKind, [
               'HOST_FEE', // Host fee is loaded separately and added as a column
               'HOST_FEE_SHARE', // Not surfaced yet, to keep the report as close to the previous version as possible
+              'HOST_FEE_SHARE_DEBT', // Not surfaced yet, to keep the report as close to the previous version as possible
             ]),
           ),
         },
