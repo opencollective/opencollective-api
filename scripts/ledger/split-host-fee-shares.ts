@@ -22,6 +22,8 @@ const getHostFeeTransactionsToMigrateQuery = `
     ON host_fee_share."TransactionGroup" = t."TransactionGroup"
     AND host_fee_share."kind" = 'HOST_FEE_SHARE'
   WHERE t."kind" = 'HOST_FEE'
+  AND contribution."deletedAt" IS NULL
+  AND t."deletedAt" IS NULL
   AND t.type = 'CREDIT'
   AND t."RefundTransactionId" IS NULL -- TODO Check what to do with refunds
   AND t."createdAt" >= :startDate
