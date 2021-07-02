@@ -87,6 +87,6 @@ export const hasSeenLatestChangelogEntry = async (user: typeof models.User): Pro
   if (!latestChangelogUpdatePublishDate) {
     return true;
   } else {
-    return user?.changelogViewDate >= latestChangelogUpdatePublishDate;
+    return new Date(user?.changelogViewDate) >= new Date(latestChangelogUpdatePublishDate);
   }
 };
