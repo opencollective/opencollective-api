@@ -21,13 +21,14 @@ const getHostFeeTransactionsToMigrateQuery = `
   LEFT JOIN "Transactions" host_fee_share
     ON host_fee_share."TransactionGroup" = t."TransactionGroup"
     AND host_fee_share."kind" = 'HOST_FEE_SHARE'
+    AND host_fee_share."deletedAt" IS NULL
   WHERE t."kind" = 'HOST_FEE'
   AND contribution."deletedAt" IS NULL
   AND t."deletedAt" IS NULL
   AND t.type = 'CREDIT'
   AND t."RefundTransactionId" IS NULL -- TODO Check what to do with refunds
   AND t."createdAt" >= :startDate
-  AND (host_fee_share.id IS NULL OR host_fee_share."deletedAt" IS NOT NULL)
+  AND host_fee_share.id IS NULL
   GROUP BY t.id
   ORDER BY t.id DESC
 `;
