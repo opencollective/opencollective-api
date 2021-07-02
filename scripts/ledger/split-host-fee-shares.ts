@@ -18,8 +18,6 @@ const getHostFeeTransactionsToMigrateQuery = `
   INNER JOIN "Transactions" contribution
     ON contribution."TransactionGroup" = t."TransactionGroup"
     AND contribution."kind" IN ('CONTRIBUTION', 'ADDED_FUNDS')
-  LEFT JOIN "PaymentMethods" pm ON contribution."PaymentMethodId" = pm.id
-  LEFT JOIN "PaymentMethods" spm ON spm.id = pm."SourcePaymentMethodId"
   LEFT JOIN "Transactions" host_fee_share
     ON host_fee_share."TransactionGroup" = t."TransactionGroup"
     AND host_fee_share."kind" = 'HOST_FEE_SHARE'
@@ -27,9 +25,6 @@ const getHostFeeTransactionsToMigrateQuery = `
   AND t.type = 'CREDIT'
   AND t."RefundTransactionId" IS NULL -- TODO Check what to do with refunds
   AND t."createdAt" >= :startDate
-  -- Filter out stripe as host fee share is directly collected with this service
-  AND (pm.service IS NULL OR pm.service != 'stripe')
-  AND (spm.service IS NULL OR spm.service != 'stripe')
   AND host_fee_share.id IS NULL
   GROUP BY t.id
   ORDER BY t.id DESC
