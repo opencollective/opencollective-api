@@ -300,7 +300,10 @@ const accountFieldsDefinition = () => ({
       ...CollectionArgs,
       onlyPublishedUpdates: { type: GraphQLBoolean },
       onlyChangelogUpdates: { type: GraphQLBoolean },
-      orderBy: { type: ChronologicalOrderInput },
+      orderBy: {
+        type: new GraphQLNonNull(ChronologicalOrderInput),
+        defaultValue: ChronologicalOrderInput.defaultValue,
+      },
       searchTerm: { type: GraphQLString },
     },
     async resolve(collective, { limit, offset, onlyPublishedUpdates, onlyChangelogUpdates, orderBy, searchTerm }) {

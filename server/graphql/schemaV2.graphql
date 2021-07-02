@@ -221,7 +221,7 @@ interface Account {
     offset: Int = 0
     onlyPublishedUpdates: Boolean
     onlyChangelogUpdates: Boolean
-    orderBy: ChronologicalOrderInput
+    orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
     searchTerm: String
   ): UpdateCollection!
 
@@ -768,7 +768,7 @@ type Bot implements Account {
     offset: Int = 0
     onlyPublishedUpdates: Boolean
     onlyChangelogUpdates: Boolean
-    orderBy: ChronologicalOrderInput
+    orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
     searchTerm: String
   ): UpdateCollection!
 
@@ -1027,7 +1027,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     offset: Int = 0
     onlyPublishedUpdates: Boolean
     onlyChangelogUpdates: Boolean
-    orderBy: ChronologicalOrderInput
+    orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
     searchTerm: String
   ): UpdateCollection!
 
@@ -2747,6 +2747,11 @@ type Credit implements Transaction {
   amountInHostCurrency: Amount!
   netAmount: Amount!
   taxAmount: Amount!
+
+  """
+  If taxAmount is set, this field will contain more info about the tax
+  """
+  taxInfo: TaxInfo
   platformFee: Amount!
   hostFee: Amount!
   paymentProcessorFee: Amount!
@@ -2990,6 +2995,11 @@ type Debit implements Transaction {
   amountInHostCurrency: Amount!
   netAmount: Amount!
   taxAmount: Amount!
+
+  """
+  If taxAmount is set, this field will contain more info about the tax
+  """
+  taxInfo: TaxInfo
   platformFee: Amount!
   hostFee: Amount!
   paymentProcessorFee: Amount!
@@ -3243,7 +3253,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions {
     offset: Int = 0
     onlyPublishedUpdates: Boolean
     onlyChangelogUpdates: Boolean
-    orderBy: ChronologicalOrderInput
+    orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
     searchTerm: String
   ): UpdateCollection!
 
@@ -4193,7 +4203,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     offset: Int = 0
     onlyPublishedUpdates: Boolean
     onlyChangelogUpdates: Boolean
-    orderBy: ChronologicalOrderInput
+    orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
     searchTerm: String
   ): UpdateCollection!
 
@@ -4529,7 +4539,7 @@ type Host implements Account & AccountWithContributions {
     offset: Int = 0
     onlyPublishedUpdates: Boolean
     onlyChangelogUpdates: Boolean
-    orderBy: ChronologicalOrderInput
+    orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
     searchTerm: String
   ): UpdateCollection!
 
@@ -5092,7 +5102,7 @@ type Individual implements Account {
     offset: Int = 0
     onlyPublishedUpdates: Boolean
     onlyChangelogUpdates: Boolean
-    orderBy: ChronologicalOrderInput
+    orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
     searchTerm: String
   ): UpdateCollection!
 
@@ -6519,7 +6529,7 @@ type Organization implements Account & AccountWithContributions {
     offset: Int = 0
     onlyPublishedUpdates: Boolean
     onlyChangelogUpdates: Boolean
-    orderBy: ChronologicalOrderInput
+    orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
     searchTerm: String
   ): UpdateCollection!
 
@@ -7055,7 +7065,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions {
     offset: Int = 0
     onlyPublishedUpdates: Boolean
     onlyChangelogUpdates: Boolean
-    orderBy: ChronologicalOrderInput
+    orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
     searchTerm: String
   ): UpdateCollection!
 
@@ -7598,6 +7608,21 @@ type TagStat {
 }
 
 """
+Information about a tax
+"""
+type TaxInfo {
+  """
+  An unique identifier for this tax (GST, VAT, etc)
+  """
+  id: String!
+
+  """
+  Percentage applied, between 0-100
+  """
+  percentage: Int!
+}
+
+"""
 Tier model
 """
 type Tier {
@@ -7684,6 +7709,11 @@ interface Transaction {
   amountInHostCurrency: Amount!
   netAmount: Amount!
   taxAmount: Amount!
+
+  """
+  If taxAmount is set, this field will contain more info about the tax
+  """
+  taxInfo: TaxInfo
   platformFee: Amount!
   hostFee: Amount
   paymentProcessorFee: Amount
@@ -7713,9 +7743,6 @@ type TransactionCollection implements Collection {
   nodes: [Transaction]
 }
 
-"""
-All transaction kinds
-"""
 enum TransactionKind {
   ADDED_FUNDS
   CONTRIBUTION
@@ -8182,7 +8209,7 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
     offset: Int = 0
     onlyPublishedUpdates: Boolean
     onlyChangelogUpdates: Boolean
-    orderBy: ChronologicalOrderInput
+    orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
     searchTerm: String
   ): UpdateCollection!
 
