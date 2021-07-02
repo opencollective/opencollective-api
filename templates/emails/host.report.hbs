@@ -143,6 +143,13 @@ Subject: {{host.name}} Host {{reportName}}
       <td></td>
       <td align="right">{{number stats.numberPaidExpenses}}</td>
     </tr>
+    {{#if stats.numberDebts}}
+    <tr class="indent1">
+      <td>{{pluralize "Debt" n=stats.numberDebts}}</td>
+      <td></td>
+      <td align="right">{{number stats.numberDebts}}</td>
+    </tr>
+    {{/if}}
     {{#if stats.numberOtherCredits}}
     <tr class="indent1">
       <td>Other {{pluralize "credit" n=stats.numberOtherCredits}}</td>
@@ -213,6 +220,19 @@ Subject: {{host.name}} Host {{reportName}}
       </td>
     </tr>
     {{/if}}
+    {{/if}}
+
+    {{#if stats.numberDebts}}
+    <tr>
+      <td colspan=3 height=10></td>
+    </tr>
+    <tr>
+      <td>Debts</td>
+      <td></td>
+      <td align="right">{{currency stats.totalAmountDebts currency=host.currency precision=2}}
+      </td>
+    </tr>
+
     {{#if stats.totalOwedPlatformTips }}
     <tr class="indent1">
       <td>Platform Tips (collected for Open Collective)</td>
@@ -222,6 +242,17 @@ Subject: {{host.name}} Host {{reportName}}
       </td>
     </tr>
     {{/if}}
+
+    {{#if stats.totalOwedHostFeeShare }}
+    <tr class="indent1">
+      <td>Host Fee Share (owed to Open Collective)</td>
+      <td></td>
+      <td align="right">
+        {{currency stats.totalOwedHostFeeShare currency=host.currency precision=2}}
+      </td>
+    </tr>
+    {{/if}}
+
     {{/if}}
 
     <tr>
