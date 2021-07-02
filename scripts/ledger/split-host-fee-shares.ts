@@ -1,7 +1,7 @@
 #!/usr/bin/env ./node_modules/.bin/babel-node
 import '../../server/env';
 
-import { partition } from 'lodash';
+import { partition, uniq } from 'lodash';
 
 import models, { sequelize } from '../../server/models';
 
@@ -41,13 +41,23 @@ const migrate = async () => {
     mapToModel: true,
   });
 
-  const results = await Promise.all(
-    hostFeeTransactions.map(async hostFeeTransaction => {
-      const host = await models.Collective.findByPk(hostFeeTransaction.CollectiveId, { paranoid: false });
-      const transaction = await hostFeeTransaction.getRelatedTransaction({ kind: ['CONTRIBUTION', 'ADDED_FUNDS'] });
-      return models.Transaction.createHostFeeShareTransactions({ transaction, hostFeeTransaction }, host, false);
-    }),
-  );
+  const results = [];
+  let count = 0;
+  for (const hostFeeTransaction of hostFeeTransactions) {
+    if (++count % 100 === 0) {
+      console.log(`Migrated ${count}/${hostFeeTransactions.length} transactions`);
+    }
+
+    const host = await models.Collective.findByPk(hostFeeTransaction.CollectiveId, { paranoid: false });
+    const transaction = await hostFeeTransaction.getRelatedTransaction({ kind: ['CONTRIBUTION', 'ADDED_FUNDS'] });
+    const result = await models.Transaction.createHostFeeShareTransactions(
+      { transaction, hostFeeTransaction },
+      host,
+      false,
+    );
+
+    results.push(Boolean(result));
+  }
 
   const [migrated, ignored] = partition(results, Boolean);
 
@@ -55,10 +65,39 @@ const migrate = async () => {
 };
 
 const rollback = async () => {
-  // TODO
-  await sequelize.query(``, {
-    replacements: { startDate },
-  });
+  console.log('Delete transactions...');
+  const [transactions] = await sequelize.query(
+    `
+    DELETE
+    FROM "Transactions" t
+    WHERE (t."kind" = 'HOST_FEE_SHARE' OR t."kind" = 'HOST_FEE_SHARE_DEBT')
+    AND t."createdAt" < '2021-07-01 09:36:00'
+    AND t."createdAt" >= :startDate
+    RETURNING t."TransactionGroup"
+  `,
+    {
+      replacements: { startDate },
+    },
+  );
+
+  console.log(`${transactions.length} transactions deleted`);
+
+  if (transactions.length) {
+    console.log(`Delete settlements for ${transactions.length} transactions...`);
+    await sequelize.query(
+      `
+      DELETE
+      FROM "TransactionSettlements" ts
+      WHERE ts."kind" = 'HOST_FEE_SHARE_DEBT'
+      AND ts."TransactionGroup" IN (:transactionGroups)
+    `,
+      {
+        replacements: {
+          transactionGroups: uniq(transactions.map(t => t.TransactionGroup)),
+        },
+      },
+    );
+  }
 };
 
 const check = async () => {
