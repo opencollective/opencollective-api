@@ -1,4 +1,4 @@
-import { NextFunction, Request, Response } from 'express';
+import { Request, Response } from 'express';
 import { pick, uniq } from 'lodash';
 
 import expenseStatus from '../constants/expense_status';
@@ -32,7 +32,6 @@ const processPaidExpense = (host, remoteUser, fundData) => async expense => {
 export async function payBatch(
   req: Request<any, any, { expenseIds: Array<string>; hostId: string }>,
   res: Response,
-  next: NextFunction,
 ): Promise<void> {
   try {
     const { remoteUser, headers, body } = req;
@@ -66,7 +65,7 @@ export async function payBatch(
     } else {
       expenses.forEach(expense => {
         if (expense.currency !== host.currency) {
-          throw new Error('Can not batch expenses with different currencies');
+          throw new Error('Can not batch an expense with a currency different from its host currency');
         }
         if (expense.status !== expenseStatus.SCHEDULED_FOR_PAYMENT) {
           throw new Error('Expense must be scheduled for payment');
@@ -94,6 +93,9 @@ export async function payBatch(
       }
     }
   } catch (e) {
-    next(e);
+    res
+      .status(e.code || 500)
+      .send(e.toString())
+      .end();
   }
 }
