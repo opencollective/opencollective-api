@@ -5317,8 +5317,8 @@ An invitation to join the members of a collective
 type MemberInvitation {
   id: Int
   createdAt: DateTime
-  collective: Collective
-  member: Collective
+  collective: Account
+  member: Account
   role: MemberRole
   description: String
   tier: Tier
@@ -6037,7 +6037,8 @@ type Mutation {
     role: MemberRole
     description: String
     since: ISODateTime
-  ): Member!
+    isInvitation: Boolean
+  ): Member
 
   """
   Remove a member from the Collective
@@ -6057,6 +6058,7 @@ type Mutation {
     Role of member
     """
     role: MemberRole
+    isInvitation: Boolean
   ): Boolean
   createUpdate(update: UpdateCreateInput!): Update!
   editUpdate(update: UpdateUpdateInput!): Update!

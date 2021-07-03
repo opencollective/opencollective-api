@@ -275,6 +275,7 @@ const mutations = {
   editCoreContributors: {
     type: CollectiveInterfaceType,
     description: 'Updates all the core contributors (role = ADMIN or MEMBER) for this collective.',
+    deprecationReason: '2021-07-02: Please use inviteMember, editMember or removeMember mutations from GQLV2',
     args: {
       collectiveId: { type: new GraphQLNonNull(GraphQLInt) },
       members: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(MemberInputType))) },
