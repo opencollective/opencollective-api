@@ -81,17 +81,14 @@ async function getTemporaryQuote(
 async function createRecipient(
   connectedAccount: typeof models.ConnectedAccount,
   payoutMethod: PayoutMethod,
-  expense: typeof models.Expense,
-): Promise<RecipientAccount> {
+): Promise<RecipientAccount & { payoutMethodId: number }> {
   const token = await getToken(connectedAccount);
   const recipient = await transferwise.createRecipientAccount(token, {
     profileId: connectedAccount.data.id,
     ...(<RecipientAccount>payoutMethod.data),
   });
 
-  await expense.update({ data: { ...expense.data, recipient } });
-
-  return recipient;
+  return { ...recipient, payoutMethodId: payoutMethod.id };
 }
 
 async function quoteExpense(
@@ -132,7 +129,10 @@ async function createTransfer(
   const token = await getToken(connectedAccount);
   const profileId = connectedAccount.data.id;
 
-  const recipient = await createRecipient(connectedAccount, payoutMethod, expense);
+  const recipient =
+    expense.data?.recipient?.payoutMethodId === payoutMethod.id
+      ? expense.data.recipient
+      : await createRecipient(connectedAccount, payoutMethod);
 
   const quote = await quoteExpense(connectedAccount, payoutMethod, expense, recipient.id);
   const paymentOption = quote.paymentOptions.find(
@@ -168,6 +168,10 @@ async function createTransfer(
   const transfer = batchGroupId
     ? await transferwise.createBatchGroupTransfer(token, profileId, batchGroupId, transferOptions)
     : await transferwise.createTransfer(token, transferOptions);
+
+  await expense.update({
+    data: { ...expense.data, quote, recipient, transfer, paymentOption },
+  });
 
   return { quote, recipient, transfer, paymentOption };
 }
@@ -238,15 +242,7 @@ async function createExpensesBatchGroup(
 
   const transferIds = await Promise.all(
     expenses.map(async expense => {
-      const { quote, recipient, transfer, paymentOption } = await createTransfer(
-        connectedAccount,
-        expense.PayoutMethod,
-        expense,
-        batchGroup.id,
-      );
-      await expense.update({
-        data: { ...expense.data, quote, recipient, transfer, paymentOption },
-      });
+      const { transfer } = await createTransfer(connectedAccount, expense.PayoutMethod, expense, batchGroup.id);
       return transfer.id;
     }),
   );
@@ -486,6 +482,7 @@ export default {
   getAccountBalances,
   getTemporaryQuote,
   getToken,
+  createRecipient,
   quoteExpense,
   payExpense,
   createExpensesBatchGroup,
