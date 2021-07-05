@@ -1,11 +1,10 @@
 import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
-import { groupBy, keyBy, omit, pick, sumBy } from 'lodash';
+import { groupBy, keyBy, pick, sumBy } from 'lodash';
 import moment from 'moment';
 
 import MemberRoles from '../server/constants/roles.ts';
-import { TransactionKind } from '../server/constants/transaction-kind';
 import { hostFeeAmountForTransaction } from '../server/graphql/loaders/transactions';
 import emailLib from '../server/lib/email';
 import { getBackersStats, getHostedCollectives, sumTransactions } from '../server/lib/hostlib';
@@ -231,13 +230,6 @@ async function HostReport(year, month, hostId) {
       let transactions = await getTransactions(Object.keys(collectivesById), startDate, endDate, {
         where: {
           HostCollectiveId: host.id,
-          kind: Object.values(
-            omit(TransactionKind, [
-              'HOST_FEE', // Host fee is loaded separately and added as a column
-              'HOST_FEE_SHARE', // Not surfaced yet, to keep the report as close to the previous version as possible
-              'HOST_FEE_SHARE_DEBT', // Not surfaced yet, to keep the report as close to the previous version as possible
-            ]),
-          ),
         },
         include: [
           {
@@ -266,14 +258,7 @@ async function HostReport(year, month, hostId) {
         throw new Error('No transaction found');
       }
       console.log(`>>> processing ${transactions.length} transactions`);
-      await enrichTransactionsWithHostFee(transactions);
-      transactions = await Promise.all(transactions.map(processTransaction));
-      const csv = models.Transaction.exportCSV(transactions, collectivesById);
-      // console.log(csv);
-      attachments.push({
-        filename: `${host.slug}-${csvFilename}`,
-        content: csv,
-      });
+
       // Don't generate PDF in email if it's the yearly report
       let pdf;
       if (!yearlyReport && !process.env.SKIP_PDF) {
@@ -306,11 +291,12 @@ async function HostReport(year, month, hostId) {
           return 'donations';
         } else if (t.ExpenseId && t.type === 'DEBIT') {
           return 'expenses';
-          // TODO REPLACE WITH OTHER INCOMES AND OTHER EXPENSES
-        } else if (t.type === 'DEBIT') {
+        } else if (t.type === 'DEBIT' && t.kind !== null) {
           return 'otherDebits';
-        } else if (t.type === 'CREDIT') {
+        } else if (t.type === 'CREDIT' && t.kind !== null) {
           return 'otherCredits';
+        } else {
+          return 'ignoredTransactions';
         }
       });
 
@@ -377,9 +363,18 @@ async function HostReport(year, month, hostId) {
       const hostNetRevenue = Math.abs(totalHostFees) + totalSharedRevenue;
 
       // We exclude host fees and related transactions from the displayed results
-      data.transactions = transactions = transactions.filter(
+      transactions = transactions.filter(
         t => !t.kind || !['HOST_FEE', 'HOST_FEE_SHARE', 'HOST_FEE_SHARE_DEBT'].includes(t.kind),
       );
+      await enrichTransactionsWithHostFee(transactions);
+      data.transactions = transactions = await Promise.all(transactions.map(processTransaction));
+
+      const csv = models.Transaction.exportCSV(transactions, collectivesById);
+      // console.log(csv);
+      attachments.push({
+        filename: `${host.slug}-${csvFilename}`,
+        content: csv,
+      });
 
       const displayedDebts = debts.filter(t => t.kind !== 'HOST_FEE_SHARE_DEBT');
 
