@@ -300,10 +300,16 @@ const accountFieldsDefinition = () => ({
       ...CollectionArgs,
       onlyPublishedUpdates: { type: GraphQLBoolean },
       onlyChangelogUpdates: { type: GraphQLBoolean },
+      orderBy: {
+        type: new GraphQLNonNull(ChronologicalOrderInput),
+        defaultValue: ChronologicalOrderInput.defaultValue,
+      },
+      searchTerm: { type: GraphQLString },
     },
-    async resolve(collective, { limit, offset, onlyPublishedUpdates, onlyChangelogUpdates }) {
+    async resolve(collective, { limit, offset, onlyPublishedUpdates, onlyChangelogUpdates, orderBy, searchTerm }) {
       let where = {
         CollectiveId: collective.id,
+        [Op.and]: [],
       };
       if (onlyPublishedUpdates) {
         where = assign(where, { publishedAt: { [Op.ne]: null } });
@@ -311,9 +317,38 @@ const accountFieldsDefinition = () => ({
       if (onlyChangelogUpdates) {
         where = assign(where, { isChangelog: true });
       }
+      const orderByFilter = [orderBy.field, orderBy.direction];
+
+      // Add search filter
+      let include;
+      if (searchTerm) {
+        const searchConditions = [];
+        include = [{ association: 'fromCollective', required: true, attributes: [] }];
+        const searchedId = searchTerm.match(/^#?(\d+)$/)?.[1];
+
+        // If search term starts with a `#`, only search by ID
+        if (searchTerm[0] !== '#' || !searchedId) {
+          const sanitizedTerm = searchTerm.replace(/(_|%|\\)/g, '\\$1');
+          const ilikeQuery = `%${sanitizedTerm}%`;
+          searchConditions.push(
+            { '$fromCollective.slug$': { [Op.iLike]: ilikeQuery } },
+            { '$fromCollective.name$': { [Op.iLike]: ilikeQuery } },
+            { $title$: { [Op.iLike]: ilikeQuery } },
+            { $html$: { [Op.iLike]: ilikeQuery } },
+          );
+        }
+
+        if (searchedId) {
+          searchConditions.push({ id: parseInt(searchedId) });
+        }
+
+        where[Op.and].push({ [Op.or]: searchConditions });
+      }
+
       const query = {
         where,
-        order: [['createdAt', 'DESC']],
+        include,
+        order: [orderByFilter],
         limit,
         offset,
       };
