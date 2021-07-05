@@ -19,7 +19,7 @@ describe('server/controllers/transferwise', () => {
 
   after(sandbox.restore);
 
-  let remoteUser, expense, host, req, res, next;
+  let remoteUser, expense, host, req, res;
   let fundExpensesBatchGroup;
   beforeEach(async () => {
     sandbox.restore();
@@ -73,9 +73,11 @@ describe('server/controllers/transferwise', () => {
     };
     res = {
       sendStatus: sandbox.stub(),
-      setHeader: sandbox.stub(),
     };
-    next = sandbox.stub();
+    res.send = sandbox.stub().returns(res);
+    res.status = sandbox.stub().returns(res);
+    res.end = sandbox.stub().returns(res);
+    res.setHeader = sandbox.stub().returns(res);
 
     sandbox.stub(transferwise, 'getTemporaryQuote').resolves({
       id: 1234,
@@ -110,44 +112,42 @@ describe('server/controllers/transferwise', () => {
 
   it('should throw if remote user is not a host admin', async () => {
     const otherUser = await fakeUser();
-    await transferwiseController.payBatch({ ...req, remoteUser: otherUser }, res as any, next);
+    await transferwiseController.payBatch({ ...req, remoteUser: otherUser }, res as any);
 
-    expect(next.called).to.be.true;
-    expect(next.firstCall.firstArg).to.have.property('message').which.includes('User must be admin of host collective');
-    expect(next.firstCall.firstArg).to.have.property('code', 401);
-    expect(next.firstCall.firstArg).to.have.property('type', 'unauthorized');
+    expect(res.status.called).to.be.true;
+    expect(res.status.firstCall.firstArg).to.equal(401);
+    expect(res.send.firstCall.firstArg).to.equal('Error: User must be admin of host collective');
   });
 
   it('should throw if an expense can not be found', async () => {
     await transferwiseController.payBatch(
       { ...req, body: { hostId: req.body.hostId, expenseIds: [idEncode(11223, IDENTIFIER_TYPES.EXPENSE)] } },
       res as any,
-      next,
     );
 
-    expect(next.called).to.be.true;
-    expect(next.firstCall.firstArg)
-      .to.have.property('message')
-      .which.includes('Could not find every expense requested');
-    expect(next.firstCall.firstArg).to.have.property('code', 404);
+    expect(res.status.called).to.be.true;
+    expect(res.status.firstCall.firstArg).to.equal(404);
+    expect(res.send.firstCall.firstArg).to.equal('Error: Could not find every expense requested');
   });
 
   it('should throw if an expense is not scheduled for payment', async () => {
     await expense.update({ status: expenseStatus.PENDING });
-    await transferwiseController.payBatch(req, res, next);
+    await transferwiseController.payBatch(req, res);
 
-    expect(next.called).to.be.true;
-    expect(next.firstCall.firstArg).to.have.property('message').which.includes('Expense must be scheduled for payment');
+    expect(res.status.called).to.be.true;
+    expect(res.status.firstCall.firstArg).to.equal(500);
+    expect(res.send.firstCall.firstArg).to.equal('Error: Expense must be scheduled for payment');
   });
 
   it("should throw if an expense does not match its host's currency", async () => {
     await expense.update({ currency: 'CNY' });
-    await transferwiseController.payBatch(req, res, next);
+    await transferwiseController.payBatch(req, res);
 
-    expect(next.called).to.be.true;
-    expect(next.firstCall.firstArg)
-      .to.have.property('message')
-      .which.includes('Can not batch expenses with different currencies');
+    expect(res.status.called).to.be.true;
+    expect(res.status.firstCall.firstArg).to.equal(500);
+    expect(res.send.firstCall.firstArg).to.equal(
+      'Error: Can not batch an expense with a currency different from its host currency',
+    );
   });
 
   it('should throw if an expense belongs to a collective from a different host', async () => {
@@ -165,20 +165,18 @@ describe('server/controllers/transferwise', () => {
       idEncode(otherExpense.id, IDENTIFIER_TYPES.EXPENSE),
     ];
 
-    await transferwiseController.payBatch(req, res, next);
+    await transferwiseController.payBatch(req, res);
 
-    expect(next.called).to.be.true;
-    expect(next.firstCall.firstArg)
-      .to.have.property('message')
-      .which.includes('Expenses must belong to the requested host');
+    expect(res.status.called).to.be.true;
+    expect(res.status.firstCall.firstArg).to.equal(400);
+    expect(res.send.firstCall.firstArg).to.equal('Error: Expenses must belong to the requested host');
   });
 
   it('should proxy OTT headers from TransferWise', async () => {
     fundExpensesBatchGroup.resolves({ status: 403, headers: { 'x-2fa-approval': 'hash' } });
 
-    await transferwiseController.payBatch(req, res, next);
+    await transferwiseController.payBatch(req, res);
 
-    expect(next.called).to.be.false;
     expect(res.setHeader.called).to.be.true;
     expect(res.sendStatus.called).to.be.true;
     expect(res.setHeader.firstCall).to.have.nested.property('args[0]', 'x-2fa-approval');
@@ -188,9 +186,8 @@ describe('server/controllers/transferwise', () => {
 
   it('should create transactions for paid expenses when retrying with OTT header', async () => {
     req.headers['x-2fa-approval'] = 'hash';
-    await transferwiseController.payBatch(req, res, next);
+    await transferwiseController.payBatch(req, res);
 
-    expect(next.called).to.be.false;
     await expense.reload();
     const transactions = await expense.getTransactions();
     expect(transactions).to.be.an('array').with.length(2);

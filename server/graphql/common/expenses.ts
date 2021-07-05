@@ -622,10 +622,20 @@ export async function createExpense(
     });
   }
 
-  const expense = await sequelize.transaction(async t => {
-    // Get or create payout method
-    const payoutMethod = await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, t);
+  // Get or create payout method
+  const payoutMethod = await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, null);
 
+  // Create and validate TransferWise recipient
+  let recipient;
+  if (payoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
+    const host = await collective.getHostCollective();
+    const [connectedAccount] = await host.getConnectedAccounts({ where: { service: 'transferwise' } });
+    if (connectedAccount) {
+      recipient = await paymentProviders.transferwise.createRecipient(connectedAccount, payoutMethod);
+    }
+  }
+
+  const expense = await sequelize.transaction(async t => {
     // Create expense
     const createdExpense = await models.Expense.create(
       {
@@ -641,6 +651,7 @@ export async function createExpense(
         PayoutMethodId: payoutMethod && payoutMethod.id,
         legacyPayoutMethod: models.Expense.getLegacyPayoutMethodTypeFromPayoutMethod(payoutMethod),
         amount: expenseData.amount || getTotalAmountFromItems(itemsData),
+        data: { recipient },
       },
       { transaction: t },
     );
