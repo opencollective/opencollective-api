@@ -15,6 +15,10 @@ import models, { Op, sequelize } from '../server/models';
 
 const debug = debugLib('hostreport');
 
+if (process.env.ERRATUM_NUMBER && !process.env.ERRATUM_MESSAGE) {
+  throw new Error('ERRATUM_MESSAGE is required when using ERRATUM_NUMBER');
+}
+
 const summary = {
   totalHosts: 0,
   totalActiveHosts: 0,
@@ -159,6 +163,8 @@ async function HostReport(year, month, hostId) {
       data.expensesPerPage = [[]];
       data.taxType = host.getTaxType() || 'Taxes';
       data.stats = {};
+      data.erratumMessage = process.env.ERRATUM_MESSAGE;
+      data.erratumNumber = process.env.ERRATUM_NUMBER;
 
       const getHostAdminsEmails = async host => {
         if (host.type === 'USER') {
