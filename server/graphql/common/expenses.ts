@@ -627,7 +627,7 @@ export async function createExpense(
 
   // Create and validate TransferWise recipient
   let recipient;
-  if (payoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
+  if (payoutMethod?.type === PayoutMethodTypes.BANK_ACCOUNT) {
     const host = await collective.getHostCollective();
     const [connectedAccount] = await host.getConnectedAccounts({ where: { service: 'transferwise' } });
     if (connectedAccount) {
