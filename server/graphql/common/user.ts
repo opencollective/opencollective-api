@@ -83,7 +83,7 @@ export const hasSeenLatestChangelogEntry = async (user: typeof models.User): Pro
     });
 
     latestChangelogUpdatePublishDate = latestChangelogUpdate?.publishedAt;
-    if (latestChangelogUpdatePublishDate) {
+    if (!latestChangelogUpdatePublishDate) {
       return true;
     }
     // keep the latest change log publish date for a day in cache
