@@ -1,4 +1,4 @@
-Subject: {{host.name}} Host {{reportName}}
+Subject: {{#if erratumMessage}}Erratum{{#if erratumNumber}} {{erratumNumber}}{{/if}}: {{/if}}{{host.name}} Host {{reportName}}
 
 {{> header}}
 
@@ -80,6 +80,11 @@ Subject: {{host.name}} Host {{reportName}}
 </div>
 
 <div>
+  {{#if erratumMessage}}
+    <p style="margin-bottom: 40px;padding-bottom: 24px;box-shadow: 0px 9px 6px -5px #e8e8e8;">
+      <strong>Erratum:</strong> <span style="white-space: pre-wrap;">{{erratumMessage}}</span>
+    </p>
+  {{/if}}
   <p>Hi {{recipient.firstName}}!</p>
   <p>Here is your {{#if month}}monthly{{else}}yearly{{/if}} stats report, from {{moment startDate}} to
     {{moment endDateIncluded}}.</p>
