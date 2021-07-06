@@ -255,7 +255,8 @@ async function HostReport(year, month, hostId) {
       });
 
       if (!transactions || transactions.length === 0) {
-        throw new Error('No transaction found');
+        console.log(`No transaction found for ${host.slug}, skipping`);
+        return;
       }
       console.log(`>>> processing ${transactions.length} transactions`);
 
