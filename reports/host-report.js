@@ -370,7 +370,7 @@ async function HostReport(year, month, hostId) {
       data.transactions = transactions = await Promise.all(transactions.map(processTransaction));
 
       const csv = models.Transaction.exportCSV(transactions, collectivesById);
-      // console.log(csv);
+
       attachments.push({
         filename: `${host.slug}-${csvFilename}`,
         content: csv,
