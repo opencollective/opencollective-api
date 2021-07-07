@@ -277,8 +277,15 @@ const deleteCard = async (virtualCard: VirtualCardModel): Promise<void> => {
     throw new Error('Host is not connected to Privacy');
   }
 
-  // eslint-disable-next-line camelcase
-  await privacy.updateCard(connectedAccount.token, { card_token: virtualCard.id, state: 'CLOSED' });
+  const [card] = await privacy.listCards(connectedAccount.token, virtualCard.id);
+  if (!card) {
+    throw new Error(`Could not find card ${virtualCard.id}`);
+  }
+
+  if (card.state !== 'CLOSED') {
+    // eslint-disable-next-line camelcase
+    await privacy.updateCard(connectedAccount.token, { card_token: virtualCard.id, state: 'CLOSED' });
+  }
 
   return virtualCard.destroy();
 };
