@@ -113,7 +113,8 @@ export function getTotalNetAmountReceivedAmount(collective, { startDate, endDate
     endDate,
     currency,
     column: ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency',
-    transactionType: CREDIT,
+    kind: ['CONTRIBUTION', 'ADDED_FUNDS', 'HOST_FEE', 'PAYMENT_PROCESSOR_FEE'],
+    isDebt: false,
     hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
     excludeInternals: true,
   });
@@ -176,6 +177,8 @@ async function sumCollectivesTransactions(
     withBlockedFunds = false,
     hostCollectiveId = null,
     excludeInternals = false,
+    kind,
+    isDebt,
   } = {},
 ) {
   const groupBy = ['amountInHostCurrency', 'netAmountInHostCurrency'].includes(column) ? 'hostCurrency' : 'currency';
@@ -205,6 +208,17 @@ async function sumCollectivesTransactions(
   if (excludeInternals) {
     // Exclude internal transactions (we can tag some Transactions like "Switching Host" as internal)
     where.data = { internal: { [Op.not]: true } };
+  }
+  if (kind) {
+    where.kind = kind;
+  }
+  if (isDebt !== undefined) {
+    if (!isDebt) {
+      // TODO: isDebt should be non-nullable to avoid this
+      where.isDebt = { [Op.not]: true };
+    } else {
+      where.isDebt = isDebt;
+    }
   }
 
   const totals = {};
