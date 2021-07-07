@@ -1,7 +1,8 @@
-import { GraphQLInt, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 
 import { MemberRole } from '../enum/MemberRole';
+import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { Account } from '../interface/Account';
 
 import { Tier } from './Tier';
@@ -12,31 +13,29 @@ export const MemberInvitation = new GraphQLObjectType({
   fields: () => {
     return {
       id: {
-        type: GraphQLInt,
-        resolve(member) {
-          return member.id;
-        },
+        type: GraphQLNonNull(GraphQLString),
+        resolve: getIdEncodeResolver(IDENTIFIER_TYPES.MEMBER_INVITATION),
       },
       createdAt: {
-        type: GraphQLDateTime,
+        type: GraphQLNonNull(GraphQLDateTime),
         resolve(member) {
           return member.createdAt;
         },
       },
-      collective: {
-        type: Account,
+      account: {
+        type: GraphQLNonNull(Account),
         resolve(member, args, req) {
           return req.loaders.Collective.byId.load(member.CollectiveId);
         },
       },
-      member: {
-        type: Account,
+      memberAccount: {
+        type: GraphQLNonNull(Account),
         resolve(member, args, req) {
           return req.loaders.Collective.byId.load(member.MemberCollectiveId);
         },
       },
       role: {
-        type: MemberRole,
+        type: GraphQLNonNull(MemberRole),
         resolve(member) {
           return member.role;
         },

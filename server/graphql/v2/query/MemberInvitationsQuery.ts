@@ -2,35 +2,48 @@ import { GraphQLInt, GraphQLList } from 'graphql';
 
 import models from '../../../models';
 import { Forbidden, ValidationFailed } from '../../errors';
+import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { MemberInvitation } from '../object/MemberInvitation';
 
 const MemberInvitationsQuery = {
   type: new GraphQLList(MemberInvitation),
   description: '[AUTHENTICATED] Returns the pending invitations',
   args: {
-    CollectiveId: { type: GraphQLInt },
-    MemberCollectiveId: { type: GraphQLInt },
+    memberAccount: {
+      type: AccountReferenceInput,
+      description: 'Reference to an account of member to remove',
+    },
+    account: {
+      type: AccountReferenceInput,
+      description: 'Reference to the Collective account',
+    },
   },
-  resolve(collective, args, { remoteUser }) {
+  async resolve(collective, args, { remoteUser }) {
     if (!remoteUser) {
       throw new Forbidden('Only collective admins can see pending invitations');
     }
-    if (!args.CollectiveId && !args.MemberCollectiveId) {
-      throw new ValidationFailed('You must either provide a CollectiveId or a MemberCollectiveId');
+    if (!args.account && !args.memberAccount) {
+      throw new ValidationFailed('You must provide a reference either for collective or  member collective');
+    }
+
+    let { memberAccount, account } = args;
+
+    if (account) {
+      account = await fetchAccountWithReference(account, { throwIfMissing: true });
+    }
+
+    if (memberAccount) {
+      memberAccount = await fetchAccountWithReference(memberAccount, { throwIfMissing: true });
     }
 
     // Must be an admin to see pending invitations
-    const isAdminOfCollective = args.CollectiveId && remoteUser.isAdmin(args.CollectiveId);
-    const isAdminOfMemberCollective = args.MemberCollectiveId && remoteUser.isAdmin(args.MemberCollectiveId);
-    if (!isAdminOfCollective && !isAdminOfMemberCollective) {
+    const isAdminOfAccount = account && remoteUser.isAdminOfCollective(account);
+    const isAdminOfMemberAccount = memberAccount && remoteUser.isAdminOfCollective(memberAccount);
+    if (!isAdminOfAccount && !isAdminOfMemberAccount) {
       new Forbidden('Only collective admins can see pending invitations');
     }
 
-    type whereType = {
-      CollectiveId?: typeof GraphQLInt;
-      MemberCollectiveId?: typeof GraphQLInt;
-    };
-    const where: whereType = {};
+    const where: Record<string, unknown> = {};
     if (args.CollectiveId) {
       where.CollectiveId = args.CollectiveId;
     }

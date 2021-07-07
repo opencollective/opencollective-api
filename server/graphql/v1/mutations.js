@@ -595,6 +595,7 @@ const mutations = {
   replyToMemberInvitation: {
     type: GraphQLBoolean,
     description: 'Endpoint to accept or reject an invitation to become a member',
+    deprecationReason: '2021-07-07: This endpoint has been moved to GQLV2',
     args: {
       invitationId: {
         type: new GraphQLNonNull(GraphQLInt),

@@ -47,77 +47,17 @@ const memberMutations = {
       );
     },
   },
-  inviteMember: {
-    type: new GraphQLNonNull(MemberInvitation),
-    description: 'Invite a new member to the Collective',
-    args: {
-      memberAccount: {
-        type: GraphQLNonNull(AccountReferenceInput),
-        description: 'Reference to an account for the invitee',
-      },
-      account: {
-        type: GraphQLNonNull(AccountReferenceInput),
-        description: 'Reference to an account for the inviting Collective',
-      },
-      role: {
-        type: MemberRole,
-        description: 'Role of the invitee',
-      },
-      description: {
-        type: GraphQLString,
-      },
-      since: {
-        type: ISODateTime,
-      },
-    },
-    async resolve(_, args, req) {
-      if (!req.remoteUser) {
-        throw new Unauthorized('You need to be logged in to invite a member.');
-      }
-
-      let { memberAccount, account } = args;
-
-      memberAccount = await fetchAccountWithReference(memberAccount);
-      account = await fetchAccountWithReference(account);
-
-      if (!req.remoteUser.isAdminOfCollective(account)) {
-        throw new Unauthorized('Only admins can send an invitation.');
-      }
-
-      if (![MemberRoles.ACCOUNTANT, MemberRoles.ADMIN, MemberRoles.MEMBER].includes(args.role)) {
-        throw new Forbidden('You can only invite accountants, admins, or members.');
-      }
-
-      const memberParams = {
-        ...pick(args, ['role', 'description', 'since']),
-        MemberCollectiveId: memberAccount.id,
-        CreatedByUserId: req.remoteUser.id,
-      };
-
-      // Invite member
-      await models.MemberInvitation.invite(account, memberParams);
-
-      const invitation = await models.MemberInvitation.findOne({
-        where: {
-          CollectiveId: account.id,
-          MemberCollectiveId: memberParams.MemberCollectiveId,
-        },
-      });
-
-      return invitation;
-    },
-  },
   editMember: {
     type: Member,
-    description: 'Invite a new member to the Collective',
+    description: 'Edit an existing member of the Collective',
     args: {
       memberAccount: {
         type: GraphQLNonNull(AccountReferenceInput),
-        description: 'Reference to an account for the donating Collective',
+        description: 'Reference to an account for the member to edit.',
       },
       account: {
         type: GraphQLNonNull(AccountReferenceInput),
-        description: 'Reference to an account for the receiving Collective',
+        description: 'Reference to an account for the Collective',
       },
       role: {
         type: MemberRole,
@@ -129,9 +69,6 @@ const memberMutations = {
       since: {
         type: ISODateTime,
       },
-      isInvitation: {
-        type: GraphQLBoolean,
-      },
     },
     async resolve(_, args, req) {
       if (!req.remoteUser) {
@@ -140,8 +77,8 @@ const memberMutations = {
 
       let { memberAccount, account } = args;
 
-      memberAccount = await fetchAccountWithReference(memberAccount);
-      account = await fetchAccountWithReference(account);
+      memberAccount = await fetchAccountWithReference(memberAccount, { throwIfMissing: true });
+      account = await fetchAccountWithReference(account, { throwIfMissing: true });
 
       if (!req.remoteUser.isAdminOfCollective(account)) {
         throw new Unauthorized('Only admins can edit members.');
@@ -151,6 +88,7 @@ const memberMutations = {
         throw new Forbidden('You can only edit accountants, admins, or members.');
       }
 
+      // Make sure we don't edit the role of last admin
       if (args.role !== MemberRoles.ADMIN) {
         const admins = await models.Member.findAll({
           where: {
@@ -167,40 +105,14 @@ const memberMutations = {
       }
 
       // Edit member
-      let member;
       const editableAttributes = pick(args, ['role', 'description', 'since']);
 
-      if (args.isInvitation) {
-        await models.MemberInvitation.update(editableAttributes, {
-          where: {
-            MemberCollectiveId: memberAccount.id,
-            CollectiveId: account.id,
-          },
-        });
-
-        member = await models.Member.findOne({
-          where: {
-            CollectiveId: account.id,
-            MemberCollectiveId: memberAccount.id,
-          },
-        });
-      } else {
-        await models.Member.update(editableAttributes, {
-          where: {
-            MemberCollectiveId: memberAccount.id,
-            CollectiveId: account.id,
-          },
-        });
-
-        member = await models.Member.findOne({
-          where: {
-            CollectiveId: account.id,
-            MemberCollectiveId: memberAccount.id,
-          },
-        });
-      }
-
-      return member;
+      return models.Member.update(editableAttributes, {
+        where: {
+          MemberCollectiveId: memberAccount.id,
+          CollectiveId: account.id,
+        },
+      });
     },
   },
   removeMember: {
@@ -216,7 +128,7 @@ const memberMutations = {
         description: 'Reference to the Collective account',
       },
       role: {
-        type: MemberRole,
+        type: GraphQLNonNull(MemberRole),
         description: 'Role of member',
       },
       isInvitation: {
@@ -230,8 +142,8 @@ const memberMutations = {
 
       let { memberAccount, account } = args;
 
-      memberAccount = await fetchAccountWithReference(memberAccount);
-      account = await fetchAccountWithReference(account);
+      memberAccount = await fetchAccountWithReference(memberAccount, { throwIfMissing: true });
+      account = await fetchAccountWithReference(account, { throwIfMissing: true });
 
       if (!req.remoteUser.isAdminOfCollective(account)) {
         throw new Unauthorized('Only admins can remove a member.');
@@ -258,15 +170,13 @@ const memberMutations = {
 
       // Remove member
       if (args.isInvitation) {
-        await models.MemberInvitation.update(
-          { deletedAt: new Date() },
-          { where: { MemberCollectiveId: memberAccount.id, CollectiveId: account.id } },
-        );
+        await models.MemberInvitation.destroy({
+          where: { MemberCollectiveId: memberAccount.id, CollectiveId: account.id, role: args.role },
+        });
       } else {
-        await models.Member.update(
-          { deletedAt: new Date() },
-          { where: { MemberCollectiveId: memberAccount.id, CollectiveId: account.id } },
-        );
+        await models.Member.destroy({
+          where: { MemberCollectiveId: memberAccount.id, CollectiveId: account.id, role: args.role },
+        });
       }
 
       return true;
