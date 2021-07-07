@@ -62,16 +62,7 @@ const memberInvitationMutations = {
       };
 
       // Invite member
-      await models.MemberInvitation.invite(account, memberParams);
-
-      const invitation = await models.MemberInvitation.findOne({
-        where: {
-          CollectiveId: account.id,
-          MemberCollectiveId: memberParams.MemberCollectiveId,
-        },
-      });
-
-      return invitation;
+      return models.MemberInvitation.invite(account, memberParams);
     },
   },
   editMemberInvitation: {
