@@ -53,6 +53,7 @@ const migrate = async () => {
 
     const host = await models.Collective.findByPk(hostFeeTransaction.CollectiveId, { paranoid: false });
     const transaction = await hostFeeTransaction.getRelatedTransaction({ kind: ['CONTRIBUTION', 'ADDED_FUNDS'] });
+    // TODO preload Payment method to define wether debts have ben created automatically
     const result = await models.Transaction.createHostFeeShareTransactions(
       { transaction, hostFeeTransaction },
       host,
