@@ -8,7 +8,6 @@ import { Forbidden, Unauthorized } from '../../errors';
 import { MemberRole } from '../enum';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { Member } from '../object/Member';
-import { MemberInvitation } from '../object/MemberInvitation';
 import ISODateTime from '../scalar/ISODateTime';
 
 const memberMutations = {

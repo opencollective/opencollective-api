@@ -3,7 +3,7 @@ import { pick } from 'lodash';
 
 import MemberRoles from '../../../constants/roles';
 import models from '../../../models';
-import { Forbidden, Unauthorized, ValidationFailed } from '../../errors';
+import { Forbidden, Unauthorized } from '../../errors';
 import { MemberRole } from '../enum';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import {

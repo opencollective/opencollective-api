@@ -1,4 +1,4 @@
-import { GraphQLInt, GraphQLList } from 'graphql';
+import { GraphQLList } from 'graphql';
 
 import models from '../../../models';
 import { Forbidden, ValidationFailed } from '../../errors';
