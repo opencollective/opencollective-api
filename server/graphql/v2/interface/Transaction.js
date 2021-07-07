@@ -230,11 +230,18 @@ export const TransactionFields = () => {
     },
     hostFee: {
       type: new GraphQLNonNull(Amount),
-      resolve(transaction) {
-        return {
-          value: transaction.hostFeeInHostCurrency || 0,
-          currency: transaction.hostCurrency,
-        };
+      async resolve(transaction, _, req) {
+        if (transaction.hostFeeInHostCurrency) {
+          return {
+            value: transaction.hostFeeInHostCurrency || 0,
+            currency: transaction.hostCurrency,
+          };
+        } else {
+          return {
+            value: await req.loaders.Transaction.hostFeeAmountForTransaction.load(transaction),
+            currency: transaction.hostCurrency,
+          };
+        }
       },
     },
     paymentProcessorFee: {
