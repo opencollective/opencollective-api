@@ -128,6 +128,7 @@ const removeReactionFromCommentOrUpdate = async (id, remoteUser, emoji, identifi
     reaction = await models.EmojiReaction.findOne({
       where: {
         CommentId: commentOrUpdateId,
+        UserId: remoteUser.id,
         emoji,
       },
     });
@@ -135,6 +136,7 @@ const removeReactionFromCommentOrUpdate = async (id, remoteUser, emoji, identifi
     reaction = await models.EmojiReaction.findOne({
       where: {
         UpdateId: commentOrUpdateId,
+        UserId: remoteUser.id,
         emoji,
       },
     });
@@ -142,11 +144,6 @@ const removeReactionFromCommentOrUpdate = async (id, remoteUser, emoji, identifi
 
   if (!reaction) {
     throw new NotFound(`This reaction does not exist or has been deleted.`);
-  }
-
-  // Check permissions
-  if (!remoteUser.isAdmin(reaction.FromCollectiveId)) {
-    throw new Forbidden();
   }
 
   await reaction.destroy();
