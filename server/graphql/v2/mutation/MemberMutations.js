@@ -2,6 +2,7 @@ import { GraphQLBoolean, GraphQLNonNull, GraphQLString } from 'graphql';
 import { pick } from 'lodash';
 
 import MemberRoles from '../../../constants/roles';
+import { purgeCacheForCollective } from '../../../lib/cache';
 import models from '../../../models';
 import { editPublicMessage } from '../../common/members';
 import { Forbidden, Unauthorized } from '../../errors';
@@ -177,6 +178,10 @@ const memberMutations = {
           where: { MemberCollectiveId: memberAccount.id, CollectiveId: account.id, role: args.role },
         });
       }
+
+      // purge cache
+      purgeCacheForCollective(account.slug);
+      purgeCacheForCollective(memberAccount.slug);
 
       return true;
     },
