@@ -134,7 +134,9 @@ describe('server/graphql/v2/mutation/EmojiReactionMutations', () => {
       const user = await fakeUser();
       const mutationParams = { comment: { id: commentId }, emoji: reaction.emoji };
       const result = await graphqlQueryV2(removeReactionMutation, mutationParams, user);
-      expect(result.errors[0].message).to.eq('You are authenticated but forbidden to perform this action');
+      expect(result.errors[0].message).to.eq(
+        'This reaction does not exist or has been deleted or you do not have permission to change it.',
+      );
     });
 
     it('Removes a reaction', async () => {

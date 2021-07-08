@@ -143,7 +143,7 @@ const removeReactionFromCommentOrUpdate = async (id, remoteUser, emoji, identifi
   }
 
   if (!reaction) {
-    throw new NotFound(`This reaction does not exist or has been deleted.`);
+    throw new NotFound(`This reaction does not exist or has been deleted or you do not have permission to change it.`);
   }
 
   await reaction.destroy();
