@@ -191,9 +191,7 @@ const assignCardToCollective = async (
   host: any,
   options?: { upsert?: boolean; UserId?: number },
 ): Promise<VirtualCardModel> => {
-  const [connectedAccount] = await host.getConnectedAccounts({
-    where: { service: 'privacy', deletedAt: null },
-  });
+  const [connectedAccount] = await host.getConnectedAccounts({ where: { service: 'privacy' } });
 
   if (!connectedAccount) {
     throw new Error('Host is not connected to Privacy');
@@ -245,9 +243,7 @@ const refreshCardDetails = async (virtualCard: VirtualCardModel) => {
 
 const setCardState = async (virtualCard: VirtualCardModel, state: 'OPEN' | 'PAUSED'): Promise<VirtualCardModel> => {
   const host = await models.Collective.findByPk(virtualCard.HostCollectiveId);
-  const [connectedAccount] = await host.getConnectedAccounts({
-    where: { service: 'privacy', deletedAt: null },
-  });
+  const [connectedAccount] = await host.getConnectedAccounts({ where: { service: 'privacy' } });
 
   if (!connectedAccount) {
     throw new Error('Host is not connected to Privacy');
@@ -269,9 +265,7 @@ const resumeCard = async (virtualCard: VirtualCardModel): Promise<VirtualCardMod
 
 const deleteCard = async (virtualCard: VirtualCardModel): Promise<void> => {
   const host = await models.Collective.findByPk(virtualCard.HostCollectiveId);
-  const [connectedAccount] = await host.getConnectedAccounts({
-    where: { service: 'privacy', deletedAt: null },
-  });
+  const [connectedAccount] = await host.getConnectedAccounts({ where: { service: 'privacy' } });
 
   if (!connectedAccount) {
     throw new Error('Host is not connected to Privacy');

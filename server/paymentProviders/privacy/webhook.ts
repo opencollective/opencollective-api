@@ -24,9 +24,7 @@ async function webhook(req: Request & { body: Transaction; rawBody: string }): P
 
   const host = virtualCard.host;
   const collective = virtualCard.collective;
-  const [connectedAccount] = await host.getConnectedAccounts({
-    where: { service: 'privacy', deletedAt: null },
-  });
+  const [connectedAccount] = await host.getConnectedAccounts({ where: { service: 'privacy' } });
 
   if (!connectedAccount) {
     logger.error('privacy/webhook: host is not connected to Privacy', { body: req.body });
