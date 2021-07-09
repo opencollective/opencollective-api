@@ -101,7 +101,7 @@ const memberMutations = {
 
       // Make sure we don't edit the role of last admin
       if (args.role !== MemberRoles.ADMIN) {
-        if (isLastAdmin(account, memberAccount)) {
+        if (await isLastAdmin(account, memberAccount)) {
           throw new Forbidden('There must be at least one admin for the account.');
         }
       }
@@ -156,7 +156,7 @@ const memberMutations = {
       }
 
       if (args.role === MemberRoles.ADMIN) {
-        if (isLastAdmin(account, memberAccount)) {
+        if (await isLastAdmin(account, memberAccount)) {
           throw new Forbidden('There must be at least one admin for the account.');
         }
       }
