@@ -25,17 +25,17 @@ export const fetchMemberInvitationWithReference = async (
   input,
   { throwIfMissing } = { throwIfMissing: false },
 ): Promise<any> => {
-  let MemberInvitation;
+  let memberInvitation;
   if (input.id) {
     const id = idDecode(input.id, IDENTIFIER_TYPES.MEMBER_INVITATION);
-    MemberInvitation = await models.MemberInvitation.findByPk(id);
+    memberInvitation = await models.MemberInvitation.findByPk(id);
   } else if (input.legacyId) {
-    MemberInvitation = await models.MemberInvitation.findByPk(input.legacyId);
+    memberInvitation = await models.MemberInvitation.findByPk(input.legacyId);
   } else {
     throw new Error('Please provide an id or a legacyId');
   }
-  if (!MemberInvitation && throwIfMissing) {
+  if (!memberInvitation && throwIfMissing) {
     throw new NotFound('MemberInvitation Not Found');
   }
-  return MemberInvitation;
+  return memberInvitation;
 };

@@ -1,4 +1,5 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLDateTime } from 'graphql-iso-date';
 import { pick } from 'lodash';
 
 import MemberRoles from '../../../constants/roles';
@@ -9,7 +10,17 @@ import { Forbidden, Unauthorized } from '../../errors';
 import { MemberRole } from '../enum';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { Member } from '../object/Member';
-import ISODateTime from '../scalar/ISODateTime';
+
+const isLastAdmin = async (account, memberAccount) => {
+  const admins = await models.Member.findAll({
+    where: {
+      CollectiveId: account.id,
+      role: MemberRoles.ADMIN,
+    },
+  });
+
+  return admins.length === 1 && admins[0].MemberCollectiveId === memberAccount.id;
+};
 
 const memberMutations = {
   editPublicMessage: {
@@ -67,7 +78,7 @@ const memberMutations = {
         type: GraphQLString,
       },
       since: {
-        type: ISODateTime,
+        type: GraphQLDateTime,
       },
     },
     async resolve(_, args, req) {
@@ -90,17 +101,8 @@ const memberMutations = {
 
       // Make sure we don't edit the role of last admin
       if (args.role !== MemberRoles.ADMIN) {
-        const admins = await models.Member.findAll({
-          where: {
-            CollectiveId: account.id,
-            role: MemberRoles.ADMIN,
-          },
-        });
-
-        if (admins.length === 1) {
-          if (admins[0].MemberCollectiveId === memberAccount.id) {
-            throw new Forbidden('There must be at least one admin for the account.');
-          }
+        if (isLastAdmin(account, memberAccount)) {
+          throw new Forbidden('There must be at least one admin for the account.');
         }
       }
 
@@ -154,17 +156,8 @@ const memberMutations = {
       }
 
       if (args.role === MemberRoles.ADMIN) {
-        const admins = await models.Member.findAll({
-          where: {
-            CollectiveId: account.id,
-            role: MemberRoles.ADMIN,
-          },
-        });
-
-        if (admins.length === 1) {
-          if (admins[0].MemberCollectiveId === memberAccount.id) {
-            throw new Forbidden('There must be at least one admin for the account.');
-          }
+        if (isLastAdmin(account, memberAccount)) {
+          throw new Forbidden('There must be at least one admin for the account.');
         }
       }
 

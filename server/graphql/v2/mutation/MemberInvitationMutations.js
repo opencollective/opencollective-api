@@ -1,4 +1,5 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLDateTime } from 'graphql-iso-date';
 import { pick } from 'lodash';
 
 import MemberRoles from '../../../constants/roles';
@@ -11,7 +12,6 @@ import {
   MemberInvitationReferenceInput,
 } from '../input/MemberInvitationReferenceInput';
 import { MemberInvitation } from '../object/MemberInvitation';
-import ISODateTime from '../scalar/ISODateTime';
 
 const memberInvitationMutations = {
   inviteMember: {
@@ -34,7 +34,7 @@ const memberInvitationMutations = {
         type: GraphQLString,
       },
       since: {
-        type: ISODateTime,
+        type: GraphQLDateTime,
       },
     },
     async resolve(_, args, req) {
@@ -85,7 +85,7 @@ const memberInvitationMutations = {
         type: GraphQLString,
       },
       since: {
-        type: ISODateTime,
+        type: GraphQLDateTime,
       },
     },
     async resolve(_, args, req) {
@@ -118,7 +118,7 @@ const memberInvitationMutations = {
     },
   },
   replyToMemberInvitation: {
-    type: GraphQLBoolean,
+    type: new GraphQLNonNull(GraphQLBoolean),
     description: 'Endpoint to accept or reject an invitation to become a member',
     args: {
       invitation: {
@@ -136,6 +136,10 @@ const memberInvitationMutations = {
       }
 
       const invitation = await fetchMemberInvitationWithReference(args.invitation, { throwIfMissing: true });
+
+      if (!req.remoteUser.isAdmin(invitation.MemberCollectiveId)) {
+        return new Forbidden('Only an admin of the invited account can reply to the invitation');
+      }
 
       if (args.accept) {
         await invitation.accept();

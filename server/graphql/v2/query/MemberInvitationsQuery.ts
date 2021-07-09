@@ -23,7 +23,7 @@ const MemberInvitationsQuery = {
       throw new Forbidden('Only collective admins can see pending invitations');
     }
     if (!args.account && !args.memberAccount) {
-      throw new ValidationFailed('You must provide a reference either for collective or  member collective');
+      throw new ValidationFailed('You must provide a reference either for collective or member collective');
     }
 
     let { memberAccount, account } = args;

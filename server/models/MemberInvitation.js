@@ -215,12 +215,7 @@ function defineModel() {
       invitedByUser: pick(createdByUser, ['collective.slug', 'collective.name']),
     });
 
-    return models.MemberInvitation.findOne({
-      where: {
-        CollectiveId: collective.id,
-        MemberCollectiveId: memberParams.MemberCollectiveId,
-      },
-    });
+    return invitation;
   };
 
   return MemberInvitation;
