@@ -140,7 +140,7 @@
     "commitizen": "^4.2.4",
     "cz-conventional-changelog": "^3.3.0",
     "eslint": "^7.31.0",
-    "eslint-config-opencollective": "^2.2.0",
+    "eslint-config-opencollective": "^3.0.0",
     "eslint-plugin-babel": "^5.3.1",
     "eslint-plugin-graphql": "^4.0.0",
     "eslint-plugin-import": "^2.23.4",
