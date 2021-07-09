@@ -47,7 +47,7 @@ async function getBalance(paymentMethod) {
   });
   let spent = 0;
   for (const transaction of allTransactions) {
-    if (transaction.currency != paymentMethod.currency) {
+    if (transaction.currency !== paymentMethod.currency) {
       const fxRate = await getFxRate(transaction.currency, paymentMethod.currency);
       spent += transaction.netAmountInCollectiveCurrency * fxRate;
     } else {

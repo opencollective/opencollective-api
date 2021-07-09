@@ -75,10 +75,10 @@ export const fetchAccountWithReference = async (
   };
 
   let collective;
-  if (input.id && typeof input.id == 'string') {
+  if (input.id && typeof input.id === 'string') {
     const id = idDecode(input.id, 'account');
     collective = await loadCollectiveById(id);
-  } else if (input.legacyId || typeof input.id == 'number') {
+  } else if (input.legacyId || typeof input.id === 'number') {
     collective = await loadCollectiveById(input.legacyId || input.id);
   } else if (input.slug) {
     collective = await models.Collective.findOne(

@@ -101,7 +101,7 @@ describe('server/paymentProviders/stripe/alipay', () => {
 
       expect(transactions).to.be.an('array').of.length(4);
 
-      const credit = transactions.find(t => t.type == 'CREDIT' && t.kind === 'CONTRIBUTION');
+      const credit = transactions.find(t => t.type === 'CREDIT' && t.kind === 'CONTRIBUTION');
       expect(credit).to.have.property('amount', 10000);
       expect(credit).to.have.property('currency', 'USD');
       expect(credit).to.have.property('OrderId', order.id);

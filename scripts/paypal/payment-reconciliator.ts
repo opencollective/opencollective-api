@@ -59,7 +59,7 @@ async function* getPaypalPaymentOrdersIterator(host, orderWhere) {
       yield orders.shift();
     }
 
-    if (!nbOrders || nbOrders % limit != 0) {
+    if (!nbOrders || nbOrders % limit !== 0) {
       break;
     } else {
       offset += nbOrders;
