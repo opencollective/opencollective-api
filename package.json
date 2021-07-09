@@ -84,7 +84,7 @@
     "helmet": "4.6.0",
     "html-pdf": "3.0.1",
     "html-to-text": "7.1.1",
-    "ics": "2.27.0",
+    "ics": "2.29.0",
     "intl-messageformat": "9.7.0",
     "json2csv": "5.0.6",
     "jsonwebtoken": "8.5.1",
