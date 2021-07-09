@@ -123,34 +123,23 @@ const addReactionToCommentOrUpdate = async (id, req, emoji, identifierType) => {
 
 const removeReactionFromCommentOrUpdate = async (id, remoteUser, emoji, identifierType) => {
   const commentOrUpdateId = idDecode(id, identifierType);
-  let reaction;
-  if (identifierType === IDENTIFIER_TYPES.COMMENT) {
-    reaction = await models.EmojiReaction.findOne({
-      where: {
-        CommentId: commentOrUpdateId,
-        UserId: remoteUser.id,
-        emoji,
-      },
-    });
-  } else {
-    reaction = await models.EmojiReaction.findOne({
-      where: {
-        UpdateId: commentOrUpdateId,
-        UserId: remoteUser.id,
-        emoji,
-      },
-    });
-  }
+  const idColumn = identifierType === IDENTIFIER_TYPES.COMMENT ? 'CommentId' : 'UpdateId';
+  const emojiRemoved = await models.EmojiReaction.destroy({
+    where: {
+      [idColumn]: commentOrUpdateId,
+      UserId: remoteUser.id,
+      emoji,
+    },
+  });
 
-  if (!reaction) {
+  if (!emojiRemoved) {
     throw new NotFound(`This reaction does not exist or has been deleted or you do not have permission to change it.`);
   }
 
-  await reaction.destroy();
   if (identifierType === IDENTIFIER_TYPES.COMMENT) {
-    return { comment: models.Comment.findByPk(reaction.CommentId), update: null };
+    return { comment: models.Comment.findByPk(commentOrUpdateId), update: null };
   } else {
-    return { update: models.Update.findByPk(reaction.UpdateId), comment: null };
+    return { update: models.Update.findByPk(commentOrUpdateId), comment: null };
   }
 };
 
