@@ -239,7 +239,7 @@ const refreshCardDetails = async (virtualCard: VirtualCardModel) => {
     throw new Error(`Could not find card ${virtualCard.id}`);
   }
   const newData = omit(card, ['pan', 'cvv', 'exp_year', 'exp_month']);
-  await virtualCard.update('data', newData);
+  await virtualCard.update({ data: newData });
   return virtualCard;
 };
 
