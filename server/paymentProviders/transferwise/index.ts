@@ -239,33 +239,39 @@ async function createExpensesBatchGroup(
     sourceCurrency: connectedAccount.data.currency || host.currency,
   });
 
-  const transferIds = await Promise.all(
-    expenses.map(async expense => {
-      const { transfer } = await createTransfer(connectedAccount, expense.PayoutMethod, expense, {
-        batchGroupId: batchGroup.id,
-        token,
-      });
-      return transfer.id;
-    }),
-  );
-
-  batchGroup = await transferwise.getBatchGroup(token, profileId, batchGroup.id);
-  const includesEveryTransferCreated =
-    batchGroup.transferIds.every(id => transferIds.includes(id)) && batchGroup.transferIds.length == transferIds.length;
-  if (!includesEveryTransferCreated) {
-    await transferwise.cancelBatchGroup(token, profileId, batchGroup.id, batchGroup.version).catch(console.error);
-    throw new Error('Batch group does not include every transfer created');
-  }
-
-  batchGroup = await transferwise.completeBatchGroup(token, profileId, batchGroup.id, batchGroup.version);
-
-  await Promise.all(
-    expenses.map(expense =>
-      expense.update({
-        data: { ...expense.data, batchGroup },
+  try {
+    const transferIds = await Promise.all(
+      expenses.map(async expense => {
+        const { transfer } = await createTransfer(connectedAccount, expense.PayoutMethod, expense, {
+          batchGroupId: batchGroup.id,
+          token,
+        });
+        return transfer.id;
       }),
-    ),
-  );
+    );
+
+    batchGroup = await transferwise.getBatchGroup(token, profileId, batchGroup.id);
+    const includesEveryTransferCreated =
+      batchGroup.transferIds.every(id => transferIds.includes(id)) &&
+      batchGroup.transferIds.length === transferIds.length;
+    if (!includesEveryTransferCreated) {
+      throw new Error('Batch group does not include every transfer created');
+    }
+
+    batchGroup = await transferwise.completeBatchGroup(token, profileId, batchGroup.id, batchGroup.version);
+
+    await Promise.all(
+      expenses.map(expense =>
+        expense.update({
+          data: { ...expense.data, batchGroup },
+        }),
+      ),
+    );
+  } catch (e) {
+    logger.error(e);
+    await transferwise.cancelBatchGroup(token, profileId, batchGroup.id, batchGroup.version).catch(logger.error);
+    throw e;
+  }
 
   return batchGroup;
 }
