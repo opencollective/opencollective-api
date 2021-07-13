@@ -120,14 +120,14 @@ async function createTransfer(
   connectedAccount: typeof models.ConnectedAccount,
   payoutMethod: PayoutMethod,
   expense: typeof models.Expense,
-  batchGroupId?: string,
+  options?: { token?: string; batchGroupId?: string },
 ): Promise<{
   quote: QuoteV2;
   recipient: RecipientAccount;
   transfer: Transfer;
   paymentOption: QuoteV2PaymentOption;
 }> {
-  const token = await getToken(connectedAccount);
+  const token = options?.token || (await getToken(connectedAccount));
   const profileId = connectedAccount.data.id;
 
   const recipient =
@@ -162,12 +162,12 @@ async function createTransfer(
     customerTransactionId: uuid(),
   };
   // Append reference to currencies that require it.
-  if (currenciesThatRequireReference.includes(<string>payoutMethod.unfilteredData.currency) || batchGroupId) {
+  if (currenciesThatRequireReference.includes(<string>payoutMethod.unfilteredData.currency) || options?.batchGroupId) {
     transferOptions.details = { reference: `${expense.id}` };
   }
 
-  const transfer = batchGroupId
-    ? await transferwise.createBatchGroupTransfer(token, profileId, batchGroupId, transferOptions)
+  const transfer = options?.batchGroupId
+    ? await transferwise.createBatchGroupTransfer(token, profileId, options.batchGroupId, transferOptions)
     : await transferwise.createTransfer(token, transferOptions);
 
   await expense.update({
@@ -192,12 +192,10 @@ async function payExpense(
   const token = await getToken(connectedAccount);
   const profileId = connectedAccount.data.id;
 
-  const { quote, recipient, transfer, paymentOption } = await createTransfer(
-    connectedAccount,
-    payoutMethod,
-    expense,
+  const { quote, recipient, transfer, paymentOption } = await createTransfer(connectedAccount, payoutMethod, expense, {
     batchGroupId,
-  );
+    token,
+  });
 
   let fund;
   try {
@@ -243,7 +241,10 @@ async function createExpensesBatchGroup(
 
   const transferIds = await Promise.all(
     expenses.map(async expense => {
-      const { transfer } = await createTransfer(connectedAccount, expense.PayoutMethod, expense, batchGroup.id);
+      const { transfer } = await createTransfer(connectedAccount, expense.PayoutMethod, expense, {
+        batchGroupId: batchGroup.id,
+        token,
+      });
       return transfer.id;
     }),
   );
