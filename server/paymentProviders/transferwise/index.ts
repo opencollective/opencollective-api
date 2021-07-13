@@ -37,6 +37,7 @@ async function getToken(connectedAccount: ConnectedAccount): Promise<string> {
     return connectedAccount.token;
   }
   // OAuth token, require us to refresh every 12 hours
+  await connectedAccount.reload();
   const updatedAt = moment(connectedAccount.updatedAt);
   const diff = moment.duration(moment().diff(updatedAt)).asSeconds();
   const isOutdated = diff > <number>connectedAccount.data.expires_in - 60;
@@ -119,14 +120,14 @@ async function createTransfer(
   connectedAccount: typeof models.ConnectedAccount,
   payoutMethod: PayoutMethod,
   expense: typeof models.Expense,
-  batchGroupId?: string,
+  options?: { token?: string; batchGroupId?: string },
 ): Promise<{
   quote: QuoteV2;
   recipient: RecipientAccount;
   transfer: Transfer;
   paymentOption: QuoteV2PaymentOption;
 }> {
-  const token = await getToken(connectedAccount);
+  const token = options?.token || (await getToken(connectedAccount));
   const profileId = connectedAccount.data.id;
 
   const recipient =
@@ -161,12 +162,12 @@ async function createTransfer(
     customerTransactionId: uuid(),
   };
   // Append reference to currencies that require it.
-  if (currenciesThatRequireReference.includes(<string>payoutMethod.unfilteredData.currency) || batchGroupId) {
+  if (currenciesThatRequireReference.includes(<string>payoutMethod.unfilteredData.currency) || options?.batchGroupId) {
     transferOptions.details = { reference: `${expense.id}` };
   }
 
-  const transfer = batchGroupId
-    ? await transferwise.createBatchGroupTransfer(token, profileId, batchGroupId, transferOptions)
+  const transfer = options?.batchGroupId
+    ? await transferwise.createBatchGroupTransfer(token, profileId, options.batchGroupId, transferOptions)
     : await transferwise.createTransfer(token, transferOptions);
 
   await expense.update({
@@ -191,12 +192,10 @@ async function payExpense(
   const token = await getToken(connectedAccount);
   const profileId = connectedAccount.data.id;
 
-  const { quote, recipient, transfer, paymentOption } = await createTransfer(
-    connectedAccount,
-    payoutMethod,
-    expense,
+  const { quote, recipient, transfer, paymentOption } = await createTransfer(connectedAccount, payoutMethod, expense, {
     batchGroupId,
-  );
+    token,
+  });
 
   let fund;
   try {
@@ -240,27 +239,38 @@ async function createExpensesBatchGroup(
     sourceCurrency: connectedAccount.data.currency || host.currency,
   });
 
-  const transferIds = await Promise.all(
-    expenses.map(async expense => {
-      const { transfer } = await createTransfer(connectedAccount, expense.PayoutMethod, expense, batchGroup.id);
-      return transfer.id;
-    }),
-  );
+  try {
+    const transferIds = await Promise.all(
+      expenses.map(async expense => {
+        const { transfer } = await createTransfer(connectedAccount, expense.PayoutMethod, expense, {
+          batchGroupId: batchGroup.id,
+          token,
+        });
+        return transfer.id;
+      }),
+    );
 
-  batchGroup = await transferwise.getBatchGroup(token, profileId, batchGroup.id);
-  const includesEveryTransferCreated =
-    batchGroup.transferIds.every(id => transferIds.includes(id)) && batchGroup.transferIds.length == transferIds.length;
-  if (!includesEveryTransferCreated) {
-    await transferwise.cancelBatchGroup(token, profileId, batchGroup.id, batchGroup.version).catch(console.error);
-    throw new Error('Batch group does not include every transfer created');
-  }
+    batchGroup = await transferwise.getBatchGroup(token, profileId, batchGroup.id);
+    const includesEveryTransferCreated =
+      batchGroup.transferIds.every(id => transferIds.includes(id)) &&
+      batchGroup.transferIds.length === transferIds.length;
+    if (!includesEveryTransferCreated) {
+      throw new Error('Batch group does not include every transfer created');
+    }
 
-  batchGroup = await transferwise.completeBatchGroup(token, profileId, batchGroup.id, batchGroup.version);
+    batchGroup = await transferwise.completeBatchGroup(token, profileId, batchGroup.id, batchGroup.version);
 
-  for (const expense of expenses) {
-    await expense.update({
-      data: { ...expense.data, batchGroup },
-    });
+    await Promise.all(
+      expenses.map(expense =>
+        expense.update({
+          data: { ...expense.data, batchGroup },
+        }),
+      ),
+    );
+  } catch (e) {
+    logger.error(e);
+    await transferwise.cancelBatchGroup(token, profileId, batchGroup.id, batchGroup.version).catch(logger.error);
+    throw e;
   }
 
   return batchGroup;
