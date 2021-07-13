@@ -41,7 +41,7 @@ export default async function (app) {
       // the request body buffer to a new property called `rawBody` so we can
       // calculate the checksum to verify if the request is authentic.
       verify(req, res, buf) {
-        if (req.originalUrl.startsWith('/webhooks/transferwise')) {
+        if (req.originalUrl.startsWith('/webhooks/transferwise') || req.originalUrl.startsWith('/webhooks/privacy')) {
           req.rawBody = buf.toString();
         }
       },
