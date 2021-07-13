@@ -37,6 +37,7 @@ async function getToken(connectedAccount: ConnectedAccount): Promise<string> {
     return connectedAccount.token;
   }
   // OAuth token, require us to refresh every 12 hours
+  await connectedAccount.reload();
   const updatedAt = moment(connectedAccount.updatedAt);
   const diff = moment.duration(moment().diff(updatedAt)).asSeconds();
   const isOutdated = diff > <number>connectedAccount.data.expires_in - 60;
