@@ -258,11 +258,13 @@ async function createExpensesBatchGroup(
 
   batchGroup = await transferwise.completeBatchGroup(token, profileId, batchGroup.id, batchGroup.version);
 
-  for (const expense of expenses) {
-    await expense.update({
-      data: { ...expense.data, batchGroup },
-    });
-  }
+  await Promise.all(
+    expenses.map(expense =>
+      expense.update({
+        data: { ...expense.data, batchGroup },
+      }),
+    ),
+  );
 
   return batchGroup;
 }
