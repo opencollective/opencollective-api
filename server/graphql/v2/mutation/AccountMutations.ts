@@ -1,4 +1,4 @@
-import cryptoRandomString from 'crypto-random-string';
+import cryptoRandomString from 'crypto-random-string/index';
 import express from 'express';
 import { GraphQLBoolean, GraphQLFloat, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import GraphQLJSON from 'graphql-type-json';
