@@ -2,7 +2,7 @@
 import '../../server/env';
 
 import { assign, get, isArray, pick } from 'lodash';
-import PQueue from 'p-queue';
+import PQueue from 'p-queue/dist/index';
 
 import cache from '../../server/lib/cache';
 import * as github from '../../server/lib/github';

@@ -5,7 +5,7 @@ import fs from 'fs';
 
 import { ArgumentParser } from 'argparse';
 import { parse as json2csv } from 'json2csv';
-import PQueue from 'p-queue';
+import PQueue from 'p-queue/dist/index';
 
 import emailLib from '../../server/lib/email';
 import {
