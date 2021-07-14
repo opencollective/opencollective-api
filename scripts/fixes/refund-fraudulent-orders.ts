@@ -18,6 +18,7 @@ const refundOrder = async order => {
     );
     console.log(`Refunding transaction #${mainTransaction.id}...`);
     if (!IS_DRY) {
+      mainTransaction.PaymentMethod = await models.PaymentMethod.findByPk(mainTransaction.PaymentMethodId);
       await refundTransaction(mainTransaction, null, 'Fraudulent transaction');
     }
     console.log('Done.');
