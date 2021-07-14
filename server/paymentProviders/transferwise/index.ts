@@ -211,12 +211,6 @@ async function payExpense(
   return { quote, recipient, transfer, fund, paymentOption };
 }
 
-const makeBatchName = (expenses: Array<typeof models.Expense>) => {
-  const hash = crypto.createHash('sha1');
-  expenses.map(e => e.id).forEach(id => hash.update(id.toString()));
-  return hash.digest('hex');
-};
-
 async function createExpensesBatchGroup(
   host: typeof models.Collective,
   expenses: Array<typeof models.Expense>,
@@ -235,7 +229,7 @@ async function createExpensesBatchGroup(
   const profileId = connectedAccount.data.id;
   const token = await getToken(connectedAccount);
   let batchGroup = await transferwise.createBatchGroup(token, profileId, {
-    name: makeBatchName(expenses),
+    name: uuid(),
     sourceCurrency: connectedAccount.data.currency || host.currency,
   });
 
