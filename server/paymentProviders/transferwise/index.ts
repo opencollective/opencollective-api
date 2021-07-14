@@ -262,7 +262,7 @@ async function createExpensesBatchGroup(
       ),
     );
   } catch (e) {
-    logger.error(e);
+    logger.error('Error creating Wise batch group', e);
     await transferwise.cancelBatchGroup(token, profileId, batchGroup.id, batchGroup.version).catch(logger.error);
     throw e;
   }
@@ -284,19 +284,24 @@ async function fundExpensesBatchGroup(
   const profileId = connectedAccount.data.id;
   const token = await getToken(connectedAccount);
 
-  if (batchGroup) {
-    const fundResponse = await transferwise.fundBatchGroup(token, profileId, batchGroup.id);
-    if ('status' in fundResponse && 'headers' in fundResponse) {
-      const cacheKey = `transferwise_ott_${fundResponse.headers['x-2fa-approval']}`;
-      await cache.set(cacheKey, batchGroup.id, 30 * 60);
+  try {
+    if (batchGroup) {
+      const fundResponse = await transferwise.fundBatchGroup(token, profileId, batchGroup.id);
+      if ('status' in fundResponse && 'headers' in fundResponse) {
+        const cacheKey = `transferwise_ott_${fundResponse.headers['x-2fa-approval']}`;
+        await cache.set(cacheKey, batchGroup.id, 30 * 60);
+      }
+      return fundResponse;
+    } else if (x2faApproval) {
+      const cacheKey = `transferwise_ott_${x2faApproval}`;
+      const batchGroupId = await cache.get(cacheKey);
+      return await transferwise.fundBatchGroup(token, profileId, batchGroupId, x2faApproval);
+    } else {
+      throw new Error('fundBatchGroup: you need to pass either batchGroup or x2faApproval');
     }
-    return fundResponse;
-  } else if (x2faApproval) {
-    const cacheKey = `transferwise_ott_${x2faApproval}`;
-    const batchGroupId = await cache.get(cacheKey);
-    return await transferwise.fundBatchGroup(token, profileId, batchGroupId, x2faApproval);
-  } else {
-    throw new Error('fundBatchGroup: you need to pass either batchGroup or x2faApproval');
+  } catch (e) {
+    logger.error('Error funding Wise batch group', e);
+    throw e;
   }
 }
 
