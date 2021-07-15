@@ -164,21 +164,22 @@ jobs:
         working-directory: opencollective-frontend
         run: echo "FRONTEND_COMMIT_HASH=$(git rev-parse HEAD)" >> $GITHUB_ENV
 
-      - name: Restore build (frontend)
+      - name: Restore .next build (frontend)
         uses: actions/cache@v1
         id: next-build
         with:
-          path: opencollective-frontend/dist
+          path: opencollective-frontend/.next
           key: ${{ runner.os }}-next-build-${{ env.FRONTEND_COMMIT_HASH }}
 
-      - name: Restore .next folder (frontend)
+      - name: Restore .next cache (frontend)
+        if: steps.next-build.outputs.cache-hit != 'true'
         uses: actions/cache@v1
         with:
-          path: opencollective-frontend/.next
-          key: ${{ runner.os }}-nextjs-${{ env.FRONTEND_COMMIT_HASH }}
+          path: opencollective-frontend/.next/cache
+          key: ${{ runner.os }}-next-cache-${{ env.FRONTEND_COMMIT_HASH }}
           restore-keys: |
-            ${{ runner.os }}-nextjs-${{ env.FRONTEND_COMMIT_HASH }}
-            ${{ runner.os }}-nextjs-
+            ${{ runner.os }}-next-cache-${{ env.FRONTEND_COMMIT_HASH }}
+            ${{ runner.os }}-next-cache-
 
       - name: Build (frontend)
         if: steps.next-build.outputs.cache-hit != 'true'
