@@ -137,9 +137,9 @@ const removeReactionFromCommentOrUpdate = async (id, remoteUser, emoji, identifi
   }
 
   if (identifierType === IDENTIFIER_TYPES.COMMENT) {
-    return { comment: models.Comment.findByPk(commentOrUpdateId), update: null };
+    return { comment: await models.Comment.findByPk(commentOrUpdateId), update: null };
   } else {
-    return { update: models.Update.findByPk(commentOrUpdateId), comment: null };
+    return { update: await models.Update.findByPk(commentOrUpdateId), comment: null };
   }
 };
 
