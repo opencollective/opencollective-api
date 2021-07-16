@@ -2,10 +2,12 @@ import crypto from 'crypto';
 
 import config from 'config';
 import express from 'express';
-import { compact, find, has, pick, split, toNumber } from 'lodash';
+import { compact, find, has, isEmpty, pick, split, toNumber } from 'lodash';
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
+import activities from '../../constants/activities';
+import status from '../../constants/expense_status';
 import { BadRequest, TransferwiseError } from '../../graphql/errors';
 import cache from '../../lib/cache';
 import logger from '../../lib/logger';
@@ -181,6 +183,9 @@ async function createTransfer(
     return { quote, recipient, transfer, paymentOption };
   } catch (e) {
     logger.error(`Wise: Error creating transaction for expense: ${expense.id}`, e);
+    await expense.update({ status: status.ERROR });
+    const user = await models.User.findByPk(expense.lastEditedById);
+    await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, user, { error: { message: e.message } });
     throw e;
   }
 }
@@ -243,24 +248,28 @@ async function createExpensesBatchGroup(
   });
 
   try {
-    const transferIds = await Promise.all(
-      expenses.map(async expense => {
-        const { transfer } = await createTransfer(connectedAccount, expense.PayoutMethod, expense, {
-          batchGroupId: batchGroup.id,
-          token,
-        });
-        return transfer.id;
-      }),
+    const paidExpenses = compact(
+      await Promise.all(
+        expenses.map(async expense => {
+          try {
+            await createTransfer(connectedAccount, expense.PayoutMethod, expense, {
+              batchGroupId: batchGroup.id,
+              token,
+            });
+            return expense;
+          } catch (e) {
+            // createTransfer will automatically mark the Expense as error and comment the issue
+            // Here we just ignore so we can pay the rest of the batch.
+          }
+        }),
+      ),
     );
 
-    batchGroup = await transferwise.getBatchGroup(token, profileId, batchGroup.id);
-    const includesEveryTransferCreated =
-      batchGroup.transferIds.every(id => transferIds.includes(id)) &&
-      batchGroup.transferIds.length === transferIds.length;
-    if (!includesEveryTransferCreated) {
-      throw new Error('Batch group does not include every transfer created');
+    if (isEmpty(paidExpenses)) {
+      throw new Error('All expenses failed, there is no batch to pay.');
     }
 
+    batchGroup = await transferwise.getBatchGroup(token, profileId, batchGroup.id);
     batchGroup = await transferwise.completeBatchGroup(token, profileId, batchGroup.id, batchGroup.version);
 
     await Promise.all(

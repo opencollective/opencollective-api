@@ -13,21 +13,24 @@ import models, { Op } from '../models';
 import transferwise from '../paymentProviders/transferwise';
 
 const processPaidExpense = (host, remoteUser, fundData) => async expense => {
-  const payoutMethod = await expense.getPayoutMethod();
-  const { feesInHostCurrency } = await getExpenseFeesInHostCurrency({
-    host,
-    expense,
-    payoutMethod,
-    fees: {},
-    forceManual: false,
-  });
-  return createTransferWiseTransactionsAndUpdateExpense({
-    host,
-    expense,
-    data: { ...pick(expense.data, ['transfer']), fundData },
-    fees: feesInHostCurrency,
-    remoteUser,
-  });
+  await expense.reload();
+  if (expense.data?.transfer) {
+    const payoutMethod = await expense.getPayoutMethod();
+    const { feesInHostCurrency } = await getExpenseFeesInHostCurrency({
+      host,
+      expense,
+      payoutMethod,
+      fees: {},
+      forceManual: false,
+    });
+    return createTransferWiseTransactionsAndUpdateExpense({
+      host,
+      expense,
+      data: { ...pick(expense.data, ['transfer']), fundData },
+      fees: feesInHostCurrency,
+      remoteUser,
+    });
+  }
 };
 
 export async function payBatch(
