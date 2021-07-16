@@ -355,6 +355,22 @@ async function getAvailableCurrencies(
   return currencies.filter(c => !currencyBlockList.includes(c.code));
 }
 
+function validatePayoutMethod(connectedAccount: typeof models.ConnectedAccount, payoutMethod: PayoutMethod): void {
+  const currency = (<RecipientAccount>payoutMethod.data)?.currency;
+  if (connectedAccount.data?.type === 'business' && blockedCurrenciesForBusinessProfiles.includes(currency)) {
+    throw new Error(`Sorry, this host's business profile can not create a transaction to ${currency}`);
+  }
+  if (
+    connectedAccount.data?.details?.companyType === 'NON_PROFIT_CORPORATION' &&
+    blockedCurrenciesForNonProfits.includes(currency)
+  ) {
+    throw new Error(`Sorry, this host's non profit corporation can not create a transaction to ${currency}`);
+  }
+  if (connectedAccount.data?.blockedCurrencies?.includes(currency)) {
+    throw new Error(`Sorry, this host's account can not create a transaction to ${currency}`);
+  }
+}
+
 async function getRequiredBankInformation(
   host: typeof models.Collective,
   currency: string,
@@ -506,5 +522,6 @@ export default {
   createExpensesBatchGroup,
   fundExpensesBatchGroup,
   setUpWebhook,
+  validatePayoutMethod,
   oauth,
 };

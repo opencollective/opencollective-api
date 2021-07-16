@@ -5,6 +5,7 @@ import { isEmail } from 'validator';
 import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
 import sequelize from '../lib/sequelize';
 import { objHasOnlyKeys } from '../lib/utils';
+import { RecipientAccount as BankAccountPayoutMethodData } from '../types/transferwise';
 
 import models from '.';
 
@@ -30,7 +31,11 @@ export interface OtherPayoutMethodData {
 }
 
 /** Group all the possible types for payout method's data */
-export type PayoutMethodDataType = PaypalPayoutMethodData | OtherPayoutMethodData | Record<string, unknown>;
+export type PayoutMethodDataType =
+  | PaypalPayoutMethodData
+  | OtherPayoutMethodData
+  | BankAccountPayoutMethodData
+  | Record<string, unknown>;
 
 /**
  * Sequelize model to represent an PayoutMethod, linked to the `PayoutMethods` table.
@@ -60,6 +65,8 @@ export class PayoutMethod extends Model {
         return { email: this.data['email'] } as PaypalPayoutMethodData;
       case PayoutMethodTypes.OTHER:
         return { content: this.data['content'] } as OtherPayoutMethodData;
+      case PayoutMethodTypes.BANK_ACCOUNT:
+        return this.data as BankAccountPayoutMethodData;
       default:
         return {};
     }
