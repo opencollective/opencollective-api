@@ -160,21 +160,25 @@ jobs:
         working-directory: opencollective-frontend
         run: CYPRESS_INSTALL_BINARY=0 npm ci --prefer-offline --no-audit
 
-      - name: Restore build (frontend)
+      - name: Set commit hash (frontend)
+        working-directory: opencollective-frontend
+        run: echo "FRONTEND_COMMIT_HASH=$(git rev-parse HEAD)" >> $GITHUB_ENV
+
+      - name: Restore .next build (frontend)
         uses: actions/cache@v1
         id: next-build
         with:
-          path: opencollective-frontend/dist
-          key: ${{ runner.os }}-next-build-${{ hashFiles('opencollective-frontend/**') }}
+          path: opencollective-frontend/.next
+          key: ${{ runner.os }}-next-build-${{ env.FRONTEND_COMMIT_HASH }}
 
       - name: Restore .next cache (frontend)
         if: steps.next-build.outputs.cache-hit != 'true'
         uses: actions/cache@v1
         with:
           path: opencollective-frontend/.next/cache
-          key: ${{ runner.os }}-next-cache-${{ hashFiles('opencollective-frontend/**') }}
+          key: ${{ runner.os }}-next-cache-${{ env.FRONTEND_COMMIT_HASH }}
           restore-keys: |
-            ${{ runner.os }}-next-cache-${{ hashFiles('opencollective-frontend/**') }}
+            ${{ runner.os }}-next-cache-${{ env.FRONTEND_COMMIT_HASH }}
             ${{ runner.os }}-next-cache-
 
       - name: Build (frontend)
