@@ -578,12 +578,14 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
       }
     }
 
-    const emailOptions = {
-      from: `${collective.name} <no-reply@${collective.slug}.opencollective.com>`,
-      attachments,
-    };
+    if (fromCollective.ParentCollectiveId !== collective.id) {
+      const emailOptions = {
+        from: `${collective.name} <no-reply@${collective.slug}.opencollective.com>`,
+        attachments,
+      };
 
-    return emailLib.send('thankyou', user.email, data, emailOptions);
+      return emailLib.send('thankyou', user.email, data, emailOptions);
+    }
   }
 };
 
