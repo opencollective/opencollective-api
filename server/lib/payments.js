@@ -578,6 +578,7 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
       }
     }
 
+    // Don't send a "thank you" email when moving funds between a sub-collective and its parent
     if (fromCollective.ParentCollectiveId !== collective.id) {
       const emailOptions = {
         from: `${collective.name} <no-reply@${collective.slug}.opencollective.com>`,
