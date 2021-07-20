@@ -71,7 +71,7 @@
     "express-limiter": "1.6.1",
     "express-session": "1.17.2",
     "express-ws": "4.0.0",
-    "forest-express-sequelize": "6.7.7",
+    "forest-express-sequelize": "8.0.0",
     "fs-extra": "10.0.0",
     "get-urls": "10.0.0",
     "googleapis": "78.0.0",
