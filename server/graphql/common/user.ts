@@ -69,8 +69,10 @@ export const createUser = (
 export const hasSeenLatestChangelogEntry = async (user: typeof models.User): Promise<boolean> => {
   const cacheKey = 'latest_changelog_publish_date';
   let latestChangelogUpdatePublishDate = await cache.get(cacheKey);
+  // Make sure we don't show the changelog notifications for newly confirmed users
+  const userChangelogViewDate = user.changelogViewDate || user.confirmedAt || user.createdAt;
   if (latestChangelogUpdatePublishDate) {
-    return user?.changelogViewDate >= new Date(latestChangelogUpdatePublishDate);
+    return userChangelogViewDate >= new Date(latestChangelogUpdatePublishDate);
   } else {
     const collectiveId = await fetchCollectiveId('opencollective');
     const latestChangelogUpdate = await models.Update.findOne({
@@ -89,5 +91,5 @@ export const hasSeenLatestChangelogEntry = async (user: typeof models.User): Pro
     // keep the latest change log publish date for a day in cache
     cache.set(cacheKey, latestChangelogUpdatePublishDate, 24 * 60 * 60);
   }
-  return user?.changelogViewDate >= latestChangelogUpdatePublishDate;
+  return userChangelogViewDate >= latestChangelogUpdatePublishDate;
 };

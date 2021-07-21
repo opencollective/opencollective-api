@@ -631,6 +631,7 @@ export async function createExpense(
     const host = await collective.getHostCollective();
     const [connectedAccount] = await host.getConnectedAccounts({ where: { service: 'transferwise' } });
     if (connectedAccount) {
+      paymentProviders.transferwise.validatePayoutMethod(connectedAccount, payoutMethod);
       recipient = await paymentProviders.transferwise.createRecipient(connectedAccount, payoutMethod);
     }
   }

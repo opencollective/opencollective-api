@@ -15,6 +15,7 @@ export const OPEN_COLLECTIVE_SLACK_CHANNEL = {
 
 // Mattermost is compatible with Slack webhooks
 const KNOWN_MATTERMOST_INSTANCES = ['https://chat.diglife.coop/hooks/'];
+const DISCORD_REGEX = /^https:\/\/discord(app)?\.com\/api\/webhooks\/.+$/;
 
 export default {
   /*
@@ -67,9 +68,15 @@ export default {
         return resolve();
       }
 
-      return new Slack(webhookUrl, {}).send(slackOptions, err => {
+      let targetUrl = webhookUrl;
+      if (targetUrl.match(DISCORD_REGEX) && !targetUrl.match(/\/slack\/*$/)) {
+        // Discord slack-compatible webhook - See https://discord.com/developers/docs/resources/webhook#execute-slackcompatible-webhook
+        targetUrl = `${targetUrl.replace(/\/+$/, '')}/slack`;
+      }
+
+      return new Slack(targetUrl, {}).send(slackOptions, err => {
         if (err) {
-          logger.warn(`SlackLib.postMessage failed for ${webhookUrl}:`, err);
+          logger.warn(`SlackLib.postMessage failed for ${targetUrl}:`, err);
           return reject(err);
         }
         return resolve();
@@ -80,8 +87,7 @@ export default {
   isSlackWebhookUrl(url) {
     if (url.startsWith('https://hooks.slack.com/')) {
       return true;
-    } else if (url.match(/^https:\/\/discord(app)?\.com\/api\/webhooks\/.+\/slack$/)) {
-      // Discord slack-compatible webhook - See https://discord.com/developers/docs/resources/webhook#execute-slackcompatible-webhook
+    } else if (url.match(DISCORD_REGEX)) {
       return true;
     }
 

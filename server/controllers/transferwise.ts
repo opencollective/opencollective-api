@@ -8,6 +8,7 @@ import {
 } from '../graphql/common/expenses';
 import { idDecode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
 import errors from '../lib/errors';
+import logger from '../lib/logger';
 import models, { Op } from '../models';
 import transferwise from '../paymentProviders/transferwise';
 
@@ -93,6 +94,7 @@ export async function payBatch(
       }
     }
   } catch (e) {
+    logger.error('Error paying Wise batch group', e);
     res
       .status(e.code || 500)
       .send(e.toString())

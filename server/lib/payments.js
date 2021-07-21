@@ -578,12 +578,15 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
       }
     }
 
-    const emailOptions = {
-      from: `${collective.name} <no-reply@${collective.slug}.opencollective.com>`,
-      attachments,
-    };
+    // Don't send a "thank you" email when moving funds between a sub-collective and its parent
+    if (fromCollective.ParentCollectiveId !== collective.id) {
+      const emailOptions = {
+        from: `${collective.name} <no-reply@${collective.slug}.opencollective.com>`,
+        attachments,
+      };
 
-    return emailLib.send('thankyou', user.email, data, emailOptions);
+      return emailLib.send('thankyou', user.email, data, emailOptions);
+    }
   }
 };
 
