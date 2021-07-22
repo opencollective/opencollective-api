@@ -54,7 +54,7 @@ If something goes wrong, you can easily rollback the deployment with the followi
 heroku releases --app opencollective-prod-api
 ```
 
-**Note:** For staging it will be, `heroku releases --app opencollective-staging-api` 
+**Note:** For staging it will be, `heroku releases --app opencollective-staging-api`
 
 This will give an output of all the Heroku releases. Something like,
 
