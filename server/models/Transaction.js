@@ -470,9 +470,9 @@ function defineModel() {
       'isRefund',
     ];
 
-    // We only add tax amount for european hosts
-    // TODO: Hosts with GST should also have this column
-    if (transactions[0].hostCurrency === 'EUR') {
+    // We only add tax amount for relevant hosts (subject to VAT or GST)
+    const mightHaveTaxes = transaction => transaction.taxAmount || ['NZD', 'EUR'].includes(transaction.hostCurrency);
+    if (transactions.some(mightHaveTaxes)) {
       attributes.splice(5, 0, 'taxAmount');
     }
 
