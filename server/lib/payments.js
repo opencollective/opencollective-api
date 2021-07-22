@@ -469,8 +469,10 @@ export const executeOrder = async (user, order, options = {}) => {
   if (transaction) {
     await order.update({ status: status.PAID, processedAt: new Date(), data: omit(order.data, ['paymentIntent']) });
 
-    // Register user as collective backer
-    await order.getOrCreateMembers();
+    // Register user as collective backer (don't do for internal transfers)
+    if (order.fromCollective?.ParentCollectiveId !== order.collective.id) {
+      await order.getOrCreateMembers();
+    }
 
     // Create a Pre-Paid Payment Method for the prepaid budget
     if (isPrepaidBudgetOrder(order)) {
