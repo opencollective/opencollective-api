@@ -213,12 +213,7 @@ async function sumCollectivesTransactions(
     where.kind = kind;
   }
   if (isDebt !== undefined) {
-    if (!isDebt) {
-      // TODO: isDebt should be non-nullable to avoid this
-      where.isDebt = { [Op.not]: true };
-    } else {
-      where.isDebt = isDebt;
-    }
+    where.isDebt = isDebt;
   }
 
   const totals = {};
