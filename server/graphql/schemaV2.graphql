@@ -5407,26 +5407,6 @@ type Mutation {
   createComment(comment: CommentCreateInput!): Comment
 
   """
-  @deprecated: Please use the new emojiReactionMutations
-  """
-  addCommentReaction(
-    """
-    The emoji associated with the reaction
-    """
-    emoji: String!
-
-    """
-    A unique identifier for the comment id associated with this comment reaction
-    """
-    comment: CommentReferenceInput!
-  ): Comment!
-
-  """
-  @deprecated: Please use the new emojiReactionMutations
-  """
-  removeCommentReaction(comment: CommentReferenceInput!, emoji: String!): Comment!
-
-  """
   Connect external account to Open Collective Account
   """
   createConnectedAccount(
