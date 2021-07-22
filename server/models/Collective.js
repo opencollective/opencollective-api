@@ -762,8 +762,22 @@ function defineModel() {
     return new Promise(resolve => {
       return this.getParentCollective().then(parentCollective => {
         const url = `${config.host.website}/${parentCollective.slug}/events/${this.slug}`;
-        const start = moment(this.startsAt).format('YYYY-M-D-H-m').split('-');
-        const end = moment(this.endsAt).format('YYYY-M-D-H-m').split('-');
+        const startDate = new Date(this.startsAt);
+        const endDate = new Date(this.endsAt);
+        const start = [
+          startDate.getFullYear(),
+          startDate.getMonth(),
+          startDate.getDate(),
+          startDate.getHours(),
+          startDate.getMinutes(),
+        ];
+        const end = [
+          endDate.getFullYear(),
+          endDate.getMonth(),
+          endDate.getDate(),
+          endDate.getHours(),
+          endDate.getMinutes(),
+        ];
         let description = this.description || '';
         if (this.longDescription) {
           description += `\n\n${this.longDescription}`;
