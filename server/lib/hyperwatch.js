@@ -4,7 +4,24 @@ import expressBasicAuth from 'express-basic-auth';
 import expressWs from 'express-ws';
 import { get, pick } from 'lodash';
 
-import { parseToBoolean } from './utils';
+import { md5, parseToBoolean } from './utils';
+
+const computeMask = req => {
+  const maskHeaders = pick(req.headers, [
+    'accept',
+    'accept-language',
+    'cache-control',
+    'dnt',
+    'pragma',
+    'x-requested-with',
+  ]);
+
+  const maskString = Object.keys(maskHeaders)
+    .map(key => [key, maskHeaders[key]].join(':'))
+    .join(';');
+
+  return md5(maskString);
+};
 
 const load = async app => {
   if (!config.hyperwatch || parseToBoolean(config.hyperwatch.enabled) !== true) {
@@ -43,6 +60,8 @@ const load = async app => {
 
   app.use((req, res, next) => {
     req.startAt = req.startAt || new Date();
+
+    req.mask = computeMask(req);
 
     res.on('finish', async () => {
       const { success, reject } = expressInput;

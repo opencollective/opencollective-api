@@ -98,7 +98,7 @@ const orderMutations = {
       };
 
       const userArgent = req.header('user-agent');
-      const result = await createOrderLegacy(legacyOrderObj, req.loaders, req.remoteUser, req.ip, userArgent);
+      const result = await createOrderLegacy(legacyOrderObj, req.loaders, req.remoteUser, req.ip, userArgent, req.mask);
       return { order: result.order, stripeError: result.stripeError, guestToken: result.order.data?.guestToken };
     },
   },
