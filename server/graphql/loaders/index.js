@@ -15,7 +15,7 @@ import conversationLoaders from './conversation';
 import * as expenseLoaders from './expenses';
 import { createDataLoaderWithOptions, sortResults } from './helpers';
 import { generateCollectivePayoutMethodsLoader, generateCollectivePaypalPayoutMethodsLoader } from './payout-method';
-import { hostFeeAmountForTransaction } from './transactions';
+import * as transactionLoaders from './transactions';
 import updatesLoader from './updates';
 import { generateCanSeeUserPrivateInfoLoader } from './user';
 import { generateCollectiveVirtualCardLoader, generateHostCollectiveVirtualCardLoader } from './virtual-card';
@@ -645,7 +645,8 @@ export const loaders = req => {
         });
       }),
     ),
-    hostFeeAmountForTransaction: hostFeeAmountForTransaction,
+    hostFeeAmountForTransaction: transactionLoaders.hostFeeAmountForTransaction,
+    relatedTransactions: transactionLoaders.relatedTransactions,
   };
 
   return context.loaders;

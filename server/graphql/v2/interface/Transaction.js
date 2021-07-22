@@ -2,6 +2,7 @@ import {
   GraphQLBoolean,
   GraphQLInt,
   GraphQLInterfaceType,
+  GraphQLList,
   GraphQLNonNull,
   GraphQLObjectType,
   GraphQLString,
@@ -138,6 +139,15 @@ export const Transaction = new GraphQLInterfaceType({
       },
       refundTransaction: {
         type: Transaction,
+      },
+      relatedTransactions: {
+        type: new GraphQLNonNull(new GraphQLList(Transaction)),
+        args: {
+          kind: {
+            type: new GraphQLList(TransactionKind),
+            description: 'Filter by kind',
+          },
+        },
       },
     };
   },
@@ -331,6 +341,23 @@ export const TransactionFields = () => {
       type: Transaction,
       resolve(transaction) {
         return transaction.getRefundTransaction();
+      },
+    },
+    relatedTransactions: {
+      type: new GraphQLNonNull(new GraphQLList(Transaction)),
+      args: {
+        kind: {
+          type: new GraphQLList(TransactionKind),
+          description: 'Filter by kind',
+        },
+      },
+      async resolve(transaction, args, req) {
+        const relatedTransactions = await req.loaders.Transaction.relatedTransactions.load(transaction);
+        if (args.kind) {
+          return relatedTransactions.filter(t => args.kind.includes(t.kind));
+        } else {
+          return relatedTransactions;
+        }
       },
     },
   };
