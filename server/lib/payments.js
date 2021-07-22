@@ -394,7 +394,8 @@ export async function associateTransactionRefundId(transaction, refund, data) {
 export const sendEmailNotifications = (order, transaction) => {
   debug('sendEmailNotifications');
   // for gift cards and manual payment methods
-  if (transaction) {
+  // Don't send a "thank you" email when moving funds between a sub-collective and its parent
+  if (transaction && order.fromCollective?.ParentCollectiveId !== order.collective?.id) {
     sendOrderConfirmedEmail(order, transaction); // async
   } else if (order.status === status.PENDING) {
     sendOrderProcessingEmail(order); // This is the one for the Contributor
@@ -580,15 +581,12 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
       }
     }
 
-    // Don't send a "thank you" email when moving funds between a sub-collective and its parent
-    if (fromCollective.ParentCollectiveId !== collective.id) {
-      const emailOptions = {
-        from: `${collective.name} <no-reply@${collective.slug}.opencollective.com>`,
-        attachments,
-      };
+    const emailOptions = {
+      from: `${collective.name} <no-reply@${collective.slug}.opencollective.com>`,
+      attachments,
+    };
 
-      return emailLib.send('thankyou', user.email, data, emailOptions);
-    }
+    return emailLib.send('thankyou', user.email, data, emailOptions);
   }
 };
 
