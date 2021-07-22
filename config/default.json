@@ -47,6 +47,7 @@
       "perEmail": 10,
       "perEmailForCollective": 2,
       "perIp": 5,
+      "perMask": 5,
       "forCollective": 10
     },
     "giftCards": {
@@ -57,6 +58,7 @@
       "confirmToken": 15
     },
     "skipCleanOrdersLimitSlugs": "",
+    "enabledMasks": "",
     "sendGuestConfirmPerMinutePerEmail": 1,
     "sendGuestConfirmPerMinutePerIp": 2,
     "confirmGuestAccountPerMinutePerIp": 5,

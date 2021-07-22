@@ -39,7 +39,7 @@ const oneHourInSeconds = 60 * 60;
 
 const debug = debugLib('orders');
 
-function getOrdersLimit(order, reqIp) {
+function getOrdersLimit(order, reqIp, reqMask) {
   const limits = [];
 
   const ordersLimits = config.limits.ordersPerHour;
@@ -84,6 +84,13 @@ function getOrdersLimit(order, reqIp) {
     }
   }
 
+  if (reqMask && config.limits.enabledMasks.includes(reqMask)) {
+    limits.push({
+      key: `order_limit_on_mask_${reqMask}`,
+      value: ordersLimits.perMask,
+    });
+  }
+
   // Guest Contributions
   if (guestInfo && collectiveId) {
     limits.push({
@@ -95,16 +102,18 @@ function getOrdersLimit(order, reqIp) {
   return limits;
 }
 
-async function checkOrdersLimit(order, reqIp) {
+async function checkOrdersLimit(order, reqIp, reqMask) {
   if (['ci', 'test'].includes(config.env)) {
     return;
   }
+
+  debug(`checkOrdersLimit reqIp:${reqIp} reqMask:${reqMask}`);
 
   // Generic error message
   // const errorMessage = 'Error while processing your request, please try again or contact support@opencollective.com.';
   const errorMessage = 'Your card was declined.';
 
-  const limits = getOrdersLimit(order, reqIp);
+  const limits = getOrdersLimit(order, reqIp, reqMask);
 
   for (const limit of limits) {
     const count = (await cache.get(limit.key)) || 0;
@@ -125,8 +134,8 @@ async function checkOrdersLimit(order, reqIp) {
   }
 }
 
-async function cleanOrdersLimit(order, reqIp) {
-  const limits = getOrdersLimit(order, reqIp);
+async function cleanOrdersLimit(order, reqIp, reqMask) {
+  const limits = getOrdersLimit(order, reqIp, reqMask);
 
   for (const limit of limits) {
     cache.del(limit.key);
@@ -257,7 +266,7 @@ const hasPaymentMethod = order => {
   }
 };
 
-export async function createOrder(order, loaders, remoteUser, reqIp, userAgent) {
+export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, reqMask) {
   debug('Beginning creation of order', order);
 
   if (remoteUser && !canUseFeature(remoteUser, FEATURE.ORDER)) {
@@ -266,7 +275,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent) 
     await checkGuestContribution(order, loaders);
   }
 
-  await checkOrdersLimit(order, reqIp);
+  await checkOrdersLimit(order, reqIp, reqMask);
   const recaptchaResponse = await checkRecaptcha(order, remoteUser, reqIp);
 
   let orderCreated, isGuest, guestToken;
@@ -413,7 +422,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent) 
         fromCollective = await models.Collective.createOrganization(order.fromCollective, remoteUser, remoteUser);
       } else {
         // Create or retrieve guest profile from GUEST_TOKEN
-        const creationRequest = { ip: reqIp, userAgent };
+        const creationRequest = { ip: reqIp, userAgent, mask: reqMask };
         const guestProfile = await getOrCreateGuestProfile(order.guestInfo, creationRequest);
         remoteUser = guestProfile.user;
         fromCollective = guestProfile.collective;
@@ -504,6 +513,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent) 
       processedAt: paymentRequired || !collective.isActive ? null : new Date(),
       data: {
         reqIp,
+        reqMask,
         recaptchaResponse,
         tax: taxInfo,
         customData: order.customData,
@@ -591,7 +601,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent) 
     const skipCleanOrdersLimitSlugs = config.limits.skipCleanOrdersLimitSlugs;
 
     if (!skipCleanOrdersLimitSlugs || !skipCleanOrdersLimitSlugs.includes(collective.slug)) {
-      cleanOrdersLimit(order, reqIp);
+      cleanOrdersLimit(order, reqIp, reqMask);
     }
 
     order = await models.Order.findByPk(orderCreated.id);
