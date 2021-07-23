@@ -263,7 +263,6 @@ export default app => {
   /**
    * External services
    */
-  app.get('/services/email/approve', email.approve);
   app.get('/services/email/unsubscribe/:email/:slug/:type/:token', email.unsubscribe);
 
   /**

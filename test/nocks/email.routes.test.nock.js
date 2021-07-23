@@ -197,27 +197,6 @@ export default function () {
       },
     );
 
-  nock('http://127.0.0.1:62358')
-    .get('/services/email/approve')
-    .query({
-      messageId:
-        'eyJwIjpmYWxzZSwiayI6Ijc3NjFlZTBjLTc1NGQtNGIwZi05ZDlkLWU1NTgxODJkMTlkOSIsInMiOiI2NDhjZDg1ZTE1IiwiYyI6InNhb3JkIn0',
-      approver: 'asood123%2Btest%40gmail.com',
-    })
-    .reply(
-      200,
-      'Email from xdamman+test@gmail.com with subject "test collective admins" approved for the admins@testcollective.opencollective.com mailing list',
-      {
-        'x-powered-by': 'Express',
-        'access-control-allow-origin': '*',
-        'content-type': 'text/html; charset=utf-8',
-        'content-length': '139',
-        etag: 'W/"8b-rTYyNpNxVQPb3p+HWJXtCw"',
-        date: 'Fri, 19 Aug 2016 16:15:42 GMT',
-        connection: 'close',
-      },
-    );
-
   nock('https://so.api.mailgun.net:443')
     .get(
       '/v3/domains/opencollective.com/messages/eyJwIjpmYWxzZSwiayI6IjY5MTdlYTZlLWVhNzctNGQzOC04OGUxLWMzMTQwMzdmNGRhNiIsInMiOiIwMjNjMzgwYWFlIiwiYyI6InNhaWFkIn0=',
@@ -230,35 +209,6 @@ export default function () {
         date: 'Fri, 19 Aug 2016 16:15:42 GMT',
         'content-type': 'application/json',
         'content-length': '36',
-        connection: 'close',
-      },
-    );
-
-  nock('http://127.0.0.1:62361')
-    .get('/services/email/approve')
-    .query({
-      messageId:
-        'eyJwIjpmYWxzZSwiayI6IjY5MTdlYTZlLWVhNzctNGQzOC04OGUxLWMzMTQwMzdmNGRhNiIsInMiOiIwMjNjMzgwYWFlIiwiYyI6InNhaWFkIn0',
-      approver: 'xdamman%40gmail.com',
-    })
-    .reply(
-      404,
-      {
-        error: {
-          code: 404,
-          type: 'not_found',
-          message:
-            'Message eyJwIjpmYWxzZSwiayI6IjY5MTdlYTZlLWVhNzctNGQzOC04OGUxLWMzMTQwMzdmNGRhNiIsInMiOiIwMjNjMzgwYWFlIiwiYyI6InNhaWFkIn0= not found',
-        },
-      },
-      {
-        'x-powered-by': 'Express',
-        'access-control-allow-origin': '*',
-        'cache-control': 'no-cache',
-        'content-type': 'application/json; charset=utf-8',
-        'content-length': '184',
-        etag: 'W/"b8-A0be2BUBMl1F96l+eoG7Bw"',
-        date: 'Fri, 19 Aug 2016 16:15:42 GMT',
         connection: 'close',
       },
     );
