@@ -19,7 +19,6 @@ enum FEATURE {
   COLLECTIVE_GOALS = 'COLLECTIVE_GOALS',
   /**
    * Whether this profile has the "top contributors" section enabled.
-   * TODO: This is a frontend setting specific to the collective page, "features" shouldn't be used for that
    */
   TOP_FINANCIAL_CONTRIBUTORS = 'TOP_FINANCIAL_CONTRIBUTORS',
   /** Whether this profile can host conversations */
@@ -27,12 +26,15 @@ enum FEATURE {
   /** Whether this profile can host updates */
   UPDATES = 'UPDATES',
   /**
+   * Whether this profile can have a long description
+   */
+  ABOUT = 'ABOUT',
+  /**
    * Whether this profile has the "team" section displayed
-   * TODO: This is a frontend setting specific to the collective page, "features" shouldn't be used for that
    */
   TEAM = 'TEAM',
   /**
-   * Whether user can create collectives.
+   * Whether user can create orders.
    * TODO: This is a user feature, not a collective feature. We should separate the two
    */
   ORDER = 'ORDER',
