@@ -1,10 +1,11 @@
 import expenseStatus from '../constants/expense_status';
+import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
 import models, { Op, sequelize } from '../models';
 
 import { getFxRate } from './currency';
 
-const { CREDIT } = TransactionTypes;
+const { CREDIT, DEBIT } = TransactionTypes;
 const { PROCESSING, SCHEDULED_FOR_PAYMENT } = expenseStatus;
 
 /* Versions of the balance algorithm:
@@ -105,19 +106,31 @@ export function getTotalAmountReceivedAmount(collective, { startDate, endDate, c
   });
 }
 
-export function getTotalNetAmountReceivedAmount(collective, { startDate, endDate, currency, version } = {}) {
+export async function getTotalNetAmountReceivedAmount(collective, { startDate, endDate, currency, version } = {}) {
   version = version || collective.settings?.budget?.version || 'v1';
   currency = currency || collective.currency;
-  return sumCollectiveTransactions(collective, {
+
+  const totalReceived = await sumCollectiveTransactions(collective, {
     startDate,
     endDate,
     currency,
     column: ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency',
-    kind: ['CONTRIBUTION', 'ADDED_FUNDS', 'HOST_FEE', 'PAYMENT_PROCESSOR_FEE'],
-    isDebt: false,
+    transactionType: CREDIT,
     hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
     excludeInternals: true,
   });
+
+  const totalFees = await sumCollectiveTransactions(collective, {
+    startDate,
+    endDate,
+    currency,
+    column: ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency',
+    transactionType: DEBIT,
+    kind: TransactionKind.HOST_FEE,
+    excludeInternals: true,
+  });
+
+  return { ...totalReceived, value: totalReceived.value + totalFees.value };
 }
 
 export async function getTotalMoneyManagedAmount(host, { startDate, endDate, currency, version } = {}) {
