@@ -43,3 +43,18 @@ export const hostFeeAmountForTransaction: DataLoader<number, number[]> = new Dat
     });
   },
 );
+
+export const relatedTransactions: DataLoader<typeof models.Transaction, typeof models.Transaction[]> = new DataLoader(
+  async (transactions: typeof models.Transaction[]) => {
+    const transactionGroups = transactions.map(transaction => transaction.TransactionGroup);
+    const relatedTransactions = await models.Transaction.findAll({ where: { TransactionGroup: transactionGroups } });
+    const groupedTransactions = groupBy(relatedTransactions, 'TransactionGroup');
+    return transactions.map(transaction => {
+      if (groupedTransactions[transaction.TransactionGroup]) {
+        return groupedTransactions[transaction.TransactionGroup].filter(t => t.id !== transaction.id);
+      } else {
+        return [];
+      }
+    });
+  },
+);
