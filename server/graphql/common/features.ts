@@ -43,6 +43,8 @@ export const getFeatureStatusResolver =
     // Add some special cases that check for data to see if the feature is `ACTIVE` or just `AVAILABLE`
     // Right now only UPDATES, CONVERSATIONS, and RECURRING CONTRIBUTIONS
     switch (feature) {
+      case FEATURE.ABOUT:
+        return collective.longDescription ? FEATURE_STATUS.ACTIVE : FEATURE_STATUS.AVAILABLE;
       case FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS:
         return checkReceiveFinancialContributions(collective);
       case FEATURE.RECEIVE_EXPENSES:
