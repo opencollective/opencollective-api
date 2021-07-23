@@ -3,11 +3,11 @@
  * Host's connected accounts.
  */
 
-import '../server/env';
+import '../../server/env';
 
-import logger from '../server/lib/logger';
-import * as PaypalLib from '../server/lib/paypal';
-import models, { Op, sequelize } from '../server/models';
+import logger from '../../server/lib/logger';
+import * as PaypalLib from '../../server/lib/paypal';
+import models, { Op, sequelize } from '../../server/models';
 
 const getAllHostsWithPaypalAccounts = () => {
   return models.Collective.findAll({
