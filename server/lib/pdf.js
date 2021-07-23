@@ -13,7 +13,7 @@ export const getTransactionPdf = async (transaction, user) => {
   if (parseToBoolean(config.pdfService.fetchTransactionsReceipts) === false) {
     return;
   }
-  const pdfUrl = `${config.host.pdf}/transactions/${transaction.uuid}/invoice.pdf`;
+  const pdfUrl = `${config.host.pdf}/receipts/transactions/${transaction.uuid}/receipt.pdf`;
   const accessToken = user.jwt({}, TOKEN_EXPIRATION_PDF);
   const headers = {
     Authorization: `Bearer ${accessToken}`,
@@ -125,7 +125,7 @@ export const getConsolidatedInvoicePdfs = async fromCollective => {
     });
 
     // Call PDF service for the invoice
-    const pdfUrl = `${config.host.pdf}/collectives/${fromCollectiveSlug}/${toOrgCollectiveSlug}/${startOfMonth}/${endOfMonth}.pdf`;
+    const pdfUrl = `${config.host.pdf}/receipts/collectives/${fromCollectiveSlug}/${toOrgCollectiveSlug}/${startOfMonth}/${endOfMonth}/receipt.pdf`;
     const accessToken = fromCollectiveUser.jwt({}, TOKEN_EXPIRATION_PDF);
     const headers = {
       Authorization: `Bearer ${accessToken}`,
