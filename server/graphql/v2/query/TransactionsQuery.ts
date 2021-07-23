@@ -81,6 +81,11 @@ const TransactionsQuery = {
     kinds: {
       type: new GraphQLList(TransactionKind),
       description: 'To filter by transaction kind',
+      deprecationReason: '2020-06-30: Please use kind (singular)',
+    },
+    kind: {
+      type: new GraphQLList(TransactionKind),
+      description: 'To filter by transaction kind',
     },
   },
   async resolve(_: void, args, req: express.Request): Promise<CollectionReturnType> {
@@ -192,8 +197,8 @@ const TransactionsQuery = {
     if (!args.includeDebts) {
       where.push({ isDebt: { [Op.not]: true } });
     }
-    if (args.kinds) {
-      where.push({ kind: args.kinds });
+    if (args.kind || args.kinds) {
+      where.push({ kind: args.kind || args.kinds });
     }
 
     const order = [[args.orderBy.field, args.orderBy.direction]];

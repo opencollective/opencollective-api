@@ -101,6 +101,11 @@ const ExpensesQuery = {
     tags: {
       type: new GraphQLList(GraphQLString),
       description: 'Only expenses that match these tags',
+      deprecationReason: '2020-06-30: Please use tag (singular)',
+    },
+    tag: {
+      type: new GraphQLList(GraphQLString),
+      description: 'Only expenses that match these tags',
     },
     orderBy: {
       type: new GraphQLNonNull(ChronologicalOrderInput),
@@ -194,8 +199,8 @@ const ExpensesQuery = {
     if (args.type) {
       where['type'] = args.type;
     }
-    if (args.tags) {
-      where['tags'] = { [Op.contains]: args.tags };
+    if (args.tag || args.tags) {
+      where['tags'] = { [Op.contains]: args.tag || args.tags };
     }
     if (args.minAmount) {
       where['amount'] = { [Op.gte]: args.minAmount };
