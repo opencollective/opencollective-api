@@ -269,6 +269,10 @@ const accountFieldsDefinition = () => ({
         type: new GraphQLList(GraphQLString),
         description: 'Filter on given types (creditcard, giftcard...)',
       },
+      service: {
+        type: GraphQLString,
+        description: 'Filter on the given service type (opencollective, stripe, paypal...)',
+      },
       includeExpired: {
         type: GraphQLBoolean,
         description:
@@ -751,8 +755,8 @@ export const AccountFields = {
   paymentMethods: {
     type: new GraphQLNonNull(new GraphQLList(PaymentMethod)),
     args: {
-      // TODO: Should filter by providerType
       types: { type: new GraphQLList(GraphQLString) },
+      service: { type: GraphQLString },
       includeExpired: {
         type: GraphQLBoolean,
         description:
@@ -770,6 +774,8 @@ export const AccountFields = {
 
       return paymentMethods.filter(pm => {
         if (args.types && !args.types.includes(pm.type)) {
+          return false;
+        } else if (args.service && !args.service.includes(pm.service)) {
           return false;
         } else if (pm.data?.hidden) {
           return false;
