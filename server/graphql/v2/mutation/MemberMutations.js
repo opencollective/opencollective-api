@@ -59,7 +59,7 @@ const memberMutations = {
     },
   },
   editMember: {
-    type: Member,
+    type: new GraphQLNonNull(Member),
     description: 'Edit an existing member of the Collective',
     args: {
       memberAccount: {
@@ -109,10 +109,17 @@ const memberMutations = {
       // Edit member
       const editableAttributes = pick(args, ['role', 'description', 'since']);
 
-      return models.Member.update(editableAttributes, {
+      await models.Member.update(editableAttributes, {
         where: {
           MemberCollectiveId: memberAccount.id,
           CollectiveId: account.id,
+        },
+      });
+
+      return models.Member.findOne({
+        where: {
+          CollectiveId: account.id,
+          MemberCollectiveId: memberAccount.id,
         },
       });
     },

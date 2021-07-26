@@ -6027,7 +6027,7 @@ type Mutation {
     role: MemberRole
     description: String
     since: DateTime
-  ): Member
+  ): Member!
 
   """
   Remove a member from the Collective
