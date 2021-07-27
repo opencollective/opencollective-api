@@ -23,6 +23,7 @@ import {
   OrderStatus,
   TransactionType,
 } from '../enum';
+import { PaymentMethodService } from '../enum/PaymentMethodService';
 import { idEncode } from '../identifiers';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
@@ -275,7 +276,7 @@ const accountFieldsDefinition = () => ({
         description: 'Filter on given types (creditcard, giftcard...)',
       },
       service: {
-        type: new GraphQLList(GraphQLString),
+        type: PaymentMethodService,
         description: 'Filter on the given service types (opencollective, stripe, paypal...)',
       },
       includeExpired: {
@@ -762,7 +763,7 @@ export const AccountFields = {
     args: {
       types: { type: new GraphQLList(GraphQLString), deprecationReason: '2020-07-26: Please use type (singular)' },
       type: { type: new GraphQLList(GraphQLString) },
-      service: { type: new GraphQLList(GraphQLString) },
+      service: { type: PaymentMethodService },
       includeExpired: {
         type: GraphQLBoolean,
         description:
