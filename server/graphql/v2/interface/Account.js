@@ -265,11 +265,6 @@ const accountFieldsDefinition = () => ({
     type: new GraphQLList(PaymentMethod),
     description: 'The list of payment methods that this account can use to pay for Orders',
     args: {
-      types: {
-        type: new GraphQLList(GraphQLString),
-        description: 'Filter on given types (creditcard, giftcard...)',
-        deprecationReason: '2020-07-26: Please use type (singular)',
-      },
       type: {
         type: new GraphQLList(GraphQLString),
         description: 'Filter on given types (creditcard, giftcard...)',
@@ -757,7 +752,6 @@ export const AccountFields = {
     type: new GraphQLNonNull(new GraphQLList(PaymentMethod)),
     args: {
       // TODO: Should filter by providerType
-      types: { type: new GraphQLList(GraphQLString), deprecationReason: '2020-07-26: Please use type (singular)' },
       type: { type: new GraphQLList(GraphQLString) },
       includeExpired: {
         type: GraphQLBoolean,
@@ -775,9 +769,7 @@ export const AccountFields = {
       const paymentMethods = await req.loaders.PaymentMethod.findByCollectiveId.load(collective.id);
 
       return paymentMethods.filter(pm => {
-        if (args.types && !args.types.includes(pm.type)) {
-          return false;
-        } else if (args.type && !args.type.includes(pm.type)) {
+        if (args.type && !args.type.includes(pm.type)) {
           return false;
         } else if (pm.data?.hidden) {
           return false;

@@ -186,11 +186,6 @@ interface Account {
     """
     Filter on given types (creditcard, giftcard...)
     """
-    types: [String]
-
-    """
-    Filter on given types (creditcard, giftcard...)
-    """
     type: [String]
 
     """
@@ -742,7 +737,6 @@ type Bot implements Account {
   The list of payment methods that this collective can use to pay for Orders
   """
   paymentMethods(
-    types: [String]
     type: [String]
 
     """
@@ -1002,7 +996,6 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   The list of payment methods that this collective can use to pay for Orders
   """
   paymentMethods(
-    types: [String]
     type: [String]
 
     """
@@ -3242,7 +3235,6 @@ type Event implements Account & AccountWithHost & AccountWithContributions {
   The list of payment methods that this collective can use to pay for Orders
   """
   paymentMethods(
-    types: [String]
     type: [String]
 
     """
@@ -4193,7 +4185,6 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   The list of payment methods that this collective can use to pay for Orders
   """
   paymentMethods(
-    types: [String]
     type: [String]
 
     """
@@ -4530,7 +4521,6 @@ type Host implements Account & AccountWithContributions {
   The list of payment methods that this collective can use to pay for Orders
   """
   paymentMethods(
-    types: [String]
     type: [String]
 
     """
@@ -5092,7 +5082,6 @@ type Individual implements Account {
   The list of payment methods that this collective can use to pay for Orders
   """
   paymentMethods(
-    types: [String]
     type: [String]
 
     """
@@ -6500,7 +6489,6 @@ type Organization implements Account & AccountWithContributions {
   The list of payment methods that this collective can use to pay for Orders
   """
   paymentMethods(
-    types: [String]
     type: [String]
 
     """
@@ -7039,7 +7027,6 @@ type Project implements Account & AccountWithHost & AccountWithContributions {
   The list of payment methods that this collective can use to pay for Orders
   """
   paymentMethods(
-    types: [String]
     type: [String]
 
     """
@@ -8205,7 +8192,6 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
   The list of payment methods that this collective can use to pay for Orders
   """
   paymentMethods(
-    types: [String]
     type: [String]
 
     """
