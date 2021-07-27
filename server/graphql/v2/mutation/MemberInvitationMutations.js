@@ -2,6 +2,7 @@ import { GraphQLBoolean, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 import { pick } from 'lodash';
 
+import { types as CollectiveTypes } from '../../../constants/collectives';
 import MemberRoles from '../../../constants/roles';
 import models from '../../../models';
 import { Forbidden, Unauthorized } from '../../errors';
@@ -53,6 +54,8 @@ const memberInvitationMutations = {
 
       if (![MemberRoles.ACCOUNTANT, MemberRoles.ADMIN, MemberRoles.MEMBER].includes(args.role)) {
         throw new Forbidden('You can only invite accountants, admins, or members.');
+      } else if (memberAccount.type !== CollectiveTypes.USER) {
+        throw new Forbidden('You can only invite users.');
       }
 
       const memberParams = {
