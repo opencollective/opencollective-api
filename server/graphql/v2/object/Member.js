@@ -77,6 +77,13 @@ const MemberFields = {
       return member.publicMessage;
     },
   },
+  description: {
+    type: GraphQLString,
+    description: 'Custom user description',
+    resolve(member) {
+      return member.description;
+    },
+  },
 };
 
 const getMemberAccountResolver = field => async (member, args, req) => {
