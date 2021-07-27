@@ -35,6 +35,24 @@ export function checkSupportedVariables(req, variableNames) {
   return true;
 }
 
+function getCacheKeyForBudgetSections(req, queryHash) {
+  if (req.body.variables.limit !== 3) {
+    return;
+  }
+  if (
+    req.body.variables.kind &&
+    !isEqual(req.body.variables.kind.sort(), [
+      TransactionKind.ADDED_FUNDS,
+      TransactionKind.CONTRIBUTION,
+      TransactionKind.EXPENSE,
+      TransactionKind.PLATFORM_TIP,
+    ])
+  ) {
+    return;
+  }
+  return `${req.body.operationName}_${queryHash}_${req.body.variables.slug}`;
+}
+
 export function getGraphqlCacheKey(req) {
   if (req.remoteUser) {
     return;
@@ -56,24 +74,15 @@ export function getGraphqlCacheKey(req) {
       }
       return `${req.body.operationName}_${queryHash}_${req.body.variables.slug}`;
     case 'BudgetSection':
-      if (!checkSupportedVariables(req, ['slug', 'limit'])) {
+      if (!checkSupportedVariables(req, ['slug', 'limit', 'kind'])) {
         return;
       }
-      if (req.body.variables.limit !== 3) {
+      return getCacheKeyForBudgetSections(req, queryHash);
+    case 'BudgetSectionWithHost':
+      if (!checkSupportedVariables(req, ['slug', 'limit', 'hostSlug', 'kind'])) {
         return;
       }
-      if (
-        req.body.variables.kinds &&
-        !isEqual(req.body.variables.kinds.sort(), [
-          TransactionKind.ADDED_FUNDS,
-          TransactionKind.CONTRIBUTION,
-          TransactionKind.EXPENSE,
-          TransactionKind.PLATFORM_TIP,
-        ])
-      ) {
-        return;
-      }
-      return `${req.body.operationName}_${queryHash}_${req.body.variables.slug}`;
+      return getCacheKeyForBudgetSections(req, queryHash);
     case 'UpdatesSection':
       if (!checkSupportedVariables(req, ['slug', 'onlyPublishedUpdates'])) {
         return;

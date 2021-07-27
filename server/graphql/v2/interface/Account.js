@@ -268,6 +268,11 @@ const accountFieldsDefinition = () => ({
       types: {
         type: new GraphQLList(GraphQLString),
         description: 'Filter on given types (creditcard, giftcard...)',
+        deprecationReason: '2020-07-26: Please use type (singular)',
+      },
+      type: {
+        type: new GraphQLList(GraphQLString),
+        description: 'Filter on given types (creditcard, giftcard...)',
       },
       service: {
         type: new GraphQLList(GraphQLString),
@@ -755,7 +760,8 @@ export const AccountFields = {
   paymentMethods: {
     type: new GraphQLNonNull(new GraphQLList(PaymentMethod)),
     args: {
-      types: { type: new GraphQLList(GraphQLString) },
+      types: { type: new GraphQLList(GraphQLString), deprecationReason: '2020-07-26: Please use type (singular)' },
+      type: { type: new GraphQLList(GraphQLString) },
       service: { type: new GraphQLList(GraphQLString) },
       includeExpired: {
         type: GraphQLBoolean,
@@ -774,6 +780,8 @@ export const AccountFields = {
 
       return paymentMethods.filter(pm => {
         if (args.types && !args.types.includes(pm.type)) {
+          return false;
+        } else if (args.type && !args.type.includes(pm.type)) {
           return false;
         } else if (args.service && !args.service.includes(pm.service)) {
           return false;
