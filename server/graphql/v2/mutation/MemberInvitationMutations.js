@@ -112,19 +112,15 @@ const memberInvitationMutations = {
       // Edit member invitation
       const editableAttributes = pick(args, ['role', 'description', 'since']);
 
-      await models.MemberInvitation.update(editableAttributes, {
+      const [, invitations] = await models.MemberInvitation.update(editableAttributes, {
+        returning: true,
         where: {
           MemberCollectiveId: memberAccount.id,
           CollectiveId: account.id,
         },
       });
 
-      return models.MemberInvitation.findOne({
-        where: {
-          CollectiveId: account.id,
-          MemberCollectiveId: memberAccount.id,
-        },
-      });
+      return invitations[0];
     },
   },
   replyToMemberInvitation: {

@@ -6,7 +6,7 @@ import MemberRoles from '../../../constants/roles';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import models from '../../../models';
 import { editPublicMessage } from '../../common/members';
-import { Forbidden, Unauthorized } from '../../errors';
+import { Forbidden, Unauthorized, ValidationFailed } from '../../errors';
 import { MemberRole } from '../enum';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { Member } from '../object/Member';
@@ -109,19 +109,19 @@ const memberMutations = {
       // Edit member
       const editableAttributes = pick(args, ['role', 'description', 'since']);
 
-      await models.Member.update(editableAttributes, {
+      const [, members] = await models.Member.update(editableAttributes, {
+        returning: true,
         where: {
           MemberCollectiveId: memberAccount.id,
           CollectiveId: account.id,
         },
       });
 
-      return models.Member.findOne({
-        where: {
-          CollectiveId: account.id,
-          MemberCollectiveId: memberAccount.id,
-        },
-      });
+      if (!members.length) {
+        throw new ValidationFailed(`Member ${memberAccount.slug} does not exist in Collective ${account.slug}`);
+      }
+
+      return members[0];
     },
   },
   removeMember: {
