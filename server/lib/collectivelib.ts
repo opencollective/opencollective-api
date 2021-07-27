@@ -55,6 +55,7 @@ export const COLLECTIVE_SETTINGS_KEYS_LIST = [
   'collectivePage',
   'disableCustomContributions',
   'dismissedHelpMessages',
+  'disableCryptoContributions',
   'editor',
   'enableWebhooks',
   'features',
