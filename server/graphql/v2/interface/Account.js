@@ -270,8 +270,8 @@ const accountFieldsDefinition = () => ({
         description: 'Filter on given types (creditcard, giftcard...)',
       },
       service: {
-        type: GraphQLString,
-        description: 'Filter on the given service type (opencollective, stripe, paypal...)',
+        type: new GraphQLList(GraphQLString),
+        description: 'Filter on the given service types (opencollective, stripe, paypal...)',
       },
       includeExpired: {
         type: GraphQLBoolean,
@@ -756,7 +756,7 @@ export const AccountFields = {
     type: new GraphQLNonNull(new GraphQLList(PaymentMethod)),
     args: {
       types: { type: new GraphQLList(GraphQLString) },
-      service: { type: GraphQLString },
+      service: { type: new GraphQLList(GraphQLString) },
       includeExpired: {
         type: GraphQLBoolean,
         description:
