@@ -60,6 +60,12 @@ enum FEATURE {
   CONNECTED_ACCOUNTS = 'CONNECTED_ACCOUNTS',
   /** Whether this profile can receive donations using AliPay */
   ALIPAY = 'ALIPAY',
+
+  /** Virtual Cards */
+  // Whether this profile can assign virtual cards
+  VIRTUAL_CARDS = 'VIRTUAL_CARDS',
+  // Whether this profile can request a virtual card
+  REQUEST_VIRTUAL_CARDS = 'REQUEST_VIRTUAL_CARDS',
 }
 
 export const FeaturesList = Object.values(FEATURE);
