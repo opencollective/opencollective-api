@@ -106,7 +106,13 @@ export const getFeatureStatusResolver =
         return checkIsActive(collective.settings?.features?.privacyVcc, FEATURE_STATUS.DISABLED);
       case FEATURE.REQUEST_VIRTUAL_CARDS: {
         const host = await collective.getHostCollective();
-        return checkIsActive(host.settings?.virtualcards?.requestcard, FEATURE_STATUS.DISABLED);
+        const balance = await collective.getBalance();
+        return checkIsActive(
+          balance > 0 && // Collective has balance
+            collective.isActive && // Collective is effectively being hosted
+            host.settings?.virtualcards?.requestcard,
+          FEATURE_STATUS.DISABLED,
+        );
       }
       default:
         return FEATURE_STATUS.ACTIVE;
