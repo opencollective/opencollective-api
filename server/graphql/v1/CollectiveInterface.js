@@ -844,6 +844,11 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
           types: {
             type: new GraphQLList(GraphQLString),
             description: 'Filter on given types  (creditcard, giftcard, etc.)',
+            deprecationReason: '2020-07-26: Please use type (singular)',
+          },
+          type: {
+            type: new GraphQLList(GraphQLString),
+            description: 'Filter on given types  (creditcard, giftcard, etc.)',
           },
           orderBy: {
             type: PaymentMethodOrderFieldType,
@@ -1737,7 +1742,8 @@ const CollectiveFields = () => {
         limit: { type: GraphQLInt },
         hasBalanceAboveZero: { type: GraphQLBoolean },
         isConfirmed: { type: GraphQLBoolean, defaultValue: true },
-        types: { type: new GraphQLList(GraphQLString) },
+        types: { type: new GraphQLList(GraphQLString), deprecationReason: '2020-07-26: Please use type (singular)' },
+        type: { type: new GraphQLList(GraphQLString) },
         orderBy: {
           type: PaymentMethodOrderFieldType,
           defaultValue: 'type',
@@ -1771,6 +1777,9 @@ const CollectiveFields = () => {
         }
         if (args.types) {
           paymentMethods = paymentMethods.filter(pm => args.types.includes(pm.type));
+        }
+        if (args.type) {
+          paymentMethods = paymentMethods.filter(pm => args.type.includes(pm.type));
         }
         if (args.isConfirmed !== undefined) {
           paymentMethods = paymentMethods.filter(pm => pm.isConfirmed() === args.isConfirmed);
