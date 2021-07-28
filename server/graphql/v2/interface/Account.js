@@ -276,7 +276,7 @@ const accountFieldsDefinition = () => ({
         description: 'Filter on given types (creditcard, giftcard...)',
       },
       service: {
-        type: PaymentMethodService,
+        type: new GraphQLList(PaymentMethodService),
         description: 'Filter on the given service types (opencollective, stripe, paypal...)',
       },
       includeExpired: {
@@ -763,7 +763,7 @@ export const AccountFields = {
     args: {
       types: { type: new GraphQLList(GraphQLString), deprecationReason: '2020-07-26: Please use type (singular)' },
       type: { type: new GraphQLList(GraphQLString) },
-      service: { type: PaymentMethodService },
+      service: { type: new GraphQLList(PaymentMethodService) },
       includeExpired: {
         type: GraphQLBoolean,
         description:
