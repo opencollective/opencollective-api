@@ -25,7 +25,7 @@ async function main() {
       console.log(e);
       continue;
     }
-    if (response.status == 404) {
+    if (response.status === 404) {
       console.log(`Image for ${collective.slug} not found: ${collective.image}`);
       try {
         await collective.update({ image: null });
@@ -34,7 +34,7 @@ async function main() {
       }
       continue;
     }
-    if (response.status == 403) {
+    if (response.status === 403) {
       console.log(`Image for ${collective.slug} access denied: ${collective.image}`);
       try {
         await collective.update({ image: null });

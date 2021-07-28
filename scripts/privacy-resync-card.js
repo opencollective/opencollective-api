@@ -47,7 +47,7 @@ const run = async cardId => {
 };
 
 if (!module.parent) {
-  if (process.argv.length < 3 || process.argv[2] == 'help') {
+  if (process.argv.length < 3 || process.argv[2] === 'help') {
     console.log('\nUsage:\n  npm run script ./scripts/privacy-resync-card.js cardId\n');
     process.exit(0);
   }

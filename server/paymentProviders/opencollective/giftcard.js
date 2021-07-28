@@ -56,7 +56,7 @@ async function getBalance(paymentMethod) {
   });
   let spent = 0;
   for (const transaction of allTransactions) {
-    if (transaction.currency != paymentMethod.currency) {
+    if (transaction.currency !== paymentMethod.currency) {
       const fxRate = await currency.getFxRate(transaction.currency, paymentMethod.currency);
       spent += transaction.netAmountInCollectiveCurrency * fxRate;
     } else {
@@ -89,7 +89,7 @@ async function processOrder(order) {
   }
   // converting(or keeping if it's the same currency) order amount to the payment method currency
   let orderAmountInPaymentMethodCurrency = order.totalAmount;
-  if (order.currency != paymentMethod.currency) {
+  if (order.currency !== paymentMethod.currency) {
     const fxRate = await currency.getFxRate(order.currency, paymentMethod.currency);
     orderAmountInPaymentMethodCurrency = order.totalAmount * fxRate;
   }

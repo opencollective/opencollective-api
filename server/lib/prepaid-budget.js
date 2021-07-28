@@ -5,7 +5,7 @@ import { TransactionKind } from '../constants/transaction-kind';
 import models from '../models';
 
 export function isPrepaidBudgetOrder(order) {
-  return order.tier && order.tier.slug == 'prepaid-budget' && order.collective.slug === 'opensource';
+  return order.tier && order.tier.slug === 'prepaid-budget' && order.collective.slug === 'opensource';
 }
 
 export async function createPrepaidPaymentMethod(originalCreditTransaction) {

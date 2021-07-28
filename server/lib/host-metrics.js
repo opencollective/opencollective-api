@@ -7,7 +7,7 @@ import { getFxRate } from './currency';
 import { parseToBoolean } from './utils';
 
 function oppositeTotal(total) {
-  return total != 0 ? -total : total;
+  return total !== 0 ? -total : total;
 }
 
 async function computeTotal(results, currency) {

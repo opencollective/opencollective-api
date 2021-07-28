@@ -78,7 +78,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
     const pendingPlatformTips = await getPendingPlatformTips(host, { startDate, endDate });
     const pendingHostFeeShare = await getPendingHostFeeShare(host, { startDate, endDate });
 
-    if (HOST_ID && host.id != HOST_ID) {
+    if (HOST_ID && host.id !== parseInt(HOST_ID)) {
       continue;
     }
 

@@ -278,9 +278,9 @@ const autoPauseResumeCard = async (virtualCard: VirtualCardModel) => {
   const pendingExpenses = await virtualCard.getExpensesMissingDetails();
   const hasPendingExpenses = !isEmpty(pendingExpenses);
 
-  if (hasPendingExpenses && virtualCard.data.state == 'OPEN') {
+  if (hasPendingExpenses && virtualCard.data.state === 'OPEN') {
     await pauseCard(virtualCard);
-  } else if (!hasPendingExpenses && virtualCard.data.state == 'PAUSED') {
+  } else if (!hasPendingExpenses && virtualCard.data.state === 'PAUSED') {
     await resumeCard(virtualCard);
   }
 };
