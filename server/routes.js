@@ -11,7 +11,13 @@ import uploadImage from './controllers/images';
 import * as email from './controllers/services/email';
 import * as transferwise from './controllers/transferwise';
 import * as users from './controllers/users';
-import { paypalWebhook, privacyWebhook, stripeWebhook, transferwiseWebhook } from './controllers/webhooks';
+import {
+  paypalWebhook,
+  privacyWebhook,
+  stripeWebhook,
+  thegivingblockWebhook,
+  transferwiseWebhook,
+} from './controllers/webhooks';
 import { getGraphqlCacheKey } from './graphql/cache';
 import graphqlSchemaV1 from './graphql/v1/schema';
 import graphqlSchemaV2 from './graphql/v2/schema';
@@ -215,6 +221,7 @@ export default app => {
   app.post('/webhooks/transferwise', transferwiseWebhook); // when it gets a new subscription invoice
   app.post('/webhooks/privacy', privacyWebhook); // when it gets a new subscription invoice
   app.post('/webhooks/paypal', paypalWebhook);
+  app.post('/webhooks/thegivingblock', thegivingblockWebhook);
   app.post('/webhooks/mailgun', email.webhook); // when receiving an email
   app.get('/connected-accounts/:service/callback', noCache, authentication.authenticateServiceCallback); // oauth callback
   app.delete(
