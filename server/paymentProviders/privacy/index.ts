@@ -226,7 +226,7 @@ const refreshCardDetails = async (virtualCard: VirtualCardModel) => {
   if (!card) {
     throw new Error(`Could not find card ${virtualCard.id}`);
   }
-  if (card.state == 'CLOSED') {
+  if (card.state === 'CLOSED') {
     await virtualCard.destroy();
   } else {
     const newData = omit(card, ['pan', 'cvv', 'exp_year', 'exp_month']);
