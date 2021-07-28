@@ -23,7 +23,6 @@ import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile';
 import { ExpenseItem } from '../../models/ExpenseItem';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import paymentProviders from '../../paymentProviders';
-import PrivacyCardProviderService from '../../paymentProviders/privacy';
 import { BadRequest, FeatureNotAllowedForUser, Forbidden, NotFound, Unauthorized, ValidationFailed } from '../errors';
 
 const debug = debugLib('expenses');
@@ -860,11 +859,6 @@ export async function editExpense(
   });
 
   if (isPaidCreditCardCharge) {
-    const virtualCard = await models.VirtualCard.findByPk(expense.VirtualCardId);
-    const host = await models.Collective.findByPk(virtualCard.HostCollectiveId);
-    if (host.settings?.virtualcards?.autopause) {
-      PrivacyCardProviderService.autoPauseResumeCard(virtualCard);
-    }
     if (cleanExpenseData.description) {
       await models.Transaction.update(
         { description: cleanExpenseData.description },

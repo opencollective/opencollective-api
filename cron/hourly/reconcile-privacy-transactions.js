@@ -49,9 +49,6 @@ async function reconcileConnectedAccount(connectedAccount) {
         await Promise.all(
           transactions.map(transaction => privacy.processTransaction(transaction, { host, hostCurrencyFxRate })),
         );
-        if (host.settings?.virtualcards?.autopause) {
-          await privacy.autoPauseResumeCard(card);
-        }
         logger.info(`Refreshing card details'...`);
         await privacy.refreshCardDetails(card);
       }
