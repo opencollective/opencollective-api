@@ -23,6 +23,7 @@ import {
   OrderStatus,
   TransactionType,
 } from '../enum';
+import { PaymentMethodService } from '../enum/PaymentMethodService';
 import { idEncode } from '../identifiers';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
@@ -273,6 +274,10 @@ const accountFieldsDefinition = () => ({
       type: {
         type: new GraphQLList(GraphQLString),
         description: 'Filter on given types (creditcard, giftcard...)',
+      },
+      service: {
+        type: new GraphQLList(PaymentMethodService),
+        description: 'Filter on the given service types (opencollective, stripe, paypal...)',
       },
       includeExpired: {
         type: GraphQLBoolean,
@@ -756,9 +761,9 @@ export const AccountFields = {
   paymentMethods: {
     type: new GraphQLNonNull(new GraphQLList(PaymentMethod)),
     args: {
-      // TODO: Should filter by providerType
       types: { type: new GraphQLList(GraphQLString), deprecationReason: '2020-07-26: Please use type (singular)' },
       type: { type: new GraphQLList(GraphQLString) },
+      service: { type: new GraphQLList(PaymentMethodService) },
       includeExpired: {
         type: GraphQLBoolean,
         description:
@@ -778,6 +783,8 @@ export const AccountFields = {
         if (args.types && !args.types.includes(pm.type)) {
           return false;
         } else if (args.type && !args.type.includes(pm.type)) {
+          return false;
+        } else if (args.service && !args.service.includes(pm.service)) {
           return false;
         } else if (pm.data?.hidden) {
           return false;
