@@ -289,7 +289,7 @@ describe('server/graphql/v1/createOrder', () => {
       where: { OrderId: res.data.createOrder.id },
     });
     expect(transactionsCount).to.equal(0);
-    await utils.waitForCondition(() => emailSendMessageSpy.callCount == 2);
+    await utils.waitForCondition(() => emailSendMessageSpy.callCount === 2);
     expect(emailSendMessageSpy.callCount).to.equal(2);
 
     const pendingEmailArgs = emailSendMessageSpy.args.find(callArgs =>

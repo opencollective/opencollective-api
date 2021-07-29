@@ -3,12 +3,12 @@
  * Host's connected accounts.
  */
 
-import '../server/env';
+import '../../server/env';
 
 import { get } from 'lodash';
 
-import models from '../server/models';
-import { paypalRequestV2 } from '../server/paymentProviders/paypal/api';
+import models from '../../server/models';
+import { paypalRequestV2 } from '../../server/paymentProviders/paypal/api';
 
 const checkOrder = async orderId => {
   const order = await models.Order.findByPk(orderId);

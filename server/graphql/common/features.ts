@@ -4,11 +4,12 @@ import FEATURE_STATUS from '../../constants/feature-status';
 import { hasFeature, isFeatureAllowedForCollectiveType } from '../../lib/allowed-features';
 import models, { Op } from '../../models';
 
-const checkIsActive = (
+const checkIsActive = async (
   promise: Promise<number | boolean>,
   fallback = FEATURE_STATUS.AVAILABLE,
 ): Promise<FEATURE_STATUS> => {
-  return promise.then(result => (result ? FEATURE_STATUS.ACTIVE : fallback));
+  const result = promise?.then ? await promise : promise;
+  return result ? FEATURE_STATUS.ACTIVE : fallback;
 };
 
 const checkReceiveFinancialContributions = collective => {
@@ -101,6 +102,18 @@ export const getFeatureStatusResolver =
             limit: 1,
           }),
         );
+      case FEATURE.VIRTUAL_CARDS:
+        return checkIsActive(collective.settings?.features?.privacyVcc, FEATURE_STATUS.DISABLED);
+      case FEATURE.REQUEST_VIRTUAL_CARDS: {
+        const host = await collective.getHostCollective();
+        const balance = await collective.getBalance();
+        return checkIsActive(
+          balance > 0 && // Collective has balance
+            collective.isActive && // Collective is effectively being hosted
+            host.settings?.virtualcards?.requestcard,
+          FEATURE_STATUS.DISABLED,
+        );
+      }
       default:
         return FEATURE_STATUS.ACTIVE;
     }

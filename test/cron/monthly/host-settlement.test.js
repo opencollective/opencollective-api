@@ -167,12 +167,12 @@ describe('cron/monthly/host-settlement', () => {
   });
 
   it('should invoice platform tips not collected through Stripe', async () => {
-    const platformTipsItem = expense.items.find(p => p.description == 'Platform Tips');
+    const platformTipsItem = expense.items.find(p => p.description === 'Platform Tips');
     expect(platformTipsItem).to.have.property('amount', Math.round(1000 / 1.23));
   });
 
   it('should invoice pending shared host revenue', async () => {
-    const sharedRevenueItem = expense.items.find(p => p.description == 'Shared Revenue');
+    const sharedRevenueItem = expense.items.find(p => p.description === 'Shared Revenue');
     expect(sharedRevenueItem).to.have.property('amount', Math.round(1600 * 0.15));
   });
 
@@ -182,7 +182,7 @@ describe('cron/monthly/host-settlement', () => {
   });
 
   it('should consider fixed fee per host collective', async () => {
-    const reimburseItem = expense.items.find(p => p.description == 'Fixed Fee per Hosted Collective');
+    const reimburseItem = expense.items.find(p => p.description === 'Fixed Fee per Hosted Collective');
     expect(reimburseItem).to.have.property('amount', 100);
   });
 

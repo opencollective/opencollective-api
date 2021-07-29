@@ -25,6 +25,7 @@ import models, { Op } from '../../models';
 import { hostResolver } from '../common/collective';
 import { getContextPermission, PERMISSION_TYPE } from '../common/context-permissions';
 import { getFeatureStatusResolver } from '../common/features';
+import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../v2/identifiers';
 
 import { ApplicationType } from './Application';
 import { TransactionInterfaceType } from './TransactionInterface';
@@ -840,6 +841,11 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
             type: GraphQLBoolean,
             description: 'Only return confirmed payment methods',
             defaultValue: true,
+          },
+          type: {
+            type: new GraphQLList(GraphQLString),
+            description: 'Filter on given types  (creditcard, giftcard, etc.)',
+            deprecationReason: '2020-07-26: Please use type (singular)',
           },
           type: {
             type: new GraphQLList(GraphQLString),
@@ -1772,6 +1778,9 @@ const CollectiveFields = () => {
         if (args.type) {
           paymentMethods = paymentMethods.filter(pm => args.type.includes(pm.type));
         }
+        if (args.type) {
+          paymentMethods = paymentMethods.filter(pm => args.type.includes(pm.type));
+        }
         if (args.isConfirmed !== undefined) {
           paymentMethods = paymentMethods.filter(pm => pm.isConfirmed() === args.isConfirmed);
         }
@@ -1944,9 +1953,14 @@ export const CollectiveFeatureStatus = new GraphQLEnumType({
 
 export const CollectiveFeatures = new GraphQLObjectType({
   name: 'CollectiveFeatures',
-  description: 'Describes the features enabled and available for this collective',
+  description: 'Describes the features enabled and available for this account',
   fields: () => {
     return {
+      id: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: 'The id of the account',
+        resolve: getIdEncodeResolver(IDENTIFIER_TYPES.ACCOUNT),
+      },
       ...FeaturesFields(),
     };
   },

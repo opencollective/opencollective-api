@@ -247,7 +247,7 @@ const Expense = new GraphQLObjectType({
         type: GraphQLJSON,
         description: 'Drafted field values that were still not persisted',
         async resolve(expense) {
-          if (expense.status == expenseStatus.DRAFT) {
+          if (expense.status === expenseStatus.DRAFT) {
             return pick(expense.data, EXPENSE_DRAFT_PUBLIC_FIELDS);
           }
         },

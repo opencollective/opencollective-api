@@ -19,7 +19,7 @@ const run = async (CollectiveId, cardNumber, expireDate, cvv) => {
 };
 
 if (!module.parent) {
-  if (process.argv.length < 4 || process.argv[2] == 'help') {
+  if (process.argv.length < 4 || process.argv[2] === 'help') {
     console.log(
       '\nUsage:\n  npm run script ./scripts/encrypt.js collectiveId "xxxx  xxxx  xxxx  xxxx" "mm/yyyy" "cvv"\n',
     );

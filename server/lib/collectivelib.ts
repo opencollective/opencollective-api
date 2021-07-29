@@ -65,6 +65,7 @@ export const COLLECTIVE_SETTINGS_KEYS_LIST = [
   'githubRepo',
   'githubUsers',
   'goals',
+  'goalsInterpolation',
   'hideCreditCardPostalCode',
   'hostCollective',
   'hostFeePercent',

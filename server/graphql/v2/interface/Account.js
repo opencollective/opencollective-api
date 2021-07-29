@@ -268,6 +268,11 @@ const accountFieldsDefinition = () => ({
       type: {
         type: new GraphQLList(GraphQLString),
         description: 'Filter on given types (creditcard, giftcard...)',
+        deprecationReason: '2020-07-26: Please use type (singular)',
+      },
+      type: {
+        type: new GraphQLList(GraphQLString),
+        description: 'Filter on given types (creditcard, giftcard...)',
       },
       includeExpired: {
         type: GraphQLBoolean,
@@ -359,7 +364,7 @@ const accountFieldsDefinition = () => ({
   },
   features: {
     type: new GraphQLNonNull(CollectiveFeatures),
-    description: 'Describes the features enabled and available for this collective',
+    description: 'Describes the features enabled and available for this account',
     resolve(collective) {
       return collective;
     },

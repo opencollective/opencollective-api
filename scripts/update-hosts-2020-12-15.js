@@ -30,7 +30,7 @@ async function run({ dryRun } = {}) {
       }
     }
 
-    if (host.platformFeePercent != 0) {
+    if (host.platformFeePercent !== 0) {
       console.log(`- Activating Platform Tips`);
       if (!dryRun) {
         await host.update({ platformFeePercent: 0 });

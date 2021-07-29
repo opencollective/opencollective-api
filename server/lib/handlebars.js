@@ -15,10 +15,12 @@ import {
 handlebars.registerHelper('ifCond', function (v1, operator, v2, options) {
   switch (operator) {
     case '==':
+      // eslint-disable-next-line eqeqeq
       return v1 == v2 ? options.fn(this) : options.inverse(this);
     case '===':
       return v1 === v2 ? options.fn(this) : options.inverse(this);
     case '!=':
+      // eslint-disable-next-line eqeqeq
       return v1 != v2 ? options.fn(this) : options.inverse(this);
     case '!==':
       return v1 !== v2 ? options.fn(this) : options.inverse(this);
@@ -128,7 +130,7 @@ handlebars.registerHelper('currency', (value, props) => {
     res = `+${res}`;
   }
   // If we are limited in space, no need to show the trailing .00
-  if (size && precision == 2) {
+  if (size && precision === 2) {
     res = res.replace(/\.00$/, '');
   }
   if (size) {

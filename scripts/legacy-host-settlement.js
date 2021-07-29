@@ -287,7 +287,7 @@ export async function run() {
   const byHost = groupBy(pastMonthTransactions, 'HostCollectiveId');
 
   for (const [hostId, hostTransactions] of entries(byHost)) {
-    if (HOST_ID && hostId != HOST_ID) {
+    if (HOST_ID && hostId !== parseInt(HOST_ID)) {
       continue;
     }
 

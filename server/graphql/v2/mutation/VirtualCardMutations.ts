@@ -1,6 +1,6 @@
 /* eslint-disable camelcase */
 import express from 'express';
-import { GraphQLBoolean, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
 
 import { activities } from '../../../constants';
 import logger from '../../../lib/logger';
@@ -137,6 +137,14 @@ const virtualCardMutations = {
         type: GraphQLString,
         description: 'Request notes',
       },
+      purpose: {
+        type: GraphQLString,
+        description: 'Purpose for this Virtual Card',
+      },
+      budget: {
+        type: GraphQLInt,
+        description: 'Monthly budget you want for this Virtual Card',
+      },
       account: {
         type: new GraphQLNonNull(AccountReferenceInput),
         description: 'Account where the virtual card will be associated',
@@ -160,6 +168,8 @@ const virtualCardMutations = {
           collective: collective.activity,
           user: req.remoteUser.info,
           notes: args.notes,
+          budget: args.budget,
+          purpose: args.purpose,
         },
       };
 

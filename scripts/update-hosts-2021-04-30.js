@@ -29,7 +29,7 @@ async function run({ dryRun } = {}) {
       }
     }
 
-    if (host.hostFeePercent != 0) {
+    if (host.hostFeePercent !== 0) {
       console.log(`- Updating Plan to grow-plan-2021`);
       if (!dryRun) {
         await host.update({ plan: 'grow-plan-2021' });
@@ -41,7 +41,7 @@ async function run({ dryRun } = {}) {
       }
     }
 
-    if (host.platformFeePercent != 0) {
+    if (host.platformFeePercent !== 0) {
       console.log(`- Activating Platform Tips (updating platformFeePercent to 0)`);
       if (!dryRun) {
         // This will NOT cascade to all Collectives

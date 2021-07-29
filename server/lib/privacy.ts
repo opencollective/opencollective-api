@@ -64,7 +64,7 @@ export const findCard = async (token: string, cardProperties: Partial<Card>): Pr
   while (keepGoing) {
     const cards = await listCards(token, undefined, { page, page_size: 500 });
     debug(`got page ${page} with ${cards.length} cards...`);
-    if (cards.length == 0) {
+    if (cards.length === 0) {
       return undefined;
     }
     const card = find(cards, cardProperties);

@@ -13,7 +13,7 @@ import logger from './logger';
 const debug = debugLib('currency');
 
 function getDate(date: string | Date = 'latest') {
-  if (typeof date == 'string') {
+  if (typeof date === 'string') {
     return date;
   } else if (date.getFullYear) {
     date.setTime(date.getTime() + date.getTimezoneOffset() * 60 * 1000);
