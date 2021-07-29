@@ -186,6 +186,8 @@ describe('server/controllers/transferwise', () => {
 
   it('should create transactions for paid expenses when retrying with OTT header', async () => {
     req.headers['x-2fa-approval'] = 'hash';
+    // Simulate paid expenses because we stub fundExpensesBatchGroup
+    await expense.update({ data: { ...expense.data, transfer: { id: 1234 } } });
     await transferwiseController.payBatch(req, res);
 
     await expense.reload();

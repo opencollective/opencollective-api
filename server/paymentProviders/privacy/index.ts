@@ -1,5 +1,5 @@
 /* eslint-disable camelcase */
-import { isEmpty, omit } from 'lodash';
+import { isEmpty, omit, toString } from 'lodash';
 
 import activities from '../../constants/activities';
 import { types as CollectiveTypes } from '../../constants/collectives';
@@ -76,7 +76,7 @@ const processTransaction = async (
 
   let expense;
   try {
-    const slug = privacyTransaction.merchant.acceptor_id.toUpperCase();
+    const slug = toString(privacyTransaction.merchant.acceptor_id).toLowerCase();
     const [vendor] = await models.Collective.findOrCreate({
       where: { slug },
       defaults: { name: privacyTransaction.merchant.descriptor, type: CollectiveTypes.VENDOR },
