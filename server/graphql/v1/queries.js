@@ -219,7 +219,9 @@ const queries = {
       const fromCollectiveId = transaction.paymentMethodProviderCollectiveId();
 
       // Load transaction host
-      transaction.host = await transaction.getHostCollective();
+      const collectiveId = transaction.type === 'CREDIT' ? transaction.CollectiveId : transaction.FromCollectiveId;
+      const collective = await models.Collective.findByPk(collectiveId);
+      transaction.host = await collective.getHostCollective();
 
       // Get total in host currency
       const totalAmountInHostCurrency =
@@ -231,9 +233,9 @@ const queries = {
         title: get(transaction.host, 'settings.invoiceTitle'),
         extraInfo: get(transaction.host, 'settings.invoice.extraInfo'),
         HostCollectiveId: get(transaction.host, 'id'),
+        FromCollectiveId: fromCollectiveId,
         slug: `${transaction.host.name}_${createdAtString}_${args.transactionUuid}`,
         currency: transaction.hostCurrency,
-        FromCollectiveId: fromCollectiveId,
         totalAmount: totalAmountInHostCurrency,
         transactions: [transaction],
         year: transaction.createdAt.getFullYear(),
