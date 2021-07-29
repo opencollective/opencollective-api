@@ -845,11 +845,6 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
           type: {
             type: new GraphQLList(GraphQLString),
             description: 'Filter on given types  (creditcard, giftcard, etc.)',
-            deprecationReason: '2020-07-26: Please use type (singular)',
-          },
-          type: {
-            type: new GraphQLList(GraphQLString),
-            description: 'Filter on given types  (creditcard, giftcard, etc.)',
           },
           orderBy: {
             type: PaymentMethodOrderFieldType,
@@ -1774,9 +1769,6 @@ const CollectiveFields = () => {
 
         if (args.service) {
           paymentMethods = paymentMethods.filter(pm => pm.service === args.service);
-        }
-        if (args.type) {
-          paymentMethods = paymentMethods.filter(pm => args.type.includes(pm.type));
         }
         if (args.type) {
           paymentMethods = paymentMethods.filter(pm => args.type.includes(pm.type));
