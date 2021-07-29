@@ -1238,11 +1238,6 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
     return markExpenseAsPaid(expense, remoteUser, true);
   });
 
-  // Update transactions settlement
-  if (expense.data?.['isPlatformTipSettlement']) {
-    await models.TransactionSettlement.markExpenseAsSettled(expense);
-  }
-
   return expense;
 }
 
