@@ -25,6 +25,7 @@ import models, { Op } from '../../models';
 import { hostResolver } from '../common/collective';
 import { getContextPermission, PERMISSION_TYPE } from '../common/context-permissions';
 import { getFeatureStatusResolver } from '../common/features';
+import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../v2/identifiers';
 
 import { ApplicationType } from './Application';
 import { TransactionInterfaceType } from './TransactionInterface';
@@ -1953,9 +1954,14 @@ export const CollectiveFeatureStatus = new GraphQLEnumType({
 
 export const CollectiveFeatures = new GraphQLObjectType({
   name: 'CollectiveFeatures',
-  description: 'Describes the features enabled and available for this collective',
+  description: 'Describes the features enabled and available for this account',
   fields: () => {
     return {
+      id: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: 'The id of the account',
+        resolve: getIdEncodeResolver(IDENTIFIER_TYPES.ACCOUNT),
+      },
       ...FeaturesFields(),
     };
   },

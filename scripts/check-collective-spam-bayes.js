@@ -95,7 +95,7 @@ async function run() {
             }
           }
         }
-        if (collective.type == 'USER') {
+        if (collective.type === 'USER') {
           // Skip Accounts that are administrating account with transactions
           const accounts = await collective.getMemberships({ role: 'ADMIN' });
           for (const account of accounts) {
@@ -107,7 +107,7 @@ async function run() {
         }
         if (!skip) {
           report(collective, 'NEW');
-          if (collective.type == 'USER') {
+          if (collective.type === 'USER') {
             const accounts = await collective.getMemberships({ role: 'ADMIN' });
             for (const account of accounts) {
               report(account, 'ADMIN FROM');

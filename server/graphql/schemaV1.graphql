@@ -337,9 +337,13 @@ input CollectiveAttributesInputType {
 }
 
 """
-Describes the features enabled and available for this collective
+Describes the features enabled and available for this account
 """
 type CollectiveFeatures {
+  """
+  The id of the account
+  """
+  id: String!
   RECEIVE_FINANCIAL_CONTRIBUTIONS: CollectiveFeatureStatus
   RECURRING_CONTRIBUTIONS: CollectiveFeatureStatus
   TRANSACTIONS: CollectiveFeatureStatus
@@ -365,6 +369,8 @@ type CollectiveFeatures {
   HOST_DASHBOARD: CollectiveFeatureStatus
   CONNECTED_ACCOUNTS: CollectiveFeatureStatus
   ALIPAY: CollectiveFeatureStatus
+  VIRTUAL_CARDS: CollectiveFeatureStatus
+  REQUEST_VIRTUAL_CARDS: CollectiveFeatureStatus
 }
 
 enum CollectiveFeatureStatus {

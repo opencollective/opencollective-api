@@ -226,8 +226,12 @@ const refreshCardDetails = async (virtualCard: VirtualCardModel) => {
   if (!card) {
     throw new Error(`Could not find card ${virtualCard.id}`);
   }
-  const newData = omit(card, ['pan', 'cvv', 'exp_year', 'exp_month']);
-  await virtualCard.update({ data: newData });
+  if (card.state === 'CLOSED') {
+    await virtualCard.destroy();
+  } else {
+    const newData = omit(card, ['pan', 'cvv', 'exp_year', 'exp_month']);
+    await virtualCard.update({ data: newData });
+  }
   return virtualCard;
 };
 
@@ -278,9 +282,9 @@ const autoPauseResumeCard = async (virtualCard: VirtualCardModel) => {
   const pendingExpenses = await virtualCard.getExpensesMissingDetails();
   const hasPendingExpenses = !isEmpty(pendingExpenses);
 
-  if (hasPendingExpenses && virtualCard.data.state == 'OPEN') {
+  if (hasPendingExpenses && virtualCard.data.state === 'OPEN') {
     await pauseCard(virtualCard);
-  } else if (!hasPendingExpenses && virtualCard.data.state == 'PAUSED') {
+  } else if (!hasPendingExpenses && virtualCard.data.state === 'PAUSED') {
     await resumeCard(virtualCard);
   }
 };

@@ -2054,7 +2054,7 @@ function defineModel() {
    */
   Collective.prototype.changeHost = async function (newHostCollectiveId, remoteUser, options) {
     // Skip
-    if (this.HostCollectiveId == newHostCollectiveId) {
+    if (this.HostCollectiveId === newHostCollectiveId) {
       return this;
     }
 
