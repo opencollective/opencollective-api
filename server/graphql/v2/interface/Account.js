@@ -364,7 +364,7 @@ const accountFieldsDefinition = () => ({
   },
   features: {
     type: new GraphQLNonNull(CollectiveFeatures),
-    description: 'Describes the features enabled and available for this collective',
+    description: 'Describes the features enabled and available for this account',
     resolve(collective) {
       return collective;
     },
