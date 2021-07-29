@@ -1,16 +1,12 @@
 #!/usr/bin/env ./node_modules/.bin/babel-node
 import '../../server/env';
 
-import moment from 'moment';
+import { ArgumentParser } from 'argparse';
 
 import { refundTransaction } from '../../server/lib/payments';
 import models, { sequelize } from '../../server/models';
 
-const IS_DRY = !!process.env.DRY;
-const START_DATE = process.env.START_DATE && moment.utc(process.env.START_DATE).toISOString();
-const AFTER_ORDER_ID = process.env.AFTER_ORDER_ID;
-
-const refundOrder = async order => {
+const refundOrder = async (order, { dryRun }) => {
   const transactions = await order.getTransactions();
   const alreadyRefunded = transactions.some(t => t.isRefund === true);
   if (alreadyRefunded) {
@@ -21,7 +17,7 @@ const refundOrder = async order => {
       t => t.isRefund === false && t.kind === 'CONTRIBUTION' && t.type === 'CREDIT',
     );
     console.log(`Refunding transaction #${mainTransaction.id}...`);
-    if (!IS_DRY) {
+    if (!dryRun) {
       mainTransaction.PaymentMethod = await models.PaymentMethod.findByPk(mainTransaction.PaymentMethodId);
       await refundTransaction(mainTransaction, null, 'Fraudulent transaction');
     }
@@ -29,20 +25,33 @@ const refundOrder = async order => {
   }
 };
 
-const main = async () => {
-  if (IS_DRY) {
+async function main({ dryRun, totalAmount, reqMask, isGuest }) {
+  if (dryRun) {
     console.info('RUNNING IN DRY MODE!');
+  }
+  if (!reqMask && !totalAmount && !isGuest) {
+    throw new Error('Not enough parameters');
+  } else if (totalAmount && (!isGuest || !reqMask)) {
+    throw new Error('Not enough parameters: totalAmount should be used together with isGuest');
+  } else if (isGuest && (!totalAmount || !reqMask)) {
+    throw new Error('Not enough parameters: isGuest should be used together with totalAmount');
   }
 
   const query = `
-    SELECT *
-    FROM "Orders"
+    SELECT o.*
+    FROM "Orders" as o
+    INNER JOIN "Transactions" t ON t."OrderId" = o."id"
     WHERE
-      ("status" ILIKE '%PAID%')
-      AND ("totalAmount" = '50')
-      AND  "data"->>'isGuest' = 'true'
-      ${START_DATE ? `AND "createdAt" >= '${START_DATE}'` : ''}
-      ${AFTER_ORDER_ID ? `AND "id" > ${AFTER_ORDER_ID}` : ''}
+      o."status" = 'PAID'
+      AND o."totalAmount" > 0
+      AND t."kind" = 'CONTRIBUTION'
+      AND t."type" = 'CREDIT'
+      AND t."RefundTransactionId" IS NULL
+      ${totalAmount ? `AND o."totalAmount' = '${totalAmount}'` : ''}
+      ${reqMask ? `AND o."data"->>'reqMask' = '${reqMask}'` : ''}
+      ${isGuest ? `AND o."data"->>'isGuest' = '${isGuest}'` : ''}
+    GROUP BY o."id"
+    ORDER BY o."createdAt"
     ;
   `;
   console.log('Searching for fraudulent orders with:');
@@ -55,13 +64,53 @@ const main = async () => {
 
   for (const order of orders) {
     console.log(`\nProcessing order #${order.id}...`);
-    await refundOrder(order);
+    await refundOrder(order, { dryRun });
   }
-};
+}
 
-main()
-  .then(() => process.exit())
-  .catch(e => {
-    console.error(e);
-    process.exit(1);
+/* eslint-disable camelcase */
+function parseCommandLineArguments() {
+  const parser = new ArgumentParser({
+    add_help: true,
+    description: 'Refund Fraudulent Orders based on parameters',
   });
+
+  parser.add_argument('--mask', {
+    help: 'The request mask to look for',
+  });
+
+  parser.add_argument('--guest', {
+    help: 'Pass "true" to limit to guest contributions',
+  });
+
+  parser.add_argument('--amount', {
+    help: 'The request mask to look for',
+  });
+
+  parser.add_argument('--run', {
+    help: 'Perform the changes.',
+    default: false,
+    action: 'store_const',
+    const: true,
+  });
+
+  const args = parser.parse_args();
+  return {
+    dryRun: !args.run,
+    reqMask: args.mask,
+    isGuest: args.guest,
+    totalAmount: args.amount,
+  };
+}
+/* eslint-enable camelcase */
+
+if (require.main === module) {
+  main(parseCommandLineArguments())
+    .then(() => {
+      process.exit(0);
+    })
+    .catch(e => {
+      console.error(e);
+      process.exit(1);
+    });
+}
