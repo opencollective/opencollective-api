@@ -15,7 +15,6 @@ import redis from 'redis';
 
 import { loadersMiddleware } from '../graphql/loaders';
 
-import forest from './forest';
 import hyperwatch from './hyperwatch';
 import logger from './logger';
 
@@ -56,9 +55,6 @@ export default async function (app) {
   if (config.env !== 'production' && config.env !== 'staging') {
     app.use(errorHandler());
   }
-
-  // Forest
-  await forest(app);
 
   // Cors.
   app.use(cors());
