@@ -26,7 +26,6 @@ import * as commentMutations from './mutations/comments';
 import { editConnectedAccount } from './mutations/connectedAccounts';
 import { createWebhook, deleteNotification, editWebhooks } from './mutations/notifications';
 import {
-  addFundsToOrg,
   confirmOrder,
   createOrder,
   markOrderAsPaid,
@@ -375,17 +374,6 @@ const mutations = {
     async resolve(_, args, req) {
       return await refundTransaction(_, args, req);
     },
-  },
-  addFundsToOrg: {
-    type: PaymentMethodType,
-    deprecationReason: '2021-06-01: Create a Prepaid Payment Method through a Tier or use a FUND instead.',
-    args: {
-      totalAmount: { type: new GraphQLNonNull(GraphQLInt) },
-      CollectiveId: { type: new GraphQLNonNull(GraphQLInt) },
-      HostCollectiveId: { type: new GraphQLNonNull(GraphQLInt) },
-      description: { type: GraphQLString },
-    },
-    resolve: async (_, args, req) => addFundsToOrg(args, req.remoteUser),
   },
   createApplication: {
     type: ApplicationType,

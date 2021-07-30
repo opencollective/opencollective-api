@@ -1,12 +1,9 @@
 import crypto from 'crypto';
 
 import * as LibTaxes from '@opencollective/taxes';
-import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
 import { get, isNil, omit, pick, set } from 'lodash';
-import moment from 'moment';
-import { v4 as uuid } from 'uuid';
 import { isEmail } from 'validator';
 
 import activities from '../../../constants/activities';
@@ -745,62 +742,6 @@ export async function refundTransaction(_, args, req) {
   // Return the transaction passed to the `refundTransaction` method
   // after it was updated.
   return result;
-}
-
-/** Create prepaid payment method that can be used by an organization
- *
- * @param {Object} args contains the parameters to create the new
- *  payment method.
- * @param {String} args.description The description of the new payment
- *  method.
- * @param {Number} args.CollectiveId The ID of the organization
- *  receiving the prepaid card.
- * @param {Number} args.HostCollectiveId The ID of the host that
- *  received the money on its bank account.
- * @param {Number} args.totalAmount The total amount that will be
- *  credited to the newly created payment method.
- * @param {models.User} remoteUser is the user creating the new credit
- *  card. Right now only site admins can use this feature.
- */
-export async function addFundsToOrg(args, remoteUser) {
-  if (!remoteUser.isRoot()) {
-    throw new Error('Only site admins can perform this operation');
-  }
-  const [fromCollective, hostCollective] = await Promise.all([
-    models.Collective.findByPk(args.CollectiveId),
-    models.Collective.findByPk(args.HostCollectiveId),
-  ]);
-
-  // creates a new Payment method
-  const paymentMethod = await models.PaymentMethod.create({
-    name: args.description || 'Host funds',
-    initialBalance: args.totalAmount,
-    monthlyLimitPerMember: null,
-    currency: hostCollective.currency,
-    CollectiveId: args.CollectiveId,
-    customerId: fromCollective.slug,
-    expiryDate: moment().add(3, 'year').format(),
-    uuid: uuid(),
-    data: { HostCollectiveId: args.HostCollectiveId, hostFeePercent: 0 },
-    service: 'opencollective',
-    type: 'prepaid',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  });
-
-  models.Activity.create({
-    type: activities.ADDED_FUND_TO_ORG,
-    CollectiveId: args.CollectiveId,
-    data: {
-      totalAmount: args.totalAmount,
-      collective: fromCollective,
-      currency: fromCollective.currency,
-      currentBalance: paymentMethod.initialBalance,
-      addedBy: hostCollective.name,
-    },
-  });
-
-  return paymentMethod;
 }
 
 export async function markOrderAsPaid(remoteUser, id) {

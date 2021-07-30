@@ -90,7 +90,6 @@ export const templateNames = [
   'user.new.token',
   'user.yearlyreport',
   'backyourstack.dispatch.confirmed',
-  'added.fund.to.org',
   'activated.collective.as.host',
   'deactivated.collective.as.host',
   'contribution.rejected',
