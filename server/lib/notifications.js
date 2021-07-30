@@ -480,12 +480,6 @@ async function notifyByEmail(activity) {
       });
       break;
 
-    case activityType.ADDED_FUND_TO_ORG:
-      notifyAdminsOfCollective(activity.data.collective.id, activity, {
-        template: 'added.fund.to.org',
-      });
-      break;
-
     case activityType.ACTIVATED_COLLECTIVE_AS_HOST:
       notifyAdminsOfCollective(activity.data.collective.id, activity, {
         template: 'activated.collective.as.host',
