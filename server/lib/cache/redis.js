@@ -7,7 +7,11 @@ const asyncRedis = Promise.promisifyAll(redis);
 const debugCache = debug('cache');
 
 const makeRedisProvider = ({ serverUrl }) => {
-  const client = asyncRedis.createClient(serverUrl);
+  const redisOptions = {};
+  if (serverUrl.includes('rediss://')) {
+    redisOptions.tls = { rejectUnauthorized: false };
+  }
+  const client = asyncRedis.createClient(serverUrl, redisOptions);
   return {
     clear: async () => client.flushallAsync(),
     del: async key => client.delAsync(key),

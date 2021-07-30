@@ -55,7 +55,11 @@ export default app => {
 
   // Setup rate limiter
   if (get(config, 'redis.serverUrl')) {
-    const client = redis.createClient(get(config, 'redis.serverUrl'));
+    const redisOptions = {};
+    if (get(config, 'redis.serverUrl').includes('rediss://')) {
+      redisOptions.tls = { rejectUnauthorized: false };
+    }
+    const client = redis.createClient(get(config, 'redis.serverUrl'), redisOptions);
     const rateLimiter = expressLimiter(
       app,
       client,
