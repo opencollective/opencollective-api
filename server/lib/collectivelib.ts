@@ -227,6 +227,7 @@ export const collectiveSlugReservedList = [
   'tos',
   'transactions',
   'updates',
+  'website',
   'widgets',
 ];
 
