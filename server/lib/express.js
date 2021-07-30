@@ -83,7 +83,13 @@ export default async function (app) {
   let store;
   if (get(config, 'redis.serverUrl')) {
     const RedisStore = connectRedis(session);
-    store = new RedisStore({ client: redis.createClient(get(config, 'redis.serverUrl')) });
+    const redisOptions = {};
+    if (get(config, 'redis.serverUrl').includes('rediss://')) {
+      redisOptions.tls = { rejectUnauthorized: false };
+    }
+    store = new RedisStore({
+      client: redis.createClient(get(config, 'redis.serverUrl'), redisOptions),
+    });
   }
 
   app.use(
