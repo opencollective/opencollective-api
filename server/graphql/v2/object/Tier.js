@@ -1,11 +1,11 @@
 import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLDateTime } from 'graphql-iso-date';
 import GraphQLJSON from 'graphql-type-json';
 
 import models, { Op } from '../../../models';
 import { OrderCollection } from '../collection/OrderCollection';
 import { ContributionFrequency, OrderStatus, TierAmountType, TierInterval, TierType } from '../enum';
 import { idEncode } from '../identifiers';
-import ISODateTime from '../scalar/ISODateTime';
 
 import { Amount } from './Amount';
 
@@ -106,7 +106,7 @@ export const Tier = new GraphQLObjectType({
         },
       },
       endsAt: {
-        type: ISODateTime,
+        type: GraphQLDateTime,
       },
     };
   },
