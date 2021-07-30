@@ -275,7 +275,7 @@ const hasPaymentMethod = order => {
   const { paymentMethod } = order;
   if (!paymentMethod) {
     return false;
-  } else if (paymentMethod.service === 'paypal' && paymentMethod.data?.isNewApi) {
+  } else if (paymentMethod.service === 'paypal') {
     return Boolean(paymentMethod.data.orderId);
   } else {
     return Boolean(
