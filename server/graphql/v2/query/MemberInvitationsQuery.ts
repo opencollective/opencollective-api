@@ -11,7 +11,7 @@ const MemberInvitationsQuery = {
   args: {
     memberAccount: {
       type: AccountReferenceInput,
-      description: 'Reference to an account of member to remove',
+      description: 'Reference to an account of member',
     },
     account: {
       type: AccountReferenceInput,
