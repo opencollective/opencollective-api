@@ -40,7 +40,7 @@ const noCache = (req, res, next) => {
   next();
 };
 
-export default app => {
+export default async app => {
   /**
    * Extract GraphQL API Key
    */
@@ -196,6 +196,8 @@ export default app => {
     ...graphqlServerOptions,
   });
 
+  await graphqlServerV1.start();
+
   graphqlServerV1.applyMiddleware({ app, path: '/graphql/v1' });
 
   /**
@@ -210,6 +212,8 @@ export default app => {
     },
     ...graphqlServerOptions,
   });
+
+  await graphqlServerV2.start();
 
   graphqlServerV2.applyMiddleware({ app, path: '/graphql/v2' });
 
