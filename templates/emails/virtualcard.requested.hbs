@@ -2,7 +2,7 @@ Subject: {{{collective.name}}} wants a Virtual Card
 
 {{> header}}
 
-<div class="hidden">Virtual Card requested by {{user.firstName}}</div>
+<div class="hidden">Virtual Card requested by {{userCollective.name}}</div>
 
 <h1>{{collective.name}}</h1>
 
@@ -15,7 +15,7 @@ Subject: {{{collective.name}}} wants a Virtual Card
 Dear admin of {{host.name}},
 
 <p>
-  {{user.firstName}} wants a virtual card for their Collective, {{collective.name}}.
+  {{userCollective.name}} ({{userCollective.slug}}) wants a virtual card for their Collective, {{collective.name}}.
   To create one, set up a new virtual card and assign it to {{collective.name}}
   in <a href="https://opencollective.com/{{host.slug}}/edit/host-virtual-cards">your settings</a>.
 </p>
@@ -49,6 +49,10 @@ Dear admin of {{host.name}},
 </table>
 
 <h2>Request Details</h2>
+<p>
+  <strong>Assignee</strong><br />
+  {{userCollective.name}}
+</p>
 {{#if purpose}}
 <p>
   <strong>Virtual Card Purpose</strong><br />
@@ -65,7 +69,8 @@ Dear admin of {{host.name}},
 <p>
   <strong>Notes</strong><br />
 <blockquote
-  style="color: #6a737d;font-size: 14px;text-align: left;padding: 0.5em 0.75em;margin: 1em 0;border-left: 3px solid #e4e4e4;white-space: pre-line;">{{notes}}</blockquote>
+  style="color: #6a737d;font-size: 14px;text-align: left;padding: 0.5em 0.75em;margin: 1em 0;border-left: 3px solid #e4e4e4;white-space: pre-line;">
+  {{notes}}</blockquote>
 </p>
 {{/if}}
 
