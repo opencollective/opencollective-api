@@ -188,11 +188,6 @@ export default app => {
    */
   const graphqlServerV1 = new ApolloServer({
     schema: graphqlSchemaV1,
-    engine: {
-      reportSchema: isProduction,
-      variant: 'current',
-      apiKey: get(config, 'graphql.apolloEngineAPIKey'),
-    },
     ...graphqlServerOptions,
   });
 
@@ -203,11 +198,6 @@ export default app => {
    */
   const graphqlServerV2 = new ApolloServer({
     schema: graphqlSchemaV2,
-    engine: {
-      reportSchema: isProduction,
-      variant: 'current',
-      apiKey: get(config, 'graphql.apolloEngineAPIKeyV2'),
-    },
     ...graphqlServerOptions,
   });
 
