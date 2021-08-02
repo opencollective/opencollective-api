@@ -1026,7 +1026,7 @@ function defineModel() {
     );
   };
 
-  Transaction.creditHost = (order, collective) => {
+  Transaction.creditCollective = (order, collective) => {
     // Special Case, adding funds to itself
     const amount = order.totalAmount;
     const platformFeePercent = get(order, 'data.platformFeePercent', 0);
