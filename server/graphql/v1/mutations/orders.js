@@ -902,9 +902,9 @@ export async function addFundsToCollective(order, remoteUser) {
   const hostPaymentMethod = await host.getOrCreateHostPaymentMethod();
   await orderCreated.setPaymentMethod({ uuid: hostPaymentMethod.uuid });
 
-  if (fromCollective.isHostAccount && fromCollective.id === collective.id) {
+  if (fromCollective.id === collective.id) {
     // Special Case, adding funds to itself
-    await models.Transaction.creditHost(orderCreated, collective);
+    await models.Transaction.creditCollective(orderCreated, collective);
   } else {
     await libPayments.executeOrder(remoteUser || user, orderCreated);
   }
