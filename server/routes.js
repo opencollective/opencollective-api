@@ -122,7 +122,6 @@ export default async app => {
   app.param('expenseid', params.expenseid);
 
   const isDevelopment = config.env === 'development';
-  const isProduction = config.env === 'production';
 
   /**
    * GraphQL caching
