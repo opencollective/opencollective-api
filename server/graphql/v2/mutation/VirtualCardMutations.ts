@@ -160,13 +160,15 @@ const virtualCardMutations = {
       }
 
       const host = await collective.getHostCollective();
+      const userCollective = await req.remoteUser.getCollective();
       const activity = {
         type: activities.VIRTUAL_CARD_REQUESTED,
         UserId: req.remoteUser.id,
         data: {
           host: host.activity,
           collective: collective.activity,
-          user: req.remoteUser.info,
+          userCollective: userCollective.activity,
+          user: req.remoteUser.minimal,
           notes: args.notes,
           budget: args.budget,
           purpose: args.purpose,
