@@ -22,7 +22,8 @@ const MemberInvitationsQuery = {
     if (!remoteUser) {
       throw new Forbidden('Only collective admins can see pending invitations');
     }
-    if (!args.account && !args.memberAccount) {
+
+    if (!(args.account || args.memberAccount)) {
       throw new ValidationFailed('You must provide a reference either for collective or member collective');
     }
 
@@ -39,7 +40,9 @@ const MemberInvitationsQuery = {
     // Must be an admin to see pending invitations
     const isAdminOfAccount = account && remoteUser.isAdminOfCollective(account);
     const isAdminOfMemberAccount = memberAccount && remoteUser.isAdminOfCollective(memberAccount);
-    if (!isAdminOfAccount && !isAdminOfMemberAccount) {
+
+    // If not admin of account or member account throw forbidden
+    if (!(isAdminOfAccount || isAdminOfMemberAccount)) {
       new Forbidden('Only collective admins can see pending invitations');
     }
 
