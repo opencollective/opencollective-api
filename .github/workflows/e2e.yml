@@ -3,23 +3,22 @@ name: E2E
 on: [push]
 
 env:
-  CI: true
   TZ: UTC
-  E2E_TEST: 1
   OC_ENV: ci
-  NODE_ENV: ci # TODO: should be ideally development, test or production
-  PGHOST: localhost
-  PGUSER: postgres
+  NODE_ENV: test
   WEBSITE_URL: http://localhost:3000
   IMAGES_URL: http://localhost:3001
   API_URL: http://localhost:3060
   API_KEY: dvl-1510egmf4a23d80342403fb599qd
+  CI: true
+
+  E2E_TEST: 1
+  PGHOST: localhost
+  PGUSER: postgres
   CYPRESS_RECORD: false
   CYPRESS_VIDEO: false
   CYPRESS_VIDEO_UPLOAD_ON_PASSES: false
   CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }}
-  FOREST_AUTH_SECRET: ${{ secrets.FOREST_AUTH_SECRET }}
-  FOREST_ENV_SECRET: ${{ secrets.FOREST_ENV_SECRET }}
   GITHUB_CLIENT_ID: ${{ secrets.GH_CLIENT_ID }}
   GITHUB_CLIENT_SECRET: ${{ secrets.GH_CLIENT_SECRET }}
   API_FOLDER: /home/runner/work/opencollective-api/opencollective-api
