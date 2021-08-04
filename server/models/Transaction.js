@@ -820,6 +820,11 @@ function defineModel() {
     const amount = calcFee(hostFeeTransaction.amountInHostCurrency, hostFeeSharePercent);
     const currency = hostFeeTransaction.hostCurrency;
 
+    // Skip if the amount is zero (e.g.: 15% * 0.03 = 0.0045 and rounded to 0)
+    if (amount === 0) {
+      return;
+    }
+
     // This is a credit to Open Collective and needs to be inserted in USD
     const hostCurrency = HOST_FEE_SHARE_TRANSACTION_PROPERTIES.hostCurrency;
     const hostCurrencyFxRate = await Transaction.getFxRate(currency, hostCurrency, transaction);
