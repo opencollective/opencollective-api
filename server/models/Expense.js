@@ -366,7 +366,7 @@ function defineModel() {
     await this.update({ status: status.PAID, lastEditedById });
 
     // Update transactions settlement
-    if (this.data?.['isPlatformTipSettlement']) {
+    if (this.type === expenseType.SETTLEMENT || this.data?.['isPlatformTipSettlement']) {
       await models.TransactionSettlement.markExpenseAsSettled(this);
     }
 

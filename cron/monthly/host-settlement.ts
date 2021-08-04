@@ -188,8 +188,9 @@ AND ts."status" != 'SETTLED'`,
         currency: host.currency,
         description: `Platform settlement for ${momentDate.utc().format('MMMM')}`,
         incurredAt: today,
+        // isPlatformTipSettlement is deprecated but we keep it for now, we should rely on type=SETTLEMENT
         data: { isPlatformTipSettlement: true, transactionIds },
-        type: expenseTypes.INVOICE,
+        type: expenseTypes.SETTLEMENT,
         status: expenseStatus.PENDING,
       });
 
