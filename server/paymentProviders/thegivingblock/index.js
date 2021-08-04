@@ -1,5 +1,6 @@
 import fetch from 'node-fetch';
 
+import { getFxRate } from '../../lib/currency';
 import models from '../../models';
 
 // const baseUrl = `https://public-api.tgbwidget.com/v1`;
@@ -67,33 +68,37 @@ const crypto = {
   },
 
   processOrder: async order => {
-    // fetch hostCollectiveId
     const host = await order.collective.getHostCollective();
 
-    // retrieve credentials
+    // retrieve current credentials
     const account = await models.ConnectedAccount.findOne({
       where: { CollectiveId: host.id, service: 'thegivingblock' },
     });
 
     // refresh credentials
-    const result = await refresh(account.data.refreshToken);
-    account.data.accessToken = result.accessToken;
-    account.data.refreshToken = result.refreshToken;
-    await account.save();
+    // TODO: we normally have to do it only every 2 hours but this handy for now
+    const { accessToken, refreshToken } = await refresh(account.data.refreshToken);
+    await account.update({ data: { ...account.data, accessToken, refreshToken } });
 
     // create wallet address
     const { depositAddress } = await createDepositAddress(account.data.accessToken, {
-      organizationId: account.organizationId,
-      pledgeAmount: order.data.pledgeAmount,
-      pledgeCurrency: order.data.pledgeCurrency,
+      organizationId: account.data.organizationId,
+      pledgeAmount: order.data.customData.pledgeAmount,
+      pledgeCurrency: order.data.customData.pledgeCurrency,
     });
 
     // update payment method
-    order.paymentMethod.data = order.paymentMethod.data || {};
-    order.paymentMethod.data.depositAddress = depositAddress;
-    await order.paymentMethod.save();
+    // TODO: update name?
+    // TODO: update currency?
+    await order.paymentMethod.update({ data: { ...order.paymentMethod.data, depositAddress } });
 
-    return order;
+    // update approximative amount in order currency
+    const cryptoToFiatFxRate = await getFxRate(order.data.customData.pledgeCurrency, order.currency);
+    const totalAmount = Math.round(order.data.customData.pledgeAmount * cryptoToFiatFxRate);
+    console.log({ cryptoToFiatFxRate, totalAmount });
+    await order.update({ totalAmount });
+
+    // Return nothing as processOrder usually returns a transaction
   },
 };
 
