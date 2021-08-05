@@ -1,5 +1,5 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
-import { isNil } from 'lodash';
+import { isNil, pick } from 'lodash';
 
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
 import models, { Op, sequelize } from '../../../models';
@@ -60,6 +60,23 @@ export const IsMemberOfFields = {
     async resolve(collective, args, req) {
       const where = { MemberCollectiveId: collective.id };
 
+      const existingRoles = (
+        await models.Member.findAll({
+          attributes: ['role', 'collective.type'],
+          where,
+          include: [
+            {
+              model: models.Collective,
+              as: 'collective',
+              required: true,
+              attributes: ['type'],
+            },
+          ],
+          group: ['role', 'collective.type'],
+          raw: true,
+        })
+      ).map(m => pick(m, ['role', 'type']));
+
       if (args.role && args.role.length > 0) {
         where.role = { [Op.in]: args.role };
       }
@@ -116,7 +133,7 @@ export const IsMemberOfFields = {
       }
 
       const order = [[args.orderBy.field, args.orderBy.direction]];
-      if (args.orderByRoles) {
+      if (args.orderByRoles && args.role) {
         order.unshift(...args.role.map(r => sequelize.literal(`role='${r}' DESC`)));
       }
 
@@ -135,7 +152,13 @@ export const IsMemberOfFields = {
         ],
       });
 
-      return { nodes: result.rows, totalCount: result.count, limit: args.limit, offset: args.offset };
+      return {
+        nodes: result.rows,
+        totalCount: result.count,
+        limit: args.limit,
+        offset: args.offset,
+        roles: existingRoles,
+      };
     },
   },
 };

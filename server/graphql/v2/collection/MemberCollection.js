@@ -1,4 +1,5 @@
 import { GraphQLList, GraphQLObjectType } from 'graphql';
+import GraphQLJSON from 'graphql-type-json';
 
 import { Collection, CollectionFields } from '../interface/Collection';
 import { Member, MemberOf } from '../object/Member';
@@ -26,6 +27,9 @@ export const MemberOfCollection = new GraphQLObjectType({
       ...CollectionFields,
       nodes: {
         type: new GraphQLList(MemberOf),
+      },
+      roles: {
+        type: new GraphQLList(GraphQLJSON),
       },
     };
   },
