@@ -397,6 +397,8 @@ export const sendEmailNotifications = (order, transaction) => {
   // Don't send a "thank you" email when moving funds between a sub-collective and its parent
   if (transaction && order.fromCollective?.ParentCollectiveId !== order.collective?.id) {
     sendOrderConfirmedEmail(order, transaction); // async
+  } else if (order.status === status.PENDING && order.paymentMethod?.type === 'crypto') {
+    sendCryptoOrderProcessingEmail(order);
   } else if (order.status === status.PENDING) {
     sendOrderProcessingEmail(order); // This is the one for the Contributor
     sendManualPendingOrderEmail(order); // This is the one for the Host Admins
@@ -588,6 +590,28 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
 
     return emailLib.send('thankyou', user.email, data, emailOptions);
   }
+};
+
+// Sends an email when a deposit address is shown to the user in the crypto contribution flow.
+// Here a pending order is created.
+const sendCryptoOrderProcessingEmail = async order => {
+  const { collective, fromCollective } = order;
+  const user = order.createdByUser;
+  const host = await collective.getHostCollective();
+
+  const data = {
+    order: order.info,
+    collective: collective.info,
+    host: host.info,
+    fromCollective: fromCollective.activity,
+    isCrypto: true,
+    pledgeAmount: order.data.customData.pledgeAmount,
+    pledgeCurrency: order.data.customData.pledgeCurrency,
+  };
+
+  return emailLib.send('order.crypto.processing', user.email, data, {
+    from: `${collective.name} <no-reply@${collective.slug}.opencollective.com>`,
+  });
 };
 
 // Assumes one-time payments,
