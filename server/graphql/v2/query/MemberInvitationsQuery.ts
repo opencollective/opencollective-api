@@ -47,11 +47,11 @@ const MemberInvitationsQuery = {
     }
 
     const where: Record<string, unknown> = {};
-    if (args.CollectiveId) {
-      where.CollectiveId = args.CollectiveId;
+    if (account?.id) {
+      where.CollectiveId = account.id;
     }
-    if (args.MemberCollectiveId) {
-      where.MemberCollectiveId = args.MemberCollectiveId;
+    if (memberAccount?.id) {
+      where.MemberCollectiveId = memberAccount.id;
     }
 
     return models.MemberInvitation.findAll({
