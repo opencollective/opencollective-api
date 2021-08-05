@@ -1,4 +1,11 @@
-import { GraphQLFloat, GraphQLInt, GraphQLInterfaceType, GraphQLObjectType, GraphQLString } from 'graphql';
+import {
+  GraphQLBoolean,
+  GraphQLFloat,
+  GraphQLInt,
+  GraphQLInterfaceType,
+  GraphQLObjectType,
+  GraphQLString,
+} from 'graphql';
 import { get } from 'lodash';
 
 import models from '../../models';
@@ -125,12 +132,18 @@ const TransactionFields = () => {
     hostFeeInHostCurrency: {
       type: GraphQLInt,
       description: 'Fee kept by the host in the lowest unit of the currency of the host (ie. in cents)',
-      resolve(transaction, _, req) {
-        if (transaction.hostFeeInHostCurrency) {
-          return transaction.hostFeeInHostCurrency;
-        } else {
+      args: {
+        fetchHostFee: {
+          type: GraphQLBoolean,
+          defaultValue: false,
+          description: 'Fetch HOST_FEE transaction for retro-compatiblity.',
+        },
+      },
+      resolve(transaction, args, req) {
+        if (args.fetchHostFee && !transaction.hostFeeInHostCurrency) {
           return req.loaders.Transaction.hostFeeAmountForTransaction.load(transaction);
         }
+        return transaction.hostFeeInHostCurrency;
       },
     },
     platformFeeInHostCurrency: {
@@ -155,8 +168,21 @@ const TransactionFields = () => {
     netAmountInCollectiveCurrency: {
       type: GraphQLInt,
       description: 'Amount after fees received by the collective in the lowest unit of its own currency (ie. cents)',
-      resolve(transaction) {
-        return transaction.netAmountInCollectiveCurrency;
+      args: {
+        fetchHostFee: {
+          type: GraphQLBoolean,
+          defaultValue: false,
+          description: 'Fetch HOST_FEE transaction and integrate in calculation for retro-compatiblity.',
+        },
+      },
+      async resolve(transaction, args, req) {
+        if (args.fetchHostFee && !transaction.hostFeeInHostCurrency) {
+          transaction.hostFeeInHostCurrency = await req.loaders.Transaction.hostFeeAmountForTransaction.load(
+            transaction,
+          );
+          return models.Transaction.calculateNetAmountInCollectiveCurrency(transaction);
+        }
+        return transaction.hostFeeInHostCurrency;
       },
     },
     host: {
