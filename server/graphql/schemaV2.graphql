@@ -1396,6 +1396,7 @@ enum ConnectedAccountService {
   twitter
   transferwise
   privacy
+  thegivingblock
   meetup @deprecated(reason: "Not using this service anymore")
 }
 
@@ -6966,6 +6967,7 @@ enum PaymentMethodLegacyType {
   PAYPAL
   BANK_TRANSFER
   ADDED_FUNDS
+  CRYPTO
 }
 
 input PaymentMethodReferenceInput {
@@ -6980,6 +6982,7 @@ enum PaymentMethodService {
   STRIPE
   OPENCOLLECTIVE
   PREPAID
+  THEGIVINGBLOCK
 }
 
 enum PaymentMethodType {
@@ -6993,6 +6996,7 @@ enum PaymentMethodType {
   adaptive
   giftcard
   manual
+  crypto
 }
 
 """

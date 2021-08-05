@@ -4,6 +4,7 @@ import config from 'config';
 import { pick } from 'lodash';
 import fetch from 'node-fetch';
 
+import orderStatus from '../../constants/order_status';
 import { TransactionTypes } from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
 import { getHostFee, getHostFeeSharePercent } from '../../lib/payments';
@@ -96,7 +97,7 @@ export const processOrder = async order => {
   const cryptoToFiatFxRate = await getFxRate(order.data.customData.pledgeCurrency, order.currency);
   if (cryptoToFiatFxRate) {
     const totalAmount = Math.round(order.data.customData.pledgeAmount * cryptoToFiatFxRate);
-    await order.update({ totalAmount });
+    await order.update({ totalAmount, status: orderStatus.PENDING });
   }
 };
 
@@ -138,7 +139,7 @@ export const confirmOrder = async order => {
     paymentProcessorFeeInHostCurrency,
     data: {
       isFeesOnTop: false,
-      hasPlatformTip: platformTip ? true : false,
+      hasPlatformTip: !!platformTip,
       isSharedRevenue,
       platformTipEligible,
       platformTip,
@@ -147,9 +148,7 @@ export const confirmOrder = async order => {
     },
   };
 
-  const creditTransaction = await models.Transaction.createFromContributionPayload(transactionPayload);
-
-  return creditTransaction;
+  return await models.Transaction.createFromContributionPayload(transactionPayload);
 };
 
 function hexToBuffer(str) {
