@@ -1,6 +1,12 @@
+import crypto from 'crypto';
+
+import config from 'config';
+import { pick } from 'lodash';
 import fetch from 'node-fetch';
 
+import { TransactionTypes } from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
+import { getHostFee, getHostFeeSharePercent } from '../../lib/payments';
 import models from '../../models';
 
 // const baseUrl = `https://public-api.tgbwidget.com/v1`;
@@ -39,6 +45,8 @@ export async function getOrganizationsList(accessToken) {
   const response = await fetch(`${baseUrl}/organizations/list`, { headers });
   const result = await response.json();
 
+  // console.log(result);
+
   return result.data;
 }
 
@@ -61,49 +69,117 @@ export async function createDepositAddress(accessToken, { organizationId, pledge
   return result.data;
 }
 
-const crypto = {
-  features: {
-    recurring: false,
-    waitToCharge: false,
-  },
+export const processOrder = async order => {
+  const host = await order.collective.getHostCollective();
 
-  processOrder: async order => {
-    const host = await order.collective.getHostCollective();
+  // retrieve current credentials
+  const account = await models.ConnectedAccount.findOne({
+    where: { CollectiveId: host.id, service: 'thegivingblock' },
+  });
 
-    // retrieve current credentials
-    const account = await models.ConnectedAccount.findOne({
-      where: { CollectiveId: host.id, service: 'thegivingblock' },
-    });
+  // refresh credentials
+  // TODO: we normally have to do it only every 2 hours but this handy for now
+  const { accessToken, refreshToken } = await refresh(account.data.refreshToken);
+  await account.update({ data: { ...account.data, accessToken, refreshToken } });
 
-    // refresh credentials
-    // TODO: we normally have to do it only every 2 hours but this handy for now
-    const { accessToken, refreshToken } = await refresh(account.data.refreshToken);
-    await account.update({ data: { ...account.data, accessToken, refreshToken } });
+  // create wallet address
+  const { depositAddress, pledgeId } = await createDepositAddress(account.data.accessToken, {
+    organizationId: account.data.organizationId,
+    pledgeAmount: order.data.customData.pledgeAmount,
+    pledgeCurrency: order.data.customData.pledgeCurrency,
+  });
 
-    // create wallet address
-    const { depositAddress } = await createDepositAddress(account.data.accessToken, {
-      organizationId: account.data.organizationId,
-      pledgeAmount: order.data.customData.pledgeAmount,
-      pledgeCurrency: order.data.customData.pledgeCurrency,
-    });
+  // update payment method
+  // TODO: update name?
+  // TODO: update currency?
+  await order.paymentMethod.update({ data: { ...order.paymentMethod.data, depositAddress } });
 
-    // update payment method
-    // TODO: update name?
-    // TODO: update currency?
-    await order.paymentMethod.update({ data: { ...order.paymentMethod.data, depositAddress } });
+  // Update order with pledgeId
+  await order.update({ data: { ...order.data, pledgeId } });
 
-    // update approximative amount in order currency
-    const cryptoToFiatFxRate = await getFxRate(order.data.customData.pledgeCurrency, order.currency);
+  // update approximative amount in order currency
+  const cryptoToFiatFxRate = await getFxRate(order.data.customData.pledgeCurrency, order.currency);
+  if (cryptoToFiatFxRate) {
     const totalAmount = Math.round(order.data.customData.pledgeAmount * cryptoToFiatFxRate);
-    console.log({ cryptoToFiatFxRate, totalAmount });
     await order.update({ totalAmount });
-
-    // Return nothing as processOrder usually returns a transaction
-  },
+  }
 };
+
+export const confirmOrder = async order => {
+  order.collective = order.collective || (await models.Collective.findByPk(order.CollectiveId));
+  order.paymentMethod = order.paymentMethod || (await models.PaymentMethod.findByPk(order.PaymentMethodId));
+
+  const host = await order.collective.getHostCollective();
+
+  const hostFeeSharePercent = await getHostFeeSharePercent(order, host);
+  const isSharedRevenue = !!hostFeeSharePercent;
+
+  const amount = order.totalAmount;
+  const currency = order.currency;
+  const hostCurrency = host.currency;
+  const hostCurrencyFxRate = await getFxRate(order.currency, hostCurrency);
+  const amountInHostCurrency = Math.round(order.totalAmount * hostCurrencyFxRate);
+
+  const hostFee = await getHostFee(order, host);
+  const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
+
+  const platformTipEligible = false;
+  const platformTip = 0;
+  const platformTipInHostCurrency = 0;
+  const paymentProcessorFeeInHostCurrency = 0;
+
+  const transactionPayload = {
+    ...pick(order, ['CreatedByUserId', 'FromCollectiveId', 'CollectiveId', 'PaymentMethodId']),
+    type: TransactionTypes.CREDIT,
+    OrderId: order.id,
+    amount,
+    currency,
+    hostCurrency,
+    hostCurrencyFxRate,
+    amountInHostCurrency,
+    hostFeeInHostCurrency,
+    taxAmount: order.taxAmount,
+    description: order.description,
+    paymentProcessorFeeInHostCurrency,
+    data: {
+      isFeesOnTop: false,
+      hasPlatformTip: platformTip ? true : false,
+      isSharedRevenue,
+      platformTipEligible,
+      platformTip,
+      platformTipInHostCurrency,
+      hostFeeSharePercent,
+    },
+  };
+
+  const creditTransaction = await models.Transaction.createFromContributionPayload(transactionPayload);
+
+  return creditTransaction;
+};
+
+const AES_ENCRYPTION_KEY = config.thegivingblock.aesEncryptionKey;
+const AES_ENCRYPTION_IV = config.thegivingblock.aesEncryptionIv;
+const AES_METHOD = config.thegivingblock.aesEncryptionMethod || 'aes-256-cbc';
+
+function hexToBuffer(str) {
+  return Buffer.from(str, 'hex');
+}
+
+export function decryptPayload(payload) {
+  const decipher = crypto.createDecipheriv(AES_METHOD, hexToBuffer(AES_ENCRYPTION_KEY), hexToBuffer(AES_ENCRYPTION_IV));
+  const decrypted = decipher.update(hexToBuffer(payload));
+  return Buffer.concat([decrypted, decipher.final()]).toString('utf8');
+}
 
 export default {
   types: {
-    crypto,
+    crypto: {
+      features: {
+        recurring: false,
+        waitToCharge: false,
+      },
+      processOrder,
+      confirmOrder,
+    },
   },
 };

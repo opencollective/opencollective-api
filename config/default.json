@@ -176,5 +176,10 @@
   },
   "ledger": {
     "separateHostFees": true
+  },
+  "thegivingblock": {
+    "aesEncryptionKey": "",
+    "aesEncryptionIv": "",
+    "aesEncryptionMethod": "aes-256-cbc"
   }
 }

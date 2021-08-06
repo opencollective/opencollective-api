@@ -190,5 +190,10 @@
   },
   "activities": {
     "skipTransactions": "SKIP_TRANSACTION_ACTIVITIES"
+  },
+  "thegivingblock": {
+    "aesEncryptionKey": "THEGIVINGBLOCK_AES_ENCRYPTION_KEY",
+    "aesEncryptionIv": "THEGIVINGBLOCK_AES_ENCRYPTION_IV",
+    "aesEncryptionMethod": "THEGIVINGBLOCK_AES_ENCRYPTION_METHOD"
   }
 }
