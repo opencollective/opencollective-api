@@ -36,8 +36,28 @@ export const TransactionInterfaceType = new GraphQLInterfaceType({
       currency: { type: GraphQLString },
       hostCurrency: { type: GraphQLString },
       hostCurrencyFxRate: { type: GraphQLFloat },
-      netAmountInCollectiveCurrency: { type: GraphQLInt },
-      hostFeeInHostCurrency: { type: GraphQLInt },
+      netAmountInCollectiveCurrency: {
+        type: GraphQLInt,
+        description: 'Amount after fees received by the collective in the lowest unit of its own currency (ie. cents)',
+        args: {
+          fetchHostFee: {
+            type: GraphQLBoolean,
+            defaultValue: false,
+            description: 'Fetch HOST_FEE transaction and integrate in calculation for retro-compatiblity.',
+          },
+        },
+      },
+      hostFeeInHostCurrency: {
+        type: GraphQLInt,
+        description: 'Fee kept by the host in the lowest unit of the currency of the host (ie. in cents)',
+        args: {
+          fetchHostFee: {
+            type: GraphQLBoolean,
+            defaultValue: false,
+            description: 'Fetch HOST_FEE transaction for retro-compatiblity.',
+          },
+        },
+      },
       platformFeeInHostCurrency: { type: GraphQLInt },
       paymentProcessorFeeInHostCurrency: { type: GraphQLInt },
       taxAmount: { type: GraphQLInt },
