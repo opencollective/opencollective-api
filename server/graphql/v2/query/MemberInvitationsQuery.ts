@@ -11,11 +11,13 @@ const MemberInvitationsQuery = {
   args: {
     memberAccount: {
       type: AccountReferenceInput,
-      description: 'Reference to an account of member',
+      description:
+        'A reference to an account (usually Individual). Will return invitations sent to the account to join as a member',
     },
     account: {
       type: AccountReferenceInput,
-      description: 'Reference to the Collective account',
+      description:
+        'A reference to an account (usually Collective, Fund or Organization). Will return invitations sent to join this account as a member.',
     },
   },
   async resolve(collective, args, { remoteUser }) {
