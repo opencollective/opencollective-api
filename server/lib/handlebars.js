@@ -100,6 +100,10 @@ handlebars.registerHelper('moment', (value, props) => {
   return d.format(format);
 });
 
+handlebars.registerHelper('moment-timezone', value => {
+  return moment().tz(value).format('Z');
+});
+
 handlebars.registerHelper('currency', (value, props) => {
   const { currency, size, sign, precision } = props.hash;
 
