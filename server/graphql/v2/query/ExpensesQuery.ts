@@ -1,4 +1,3 @@
-import express from 'express';
 import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 import { isEmpty, partition } from 'lodash';
@@ -10,6 +9,7 @@ import { getBalancesWithBlockedFunds } from '../../../lib/budget';
 import queries from '../../../lib/queries';
 import models, { Op, sequelize } from '../../../models';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
+import { Query } from '../../../types/graphql';
 import { ExpenseCollection } from '../collection/ExpenseCollection';
 import ExpenseStatusFilter from '../enum/ExpenseStatusFilter';
 import { ExpenseType } from '../enum/ExpenseType';
@@ -74,70 +74,72 @@ const updateFilterConditionsForReadyToPay = async (where, include): Promise<void
   }
 };
 
-const ExpensesQuery = {
-  type: ExpenseCollection,
-  args: {
-    ...CollectionArgs,
-    fromAccount: {
-      type: AccountReferenceInput,
-      description: 'Reference of the account that submitted this expense',
-    },
-    account: {
-      type: AccountReferenceInput,
-      description: 'Reference of the account where this expense was submitted',
-    },
-    host: {
-      type: AccountReferenceInput,
-      description: 'Return expenses only for this host',
-    },
-    status: {
-      type: ExpenseStatusFilter,
-      description: 'Use this field to filter expenses on their statuses',
-    },
-    type: {
-      type: ExpenseType,
-      description: 'Use this field to filter expenses on their type (RECEIPT/INVOICE)',
-    },
-    tags: {
-      type: new GraphQLList(GraphQLString),
-      description: 'Only expenses that match these tags',
-      deprecationReason: '2020-06-30: Please use tag (singular)',
-    },
-    tag: {
-      type: new GraphQLList(GraphQLString),
-      description: 'Only expenses that match these tags',
-    },
-    orderBy: {
-      type: new GraphQLNonNull(ChronologicalOrderInput),
-      description: 'The order of results',
-      defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
-    },
-    minAmount: {
-      type: GraphQLInt,
-      description: 'Only return expenses where the amount is greater than or equal to this value (in cents)',
-    },
-    maxAmount: {
-      type: GraphQLInt,
-      description: 'Only return expenses where the amount is lower than or equal to this value (in cents)',
-    },
-    payoutMethodType: {
-      type: PayoutMethodType,
-      description: 'Only return expenses that use the given type as payout method',
-    },
-    dateFrom: {
-      type: GraphQLDateTime,
-      description: 'Only return expenses that were created after this date',
-    },
-    dateTo: {
-      type: GraphQLDateTime,
-      description: 'Only return expenses that were created after this date',
-    },
-    searchTerm: {
-      type: GraphQLString,
-      description: 'The term to search',
-    },
+const ExpenseQueryArgs = {
+  ...CollectionArgs,
+  fromAccount: {
+    type: AccountReferenceInput,
+    description: 'Reference of the account that submitted this expense',
   },
-  async resolve(_: void, args, req: express.Request): Promise<CollectionReturnType> {
+  account: {
+    type: AccountReferenceInput,
+    description: 'Reference of the account where this expense was submitted',
+  },
+  host: {
+    type: AccountReferenceInput,
+    description: 'Return expenses only for this host',
+  },
+  status: {
+    type: ExpenseStatusFilter,
+    description: 'Use this field to filter expenses on their statuses',
+  },
+  type: {
+    type: ExpenseType,
+    description: 'Use this field to filter expenses on their type (RECEIPT/INVOICE)',
+  },
+  tags: {
+    type: new GraphQLList(GraphQLString),
+    description: 'Only expenses that match these tags',
+    deprecationReason: '2020-06-30: Please use tag (singular)',
+  },
+  tag: {
+    type: new GraphQLList(GraphQLString),
+    description: 'Only expenses that match these tags',
+  },
+  orderBy: {
+    type: new GraphQLNonNull(ChronologicalOrderInput),
+    description: 'The order of results',
+    defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
+  },
+  minAmount: {
+    type: GraphQLInt,
+    description: 'Only return expenses where the amount is greater than or equal to this value (in cents)',
+  },
+  maxAmount: {
+    type: GraphQLInt,
+    description: 'Only return expenses where the amount is lower than or equal to this value (in cents)',
+  },
+  payoutMethodType: {
+    type: PayoutMethodType,
+    description: 'Only return expenses that use the given type as payout method',
+  },
+  dateFrom: {
+    type: GraphQLDateTime,
+    description: 'Only return expenses that were created after this date',
+  },
+  dateTo: {
+    type: GraphQLDateTime,
+    description: 'Only return expenses that were created after this date',
+  },
+  searchTerm: {
+    type: GraphQLString,
+    description: 'The term to search',
+  },
+};
+
+const ExpensesQuery: Query<typeof ExpenseQueryArgs> = {
+  type: ExpenseCollection,
+  args: ExpenseQueryArgs,
+  async resolve(_: void, args, req): Promise<CollectionReturnType> {
     const where = { [Op.and]: [] };
     const include = [];
 

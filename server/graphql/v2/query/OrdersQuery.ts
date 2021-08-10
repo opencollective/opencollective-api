@@ -1,8 +1,8 @@
-import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 
 import models, { Op } from '../../../models';
+import { Query } from '../../../types/graphql';
 import { OrderCollection } from '../collection/OrderCollection';
 import { OrderStatus } from '../enum';
 import { AccountOrdersFilter } from '../enum/AccountOrdersFilter';
@@ -35,53 +35,55 @@ const getJoinCondition = (
   }
 };
 
-const OrdersQuery = {
-  type: new GraphQLNonNull(OrderCollection),
-  args: {
-    ...CollectionArgs,
-    account: {
-      type: AccountReferenceInput,
-      description: 'Return only orders made from/to account',
-    },
-    includeHostedAccounts: {
-      type: GraphQLBoolean,
-      description: 'If account is a host, also include hosted accounts orders',
-    },
-    filter: {
-      type: AccountOrdersFilter,
-      description: 'Account orders filter (INCOMING or OUTGOING)',
-    },
-    status: {
-      type: OrderStatus,
-      description: 'Use this field to filter orders on their statuses',
-    },
-    orderBy: {
-      type: new GraphQLNonNull(ChronologicalOrderInput),
-      description: 'The order of results',
-      defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
-    },
-    minAmount: {
-      type: GraphQLInt,
-      description: 'Only return orders where the amount is greater than or equal to this value (in cents)',
-    },
-    maxAmount: {
-      type: GraphQLInt,
-      description: 'Only return orders where the amount is lower than or equal to this value (in cents)',
-    },
-    dateFrom: {
-      type: GraphQLDateTime,
-      description: 'Only return orders that were created after this date',
-    },
-    dateTo: {
-      type: GraphQLDateTime,
-      description: 'Only return orders that were created after this date',
-    },
-    searchTerm: {
-      type: GraphQLString,
-      description: 'The term to search',
-    },
+const OrderQueryArgs = {
+  ...CollectionArgs,
+  account: {
+    type: AccountReferenceInput,
+    description: 'Return only orders made from/to account',
   },
-  async resolve(_: void, args, req: express.Request): Promise<CollectionReturnType> {
+  includeHostedAccounts: {
+    type: GraphQLBoolean,
+    description: 'If account is a host, also include hosted accounts orders',
+  },
+  filter: {
+    type: AccountOrdersFilter,
+    description: 'Account orders filter (INCOMING or OUTGOING)',
+  },
+  status: {
+    type: OrderStatus,
+    description: 'Use this field to filter orders on their statuses',
+  },
+  orderBy: {
+    type: new GraphQLNonNull(ChronologicalOrderInput),
+    description: 'The order of results',
+    defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
+  },
+  minAmount: {
+    type: GraphQLInt,
+    description: 'Only return orders where the amount is greater than or equal to this value (in cents)',
+  },
+  maxAmount: {
+    type: GraphQLInt,
+    description: 'Only return orders where the amount is lower than or equal to this value (in cents)',
+  },
+  dateFrom: {
+    type: GraphQLDateTime,
+    description: 'Only return orders that were created after this date',
+  },
+  dateTo: {
+    type: GraphQLDateTime,
+    description: 'Only return orders that were created after this date',
+  },
+  searchTerm: {
+    type: GraphQLString,
+    description: 'The term to search',
+  },
+};
+
+const OrdersQuery: Query<typeof OrderQueryArgs> = {
+  type: new GraphQLNonNull(OrderCollection),
+  args: OrderQueryArgs,
+  async resolve(_, args, req): Promise<CollectionReturnType> {
     const where = { [Op.and]: [] };
     const include = [
       { association: 'fromCollective', required: true, attributes: [] },

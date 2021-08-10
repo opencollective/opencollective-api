@@ -1,26 +1,29 @@
 import { GraphQLList } from 'graphql';
 
 import models from '../../../models';
+import { Query } from '../../../types/graphql';
 import { Forbidden, ValidationFailed } from '../../errors';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { MemberInvitation } from '../object/MemberInvitation';
 
-const MemberInvitationsQuery = {
+const MemberInvitationQueryArgs = {
+  memberAccount: {
+    type: AccountReferenceInput,
+    description:
+      'A reference to an account (usually Individual). Will return invitations sent to the account to join as a member',
+  },
+  account: {
+    type: AccountReferenceInput,
+    description:
+      'A reference to an account (usually Collective, Fund or Organization). Will return invitations sent to join this account as a member.',
+  },
+};
+
+const MemberInvitationsQuery: Query<typeof MemberInvitationQueryArgs> = {
   type: new GraphQLList(MemberInvitation),
   description: '[AUTHENTICATED] Returns the pending invitations',
-  args: {
-    memberAccount: {
-      type: AccountReferenceInput,
-      description:
-        'A reference to an account (usually Individual). Will return invitations sent to the account to join as a member',
-    },
-    account: {
-      type: AccountReferenceInput,
-      description:
-        'A reference to an account (usually Collective, Fund or Organization). Will return invitations sent to join this account as a member.',
-    },
-  },
-  async resolve(collective, args, { remoteUser }) {
+  args: MemberInvitationQueryArgs,
+  async resolve(_, args, { remoteUser }) {
     if (!remoteUser) {
       throw new Forbidden('Only collective admins can see pending invitations');
     }

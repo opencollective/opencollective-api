@@ -3,6 +3,7 @@ import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString 
 import { GraphQLDateTime } from 'graphql-iso-date';
 
 import models, { Op, sequelize } from '../../../models';
+import { Query } from '../../../types/graphql';
 import { TransactionCollection } from '../collection/TransactionCollection';
 import { TransactionKind } from '../enum/TransactionKind';
 import { TransactionType } from '../enum/TransactionType';
@@ -10,84 +11,86 @@ import { AccountReferenceInput, fetchAccountWithReference } from '../input/Accou
 import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
 import { CollectionArgs, CollectionReturnType } from '../interface/Collection';
 
-const TransactionsQuery = {
-  type: TransactionCollection,
-  args: {
-    ...CollectionArgs,
-    type: {
-      type: TransactionType,
-      description: 'The transaction type (DEBIT or CREDIT)',
-    },
-    fromAccount: {
-      type: AccountReferenceInput,
-      description: 'Reference of the account that submitted this expense',
-    },
-    account: {
-      type: AccountReferenceInput,
-      description: 'Reference of the account where this expense was submitted',
-    },
-    host: {
-      type: AccountReferenceInput,
-      description: 'Reference of the host where this expense was submitted',
-    },
-    tags: {
-      type: new GraphQLList(GraphQLString),
-      description: 'Only expenses that match these tags',
-    },
-    orderBy: {
-      type: new GraphQLNonNull(ChronologicalOrderInput),
-      description: 'The order of results',
-      defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
-    },
-    minAmount: {
-      type: GraphQLInt,
-      description: 'Only return expenses where the amount is greater than or equal to this value (in cents)',
-    },
-    maxAmount: {
-      type: GraphQLInt,
-      description: 'Only return expenses where the amount is lower than or equal to this value (in cents)',
-    },
-    dateFrom: {
-      type: GraphQLDateTime,
-      description: 'Only return expenses that were created after this date',
-    },
-    dateTo: {
-      type: GraphQLDateTime,
-      description: 'Only return expenses that were created before this date',
-    },
-    searchTerm: {
-      type: GraphQLString,
-      description: 'The term to search',
-    },
-    hasExpense: {
-      type: GraphQLBoolean,
-      description: 'Transaction is attached to Expense',
-    },
-    hasOrder: {
-      type: GraphQLBoolean,
-      description: 'Transaction is attached to Order',
-    },
-    includeIncognitoTransactions: {
-      type: new GraphQLNonNull(GraphQLBoolean),
-      defaultValue: false,
-      description:
-        'If the account is a user and this field is true, contributions from the incognito profile will be included too (admins only)',
-    },
-    includeDebts: {
-      type: new GraphQLNonNull(GraphQLBoolean),
-      defaultValue: false,
-      description: 'Whether to include debt transactions',
-    },
-    kinds: {
-      type: new GraphQLList(TransactionKind),
-      description: 'To filter by transaction kind',
-      deprecationReason: '2020-06-30: Please use kind (singular)',
-    },
-    kind: {
-      type: new GraphQLList(TransactionKind),
-      description: 'To filter by transaction kind',
-    },
+const TransactionQueryArgs = {
+  ...CollectionArgs,
+  type: {
+    type: TransactionType,
+    description: 'The transaction type (DEBIT or CREDIT)',
   },
+  fromAccount: {
+    type: AccountReferenceInput,
+    description: 'Reference of the account that submitted this expense',
+  },
+  account: {
+    type: AccountReferenceInput,
+    description: 'Reference of the account where this expense was submitted',
+  },
+  host: {
+    type: AccountReferenceInput,
+    description: 'Reference of the host where this expense was submitted',
+  },
+  tags: {
+    type: new GraphQLList(GraphQLString),
+    description: 'Only expenses that match these tags',
+  },
+  orderBy: {
+    type: new GraphQLNonNull(ChronologicalOrderInput),
+    description: 'The order of results',
+    defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
+  },
+  minAmount: {
+    type: GraphQLInt,
+    description: 'Only return expenses where the amount is greater than or equal to this value (in cents)',
+  },
+  maxAmount: {
+    type: GraphQLInt,
+    description: 'Only return expenses where the amount is lower than or equal to this value (in cents)',
+  },
+  dateFrom: {
+    type: GraphQLDateTime,
+    description: 'Only return expenses that were created after this date',
+  },
+  dateTo: {
+    type: GraphQLDateTime,
+    description: 'Only return expenses that were created before this date',
+  },
+  searchTerm: {
+    type: GraphQLString,
+    description: 'The term to search',
+  },
+  hasExpense: {
+    type: GraphQLBoolean,
+    description: 'Transaction is attached to Expense',
+  },
+  hasOrder: {
+    type: GraphQLBoolean,
+    description: 'Transaction is attached to Order',
+  },
+  includeIncognitoTransactions: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    defaultValue: false,
+    description:
+      'If the account is a user and this field is true, contributions from the incognito profile will be included too (admins only)',
+  },
+  includeDebts: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    defaultValue: false,
+    description: 'Whether to include debt transactions',
+  },
+  kinds: {
+    type: new GraphQLList(TransactionKind),
+    description: 'To filter by transaction kind',
+    deprecationReason: '2020-06-30: Please use kind (singular)',
+  },
+  kind: {
+    type: new GraphQLList(TransactionKind),
+    description: 'To filter by transaction kind',
+  },
+};
+
+const TransactionsQuery: Query<typeof TransactionQueryArgs> = {
+  type: TransactionCollection,
+  args: TransactionQueryArgs,
   async resolve(_: void, args, req: express.Request): Promise<CollectionReturnType> {
     const where = [];
     const include = [];

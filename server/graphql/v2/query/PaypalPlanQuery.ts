@@ -3,6 +3,7 @@ import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import RateLimit from '../../../lib/rate-limit';
 import PaypalPlanModel from '../../../models/PaypalPlan';
 import { getOrCreatePlan } from '../../../paymentProviders/paypal/subscription';
+import { Query } from '../../../types/graphql';
 import { RateLimitExceeded } from '../../errors';
 import { ContributionFrequency } from '../enum';
 import { getIntervalFromContributionFrequency } from '../enum/ContributionFrequency';
@@ -20,25 +21,27 @@ const PaypalPlan = new GraphQLObjectType({
   }),
 });
 
-const PaypalPlanQuery = {
-  type: new GraphQLNonNull(PaypalPlan),
-  args: {
-    account: {
-      type: new GraphQLNonNull(AccountReferenceInput),
-      description: 'The account that serves as a payment target',
-    },
-    amount: {
-      type: new GraphQLNonNull(AmountInput),
-      description: 'The contribution amount for 1 quantity, without platform contribution and taxes',
-    },
-    frequency: {
-      type: new GraphQLNonNull(ContributionFrequency),
-    },
-    tier: {
-      type: TierReferenceInput,
-      description: 'The tier you are contributing to',
-    },
+const PaypalPlanQueryArgs = {
+  account: {
+    type: new GraphQLNonNull(AccountReferenceInput),
+    description: 'The account that serves as a payment target',
   },
+  amount: {
+    type: new GraphQLNonNull(AmountInput),
+    description: 'The contribution amount for 1 quantity, without platform contribution and taxes',
+  },
+  frequency: {
+    type: new GraphQLNonNull(ContributionFrequency),
+  },
+  tier: {
+    type: TierReferenceInput,
+    description: 'The tier you are contributing to',
+  },
+};
+
+const PaypalPlanQuery: Query<typeof PaypalPlanQueryArgs> = {
+  type: new GraphQLNonNull(PaypalPlan),
+  args: PaypalPlanQueryArgs,
   async resolve(_, args, req): Promise<PaypalPlanModel> {
     const rateLimit = new RateLimit(`paypal_plan_${req.remoteUser?.id || req.ip}`, 30, 60);
     if (!(await rateLimit.registerCall())) {
