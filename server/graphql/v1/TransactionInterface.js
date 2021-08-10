@@ -202,7 +202,7 @@ const TransactionFields = () => {
           );
           return models.Transaction.calculateNetAmountInCollectiveCurrency(transaction);
         }
-        return transaction.hostFeeInHostCurrency;
+        return transaction.netAmountInCollectiveCurrency;
       },
     },
     host: {
