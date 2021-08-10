@@ -750,14 +750,14 @@ const queries = {
       if (args.collectiveSlug) {
         args.CollectiveId = await fetchCollectiveId(args.collectiveSlug);
         if (!args.CollectiveId) {
-          throw new Error('Invalid collectiveSlug (not found)');
+          throw new Error(`No collective found with collectiveSlug ${args.collectiveSlug}`);
         }
       }
 
       if (args.memberCollectiveSlug) {
         args.MemberCollectiveId = await fetchCollectiveId(args.memberCollectiveSlug);
         if (!args.MemberCollectiveId) {
-          throw new Error('Invalid memberCollectiveSlug (not found)');
+          throw new Error(`No collective found with memberCollectiveSlug ${args.memberCollectiveSlug}`);
         }
       }
 
