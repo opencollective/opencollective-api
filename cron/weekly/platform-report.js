@@ -345,9 +345,7 @@ export default async function run() {
     const report = reportString(results);
     console.log(report);
 
-    const outlineUrl = await postToOutline(subtitle.substr(0, subtitle.indexOf('(') - 1), report);
-    const reportWithOutline = report.replace(subtitle, `${subtitle}\n\n[View this report on Outline](${outlineUrl})`);
-    const html = markdownConverter.makeHtml(reportWithOutline);
+    const html = markdownConverter.makeHtml(report);
     const data = {
       title,
       html,
@@ -361,36 +359,6 @@ export default async function run() {
   }
 }
 
-async function postToOutline(title, text) {
-  if (!process.env.OUTLINE_API_KEY) {
-    console.info('Outline API KEY not found, skipping posting report to GetOutline');
-    return;
-  }
-  const collection = '581a033e-b2ea-485d-8fda-2e1c4e021cfb'; // https://opencollective.getoutline.com/collections/581a033e-b2ea-485d-8fda-2e1c4e021cfb
-  return fetch('https://www.getoutline.com/api/documents.create', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${process.env.OUTLINE_API_KEY}`,
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
-    body: JSON.stringify({
-      title,
-      text,
-      collection,
-      publish: true,
-    }),
-  })
-    .then(response => response.json())
-    .then(json => {
-      const url = `https://opencollective.getoutline.com${json.data.url}`;
-      console.log('>>> report posted to outline', url);
-      return url;
-    })
-    .catch(e => {
-      console.log('>>> error while posting to outline', e);
-    });
-}
 /**
  * Heroku scheduler only has daily or hourly cron jobs, we only want to run
  * this script once per week on Monday (1). If the day is not Monday on production

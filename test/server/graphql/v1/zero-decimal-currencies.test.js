@@ -39,8 +39,8 @@ describe('server/graphql/v1/zero-decimal-currencies', () => {
             slug
             transactions {
               amount
-              netAmountInCollectiveCurrency
-              hostFeeInHostCurrency
+              netAmountInCollectiveCurrency(fetchHostFee: true)
+              hostFeeInHostCurrency(fetchHostFee: true)
               platformFeeInHostCurrency
               paymentProcessorFeeInHostCurrency
               taxAmount
@@ -65,7 +65,7 @@ describe('server/graphql/v1/zero-decimal-currencies', () => {
       expect(paymentProcessorFeeInHostCurrency).to.equal(-35 * 100);
       expect(hostFeeInHostCurrency).to.equal(-(10000 * 5) / 100); // Resolver is clever enough to retrieve the HOST_FEE transaction
       expect(netAmountInCollectiveCurrency).to.equal(
-        amount + (platformFeeInHostCurrency + paymentProcessorFeeInHostCurrency),
+        amount + (platformFeeInHostCurrency + paymentProcessorFeeInHostCurrency + hostFeeInHostCurrency),
       );
     });
   });

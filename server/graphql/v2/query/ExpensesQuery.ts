@@ -1,5 +1,6 @@
 import express from 'express';
 import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLDateTime } from 'graphql-iso-date';
 import { isEmpty, partition } from 'lodash';
 
 import { expenseStatus } from '../../../constants';
@@ -16,7 +17,6 @@ import PayoutMethodType from '../enum/PayoutMethodType';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
 import { CollectionArgs, CollectionReturnType } from '../interface/Collection';
-import ISODateTime from '../scalar/ISODateTime';
 
 const updateFilterConditionsForReadyToPay = async (where, include): Promise<void> => {
   where['status'] = expenseStatus.APPROVED;
@@ -125,11 +125,11 @@ const ExpensesQuery = {
       description: 'Only return expenses that use the given type as payout method',
     },
     dateFrom: {
-      type: ISODateTime,
+      type: GraphQLDateTime,
       description: 'Only return expenses that were created after this date',
     },
     dateTo: {
-      type: ISODateTime,
+      type: GraphQLDateTime,
       description: 'Only return expenses that were created after this date',
     },
     searchTerm: {

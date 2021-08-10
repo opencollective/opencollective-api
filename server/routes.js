@@ -40,7 +40,7 @@ const noCache = (req, res, next) => {
   next();
 };
 
-export default app => {
+export default async app => {
   /**
    * Extract GraphQL API Key
    */
@@ -55,7 +55,11 @@ export default app => {
 
   // Setup rate limiter
   if (get(config, 'redis.serverUrl')) {
-    const client = redis.createClient(get(config, 'redis.serverUrl'));
+    const redisOptions = {};
+    if (get(config, 'redis.serverUrl').includes('rediss://')) {
+      redisOptions.tls = { rejectUnauthorized: false };
+    }
+    const client = redis.createClient(get(config, 'redis.serverUrl'), redisOptions);
     const rateLimiter = expressLimiter(
       app,
       client,
@@ -118,7 +122,6 @@ export default app => {
   app.param('expenseid', params.expenseid);
 
   const isDevelopment = config.env === 'development';
-  const isProduction = config.env === 'production';
 
   /**
    * GraphQL caching
@@ -184,13 +187,10 @@ export default app => {
    */
   const graphqlServerV1 = new ApolloServer({
     schema: graphqlSchemaV1,
-    engine: {
-      reportSchema: isProduction,
-      variant: 'current',
-      apiKey: get(config, 'graphql.apolloEngineAPIKey'),
-    },
     ...graphqlServerOptions,
   });
+
+  await graphqlServerV1.start();
 
   graphqlServerV1.applyMiddleware({ app, path: '/graphql/v1' });
 
@@ -199,13 +199,10 @@ export default app => {
    */
   const graphqlServerV2 = new ApolloServer({
     schema: graphqlSchemaV2,
-    engine: {
-      reportSchema: isProduction,
-      variant: 'current',
-      apiKey: get(config, 'graphql.apolloEngineAPIKeyV2'),
-    },
     ...graphqlServerOptions,
   });
+
+  await graphqlServerV2.start();
 
   graphqlServerV2.applyMiddleware({ app, path: '/graphql/v2' });
 

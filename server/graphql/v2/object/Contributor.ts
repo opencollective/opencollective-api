@@ -1,9 +1,9 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLDateTime } from 'graphql-iso-date';
 
 import { getCollectiveAvatarUrl } from '../../../lib/collectivelib';
 import { ContributorRoleEnum } from '../../v1/types';
 import { ImageFormat } from '../enum';
-import ISODateTime from '../scalar/ISODateTime';
 
 export const Contributor = new GraphQLObjectType({
   name: 'Contributor',
@@ -38,7 +38,7 @@ export const Contributor = new GraphQLObjectType({
       description: 'True if the contributor is a financial contributor',
     },
     since: {
-      type: new GraphQLNonNull(ISODateTime),
+      type: new GraphQLNonNull(GraphQLDateTime),
       description: 'Member join date',
     },
     totalAmountDonated: {

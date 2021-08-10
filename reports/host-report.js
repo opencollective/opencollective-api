@@ -34,10 +34,12 @@ const enrichTransactionsWithHostFee = async transactions => {
   const hostFees = await hostFeeAmountForTransaction.loadMany(transactions);
   transactions.forEach((transaction, idx) => {
     const hostFeeInHostCurrency = hostFees[idx];
-    if (hostFeeInHostCurrency && hostFeeInHostCurrency !== transaction.hostFeeInHostCurrency) {
-      transaction.hostFeeInHostCurrency = hostFees[idx];
-      transaction.netAmountInCollectiveCurrency =
-        models.Transaction.calculateNetAmountInCollectiveCurrency(transaction);
+    if (transaction.kind === 'ADDED_FUNDS' || transaction.kind === 'CONTRIBUTION') {
+      if (hostFeeInHostCurrency && hostFeeInHostCurrency !== transaction.hostFeeInHostCurrency) {
+        transaction.hostFeeInHostCurrency = hostFees[idx];
+        transaction.netAmountInCollectiveCurrency =
+          models.Transaction.calculateNetAmountInCollectiveCurrency(transaction);
+      }
     }
   });
   return transactions;
@@ -265,6 +267,8 @@ async function HostReport(year, month, hostId) {
         return;
       }
       console.log(`>>> processing ${transactions.length} transactions`);
+      await enrichTransactionsWithHostFee(transactions);
+      transactions = await Promise.all(transactions.map(processTransaction));
 
       // Don't generate PDF in email if it's the yearly report
       let pdf;
@@ -357,8 +361,7 @@ async function HostReport(year, month, hostId) {
         platformFeesOtherCredits;
       const totalTaxAmountCollected = sumByWhen(transactions, 'taxAmount', t => t.type === 'CREDIT');
       const totalAmountPaidExpenses = sumByWhen(expenses, 'netAmountInHostCurrency');
-      const totalNetAmountReceivedForCollectives =
-        sumBy([...donations, ...otherCredits], 'netAmountInHostCurrency') - totalHostFees;
+      const totalNetAmountReceivedForCollectives = totalNetAmountReceived - totalHostFees;
       const totalAmountSpent =
         totalAmountPaidExpenses +
         payoutProcessorFeesOther +
@@ -370,11 +373,9 @@ async function HostReport(year, month, hostId) {
       const hostNetRevenue = Math.abs(totalHostFees) + totalSharedRevenue;
 
       // We exclude host fees and related transactions from the displayed results
-      transactions = transactions.filter(
+      data.transactions = transactions = transactions.filter(
         t => !t.kind || !['HOST_FEE', 'HOST_FEE_SHARE', 'HOST_FEE_SHARE_DEBT'].includes(t.kind),
       );
-      await enrichTransactionsWithHostFee(transactions);
-      data.transactions = transactions = await Promise.all(transactions.map(processTransaction));
 
       const csv = models.Transaction.exportCSV(transactions, collectivesById);
 

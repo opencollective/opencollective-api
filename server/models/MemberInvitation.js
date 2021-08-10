@@ -207,13 +207,15 @@ function defineModel() {
       CollectiveId: collective.id,
     });
 
-    return emailLib.send('member.invitation', memberUser.email, {
+    await emailLib.send('member.invitation', memberUser.email, {
       role: MemberRoleLabels[memberParams.role] || memberParams.role.toLowerCase(),
       invitation: pick(invitation, 'id'),
       collective: pick(collective, ['slug', 'name']),
       memberCollective: pick(memberUser, ['collective.slug', 'collective.name']),
       invitedByUser: pick(createdByUser, ['collective.slug', 'collective.name']),
     });
+
+    return invitation;
   };
 
   return MemberInvitation;

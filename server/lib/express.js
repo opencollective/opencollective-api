@@ -15,7 +15,6 @@ import redis from 'redis';
 
 import { loadersMiddleware } from '../graphql/loaders';
 
-import forest from './forest';
 import hyperwatch from './hyperwatch';
 import logger from './logger';
 
@@ -57,9 +56,6 @@ export default async function (app) {
     app.use(errorHandler());
   }
 
-  // Forest
-  await forest(app);
-
   // Cors.
   app.use(cors());
 
@@ -83,7 +79,13 @@ export default async function (app) {
   let store;
   if (get(config, 'redis.serverUrl')) {
     const RedisStore = connectRedis(session);
-    store = new RedisStore({ client: redis.createClient(get(config, 'redis.serverUrl')) });
+    const redisOptions = {};
+    if (get(config, 'redis.serverUrl').includes('rediss://')) {
+      redisOptions.tls = { rejectUnauthorized: false };
+    }
+    store = new RedisStore({
+      client: redis.createClient(get(config, 'redis.serverUrl'), redisOptions),
+    });
   }
 
   app.use(

@@ -311,7 +311,7 @@ export const getAccountRequirements = async (
     axios.get,
     `/v1/account-requirements`,
     {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}`, 'Accept-Minor-Version': 1 },
       params,
     },
     'There was an error while fetching account requirements for Wise',
@@ -333,7 +333,7 @@ export const validateAccountRequirements = async (
     `/v1/account-requirements`,
     {
       data: accountDetails,
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}`, 'Accept-Minor-Version': 1 },
       params,
     },
     'There was an error while validating account requirements for Wise',

@@ -7,6 +7,11 @@ if [ "$OC_ENV" = "ci" ]; then
   exit $?; # exit with return code of previous command
 fi
 
+if [ "$SKIP_POSTINSTALL" = "1" ]; then
+  echo "Skipping postinstall because SKIP_POSTINSTALL is \"1\""
+  exit $?; # exit with return code of previous command
+fi
+
 # Only run migrations automatically on staging and production
 if [ "$SEQUELIZE_ENV" = "staging" ] || [ "$SEQUELIZE_ENV" = "production" ]; then
   echo "- running db:migrate on $SEQUELIZE_ENV environment"

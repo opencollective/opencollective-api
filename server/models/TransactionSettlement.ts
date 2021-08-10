@@ -1,6 +1,7 @@
 import { groupBy } from 'lodash';
 import { BelongsToGetAssociationMixin, QueryTypes } from 'sequelize';
 
+import expenseType from '../constants/expense_type';
 import { TransactionKind } from '../constants/transaction-kind';
 import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
 import sequelize, { DataTypes, Model, Op, Transaction as SQLTransaction } from '../lib/sequelize';
@@ -102,7 +103,7 @@ class TransactionSettlement
   }
 
   static async markExpenseAsSettled(expense: typeof models.Expense): Promise<void> {
-    if (!expense.data?.['isPlatformTipSettlement']) {
+    if (expense.type !== expenseType.SETTLEMENT && !expense.data?.['isPlatformTipSettlement']) {
       throw new Error('This function can only be used with platform tips settlements');
     }
 

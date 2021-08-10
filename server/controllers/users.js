@@ -2,7 +2,6 @@ import config from 'config';
 
 import * as auth from '../lib/auth';
 import emailLib from '../lib/email';
-import { crypto } from '../lib/encryption';
 import errors from '../lib/errors';
 import logger from '../lib/logger';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../lib/rate-limit';
@@ -140,10 +139,8 @@ export const twoFactorAuthAndUpdateToken = async (req, res, next) => {
     if (!verified) {
       return fail(new Unauthorized('Two-factor authentication recovery code failed. Please try again'));
     }
-    const remainingRecoveryCodes = user.twoFactorAuthRecoveryCodes.filter(
-      code => crypto.hash(twoFactorAuthenticationRecoveryCode.toUpperCase()) !== code,
-    );
-    await user.update({ twoFactorAuthRecoveryCodes: remainingRecoveryCodes });
+
+    await user.update({ twoFactorAuthRecoveryCodes: null, twoFactorAuthToken: null });
   }
 
   const token = user.jwt({}, auth.TOKEN_EXPIRATION_SESSION);

@@ -227,7 +227,38 @@ Subject: {{#if erratumMessage}}Erratum{{#if erratumNumber}} {{erratumNumber}}{{/
     {{/if}}
     {{/if}}
 
-    {{#if stats.numberDebts}}
+    <tr>
+      <td colspan=2></td>
+      <td height=10 class="line">
+        <hr />
+      </td>
+    </tr>
+
+    <tr>
+      <td>Total amount received</td>
+      <td></td>
+      <td align="right">
+        {{currency stats.totalNetAmountReceived currency=host.currency precision=2}}</td>
+    </tr>
+    <tr>
+      <td colspan=3 height=10></td>
+    </tr>
+    {{#if stats.totalTaxAmountCollected}}
+    <tr>
+      <td>Taxes collected</td>
+      <td></td>
+      <td align="right">
+        {{currency stats.totalTaxAmountCollected currency=host.currency precision=2}}</td>
+    </tr>
+    <tr>
+      <td colspan=3 class="muted">{{taxType}} received</td>
+    </tr>
+    <tr>
+      <td colspan=3 height=10></td>
+    </tr>
+    {{/if}}
+
+    {{#if stats.totalAmountDebts}}
     <tr>
       <td colspan=3 height=10></td>
     </tr>
@@ -258,37 +289,12 @@ Subject: {{#if erratumMessage}}Erratum{{#if erratumNumber}} {{erratumNumber}}{{/
     </tr>
     {{/if}}
 
+    <tr>
+      <td colspan=3 height=10></td>
+    </tr>
+
     {{/if}}
 
-    <tr>
-      <td colspan=2></td>
-      <td height=10 class="line">
-        <hr />
-      </td>
-    </tr>
-    <tr>
-      <td>Total contributions received</td>
-      <td></td>
-      <td align="right">
-        {{currency stats.totalNetAmountReceived currency=host.currency precision=2}}</td>
-    </tr>
-    <tr>
-      <td colspan=3 height=10></td>
-    </tr>
-    {{#if stats.totalTaxAmountCollected}}
-    <tr>
-      <td>Taxes collected</td>
-      <td></td>
-      <td align="right">
-        {{currency stats.totalTaxAmountCollected currency=host.currency precision=2}}</td>
-    </tr>
-    <tr>
-      <td colspan=3 class="muted">{{taxType}} received</td>
-    </tr>
-    <tr>
-      <td colspan=3 height=10></td>
-    </tr>
-    {{/if}}
     <tr>
       <td>Host fees</td>
       <td></td>

@@ -1,5 +1,6 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLDateTime } from 'graphql-iso-date';
 
 import models, { Op, sequelize } from '../../../models';
 import { TransactionCollection } from '../collection/TransactionCollection';
@@ -8,7 +9,6 @@ import { TransactionType } from '../enum/TransactionType';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
 import { CollectionArgs, CollectionReturnType } from '../interface/Collection';
-import ISODateTime from '../scalar/ISODateTime';
 
 const TransactionsQuery = {
   type: TransactionCollection,
@@ -48,11 +48,11 @@ const TransactionsQuery = {
       description: 'Only return expenses where the amount is lower than or equal to this value (in cents)',
     },
     dateFrom: {
-      type: ISODateTime,
+      type: GraphQLDateTime,
       description: 'Only return expenses that were created after this date',
     },
     dateTo: {
-      type: ISODateTime,
+      type: GraphQLDateTime,
       description: 'Only return expenses that were created before this date',
     },
     searchTerm: {

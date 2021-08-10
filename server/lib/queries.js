@@ -1000,13 +1000,11 @@ const getTaxFormsRequiredForExpenses = expenseIds => {
       AND ld."documentType" = 'US_TAX_FORM'
     WHERE analyzed_expenses.id IN (:expenseIds)
     AND analyzed_expenses."FromCollectiveId" != d."HostCollectiveId"
-    AND analyzed_expenses.type != 'RECEIPT'
-    AND analyzed_expenses.type != 'CHARGE'
+    AND analyzed_expenses.type NOT IN ('RECEIPT', 'CHARGE', 'SETTLEMENT')
     AND analyzed_expenses.status IN ('PENDING', 'APPROVED')
     AND analyzed_expenses."deletedAt" IS NULL
     AND (from_collective."HostCollectiveId" IS NULL OR from_collective."HostCollectiveId" != c."HostCollectiveId")
-    AND all_expenses.type != 'RECEIPT'
-    AND all_expenses.type != 'CHARGE'
+    AND all_expenses.type NOT IN ('RECEIPT', 'CHARGE', 'SETTLEMENT')
     AND all_expenses.status NOT IN ('ERROR', 'REJECTED', 'DRAFT', 'UNVERIFIED')
     AND all_expenses."deletedAt" IS NULL
     AND date_trunc('year', all_expenses."incurredAt") = date_trunc('year', analyzed_expenses."incurredAt")
@@ -1043,8 +1041,7 @@ const getTaxFormsRequiredForAccounts = async (accountIds = [], year) => {
       ON ld."CollectiveId" = account.id
       AND ld.year + :validityInYears >= :year
       AND ld."documentType" = 'US_TAX_FORM'
-    WHERE all_expenses.type != 'RECEIPT'
-    AND all_expenses.type != 'CHARGE'
+    WHERE all_expenses.type NOT IN ('RECEIPT', 'CHARGE', 'SETTLEMENT')
     ${accountIds?.length ? 'AND account.id IN (:accountIds)' : ''}
     AND account.id != d."HostCollectiveId"
     AND (account."HostCollectiveId" IS NULL OR account."HostCollectiveId" != d."HostCollectiveId")

@@ -10,7 +10,7 @@ const transactionsQuery = gqlV2/* GraphQL */ `
     $type: TransactionType
     $minAmount: Int
     $maxAmount: Int
-    $dateFrom: ISODateTime
+    $dateFrom: DateTime
     $searchTerm: String
   ) {
     transactions(

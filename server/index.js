@@ -22,7 +22,7 @@ async function start(i) {
   /**
    * Routes.
    */
-  routes(expressApp);
+  await routes(expressApp);
 
   /**
    * Start server

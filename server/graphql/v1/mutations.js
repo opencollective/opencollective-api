@@ -26,7 +26,6 @@ import * as commentMutations from './mutations/comments';
 import { editConnectedAccount } from './mutations/connectedAccounts';
 import { createWebhook, deleteNotification, editWebhooks } from './mutations/notifications';
 import {
-  addFundsToOrg,
   confirmOrder,
   createOrder,
   markOrderAsPaid,
@@ -276,6 +275,7 @@ const mutations = {
   editCoreContributors: {
     type: CollectiveInterfaceType,
     description: 'Updates all the core contributors (role = ADMIN or MEMBER) for this collective.',
+    deprecationReason: '2021-07-02: Please use inviteMember, editMember or removeMember mutations from GQLV2',
     args: {
       collectiveId: { type: new GraphQLNonNull(GraphQLInt) },
       members: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(MemberInputType))) },
@@ -375,17 +375,6 @@ const mutations = {
     async resolve(_, args, req) {
       return await refundTransaction(_, args, req);
     },
-  },
-  addFundsToOrg: {
-    type: PaymentMethodType,
-    deprecationReason: '2021-06-01: Create a Prepaid Payment Method through a Tier or use a FUND instead.',
-    args: {
-      totalAmount: { type: new GraphQLNonNull(GraphQLInt) },
-      CollectiveId: { type: new GraphQLNonNull(GraphQLInt) },
-      HostCollectiveId: { type: new GraphQLNonNull(GraphQLInt) },
-      description: { type: GraphQLString },
-    },
-    resolve: async (_, args, req) => addFundsToOrg(args, req.remoteUser),
   },
   createApplication: {
     type: ApplicationType,
@@ -606,6 +595,7 @@ const mutations = {
   replyToMemberInvitation: {
     type: GraphQLBoolean,
     description: 'Endpoint to accept or reject an invitation to become a member',
+    deprecationReason: '2021-07-07: This endpoint has been moved to GQLV2',
     args: {
       invitationId: {
         type: new GraphQLNonNull(GraphQLInt),
