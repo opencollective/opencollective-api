@@ -5,7 +5,7 @@ module.exports = {
     await queryInterface.sequelize.query(`ALTER TYPE "enum_Expenses_type" ADD VALUE 'SETTLEMENT';`);
     await queryInterface.sequelize.query(`ALTER TYPE "enum_ExpenseHistories_type" ADD VALUE 'SETTLEMENT';`);
     await queryInterface.sequelize.query(
-      `UPDATE "Expenses" SET "type" = 'SETTLEMENT' WHERE ("data"->'isPlatformTipSettlement')::bool IS TRUE;`,
+      `UPDATE "Expenses" SET "type" = 'SETTLEMENT' WHERE ("data"->>'isPlatformTipSettlement')::bool IS TRUE;`,
     );
   },
 
