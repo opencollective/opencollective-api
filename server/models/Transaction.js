@@ -216,12 +216,7 @@ function defineModel() {
 
       getterMethods: {
         netAmountInHostCurrency() {
-          return (
-            this.amountInHostCurrency +
-            this.paymentProcessorFeeInHostCurrency +
-            this.platformFeeInHostCurrency +
-            this.hostFeeInHostCurrency
-          );
+          return Transaction.calculateNetAmountInHostCurrency(this);
         },
 
         amountSentToHostInHostCurrency() {
@@ -1072,6 +1067,19 @@ function defineModel() {
     const hostCurrencyFxRate = transaction.hostCurrencyFxRate || 1;
 
     return Math.round((transaction.amountInHostCurrency + transactionFees) / hostCurrencyFxRate + transactionTaxes);
+  };
+
+  Transaction.calculateNetAmountInHostCurrency = function (transaction) {
+    const transactionFees =
+      transaction.platformFeeInHostCurrency +
+      transaction.hostFeeInHostCurrency +
+      transaction.paymentProcessorFeeInHostCurrency;
+
+    const transactionTaxes = transaction.taxAmount || 0;
+
+    const hostCurrencyFxRate = transaction.hostCurrencyFxRate || 1;
+
+    return transaction.amountInHostCurrency + transactionFees + Math.round(transactionTaxes * hostCurrencyFxRate);
   };
 
   Transaction.getFxRate = async function (fromCurrency, toCurrency, transaction) {

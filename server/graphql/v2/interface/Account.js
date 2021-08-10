@@ -134,8 +134,12 @@ const accountFieldsDefinition = () => ({
   },
   parentAccount: {
     type: Account,
-    resolve(collective) {
-      return models.Collective.findByPk(collective.ParentCollectiveId);
+    async resolve(collective, _, req) {
+      if (!collective.ParentCollectiveId) {
+        return null;
+      } else {
+        return req.loaders.Collective.byId.load(collective.ParentCollectiveId);
+      }
     },
   },
   accountMembers: {
