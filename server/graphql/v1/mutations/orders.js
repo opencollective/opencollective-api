@@ -258,7 +258,11 @@ const hasPaymentMethod = order => {
     return Boolean(paymentMethod.data.orderId);
   } else {
     return Boolean(
-      paymentMethod.uuid || paymentMethod.token || paymentMethod.type === 'manual' || paymentMethod.type === 'alipay',
+      paymentMethod.uuid ||
+        paymentMethod.token ||
+        paymentMethod.type === 'manual' ||
+        paymentMethod.type === 'alipay' ||
+        paymentMethod.type === 'crypto',
     );
   }
 };

@@ -13,6 +13,7 @@ export enum PaymentMethodLegacyTypeEnum {
   PAYPAL = 'PAYPAL',
   BANK_TRANSFER = 'BANK_TRANSFER',
   ADDED_FUNDS = 'ADDED_FUNDS',
+  CRYPTO = 'CRYPTO',
 }
 
 export const PaymentMethodLegacyType = new GraphQLEnumType({
@@ -67,5 +68,7 @@ export const getServiceTypeFromLegacyPaymentMethodType = (type: PaymentMethodLeg
       return { service: PAYMENT_METHOD_SERVICE.PAYPAL, type: PAYMENT_METHOD_TYPE.PAYMENT };
     case PaymentMethodLegacyTypeEnum.ALIPAY:
       return { service: PAYMENT_METHOD_SERVICE.STRIPE, type: PAYMENT_METHOD_TYPE.ALIPAY };
+    case PaymentMethodLegacyTypeEnum.CRYPTO:
+      return { service: PAYMENT_METHOD_SERVICE.THEGIVINGBLOCK, type: PAYMENT_METHOD_TYPE.CRYPTO };
   }
 };

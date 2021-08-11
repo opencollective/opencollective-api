@@ -5,6 +5,7 @@ export enum Service {
   TWITTER = 'twitter',
   TRANSFERWISE = 'transferwise',
   PRIVACY = 'privacy',
+  THEGIVINGBLOCK = 'thegivingblock',
   MEETUP = 'meetup', // @deprecated
 }
 
