@@ -395,7 +395,11 @@ export const sendEmailNotifications = (order, transaction) => {
   debug('sendEmailNotifications');
   // for gift cards and manual payment methods
   // Don't send a "thank you" email when moving funds between a sub-collective and its parent
-  if (transaction && order.fromCollective?.ParentCollectiveId !== order.collective?.id) {
+  if (
+    transaction &&
+    order.fromCollective?.ParentCollectiveId !== order.collective?.id &&
+    order.fromCollective.id !== order.collective?.HostCollectiveId
+  ) {
     sendOrderConfirmedEmail(order, transaction); // async
   } else if (order.status === status.PENDING) {
     sendOrderProcessingEmail(order); // This is the one for the Contributor
