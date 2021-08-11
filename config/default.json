@@ -178,8 +178,11 @@
     "separateHostFees": true
   },
   "thegivingblock": {
+    "username": "opencollective",
+    "password": "",
     "aesEncryptionKey": "",
     "aesEncryptionIv": "",
-    "aesEncryptionMethod": "aes-256-cbc"
+    "aesEncryptionMethod": "aes-256-cbc",
+    "apiUrl": "https://public-api-nstaging.tgbwidget.com/v1"
   }
 }

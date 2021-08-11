@@ -9,32 +9,37 @@ import { getFxRate } from '../../lib/currency';
 import { getHostFee, getHostFeeSharePercent } from '../../lib/payments';
 import models from '../../models';
 
-// const baseUrl = `https://public-api.tgbwidget.com/v1`;
-const baseUrl = `https://public-api-nstaging.tgbwidget.com/v1`;
+const AES_ENCRYPTION_KEY = config.thegivingblock.aesEncryptionKey;
+const AES_ENCRYPTION_IV = config.thegivingblock.aesEncryptionIv;
+const AES_ENCRYPTION_METHOD = config.thegivingblock.aesEncryptionMethod;
+const API_URL = config.thegivingblock.apiUrl;
 
-export async function login(login, password) {
-  const body = new URLSearchParams();
-  body.set('login', login);
-  body.set('password', password);
-
-  const response = await fetch(`${baseUrl}/login`, { method: 'POST', body });
+async function apiRequest(path, options = {}) {
+  const response = await fetch(`${API_URL}${path}`, options);
   const result = await response.json();
+
+  if (result.data.errorMessage) {
+    throw new Error(`The Giving Block: ${result.data.errorMessage}`);
+  }
 
   // console.log(result);
 
   return result.data;
 }
 
+export async function login(login, password) {
+  const body = new URLSearchParams();
+  body.set('login', login);
+  body.set('password', password);
+
+  return apiRequest(`/login`, { method: 'POST', body });
+}
+
 export async function refresh(refreshToken) {
   const body = new URLSearchParams();
   body.set('refreshToken', refreshToken);
 
-  const response = await fetch(`${baseUrl}/refresh-tokens`, { method: 'POST', body });
-  const result = await response.json();
-
-  // console.log(result);
-
-  return result.data;
+  return apiRequest(`/refresh-tokens`, { method: 'POST', body });
 }
 
 export async function getOrganizationsList(accessToken) {
@@ -42,12 +47,7 @@ export async function getOrganizationsList(accessToken) {
     Authorization: `Bearer ${accessToken}`,
   };
 
-  const response = await fetch(`${baseUrl}/organizations/list`, { headers });
-  const result = await response.json();
-
-  // console.log(result);
-
-  return result.data;
+  return apiRequest(`/organizations/list`, { headers });
 }
 
 export async function createDepositAddress(accessToken, { organizationId, pledgeAmount, pledgeCurrency } = {}) {
@@ -61,12 +61,7 @@ export async function createDepositAddress(accessToken, { organizationId, pledge
   body.set('pledgeAmount', pledgeAmount);
   body.set('pledgeCurrency', pledgeCurrency);
 
-  const response = await fetch(`${baseUrl}/deposit-address`, { method: 'POST', body, headers });
-  const result = await response.json();
-
-  // console.log(result);
-
-  return result.data;
+  return apiRequest(`/deposit-address`, { method: 'POST', body, headers });
 }
 
 export const processOrder = async order => {
@@ -157,16 +152,16 @@ export const confirmOrder = async order => {
   return creditTransaction;
 };
 
-const AES_ENCRYPTION_KEY = config.thegivingblock.aesEncryptionKey;
-const AES_ENCRYPTION_IV = config.thegivingblock.aesEncryptionIv;
-const AES_METHOD = config.thegivingblock.aesEncryptionMethod || 'aes-256-cbc';
-
 function hexToBuffer(str) {
   return Buffer.from(str, 'hex');
 }
 
 export function decryptPayload(payload) {
-  const decipher = crypto.createDecipheriv(AES_METHOD, hexToBuffer(AES_ENCRYPTION_KEY), hexToBuffer(AES_ENCRYPTION_IV));
+  const decipher = crypto.createDecipheriv(
+    AES_ENCRYPTION_METHOD,
+    hexToBuffer(AES_ENCRYPTION_KEY),
+    hexToBuffer(AES_ENCRYPTION_IV),
+  );
   const decrypted = decipher.update(hexToBuffer(payload));
   return Buffer.concat([decrypted, decipher.final()]).toString('utf8');
 }
