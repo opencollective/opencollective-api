@@ -226,6 +226,11 @@ const orderMutations = {
       if (haveDetailsChanged) {
         // Update details (eg. amount, tier)
         const tier = !isNull(args.tier.id) && (await fetchTierWithReference(args.tier, { throwIfMissing: true }));
+        const membership =
+          !isNull(order) &&
+          (await models.Member.findOne({
+            where: { MemberCollectiveId: order.FromCollectiveId, CollectiveId: order.CollectiveId, role: 'BACKER' },
+          }));
         let newTotalAmount = getValueInCentsFromAmountInput(args.amount);
         // We add the current Platform Tip to the totalAmount
         if (order.data?.isFeesOnTop && order.data.platformFee) {
@@ -235,6 +240,7 @@ const orderMutations = {
         ({ previousOrderValues, previousSubscriptionValues } = await updateSubscriptionDetails(
           order,
           tier,
+          membership,
           newTotalAmount,
         ));
       }
