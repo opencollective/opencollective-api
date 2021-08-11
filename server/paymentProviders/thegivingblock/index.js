@@ -90,14 +90,14 @@ export const processOrder = async order => {
   // TODO: update currency?
   await order.paymentMethod.update({ data: { ...order.paymentMethod.data, depositAddress } });
 
-  // Update order with pledgeId
-  await order.update({ data: { ...order.data, pledgeId } });
+  // Update order with pledgeId and status
+  await order.update({ data: { ...order.data, pledgeId }, status: orderStatus.PENDING });
 
-  // update approximative amount in order currency
+  // update approximate amount in order currency
   const cryptoToFiatFxRate = await getFxRate(order.data.customData.pledgeCurrency, order.currency);
   if (cryptoToFiatFxRate) {
     const totalAmount = Math.round(order.data.customData.pledgeAmount * cryptoToFiatFxRate);
-    await order.update({ totalAmount, status: orderStatus.PENDING });
+    await order.update({ totalAmount });
   }
 };
 
@@ -148,7 +148,7 @@ export const confirmOrder = async order => {
     },
   };
 
-  return await models.Transaction.createFromContributionPayload(transactionPayload);
+  return models.Transaction.createFromContributionPayload(transactionPayload);
 };
 
 function hexToBuffer(str) {
