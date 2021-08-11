@@ -31,9 +31,9 @@ async function main({ dryRun, totalAmount, reqMask, isGuest }) {
   }
   if (!reqMask && !totalAmount && !isGuest) {
     throw new Error('Not enough parameters');
-  } else if (totalAmount && (!isGuest || !reqMask)) {
+  } else if (totalAmount && !isGuest && !reqMask) {
     throw new Error('Not enough parameters: totalAmount should be used together with isGuest');
-  } else if (isGuest && (!totalAmount || !reqMask)) {
+  } else if (isGuest && !totalAmount && !reqMask) {
     throw new Error('Not enough parameters: isGuest should be used together with totalAmount');
   }
 
@@ -47,9 +47,9 @@ async function main({ dryRun, totalAmount, reqMask, isGuest }) {
       AND t."kind" = 'CONTRIBUTION'
       AND t."type" = 'CREDIT'
       AND t."RefundTransactionId" IS NULL
-      ${totalAmount ? `AND o."totalAmount' = '${totalAmount}'` : ''}
+      ${totalAmount ? `AND o."totalAmount" = '${totalAmount}'` : ''}
       ${reqMask ? `AND o."data"->>'reqMask' = '${reqMask}'` : ''}
-      ${isGuest ? `AND o."data"->>'isGuest' = '${isGuest}'` : ''}
+      ${isGuest ? `AND (o."data"->>'isGuest')::boolean IS TRUE` : ''}
     GROUP BY o."id"
     ORDER BY o."createdAt"
     ;
@@ -84,7 +84,7 @@ function parseCommandLineArguments() {
   });
 
   parser.add_argument('--amount', {
-    help: 'The request mask to look for',
+    help: 'The request totalAmount to look for',
   });
 
   parser.add_argument('--run', {
