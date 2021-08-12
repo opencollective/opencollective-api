@@ -568,6 +568,43 @@ const accountFieldsDefinition = () => ({
       };
     },
   },
+  childrenAccounts: {
+    type: AccountCollection,
+    args: {
+      limit: { type: GraphQLInt, defaultValue: 100 },
+      offset: { type: GraphQLInt, defaultValue: 0 },
+      accountType: {
+        type: new GraphQLList(AccountType),
+      },
+    },
+    async resolve(account, args, req) {
+      if (!req.remoteUser?.isAdminOfCollective(account)) {
+        throw new Unauthorized('You need to be logged in as an admin of the account to see its children accounts');
+      }
+
+      const where = {
+        ParentCollectiveId: account.id,
+      };
+      if (args.accountType && args.accountType.length > 0) {
+        where.type = {
+          [Op.in]: args.accountType.map(value => AccountTypeToModelMapping[value]),
+        };
+      }
+
+      const result = await models.Collective.findAndCountAll({
+        where,
+        limit: args.limit,
+        offset: args.offset,
+      });
+
+      return {
+        nodes: result.rows,
+        totalCount: result.count,
+        limit: args.limit,
+        offset: args.offset,
+      };
+    },
+  },
 });
 
 export const Account = new GraphQLInterfaceType({
