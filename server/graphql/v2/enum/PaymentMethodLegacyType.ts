@@ -43,6 +43,8 @@ export const getLegacyPaymentMethodType = ({ service, type }: PaymentMethod): Pa
     }
   } else if (service === PAYMENT_METHOD_SERVICE.PAYPAL && type === PAYMENT_METHOD_TYPE.PAYMENT) {
     return PaymentMethodLegacyTypeEnum.PAYPAL;
+  } else if (service === PAYMENT_METHOD_SERVICE.THEGIVINGBLOCK && type === PAYMENT_METHOD_TYPE.CRYPTO) {
+    return PaymentMethodLegacyTypeEnum.CRYPTO;
   }
 
   logger.warn(`getPaymentMethodType: Unknown PM type for ${service}/${type}`);

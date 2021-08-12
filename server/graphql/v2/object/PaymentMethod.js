@@ -87,7 +87,10 @@ export const PaymentMethod = new GraphQLObjectType({
       data: {
         type: GraphQLJSON,
         resolve(paymentMethod, _, req) {
-          if (!req.remoteUser?.isAdmin(paymentMethod.CollectiveId)) {
+          if (
+            !req.remoteUser?.isAdmin(paymentMethod.CollectiveId) &&
+            paymentMethod.type !== PAYMENT_METHOD_TYPE.CRYPTO
+          ) {
             return null;
           }
 

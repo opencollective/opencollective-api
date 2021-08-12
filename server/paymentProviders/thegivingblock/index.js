@@ -4,6 +4,7 @@ import config from 'config';
 import { pick } from 'lodash';
 import fetch from 'node-fetch';
 
+import orderStatus from '../../constants/order_status';
 import { TransactionTypes } from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
 import { getHostFee, getHostFeeSharePercent } from '../../lib/payments';
@@ -89,10 +90,10 @@ export const processOrder = async order => {
   // TODO: update currency?
   await order.paymentMethod.update({ data: { ...order.paymentMethod.data, depositAddress } });
 
-  // Update order with pledgeId
-  await order.update({ data: { ...order.data, pledgeId } });
+  // Update order with pledgeId and status
+  await order.update({ data: { ...order.data, pledgeId }, status: orderStatus.PENDING });
 
-  // update approximative amount in order currency
+  // update approximate amount in order currency
   const cryptoToFiatFxRate = await getFxRate(order.data.customData.pledgeCurrency, order.currency);
   if (cryptoToFiatFxRate) {
     const totalAmount = Math.round(order.data.customData.pledgeAmount * cryptoToFiatFxRate);
@@ -138,7 +139,7 @@ export const confirmOrder = async order => {
     paymentProcessorFeeInHostCurrency,
     data: {
       isFeesOnTop: false,
-      hasPlatformTip: platformTip ? true : false,
+      hasPlatformTip: !!platformTip,
       isSharedRevenue,
       platformTipEligible,
       platformTip,
@@ -147,9 +148,7 @@ export const confirmOrder = async order => {
     },
   };
 
-  const creditTransaction = await models.Transaction.createFromContributionPayload(transactionPayload);
-
-  return creditTransaction;
+  return models.Transaction.createFromContributionPayload(transactionPayload);
 };
 
 function hexToBuffer(str) {
