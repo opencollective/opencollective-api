@@ -185,10 +185,11 @@ const accountFieldsDefinition = () => ({
         query.where.role = { [Op.in]: roles };
       }
 
-      let conditionOnMemberCollective;
-      if (args.type) {
-        const types = args.type.split(',');
-        conditionOnMemberCollective = { type: { [Op.in]: types } };
+      const conditionOnMemberCollective = {};
+      if (args.accountType && args.accountType.length > 0) {
+        conditionOnMemberCollective.type = {
+          [Op.in]: args.accountType.map(value => AccountTypeToModelMapping[value]),
+        };
       }
 
       query.include = [
