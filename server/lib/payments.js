@@ -398,7 +398,7 @@ export const sendEmailNotifications = (order, transaction) => {
   if (
     transaction &&
     order.fromCollective?.ParentCollectiveId !== order.collective?.id &&
-    order.fromCollective.id !== order.collective?.HostCollectiveId
+    order.fromCollective?.id !== order.collective?.HostCollectiveId
   ) {
     sendOrderConfirmedEmail(order, transaction); // async
   } else if (order.status === status.PENDING) {
