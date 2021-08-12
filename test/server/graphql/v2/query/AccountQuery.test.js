@@ -4,7 +4,7 @@ import { times } from 'lodash';
 
 import { roles } from '../../../../../server/constants';
 import { randEmail } from '../../../../stores';
-import { fakeCollective, fakeUser } from '../../../../test-helpers/fake-data';
+import { fakeCollective, fakeUser, multiple } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
 
 const accountQuery = gqlV2/* GraphQL */ `
@@ -127,6 +127,52 @@ describe('server/graphql/v2/query/AccountQuery', () => {
       expect(members.length).to.eq(1);
       expect(members[0].account.legacyId).to.eq(collectiveBackers[0].collective.id);
       expect(members[0].account.email).to.eq(email);
+    });
+  });
+
+  describe('childrenAccounts', () => {
+    let collective, user;
+    const childrenAccounts = gqlV2/* GraphQL */ `
+      query Account($slug: String!, $accountType: [AccountType]) {
+        account(slug: $slug) {
+          id
+          legacyId
+          childrenAccounts(limit: 100, accountType: $accountType) {
+            totalCount
+            nodes {
+              id
+              slug
+              type
+            }
+          }
+        }
+      }
+    `;
+
+    before(async () => {
+      [collective] = await multiple(fakeCollective, 3);
+      await multiple(fakeCollective, 4, { ParentCollectiveId: collective.id, type: 'EVENT' });
+      await multiple(fakeCollective, 4, { ParentCollectiveId: collective.id, type: 'PROJECT' });
+      user = await fakeUser();
+      await collective.addUserWithRole(user, 'ADMIN');
+    });
+
+    it('can not list childrens if not and admin', async () => {
+      const result = await graphqlQueryV2(childrenAccounts, { slug: collective.slug });
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include(
+        'You need to be logged in as an admin of the account to see its children accounts',
+      );
+    });
+
+    it('can list all childrens if admin', async () => {
+      const result = await graphqlQueryV2(childrenAccounts, { slug: collective.slug }, user);
+      expect(result).to.have.nested.property('data.account.childrenAccounts.totalCount').eq(8);
+    });
+
+    it('can filter by account type', async () => {
+      const result = await graphqlQueryV2(childrenAccounts, { slug: collective.slug, accountType: ['EVENT'] }, user);
+      expect(result).to.have.nested.property('data.account.childrenAccounts.totalCount').eq(4);
     });
   });
 });
