@@ -225,6 +225,14 @@ describe('server/models/Collective', () => {
     expect(collective5.slug).to.equal('helene-and-les-g-arcons');
   });
 
+  it('prefers name over twitter handle for slug', async () => {
+    const collective = await Collective.create({
+      name: 'usename',
+      twitterHandle: '@usetwitter',
+    });
+    expect(collective.slug).to.equal('usename');
+  });
+
   it('creates a unique slug for incognito profile', async () => {
     const collective = await Collective.create({ isIncognito: true });
     expect(collective.slug).to.contain('incognito-');
