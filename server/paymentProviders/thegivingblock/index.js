@@ -7,6 +7,7 @@ import fetch from 'node-fetch';
 import orderStatus from '../../constants/order_status';
 import { TransactionTypes } from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
+import logger from '../../lib/logger';
 import { getHostFee, getHostFeeSharePercent } from '../../lib/payments';
 import models from '../../models';
 
@@ -14,13 +15,22 @@ const AES_ENCRYPTION_KEY = config.thegivingblock.aesEncryptionKey;
 const AES_ENCRYPTION_IV = config.thegivingblock.aesEncryptionIv;
 const AES_ENCRYPTION_METHOD = config.thegivingblock.aesEncryptionMethod;
 const API_URL = config.thegivingblock.apiUrl;
+const GIVINGBLOCK_USERNAME = config.thegivingblock.username;
+const GIVINGBLOCK_PASSWORD = config.thegivingblock.password;
 
 async function apiRequest(path, options = {}) {
   const response = await fetch(`${API_URL}${path}`, options);
   const result = await response.json();
 
+  // Whenever and api request is made we check if access token is expired and if
+  // so we login again (https://app.gitbook.com/@the-giving-block/s/public-api-documentation/#authentication-flow).
+  // Access tokens are only valid for 2 hours.
   if (result.data.errorMessage) {
-    throw new Error(`The Giving Block: ${result.data.errorMessage}`);
+    if (result.data.meta.errorCode === 'INVALID_JWT_TOKEN') {
+      logger.debug('Access token is invalid. Requesting a new one.');
+      return await login(GIVINGBLOCK_USERNAME, GIVINGBLOCK_PASSWORD);
+    }
+    throw new Error(`The Giving Block: ${result.data.errorMessage} ${result.data.meta.errorCode}`);
   }
 
   // console.log(result);
