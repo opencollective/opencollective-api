@@ -157,14 +157,6 @@ describe('server/graphql/v2/query/AccountQuery', () => {
       await collective.addUserWithRole(user, 'ADMIN');
     });
 
-    it('can not list childrens if not and admin', async () => {
-      const result = await graphqlQueryV2(childrenAccounts, { slug: collective.slug });
-      expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.include(
-        'You need to be logged in as an admin of the account to see its children accounts',
-      );
-    });
-
     it('can list all childrens if admin', async () => {
       const result = await graphqlQueryV2(childrenAccounts, { slug: collective.slug }, user);
       expect(result).to.have.nested.property('data.account.childrenAccounts.totalCount').eq(8);

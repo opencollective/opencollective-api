@@ -578,11 +578,7 @@ const accountFieldsDefinition = () => ({
         type: new GraphQLList(AccountType),
       },
     },
-    async resolve(account, args, req) {
-      if (!req.remoteUser?.isAdminOfCollective(account)) {
-        throw new Unauthorized('You need to be logged in as an admin of the account to see its children accounts');
-      }
-
+    async resolve(account, args) {
       const where = {
         ParentCollectiveId: account.id,
       };
