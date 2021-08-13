@@ -94,9 +94,14 @@ export const processOrder = async order => {
   await order.update({ data: { ...order.data, pledgeId }, status: orderStatus.PENDING });
 
   // update approximate amount in order currency
-  const cryptoToFiatFxRate = await getFxRate(order.data.customData.pledgeCurrency, order.currency);
-  if (cryptoToFiatFxRate) {
-    const totalAmount = Math.round(order.data.customData.pledgeAmount * cryptoToFiatFxRate);
+  let cryptoFxRate;
+  try {
+    cryptoFxRate = await getFxRate(order.data.customData.pledgeCurrency, order.currency);
+  } catch (e) {
+    console.log(e);
+  }
+  if (cryptoFxRate) {
+    const totalAmount = Math.round(order.data.customData.pledgeAmount * cryptoFxRate);
     await order.update({ totalAmount });
   }
 };
