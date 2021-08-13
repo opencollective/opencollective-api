@@ -393,8 +393,8 @@ export async function associateTransactionRefundId(transaction, refund, data) {
 
 export const sendEmailNotifications = (order, transaction) => {
   debug('sendEmailNotifications');
-  // for gift cards and manual payment methods
-  // Don't send a "thank you" email when moving funds between a sub-collective and its parent
+  // Don't send a "thank you" email when moving funds from a sub-collective to its parent or from a host to
+  // one of its collectives.
   if (
     transaction &&
     order.fromCollective?.ParentCollectiveId !== order.collective?.id &&
