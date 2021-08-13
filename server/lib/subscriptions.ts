@@ -34,7 +34,7 @@ export const updatePaymentMethodForSubscription = async (
     newSubscriptionData = { isManagedExternally, paypalSubscriptionId: null };
   }
 
-  const { order: updatedOrder } = await updateOrderSubscription(order, newOrderData, newSubscriptionData);
+  const { order: updatedOrder } = await updateOrderSubscription(order, null, newOrderData, newSubscriptionData, {});
   return updatedOrder;
 };
 
@@ -72,8 +72,10 @@ type OrderSubscriptionUpdate = {
  */
 export const updateOrderSubscription = async (
   order: typeof models.Order,
+  member: typeof models.Member,
   newOrderData: Record<string, unknown>,
   newSubscriptionData: Record<string, unknown>,
+  newMemberData: Record<string, unknown>,
 ): Promise<OrderSubscriptionUpdate> => {
   const previousOrderValues = pick(order.dataValues, keys(newOrderData));
   const previousSubscriptionValues = pick(order.Subscription.dataValues, keys(newSubscriptionData));
@@ -91,13 +93,18 @@ export const updateOrderSubscription = async (
       order.Subscription = await order.Subscription.update(newSubscriptionData, { transaction });
     }
 
-    return { order, previousOrderValues, previousSubscriptionValues };
+    if (member && !isEmpty(newMemberData)) {
+      member = await member.update(newMemberData, { transaction });
+    }
+
+    return { order, member, previousOrderValues, previousSubscriptionValues };
   });
 };
 
 export const updateSubscriptionDetails = async (
   order: typeof models.Order,
   tier: typeof models.Tier,
+  member: typeof models.Member,
   amountInCents: number,
 ): Promise<OrderSubscriptionUpdate> => {
   // Make sure the new details are ok values, that match tier's minimum amount if there's one
@@ -105,6 +112,7 @@ export const updateSubscriptionDetails = async (
 
   const newOrderData = {};
   const newSubscriptionData = {};
+  const newMemberData = {};
 
   // check if the amount is different from the previous amount
   if (amountInCents !== order.totalAmount) {
@@ -122,8 +130,9 @@ export const updateSubscriptionDetails = async (
   const newTierId = tier?.id || null;
   if (newTierId !== order.TierId) {
     newOrderData['TierId'] = newTierId;
+    newMemberData['TierId'] = newTierId;
   }
 
   // Backup previous values
-  return updateOrderSubscription(order, newOrderData, newSubscriptionData);
+  return updateOrderSubscription(order, member, newOrderData, newSubscriptionData, newMemberData);
 };
