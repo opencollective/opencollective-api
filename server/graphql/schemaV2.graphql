@@ -265,6 +265,7 @@ interface Account {
     dateTo: DateTime = null
   ): VirtualCardCollection!
   virtualCardMerchants(limit: Int = 100, offset: Int = 0): AccountCollection!
+  childrenAccounts(limit: Int = 100, offset: Int = 0, accountType: [AccountType]): AccountCollection
 }
 
 """
@@ -827,6 +828,7 @@ type Bot implements Account {
     dateTo: DateTime = null
   ): VirtualCardCollection!
   virtualCardMerchants(limit: Int = 100, offset: Int = 0): AccountCollection!
+  childrenAccounts(limit: Int = 100, offset: Int = 0, accountType: [AccountType]): AccountCollection
 }
 
 """
@@ -1101,6 +1103,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     dateTo: DateTime = null
   ): VirtualCardCollection!
   virtualCardMerchants(limit: Int = 100, offset: Int = 0): AccountCollection!
+  childrenAccounts(limit: Int = 100, offset: Int = 0, accountType: [AccountType]): AccountCollection
 
   """
   Returns the Fiscal Host
@@ -3362,6 +3365,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions {
     dateTo: DateTime = null
   ): VirtualCardCollection!
   virtualCardMerchants(limit: Int = 100, offset: Int = 0): AccountCollection!
+  childrenAccounts(limit: Int = 100, offset: Int = 0, accountType: [AccountType]): AccountCollection
 
   """
   Returns the Fiscal Host
@@ -4332,6 +4336,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     dateTo: DateTime = null
   ): VirtualCardCollection!
   virtualCardMerchants(limit: Int = 100, offset: Int = 0): AccountCollection!
+  childrenAccounts(limit: Int = 100, offset: Int = 0, accountType: [AccountType]): AccountCollection
 
   """
   Returns the Fiscal Host
@@ -4683,6 +4688,7 @@ type Host implements Account & AccountWithContributions {
     dateTo: DateTime = null
   ): VirtualCardCollection!
   virtualCardMerchants(limit: Int = 100, offset: Int = 0): AccountCollection!
+  childrenAccounts(limit: Int = 100, offset: Int = 0, accountType: [AccountType]): AccountCollection
 
   """
   Number of unique financial contributors.
@@ -5261,6 +5267,7 @@ type Individual implements Account {
     dateTo: DateTime = null
   ): VirtualCardCollection!
   virtualCardMerchants(limit: Int = 100, offset: Int = 0): AccountCollection!
+  childrenAccounts(limit: Int = 100, offset: Int = 0, accountType: [AccountType]): AccountCollection
   firstName: String @deprecated(reason: "2020-10-12: Use the name field")
   lastName: String @deprecated(reason: "2020-10-12: Use the name field")
   email: String
@@ -6826,6 +6833,7 @@ type Organization implements Account & AccountWithContributions {
     dateTo: DateTime = null
   ): VirtualCardCollection!
   virtualCardMerchants(limit: Int = 100, offset: Int = 0): AccountCollection!
+  childrenAccounts(limit: Int = 100, offset: Int = 0, accountType: [AccountType]): AccountCollection
 
   """
   Number of unique financial contributors.
@@ -7380,6 +7388,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions {
     dateTo: DateTime = null
   ): VirtualCardCollection!
   virtualCardMerchants(limit: Int = 100, offset: Int = 0): AccountCollection!
+  childrenAccounts(limit: Int = 100, offset: Int = 0, accountType: [AccountType]): AccountCollection
 
   """
   Returns the Fiscal Host
@@ -8576,6 +8585,7 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
     dateTo: DateTime = null
   ): VirtualCardCollection!
   virtualCardMerchants(limit: Int = 100, offset: Int = 0): AccountCollection!
+  childrenAccounts(limit: Int = 100, offset: Int = 0, accountType: [AccountType]): AccountCollection
 
   """
   Returns the Fiscal Host

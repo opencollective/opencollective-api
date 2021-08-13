@@ -185,10 +185,11 @@ const accountFieldsDefinition = () => ({
         query.where.role = { [Op.in]: roles };
       }
 
-      let conditionOnMemberCollective;
-      if (args.type) {
-        const types = args.type.split(',');
-        conditionOnMemberCollective = { type: { [Op.in]: types } };
+      const conditionOnMemberCollective = {};
+      if (args.accountType && args.accountType.length > 0) {
+        conditionOnMemberCollective.type = {
+          [Op.in]: args.accountType.map(value => AccountTypeToModelMapping[value]),
+        };
       }
 
       query.include = [
@@ -563,6 +564,39 @@ const accountFieldsDefinition = () => ({
       return {
         nodes: result.rows,
         totalCount: result.count.length, // See https://github.com/sequelize/sequelize/issues/9109
+        limit: args.limit,
+        offset: args.offset,
+      };
+    },
+  },
+  childrenAccounts: {
+    type: AccountCollection,
+    args: {
+      limit: { type: GraphQLInt, defaultValue: 100 },
+      offset: { type: GraphQLInt, defaultValue: 0 },
+      accountType: {
+        type: new GraphQLList(AccountType),
+      },
+    },
+    async resolve(account, args) {
+      const where = {
+        ParentCollectiveId: account.id,
+      };
+      if (args.accountType && args.accountType.length > 0) {
+        where.type = {
+          [Op.in]: args.accountType.map(value => AccountTypeToModelMapping[value]),
+        };
+      }
+
+      const result = await models.Collective.findAndCountAll({
+        where,
+        limit: args.limit,
+        offset: args.offset,
+      });
+
+      return {
+        nodes: result.rows,
+        totalCount: result.count,
         limit: args.limit,
         offset: args.offset,
       };
