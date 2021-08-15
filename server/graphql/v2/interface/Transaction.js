@@ -258,8 +258,12 @@ export const TransactionFields = () => {
     },
     host: {
       type: Account,
-      resolve(transaction) {
-        return transaction.getHostCollective();
+      resolve(transaction, _, req) {
+        if (transaction.HostCollectiveId) {
+          return req.loaders.Collective.byId.load(transaction.HostCollectiveId);
+        } else {
+          return null;
+        }
       },
     },
     createdAt: {
@@ -339,8 +343,12 @@ export const TransactionFields = () => {
     },
     refundTransaction: {
       type: Transaction,
-      resolve(transaction) {
-        return transaction.getRefundTransaction();
+      resolve(transaction, _, req) {
+        if (transaction.RefundTransactionId) {
+          return req.loaders.Transaction.byId.load(transaction.RefundTransactionId);
+        } else {
+          return null;
+        }
       },
     },
     relatedTransactions: {
