@@ -17,24 +17,45 @@ const AES_ENCRYPTION_METHOD = config.thegivingblock.aesEncryptionMethod;
 const API_URL = config.thegivingblock.apiUrl;
 const GIVINGBLOCK_USERNAME = config.thegivingblock.username;
 const GIVINGBLOCK_PASSWORD = config.thegivingblock.password;
+const MAX_REQUEST_RETRIES = 3;
 
-async function apiRequest(path, options = {}) {
+async function apiRequest(path, options = {}, account) {
   const response = await fetch(`${API_URL}${path}`, options);
   const result = await response.json();
 
-  // Whenever and api request is made we check if access token is expired and if
-  // so we login again (https://app.gitbook.com/@the-giving-block/s/public-api-documentation/#authentication-flow).
-  // Access tokens are only valid for 2 hours.
+  return await handleErrorsAndRetry(result, path, options, account);
+  // console.log(result);
+}
+
+/*
+ * Whenever and api request is made we check if access token is expired and if so we login again.
+ * Refer: https://app.gitbook.com/@the-giving-block/s/public-api-documentation/#authentication-flow.
+ * Access tokens are only valid for 2 hours.
+ */
+async function handleErrorsAndRetry(result, path, options = {}, account = null) {
   if (result.data.errorMessage) {
-    if (result.data.meta.errorCode === 'INVALID_JWT_TOKEN') {
+    if (result.data.meta.errorCode === 'INVALID_JWT_TOKEN' && account) {
       logger.debug('Access token is invalid. Requesting a new one.');
-      return await login(GIVINGBLOCK_USERNAME, GIVINGBLOCK_PASSWORD);
+      let error;
+      for (let retries = 0; retries < MAX_REQUEST_RETRIES; retries++) {
+        try {
+          const { accessToken, refreshToken } = await login(GIVINGBLOCK_USERNAME, GIVINGBLOCK_PASSWORD);
+          await account.update({ data: { ...account.data, accessToken, refreshToken } });
+          const headers = {
+            Authorization: `Bearer ${accessToken}`,
+          };
+          options.body.set('refreshToken', refreshToken);
+          const response = await fetch(`${API_URL}${path}`, { headers, ...options });
+          const result = await response.json();
+          return result.data;
+        } catch (err) {
+          error = err;
+        }
+      }
+      throw error;
     }
     throw new Error(`The Giving Block: ${result.data.errorMessage} ${result.data.meta.errorCode}`);
   }
-
-  // console.log(result);
-
   return result.data;
 }
 
@@ -46,24 +67,24 @@ export async function login(login, password) {
   return apiRequest(`/login`, { method: 'POST', body });
 }
 
-export async function refresh(refreshToken) {
+export async function refresh(account) {
   const body = new URLSearchParams();
-  body.set('refreshToken', refreshToken);
+  body.set('refreshToken', account.data.refreshToken);
 
-  return apiRequest(`/refresh-tokens`, { method: 'POST', body });
+  return apiRequest(`/refresh-tokens`, { method: 'POST', body }, account);
 }
 
-export async function getOrganizationsList(accessToken) {
+export async function getOrganizationsList(account) {
   const headers = {
-    Authorization: `Bearer ${accessToken}`,
+    Authorization: `Bearer ${account.data.accessToken}`,
   };
 
   return apiRequest(`/organizations/list`, { headers });
 }
 
-export async function createDepositAddress(accessToken, { organizationId, pledgeAmount, pledgeCurrency } = {}) {
+export async function createDepositAddress(account, { organizationId, pledgeAmount, pledgeCurrency } = {}) {
   const headers = {
-    Authorization: `Bearer ${accessToken}`,
+    Authorization: `Bearer ${account.data.accessToken}`,
   };
 
   const body = new URLSearchParams();
@@ -72,7 +93,7 @@ export async function createDepositAddress(accessToken, { organizationId, pledge
   body.set('pledgeAmount', pledgeAmount);
   body.set('pledgeCurrency', pledgeCurrency);
 
-  return apiRequest(`/deposit-address`, { method: 'POST', body, headers });
+  return apiRequest(`/deposit-address`, { method: 'POST', body, headers }, account);
 }
 
 export const processOrder = async order => {
@@ -85,11 +106,11 @@ export const processOrder = async order => {
 
   // refresh credentials
   // TODO: we normally have to do it only every 2 hours but this handy for now
-  const { accessToken, refreshToken } = await refresh(account.data.refreshToken);
+  const { accessToken, refreshToken } = await refresh(account);
   await account.update({ data: { ...account.data, accessToken, refreshToken } });
 
   // create wallet address
-  const { depositAddress, pledgeId } = await createDepositAddress(account.data.accessToken, {
+  const { depositAddress, pledgeId } = await createDepositAddress(account, {
     organizationId: account.data.organizationId,
     pledgeAmount: order.data.customData.pledgeAmount,
     pledgeCurrency: order.data.customData.pledgeCurrency,
