@@ -7,7 +7,7 @@ import { isEmpty, omit, pick } from 'lodash';
 import moment from 'moment';
 
 import { TransactionKind } from '../../server/constants/transaction-kind';
-import { hostFeeAmountForTransaction } from '../../server/graphql/loaders/transactions';
+import { generateHostFeeAmountForTransactionLoader } from '../../server/graphql/loaders/transactions';
 import { notifyAdminsOfCollective } from '../../server/lib/notifications';
 import { getConsolidatedInvoicePdfs } from '../../server/lib/pdf';
 import { getTiersStats } from '../../server/lib/utils';
@@ -37,8 +37,10 @@ const processCollectives = collectives => {
   return Promise.map(collectives, processCollective, { concurrency: 1 });
 };
 
+const hostFeeAmountForTransactionLoader = generateHostFeeAmountForTransactionLoader();
+
 const enrichTransactionsWithHostFee = async transactions => {
-  const hostFees = await hostFeeAmountForTransaction.loadMany(transactions);
+  const hostFees = await hostFeeAmountForTransactionLoader.loadMany(transactions);
   transactions.forEach((transaction, idx) => {
     const hostFeeInHostCurrency = hostFees[idx];
     if (hostFeeInHostCurrency && hostFeeInHostCurrency !== transaction.hostFeeInHostCurrency) {
