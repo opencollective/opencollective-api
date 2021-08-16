@@ -3,7 +3,7 @@ import '../../server/env';
 
 import config from 'config';
 import { parse as json2csv } from 'json2csv';
-import { groupBy, pick, sumBy } from 'lodash';
+import { groupBy, pick, round, sumBy } from 'lodash';
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
@@ -39,6 +39,15 @@ if (DRY) {
 }
 
 const ATTACHED_CSV_COLUMNS = ['createdAt', 'description', 'amount', 'currency', 'OrderId', 'TransactionGroup'];
+
+const generateCSVFromTransactions = transactions => {
+  return json2csv(
+    transactions.map(t => ({
+      ...pick(t, ATTACHED_CSV_COLUMNS),
+      amount: round(t.amount * 0.01, 2),
+    })),
+  );
+};
 
 export async function run(baseDate: Date | moment.Moment = defaultDate): Promise<void> {
   const momentDate = moment(baseDate).subtract(1, 'month');
@@ -145,7 +154,7 @@ AND ts."status" != 'SETTLED'`,
 
     let csv;
     if (transactions.length) {
-      csv = json2csv(transactions.map(t => pick(t, ATTACHED_CSV_COLUMNS)));
+      csv = generateCSVFromTransactions(transactions);
     }
 
     if (DRY) {
