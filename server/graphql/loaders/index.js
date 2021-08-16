@@ -645,8 +645,8 @@ export const loaders = req => {
         });
       }),
     ),
-    hostFeeAmountForTransaction: transactionLoaders.hostFeeAmountForTransaction,
-    relatedTransactions: transactionLoaders.relatedTransactions,
+    hostFeeAmountForTransaction: transactionLoaders.generateHostFeeAmountForTransactionLoader(),
+    relatedTransactions: transactionLoaders.generateRelatedTransactionsLoader(),
   };
 
   return context.loaders;

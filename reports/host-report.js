@@ -5,7 +5,7 @@ import { groupBy, keyBy, pick, sumBy } from 'lodash';
 import moment from 'moment';
 
 import MemberRoles from '../server/constants/roles.ts';
-import { hostFeeAmountForTransaction } from '../server/graphql/loaders/transactions';
+import { generateHostFeeAmountForTransactionLoader } from '../server/graphql/loaders/transactions';
 import emailLib from '../server/lib/email';
 import { getBackersStats, getHostedCollectives, sumTransactions } from '../server/lib/hostlib';
 import { stripHTML } from '../server/lib/sanitize-html';
@@ -30,8 +30,10 @@ const summary = {
   hosts: [],
 };
 
+const hostFeeAmountForTransactionLoader = generateHostFeeAmountForTransactionLoader();
+
 const enrichTransactionsWithHostFee = async transactions => {
-  const hostFees = await hostFeeAmountForTransaction.loadMany(transactions);
+  const hostFees = await hostFeeAmountForTransactionLoader.loadMany(transactions);
   transactions.forEach((transaction, idx) => {
     const hostFeeInHostCurrency = hostFees[idx];
     if (transaction.kind === 'ADDED_FUNDS' || transaction.kind === 'CONTRIBUTION') {
