@@ -1,5 +1,5 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
-import { isNil, pick } from 'lodash';
+import { invert, isNil } from 'lodash';
 
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
 import models, { Op, sequelize } from '../../../models';
@@ -75,7 +75,10 @@ export const IsMemberOfFields = {
           group: ['role', 'collective.type'],
           raw: true,
         })
-      ).map(m => pick(m, ['role', 'type']));
+      ).map(m => ({
+        role: m.role,
+        type: invert(AccountTypeToModelMapping)[m.type],
+      }));
 
       if (args.role && args.role.length > 0) {
         where.role = { [Op.in]: args.role };

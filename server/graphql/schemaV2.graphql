@@ -5506,7 +5506,15 @@ type MemberOfCollection implements Collection {
   limit: Int
   totalCount: Int
   nodes: [MemberOf]
-  roles: [JSON]
+  roles: [MemberOfCollectionRoles]
+}
+
+"""
+An existing member role and account type combination used used to filter collections
+"""
+type MemberOfCollectionRoles {
+  type: AccountType!
+  role: MemberRole!
 }
 
 """
