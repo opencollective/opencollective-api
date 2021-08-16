@@ -604,7 +604,6 @@ const sendCryptoOrderProcessingEmail = async order => {
     collective: collective.info,
     host: host.info,
     fromCollective: fromCollective.activity,
-    isCrypto: true,
     pledgeAmount: order.data.customData.pledgeAmount,
     pledgeCurrency: order.data.customData.pledgeCurrency,
   };
