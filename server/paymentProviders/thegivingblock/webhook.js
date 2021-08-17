@@ -26,11 +26,7 @@ export async function webhook(req) {
 
     // update totalAmount with latest value
     await order.update({ totalAmount: Number(valueAtDonationTimeUSD) * 100, currency: 'USD' });
-
-    return;
-  }
-
-  if (req.body.eventType === 'TRANSACTION_CONVERTED') {
+  } else if (req.body.eventType === 'TRANSACTION_CONVERTED') {
     const pledgeId = payload.pledgeId;
     const netValueAmount = payload.netValueAmount;
 
@@ -49,11 +45,7 @@ export async function webhook(req) {
 
     // send email confirmation
     await sendThankYouEmail(order, transaction);
-
-    return;
   }
-
-  throw new Error(`Event not supported. eventType=${req.body.eventType}`);
 }
 
 export default webhook;
