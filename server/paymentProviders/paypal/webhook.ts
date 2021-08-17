@@ -93,6 +93,19 @@ async function handleSaleCompleted(req: Request): Promise<void> {
 
   const { order } = await loadSubscriptionForWebhookEvent(req, subscriptionId);
 
+  // Make sure the sale hasn't already been recorded
+  const existingTransaction = await models.Transaction.findOne({
+    where: {
+      OrderId: order.id, // Not necessary, but makes the query faster
+      data: { paypalSaleId: sale.id },
+    },
+  });
+
+  if (existingTransaction) {
+    logger.debug(`PayPal: Transaction for sale ${sale.id} already recorded, ignoring`);
+    return;
+  }
+
   // 2. Record the transaction
   const transaction = await recordPaypalSale(order, sale);
 
