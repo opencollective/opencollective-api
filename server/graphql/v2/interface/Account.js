@@ -5,7 +5,7 @@ import { assign, get, invert, isEmpty } from 'lodash';
 
 import { types as CollectiveTypes } from '../../../constants/collectives';
 import models, { Op } from '../../../models';
-import { NotFound, Unauthorized } from '../../errors';
+import { BadRequest, NotFound, Unauthorized } from '../../errors';
 import { CollectiveFeatures } from '../../v1/CollectiveInterface.js';
 import { AccountCollection } from '../collection/AccountCollection';
 import { ConversationCollection } from '../collection/ConversationCollection';
@@ -570,15 +570,19 @@ const accountFieldsDefinition = () => ({
     },
   },
   childrenAccounts: {
-    type: AccountCollection,
+    type: new GraphQLNonNull(AccountCollection),
     args: {
-      limit: { type: GraphQLInt, defaultValue: 100 },
-      offset: { type: GraphQLInt, defaultValue: 0 },
+      limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
+      offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
       accountType: {
         type: new GraphQLList(AccountType),
       },
     },
     async resolve(account, args) {
+      if (args.limit > 100) {
+        throw new BadRequest('Cannot fetch more than 100 orders at the same time, please adjust the limit');
+      }
+
       const where = {
         ParentCollectiveId: account.id,
       };
