@@ -32,6 +32,10 @@ const main = async (): Promise<void> => {
   for (const host of filteredHosts) {
     logger.info(`Checking PayPal webhook for ${host.slug}...`);
     await PaypalLib.setupPaypalWebhookForHost(host);
+
+    if (process.env.REMOVE_OTHERS) {
+      await PaypalLib.removeUnusedPaypalWebhooks(host);
+    }
   }
 
   return;

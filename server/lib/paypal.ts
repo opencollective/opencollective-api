@@ -18,10 +18,16 @@ import {
 import logger from './logger';
 import { floatAmountToCents } from './math';
 
-const PAYPAL_WEBHOOK_URL =
-  config.env === 'development'
-    ? 'https://smee.io/opencollective-paypal-dev-testing' // localhost URLs are not supported by PayPal
-    : `${config.host.api}/webhooks/paypal`;
+const getPaypalWebhookUrl = host => {
+  if (config.env === 'development') {
+    // localhost URLs are not supported by PayPal
+    // Start this with: smee -u https://smee.io/opencollective-paypal-dev-testing-9805 -p 3060 -P /webhooks/paypal/9805
+    // (replace 9805 with the host id)
+    return `https://smee.io/opencollective-paypal-dev-testing-${host.id}`;
+  } else {
+    return `${config.host.api}/webhooks/paypal/${host.id}`;
+  }
+};
 
 const parseError = e => {
   try {
@@ -158,6 +164,9 @@ const WATCHED_EVENT_TYPES = [
   'PAYMENT.PAYOUTS-ITEM.UNCLAIMED',
   // Payments
   'PAYMENT.CAPTURE.COMPLETED',
+  'PAYMENT.CAPTURE.REFUNDED',
+  'PAYMENT.CAPTURE.REVERSED',
+  'PAYMENT.SALE.REFUNDED',
   // Subscriptions
   'BILLING.SUBSCRIPTION.CANCELLED',
   'BILLING.SUBSCRIPTION.SUSPENDED',
@@ -206,7 +215,12 @@ const deletePaypalWebhook = async (host, webhookId): Promise<void> => {
 };
 
 const isOpenCollectiveWebhook = (webhook: PaypalWebhook): boolean => {
-  return webhook.url === PAYPAL_WEBHOOK_URL;
+  if (config.env === 'development') {
+    // localhost URLs are not supported by PayPal
+    return webhook.url.startsWith(`https://smee.io/opencollective-paypal-dev-testing`);
+  } else {
+    return webhook.url.startsWith(`${config.host.api}/webhooks/paypal`);
+  }
 };
 
 /**
@@ -214,6 +228,9 @@ const isOpenCollectiveWebhook = (webhook: PaypalWebhook): boolean => {
  */
 const isCompatibleWebhook = (webhook: PaypalWebhook): boolean => {
   if (!isOpenCollectiveWebhook(webhook)) {
+    return false;
+  } else if (webhook.url.endsWith('/paypal')) {
+    // Old format, force update
     return false;
   } else {
     const webhookEvents = webhook['event_types'].map(event => event.name);
@@ -257,6 +274,7 @@ export const setupPaypalWebhookForHost = async (host): Promise<void> => {
   const connectedAccount = await getHostPaypalAccount(host);
   const existingWebhooks = await listPaypalWebhooks(host);
   const existingOCWebhook = find(existingWebhooks, isOpenCollectiveWebhook);
+  const webhookUrl = getPaypalWebhookUrl(host);
 
   if (existingOCWebhook) {
     if (isCompatibleWebhook(existingOCWebhook)) {
@@ -274,7 +292,7 @@ export const setupPaypalWebhookForHost = async (host): Promise<void> => {
     // Create webhook
     logger.info(`Creating PayPal webhook for ${host.slug}`);
     const eventTypes = WATCHED_EVENT_TYPES.map(name => ({ name }));
-    const webhookData = { url: PAYPAL_WEBHOOK_URL, event_types: eventTypes };
+    const webhookData = { url: webhookUrl, event_types: eventTypes };
     newWebhook = await createPaypalWebhook(host, webhookData);
   }
 
@@ -288,10 +306,11 @@ export const removeUnusedPaypalWebhooks = async (host): Promise<number> => {
   const connectedAccount = await getHostPaypalAccount(host);
   const currentWebhookId = connectedAccount?.settings?.webhookId;
   const allHostWebhooks = await listPaypalWebhooks(host);
-  let deletedCount = 0;
 
+  let deletedCount = 0;
   for (const webhook of allHostWebhooks) {
-    if (webhook.url === PAYPAL_WEBHOOK_URL && webhook.id !== currentWebhookId) {
+    if (isOpenCollectiveWebhook(webhook) && webhook.id !== currentWebhookId) {
+      logger.info(`Removing webhook: ${JSON.stringify(webhook)} for ${host.slug}`);
       await deletePaypalWebhook(host, webhook.id);
       deletedCount += 1;
     }

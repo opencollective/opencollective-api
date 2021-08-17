@@ -166,6 +166,15 @@ const processPaypalOrder = async (order, paypalOrderId) => {
     throw new Error('This PayPal order has already been charged');
   }
 
+  // Execute the payment
+  // const paymentId = '???';
+  // const payerId = '4TT3WLXY69NV2';
+  // await paypalRequest(`payments/${paymentId}/execute`, { payer_id: payerId }, hostCollective, 'POST');
+
+  // // Authorize the payment for order
+  // const resp = await paypalRequestV2(`${paypalOrderUrl}/authorize`, hostCollective, 'POST');
+  // console.log('xxx', resp);
+
   // Trigger the actual charge
   const capture = await paypalRequestV2(`${paypalOrderUrl}/capture`, hostCollective, 'POST');
   const captureId = capture.purchase_units[0].payments.captures[0].id;
@@ -186,12 +195,22 @@ export const refundPaypalCapture = async (transaction, captureId, user, reason) 
     throw new Error(`PayPal: Can't find host for transaction #${transaction.id}`);
   }
 
-  // eslint-disable-next-line camelcase
-  const payload = { note_to_payer: truncate(reason, { length: 255 }) || undefined };
-  const result = await paypalRequestV2(`payments/captures/${captureId}/refund`, host, 'POST', payload);
-  const rawRefundedPaypalFee = get(result, 'seller_payable_breakdown.paypal_fee.amount.value', '0.00');
-  const refundedPaypalFee = floatAmountToCents(parseFloat(rawRefundedPaypalFee));
-  return createRefundTransaction(transaction, refundedPaypalFee, { paypalResponse: result }, user);
+  // Add a flag on transaction to prevent multiple calls from the webhook
+  await transaction.update({ data: { ...transaction.data, isRefundedFromOurSystem: true } });
+
+  try {
+    // eslint-disable-next-line camelcase
+    const payload = { note_to_payer: truncate(reason, { length: 255 }) || undefined };
+    const result = await paypalRequestV2(`payments/captures/${captureId}/refund`, host, 'POST', payload);
+    // TODO check if this .amount is right
+    const rawRefundedPaypalFee = get(result, 'seller_payable_breakdown.paypal_fee.amount.value', '0.00');
+    const refundedPaypalFee = floatAmountToCents(parseFloat(rawRefundedPaypalFee));
+    return createRefundTransaction(transaction, refundedPaypalFee, { paypalResponse: result }, user);
+  } catch (error) {
+    const newData = delete transaction.data.isRefundedFromOurSystem;
+    await transaction.update({ data: newData });
+    throw error;
+  }
 };
 
 /** Process order in paypal and create transactions in our db */
