@@ -253,6 +253,10 @@ const accountFieldsDefinition = () => ({
         type: new GraphQLNonNull(ChronologicalOrderInput),
         defaultValue: ChronologicalOrderInput.defaultValue,
       },
+      orderByRoles: {
+        type: GraphQLBoolean,
+        description: 'Order the query by requested role order',
+      },
     },
   },
   transactions: {

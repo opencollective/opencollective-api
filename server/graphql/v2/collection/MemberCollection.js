@@ -1,5 +1,6 @@
-import { GraphQLList, GraphQLObjectType } from 'graphql';
+import { GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 
+import { AccountType, MemberRole } from '../enum';
 import { Collection, CollectionFields } from '../interface/Collection';
 import { Member, MemberOf } from '../object/Member';
 
@@ -17,6 +18,21 @@ export const MemberCollection = new GraphQLObjectType({
   },
 });
 
+const MemberOfCollectionRole = new GraphQLObjectType({
+  name: 'MemberOfCollectionRoles',
+  description: 'An existing member role and account type combination used used to filter collections',
+  fields: () => {
+    return {
+      type: {
+        type: new GraphQLNonNull(AccountType),
+      },
+      role: {
+        type: new GraphQLNonNull(MemberRole),
+      },
+    };
+  },
+});
+
 export const MemberOfCollection = new GraphQLObjectType({
   name: 'MemberOfCollection',
   interfaces: [Collection],
@@ -26,6 +42,9 @@ export const MemberOfCollection = new GraphQLObjectType({
       ...CollectionFields,
       nodes: {
         type: new GraphQLList(MemberOf),
+      },
+      roles: {
+        type: new GraphQLList(MemberOfCollectionRole),
       },
     };
   },

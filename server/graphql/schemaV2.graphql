@@ -131,6 +131,11 @@ interface Account {
     """
     account: AccountReferenceInput
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
+
+    """
+    Order the query by requested role order
+    """
+    orderByRoles: Boolean
   ): MemberOfCollection
   transactions(
     limit: Int = 100
@@ -709,6 +714,11 @@ type Bot implements Account {
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+
+    """
+    Order the query by requested role order
+    """
+    orderByRoles: Boolean
   ): MemberOfCollection
   transactions(
     type: TransactionType
@@ -984,6 +994,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+
+    """
+    Order the query by requested role order
+    """
+    orderByRoles: Boolean
   ): MemberOfCollection
   transactions(
     type: TransactionType
@@ -3246,6 +3261,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions {
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+
+    """
+    Order the query by requested role order
+    """
+    orderByRoles: Boolean
   ): MemberOfCollection
   transactions(
     type: TransactionType
@@ -4217,6 +4237,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+
+    """
+    Order the query by requested role order
+    """
+    orderByRoles: Boolean
   ): MemberOfCollection
   transactions(
     type: TransactionType
@@ -4569,6 +4594,11 @@ type Host implements Account & AccountWithContributions {
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+
+    """
+    Order the query by requested role order
+    """
+    orderByRoles: Boolean
   ): MemberOfCollection
   transactions(
     type: TransactionType
@@ -5146,6 +5176,11 @@ type Individual implements Account {
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+
+    """
+    Order the query by requested role order
+    """
+    orderByRoles: Boolean
   ): MemberOfCollection
   transactions(
     type: TransactionType
@@ -5479,6 +5514,15 @@ type MemberOfCollection implements Collection {
   limit: Int
   totalCount: Int
   nodes: [MemberOf]
+  roles: [MemberOfCollectionRoles]
+}
+
+"""
+An existing member role and account type combination used used to filter collections
+"""
+type MemberOfCollectionRoles {
+  type: AccountType!
+  role: MemberRole!
 }
 
 """
@@ -5494,6 +5538,7 @@ enum MemberRole {
   FUNDRAISER
   FOLLOWER
   ACCOUNTANT
+  CONNECTED_ACCOUNT
 }
 
 """
@@ -6712,6 +6757,11 @@ type Organization implements Account & AccountWithContributions {
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+
+    """
+    Order the query by requested role order
+    """
+    orderByRoles: Boolean
   ): MemberOfCollection
   transactions(
     type: TransactionType
@@ -7269,6 +7319,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions {
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+
+    """
+    Order the query by requested role order
+    """
+    orderByRoles: Boolean
   ): MemberOfCollection
   transactions(
     type: TransactionType
@@ -8466,6 +8521,11 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+
+    """
+    Order the query by requested role order
+    """
+    orderByRoles: Boolean
   ): MemberOfCollection
   transactions(
     type: TransactionType

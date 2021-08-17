@@ -1,5 +1,5 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
-import { isNil } from 'lodash';
+import { invert, isNil } from 'lodash';
 
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
 import models, { Op, sequelize } from '../../../models';
@@ -52,9 +52,33 @@ export const IsMemberOfFields = {
         defaultValue: { field: 'createdAt', direction: 'ASC' },
         description: 'Order of the results',
       },
+      orderByRoles: {
+        type: GraphQLBoolean,
+        description: 'Order the query by requested role order',
+      },
     },
     async resolve(collective, args, req) {
       const where = { MemberCollectiveId: collective.id };
+
+      const existingRoles = (
+        await models.Member.findAll({
+          attributes: ['role', 'collective.type'],
+          where,
+          include: [
+            {
+              model: models.Collective,
+              as: 'collective',
+              required: true,
+              attributes: ['type'],
+            },
+          ],
+          group: ['role', 'collective.type'],
+          raw: true,
+        })
+      ).map(m => ({
+        role: m.role,
+        type: invert(AccountTypeToModelMapping)[m.type],
+      }));
 
       if (args.role && args.role.length > 0) {
         where.role = { [Op.in]: args.role };
@@ -111,11 +135,16 @@ export const IsMemberOfFields = {
         collectiveConditions.deactivatedAt = { [args.isArchived ? Op.not : Op.is]: null };
       }
 
+      const order = [[args.orderBy.field, args.orderBy.direction]];
+      if (args.orderByRoles && args.role) {
+        order.unshift(...args.role.map(r => sequelize.literal(`role='${r}' DESC`)));
+      }
+
       const result = await models.Member.findAndCountAll({
         where,
         limit: args.limit,
         offset: args.offset,
-        order: [[args.orderBy.field, args.orderBy.direction]],
+        order,
         include: [
           {
             model: models.Collective,
@@ -126,7 +155,13 @@ export const IsMemberOfFields = {
         ],
       });
 
-      return { nodes: result.rows, totalCount: result.count, limit: args.limit, offset: args.offset };
+      return {
+        nodes: result.rows,
+        totalCount: result.count,
+        limit: args.limit,
+        offset: args.offset,
+        roles: existingRoles,
+      };
     },
   },
 };
