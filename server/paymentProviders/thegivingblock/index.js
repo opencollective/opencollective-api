@@ -17,8 +17,6 @@ const AES_ENCRYPTION_METHOD = config.thegivingblock.aesEncryptionMethod;
 const API_URL = config.thegivingblock.apiUrl;
 const GIVINGBLOCK_USERNAME = config.thegivingblock.username;
 const GIVINGBLOCK_PASSWORD = config.thegivingblock.password;
-const MAX_REQUEST_RETRIES = 3;
-
 async function apiRequest(path, options = {}, account) {
   const response = await fetch(`${API_URL}${path}`, options);
   const result = await response.json();
@@ -37,20 +35,22 @@ async function handleErrorsAndRetry(result, path, options = {}, account = null) 
     if (result.data.meta.errorCode === 'INVALID_JWT_TOKEN' && account) {
       logger.debug('Access token is invalid. Requesting a new one.');
       let error;
-      for (let retries = 0; retries < MAX_REQUEST_RETRIES; retries++) {
-        try {
-          const { accessToken, refreshToken } = await login(GIVINGBLOCK_USERNAME, GIVINGBLOCK_PASSWORD);
-          await account.update({ data: { ...account.data, accessToken, refreshToken } });
-          const headers = {
+      try {
+        const { accessToken, refreshToken } = await login(GIVINGBLOCK_USERNAME, GIVINGBLOCK_PASSWORD);
+        await account.update({ data: { ...account.data, accessToken, refreshToken } });
+        if (options.body.get('refreshToken')) {
+          options.body.set('refreshToken', refreshToken);
+        }
+        if (options.headers) {
+          options.headers = {
             Authorization: `Bearer ${accessToken}`,
           };
-          options.body.set('refreshToken', refreshToken);
-          const response = await fetch(`${API_URL}${path}`, { headers, ...options });
-          const result = await response.json();
-          return result.data;
-        } catch (err) {
-          error = err;
         }
+        const response = await fetch(`${API_URL}${path}`, options);
+        const result = await response.json();
+        return result.data;
+      } catch (err) {
+        error = err;
       }
       throw error;
     }
