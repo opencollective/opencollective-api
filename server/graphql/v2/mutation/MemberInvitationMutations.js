@@ -5,7 +5,7 @@ import { pick } from 'lodash';
 import { types as CollectiveTypes } from '../../../constants/collectives';
 import MemberRoles from '../../../constants/roles';
 import models from '../../../models';
-import { Forbidden, Unauthorized } from '../../errors';
+import { BadRequest, Forbidden, Unauthorized } from '../../errors';
 import { MemberRole } from '../enum';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import {
@@ -56,6 +56,17 @@ const memberInvitationMutations = {
         throw new Forbidden('You can only invite accountants, admins, or members.');
       } else if (memberAccount.type !== CollectiveTypes.USER) {
         throw new Forbidden('You can only invite users.');
+      }
+
+      const existingMembership = await models.Member.findOne({
+        where: {
+          role: args.role,
+          CollectiveId: account.id,
+          MemberCollectiveId: memberAccount.id,
+        },
+      });
+      if (existingMembership) {
+        throw new BadRequest('Invited user is already a member of the account');
       }
 
       const memberParams = {
