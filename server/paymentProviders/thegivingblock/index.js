@@ -15,8 +15,8 @@ const AES_ENCRYPTION_KEY = config.thegivingblock.aesEncryptionKey;
 const AES_ENCRYPTION_IV = config.thegivingblock.aesEncryptionIv;
 const AES_ENCRYPTION_METHOD = config.thegivingblock.aesEncryptionMethod;
 const API_URL = config.thegivingblock.apiUrl;
-const GIVINGBLOCK_USERNAME = config.thegivingblock.username;
-const GIVINGBLOCK_PASSWORD = config.thegivingblock.password;
+const USERNAME = config.thegivingblock.username;
+const PASSWORD = config.thegivingblock.password;
 async function apiRequest(path, options = {}, account) {
   const response = await fetch(`${API_URL}${path}`, options);
   const result = await response.json();
@@ -36,15 +36,13 @@ async function handleErrorsAndRetry(result, path, options = {}, account = null) 
       logger.debug('Access token is invalid. Requesting a new one.');
       let error;
       try {
-        const { accessToken, refreshToken } = await login(GIVINGBLOCK_USERNAME, GIVINGBLOCK_PASSWORD);
+        const { accessToken, refreshToken } = await login(USERNAME, PASSWORD);
         await account.update({ data: { ...account.data, accessToken, refreshToken } });
-        if (options.body.get('refreshToken')) {
+        if (options.body?.get('refreshToken')) {
           options.body.set('refreshToken', refreshToken);
         }
-        if (options.headers) {
-          options.headers = {
-            Authorization: `Bearer ${accessToken}`,
-          };
+        if (options.headers?.Authorization) {
+          options.headers.Authorization = `Bearer ${accessToken}`;
         }
         const response = await fetch(`${API_URL}${path}`, options);
         const result = await response.json();
@@ -71,7 +69,8 @@ export async function refresh(account) {
   const body = new URLSearchParams();
   body.set('refreshToken', account.data.refreshToken);
 
-  return apiRequest(`/refresh-tokens`, { method: 'POST', body }, account);
+  const { accessToken, refreshToken } = apiRequest(`/refresh-tokens`, { method: 'POST', body }, account);
+  return account.update({ data: { ...account.data, accessToken, refreshToken } });
 }
 
 export async function getOrganizationsList(account) {
@@ -106,8 +105,7 @@ export const processOrder = async order => {
 
   // refresh credentials
   // TODO: we normally have to do it only every 2 hours but this handy for now
-  const { accessToken, refreshToken } = await refresh(account);
-  await account.update({ data: { ...account.data, accessToken, refreshToken } });
+  await refresh(account);
 
   // create wallet address
   const { depositAddress, pledgeId } = await createDepositAddress(account, {
