@@ -15,18 +15,7 @@ export async function webhook(req) {
   const payload = JSON.parse(payloadString);
   logger.info(`payload: ${JSON.stringify(payload)}`);
 
-  if (req.body.eventType === 'DEPOSIT_TRANSACTION') {
-    const pledgeId = payload.pledgeId;
-    const valueAtDonationTimeUSD = payload.valueAtDonationTimeUSD;
-
-    const order = await models.Order.findOne({ where: { data: { pledgeId } } });
-    if (!order) {
-      throw new Error(`Could not find matching order. pledgeId=${pledgeId}`);
-    }
-
-    // update totalAmount with latest value
-    await order.update({ totalAmount: Number(valueAtDonationTimeUSD) * 100, currency: 'USD' });
-  } else if (req.body.eventType === 'TRANSACTION_CONVERTED') {
+  if (req.body.eventType === 'TRANSACTION_CONVERTED') {
     const pledgeId = payload.pledgeId;
     const netValueAmount = payload.netValueAmount;
 
@@ -36,9 +25,7 @@ export async function webhook(req) {
     }
 
     // update totalAmount with latest value
-    await order.update({ totalAmount: Number(netValueAmount) * 100, currency: 'USD' });
-
-    await order.update({ status: OrderStatus.PAID });
+    await order.update({ totalAmount: Number(netValueAmount) * 100, currency: 'USD', status: OrderStatus.PAID });
 
     // process as paid
     const transaction = await confirmOrder(order);
