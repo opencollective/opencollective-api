@@ -1,4 +1,6 @@
+import OrderStatus from '../../constants/order_status';
 import logger from '../../lib/logger';
+import { sendThankYouEmail } from '../../lib/recurring-contributions';
 import models from '../../models';
 
 import { confirmOrder, decryptPayload } from './index';
@@ -13,27 +15,24 @@ export async function webhook(req) {
   const payload = JSON.parse(payloadString);
   logger.info(`payload: ${JSON.stringify(payload)}`);
 
-  if (req.body.eventType === 'DEPOSIT_TRANSACTION') {
+  if (req.body.eventType === 'TRANSACTION_CONVERTED') {
     const pledgeId = payload.pledgeId;
-    const valueAtDonationTimeUSD = payload.valueAtDonationTimeUSD;
+    const netValueAmount = payload.netValueAmount;
 
-    let order = await models.Order.findOne({ where: { data: { pledgeId } } });
+    const order = await models.Order.findOne({ where: { data: { pledgeId } } });
     if (!order) {
       throw new Error(`Could not find matching order. pledgeId=${pledgeId}`);
     }
 
     // update totalAmount with latest value
-    order = await order.update({ totalAmount: Number(valueAtDonationTimeUSD) * 100, currency: 'USD' });
+    await order.update({ totalAmount: Number(netValueAmount) * 100, currency: 'USD', status: OrderStatus.PAID });
 
     // process as paid
-    await confirmOrder(order);
+    const transaction = await confirmOrder(order);
 
-    order = await order.update({ status: 'PAID' });
-
-    return;
+    // send email confirmation
+    await sendThankYouEmail(order, transaction);
   }
-
-  throw new Error(`Event not supported. eventType=${req.body.eventType}`);
 }
 
 export default webhook;
