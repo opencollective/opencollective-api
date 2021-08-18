@@ -1,7 +1,7 @@
 import { GraphQLBoolean, GraphQLInputObjectType, GraphQLInt, GraphQLList, GraphQLNonNull } from 'graphql';
 import GraphQLJSON from 'graphql-type-json';
 
-import { ContributionFrequency } from '../enum/ContributionFrequency';
+import { ContributionFrequency } from '../enum';
 
 import { AccountReferenceInput } from './AccountReferenceInput';
 import { AmountInput } from './AmountInput';
