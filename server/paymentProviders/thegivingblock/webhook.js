@@ -1,4 +1,4 @@
-import OrderStatus from '../../../server/constants/order_status';
+import OrderStatus from '../../constants/order_status';
 import logger from '../../lib/logger';
 import { sendThankYouEmail } from '../../lib/recurring-contributions';
 import models from '../../models';
