@@ -595,22 +595,25 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
 // Sends an email when a deposit address is shown to the user in the crypto contribution flow.
 // Here a pending order is created.
 const sendCryptoOrderProcessingEmail = async order => {
-  const { collective, fromCollective } = order;
-  const user = order.createdByUser;
-  const host = await collective.getHostCollective();
+  if (order?.paymentMethod?.data?.depositAddress) {
+    const { collective, fromCollective } = order;
+    const user = order.createdByUser;
+    const host = await collective.getHostCollective();
 
-  const data = {
-    order: order.info,
-    collective: collective.info,
-    host: host.info,
-    fromCollective: fromCollective.activity,
-    pledgeAmount: order.data.customData.pledgeAmount,
-    pledgeCurrency: order.data.customData.pledgeCurrency,
-  };
+    const data = {
+      order: order.info,
+      depositAddress: order.paymentMethod.data.depositAddress,
+      collective: collective.info,
+      host: host.info,
+      fromCollective: fromCollective.activity,
+      pledgeAmount: order.data.customData.pledgeAmount,
+      pledgeCurrency: order.data.customData.pledgeCurrency,
+    };
 
-  return emailLib.send('order.crypto.processing', user.email, data, {
-    from: `${collective.name} <no-reply@${collective.slug}.opencollective.com>`,
-  });
+    return emailLib.send('order.crypto.processing', user.email, data, {
+      from: `${collective.name} <no-reply@${collective.slug}.opencollective.com>`,
+    });
+  }
 };
 
 // Assumes one-time payments,
