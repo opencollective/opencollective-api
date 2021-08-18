@@ -407,9 +407,17 @@ export const sendEmailNotifications = (order, transaction) => {
   debug('sendEmailNotifications');
   if (
     transaction &&
+    // Check if transaction is from child collective to parent collective.
+    // fromCollective: child collective, collective: parent collective
     order.fromCollective?.ParentCollectiveId !== order.collective?.id &&
-    order.fromCollective?.id !== order.collective?.HostCollectiveId &&
+    // Check if transaction is from parent collective to child collective.
+    // fromCollective: parent collective, collective: child collective
     order.fromCollective?.id !== order.collective?.ParentCollectiveId &&
+    // Check if transaction is from host to one of its own collective
+    // fromCollective: host, collective: a collective whose host is fromCollective
+    order.fromCollective?.id !== order.collective?.HostCollectiveId &&
+    // Check is transaction is from a collective to its host
+    // fromCollective: a collective, collective: host of fromCollective
     order.fromCollective?.HostCollectiveId !== order.collective?.id
   ) {
     sendOrderConfirmedEmail(order, transaction); // async
