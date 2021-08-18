@@ -336,7 +336,6 @@ const generateEmailFromTemplate = (template, recipient, data = {}, options = {})
   }
 
   data.config = pick(config, ['host']);
-  data.utm = `utm_source=opencollective&utm_campaign=${template}&utm_medium=email`;
 
   if (!templates[template]) {
     return Promise.reject(new Error(`Invalid email template: ${template}`));

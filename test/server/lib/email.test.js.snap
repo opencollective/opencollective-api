@@ -67,7 +67,7 @@ exports[`server/lib/email Sending emails sends the thankyou.fr email template 1`
         <tr>
           <td></td>
           <td width=\\"200\\">
-            <a href=\\"http://localhost:3000?utm_source&#x3D;opencollective&amp;utm_campaign&#x3D;thankyou.fr&amp;utm_medium&#x3D;email\\" style=\\"text-decoration: none; color: #297EFF;\\">
+            <a href=\\"http://localhost:3000\\" style=\\"text-decoration: none; color: #297EFF;\\">
               <img width=\\"220\\" height=\\"28\\" src=\\"http://localhost:3000/static/images/email/logo-email-footer@2x.png\\" style=\\"max-width: 100%;\\">
             </a>
           </td>
@@ -82,7 +82,7 @@ exports[`server/lib/email Sending emails sends the thankyou.fr email template 1`
       To unsubscribe from thank you for your donation, <a href=\\"http://localhost:3000/email/unsubscribe/user1%40opencollective.com/enmarchebe/thankyou/1a51cf8a95c4875db13b148cd2be2c4121b4514a7765630624c8a4432e61af2a1713d7ec26e18904df7b1d652cebc16829afbcc9b99958cdd64b14c8db397add\\" style=\\"text-decoration: none; color: #297EFF;\\">click here</a><br><br>
   
       You can also follow us on <a href=\\"https://twitter.com/OpenCollect\\" style=\\"text-decoration: none; color: #297EFF;\\">Twitter</a> or come chat with us on our public
-      <a href=\\"https://slack.opencollective.com?utm_source&#x3D;opencollective&amp;utm_campaign&#x3D;thankyou.fr&amp;utm_medium&#x3D;email\\" style=\\"text-decoration: none; color: #297EFF;\\">Slack channel</a>.
+      <a href=\\"https://slack.opencollective.com\\" style=\\"text-decoration: none; color: #297EFF;\\">Slack channel</a>.
       <br><br>
       Made with ❤️ from <a href=\\"https://docs.opencollective.com/help/about/team\\" style=\\"text-decoration: none; color: #297EFF;\\">all over the world</a>
     </td>
@@ -126,7 +126,7 @@ Encore merci! 🙏
 – Le collectif En Marche
 
 [http://localhost:3000/static/images/email/logo-email-footer@2x.png]
-[http://localhost:3000?utm_source=opencollective&utm_campaign=thankyou.fr&utm_medium=email]
+[http://localhost:3000]
 
 We can do great things together
 
@@ -134,8 +134,7 @@ To unsubscribe from thank you for your donation, click here
 [http://localhost:3000/email/unsubscribe/user1%40opencollective.com/enmarchebe/thankyou/1a51cf8a95c4875db13b148cd2be2c4121b4514a7765630624c8a4432e61af2a1713d7ec26e18904df7b1d652cebc16829afbcc9b99958cdd64b14c8db397add]
 
 You can also follow us on Twitter [https://twitter.com/OpenCollect] or come chat
-with us on our public Slack channel
-[https://slack.opencollective.com?utm_source=opencollective&utm_campaign=thankyou.fr&utm_medium=email].
+with us on our public Slack channel [https://slack.opencollective.com].
 
 Made with ❤️ from all over the world
 [https://docs.opencollective.com/help/about/team]"
@@ -209,7 +208,7 @@ exports[`server/lib/email render Automatically generates text version 1`] = `
       <tr>
         <td></td>
         <td width=\\"200\\">
-          <a href=\\"http://localhost:3000?\\" style=\\"text-decoration: none; color: #297EFF;\\">
+          <a href=\\"http://localhost:3000\\" style=\\"text-decoration: none; color: #297EFF;\\">
             <img width=\\"220\\" height=\\"28\\" src=\\"http://localhost:3000/static/images/email/logo-email-footer@2x.png\\" style=\\"max-width: 100%;\\">
           </a>
         </td>
@@ -223,7 +222,7 @@ exports[`server/lib/email render Automatically generates text version 1`] = `
     We can do great things together<br><br>
 
     You can also follow us on <a href=\\"https://twitter.com/OpenCollect\\" style=\\"text-decoration: none; color: #297EFF;\\">Twitter</a> or come chat with us on our public
-    <a href=\\"https://slack.opencollective.com?\\" style=\\"text-decoration: none; color: #297EFF;\\">Slack channel</a>.
+    <a href=\\"https://slack.opencollective.com\\" style=\\"text-decoration: none; color: #297EFF;\\">Slack channel</a>.
     <br><br>
     Made with ❤️ from <a href=\\"https://docs.opencollective.com/help/about/team\\" style=\\"text-decoration: none; color: #297EFF;\\">all over the world</a>
   </td>
@@ -277,12 +276,12 @@ https://opencollective/USER_LOGIN_LINK [https://opencollective/USER_LOGIN_LINK]
 
 
 [http://localhost:3000/static/images/email/logo-email-footer@2x.png]
-[http://localhost:3000?]
+[http://localhost:3000]
 
 We can do great things together
 
 You can also follow us on Twitter [https://twitter.com/OpenCollect] or come chat
-with us on our public Slack channel [https://slack.opencollective.com?].
+with us on our public Slack channel [https://slack.opencollective.com].
 
 Made with ❤️ from all over the world
 [https://docs.opencollective.com/help/about/team]"

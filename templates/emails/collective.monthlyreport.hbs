@@ -133,7 +133,7 @@ Subject: {{{collective.name}}} {{month}} {{year}} Report
   <table border=0 class="section">
     <tr>
       <td><h2>📌 Goals</h2></td>
-      <td><div class="action"><a href="{{@root.collective.publicUrl}}/edit/goals?utm_source=opencollective&utm_campaign=monthlyreport&utm_medium=email">Edit goals</a></div></td>
+      <td><div class="action"><a href="{{@root.collective.publicUrl}}/edit/goals">Edit goals</a></div></td>
     </tr>
   </table>
 
@@ -150,13 +150,13 @@ Subject: {{{collective.name}}} {{month}} {{year}} Report
   (<a href="https://twitter.com/intent/tweet?text={{{encodeURIComponent collective.nextGoal.tweet}}}">share this goal</a>)
   </div>
   {{else}}
-  <p><a href="{{@root.collective.publicUrl}}/edit/goals?utm_source=opencollective&utm_campaign=monthlyreport&utm_medium=email">Set a goal</a> to motivate contributions.</p>
+  <p><a href="{{@root.collective.publicUrl}}/edit/goals">Set a goal</a> to motivate contributions.</p>
   {{/if}}
 
   <table border=0 class="section">
     <tr>
       <td><h2>🗞 Updates</h2></td>
-      <td><div class="action"><a href="{{@root.collective.publicUrl}}/updates/new?utm_source=opencollective&utm_campaign=monthlyreport&utm_medium=email">Post an Update</a></div></td>
+      <td><div class="action"><a href="{{@root.collective.publicUrl}}/updates/new">Post an Update</a></div></td>
     </tr>
   </table>
   {{#if collective.updates}}
@@ -176,7 +176,7 @@ Subject: {{{collective.name}}} {{month}} {{year}} Report
     <table border=0 class="backer">
       <tr>
         <td valign="top" width="48">
-          <a href="{{@root.config.host.website}}/{{fromCollective.slug}}?utm_source=opencollective&utm_campaign=monthlyreport&utm_medium=email">
+          <a href="{{@root.config.host.website}}/{{fromCollective.slug}}">
             {{#if isSponsor}}
               <img src="{{@root.config.host.images}}/{{fromCollective.slug}}/logo.png}" height="48" alt="{{fromCollective.name}}" border="0" />
             {{else}}
@@ -212,7 +212,7 @@ Subject: {{{collective.name}}} {{month}} {{year}} Report
     <table border=0 class="backer">
       <tr>
         <td valign="top" width="48">
-          <a href="{{@root.config.host.website}}/{{fromCollective.slug}}?utm_source=opencollective&utm_campaign=monthlyreport&utm_medium=email">
+          <a href="{{@root.config.host.website}}/{{fromCollective.slug}}">
             {{#if isSponsor}}
               <img src="{{@root.config.host.images}}/{{fromCollective.slug}}/logo.png}" height="48" alt="{{fromCollective.name}}" border="0" />
             {{else}}
@@ -242,7 +242,7 @@ Subject: {{{collective.name}}} {{month}} {{year}} Report
   <table border=0 class="section">
     <tr>
       <td><h2>🗒 Expenses</h2></td>
-      <td><div class="action"><a href="{{@root.collective.publicUrl}}/expenses/new?utm_source=opencollective&utm_campaign=monthlyreport&utm_medium=email">Submit Expense</a></div></td>
+      <td><div class="action"><a href="{{@root.collective.publicUrl}}/expenses/new">Submit Expense</a></div></td>
     </tr>
   </table>
 
@@ -252,7 +252,7 @@ Subject: {{{collective.name}}} {{month}} {{year}} Report
     <tr>
       <td valign="top">{{moment createdAt format="MM/DD"}}</td>
       <td align="right" valign="top" nowrap class="negative">{{currency amount currency=currency}}</td>
-      <td valign="top" width="100%"><a href="{{@root.config.host.website}}/{{@root.collective.slug}}/expenses#{{id}}?utm_source=opencollective&utm_campaign=monthlyreport&utm_medium=email">{{description}}</a></td>
+      <td valign="top" width="100%"><a href="{{@root.config.host.website}}/{{@root.collective.slug}}/expenses#{{id}}">{{description}}</a></td>
       <td valign="top" class="{{toLowerCase status}}">{{toLowerCase status}}</td>
     </tr>
   {{else}}
@@ -264,7 +264,7 @@ Subject: {{{collective.name}}} {{month}} {{year}} Report
   <table border=0 class="section">
     <tr>
       <td><h2>🏷 Tiers</h2></td>
-      <td><div class="action"><a href="{{@root.collective.publicUrl}}/edit/tiers?utm_source=opencollective&utm_campaign=monthlyreport&utm_medium=email">Edit tiers</a></div></td>
+      <td><div class="action"><a href="{{@root.collective.publicUrl}}/edit/tiers">Edit tiers</a></div></td>
     </tr>
   </table>
   <ul>
@@ -272,7 +272,7 @@ Subject: {{{collective.name}}} {{month}} {{year}} Report
     <li class="tier">{{name}} ({{amountStr}}) - {{activeBackers.length}} active {{pluralize "backer" n=activeBackers.length}}
       <div class="tierMembers">
         {{#each activeBackers}}
-          <a href="{{@root.config.host.website}}/{{slug}}?utm_source=opencollective&utm_campaign=monthlyreport&utm_medium=email" class="{{../name}}">
+          <a href="{{@root.config.host.website}}/{{slug}}" class="{{../name}}">
             {{#if isSponsor}}
               <img src="{{@root.config.host.images}}/{{slug}}/logo.png" height="48" alt="{{name}}" border="0" />
             {{else}}

@@ -422,7 +422,7 @@ Subject: {{#if erratumMessage}}Erratum{{#if erratumNumber}} {{erratumNumber}}{{/
     {{#each transactions}}
     <tr>
       <td valign="top"><a
-          href="{{@root.config.host.website}}/{{collective.slug}}/expenses/{{id}}?utm_source=opencollective&utm_campaign=monthlyreport&utm_medium=email">{{moment
+          href="{{@root.config.host.website}}/{{collective.slug}}/expenses/{{id}}">{{moment
           createdAt format="MM/DD"}}</a>
       </td>
       <td valign="top"><a href="{{@root.config.host.website}}/{{collective.slug}}">{{collective.shortSlug}}</a></td>
