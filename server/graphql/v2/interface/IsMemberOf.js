@@ -59,6 +59,14 @@ export const IsMemberOfFields = {
     },
     async resolve(collective, args, req) {
       const where = { MemberCollectiveId: collective.id, CollectiveId: { [Op.ne]: collective.id } };
+      const collectiveConditions = {};
+
+      if (!isNil(args.isApproved)) {
+        collectiveConditions.approvedAt = { [args.isApproved ? Op.not : Op.is]: null };
+      }
+      if (!isNil(args.isArchived)) {
+        collectiveConditions.deactivatedAt = { [args.isArchived ? Op.not : Op.is]: null };
+      }
 
       const existingRoles = (
         await models.Member.findAll({
@@ -70,6 +78,7 @@ export const IsMemberOfFields = {
               as: 'collective',
               required: true,
               attributes: ['type'],
+              where: collectiveConditions,
             },
           ],
           group: ['role', 'collective.type'],
@@ -83,7 +92,6 @@ export const IsMemberOfFields = {
       if (args.role && args.role.length > 0) {
         where.role = { [Op.in]: args.role };
       }
-      const collectiveConditions = {};
       if (args.accountType && args.accountType.length > 0) {
         collectiveConditions.type = {
           [Op.in]: args.accountType.map(value => AccountTypeToModelMapping[value]),
@@ -126,13 +134,6 @@ export const IsMemberOfFields = {
         if (!isNaN(args.searchTerm)) {
           where[Op.or].push({ '$collective.id$': args.searchTerm });
         }
-      }
-
-      if (!isNil(args.isApproved)) {
-        collectiveConditions.approvedAt = { [args.isApproved ? Op.not : Op.is]: null };
-      }
-      if (!isNil(args.isArchived)) {
-        collectiveConditions.deactivatedAt = { [args.isArchived ? Op.not : Op.is]: null };
       }
 
       const order = [
