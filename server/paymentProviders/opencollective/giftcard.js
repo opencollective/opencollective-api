@@ -420,7 +420,7 @@ function getCreateParams(args, collective, sourcePaymentMethod, remoteUser) {
     limitedToHostCollectiveIds: isEmpty(args.limitedToHostCollectiveIds) ? null : args.limitedToHostCollectiveIds,
     uuid: uuid(),
     service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
-    type: PAYMENT_METHOD_TYPE.GIFT_CARD,
+    type: PAYMENT_METHOD_TYPE.GIFTCARD,
     createdAt: new Date(),
     updatedAt: new Date(),
     batch: args.batch,
@@ -473,7 +473,7 @@ async function claim(args, remoteUser) {
         [Op.like]: `${args.code}%`,
       }),
       { service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE },
-      { type: PAYMENT_METHOD_TYPE.GIFT_CARD },
+      { type: PAYMENT_METHOD_TYPE.GIFTCARD },
     ),
   });
   if (!giftCardPaymentMethod) {

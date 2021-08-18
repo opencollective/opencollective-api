@@ -17,7 +17,7 @@ export enum PAYMENT_METHOD_TYPE {
   COLLECTIVE = 'collective',
   HOST = 'host',
   ADAPTIVE = 'adaptive',
-  GIFT_CARD = 'giftcard',
+  GIFTCARD = 'giftcard',
   MANUAL = 'manual',
   CRYPTO = 'crypto',
 }

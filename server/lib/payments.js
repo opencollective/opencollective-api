@@ -554,7 +554,7 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
     };
 
     // hit PDF service and get PDF (unless payment method type is gift card)
-    if (paymentMethod?.type !== PAYMENT_METHOD_TYPE.GIFT_CARD) {
+    if (paymentMethod?.type !== PAYMENT_METHOD_TYPE.GIFTCARD) {
       const transactionPdf = await getTransactionPdf(transaction, user);
       if (transactionPdf) {
         const createdAtString = toIsoDateStr(transaction.createdAt ? new Date(transaction.createdAt) : new Date());
