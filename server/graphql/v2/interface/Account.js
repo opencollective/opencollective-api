@@ -255,8 +255,7 @@ const accountFieldsDefinition = () => ({
         description: 'Specific account to query the membership of.',
       },
       orderBy: {
-        type: new GraphQLNonNull(ChronologicalOrderInput),
-        defaultValue: ChronologicalOrderInput.defaultValue,
+        type: ChronologicalOrderInput,
       },
       orderByRoles: {
         type: GraphQLBoolean,

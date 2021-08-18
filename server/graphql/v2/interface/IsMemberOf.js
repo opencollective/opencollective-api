@@ -1,7 +1,8 @@
-import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLString } from 'graphql';
 import { invert, isNil } from 'lodash';
 
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
+import roles from '../../../constants/roles';
 import models, { Op, sequelize } from '../../../models';
 import { ValidationFailed } from '../../errors';
 import { MemberOfCollection } from '../collection/MemberCollection';
@@ -48,8 +49,7 @@ export const IsMemberOfFields = {
         description: 'Filters on the Host fees structure applied to this account',
       },
       orderBy: {
-        type: new GraphQLNonNull(ChronologicalOrderInput),
-        defaultValue: { field: 'createdAt', direction: 'ASC' },
+        type: ChronologicalOrderInput,
         description: 'Order of the results',
       },
       orderByRoles: {
@@ -58,7 +58,7 @@ export const IsMemberOfFields = {
       },
     },
     async resolve(collective, args, req) {
-      const where = { MemberCollectiveId: collective.id };
+      const where = { MemberCollectiveId: collective.id, CollectiveId: { [Op.ne]: collective.id } };
 
       const existingRoles = (
         await models.Member.findAll({
@@ -135,8 +135,17 @@ export const IsMemberOfFields = {
         collectiveConditions.deactivatedAt = { [args.isArchived ? Op.not : Op.is]: null };
       }
 
-      const order = [[args.orderBy.field, args.orderBy.direction]];
-      if (args.orderByRoles && args.role) {
+      const order = [
+        [sequelize.literal('"collective.memberCount"'), 'DESC'],
+        [sequelize.literal('"collective.totalAmountDonated"'), 'DESC'],
+      ];
+      // Order by MemberCount first, unless we're filtering for role = BACKER
+      if (args.role.length === 1 && args.role[0] === roles.BACKER) {
+        order.reverse();
+      }
+      if (args.orderBy) {
+        order.unshift([args.orderBy.field, args.orderBy.direction]);
+      } else if (args.orderByRoles && args.role) {
         order.unshift(...args.role.map(r => sequelize.literal(`role='${r}' DESC`)));
       }
 
@@ -151,6 +160,36 @@ export const IsMemberOfFields = {
             as: 'collective',
             where: collectiveConditions,
             required: true,
+            attributes: {
+              include: [
+                [
+                  sequelize.literal(`(
+                    SELECT COUNT(*)
+                    FROM "Members" AS "collective->members"
+                    WHERE
+                        "collective->members"."CollectiveId" = collective.id
+                        AND
+                        "collective->members".role = 'BACKER'
+                )`),
+                  'memberCount',
+                ],
+                [
+                  sequelize.literal(`(
+                    SELECT COALESCE(SUM("amount"), 0)
+                    FROM "Transactions" AS "collective->transactions"
+                    WHERE
+                        "collective->transactions"."CollectiveId" = collective.id
+                        AND "collective->transactions"."deletedAt" IS NULL
+                        AND "collective->transactions"."type" = 'CREDIT'
+                        AND (
+                          "collective->transactions"."FromCollectiveId" = ${collective.id}
+                          OR "collective->transactions"."UsingGiftCardFromCollectiveId" = ${collective.id}
+                        )
+                )`),
+                  'totalAmountDonated',
+                ],
+              ],
+            },
           },
         ],
       });
