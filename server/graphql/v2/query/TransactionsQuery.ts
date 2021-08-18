@@ -20,19 +20,22 @@ const TransactionsQuery = {
     },
     fromAccount: {
       type: AccountReferenceInput,
-      description: 'Reference of the account that submitted this expense',
+      description:
+        'Reference of the account assigned to the other side of the transaction (CREDIT -> sender, DEBIT -> recipient). Avoid, favor account instead.',
     },
     account: {
       type: AccountReferenceInput,
-      description: 'Reference of the account where this expense was submitted',
+      description:
+        'Reference of the account assigned to the main side of the transaction (CREDIT -> recipient, DEBIT -> sender)',
     },
     host: {
       type: AccountReferenceInput,
-      description: 'Reference of the host where this expense was submitted',
+      description: 'Reference of the host accounting the transaction',
     },
     tags: {
       type: new GraphQLList(GraphQLString),
-      description: 'Only expenses that match these tags',
+      description: 'NOT IMPLEMENTED. Only return transactions that match these tags.',
+      deprecationReason: '2020-08-09: Was never implemented.',
     },
     orderBy: {
       type: new GraphQLNonNull(ChronologicalOrderInput),
@@ -41,19 +44,21 @@ const TransactionsQuery = {
     },
     minAmount: {
       type: GraphQLInt,
-      description: 'Only return expenses where the amount is greater than or equal to this value (in cents)',
+      description: 'Only return transactions where the amount is greater than or equal to this value (in cents)',
+      deprecationReason: '2020-08-09: GraphQL v2 should not expose amounts as integer.',
     },
     maxAmount: {
       type: GraphQLInt,
-      description: 'Only return expenses where the amount is lower than or equal to this value (in cents)',
+      description: 'Only return transactions where the amount is lower than or equal to this value (in cents)',
+      deprecationReason: '2020-08-09: GraphQL v2 should not expose amounts as integer.',
     },
     dateFrom: {
       type: GraphQLDateTime,
-      description: 'Only return expenses that were created after this date',
+      description: 'Only return transactions that were created after this date',
     },
     dateTo: {
       type: GraphQLDateTime,
-      description: 'Only return expenses that were created before this date',
+      description: 'Only return transactions that were created before this date',
     },
     searchTerm: {
       type: GraphQLString,
@@ -61,11 +66,11 @@ const TransactionsQuery = {
     },
     hasExpense: {
       type: GraphQLBoolean,
-      description: 'Transaction is attached to Expense',
+      description: 'Only return transactions with an Expense attached',
     },
     hasOrder: {
       type: GraphQLBoolean,
-      description: 'Transaction is attached to Order',
+      description: 'Only return transactions with an Order attached',
     },
     includeIncognitoTransactions: {
       type: new GraphQLNonNull(GraphQLBoolean),
@@ -201,7 +206,12 @@ const TransactionsQuery = {
       where.push({ kind: args.kind || args.kinds });
     }
 
-    const order = [[args.orderBy.field, args.orderBy.direction]];
+    const order = [
+      [args.orderBy.field, args.orderBy.direction],
+      // Add additional sort for consistent sorting
+      // (transactions in the same TransactionGroup usually have the exact same datetime)
+      ['kind'],
+    ];
     const { offset, limit } = args;
     const result = await models.Transaction.findAndCountAll({
       where: sequelize.and(...where),

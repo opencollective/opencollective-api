@@ -50,111 +50,127 @@ const TransactionPermissions = new GraphQLObjectType({
   }),
 });
 
+const transactionFieldsDefinition = () => ({
+  id: {
+    type: new GraphQLNonNull(GraphQLString),
+  },
+  legacyId: {
+    type: new GraphQLNonNull(GraphQLInt),
+  },
+  uuid: {
+    type: new GraphQLNonNull(GraphQLString),
+    deprecationReason: '2021-08-15: Use id instead.',
+  },
+  group: {
+    type: new GraphQLNonNull(GraphQLString),
+  },
+  type: {
+    type: new GraphQLNonNull(TransactionType),
+  },
+  kind: {
+    type: TransactionKind,
+  },
+  description: {
+    type: GraphQLString,
+  },
+  amount: {
+    type: new GraphQLNonNull(Amount),
+  },
+  amountInHostCurrency: {
+    type: new GraphQLNonNull(Amount),
+  },
+  netAmount: {
+    type: new GraphQLNonNull(Amount),
+  },
+  netAmountInHostCurrency: {
+    type: new GraphQLNonNull(Amount),
+  },
+  taxAmount: {
+    type: new GraphQLNonNull(Amount),
+  },
+  taxInfo: {
+    type: TaxInfo,
+    description: 'If taxAmount is set, this field will contain more info about the tax',
+  },
+  platformFee: {
+    type: new GraphQLNonNull(Amount),
+  },
+  hostFee: {
+    type: Amount,
+  },
+  paymentProcessorFee: {
+    type: Amount,
+  },
+  host: {
+    type: Account,
+  },
+  account: {
+    type: Account,
+  },
+  oppositeAccount: {
+    type: Account,
+  },
+  fromAccount: {
+    type: Account,
+    description: 'The sender of a transaction (on CREDIT = oppositeAccount, DEBIT = account)',
+  },
+  toAccount: {
+    type: Account,
+    description: 'The recipient of a transaction (on CREDIT = account, DEBIT = oppositeAccount)',
+  },
+  giftCardEmitterAccount: {
+    type: Account,
+  },
+  createdAt: {
+    type: GraphQLDateTime,
+  },
+  updatedAt: {
+    type: GraphQLDateTime,
+  },
+  expense: {
+    type: Expense,
+  },
+  order: {
+    type: Order,
+  },
+  isRefunded: {
+    type: GraphQLBoolean,
+  },
+  isRefund: {
+    type: GraphQLBoolean,
+  },
+  paymentMethod: {
+    type: PaymentMethod,
+  },
+  permissions: {
+    type: TransactionPermissions,
+  },
+  isOrderRejected: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+  },
+  refundTransaction: {
+    type: Transaction,
+  },
+  relatedTransactions: {
+    type: new GraphQLNonNull(new GraphQLList(Transaction)),
+    args: {
+      kind: {
+        type: new GraphQLList(TransactionKind),
+        description: 'Filter by kind',
+      },
+    },
+  },
+});
+
 export const Transaction = new GraphQLInterfaceType({
   name: 'Transaction',
   description: 'Transaction interface shared by all kind of transactions (Debit, Credit)',
-  fields: () => {
-    return {
-      id: {
-        type: new GraphQLNonNull(GraphQLString),
-      },
-      legacyId: {
-        type: new GraphQLNonNull(GraphQLInt),
-      },
-      uuid: {
-        type: GraphQLString,
-      },
-      type: {
-        type: TransactionType,
-      },
-      kind: {
-        type: TransactionKind,
-      },
-      description: {
-        type: GraphQLString,
-      },
-      amount: {
-        type: new GraphQLNonNull(Amount),
-      },
-      amountInHostCurrency: {
-        type: new GraphQLNonNull(Amount),
-      },
-      netAmount: {
-        type: new GraphQLNonNull(Amount),
-      },
-      taxAmount: {
-        type: new GraphQLNonNull(Amount),
-      },
-      taxInfo: {
-        type: TaxInfo,
-        description: 'If taxAmount is set, this field will contain more info about the tax',
-      },
-      platformFee: {
-        type: new GraphQLNonNull(Amount),
-      },
-      hostFee: {
-        type: Amount,
-      },
-      paymentProcessorFee: {
-        type: Amount,
-      },
-      host: {
-        type: Account,
-      },
-      fromAccount: {
-        type: Account,
-      },
-      toAccount: {
-        type: Account,
-      },
-      giftCardEmitterAccount: {
-        type: Account,
-      },
-      createdAt: {
-        type: GraphQLDateTime,
-      },
-      updatedAt: {
-        type: GraphQLDateTime,
-      },
-      expense: {
-        type: Expense,
-      },
-      order: {
-        type: Order,
-      },
-      isRefunded: {
-        type: GraphQLBoolean,
-      },
-      isRefund: {
-        type: GraphQLBoolean,
-      },
-      paymentMethod: {
-        type: PaymentMethod,
-      },
-      permissions: {
-        type: TransactionPermissions,
-      },
-      isOrderRejected: {
-        type: new GraphQLNonNull(GraphQLBoolean),
-      },
-      refundTransaction: {
-        type: Transaction,
-      },
-      relatedTransactions: {
-        type: new GraphQLNonNull(new GraphQLList(Transaction)),
-        args: {
-          kind: {
-            type: new GraphQLList(TransactionKind),
-            description: 'Filter by kind',
-          },
-        },
-      },
-    };
-  },
+  fields: transactionFieldsDefinition,
 });
 
 export const TransactionFields = () => {
   return {
+    ...transactionFieldsDefinition(),
     id: {
       type: new GraphQLNonNull(GraphQLString),
       resolve(transaction) {
@@ -167,25 +183,10 @@ export const TransactionFields = () => {
         return transaction.id;
       },
     },
-    uuid: {
-      type: GraphQLString,
-    },
-    type: {
-      type: TransactionType,
+    group: {
+      type: new GraphQLNonNull(GraphQLString),
       resolve(transaction) {
-        return transaction.type;
-      },
-    },
-    kind: {
-      type: TransactionKind,
-      resolve(transaction) {
-        return transaction.kind;
-      },
-    },
-    description: {
-      type: GraphQLString,
-      resolve(transaction) {
-        return transaction.description;
+        return transaction.TransactionGroup;
       },
     },
     amount: {
@@ -206,6 +207,15 @@ export const TransactionFields = () => {
         return {
           value: transaction.netAmountInCollectiveCurrency,
           currency: transaction.currency,
+        };
+      },
+    },
+    netAmountInHostCurrency: {
+      type: new GraphQLNonNull(Amount),
+      resolve(transaction) {
+        return {
+          value: transaction.netAmountInHostCurrency,
+          currency: transaction.hostCurrency,
         };
       },
     },
@@ -249,6 +259,7 @@ export const TransactionFields = () => {
     },
     paymentProcessorFee: {
       type: new GraphQLNonNull(Amount),
+      description: 'Payment Processor Fee (usually in host currency)',
       resolve(transaction) {
         return {
           value: transaction.paymentProcessorFeeInHostCurrency || 0,
@@ -266,10 +277,18 @@ export const TransactionFields = () => {
         }
       },
     },
-    createdAt: {
-      type: GraphQLDateTime,
-      resolve(transaction) {
-        return transaction.createdAt;
+    account: {
+      type: Account,
+      description: 'The account on the main side of the transaction (CREDIT -> recipient, DEBIT -> sender)',
+      resolve(transaction, _, req) {
+        return req.loaders.Collective.byId.load(transaction.CollectiveId);
+      },
+    },
+    oppositeAccount: {
+      type: Account,
+      description: 'The account on the opposite side of the transaction (CREDIT -> sender, DEBIT -> recipient)',
+      resolve(transaction, _, req) {
+        return req.loaders.Collective.byId.load(transaction.FromCollectiveId);
       },
     },
     updatedAt: {
@@ -302,11 +321,8 @@ export const TransactionFields = () => {
     isRefunded: {
       type: GraphQLBoolean,
       resolve(transaction) {
-        return transaction.RefundTransactionId !== null;
+        return transaction.isRefund !== true && transaction.RefundTransactionId !== null;
       },
-    },
-    isRefund: {
-      type: GraphQLBoolean,
     },
     paymentMethod: {
       type: PaymentMethod,

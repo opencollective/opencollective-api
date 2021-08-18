@@ -102,7 +102,7 @@ export const canRefund = async (
   _: void,
   req: express.Request,
 ): Promise<boolean> => {
-  if (transaction.type !== TransactionTypes.CREDIT || transaction.OrderId === null) {
+  if (transaction.type !== TransactionTypes.CREDIT || transaction.OrderId === null || transaction.isRefund === true) {
     return false;
   }
   const timeLimit = moment().subtract(30, 'd');
