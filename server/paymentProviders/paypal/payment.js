@@ -186,7 +186,8 @@ export const refundPaypalCapture = async (transaction, captureId, user, reason) 
     throw new Error(`PayPal: Can't find host for transaction #${transaction.id}`);
   }
 
-  // Add a flag on transaction to prevent multiple calls from the webhook
+  // Add a flag on transaction to make sure the `PAYMENT.CAPTURE.REFUNDED` webhook event will be ignored
+  // since we're already doing everything here
   await transaction.update({ data: { ...transaction.data, isRefundedFromOurSystem: true } });
   try {
     // eslint-disable-next-line camelcase
