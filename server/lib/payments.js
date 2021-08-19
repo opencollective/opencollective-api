@@ -395,29 +395,26 @@ export async function associateTransactionRefundId(transaction, refund, data) {
  * Send email notifications.
  *
  * Don't send emails when moving funds between a sub-collective(event/project) and its parent or
- * from between a host and one of its collectives. Transaction types for each of these are:
+ * from between a host and one of its collectives.
  *
- * Child to Parent Collective: CREDIT
- * Host to its own collective: CREDIT
- * Parent Collective to Child: CREDIT
- * Collective to its Host: CREDIT
+ * In all cases, transaction.type is CREDIT.
  *
  */
 export const sendEmailNotifications = (order, transaction) => {
   debug('sendEmailNotifications');
   if (
     transaction &&
-    // Check if transaction is from child collective to parent collective.
-    // fromCollective: child collective, collective: parent collective
+    // Check if transaction is from child (event/project) to parent (collective/fund/host).
+    // fromCollective: child (event/project), collective: parent (collective/fund/host)
     order.fromCollective?.ParentCollectiveId !== order.collective?.id &&
-    // Check if transaction is from parent collective to child collective.
-    // fromCollective: parent collective, collective: child collective
+    // Check if transaction is from parent (collective/fund/host) to child (event/project)
+    // fromCollective: parent (collective/fund/host) , collective: child (event/project)
     order.fromCollective?.id !== order.collective?.ParentCollectiveId &&
-    // Check if transaction is from host to one of its own collective
-    // fromCollective: host, collective: a collective whose host is fromCollective
+    // Check if transaction is from host to one of its hosted collective/fund/project/event
+    // fromCollective: host, collective: a collective/fund/project/event
     order.fromCollective?.id !== order.collective?.HostCollectiveId &&
-    // Check is transaction is from a collective to its host
-    // fromCollective: a collective, collective: host of fromCollective
+    // Check is transaction is from a collective/fund/project/event to its host
+    // fromCollective: a collective/fund/project/event, collective: host of fromCollective
     order.fromCollective?.HostCollectiveId !== order.collective?.id
   ) {
     sendOrderConfirmedEmail(order, transaction); // async
