@@ -1,8 +1,7 @@
-import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { invert, isNil } from 'lodash';
 
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
-import roles from '../../../constants/roles';
 import models, { Op, sequelize } from '../../../models';
 import { ValidationFailed } from '../../errors';
 import { MemberOfCollection } from '../collection/MemberCollection';
@@ -10,7 +9,7 @@ import { AccountType, AccountTypeToModelMapping } from '../enum/AccountType';
 import { HostFeeStructure } from '../enum/HostFeeStructure';
 import { MemberRole } from '../enum/MemberRole';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
-import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
+import { ORDER_BY_PSEUDO_FIELDS, OrderByInput } from '../input/OrderByInput';
 
 export const IsMemberOfFields = {
   memberOf: {
@@ -49,8 +48,9 @@ export const IsMemberOfFields = {
         description: 'Filters on the Host fees structure applied to this account',
       },
       orderBy: {
-        type: ChronologicalOrderInput,
+        type: new GraphQLNonNull(OrderByInput),
         description: 'Order of the results',
+        defaultValue: { field: ORDER_BY_PSEUDO_FIELDS.CREATED_AT, direction: 'DESC' },
       },
       orderByRoles: {
         type: GraphQLBoolean,
@@ -136,18 +136,49 @@ export const IsMemberOfFields = {
         }
       }
 
-      const order = [
-        [sequelize.literal('"collective.memberCount"'), 'DESC'],
-        [sequelize.literal('"collective.totalAmountDonated"'), 'DESC'],
-      ];
-      // Order by MemberCount first, unless we're filtering for role = BACKER
-      if (args.role.length === 1 && args.role[0] === roles.BACKER) {
-        order.reverse();
+      const order = [];
+      const collectiveAttributesInclude = [];
+      if (args.orderByRoles && args.role) {
+        order.push(...args.role.map(r => sequelize.literal(`role='${r}' DESC`)));
       }
       if (args.orderBy) {
-        order.unshift([args.orderBy.field, args.orderBy.direction]);
-      } else if (args.orderByRoles && args.role) {
-        order.unshift(...args.role.map(r => sequelize.literal(`role='${r}' DESC`)));
+        const { field, direction } = args.orderBy;
+        if (field === ORDER_BY_PSEUDO_FIELDS.MEMBER_COUNT) {
+          order.push([sequelize.literal('"collective.memberCount"'), 'DESC']);
+          collectiveAttributesInclude.push([
+            sequelize.literal(`(
+                    SELECT COUNT(*)
+                    FROM "Members" AS "collective->members"
+                    WHERE
+                        "collective->members"."CollectiveId" = collective.id
+                        AND "collective->members".role = 'BACKER'
+                        AND "collective->members"."MemberCollectiveId" IS NOT NULL
+                        AND "collective->members"."deletedAt" IS NULL
+                )`),
+            'memberCount',
+          ]);
+        } else if (field === ORDER_BY_PSEUDO_FIELDS.TOTAL_CONTRIBUTED) {
+          order.push([sequelize.literal('"collective.totalAmountDonated"'), 'DESC']);
+          collectiveAttributesInclude.push([
+            sequelize.literal(`(
+                    SELECT COALESCE(SUM("amount"), 0)
+                    FROM "Transactions" AS "collective->transactions"
+                    WHERE
+                        "collective->transactions"."CollectiveId" = collective.id
+                        AND "collective->transactions"."deletedAt" IS NULL
+                        AND "collective->transactions"."type" = 'CREDIT'
+                        AND (
+                          "collective->transactions"."FromCollectiveId" = ${collective.id}
+                          OR "collective->transactions"."UsingGiftCardFromCollectiveId" = ${collective.id}
+                        )
+                )`),
+            'totalAmountDonated',
+          ]);
+        } else if (field === ORDER_BY_PSEUDO_FIELDS.CREATED_AT) {
+          order.push(['createdAt', direction]);
+        } else {
+          order.push([field, direction]);
+        }
       }
 
       const result = await models.Member.findAndCountAll({
@@ -162,35 +193,7 @@ export const IsMemberOfFields = {
             where: collectiveConditions,
             required: true,
             attributes: {
-              include: [
-                [
-                  sequelize.literal(`(
-                    SELECT COUNT(*)
-                    FROM "Members" AS "collective->members"
-                    WHERE
-                        "collective->members"."CollectiveId" = collective.id
-                        AND "collective->members".role = 'BACKER'
-                        AND "collective->members"."MemberCollectiveId" IS NOT NULL
-                        AND "collective->members"."deletedAt" IS NULL
-                )`),
-                  'memberCount',
-                ],
-                [
-                  sequelize.literal(`(
-                    SELECT COALESCE(SUM("amount"), 0)
-                    FROM "Transactions" AS "collective->transactions"
-                    WHERE
-                        "collective->transactions"."CollectiveId" = collective.id
-                        AND "collective->transactions"."deletedAt" IS NULL
-                        AND "collective->transactions"."type" = 'CREDIT'
-                        AND (
-                          "collective->transactions"."FromCollectiveId" = ${collective.id}
-                          OR "collective->transactions"."UsingGiftCardFromCollectiveId" = ${collective.id}
-                        )
-                )`),
-                  'totalAmountDonated',
-                ],
-              ],
+              include: collectiveAttributesInclude,
             },
           },
         ],

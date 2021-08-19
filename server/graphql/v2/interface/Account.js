@@ -28,6 +28,7 @@ import { PaymentMethodType } from '../enum/PaymentMethodType';
 import { idEncode } from '../identifiers';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
+import { ORDER_BY_PSEUDO_FIELDS, OrderByInput } from '../input/OrderByInput';
 import { AccountStats } from '../object/AccountStats';
 import { ConnectedAccount } from '../object/ConnectedAccount';
 import { Location } from '../object/Location';
@@ -255,7 +256,8 @@ const accountFieldsDefinition = () => ({
         description: 'Specific account to query the membership of.',
       },
       orderBy: {
-        type: ChronologicalOrderInput,
+        type: new GraphQLNonNull(OrderByInput),
+        defaultValue: { field: ORDER_BY_PSEUDO_FIELDS.CREATED_AT, direction: 'DESC' },
       },
       orderByRoles: {
         type: GraphQLBoolean,
