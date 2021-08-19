@@ -766,14 +766,14 @@ function defineModel() {
         const endDate = new Date(this.endsAt);
         const start = [
           startDate.getFullYear(),
-          startDate.getMonth(),
+          startDate.getMonth() + 1,
           startDate.getDate(),
           startDate.getHours(),
           startDate.getMinutes(),
         ];
         const end = [
           endDate.getFullYear(),
-          endDate.getMonth(),
+          endDate.getMonth() + 1,
           endDate.getDate(),
           endDate.getHours(),
           endDate.getMinutes(),
