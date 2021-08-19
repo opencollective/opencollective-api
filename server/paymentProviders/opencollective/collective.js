@@ -97,7 +97,7 @@ paymentMethodProvider.processOrder = async order => {
     },
   };
 
-  return await models.Transaction.createFromContributionPayload(transactionPayload);
+  return models.Transaction.createFromContributionPayload(transactionPayload);
 };
 
 /**

@@ -1,7 +1,7 @@
 export enum TransactionKind {
   /** Transactions coming from the "Add Funds" */
   ADDED_FUNDS = 'ADDED_FUNDS',
-  /** Transactions from transferring the remaining balance from a project/event **/
+  /** Transactions from transferring the remaining balance from a project/event/collective **/
   BALANCE_TRANSFER = 'BALANCE_TRANSFER',
   /** Transactions coming from the "Contribution Flow" */
   CONTRIBUTION = 'CONTRIBUTION',

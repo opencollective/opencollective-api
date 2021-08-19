@@ -4,7 +4,7 @@ module.exports = {
   up: async queryInterface => {
     await queryInterface.sequelize.query(`
       ALTER TYPE "enum_Transactions_kind"
-      ADD VALUE IF NOT EXISTS 'BALANCE_TRANSFER' AFTER 'PREPAID_PAYMENT_METHOD'
+      ADD VALUE IF NOT EXISTS 'BALANCE_TRANSFER' AFTER 'ADDED_FUNDS'
     `);
   },
 
