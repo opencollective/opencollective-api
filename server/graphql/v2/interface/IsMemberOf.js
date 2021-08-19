@@ -169,8 +169,9 @@ export const IsMemberOfFields = {
                     FROM "Members" AS "collective->members"
                     WHERE
                         "collective->members"."CollectiveId" = collective.id
-                        AND
-                        "collective->members".role = 'BACKER'
+                        AND "collective->members".role = 'BACKER'
+                        AND "collective->members"."MemberCollectiveId" IS NOT NULL
+                        AND "collective->members"."deletedAt" IS NULL
                 )`),
                   'memberCount',
                 ],
