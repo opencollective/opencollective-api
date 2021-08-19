@@ -268,8 +268,6 @@ async function webhook(req: Request): Promise<void> {
     case 'PAYMENT.CAPTURE.REFUNDED':
     case 'PAYMENT.CAPTURE.REVERSED':
       return handleCaptureRefunded(req);
-    case 'PAYMENT.SALE.REFUNDED':
-      return console.log(req.body.resource);
     case 'BILLING.SUBSCRIPTION.CANCELLED':
     case 'BILLING.SUBSCRIPTION.SUSPENDED':
       return handleSubscriptionCancelled(req);
