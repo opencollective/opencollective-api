@@ -72,5 +72,9 @@ export const OrderCreateInput = new GraphQLInputObjectType({
       type: OrderContextInput,
       description: 'Some context about how this order was created',
     },
+    isBalanceTransfer: {
+      type: GraphQLBoolean,
+      description: 'Whether this is transferring the remaining balance from a project/event/collective',
+    },
   }),
 });

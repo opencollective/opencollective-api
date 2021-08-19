@@ -6555,6 +6555,11 @@ input OrderCreateInput {
   Some context about how this order was created
   """
   context: OrderContextInput
+
+  """
+  Whether this is transferring the remaining balance from a project/event
+  """
+  isBalanceTransfer: Boolean
 }
 
 """
@@ -7055,7 +7060,6 @@ enum PaymentMethodLegacyType {
   PREPAID_BUDGET
   ACCOUNT_BALANCE
   PAYPAL
-  PAYPAL_SUBSCRIPTION
   BANK_TRANSFER
   ADDED_FUNDS
   CRYPTO
@@ -8182,6 +8186,7 @@ type TransactionCollection implements Collection {
 
 enum TransactionKind {
   ADDED_FUNDS
+  BALANCE_TRANSFER
   CONTRIBUTION
   EXPENSE
   HOST_FEE

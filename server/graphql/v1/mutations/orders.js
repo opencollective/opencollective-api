@@ -523,6 +523,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
         guestToken, // For guest contributions, this token is a way to authenticate to confirm the order
         isEmbed: Boolean(order.context?.isEmbed),
         isGuest,
+        isBalanceTransfer: order.isBalanceTransfer,
       },
       status: orderStatus,
     };
