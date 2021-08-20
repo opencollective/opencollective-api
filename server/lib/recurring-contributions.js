@@ -8,7 +8,6 @@ import status from '../constants/order_status';
 import { PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import models from '../models';
 
-import emailLib from './email';
 import logger from './logger';
 import { notifyAdminsOfCollective } from './notifications';
 import * as paymentsLib from './payments';
