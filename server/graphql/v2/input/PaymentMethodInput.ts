@@ -99,6 +99,10 @@ export const getLegacyPaymentMethodFromPaymentMethodInput = async (
         },
       };
     }
+  } else if (pm.legacyType) {
+    return getServiceTypeFromLegacyPaymentMethodType(pm.legacyType);
+  } else if (pm.service && pm.newType) {
+    return { service: pm.service, type: pm.newType };
   } else {
     return getServiceTypeFromLegacyPaymentMethodType(pm.type);
   }

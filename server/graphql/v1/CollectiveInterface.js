@@ -1768,10 +1768,10 @@ const CollectiveFields = () => {
         paymentMethods = paymentMethods.filter(pm => !(pm.data && pm.data.hidden));
 
         if (args.service) {
-          paymentMethods = paymentMethods.filter(pm => pm.service === args.service);
+          paymentMethods = paymentMethods.filter(pm => pm.service === args.service.toLowerCase());
         }
         if (args.type) {
-          paymentMethods = paymentMethods.filter(pm => args.type.includes(pm.type));
+          paymentMethods = paymentMethods.filter(pm => args.type.map(t => t.toLowerCase()).includes(pm.type));
         }
         if (args.isConfirmed !== undefined) {
           paymentMethods = paymentMethods.filter(pm => pm.isConfirmed() === args.isConfirmed);
@@ -1845,7 +1845,7 @@ const CollectiveFields = () => {
         const offset = args.offset || 0;
         const limit = args.limit || 15;
         const query = {
-          where: { type: PAYMENT_METHOD_TYPE.GIFT_CARD, service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE },
+          where: { type: PAYMENT_METHOD_TYPE.GIFTCARD, service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE },
           limit: args.limit,
           offset: args.offset,
           order: [

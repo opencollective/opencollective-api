@@ -24,6 +24,7 @@ import {
   TransactionType,
 } from '../enum';
 import { PaymentMethodService } from '../enum/PaymentMethodService';
+import { PaymentMethodType } from '../enum/PaymentMethodType';
 import { idEncode } from '../identifiers';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
@@ -356,6 +357,11 @@ const accountFieldsDefinition = () => ({
       type: {
         type: new GraphQLList(GraphQLString),
         description: 'Filter on given types (creditcard, giftcard...)',
+        deprecationReason: '2021-08-15: moving from String to Enum, use enumType during the migration',
+      },
+      enumType: {
+        type: new GraphQLList(PaymentMethodType),
+        description: 'Filter on given types (CREDITCARD, GIFTCARD...)',
       },
       service: {
         type: new GraphQLList(PaymentMethodService),
@@ -880,7 +886,11 @@ export const AccountFields = {
   paymentMethods: {
     type: new GraphQLNonNull(new GraphQLList(PaymentMethod)),
     args: {
-      type: { type: new GraphQLList(GraphQLString) },
+      type: {
+        type: new GraphQLList(GraphQLString),
+        deprecationReason: '2021-08-15: moving from String to Enum, use enumType during the migration',
+      },
+      enumType: { type: new GraphQLList(PaymentMethodType) },
       service: { type: new GraphQLList(PaymentMethodService) },
       includeExpired: {
         type: GraphQLBoolean,
@@ -898,9 +908,11 @@ export const AccountFields = {
       const paymentMethods = await req.loaders.PaymentMethod.findByCollectiveId.load(collective.id);
 
       return paymentMethods.filter(pm => {
-        if (args.type && !args.type.includes(pm.type)) {
+        if (args.enumType && !args.enumType.map(t => t.toLowerCase()).includes(pm.type)) {
           return false;
-        } else if (args.service && !args.service.includes(pm.service)) {
+        } else if (args.type && !args.type.map(t => t.toLowerCase()).includes(pm.type)) {
+          return false;
+        } else if (args.service && !args.service.map(s => s.toLowerCase()).includes(pm.service)) {
           return false;
         } else if (pm.data?.hidden) {
           return false;

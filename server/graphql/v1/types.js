@@ -1842,7 +1842,7 @@ export const PaymentMethodType = new GraphQLObjectType({
         type: GraphQLString,
         resolve(paymentMethod, _, req) {
           const isUnconfirmedGiftCard =
-            paymentMethod.type === PAYMENT_METHOD_TYPE.GIFT_CARD && !paymentMethod.confirmedAt;
+            paymentMethod.type === PAYMENT_METHOD_TYPE.GIFTCARD && !paymentMethod.confirmedAt;
           if (isUnconfirmedGiftCard && (!req.remoteUser || !req.remoteUser.isAdmin(paymentMethod.CollectiveId))) {
             return null;
           }
@@ -1879,6 +1879,8 @@ export const PaymentMethodType = new GraphQLObjectType({
         type: GraphQLString,
         resolve(paymentMethod) {
           return paymentMethod.service;
+          // TODO(paymentMethodType): make uppercase once the Frontend is ready
+          // return paymentMethod.service.toUpperCase();
         },
       },
       batch: {
@@ -1889,6 +1891,8 @@ export const PaymentMethodType = new GraphQLObjectType({
         type: GraphQLString,
         resolve(paymentMethod) {
           return paymentMethod.type;
+          // TODO(paymentMethodType): make uppercase once the Frontend is ready
+          // return paymentMethod.type.toUpperCase();
         },
       },
       data: {
@@ -1900,7 +1904,7 @@ export const PaymentMethodType = new GraphQLObjectType({
 
           // Protect and limit fields
           let allowedFields = [];
-          if (paymentMethod.type === PAYMENT_METHOD_TYPE.GIFT_CARD) {
+          if (paymentMethod.type === PAYMENT_METHOD_TYPE.GIFTCARD) {
             allowedFields = ['email'];
           } else if (paymentMethod.type === PAYMENT_METHOD_TYPE.CREDITCARD) {
             allowedFields = ['fullName', 'expMonth', 'expYear', 'brand', 'country', 'last4'];

@@ -995,7 +995,7 @@ const queries = {
               [Op.like]: `${args.code}%`,
             }),
             { service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE },
-            { type: PAYMENT_METHOD_TYPE.GIFT_CARD },
+            { type: PAYMENT_METHOD_TYPE.GIFTCARD },
           ),
         });
       } else {

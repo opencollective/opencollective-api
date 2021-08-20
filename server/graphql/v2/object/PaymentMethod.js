@@ -33,7 +33,7 @@ export const PaymentMethod = new GraphQLObjectType({
         type: GraphQLString,
         resolve(paymentMethod, _, req) {
           const publicProviders = [
-            [PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE, PAYMENT_METHOD_TYPE.GIFT_CARD],
+            [PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE, PAYMENT_METHOD_TYPE.GIFTCARD],
             [PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE, PAYMENT_METHOD_TYPE.PREPAID],
           ];
 
@@ -96,7 +96,7 @@ export const PaymentMethod = new GraphQLObjectType({
 
           // Protect and limit fields
           let allowedFields = [];
-          if (paymentMethod.type === PAYMENT_METHOD_TYPE.GIFT_CARD) {
+          if (paymentMethod.type === PAYMENT_METHOD_TYPE.GIFTCARD) {
             allowedFields = ['email'];
           } else if (paymentMethod.type === PAYMENT_METHOD_TYPE.CREDITCARD) {
             allowedFields = ['fullName', 'expMonth', 'expYear', 'brand', 'country', 'last4'];
@@ -118,7 +118,7 @@ export const PaymentMethod = new GraphQLObjectType({
             }
             const host = await req.loaders.Collective.byId.load(hostId);
             hosts = [host];
-          } else if (paymentMethod.type === PAYMENT_METHOD_TYPE.GIFT_CARD && paymentMethod.limitedToHostCollectiveIds) {
+          } else if (paymentMethod.type === PAYMENT_METHOD_TYPE.GIFTCARD && paymentMethod.limitedToHostCollectiveIds) {
             hosts = paymentMethod.limitedToHostCollectiveIds.map(id => {
               return req.loaders.Collective.byId.load(id);
             });

@@ -23,7 +23,7 @@ export async function createPaymentMethod(args, remoteUser) {
     throw new Error('You must be an admin of this Collective.');
   } else if (!args || !args.type) {
     throw Error('Missing PaymentMethod type');
-  } else if (args.type === PAYMENT_METHOD_TYPE.GIFT_CARD) {
+  } else if (args.type === PAYMENT_METHOD_TYPE.GIFTCARD) {
     // either amount or monthlyLimitPerMember needs to be present
     if (!args.amount && !args.monthlyLimitPerMember) {
       throw Error('you need to define either the amount or the monthlyLimitPerMember of the payment method.');

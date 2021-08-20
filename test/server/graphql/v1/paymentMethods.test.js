@@ -360,7 +360,7 @@ describe('server/graphql/v1/paymentMethods', () => {
       expect(preapprovalDetailsStub.firstCall.args).to.eql([paypalPaymentMethod.token]);
 
       // Ensure balance is returned
-      const paymentMethod = result.data.Collective.paymentMethods.find(pm => pm.service === 'paypal');
+      const paymentMethod = result.data.Collective.paymentMethods.find(pm => pm.service.toUpperCase() === 'PAYPAL');
       expect(preapprovalDetailsStub.callCount).to.equal(1);
       expect(paymentMethod.balance).to.equal(198750); // $2000 - $12.50
     });
