@@ -494,6 +494,7 @@ export const executeOrder = async (user, order, options = {}) => {
     await order.update({ status: status.PAID, processedAt: new Date(), data: omit(order.data, ['paymentIntent']) });
 
     // Register user as collective backer (don't do for internal transfers)
+    // Or in the case of tickets register the user as an ATTENDEE
     if (order.fromCollective?.ParentCollectiveId !== order.collective.id) {
       await order.getOrCreateMembers();
     }

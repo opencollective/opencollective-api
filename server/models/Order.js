@@ -6,6 +6,7 @@ import Temporal from 'sequelize-temporal';
 import { roles } from '../constants';
 import { types as CollectiveType } from '../constants/collectives';
 import status from '../constants/order_status';
+import tiers from '../constants/tiers';
 import { PLATFORM_TIP_TRANSACTION_PROPERTIES, TransactionTypes } from '../constants/transactions';
 import * as libPayments from '../lib/payments';
 import sequelize, { DataTypes } from '../lib/sequelize';
@@ -292,7 +293,7 @@ function defineModel() {
     // Register user as collective backer
     const member = await this.collective.findOrAddUserWithRole(
       { id: this.CreatedByUserId, CollectiveId: this.FromCollectiveId },
-      roles.BACKER,
+      this.tier?.type === tiers.TICKET ? roles.ATTENDEE : roles.BACKER,
       { TierId: this.TierId },
       { order: this },
     );
