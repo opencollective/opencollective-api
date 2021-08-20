@@ -42,13 +42,13 @@ export default {
   WEBHOOK_PAYPAL_RECEIVED: 'webhook.paypal.received',
   COLLECTIVE_MONTHLY: 'collective.monthly',
   ORDERS_SUSPICIOUS: 'orders.suspicious',
-  BACKYOURSTACK_DISPATCH_CONFIRMED: 'backyourstack.dispatch.confirmed',
   ACTIVATED_COLLECTIVE_AS_HOST: 'activated.collective.as.host',
   DEACTIVATED_COLLECTIVE_AS_HOST: 'deactivated.collective.as.host',
   VIRTUAL_CARD_REQUESTED: 'virtual_card.requested',
 
   // Not used anymore, leaving for historical reference
   ADDED_FUND_TO_ORG: 'added.fund.to.org',
+  BACKYOURSTACK_DISPATCH_CONFIRMED: 'backyourstack.dispatch.confirmed',
   COLLECTIVE_TRANSACTION_PAID: 'collective.transaction.paid', // replaced with COLLECTIVE_EXPENSE_PAID
   COLLECTIVE_USER_ADDED: 'collective.user.added',
 };

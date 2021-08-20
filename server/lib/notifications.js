@@ -470,16 +470,6 @@ async function notifyByEmail(activity) {
       });
       break;
 
-    case activityType.BACKYOURSTACK_DISPATCH_CONFIRMED:
-      for (const order of activity.data.orders) {
-        const collective = await models.Collective.findByPk(order.CollectiveId);
-        order.collective = collective.info;
-      }
-      notifyAdminsOfCollective(activity.data.collective.id, activity, {
-        template: 'backyourstack.dispatch.confirmed',
-      });
-      break;
-
     case activityType.ACTIVATED_COLLECTIVE_AS_HOST:
       notifyAdminsOfCollective(activity.data.collective.id, activity, {
         template: 'activated.collective.as.host',

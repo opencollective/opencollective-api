@@ -7,7 +7,6 @@ import { createUser } from '../common/user';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../errors';
 
 import * as applicationMutations from './mutations/applications';
-import * as backyourstackMutations from './mutations/backyourstack';
 import {
   activateBudget,
   activateCollectiveAsHost,
@@ -634,13 +633,14 @@ const mutations = {
         dispatching: { type: GraphQLBoolean },
       },
     }),
+    deprecationReason: '2021-08-20: BackYourStack dispatch is discontinued.',
     args: {
       id: {
         type: new GraphQLNonNull(GraphQLInt),
       },
     },
-    resolve(_, args) {
-      return backyourstackMutations.dispatchOrder(args.id);
+    resolve() {
+      return Promise.resolve();
     },
   },
   activateCollectiveAsHost: {

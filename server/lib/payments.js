@@ -766,7 +766,7 @@ export const getHostFeePercent = async (order, host = null) => {
   }
 
   const possibleValues = [
-    // Fixed in the Order (special tiers: BackYourStack, Pre-Paid)
+    // Fixed in the Order (special tiers: Pre-Paid)
     order.data?.hostFeePercent,
   ];
 
