@@ -391,11 +391,32 @@ export async function associateTransactionRefundId(transaction, refund, data) {
   return find([refundCredit, refundDebit, debit, credit], { id: transaction.id });
 }
 
+/*
+ * Send email notifications.
+ *
+ * Don't send emails when moving funds between a sub-collective(event/project) and its parent or
+ * from between a host and one of its collectives.
+ *
+ * In all cases, transaction.type is CREDIT.
+ *
+ */
 export const sendEmailNotifications = (order, transaction) => {
   debug('sendEmailNotifications');
-  // for gift cards and manual payment methods
-  // Don't send a "thank you" email when moving funds between a sub-collective and its parent
-  if (transaction && order.fromCollective?.ParentCollectiveId !== order.collective?.id) {
+  if (
+    transaction &&
+    // Check if transaction is from child (event/project) to parent (collective/fund/host).
+    // fromCollective: child (event/project), collective: parent (collective/fund/host)
+    order.fromCollective?.ParentCollectiveId !== order.collective?.id &&
+    // Check if transaction is from parent (collective/fund/host) to child (event/project)
+    // fromCollective: parent (collective/fund/host) , collective: child (event/project)
+    order.fromCollective?.id !== order.collective?.ParentCollectiveId &&
+    // Check if transaction is from host to one of its hosted collective/fund/project/event
+    // fromCollective: host, collective: a collective/fund/project/event
+    order.fromCollective?.id !== order.collective?.HostCollectiveId &&
+    // Check is transaction is from a collective/fund/project/event to its host
+    // fromCollective: a collective/fund/project/event, collective: host of fromCollective
+    order.fromCollective?.HostCollectiveId !== order.collective?.id
+  ) {
     sendOrderConfirmedEmail(order, transaction); // async
   } else if (order.status === status.PENDING) {
     sendOrderProcessingEmail(order); // This is the one for the Contributor
