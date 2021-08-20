@@ -16,7 +16,7 @@ import models, { sequelize } from '../../server/models';
 const main = async (): Promise<void> => {
   const doubleTransactionsInfos = await sequelize.query(
     `
-    SELECT t."OrderId", array_agg(DISTINCT t.id) AS "transactionIds"
+    SELECT t."OrderId", COALESCE(t."data" -> 'paypalSale' ->> 'id', t."data" -> 'capture' ->> 'id') AS "paypalId", array_agg(DISTINCT t.id) AS "transactionIds"
     FROM "Transactions" t 
     INNER JOIN "PaymentMethods" pm ON t."PaymentMethodId" = pm.id
     INNER JOIN "Orders" o ON t."OrderId" = o.id
@@ -26,9 +26,9 @@ const main = async (): Promise<void> => {
     AND t."deletedAt" IS NULL
     AND t."isRefund" IS FALSE
     AND t."RefundTransactionId" IS NULL
-    GROUP BY t."OrderId", date_trunc('day', t."createdAt") 
+    GROUP BY t."OrderId", COALESCE(t."data" -> 'paypalSale' ->> 'id', t."data" -> 'capture' ->> 'id')
     HAVING count(t.id) > 1
-    ORDER BY date_trunc('day', t."createdAt") DESC
+    ORDER BY t."OrderId" DESC
   `,
     { raw: true, type: sequelize.QueryTypes.SELECT },
   );
