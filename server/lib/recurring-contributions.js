@@ -372,7 +372,7 @@ export async function sendFailedEmail(order, lastAttempt) {
 }
 
 /** Send `thankyou` email */
-export async function sendThankYouEmail(order, transaction) {
+export async function sendThankYouEmail(order, transaction, isFirstPayment = false) {
   const attachments = [];
   const { collective, paymentMethod } = order;
   const relatedCollectives = await order.collective.getRelatedCollectives(3, 0);
@@ -383,7 +383,7 @@ export async function sendThankYouEmail(order, transaction) {
     order: order.info,
     transaction: transaction ? transaction.info : null,
     user: user.info,
-    firstPayment: false,
+    firstPayment: isFirstPayment,
     collective: order.collective.info,
     host: host ? host.info : {},
     fromCollective: order.fromCollective.minimal,
