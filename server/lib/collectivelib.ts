@@ -1,11 +1,11 @@
 import * as LibTaxes from '@opencollective/taxes';
 import config from 'config';
-import { get, isEmpty, pick } from 'lodash';
+import { get, isEmpty, pick, some } from 'lodash';
 
 import { types as CollectiveTypes } from '../constants/collectives';
 import { MODERATION_CATEGORIES } from '../constants/moderation-categories';
 import { VAT_OPTIONS } from '../constants/vat';
-import models, { sequelize } from '../models';
+import models, { Op, sequelize } from '../models';
 
 import { DEFAULT_GUEST_NAME } from './guest-accounts';
 import logger from './logger';
@@ -223,6 +223,7 @@ export const collectiveSlugReservedList = [
   'signin',
   'signup',
   'subscriptions',
+  'superpowers',
   'support',
   'tiers',
   'tos',
@@ -264,23 +265,165 @@ const mergeCollectiveFields = async (from, into, transaction) => {
 };
 
 /**
- * An helper to merge a collective with another one, with some limitations.
+ * Get a summary of all items handled by the `mergeCollectives` function
  */
-export const mergeCollectives = async (
-  from: typeof models.Collective,
-  into: typeof models.Collective,
-): Promise<void> => {
+export const getMovableItemsCount = async fromCollective => {
+  return {
+    activities: await models.Update.aggregate('id', 'COUNT', {
+      where: { CollectiveId: fromCollective.id },
+    }),
+    applications: await models.Application.aggregate('id', 'COUNT', {
+      where: { CollectiveId: fromCollective.id },
+    }),
+    members: await models.Member.aggregate('id', 'COUNT', {
+      where: { [Op.or]: [{ MemberCollectiveId: fromCollective.id }, { CollectiveId: fromCollective.id }] },
+    }),
+    memberInvitations: await models.MemberInvitation.aggregate('id', 'COUNT', {
+      where: { [Op.or]: [{ MemberCollectiveId: fromCollective.id }, { CollectiveId: fromCollective.id }] },
+    }),
+    orders: await models.Order.aggregate('id', 'COUNT', {
+      where: { [Op.or]: [{ FromCollectiveId: fromCollective.id }, { CollectiveId: fromCollective.id }] },
+    }),
+    paymentMethods: await models.PaymentMethod.aggregate('id', 'COUNT', {
+      where: { CollectiveId: fromCollective.id },
+    }),
+    tiers: await models.Tier.aggregate('id', 'COUNT', {
+      where: { CollectiveId: fromCollective.id },
+    }),
+    transactions: await models.Transaction.aggregate('id', 'COUNT', {
+      where: { [Op.or]: [{ FromCollectiveId: fromCollective.id }, { CollectiveId: fromCollective.id }] },
+    }),
+  };
+};
+
+/**
+ * Get a summary of all items **not** handled by the `mergeCollectives` function
+ */
+export const getUnmovableItemsCounts = async fromCollective => {
+  return {
+    comments: await models.Comment.aggregate('id', 'COUNT', {
+      where: { [Op.or]: [{ FromCollectiveId: fromCollective.id }, { CollectiveId: fromCollective.id }] },
+    }),
+    emojiReactions: await models.EmojiReaction.aggregate('id', 'COUNT', {
+      where: { FromCollectiveId: fromCollective.id },
+    }),
+    connectedAccounts: await models.ConnectedAccount.aggregate('id', 'COUNT', {
+      where: { CollectiveId: fromCollective.id },
+    }),
+    conversations: await models.Conversation.aggregate('id', 'COUNT', {
+      where: { [Op.or]: [{ FromCollectiveId: fromCollective.id }, { CollectiveId: fromCollective.id }] },
+    }),
+    expenses: await models.Expense.aggregate('id', 'COUNT', {
+      where: { [Op.or]: [{ FromCollectiveId: fromCollective.id }, { CollectiveId: fromCollective.id }] },
+    }),
+    legalDocuments: await models.LegalDocument.aggregate('id', 'COUNT', {
+      where: { CollectiveId: fromCollective.id },
+    }),
+    notifications: await models.Notification.aggregate('id', 'COUNT', {
+      where: { CollectiveId: fromCollective.id },
+    }),
+    payoutMethods: await models.PayoutMethod.aggregate('id', 'COUNT', {
+      where: { CollectiveId: fromCollective.id },
+    }),
+    requiredLegalDocuments: await models.RequiredLegalDocument.aggregate('id', 'COUNT', {
+      where: { HostCollectiveId: fromCollective.id },
+    }),
+    tiers: await models.Tier.aggregate('id', 'COUNT', {
+      where: { CollectiveId: fromCollective.id },
+    }),
+    updates: await models.Update.aggregate('id', 'COUNT', {
+      where: { CollectiveId: fromCollective.id },
+    }),
+  };
+};
+
+const checkMergeCollective = (from: typeof models.Collective, into: typeof models.Collective): void => {
   if (!from || !into) {
     throw new Error('Cannot merge profiles, one of them does not exist');
   } else if (from.type !== into.type) {
     throw new Error('Cannot merge accounts with different types');
   } else if (from.id === into.id) {
     throw new Error('Cannot merge an account into itself');
+  } else if (from.id === into.ParentCollectiveId) {
+    throw new Error('You can not merge an account with its parent');
+  } else if (from.id === into.HostCollectiveId) {
+    throw new Error('You can not merge an account with its host');
+  }
+};
+
+/**
+ * Simulate the `mergeCollectives` function. Returns a summary of the changes as a string
+ */
+export const simulateMergeCollectives = async (
+  from: typeof models.Collective,
+  into: typeof models.Collective,
+): Promise<string> => {
+  // Detect errors that would completely block the process (throws)
+  checkMergeCollective(from, into);
+
+  // Generate a summary of the changes
+  const movedItemsCounts = await getMovableItemsCount(from);
+  const notMovedItemsCounts = await getUnmovableItemsCounts(from);
+  let summary = 'The profiles information will be merged.\n\n';
+
+  const addLineToSummary = str => {
+    summary += `${str}\n`;
+  };
+
+  const addCountsToSummary = counts => {
+    Object.entries(counts).forEach(([key, count]) => {
+      if (count > 0) {
+        addLineToSummary(`  - ${key}: ${count}`);
+      }
+    });
+  };
+
+  if (some(movedItemsCounts, count => count > 0)) {
+    addLineToSummary(`The following items will be moved to @${into.slug}:`);
+    addCountsToSummary(movedItemsCounts);
+    addLineToSummary('');
   }
 
+  if (some(notMovedItemsCounts, count => count > 0)) {
+    addLineToSummary('The following items will **not** be moved (you need to do that manually):');
+    addCountsToSummary(notMovedItemsCounts);
+  }
+
+  return summary;
+};
+
+/**
+ * An helper to merge a collective with another one, with some limitations.
+ */
+export const mergeCollectives = async (
+  from: typeof models.Collective,
+  into: typeof models.Collective,
+): Promise<void> => {
+  // Make sure all conditions are met before we start
+  checkMergeCollective(from, into);
+
+  // TODO: Store the migration data somewhere to make rollbacks easier
+
+  // When moving users, we'll also update the user entries
+  let fromUser, toUser;
+  if (from.type === CollectiveTypes.USER) {
+    fromUser = await models.User.findOne({ where: { CollectiveId: from.id } });
+    toUser = await models.User.findOne({ where: { CollectiveId: into.id } });
+    if (!fromUser || !toUser) {
+      throw new Error('Cannot find one of the user entries to merge');
+    }
+  }
+
+  // Trigger the merge in a transaction
   return sequelize.transaction(async transaction => {
     // Update collective
     await mergeCollectiveFields(from, into, transaction);
+
+    // Update applications
+    await models.Application.update({ CollectiveId: into.id }, { where: { CollectiveId: from.id } }, { transaction });
+
+    // Update tiers
+    await models.Tier.update({ CollectiveId: into.id }, { where: { CollectiveId: from.id } }, { transaction });
 
     // Update orders (FROM)
     await models.Order.update({ FromCollectiveId: into.id }, { where: { FromCollectiveId: from.id } }, { transaction });
@@ -328,6 +471,9 @@ export const mergeCollectives = async (
 
     // Update activities
     await models.Activity.update({ CollectiveId: into.id }, { where: { CollectiveId: from.id } }, { transaction });
+
+    // Mark fromUser as deleted
+    await fromUser.destroy({ transaction });
 
     // Mark from profile as deleted
     await models.Collective.update(

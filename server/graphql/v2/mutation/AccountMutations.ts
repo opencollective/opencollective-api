@@ -1,19 +1,12 @@
 import cryptoRandomString from 'crypto-random-string';
 import express from 'express';
-import {
-  GraphQLBoolean,
-  GraphQLEnumType,
-  GraphQLFloat,
-  GraphQLList,
-  GraphQLNonNull,
-  GraphQLObjectType,
-  GraphQLString,
-} from 'graphql';
+import { GraphQLBoolean, GraphQLFloat, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import GraphQLJSON from 'graphql-type-json';
 import { cloneDeep, set } from 'lodash';
 
 import plans from '../../../constants/plans';
 import cache, { purgeCacheForCollective } from '../../../lib/cache';
+import { mergeCollectives, simulateMergeCollectives } from '../../../lib/collectivelib';
 import { invalidateContributorsCache } from '../../../lib/contributors';
 import { crypto } from '../../../lib/encryption';
 import { verifyTwoFactorAuthenticatorCode } from '../../../lib/two-factor-authentication';
@@ -27,6 +20,7 @@ import { AccountUpdateInput } from '../input/AccountUpdateInput';
 import { Account } from '../interface/Account';
 import { Host } from '../object/Host';
 import { Individual } from '../object/Individual';
+import { MergeAccountsResponse } from '../object/MergeAccountsResponse';
 import AccountSettingsKey from '../scalar/AccountSettingsKey';
 
 const AddTwoFactorAuthTokenToIndividualResponse = new GraphQLObjectType({
@@ -362,6 +356,41 @@ const accountMutations = {
       }
 
       return account;
+    },
+  },
+  mergeAccounts: {
+    type: new GraphQLNonNull(MergeAccountsResponse),
+    description: '[Root only] Merge two accounts, returns the result account',
+    args: {
+      fromAccount: {
+        type: new GraphQLNonNull(AccountReferenceInput),
+        description: 'Account to merge from',
+      },
+      toAccount: {
+        type: new GraphQLNonNull(AccountReferenceInput),
+        description: 'Account to merge to',
+      },
+      dryRun: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        description: 'If true, the result will be simulated and summarized in the response message',
+        defaultValue: true,
+      },
+    },
+    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+      if (!req.remoteUser?.isRoot()) {
+        throw new Forbidden('Only root users can perform this action');
+      }
+
+      const fromAccount = await fetchAccountWithReference(args.fromAccount, { throwIfMissing: true });
+      const toAccount = await fetchAccountWithReference(args.toAccount, { throwIfMissing: true });
+
+      if (args.dryRun) {
+        const message = await simulateMergeCollectives(fromAccount, toAccount);
+        return { account: toAccount, message };
+      } else {
+        await mergeCollectives(fromAccount, toAccount);
+        return { account: await toAccount.reload() };
+      }
     },
   },
 };
