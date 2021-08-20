@@ -610,7 +610,12 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
       attachments,
     };
 
-    return emailLib.send('thankyou', user.email, data, emailOptions);
+    const activity = {
+      type: 'thankyou',
+      data,
+    };
+
+    return notifyAdminsOfCollective(data.fromCollective.id, activity, emailOptions);
   }
 };
 
