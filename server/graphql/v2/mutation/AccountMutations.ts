@@ -1,15 +1,25 @@
 import cryptoRandomString from 'crypto-random-string';
 import express from 'express';
-import { GraphQLBoolean, GraphQLFloat, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import {
+  GraphQLBoolean,
+  GraphQLEnumType,
+  GraphQLFloat,
+  GraphQLList,
+  GraphQLNonNull,
+  GraphQLObjectType,
+  GraphQLString,
+} from 'graphql';
 import GraphQLJSON from 'graphql-type-json';
 import { cloneDeep, set } from 'lodash';
 
 import plans from '../../../constants/plans';
-import cache from '../../../lib/cache';
+import cache, { purgeCacheForCollective } from '../../../lib/cache';
+import { invalidateContributorsCache } from '../../../lib/contributors';
 import { crypto } from '../../../lib/encryption';
 import { verifyTwoFactorAuthenticatorCode } from '../../../lib/two-factor-authentication';
 import models, { sequelize } from '../../../models';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
+import { AccountCacheType } from '../enum/AccountCacheType';
 import { AccountTypeToModelMapping } from '../enum/AccountType';
 import { idDecode } from '../identifiers';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
@@ -314,6 +324,41 @@ const accountMutations = {
           case 'currency':
             await account.setCurrency(args.account[key]);
         }
+      }
+
+      return account;
+    },
+  },
+  clearCacheForAccount: {
+    type: new GraphQLNonNull(Account),
+    description: '[Root only] Clears the cache for a given account',
+    args: {
+      account: {
+        type: new GraphQLNonNull(AccountReferenceInput),
+        description: 'Account to clear the cache for',
+      },
+      type: {
+        type: new GraphQLNonNull(new GraphQLList(AccountCacheType)),
+        description: 'Types of cache to clear',
+        defaultValue: ['CLOUDFLARE', 'GRAPHQL_QUERIES', 'CONTRIBUTORS'],
+      },
+    },
+    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+      if (!req.remoteUser?.isRoot()) {
+        throw new Forbidden('Only root users can perform this action');
+      }
+
+      const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
+
+      const purgeGQL = args.type.includes('GRAPHQL_QUERIES');
+      const purgeCloudflare = args.type.includes('CLOUDFLARE');
+      const purgeContributors = args.type.includes('CONTRIBUTORS');
+
+      if (purgeGQL || purgeCloudflare) {
+        purgeCacheForCollective(account, purgeGQL);
+      }
+      if (purgeContributors) {
+        await invalidateContributorsCache(account.id);
       }
 
       return account;
