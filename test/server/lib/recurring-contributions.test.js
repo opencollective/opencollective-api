@@ -21,7 +21,7 @@ import * as utils from '../../utils';
 async function createOrderWithSubscription(interval, date, quantity = 1) {
   const payment = { amount: 1000, currency: 'USD', interval };
   const user = await models.User.createUserWithCollective({ email: randEmail(), name: 'Test McTesterson' });
-  const fromCollective = await models.Collective.create({ email: randEmail(), name: 'Donor Collective' });
+  const fromCollective = user.collective;
   const collective = await models.Collective.create({ name: 'Parcel' });
   const tier = await models.Tier.create({ name: 'backer', amount: 0 });
   const subscription = await models.Subscription.create({
@@ -227,13 +227,13 @@ describe('server/lib/recurring-contributions', () => {
           getRelatedCollectives: () => Promise.resolve(null),
           getHostCollective: () => Promise.resolve(null),
         },
-        fromCollective: { slug: 'cslug' },
-        createdByUser: { email: 'test@oc.com' },
+        fromCollective: { slug: 'cslug', minimal: { id: 1 } },
+        createdByUser: { email: 'user3@opencollective.com' },
       };
 
       // And given that we expect the method send from the mock to be
       // called
-      emailMock.expects('send').once().withArgs('thankyou', 'test@oc.com');
+      emailMock.expects('send').once().withArgs('thankyou', 'user3@opencollective.com');
 
       // When the status of the order is handled
       await handleRetryStatus(order);
@@ -246,9 +246,9 @@ describe('server/lib/recurring-contributions', () => {
       // Given an order
       const order = {
         Subscription: { chargeRetryCount: 1 },
-        collective: {},
-        fromCollective: { slug: 'cslug' },
-        createdByUser: { email: 'test@oc.com' },
+        collective: { name: 'test', slug: 'testslug' },
+        fromCollective: { slug: 'cslug', minimal: { id: 1 } },
+        createdByUser: { email: 'user3@opencollective.com' },
       };
 
       // And given that we expect the method send from the mock to be
@@ -256,14 +256,21 @@ describe('server/lib/recurring-contributions', () => {
       emailMock
         .expects('send')
         .once()
-        .withArgs('payment.failed', 'test@oc.com', {
-          lastAttempt: false,
-          order: order.info,
-          collective: order.collective.info,
-          fromCollective: order.fromCollective.minimal,
-          subscriptionsLink: `${config.host.website}/cslug/recurring-contributions`,
-          errorMessage: undefined,
-        });
+        .withArgs(
+          'payment.failed',
+          'user3@opencollective.com',
+          {
+            lastAttempt: false,
+            order: order.info,
+            collective: order.collective.info,
+            fromCollective: order.fromCollective.minimal,
+            subscriptionsLink: `${config.host.website}/cslug/recurring-contributions`,
+            errorMessage: undefined,
+          },
+          {
+            from: 'test <no-reply@testslug.opencollective.com>',
+          },
+        );
 
       // When the status of the order is handled
       await handleRetryStatus(order);
@@ -276,9 +283,9 @@ describe('server/lib/recurring-contributions', () => {
       // Given an order
       const order = {
         Subscription: { chargeRetryCount: MAX_RETRIES },
-        collective: {},
-        fromCollective: { slug: 'cslug' },
-        createdByUser: { email: 'test@oc.com' },
+        collective: { name: 'test', slug: 'testslug' },
+        fromCollective: { slug: 'cslug', minimal: { id: 1 } },
+        createdByUser: { email: 'user3@opencollective.com' },
       };
 
       // And given that we expect the method send from the mock to be
@@ -286,14 +293,21 @@ describe('server/lib/recurring-contributions', () => {
       emailMock
         .expects('send')
         .once()
-        .withArgs('payment.failed', 'test@oc.com', {
-          lastAttempt: true,
-          order: order.info,
-          collective: order.collective.info,
-          fromCollective: order.fromCollective.minimal,
-          subscriptionsLink: `${config.host.website}/cslug/recurring-contributions`,
-          errorMessage: undefined,
-        });
+        .withArgs(
+          'payment.failed',
+          'user3@opencollective.com',
+          {
+            lastAttempt: true,
+            order: order.info,
+            collective: order.collective.info,
+            fromCollective: order.fromCollective.minimal,
+            subscriptionsLink: `${config.host.website}/cslug/recurring-contributions`,
+            errorMessage: undefined,
+          },
+          {
+            from: 'test <no-reply@testslug.opencollective.com>',
+          },
+        );
 
       // When the status of the order is handled
       await handleRetryStatus(order);
@@ -313,7 +327,7 @@ describe('server/lib/recurring-contributions', () => {
       const order = {
         Subscription: { id: 1, save: sinon.spy() },
         collective: {},
-        fromCollective: {},
+        fromCollective: { slug: 'cslug', minimal: { id: 1 } },
         createdByUser: { email: 'test@oc.com', generateLoginLink: () => '/' },
       };
 
