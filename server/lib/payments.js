@@ -418,6 +418,8 @@ export const sendEmailNotifications = (order, transaction) => {
     order.fromCollective?.HostCollectiveId !== order.collective?.id
   ) {
     sendOrderConfirmedEmail(order, transaction); // async
+  } else if (order.status === status.PENDING && order.paymentMethod?.type === 'crypto') {
+    sendCryptoOrderProcessingEmail(order);
   } else if (order.status === status.PENDING) {
     sendOrderProcessingEmail(order); // This is the one for the Contributor
     sendManualPendingOrderEmail(order); // This is the one for the Host Admins
@@ -608,6 +610,30 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
     };
 
     return emailLib.send('thankyou', user.email, data, emailOptions);
+  }
+};
+
+// Sends an email when a deposit address is shown to the user in the crypto contribution flow.
+// Here a pending order is created.
+const sendCryptoOrderProcessingEmail = async order => {
+  if (order?.paymentMethod?.data?.depositAddress) {
+    const { collective, fromCollective } = order;
+    const user = order.createdByUser;
+    const host = await collective.getHostCollective();
+
+    const data = {
+      order: order.info,
+      depositAddress: order.paymentMethod.data.depositAddress,
+      collective: collective.info,
+      host: host.info,
+      fromCollective: fromCollective.activity,
+      pledgeAmount: order.data.customData.pledgeAmount,
+      pledgeCurrency: order.data.customData.pledgeCurrency,
+    };
+
+    return emailLib.send('order.crypto.processing', user.email, data, {
+      from: `${collective.name} <no-reply@${collective.slug}.opencollective.com>`,
+    });
   }
 };
 
