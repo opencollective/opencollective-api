@@ -199,9 +199,9 @@ interface Account {
   """
   paymentMethods(
     """
-    Filter on given types (creditcard, giftcard...)
+    Filter on given types (CREDITCARD, GIFTCARD...)
     """
-    type: [String]
+    type: [PaymentMethodType]
 
     """
     Filter on given types (CREDITCARD, GIFTCARD...)
@@ -784,7 +784,7 @@ type Bot implements Account {
   The list of payment methods that this collective can use to pay for Orders
   """
   paymentMethods(
-    type: [String]
+    type: [PaymentMethodType]
     enumType: [PaymentMethodType]
     service: [PaymentMethodService]
 
@@ -1084,7 +1084,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   The list of payment methods that this collective can use to pay for Orders
   """
   paymentMethods(
-    type: [String]
+    type: [PaymentMethodType]
     enumType: [PaymentMethodType]
     service: [PaymentMethodService]
 
@@ -3410,7 +3410,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions {
   The list of payment methods that this collective can use to pay for Orders
   """
   paymentMethods(
-    type: [String]
+    type: [PaymentMethodType]
     enumType: [PaymentMethodType]
     service: [PaymentMethodService]
 
@@ -3547,6 +3547,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions {
   The Collective hosting this Event
   """
   parentCollective: Collective @deprecated(reason: "2020/07/01 - Use parent instead.")
+
+  """
+  The Event start date and time
+  """
+  startsAt: DateTime
 
   """
   The Event end date and time
@@ -4388,7 +4393,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   The list of payment methods that this collective can use to pay for Orders
   """
   paymentMethods(
-    type: [String]
+    type: [PaymentMethodType]
     enumType: [PaymentMethodType]
     service: [PaymentMethodService]
 
@@ -4747,7 +4752,7 @@ type Host implements Account & AccountWithContributions {
   The list of payment methods that this collective can use to pay for Orders
   """
   paymentMethods(
-    type: [String]
+    type: [PaymentMethodType]
     enumType: [PaymentMethodType]
     service: [PaymentMethodService]
 
@@ -5326,7 +5331,7 @@ type Individual implements Account {
   The list of payment methods that this collective can use to pay for Orders
   """
   paymentMethods(
-    type: [String]
+    type: [PaymentMethodType]
     enumType: [PaymentMethodType]
     service: [PaymentMethodService]
 
@@ -6980,7 +6985,7 @@ type Organization implements Account & AccountWithContributions {
   The list of payment methods that this collective can use to pay for Orders
   """
   paymentMethods(
-    type: [String]
+    type: [PaymentMethodType]
     enumType: [PaymentMethodType]
     service: [PaymentMethodService]
 
@@ -7142,15 +7147,19 @@ input PaymentMethodInput {
   id: String
 
   """
+  Service of this payment method
+  """
+  service: PaymentMethodService
+
+  """
   Type of this payment method
   """
-  type: PaymentMethodLegacyType
+  type: PaymentMethodType
 
   """
   Type of this payment method
   """
   legacyType: PaymentMethodLegacyType
-  service: PaymentMethodService
   newType: PaymentMethodType
 
   """
@@ -7551,7 +7560,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions {
   The list of payment methods that this collective can use to pay for Orders
   """
   paymentMethods(
-    type: [String]
+    type: [PaymentMethodType]
     enumType: [PaymentMethodType]
     service: [PaymentMethodService]
 
@@ -8780,7 +8789,7 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
   The list of payment methods that this collective can use to pay for Orders
   """
   paymentMethods(
-    type: [String]
+    type: [PaymentMethodType]
     enumType: [PaymentMethodType]
     service: [PaymentMethodService]
 

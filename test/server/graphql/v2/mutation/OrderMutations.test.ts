@@ -134,7 +134,8 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         toAccount: { legacyId: toCollective.id },
         frequency: 'ONETIME',
         paymentMethod: {
-          type: 'CREDIT_CARD',
+          service: 'STRIPE',
+          type: 'CREDITCARD',
           name: '4242',
           creditCardInfo: {
             token: 'tok_123456781234567812345678',

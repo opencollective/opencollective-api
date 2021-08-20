@@ -1878,9 +1878,7 @@ export const PaymentMethodType = new GraphQLObjectType({
       service: {
         type: GraphQLString,
         resolve(paymentMethod) {
-          return paymentMethod.service;
-          // TODO(paymentMethodType): make uppercase once the Frontend is ready
-          // return paymentMethod.service.toUpperCase();
+          return paymentMethod.service.toUpperCase();
         },
       },
       batch: {
@@ -1890,9 +1888,7 @@ export const PaymentMethodType = new GraphQLObjectType({
       type: {
         type: GraphQLString,
         resolve(paymentMethod) {
-          return paymentMethod.type;
-          // TODO(paymentMethodType): make uppercase once the Frontend is ready
-          // return paymentMethod.type.toUpperCase();
+          return paymentMethod.type.toUpperCase();
         },
       },
       data: {
