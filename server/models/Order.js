@@ -289,11 +289,11 @@ function defineModel() {
   Order.prototype.getOrCreateMembers = async function () {
     // Preload data
     this.collective = this.collective || (await this.getCollective());
-
-    // Register user as collective backer
+    const tier = await models.Tier.findOne({ where: { id: this.TierId } });
+    // Register user as collective backer or an attendee (for events)
     const member = await this.collective.findOrAddUserWithRole(
       { id: this.CreatedByUserId, CollectiveId: this.FromCollectiveId },
-      this.tier?.type === tiers.TICKET ? roles.ATTENDEE : roles.BACKER,
+      tier?.type === tiers.TICKET ? roles.ATTENDEE : roles.BACKER,
       { TierId: this.TierId },
       { order: this },
     );
