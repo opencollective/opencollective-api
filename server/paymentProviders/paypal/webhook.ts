@@ -4,12 +4,18 @@ import { get, toNumber } from 'lodash';
 import moment from 'moment';
 
 import OrderStatus from '../../constants/order_status';
+import { PAYMENT_METHOD_SERVICE } from '../../constants/paymentMethods';
+import { TransactionKind } from '../../constants/transaction-kind';
+import { TransactionTypes } from '../../constants/transactions';
 import logger from '../../lib/logger';
+import { floatAmountToCents } from '../../lib/math';
+import { createRefundTransaction } from '../../lib/payments';
 import { validateWebhookEvent } from '../../lib/paypal';
 import { sendThankYouEmail } from '../../lib/recurring-contributions';
 import models from '../../models';
 import { PayoutWebhookRequest } from '../../types/paypal';
 
+import { paypalRequestV2 } from './api';
 import { recordPaypalCapture, recordPaypalSale } from './payment';
 import { checkBatchItemStatus } from './payouts';
 
@@ -54,6 +60,8 @@ async function handlePayoutTransactionUpdate(req: Request): Promise<void> {
  * host and PayPal account. Calls `validateWebhookEvent`, throwing if the webhook event is invalid
  */
 const loadSubscriptionForWebhookEvent = async (req: Request, subscriptionId: string) => {
+  // TODO: This can be optimized by using the `host` from path
+
   const order = await models.Order.findOne({
     include: [
       { association: 'fromCollective' },
@@ -128,6 +136,7 @@ async function handleSaleCompleted(req: Request): Promise<void> {
 }
 
 async function handleCaptureCompleted(req: Request): Promise<void> {
+  // TODO: This can be optimized by using the `host` from path
   // 1. Retrieve the order for this event
   const capture = req.body.resource;
   const order = await models.Order.findOne({
@@ -166,6 +175,63 @@ async function handleCaptureCompleted(req: Request): Promise<void> {
 
   // 5. Register user as a member, since the transaction is not created in `processOrder`
   await order.getOrCreateMembers();
+}
+
+async function handleCaptureRefunded(req: Request): Promise<void> {
+  if (!req.params.hostId) {
+    // Received on legacy webhook
+    logger.warn('Please update PayPal webhooks to latest version using scripts/paypal/update-hosts-webhooks.ts');
+  }
+
+  // Validate webhook event
+  const host = await models.Collective.findByPk(req.params.hostId);
+  const paypalAccount = await getPaypalAccount(host);
+  await validateWebhookEvent(paypalAccount, req);
+
+  // Retrieve the data for this event
+  const refund = req.body.resource;
+  const refundDetails = await paypalRequestV2(`payments/refunds/${refund.id}`, host, 'GET');
+  const refundLinks = <Record<string, string>[]>refundDetails.links;
+  const captureLink = refundLinks.find(l => l.rel === 'up' && l.method === 'GET');
+  const capturePath = captureLink.href.replace(/^.+\/v2\//, ''); // https://api.sandbox.paypal.com/v2/payments/captures/... -> payments/captures/...
+  const captureDetails = await paypalRequestV2(capturePath, host, 'GET');
+
+  // Load associated transaction, make sure they're not refunded already
+  const transaction = await models.Transaction.findOne({
+    where: {
+      type: TransactionTypes.CREDIT,
+      kind: TransactionKind.CONTRIBUTION,
+      data: { capture: { id: captureDetails.id } },
+      isRefund: false,
+      RefundTransactionId: null,
+    },
+    include: [
+      {
+        model: models.PaymentMethod,
+        required: true,
+        where: { service: PAYMENT_METHOD_SERVICE.PAYPAL },
+      },
+      {
+        model: models.Order,
+        required: true,
+        include: [{ association: 'collective', required: true }],
+      },
+    ],
+  });
+
+  if (!transaction) {
+    logger.debug(`PayPal: Refund - No transaction found for capture ${captureDetails.id}`);
+    return;
+  } else if (transaction.data.isRefundedFromOurSystem) {
+    // Ignore
+    return;
+  }
+
+  // Record the refund transactions
+  const rawRefundedPaypalFee = <string>get(refundDetails, 'seller_payable_breakdown.paypal_fee.value', '0.00');
+  const refundedPaypalFee = floatAmountToCents(parseFloat(rawRefundedPaypalFee));
+  const dataPayload = { paypalResponse: refundDetails, isRefundedFromPayPal: true };
+  return createRefundTransaction(transaction, refundedPaypalFee, dataPayload, null);
 }
 
 /**
@@ -212,6 +278,9 @@ async function webhook(req: Request): Promise<void> {
       return handleSaleCompleted(req);
     case 'PAYMENT.CAPTURE.COMPLETED':
       return handleCaptureCompleted(req);
+    case 'PAYMENT.CAPTURE.REFUNDED':
+    case 'PAYMENT.CAPTURE.REVERSED':
+      return handleCaptureRefunded(req);
     case 'BILLING.SUBSCRIPTION.CANCELLED':
     case 'BILLING.SUBSCRIPTION.SUSPENDED':
       return handleSubscriptionCancelled(req);

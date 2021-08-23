@@ -186,12 +186,22 @@ export const refundPaypalCapture = async (transaction, captureId, user, reason) 
     throw new Error(`PayPal: Can't find host for transaction #${transaction.id}`);
   }
 
-  // eslint-disable-next-line camelcase
-  const payload = { note_to_payer: truncate(reason, { length: 255 }) || undefined };
-  const result = await paypalRequestV2(`payments/captures/${captureId}/refund`, host, 'POST', payload);
-  const rawRefundedPaypalFee = get(result, 'seller_payable_breakdown.paypal_fee.amount.value', '0.00');
-  const refundedPaypalFee = floatAmountToCents(parseFloat(rawRefundedPaypalFee));
-  return createRefundTransaction(transaction, refundedPaypalFee, { paypalResponse: result }, user);
+  // Add a flag on transaction to make sure the `PAYMENT.CAPTURE.REFUNDED` webhook event will be ignored
+  // since we're already doing everything here
+  await transaction.update({ data: { ...transaction.data, isRefundedFromOurSystem: true } });
+  try {
+    // eslint-disable-next-line camelcase
+    const payload = { note_to_payer: truncate(reason, { length: 255 }) || undefined };
+    const result = await paypalRequestV2(`payments/captures/${captureId}/refund`, host, 'POST', payload);
+    const refundDetails = await paypalRequestV2(`payments/refunds/${result.id}`, host, 'GET');
+    const rawRefundedPaypalFee = get(refundDetails, 'seller_payable_breakdown.paypal_fee.value', '0.00');
+    const refundedPaypalFee = floatAmountToCents(parseFloat(rawRefundedPaypalFee));
+    return createRefundTransaction(transaction, refundedPaypalFee, { paypalResponse: result }, user);
+  } catch (error) {
+    const newData = delete transaction.data.isRefundedFromOurSystem;
+    await transaction.update({ data: newData });
+    throw error;
+  }
 };
 
 /** Process order in paypal and create transactions in our db */

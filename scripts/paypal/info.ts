@@ -7,7 +7,7 @@ import '../../server/env';
 
 import { get } from 'lodash';
 
-import models from '../../server/models';
+import models, { Op, sequelize } from '../../server/models';
 import { paypalRequestV2 } from '../../server/paymentProviders/paypal/api';
 
 const checkOrder = async orderId => {
@@ -36,11 +36,31 @@ const checkOrder = async orderId => {
   }
 };
 
+const printAllHostsWithPaypalAccounts = async () => {
+  const hosts = await models.Collective.findAll({
+    where: { isHostAccount: true },
+    group: [sequelize.col('Collective.id')],
+    include: [
+      {
+        association: 'ConnectedAccounts',
+        required: true,
+        attributes: [],
+        where: { service: 'paypal', clientId: { [Op.not]: null }, token: { [Op.not]: null } },
+      },
+    ],
+  });
+
+  const hostsLabelLists = hosts.map(host => `${host.slug} (#${host.id})`);
+  console.log(`Hosts with PayPal: ${hostsLabelLists.join(', ')}`);
+};
+
 const main = async (): Promise<void> => {
   const command = process.argv[2];
   switch (command) {
     case 'order':
       return checkOrder(process.argv[3]);
+    case 'list-hosts':
+      return printAllHostsWithPaypalAccounts();
     default:
       throw new Error(`Unknown command: ${command}`);
   }
