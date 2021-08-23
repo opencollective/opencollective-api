@@ -33,6 +33,9 @@ module.exports = {
       WHERE "kind" = 'PLATFORM_TIP_DEBT'
     `);
 
+    /*
+     * The following drop queries are incorrect and will not work as per; https://github.com/opencollective/opencollective/issues/4563. We will not correct this since these will not be rolled back anymore.
+     */
     await queryInterface.sequelize.query(`
       ALTER TYPE "enum_Transactions_kind"
       DROP VALUE IF NOT EXISTS 'PLATFORM_TIP_DEBT' AFTER 'PLATFORM_TIP'
