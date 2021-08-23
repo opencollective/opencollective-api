@@ -14,13 +14,17 @@ export const Debit = new GraphQLObjectType({
       fromAccount: {
         type: Account,
         resolve(transaction, _, req) {
-          return req.loaders.Collective.byId.load(transaction.CollectiveId);
+          if (transaction.CollectiveId) {
+            return req.loaders.Collective.byId.load(transaction.CollectiveId);
+          }
         },
       },
       toAccount: {
         type: Account,
         resolve(transaction, _, req) {
-          return req.loaders.Collective.byId.load(transaction.FromCollectiveId);
+          if (transaction.FromCollectiveId) {
+            return req.loaders.Collective.byId.load(transaction.FromCollectiveId);
+          }
         },
       },
     };
