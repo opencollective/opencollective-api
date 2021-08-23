@@ -76,7 +76,7 @@ paymentMethodProvider.processOrder = async order => {
     CollectiveId: order.CollectiveId,
     PaymentMethodId: order.PaymentMethodId,
     type: TransactionTypes.CREDIT,
-    kind: TransactionKind.CONTRIBUTION,
+    kind: order.data?.isBalanceTransfer ? TransactionKind.BALANCE_TRANSFER : TransactionKind.CONTRIBUTION,
     OrderId: order.id,
     amount,
     currency,
@@ -88,7 +88,7 @@ paymentMethodProvider.processOrder = async order => {
     description: order.description,
     data: {
       isFeesOnTop: order.data?.isFeesOnTop,
-      hasPlatformTip: platformTip ? true : false,
+      hasPlatformTip: !!platformTip,
       isSharedRevenue,
       platformTip,
       platformTipInHostCurrency,
@@ -97,9 +97,7 @@ paymentMethodProvider.processOrder = async order => {
     },
   };
 
-  const transactions = await models.Transaction.createFromContributionPayload(transactionPayload);
-
-  return transactions;
+  return models.Transaction.createFromContributionPayload(transactionPayload);
 };
 
 /**

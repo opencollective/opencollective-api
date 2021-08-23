@@ -1,7 +1,7 @@
 import { GraphQLBoolean, GraphQLInputObjectType, GraphQLInt, GraphQLList, GraphQLNonNull } from 'graphql';
 import GraphQLJSON from 'graphql-type-json';
 
-import { ContributionFrequency } from '../enum/ContributionFrequency';
+import { ContributionFrequency } from '../enum';
 
 import { AccountReferenceInput } from './AccountReferenceInput';
 import { AmountInput } from './AmountInput';
@@ -71,6 +71,10 @@ export const OrderCreateInput = new GraphQLInputObjectType({
     context: {
       type: OrderContextInput,
       description: 'Some context about how this order was created',
+    },
+    isBalanceTransfer: {
+      type: GraphQLBoolean,
+      description: 'Whether this is transferring the remaining balance from a project/event/collective',
     },
   }),
 });

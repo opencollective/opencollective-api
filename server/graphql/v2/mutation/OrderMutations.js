@@ -91,6 +91,7 @@ const orderMutations = {
         collective: { id: collective.id },
         totalAmount: getOrderTotalAmount(order),
         customData: order.customData,
+        isBalanceTransfer: order.isBalanceTransfer,
         tier: tier && { id: tier.id },
         guestInfo: order.guestInfo,
         context: order.context,
