@@ -36,13 +36,12 @@ async function handleErrorsAndRetry(result, path, options = {}, account = null) 
       logger.debug('Access token is invalid. Requesting a new one.');
       let error;
       try {
-        const { accessToken, refreshToken } = await login(USERNAME, PASSWORD);
-        await account.update({ data: { ...account.data, accessToken, refreshToken } });
+        await login(USERNAME, PASSWORD, account);
         if (options.body?.get('refreshToken')) {
-          options.body.set('refreshToken', refreshToken);
+          options.body.set('refreshToken', account.data.refreshToken);
         }
         if (options.headers?.Authorization) {
-          options.headers.Authorization = `Bearer ${accessToken}`;
+          options.headers.Authorization = `Bearer ${account.data.accessToken}`;
         }
         const response = await fetch(`${API_URL}${path}`, options);
         const result = await response.json();
@@ -57,12 +56,13 @@ async function handleErrorsAndRetry(result, path, options = {}, account = null) 
   return result.data;
 }
 
-export async function login(login, password) {
+export async function login(login, password, account) {
   const body = new URLSearchParams();
   body.set('login', login);
   body.set('password', password);
 
-  return apiRequest(`/login`, { method: 'POST', body });
+  const { accessToken, refreshToken } = await apiRequest(`/login`, { method: 'POST', body });
+  return account.update({ data: { ...account.data, accessToken, refreshToken } });
 }
 
 export async function refresh(account) {
