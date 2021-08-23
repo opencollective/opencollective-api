@@ -128,7 +128,8 @@ async function handleSaleCompleted(req: Request): Promise<void> {
   }
 
   // 4. Send thankyou email
-  await sendThankYouEmail(order, transaction);
+  const isFirstPayment = order.Subscription.chargeNumber === 1;
+  await sendThankYouEmail(order, transaction, isFirstPayment);
 
   // 5. Register user as a member, since the transaction is not created in `processOrder`
   // for PayPal subscriptions.
