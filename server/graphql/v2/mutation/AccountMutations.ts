@@ -5,7 +5,8 @@ import GraphQLJSON from 'graphql-type-json';
 import { cloneDeep, set } from 'lodash';
 
 import plans from '../../../constants/plans';
-import cache, { purgeCacheForCollective } from '../../../lib/cache';
+import cache, { purgeGQLCacheForCollective } from '../../../lib/cache';
+import { purgeCacheForPage } from '../../../lib/cloudflare';
 import { mergeCollectives, simulateMergeCollectives } from '../../../lib/collectivelib';
 import { invalidateContributorsCache } from '../../../lib/contributors';
 import { crypto } from '../../../lib/encryption';
@@ -344,14 +345,13 @@ const accountMutations = {
 
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
 
-      const purgeGQL = args.type.includes('GRAPHQL_QUERIES');
-      const purgeCloudflare = args.type.includes('CLOUDFLARE');
-      const purgeContributors = args.type.includes('CONTRIBUTORS');
-
-      if (purgeGQL || purgeCloudflare) {
-        purgeCacheForCollective(account, purgeGQL);
+      if (args.type.includes('CLOUDFLARE')) {
+        purgeCacheForPage(`/${account.slug}`);
       }
-      if (purgeContributors) {
+      if (args.type.includes('GRAPHQL_QUERIES')) {
+        purgeGQLCacheForCollective(account.slug);
+      }
+      if (args.type.includes('CONTRIBUTORS')) {
         await invalidateContributorsCache(account.id);
       }
 
