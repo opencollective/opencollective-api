@@ -4,6 +4,21 @@ import EmailAddress from '../scalar/EmailAddress';
 
 import { LocationInput } from './LocationInput';
 
+export const CaptchaInput = new GraphQLInputObjectType({
+  name: 'CaptchaInput',
+  description: 'Captcha related information',
+  fields: () => ({
+    token: {
+      type: GraphQLNonNull(GraphQLString),
+      description: 'Captcha provided site key',
+    },
+    ekey: {
+      type: GraphQLNonNull(GraphQLString),
+      description: 'Catpcha validation key',
+    },
+  }),
+});
+
 export const GuestInfoInput = new GraphQLInputObjectType({
   name: 'GuestInfoInput',
   description: 'Input type for guest contributions',
@@ -24,6 +39,10 @@ export const GuestInfoInput = new GraphQLInputObjectType({
     location: {
       type: LocationInput,
       description: 'Address of the user, mandatory when amount is above $5000.',
+    },
+    captcha: {
+      type: CaptchaInput,
+      description: 'Captcha validation for creating an order',
     },
   }),
 });

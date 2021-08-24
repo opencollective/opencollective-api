@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import * as LibTaxes from '@opencollective/taxes';
 import config from 'config';
 import debugLib from 'debug';
+import * as hcaptcha from 'hcaptcha';
 import { get, isNil, omit, pick, set } from 'lodash';
 import { isEmail } from 'validator';
 
@@ -34,6 +35,7 @@ import {
 
 const oneHourInSeconds = 60 * 60;
 
+console.log();
 const debug = debugLib('orders');
 
 function getOrdersLimit(order, reqIp, reqMask) {
@@ -164,7 +166,23 @@ const checkGuestContribution = async (order, loaders) => {
   }
 };
 
-async function checkRecaptcha(order, remoteUser, reqIp) {
+async function checkCaptcha(order, remoteUser, reqIp) {
+  if (config.hcaptcha?.secret) {
+    if (!order.guestInfo?.captcha?.token) {
+      throw new BadRequest('You need to inform a valid captcha token');
+    }
+    const response = await hcaptcha.verify(
+      config.hcaptcha.secret,
+      order.guestInfo.captcha.token,
+      reqIp,
+      config.hcaptcha.sitekey,
+    );
+    if (response.success !== true) {
+      throw new BadRequest('Captcha verification failed');
+    }
+    return response;
+  }
+
   // Disabled for all environments
   if (config.env.recaptcha && !parseToBoolean(config.env.recaptcha.enable)) {
     return;
@@ -277,7 +295,6 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
   }
 
   await checkOrdersLimit(order, reqIp, reqMask);
-  const recaptchaResponse = await checkRecaptcha(order, remoteUser, reqIp);
 
   let orderCreated, isGuest, guestToken;
   try {
@@ -416,6 +433,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
       }
     }
 
+    let recaptchaResponse;
     if (!fromCollective) {
       if (remoteUser) {
         // @deprecated - Creating organizations inline from this endpoint should not be supported anymore
@@ -425,6 +443,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
         // Create or retrieve guest profile from GUEST_TOKEN
         const creationRequest = { ip: reqIp, userAgent, mask: reqMask };
         const guestProfile = await getOrCreateGuestProfile(order.guestInfo, creationRequest);
+        recaptchaResponse = await checkCaptcha(order, remoteUser, reqIp);
         remoteUser = guestProfile.user;
         fromCollective = guestProfile.collective;
         isGuest = true;
