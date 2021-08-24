@@ -105,7 +105,7 @@ async function handleSaleCompleted(req: Request): Promise<void> {
   const existingTransaction = await models.Transaction.findOne({
     where: {
       OrderId: order.id, // Not necessary, but makes the query faster
-      data: { paypalSaleId: sale.id },
+      data: { paypalSale: { id: sale.id } },
     },
   });
 
