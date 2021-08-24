@@ -17,6 +17,7 @@ const AES_ENCRYPTION_METHOD = config.thegivingblock.aesEncryptionMethod;
 const API_URL = config.thegivingblock.apiUrl;
 const USERNAME = config.thegivingblock.username;
 const PASSWORD = config.thegivingblock.password;
+
 async function apiRequest(path, options = {}, account) {
   const response = await fetch(`${API_URL}${path}`, options);
   const result = await response.json();
