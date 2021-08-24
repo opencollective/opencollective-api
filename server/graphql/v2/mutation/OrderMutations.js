@@ -75,7 +75,13 @@ const orderMutations = {
       const tier = order.tier && (await fetchTierWithReference(order.tier, loadersParams));
       const fromCollective = order.fromAccount && (await loadAccount(order.fromAccount));
       const collective = await loadAccount(order.toAccount);
-      const paymentMethod = await getLegacyPaymentMethodFromPaymentMethodInput(order.paymentMethod);
+      let paymentMethod;
+      if (order.isParentToChildTransfer) {
+        const host = await fromCollective.getHostCollective();
+        paymentMethod = await host.getOrCreateHostPaymentMethod();
+      } else {
+        paymentMethod = await getLegacyPaymentMethodFromPaymentMethodInput(order.paymentMethod);
+      }
 
       const legacyOrderObj = {
         quantity: order.quantity,

@@ -76,5 +76,9 @@ export const OrderCreateInput = new GraphQLInputObjectType({
       type: GraphQLBoolean,
       description: 'Whether this is transferring the remaining balance from a project/event/collective',
     },
+    isParentToChildTransfer: {
+      type: GraphQLBoolean,
+      description: 'Whether this is adding funds from the parent to the child collective',
+    },
   }),
 });
