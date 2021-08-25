@@ -5,7 +5,7 @@ import { pick } from 'lodash';
 import { types as CollectiveTypes } from '../../../constants/collectives';
 import MemberRoles from '../../../constants/roles';
 import models from '../../../models';
-import { Forbidden, Unauthorized } from '../../errors';
+import { Forbidden, Unauthorized, ValidationFailed } from '../../errors';
 import { MemberRole } from '../enum';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import {
@@ -52,10 +52,20 @@ const memberInvitationMutations = {
         throw new Unauthorized('Only admins can send an invitation.');
       }
 
-      if (![MemberRoles.ACCOUNTANT, MemberRoles.ADMIN, MemberRoles.MEMBER].includes(args.role)) {
+      const supportedRoles = [MemberRoles.ACCOUNTANT, MemberRoles.ADMIN, MemberRoles.MEMBER];
+      if (!supportedRoles.includes(args.role)) {
         throw new Forbidden('You can only invite accountants, admins, or members.');
       } else if (memberAccount.type !== CollectiveTypes.USER) {
         throw new Forbidden('You can only invite users.');
+      }
+
+      // Check limits
+      const maxNbMembers = 60; // webpack-webinar has 51 admins, this value has been picked to not break anything
+      const memberCountWhere = { CollectiveId: account.id, role: supportedRoles };
+      const nbMembers = await models.Member.count({ where: memberCountWhere });
+      const nbInvitations = await models.MemberInvitation.count({ where: memberCountWhere });
+      if (nbMembers + nbInvitations >= maxNbMembers) {
+        throw new ValidationFailed('You exceeded the maximum number of members for this account');
       }
 
       const memberParams = {
