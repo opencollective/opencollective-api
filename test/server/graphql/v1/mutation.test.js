@@ -949,7 +949,10 @@ describe('server/graphql/v1/mutation', () => {
               collective: { id: event1.id },
               tier: { id: 4 },
               quantity: 2,
-              guestInfo: { email: user2.email },
+              guestInfo: {
+                email: user2.email,
+                captcha: { token: '10000000-aaaa-bbbb-cccc-000000000001', provider: 'HCAPTCHA' },
+              },
             };
 
             const loggedInUser = null;
