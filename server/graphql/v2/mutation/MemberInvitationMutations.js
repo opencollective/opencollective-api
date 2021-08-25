@@ -5,6 +5,7 @@ import { pick } from 'lodash';
 import { types as CollectiveTypes } from '../../../constants/collectives';
 import MemberRoles from '../../../constants/roles';
 import models from '../../../models';
+import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation';
 import { Forbidden, Unauthorized } from '../../errors';
 import { MemberRole } from '../enum';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
@@ -52,7 +53,7 @@ const memberInvitationMutations = {
         throw new Unauthorized('Only admins can send an invitation.');
       }
 
-      if (![MemberRoles.ACCOUNTANT, MemberRoles.ADMIN, MemberRoles.MEMBER].includes(args.role)) {
+      if (!MEMBER_INVITATION_SUPPORTED_ROLES.includes(args.role)) {
         throw new Forbidden('You can only invite accountants, admins, or members.');
       } else if (memberAccount.type !== CollectiveTypes.USER) {
         throw new Forbidden('You can only invite users.');
