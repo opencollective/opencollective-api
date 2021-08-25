@@ -12,7 +12,7 @@ module.exports = {
         type: Sequelize.ENUM('MIGRATION', 'MANUAL', 'MERGE_ACCOUNTS'),
         allowNull: false,
       },
-      name: {
+      description: {
         type: Sequelize.STRING,
         allowNull: false,
       },
@@ -25,6 +25,13 @@ module.exports = {
         type: Sequelize.JSONB,
         allowNull: false,
         defaultValue: '{}',
+      },
+      CreatedByUserId: {
+        type: Sequelize.INTEGER,
+        references: { key: 'id', model: 'Users' },
+        onDelete: 'SET NULL',
+        onUpdate: 'CASCADE',
+        allowNull: true,
       },
     });
   },

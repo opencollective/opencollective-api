@@ -11,14 +11,16 @@ interface MigrationLogAttributes {
   id: number;
   type: MigrationLogType;
   createdAt: Date;
-  name: string;
+  description: string;
   data: Record<string, unknown>;
+  CreatedByUserId: number;
 }
 
 interface MigrationLogCommonCreateAttributes {
   type: MigrationLogType;
-  name: string;
+  description: string;
   data: Record<string, unknown>;
+  CreatedByUserId: number;
 }
 
 class MigrationLog
@@ -28,8 +30,9 @@ class MigrationLog
   id: number;
   type: MigrationLogType;
   createdAt: Date;
-  name: string;
+  description: string;
   data: Record<string, unknown>;
+  CreatedByUserId: number;
 
   constructor(...args) {
     super(...args);
@@ -48,7 +51,7 @@ MigrationLog.init(
       type: DataTypes.ENUM('MIGRATION', 'MANUAL', 'MERGE_ACCOUNTS'),
       allowNull: false,
     },
-    name: {
+    description: {
       type: DataTypes.STRING,
       allowNull: false,
     },
@@ -61,6 +64,13 @@ MigrationLog.init(
       type: DataTypes.JSONB,
       allowNull: false,
       defaultValue: '{}',
+    },
+    CreatedByUserId: {
+      type: DataTypes.INTEGER,
+      references: { key: 'id', model: 'Users' },
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE',
+      allowNull: true,
     },
   },
   {

@@ -388,7 +388,7 @@ const accountMutations = {
         const message = await simulateMergeCollectives(fromAccount, toAccount);
         return { account: toAccount, message };
       } else {
-        await mergeCollectives(fromAccount, toAccount);
+        await mergeCollectives(fromAccount, toAccount, req.remoteUser.id);
         return { account: await toAccount.reload() };
       }
     },

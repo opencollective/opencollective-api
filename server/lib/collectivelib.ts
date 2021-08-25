@@ -399,6 +399,7 @@ export const simulateMergeCollectives = async (
 export const mergeCollectives = async (
   from: typeof models.Collective,
   into: typeof models.Collective,
+  userId: number | null = null,
 ): Promise<void> => {
   // Make sure all conditions are met before we start
   checkMergeCollective(from, into);
@@ -492,7 +493,8 @@ export const mergeCollectives = async (
     await models.MigrationLog.create(
       {
         type: MigrationLogType.MERGE_ACCOUNTS,
-        name: `Merge ${from.slug} into ${into.slug}`,
+        description: `Merge ${from.slug} into ${into.slug}`,
+        CreatedByUserId: userId,
         data: {
           fromAccountId: from.id,
           intoAccountId: into.id,
