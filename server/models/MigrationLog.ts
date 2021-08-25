@@ -23,6 +23,17 @@ interface MigrationLogCommonCreateAttributes {
   CreatedByUserId: number;
 }
 
+export type MigrationLogDataForMergeAccounts = {
+  fromAccount?: number;
+  intoAccount?: number;
+  fromUser?: number;
+  intoUser?: number;
+  associations?: Record<string, (number | string)[]>;
+  userChanges?: Record<string, (number | string)[]> | null;
+};
+
+type MigrationLogData = MigrationLogDataForMergeAccounts | Record<string, unknown>;
+
 class MigrationLog
   extends Model<MigrationLogAttributes, MigrationLogCommonCreateAttributes>
   implements MigrationLogAttributes
@@ -31,12 +42,29 @@ class MigrationLog
   type: MigrationLogType;
   createdAt: Date;
   description: string;
-  data: Record<string, unknown>;
+  data: MigrationLogData;
   CreatedByUserId: number;
 
   constructor(...args) {
     super(...args);
     restoreSequelizeAttributesOnClass(new.target, this);
+  }
+
+  static async getDataForMergeAccounts(
+    fromAccountId: number,
+    toAccountId: number,
+  ): Promise<MigrationLogDataForMergeAccounts | null> {
+    const migrationLog = await MigrationLog.findOne({
+      where: {
+        type: MigrationLogType.MERGE_ACCOUNTS,
+        data: {
+          fromAccount: fromAccountId,
+          toAccount: toAccountId,
+        },
+      },
+    });
+
+    return migrationLog?.data || null;
   }
 }
 
