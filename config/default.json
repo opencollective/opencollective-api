@@ -67,7 +67,7 @@
     "searchEmailPerHour": 150,
     "searchEmailPerHourPerIp": 50,
     "collectiveEmailMessagePerHour": 5,
-    "maxMemberInvitationsPerCollective": 50
+    "maxCoreContributorsPerAccount": 60
   },
   "email": {
     "from": "Open Collective <info@opencollective.com>"

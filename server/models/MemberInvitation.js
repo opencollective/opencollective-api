@@ -7,6 +7,8 @@ import { purgeCacheForCollective } from '../lib/cache';
 import emailLib from '../lib/email';
 import sequelize, { DataTypes } from '../lib/sequelize';
 
+export const MEMBER_INVITATION_SUPPORTED_ROLES = [roles.ACCOUNTANT, roles.ADMIN, roles.MEMBER];
+
 function defineModel() {
   const { models } = sequelize;
 
@@ -67,7 +69,7 @@ function defineModel() {
         defaultValue: 'member',
         validate: {
           isIn: {
-            args: [[roles.ADMIN, roles.MEMBER, roles.ACCOUNTANT]],
+            args: [MEMBER_INVITATION_SUPPORTED_ROLES],
           },
         },
       },
@@ -151,8 +153,10 @@ function defineModel() {
 
   MemberInvitation.invite = async function (collective, memberParams) {
     // Check params
-    if (![roles.ADMIN, roles.MEMBER, roles.ACCOUNTANT].includes(memberParams.role)) {
-      throw new Error('Can only invite users as admins or members');
+    if (!MEMBER_INVITATION_SUPPORTED_ROLES.includes(memberParams.role)) {
+      throw new Error(`Member invitation roles can only be one of: ${MEMBER_INVITATION_SUPPORTED_ROLES.join(', ')}`);
+    } else if (collective.type === types.USER) {
+      throw new Error('Individual accounts do not support members');
     }
 
     // Ensure the user is not already a member or invited as such
@@ -181,11 +185,11 @@ function defineModel() {
     }
 
     // Ensure collective has not invited too many people
-    const nbInvitationsForCollective = await models.MemberInvitation.count({ where: { CollectiveId: collective.id } });
-    if (nbInvitationsForCollective >= config.limits.maxMemberInvitationsPerCollective) {
-      throw new Error(
-        'You have reached the max number of member invitations for this collective. Please wait for them to be accepted before sending others.',
-      );
+    const memberCountWhere = { CollectiveId: collective.id, role: MEMBER_INVITATION_SUPPORTED_ROLES };
+    const nbMembers = await models.Member.count({ where: memberCountWhere });
+    const nbInvitations = await models.MemberInvitation.count({ where: memberCountWhere });
+    if (nbMembers + nbInvitations > config.limits.maxCoreContributorsPerAccount) {
+      throw new Error('You exceeded the maximum number of members for this account');
     }
 
     // Load users
