@@ -147,6 +147,7 @@ const accountFieldsDefinition = () => ({
   accountMembers: {
     type: new GraphQLList(Member),
     description: 'Get all the members of this account (admins, members, accountants etc.)',
+    deprecationReason: '2021-08-25: This should not have been introduced, use "members"',
     args: {
       limit: {
         type: GraphQLInt,
