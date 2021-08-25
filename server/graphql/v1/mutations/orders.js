@@ -169,8 +169,7 @@ const checkGuestContribution = async (order, loaders) => {
 
 async function checkCaptcha(order, remoteUser, reqIp) {
   const requestedProvider = order.guestInfo?.captcha?.provider;
-  const isCaptchaEnabled =
-    config.hcaptcha?.secret || (config.env.recaptcha && parseToBoolean(config.env.recaptcha.enable));
+  const isCaptchaEnabled = config.hcaptcha?.secret || (config.recaptcha && parseToBoolean(config.recaptcha.enable));
 
   if (!isCaptchaEnabled) {
     return;
