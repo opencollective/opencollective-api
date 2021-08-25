@@ -8,6 +8,7 @@ import { get, isNil, omit, pick, set } from 'lodash';
 import { isEmail } from 'validator';
 
 import activities from '../../../constants/activities';
+import CAPTCHA_PROVIDERS from '../../../constants/captcha-providers';
 import { types } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import status from '../../../constants/order_status';
@@ -167,35 +168,39 @@ const checkGuestContribution = async (order, loaders) => {
 };
 
 async function checkCaptcha(order, remoteUser, reqIp) {
-  if (config.hcaptcha?.secret) {
-    if (!order.guestInfo?.captcha?.token) {
-      throw new BadRequest('You need to inform a valid captcha token');
-    }
-    const response = await hcaptcha.verify(
+  const requestedProvider = order.guestInfo?.captcha?.provider;
+  const isCaptchaEnabled =
+    config.hcaptcha?.secret || (config.env.recaptcha && parseToBoolean(config.env.recaptcha.enable));
+
+  if (!isCaptchaEnabled) {
+    return;
+  }
+
+  if (!order.guestInfo?.captcha?.token) {
+    throw new BadRequest('You need to inform a valid captcha token');
+  }
+
+  let response;
+  if (requestedProvider === CAPTCHA_PROVIDERS.HCAPTCHA && config.hcaptcha?.secret) {
+    response = await hcaptcha.verify(
       config.hcaptcha.secret,
       order.guestInfo.captcha.token,
       reqIp,
       config.hcaptcha.sitekey,
     );
-    if (response.success !== true) {
-      throw new BadRequest('Captcha verification failed');
-    }
-    return response;
+  } else if (
+    requestedProvider === CAPTCHA_PROVIDERS.RECAPTCHA &&
+    config.recaptcha &&
+    parseToBoolean(config.recaptcha.enable)
+  ) {
+    response = await recaptcha.verify(order.guestInfo.captcha.token, reqIp);
+  } else {
+    throw new BadRequest('Could not find requested Captcha provider', undefined, order.guestInfo?.captcha);
   }
 
-  // Disabled for all environments
-  if (config.env.recaptcha && !parseToBoolean(config.env.recaptcha.enable)) {
-    return;
+  if (response.success !== true) {
+    throw new BadRequest('Captcha verification failed');
   }
-
-  if (!order.recaptchaToken) {
-    // Pass for now
-    return;
-  }
-
-  const response = recaptcha.verify(order.recaptchaToken, reqIp);
-
-  // TODO: check response and throw an error if needed
 
   return response;
 }

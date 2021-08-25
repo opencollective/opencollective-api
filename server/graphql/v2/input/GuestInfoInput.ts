@@ -1,5 +1,6 @@
 import { GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
 
+import { CaptchaProvider } from '../enum/CaptchaProvider';
 import EmailAddress from '../scalar/EmailAddress';
 
 import { LocationInput } from './LocationInput';
@@ -10,11 +11,15 @@ export const CaptchaInput = new GraphQLInputObjectType({
   fields: () => ({
     token: {
       type: GraphQLNonNull(GraphQLString),
-      description: 'Captcha provided site key',
+      description: 'Captcha validation token',
     },
     ekey: {
-      type: GraphQLNonNull(GraphQLString),
-      description: 'Catpcha validation key',
+      type: GraphQLString,
+      description: 'HCatpcha site key',
+    },
+    provider: {
+      type: GraphQLNonNull(CaptchaProvider),
+      description: 'Catpcha provider',
     },
   }),
 });

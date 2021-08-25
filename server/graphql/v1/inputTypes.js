@@ -302,6 +302,34 @@ export const TierInputType = new GraphQLInputObjectType({
   }),
 });
 
+const CaptchaProvider = new GraphQLEnumType({
+  name: 'CaptchaProvider',
+  description: 'Implemented Captcha Providers',
+  values: {
+    HCAPTCHA: {},
+    RECAPTCHA: {},
+  },
+});
+
+const CaptchaInput = new GraphQLInputObjectType({
+  name: 'CaptchaInput',
+  description: 'Captcha related information',
+  fields: () => ({
+    token: {
+      type: GraphQLNonNull(GraphQLString),
+      description: 'Captcha validation token',
+    },
+    ekey: {
+      type: GraphQLString,
+      description: 'HCatpcha site key',
+    },
+    provider: {
+      type: GraphQLNonNull(CaptchaProvider),
+      description: 'Catpcha provider',
+    },
+  }),
+});
+
 export const GuestInfoInput = new GraphQLInputObjectType({
   name: 'GuestInfoInput',
   description: 'Input type for guest contributions',
@@ -317,6 +345,10 @@ export const GuestInfoInput = new GraphQLInputObjectType({
     token: {
       type: GraphQLString,
       description: 'The unique guest token',
+    },
+    captcha: {
+      type: CaptchaInput,
+      description: 'Captcha validation for creating an order',
     },
   },
 });
