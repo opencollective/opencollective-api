@@ -86,9 +86,14 @@ const getMainAdminToContact = async (account, adminUsers) => {
  * to match the `64` characters limit from HelloWorks.
  */
 const generateParticipantName = (account, mainUser) => {
-  if (account.id === mainUser.collective.id) {
+  if (account.legalName) {
+    // If a legal name is set, use it directly
+    return truncate(account.legalName, { length: 64 });
+  } else if (account.id === mainUser.collective.id) {
+    // If this is for a user, user its name
     return truncate(account.name, { length: 64 });
   } else {
+    // Otherwise use a combination of the account slug + user name
     return `${truncate(account.slug, { length: 30 })} (${truncate(mainUser.collective.name, { length: 30 })})`;
   }
 };

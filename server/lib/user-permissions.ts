@@ -25,3 +25,13 @@ export const canUseFeature = (user: typeof models.User, feature: FEATURE): boole
 
   return true;
 };
+
+/**
+ * Returns whether `user` is allowed to see `legalName` for an account. Legal names are always
+ * publics for hosts, otherwise user needs to be an admin of the profile.
+ * Some exceptions can be added to this rule depending on the context (ie. host admins can see the legal name
+ * for the payees of expenses they have to treat). See `PERMISSION_TYPE.SEE_ACCOUNT_LEGAL_NAME`.
+ */
+export const canSeeLegalName = (user: typeof models.User | null, account: typeof models.Collective | null): boolean => {
+  return account?.isHostAccount || Boolean(user?.isAdminOfCollective(account));
+};

@@ -12,6 +12,8 @@ import rawQueries from '../../lib/queries';
 import { searchCollectivesByEmail, searchCollectivesInDB } from '../../lib/search';
 import { toIsoDateStr } from '../../lib/utils';
 import models, { Op, sequelize } from '../../models';
+import { allowContextPermission, PERMISSION_TYPE } from '../common/context-permissions';
+import { canDownloadInvoice } from '../common/transactions';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../errors';
 
 import { ApplicationType } from './Application';
@@ -205,7 +207,7 @@ const queries = {
         description: 'Slug of the transaction.',
       },
     },
-    async resolve(_, args) {
+    async resolve(_, args, req) {
       // Fetch transaction
       const transaction = await models.Transaction.findOne({
         where: { uuid: args.transactionUuid },
@@ -222,6 +224,9 @@ const queries = {
       const collectiveId = transaction.type === 'CREDIT' ? transaction.CollectiveId : transaction.FromCollectiveId;
       const collective = await models.Collective.findByPk(collectiveId);
       transaction.host = await collective.getHostCollective();
+      if (canDownloadInvoice(transaction, null, req)) {
+        allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_LEGAL_NAME, fromCollectiveId);
+      }
 
       // Get total in host currency
       const totalAmountInHostCurrency =

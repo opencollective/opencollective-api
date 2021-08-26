@@ -12,6 +12,7 @@ import { pick } from 'lodash';
 
 import orderStatus from '../../../constants/order_status';
 import models from '../../../models';
+import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import * as TransactionLib from '../../common/transactions';
 import { TransactionKind } from '../enum/TransactionKind';
 import { TransactionType } from '../enum/TransactionType';
@@ -281,6 +282,10 @@ export const TransactionFields = () => {
       type: Account,
       description: 'The account on the main side of the transaction (CREDIT -> recipient, DEBIT -> sender)',
       resolve(transaction, _, req) {
+        if (req.remoteUser?.isAdmin(transaction.HostCollectiveId)) {
+          allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_LEGAL_NAME, transaction.CollectiveId);
+        }
+
         return req.loaders.Collective.byId.load(transaction.CollectiveId);
       },
     },
@@ -288,6 +293,10 @@ export const TransactionFields = () => {
       type: Account,
       description: 'The account on the opposite side of the transaction (CREDIT -> sender, DEBIT -> recipient)',
       resolve(transaction, _, req) {
+        if (req.remoteUser?.isAdmin(transaction.HostCollectiveId)) {
+          allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_LEGAL_NAME, transaction.FromCollectiveId);
+        }
+
         return req.loaders.Collective.byId.load(transaction.FromCollectiveId);
       },
     },

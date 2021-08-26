@@ -81,6 +81,7 @@ type Collective implements CollectiveInterface {
   type: String
   isActive: Boolean
   name: String
+  legalName: String
   company: String
   description: String
   longDescription: String
@@ -402,6 +403,7 @@ input CollectiveInputType {
   slug: String
   type: String
   name: String
+  legalName: String
   company: String
   website: String
   twitterHandle: String
@@ -448,6 +450,7 @@ interface CollectiveInterface {
   type: String
   isActive: Boolean
   name: String
+  legalName: String
   company: String
   description: String
   longDescription: String
@@ -1074,6 +1077,7 @@ type Event implements CollectiveInterface {
   type: String
   isActive: Boolean
   name: String
+  legalName: String
   company: String
   description: String
   longDescription: String
@@ -1458,6 +1462,7 @@ type Fund implements CollectiveInterface {
   type: String
   isActive: Boolean
   name: String
+  legalName: String
   company: String
   description: String
   longDescription: String
@@ -2495,6 +2500,7 @@ type Organization implements CollectiveInterface {
   type: String
   isActive: Boolean
   name: String
+  legalName: String
   company: String
   description: String
   longDescription: String
@@ -2880,6 +2886,7 @@ type Project implements CollectiveInterface {
   type: String
   isActive: Boolean
   name: String
+  legalName: String
   company: String
   description: String
   longDescription: String
@@ -3721,6 +3728,7 @@ type User implements CollectiveInterface {
   type: String
   isActive: Boolean
   name: String
+  legalName: String
   company: String
   description: String
   longDescription: String
@@ -4011,6 +4019,7 @@ type Vendor implements CollectiveInterface {
   type: String
   isActive: Boolean
   name: String
+  legalName: String
   company: String
   description: String
   longDescription: String

@@ -7,8 +7,17 @@ import * as expenses from '../../../../server/graphql/common/expenses';
 import cache from '../../../../server/lib/cache';
 import models, { Op } from '../../../../server/models';
 import * as store from '../../../stores';
-import { fakeUser } from '../../../test-helpers/fake-data';
+import { fakeHost, fakeOrganization, fakeUser } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
+
+const collectiveQuery = gql`
+  query Collective($slug: String) {
+    Collective(slug: $slug) {
+      id
+      legalName
+    }
+  }
+`;
 
 describe('server/graphql/v1/collective', () => {
   beforeEach(async () => {
@@ -487,6 +496,43 @@ describe('server/graphql/v1/collective', () => {
     expect(memberOrgs[1].stats.totalDonations).to.equal(100000);
   });
 
+  describe('legalName', () => {
+    it('is public for host accounts', async () => {
+      const hostAdminUser = await fakeUser();
+      const randomUser = await fakeUser();
+      const host = await fakeHost({ legalName: 'PRIVATE!', admin: hostAdminUser.collective });
+      const resultUnauthenticated = await utils.graphqlQuery(collectiveQuery, { slug: host.slug });
+      const resultRandomUser = await utils.graphqlQuery(collectiveQuery, { slug: host.slug }, randomUser);
+      const resultHostAdmin = await utils.graphqlQuery(collectiveQuery, { slug: host.slug }, hostAdminUser);
+      expect(resultUnauthenticated.data.Collective.legalName).to.eq('PRIVATE!');
+      expect(resultRandomUser.data.Collective.legalName).to.eq('PRIVATE!');
+      expect(resultHostAdmin.data.Collective.legalName).to.eq('PRIVATE!');
+    });
+
+    it('is private for organization accounts', async () => {
+      const adminUser = await fakeUser();
+      const randomUser = await fakeUser();
+      const host = await fakeOrganization({ legalName: 'PRIVATE!', admin: adminUser.collective });
+      const resultUnauthenticated = await utils.graphqlQuery(collectiveQuery, { slug: host.slug });
+      const resultRandomUser = await utils.graphqlQuery(collectiveQuery, { slug: host.slug }, randomUser);
+      const resultAdmin = await utils.graphqlQuery(collectiveQuery, { slug: host.slug }, adminUser);
+      expect(resultUnauthenticated.data.Collective.legalName).to.be.null;
+      expect(resultRandomUser.data.Collective.legalName).to.be.null;
+      expect(resultAdmin.data.Collective.legalName).to.eq('PRIVATE!');
+    });
+
+    it('is private for user accounts', async () => {
+      const randomUser = await fakeUser();
+      const user = await fakeUser({}, { legalName: 'PRIVATE!' });
+      const resultUnauthenticated = await utils.graphqlQuery(collectiveQuery, { slug: user.collective.slug });
+      const resultRandomUser = await utils.graphqlQuery(collectiveQuery, { slug: user.collective.slug }, randomUser);
+      const resultAdmin = await utils.graphqlQuery(collectiveQuery, { slug: user.collective.slug }, user);
+      expect(resultUnauthenticated.data.Collective.legalName).to.be.null;
+      expect(resultRandomUser.data.Collective.legalName).to.be.null;
+      expect(resultAdmin.data.Collective.legalName).to.eq('PRIVATE!');
+    });
+  });
+
   describe('allMembers query', () => {
     const allMembersQuery = gql`
       query AllMembers(
@@ -796,6 +842,22 @@ describe('server/graphql/v1/collective', () => {
           MemberCollectiveId: pubnubAdmin.id,
         },
       });
+    });
+
+    it('edits legalName', async () => {
+      const user = await fakeUser();
+      const editCollectiveMutation = gql`
+        mutation EditCollective($collective: CollectiveInputType!) {
+          editCollective(collective: $collective) {
+            id
+            legalName
+          }
+        }
+      `;
+
+      const collective = { id: user.collective.id, legalName: 'New Legal Name' };
+      const result = await utils.graphqlQuery(editCollectiveMutation, { collective }, user);
+      expect(result.data.editCollective.legalName).to.eq('New Legal Name');
     });
 
     it('edits members', async () => {

@@ -4,13 +4,14 @@ import { times } from 'lodash';
 
 import { roles } from '../../../../../server/constants';
 import { randEmail } from '../../../../stores';
-import { fakeCollective, fakeUser, multiple } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2 } from '../../../../utils';
+import { fakeCollective, fakeHost, fakeOrganization, fakeUser, multiple } from '../../../../test-helpers/fake-data';
+import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
 const accountQuery = gqlV2/* GraphQL */ `
   query Account($slug: String!) {
     account(slug: $slug) {
       id
+      legalName
       memberOf {
         totalCount
         nodes {
@@ -26,6 +27,45 @@ const accountQuery = gqlV2/* GraphQL */ `
 `;
 
 describe('server/graphql/v2/query/AccountQuery', () => {
+  before(resetTestDB);
+
+  describe('legalName', () => {
+    it('is public for host accounts', async () => {
+      const hostAdminUser = await fakeUser();
+      const randomUser = await fakeUser();
+      const host = await fakeHost({ legalName: 'PRIVATE!', admin: hostAdminUser.collective });
+      const resultUnauthenticated = await graphqlQueryV2(accountQuery, { slug: host.slug });
+      const resultRandomUser = await graphqlQueryV2(accountQuery, { slug: host.slug }, randomUser);
+      const resultHostAdmin = await graphqlQueryV2(accountQuery, { slug: host.slug }, hostAdminUser);
+      expect(resultUnauthenticated.data.account.legalName).to.eq('PRIVATE!');
+      expect(resultRandomUser.data.account.legalName).to.eq('PRIVATE!');
+      expect(resultHostAdmin.data.account.legalName).to.eq('PRIVATE!');
+    });
+
+    it('is private for organization accounts', async () => {
+      const adminUser = await fakeUser();
+      const randomUser = await fakeUser();
+      const host = await fakeOrganization({ legalName: 'PRIVATE!', admin: adminUser.collective });
+      const resultUnauthenticated = await graphqlQueryV2(accountQuery, { slug: host.slug });
+      const resultRandomUser = await graphqlQueryV2(accountQuery, { slug: host.slug }, randomUser);
+      const resultAdmin = await graphqlQueryV2(accountQuery, { slug: host.slug }, adminUser);
+      expect(resultUnauthenticated.data.account.legalName).to.be.null;
+      expect(resultRandomUser.data.account.legalName).to.be.null;
+      expect(resultAdmin.data.account.legalName).to.eq('PRIVATE!');
+    });
+
+    it('is private for user accounts', async () => {
+      const randomUser = await fakeUser();
+      const user = await fakeUser({}, { legalName: 'PRIVATE!' });
+      const resultUnauthenticated = await graphqlQueryV2(accountQuery, { slug: user.collective.slug });
+      const resultRandomUser = await graphqlQueryV2(accountQuery, { slug: user.collective.slug }, randomUser);
+      const resultAdmin = await graphqlQueryV2(accountQuery, { slug: user.collective.slug }, user);
+      expect(resultUnauthenticated.data.account.legalName).to.be.null;
+      expect(resultRandomUser.data.account.legalName).to.be.null;
+      expect(resultAdmin.data.account.legalName).to.eq('PRIVATE!');
+    });
+  });
+
   describe('memberOf', () => {
     describe('incognito profiles', () => {
       it('are returned if user is an admin', async () => {
