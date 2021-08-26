@@ -36,7 +36,6 @@ import {
 
 const oneHourInSeconds = 60 * 60;
 
-console.log();
 const debug = debugLib('orders');
 
 function getOrdersLimit(order, reqIp, reqMask) {
@@ -437,7 +436,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
       }
     }
 
-    let recaptchaResponse;
+    let captchaResponse;
     if (!fromCollective) {
       if (remoteUser) {
         // @deprecated - Creating organizations inline from this endpoint should not be supported anymore
@@ -447,7 +446,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
         // Create or retrieve guest profile from GUEST_TOKEN
         const creationRequest = { ip: reqIp, userAgent, mask: reqMask };
         const guestProfile = await getOrCreateGuestProfile(order.guestInfo, creationRequest);
-        recaptchaResponse = await checkCaptcha(order, remoteUser, reqIp);
+        captchaResponse = await checkCaptcha(order, remoteUser, reqIp);
         remoteUser = guestProfile.user;
         fromCollective = guestProfile.collective;
         isGuest = true;
@@ -538,7 +537,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
       data: {
         reqIp,
         reqMask,
-        recaptchaResponse,
+        captchaResponse,
         tax: taxInfo,
         customData: order.customData,
         savePaymentMethod: Boolean(!isGuest && order.paymentMethod?.save),

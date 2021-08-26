@@ -409,7 +409,6 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         };
         const result = await callCreateOrder({ order: orderData });
         expect(result.errors).to.exist;
-        console.log;
         expect(result.errors[0].message).to.equal('You need to inform a valid captcha token');
       });
     });
