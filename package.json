@@ -3,21 +3,6 @@
   "name": "opencollective-api",
   "description": "Open Collective API",
   "license": "MIT",
-  "contributors": [
-    "Arnaud Bénard (https://github.com/arnaudbenard)",
-    "Aseem Sood (https://github.com/asood123)",
-    "Benjamin Piouffle (https://github.com/Betree)",
-    "François Hodierne (https://github.com/znarf)",
-    "Kate Beard (https://github.com/sbinlondon)",
-    "Leo Kewitz (https://github.com/kewitz)",
-    "Lincoln de Sousa (https://github.com/clarete)",
-    "Nick Hehr (https://github.com/HipsterBrown)",
-    "Oluwaseun Omoyajowo (https://github.com/flickz)",
-    "Philippe Modard (https://github.com/Philmod)",
-    "Pia Mancini (https://github.com/piamancini)",
-    "Sébastien Dubois (https://github.com/sedubois)",
-    "Xavier Damman (https://github.com/xdamman)"
-  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/opencollective/opencollective-api.git"
