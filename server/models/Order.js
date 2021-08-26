@@ -291,7 +291,7 @@ function defineModel() {
     this.collective = this.collective || (await this.getCollective());
     let tier;
     if (this.TierId) {
-      tier = await models.Tier.findOne({ where: { id: this.TierId } });
+      tier = await this.getTier();
     }
     // Register user as collective backer or an attendee (for events)
     const member = await this.collective.findOrAddUserWithRole(
