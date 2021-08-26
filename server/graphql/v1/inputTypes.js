@@ -13,6 +13,8 @@ import {
 import { Kind } from 'graphql/language';
 import GraphQLJSON from 'graphql-type-json';
 
+import { CaptchaInput } from '../v2/input/CaptchaInput';
+
 import { DateString, IsoDateString } from './types';
 
 const EmailType = new GraphQLScalarType({
@@ -298,34 +300,6 @@ export const TierInputType = new GraphQLInputObjectType({
     endsAt: {
       type: GraphQLString,
       description: 'End of the campaign',
-    },
-  }),
-});
-
-const CaptchaProvider = new GraphQLEnumType({
-  name: 'CaptchaProvider',
-  description: 'Implemented Captcha Providers',
-  values: {
-    HCAPTCHA: {},
-    RECAPTCHA: {},
-  },
-});
-
-const CaptchaInput = new GraphQLInputObjectType({
-  name: 'CaptchaInput',
-  description: 'Captcha related information',
-  fields: () => ({
-    token: {
-      type: GraphQLNonNull(GraphQLString),
-      description: 'Captcha validation token',
-    },
-    ekey: {
-      type: GraphQLString,
-      description: 'HCatpcha site key',
-    },
-    provider: {
-      type: GraphQLNonNull(CaptchaProvider),
-      description: 'Catpcha provider',
     },
   }),
 });
