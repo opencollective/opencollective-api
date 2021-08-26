@@ -14,7 +14,7 @@ export const purgeCacheForCollectiveOperationNames = [
   'CollectiveBannerIframe',
   'CollectiveCover',
   'RecurringContributions',
-  'ContributionsSection',
+  'ContributionsSectionStatic',
   'Members_Users',
   'Members_Organizations',
 ];
@@ -122,7 +122,7 @@ export function getGraphqlCacheKey(req) {
       return `${req.body.operationName}_${queryHash}_${req.body.variables.collectiveSlug}`;
     case 'CollectiveCover':
     case 'RecurringContributions':
-    case 'ContributionsSection':
+    case 'ContributionsSectionStatic':
       if (!checkSupportedVariables(req, ['slug'])) {
         return;
       }
@@ -139,9 +139,28 @@ export function getGraphqlCacheKey(req) {
       }
       if (req.body.variables.type === 'ORGANIZATION,COLLECTIVE') {
         return `${req.body.operationName}_${queryHash}_Organizations_${req.body.variables.collectiveSlug}`;
-      }
-      if (req.body.variables.type === 'USER') {
+      } else if (req.body.variables.type === 'USER') {
         return `${req.body.operationName}_${queryHash}_Users_${req.body.variables.collectiveSlug}`;
+      } else {
+        return;
       }
+
+    case 'ContributionsSection':
+      if (!checkSupportedVariables(req, ['slug', 'offset', 'limit', 'role', 'accountType', 'orderBy'])) {
+        return;
+      }
+      if (req.body.variables.offset !== 0 || req.body.variables.limit !== 15) {
+        return;
+      }
+      if (req.body.variables.orderBy.field !== 'MEMBER_COUNT' || req.body.variables.orderBy.direction !== 'DESC') {
+        return;
+      }
+      if (req.body.variables.role.length !== 1) {
+        return;
+      }
+      if (req.body.variables.accountType.length !== 1) {
+        return;
+      }
+      return `${req.body.operationName}_${queryHash}_${req.body.variables.role[0]}_${req.body.variables.accountType[0]}_${req.body.variables.slug}`;
   }
 }
