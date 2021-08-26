@@ -62,8 +62,12 @@ export async function login(login, password, account) {
   body.set('login', login);
   body.set('password', password);
 
-  const { accessToken, refreshToken } = await apiRequest(`/login`, { method: 'POST', body });
-  return account.update({ data: { ...account.data, accessToken, refreshToken } });
+  const data = await apiRequest(`/login`, { method: 'POST', body });
+  // We need to return the data is no account was passed (especially for thegivingblock-connect.js script)
+  if (!account) {
+    return data;
+  }
+  return account.update({ data: { ...account.data, accessToken: data.accessToken, refreshToken: data.refreshToken } });
 }
 
 export async function refresh(account) {
