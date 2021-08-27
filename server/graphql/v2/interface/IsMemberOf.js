@@ -68,26 +68,28 @@ export const IsMemberOfFields = {
         collectiveConditions.deactivatedAt = { [args.isArchived ? Op.not : Op.is]: null };
       }
 
-      const existingRoles = (
-        await models.Member.findAll({
-          attributes: ['role', 'collective.type'],
-          where,
-          include: [
-            {
-              model: models.Collective,
-              as: 'collective',
-              required: true,
-              attributes: ['type'],
-              where: collectiveConditions,
-            },
-          ],
-          group: ['role', 'collective.type'],
-          raw: true,
-        })
-      ).map(m => ({
-        role: m.role,
-        type: invert(AccountTypeToModelMapping)[m.type],
-      }));
+      // No await needed, GraphQL will take care of it
+      // TODO: try to skip if it's not a requested field
+      const existingRoles = models.Member.findAll({
+        attributes: ['role', 'collective.type'],
+        where,
+        include: [
+          {
+            model: models.Collective,
+            as: 'collective',
+            required: true,
+            attributes: ['type'],
+            where: collectiveConditions,
+          },
+        ],
+        group: ['role', 'collective.type'],
+        raw: true,
+      }).then(results =>
+        results.map(m => ({
+          role: m.role,
+          type: invert(AccountTypeToModelMapping)[m.type],
+        })),
+      );
 
       if (args.role && args.role.length > 0) {
         where.role = { [Op.in]: args.role };

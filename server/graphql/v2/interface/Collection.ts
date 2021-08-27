@@ -52,6 +52,7 @@ export interface CollectionReturnType {
   totalCount: number;
   limit: number;
   offset: number;
+  kinds?: Array<string>;
 }
 
 export { Collection, CollectionFields, CollectionArgs };
