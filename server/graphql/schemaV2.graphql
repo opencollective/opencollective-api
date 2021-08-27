@@ -87,19 +87,6 @@ interface Account {
   """
   isAdmin: Boolean!
   parentAccount: Account
-
-  """
-  Get all the members of this account (admins, members, accountants etc.)
-  """
-  accountMembers(
-    limit: Int
-    offset: Int
-    accountType: [AccountType]
-    role: MemberRole
-    roles: [MemberRole]
-    TierId: Int
-    tierSlug: String
-  ): [Member] @deprecated(reason: "2021-08-25: This should not have been introduced, use \"members\"")
   members(
     limit: Int = 100
     offset: Int = 0
@@ -671,19 +658,6 @@ type Bot implements Account {
   parentAccount: Account
 
   """
-  Get all the members of this account (admins, members, accountants etc.)
-  """
-  accountMembers(
-    limit: Int
-    offset: Int
-    accountType: [AccountType]
-    role: MemberRole
-    roles: [MemberRole]
-    TierId: Int
-    tierSlug: String
-  ): [Member] @deprecated(reason: "2021-08-25: This should not have been introduced, use \"members\"")
-
-  """
   Get all members (admins, members, backers, followers)
   """
   members(
@@ -982,19 +956,6 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   """
   isAdmin: Boolean!
   parentAccount: Account
-
-  """
-  Get all the members of this account (admins, members, accountants etc.)
-  """
-  accountMembers(
-    limit: Int
-    offset: Int
-    accountType: [AccountType]
-    role: MemberRole
-    roles: [MemberRole]
-    TierId: Int
-    tierSlug: String
-  ): [Member] @deprecated(reason: "2021-08-25: This should not have been introduced, use \"members\"")
 
   """
   Get all members (admins, members, backers, followers)
@@ -3293,19 +3254,6 @@ type Event implements Account & AccountWithHost & AccountWithContributions {
   parentAccount: Account
 
   """
-  Get all the members of this account (admins, members, accountants etc.)
-  """
-  accountMembers(
-    limit: Int
-    offset: Int
-    accountType: [AccountType]
-    role: MemberRole
-    roles: [MemberRole]
-    TierId: Int
-    tierSlug: String
-  ): [Member] @deprecated(reason: "2021-08-25: This should not have been introduced, use \"members\"")
-
-  """
   Get all members (admins, members, backers, followers)
   """
   members(
@@ -4279,19 +4227,6 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   parentAccount: Account
 
   """
-  Get all the members of this account (admins, members, accountants etc.)
-  """
-  accountMembers(
-    limit: Int
-    offset: Int
-    accountType: [AccountType]
-    role: MemberRole
-    roles: [MemberRole]
-    TierId: Int
-    tierSlug: String
-  ): [Member] @deprecated(reason: "2021-08-25: This should not have been introduced, use \"members\"")
-
-  """
   Get all members (admins, members, backers, followers)
   """
   members(
@@ -4649,19 +4584,6 @@ type Host implements Account & AccountWithContributions {
   """
   isAdmin: Boolean!
   parentAccount: Account
-
-  """
-  Get all the members of this account (admins, members, accountants etc.)
-  """
-  accountMembers(
-    limit: Int
-    offset: Int
-    accountType: [AccountType]
-    role: MemberRole
-    roles: [MemberRole]
-    TierId: Int
-    tierSlug: String
-  ): [Member] @deprecated(reason: "2021-08-25: This should not have been introduced, use \"members\"")
 
   """
   Get all members (admins, members, backers, followers)
@@ -5241,19 +5163,6 @@ type Individual implements Account {
   """
   isAdmin: Boolean!
   parentAccount: Account
-
-  """
-  Get all the members of this account (admins, members, accountants etc.)
-  """
-  accountMembers(
-    limit: Int
-    offset: Int
-    accountType: [AccountType]
-    role: MemberRole
-    roles: [MemberRole]
-    TierId: Int
-    tierSlug: String
-  ): [Member] @deprecated(reason: "2021-08-25: This should not have been introduced, use \"members\"")
 
   """
   Get all members (admins, members, backers, followers)
@@ -6910,19 +6819,6 @@ type Organization implements Account & AccountWithContributions {
   parentAccount: Account
 
   """
-  Get all the members of this account (admins, members, accountants etc.)
-  """
-  accountMembers(
-    limit: Int
-    offset: Int
-    accountType: [AccountType]
-    role: MemberRole
-    roles: [MemberRole]
-    TierId: Int
-    tierSlug: String
-  ): [Member] @deprecated(reason: "2021-08-25: This should not have been introduced, use \"members\"")
-
-  """
   Get all members (admins, members, backers, followers)
   """
   members(
@@ -7492,19 +7388,6 @@ type Project implements Account & AccountWithHost & AccountWithContributions {
   """
   isAdmin: Boolean!
   parentAccount: Account
-
-  """
-  Get all the members of this account (admins, members, accountants etc.)
-  """
-  accountMembers(
-    limit: Int
-    offset: Int
-    accountType: [AccountType]
-    role: MemberRole
-    roles: [MemberRole]
-    TierId: Int
-    tierSlug: String
-  ): [Member] @deprecated(reason: "2021-08-25: This should not have been introduced, use \"members\"")
 
   """
   Get all members (admins, members, backers, followers)
@@ -8719,19 +8602,6 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
   """
   isAdmin: Boolean!
   parentAccount: Account
-
-  """
-  Get all the members of this account (admins, members, accountants etc.)
-  """
-  accountMembers(
-    limit: Int
-    offset: Int
-    accountType: [AccountType]
-    role: MemberRole
-    roles: [MemberRole]
-    TierId: Int
-    tierSlug: String
-  ): [Member] @deprecated(reason: "2021-08-25: This should not have been introduced, use \"members\"")
 
   """
   Get all members (admins, members, backers, followers)

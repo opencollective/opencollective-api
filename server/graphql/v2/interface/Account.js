@@ -34,7 +34,6 @@ import { ORDER_BY_PSEUDO_FIELDS, OrderByInput } from '../input/OrderByInput';
 import { AccountStats } from '../object/AccountStats';
 import { ConnectedAccount } from '../object/ConnectedAccount';
 import { Location } from '../object/Location';
-import { Member } from '../object/Member';
 import { PaymentMethod } from '../object/PaymentMethod';
 import PayoutMethod from '../object/PayoutMethod';
 import { TagStats } from '../object/TagStats';
@@ -159,80 +158,6 @@ const accountFieldsDefinition = () => ({
       } else {
         return req.loaders.Collective.byId.load(collective.ParentCollectiveId);
       }
-    },
-  },
-  accountMembers: {
-    type: new GraphQLList(Member),
-    description: 'Get all the members of this account (admins, members, accountants etc.)',
-    deprecationReason: '2021-08-25: This should not have been introduced, use "members"',
-    args: {
-      limit: {
-        type: GraphQLInt,
-      },
-      offset: {
-        type: GraphQLInt,
-      },
-      accountType: {
-        type: new GraphQLList(AccountType),
-      },
-      role: {
-        type: MemberRole,
-      },
-      roles: {
-        type: new GraphQLList(MemberRole),
-      },
-      TierId: {
-        type: GraphQLInt,
-      },
-      tierSlug: {
-        type: GraphQLString,
-      },
-    },
-    resolve(collective, args, req) {
-      if (collective.isIncognito && !req.remoteUser?.isAdmin(collective.id)) {
-        return [];
-      }
-
-      const query = {
-        limit: args.limit,
-        offset: args.offset,
-        order: [['id', 'ASC']],
-      };
-
-      query.where = { CollectiveId: collective.id };
-      if (args.TierId) {
-        query.where.TierId = args.TierId;
-      }
-      const roles = args.roles || (args.role && [args.role]);
-
-      if (roles && roles.length > 0) {
-        query.where.role = { [Op.in]: roles };
-      }
-
-      const conditionOnMemberCollective = {};
-      if (args.accountType && args.accountType.length > 0) {
-        conditionOnMemberCollective.type = {
-          [Op.in]: args.accountType.map(value => AccountTypeToModelMapping[value]),
-        };
-      }
-
-      query.include = [
-        {
-          model: models.Collective,
-          as: 'memberCollective',
-          required: true,
-          where: conditionOnMemberCollective,
-        },
-      ];
-
-      if (args.tierSlug) {
-        query.include.push({
-          model: models.Tier,
-          where: { slug: args.tierSlug },
-        });
-      }
-
-      return models.Member.findAll(query);
     },
   },
   members: {
