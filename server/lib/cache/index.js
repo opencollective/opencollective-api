@@ -140,12 +140,15 @@ export function memoize(func, { key, maxAge = 0, serialize, unserialize }) {
   return memoizedFunction;
 }
 
-export function purgeCacheForCollective(slug) {
-  purgeCacheForPage(`/${slug}`);
-  // GraphQL cache
+export function purgeGQLCacheForCollective(slug) {
   for (const operationName of purgeCacheForCollectiveOperationNames) {
     cache.del(`${operationName}_${slug}`);
   }
+}
+
+export function purgeCacheForCollective(slug) {
+  purgeCacheForPage(`/${slug}`);
+  purgeGQLCacheForCollective(slug);
 }
 
 export default cache;

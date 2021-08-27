@@ -278,6 +278,12 @@ interface Account {
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
 }
 
+enum AccountCacheType {
+  CLOUDFLARE
+  GRAPHQL_QUERIES
+  CONTRIBUTORS
+}
+
 """
 A collection of "Accounts"
 """
@@ -5584,6 +5590,18 @@ enum MemberRole {
   CONNECTED_ACCOUNT
 }
 
+type MergeAccountsResponse {
+  """
+  The resulting account
+  """
+  account: Account!
+
+  """
+  A message to display to the user about the result
+  """
+  message: String
+}
+
 """
 This is the root mutation
 """
@@ -6012,6 +6030,41 @@ type Mutation {
     """
     account: AccountUpdateInput!
   ): Host!
+
+  """
+  [Root only] Clears the cache for a given account
+  """
+  clearCacheForAccount(
+    """
+    Account to clear the cache for
+    """
+    account: AccountReferenceInput!
+
+    """
+    Types of cache to clear
+    """
+    type: [AccountCacheType]! = [CLOUDFLARE, GRAPHQL_QUERIES, CONTRIBUTORS]
+  ): Account!
+
+  """
+  [Root only] Merge two accounts, returns the result account
+  """
+  mergeAccounts(
+    """
+    Account to merge from
+    """
+    fromAccount: AccountReferenceInput!
+
+    """
+    Account to merge to
+    """
+    toAccount: AccountReferenceInput!
+
+    """
+    If true, the result will be simulated and summarized in the response message
+    """
+    dryRun: Boolean! = true
+  ): MergeAccountsResponse!
 
   """
   Sends an email for guest to confirm their emails and create their Open Collective account
