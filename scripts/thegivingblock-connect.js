@@ -11,8 +11,6 @@ async function run() {
   const username = config.thegivingblock.username;
   const password = config.thegivingblock.password;
 
-  const { accessToken, refreshToken } = await login(username, password);
-
   let account = await models.ConnectedAccount.findOne({
     where: { CollectiveId: HOST_ID, username, service: 'thegivingblock' },
   });
@@ -21,7 +19,8 @@ async function run() {
       where: { CollectiveId: HOST_ID, username, service: 'thegivingblock' },
     });
   }
-  await account.update({ data: { ...account.data, accessToken, refreshToken } });
+
+  await login(username, password, account);
 }
 
 run();
