@@ -445,8 +445,8 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
       } else {
         // Create or retrieve guest profile from GUEST_TOKEN
         const creationRequest = { ip: reqIp, userAgent, mask: reqMask };
-        const guestProfile = await getOrCreateGuestProfile(order.guestInfo, creationRequest);
         captchaResponse = await checkCaptcha(order, remoteUser, reqIp);
+        const guestProfile = await getOrCreateGuestProfile(order.guestInfo, creationRequest);
         remoteUser = guestProfile.user;
         fromCollective = guestProfile.collective;
         isGuest = true;
