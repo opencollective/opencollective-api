@@ -2,25 +2,28 @@ import '../server/env';
 
 import config from 'config';
 
-import models from '../server/models';
+import models, { sequelize } from '../server/models';
 import { login } from '../server/paymentProviders/thegivingblock';
 
-const HOST_ID = process.env.HOST_ID || 9805;
+const HOST_ID = process.env.HOST_ID || 11004;
 
 async function run() {
   const username = config.thegivingblock.username;
   const password = config.thegivingblock.password;
 
+  const accountProperties = { CollectiveId: HOST_ID, username, service: 'thegivingblock' };
+
   let account = await models.ConnectedAccount.findOne({
-    where: { CollectiveId: HOST_ID, username, service: 'thegivingblock' },
+    where: accountProperties,
   });
   if (!account) {
-    account = await models.ConnectedAccount.create({
-      where: { CollectiveId: HOST_ID, username, service: 'thegivingblock' },
-    });
+    account = await models.ConnectedAccount.create(accountProperties);
   }
 
   await login(username, password, account);
+
+  await sequelize.close();
+  process.exit(0);
 }
 
 run();
