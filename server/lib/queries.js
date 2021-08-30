@@ -38,23 +38,31 @@ const generateFXConversionSQL = async aggregate => {
 const getHosts = async args => {
   let hostConditions = '';
   if (args.tags && args.tags.length > 0) {
-    hostConditions = 'AND c.tags && $tags';
+    hostConditions = 'AND hosts.tags && $tags';
   }
   if (args.currency && args.currency.length === 3) {
-    hostConditions += ' AND c.currency=$currency';
+    hostConditions += ' AND hosts.currency=$currency';
   }
   if (args.onlyOpenHosts) {
-    hostConditions += ` AND c."settings" #>> '{apply}' IS NOT NULL AND (c."settings" #>> '{apply}') != 'false'`;
+    hostConditions += ` AND hosts."settings" #>> '{apply}' IS NOT NULL AND (hosts."settings" #>> '{apply}') != 'false'`;
   }
 
   const query = `
     WITH all_hosts AS (
-      SELECT max(c.id) as "HostCollectiveId", count(m.id) as count
-      FROM "Collectives" c
-      LEFT JOIN "Members" m ON m."MemberCollectiveId" = c.id AND m.role = 'HOST' AND m."deletedAt" IS NULL
-      WHERE c."deletedAt" IS NULL AND c."isHostAccount" = TRUE ${hostConditions}
-      GROUP BY c.id
-      HAVING count(m.id) >= $minNbCollectivesHosted
+      SELECT hosts.id as "HostCollectiveId", count(c.id) as count
+      FROM "Collectives" hosts
+      LEFT JOIN "Members" m
+        ON m."MemberCollectiveId" = hosts.id
+        AND m.role = 'HOST'
+        AND m."deletedAt" IS NULL
+      LEFT JOIN "Collectives" c
+        ON c.id = m."CollectiveId"
+        AND c."deletedAt" IS NULL
+        AND c."isActive" = TRUE
+        AND c."type" IN ('COLLECTIVE', 'FUND')
+      WHERE hosts."deletedAt" IS NULL AND hosts."isHostAccount" = TRUE ${hostConditions}
+      GROUP BY hosts.id
+      HAVING count(c.id) >= $minNbCollectivesHosted
     ) SELECT c.*, (SELECT COUNT(*) FROM all_hosts) AS __hosts_count__, SUM(all_hosts.count) as __members_count__
     FROM "Collectives" c INNER JOIN all_hosts ON all_hosts."HostCollectiveId" = c.id
     GROUP BY c.id
