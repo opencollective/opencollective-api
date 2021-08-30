@@ -13,6 +13,8 @@ import {
 import { Kind } from 'graphql/language';
 import GraphQLJSON from 'graphql-type-json';
 
+import { CaptchaInput } from '../v2/input/CaptchaInput';
+
 import { DateString, IsoDateString } from './types';
 
 const EmailType = new GraphQLScalarType({
@@ -317,6 +319,10 @@ export const GuestInfoInput = new GraphQLInputObjectType({
     token: {
       type: GraphQLString,
       description: 'The unique guest token',
+    },
+    captcha: {
+      type: CaptchaInput,
+      description: 'Captcha validation for creating an order',
     },
   },
 });

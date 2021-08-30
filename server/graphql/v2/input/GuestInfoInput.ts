@@ -2,6 +2,7 @@ import { GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
 
 import EmailAddress from '../scalar/EmailAddress';
 
+import { CaptchaInput } from './CaptchaInput';
 import { LocationInput } from './LocationInput';
 
 export const GuestInfoInput = new GraphQLInputObjectType({
@@ -24,6 +25,10 @@ export const GuestInfoInput = new GraphQLInputObjectType({
     location: {
       type: LocationInput,
       description: 'Address of the user, mandatory when amount is above $5000.',
+    },
+    captcha: {
+      type: CaptchaInput,
+      description: 'Captcha validation for creating an order',
     },
   }),
 });

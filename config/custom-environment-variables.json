@@ -126,10 +126,16 @@
   "fixer": {
     "accessKey": "FIXER_ACCESS_KEY"
   },
+  "captcha": {
+    "enabled": "CAPTCHA_ENABLE"
+  },
   "recaptcha": {
     "siteKey": "RECAPTCHA_SITE_KEY",
-    "secretKey": "RECAPTCHA_SECRET_KEY",
-    "enable": "RECAPTCHA_ENABLE"
+    "secretKey": "RECAPTCHA_SECRET_KEY"
+  },
+  "hcaptcha": {
+    "secret": "HCAPTCHA_SECRET",
+    "sitekey": "HCAPTCHA_SITEKEY"
   },
   "helloworks": {
     "key": "HELLO_WORKS_KEY",

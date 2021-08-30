@@ -3,10 +3,12 @@ import crypto from 'crypto';
 import * as LibTaxes from '@opencollective/taxes';
 import config from 'config';
 import debugLib from 'debug';
+import * as hcaptcha from 'hcaptcha';
 import { get, isNil, omit, pick, set } from 'lodash';
 import { isEmail } from 'validator';
 
 import activities from '../../../constants/activities';
+import CAPTCHA_PROVIDERS from '../../../constants/captcha-providers';
 import { types } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import status from '../../../constants/order_status';
@@ -164,20 +166,39 @@ const checkGuestContribution = async (order, loaders) => {
   }
 };
 
-async function checkRecaptcha(order, remoteUser, reqIp) {
-  // Disabled for all environments
-  if (config.env.recaptcha && !parseToBoolean(config.env.recaptcha.enable)) {
+async function checkCaptcha(order, remoteUser, reqIp) {
+  const requestedProvider = order.guestInfo?.captcha?.provider;
+  const isCaptchaEnabled = parseToBoolean(config.captcha?.enabled);
+
+  if (!isCaptchaEnabled) {
     return;
   }
 
-  if (!order.recaptchaToken) {
-    // Pass for now
-    return;
+  if (!order.guestInfo?.captcha?.token) {
+    throw new BadRequest('You need to inform a valid captcha token');
   }
 
-  const response = recaptcha.verify(order.recaptchaToken, reqIp);
+  let response;
+  if (requestedProvider === CAPTCHA_PROVIDERS.HCAPTCHA && config.hcaptcha?.secret) {
+    response = await hcaptcha.verify(
+      config.hcaptcha.secret,
+      order.guestInfo.captcha.token,
+      reqIp,
+      config.hcaptcha.sitekey,
+    );
+  } else if (
+    requestedProvider === CAPTCHA_PROVIDERS.RECAPTCHA &&
+    config.recaptcha &&
+    parseToBoolean(config.recaptcha.enable)
+  ) {
+    response = await recaptcha.verify(order.guestInfo.captcha.token, reqIp);
+  } else {
+    throw new BadRequest('Could not find requested Captcha provider', undefined, order.guestInfo?.captcha);
+  }
 
-  // TODO: check response and throw an error if needed
+  if (response.success !== true) {
+    throw new BadRequest('Captcha verification failed');
+  }
 
   return response;
 }
@@ -277,7 +298,6 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
   }
 
   await checkOrdersLimit(order, reqIp, reqMask);
-  const recaptchaResponse = await checkRecaptcha(order, remoteUser, reqIp);
 
   let orderCreated, isGuest, guestToken;
   try {
@@ -416,6 +436,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
       }
     }
 
+    let captchaResponse;
     if (!fromCollective) {
       if (remoteUser) {
         // @deprecated - Creating organizations inline from this endpoint should not be supported anymore
@@ -424,6 +445,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
       } else {
         // Create or retrieve guest profile from GUEST_TOKEN
         const creationRequest = { ip: reqIp, userAgent, mask: reqMask };
+        captchaResponse = await checkCaptcha(order, remoteUser, reqIp);
         const guestProfile = await getOrCreateGuestProfile(order.guestInfo, creationRequest);
         remoteUser = guestProfile.user;
         fromCollective = guestProfile.collective;
@@ -515,7 +537,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
       data: {
         reqIp,
         reqMask,
-        recaptchaResponse,
+        captchaResponse,
         tax: taxInfo,
         customData: order.customData,
         savePaymentMethod: Boolean(!isGuest && order.paymentMethod?.save),
