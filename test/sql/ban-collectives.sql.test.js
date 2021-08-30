@@ -164,11 +164,11 @@ describe('sql/ban-collectives', () => {
       deleted_profiles_ids: [user1.collective.id, user2.collective.id, collective.id],
     });
 
-    const udpatedUser1 = await user1.reload({ paranoid: false });
-    expect(udpatedUser1.data).to.deep.eq({ isBanned: true });
+    const updatedUser1 = await user1.reload({ paranoid: false });
+    expect(updatedUser1.data).to.deep.eq({ isBanned: true });
 
-    const udpatedUser2 = await user2.reload({ paranoid: false });
-    expect(udpatedUser2.data).to.deep.eqInAnyOrder({ isBanned: true, existingDataIsPreserved: true });
+    const updatedUser2 = await user2.reload({ paranoid: false });
+    expect(updatedUser2.data).to.deep.eqInAnyOrder({ isBanned: true, existingDataIsPreserved: true });
 
     const updatedCollective = await collective.reload({ paranoid: false });
     expect(updatedCollective.data.isBanned).to.eq(true);
