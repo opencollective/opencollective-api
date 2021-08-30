@@ -21,6 +21,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/pay
 import roles from '../../constants/roles';
 import { getContributorsForCollective } from '../../lib/contributors';
 import queries from '../../lib/queries';
+import { canSeeLegalName } from '../../lib/user-permissions';
 import models, { Op } from '../../models';
 import { hostResolver } from '../common/collective';
 import { getContextPermission, PERMISSION_TYPE } from '../common/context-permissions';
@@ -604,6 +605,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       type: { type: GraphQLString },
       isActive: { type: GraphQLBoolean },
       name: { type: GraphQLString },
+      legalName: { type: GraphQLString },
       company: { type: GraphQLString },
       description: { type: GraphQLString },
       longDescription: { type: GraphQLString },
@@ -948,6 +950,19 @@ const CollectiveFields = () => {
       type: GraphQLString,
       resolve(collective) {
         return collective.name;
+      },
+    },
+    legalName: {
+      type: GraphQLString,
+      resolve(collective, _, req) {
+        if (
+          canSeeLegalName(req.remoteUser, collective) ||
+          getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_LEGAL_NAME, collective.id)
+        ) {
+          return collective.legalName;
+        } else {
+          return null;
+        }
       },
     },
     company: {

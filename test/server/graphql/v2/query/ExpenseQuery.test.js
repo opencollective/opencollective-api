@@ -8,9 +8,11 @@ import {
   fakePayoutMethod,
   fakeUser,
 } from '../../../../test-helpers/fake-data';
-import { expectNoErrorsFromResult, graphqlQueryV2, traverse } from '../../../../utils';
+import { expectNoErrorsFromResult, graphqlQueryV2, resetTestDB, traverse } from '../../../../utils';
 
 describe('server/graphql/v2/query/ExpenseQuery', () => {
+  before(resetTestDB);
+
   describe('Permissions', () => {
     let expense, ownerUser, collectiveAdminUser, hostAdminUser, randomUser, payoutMethod;
 
@@ -18,6 +20,11 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
       query Expense($id: Int!) {
         expense(expense: { legacyId: $id }) {
           id
+          payee {
+            id
+            name
+            legalName
+          }
           attachedFiles {
             url
           }
@@ -35,7 +42,7 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
     `;
 
     before(async () => {
-      ownerUser = await fakeUser();
+      ownerUser = await fakeUser({}, { legalName: 'A Legal Name' });
       hostAdminUser = await fakeUser();
       collectiveAdminUser = await fakeUser();
       randomUser = await fakeUser();
@@ -95,6 +102,23 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
       expectFilesToNotBeNull(resultAsCollectiveAdmin.data);
       expectFilesToNotBeNull(resultAsOwner.data);
       expectFilesToNotBeNull(resultAsHostAdmin.data);
+    });
+
+    it('can only see payee legalName if self or host admin', async () => {
+      // Query
+      const queryParams = { id: expense.id };
+      const resultUnauthenticated = await graphqlQueryV2(expenseQuery, queryParams);
+      const resultAsOwner = await graphqlQueryV2(expenseQuery, queryParams, ownerUser);
+      const resultAsCollectiveAdmin = await graphqlQueryV2(expenseQuery, queryParams, collectiveAdminUser);
+      const resultAsHostAdmin = await graphqlQueryV2(expenseQuery, queryParams, hostAdminUser);
+      const resultAsRandomUser = await graphqlQueryV2(expenseQuery, queryParams, randomUser);
+
+      // Check results
+      expect(resultUnauthenticated.data.expense.payee.legalName).to.be.null;
+      expect(resultAsRandomUser.data.expense.payee.legalName).to.be.null;
+      expect(resultAsCollectiveAdmin.data.expense.payee.legalName).to.equal('A Legal Name');
+      expect(resultAsOwner.data.expense.payee.legalName).to.equal('A Legal Name');
+      expect(resultAsHostAdmin.data.expense.payee.legalName).to.equal('A Legal Name');
     });
   });
 

@@ -74,6 +74,7 @@ describe('server/lib/tax-forms', () => {
       firstName: 'Xavier',
       lastName: 'Damman',
       email: 'xdamman@opencollective.com',
+      legalName: 'Mr. Legal Name',
     },
     {
       firstName: 'Pia',
@@ -304,6 +305,8 @@ describe('server/lib/tax-forms', () => {
 
       await doc.reload();
       expect(client.workflowInstances.createInstance.called);
+      const callArgs = client.workflowInstances.createInstance.firstCall.args;
+      expect(callArgs[0].participants['participant_swVuvW'].fullName).to.eq('Mr. Legal Name');
       expect(doc.requestStatus).to.eq(REQUESTED);
     });
 

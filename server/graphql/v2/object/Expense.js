@@ -117,6 +117,11 @@ const Expense = new GraphQLObjectType({
         type: new GraphQLNonNull(Account),
         description: 'The account being paid by this expense',
         async resolve(expense, _, req) {
+          // Allow users to see account's legal names if they can see expense invoice details
+          if (await ExpensePermissionsLib.canSeeExpenseInvoiceInfo(req, expense)) {
+            allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_LEGAL_NAME, expense.FromCollectiveId);
+          }
+
           return req.loaders.Collective.byId.load(expense.FromCollectiveId);
         },
       },

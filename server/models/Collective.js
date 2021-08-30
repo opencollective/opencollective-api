@@ -154,10 +154,24 @@ function defineModel() {
         },
       },
 
+      /** Public name */
       name: {
         type: DataTypes.STRING,
         set(name) {
           this.setDataValue('name', name.replace(/\s+/g, ' ').trim());
+        },
+        validate: {
+          len: [0, 255],
+        },
+      },
+
+      /** Private, legal name. Used for expense receipts, taxes, etc. */
+      legalName: {
+        type: Sequelize.STRING,
+        allowNull: true,
+        set(legalName) {
+          const cleanLegalName = legalName?.replace(/\s+/g, ' ').trim();
+          this.setDataValue('legalName', cleanLegalName || null);
         },
         validate: {
           len: [0, 255],

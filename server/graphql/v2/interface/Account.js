@@ -4,7 +4,9 @@ import GraphQLJSON from 'graphql-type-json';
 import { assign, get, invert, isEmpty } from 'lodash';
 
 import { types as CollectiveTypes } from '../../../constants/collectives';
+import { canSeeLegalName } from '../../../lib/user-permissions';
 import models, { Op } from '../../../models';
+import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { BadRequest, NotFound, Unauthorized } from '../../errors';
 import { CollectiveFeatures } from '../../v1/CollectiveInterface.js';
 import { AccountCollection } from '../collection/AccountCollection';
@@ -63,6 +65,21 @@ const accountFieldsDefinition = () => ({
   },
   name: {
     type: GraphQLString,
+    description: 'Public name',
+  },
+  legalName: {
+    type: GraphQLString,
+    description: 'Private, legal name. Used for expense receipts, taxes, etc.',
+    resolve: (account, _, req) => {
+      if (
+        canSeeLegalName(req.remoteUser, account) ||
+        getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_LEGAL_NAME, account.id)
+      ) {
+        return account.legalName;
+      } else {
+        return null;
+      }
+    },
   },
   description: {
     type: GraphQLString,

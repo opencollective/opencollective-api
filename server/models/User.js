@@ -481,6 +481,7 @@ function defineModel() {
     const userCollectiveData = {
       type: 'USER',
       name: collectiveName,
+      legalName: userData.legalName,
       image: userData.image,
       description: userData.description,
       longDescription: userData.longDescription,
