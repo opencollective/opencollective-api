@@ -1,4 +1,5 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType } from 'graphql';
+import { GraphQLDateTime } from 'graphql-iso-date';
 
 import { Account, AccountFields } from '../interface/Account';
 import { AccountWithContributions, AccountWithContributionsFields } from '../interface/AccountWithContributions';
@@ -49,6 +50,16 @@ export const Event = new GraphQLObjectType({
           } else {
             return req.loaders.Collective.byId.load(event.ParentCollectiveId);
           }
+        },
+      },
+      endsAt: {
+        description: 'The Event end date and time',
+        type: GraphQLDateTime,
+        async resolve(event) {
+          if (!event.endsAt) {
+            return null;
+          }
+          return new Date(event.endsAt);
         },
       },
     };

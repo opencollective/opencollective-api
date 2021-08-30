@@ -90,7 +90,7 @@ interface Account {
     roles: [MemberRole]
     TierId: Int
     tierSlug: String
-  ): [Member]
+  ): [Member] @deprecated(reason: "2021-08-25: This should not have been introduced, use \"members\"")
   members(
     limit: Int = 100
     offset: Int = 0
@@ -663,7 +663,7 @@ type Bot implements Account {
     roles: [MemberRole]
     TierId: Int
     tierSlug: String
-  ): [Member]
+  ): [Member] @deprecated(reason: "2021-08-25: This should not have been introduced, use \"members\"")
 
   """
   Get all members (admins, members, backers, followers)
@@ -944,7 +944,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     roles: [MemberRole]
     TierId: Int
     tierSlug: String
-  ): [Member]
+  ): [Member] @deprecated(reason: "2021-08-25: This should not have been introduced, use \"members\"")
 
   """
   Get all members (admins, members, backers, followers)
@@ -3244,7 +3244,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions {
     roles: [MemberRole]
     TierId: Int
     tierSlug: String
-  ): [Member]
+  ): [Member] @deprecated(reason: "2021-08-25: This should not have been introduced, use \"members\"")
 
   """
   Get all members (admins, members, backers, followers)
@@ -3510,6 +3510,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions {
   The Collective hosting this Event
   """
   parentCollective: Collective @deprecated(reason: "2020/07/01 - Use parent instead.")
+
+  """
+  The Event end date and time
+  """
+  endsAt: DateTime
 }
 
 """
@@ -4221,7 +4226,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     roles: [MemberRole]
     TierId: Int
     tierSlug: String
-  ): [Member]
+  ): [Member] @deprecated(reason: "2021-08-25: This should not have been introduced, use \"members\"")
 
   """
   Get all members (admins, members, backers, followers)
@@ -4579,7 +4584,7 @@ type Host implements Account & AccountWithContributions {
     roles: [MemberRole]
     TierId: Int
     tierSlug: String
-  ): [Member]
+  ): [Member] @deprecated(reason: "2021-08-25: This should not have been introduced, use \"members\"")
 
   """
   Get all members (admins, members, backers, followers)
@@ -5162,7 +5167,7 @@ type Individual implements Account {
     roles: [MemberRole]
     TierId: Int
     tierSlug: String
-  ): [Member]
+  ): [Member] @deprecated(reason: "2021-08-25: This should not have been introduced, use \"members\"")
 
   """
   Get all members (admins, members, backers, followers)
@@ -6820,7 +6825,7 @@ type Organization implements Account & AccountWithContributions {
     roles: [MemberRole]
     TierId: Int
     tierSlug: String
-  ): [Member]
+  ): [Member] @deprecated(reason: "2021-08-25: This should not have been introduced, use \"members\"")
 
   """
   Get all members (admins, members, backers, followers)
@@ -7394,7 +7399,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions {
     roles: [MemberRole]
     TierId: Int
     tierSlug: String
-  ): [Member]
+  ): [Member] @deprecated(reason: "2021-08-25: This should not have been introduced, use \"members\"")
 
   """
   Get all members (admins, members, backers, followers)
@@ -8611,7 +8616,7 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
     roles: [MemberRole]
     TierId: Int
     tierSlug: String
-  ): [Member]
+  ): [Member] @deprecated(reason: "2021-08-25: This should not have been introduced, use \"members\"")
 
   """
   Get all members (admins, members, backers, followers)
