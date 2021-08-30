@@ -191,7 +191,6 @@ async function sumCollectivesTransactions(
     hostCollectiveId = null,
     excludeInternals = false,
     kind,
-    isDebt,
   } = {},
 ) {
   const groupBy = ['amountInHostCurrency', 'netAmountInHostCurrency'].includes(column) ? 'hostCurrency' : 'currency';
@@ -213,6 +212,8 @@ async function sumCollectivesTransactions(
   if (excludeRefunds) {
     // Exclude refunded transactions
     where.RefundTransactionId = { [Op.is]: null };
+    // Also exclude anything with isRefund=true (PAYMENT_PROCESSOR_COVER doesn't have RefundTransactionId set)
+    where.isRefund = { [Op.not]: true };
   }
   if (hostCollectiveId) {
     // Only transactions that are marked under a Fiscal Host
@@ -224,9 +225,6 @@ async function sumCollectivesTransactions(
   }
   if (kind) {
     where.kind = kind;
-  }
-  if (isDebt !== undefined) {
-    where.isDebt = isDebt;
   }
 
   const totals = {};

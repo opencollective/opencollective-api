@@ -363,7 +363,7 @@ describe('server/lib/payments', () => {
       // Then there should be 4 transactions in total under that order id
       expect(allTransactions.length).to.equal(10);
 
-      // TODO: check that HOST_FEES, PAYMENT_PROCESSOR_FEE are there
+      // TODO: check that HOST_FEES, PAYMENT_PROCESSOR_COVER are there
 
       // And Then two transactions should be refund
       const refundTransactions = allTransactions.filter(
@@ -444,7 +444,7 @@ describe('server/lib/payments', () => {
       expect(refundedTransactions.filter(t => t.kind === 'PLATFORM_TIP')).to.have.lengthOf(2);
       expect(refundedTransactions.filter(t => t.kind === 'PLATFORM_TIP_DEBT')).to.have.lengthOf(2);
       expect(refundedTransactions.filter(t => t.kind === 'HOST_FEE')).to.have.lengthOf(2);
-      expect(refundedTransactions.filter(t => t.kind === 'PAYMENT_PROCESSOR_FEE')).to.have.lengthOf(2);
+      expect(refundedTransactions.filter(t => t.kind === 'PAYMENT_PROCESSOR_COVER')).to.have.lengthOf(2);
 
       // TODO(LedgerRefactor): Check debt transactions and settlement status
 

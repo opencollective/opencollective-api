@@ -279,7 +279,7 @@ describe('server/graphql/v1/refundTransaction', () => {
       // to user.
       const [tr1, tr2, tr3, tr4] = allContributions;
       const refunds = allTransactions.filter(t => t.isRefund);
-      const processorFeeRefund = refunds.find(t => t.kind === 'PAYMENT_PROCESSOR_FEE' && t.type === 'CREDIT');
+      const processorFeeRefund = refunds.find(t => t.kind === 'PAYMENT_PROCESSOR_COVER' && t.type === 'CREDIT');
       const hostFeeRefund = refunds.find(t => t.kind === 'HOST_FEE' && t.type === 'CREDIT');
 
       // 1. User Ledger

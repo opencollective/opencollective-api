@@ -194,12 +194,12 @@ export const refundPaymentProcessorFeeToCollective = async (transaction, refundT
   const amount = Math.round(amountInHostCurrency / hostCurrencyFxRate);
   await models.Transaction.createDoubleEntry({
     type: CREDIT,
-    kind: TransactionKind.PAYMENT_PROCESSOR_FEE,
+    kind: TransactionKind.PAYMENT_PROCESSOR_COVER,
     CollectiveId: transaction.CollectiveId,
     FromCollectiveId: transaction.HostCollectiveId,
     HostCollectiveId: transaction.HostCollectiveId,
     OrderId: transaction.OrderId,
-    description: `Refund of payment processor fees for transaction`,
+    description: 'Cover of payment processor fee for refund',
     isRefund: true,
     TransactionGroup: refundTransactionGroup,
     hostCurrency: transaction.hostCurrency,
