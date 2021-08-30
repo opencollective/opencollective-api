@@ -109,11 +109,14 @@ export const processOrder = async order => {
   await refresh(account);
 
   // create wallet address
-  const { depositAddress, pledgeId } = await createDepositAddress(account, {
+  const { depositAddress, pledgeId, errorMessage, meta } = await createDepositAddress(account, {
     organizationId: account.data.organizationId,
     pledgeAmount: order.data.customData.pledgeAmount,
     pledgeCurrency: order.data.customData.pledgeCurrency,
   });
+  if (errorMessage) {
+    throw new Error(`The Giving Block: ${errorMessage} ${meta.errorCode}`);
+  }
 
   // update payment method
   // TODO: update name?
