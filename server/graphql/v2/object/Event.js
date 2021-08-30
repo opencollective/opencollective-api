@@ -55,12 +55,6 @@ export const Event = new GraphQLObjectType({
       endsAt: {
         description: 'The Event end date and time',
         type: GraphQLDateTime,
-        async resolve(event) {
-          if (!event.endsAt) {
-            return null;
-          }
-          return new Date(event.endsAt);
-        },
       },
     };
   },
