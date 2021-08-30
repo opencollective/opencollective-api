@@ -1,5 +1,6 @@
 import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
+import GraphQLJSON from 'graphql-type-json';
 
 import roles from '../../../constants/roles';
 import models from '../../../models';
@@ -200,6 +201,10 @@ export const Order = new GraphQLObjectType({
         async resolve(order) {
           return order; // Individual fields are set by OrderPermissions resolvers
         },
+      },
+      data: {
+        type: GraphQLJSON,
+        description: 'Data related to the order',
       },
     };
   },

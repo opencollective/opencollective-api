@@ -881,11 +881,6 @@ input CaptchaInput {
   token: String!
 
   """
-  HCatpcha site key
-  """
-  ekey: String
-
-  """
   Catpcha provider
   """
   provider: CaptchaProvider!
@@ -6637,6 +6632,11 @@ type Order {
   The permissions given to current logged in user for this order
   """
   permissions: OrderPermissions!
+
+  """
+  Data related to the order
+  """
+  data: JSON
 }
 
 """
