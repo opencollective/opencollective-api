@@ -17,6 +17,7 @@ const AES_ENCRYPTION_METHOD = config.thegivingblock.aesEncryptionMethod;
 const API_URL = config.thegivingblock.apiUrl;
 const USERNAME = config.thegivingblock.username;
 const PASSWORD = config.thegivingblock.password;
+const GENERIC_ERROR_MSG = 'Something went wrong, please contact support@opencollective.com.';
 
 async function apiRequest(path, options = {}, account) {
   const response = await fetch(`${API_URL}${path}`, options);
@@ -50,9 +51,11 @@ async function handleErrorsAndRetry(result, path, options = {}, account = null) 
       } catch (err) {
         error = err;
       }
-      throw error;
+      logger.error(error);
+      throw new Error(GENERIC_ERROR_MSG);
     }
-    throw new Error(`The Giving Block: ${result.data.errorMessage} ${result.data.meta.errorCode}`);
+    logger.error(`The Giving Block: ${result.data.errorMessage} ${result.data.meta.errorCode}`);
+    throw new Error(GENERIC_ERROR_MSG);
   }
   return result.data;
 }
@@ -115,7 +118,8 @@ export const processOrder = async order => {
     pledgeCurrency: order.data.customData.pledgeCurrency,
   });
   if (errorMessage) {
-    throw new Error(`The Giving Block: ${errorMessage} ${meta.errorCode}`);
+    logger.error(`The Giving Block: ${errorMessage} ${meta.errorCode}`);
+    throw new Error(GENERIC_ERROR_MSG);
   }
 
   // update payment method
