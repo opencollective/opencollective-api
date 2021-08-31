@@ -155,10 +155,10 @@ export function getGraphqlCacheKey(req) {
       if (req.body.variables.orderBy.field !== 'MEMBER_COUNT' || req.body.variables.orderBy.direction !== 'DESC') {
         return;
       }
-      if (req.body.variables.role.length !== 1) {
+      if (!req.body.variables.role || req.body.variables.role.length !== 1) {
         return;
       }
-      if (req.body.variables.accountType.length !== 1) {
+      if (!req.body.variables.accountType || req.body.variables.accountType.length !== 1) {
         return;
       }
       return `${req.body.operationName}_${queryHash}_${req.body.variables.role[0]}_${req.body.variables.accountType[0]}_${req.body.variables.slug}`;
