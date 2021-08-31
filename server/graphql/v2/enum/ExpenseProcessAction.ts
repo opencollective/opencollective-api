@@ -28,5 +28,8 @@ export const ExpenseProcessAction = new GraphQLEnumType({
     MARK_AS_SPAM: {
       description: 'To mark the expense as spam',
     },
+    DELETE: {
+      description: 'To delete an expense. Only work if the expense is rejected; please check permissions.canDelete',
+    },
   },
 });

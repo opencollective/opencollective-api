@@ -872,30 +872,21 @@ export async function editExpense(
   return updatedExpense;
 }
 
-export async function deleteExpense(req: express.Request, expenseId: number): Promise<typeof models.Expense> {
-  const { remoteUser } = req;
-  if (!remoteUser) {
+export async function deleteExpense(
+  req: express.Request,
+  expense: typeof models.Expense,
+): Promise<typeof models.Expense> {
+  if (!req.remoteUser) {
     throw new Unauthorized('You need to be logged in to delete an expense');
-  } else if (!canUseFeature(remoteUser, FEATURE.USE_EXPENSES)) {
+  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     throw new FeatureNotAllowedForUser();
-  }
-
-  const expense = await models.Expense.findByPk(expenseId, {
-    include: [{ model: models.Collective, as: 'collective' }],
-  });
-
-  if (!expense) {
-    throw new NotFound('Expense not found');
-  }
-
-  if (!(await canDeleteExpense(req, expense))) {
+  } else if (!(await canDeleteExpense(req, expense))) {
     throw new Unauthorized(
       "You don't have permission to delete this expense or it needs to be rejected before being deleted",
     );
   }
 
-  const res = await expense.destroy();
-  return res;
+  return expense.destroy();
 }
 
 /** Helper that finishes the process of paying an expense */

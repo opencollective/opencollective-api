@@ -1297,6 +1297,97 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.errors[0].message).to.eq('Expense is already scheduled for payment');
       });
     });
+
+    describe('DELETE', () => {
+      const prepareGQLParams = expense => ({ expenseId: expense.id, action: 'DELETE' });
+
+      describe('can delete rejected expenses', () => {
+        it('if owner', async () => {
+          const expense = await fakeExpense({ status: expenseStatus.REJECTED });
+          const result = await graphqlQueryV2(processExpenseMutation, prepareGQLParams(expense), expense.User);
+
+          expect(result.data.processExpense.legacyId).to.eq(expense.id);
+          await expense.reload({ paranoid: false });
+          expect(expense.deletedAt).to.exist;
+        });
+
+        it('if collective admin', async () => {
+          const collectiveAdminUser = await fakeUser();
+          const collective = await fakeCollective({ admin: collectiveAdminUser.collective });
+          const expense = await fakeExpense({ status: expenseStatus.REJECTED, CollectiveId: collective.id });
+          const result = await graphqlQueryV2(processExpenseMutation, prepareGQLParams(expense), collectiveAdminUser);
+
+          expect(result.data.processExpense.legacyId).to.eq(expense.id);
+          await expense.reload({ paranoid: false });
+          expect(expense.deletedAt).to.exist;
+        });
+
+        it('if host admin', async () => {
+          const hostAdminUser = await fakeUser();
+          const host = await fakeCollective({ admin: hostAdminUser.collective });
+          const collective = await fakeCollective({ HostCollectiveId: host.id });
+          const expense = await fakeExpense({ status: expenseStatus.REJECTED, CollectiveId: collective.id });
+          const result = await graphqlQueryV2(processExpenseMutation, prepareGQLParams(expense), hostAdminUser);
+
+          expect(result.data.processExpense.legacyId).to.eq(expense.id);
+          await expense.reload({ paranoid: false });
+          expect(expense.deletedAt).to.exist;
+        });
+      });
+
+      describe('cannot delete', () => {
+        it('if not logged in as author, admin or host', async () => {
+          const randomUser = await fakeUser();
+          const collective = await fakeCollective();
+          const expense = await fakeExpense({ status: expenseStatus.REJECTED, CollectiveId: collective.id });
+          const result = await graphqlQueryV2(processExpenseMutation, prepareGQLParams(expense), randomUser);
+
+          await expense.reload({ paranoid: false });
+          expect(expense.deletedAt).to.not.exist;
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.eq(
+            "You don't have permission to delete this expense or it needs to be rejected before being deleted",
+          );
+        });
+
+        it('if backer', async () => {
+          const collectiveBackerUser = await fakeUser();
+          const collective = await fakeCollective();
+          await collective.addUserWithRole(collectiveBackerUser, 'BACKER');
+          const expense = await fakeExpense({ status: expenseStatus.REJECTED, CollectiveId: collective.id });
+          const result = await graphqlQueryV2(processExpenseMutation, prepareGQLParams(expense), collectiveBackerUser);
+
+          await expense.reload({ paranoid: false });
+          expect(expense.deletedAt).to.not.exist;
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.eq(
+            "You don't have permission to delete this expense or it needs to be rejected before being deleted",
+          );
+        });
+
+        it('if unauthenticated', async () => {
+          const expense = await fakeExpense({ status: expenseStatus.REJECTED });
+          const result = await graphqlQueryV2(processExpenseMutation, prepareGQLParams(expense));
+
+          await expense.reload({ paranoid: false });
+          expect(expense.deletedAt).to.not.exist;
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.eq('You need to be authenticated to perform this action');
+        });
+
+        it('if not rejected', async () => {
+          const expense = await fakeExpense({ status: expenseStatus.APPROVED });
+          const result = await graphqlQueryV2(processExpenseMutation, prepareGQLParams(expense), expense.User);
+
+          await expense.reload({ paranoid: false });
+          expect(expense.deletedAt).to.not.exist;
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.eq(
+            "You don't have permission to delete this expense or it needs to be rejected before being deleted",
+          );
+        });
+      });
+    });
   });
 
   describe('processExpense > PAY > with 2FA payouts', () => {

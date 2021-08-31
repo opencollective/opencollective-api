@@ -17,6 +17,7 @@ import {
   canDeleteExpense,
   canVerifyDraftExpense,
   createExpense,
+  deleteExpense,
   editExpense,
   markExpenseAsSpam,
   markExpenseAsUnpaid,
@@ -193,6 +194,7 @@ const expenseMutations = {
   deleteExpense: {
     type: new GraphQLNonNull(Expense),
     description: `Delete an expense. Only work if the expense is rejected - please check permissions.canDelete.`,
+    deprecationReason: '2021-08-31: Please use `processExpense` with a `DELETE` action',
     args: {
       expense: {
         type: new GraphQLNonNull(ExpenseReferenceInput),
@@ -284,6 +286,8 @@ const expenseMutations = {
             forceManual: args.paymentParams?.forceManual,
             twoFactorAuthenticatorCode: args.paymentParams?.twoFactorAuthenticatorCode,
           });
+        case 'DELETE':
+          return deleteExpense(req, expense);
         default:
           return expense;
       }
