@@ -92,9 +92,31 @@ dropuser opencollective
 
 When creating migrations and interacting with the database please follow the guidelines below; 
 
-https://docs.opencollective.com/help/contributing/development/postgres-database
+### Create a migration
 
-**Note:** We use [Sequelize](https://sequelize.org/). Therefore, it's important to create the migrations with `npm run db:migration:create -- --name <migration-script-name>` so that it aligns with the default Sequelize file naming conventions. 
+This will create a file in `migrations/` where you'll be able to put your migration and rollback procedures:
+
+```
+# The name of the migration should use snake case
+
+npm run db:migration:create -- --name <name-of-your-migration>
+```
+
+### Run migrations
+
+This will run all the migrations in `migrations/`:
+
+```
+npm run db:migrate
+```
+
+### Rollback last migration
+
+```
+npm run db:migrate:undo
+```
+
+**Note:** To create a migration, always use `npm run db:migration:create -- --name <migration-script-name>` so that it aligns with the default [Sequelize](https://sequelize.org/) file naming conventions. 
 
 ## Troubleshooting
 
