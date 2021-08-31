@@ -167,7 +167,7 @@ function defineModel() {
 
       /** Private, legal name. Used for expense receipts, taxes, etc. */
       legalName: {
-        type: Sequelize.STRING,
+        type: DataTypes.STRING,
         allowNull: true,
         set(legalName) {
           const cleanLegalName = legalName?.replace(/\s+/g, ' ').trim();

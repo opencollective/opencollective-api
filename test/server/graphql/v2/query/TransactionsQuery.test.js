@@ -98,7 +98,7 @@ describe('server/graphql/v2/query/TransactionsQuery', () => {
   });
 
   describe('permissions', () => {
-    it('can seel legalName if owner or host admin', async () => {
+    it('can see legalName if owner or host admin', async () => {
       const randomUser = await fakeUser();
       const queryArgs = { slug: collective.slug };
 
