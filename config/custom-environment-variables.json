@@ -95,7 +95,8 @@
     "images": "IMAGES_URL",
     "frontend": "FRONTEND_URL",
     "website": "WEBSITE_URL",
-    "pdf": "PDF_SERVICE_URL"
+    "pdf": "PDF_SERVICE_URL",
+    "rest": "REST_URL"
   },
   "limits": {
     "ordersPerHour": {
@@ -184,6 +185,9 @@
   },
   "pdfService": {
     "fetchTransactionsReceipts": "FETCH_TRANSACTIONS_RECEIPTS"
+  },
+  "restService": {
+    "fetchCollectiveTransactionsCsv": "FETCH_COLLECTIVE_TRANSACTIONS_CSV"
   },
   "sentry": {
     "dsn": "SENTRY_DSN"

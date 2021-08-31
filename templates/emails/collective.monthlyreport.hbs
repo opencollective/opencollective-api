@@ -286,6 +286,14 @@ Subject: {{{collective.name}}} {{month}} {{year}} Report
   </ul>
   {{/if}}
 
+  <h2>📎 Attachments</h2>
+  <ul>
+    <li>A CSV export of all the transactions for this {{#if month}}month{{else}}year{{/if}}</li>
+    {{#if csvV2}}
+      <li>NEW: A second CSV export in a different format (v2). Send us your feedback!</li>
+    {{/if}}
+  </ul>
+
   <h2>🗣 Feedback</h2>
   <p>Feel free to reply to this email. A human will always be on the other side!</p>
 
