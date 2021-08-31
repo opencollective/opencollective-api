@@ -90,7 +90,7 @@ const generateParticipantName = (account, mainUser) => {
     // If a legal name is set, use it directly
     return truncate(account.legalName, { length: 64 });
   } else if (account.id === mainUser.collective.id) {
-    // If this is for a user, user its name
+    // If this is for a user, use the user name
     return truncate(account.name, { length: 64 });
   } else {
     // Otherwise use a combination of the account slug + user name
