@@ -10,13 +10,16 @@ import { TransactionKind } from '../../server/constants/transaction-kind';
 import { generateHostFeeAmountForTransactionLoader } from '../../server/graphql/loaders/transactions';
 import { notifyAdminsOfCollective } from '../../server/lib/notifications';
 import { getConsolidatedInvoicePdfs } from '../../server/lib/pdf';
-import { getTiersStats } from '../../server/lib/utils';
+import { getTiersStats, parseToBoolean } from '../../server/lib/utils';
 import models, { Op } from '../../server/models';
 
 // Only run on the first of the month
 const today = new Date();
 if (config.env === 'production' && today.getDate() !== 1 && !process.env.OFFCYCLE) {
   console.log('OC_ENV is production and today is not the first of month, script aborted!');
+  process.exit();
+} else if (parseToBoolean(process.env.SKIP_COLLECTIVE_REPORT)) {
+  console.log('Skipping because SKIP_COLLECTIVE_REPORT is set.');
   process.exit();
 }
 
