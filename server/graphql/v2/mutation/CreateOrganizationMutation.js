@@ -22,7 +22,7 @@ async function createOrganization(_, args, req) {
   const organizationData = {
     type: 'ORGANIZATION',
     slug: args.organization.slug.toLowerCase(),
-    ...pick(args.organization, ['name', 'description', 'website']),
+    ...pick(args.organization, ['name', 'legalName', 'description', 'website']),
     isActive: false,
     CreatedByUserId: remoteUser.id,
     settings: { ...DEFAULT_ORGANIZATION_SETTINGS, ...args.organization.settings },
