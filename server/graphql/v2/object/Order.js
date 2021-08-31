@@ -1,6 +1,7 @@
 import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 import GraphQLJSON from 'graphql-type-json';
+import { pick } from 'lodash';
 
 import roles from '../../../constants/roles';
 import models from '../../../models';
@@ -205,6 +206,9 @@ export const Order = new GraphQLObjectType({
       data: {
         type: GraphQLJSON,
         description: 'Data related to the order',
+        async resolve(order) {
+          return pick(order.data, ['customData.pledgeCurrency']);
+        },
       },
     };
   },
