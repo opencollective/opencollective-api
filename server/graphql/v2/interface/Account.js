@@ -161,10 +161,10 @@ const accountFieldsDefinition = () => ({
     },
   },
   members: {
-    type: MemberCollection,
+    type: new GraphQLNonNull(MemberCollection),
     args: {
-      limit: { type: GraphQLInt, defaultValue: 100 },
-      offset: { type: GraphQLInt, defaultValue: 0 },
+      limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
+      offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
       role: { type: new GraphQLList(MemberRole) },
       email: {
         type: EmailAddress,
@@ -179,8 +179,8 @@ const accountFieldsDefinition = () => ({
   memberOf: {
     type: MemberOfCollection,
     args: {
-      limit: { type: GraphQLInt, defaultValue: 100 },
-      offset: { type: GraphQLInt, defaultValue: 0 },
+      limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
+      offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
       role: { type: new GraphQLList(MemberRole) },
       isApproved: {
         type: GraphQLBoolean,
@@ -209,10 +209,10 @@ const accountFieldsDefinition = () => ({
     },
   },
   transactions: {
-    type: TransactionCollection,
+    type: new GraphQLNonNull(TransactionCollection),
     args: {
-      limit: { type: GraphQLInt, defaultValue: 100 },
-      offset: { type: GraphQLInt, defaultValue: 0 },
+      limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
+      offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
       type: {
         type: TransactionType,
         description: 'Type of transaction (DEBIT/CREDIT)',
@@ -231,8 +231,8 @@ const accountFieldsDefinition = () => ({
   orders: {
     type: new GraphQLNonNull(OrderCollection),
     args: {
-      limit: { type: GraphQLInt, defaultValue: 100 },
-      offset: { type: GraphQLInt, defaultValue: 0 },
+      limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
+      offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
       filter: { type: AccountOrdersFilter },
       status: { type: new GraphQLList(OrderStatus) },
       tierSlug: { type: GraphQLString },
@@ -253,10 +253,10 @@ const accountFieldsDefinition = () => ({
     type: new GraphQLNonNull(GraphQLJSON),
   },
   conversations: {
-    type: ConversationCollection,
+    type: new GraphQLNonNull(ConversationCollection),
     args: {
-      limit: { type: GraphQLInt },
-      offset: { type: GraphQLInt },
+      limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 15 },
+      offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
       tag: {
         type: GraphQLString,
         description: 'Only return conversations matching this tag',
@@ -267,14 +267,14 @@ const accountFieldsDefinition = () => ({
     type: new GraphQLList(TagStats),
     description: "Returns conversation's tags for collective sorted by popularity",
     args: {
-      limit: { type: GraphQLInt, defaultValue: 30 },
+      limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 30 },
     },
   },
   expensesTags: {
     type: new GraphQLList(TagStats),
     description: 'Returns expense tags for collective sorted by popularity',
     args: {
-      limit: { type: GraphQLInt, defaultValue: 30 },
+      limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 30 },
     },
   },
   transferwise: {
@@ -409,8 +409,8 @@ const accountFieldsDefinition = () => ({
   virtualCards: {
     type: new GraphQLNonNull(VirtualCardCollection),
     args: {
-      limit: { type: GraphQLInt, defaultValue: 100 },
-      offset: { type: GraphQLInt, defaultValue: 0 },
+      limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
+      offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
       state: { type: GraphQLString, defaultValue: null },
       merchantAccount: { type: AccountReferenceInput, defaultValue: null },
       dateFrom: {
@@ -484,8 +484,8 @@ const accountFieldsDefinition = () => ({
   virtualCardMerchants: {
     type: new GraphQLNonNull(AccountCollection),
     args: {
-      limit: { type: GraphQLInt, defaultValue: 100 },
-      offset: { type: GraphQLInt, defaultValue: 0 },
+      limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
+      offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
     },
     async resolve(account, args, req) {
       if (!req.remoteUser?.isAdminOfCollective(account)) {
@@ -576,8 +576,8 @@ const accountTransactions = {
   type: new GraphQLNonNull(TransactionCollection),
   args: {
     type: { type: TransactionType },
-    limit: { type: GraphQLInt, defaultValue: 100 },
-    offset: { type: GraphQLInt, defaultValue: 0 },
+    limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
+    offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
     orderBy: {
       type: ChronologicalOrderInput,
       defaultValue: ChronologicalOrderInput.defaultValue,
@@ -618,8 +618,8 @@ const accountTransactions = {
 const accountOrders = {
   type: new GraphQLNonNull(OrderCollection),
   args: {
-    limit: { type: GraphQLInt, defaultValue: 100 },
-    offset: { type: GraphQLInt, defaultValue: 0 },
+    limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
+    offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
     filter: { type: AccountOrdersFilter },
     status: { type: new GraphQLList(OrderStatus) },
     tierSlug: { type: GraphQLString },
@@ -772,10 +772,10 @@ export const AccountFields = {
   transactions: accountTransactions,
   orders: accountOrders,
   conversations: {
-    type: ConversationCollection,
+    type: new GraphQLNonNull(ConversationCollection),
     args: {
-      limit: { type: GraphQLInt },
-      offset: { type: GraphQLInt },
+      limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 15 },
+      offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
       tag: {
         type: GraphQLString,
         description: 'Only return conversations matching this tag',
@@ -800,7 +800,7 @@ export const AccountFields = {
     type: new GraphQLList(TagStats),
     description: "Returns conversation's tags for collective sorted by popularity",
     args: {
-      limit: { type: GraphQLInt, defaultValue: 30 },
+      limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 30 },
     },
     async resolve(collective, _, { limit }) {
       return models.Conversation.getMostPopularTagsForCollective(collective.id, limit);
@@ -810,7 +810,7 @@ export const AccountFields = {
     type: new GraphQLList(TagStats),
     description: 'Returns expense tags for collective sorted by popularity',
     args: {
-      limit: { type: GraphQLInt, defaultValue: 30 },
+      limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 30 },
     },
     async resolve(collective, _, { limit }) {
       return models.Expense.getMostPopularExpenseTagsForCollective(collective.id, limit);

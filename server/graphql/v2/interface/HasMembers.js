@@ -11,10 +11,10 @@ import EmailAddress from '../scalar/EmailAddress';
 export const HasMembersFields = {
   members: {
     description: 'Get all members (admins, members, backers, followers)',
-    type: MemberCollection,
+    type: new GraphQLNonNull(MemberCollection),
     args: {
-      limit: { type: GraphQLInt, defaultValue: 100 },
-      offset: { type: GraphQLInt, defaultValue: 0 },
+      limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
+      offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
       role: { type: new GraphQLList(MemberRole) },
       accountType: { type: new GraphQLList(AccountType) },
       email: {

@@ -40,10 +40,10 @@ export const Tier = new GraphQLObjectType({
       },
       orders: {
         description: 'Get all orders',
-        type: OrderCollection,
+        type: new GraphQLNonNull(OrderCollection),
         args: {
-          limit: { type: GraphQLInt, defaultValue: 100 },
-          offset: { type: GraphQLInt, defaultValue: 0 },
+          limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
+          offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
           status: { type: new GraphQLList(OrderStatus) },
         },
         async resolve(tier, args) {

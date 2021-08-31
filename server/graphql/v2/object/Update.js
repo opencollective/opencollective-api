@@ -159,8 +159,8 @@ const Update = new GraphQLObjectType({
         type: CommentCollection,
         description: "List the comments for this update. Not backed by a loader, don't use this in lists.",
         args: {
-          limit: { type: GraphQLInt },
-          offset: { type: GraphQLInt },
+          limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 150 },
+          offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
         },
         async resolve(update, args, req) {
           if (!(await canSeeUpdateDetails(req, update))) {

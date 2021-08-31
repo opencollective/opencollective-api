@@ -38,14 +38,27 @@ export const AccountWithContributionsFields = {
   },
   tiers: {
     type: new GraphQLNonNull(TierCollection),
-    async resolve(account: typeof models.Collective): Promise<Record<string, unknown>> {
+    args: {
+      ...CollectionArgs,
+      limit: {
+        type: new GraphQLNonNull(GraphQLInt),
+        description: 'The number of results to fetch',
+        defaultValue: 100,
+      },
+    },
+    async resolve(account: typeof models.Collective, args: Record<string, unknown>): Promise<Record<string, unknown>> {
       if (!account.hasBudget()) {
         return { nodes: [], totalCount: 0 };
       }
 
-      const query = { where: { CollectiveId: account.id }, order: [['amount', 'ASC']] };
+      const query = {
+        where: { CollectiveId: account.id },
+        order: [['amount', 'ASC']],
+        limit: args.limit,
+        offset: args.offset,
+      };
       const result = await models.Tier.findAndCountAll(query);
-      return { nodes: result.rows, totalCount: result.count };
+      return { nodes: result.rows, totalCount: result.count, limit: args.limit, offset: args.offset };
     },
   },
   contributors: {
