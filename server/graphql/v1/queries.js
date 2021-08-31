@@ -632,6 +632,10 @@ const queries = {
         query.order = [[args.orderBy, args.orderDirection]];
       }
 
+      // Make sure entries are always ordered
+      query.order = query.order || [];
+      query.order.push(['id', 'ASC']);
+
       if (args.minBackerCount) {
         const { total, collectives } = await rawQueries.getCollectivesWithMinBackers({
           ...args,

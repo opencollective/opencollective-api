@@ -66,7 +66,9 @@ const getHosts = async args => {
     ) SELECT c.*, (SELECT COUNT(*) FROM all_hosts) AS __hosts_count__, SUM(all_hosts.count) as __members_count__
     FROM "Collectives" c INNER JOIN all_hosts ON all_hosts."HostCollectiveId" = c.id
     GROUP BY c.id
-    ORDER BY ${args.orderBy === 'collectives' ? '__members_count__' : args.orderBy} ${args.orderDirection}
+    ORDER BY
+      ${args.orderBy === 'collectives' ? '__members_count__' : args.orderBy} ${args.orderDirection},
+      id ASC
     LIMIT $limit
     OFFSET $offset
   `;
