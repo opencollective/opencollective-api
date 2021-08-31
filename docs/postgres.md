@@ -94,7 +94,7 @@ When creating migrations and interacting with the database please follow the gui
 
 https://docs.opencollective.com/help/contributing/development/postgres-database
 
-**Note:** We use [Sequelize](https://sequelize.org/). Therefore, it's important to create the migrations with `npm run db:migration:create` so that it aligns with the default Sequelize file naming conventions. 
+**Note:** We use [Sequelize](https://sequelize.org/). Therefore, it's important to create the migrations with `npm run db:migration:create -- --name <migration-script-name>` so that it aligns with the default Sequelize file naming conventions. 
 
 ## Troubleshooting
 
