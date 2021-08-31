@@ -90,7 +90,7 @@ dropuser opencollective
 
 ## Migrations
 
-When creating migrations and interacting with the database please follow the guidelines below;
+When creating migrations and interacting with the database please follow the guidelines below.
 
 ### Create a migration
 
@@ -106,7 +106,7 @@ npm run db:migration:create -- --name <name-of-your-migration>
 
 ### Run migrations
 
-This will run all the migrations in `migrations/`:
+This will run all the pending migrations in `migrations/`:
 
 ```
 npm run db:migrate
