@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
 import sinon from 'sinon';
 
-import * as orders from '../../../../../server/graphql/v1/mutations/orders';
+import * as orders from '../../../../../server/graphql/common/orders';
 import emailLib from '../../../../../server/lib/email';
 import * as payments from '../../../../../server/lib/payments';
 import stripe from '../../../../../server/lib/stripe';

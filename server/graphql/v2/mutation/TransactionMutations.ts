@@ -6,9 +6,9 @@ import { TransactionKind } from '../../../constants/transaction-kind';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import { notifyAdminsOfCollective } from '../../../lib/notifications';
 import models from '../../../models';
+import { refundTransaction } from '../../common/orders';
 import { canReject } from '../../common/transactions';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
-import { refundTransaction as legacyRefundTransaction } from '../../v1/mutations/orders';
 import { AmountInput, getValueInCentsFromAmountInput } from '../input/AmountInput';
 import { fetchTransactionWithReference, TransactionReferenceInput } from '../input/TransactionReferenceInput';
 import { Transaction } from '../interface/Transaction';
@@ -80,7 +80,7 @@ const transactionMutations = {
         throw new Unauthorized();
       }
       const transaction = await fetchTransactionWithReference(args.transaction);
-      return legacyRefundTransaction(undefined, { id: transaction.id }, req);
+      return refundTransaction(undefined, { id: transaction.id }, req);
     },
   },
   rejectTransaction: {
@@ -121,7 +121,7 @@ const transactionMutations = {
       let refundedTransaction;
       if (!transaction.RefundTransactionId) {
         const refundParams = { id: transaction.id, message: rejectionReason };
-        refundedTransaction = await legacyRefundTransaction(undefined, refundParams, req);
+        refundedTransaction = await refundTransaction(undefined, refundParams, req);
       } else {
         refundedTransaction = await fetchTransactionWithReference({ legacyId: transaction.RefundTransactionId });
       }
