@@ -52,6 +52,10 @@ export const Event = new GraphQLObjectType({
           }
         },
       },
+      startsAt: {
+        description: 'The Event start date and time',
+        type: GraphQLDateTime,
+      },
       endsAt: {
         description: 'The Event end date and time',
         type: GraphQLDateTime,
