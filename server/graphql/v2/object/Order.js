@@ -206,7 +206,7 @@ export const Order = new GraphQLObjectType({
       data: {
         type: GraphQLJSON,
         description: 'Data related to the order',
-        async resolve(order) {
+        resolve(order) {
           return pick(order.data, ['customData.pledgeCurrency']);
         },
       },
