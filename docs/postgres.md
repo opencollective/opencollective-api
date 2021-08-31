@@ -90,17 +90,19 @@ dropuser opencollective
 
 ## Migrations
 
-When creating migrations and interacting with the database please follow the guidelines below; 
+When creating migrations and interacting with the database please follow the guidelines below;
 
 ### Create a migration
 
 This will create a file in `migrations/` where you'll be able to put your migration and rollback procedures:
 
 ```
-# The name of the migration should use snake case
+# The name of the migration should use kebab case
 
 npm run db:migration:create -- --name <name-of-your-migration>
 ```
+
+**Note:** To create a migration, always use the above command, so that it aligns with the default [Sequelize](https://sequelize.org/) file naming conventions.
 
 ### Run migrations
 
@@ -115,8 +117,6 @@ npm run db:migrate
 ```
 npm run db:migrate:undo
 ```
-
-**Note:** To create a migration, always use `npm run db:migration:create -- --name <migration-script-name>` so that it aligns with the default [Sequelize](https://sequelize.org/) file naming conventions. 
 
 ## Troubleshooting
 
