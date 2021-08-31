@@ -81,11 +81,6 @@ input CaptchaInput {
   token: String!
 
   """
-  HCatpcha site key
-  """
-  ekey: String
-
-  """
   Catpcha provider
   """
   provider: CaptchaProvider!

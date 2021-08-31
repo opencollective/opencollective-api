@@ -62,102 +62,102 @@ exports[`test/stories/ledger Level 1: Same currency (USD) 4. Simple contribution
 
 exports[`test/stories/ledger Level 1: Same currency (USD) 5. Refunded contribution with host fees, payment processor fees and indirect platform tip 1`] = `
 "
-| kind                  | type   | amount | paymentFee | To     | From   | Host   | Settlement | isRefund |
-| --------------------- | ------ | ------ | ---------- | ------ | ------ | ------ | ---------- | -------- |
-| CONTRIBUTION          | CREDIT | 9000   | 0          | Ben    | ESLint | NULL   |            | true     |
-| CONTRIBUTION          | DEBIT  | -9000  | 0          | ESLint | Ben    | OSC    |            | true     |
-| HOST_FEE_SHARE_DEBT   | CREDIT | 68     | 0          | OC Inc | OSC    | OC Inc | OWED       | true     |
-| HOST_FEE_SHARE_DEBT   | DEBIT  | -68    | 0          | OSC    | OC Inc | OSC    | OWED       | true     |
-| HOST_FEE_SHARE        | CREDIT | 68     | 0          | OSC    | OC Inc | OSC    |            | true     |
-| HOST_FEE_SHARE        | DEBIT  | -68    | 0          | OC Inc | OSC    | OC Inc |            | true     |
-| HOST_FEE              | CREDIT | 450    | 0          | ESLint | OSC    | OSC    |            | true     |
-| HOST_FEE              | DEBIT  | -450   | 0          | OSC    | ESLint | OSC    |            | true     |
-| PAYMENT_PROCESSOR_FEE | CREDIT | 200    | 0          | ESLint | OSC    | OSC    |            | true     |
-| PAYMENT_PROCESSOR_FEE | DEBIT  | -200   | 0          | OSC    | ESLint | OSC    |            | true     |
-| PLATFORM_TIP_DEBT     | CREDIT | 1000   | 0          | OC Inc | OSC    | OC Inc | OWED       | true     |
-| PLATFORM_TIP_DEBT     | DEBIT  | -1000  | 0          | OSC    | OC Inc | OSC    | OWED       | true     |
-| PLATFORM_TIP          | CREDIT | 1000   | 0          | Ben    | OC Inc | NULL   |            | true     |
-| PLATFORM_TIP          | DEBIT  | -1000  | 0          | OC Inc | Ben    | OC Inc |            | true     |
-| EXPENSE               | CREDIT | 1068   | 0          | OC Inc | OSC    | OC Inc |            | false    |
-| EXPENSE               | DEBIT  | -1068  | 0          | OSC    | OC Inc | OSC    |            | false    |
-| CONTRIBUTION          | CREDIT | 9000   | -200       | ESLint | Ben    | OSC    |            | false    |
-| CONTRIBUTION          | DEBIT  | -8800  | -200       | Ben    | ESLint | NULL   |            | false    |
-| HOST_FEE_SHARE_DEBT   | CREDIT | 68     | 0          | OSC    | OC Inc | OSC    | SETTLED    | false    |
-| HOST_FEE_SHARE_DEBT   | DEBIT  | -68    | 0          | OC Inc | OSC    | OC Inc | SETTLED    | false    |
-| HOST_FEE_SHARE        | CREDIT | 68     | 0          | OC Inc | OSC    | OC Inc |            | false    |
-| HOST_FEE_SHARE        | DEBIT  | -68    | 0          | OSC    | OC Inc | OSC    |            | false    |
-| HOST_FEE              | CREDIT | 450    | 0          | OSC    | ESLint | OSC    |            | false    |
-| HOST_FEE              | DEBIT  | -450   | 0          | ESLint | OSC    | OSC    |            | false    |
-| PLATFORM_TIP_DEBT     | CREDIT | 1000   | 0          | OSC    | OC Inc | OSC    | SETTLED    | false    |
-| PLATFORM_TIP_DEBT     | DEBIT  | -1000  | 0          | OC Inc | OSC    | OC Inc | SETTLED    | false    |
-| PLATFORM_TIP          | CREDIT | 1000   | 0          | OC Inc | Ben    | OC Inc |            | false    |
-| PLATFORM_TIP          | DEBIT  | -1000  | 0          | Ben    | OC Inc | NULL   |            | false    |"
+| kind                    | type   | amount | paymentFee | To     | From   | Host   | Settlement | isRefund |
+| ----------------------- | ------ | ------ | ---------- | ------ | ------ | ------ | ---------- | -------- |
+| CONTRIBUTION            | CREDIT | 9000   | 0          | Ben    | ESLint | NULL   |            | true     |
+| CONTRIBUTION            | DEBIT  | -9000  | 0          | ESLint | Ben    | OSC    |            | true     |
+| HOST_FEE_SHARE_DEBT     | CREDIT | 68     | 0          | OC Inc | OSC    | OC Inc | OWED       | true     |
+| HOST_FEE_SHARE_DEBT     | DEBIT  | -68    | 0          | OSC    | OC Inc | OSC    | OWED       | true     |
+| HOST_FEE_SHARE          | CREDIT | 68     | 0          | OSC    | OC Inc | OSC    |            | true     |
+| HOST_FEE_SHARE          | DEBIT  | -68    | 0          | OC Inc | OSC    | OC Inc |            | true     |
+| HOST_FEE                | CREDIT | 450    | 0          | ESLint | OSC    | OSC    |            | true     |
+| HOST_FEE                | DEBIT  | -450   | 0          | OSC    | ESLint | OSC    |            | true     |
+| PAYMENT_PROCESSOR_COVER | CREDIT | 200    | 0          | ESLint | OSC    | OSC    |            | true     |
+| PAYMENT_PROCESSOR_COVER | DEBIT  | -200   | 0          | OSC    | ESLint | OSC    |            | true     |
+| PLATFORM_TIP_DEBT       | CREDIT | 1000   | 0          | OC Inc | OSC    | OC Inc | OWED       | true     |
+| PLATFORM_TIP_DEBT       | DEBIT  | -1000  | 0          | OSC    | OC Inc | OSC    | OWED       | true     |
+| PLATFORM_TIP            | CREDIT | 1000   | 0          | Ben    | OC Inc | NULL   |            | true     |
+| PLATFORM_TIP            | DEBIT  | -1000  | 0          | OC Inc | Ben    | OC Inc |            | true     |
+| EXPENSE                 | CREDIT | 1068   | 0          | OC Inc | OSC    | OC Inc |            | false    |
+| EXPENSE                 | DEBIT  | -1068  | 0          | OSC    | OC Inc | OSC    |            | false    |
+| CONTRIBUTION            | CREDIT | 9000   | -200       | ESLint | Ben    | OSC    |            | false    |
+| CONTRIBUTION            | DEBIT  | -8800  | -200       | Ben    | ESLint | NULL   |            | false    |
+| HOST_FEE_SHARE_DEBT     | CREDIT | 68     | 0          | OSC    | OC Inc | OSC    | SETTLED    | false    |
+| HOST_FEE_SHARE_DEBT     | DEBIT  | -68    | 0          | OC Inc | OSC    | OC Inc | SETTLED    | false    |
+| HOST_FEE_SHARE          | CREDIT | 68     | 0          | OC Inc | OSC    | OC Inc |            | false    |
+| HOST_FEE_SHARE          | DEBIT  | -68    | 0          | OSC    | OC Inc | OSC    |            | false    |
+| HOST_FEE                | CREDIT | 450    | 0          | OSC    | ESLint | OSC    |            | false    |
+| HOST_FEE                | DEBIT  | -450   | 0          | ESLint | OSC    | OSC    |            | false    |
+| PLATFORM_TIP_DEBT       | CREDIT | 1000   | 0          | OSC    | OC Inc | OSC    | SETTLED    | false    |
+| PLATFORM_TIP_DEBT       | DEBIT  | -1000  | 0          | OC Inc | OSC    | OC Inc | SETTLED    | false    |
+| PLATFORM_TIP            | CREDIT | 1000   | 0          | OC Inc | Ben    | OC Inc |            | false    |
+| PLATFORM_TIP            | DEBIT  | -1000  | 0          | Ben    | OC Inc | NULL   |            | false    |"
 `;
 
 exports[`test/stories/ledger Level 2: Host with a different currency (Host=EUR, Collective=EUR) Refunded contribution with host fees, payment processor fees and indirect platform tip 1`] = `
 "
-| kind                  | type   | amount | currency | amountInHostCurrency | hostCurrency | paymentFee | To     | From   | Host   | Settlement | isRefund |
-| --------------------- | ------ | ------ | -------- | -------------------- | ------------ | ---------- | ------ | ------ | ------ | ---------- | -------- |
-| CONTRIBUTION          | CREDIT | 9000   | EUR      | 9000                 | EUR          | 0          | Ben    | ESLint | NULL   |            | true     |
-| CONTRIBUTION          | DEBIT  | -9000  | EUR      | -9000                | EUR          | 0          | ESLint | Ben    | OSC    |            | true     |
-| HOST_FEE_SHARE_DEBT   | CREDIT | 68     | EUR      | 81                   | USD          | 0          | OC Inc | OSC    | OC Inc | OWED       | true     |
-| HOST_FEE_SHARE_DEBT   | DEBIT  | -68    | EUR      | -68                  | EUR          | 0          | OSC    | OC Inc | OSC    | OWED       | true     |
-| HOST_FEE_SHARE        | CREDIT | 68     | EUR      | 68                   | EUR          | 0          | OSC    | OC Inc | OSC    |            | true     |
-| HOST_FEE_SHARE        | DEBIT  | -68    | EUR      | -81                  | USD          | 0          | OC Inc | OSC    | OC Inc |            | true     |
-| HOST_FEE              | CREDIT | 450    | EUR      | 450                  | EUR          | 0          | ESLint | OSC    | OSC    |            | true     |
-| HOST_FEE              | DEBIT  | -450   | EUR      | -450                 | EUR          | 0          | OSC    | ESLint | OSC    |            | true     |
-| PAYMENT_PROCESSOR_FEE | CREDIT | 200    | EUR      | 200                  | EUR          | 0          | ESLint | OSC    | OSC    |            | true     |
-| PAYMENT_PROCESSOR_FEE | DEBIT  | -200   | EUR      | -200                 | EUR          | 0          | OSC    | ESLint | OSC    |            | true     |
-| PLATFORM_TIP_DEBT     | CREDIT | 1000   | EUR      | 1190                 | USD          | 0          | OC Inc | OSC    | OC Inc | OWED       | true     |
-| PLATFORM_TIP_DEBT     | DEBIT  | -1000  | EUR      | -1000                | EUR          | 0          | OSC    | OC Inc | OSC    | OWED       | true     |
-| PLATFORM_TIP          | CREDIT | 1000   | EUR      | 1190                 | USD          | 0          | Ben    | OC Inc | NULL   |            | true     |
-| PLATFORM_TIP          | DEBIT  | -1000  | EUR      | -1190                | USD          | 0          | OC Inc | Ben    | OC Inc |            | true     |
-| EXPENSE               | CREDIT | 1068   | EUR      | 1271                 | USD          | 0          | OC Inc | OSC    | OC Inc |            | false    |
-| EXPENSE               | DEBIT  | -1068  | EUR      | -1068                | EUR          | 0          | OSC    | OC Inc | OSC    |            | false    |
-| CONTRIBUTION          | CREDIT | 9000   | EUR      | 9000                 | EUR          | -200       | ESLint | Ben    | OSC    |            | false    |
-| CONTRIBUTION          | DEBIT  | -8800  | EUR      | -8800                | EUR          | -200       | Ben    | ESLint | NULL   |            | false    |
-| HOST_FEE_SHARE_DEBT   | CREDIT | 68     | EUR      | 68                   | EUR          | 0          | OSC    | OC Inc | OSC    | SETTLED    | false    |
-| HOST_FEE_SHARE_DEBT   | DEBIT  | -68    | EUR      | -81                  | USD          | 0          | OC Inc | OSC    | OC Inc | SETTLED    | false    |
-| HOST_FEE_SHARE        | CREDIT | 68     | EUR      | 81                   | USD          | 0          | OC Inc | OSC    | OC Inc |            | false    |
-| HOST_FEE_SHARE        | DEBIT  | -68    | EUR      | -68                  | EUR          | 0          | OSC    | OC Inc | OSC    |            | false    |
-| HOST_FEE              | CREDIT | 450    | EUR      | 450                  | EUR          | 0          | OSC    | ESLint | OSC    |            | false    |
-| HOST_FEE              | DEBIT  | -450   | EUR      | -450                 | EUR          | 0          | ESLint | OSC    | OSC    |            | false    |
-| PLATFORM_TIP_DEBT     | CREDIT | 1000   | EUR      | 1000                 | EUR          | 0          | OSC    | OC Inc | OSC    | SETTLED    | false    |
-| PLATFORM_TIP_DEBT     | DEBIT  | -1000  | EUR      | -1190                | USD          | 0          | OC Inc | OSC    | OC Inc | SETTLED    | false    |
-| PLATFORM_TIP          | CREDIT | 1000   | EUR      | 1190                 | USD          | 0          | OC Inc | Ben    | OC Inc |            | false    |
-| PLATFORM_TIP          | DEBIT  | -1000  | EUR      | -1190                | USD          | 0          | Ben    | OC Inc | NULL   |            | false    |"
+| kind                    | type   | amount | currency | amountInHostCurrency | hostCurrency | paymentFee | To     | From   | Host   | Settlement | isRefund |
+| ----------------------- | ------ | ------ | -------- | -------------------- | ------------ | ---------- | ------ | ------ | ------ | ---------- | -------- |
+| CONTRIBUTION            | CREDIT | 9000   | EUR      | 9000                 | EUR          | 0          | Ben    | ESLint | NULL   |            | true     |
+| CONTRIBUTION            | DEBIT  | -9000  | EUR      | -9000                | EUR          | 0          | ESLint | Ben    | OSC    |            | true     |
+| HOST_FEE_SHARE_DEBT     | CREDIT | 68     | EUR      | 81                   | USD          | 0          | OC Inc | OSC    | OC Inc | OWED       | true     |
+| HOST_FEE_SHARE_DEBT     | DEBIT  | -68    | EUR      | -68                  | EUR          | 0          | OSC    | OC Inc | OSC    | OWED       | true     |
+| HOST_FEE_SHARE          | CREDIT | 68     | EUR      | 68                   | EUR          | 0          | OSC    | OC Inc | OSC    |            | true     |
+| HOST_FEE_SHARE          | DEBIT  | -68    | EUR      | -81                  | USD          | 0          | OC Inc | OSC    | OC Inc |            | true     |
+| HOST_FEE                | CREDIT | 450    | EUR      | 450                  | EUR          | 0          | ESLint | OSC    | OSC    |            | true     |
+| HOST_FEE                | DEBIT  | -450   | EUR      | -450                 | EUR          | 0          | OSC    | ESLint | OSC    |            | true     |
+| PAYMENT_PROCESSOR_COVER | CREDIT | 200    | EUR      | 200                  | EUR          | 0          | ESLint | OSC    | OSC    |            | true     |
+| PAYMENT_PROCESSOR_COVER | DEBIT  | -200   | EUR      | -200                 | EUR          | 0          | OSC    | ESLint | OSC    |            | true     |
+| PLATFORM_TIP_DEBT       | CREDIT | 1000   | EUR      | 1190                 | USD          | 0          | OC Inc | OSC    | OC Inc | OWED       | true     |
+| PLATFORM_TIP_DEBT       | DEBIT  | -1000  | EUR      | -1000                | EUR          | 0          | OSC    | OC Inc | OSC    | OWED       | true     |
+| PLATFORM_TIP            | CREDIT | 1000   | EUR      | 1190                 | USD          | 0          | Ben    | OC Inc | NULL   |            | true     |
+| PLATFORM_TIP            | DEBIT  | -1000  | EUR      | -1190                | USD          | 0          | OC Inc | Ben    | OC Inc |            | true     |
+| EXPENSE                 | CREDIT | 1068   | EUR      | 1271                 | USD          | 0          | OC Inc | OSC    | OC Inc |            | false    |
+| EXPENSE                 | DEBIT  | -1068  | EUR      | -1068                | EUR          | 0          | OSC    | OC Inc | OSC    |            | false    |
+| CONTRIBUTION            | CREDIT | 9000   | EUR      | 9000                 | EUR          | -200       | ESLint | Ben    | OSC    |            | false    |
+| CONTRIBUTION            | DEBIT  | -8800  | EUR      | -8800                | EUR          | -200       | Ben    | ESLint | NULL   |            | false    |
+| HOST_FEE_SHARE_DEBT     | CREDIT | 68     | EUR      | 68                   | EUR          | 0          | OSC    | OC Inc | OSC    | SETTLED    | false    |
+| HOST_FEE_SHARE_DEBT     | DEBIT  | -68    | EUR      | -81                  | USD          | 0          | OC Inc | OSC    | OC Inc | SETTLED    | false    |
+| HOST_FEE_SHARE          | CREDIT | 68     | EUR      | 81                   | USD          | 0          | OC Inc | OSC    | OC Inc |            | false    |
+| HOST_FEE_SHARE          | DEBIT  | -68    | EUR      | -68                  | EUR          | 0          | OSC    | OC Inc | OSC    |            | false    |
+| HOST_FEE                | CREDIT | 450    | EUR      | 450                  | EUR          | 0          | OSC    | ESLint | OSC    |            | false    |
+| HOST_FEE                | DEBIT  | -450   | EUR      | -450                 | EUR          | 0          | ESLint | OSC    | OSC    |            | false    |
+| PLATFORM_TIP_DEBT       | CREDIT | 1000   | EUR      | 1000                 | EUR          | 0          | OSC    | OC Inc | OSC    | SETTLED    | false    |
+| PLATFORM_TIP_DEBT       | DEBIT  | -1000  | EUR      | -1190                | USD          | 0          | OC Inc | OSC    | OC Inc | SETTLED    | false    |
+| PLATFORM_TIP            | CREDIT | 1000   | EUR      | 1190                 | USD          | 0          | OC Inc | Ben    | OC Inc |            | false    |
+| PLATFORM_TIP            | DEBIT  | -1000  | EUR      | -1190                | USD          | 0          | Ben    | OC Inc | NULL   |            | false    |"
 `;
 
 exports[`test/stories/ledger Level 3: Host and collective with different currencies (Host=EUR, Collective=JPY) 🤯️ Refunded contribution with host fees, payment processor fees and indirect platform tip 1`] = `
 "
-| kind                  | type   | amount    | currency | amountInHostCurrency | hostCurrency | paymentFee | To     | From   | Host   | Settlement | isRefund |
-| --------------------- | ------ | --------- | -------- | -------------------- | ------------ | ---------- | ------ | ------ | ------ | ---------- | -------- |
-| CONTRIBUTION          | CREDIT | 90000000  | JPY      | 675000               | EUR          | 0          | Ben    | ESLint | NULL   |            | true     |
-| CONTRIBUTION          | DEBIT  | -90000000 | JPY      | -675000              | EUR          | 0          | ESLint | Ben    | OSC    |            | true     |
-| HOST_FEE_SHARE_DEBT   | CREDIT | 5063      | EUR      | 6025                 | USD          | 0          | OC Inc | OSC    | OC Inc | OWED       | true     |
-| HOST_FEE_SHARE_DEBT   | DEBIT  | -5063     | EUR      | -5063                | EUR          | 0          | OSC    | OC Inc | OSC    | OWED       | true     |
-| HOST_FEE_SHARE        | CREDIT | 5063      | EUR      | 5063                 | EUR          | 0          | OSC    | OC Inc | OSC    |            | true     |
-| HOST_FEE_SHARE        | DEBIT  | -5063     | EUR      | -6025                | USD          | 0          | OC Inc | OSC    | OC Inc |            | true     |
-| HOST_FEE              | CREDIT | 4500000   | JPY      | 33750                | EUR          | 0          | ESLint | OSC    | OSC    |            | true     |
-| HOST_FEE              | DEBIT  | -4500000  | JPY      | -33750               | EUR          | 0          | OSC    | ESLint | OSC    |            | true     |
-| PAYMENT_PROCESSOR_FEE | CREDIT | 26667     | JPY      | 200                  | EUR          | 0          | ESLint | OSC    | OSC    |            | true     |
-| PAYMENT_PROCESSOR_FEE | DEBIT  | -26667    | JPY      | -200                 | EUR          | 0          | OSC    | ESLint | OSC    |            | true     |
-| PLATFORM_TIP_DEBT     | CREDIT | 10000000  | JPY      | 90000                | USD          | 0          | OC Inc | OSC    | OC Inc | OWED       | true     |
-| PLATFORM_TIP_DEBT     | DEBIT  | -10000000 | JPY      | -75000               | EUR          | 0          | OSC    | OC Inc | OSC    | OWED       | true     |
-| PLATFORM_TIP          | CREDIT | 10000000  | JPY      | 90000                | USD          | 0          | Ben    | OC Inc | NULL   |            | true     |
-| PLATFORM_TIP          | DEBIT  | -10000000 | JPY      | -90000               | USD          | 0          | OC Inc | Ben    | OC Inc |            | true     |
-| EXPENSE               | CREDIT | 80063     | EUR      | 95275                | USD          | 0          | OC Inc | OSC    | OC Inc |            | false    |
-| EXPENSE               | DEBIT  | -80063    | EUR      | -80063               | EUR          | 0          | OSC    | OC Inc | OSC    |            | false    |
-| CONTRIBUTION          | CREDIT | 90000000  | JPY      | 675000               | EUR          | -200       | ESLint | Ben    | OSC    |            | false    |
-| CONTRIBUTION          | DEBIT  | -89973333 | JPY      | -674800              | EUR          | -200       | Ben    | ESLint | NULL   |            | false    |
-| HOST_FEE_SHARE_DEBT   | CREDIT | 5063      | EUR      | 5063                 | EUR          | 0          | OSC    | OC Inc | OSC    | SETTLED    | false    |
-| HOST_FEE_SHARE_DEBT   | DEBIT  | -5063     | EUR      | -6025                | USD          | 0          | OC Inc | OSC    | OC Inc | SETTLED    | false    |
-| HOST_FEE_SHARE        | CREDIT | 5063      | EUR      | 6025                 | USD          | 0          | OC Inc | OSC    | OC Inc |            | false    |
-| HOST_FEE_SHARE        | DEBIT  | -5063     | EUR      | -5063                | EUR          | 0          | OSC    | OC Inc | OSC    |            | false    |
-| HOST_FEE              | CREDIT | 4500000   | JPY      | 33750                | EUR          | 0          | OSC    | ESLint | OSC    |            | false    |
-| HOST_FEE              | DEBIT  | -4500000  | JPY      | -33750               | EUR          | 0          | ESLint | OSC    | OSC    |            | false    |
-| PLATFORM_TIP_DEBT     | CREDIT | 10000000  | JPY      | 75000                | EUR          | 0          | OSC    | OC Inc | OSC    | SETTLED    | false    |
-| PLATFORM_TIP_DEBT     | DEBIT  | -10000000 | JPY      | -90000               | USD          | 0          | OC Inc | OSC    | OC Inc | SETTLED    | false    |
-| PLATFORM_TIP          | CREDIT | 10000000  | JPY      | 90000                | USD          | 0          | OC Inc | Ben    | OC Inc |            | false    |
-| PLATFORM_TIP          | DEBIT  | -10000000 | JPY      | -90000               | USD          | 0          | Ben    | OC Inc | NULL   |            | false    |"
+| kind                    | type   | amount    | currency | amountInHostCurrency | hostCurrency | paymentFee | To     | From   | Host   | Settlement | isRefund |
+| ----------------------- | ------ | --------- | -------- | -------------------- | ------------ | ---------- | ------ | ------ | ------ | ---------- | -------- |
+| CONTRIBUTION            | CREDIT | 90000000  | JPY      | 675000               | EUR          | 0          | Ben    | ESLint | NULL   |            | true     |
+| CONTRIBUTION            | DEBIT  | -90000000 | JPY      | -675000              | EUR          | 0          | ESLint | Ben    | OSC    |            | true     |
+| HOST_FEE_SHARE_DEBT     | CREDIT | 5063      | EUR      | 6025                 | USD          | 0          | OC Inc | OSC    | OC Inc | OWED       | true     |
+| HOST_FEE_SHARE_DEBT     | DEBIT  | -5063     | EUR      | -5063                | EUR          | 0          | OSC    | OC Inc | OSC    | OWED       | true     |
+| HOST_FEE_SHARE          | CREDIT | 5063      | EUR      | 5063                 | EUR          | 0          | OSC    | OC Inc | OSC    |            | true     |
+| HOST_FEE_SHARE          | DEBIT  | -5063     | EUR      | -6025                | USD          | 0          | OC Inc | OSC    | OC Inc |            | true     |
+| HOST_FEE                | CREDIT | 4500000   | JPY      | 33750                | EUR          | 0          | ESLint | OSC    | OSC    |            | true     |
+| HOST_FEE                | DEBIT  | -4500000  | JPY      | -33750               | EUR          | 0          | OSC    | ESLint | OSC    |            | true     |
+| PAYMENT_PROCESSOR_COVER | CREDIT | 26667     | JPY      | 200                  | EUR          | 0          | ESLint | OSC    | OSC    |            | true     |
+| PAYMENT_PROCESSOR_COVER | DEBIT  | -26667    | JPY      | -200                 | EUR          | 0          | OSC    | ESLint | OSC    |            | true     |
+| PLATFORM_TIP_DEBT       | CREDIT | 10000000  | JPY      | 90000                | USD          | 0          | OC Inc | OSC    | OC Inc | OWED       | true     |
+| PLATFORM_TIP_DEBT       | DEBIT  | -10000000 | JPY      | -75000               | EUR          | 0          | OSC    | OC Inc | OSC    | OWED       | true     |
+| PLATFORM_TIP            | CREDIT | 10000000  | JPY      | 90000                | USD          | 0          | Ben    | OC Inc | NULL   |            | true     |
+| PLATFORM_TIP            | DEBIT  | -10000000 | JPY      | -90000               | USD          | 0          | OC Inc | Ben    | OC Inc |            | true     |
+| EXPENSE                 | CREDIT | 80063     | EUR      | 95275                | USD          | 0          | OC Inc | OSC    | OC Inc |            | false    |
+| EXPENSE                 | DEBIT  | -80063    | EUR      | -80063               | EUR          | 0          | OSC    | OC Inc | OSC    |            | false    |
+| CONTRIBUTION            | CREDIT | 90000000  | JPY      | 675000               | EUR          | -200       | ESLint | Ben    | OSC    |            | false    |
+| CONTRIBUTION            | DEBIT  | -89973333 | JPY      | -674800              | EUR          | -200       | Ben    | ESLint | NULL   |            | false    |
+| HOST_FEE_SHARE_DEBT     | CREDIT | 5063      | EUR      | 5063                 | EUR          | 0          | OSC    | OC Inc | OSC    | SETTLED    | false    |
+| HOST_FEE_SHARE_DEBT     | DEBIT  | -5063     | EUR      | -6025                | USD          | 0          | OC Inc | OSC    | OC Inc | SETTLED    | false    |
+| HOST_FEE_SHARE          | CREDIT | 5063      | EUR      | 6025                 | USD          | 0          | OC Inc | OSC    | OC Inc |            | false    |
+| HOST_FEE_SHARE          | DEBIT  | -5063     | EUR      | -5063                | EUR          | 0          | OSC    | OC Inc | OSC    |            | false    |
+| HOST_FEE                | CREDIT | 4500000   | JPY      | 33750                | EUR          | 0          | OSC    | ESLint | OSC    |            | false    |
+| HOST_FEE                | DEBIT  | -4500000  | JPY      | -33750               | EUR          | 0          | ESLint | OSC    | OSC    |            | false    |
+| PLATFORM_TIP_DEBT       | CREDIT | 10000000  | JPY      | 75000                | EUR          | 0          | OSC    | OC Inc | OSC    | SETTLED    | false    |
+| PLATFORM_TIP_DEBT       | DEBIT  | -10000000 | JPY      | -90000               | USD          | 0          | OC Inc | OSC    | OC Inc | SETTLED    | false    |
+| PLATFORM_TIP            | CREDIT | 10000000  | JPY      | 90000                | USD          | 0          | OC Inc | Ben    | OC Inc |            | false    |
+| PLATFORM_TIP            | DEBIT  | -10000000 | JPY      | -90000               | USD          | 0          | Ben    | OC Inc | NULL   |            | false    |"
 `;

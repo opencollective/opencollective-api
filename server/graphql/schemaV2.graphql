@@ -881,11 +881,6 @@ input CaptchaInput {
   token: String!
 
   """
-  HCatpcha site key
-  """
-  ekey: String
-
-  """
   Catpcha provider
   """
   provider: CaptchaProvider!
@@ -8407,6 +8402,7 @@ enum TransactionKind {
   HOST_FEE
   HOST_FEE_SHARE
   HOST_FEE_SHARE_DEBT
+  PAYMENT_PROCESSOR_COVER
   PAYMENT_PROCESSOR_FEE
   PLATFORM_FEE
   PLATFORM_TIP
