@@ -129,7 +129,7 @@ const processCollective = collective => {
   ];
 
   let emailData = {};
-  const options = {};
+  const options = { attachments: [] };
   const csvFilename = `${collective.slug}-${moment(d).format(dateFormat)}-transactions.csv`;
 
   return Promise.all(promises)
@@ -173,12 +173,10 @@ const processCollective = collective => {
           const collectivesById = { [collective.id]: collective };
           const csv = models.Transaction.exportCSV(data.collective.transactions, collectivesById);
 
-          options.attachments = [
-            {
-              filename: csvFilename,
-              content: csv,
-            },
-          ];
+          options.attachments.push({
+            filename: csvFilename,
+            content: csv,
+          });
         }
 
         emailData = data;
@@ -189,12 +187,10 @@ const processCollective = collective => {
       const transactionsCsvV2 = await getCollectiveTransactionsCsv(collective, { startDate, endDate });
       if (transactionsCsvV2) {
         const csvFilenameV2 = `${collective.slug}-${moment(d).format(dateFormat)}-transactions-v2.csv`;
-        options.attachments = [
-          {
-            filename: csvFilenameV2,
-            content: transactionsCsvV2,
-          },
-        ];
+        options.attachments.push({
+          filename: csvFilenameV2,
+          content: transactionsCsvV2,
+        });
         emailData.csvV2 = true;
       }
       return collective;
