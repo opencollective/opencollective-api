@@ -88,6 +88,36 @@ dropdb opencollective_test
 dropuser opencollective
 ```
 
+## Migrations
+
+When creating migrations and interacting with the database please follow the guidelines below.
+
+### Create a migration
+
+This will create a file in `migrations/` where you'll be able to put your migration and rollback procedures:
+
+```
+# The name of the migration should use kebab case
+
+npm run db:migration:create -- --name <name-of-your-migration>
+```
+
+**Note:** To create a migration, always use the above command, so that it aligns with the default [Sequelize](https://sequelize.org/) file naming conventions.
+
+### Run migrations
+
+This will run all the pending migrations in `migrations/`:
+
+```
+npm run db:migrate
+```
+
+### Rollback last migration
+
+```
+npm run db:migrate:undo
+```
+
 ## Troubleshooting
 
 For development, ensure that local connections do not require a password. Locate your `pg_hba.conf` file by running `SHOW hba_file;` from the psql prompt (`sudo -i -u postgres` + `psql` after clean install). This should look something like `/etc/postgresql/9.5/main/pg_hba.conf`. We'll call the parent directory of `pg_hba.conf` the `$POSTGRES_DATADIR`. `cd` to `$POSTGRES_DATADIR`, and edit `pg_hba.conf` to `trust` local socket connections and local IP connections. Restart `postgres` - on Mac OS X, there may be restart scripts already in place with `brew`, if not use `pg_ctl -D $POSTGRES_DATADIR restart`.
