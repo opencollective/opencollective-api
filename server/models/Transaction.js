@@ -550,11 +550,37 @@ function defineModel() {
         transaction,
       );
 
+      let HostCollectiveId;
+      // Credit card transactions (and similar) should not be marked with the HostCollectiveId
+      // Only Collective to Collective (and such) should be
+      // In the future, setting properly HostCollectiveId will help us calculate the balances
+
+      // So, do we want to set HostCollectiveId?
+      // - opencollective:
+      //   - collective: yes
+      //   - host: yes
+      //   - giftcard: yes if the source is collective (TODO)
+      //   - prepaid: no
+      //   - manual: no
+      // - stripe: no
+      // - paypal: no
+      // - thegivingblock: no
+
+      if (
+        transaction.PaymentMethod &&
+        transaction.PaymentMethod.service === 'opencollective' &&
+        ['collective', 'host'].includes(transaction.PaymentMethod.type)
+      ) {
+        HostCollectiveId = fromCollectiveHost.id;
+      }
+
+      // TODO: some kinds don't have a PaymentMethod as of today, should this be added automatically?
+
+      // TODO: what about expenses and Payout Method?
+
       oppositeTransaction = {
         ...oppositeTransaction,
-        // TODO: credit card transactions (and similar) should not be marked with the HostCollectiveId
-        //       only Collective to Collective (and such) should be
-        HostCollectiveId: fromCollectiveHost.id,
+        HostCollectiveId,
         hostCurrency,
         hostCurrencyFxRate,
         amount: -Math.round(transaction.netAmountInCollectiveCurrency),
