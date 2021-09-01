@@ -397,8 +397,12 @@ export const TransactionFields = () => {
     },
     paymentMethod: {
       type: PaymentMethod,
-      resolve(transaction) {
-        return models.PaymentMethod.findByPk(transaction.PaymentMethodId);
+      resolve(transaction, _, req) {
+        if (transaction.PaymentMethodId) {
+          return req.loaders.PaymentMethod.byId.load(transaction.PaymentMethodId);
+        } else {
+          return null;
+        }
       },
     },
     permissions: {
