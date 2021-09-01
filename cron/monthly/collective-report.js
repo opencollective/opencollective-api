@@ -8,6 +8,7 @@ import moment from 'moment';
 
 import { TransactionKind } from '../../server/constants/transaction-kind';
 import { generateHostFeeAmountForTransactionLoader } from '../../server/graphql/loaders/transactions';
+import { getCollectiveTransactionsCsv } from '../../server/lib/csv';
 import { notifyAdminsOfCollective } from '../../server/lib/notifications';
 import { getConsolidatedInvoicePdfs } from '../../server/lib/pdf';
 import { getTiersStats, parseToBoolean } from '../../server/lib/utils';
@@ -128,7 +129,7 @@ const processCollective = collective => {
   ];
 
   let emailData = {};
-  const options = {};
+  const options = { attachments: [] };
   const csvFilename = `${collective.slug}-${moment(d).format(dateFormat)}-transactions.csv`;
 
   return Promise.all(promises)
@@ -172,17 +173,27 @@ const processCollective = collective => {
           const collectivesById = { [collective.id]: collective };
           const csv = models.Transaction.exportCSV(data.collective.transactions, collectivesById);
 
-          options.attachments = [
-            {
-              filename: csvFilename,
-              content: csv,
-            },
-          ];
+          options.attachments.push({
+            filename: csvFilename,
+            content: csv,
+          });
         }
 
         emailData = data;
         return collective;
       });
+    })
+    .then(async collective => {
+      const transactionsCsvV2 = await getCollectiveTransactionsCsv(collective, { startDate, endDate });
+      if (transactionsCsvV2) {
+        const csvFilenameV2 = `${collective.slug}-${moment(d).format(dateFormat)}-transactions-v2.csv`;
+        options.attachments.push({
+          filename: csvFilenameV2,
+          content: transactionsCsvV2,
+        });
+        emailData.csvV2 = true;
+      }
+      return collective;
     })
     .then(async collective => {
       if (collective.type === 'ORGANIZATION') {
