@@ -3599,6 +3599,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions {
   The Collective hosting this Event
   """
   parentCollective: Collective @deprecated(reason: "2020/07/01 - Use parent instead.")
+
+  """
+  The Event end date and time
+  """
+  endsAt: DateTime
 }
 
 """
