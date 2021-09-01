@@ -17,6 +17,7 @@ const AES_ENCRYPTION_METHOD = config.thegivingblock.aesEncryptionMethod;
 const API_URL = config.thegivingblock.apiUrl;
 const USERNAME = config.thegivingblock.username;
 const PASSWORD = config.thegivingblock.password;
+const GENERIC_ERROR_MSG = 'Something went wrong, please contact support@opencollective.com.';
 
 async function apiRequest(path, options = {}, account) {
   const response = await fetch(`${API_URL}${path}`, options);
@@ -35,7 +36,6 @@ async function handleErrorsAndRetry(result, path, options = {}, account = null) 
   if (result.data.errorMessage) {
     if (result.data.meta.errorCode === 'INVALID_JWT_TOKEN' && account) {
       logger.debug('Access token is invalid. Requesting a new one.');
-      let error;
       try {
         await login(USERNAME, PASSWORD, account);
         if (options.body?.get('refreshToken')) {
@@ -46,13 +46,17 @@ async function handleErrorsAndRetry(result, path, options = {}, account = null) 
         }
         const response = await fetch(`${API_URL}${path}`, options);
         const result = await response.json();
+        if (result.data.errorMessage) {
+          throw new Error(`The Giving Block: ${result.data.errorMessage} ${result.data.meta.errorCode}`);
+        }
         return result.data;
       } catch (err) {
-        error = err;
+        logger.error(err.message);
+        throw new Error(GENERIC_ERROR_MSG);
       }
-      throw error;
     }
-    throw new Error(`The Giving Block: ${result.data.errorMessage} ${result.data.meta.errorCode}`);
+    logger.error(`The Giving Block: ${result.data.errorMessage} ${result.data.meta.errorCode}`);
+    throw new Error(GENERIC_ERROR_MSG);
   }
   return result.data;
 }
@@ -79,7 +83,7 @@ export async function getOrganizationsList(account) {
     Authorization: `Bearer ${account.data.accessToken}`,
   };
 
-  return apiRequest(`/organizations/list`, { headers });
+  return apiRequest(`/organizations/list`, { headers }, account);
 }
 
 export async function createDepositAddress(account, { organizationId, pledgeAmount, pledgeCurrency } = {}) {
