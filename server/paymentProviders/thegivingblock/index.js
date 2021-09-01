@@ -36,7 +36,6 @@ async function handleErrorsAndRetry(result, path, options = {}, account = null) 
   if (result.data.errorMessage) {
     if (result.data.meta.errorCode === 'INVALID_JWT_TOKEN' && account) {
       logger.debug('Access token is invalid. Requesting a new one.');
-      let error;
       try {
         await login(USERNAME, PASSWORD, account);
         if (options.body?.get('refreshToken')) {
@@ -47,12 +46,14 @@ async function handleErrorsAndRetry(result, path, options = {}, account = null) 
         }
         const response = await fetch(`${API_URL}${path}`, options);
         const result = await response.json();
+        if (result.data.errorMessage) {
+          throw new Error(`The Giving Block: ${result.data.errorMessage} ${result.data.meta.errorCode}`);
+        }
         return result.data;
       } catch (err) {
-        error = err;
+        logger.error(err.message);
+        throw new Error(GENERIC_ERROR_MSG);
       }
-      logger.error(error);
-      throw new Error(GENERIC_ERROR_MSG);
     }
     logger.error(`The Giving Block: ${result.data.errorMessage} ${result.data.meta.errorCode}`);
     throw new Error(GENERIC_ERROR_MSG);
@@ -82,7 +83,7 @@ export async function getOrganizationsList(account) {
     Authorization: `Bearer ${account.data.accessToken}`,
   };
 
-  return apiRequest(`/organizations/list`, { headers });
+  return apiRequest(`/organizations/list`, { headers }, account);
 }
 
 export async function createDepositAddress(account, { organizationId, pledgeAmount, pledgeCurrency } = {}) {
@@ -112,15 +113,11 @@ export const processOrder = async order => {
   await refresh(account);
 
   // create wallet address
-  const { depositAddress, pledgeId, errorMessage, meta } = await createDepositAddress(account, {
+  const { depositAddress, pledgeId } = await createDepositAddress(account, {
     organizationId: account.data.organizationId,
     pledgeAmount: order.data.customData.pledgeAmount,
     pledgeCurrency: order.data.customData.pledgeCurrency,
   });
-  if (errorMessage) {
-    logger.error(`The Giving Block: ${errorMessage} ${meta.errorCode}`);
-    throw new Error(GENERIC_ERROR_MSG);
-  }
 
   // update payment method
   // TODO: update name?
