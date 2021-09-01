@@ -98,8 +98,8 @@ const TransactionsQuery = {
     const include = [];
 
     // Check arguments
-    if (args.limit > 1000) {
-      throw new Error('Cannot fetch more than 1000 transactions at the same time, please adjust the limit');
+    if (args.limit > 10000 && !req.remoteUser?.isRoot()) {
+      throw new Error('Cannot fetch more than 10,000 transactions at the same time, please adjust the limit');
     }
 
     // Load accounts
