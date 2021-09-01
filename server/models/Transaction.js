@@ -602,9 +602,26 @@ function defineModel() {
   /**
    * Record a debt transaction and its associated settlement
    */
-  Transaction.createPlatformTipDebtTransactions = async ({ platformTipTransaction }, host) => {
+  Transaction.createPlatformTipDebtTransactions = async ({ transaction, platformTipTransaction }) => {
     if (platformTipTransaction.type === DEBIT) {
       throw new Error('createPlatformTipDebtTransactions must be given a CREDIT transaction');
+    }
+
+    // Retrieve transaction paymentMethod
+    let paymentMethod;
+    if (transaction.PaymentMethodId) {
+      paymentMethod = await models.PaymentMethod.findByPk(transaction.PaymentMethodId);
+    }
+
+    let FromCollectiveId;
+    if (paymentMethod && paymentMethod.service === 'opencollective' && paymentMethod.type === 'collective') {
+      const fromCollective = await models.Collective.findByPk(transaction.FromCollectiveId);
+      const fromCollectiveHost = await fromCollective.getHostCollective();
+      FromCollectiveId = fromCollectiveHost.id;
+    } else {
+      const collective = await models.Collective.findByPk(transaction.CollectiveId);
+      const host = await collective.getHostCollective();
+      FromCollectiveId = host.id;
     }
 
     // Create debt transaction
@@ -624,7 +641,7 @@ function defineModel() {
       kind: TransactionKind.PLATFORM_TIP_DEBT,
       isDebt: true,
       description: 'Platform Tip collected for Open Collective',
-      FromCollectiveId: host.id,
+      FromCollectiveId,
       // Opposite amounts
       amount: -platformTipTransaction.amount,
       netAmountInCollectiveCurrency: -platformTipTransaction.netAmountInCollectiveCurrency,
@@ -650,7 +667,7 @@ function defineModel() {
    * @param {models.Collective} The host
    * @param {boolean} Whether tip has been collected already (no debt needed)
    */
-  Transaction.createPlatformTipTransactions = async (transactionData, host, isDirectlyCollected = false) => {
+  Transaction.createPlatformTipTransactions = async (transactionData, isDirectlyCollected = false) => {
     const platformTip = getPlatformTip(transactionData);
     if (!platformTip) {
       return;
@@ -684,7 +701,7 @@ function defineModel() {
       ]),
       type: CREDIT,
       kind: TransactionKind.PLATFORM_TIP,
-      description: 'Financial contribution to Open Collective',
+      description: 'Platform Tip to Open Collective',
       CollectiveId: PLATFORM_TIP_TRANSACTION_PROPERTIES.CollectiveId,
       HostCollectiveId: PLATFORM_TIP_TRANSACTION_PROPERTIES.HostCollectiveId,
       // Compute Amounts
@@ -709,10 +726,10 @@ function defineModel() {
     const platformTipTransaction = await Transaction.createDoubleEntry(platformTipTransactionData);
     let platformTipDebtTransaction;
     if (!isDirectlyCollected) {
-      platformTipDebtTransaction = await Transaction.createPlatformTipDebtTransactions(
-        { transaction: transactionData, platformTipTransaction },
-        host,
-      );
+      platformTipDebtTransaction = await Transaction.createPlatformTipDebtTransactions({
+        transaction: transactionData,
+        platformTipTransaction,
+      });
     }
 
     // If we have platformTipInHostCurrency available, we trust it, otherwise we compute it
@@ -903,6 +920,72 @@ function defineModel() {
     return hostFeeShareDebtTransaction;
   };
 
+  Transaction.createContributionDebtTransactions = async ({ transaction }, host) => {
+    console.log('createContributionDebtTransactions', transaction, host);
+
+    // Let be clear on what we're expecting
+    if (transaction.type !== CREDIT || transaction.kind !== TransactionKind.CONTRIBUTION) {
+      throw new Error('createContributionDebtTransactions must be given a CREDIT CONTRIBUTION');
+    }
+
+    // We're only proceeding with 'collective' payment methods
+    let paymentMethod;
+    if (transaction.PaymentMethodId) {
+      paymentMethod = await models.PaymentMethod.findByPk(transaction.PaymentMethodId);
+    }
+    if (!paymentMethod || !(paymentMethod.service === 'opencollective' && paymentMethod.type === 'collective')) {
+      return;
+    }
+
+    const fromCollective = await models.Collective.findByPk(transaction.FromCollectiveId);
+    const fromCollectiveHost = await fromCollective.getHostCollective();
+    // This should be already checked in the 'collective' processOrder
+    if (!fromCollectiveHost) {
+      throw new Error('createContributionDebtTransactions needs a valid fromCollectiveHost');
+    }
+
+    // Same host, nothing to do
+    if (fromCollectiveHost.id === host.id) {
+      return;
+    }
+
+    // Create debt transaction
+    const contributionDebtTransactionData = {
+      // Copy base values from the original CREDIT CONTRIBUTION
+      ...pick(transaction.dataValues, [
+        'TransactionGroup',
+        'OrderId',
+        'createdAt',
+        'currency',
+        'hostCurrency',
+        'hostCurrencyFxRate',
+      ]),
+      CollectiveId: host.id,
+      HostCollectiveId: host.id,
+      FromCollectiveId: fromCollectiveHost.id,
+      type: DEBIT,
+      kind: TransactionKind.CONTRIBUTION_DEBT,
+      isDebt: true,
+      description: `Contribution owed to Host (${host.name})`,
+      // Opposite amounts
+      amount: -transaction.amount,
+      netAmountInCollectiveCurrency: -transaction.netAmountInCollectiveCurrency,
+      amountInHostCurrency: -transaction.amountInHostCurrency,
+      // No fees
+      platformFeeInHostCurrency: 0,
+      hostFeeInHostCurrency: 0,
+      paymentProcessorFeeInHostCurrency: 0,
+    };
+
+    const contributionDebtTransaction = await Transaction.createDoubleEntry(contributionDebtTransactionData);
+
+    // Create settlement
+    const settlementStatus = TransactionSettlementStatus.OWED;
+    await models.TransactionSettlement.createForTransaction(contributionDebtTransaction, settlementStatus);
+
+    return contributionDebtTransaction;
+  };
+
   /**
    * Creates a transaction pair from given payload. Defaults to `CONTRIBUTION` kind unless
    * specified otherwise.
@@ -946,7 +1029,6 @@ function defineModel() {
     // Separate donation transaction and remove platformTip from the main transaction
     const result = await Transaction.createPlatformTipTransactions(
       transaction,
-      host,
       Boolean(opts?.isPlatformRevenueDirectlyCollected),
     );
     // Transaction was modified by createPlatformTipTransactions, we get it from the result
@@ -978,7 +1060,13 @@ function defineModel() {
 
     transaction.netAmountInCollectiveCurrency = Transaction.calculateNetAmountInCollectiveCurrency(transaction);
 
-    return Transaction.createDoubleEntry(transaction);
+    const createdTransaction = await Transaction.createDoubleEntry(transaction);
+
+    if (createdTransaction.kind === TransactionKind.CONTRIBUTION) {
+      await Transaction.createContributionDebtTransactions({ transaction: createdTransaction }, host);
+    }
+
+    return createdTransaction;
   };
 
   Transaction.createActivity = (transaction, options) => {

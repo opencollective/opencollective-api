@@ -94,6 +94,22 @@ exports[`test/stories/ledger Level 1: Same currency (USD) 5. Refunded contributi
 | PLATFORM_TIP            | DEBIT  | -1000  | 0          | Ben    | OC Inc | NULL   |            | false    |"
 `;
 
+exports[`test/stories/ledger Level 1: Same currency (USD) 6. Cross Host contribution with 5% host fees and indirect platform tip (unsettled) 1`] = `
+"
+| kind              | type   | amount | paymentFee | To         | From       | Host       | Settlement | isRefund |
+| ----------------- | ------ | ------ | ---------- | ---------- | ---------- | ---------- | ---------- | -------- |
+| CONTRIBUTION_DEBT | CREDIT | 9000   | 0          | Foundation | OSC        | Foundation | OWED       | false    |
+| CONTRIBUTION_DEBT | DEBIT  | -9000  | 0          | OSC        | Foundation | OSC        | OWED       | false    |
+| CONTRIBUTION      | CREDIT | 9000   | 0          | ESLint     | DI         | OSC        |            | false    |
+| CONTRIBUTION      | DEBIT  | -9000  | 0          | DI         | ESLint     | Foundation |            | false    |
+| PLATFORM_TIP_DEBT | CREDIT | 1000   | 0          | Foundation | OC Inc     | Foundation | OWED       | false    |
+| PLATFORM_TIP_DEBT | DEBIT  | -1000  | 0          | OC Inc     | Foundation | OC Inc     | OWED       | false    |
+| PLATFORM_TIP      | CREDIT | 1000   | 0          | OC Inc     | DI         | OC Inc     |            | false    |
+| PLATFORM_TIP      | DEBIT  | -1000  | 0          | DI         | OC Inc     | Foundation |            | false    |
+| CONTRIBUTION      | CREDIT | 10000  | 0          | DI         | Ben        | Foundation |            | false    |
+| CONTRIBUTION      | DEBIT  | -10000 | 0          | Ben        | DI         | NULL       |            | false    |"
+`;
+
 exports[`test/stories/ledger Level 2: Host with a different currency (Host=EUR, Collective=EUR) Refunded contribution with host fees, payment processor fees and indirect platform tip 1`] = `
 "
 | kind                    | type   | amount | currency | amountInHostCurrency | hostCurrency | paymentFee | To     | From   | Host   | Settlement | isRefund |

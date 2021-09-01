@@ -56,13 +56,29 @@ const setupTestData = async (hostCurrency, collectiveCurrency) => {
     name: 'OSC',
     admin: hostAdmin.collective,
     currency: hostCurrency,
-    plan: 'grow-plan-2021', // Use a plan with 15% host share
+    plan: 'grow-plan-2021', // Use a plan with 15% host share,
   });
   await hostAdmin.populateRoles();
   await host.update({ HostCollectiveId: host.id, isActive: true });
+  const secondHostAdmin = await fakeUser();
+  const secondHost = await fakeHost({
+    name: 'Foundation',
+    admin: secondHostAdmin.collective,
+    currency: hostCurrency,
+    plan: 'grow-plan-2021', // Use a plan with 15% host share,
+    settings: { crossHostContributions: true },
+  });
+  await secondHostAdmin.populateRoles();
+  await secondHost.update({ HostCollectiveId: secondHost.id, isActive: true });
   const collective = await fakeCollective({
     HostCollectiveId: host.id,
     name: 'ESLint',
+    hostFeePercent: 5,
+    currency: collectiveCurrency,
+  });
+  const secondCollective = await fakeCollective({
+    HostCollectiveId: secondHost.id,
+    name: 'DI',
     hostFeePercent: 5,
     currency: collectiveCurrency,
   });
@@ -79,7 +95,7 @@ const setupTestData = async (hostCurrency, collectiveCurrency) => {
     PaymentMethodId: null,
   };
 
-  return { collective, host, hostAdmin, ocInc, contributorUser, baseOrderData };
+  return { collective, secondCollective, host, secondHost, hostAdmin, ocInc, contributorUser, baseOrderData };
 };
 
 /**
@@ -94,7 +110,7 @@ const executeAllSettlement = async remoteUser => {
 };
 
 describe('test/stories/ledger', () => {
-  let collective, host, hostAdmin, ocInc, contributorUser, baseOrderData;
+  let collective, secondCollective, host, secondHost, hostAdmin, ocInc, contributorUser, baseOrderData;
 
   // Mock currency conversion rates, based on real rates from 2021-06-23
   before(() => {
@@ -115,7 +131,8 @@ describe('test/stories/ledger', () => {
 
   describe('Level 1: Same currency (USD)', () => {
     beforeEach(async () => {
-      ({ collective, host, hostAdmin, ocInc, contributorUser, baseOrderData } = await setupTestData('USD', 'USD'));
+      ({ collective, secondCollective, host, secondHost, hostAdmin, ocInc, contributorUser, baseOrderData } =
+        await setupTestData('USD', 'USD'));
     });
 
     it('1. Simple contribution without host fees', async () => {
@@ -240,6 +257,46 @@ describe('test/stories/ledger', () => {
 
       // Run OC settlement
       // TODO: We should run the opposite settlement and check amount
+    });
+
+    it('6. Cross Host contribution with 5% host fees and indirect platform tip (unsettled)', async () => {
+      // Add some money to the secondCollective balance
+      await secondCollective.update({ hostFeePercent: 0 });
+      const firstOrderData = {
+        ...baseOrderData,
+        CollectiveId: secondCollective.id,
+        description: `Financial contribution to ${secondCollective.name}`,
+      };
+      const firstOrder = await fakeOrder(firstOrderData);
+      firstOrder.paymentMethod = { service: 'opencollective', type: 'manual', paid: true };
+      await executeOrder(contributorUser, firstOrder);
+
+      // Donate from secondCollective to Collective
+      const paymentMethod = await models.PaymentMethod.findOne({
+        where: {
+          service: 'opencollective',
+          type: 'collective',
+          CollectiveId: secondCollective.id,
+        },
+      });
+      const orderData = {
+        ...baseOrderData,
+        FromCollectiveId: secondCollective.id,
+        PaymentMethodId: paymentMethod.id,
+        data: { isFeesOnTop: true, platformFee: 1000 },
+      };
+      const order = await fakeOrder(orderData);
+      order.paymentMethod = paymentMethod;
+      await executeOrder(contributorUser, order);
+
+      await snapshotLedger(SNAPSHOT_COLUMNS);
+      expect(await collective.getBalance()).to.eq(9000); // (10000 Total - 1000 platform tip)
+      expect(await secondHost.getTotalMoneyManaged()).to.eq(10000); // Contribution and Tip are still on Host account
+      expect(await host.getTotalMoneyManaged()).to.eq(0); // Host has not received anything yet
+      expect(await host.getBalance()).to.eq(-9000); // Host is porting the debt and waiting for settlement
+      expect(await host.getBalanceWithBlockedFunds()).to.eq(-9000); //  Host is porting the debt and waiting for settlement
+      // TODO We should have a "Projected balance" that removes everything owed
+      expect(await ocInc.getBalance()).to.eq(0);
     });
   });
 

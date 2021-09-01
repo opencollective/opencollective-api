@@ -38,7 +38,9 @@ paymentMethodProvider.processOrder = async order => {
   if (!host) {
     throw new Error('Cannot use the Open Collective payment method to a recipient without an Host.');
   }
-  if (fromCollectiveHost.id !== host.id) {
+
+  if (fromCollectiveHost.id !== host.id && !fromCollectiveHost.settings?.crossHostContributions) {
+    // TODO(crossHostContributions): more sophisticated authorization
     throw new Error(
       `Cannot use the Open Collective payment method to make a payment between different hosts: ${fromCollectiveHost.name} -> ${host.name}`,
     );
