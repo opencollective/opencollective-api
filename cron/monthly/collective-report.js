@@ -26,6 +26,8 @@ if (config.env === 'production' && today.getDate() !== 1 && !process.env.OFFCYCL
 
 process.env.PORT = 3066;
 
+const CONCURRENCY = process.env.CONCURRENCY || 1;
+
 const d = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date();
 d.setMonth(d.getMonth() - 1);
 const month = moment(d).format('MMMM');
@@ -38,7 +40,7 @@ const endDate = new Date(d.getFullYear(), d.getMonth() + 1, 1);
 console.log('startDate', startDate, 'endDate', endDate);
 
 const processCollectives = collectives => {
-  return Promise.map(collectives, processCollective, { concurrency: 1 });
+  return Promise.mapSeries(collectives, processCollective, { concurrency: CONCURRENCY });
 };
 
 const hostFeeAmountForTransactionLoader = generateHostFeeAmountForTransactionLoader();
@@ -109,7 +111,7 @@ const init = async () => {
   });
 };
 
-const processCollective = collective => {
+const processCollective = async collective => {
   const promises = [
     collective.getTiersWithUsers({
       attributes: ['id', 'slug', 'name', 'image', 'firstDonation', 'lastDonation', 'totalDonations', 'tier'],
