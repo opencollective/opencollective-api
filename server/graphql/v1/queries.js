@@ -221,9 +221,14 @@ const queries = {
       const fromCollectiveId = transaction.paymentMethodProviderCollectiveId();
 
       // Load transaction host
-      const collectiveId = transaction.type === 'CREDIT' ? transaction.CollectiveId : transaction.FromCollectiveId;
-      const collective = await models.Collective.findByPk(collectiveId);
-      transaction.host = await collective.getHostCollective();
+      if (transaction.HostCollectiveId) {
+        transaction.host = await transaction.getHostCollective();
+      } else {
+        const collectiveId = transaction.type === 'CREDIT' ? transaction.CollectiveId : transaction.FromCollectiveId;
+        const collective = await models.Collective.findByPk(collectiveId);
+        transaction.host = await collective.getHostCollective();
+      }
+
       if (canDownloadInvoice(transaction, null, req)) {
         allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_LEGAL_NAME, fromCollectiveId);
       }
