@@ -36,7 +36,7 @@ function defineModel() {
       slug: {
         type: DataTypes.VIRTUAL(DataTypes.STRING),
         get() {
-          return slugify(this.get('title')) || 'conversation';
+          return slugify(this.get('title') || 'conversation');
         },
       },
       summary: {

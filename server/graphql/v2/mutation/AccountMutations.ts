@@ -7,9 +7,9 @@ import { cloneDeep, set } from 'lodash';
 import plans from '../../../constants/plans';
 import cache, { purgeGQLCacheForCollective } from '../../../lib/cache';
 import { purgeCacheForPage } from '../../../lib/cloudflare';
-import { mergeCollectives, simulateMergeCollectives } from '../../../lib/collectivelib';
 import { invalidateContributorsCache } from '../../../lib/contributors';
 import { crypto } from '../../../lib/encryption';
+import { mergeAccounts, simulateMergeAccounts } from '../../../lib/merge-accounts';
 import { verifyTwoFactorAuthenticatorCode } from '../../../lib/two-factor-authentication';
 import models, { sequelize } from '../../../models';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
@@ -385,11 +385,12 @@ const accountMutations = {
       const toAccount = await fetchAccountWithReference(args.toAccount, { throwIfMissing: true });
 
       if (args.dryRun) {
-        const message = await simulateMergeCollectives(fromAccount, toAccount);
+        const message = await simulateMergeAccounts(fromAccount, toAccount);
         return { account: toAccount, message };
       } else {
-        await mergeCollectives(fromAccount, toAccount);
-        return { account: await toAccount.reload() };
+        const warnings = await mergeAccounts(fromAccount, toAccount, req.remoteUser.id);
+        const message = warnings.join('\n');
+        return { account: await toAccount.reload(), message: message || null };
       }
     },
   },

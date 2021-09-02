@@ -16,6 +16,7 @@ import HostApplication from './HostApplication';
 import LegalDocument from './LegalDocument';
 import Member from './Member';
 import MemberInvitation from './MemberInvitation';
+import MigrationLog from './MigrationLog';
 import Notification from './Notification';
 import Order from './Order';
 import PaymentMethod from './PaymentMethod';
@@ -57,6 +58,7 @@ export function setupModels() {
   m['LegalDocument'] = LegalDocument;
   m['Member'] = Member;
   m['MemberInvitation'] = MemberInvitation;
+  m['MigrationLog'] = MigrationLog;
   m['Notification'] = Notification;
   m['Order'] = Order;
   m['PaymentMethod'] = PaymentMethod;

@@ -75,6 +75,11 @@ function defineModel() {
         defaultValue: DataTypes.NOW,
       },
 
+      deletedAt: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
+
       confirmedAt: {
         type: DataTypes.DATE,
         defaultValue: DataTypes.NOW,

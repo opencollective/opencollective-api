@@ -3,7 +3,7 @@ import '../server/env';
 
 import readline from 'readline';
 
-import { mergeCollectives, simulateMergeCollectives } from '../server/lib/collectivelib';
+import { mergeAccounts, simulateMergeAccounts } from '../server/lib/merge-accounts';
 import models from '../server/models';
 
 const confirmAction = question => {
@@ -28,7 +28,7 @@ const printMergeSummary = async (fromCollective, intoCollective) => {
   );
   console.log('==============================================================');
 
-  const summary = await simulateMergeCollectives(fromCollective, intoCollective);
+  const summary = await simulateMergeAccounts(fromCollective, intoCollective);
   console.log(summary);
 };
 
@@ -59,7 +59,7 @@ async function main() {
       `\nMerging ${fromCollective.slug} (#${fromCollective.id}) into ${intoCollective.slug} (#${intoCollective.id})...`,
     );
     await sleep(3000); // Wait some time so user can CTRL+C if there's a mistake
-    await mergeCollectives(fromCollective, intoCollective);
+    await mergeAccounts(fromCollective, intoCollective);
   } else {
     console.log('Aborting, nothing changed.');
   }
