@@ -65,6 +65,7 @@ const init = async () => {
       type: { [Op.in]: ['COLLECTIVE', 'ORGANIZATION'] },
       isActive: true,
     },
+    order: [['id', 'ASC']],
   };
 
   let slugs;
@@ -86,6 +87,10 @@ const init = async () => {
   }
   if (slugs) {
     query.where.slug = { [Op.in]: slugs };
+  }
+
+  if (process.env.AFTER_ID) {
+    query.where.id = { [Op.gt]: Number(process.env.AFTER_ID) };
   }
 
   const collectives = await models.Collective.findAll(query);
