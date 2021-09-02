@@ -5,7 +5,7 @@ import GraphQLJSON from 'graphql-type-json';
 import { cloneDeep, set } from 'lodash';
 
 import plans from '../../../constants/plans';
-import cache, { purgeGQLCacheForCollective } from '../../../lib/cache';
+import cache, { purgeAllCachesForAccount, purgeGQLCacheForCollective } from '../../../lib/cache';
 import { purgeCacheForPage } from '../../../lib/cloudflare';
 import { invalidateContributorsCache } from '../../../lib/contributors';
 import { crypto } from '../../../lib/encryption';
@@ -389,6 +389,9 @@ const accountMutations = {
         return { account: toAccount, message };
       } else {
         const warnings = await mergeAccounts(fromAccount, toAccount, req.remoteUser.id);
+        await Promise.all([purgeAllCachesForAccount(fromAccount), purgeAllCachesForAccount(toAccount)]).catch(() => {
+          // Ignore errors
+        });
         const message = warnings.join('\n');
         return { account: await toAccount.reload(), message: message || null };
       }
