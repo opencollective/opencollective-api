@@ -89,6 +89,11 @@ const init = async () => {
     query.where.slug = { [Op.in]: slugs };
   }
 
+  if (process.env.SKIP_SLUGS) {
+    const skipSlugs = process.env.SKIP_SLUGS.split(',');
+    query.where.slug = { [Op.notIn]: skipSlugs };
+  }
+
   if (process.env.AFTER_ID) {
     query.where.id = { [Op.gt]: Number(process.env.AFTER_ID) };
   }
@@ -189,14 +194,16 @@ const processCollective = collective => {
       });
     })
     .then(async collective => {
-      const transactionsCsvV2 = await getCollectiveTransactionsCsv(collective, { startDate, endDate });
-      if (transactionsCsvV2) {
-        const csvFilenameV2 = `${collective.slug}-${moment(d).format(dateFormat)}-transactions-v2.csv`;
-        options.attachments.push({
-          filename: csvFilenameV2,
-          content: transactionsCsvV2,
-        });
-        emailData.csvV2 = true;
+      if (emailData.collective.transactions && emailData.collective.transactions.length > 0) {
+        const transactionsCsvV2 = await getCollectiveTransactionsCsv(collective, { startDate, endDate });
+        if (transactionsCsvV2) {
+          const csvFilenameV2 = `${collective.slug}-${moment(d).format(dateFormat)}-transactions-v2.csv`;
+          options.attachments.push({
+            filename: csvFilenameV2,
+            content: transactionsCsvV2,
+          });
+          emailData.csvV2 = true;
+        }
       }
       return collective;
     })
