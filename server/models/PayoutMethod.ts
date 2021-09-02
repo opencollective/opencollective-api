@@ -23,11 +23,13 @@ export enum PayoutMethodTypes {
 /** An interface for the values stored in `data` field for PayPal payout methods */
 export interface PaypalPayoutMethodData {
   email: string;
+  accountHolderName: string;
 }
 
 /** An interface for the values stored in `data` field for Custom payout methods */
 export interface OtherPayoutMethodData {
   content: string;
+  accountHolderName: string;
 }
 
 /** Group all the possible types for payout method's data */
