@@ -52,6 +52,13 @@ export interface CollectionReturnType {
   totalCount: number;
   limit: number;
   offset: number;
+}
+
+export interface TransactionsCollectionReturnType {
+  nodes: Record<string, unknown>[];
+  totalCount: number;
+  limit: number;
+  offset: number;
   kinds?: Array<string>;
 }
 

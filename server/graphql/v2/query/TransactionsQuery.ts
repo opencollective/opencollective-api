@@ -8,7 +8,7 @@ import { TransactionKind } from '../enum/TransactionKind';
 import { TransactionType } from '../enum/TransactionType';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
-import { CollectionArgs, CollectionReturnType } from '../interface/Collection';
+import { CollectionArgs, TransactionsCollectionReturnType } from '../interface/Collection';
 
 const TransactionsQuery = {
   type: TransactionCollection,
@@ -93,7 +93,7 @@ const TransactionsQuery = {
       description: 'To filter by transaction kind',
     },
   },
-  async resolve(_: void, args, req: express.Request): Promise<CollectionReturnType> {
+  async resolve(_: void, args, req: express.Request): Promise<TransactionsCollectionReturnType> {
     const where = [];
     const include = [];
 
