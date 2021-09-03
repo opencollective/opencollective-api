@@ -164,6 +164,12 @@ export const Order = new GraphQLObjectType({
           }
         },
       },
+      tags: {
+        type: new GraphQLNonNull(new GraphQLList(GraphQLString)),
+        resolve(order) {
+          return order.tags || [];
+        },
+      },
       taxes: {
         type: new GraphQLNonNull(new GraphQLList(OrderTax)),
         resolve(order) {

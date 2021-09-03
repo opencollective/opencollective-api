@@ -534,6 +534,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
       publicMessage: order.publicMessage, // deprecated: '2019-07-03: This info is now stored at the Member level'
       privateMessage: order.privateMessage,
       processedAt: paymentRequired || !collective.isActive ? null : new Date(),
+      tags: order.tags,
       data: {
         reqIp,
         reqMask,

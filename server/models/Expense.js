@@ -221,7 +221,7 @@ function defineModel() {
         type: DataTypes.ARRAY(DataTypes.STRING),
         set(tags) {
           const sanitizedTags = sanitizeTags(tags);
-          if (!tags || sanitizedTags.length === 0) {
+          if (!sanitizedTags?.length) {
             this.setDataValue('tags', null);
           } else {
             this.setDataValue('tags', sanitizedTags);
