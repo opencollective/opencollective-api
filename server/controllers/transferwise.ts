@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { pick, uniq } from 'lodash';
+import { pick } from 'lodash';
 
 import expenseStatus from '../constants/expense_status';
 import {
@@ -50,14 +50,27 @@ export async function payBatch(
     if (!remoteUser.isAdmin(host.id)) {
       throw new errors.Unauthorized('User must be admin of host collective');
     }
-    // TODO: ensure expense ids are sent with the OTT retry request
     const expenseIds = body?.expenseIds?.map(id => idDecode(id, IDENTIFIER_TYPES.EXPENSE));
     const expenses = await models.Expense.findAll({
       where: { id: { [Op.in]: expenseIds } },
-      include: [{ model: models.PayoutMethod, as: 'PayoutMethod' }],
+      include: [
+        { model: models.PayoutMethod, as: 'PayoutMethod', required: true },
+        {
+          model: models.Collective,
+          as: 'collective',
+          where: { HostCollectiveId: host.id },
+          required: true,
+        },
+      ],
     });
 
     if (expenseIds.length !== expenses.length) {
+      logger.error(
+        `Wise Batch Pay: Could not find every requested expense. ${JSON.stringify({
+          requested: expenseIds,
+          found: expenses.map(e => e.id),
+        })}`,
+      );
       throw new errors.NotFound('Could not find every expense requested');
     }
     const ottHeader = headers['x-2fa-approval'] as string;
@@ -75,13 +88,6 @@ export async function payBatch(
           throw new Error('Expense must be scheduled for payment');
         }
       });
-
-      const collectiveIds = uniq(expenses.map(e => e.CollectiveId));
-      const collectives = await models.Collective.findAll({ where: { id: { [Op.in]: collectiveIds } } });
-      const hostIds = uniq(collectives.map(c => c.HostCollectiveId));
-      if (hostIds.length !== 1 || hostIds[0] !== host.id) {
-        throw new errors.BadRequest('Expenses must belong to the requested host');
-      }
 
       const batchGroup = await transferwise.createExpensesBatchGroup(host, expenses);
       const fundResponse = await transferwise.fundExpensesBatchGroup(host, batchGroup);
