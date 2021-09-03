@@ -299,13 +299,13 @@ const accountFieldsDefinition = () => ({
     description: 'The list of payment methods that this account can use to pay for Orders',
     args: {
       type: {
-        type: new GraphQLList(GraphQLString),
-        description: 'Filter on given types (creditcard, giftcard...)',
-        deprecationReason: '2021-08-15: moving from String to Enum, use enumType during the migration',
+        type: new GraphQLList(PaymentMethodType),
+        description: 'Filter on given types (CREDITCARD, GIFTCARD...)',
       },
       enumType: {
         type: new GraphQLList(PaymentMethodType),
         description: 'Filter on given types (CREDITCARD, GIFTCARD...)',
+        deprecationReason: '2021-08-20: use type instead from now',
       },
       service: {
         type: new GraphQLList(PaymentMethodService),
@@ -831,10 +831,12 @@ export const AccountFields = {
     type: new GraphQLNonNull(new GraphQLList(PaymentMethod)),
     args: {
       type: {
-        type: new GraphQLList(GraphQLString),
-        deprecationReason: '2021-08-15: moving from String to Enum, use enumType during the migration',
+        type: new GraphQLList(PaymentMethodType),
       },
-      enumType: { type: new GraphQLList(PaymentMethodType) },
+      enumType: {
+        type: new GraphQLList(PaymentMethodType),
+        deprecationReason: '2021-08-20: use type instead from now',
+      },
       service: { type: new GraphQLList(PaymentMethodService) },
       includeExpired: {
         type: GraphQLBoolean,

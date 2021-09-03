@@ -19,12 +19,13 @@ export const PaymentMethodInput = new GraphQLInputObjectType({
       type: GraphQLString,
       description: 'The id assigned to the payment method',
     },
+    service: {
+      type: PaymentMethodService,
+      description: 'Service of this payment method',
+    },
     type: {
-      type: PaymentMethodLegacyType,
+      type: PaymentMethodType,
       description: 'Type of this payment method',
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore `deprecationReason` is not yet exposed by graphql but it does exist
-      deprecationReason: '2021-03-02: Please use service + type',
     },
     legacyType: {
       type: PaymentMethodLegacyType,
@@ -33,12 +34,11 @@ export const PaymentMethodInput = new GraphQLInputObjectType({
       // @ts-ignore `deprecationReason` is not yet exposed by graphql but it does exist
       deprecationReason: '2021-03-02: Please use service + type',
     },
-    service: {
-      type: PaymentMethodService,
-    },
     newType: {
-      // TODO: Migrate to `type`
       type: PaymentMethodType,
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore `deprecationReason` is not yet exposed by graphql but it does exist
+      deprecationReason: '2021-08-20: Please use type instead',
     },
     name: {
       type: GraphQLString,
@@ -103,7 +103,7 @@ export const getLegacyPaymentMethodFromPaymentMethodInput = async (
     return getServiceTypeFromLegacyPaymentMethodType(pm.legacyType);
   } else if (pm.service && pm.newType) {
     return { service: pm.service, type: pm.newType };
-  } else {
-    return getServiceTypeFromLegacyPaymentMethodType(pm.type);
+  } else if (pm.service && pm.type) {
+    return { service: pm.service, type: pm.type };
   }
 };
