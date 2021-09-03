@@ -8,7 +8,7 @@ import { TransactionKind } from '../enum/TransactionKind';
 import { TransactionType } from '../enum/TransactionType';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
-import { CollectionArgs, CollectionReturnType } from '../interface/Collection';
+import { CollectionArgs, TransactionsCollectionReturnType } from '../interface/Collection';
 
 const TransactionsQuery = {
   type: TransactionCollection,
@@ -93,7 +93,7 @@ const TransactionsQuery = {
       description: 'To filter by transaction kind',
     },
   },
-  async resolve(_: void, args, req: express.Request): Promise<CollectionReturnType> {
+  async resolve(_: void, args, req: express.Request): Promise<TransactionsCollectionReturnType> {
     const where = [];
     const include = [];
 
@@ -152,6 +152,16 @@ const TransactionsQuery = {
     if (host) {
       where.push({ HostCollectiveId: host.id });
     }
+
+    // No await needed, GraphQL will take care of it
+    // TODO: try to skip if it's not a requested field
+    const existingKinds = models.Transaction.findAll({
+      attributes: ['kind'],
+      where,
+      group: ['kind'],
+      raw: true,
+    }).then(results => results.map(m => m.kind));
+
     if (args.searchTerm) {
       const sanitizedTerm = args.searchTerm.replace(/(_|%|\\)/g, '\\$1');
       const ilikeQuery = `%${sanitizedTerm}%`;
@@ -221,7 +231,13 @@ const TransactionsQuery = {
       include,
     });
 
-    return { nodes: result.rows, totalCount: result.count, limit: args.limit, offset: args.offset };
+    return {
+      nodes: result.rows,
+      totalCount: result.count,
+      limit: args.limit,
+      offset: args.offset,
+      kinds: existingKinds,
+    };
   },
 };
 
