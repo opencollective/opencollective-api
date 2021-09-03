@@ -627,7 +627,10 @@ export async function createExpense(
   // Create and validate TransferWise recipient
   let recipient;
   if (payoutMethod?.type === PayoutMethodTypes.BANK_ACCOUNT) {
-    if (payoutMethod.data?.accountHolderName !== expenseData.fromCollective.legalName) {
+    if (
+      expenseData.fromCollective.legalName &&
+      payoutMethod.data?.accountHolderName !== expenseData.fromCollective.legalName
+    ) {
       throw new Error('The legal name should match the bank account holder name');
     }
     const host = await collective.getHostCollective();
