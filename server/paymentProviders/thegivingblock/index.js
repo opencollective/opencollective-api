@@ -161,7 +161,12 @@ export const confirmOrder = async order => {
   const platformTipEligible = false;
   const platformTip = 0;
   const platformTipInHostCurrency = 0;
-  const paymentProcessorFeeInHostCurrency = 0;
+
+  const paymentProcessorFee =
+    order.data.payload.valueAtDonationTimeUSD && order.data.payload.netValueAmount
+      ? order.data.payload.valueAtDonationTimeUSD - order.data.payload.netValueAmount
+      : 0;
+  const paymentProcessorFeeInHostCurrency = Math.round(paymentProcessorFee * hostCurrencyFxRate);
 
   const transactionPayload = {
     ...pick(order, ['CreatedByUserId', 'FromCollectiveId', 'CollectiveId', 'PaymentMethodId']),

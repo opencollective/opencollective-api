@@ -16,8 +16,8 @@ export async function webhook(req) {
   logger.info(`payload: ${JSON.stringify(payload)}`);
 
   if (req.body.eventType === 'TRANSACTION_CONVERTED') {
-    const pledgeId = payload.pledgeId;
-    const netValueAmount = payload.netValueAmount;
+    // See: https://app.gitbook.com/@the-giving-block/s/public-api-documentation/webhook-notifications
+    const { pledgeId, valueAtDonationTimeUSD } = payload;
 
     const order = await models.Order.findOne({ where: { data: { pledgeId } } });
     if (!order) {
@@ -25,7 +25,12 @@ export async function webhook(req) {
     }
 
     // update totalAmount with latest value
-    await order.update({ totalAmount: Number(netValueAmount) * 100, currency: 'USD', status: OrderStatus.PAID });
+    await order.update({
+      totalAmount: Number(valueAtDonationTimeUSD) * 100,
+      currency: 'USD',
+      status: OrderStatus.PAID,
+      data: { ...order.data, payload },
+    });
 
     // process as paid
     const transaction = await confirmOrder(order);
