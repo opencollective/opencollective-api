@@ -56,7 +56,7 @@ Thank you! 🙏`);
       expect(tweet).to
         .equal(`In December, we received $1,277 from 82 financial contributors. Our current balance is $1,200.
 
-Top bfinancial contributors: @webflowapp, @dalmaer, @stickermule
+Top financial contributors: @webflowapp, @dalmaer, @stickermule
 
 Thank you! 🙏`);
     });
