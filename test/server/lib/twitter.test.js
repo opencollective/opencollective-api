@@ -53,7 +53,8 @@ Thank you! 🙏`);
       data.totalAmountSpent = 0;
       data.newBackersTwitterHandles = '';
       const tweet = twitter.compileTweet('monthlyStats', data);
-      expect(tweet).to.equal(`In December, we received $1,277 from 82 backers. Our current balance is $1,200.
+      expect(tweet).to
+        .equal(`In December, we received $1,277 from 82 financial contributors. Our current balance is $1,200.
 
 Top bfinancial contributors: @webflowapp, @dalmaer, @stickermule
 
