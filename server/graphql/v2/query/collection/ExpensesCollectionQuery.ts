@@ -3,20 +3,20 @@ import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql'
 import { GraphQLDateTime } from 'graphql-iso-date';
 import { isEmpty, partition } from 'lodash';
 
-import { expenseStatus } from '../../../constants';
-import EXPENSE_TYPE from '../../../constants/expense_type';
-import { US_TAX_FORM_THRESHOLD } from '../../../constants/tax-form';
-import { getBalancesWithBlockedFunds } from '../../../lib/budget';
-import queries from '../../../lib/queries';
-import models, { Op, sequelize } from '../../../models';
-import { PayoutMethodTypes } from '../../../models/PayoutMethod';
-import { ExpenseCollection } from '../collection/ExpenseCollection';
-import ExpenseStatusFilter from '../enum/ExpenseStatusFilter';
-import { ExpenseType } from '../enum/ExpenseType';
-import PayoutMethodType from '../enum/PayoutMethodType';
-import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
-import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
-import { CollectionArgs, CollectionReturnType } from '../interface/Collection';
+import { expenseStatus } from '../../../../constants';
+import EXPENSE_TYPE from '../../../../constants/expense_type';
+import { US_TAX_FORM_THRESHOLD } from '../../../../constants/tax-form';
+import { getBalancesWithBlockedFunds } from '../../../../lib/budget';
+import queries from '../../../../lib/queries';
+import models, { Op, sequelize } from '../../../../models';
+import { PayoutMethodTypes } from '../../../../models/PayoutMethod';
+import { ExpenseCollection } from '../../collection/ExpenseCollection';
+import ExpenseStatusFilter from '../../enum/ExpenseStatusFilter';
+import { ExpenseType } from '../../enum/ExpenseType';
+import { PayoutMethodType } from '../../enum/PayoutMethodType';
+import { AccountReferenceInput, fetchAccountWithReference } from '../../input/AccountReferenceInput';
+import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, ChronologicalOrderInput } from '../../input/ChronologicalOrderInput';
+import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
 
 const updateFilterConditionsForReadyToPay = async (where, include): Promise<void> => {
   where['status'] = expenseStatus.APPROVED;
@@ -74,7 +74,7 @@ const updateFilterConditionsForReadyToPay = async (where, include): Promise<void
   }
 };
 
-const ExpensesQuery = {
+const ExpensesCollectionQuery = {
   type: ExpenseCollection,
   args: {
     ...CollectionArgs,
@@ -260,4 +260,4 @@ const ExpensesQuery = {
   },
 };
 
-export default ExpensesQuery;
+export default ExpensesCollectionQuery;

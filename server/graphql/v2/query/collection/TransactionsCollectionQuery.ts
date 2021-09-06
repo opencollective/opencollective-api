@@ -2,15 +2,15 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 
-import models, { Op, sequelize } from '../../../models';
-import { TransactionCollection } from '../collection/TransactionCollection';
-import { TransactionKind } from '../enum/TransactionKind';
-import { TransactionType } from '../enum/TransactionType';
-import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
-import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
-import { CollectionArgs, TransactionsCollectionReturnType } from '../interface/Collection';
+import models, { Op, sequelize } from '../../../../models';
+import { TransactionCollection } from '../../collection/TransactionCollection';
+import { TransactionKind } from '../../enum/TransactionKind';
+import { TransactionType } from '../../enum/TransactionType';
+import { AccountReferenceInput, fetchAccountWithReference } from '../../input/AccountReferenceInput';
+import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, ChronologicalOrderInput } from '../../input/ChronologicalOrderInput';
+import { CollectionArgs, TransactionsCollectionReturnType } from '../../interface/Collection';
 
-const TransactionsQuery = {
+const TransactionsCollectionQuery = {
   type: TransactionCollection,
   args: {
     ...CollectionArgs,
@@ -241,4 +241,4 @@ const TransactionsQuery = {
   },
 };
 
-export default TransactionsQuery;
+export default TransactionsCollectionQuery;

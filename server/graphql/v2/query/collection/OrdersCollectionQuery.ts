@@ -2,13 +2,13 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 
-import models, { Op } from '../../../models';
-import { OrderCollection } from '../collection/OrderCollection';
-import { OrderStatus } from '../enum';
-import { AccountOrdersFilter } from '../enum/AccountOrdersFilter';
-import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
-import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
-import { CollectionArgs, CollectionReturnType } from '../interface/Collection';
+import models, { Op } from '../../../../models';
+import { OrderCollection } from '../../collection/OrderCollection';
+import { AccountOrdersFilter } from '../../enum/AccountOrdersFilter';
+import { OrderStatus } from '../../enum/OrderStatus';
+import { AccountReferenceInput, fetchAccountWithReference } from '../../input/AccountReferenceInput';
+import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, ChronologicalOrderInput } from '../../input/ChronologicalOrderInput';
+import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
 
 type OrderAssociation = 'fromCollective' | 'collective';
 
@@ -35,7 +35,7 @@ const getJoinCondition = (
   }
 };
 
-const OrdersQuery = {
+const OrdersCollectionQuery = {
   type: new GraphQLNonNull(OrderCollection),
   args: {
     ...CollectionArgs,
@@ -167,4 +167,4 @@ const OrdersQuery = {
   },
 };
 
-export default OrdersQuery;
+export default OrdersCollectionQuery;
