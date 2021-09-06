@@ -1,20 +1,20 @@
 import models from '../../../models';
 import { Account } from '../interface/Account';
 
+import ExpensesCollectionQuery from './collection/ExpensesCollectionQuery';
 import HostsCollectionQuery from './collection/HostsCollectionQuery';
+import OrdersCollectionQuery from './collection/OrdersCollectionQuery';
+import TransactionsCollectionQuery from './collection/TransactionsCollectionQuery';
 import AccountQuery from './AccountQuery';
 import CollectiveQuery from './CollectiveQuery';
 import ConversationQuery from './ConversationQuery';
 import ExpenseQuery from './ExpenseQuery';
-import ExpensesQuery from './ExpensesQuery';
 import HostQuery from './HostQuery';
 import IndividualQuery from './IndividualQuery';
 import MemberInvitationsQuery from './MemberInvitationsQuery';
 import OrderQuery from './OrderQuery';
-import OrdersQuery from './OrdersQuery';
 import PaypalPlanQuery from './PaypalPlanQuery';
 import TierQuery from './TierQuery';
-import TransactionsQuery from './TransactionsQuery';
 import UpdateQuery from './UpdateQuery';
 
 const query = {
@@ -23,15 +23,15 @@ const query = {
   host: HostQuery,
   individual: IndividualQuery,
   conversation: ConversationQuery,
-  expenses: ExpensesQuery,
+  expenses: ExpensesCollectionQuery,
   expense: ExpenseQuery,
   hosts: HostsCollectionQuery,
   memberInvitations: MemberInvitationsQuery,
   order: OrderQuery,
-  orders: OrdersQuery,
+  orders: OrdersCollectionQuery,
   tier: TierQuery,
   // transaction: TransactionQuery,
-  transactions: TransactionsQuery,
+  transactions: TransactionsCollectionQuery,
   update: UpdateQuery,
   paypalPlan: PaypalPlanQuery,
   loggedInAccount: {
