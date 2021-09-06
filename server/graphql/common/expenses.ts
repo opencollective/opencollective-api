@@ -628,10 +628,10 @@ export async function createExpense(
   let recipient;
   if (payoutMethod?.type === PayoutMethodTypes.BANK_ACCOUNT) {
     const host = await collective.getHostCollective();
-    const [connectedAccount] = await host.getConnectedAccounts({ where: { service: 'transferwise' } });
-    if (connectedAccount) {
-      paymentProviders.transferwise.validatePayoutMethod(connectedAccount, payoutMethod);
-      recipient = await paymentProviders.transferwise.createRecipient(connectedAccount, payoutMethod);
+    const connectedAccounts = host && (await host.getConnectedAccounts({ where: { service: 'transferwise' } }));
+    if (connectedAccounts?.[0]) {
+      paymentProviders.transferwise.validatePayoutMethod(connectedAccounts[0], payoutMethod);
+      recipient = await paymentProviders.transferwise.createRecipient(connectedAccounts[0], payoutMethod);
     }
   }
 
