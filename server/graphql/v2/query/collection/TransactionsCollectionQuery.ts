@@ -160,7 +160,7 @@ const TransactionsCollectionQuery = {
       where,
       group: ['kind'],
       raw: true,
-    }).then(results => results.map(m => m.kind));
+    }).then(results => results.map(m => m.kind).filter(kind => !!kind));
 
     if (args.searchTerm) {
       const sanitizedTerm = args.searchTerm.replace(/(_|%|\\)/g, '\\$1');
