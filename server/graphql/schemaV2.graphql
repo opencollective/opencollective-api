@@ -6384,7 +6384,7 @@ type Mutation {
     role: MemberRole!
     description: String
     since: DateTime
-  ): MemberInvitation
+  ): MemberInvitation!
 
   """
   Edit an existing member invitation of the Collective
@@ -7755,6 +7755,47 @@ type Query {
     """
     throwIfMissing: Boolean = true
   ): Account
+  accounts(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int = 0
+
+    """
+    Only accounts that match these tags
+    """
+    tag: [String]
+
+    """
+    Only accounts that match these account types
+    """
+    type: [AccountType]
+
+    """
+    Only return active collectives
+    """
+    isActive: Boolean
+
+    """
+    Only accounts with custom contribution (/donate) enabled
+    """
+    hasCustomContributionsEnabled: Boolean
+
+    """
+    If true, only accounts that accepts credit card contributions (either via Stripe or PayPal) will be returned
+    """
+    onlyWithCreditCardSupport: Boolean = false
+
+    """
+    The order of results
+    """
+    orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
+  ): AccountCollection!
   collective(
     """
     The public id identifying the Collective (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
@@ -8363,6 +8404,7 @@ type TransactionCollection implements Collection {
   limit: Int
   totalCount: Int
   nodes: [Transaction]
+  kinds: [TransactionKind]
 }
 
 enum TransactionKind {

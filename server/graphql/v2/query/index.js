@@ -1,6 +1,7 @@
 import models from '../../../models';
 import { Account } from '../interface/Account';
 
+import AccountsQuery from './collection/AccountsQuery';
 import ExpensesCollectionQuery from './collection/ExpensesCollectionQuery';
 import HostsCollectionQuery from './collection/HostsCollectionQuery';
 import OrdersCollectionQuery from './collection/OrdersCollectionQuery';
@@ -19,6 +20,7 @@ import UpdateQuery from './UpdateQuery';
 
 const query = {
   account: AccountQuery,
+  accounts: AccountsQuery,
   collective: CollectiveQuery,
   host: HostQuery,
   individual: IndividualQuery,
