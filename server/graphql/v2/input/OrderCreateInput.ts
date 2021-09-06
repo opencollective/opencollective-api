@@ -1,4 +1,11 @@
-import { GraphQLBoolean, GraphQLInputObjectType, GraphQLInt, GraphQLList, GraphQLNonNull } from 'graphql';
+import {
+  GraphQLBoolean,
+  GraphQLInputObjectType,
+  GraphQLInt,
+  GraphQLList,
+  GraphQLNonNull,
+  GraphQLString,
+} from 'graphql';
 import GraphQLJSON from 'graphql-type-json';
 
 import { ContributionFrequency } from '../enum';
@@ -75,6 +82,10 @@ export const OrderCreateInput = new GraphQLInputObjectType({
     isBalanceTransfer: {
       type: GraphQLBoolean,
       description: 'Whether this is transferring the remaining balance from a project/event/collective',
+    },
+    tags: {
+      type: new GraphQLList(GraphQLString),
+      description: 'Tags associated to the order',
     },
   }),
 });

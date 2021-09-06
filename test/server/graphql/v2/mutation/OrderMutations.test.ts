@@ -15,7 +15,7 @@ import {
   fakeTier,
   fakeUser,
 } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2 } from '../../../../utils';
+import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
 const CREATE_ORDER_MUTATION = gqlV2/* GraphQL */ `
   mutation CreateOrder($order: OrderCreateInput!) {
@@ -26,6 +26,7 @@ const CREATE_ORDER_MUTATION = gqlV2/* GraphQL */ `
         status
         quantity
         frequency
+        tags
         tier {
           legacyId
         }
@@ -117,6 +118,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
     let fromUser, toCollective, host, validOrderParams, sandbox;
 
     before(async () => {
+      await resetTestDB();
       fromUser = await fakeUser();
 
       // Stub the payment
@@ -182,6 +184,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
               frequency: 'MONTHLY',
               tier: { legacyId: tier.id },
               quantity: 3,
+              tags: ['wow', 'it', 'supports', 'tags!'],
             },
           },
           fromUser,
@@ -196,6 +199,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(order.toAccount.legacyId).to.eq(toCollective.id);
         expect(order.quantity).to.eq(3);
         expect(order.tier.legacyId).to.eq(tier.id);
+        expect(order.tags).to.deep.eq(['wow', 'it', 'supports', 'tags!']);
       });
 
       it('can add platform contribution', async () => {

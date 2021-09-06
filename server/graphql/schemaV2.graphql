@@ -6362,7 +6362,7 @@ type Mutation {
     role: MemberRole!
     description: String
     since: DateTime
-  ): MemberInvitation!
+  ): MemberInvitation
 
   """
   Edit an existing member invitation of the Collective
@@ -6570,6 +6570,7 @@ type Order {
   Platform Tip attached to the Order.
   """
   platformTipAmount: Amount
+  tags: [String]!
   taxes: [OrderTax]!
 
   """
@@ -6688,6 +6689,11 @@ input OrderCreateInput {
   Whether this is transferring the remaining balance from a project/event/collective
   """
   isBalanceTransfer: Boolean
+
+  """
+  Tags associated to the order
+  """
+  tags: [String]
 }
 
 """
