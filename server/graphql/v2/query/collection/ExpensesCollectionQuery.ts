@@ -1,5 +1,5 @@
 import express from 'express';
-import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 import { isEmpty, partition } from 'lodash';
 
@@ -80,11 +80,11 @@ const ExpensesCollectionQuery = {
     ...CollectionArgs,
     fromAccount: {
       type: AccountReferenceInput,
-      description: 'Reference of the account that submitted this expense',
+      description: 'Reference of an account that is the payee of an expense',
     },
     account: {
       type: AccountReferenceInput,
-      description: 'Reference of the account where this expense was submitted',
+      description: 'Reference of an account that is the payer of an expense',
     },
     host: {
       type: AccountReferenceInput,
@@ -136,6 +136,11 @@ const ExpensesCollectionQuery = {
       type: GraphQLString,
       description: 'The term to search',
     },
+    includeChildrenExpenses: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      defaultValue: false,
+      description: 'Whether to include expenses from children of the account (Events and Projects)',
+    },
   },
   async resolve(_: void, args, req: express.Request): Promise<CollectionReturnType> {
     const where = { [Op.and]: [] };
@@ -155,10 +160,20 @@ const ExpensesCollectionQuery = {
     );
 
     if (fromAccount) {
-      where['FromCollectiveId'] = fromAccount.id;
+      const fromAccounts = [fromAccount.id];
+      if (args.includeChildrenExpenses) {
+        const childIds = await fromAccount.getChildren().then(children => children.map(child => child.id));
+        fromAccounts.push(...childIds);
+      }
+      where['FromCollectiveId'] = fromAccounts;
     }
     if (account) {
-      where['CollectiveId'] = account.id;
+      const accounts = [account.id];
+      if (args.includeChildrenExpenses) {
+        const childIds = await account.getChildren().then(children => children.map(child => child.id));
+        accounts.push(...childIds);
+      }
+      where['CollectiveId'] = accounts;
     }
     if (host) {
       include.push({

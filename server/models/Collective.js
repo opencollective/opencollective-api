@@ -1183,25 +1183,24 @@ function defineModel() {
     return this.getAdminUsers().then(users => users.map(u => u && u.email));
   };
 
-  Collective.prototype.getEvents = function (query = {}) {
+  Collective.prototype.getChildren = function (query = {}) {
     return Collective.findAll({
       ...query,
-      where: {
-        ...query.where,
-        ParentCollectiveId: this.id,
-        type: types.EVENT,
-      },
+      where: { ...query.where, ParentCollectiveId: this.id },
+    });
+  };
+
+  Collective.prototype.getEvents = function (query = {}) {
+    return this.getChildren({
+      ...query,
+      where: { ...query.where, type: types.EVENT },
     });
   };
 
   Collective.prototype.getProjects = function (query = {}) {
-    return Collective.findAll({
+    return this.getChildren({
       ...query,
-      where: {
-        ...query.where,
-        ParentCollectiveId: this.id,
-        type: types.PROJECT,
-      },
+      where: { ...query.where, type: types.PROJECT },
     });
   };
 
