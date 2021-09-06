@@ -518,6 +518,7 @@ export async function deleteCollective(_, args, req) {
   const orderCount = await models.Order.count({
     where: {
       [Op.or]: [{ CollectiveId: collective.id }, { FromCollectiveId: collective.id }],
+      status: ['PAID', 'ACTIVE', 'CANCELLED'],
     },
   });
 
@@ -554,6 +555,22 @@ export async function deleteCollective(_, args, req) {
         members,
         member => {
           return member.destroy();
+        },
+        { concurrency: 3 },
+      );
+    })
+
+    .then(async () => {
+      const orders = await models.Order.findAll({
+        where: {
+          [Op.or]: [{ FromCollectiveId: collective.id }, { CollectiveId: collective.id }],
+          status: { [Op.not]: ['PAID', 'ACTIVE', 'CANCELLED'] },
+        },
+      });
+      return map(
+        orders,
+        order => {
+          return order.destroy();
         },
         { concurrency: 3 },
       );
