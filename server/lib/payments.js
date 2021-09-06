@@ -814,7 +814,7 @@ export const getHostFeePercent = async (order, host = null) => {
   }
 
   const possibleValues = [
-    // Fixed in the Order (special tiers: BackYourStack, Pre-Paid)
+    // Fixed in the Order (Added Funds, also special tiers: BackYourStack, Pre-Paid)
     order.data?.hostFeePercent,
   ];
 
@@ -834,9 +834,17 @@ export const getHostFeePercent = async (order, host = null) => {
   }
 
   if (order.paymentMethod.service === 'opencollective') {
-    // Default to 0 for this kind of payments
-    if (order.paymentMethod.type === 'collective' || order.paymentMethod.type === 'host') {
+    // Added Funds: default to 0 but usually set in the Order
+    if (order.paymentMethod.type === 'host') {
       possibleValues.push(0);
+    }
+    // Collective to Collective: 0 only if on the same host, otherwise hostFeePercent
+    if (order.paymentMethod.type === 'collective') {
+      const fromCollectiveHost = await order.fromCollective.getHostCollective();
+      const host = await order.collective.getHostCollective();
+      if (fromCollectiveHost.id === host.id) {
+        possibleValues.push(0);
+      }
     }
   }
 
