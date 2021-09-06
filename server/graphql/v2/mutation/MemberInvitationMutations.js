@@ -51,9 +51,7 @@ const memberInvitationMutations = {
 
       if (!req.remoteUser.isAdminOfCollective(account)) {
         throw new Unauthorized('Only admins can send an invitation.');
-      }
-
-      if (!MEMBER_INVITATION_SUPPORTED_ROLES.includes(args.role)) {
+      } else if (!MEMBER_INVITATION_SUPPORTED_ROLES.includes(args.role)) {
         throw new Forbidden('You can only invite accountants, admins, or members.');
       } else if (memberAccount.type !== CollectiveTypes.USER) {
         throw new Forbidden('You can only invite users.');

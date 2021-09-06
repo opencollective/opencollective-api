@@ -6,7 +6,7 @@ import MemberRoles from '../../../constants/roles';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import models from '../../../models';
 import { editPublicMessage } from '../../common/members';
-import { Forbidden, Unauthorized, ValidationFailed } from '../../errors';
+import { BadRequest, Forbidden, Unauthorized, ValidationFailed } from '../../errors';
 import { MemberRole } from '../enum';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { Member } from '../object/Member';
@@ -56,6 +56,45 @@ const memberMutations = {
         },
         req,
       );
+    },
+  },
+  createMember: {
+    type: new GraphQLNonNull(Member),
+    description: '[Root only] Create a member entry directly. For non-root users, use `inviteMember`',
+    args: {
+      memberAccount: {
+        type: GraphQLNonNull(AccountReferenceInput),
+        description: 'Reference to an account for the member',
+      },
+      account: {
+        type: GraphQLNonNull(AccountReferenceInput),
+        description: 'memberAccount will become a member of this account',
+      },
+      role: {
+        type: GraphQLNonNull(MemberRole),
+        description: 'Role of the member',
+      },
+      description: {
+        type: GraphQLString,
+      },
+      since: {
+        type: GraphQLDateTime,
+      },
+    },
+    async resolve(_, args, req) {
+      if (!req.remoteUser?.isRoot()) {
+        throw new Unauthorized('Only root users can create member entries directly');
+      } else if (args.role !== MemberRoles.CONNECTED_COLLECTIVE) {
+        throw new BadRequest('This mutation only supports the CONNECTED_ACCOUNT role');
+      }
+
+      const memberAccount = await fetchAccountWithReference(args.memberAccount, { throwIfMissing: true });
+      const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
+      const memberInfo = pick(args, ['description', 'since']);
+      const member = await models.Member.connectCollectives(memberAccount, account, req.remoteUser, memberInfo);
+      purgeCacheForCollective(account.slug);
+      purgeCacheForCollective(memberAccount.slug);
+      return member;
     },
   },
   editMember: {
