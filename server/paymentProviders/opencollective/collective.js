@@ -70,7 +70,7 @@ paymentMethodProvider.processOrder = async order => {
   const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
 
   const platformTip = getPlatformTip(order, host);
-  const platformTipInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
+  const platformTipInHostCurrency = Math.round(platformTip * hostCurrencyFxRate);
 
   const transactionPayload = {
     CreatedByUserId: order.CreatedByUserId,

@@ -290,11 +290,11 @@ describe('test/stories/ledger', () => {
       await executeOrder(contributorUser, order);
 
       await snapshotLedger(SNAPSHOT_COLUMNS);
-      expect(await collective.getBalance()).to.eq(9000); // (10000 Total - 1000 platform tip)
+      expect(await collective.getBalance()).to.eq(8550); // (10000 Total - 1000 platform tip - 450 host fee)
       expect(await secondHost.getTotalMoneyManaged()).to.eq(10000); // Contribution and Tip are still on Host account
       expect(await host.getTotalMoneyManaged()).to.eq(0); // Host has not received anything yet
-      expect(await host.getBalance()).to.eq(-9000); // Host is porting the debt and waiting for settlement
-      expect(await host.getBalanceWithBlockedFunds()).to.eq(-9000); //  Host is porting the debt and waiting for settlement
+      expect(await host.getBalance()).to.eq(-8550); // Host is porting the debt and waiting for settlement
+      expect(await host.getBalanceWithBlockedFunds()).to.eq(-8550); //  Host is porting the debt and waiting for settlement
       // TODO We should have a "Projected balance" that removes everything owed
       expect(await ocInc.getBalance()).to.eq(0);
     });
