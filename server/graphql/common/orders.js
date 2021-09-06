@@ -7,32 +7,26 @@ import * as hcaptcha from 'hcaptcha';
 import { get, isNil, omit, pick, set } from 'lodash';
 import { isEmail } from 'validator';
 
-import activities from '../../../constants/activities';
-import CAPTCHA_PROVIDERS from '../../../constants/captcha-providers';
-import { types } from '../../../constants/collectives';
-import FEATURE from '../../../constants/feature';
-import status from '../../../constants/order_status';
-import roles from '../../../constants/roles';
-import { VAT_OPTIONS } from '../../../constants/vat';
-import cache, { purgeCacheForCollective } from '../../../lib/cache';
-import * as github from '../../../lib/github';
-import { getOrCreateGuestProfile } from '../../../lib/guest-accounts';
-import logger from '../../../lib/logger';
-import * as libPayments from '../../../lib/payments';
-import recaptcha from '../../../lib/recaptcha';
-import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../lib/recurring-contributions';
-import { canUseFeature } from '../../../lib/user-permissions';
-import { formatCurrency, md5, parseToBoolean, sleep } from '../../../lib/utils';
-import models from '../../../models';
-import { canRefund } from '../../common/transactions';
-import {
-  BadRequest,
-  FeatureNotAllowedForUser,
-  Forbidden,
-  NotFound,
-  Unauthorized,
-  ValidationFailed,
-} from '../../errors';
+import activities from '../../constants/activities';
+import CAPTCHA_PROVIDERS from '../../constants/captcha-providers';
+import { types } from '../../constants/collectives';
+import FEATURE from '../../constants/feature';
+import status from '../../constants/order_status';
+import roles from '../../constants/roles';
+import { VAT_OPTIONS } from '../../constants/vat';
+import cache, { purgeCacheForCollective } from '../../lib/cache';
+import * as github from '../../lib/github';
+import { getOrCreateGuestProfile } from '../../lib/guest-accounts';
+import logger from '../../lib/logger';
+import * as libPayments from '../../lib/payments';
+import recaptcha from '../../lib/recaptcha';
+import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../lib/recurring-contributions';
+import { canUseFeature } from '../../lib/user-permissions';
+import { formatCurrency, md5, parseToBoolean, sleep } from '../../lib/utils';
+import models from '../../models';
+import { BadRequest, FeatureNotAllowedForUser, Forbidden, NotFound, Unauthorized, ValidationFailed } from '../errors';
+
+import { canRefund } from './transactions';
 
 const oneHourInSeconds = 60 * 60;
 

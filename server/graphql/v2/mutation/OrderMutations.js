@@ -10,8 +10,8 @@ import {
 } from '../../../lib/subscriptions';
 import models from '../../../models';
 import { updateSubscriptionWithPaypal } from '../../../paymentProviders/paypal/subscription';
+import { confirmOrder, createOrder } from '../../common/orders';
 import { BadRequest, NotFound, Unauthorized, ValidationFailed } from '../../errors';
-import { confirmOrder as confirmOrderLegacy, createOrder as createOrderLegacy } from '../../v1/mutations/orders';
 import { getIntervalFromContributionFrequency } from '../enum/ContributionFrequency';
 import { ProcessOrderAction } from '../enum/ProcessOrderAction';
 import { getDecodedId } from '../identifiers';
@@ -99,7 +99,7 @@ const orderMutations = {
       };
 
       const userAgent = req.header('user-agent');
-      const result = await createOrderLegacy(legacyOrderObj, req.loaders, req.remoteUser, req.ip, userAgent, req.mask);
+      const result = await createOrder(legacyOrderObj, req.loaders, req.remoteUser, req.ip, userAgent, req.mask);
       return { order: result.order, stripeError: result.stripeError, guestToken: result.order.data?.guestToken };
     },
   },
@@ -280,7 +280,7 @@ const orderMutations = {
     },
     async resolve(_, args, req) {
       const baseOrder = await fetchOrderWithReference(args.order);
-      const updatedOrder = await confirmOrderLegacy(baseOrder, req.remoteUser, args.guestToken);
+      const updatedOrder = await confirmOrder(baseOrder, req.remoteUser, args.guestToken);
       return {
         order: updatedOrder,
         stripeError: updatedOrder.stripeError,
