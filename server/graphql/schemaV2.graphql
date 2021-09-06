@@ -3549,6 +3549,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions {
   parentCollective: Collective @deprecated(reason: "2020/07/01 - Use parent instead.")
 
   """
+  The Event start date and time
+  """
+  startsAt: DateTime
+
+  """
   The Event end date and time
   """
   endsAt: DateTime
@@ -6292,6 +6297,28 @@ type Mutation {
     New public message
     """
     message: String
+  ): Member!
+
+  """
+  [Root only] Create a member entry directly. For non-root users, use `inviteMember`
+  """
+  createMember(
+    """
+    Reference to an account for the member
+    """
+    memberAccount: AccountReferenceInput!
+
+    """
+    memberAccount will become a member of this account
+    """
+    account: AccountReferenceInput!
+
+    """
+    Role of the member
+    """
+    role: MemberRole!
+    description: String
+    since: DateTime
   ): Member!
 
   """

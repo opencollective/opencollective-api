@@ -3,9 +3,7 @@ import { GraphQLDateTime } from 'graphql-iso-date';
 import { pick } from 'lodash';
 
 import { types as CollectiveTypes } from '../../../constants/collectives';
-import roles from '../../../constants/roles';
 import MemberRoles from '../../../constants/roles';
-import { purgeCacheForCollective } from '../../../lib/cache';
 import models from '../../../models';
 import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation';
 import { Forbidden, Unauthorized } from '../../errors';
@@ -19,7 +17,7 @@ import { MemberInvitation } from '../object/MemberInvitation';
 
 const memberInvitationMutations = {
   inviteMember: {
-    type: MemberInvitation,
+    type: new GraphQLNonNull(MemberInvitation),
     description: 'Invite a new member to the Collective',
     args: {
       memberAccount: {
@@ -50,15 +48,8 @@ const memberInvitationMutations = {
 
       memberAccount = await fetchAccountWithReference(memberAccount, { throwIfMissing: true });
       account = await fetchAccountWithReference(account, { throwIfMissing: true });
-      const memberInfo = pick(args, ['role', 'description', 'since']);
 
-      if (args.role === roles.CONNECTED_COLLECTIVE && req.remoteUser.isRoot()) {
-        // Special case: when users are root, we allow them to create connected collectives directly
-        await models.Member.connectCollectives(memberAccount, account, req.remoteUser, memberInfo);
-        purgeCacheForCollective(account.slug);
-        purgeCacheForCollective(memberAccount.slug);
-        return null;
-      } else if (!req.remoteUser.isAdminOfCollective(account)) {
+      if (!req.remoteUser.isAdminOfCollective(account)) {
         throw new Unauthorized('Only admins can send an invitation.');
       } else if (!MEMBER_INVITATION_SUPPORTED_ROLES.includes(args.role)) {
         throw new Forbidden('You can only invite accountants, admins, or members.');
@@ -67,7 +58,7 @@ const memberInvitationMutations = {
       }
 
       const memberParams = {
-        ...memberInfo,
+        ...pick(args, ['role', 'description', 'since']),
         MemberCollectiveId: memberAccount.id,
         CreatedByUserId: req.remoteUser.id,
       };
