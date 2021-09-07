@@ -10,6 +10,10 @@ function oppositeTotal(total) {
   return total !== 0 ? -total : total;
 }
 
+/**
+ * Compute the sum of the given transactions in `currency`
+ * @returns number
+ */
 async function computeTotal(results, currency) {
   let total = 0;
 
@@ -25,6 +29,29 @@ async function computeTotal(results, currency) {
   return total;
 }
 
+async function convertCurrencyForTimeSeries(results, currency) {
+  const fxRates = {}; // FX rates are likely to be the same for all results, better cache them
+  for (const result of results) {
+    const value = result['_amount'];
+    result['currency'] = currency;
+
+    if (value) {
+      const resultCurrency = result['_currency'];
+      fxRates[resultCurrency] = fxRates[resultCurrency] || {};
+      if (!fxRates[resultCurrency][currency]) {
+        fxRates[resultCurrency][currency] = await getFxRate(resultCurrency, currency);
+      }
+
+      result['amount'] = Math.round(value * fxRates[resultCurrency][currency]);
+      result['currency'] = currency;
+    } else {
+      result['amount'] = 0;
+    }
+  }
+
+  return results;
+}
+
 function computeDates(startDate, endDate) {
   startDate = startDate ? moment(startDate) : moment().utc().startOf('month');
   endDate = endDate ? moment(endDate) : moment(startDate).utc().endOf('month');
@@ -32,7 +59,7 @@ function computeDates(startDate, endDate) {
   return { startDate: startDate.toISOString(), endDate: endDate.toISOString() };
 }
 
-export async function getPlatformTips(host, { startDate, endDate } = {}) {
+export async function getPlatformTips(host, { startDate, endDate, groupTimeUnit } = {}) {
   const results = await sequelize.query(
     `SELECT
   SUM(
@@ -50,7 +77,7 @@ export async function getPlatformTips(host, { startDate, endDate } = {}) {
       ELSE
         t2."hostCurrency"
     END
-   ) as "_currency"
+   ) as "_currency"${groupTimeUnit ? `, DATE_TRUNC('${groupTimeUnit}', t1."createdAt") AS "date"` : ''}
 FROM "Transactions" as t1
 INNER JOIN "Transactions" as t2
 ON t1."TransactionGroup" = t2."TransactionGroup"
@@ -64,14 +91,22 @@ AND t2."type" = 'CREDIT'
 AND t1."deletedAt" IS NULL
 AND t2."deletedAt" IS NULL
 AND t2."RefundTransactionId" IS NULL
-GROUP BY "_currency"`,
+GROUP BY "_currency"${
+      groupTimeUnit
+        ? `, DATE_TRUNC('${groupTimeUnit}', t1."createdAt") ORDER BY DATE_TRUNC('${groupTimeUnit}', t1."createdAt") ASC`
+        : ''
+    }`,
     {
       replacements: { HostCollectiveId: host.id, ...computeDates(startDate, endDate) },
       type: sequelize.QueryTypes.SELECT,
     },
   );
 
-  return computeTotal(results, host.currency);
+  if (groupTimeUnit) {
+    return convertCurrencyForTimeSeries(results, host.currency);
+  } else {
+    return computeTotal(results, host.currency);
+  }
 }
 
 // NOTE: we're not looking at the settlementStatus and just SUM all debts of the month
