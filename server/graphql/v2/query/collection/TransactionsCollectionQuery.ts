@@ -78,6 +78,11 @@ const TransactionsCollectionQuery = {
       description:
         'If the account is a user and this field is true, contributions from the incognito profile will be included too (admins only)',
     },
+    includeChildrenTransactions: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      defaultValue: false,
+      description: 'Whether to include transactions from children (Events and Projects)',
+    },
     includeDebts: {
       type: new GraphQLNonNull(GraphQLBoolean),
       defaultValue: false,
@@ -109,31 +114,46 @@ const TransactionsCollectionQuery = {
         reference => reference && fetchAccountWithReference(reference, fetchAccountParams),
       ),
     );
+
     if (fromAccount) {
-      let fromCollectiveCondition = fromAccount.id;
+      const fromAccountCondition = [fromAccount.id];
+
+      if (args.includeChildrenTransactions) {
+        const childIds = await fromAccount.getChildren().then(children => children.map(child => child.id));
+        fromAccountCondition.push(...childIds);
+      }
+
+      // When users are admins, also fetch their incognito contributions
       if (
         args.includeIncognitoTransactions &&
         req.remoteUser?.isAdminOfCollective(fromAccount) &&
         req.remoteUser.CollectiveId === fromAccount.id
       ) {
-        const incognitoProfile = await req.remoteUser.getIncognitoProfile();
-        if (incognitoProfile) {
-          fromCollectiveCondition = { [Op.or]: [fromAccount.id, incognitoProfile.id] };
+        const fromAccountUser = await fromAccount.getUser();
+        if (fromAccountUser) {
+          const incognitoProfile = await fromAccountUser.getIncognitoProfile();
+          if (incognitoProfile) {
+            fromAccountCondition.push(incognitoProfile.id);
+          }
         }
       }
 
       where.push({
         [Op.or]: [
           { UsingGiftCardFromCollectiveId: fromAccount.id, type: 'CREDIT' },
-          { FromCollectiveId: fromCollectiveCondition },
+          // prettier, please keep line break for readability please
+          { FromCollectiveId: fromAccountCondition },
         ],
       });
     }
+
     if (account) {
-      const accountConditions = [
-        { CollectiveId: account.id },
-        { UsingGiftCardFromCollectiveId: account.id, type: 'DEBIT' },
-      ];
+      const accountCondition = [account.id];
+
+      if (args.includeChildrenTransactions) {
+        const childIds = await account.getChildren().then(children => children.map(child => child.id));
+        accountCondition.push(...childIds);
+      }
 
       // When users are admins, also fetch their incognito contributions
       if (
@@ -141,14 +161,24 @@ const TransactionsCollectionQuery = {
         req.remoteUser?.isAdminOfCollective(account) &&
         req.remoteUser.CollectiveId === account.id
       ) {
-        const incognitoProfile = await req.remoteUser.getIncognitoProfile();
-        if (incognitoProfile) {
-          accountConditions.push({ CollectiveId: incognitoProfile.id });
+        const accountUser = await account.getUser();
+        if (accountUser) {
+          const incognitoProfile = await accountUser.getIncognitoProfile();
+          if (incognitoProfile) {
+            accountCondition.push(incognitoProfile.id);
+          }
         }
       }
 
-      where.push({ [Op.or]: accountConditions });
+      where.push({
+        [Op.or]: [
+          { UsingGiftCardFromCollectiveId: account.id, type: 'DEBIT' },
+          // prettier, please keep line break for readability please
+          { CollectiveId: accountCondition },
+        ],
+      });
     }
+
     if (host) {
       where.push({ HostCollectiveId: host.id });
     }
@@ -206,8 +236,8 @@ const TransactionsCollectionQuery = {
     if (args.hasExpense !== undefined) {
       where.push({ ExpenseId: { [args.hasExpense ? Op.ne : Op.eq]: null } });
     }
-    if (args.hasOrder) {
-      where.push({ OrderId: { [Op.ne]: null } });
+    if (args.hasOrder !== undefined) {
+      where.push({ OrderId: { [args.hasOrder ? Op.ne : Op.eq]: null } });
     }
     if (!args.includeDebts) {
       where.push({ isDebt: { [Op.not]: true } });
