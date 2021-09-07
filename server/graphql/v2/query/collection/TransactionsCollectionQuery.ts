@@ -11,7 +11,7 @@ import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, ChronologicalOrderInput } from
 import { CollectionArgs, TransactionsCollectionReturnType } from '../../interface/Collection';
 
 const TransactionsCollectionQuery = {
-  type: TransactionCollection,
+  type: new GraphQLNonNull(TransactionCollection),
   args: {
     ...CollectionArgs,
     type: {

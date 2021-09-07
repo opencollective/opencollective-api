@@ -257,8 +257,8 @@ export const Host = new GraphQLObjectType({
       hostedVirtualCards: {
         type: new GraphQLNonNull(VirtualCardCollection),
         args: {
-          limit: { type: GraphQLInt, defaultValue: 100 },
-          offset: { type: GraphQLInt, defaultValue: 0 },
+          limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
+          offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
           state: { type: GraphQLString, defaultValue: null },
           merchantAccount: { type: AccountReferenceInput, defaultValue: null },
           collectiveAccountIds: { type: GraphQLList(AccountReferenceInput), defaultValue: null },
@@ -330,8 +330,8 @@ export const Host = new GraphQLObjectType({
       hostedVirtualCardMerchants: {
         type: new GraphQLNonNull(AccountCollection),
         args: {
-          limit: { type: GraphQLInt, defaultValue: 100 },
-          offset: { type: GraphQLInt, defaultValue: 0 },
+          limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
+          offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
         },
         async resolve(host, args, req) {
           if (!req.remoteUser?.isAdmin(host.id)) {
@@ -374,8 +374,8 @@ export const Host = new GraphQLObjectType({
       hostedVirtualCardCollectives: {
         type: new GraphQLNonNull(AccountCollection),
         args: {
-          limit: { type: GraphQLInt, defaultValue: 100 },
-          offset: { type: GraphQLInt, defaultValue: 0 },
+          limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
+          offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
         },
         async resolve(host, args, req) {
           if (!req.remoteUser?.isAdmin(host.id)) {

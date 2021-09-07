@@ -13,10 +13,10 @@ import { ORDER_BY_PSEUDO_FIELDS, OrderByInput } from '../input/OrderByInput';
 
 export const IsMemberOfFields = {
   memberOf: {
-    type: MemberOfCollection,
+    type: new GraphQLNonNull(MemberOfCollection),
     args: {
-      limit: { type: GraphQLInt },
-      offset: { type: GraphQLInt },
+      limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 150 },
+      offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
       role: { type: new GraphQLList(MemberRole) },
       accountType: { type: new GraphQLList(AccountType) },
       account: { type: AccountReferenceInput },

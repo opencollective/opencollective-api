@@ -75,7 +75,7 @@ const updateFilterConditionsForReadyToPay = async (where, include): Promise<void
 };
 
 const ExpensesCollectionQuery = {
-  type: ExpenseCollection,
+  type: new GraphQLNonNull(ExpenseCollection),
   args: {
     ...CollectionArgs,
     fromAccount: {
