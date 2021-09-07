@@ -35,10 +35,7 @@ export function checkSupportedVariables(req, variableNames) {
   return true;
 }
 
-function getCacheKeyForBudgetSections(req, queryHash) {
-  if (req.body.variables.limit !== 3) {
-    return;
-  }
+function getCacheKeyForBudgetOrTransactionsSections(req, queryHash) {
   if (
     req.body.variables.kind &&
     !isEqual(req.body.variables.kind.sort(), [
@@ -77,12 +74,18 @@ export function getGraphqlCacheKey(req) {
       if (!checkSupportedVariables(req, ['slug', 'limit', 'kind'])) {
         return;
       }
-      return getCacheKeyForBudgetSections(req, queryHash);
+      if (req.body.variables.limit !== 3) {
+        return;
+      }
+      return getCacheKeyForBudgetOrTransactionsSections(req, queryHash);
     case 'BudgetSectionWithHost':
       if (!checkSupportedVariables(req, ['slug', 'limit', 'hostSlug', 'kind'])) {
         return;
       }
-      return getCacheKeyForBudgetSections(req, queryHash);
+      if (req.body.variables.limit !== 3) {
+        return;
+      }
+      return getCacheKeyForBudgetOrTransactionsSections(req, queryHash);
     case 'UpdatesSection':
       if (!checkSupportedVariables(req, ['slug', 'onlyPublishedUpdates'])) {
         return;
@@ -92,13 +95,13 @@ export function getGraphqlCacheKey(req) {
       }
       return `${req.body.operationName}_${queryHash}_${req.body.variables.slug}`;
     case 'TransactionsSection':
-      if (!checkSupportedVariables(req, ['slug', 'limit'])) {
+      if (!checkSupportedVariables(req, ['slug', 'limit', 'kind'])) {
         return;
       }
       if (req.body.variables.limit !== 10) {
         return;
       }
-      return `${req.body.operationName}_${queryHash}_${req.body.variables.slug}`;
+      return getCacheKeyForBudgetOrTransactionsSections(req, queryHash);
     case 'TransactionsPage':
       if (!checkSupportedVariables(req, ['slug', 'offset', 'limit'])) {
         return;
