@@ -1,9 +1,9 @@
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 
-import { Service } from '../../../../constants/connected_account';
 import models, { Op, sequelize } from '../../../../models';
 import { AccountCollection } from '../../collection/AccountCollection';
 import { AccountType } from '../../enum';
+import { PaymentMethodService } from '../../enum/PaymentMethodService';
 import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, ChronologicalOrderInput } from '../../input/ChronologicalOrderInput';
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
 
@@ -27,11 +27,9 @@ const AccountsQuery = {
       type: GraphQLBoolean,
       description: 'Only accounts with custom contribution (/donate) enabled',
     },
-    onlyWithCreditCardSupport: {
-      type: GraphQLBoolean,
-      defaultValue: false,
-      description:
-        'If true, only accounts that accepts credit card contributions (either via Stripe or PayPal) will be returned',
+    supportedPaymentMethodService: {
+      type: new GraphQLList(PaymentMethodService),
+      description: 'Only accounts that support one of these payment services will be returned',
     },
     orderBy: {
       type: new GraphQLNonNull(ChronologicalOrderInput),
@@ -64,8 +62,8 @@ const AccountsQuery = {
       }
     }
 
-    if (args.onlyWithCreditCardSupport) {
-      const hostsWithCreditCardSupport = await models.Collective.findAll({
+    if (args.supportedPaymentMethodService?.length) {
+      const hostsWithSupportedPaymentProviders = await models.Collective.findAll({
         mapToModel: false,
         attributes: ['id'],
         group: [sequelize.col('Collective.id')],
@@ -76,13 +74,13 @@ const AccountsQuery = {
             attributes: [],
             model: models.ConnectedAccount,
             required: true,
-            where: { service: [Service.PAYPAL, Service.STRIPE] },
+            where: { service: args.supportedPaymentMethodService },
           },
         ],
       });
 
       where['isActive'] = true;
-      where['HostCollectiveId'] = hostsWithCreditCardSupport.map(h => h.id);
+      where['HostCollectiveId'] = hostsWithSupportedPaymentProviders.map(h => h.id);
     }
 
     // Fetch & return results
