@@ -1155,7 +1155,8 @@ function defineModel() {
    * Get the admin users { id, email } of this collective
    */
   Collective.prototype.getAdminUsers = async function ({ userQueryParams, paranoid = true } = {}) {
-    if (this.type === 'USER') {
+    if (this.type === 'USER' && !this.isIncognito) {
+      // Incognito profiles rely on the `Members` entry to know which user it belongs to
       return [await this.getUser({ paranoid, ...userQueryParams })];
     }
 
