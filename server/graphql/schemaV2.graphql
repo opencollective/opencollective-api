@@ -6654,6 +6654,11 @@ type Order {
   The permissions given to current logged in user for this order
   """
   permissions: OrderPermissions!
+
+  """
+  Data related to the order
+  """
+  data: JSON
 }
 
 """
