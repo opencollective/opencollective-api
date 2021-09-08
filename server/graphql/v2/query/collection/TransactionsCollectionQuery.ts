@@ -83,6 +83,11 @@ const TransactionsCollectionQuery = {
       defaultValue: false,
       description: 'Whether to include transactions from children (Events and Projects)',
     },
+    includeGiftCardTransactions: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      defaultValue: false,
+      description: 'Whether to include transactions from Gift Cards issued by the account.',
+    },
     includeDebts: {
       type: new GraphQLNonNull(GraphQLBoolean),
       defaultValue: false,
@@ -138,13 +143,17 @@ const TransactionsCollectionQuery = {
         }
       }
 
-      where.push({
-        [Op.or]: [
-          { UsingGiftCardFromCollectiveId: fromAccount.id, type: 'CREDIT' },
-          // prettier, please keep line break for readability please
-          { FromCollectiveId: fromAccountCondition },
-        ],
-      });
+      if (args.includeGiftCardTransactions) {
+        where.push({
+          [Op.or]: [
+            { UsingGiftCardFromCollectiveId: fromAccount.id, type: 'CREDIT' },
+            // prettier, please keep line break for readability please
+            { FromCollectiveId: fromAccountCondition },
+          ],
+        });
+      } else {
+        where.push({ FromCollectiveId: fromAccountCondition });
+      }
     }
 
     if (account) {
@@ -170,13 +179,17 @@ const TransactionsCollectionQuery = {
         }
       }
 
-      where.push({
-        [Op.or]: [
-          { UsingGiftCardFromCollectiveId: account.id, type: 'DEBIT' },
-          // prettier, please keep line break for readability please
-          { CollectiveId: accountCondition },
-        ],
-      });
+      if (args.includeGiftCardTransactions) {
+        where.push({
+          [Op.or]: [
+            { UsingGiftCardFromCollectiveId: account.id, type: 'DEBIT' },
+            // prettier, please keep line break for readability please
+            { CollectiveId: accountCondition },
+          ],
+        });
+      } else {
+        where.push({ CollectiveId: accountCondition });
+      }
     }
 
     if (host) {
