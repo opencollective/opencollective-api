@@ -677,6 +677,7 @@ export const InvoiceType = new GraphQLObjectType({
       },
       totalAmount: {
         type: GraphQLInt,
+        deprecationReason: '2021-09-09: Not used, so we stop computing it.',
         resolve(invoice) {
           return invoice.totalAmount;
         },
@@ -689,6 +690,7 @@ export const InvoiceType = new GraphQLObjectType({
       },
       currency: {
         type: GraphQLString,
+        deprecationReason: '2021-09-09: Not used, so we stop returning it.',
         resolve(invoice) {
           return invoice.currency;
         },

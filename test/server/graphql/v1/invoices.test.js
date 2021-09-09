@@ -98,8 +98,6 @@ describe('server/graphql/v1/invoices', () => {
       expect(invoices).to.have.length(3);
       expect(invoices[0].year).to.equal(2017);
       expect(invoices[0].month).to.equal(11);
-      expect(invoices[0].totalAmount).to.equal(1000);
-      expect(invoices[0].currency).to.equal('EUR');
       expect(invoices[0].host.slug).to.equal('brusselstogether-host');
       expect(invoices[0].fromCollective.slug).to.equal('xdamman');
     });

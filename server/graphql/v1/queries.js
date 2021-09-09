@@ -24,7 +24,6 @@ import {
   HostCollectiveOrderFieldType,
   TypeOfCollectiveType,
 } from './CollectiveInterface';
-import { InvoiceInputType } from './inputTypes';
 import { TransactionInterfaceType } from './TransactionInterface';
 import {
   InvoiceType,
@@ -114,83 +113,6 @@ const queries = {
       const invoices = await getConsolidatedInvoicesData(fromCollective);
 
       return invoices;
-    },
-  },
-
-  InvoiceByDateRange: {
-    type: InvoiceType,
-    deprecationReason: '2020-09-17: PDF service is now using the GQLV2 transactions endpoint',
-    args: {
-      invoiceInputType: {
-        type: new GraphQLNonNull(InvoiceInputType),
-        description:
-          'Like the Slug of the invoice but spilt out into parts and includes dateFrom + dateTo for getting an invoice over a date range.',
-      },
-    },
-    async resolve(_, args, req) {
-      const { dateFrom, dateTo, fromCollectiveSlug, collectiveSlug } = args.invoiceInputType;
-
-      if (!dateFrom || !dateTo) {
-        throw new ValidationFailed('A valid date range must be provided');
-      } else if (!fromCollectiveSlug || !collectiveSlug) {
-        throw new ValidationFailed('You must provide a collective and a fromCollective');
-      }
-
-      const fromCollective = await models.Collective.findOne({
-        where: { slug: fromCollectiveSlug },
-      });
-      if (!fromCollective) {
-        throw new NotFound(`User or organization not found for slug ${args.fromCollective}`);
-      }
-      const host = await models.Collective.findBySlug(collectiveSlug);
-      if (!host) {
-        throw new NotFound('Host not found');
-      }
-
-      if (
-        !req.remoteUser ||
-        (!req.remoteUser.isAdminOfCollective(fromCollective) &&
-          !req.remoteUser.hasRole(roles.ACCOUNTANT, fromCollective.id) &&
-          !req.remoteUser.hasRole(roles.ACCOUNTANT, host.id))
-      ) {
-        throw new Unauthorized("You don't have permission to access invoices for this user");
-      }
-
-      if (dateTo < dateFrom) {
-        throw new ValidationFailed('Invalid date object. dateFrom must be before dateTo');
-      }
-
-      const where = {
-        [Op.or]: [
-          { FromCollectiveId: fromCollective.id, UsingGiftCardFromCollectiveId: null },
-          { UsingGiftCardFromCollectiveId: fromCollective.id },
-        ],
-        HostCollectiveId: host.id,
-        createdAt: { [Op.gte]: dateFrom, [Op.lte]: dateTo },
-        type: 'CREDIT',
-      };
-
-      const order = [['createdAt', 'DESC']];
-      const transactions = await models.Transaction.findAll({ where, order });
-
-      const invoice = {
-        title: get(host, 'settings.invoiceTitle'),
-        extraInfo: get(host, 'settings.invoice.extraInfo'),
-        HostCollectiveId: host.id,
-        FromCollectiveId: fromCollective.id,
-        dateFrom: dateFrom,
-        dateTo: dateTo,
-        currency: host.currency,
-        totalAmount: 0,
-        transactions: transactions,
-      };
-
-      transactions.forEach(transaction => {
-        invoice.currency = transaction.hostCurrency;
-        invoice.totalAmount += transaction.amountInHostCurrency;
-      });
-
-      return invoice;
     },
   },
 

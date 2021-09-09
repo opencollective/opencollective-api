@@ -35,19 +35,25 @@ export const getTransactionPdf = async (transaction, user) => {
 };
 
 export const getConsolidatedInvoicesData = async fromCollective => {
+  const fromAccountCondition = [fromCollective.id];
+
+  const fromUser = await fromCollective.getUser();
+  if (fromUser) {
+    const incognitoProfile = await fromUser.getIncognitoProfile();
+    if (incognitoProfile) {
+      fromAccountCondition.push(incognitoProfile.id);
+    }
+  }
+
+  const where = {
+    kind: ['CONTRIBUTION', 'PLATFORM_TIP'],
+    createdAt: { [Op.lt]: moment().startOf('month') },
+    [Op.or]: [{ FromCollectiveId: fromAccountCondition }, { UsingGiftCardFromCollectiveId: fromCollective.id }],
+  };
+
   const transactions = await models.Transaction.findAll({
-    attributes: ['createdAt', 'HostCollectiveId', 'amountInHostCurrency', 'hostCurrency', 'CollectiveId'],
-    where: {
-      CollectiveId: { [Op.not]: fromCollective.id },
-      ExpenseId: { [Op.eq]: null },
-      createdAt: { [Op.lt]: moment().startOf('month') },
-      [Op.or]: [
-        { FromCollectiveId: fromCollective.id, type: 'DEBIT', isRefund: true },
-        { FromCollectiveId: fromCollective.id, type: 'CREDIT' },
-        { FromCollectiveId: fromCollective.id, UsingGiftCardFromCollectiveId: null },
-        { UsingGiftCardFromCollectiveId: fromCollective.id },
-      ],
-    },
+    attributes: ['createdAt', 'HostCollectiveId'],
+    where,
   });
 
   const hostsById = {};
@@ -71,9 +77,6 @@ export const getConsolidatedInvoicesData = async fromCollective => {
     const month = createdAt.getMonth() + 1;
     const monthToDigit = month < 10 ? `0${month}` : `${month}`;
     const slug = `${year}${monthToDigit}.${hostsById[HostCollectiveId].slug}.${fromCollective.slug}`;
-    const totalAmount = invoicesByKey[slug]
-      ? invoicesByKey[slug].totalAmount + transaction.amountInHostCurrency
-      : transaction.amountInHostCurrency;
     const totalTransactions = invoicesByKey[slug] ? invoicesByKey[slug].totalTransactions + 1 : 1;
 
     invoicesByKey[slug] = {
@@ -82,9 +85,7 @@ export const getConsolidatedInvoicesData = async fromCollective => {
       slug,
       year,
       month,
-      totalAmount,
       totalTransactions,
-      currency: transaction.hostCurrency,
     };
   }
 
