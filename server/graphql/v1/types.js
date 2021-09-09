@@ -3,7 +3,6 @@ import {
   GraphQLEnumType,
   GraphQLError,
   GraphQLFloat,
-  GraphQLInputObjectType,
   GraphQLInt,
   GraphQLList,
   GraphQLNonNull,
@@ -2098,25 +2097,6 @@ export const SubscriptionType = new GraphQLObjectType({
         },
       },
     };
-  },
-});
-
-export const UserInputType = new GraphQLInputObjectType({
-  name: 'UserInput',
-  description: 'Create and edit options for users',
-  fields: {
-    email: {
-      type: GraphQLString,
-      description: 'User email address',
-    },
-    firstName: {
-      type: GraphQLString,
-      description: 'User first name',
-    },
-    lastName: {
-      type: GraphQLString,
-      description: 'User last name',
-    },
   },
 });
 
