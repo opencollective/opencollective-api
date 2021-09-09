@@ -1186,6 +1186,10 @@ function defineModel() {
 
   Collective.prototype.getChildren = function (query = {}) {
     return Collective.findAll({
+      order: [
+        ['createdAt', 'DESC'],
+        ['id', 'DESC'],
+      ],
       ...query,
       where: { ...query.where, ParentCollectiveId: this.id },
     });
@@ -1193,6 +1197,11 @@ function defineModel() {
 
   Collective.prototype.getEvents = function (query = {}) {
     return this.getChildren({
+      order: [
+        ['startsAt', 'DESC'],
+        ['endsAt', 'DESC'],
+        ['id', 'DESC'],
+      ],
       ...query,
       where: { ...query.where, type: types.EVENT },
     });
