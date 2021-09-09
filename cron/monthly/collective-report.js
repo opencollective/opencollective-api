@@ -10,7 +10,6 @@ import { TransactionKind } from '../../server/constants/transaction-kind';
 import { generateHostFeeAmountForTransactionLoader } from '../../server/graphql/loaders/transactions';
 import { getCollectiveTransactionsCsv } from '../../server/lib/csv';
 import { notifyAdminsOfCollective } from '../../server/lib/notifications';
-import { getConsolidatedInvoicePdfs } from '../../server/lib/pdf';
 import { getTiersStats, parseToBoolean } from '../../server/lib/utils';
 import models, { Op } from '../../server/models';
 
@@ -210,14 +209,6 @@ const processCollective = async collective => {
       return collective;
     })
     .then(async collective => {
-      if (collective.type === 'ORGANIZATION') {
-        const monthlyConsolidatedInvoices = await getConsolidatedInvoicePdfs(collective);
-
-        if (!isEmpty(monthlyConsolidatedInvoices)) {
-          options.attachments.push(...monthlyConsolidatedInvoices);
-          emailData.consolidatedPdfs = true;
-        }
-      }
       const activity = {
         type: 'collective.monthlyreport',
         data: emailData,
