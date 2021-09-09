@@ -538,7 +538,7 @@ const accountFieldsDefinition = () => ({
     },
     async resolve(account, args) {
       if (args.limit > 100) {
-        throw new BadRequest('Cannot fetch more than 100 orders at the same time, please adjust the limit');
+        throw new BadRequest('Cannot fetch more than 100 accounts at the same time, please adjust the limit');
       }
 
       const where = {

@@ -1680,13 +1680,7 @@ const CollectiveFields = () => {
         },
       },
       resolve(collective, args) {
-        const query = {
-          where: { type: 'EVENT', ParentCollectiveId: collective.id },
-          order: [
-            ['startsAt', 'DESC'],
-            ['endsAt', 'DESC'],
-          ],
-        };
+        const query = { where: {} };
 
         if (args.limit) {
           query.limit = args.limit;
@@ -1718,7 +1712,7 @@ const CollectiveFields = () => {
           };
         }
 
-        return models.Collective.findAll(query);
+        return collective.getEvents(args);
       },
     },
     projects: {
@@ -1728,22 +1722,7 @@ const CollectiveFields = () => {
         offset: { type: GraphQLInt },
       },
       resolve(collective, args) {
-        const query = {
-          where: { type: 'PROJECT', ParentCollectiveId: collective.id },
-          order: [
-            ['startsAt', 'DESC'],
-            ['endsAt', 'DESC'],
-          ],
-        };
-
-        if (args.limit) {
-          query.limit = args.limit;
-        }
-        if (args.offset) {
-          query.offset = args.offset;
-        }
-
-        return models.Collective.findAll(query);
+        return collective.getProjects(args);
       },
     },
     paymentMethods: {
