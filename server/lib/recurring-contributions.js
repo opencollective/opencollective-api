@@ -8,8 +8,8 @@ import status from '../constants/order_status';
 import { PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import models from '../models';
 
-import emailLib from './email';
 import logger from './logger';
+import { notifyAdminsOfCollective } from './notifications';
 import * as paymentsLib from './payments';
 import { getTransactionPdf } from './pdf';
 import { sleep, toIsoDateStr } from './utils';
@@ -332,43 +332,51 @@ export async function cancelSubscriptionAndNotifyUser(order) {
 
 /** Send `archived.collective` email */
 export async function sendArchivedCollectiveEmail(order) {
-  const user = order.createdByUser;
-  return emailLib.send(
-    'archived.collective',
-    user.email,
-    {
-      order: order.info,
-      collective: order.collective.info,
-      fromCollective: order.fromCollective.minimal,
-    },
-    {
-      from: `${order.collective.name} <no-reply@${order.collective.slug}.opencollective.com>`,
-    },
-  );
+  const data = {
+    order: order.info,
+    collective: order.collective.info,
+    fromCollective: order.fromCollective.minimal,
+  };
+
+  const emailOptions = {
+    from: `${order.collective.name} <no-reply@${order.collective.slug}.opencollective.com>`,
+  };
+
+  const activity = {
+    type: 'archived.collective',
+    data,
+  };
+
+  return notifyAdminsOfCollective(data.fromCollective.id, activity, emailOptions);
 }
 
 /** Send `payment.failed` email */
 export async function sendFailedEmail(order, lastAttempt) {
-  const user = order.createdByUser;
   let errorMessage = get(order, 'data.error.message');
+
   if (errorMessage && errorMessage.includes('Something went wrong with the payment')) {
     errorMessage = 'Something went wrong with the payment.';
   }
-  return emailLib.send(
-    'payment.failed',
-    user.email,
-    {
-      lastAttempt,
-      order: order.info,
-      collective: order.collective.info,
-      fromCollective: order.fromCollective.minimal,
-      subscriptionsLink: `${config.host.website}/${order.fromCollective.slug}/recurring-contributions`,
-      errorMessage: errorMessage,
-    },
-    {
-      from: `${order.collective.name} <no-reply@${order.collective.slug}.opencollective.com>`,
-    },
-  );
+
+  const data = {
+    lastAttempt,
+    order: order.info,
+    collective: order.collective.info,
+    fromCollective: order.fromCollective.minimal,
+    subscriptionsLink: `${config.host.website}/${order.fromCollective.slug}/recurring-contributions`,
+    errorMessage: errorMessage,
+  };
+
+  const activity = {
+    type: 'payment.failed',
+    data,
+  };
+
+  const emailOptions = {
+    from: `${order.collective.name} <no-reply@${order.collective.slug}.opencollective.com>`,
+  };
+
+  return notifyAdminsOfCollective(data.fromCollective.id, activity, emailOptions);
 }
 
 /** Send `thankyou` email */
@@ -426,22 +434,30 @@ export async function sendThankYouEmail(order, transaction, isFirstPayment = fal
     attachments,
   };
 
-  return emailLib.send('thankyou', user.email, data, emailOptions);
+  const activity = {
+    type: 'thankyou',
+    data,
+  };
+
+  return notifyAdminsOfCollective(data.fromCollective.id, activity, emailOptions);
 }
 
 export async function sendCreditCardConfirmationEmail(order) {
-  const user = order.createdByUser;
-  return emailLib.send(
-    'payment.creditcard.confirmation',
-    user.email,
-    {
-      order: order.info,
-      collective: order.collective.info,
-      fromCollective: order.fromCollective.minimal,
-      confirmOrderLink: `${config.host.website}/orders/${order.id}/confirm`,
-    },
-    {
-      from: `${order.collective.name} <no-reply@${order.collective.slug}.opencollective.com>`,
-    },
-  );
+  const data = {
+    order: order.info,
+    collective: order.collective.info,
+    fromCollective: order.fromCollective.minimal,
+    confirmOrderLink: `${config.host.website}/orders/${order.id}/confirm`,
+  };
+
+  const activity = {
+    type: 'payment.creditcard.confirmation',
+    data,
+  };
+
+  const emailOptions = {
+    from: `${order.collective.name} <no-reply@${order.collective.slug}.opencollective.com>`,
+  };
+
+  return notifyAdminsOfCollective(data.fromCollective.id, activity, emailOptions);
 }
