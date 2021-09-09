@@ -1,28 +1,26 @@
 import config from 'config';
+import HelloWorks from 'helloworks-sdk';
 import { truncate } from 'lodash';
 
+import { US_TAX_FORM_THRESHOLD, US_TAX_FORM_THRESHOLD_FOR_PAYPAL } from '../constants/tax-form';
 import models, { Op } from '../models';
+import { LEGAL_DOCUMENT_REQUEST_STATUS, LEGAL_DOCUMENT_TYPE } from '../models/LegalDocument';
 
 import logger from './logger';
 import queries from './queries';
 import { isEmailInternal } from './utils';
 
-const { RequiredLegalDocument, LegalDocument } = models;
-const {
-  documentType: { US_TAX_FORM },
-} = RequiredLegalDocument;
-
 /**
  * @returns {Collective} all the accounts that need to be sent a tax form (both users and orgs)
  * @param {number} year
  */
-export async function findAccountsThatNeedToBeSentTaxForm(year) {
-  const results = await queries.getTaxFormsRequiredForAccounts(null, year);
-  if (!results.length) {
+export async function findAccountsThatNeedToBeSentTaxForm(year: number): Promise<typeof models.Collective[]> {
+  const collectiveIds = await queries.getTaxFormsRequiredForAccounts(null, year);
+  if (!collectiveIds.size) {
     return [];
   } else {
     return models.Collective.findAll({
-      where: { id: { [Op.in]: results.map(result => result.collectiveId) } },
+      where: { id: Array.from(collectiveIds) },
       include: [{ association: 'legalDocuments', required: false, where: { year } }],
     }).then(collectives => {
       return collectives.filter(
@@ -85,7 +83,7 @@ const getMainAdminToContact = async (account, adminUsers) => {
  * if it's a group (organization, collective, etc). Strings are truncated if too long
  * to match the `64` characters limit from HelloWorks.
  */
-const generateParticipantName = (account, mainUser) => {
+const generateParticipantName = (account, mainUser): string => {
   if (account.legalName) {
     // If a legal name is set, use it directly
     return truncate(account.legalName, { length: 64 });
@@ -98,7 +96,13 @@ const generateParticipantName = (account, mainUser) => {
   }
 };
 
-export async function sendHelloWorksUsTaxForm(client, account, year, callbackUrl, workflowId) {
+export async function sendHelloWorksUsTaxForm(
+  client: HelloWorks,
+  account: typeof models.Collective,
+  year: number,
+  callbackUrl: string,
+  workflowId: string,
+): Promise<typeof models.LegalDocument> {
   const adminUsers = await getAdminsForAccount(account);
   const mainUser = await getMainAdminToContact(account, adminUsers);
 
@@ -117,8 +121,8 @@ export async function sendHelloWorksUsTaxForm(client, account, year, callbackUrl
   };
 
   const saveDocumentStatus = status => {
-    return LegalDocument.findOrCreate({
-      where: { documentType: US_TAX_FORM, year, CollectiveId: account.id },
+    return models.LegalDocument.findOrCreate({
+      where: { documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM, year, CollectiveId: account.id },
     }).then(([doc]) => {
       doc.requestStatus = status;
       return doc.save();
@@ -141,9 +145,13 @@ export async function sendHelloWorksUsTaxForm(client, account, year, callbackUrl
       },
     });
 
-    return saveDocumentStatus(LegalDocument.requestStatus.REQUESTED);
+    return saveDocumentStatus(LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED);
   } catch (error) {
     logger.error(`Failed to initialize tax form for account #${account.id} (${mainUser.email})`, error);
-    return saveDocumentStatus(LegalDocument.requestStatus.ERROR);
+    return saveDocumentStatus(LEGAL_DOCUMENT_REQUEST_STATUS.ERROR);
   }
 }
+
+export const amountsRequireTaxForm = (paypalTotal: number, otherTotal: number): boolean => {
+  return otherTotal >= US_TAX_FORM_THRESHOLD || paypalTotal >= US_TAX_FORM_THRESHOLD_FOR_PAYPAL;
+};

@@ -7,7 +7,14 @@ import expenseTypes from '../../../server/constants/expense_type';
 import { US_TAX_FORM_THRESHOLD } from '../../../server/constants/tax-form';
 import { findAccountsThatNeedToBeSentTaxForm, sendHelloWorksUsTaxForm } from '../../../server/lib/tax-forms';
 import models from '../../../server/models';
-import { fakeCollective, fakeExpense, fakeHost, fakeLegalDocument } from '../../test-helpers/fake-data';
+import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
+import {
+  fakeCollective,
+  fakeExpense,
+  fakeHost,
+  fakeLegalDocument,
+  fakePayoutMethod,
+} from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 const { RECEIPT, INVOICE } = expenseTypes;
 
@@ -48,13 +55,15 @@ describe('server/lib/tax-forms', () => {
     organizationWithTaxForm,
     accountAlreadyNotified,
     accountWithTaxFormFromLastYear,
-    accountWithTaxFormFrom4YearsAgo;
+    accountWithTaxFormFrom4YearsAgo,
+    accountWithPaypalBelowThreshold,
+    accountWithPaypalOverThreshold;
 
   const documentData = {
     year: moment().year(),
   };
 
-  function ExpenseOverThreshold({ incurredAt, UserId, CollectiveId, amount, type, FromCollectiveId }) {
+  function ExpenseOverThreshold({ incurredAt, UserId, CollectiveId, amount, type, FromCollectiveId, PayoutMethodId }) {
     return {
       description: 'pizza',
       amount: amount || US_TAX_FORM_THRESHOLD + 100e2,
@@ -66,6 +75,7 @@ describe('server/lib/tax-forms', () => {
       createdAt: incurredAt,
       CollectiveId,
       type: type || INVOICE,
+      PayoutMethodId,
     };
   }
 
@@ -106,12 +116,17 @@ describe('server/lib/tax-forms', () => {
     accountAlreadyNotified = await fakeCollective({ type: 'ORGANIZATION' });
     accountWithTaxFormFromLastYear = await fakeCollective({ type: 'ORGANIZATION' });
     accountWithTaxFormFrom4YearsAgo = await fakeCollective({ type: 'ORGANIZATION' });
+    accountWithPaypalBelowThreshold = await fakeCollective({ type: 'ORGANIZATION' });
+    accountWithPaypalOverThreshold = await fakeCollective({ type: 'ORGANIZATION' });
     collectives = await Promise.all([
       fakeCollective({ HostCollectiveId: hostCollective.id }),
       fakeCollective({ HostCollectiveId: hostCollective.id }),
     ]);
 
     const mixCollective = await Collective.findByPk(users[3].CollectiveId);
+
+    const otherPayoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
+    const paypalPayoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.PAYPAL });
 
     // Create legal document for accountAlreadyNotified
     await fakeLegalDocument({
@@ -140,6 +155,7 @@ describe('server/lib/tax-forms', () => {
         FromCollectiveId: users[0].CollectiveId,
         CollectiveId: collectives[0].id,
         incurredAt: moment(),
+        PayoutMethodId: otherPayoutMethod.id,
       }),
     );
     // An expense from this year over the threshold
@@ -149,6 +165,7 @@ describe('server/lib/tax-forms', () => {
         FromCollectiveId: accountAlreadyNotified.id,
         CollectiveId: collectives[0].id,
         incurredAt: moment(),
+        PayoutMethodId: otherPayoutMethod.id,
       }),
     );
     // An expense from this year over the threshold
@@ -158,6 +175,7 @@ describe('server/lib/tax-forms', () => {
         FromCollectiveId: accountWithTaxFormFromLastYear.id,
         CollectiveId: collectives[0].id,
         incurredAt: moment(),
+        PayoutMethodId: otherPayoutMethod.id,
       }),
     );
     // An expense from this year over the threshold
@@ -167,6 +185,7 @@ describe('server/lib/tax-forms', () => {
         FromCollectiveId: accountWithTaxFormFrom4YearsAgo.id,
         CollectiveId: collectives[0].id,
         incurredAt: moment(),
+        PayoutMethodId: otherPayoutMethod.id,
       }),
     );
     // An expense from the host, should not be included
@@ -176,6 +195,7 @@ describe('server/lib/tax-forms', () => {
         FromCollectiveId: hostCollective.id,
         CollectiveId: collectives[0].id,
         incurredAt: moment(),
+        PayoutMethodId: otherPayoutMethod.id,
       }),
     );
     // An expense from this year over the threshold BUT it's of type receipt so it should not be counted
@@ -185,6 +205,7 @@ describe('server/lib/tax-forms', () => {
         FromCollectiveId: users[2].CollectiveId,
         CollectiveId: collectives[0].id,
         incurredAt: moment(),
+        PayoutMethodId: otherPayoutMethod.id,
         type: RECEIPT,
       }),
     );
@@ -195,6 +216,7 @@ describe('server/lib/tax-forms', () => {
         FromCollectiveId: users[1].CollectiveId,
         CollectiveId: collectives[0].id,
         incurredAt: moment(),
+        PayoutMethodId: otherPayoutMethod.id,
       }),
     );
     // An expense from this year under the threshold
@@ -204,6 +226,7 @@ describe('server/lib/tax-forms', () => {
         FromCollectiveId: users[1].CollectiveId,
         CollectiveId: collectives[0].id,
         incurredAt: moment(),
+        PayoutMethodId: otherPayoutMethod.id,
         amount: US_TAX_FORM_THRESHOLD - 200e2,
       }),
     );
@@ -214,6 +237,7 @@ describe('server/lib/tax-forms', () => {
         FromCollectiveId: users[4].CollectiveId,
         CollectiveId: collectives[0].id,
         incurredAt: moment(),
+        PayoutMethodId: otherPayoutMethod.id,
         amount: US_TAX_FORM_THRESHOLD - 200e2,
       }),
     );
@@ -224,6 +248,7 @@ describe('server/lib/tax-forms', () => {
         FromCollectiveId: users[0].CollectiveId,
         CollectiveId: collectives[1].id,
         incurredAt: moment(),
+        PayoutMethodId: otherPayoutMethod.id,
       }),
     );
     // An expense from previous year over the threshold
@@ -233,6 +258,7 @@ describe('server/lib/tax-forms', () => {
         FromCollectiveId: users[0].CollectiveId,
         CollectiveId: collectives[0].id,
         incurredAt: moment().set('year', 2016),
+        PayoutMethodId: otherPayoutMethod.id,
       }),
     );
     // An expense submitted under the same host (should not trigger tax form)
@@ -242,6 +268,7 @@ describe('server/lib/tax-forms', () => {
         FromCollectiveId: (await fakeCollective({ HostCollectiveId: collectives[0].HostCollectiveId })).id,
         CollectiveId: collectives[0].id,
         incurredAt: moment(),
+        PayoutMethodId: otherPayoutMethod.id,
       }),
     );
 
@@ -252,14 +279,37 @@ describe('server/lib/tax-forms', () => {
         FromCollectiveId: users[3].CollectiveId,
         CollectiveId: collectives[0].id,
         incurredAt: moment(),
+        PayoutMethodId: otherPayoutMethod.id,
       }),
     );
 
     // Organization: add expenses whose sum exceeds the threshold
-    const baseParams = { FromCollectiveId: organizationWithTaxForm.id, CollectiveId: collectives[0].id, amount: 250e2 };
+    const baseParams = {
+      FromCollectiveId: organizationWithTaxForm.id,
+      CollectiveId: collectives[0].id,
+      amount: 250e2,
+      PayoutMethodId: otherPayoutMethod.id,
+    };
     await fakeExpense({ ...baseParams, type: 'INVOICE' });
     await fakeExpense({ ...baseParams, type: 'UNCLASSIFIED' });
     await fakeExpense({ ...baseParams, type: 'FUNDING_REQUEST' });
+
+    // Add some PayPal-specific expenses (PayPal has a higher tax form threshold)
+    await fakeExpense({
+      FromCollectiveId: accountWithPaypalBelowThreshold.id,
+      CollectiveId: collectives[0].id,
+      amount: 10000e2, // Below threshold
+      PayoutMethodId: paypalPayoutMethod.id,
+      type: 'INVOICE',
+    });
+
+    await fakeExpense({
+      FromCollectiveId: accountWithPaypalOverThreshold.id,
+      CollectiveId: collectives[0].id,
+      amount: 100000e2, // Above threshold
+      PayoutMethodId: paypalPayoutMethod.id,
+      type: 'INVOICE',
+    });
 
     // Mix has a document that's in the error state
     const legalDoc = Object.assign({}, documentData, {
@@ -279,13 +329,15 @@ describe('server/lib/tax-forms', () => {
   describe('findAccountsThatNeedToBeSentTaxForm', () => {
     it('returns the right profiles', async () => {
       const accounts = await findAccountsThatNeedToBeSentTaxForm(moment().year());
-      expect(accounts.length).to.be.eq(5);
+      expect(accounts.length).to.be.eq(6);
       expect(accounts.some(account => account.id === organizationWithTaxForm.id)).to.be.true;
       expect(accounts.some(account => account.id === accountWithTaxFormFromLastYear.id)).to.be.false;
       expect(accounts.some(account => account.id === accountWithTaxFormFrom4YearsAgo.id)).to.be.true;
       expect(accounts.some(account => account.id === accountAlreadyNotified.id)).to.be.false;
       expect(accounts.some(account => account.id === hostCollective.id)).to.be.false;
       expect(accounts.some(account => account.id === users[4].CollectiveId)).to.be.false;
+      expect(accounts.some(account => account.id === accountWithPaypalOverThreshold.id)).to.be.true;
+      expect(accounts.some(account => account.id === accountWithPaypalBelowThreshold.id)).to.be.false;
     });
   });
 

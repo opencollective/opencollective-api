@@ -10,6 +10,7 @@ import {
   fakeExpense,
   fakeHost,
   fakeLegalDocument,
+  fakePayoutMethod,
   fakeTransaction,
 } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
@@ -74,13 +75,20 @@ describe('server/graphql/v2/query/ExpensesQuery', () => {
   });
 
   describe('Ready to Pay filter', () => {
-    let expensesReadyToPay, host;
+    let expensesReadyToPay, otherPayoutMethod, host;
 
     before(async () => {
       host = await fakeHostWithRequiredLegalDocument();
+      otherPayoutMethod = await fakePayoutMethod({ type: 'OTHER' });
       const collective = await fakeCollective({ HostCollectiveId: host.id });
       const collectiveWithoutBalance = await fakeCollective({ HostCollectiveId: host.id });
-      const baseExpenseData = { type: 'RECEIPT', CollectiveId: collective.id, status: 'APPROVED', amount: 1000 };
+      const baseExpenseData = {
+        type: 'RECEIPT',
+        CollectiveId: collective.id,
+        status: 'APPROVED',
+        amount: 1000,
+        PayoutMethodId: otherPayoutMethod.id,
+      };
       const expenseWithTaxFormData = {
         ...baseExpenseData,
         amount: US_TAX_FORM_THRESHOLD + 1,
