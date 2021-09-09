@@ -15,7 +15,6 @@ import GraphQLJSON from 'graphql-type-json';
 import { omit, pick } from 'lodash';
 import moment from 'moment';
 
-import intervals from '../../constants/intervals';
 import INTERVALS from '../../constants/intervals';
 import { maxInteger } from '../../constants/math';
 import orderStatus from '../../constants/order_status';
@@ -1272,11 +1271,11 @@ export const TierStatsType = new GraphQLObjectType({
           'How much money is given for this tier for each tier.interval (monthly/yearly). For flexible tiers, this amount is a monthly average of contributions amount, taking into account both yearly and monthly subscriptions.',
         type: GraphQLInt,
         resolve(tier, args, req) {
-          if (tier.interval === intervals.MONTH) {
+          if (tier.interval === INTERVALS.MONTH) {
             return req.loaders.Tier.totalMonthlyDonations.load(tier.id);
-          } else if (tier.interval === intervals.YEAR) {
+          } else if (tier.interval === INTERVALS.YEAR) {
             return req.loaders.Tier.totalYearlyDonations.load(tier.id);
-          } else if (tier.interval === intervals.FLEXIBLE) {
+          } else if (tier.interval === INTERVALS.FLEXIBLE) {
             return req.loaders.Tier.totalRecurringDonations.load(tier.id);
           } else {
             return 0;
