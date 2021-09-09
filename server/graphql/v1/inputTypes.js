@@ -426,16 +426,3 @@ export const CommentAttributesInputType = new GraphQLInputObjectType({
     },
   }),
 });
-
-export const InvoiceInputType = new GraphQLInputObjectType({
-  name: 'InvoiceInputType',
-  description: 'Input dates and collectives for Invoice',
-  fields: () => {
-    return {
-      dateFrom: { type: IsoDateString },
-      dateTo: { type: IsoDateString },
-      collectiveSlug: { type: GraphQLString },
-      fromCollectiveSlug: { type: GraphQLString },
-    };
-  },
-});
