@@ -6,16 +6,26 @@ import { fetchWithTimeout } from './fetch';
 import logger from './logger';
 import { parseToBoolean } from './utils';
 
-const getTransactionsCsv = async (type, collective, { startDate, endDate } = {}) => {
+export const getTransactionsCsvUrl = async (type, collective, { startDate, endDate, kind } = {}) => {
   const url = new URL(`${config.host.rest}/v2/${collective.slug}/${type}.csv`);
+
   if (startDate) {
     url.searchParams.set('dateFrom', moment.utc(startDate).toISOString());
   }
   if (endDate) {
     url.searchParams.set('dateTo', moment.utc(endDate).toISOString());
   }
+  if (kind) {
+    url.searchParams.set('kind', kind.join(','));
+  }
 
   url.searchParams.set('fetchAll', '1');
+
+  return url.toString();
+};
+
+const getTransactionsCsv = async (type, collective, { startDate, endDate, kind } = {}) => {
+  const url = getTransactionsCsvUrl(type, collective, { startDate, endDate, kind });
 
   const headers = {};
 
@@ -27,7 +37,7 @@ const getTransactionsCsv = async (type, collective, { startDate, endDate } = {})
     .then(response => {
       const { status } = response;
       if (status >= 200 && status < 300) {
-        return response.body;
+        return response.text();
       } else {
         logger.warn('Failed to fetch CSV');
         return null;
@@ -38,12 +48,12 @@ const getTransactionsCsv = async (type, collective, { startDate, endDate } = {})
     });
 };
 
-export const getCollectiveTransactionsCsv = async (collective, { startDate, endDate } = {}) => {
+export const getCollectiveTransactionsCsv = async (collective, { startDate, endDate, kind } = {}) => {
   if (parseToBoolean(config.restService.fetchCollectiveTransactionsCsv) === false) {
     return;
   }
 
-  return getTransactionsCsv('transactions', collective, { startDate, endDate });
+  return getTransactionsCsv('transactions', collective, { startDate, endDate, kind });
 };
 
 export const getHostTransactionsCsv = async (collective, { startDate, endDate } = {}) => {
