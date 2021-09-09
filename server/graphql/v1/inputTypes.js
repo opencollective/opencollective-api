@@ -108,6 +108,7 @@ export const UserInputType = new GraphQLInputObjectType({
     email: { type: EmailType },
     firstName: { type: GraphQLString },
     lastName: { type: GraphQLString },
+    legalName: { type: GraphQLString },
     name: { type: GraphQLString },
     company: { type: GraphQLString },
     image: { type: GraphQLString },
