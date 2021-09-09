@@ -35,10 +35,20 @@ export const getTransactionPdf = async (transaction, user) => {
 };
 
 export const getConsolidatedInvoicesData = async fromCollective => {
+  const fromAccountCondition = [fromCollective.id];
+
+  const fromUser = await fromCollective.getUser();
+  if (fromUser) {
+    const incognitoProfile = await fromUser.getIncognitoProfile();
+    if (incognitoProfile) {
+      fromAccountCondition.push(incognitoProfile.id);
+    }
+  }
+
   const where = {
     kind: ['CONTRIBUTION', 'PLATFORM_TIP'],
     createdAt: { [Op.lt]: moment().startOf('month') },
-    [Op.or]: [{ FromCollectiveId: fromCollective.id }, { UsingGiftCardFromCollectiveId: fromCollective.id }],
+    [Op.or]: [{ FromCollectiveId: fromAccountCondition }, { UsingGiftCardFromCollectiveId: fromCollective.id }],
   };
 
   const transactions = await models.Transaction.findAll({

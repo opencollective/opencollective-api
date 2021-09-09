@@ -15,7 +15,7 @@ import GraphQLJSON from 'graphql-type-json';
 
 import { CaptchaInput } from '../v2/input/CaptchaInput';
 
-import { DateString, IsoDateString } from './types';
+import { DateString } from './types';
 
 const EmailType = new GraphQLScalarType({
   name: 'Email',
