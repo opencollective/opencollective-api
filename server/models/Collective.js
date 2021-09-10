@@ -631,15 +631,15 @@ function defineModel() {
           }
           let potentialSlugs,
             useSlugify = true;
+          // Populate potentialSlugs, priority of choices is the same as order in the array
           if (instance.isIncognito) {
             useSlugify = false;
             potentialSlugs = [`incognito-${uuid().split('-')[0]}`];
           } else {
             potentialSlugs = [
-              instance.slug,
+              instance.name ? instance.name.replace(/ /g, '-') : null,
               instance.image ? userlib.getUsernameFromGithubURL(instance.image) : null,
               instance.twitterHandle ? instance.twitterHandle.replace(/@/g, '') : null,
-              instance.name ? instance.name.replace(/ /g, '-') : null,
             ];
           }
           return Collective.generateSlug(potentialSlugs, useSlugify).then(slug => {
@@ -3085,12 +3085,15 @@ function defineModel() {
   };
 
   /*
-   * If there is a username suggested, we'll check that it's valid or increase it's count
-   * Otherwise, we'll suggest something.
+   * Generates best unique slug by checking a base slug and adding a count if it is reserved/non-unique.
+   * If multiple suggestions are provided, the first non-null suggestion is used as the base.
+   *
+   * @param [array] suggestions Array of suggested base slugs in order of priority.
    */
   Collective.generateSlug = (suggestions, useSlugify = true) => {
     /*
-     * Checks a given slug in a list and if found, increments count and recursively checks again
+     * Checks a given slug against existing and reserved slugs. Increments count if non-unique/reserved and
+     * recursively checks again until acceptable slug is found.
      */
     const slugSuggestionHelper = (slugToCheck, slugList, count) => {
       const slug = count > 0 ? `${slugToCheck}${count}` : slugToCheck;
@@ -3102,20 +3105,21 @@ function defineModel() {
     };
 
     suggestions = suggestions.filter(slug => (slug ? true : false)); // filter out any nulls
+    let baseSlug = suggestions[0]; // Use the first non-null suggestion as the base
 
     if (useSlugify) {
-      suggestions = suggestions.map(slug => slugify(slug)); // Will also trim, lowercase and remove + signs
+      baseSlug = slugify(baseSlug); // Will also trim, lowercase and remove + signs
     }
 
-    // fetch any matching slugs or slugs for the top choice in the list above
+    // fetch any existing slugs which match or start with baseSlug. Used as list for helper function.
     return models.Collective.findAll({
       attributes: ['slug'],
-      where: { slug: { [Op.startsWith]: suggestions[0] } },
+      where: { slug: { [Op.startsWith]: baseSlug } },
       paranoid: false,
       raw: true,
     })
       .then(userObjectList => userObjectList.map(user => user.slug))
-      .then(slugList => slugSuggestionHelper(suggestions[0], slugList, 0));
+      .then(slugList => slugSuggestionHelper(baseSlug, slugList, 0));
   };
 
   Collective.findBySlug = (slug, options = {}, throwIfMissing = true) => {
