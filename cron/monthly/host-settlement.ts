@@ -3,15 +3,15 @@ import '../../server/env';
 
 import config from 'config';
 import { parse as json2csv } from 'json2csv';
-import { groupBy, pick, round, sumBy } from 'lodash';
+import { groupBy, sumBy } from 'lodash';
 import moment from 'moment';
-import { v4 as uuid } from 'uuid';
 
 import activityType from '../../server/constants/activities';
 import expenseStatus from '../../server/constants/expense_status';
 import expenseTypes from '../../server/constants/expense_type';
+import { TransactionKind } from '../../server/constants/transaction-kind';
 import { SETTLEMENT_EXPENSE_PROPERTIES } from '../../server/constants/transactions';
-import { uploadToS3 } from '../../server/lib/awsS3';
+import { getTransactionsCsvUrl } from '../../server/lib/csv';
 import { getPendingHostFeeShare, getPendingPlatformTips } from '../../server/lib/host-metrics';
 import { parseToBoolean } from '../../server/lib/utils';
 import models, { sequelize } from '../../server/models';
@@ -24,6 +24,7 @@ const defaultDate = process.env.START_DATE ? moment.utc(process.env.START_DATE) 
 const DRY = process.env.DRY;
 const HOST_ID = process.env.HOST_ID;
 const isProduction = config.env === 'production';
+const { PLATFORM_TIP_DEBT, HOST_FEE_SHARE_DEBT } = TransactionKind;
 
 // Only run on the 1th of the month
 if (isProduction && new Date().getDate() !== 1 && !process.env.OFFCYCLE) {
@@ -37,17 +38,6 @@ if (isProduction && new Date().getDate() !== 1 && !process.env.OFFCYCLE) {
 if (DRY) {
   console.info('Running dry, changes are not going to be persisted to the DB.');
 }
-
-const ATTACHED_CSV_COLUMNS = ['createdAt', 'description', 'amount', 'currency', 'OrderId', 'TransactionGroup'];
-
-const generateCSVFromTransactions = transactions => {
-  return json2csv(
-    transactions.map(t => ({
-      ...pick(t, ATTACHED_CSV_COLUMNS),
-      amount: round(t.amount * 0.01, 2),
-    })),
-  );
-};
 
 export async function run(baseDate: Date | moment.Moment = defaultDate): Promise<void> {
   const momentDate = moment(baseDate).subtract(1, 'month');
@@ -152,11 +142,6 @@ AND ts."status" != 'SETTLED'`,
       } (${host.currency})`,
     );
 
-    let csv;
-    if (transactions.length) {
-      csv = generateCSVFromTransactions(transactions);
-    }
-
     if (DRY) {
       console.debug(`Items:\n${json2csv(items)}\n`);
     } else {
@@ -213,19 +198,14 @@ AND ts."status" != 'SETTLED'`,
       await models.ExpenseItem.bulkCreate(items);
 
       // Attach CSV
-      if (csv) {
-        const Body = csv;
-        const filenameBase = `${host.name}-${momentDate.format('MMMM-YYYY')}`;
-        const Key = `${filenameBase}.${uuid().split('-')[0]}.csv`;
-        const { Location: url } = await uploadToS3({
-          Bucket: config.aws.s3.bucket,
-          Key,
-          Body,
-          ACL: 'public-read',
-          ContentType: 'text/csv',
-        });
+      const csvUrl = await getTransactionsCsvUrl('transactions', host, {
+        startDate,
+        endDate,
+        kind: [PLATFORM_TIP_DEBT, HOST_FEE_SHARE_DEBT],
+      });
+      if (csvUrl) {
         await models.ExpenseAttachedFile.create({
-          url,
+          url: csvUrl,
           ExpenseId: expense.id,
           CreatedByUserId: SETTLEMENT_EXPENSE_PROPERTIES.UserId,
         });
