@@ -35,6 +35,7 @@
     "fetchTransactionsReceipts": true
   },
   "restService": {
-    "fetchCollectiveTransactionsCsv": true
+    "fetchCollectiveTransactionsCsv": true,
+    "fetchHostTransactionsCsv": true
   }
 }

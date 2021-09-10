@@ -6,12 +6,8 @@ import { fetchWithTimeout } from './fetch';
 import logger from './logger';
 import { parseToBoolean } from './utils';
 
-export const getCollectiveTransactionsCsv = async (collective, { startDate, endDate } = {}) => {
-  if (parseToBoolean(config.restService.fetchCollectiveTransactionsCsv) === false) {
-    return;
-  }
-
-  const url = new URL(`${config.host.rest}/v2/${collective.slug}/transactions.csv`);
+const getTransactionsCsv = async (type, collective, { startDate, endDate } = {}) => {
+  const url = new URL(`${config.host.rest}/v2/${collective.slug}/${type}.csv`);
   if (startDate) {
     url.searchParams.set('dateFrom', moment.utc(startDate).toISOString());
   }
@@ -19,13 +15,15 @@ export const getCollectiveTransactionsCsv = async (collective, { startDate, endD
     url.searchParams.set('dateTo', moment.utc(endDate).toISOString());
   }
 
+  url.searchParams.set('fetchAll', '1');
+
   const headers = {};
 
   // Disable for now
   // const accessToken = user.jwt({}, TOKEN_EXPIRATION_CSV);
   // headers.Authorization = `Bearer ${accessToken}`;
 
-  return fetchWithTimeout(url, { method: 'get', headers, timeoutInMs: 10000 })
+  return fetchWithTimeout(url, { method: 'get', headers, timeoutInMs: 5 * 60 * 1000 })
     .then(response => {
       const { status } = response;
       if (status >= 200 && status < 300) {
@@ -38,4 +36,20 @@ export const getCollectiveTransactionsCsv = async (collective, { startDate, endD
     .catch(error => {
       logger.error(`Error fetching CSV: ${error.message}`);
     });
+};
+
+export const getCollectiveTransactionsCsv = async (collective, { startDate, endDate } = {}) => {
+  if (parseToBoolean(config.restService.fetchCollectiveTransactionsCsv) === false) {
+    return;
+  }
+
+  return getTransactionsCsv('transactions', collective, { startDate, endDate });
+};
+
+export const getHostTransactionsCsv = async (collective, { startDate, endDate } = {}) => {
+  if (parseToBoolean(config.restService.fetchHostTransactionsCsv) === false) {
+    return;
+  }
+
+  return getTransactionsCsv('hostTransactions', collective, { startDate, endDate });
 };

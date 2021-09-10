@@ -179,7 +179,8 @@
     "fetchTransactionsReceipts": false
   },
   "restService": {
-    "fetchCollectiveTransactionsCsv": false
+    "fetchCollectiveTransactionsCsv": false,
+    "fetchHostTransactionsCsv": false
   },
   "privacy": {
     "apiUrl": "https://sandbox.privacy.com"

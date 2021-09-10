@@ -43,7 +43,8 @@
     "fetchTransactionsReceipts": true
   },
   "restService": {
-    "fetchCollectiveTransactionsCsv": true
+    "fetchCollectiveTransactionsCsv": true,
+    "fetchHostTransactionsCsv": true
   },
   "privacy": {
     "apiUrl": "https://api.privacy.com"
