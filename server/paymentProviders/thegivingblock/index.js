@@ -126,8 +126,8 @@ export const processOrder = async order => {
   // create wallet address
   const { depositAddress, pledgeId } = await createDepositAddress(account, {
     organizationId: account.data.organizationId,
-    pledgeAmount: order.data.customData.pledgeAmount,
-    pledgeCurrency: order.data.customData.pledgeCurrency,
+    pledgeAmount: order.data.thegivingblock.pledgeAmount,
+    pledgeCurrency: order.data.thegivingblock.pledgeCurrency,
   });
 
   // update payment method
@@ -141,12 +141,12 @@ export const processOrder = async order => {
   // update approximate amount in order currency
   let cryptoFxRate;
   try {
-    cryptoFxRate = await getFxRate(order.data.customData.pledgeCurrency, order.currency);
+    cryptoFxRate = await getFxRate(order.data.thegivingblock.pledgeCurrency, order.currency);
   } catch (e) {
     console.log(e);
   }
   if (cryptoFxRate) {
-    const totalAmount = Math.round(order.data.customData.pledgeAmount * cryptoFxRate * 100);
+    const totalAmount = Math.round(order.data.thegivingblock.pledgeAmount * cryptoFxRate * 100);
     await order.update({ totalAmount });
   }
 };

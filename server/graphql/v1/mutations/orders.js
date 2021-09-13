@@ -547,6 +547,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
         isEmbed: Boolean(order.context?.isEmbed),
         isGuest,
         isBalanceTransfer: order.isBalanceTransfer,
+        ...order.data,
       },
       status: orderStatus,
     };
