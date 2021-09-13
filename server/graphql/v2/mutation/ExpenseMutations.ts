@@ -61,9 +61,6 @@ const expenseMutations = {
         payoutMethod.id = idDecode(payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD);
       }
 
-      // Support deprecated `attachments` field
-      const items = args.expense.items || args.expense.attachments || [];
-
       // Right now this endpoint uses the old mutation by adapting the data for it. Once we get rid
       // of the `createExpense` endpoint in V1, the actual code to create the expense should be moved
       // here and cleaned.
@@ -78,11 +75,10 @@ const expenseMutations = {
           'invoiceInfo',
           'payeeLocation',
         ]),
-        items,
-        amount: items.reduce((total, item) => total + item.amount, 0),
+        items: args.expense.items || [],
         payoutMethod,
-        collective: await fetchAccountWithReference(args.account, req),
-        fromCollective: await fetchAccountWithReference(args.expense.payee, { throwIfMissing: true }),
+        account: await fetchAccountWithReference(args.account, { throwIfMissing: true }),
+        fromAccount: await fetchAccountWithReference(args.expense.payee, { throwIfMissing: true }),
       });
     },
   },
@@ -100,12 +96,14 @@ const expenseMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
-      // Support deprecated `attachments` field
-      const items = args.expense.items || args.expense.attachments;
       const expense = args.expense;
       const payeeExists = expense.payee?.id || expense.payee?.legacyId;
+      const getObjectIdDecoder = identifier => object => ({
+        ...object,
+        id: object.id ? idDecode(object.id, identifier) : null,
+      });
 
-      const expenseData = {
+      const expenseInput = {
         id: idDecode(expense.id, IDENTIFIER_TYPES.EXPENSE),
         description: expense.description,
         tags: expense.tags,
@@ -113,29 +111,15 @@ const expenseMutations = {
         payeeLocation: expense.payeeLocation,
         privateMessage: expense.privateMessage,
         invoiceInfo: expense.invoiceInfo,
-        amount: items?.reduce((total, att) => total + att.amount, 0),
-        payoutMethod: expense.payoutMethod && {
-          id: expense.payoutMethod.id && idDecode(expense.payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD),
-          data: expense.payoutMethod.data,
-          name: expense.payoutMethod.name,
-          isSaved: expense.payoutMethod.isSaved,
-          type: expense.payoutMethod.type,
-        },
-        items: items?.map(item => ({
-          id: item.id && idDecode(item.id, IDENTIFIER_TYPES.EXPENSE_ITEM),
-          url: item.url,
-          amount: item.amount,
-          incurredAt: item.incurredAt,
-          description: item.description,
-        })),
-        attachedFiles: expense.attachedFiles?.map(attachedFile => ({
-          id: attachedFile.id && idDecode(attachedFile.id, IDENTIFIER_TYPES.EXPENSE_ITEM),
-          url: attachedFile.url,
-        })),
-        fromCollective: payeeExists && (await fetchAccountWithReference(expense.payee, { throwIfMissing: true })),
+        payoutMethod: getObjectIdDecoder(IDENTIFIER_TYPES.PAYOUT_METHOD)(expense.payoutMethod),
+        items: expense.items?.map(getObjectIdDecoder(IDENTIFIER_TYPES.EXPENSE_ITEM)) || [],
+        attachedFiles: expense.attachedFiles?.map(getObjectIdDecoder(IDENTIFIER_TYPES.EXPENSE_ATTACHED_FILE)) || [],
+        fromAccount: payeeExists && (await fetchAccountWithReference(expense.payee, { throwIfMissing: true })),
       };
 
-      if (args.draftKey) {
+      if (!args.draftKey) {
+        return editExpense(req, expenseInput);
+      } else {
         // It is a submit on behalf being completed
         const expenseId = getDatabaseIdFromExpenseReference(args.expense);
         let existingExpense = await models.Expense.findByPk(expenseId, {
@@ -158,7 +142,7 @@ const expenseMutations = {
             {
               ...pick(payee, ['email', 'newsletterOptIn']),
               ...models.User.splitName(payee.name),
-              location: expenseData.payeeLocation,
+              location: expenseInput.payeeLocation,
             },
             {
               organizationData,
@@ -186,8 +170,6 @@ const expenseMutations = {
 
         return existingExpense;
       }
-
-      return editExpense(req, expenseData);
     },
   },
   deleteExpense: {
