@@ -6753,6 +6753,11 @@ input OrderCreateInput {
   tier: TierReferenceInput
 
   """
+  Data related to this order
+  """
+  data: JSON
+
+  """
   If the tier has some "customFields", use this field to set their values
   """
   customData: JSON
@@ -7834,12 +7839,12 @@ type Query {
     """
     The number of results to fetch (default 10, max 1000)
     """
-    limit: Int = 10
+    limit: Int! = 10
 
     """
     The offset to use to fetch
     """
-    offset: Int = 0
+    offset: Int! = 0
 
     """
     Only accounts that match these tags
@@ -7952,12 +7957,12 @@ type Query {
     offset: Int! = 0
 
     """
-    Reference of the account that submitted this expense
+    Reference of an account that is the payee of an expense
     """
     fromAccount: AccountReferenceInput
 
     """
-    Reference of the account where this expense was submitted
+    Reference of an account that is the payer of an expense
     """
     account: AccountReferenceInput
 
@@ -8020,6 +8025,11 @@ type Query {
     The term to search
     """
     searchTerm: String
+
+    """
+    Whether to include expenses from children of the account (Events and Projects)
+    """
+    includeChildrenExpenses: Boolean! = false
   ): ExpenseCollection!
   expense(
     """
@@ -8234,6 +8244,16 @@ type Query {
     incognito profile will be included too (admins only)
     """
     includeIncognitoTransactions: Boolean! = false
+
+    """
+    Whether to include transactions from children (Events and Projects)
+    """
+    includeChildrenTransactions: Boolean! = false
+
+    """
+    Whether to include transactions from Gift Cards issued by the account.
+    """
+    includeGiftCardTransactions: Boolean! = false
 
     """
     Whether to include debt transactions
