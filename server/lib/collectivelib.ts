@@ -52,6 +52,7 @@ export const COLLECTIVE_SETTINGS_KEYS_LIST = [
   'bitcoin',
   'categories',
   'collectivePage',
+  'cryptoEnabled',
   'disableCustomContributions',
   'dismissedHelpMessages',
   'disableCryptoContributions',
