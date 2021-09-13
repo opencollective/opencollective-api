@@ -15,7 +15,7 @@ const TimeSeriesAmountNodes = new GraphQLObjectType({
 
 export const TimeSeriesAmount = new GraphQLObjectType({
   name: 'TimeSeriesAmount',
-  description: 'Host metrics time series',
+  description: 'Amount time series',
   interfaces: [TimeSeries],
   fields: () => ({
     ...getTimeSeriesFields(),

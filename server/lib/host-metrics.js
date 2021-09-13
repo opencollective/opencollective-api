@@ -62,7 +62,7 @@ function computeDates(startDate, endDate) {
 
 const getGroupTimeUnitFragments = (groupTimeUnit, table) => {
   if (!groupTimeUnit) {
-    return { select: '', groupBy: '' };
+    return { select: '', groupBy: '', orderBy: '' };
   } else {
     return {
       select: `, DATE_TRUNC('${groupTimeUnit}', ${table}."createdAt") AS "date"`,
@@ -145,18 +145,17 @@ GROUP BY "hostCurrency"`,
   return computeTotal(results, host.currency);
 }
 
-export async function getHostFees(host, { startDate, endDate, groupTimeUnit } = {}) {
-  const timeUnitFragments = getGroupTimeUnitFragments(groupTimeUnit, 't1');
+export async function getHostFees(host, { startDate, endDate } = {}) {
   let newResults;
   if (parseToBoolean(config.ledger.separateHostFees) === true) {
     newResults = await sequelize.query(
-      `SELECT SUM(t1."amountInHostCurrency") as "_amount", t1."hostCurrency" as "_currency"${timeUnitFragments.select}
+      `SELECT SUM(t1."amountInHostCurrency") as "_amount", t1."hostCurrency" as "_currency"
 FROM "Transactions" as t1
 WHERE t1."CollectiveId" = :CollectiveId
 AND t1."kind" = 'HOST_FEE'
 AND t1."createdAt" >= :startDate AND t1."createdAt" <= :endDate
 AND t1."deletedAt" IS NULL
-GROUP BY t1."hostCurrency"${timeUnitFragments.groupBy} ${timeUnitFragments.orderBy}`,
+GROUP BY t1."hostCurrency"`,
       {
         replacements: { CollectiveId: host.id, ...computeDates(startDate, endDate) },
         type: sequelize.QueryTypes.SELECT,
@@ -168,13 +167,13 @@ GROUP BY t1."hostCurrency"${timeUnitFragments.groupBy} ${timeUnitFragments.order
   const newHostFeeIntroductionDate = new Date('2021-01-01T00:00:00.000Z');
   if (startDate < newHostFeeIntroductionDate) {
     legacyResults = await sequelize.query(
-      `SELECT SUM(t1."hostFeeInHostCurrency") as "_amount", t1."hostCurrency" as "_currency"${timeUnitFragments.select}
+      `SELECT SUM(t1."hostFeeInHostCurrency") as "_amount", t1."hostCurrency" as "_currency"
 FROM "Transactions" as t1
 WHERE t1."HostCollectiveId" = :HostCollectiveId
 AND t1."createdAt" >= :startDate AND t1."createdAt" <= :endDate
 AND NOT (t1."type" = 'DEBIT' AND t1."kind" = 'ADDED_FUNDS')
 AND t1."deletedAt" IS NULL
-GROUP BY t1."hostCurrency"${timeUnitFragments.groupBy} ${timeUnitFragments.orderBy}`,
+GROUP BY t1."hostCurrency"`,
       {
         replacements: { HostCollectiveId: host.id, ...computeDates(startDate, endDate) },
         type: sequelize.QueryTypes.SELECT,
@@ -182,65 +181,93 @@ GROUP BY t1."hostCurrency"${timeUnitFragments.groupBy} ${timeUnitFragments.order
     );
   }
 
-  if (groupTimeUnit) {
-    const newTimeSeries = await convertCurrencyForTimeSeries(newResults, host.currency);
-    const legacyTimeSeries = await convertCurrencyForTimeSeries(legacyResults, host.currency);
-    const mergedTimeSeries = [...newTimeSeries.map(point => ({ ...point, amount: Math.abs(point.amount) }))];
+  let total = await computeTotal(legacyResults, host.currency);
 
-    // Merge legacy time series with new time series
-    legacyTimeSeries.forEach(point => {
-      const existingDataPoint = mergedTimeSeries.find(({ date }) => point.date === date);
-      if (existingDataPoint) {
-        existingDataPoint.amount += Math.abs(point.amount);
-      } else {
-        mergedTimeSeries.push({ ...point, amount: Math.abs(point.amount) });
-      }
-    });
+  // amount/hostFeeInHostCurrency is expressed as a negative number
+  total = oppositeTotal(total);
 
-    return orderBy(mergedTimeSeries, 'date');
-  } else {
-    let total = await computeTotal(legacyResults, host.currency);
-
-    // amount/hostFeeInHostCurrency is expressed as a negative number
-    total = oppositeTotal(total);
-
-    if (newResults?.length) {
-      total += await computeTotal(newResults, host.currency);
-    }
-
-    return total;
+  if (newResults?.length) {
+    total += await computeTotal(newResults, host.currency);
   }
+
+  return total;
 }
 
-export async function getHostFeeShare(host, { startDate, endDate, groupTimeUnit } = {}) {
+export async function getHostFeesTimeSeries(host, { startDate, endDate, timeUnit } = {}) {
+  const newResults = await sequelize.query(
+    `SELECT SUM(t1."amountInHostCurrency") as "_amount", t1."hostCurrency" as "_currency", DATE_TRUNC('${timeUnit}', t1."createdAt") as "date"
+FROM "Transactions" as t1
+WHERE t1."CollectiveId" = :CollectiveId
+AND t1."kind" = 'HOST_FEE'
+AND t1."createdAt" >= :startDate AND t1."createdAt" <= :endDate
+AND t1."deletedAt" IS NULL
+GROUP BY t1."hostCurrency", DATE_TRUNC('${timeUnit}', t1."createdAt")
+ORDER BY DATE_TRUNC('${timeUnit}', t1."createdAt")`,
+    {
+      replacements: { CollectiveId: host.id, ...computeDates(startDate, endDate) },
+      type: sequelize.QueryTypes.SELECT,
+    },
+  );
+
+  let legacyResults = [];
+  const newHostFeeIntroductionDate = new Date('2021-01-01T00:00:00.000Z');
+  if (startDate < newHostFeeIntroductionDate) {
+    legacyResults = await sequelize.query(
+      `SELECT SUM(t1."hostFeeInHostCurrency") as "_amount", t1."hostCurrency" as "_currency", DATE_TRUNC('${timeUnit}', t1."createdAt") as "date"
+FROM "Transactions" as t1
+WHERE t1."HostCollectiveId" = :HostCollectiveId
+AND t1."createdAt" >= :startDate AND t1."createdAt" <= :endDate
+AND NOT (t1."type" = 'DEBIT' AND t1."kind" = 'ADDED_FUNDS')
+AND t1."deletedAt" IS NULL
+GROUP BY t1."hostCurrency", DATE_TRUNC('${timeUnit}', t1."createdAt")
+ORDER BY DATE_TRUNC('${timeUnit}', t1."createdAt")`,
+      {
+        replacements: { HostCollectiveId: host.id, ...computeDates(startDate, endDate) },
+        type: sequelize.QueryTypes.SELECT,
+      },
+    );
+  }
+
+  const newTimeSeries = await convertCurrencyForTimeSeries(newResults, host.currency);
+  const legacyTimeSeries = await convertCurrencyForTimeSeries(legacyResults, host.currency);
+  const mergedTimeSeries = [...newTimeSeries.map(point => ({ ...point, amount: Math.abs(point.amount) }))];
+
+  // Merge legacy time series with new time series
+  legacyTimeSeries.forEach(point => {
+    const existingDataPoint = mergedTimeSeries.find(({ date }) => point.date === date);
+    if (existingDataPoint) {
+      existingDataPoint.amount += Math.abs(point.amount);
+    } else {
+      mergedTimeSeries.push({ ...point, amount: Math.abs(point.amount) });
+    }
+  });
+
+  return orderBy(mergedTimeSeries, 'date');
+}
+
+export async function getHostFeeShare(host, { startDate, endDate } = {}) {
   if (parseToBoolean(config.ledger.separateHostFees) === true) {
-    const timeUnitFragments = getGroupTimeUnitFragments(groupTimeUnit, 't1');
     const results = await sequelize.query(
-      `SELECT SUM(t1."amountInHostCurrency") as "_amount", t1."hostCurrency" as "_currency"${timeUnitFragments.select}
+      `SELECT SUM(t1."amountInHostCurrency") as "_amount", t1."hostCurrency" as "_currency"
 FROM "Transactions" as t1
 WHERE t1."CollectiveId" = :CollectiveId
 AND t1."type" = 'DEBIT'
 AND t1."kind" = 'HOST_FEE_SHARE'
 AND t1."createdAt" >= :startDate AND t1."createdAt" <= :endDate
 AND t1."deletedAt" IS NULL
-GROUP BY t1."hostCurrency"${timeUnitFragments.groupBy}${timeUnitFragments.orderBy}`,
+GROUP BY t1."hostCurrency"`,
       {
         replacements: { CollectiveId: host.id, ...computeDates(startDate, endDate) },
         type: sequelize.QueryTypes.SELECT,
       },
     );
 
-    if (groupTimeUnit) {
-      const preparedTimeSeries = await convertCurrencyForTimeSeries(results, host.currency);
-      return preparedTimeSeries.map(point => ({ ...point, amount: Math.abs(point.amount) }));
-    } else {
-      let total = await computeTotal(results, host.currency);
+    let total = await computeTotal(results, host.currency);
 
-      // we're looking at the DEBIT, so it's a negative number
-      total = oppositeTotal(total);
+    // we're looking at the DEBIT, so it's a negative number
+    total = oppositeTotal(total);
 
-      return total;
-    }
+    return total;
   }
 
   const hostFees = await getHostFees(host, { startDate, endDate });
@@ -249,6 +276,35 @@ GROUP BY t1."hostCurrency"${timeUnitFragments.groupBy}${timeUnitFragments.orderB
   const hostFeeSharePercent = plan.hostFeeSharePercent || 0;
 
   return Math.round((hostFees * hostFeeSharePercent) / 100);
+}
+
+export async function getHostFeeShareTimeSeries(host, { startDate, endDate, timeUnit } = {}) {
+  const results = await sequelize.query(
+    `SELECT
+      SUM(t1."amountInHostCurrency") as "_amount",
+      t1."hostCurrency" as "_currency",
+      DATE_TRUNC('${timeUnit}', t1."createdAt") as "date",
+      COALESCE(ts."status", 'OWED') as "settlementStatus"
+    FROM "Transactions" as t1
+    LEFT JOIN "TransactionSettlements" ts
+      ON t1."TransactionGroup" = ts."TransactionGroup"
+      AND ts.kind = 'HOST_FEE_SHARE_DEBT'
+      AND ts."deletedAt" IS NULL
+    WHERE t1."CollectiveId" = :CollectiveId
+    AND t1."type" = 'DEBIT'
+    AND t1."kind" = 'HOST_FEE_SHARE'
+    AND t1."createdAt" >= :startDate AND t1."createdAt" <= :endDate
+    AND t1."deletedAt" IS NULL
+    GROUP BY t1."hostCurrency", DATE_TRUNC('${timeUnit}', t1."createdAt"), ts."status"
+    ORDER BY DATE_TRUNC('${timeUnit}', t1."createdAt"), ts."status"`,
+    {
+      replacements: { CollectiveId: host.id, ...computeDates(startDate, endDate) },
+      type: sequelize.QueryTypes.SELECT,
+    },
+  );
+
+  const preparedTimeSeries = await convertCurrencyForTimeSeries(results, host.currency);
+  return preparedTimeSeries.map(point => ({ ...point, amount: Math.abs(point.amount) }));
 }
 
 export async function getPendingHostFeeShare(host, { startDate, endDate } = {}) {
