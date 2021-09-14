@@ -72,6 +72,12 @@ const TransactionsCollectionQuery = {
       type: GraphQLBoolean,
       description: 'Only return transactions with an Order attached',
     },
+    includeRegularTransactions: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      defaultValue: true,
+      description:
+        'Whether to include regular transactions from the account (turn false if you only want Incognito or Gift Card transactions)',
+    },
     includeIncognitoTransactions: {
       type: new GraphQLNonNull(GraphQLBoolean),
       defaultValue: false,
@@ -121,7 +127,11 @@ const TransactionsCollectionQuery = {
     );
 
     if (fromAccount) {
-      const fromAccountCondition = [fromAccount.id];
+      const fromAccountCondition = [];
+
+      if (args.includeRegularTransactions) {
+        fromAccountCondition.push(fromAccount.id);
+      }
 
       if (args.includeChildrenTransactions) {
         const childIds = await fromAccount.getChildren().then(children => children.map(child => child.id));
@@ -157,7 +167,11 @@ const TransactionsCollectionQuery = {
     }
 
     if (account) {
-      const accountCondition = [account.id];
+      const accountCondition = [];
+
+      if (args.includeRegularTransactions) {
+        accountCondition.push(account.id);
+      }
 
       if (args.includeChildrenTransactions) {
         const childIds = await account.getChildren().then(children => children.map(child => child.id));
