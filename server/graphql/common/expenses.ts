@@ -617,7 +617,7 @@ export async function createExpense(
     await fromCollective.update({
       address: expenseData.payeeLocation.address,
       countryISO: expenseData.payeeLocation.country,
-      settings: { ...fromCollective.settings, address: expenseData.payeeLocation.structured },
+      data: { ...fromCollective.data, address: expenseData.payeeLocation.structured },
     });
   }
 

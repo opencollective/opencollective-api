@@ -490,7 +490,7 @@ function defineModel() {
             name: this.locationName,
             address: this.address,
             country: this.countryISO,
-            structured: this.settings?.address,
+            structured: this.data?.address,
             lat: this.geoLocationLatLong?.coordinates?.[0],
             long: this.geoLocationLatLong?.coordinates?.[1],
           };
