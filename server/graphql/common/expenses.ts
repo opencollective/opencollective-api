@@ -23,6 +23,7 @@ import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile';
 import { ExpenseItem } from '../../models/ExpenseItem';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import paymentProviders from '../../paymentProviders';
+import { RecipientAccount as BankAccountPayoutMethodData } from '../../types/transferwise';
 import { BadRequest, FeatureNotAllowedForUser, Forbidden, NotFound, Unauthorized, ValidationFailed } from '../errors';
 
 const debug = debugLib('expenses');
@@ -627,9 +628,10 @@ export async function createExpense(
   // Create and validate TransferWise recipient
   let recipient;
   if (payoutMethod?.type === PayoutMethodTypes.BANK_ACCOUNT) {
+    const payoutMethodData = <BankAccountPayoutMethodData>payoutMethod.data;
     if (
       expenseData.fromCollective.legalName &&
-      payoutMethod.data?.accountHolderName !== expenseData.fromCollective.legalName
+      payoutMethodData?.accountHolderName !== expenseData.fromCollective.legalName
     ) {
       throw new Error('The legal name should match the bank account holder name');
     }
