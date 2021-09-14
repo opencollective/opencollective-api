@@ -149,7 +149,7 @@ describe('server/models/Notification', () => {
 
       // host admin pays the expense
       await expense.setPaid(hostAdmin.id);
-      await utils.waitForCondition(() => emailSendMessageSpy.callCount === 1, {
+      await utils.waitForCondition(() => emailSendMessageSpy.callCount > 0, {
         tag: '$100.00 from webpack for pizza',
       });
       expect(emailSendMessageSpy.callCount).to.equal(1);
