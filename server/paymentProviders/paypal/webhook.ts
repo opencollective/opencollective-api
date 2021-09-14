@@ -120,12 +120,13 @@ async function handleSaleCompleted(req: Request): Promise<void> {
   // 3. Mark order/subscription as active
   if (order.status !== OrderStatus.ACTIVE) {
     await order.update({ status: OrderStatus.ACTIVE, processedAt: new Date() });
-    await order.Subscription.update({
-      chargeNumber: (order.Subscription.chargeNumber || 0) + 1,
-      nextChargeDate: moment().add(1, order.interval),
-      isActive: true,
-    });
   }
+
+  await order.Subscription.update({
+    chargeNumber: (order.Subscription.chargeNumber || 0) + 1,
+    nextChargeDate: moment().add(1, order.interval),
+    isActive: true,
+  });
 
   // 4. Send thankyou email
   const isFirstPayment = order.Subscription.chargeNumber === 1;
@@ -251,6 +252,7 @@ async function handleSubscriptionCancelled(req: Request): Promise<void> {
     await order.Subscription.update({
       isActive: false,
       deactivatedAt: new Date(),
+      nextChargeDate: null,
     });
   }
 }
