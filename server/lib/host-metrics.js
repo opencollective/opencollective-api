@@ -163,23 +163,20 @@ GROUP BY t1."hostCurrency"`,
     );
   }
 
-  let legacyResults = [];
-  const newHostFeeIntroductionDate = new Date('2021-01-01T00:00:00.000Z');
-  if (startDate < newHostFeeIntroductionDate) {
-    legacyResults = await sequelize.query(
-      `SELECT SUM(t1."hostFeeInHostCurrency") as "_amount", t1."hostCurrency" as "_currency"
+  // TODO(Ledger): We should only run the query below if startDate < newHostFeeDeployDate
+  const legacyResults = await sequelize.query(
+    `SELECT SUM(t1."hostFeeInHostCurrency") as "_amount", t1."hostCurrency" as "_currency"
 FROM "Transactions" as t1
 WHERE t1."HostCollectiveId" = :HostCollectiveId
 AND t1."createdAt" >= :startDate AND t1."createdAt" <= :endDate
 AND NOT (t1."type" = 'DEBIT' AND t1."kind" = 'ADDED_FUNDS')
 AND t1."deletedAt" IS NULL
 GROUP BY t1."hostCurrency"`,
-      {
-        replacements: { HostCollectiveId: host.id, ...computeDates(startDate, endDate) },
-        type: sequelize.QueryTypes.SELECT,
-      },
-    );
-  }
+    {
+      replacements: { HostCollectiveId: host.id, ...computeDates(startDate, endDate) },
+      type: sequelize.QueryTypes.SELECT,
+    },
+  );
 
   let total = await computeTotal(legacyResults, host.currency);
 
