@@ -28,6 +28,8 @@ import { HostMetricsTimeSeries } from './HostMetricsTimeSeries';
 import { HostPlan } from './HostPlan';
 import { PaymentMethod } from './PaymentMethod';
 import PayoutMethod from './PayoutMethod';
+import {ContributionStats} from "./ContributionStats";
+import {ExpenseStats} from "./ExpenseStats";
 
 export const Host = new GraphQLObjectType({
   name: 'Host',
@@ -437,6 +439,46 @@ export const Host = new GraphQLObjectType({
           };
         },
       },
+      contributionStats: {
+        type: new GraphQLNonNull(ContributionStats),
+        args: {
+          accounts: { type: new GraphQLList(new GraphQLNonNull(AccountReferenceInput)), description: 'A collection of accounts for which the contribution stats should be returned.' },
+          from: {
+            type: GraphQLString,
+            description: "Inferior date limit in which we're calculating the contribution stats",
+          },
+          to: {
+            type: GraphQLString,
+            description: "Superior date limit in which we're calculating the contribution stats",
+          },
+        },
+        async resolve(host, args, req) {
+          console.log(args);
+          if (!req.remoteUser?.isAdmin(host.id)) {
+            throw new Unauthorized('You need to be logged in as an admin of the host to see the contribution stats.');
+          }
+        }
+      },
+      expenseStats: {
+        type: new GraphQLNonNull(ExpenseStats),
+        args: {
+          accounts: { type: new GraphQLList(new GraphQLNonNull(AccountReferenceInput)), description: 'A collection of accounts for which the expense stats should be returned.' },
+          from: {
+            type: GraphQLString,
+            description: "Inferior date limit in which we're calculating the expense stats",
+          },
+          to: {
+            type: GraphQLString,
+            description: "Superior date limit in which we're calculating the expense stats",
+          },
+        },
+        async resolve(host, args, req) {
+          console.log(args);
+          if (!req.remoteUser?.isAdmin(host.id)) {
+            throw new Unauthorized('You need to be logged in as an admin of the host to see the expense stats.');
+          }
+        }
+      }
     };
   },
 });
