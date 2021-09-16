@@ -1473,6 +1473,11 @@ Contribution statistics related to the given accounts
 """
 type ContributionStats {
   """
+  The total number of contributions
+  """
+  numContributions: Int
+
+  """
   Number of one time contributions
   """
   numOneTime: Int
@@ -1485,7 +1490,7 @@ type ContributionStats {
   """
   The daily average income
   """
-  dailyAvgIncome: Int
+  dailyAvgIncome: Float
 }
 
 """
@@ -4139,9 +4144,14 @@ Expense statistics related to the given accounts
 """
 type ExpenseStats {
   """
+  The total number of expenses
+  """
+  numExpenses: Int
+
+  """
   The daily average paid in expenses
   """
-  dailyAverage: Int
+  dailyAverage: Float
 
   """
   Number of invoices
@@ -5075,7 +5085,7 @@ type Host implements Account & AccountWithContributions {
     """
     A collection of accounts for which the contribution stats should be returned.
     """
-    accounts: [AccountReferenceInput!]!
+    accounts: [AccountReferenceInput!]
 
     """
     Inferior date limit in which we're calculating the contribution stats
@@ -5091,7 +5101,7 @@ type Host implements Account & AccountWithContributions {
     """
     A collection of accounts for which the expense stats should be returned.
     """
-    accounts: [AccountReferenceInput!]!
+    accounts: [AccountReferenceInput!]
 
     """
     Inferior date limit in which we're calculating the expense stats

@@ -3,6 +3,7 @@ import { GraphQLDateTime } from 'graphql-iso-date';
 import { find, get, isEmpty, keyBy, mapValues, pick } from 'lodash';
 
 import { types as CollectiveType, types as CollectiveTypes } from '../../../constants/collectives';
+import expenseType from '../../../constants/expense_type';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import { FEATURE, hasFeature } from '../../../lib/allowed-features';
 import models, { Op, sequelize } from '../../../models';
@@ -23,13 +24,25 @@ import { CollectionArgs } from '../interface/Collection';
 import URL from '../scalar/URL';
 
 import { Amount } from './Amount';
+import { ContributionStats } from './ContributionStats';
+import { ExpenseStats } from './ExpenseStats';
 import { HostMetrics } from './HostMetrics';
 import { HostMetricsTimeSeries } from './HostMetricsTimeSeries';
 import { HostPlan } from './HostPlan';
 import { PaymentMethod } from './PaymentMethod';
 import PayoutMethod from './PayoutMethod';
-import {ContributionStats} from "./ContributionStats";
-import {ExpenseStats} from "./ExpenseStats";
+
+const dateRangeHelper = (startDate, endDate) => {
+  let dateRange;
+  if (startDate && endDate) {
+    dateRange = { [Op.gte]: startDate, [Op.lt]: endDate };
+  } else if (startDate) {
+    dateRange = { [Op.gte]: startDate };
+  } else if (endDate) {
+    dateRange = { [Op.lt]: endDate };
+  }
+  return dateRange;
+};
 
 export const Host = new GraphQLObjectType({
   name: 'Host',
@@ -442,7 +455,10 @@ export const Host = new GraphQLObjectType({
       contributionStats: {
         type: new GraphQLNonNull(ContributionStats),
         args: {
-          accounts: { type: new GraphQLList(new GraphQLNonNull(AccountReferenceInput)), description: 'A collection of accounts for which the contribution stats should be returned.' },
+          accounts: {
+            type: new GraphQLList(new GraphQLNonNull(AccountReferenceInput)),
+            description: 'A collection of accounts for which the contribution stats should be returned.',
+          },
           from: {
             type: GraphQLString,
             description: "Inferior date limit in which we're calculating the contribution stats",
@@ -453,16 +469,47 @@ export const Host = new GraphQLObjectType({
           },
         },
         async resolve(host, args, req) {
-          console.log(args);
           if (!req.remoteUser?.isAdmin(host.id)) {
             throw new Unauthorized('You need to be logged in as an admin of the host to see the contribution stats.');
           }
-        }
+          const where = { HostCollectiveId: host.id, kind: 'CONTRIBUTION' };
+          const dateRange = dateRangeHelper(args.from, args.to);
+          if (dateRange) {
+            where.createdAt = dateRange;
+          }
+          if (args.accounts) {
+            const collectiveIds = args.accounts.map(account => account.legacyId);
+            where.CollectiveId = { [Op.in]: collectiveIds };
+          }
+          const contributions = await models.Transaction.findAndCountAll({
+            where,
+          });
+          const numOneTime = await models.Transaction.count({
+            where,
+            include: [{ model: models.Order, where: { interval: null } }],
+          });
+          const numRecurring = await models.Transaction.count({
+            where,
+            include: [{ model: models.Order, where: { interval: { [Op.ne]: null }, status: 'ACTIVE' } }],
+          });
+          const dailyAvgIncome =
+            contributions.rows.map(contribution => contribution.amount).reduce((result, item) => result + item, 0) /
+              contributions.count || 0;
+          return {
+            numContributions: contributions.count,
+            numOneTime,
+            numRecurring,
+            dailyAvgIncome,
+          };
+        },
       },
       expenseStats: {
         type: new GraphQLNonNull(ExpenseStats),
         args: {
-          accounts: { type: new GraphQLList(new GraphQLNonNull(AccountReferenceInput)), description: 'A collection of accounts for which the expense stats should be returned.' },
+          accounts: {
+            type: new GraphQLList(new GraphQLNonNull(AccountReferenceInput)),
+            description: 'A collection of accounts for which the expense stats should be returned.',
+          },
           from: {
             type: GraphQLString,
             description: "Inferior date limit in which we're calculating the expense stats",
@@ -473,12 +520,45 @@ export const Host = new GraphQLObjectType({
           },
         },
         async resolve(host, args, req) {
-          console.log(args);
           if (!req.remoteUser?.isAdmin(host.id)) {
             throw new Unauthorized('You need to be logged in as an admin of the host to see the expense stats.');
           }
-        }
-      }
+          const where = { HostCollectiveId: host.id, kind: 'EXPENSE' };
+          const dateRange = dateRangeHelper(args.from, args.to);
+          if (dateRange) {
+            where.createdAt = dateRange;
+          }
+          if (args.accounts) {
+            const collectiveIds = args.accounts.map(account => account.legacyId);
+            where.CollectiveId = { [Op.in]: collectiveIds };
+          }
+          const expenses = await models.Transaction.findAndCountAll({
+            where,
+          });
+          const numInvoices = await models.Transaction.count({
+            where,
+            include: [{ model: models.Expense, where: { type: expenseType.INVOICE } }],
+          });
+          const numReimbursements = await models.Transaction.count({
+            where,
+            include: [{ model: models.Expense, where: { type: expenseType.RECEIPT } }],
+          });
+          const numGrants = await models.Transaction.count({
+            where,
+            include: [{ model: models.Expense, where: { type: expenseType.FUNDING_REQUEST } }],
+          });
+          const dailyAverage =
+            Math.abs(expenses.rows.map(expense => expense.amount).reduce((result, item) => result + item, 0)) /
+              expenses.count || 0;
+          return {
+            numExpenses: expenses.count,
+            numInvoices,
+            numReimbursements,
+            numGrants,
+            dailyAverage,
+          };
+        },
+      },
     };
   },
 });

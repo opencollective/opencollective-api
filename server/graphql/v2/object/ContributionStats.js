@@ -1,4 +1,4 @@
-import { GraphQLInt, GraphQLObjectType } from 'graphql';
+import { GraphQLFloat, GraphQLInt, GraphQLObjectType } from 'graphql';
 
 export const ContributionStats = new GraphQLObjectType({
   name: 'ContributionStats',
@@ -7,6 +7,6 @@ export const ContributionStats = new GraphQLObjectType({
     numContributions: { type: GraphQLInt, description: 'The total number of contributions' },
     numOneTime: { type: GraphQLInt, description: 'Number of one time contributions' },
     numRecurring: { type: GraphQLInt, description: 'Number of recurring contributions' },
-    dailyAvgIncome: { type: GraphQLInt, description: 'The daily average income' },
+    dailyAvgIncome: { type: GraphQLFloat, description: 'The daily average income' },
   }),
 });
