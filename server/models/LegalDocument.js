@@ -4,12 +4,14 @@ export const LEGAL_DOCUMENT_TYPE = {
   US_TAX_FORM: 'US_TAX_FORM',
 };
 
-function defineModel() {
-  const NOT_REQUESTED = 'NOT_REQUESTED';
-  const REQUESTED = 'REQUESTED';
-  const RECEIVED = 'RECEIVED';
-  const ERROR = 'ERROR';
+export const LEGAL_DOCUMENT_REQUEST_STATUS = {
+  NOT_REQUESTED: 'NOT_REQUESTED',
+  REQUESTED: 'REQUESTED',
+  RECEIVED: 'RECEIVED',
+  ERROR: 'ERROR',
+};
 
+function defineModel() {
   const LegalDocument = sequelize.define(
     'LegalDocument',
     {
@@ -39,9 +41,9 @@ function defineModel() {
       },
       requestStatus: {
         type: DataTypes.ENUM,
-        values: [NOT_REQUESTED, REQUESTED, RECEIVED, ERROR],
+        values: Object.values(LEGAL_DOCUMENT_REQUEST_STATUS),
         allowNull: false,
-        defaultValue: NOT_REQUESTED,
+        defaultValue: LEGAL_DOCUMENT_REQUEST_STATUS.NOT_REQUESTED,
       },
       createdAt: {
         type: DataTypes.DATE,
@@ -82,15 +84,13 @@ function defineModel() {
   };
 
   LegalDocument.prototype.shouldBeRequested = function () {
-    return this.requestStatus === NOT_REQUESTED || this.requestStatus === ERROR;
+    return (
+      this.requestStatus === LEGAL_DOCUMENT_REQUEST_STATUS.NOT_REQUESTED ||
+      this.requestStatus === LEGAL_DOCUMENT_REQUEST_STATUS.ERROR
+    );
   };
 
-  LegalDocument.requestStatus = {
-    REQUESTED,
-    NOT_REQUESTED,
-    RECEIVED,
-    ERROR,
-  };
+  LegalDocument.requestStatus = LEGAL_DOCUMENT_REQUEST_STATUS;
 
   return LegalDocument;
 }

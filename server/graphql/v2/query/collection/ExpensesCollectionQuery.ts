@@ -5,7 +5,6 @@ import { isEmpty, partition } from 'lodash';
 
 import { expenseStatus } from '../../../../constants';
 import EXPENSE_TYPE from '../../../../constants/expense_type';
-import { US_TAX_FORM_THRESHOLD } from '../../../../constants/tax-form';
 import { getBalancesWithBlockedFunds } from '../../../../lib/budget';
 import queries from '../../../../lib/queries';
 import models, { Op, sequelize } from '../../../../models';
@@ -48,20 +47,8 @@ const updateFilterConditionsForReadyToPay = async (where, include): Promise<void
   // Check tax forms
   const taxFormConditions = [];
   if (expensesSubjectToTaxForm.length > 0) {
-    const taxFormResults = await queries.getTaxFormsRequiredForExpenses(results.map(e => e.id));
-    const expensesWithPendingTaxForm = [];
-
-    taxFormResults.forEach(result => {
-      if (
-        result.requiredDocument &&
-        result.total >= US_TAX_FORM_THRESHOLD &&
-        result.legalDocRequestStatus !== models.LegalDocument.requestStatus.RECEIVED
-      ) {
-        expensesWithPendingTaxForm.push(result.expenseId);
-      }
-    });
-
-    taxFormConditions.push({ id: { [Op.notIn]: expensesWithPendingTaxForm } });
+    const expensesIdsPendingTaxForms = await queries.getTaxFormsRequiredForExpenses(results.map(e => e.id));
+    taxFormConditions.push({ id: { [Op.notIn]: Array.from(expensesIdsPendingTaxForms) } });
   }
 
   if (taxFormConditions.length) {

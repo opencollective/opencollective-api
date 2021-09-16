@@ -10,11 +10,6 @@ import { LEGAL_DOCUMENT_TYPE } from '../../models/LegalDocument';
 
 import { sortResultsArray } from './helpers';
 
-const THRESHOLD = 600e2;
-const {
-  requestStatus: { RECEIVED },
-} = models.LegalDocument;
-
 /**
  * Loader for expense's items.
  */
@@ -83,23 +78,13 @@ export const attachedFiles = (): DataLoader<number, ExpenseAttachedFile[]> => {
   });
 };
 
-const loadTaxFormsRequiredForExpenses = async (expenseIds: number[]): Promise<Record<string, unknown>> => {
-  const expenses = await queries.getTaxFormsRequiredForExpenses(expenseIds);
-  const expenseNeedsTaxForm = {};
-  expenses.forEach(expense => {
-    expenseNeedsTaxForm[expense.expenseId] =
-      expense.requiredDocument && expense.total >= THRESHOLD && expense.legalDocRequestStatus !== RECEIVED;
-  });
-  return expenseNeedsTaxForm;
-};
-
 /**
  * Expense loader to check if userTaxForm is required before expense payment
  */
 export const userTaxFormRequiredBeforePayment = (): DataLoader<number, boolean> => {
   return new DataLoader<number, boolean>(async (expenseIds: number[]): Promise<boolean[]> => {
-    const expenseNeedsTaxForm = await loadTaxFormsRequiredForExpenses(expenseIds);
-    return expenseIds.map(id => Boolean(expenseNeedsTaxForm[id]));
+    const expenseIdsPendingTaxForm = await queries.getTaxFormsRequiredForExpenses(expenseIds);
+    return expenseIds.map(id => expenseIdsPendingTaxForm.has(id));
   });
 };
 
@@ -108,7 +93,7 @@ export const userTaxFormRequiredBeforePayment = (): DataLoader<number, boolean> 
  */
 export const requiredLegalDocuments = (): DataLoader<number, string[]> => {
   return new DataLoader(async (expenseIds: number[]) => {
-    const expenseNeedsTaxForm = await loadTaxFormsRequiredForExpenses(expenseIds);
-    return expenseIds.map(id => (expenseNeedsTaxForm[id] ? [LEGAL_DOCUMENT_TYPE.US_TAX_FORM] : []));
+    const expenseIdsPendingTaxForm = await queries.getTaxFormsRequiredForExpenses(expenseIds);
+    return expenseIds.map(id => (expenseIdsPendingTaxForm.has(id) ? [LEGAL_DOCUMENT_TYPE.US_TAX_FORM] : []));
   });
 };

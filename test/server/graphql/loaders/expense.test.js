@@ -5,7 +5,7 @@ import { loaders } from '../../../../server/graphql/loaders';
 import { requiredLegalDocuments, userTaxFormRequiredBeforePayment } from '../../../../server/graphql/loaders/expenses';
 import models from '../../../../server/models';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../server/models/LegalDocument';
-import { fakeCollective, fakeExpense, fakeHost, fakeUser } from '../../../test-helpers/fake-data';
+import { fakeCollective, fakeExpense, fakeHost, fakePayoutMethod, fakeUser } from '../../../test-helpers/fake-data';
 import { resetTestDB } from '../../../utils';
 
 const US_TAX_FORM_THRESHOLD = 600e2;
@@ -23,7 +23,12 @@ const fakeHostWithRequiredLegalDocument = async (hostData = {}) => {
 };
 
 describe('server/graphql/loaders/expense', () => {
-  before(resetTestDB);
+  let otherPayoutMethod;
+
+  before(async () => {
+    await resetTestDB();
+    otherPayoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+  });
 
   describe('userTaxFormRequiredBeforePayment', () => {
     const req = {};
@@ -43,6 +48,7 @@ describe('server/graphql/loaders/expense', () => {
           amount: US_TAX_FORM_THRESHOLD + 1,
           CollectiveId: collective.id,
           type: 'INVOICE',
+          PayoutMethodId: otherPayoutMethod.id,
         });
         const result = await loader.load(expenseWithUserTaxForm.id);
         expect(result).to.be.true;
@@ -57,6 +63,7 @@ describe('server/graphql/loaders/expense', () => {
           FromCollectiveId: user.CollectiveId,
           UserId: user.id,
           type: 'INVOICE',
+          PayoutMethodId: otherPayoutMethod.id,
         });
         const secondExpense = await fakeExpense({
           amount: 200,
@@ -64,6 +71,7 @@ describe('server/graphql/loaders/expense', () => {
           FromCollectiveId: user.CollectiveId,
           UserId: user.id,
           type: 'INVOICE',
+          PayoutMethodId: otherPayoutMethod.id,
         });
         const result1 = await loader.load(firstExpense.id);
         const result2 = await loader.load(secondExpense.id);
@@ -80,6 +88,7 @@ describe('server/graphql/loaders/expense', () => {
           FromCollectiveId: user.CollectiveId,
           UserId: user.id,
           type: 'INVOICE',
+          PayoutMethodId: otherPayoutMethod.id,
         });
         await models.LegalDocument.create({
           year: parseInt(new Date().toISOString().split('-')) - 4,
@@ -100,6 +109,7 @@ describe('server/graphql/loaders/expense', () => {
           amount: US_TAX_FORM_THRESHOLD - 100,
           CollectiveId: collective.id,
           type: 'INVOICE',
+          PayoutMethodId: otherPayoutMethod.id,
         });
         const result = await loader.load(expenseWithOutUserTaxForm.id);
         expect(result).to.be.false;
@@ -114,6 +124,7 @@ describe('server/graphql/loaders/expense', () => {
           FromCollectiveId: user.CollectiveId,
           UserId: user.id,
           type: 'INVOICE',
+          PayoutMethodId: otherPayoutMethod.id,
         });
         await models.LegalDocument.create({
           year: parseInt(new Date().toISOString().split('-')),
@@ -135,6 +146,7 @@ describe('server/graphql/loaders/expense', () => {
           FromCollectiveId: user.CollectiveId,
           UserId: user.id,
           type: 'INVOICE',
+          PayoutMethodId: otherPayoutMethod.id,
         });
         await models.LegalDocument.create({
           year: parseInt(new Date().toISOString().split('-')) - 1,
@@ -149,7 +161,7 @@ describe('server/graphql/loaders/expense', () => {
 
       it('When host does not have requiredLegalDocument', async () => {
         const loader = userTaxFormRequiredBeforePayment({ loaders: loaders(req) });
-        const expenseWithOutUserTaxForm = await fakeExpense({ type: 'INVOICE' });
+        const expenseWithOutUserTaxForm = await fakeExpense({ type: 'INVOICE', PayoutMethodId: otherPayoutMethod.id });
         const result = await loader.load(expenseWithOutUserTaxForm.id);
         expect(result).to.be.false;
       });
@@ -160,6 +172,7 @@ describe('server/graphql/loaders/expense', () => {
           type: 'RECEIPT',
           CollectiveId: collective.id,
           amount: US_TAX_FORM_THRESHOLD + 100,
+          PayoutMethodId: otherPayoutMethod.id,
         });
         const result = await loader.load(expense1.id);
         expect(result).to.be.false;
@@ -171,16 +184,19 @@ describe('server/graphql/loaders/expense', () => {
           type: 'INVOICE',
           CollectiveId: collective.id,
           amount: US_TAX_FORM_THRESHOLD + 100,
+          PayoutMethodId: otherPayoutMethod.id,
         });
         const expense2 = await fakeExpense({
           type: 'UNCLASSIFIED',
           CollectiveId: collective.id,
           amount: US_TAX_FORM_THRESHOLD + 100,
+          PayoutMethodId: otherPayoutMethod.id,
         });
         const expense3 = await fakeExpense({
           type: 'FUNDING_REQUEST',
           CollectiveId: collective.id,
           amount: US_TAX_FORM_THRESHOLD + 100,
+          PayoutMethodId: otherPayoutMethod.id,
         });
         const result = await loader.load(expense1.id);
         expect(result).to.be.true;
@@ -200,6 +216,7 @@ describe('server/graphql/loaders/expense', () => {
           UserId: user.id,
           type: 'INVOICE',
           incurredAt: moment(new Date()).subtract(1, 'year').set('month', 11).set('date', 30),
+          PayoutMethodId: otherPayoutMethod.id,
         });
         const secondExpense = await fakeExpense({
           amount: 200,
@@ -207,6 +224,7 @@ describe('server/graphql/loaders/expense', () => {
           FromCollectiveId: user.CollectiveId,
           UserId: user.id,
           type: 'INVOICE',
+          PayoutMethodId: otherPayoutMethod.id,
         });
 
         const promises = [loader.load(firstExpense.id), loader.load(secondExpense.id)];
@@ -225,12 +243,14 @@ describe('server/graphql/loaders/expense', () => {
           CollectiveId: collectiveSameHost.id,
           FromCollectiveId: fromCollective.id,
           type: 'INVOICE',
+          PayoutMethodId: otherPayoutMethod.id,
         });
         const expenseUnderDifferentHost = await fakeExpense({
           amount: US_TAX_FORM_THRESHOLD + 1000,
           CollectiveId: collectiveDifferentHost.id,
           FromCollectiveId: fromCollective.id,
           type: 'INVOICE',
+          PayoutMethodId: otherPayoutMethod.id,
         });
 
         const result = await loader.loadMany([expenseUnderSameHost.id, expenseUnderDifferentHost.id]);
@@ -255,6 +275,7 @@ describe('server/graphql/loaders/expense', () => {
         CollectiveId: collective.id,
         type: 'INVOICE',
         status: 'APPROVED',
+        PayoutMethodId: otherPayoutMethod.id,
       });
 
       expenseWithOutUserTaxForm = await fakeExpense({
@@ -263,6 +284,7 @@ describe('server/graphql/loaders/expense', () => {
         CollectiveId: collective.id,
         amount: US_TAX_FORM_THRESHOLD - 100e2,
         status: 'APPROVED',
+        PayoutMethodId: otherPayoutMethod.id,
       });
 
       expenseWithTaxFormFromLastYear = await fakeExpense({
@@ -272,6 +294,7 @@ describe('server/graphql/loaders/expense', () => {
         type: 'INVOICE',
         incurredAt: new moment().subtract(1, 'year').toDate(),
         status: 'APPROVED',
+        PayoutMethodId: otherPayoutMethod.id,
       });
 
       // A fake expense to try to fool the previous results
@@ -281,6 +304,7 @@ describe('server/graphql/loaders/expense', () => {
         CollectiveId: (await fakeCollective()).id, // Host without tax form
         amount: US_TAX_FORM_THRESHOLD + 100e2,
         status: 'APPROVED',
+        PayoutMethodId: otherPayoutMethod.id,
       });
     });
 
