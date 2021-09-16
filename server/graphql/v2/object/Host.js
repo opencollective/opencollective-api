@@ -1,5 +1,6 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { find, get, isEmpty, keyBy, mapValues } from 'lodash';
+import { GraphQLDateTime } from 'graphql-iso-date';
+import { find, get, isEmpty, keyBy, mapValues, pick } from 'lodash';
 
 import { types as CollectiveType, types as CollectiveTypes } from '../../../constants/collectives';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
@@ -13,6 +14,7 @@ import { AccountCollection } from '../collection/AccountCollection';
 import { HostApplicationCollection } from '../collection/HostApplicationCollection';
 import { VirtualCardCollection } from '../collection/VirtualCardCollection';
 import { PaymentMethodLegacyType, PayoutMethodType } from '../enum';
+import { TimeUnit } from '../enum/TimeUnit';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
 import { Account, AccountFields } from '../interface/Account';
@@ -22,6 +24,7 @@ import URL from '../scalar/URL';
 
 import { Amount } from './Amount';
 import { HostMetrics } from './HostMetrics';
+import { HostMetricsTimeSeries } from './HostMetricsTimeSeries';
 import { HostPlan } from './HostPlan';
 import { PaymentMethod } from './PaymentMethod';
 import PayoutMethod from './PayoutMethod';
@@ -80,6 +83,26 @@ export const Host = new GraphQLObjectType({
           const metrics = await host.getHostMetrics(args?.from, args?.to);
           const toAmount = value => ({ value, currency: host.currency });
           return mapValues(metrics, (value, key) => (key.includes('Percent') ? value : toAmount(value)));
+        },
+      },
+      hostMetricsTimeSeries: {
+        type: new GraphQLNonNull(HostMetricsTimeSeries),
+        args: {
+          startDate: {
+            type: new GraphQLNonNull(GraphQLDateTime),
+            description: 'The start date of the time series',
+          },
+          endDate: {
+            type: new GraphQLNonNull(GraphQLDateTime),
+            description: 'The end date of the time series',
+          },
+          timeUnit: {
+            type: new GraphQLNonNull(TimeUnit),
+            description: 'The time unit of the time series',
+          },
+        },
+        async resolve(host, args) {
+          return { host, ...pick(args, ['startDate', 'endDate', 'timeUnit']) };
         },
       },
       supportedPaymentMethods: {
