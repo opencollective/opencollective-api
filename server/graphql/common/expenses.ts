@@ -631,7 +631,8 @@ export async function createExpense(
     const payoutMethodData = <BankAccountPayoutMethodData>payoutMethod.data;
     if (
       expenseData.fromCollective.legalName &&
-      payoutMethodData?.accountHolderName !== expenseData.fromCollective.legalName
+      payoutMethodData?.accountHolderName &&
+      payoutMethodData.accountHolderName.toLowerCase() !== (<string>expenseData.fromCollective.legalName).toLowerCase()
     ) {
       throw new Error('The legal name should match the bank account holder name');
     }
