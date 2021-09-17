@@ -206,6 +206,8 @@ const isTrustedLinkUrl = (url: string): boolean => {
   const trustedDomains = [
     new RegExp(`^(.+\\.)?${config.host.website.replace(/^https?:\/\//, '')}$`),
     /^(.+\.)?opencollective.com$/,
+    /^(.+\.)?opencollective.foundation$/,
+    /^(.+\.)?oscollective.org$/,
     /^(.+\.)?github.com$/,
     /^(.+\.)?meetup.com$/,
     /^(.+\.)?twitter.com$/,
