@@ -630,9 +630,10 @@ export async function createExpense(
   if (payoutMethod?.type === PayoutMethodTypes.BANK_ACCOUNT) {
     const payoutMethodData = <BankAccountPayoutMethodData>payoutMethod.data;
     if (
-      expenseData.fromCollective.legalName &&
-      payoutMethodData?.accountHolderName &&
-      payoutMethodData.accountHolderName.toLowerCase() !== (<string>expenseData.fromCollective.legalName).toLowerCase()
+      !isAccountHolderNameAndLegalNameMatch(
+        payoutMethodData?.accountHolderName,
+        <string>expenseData.fromCollective.legalName,
+      )
     ) {
       throw new Error('The legal name should match the bank account holder name');
     }
@@ -718,6 +719,39 @@ export const getItemsChanges = async (
   }
 };
 
+/*
+ * Validate the account holder name against the legal name. Following cases are considered a match,
+ *
+ * 1) Punctuation are ignored; "Evil Corp, Inc" and "Evil Corp, Inc." are considered a match.
+ * 2) Accents are ignored; "François" and "Francois" are considered a match.
+ * 3) The first name and last name order is ignored; "Benjamin Piouffle" and "Piouffle Benjamin" is considered a match.
+ * 4) If one of account holder name or legal name is not defined then this function returns true.
+ */
+export const isAccountHolderNameAndLegalNameMatch = (accountHolderName: string, legalName: string): boolean => {
+  if (legalName && accountHolderName) {
+    const namesArray = legalName.split(' ');
+    let legalNameReversed;
+    if (namesArray.length === 2) {
+      const firstName = namesArray[0];
+      const lastName = namesArray[1];
+      legalNameReversed = `${lastName} ${firstName}`;
+    }
+    if (
+      accountHolderName.localeCompare(legalName, undefined, {
+        sensitivity: 'base',
+        ignorePunctuation: true,
+      }) &&
+      accountHolderName.localeCompare(legalNameReversed, undefined, {
+        sensitivity: 'base',
+        ignorePunctuation: true,
+      })
+    ) {
+      return false;
+    }
+  }
+  return true;
+};
+
 export async function editExpense(
   req: express.Request,
   expenseData: ExpenseData,
@@ -795,6 +829,19 @@ export async function editExpense(
   );
 
   let payoutMethod = await expense.getPayoutMethod();
+
+  // Validate bank account payout method
+  if (payoutMethod?.type === PayoutMethodTypes.BANK_ACCOUNT) {
+    const payoutMethodData = <BankAccountPayoutMethodData>payoutMethod.data;
+    if (
+      !isAccountHolderNameAndLegalNameMatch(
+        payoutMethodData?.accountHolderName,
+        <string>expenseData.fromCollective.legalName,
+      )
+    ) {
+      throw new Error('The legal name should match the bank account holder name');
+    }
+  }
   const updatedExpense = await sequelize.transaction(async t => {
     // Update payout method if we get new data from one of the param for it
     if (
