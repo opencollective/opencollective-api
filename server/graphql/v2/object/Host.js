@@ -32,7 +32,7 @@ import { HostPlan } from './HostPlan';
 import { PaymentMethod } from './PaymentMethod';
 import PayoutMethod from './PayoutMethod';
 
-const dateRangeHelper = (startDate, endDate) => {
+const getFilterDateRange = (startDate, endDate) => {
   let dateRange;
   if (startDate && endDate) {
     dateRange = { [Op.gte]: startDate, [Op.lt]: endDate };
@@ -455,16 +455,16 @@ export const Host = new GraphQLObjectType({
       contributionStats: {
         type: new GraphQLNonNull(ContributionStats),
         args: {
-          accounts: {
+          account: {
             type: new GraphQLList(new GraphQLNonNull(AccountReferenceInput)),
             description: 'A collection of accounts for which the contribution stats should be returned.',
           },
-          from: {
-            type: GraphQLString,
+          dateFrom: {
+            type: GraphQLDateTime,
             description: "Inferior date limit in which we're calculating the contribution stats",
           },
-          to: {
-            type: GraphQLString,
+          dateTo: {
+            type: GraphQLDateTime,
             description: "Superior date limit in which we're calculating the contribution stats",
           },
         },
@@ -473,12 +473,12 @@ export const Host = new GraphQLObjectType({
             throw new Unauthorized('You need to be logged in as an admin of the host to see the contribution stats.');
           }
           const where = { HostCollectiveId: host.id, kind: 'CONTRIBUTION' };
-          const dateRange = dateRangeHelper(args.from, args.to);
+          const dateRange = getFilterDateRange(args.dateFrom, args.dateTo);
           if (dateRange) {
             where.createdAt = dateRange;
           }
-          if (args.accounts) {
-            const collectiveIds = args.accounts.map(account => account.legacyId);
+          if (args.account) {
+            const collectiveIds = args.account.map(account => account.legacyId);
             where.CollectiveId = { [Op.in]: collectiveIds };
           }
           const contributions = await models.Transaction.findAndCountAll({
@@ -506,16 +506,16 @@ export const Host = new GraphQLObjectType({
       expenseStats: {
         type: new GraphQLNonNull(ExpenseStats),
         args: {
-          accounts: {
+          account: {
             type: new GraphQLList(new GraphQLNonNull(AccountReferenceInput)),
             description: 'A collection of accounts for which the expense stats should be returned.',
           },
-          from: {
-            type: GraphQLString,
+          dateFrom: {
+            type: GraphQLDateTime,
             description: "Inferior date limit in which we're calculating the expense stats",
           },
-          to: {
-            type: GraphQLString,
+          dateTo: {
+            type: GraphQLDateTime,
             description: "Superior date limit in which we're calculating the expense stats",
           },
         },
@@ -524,12 +524,12 @@ export const Host = new GraphQLObjectType({
             throw new Unauthorized('You need to be logged in as an admin of the host to see the expense stats.');
           }
           const where = { HostCollectiveId: host.id, kind: 'EXPENSE' };
-          const dateRange = dateRangeHelper(args.from, args.to);
+          const dateRange = getFilterDateRange(args.dateFrom, args.dateTo);
           if (dateRange) {
             where.createdAt = dateRange;
           }
-          if (args.accounts) {
-            const collectiveIds = args.accounts.map(account => account.legacyId);
+          if (args.account) {
+            const collectiveIds = args.account.map(account => account.legacyId);
             where.CollectiveId = { [Op.in]: collectiveIds };
           }
           const expenses = await models.Transaction.findAndCountAll({
