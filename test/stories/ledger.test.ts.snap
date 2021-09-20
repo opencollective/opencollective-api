@@ -94,6 +94,20 @@ exports[`test/stories/ledger Level 1: Same currency (USD) 5. Refunded contributi
 | PLATFORM_TIP            | DEBIT  | -1000  | 0          | Ben    | OC Inc | NULL   |            | false    |"
 `;
 
+exports[`test/stories/ledger Level 1: Same currency (USD) 6. Expense with Payment Processor fees marked as unpaid 1`] = `
+"
+| kind                    | type   | amount  | paymentFee | To     | From   | Host | Settlement | isRefund |
+| ----------------------- | ------ | ------- | ---------- | ------ | ------ | ---- | ---------- | -------- |
+| EXPENSE                 | CREDIT | 100500  | 0          | ESLint | Ben    | OSC  |            | true     |
+| EXPENSE                 | DEBIT  | -100500 | 0          | Ben    | ESLint | NULL |            | true     |
+| PAYMENT_PROCESSOR_COVER | CREDIT | 500     | 0          | ESLint | OSC    | OSC  |            | true     |
+| PAYMENT_PROCESSOR_COVER | DEBIT  | -500    | 0          | OSC    | ESLint | OSC  |            | true     |
+| EXPENSE                 | CREDIT | 100500  | -500       | Ben    | ESLint | NULL |            | false    |
+| EXPENSE                 | DEBIT  | -100000 | -500       | ESLint | Ben    | OSC  |            | false    |
+| CONTRIBUTION            | CREDIT | 150000  | 0          | ESLint | Ben    | OSC  |            | false    |
+| CONTRIBUTION            | DEBIT  | -150000 | 0          | Ben    | ESLint | NULL |            | false    |"
+`;
+
 exports[`test/stories/ledger Level 2: Host with a different currency (Host=EUR, Collective=EUR) Refunded contribution with host fees, payment processor fees and indirect platform tip 1`] = `
 "
 | kind                    | type   | amount | currency | amountInHostCurrency | hostCurrency | paymentFee | To     | From   | Host   | Settlement | isRefund |

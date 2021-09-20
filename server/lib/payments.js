@@ -301,8 +301,12 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
         `Partial processor fees refunds are not supported, got ${refundedPaymentProcessorFee} for #${transaction.id}`,
       );
     } else if (transaction.paymentProcessorFeeInHostCurrency) {
+      // When refunding an Expense, we need to use the DEBIT transaction which is attached to the Collective and its Host.
+      const transactionToRefundPaymentProcessorFee = transaction.ExpenseId
+        ? await transaction.getRelatedTransaction({ type: DEBIT })
+        : transaction;
       // Host take at their charge the payment processor fee that is lost when refunding a transaction
-      await refundPaymentProcessorFeeToCollective(transaction, transactionGroup);
+      await refundPaymentProcessorFeeToCollective(transactionToRefundPaymentProcessorFee, transactionGroup);
     }
   }
 
