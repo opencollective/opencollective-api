@@ -461,11 +461,11 @@ export const Host = new GraphQLObjectType({
           },
           dateFrom: {
             type: GraphQLDateTime,
-            description: "Inferior date limit in which we're calculating the contribution stats",
+            description: 'Calculate contribution statistics beginning from this date.',
           },
           dateTo: {
             type: GraphQLDateTime,
-            description: "Superior date limit in which we're calculating the contribution stats",
+            description: 'Calculate contribution statistics until this date.',
           },
         },
         async resolve(host, args, req) {
@@ -484,22 +484,22 @@ export const Host = new GraphQLObjectType({
           const contributions = await models.Transaction.findAndCountAll({
             where,
           });
-          const numOneTime = await models.Transaction.count({
+          const oneTimeContributionsCount = await models.Transaction.count({
             where,
             include: [{ model: models.Order, where: { interval: null } }],
           });
-          const numRecurring = await models.Transaction.count({
+          const recurringContributionsCount = await models.Transaction.count({
             where,
             include: [{ model: models.Order, where: { interval: { [Op.ne]: null }, status: 'ACTIVE' } }],
           });
-          const dailyAvgIncome =
+          const dailyAverageIncomeAmount =
             contributions.rows.map(contribution => contribution.amount).reduce((result, item) => result + item, 0) /
               contributions.count || 0;
           return {
-            numContributions: contributions.count,
-            numOneTime,
-            numRecurring,
-            dailyAvgIncome,
+            contributionsCount: contributions.count,
+            oneTimeContributionsCount,
+            recurringContributionsCount,
+            dailyAverageIncomeAmount,
           };
         },
       },
@@ -512,11 +512,11 @@ export const Host = new GraphQLObjectType({
           },
           dateFrom: {
             type: GraphQLDateTime,
-            description: "Inferior date limit in which we're calculating the expense stats",
+            description: 'Calculate expense statistics beginning from this date.',
           },
           dateTo: {
             type: GraphQLDateTime,
-            description: "Superior date limit in which we're calculating the expense stats",
+            description: 'Calculate expense statistics until this date.',
           },
         },
         async resolve(host, args, req) {
@@ -535,27 +535,27 @@ export const Host = new GraphQLObjectType({
           const expenses = await models.Transaction.findAndCountAll({
             where,
           });
-          const numInvoices = await models.Transaction.count({
+          const invoicesCount = await models.Transaction.count({
             where,
             include: [{ model: models.Expense, where: { type: expenseType.INVOICE } }],
           });
-          const numReimbursements = await models.Transaction.count({
+          const reimbursementsCount = await models.Transaction.count({
             where,
             include: [{ model: models.Expense, where: { type: expenseType.RECEIPT } }],
           });
-          const numGrants = await models.Transaction.count({
+          const grantsCount = await models.Transaction.count({
             where,
             include: [{ model: models.Expense, where: { type: expenseType.FUNDING_REQUEST } }],
           });
-          const dailyAverage =
+          const dailyAverageAmount =
             Math.abs(expenses.rows.map(expense => expense.amount).reduce((result, item) => result + item, 0)) /
               expenses.count || 0;
           return {
-            numExpenses: expenses.count,
-            numInvoices,
-            numReimbursements,
-            numGrants,
-            dailyAverage,
+            expensesCount: expenses.count,
+            invoicesCount,
+            reimbursementsCount,
+            grantsCount,
+            dailyAverageAmount,
           };
         },
       },
