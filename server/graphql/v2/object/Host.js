@@ -73,14 +73,24 @@ export const Host = new GraphQLObjectType({
           from: {
             type: GraphQLString,
             description: "Inferior date limit in which we're calculating the metrics",
+            deprecationReason: '2020-09-20: Use dateFrom',
           },
           to: {
             type: GraphQLString,
             description: "Superior date limit in which we're calculating the metrics",
+            deprecationReason: '2020-09-20: Use dateTo',
+          },
+          dateFrom: {
+            type: GraphQLDateTime,
+            description: 'The start date of the time series',
+          },
+          dateTo: {
+            type: GraphQLDateTime,
+            description: 'The end date of the time series',
           },
         },
         async resolve(host, args) {
-          const metrics = await host.getHostMetrics(args?.from, args?.to);
+          const metrics = await host.getHostMetrics(args.dateFrom || args.from, args.dateTo || args.to);
           const toAmount = value => ({ value, currency: host.currency });
           return mapValues(metrics, (value, key) => (key.includes('Percent') ? value : toAmount(value)));
         },
@@ -88,11 +98,11 @@ export const Host = new GraphQLObjectType({
       hostMetricsTimeSeries: {
         type: new GraphQLNonNull(HostMetricsTimeSeries),
         args: {
-          startDate: {
+          dateFrom: {
             type: new GraphQLNonNull(GraphQLDateTime),
             description: 'The start date of the time series',
           },
-          endDate: {
+          dateTo: {
             type: new GraphQLNonNull(GraphQLDateTime),
             description: 'The end date of the time series',
           },
@@ -102,7 +112,7 @@ export const Host = new GraphQLObjectType({
           },
         },
         async resolve(host, args) {
-          return { host, ...pick(args, ['startDate', 'endDate', 'timeUnit']) };
+          return { host, ...pick(args, ['dateFrom', 'dateTo', 'timeUnit']) };
         },
       },
       supportedPaymentMethods: {

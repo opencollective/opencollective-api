@@ -4,11 +4,11 @@ import { GraphQLDateTime } from 'graphql-iso-date';
 import { TimeUnit } from '../enum/TimeUnit';
 
 export const getTimeSeriesFields = () => ({
-  startDate: {
+  dateFrom: {
     type: new GraphQLNonNull(GraphQLDateTime),
     description: 'The start date of the time series',
   },
-  endDate: {
+  dateTo: {
     type: new GraphQLNonNull(GraphQLDateTime),
     description: 'The end date of the time series',
   },
